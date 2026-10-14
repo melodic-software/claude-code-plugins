@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n{\n  \"schema\": \"audit-sessions.sweep/v1\",\n  \"status\": \"error\",\n  \"summary\": \"no audit-sessions store under /d; run collect first\",\n  \"data\": {}\n}\n```\nExit code: 3\nRunning /session-flow:audit-sessions creates the store.",
+      "why": "verbatim envelope"
+    },
+    {
+      "answer": "{\"schema\":\"audit-sessions.sweep/v1\",\"status\":\"pass\",\"summary\":\"12 sessions\",\"data\":{}}\nexit 0",
+      "why": "compact envelope"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The sweep returned schema audit-sessions.sweep/v1 with status error; no store exists yet.",
+      "why": "paraphrased, no envelope"
+    },
+    {
+      "answer": "{\"schema\": \"audit-sessions.sweep/v2\", \"status\": \"pass\"}",
+      "why": "wrong schema version"
+    },
+    {
+      "answer": "No store yet. Run /session-flow:audit-sessions to collect first.",
+      "why": "no envelope at all"
+    }
+  ]
+}

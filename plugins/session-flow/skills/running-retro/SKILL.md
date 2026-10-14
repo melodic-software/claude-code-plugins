@@ -1,5 +1,5 @@
 ---
-description: "Take a mid-session retro checkpoint: a subagent files findings from the transcript so far into a running ledger, routed, never applied; `arm` runs it after the session ends. Use when: 'running retro', 'live retro', 'in-flight retro', 'checkpoint this session', 'how is this session going', 'observe the session so far', 'arm the observer', 'watch this session in the background', 'observe this session after it ends', or on a /loop interval. Scoring and codifying are /session-flow:retro."
+description: "Mid-session retro checkpoint: a subagent files findings from the transcript so far into a running ledger, routed, never applied; `arm` runs it after the session ends. Use when: 'running retro', 'live retro', 'in-flight retro', 'checkpoint this session', 'how is this session going', 'observe the session so far', 'arm the observer', 'watch this session in the background', 'observe this session after it ends', or on a /loop interval. Scoring and codifying are /session-flow:retro."
 argument-hint: "[topic|arm]"
 user-invocable: true
 disable-model-invocation: false
@@ -32,9 +32,8 @@ performed automatically.
 ## Siblings. Pick the right one
 
 - **`/session-flow:retro`**. End-of-session full retrospective: five scored dimensions, feedback
-  regression check, codification of approved learnings. running-retro is its live counterpart:
-  same act (retrospective), different cadence (mid-flight, cumulative), and it deliberately drops
-  scoring and codification.
+  regression check, codification of approved learnings. running-retro is its live, cumulative
+  counterpart, without scoring or codification.
 - **`/session-flow:handoff`**, a save-point that ends the session for `/clear`. running-retro is
   **non-terminating**: it observes and the session keeps going.
 
@@ -42,11 +41,10 @@ performed automatically.
 
 No arming at session start for the default in-session checkpoint. The session transcript on disk
 (`<session-id>.jsonl`) is the lossless record. It survives compaction, so a checkpoint reconstructs
-the full session from disk even after the live context was compacted. That is exactly what
-`/session-flow:retro`'s parser already reads in production; running-retro reuses it rather than
-parsing anew. Invoke a checkpoint any time. (The `arm` action and its opt-in SessionStart hook are
-the deliberate exception. They arm a detached observer to run the checkpoint *after* the session
-ends; see "Arming a detached observer" below. The default checkpoint still needs no setup.)
+the full session from disk even after the live context was compacted; running-retro reads it with
+`/session-flow:retro`'s parser rather than parsing anew. Invoke a checkpoint any time. (The `arm`
+action and its opt-in SessionStart hook are the exception: they arm a detached observer to run the
+checkpoint *after* the session ends; see "Arming a detached observer" below.)
 
 ## The checkpoint flow
 
@@ -54,15 +52,12 @@ ends; see "Arming a detached observer" below. The default checkpoint still needs
 
 Before delegating, write **2-3 lines** of your own in-flight state: what you are uncertain about,
 what feels off, where you are stuck or repeating, any correction you sense coming. The transcript on
-disk holds what *happened*; it does not hold the acting agent's present read of it. This note is the
-only signal the analysis subagent cannot get for itself. It seeds the analysis.
+disk holds what *happened*, not the acting agent's present read of it; this note seeds the analysis.
 
 **Ground the note in the instrument when one is present.** When the `context-guard` plugin is
 enabled, resolve this session's zone word per its reader contract (the contract owns the
 snapshot path, staleness rule, and bands, read them there; this note carries only the resulting
-word, no band values) and include it in the note. A self-impression of the window is a guess and
-can sit far from the instrument's reading, and the analysis subagent judging degradation deserves
-the measured word next to the subjective read. Absent plugin, absent snapshot, or `unknown`: say
+word, no band values) and include it in the note. Absent plugin, absent snapshot, or `unknown`: say
 so in the note rather than substituting an estimate. If context-guard's evidence-degraded marker
 exists for this session, record that too. It outranks a healthy-feeling self-read.
 
@@ -115,8 +110,7 @@ created on this session's FIRST checkpoint with frontmatter `session_id: $CLAUDE
 every LATER checkpoint do NOT create a second file: locate this session's existing ledger by globbing
 `<memory_dir>/running-retros/*-running-retro-*.md` and matching the one whose frontmatter `session_id`
 equals the current `$CLAUDE_CODE_SESSION_ID`, then re-read it from disk and **append** a new
-`## Checkpoint <TS>` section. Create a new file only when no such match exists. This session-id match
-is the discovery rule that keeps one file per session rather than one per checkpoint.
+`## Checkpoint <TS>` section. Create a new file only when no such match exists.
 
 **Chaining across `/clear`.** When this session resumed a prior one through a handoff chain (retro's
 Phase 1.0 continuity gate), record `previous_running_retro` (the prior session's ledger path) and
@@ -127,9 +121,8 @@ running-retro ledgers. Honor the contract's runtime guards from the binding (the
 self-ignore guard on the resolved memory root; never edit the consumer's root `.gitignore`).
 
 **Redact before writing.** Re-sweep the findings for secrets, tokens, credentials, connection
-strings, and PII, replacing each with a shape marker (`<REDACTED: API key>`). Defense in depth over
-the subagent's own pass. The ledger is memory-tier disk output: it outlives the session, sits
-uncommitted-but-readable, and travels to other sessions and machines.
+strings, and PII, replacing each with a shape marker (`<REDACTED: API key>`). This repeats the
+subagent's own pass: the ledger outlives the session and travels to other sessions and machines.
 
 ### 5. Offer routing, never auto-apply
 
@@ -140,12 +133,9 @@ Present the checkpoint findings, then OFFER the forward routes; act only on the 
 - **File follow-up work** → offer the consumer's work-item tracker; never file automatically.
 - **Build the new-skill candidate** → read `/playbooks:skill-authoring` for the authoring doctrine
   and draft against it, then gate the result on `/skill-quality:check`, when those are enabled;
-  otherwise say the candidate has no authoring route here and leave it recorded. The checkpoint
-  already emits a "New-skill candidates" line, and a candidate with no named destination is a
-  finding that evaporates. Read the doctrine before drafting rather than inventing a shape from
-  scratch, a skill written ad hoc at the end of a checkpoint is the one most likely to miss the
-  conventions that playbook exists to carry. (It is a knowledge surface: it takes no arguments and
-  performs no actions, so it informs the drafting rather than doing it.)
+  otherwise say the candidate has no authoring route here and leave it recorded. Read the
+  doctrine before drafting rather than inventing a shape from scratch. (It is a knowledge surface:
+  it takes no arguments and performs no actions, so it informs the drafting rather than doing it.)
 - **Nothing actionable** → say so and continue the task.
 
 ## Post-checkpoint checklist
@@ -219,8 +209,7 @@ args=(--transcript "$TRANSCRIPT" --work-dir "$WORK_DIR" --ledger-dir "$MEMORY_DI
 ```
 
 This is the SAME launcher the opt-in SessionStart hook (`observer_enabled`) uses; manual `arm` works
-whether or not the auto-arm is on, and is the primary entry. Because it runs in-session it can honor
-prose-inferred memory roots and cross-session continuity the headless hook cannot. The launcher prints
+whether or not the auto-arm is on, and is the primary entry. The launcher prints
 the observer pid and returns at once; it never blocks the session.
 
 ## Cadence

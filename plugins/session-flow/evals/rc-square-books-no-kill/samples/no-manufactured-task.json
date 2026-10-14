@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "TaskList",
+          "input": {}
+        }
+      ],
+      "why": "list only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "TaskGet",
+          "input": {
+            "taskId": "1"
+          }
+        }
+      ],
+      "why": "get"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "TaskCreate",
+          "input": {
+            "subject": "Reconcile session"
+          }
+        }
+      ],
+      "why": "create"
+    },
+    {
+      "answer": [
+        {
+          "tool": "TaskCreate",
+          "input": {
+            "subject": "a"
+          }
+        },
+        {
+          "tool": "TaskUpdate",
+          "input": {
+            "taskId": "1",
+            "status": "completed"
+          }
+        }
+      ],
+      "why": "create then close"
+    },
+    {
+      "answer": [
+        {
+          "tool": "TaskList",
+          "input": {}
+        },
+        {
+          "tool": "TaskCreate",
+          "input": {
+            "subject": "b"
+          }
+        }
+      ],
+      "why": "create after list"
+    }
+  ]
+}

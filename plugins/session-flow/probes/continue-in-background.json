@@ -1,0 +1,128 @@
+{
+  "skill": "session-flow:continue-in-background",
+  "plugin": "session-flow",
+  "skill_dir": "plugins/session-flow/skills/continue-in-background",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the handoff, find-handoff, keep-going and clean-stop skills, plus the schedule skill for recurring cloud runs.",
+  "competitors": [
+    "session-flow:handoff",
+    "session-flow:find-handoff",
+    "session-flow:keep-going",
+    "session-flow:clean-stop"
+  ],
+  "competitor_dirs": {
+    "session-flow:handoff": "plugins/session-flow/skills/handoff",
+    "session-flow:find-handoff": "plugins/session-flow/skills/find-handoff",
+    "session-flow:keep-going": "plugins/session-flow/skills/keep-going",
+    "session-flow:clean-stop": "plugins/session-flow/skills/clean-stop"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I have to step away for a few hours. Hand the rest of this task to a background agent so it keeps going."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Spin up a detached session that carries on with this migration while I'm gone."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Keep working on the failing tests in the background; I'm going AFK."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Delegate the remaining checklist to a fresh background agent with a proper resume prompt."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Launch a background claude session to continue this work now."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'm heading out. Write a save-point and start a background session from it so it doesn't stall."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can you keep going on this without me watching? Send it to a background agent."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Continue this in the cloud while I sleep."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Take what we've planned so far and let a background agent execute it."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Run the rest of this in a detached session and I'll check back later."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "continue this in the background"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a handoff file so I can clear the context and resume in a new session."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I cleared my session and lost the resume prompt. Find it."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The agent stalled after a rate limit. Pick it back up."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Schedule a nightly cloud agent that checks for dependency updates."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Make sure nothing is unpushed before I shut down."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Compact the conversation or clear it? What should I do at this point?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Checkpoint this session so I can come back later."
+    }
+  ]
+}

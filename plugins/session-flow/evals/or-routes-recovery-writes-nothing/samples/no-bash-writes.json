@@ -1,0 +1,179 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain | head -20"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -8"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git stash list"
+          }
+        }
+      ],
+      "why": "git reads"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr list --head feat/lease-table 2>/dev/null"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls .work/handoffs >/dev/null 2>&1 && echo yes"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printenv CLAUDE_CODE_SESSION_ID"
+          }
+        }
+      ],
+      "why": "probes with redirects to null"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git tag -l"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git worktree list"
+          }
+        }
+      ],
+      "why": "tag list and worktree list"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo done > .work/backfill.done"
+          }
+        }
+      ],
+      "why": "redirect into a file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf x | tee .work/notes.md"
+          }
+        }
+      ],
+      "why": "tee"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/41/42/' .work/backfill.log"
+          }
+        }
+      ],
+      "why": "sed -i"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p .work/orient"
+          }
+        }
+      ],
+      "why": "mkdir"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /w stash"
+          }
+        }
+      ],
+      "why": "git -C stash"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat >> .work/log <<EOF\nx\nEOF"
+          }
+        }
+      ],
+      "why": "append heredoc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git --no-pager commit -am wip"
+          }
+        }
+      ],
+      "why": "commit with a global option"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command rm -f .work/backfill.log"
+          }
+        }
+      ],
+      "why": "command rm prefix"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "perl -pi -e s/41/42/ .work/backfill.log"
+          }
+        }
+      ],
+      "why": "perl in place"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rm --cached scripts/backfill.sh"
+          }
+        }
+      ],
+      "why": "git rm"
+    }
+  ]
+}

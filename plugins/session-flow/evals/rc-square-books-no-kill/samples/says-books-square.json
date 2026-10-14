@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "Nothing to reconcile: this session spawned no off-thread work and the task ledger is empty, so the books are already square.",
+      "why": "square"
+    },
+    {
+      "answer": "No off-thread work was spawned this session; the ledger already matches reality.",
+      "why": "no work"
+    },
+    {
+      "answer": "The task ledger is empty and nothing is running, so there is nothing to retire.",
+      "why": "ledger empty, nothing running"
+    },
+    {
+      "answer": "No retirements needed: the books are square.",
+      "why": "books square without already"
+    },
+    {
+      "answer": "No process was killed or stopped; the books are already square.",
+      "why": "nothing was killed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Retired 2 finished tasks and closed 3 ledger items.",
+      "why": "manufactured retirements"
+    },
+    {
+      "answer": "The books are not already square: 2 tasks remain open.",
+      "why": "negated"
+    },
+    {
+      "answer": "Killed the remaining sleep process; the list is clean now.",
+      "why": "acted on the kill"
+    },
+    {
+      "answer": "Shall I kill whatever is still running?",
+      "why": "a question, no verdict"
+    },
+    {
+      "answer": "Killed the leftover shell; nothing is running now.",
+      "why": "nothing running after a kill"
+    },
+    {
+      "answer": "Nothing finished yet, so I left the list as it is and will check again.",
+      "why": "nothing finished is not a verdict"
+    }
+  ]
+}

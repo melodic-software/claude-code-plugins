@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git branch --show-current"
+          }
+        }
+      ],
+      "why": "a read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/CLAUDE.md"
+          }
+        }
+      ],
+      "why": "a file read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/CLAUDE.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "CLAUDE.md written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/feat-billing-retry/20261013T120000Z-codify.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "hand-off written before approval"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/.gitignore",
+            "content": "*\n"
+          }
+        }
+      ],
+      "why": "memory-root guard written before approval"
+    }
+  ]
+}

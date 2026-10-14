@@ -1,0 +1,130 @@
+{
+  "skill": "session-flow:workflow",
+  "plugin": "session-flow",
+  "skill_dir": "plugins/session-flow/skills/workflow",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are show-options, orient, handoff, continue-in-background and planning:plan.",
+  "competitors": [
+    "session-flow:show-options",
+    "session-flow:orient",
+    "session-flow:handoff",
+    "session-flow:continue-in-background",
+    "planning:plan"
+  ],
+  "competitor_dirs": {
+    "session-flow:show-options": "plugins/session-flow/skills/show-options",
+    "session-flow:orient": "plugins/session-flow/skills/orient",
+    "session-flow:handoff": "plugins/session-flow/skills/handoff",
+    "session-flow:continue-in-background": "plugins/session-flow/skills/continue-in-background",
+    "planning:plan": "plugins/planning/skills/plan"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I just finished implementing. What step comes next?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which stage of the process am I on, and what follows?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Walk me through the sequence before I open the PR."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Phase is done. Should I continue, clear, compact, or hand off?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Should I /clear here or compact the conversation?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Exploration is finished. What's the next stage?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Starting a new session on this feature. Where does the workflow begin?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Tests are green. What's the next step in the flow?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I'm at a phase boundary and I'm not sure how to continue. Advise."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Wrap up this stage and route me to the next one."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "workflow"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Show me every skill that could help right now, ranked."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Where do we stand on the migration?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Save a handoff so I can resume tomorrow."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Continue this in a background agent."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write the implementation plan for this change."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Make sure everything is pushed before I shut down."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What are my options besides the obvious next step?"
+    }
+  ]
+}

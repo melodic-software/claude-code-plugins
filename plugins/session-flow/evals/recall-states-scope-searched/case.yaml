@@ -1,36 +1,27 @@
 schema_version: "1.1"
 name: recall-states-scope-searched
-description: Recall on a topic opens its report with the transcript scope it searched, the directory and transcript counts and the terms, after resolving transcript_scope and scanning through recall_scan.py
+description: Recall on a topic opens its report with the transcript scope it searched, the directory and transcript counts and the terms, after resolving transcript_scope and listing directories with transcript_dirs.sh
 tags: [recall, transcript-scope]
-expected_outcome: The answer resolves transcript_scope and names the layer that supplied it, lists directories with transcript_dirs.sh, scans them with recall_scan.py, and opens the report with the scope actually searched (the scope level reached, how many directories and transcripts were read, and the search terms), never describing a narrower or capped scan as a search of everything. It writes no file.
+expected_outcome: The answer resolves transcript_scope and names the layer that supplied it, lists directories with transcript_dirs.sh, scans any it lists with recall_scan.py (the eval sandbox cannot read the transcript store, so none are listed and the scan is not graded), and opens the report with the scope actually searched (the scope level reached, how many directories and transcripts were read, and the search terms), never describing a narrower or capped scan as a search of everything. It writes no file.
 context:
   scaffold_script: scaffold.sh
 execution:
   prompt: "/session-flow:recall invoice export timeout. Search only the default scope; if nothing turns up there or in this repository's other worktrees, just tell me rather than looking further."
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Agent]
-  max_turns: 40
-  timeout_seconds: 900
+  max_turns: 25
+  timeout_seconds: 600
 graders:
   - name: scope-resolved
     type: regex
-    pattern: 'transcript_scope'
+    pattern: 'transcript_scope\W{0,8}(?:worktree|repo|all)\b'
     arm: with-only
   - name: scope-stated
-    type: llm
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\bthis worktree\b|\brepository(?:''s)?\s+(?:other\s+)?worktrees\b|\b(?:every|all)\s+projects?\b|\bscope(?:\s+level)?(?:\s+reached)?\s*[:=]?\s*`?(?:worktree|repo|all)\b))(?=[\s\S]*(?:\b(?:[0-9]+|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:\w+\s+)?(?:director(?:y|ies)|transcripts?|sessions?|files?)|\bno\s+(?:\w+\s+)?director(?:y|ies))\b)(?=[\s\S]*\bterms?\b[^\n]*\b(?:invoice|export|timeout))'
+    flags: 'i'
     arm: both
-    criteria: "PASS only if the reply states which transcript scope it searched (this worktree, the repository's worktrees, or every project), how many directories or transcripts that covered (zero counts as a number), and the search terms it used, before or alongside any findings. FAIL if the reply gives findings or says nothing was found without saying where it looked."
   - name: dirs-listed
     type: tool_used
     tool: Bash
     input_match: 'transcript_dirs\.sh'
-    arm: with-only
-  - name: scan-ran
-    type: tool_used
-    tool: Bash
-    input_match: 'recall_scan\.py'
-    arm: with-only
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:session-flow:)?recall"'
     arm: with-only

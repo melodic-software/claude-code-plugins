@@ -26,3 +26,7 @@ cbd6129e6b7ef353095fd4b6d0d35de41136829e:plugins/performance/scripts/findings.te
 plugins/harness-ops/skills/observability/scripts/hook-transcript-timing.test.sh:github-pat:99
 # The canary IDE lock token in an install-state eval scaffold. Commit-less, so it survives the squash merge.
 plugins/harness-ops/evals/ai-never-reads-secrets-no-delete/scaffold.sh:generic-api-key:7
+# The canary deploy token in the find-handoff redaction eval. Commit-less, so it survives the squash merge.
+plugins/session-flow/evals/fh-confirms-before-resume/scaffold.sh:generic-api-key:39
+plugins/session-flow/evals/fh-confirms-before-resume/samples/token-not-surfaced.json:generic-api-key:14
+plugins/session-flow/evals/fh-confirms-before-resume/samples/token-not-surfaced.json:generic-api-key:18

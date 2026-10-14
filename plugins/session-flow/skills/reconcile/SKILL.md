@@ -1,5 +1,5 @@
 ---
-description: "Retire finished off-thread work and reconcile the task ledger: inspect each spawned item's real state, close items proven done, report siblings read-only. Gates killing running work. Use when: 'reconcile the session', 'retire finished work', 'square up the task ledger', 'is anything still running that should be retired', 'close out finished tasks', 'prune done work', 'reconcile the ledger'. Stuck is /session-flow:keep-going; status is /session-flow:orient; shutdown is /session-flow:clean-stop."
+description: "Off-thread work retirement and task-ledger reconciliation: inspects each spawned item's real state, closes items proven done, reports siblings read-only. Gates killing running work. Use when: 'reconcile the session', 'retire finished work', 'square up the task ledger', 'is anything still running that should be retired', 'close out finished tasks', 'prune done work', 'reconcile the ledger'. Stuck is /session-flow:keep-going; status is /session-flow:orient; shutdown is /session-flow:clean-stop."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -20,13 +20,6 @@ off-thread work this session spawned, inspects each item's actual output,
 **retires** the ones genuinely finished, and squares this session's task
 ledger with what actually happened. It also reports the liveness of sibling
 sessions in the same project. Read-only, because it cannot control them.
-
-Where `/session-flow:keep-going` *resumes* work after an interruption, "is
-it stuck, pick it back up", this skill *retires* finished work and
-reconciles the ledger. "Is anything still running that should be retired,
-and does the ledger match reality?" Same inventory-and-inspect machinery,
-opposite telos: keep-going continues the work; this closes the books on the
-part that is done.
 
 ## Boundaries. Pick the right sibling
 
@@ -116,8 +109,7 @@ part that is done.
   agent, a shell, a monitor, a scheduled job, is irreversible and can
   destroy live-but-slow progress. Do it only when step 2 PROVED the work is
   not still progressing; when that cannot be proven, do not kill. Surface it
-  as a question in the report. This gate is this skill's own; it is not
-  shared with the sibling inventory skills, whose blast radii differ.
+  as a question in the report.
 
 ## Nothing-to-reconcile case
 
@@ -127,22 +119,12 @@ outcome. Do not manufacture retirements or ledger edits to look thorough.
 
 ## What this skill does NOT do
 
-- **Does not resume or continue the work**. Retiring the finished is the
-  opposite of resuming; recovery is `/session-flow:keep-going`.
-- **Does not make git or remote state durable**, no commits, pushes, PRs, or
-  issues; that is `/session-flow:clean-stop`.
 - **Does not prescribe the next stage**; that is `/session-flow:workflow`.
-- **Does not fix sibling sessions**, their liveness is reported read-only;
-  harness control reaches only this session's own work.
-- **Does not read a subagent's internal task list**. It reconciles only this
-  session's own ledger.
 - **Does not enumerate MCP / browser / playwright tool state.** No generic
   tool-state enumeration surface exists in the harness, and closing
   user-owned state (a browser tab) would be destructive against the user.
   Revisit when a generic tool-state surface appears in the harness, or a
   per-tool seam convention is established for it.
-- **Does not deep-parse transcripts**. Sibling-session liveness is mtime plus
-  a coarse tail read only; we treat the JSONL format as unstable.
 
 ## Gotchas
 

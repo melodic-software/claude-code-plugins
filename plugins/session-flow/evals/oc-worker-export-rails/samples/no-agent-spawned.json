@@ -1,0 +1,64 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "text only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/session-flow/skills/orchestrate/context/gotchas.md"
+          }
+        }
+      ],
+      "why": "a read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Port CSV exporters",
+            "prompt": "You are a spawned worker and did NOT inherit the parent session's context or the repo's conditional rules, these instructions are your only copy."
+          }
+        }
+      ],
+      "why": "spawned the worker"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "verify",
+            "prompt": "check",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ],
+      "why": "spawned a verifier"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "x"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "a",
+            "prompt": "b"
+          }
+        }
+      ],
+      "why": "spawn after a read"
+    }
+  ]
+}

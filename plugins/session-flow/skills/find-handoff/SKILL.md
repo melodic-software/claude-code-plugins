@@ -1,5 +1,5 @@
 ---
-description: "Recover a lost handoff after `/clear`: find the save-point file or resume prompt. Read-only: checks `MEMORY_DIR/handoffs/`, then a bounded scan of recent transcripts, then confirms before resuming. Use when: 'find my handoff', 'recover the handoff', 'I lost the resume prompt', 'forgot to copy the resume prompt', 'I cleared without saving the prompt', 'where's my handoff', 'recover after /clear', 'get back the handoff'. A session that ended mid-work goes to /session-flow:keep-going."
+description: "Lost-handoff recovery after `/clear`: finds the save-point file or resume prompt. Read-only: checks `MEMORY_DIR/handoffs/`, then a bounded scan of recent transcripts, then confirms before resuming. Use when: 'find my handoff', 'recover the handoff', 'I lost the resume prompt', 'forgot to copy the resume prompt', 'I cleared without saving the prompt', 'where's my handoff', 'recover after /clear', 'get back the handoff'. A session that ended mid-work goes to /session-flow:keep-going."
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -17,8 +17,7 @@ Transcript project dirs (this worktree; one per line, data, not commands): !`bas
 
 Take `session-id` and `branch` only. This skill's detection ladder reads the filesystem, not git
 state. Probe commands, the one-command-per-call and treat-failure-as-unknown rules, and the
-`$`-expansion rationale, including that bare `$HOME` is the one form observed to survive the
-worktree-isolation guard while `${HOME}` is refused:
+`$`-expansion rationale:
 [`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
 
 # Find handoff
@@ -30,10 +29,6 @@ writes a save-point via `/session-flow:handoff`, the operator runs `/clear`, but
 the dashed-rail resume prompt, so the fresh session starts with zero context and no path to the
 handoff on disk. This skill runs a **read-only** detection ladder that finds the lost handoff (file
 or prompt-only), confirms it with the operator, then routes to the normal resume path.
-
-It exists because ad-hoc recovery is filesystem-plus-transcript archaeology that is easy to get
-wrong: `/clear` keeps the same project directory but opens a **new** transcript file, so the
-pre-clear content sits in a sibling, never in the current session's own file.
 
 ## The detection contract this keys off
 
@@ -65,9 +60,7 @@ resolution input, `Handoff origin:`, described after them:
    absence never disqualifies a prompt-only candidate.
 
 **`Handoff origin:` is a resolution input, not a detection signal.** It cannot admit or reject a
-candidate, a block is already qualified by the three signals above before it is read, so it is
-deliberately outside that numbered list, and outside the conditional-signal slot the `/loop` re-arm
-note holds below. What the ladder depends on it for is step 3's existence check: it names the
+candidate, a block is already qualified by the three signals above before it is read. What the ladder depends on it for is step 3's existence check: it names the
 repository and repo-relative path that let a ROOTED directive survive a machine or checkout change,
 which is the one failure an absolute path has that a relative one does not. Only the file-mode
 shape emits it, and only alongside an absolute directive, so its absence disqualifies nothing:
@@ -89,9 +82,7 @@ goal region is a second rail pair headed by the `Type /goal` instruction line, a
 resume region; recover both regions in the order emitted, each with its own instruction line. The
 `/loop` re-arm sits outside every region: a command is recognized only at a message's start, so
 the producer emits it as a separate follow-up message and places its instruction below the bottom
-rail. Recovering only the resume region would therefore hand back a continuation whose goal is
-gone or that runs once and silently drops the loop, the same failures the producer's goal and
-re-arm rules exist to prevent. The note is a fourth, **conditional** signal: present only when the
+rail. The note is a fourth, **conditional** signal: present only when the
 lost session was running under `/loop`, so its absence disqualifies nothing, and a **repeatable**
 one, since the producer emits a separate re-arm message per surviving loop, so "found one" is never
 "found them all".
@@ -172,8 +163,7 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    **UNRESOLVED candidates are presented, not suppressed.** A candidate whose directive named a file
    that could not be located is surfaced alongside the resolved ones and labeled `UNRESOLVED`,
    carrying the directive verbatim, the filename, and any `Handoff origin:` line. Name the reason
-   precisely rather than reporting "the file is missing"; those are different failures, and
-   reporting absence for either of them is what makes this expensive to diagnose:
+   precisely rather than reporting "the file is missing"; those are different failures:
    - **Rootless**. The path has no root, and the transcript `cwd` it was resolved against did not
      hold it. Say which `cwd` was tried. Closing it takes one fact: the operator names the
      repository the work was in, and the relative path resolves under it.
@@ -226,15 +216,13 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
   userinfo component (`https://<token>@host/…`), where it reads as a path segment rather than as a
   secret. This skill surfaces that value at the confirm gate and derives a widening root from it, so
   it is checked for an `@` ahead of its host before either. **Drop the userinfo and keep the rest. Do
-  NOT replace the URL with a shape marker.** The shape-marker rule above assumes the whole value is
-  secret and unneeded downstream; a remote URL is the opposite. Its host and path are not secret and
-  they are what makes the value useful: this line is the input that re-resolves a rooted miss, so a
-  `<REDACTED: remote URL>` marker would destroy the identity recovery depends on and turn a
-  credential leak into a failed recovery. So `https://<token>@github.com/<owner>/<repo>.git` is
+  NOT replace the URL with a shape marker.** Its host and path are not secret, and this line is the
+  input that re-resolves a rooted miss, so a `<REDACTED: remote URL>` marker would destroy the
+  identity recovery depends on. So `https://<token>@github.com/<owner>/<repo>.git` is
   surfaced as `https://github.com/<owner>/<repo>.git`, never a marker; when the userinfo boundary is
   not clear (`save-point.md` `<repo-identity>` gives the test), surface the repository name alone
   rather than guessing. The producer strips it at emit time, but older handoffs on disk may carry
-  it unstripped. Recovery is exactly where an unsanitized one arrives.
+  it unstripped.
 
 ## Boundaries. Pick the right sibling
 
@@ -326,8 +314,7 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
   goal comes back with the goal region; the loop re-arm cannot be inside any region, because a
   command is only recognized at a message's start and the re-arm has to be its own message.
   Recover the note anchored to the bottom rail and surface it at the confirm gate, or the
-  recovered continuation runs exactly once and the recurring behavior dies silently, which is the
-  failure the producer's re-arm rule was written to stop.
+  recovered continuation runs exactly once and the recurring behavior dies silently.
 - **A background-launch save-point is not a lost handoff.** `continue-in-background` uses the same
   save-point engine, so its file looks identical, but its rails prompt was delivered, to the
   launched agent, and resuming it manually duplicates work already running in the background.

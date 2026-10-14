@@ -1,0 +1,122 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat CLAUDE.md .claude/rules/build.md"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls .claude/rules 2>/dev/null"
+          }
+        }
+      ],
+      "why": "reads, with a redirect that follows the path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain 2>/dev/null; cat .claude/rules/build.md"
+          }
+        }
+      ],
+      "why": "a redirect in an earlier command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp CLAUDE.md .work/claude-md.bak"
+          }
+        }
+      ],
+      "why": "copy out of CLAUDE.md for reference"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf -- '- Edit src/, never dist/.\\n' >> CLAUDE.md"
+          }
+        }
+      ],
+      "why": "append redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo '- Edit src/, never dist/.' | tee -a .claude/rules/build.md"
+          }
+        }
+      ],
+      "why": "tee into a rule"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i '$a - Edit src/, never dist/.' CLAUDE.md"
+          }
+        }
+      ],
+      "why": "sed -i"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > .claude/rules/dist.md <<'EOF'\n- Never edit dist/.\nEOF"
+          }
+        }
+      ],
+      "why": "heredoc into a new rule file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf \"%s\\n\" \"- Edit src/\" >> \"CLAUDE.md\""
+          }
+        }
+      ],
+      "why": "quoted path after an append"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"open(.claude/rules/dist.md,w).write(x)\""
+          }
+        }
+      ],
+      "why": "python writes a rule"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp .work/dist.md .claude/rules/dist.md"
+          }
+        }
+      ],
+      "why": "cp into the rules dir"
+    }
+  ]
+}

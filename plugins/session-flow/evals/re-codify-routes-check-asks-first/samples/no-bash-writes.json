@@ -1,0 +1,150 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git branch --show-current"
+          }
+        }
+      ],
+      "why": "branch read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwd -W 2>/dev/null || pwd"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain"
+          }
+        }
+      ],
+      "why": "probes with a redirect to null"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn \"fetch(\" src/billing | head"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rev-parse --abbrev-ref HEAD"
+          }
+        }
+      ],
+      "why": "greps and branch read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '%s\\n' '- Billing HTTP calls go through withRetry().' >> CLAUDE.md"
+          }
+        }
+      ],
+      "why": "append to CLAUDE.md"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf x | tee .work/codify/feat-billing-retry/a-codify.md"
+          }
+        }
+      ],
+      "why": "tee"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i '$a Use withRetry()' CLAUDE.md"
+          }
+        }
+      ],
+      "why": "sed -i"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p .work/codify/feat-billing-retry"
+          }
+        }
+      ],
+      "why": "mkdir"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /w commit -am 'docs: codify withRetry'"
+          }
+        }
+      ],
+      "why": "git -C commit"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat >> CLAUDE.md <<EOF\nx\nEOF"
+          }
+        }
+      ],
+      "why": "append heredoc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp .work/CLAUDE.new CLAUDE.md"
+          }
+        }
+      ],
+      "why": "cp over CLAUDE.md"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"open(CLAUDE.md,a).write(x)\""
+          }
+        }
+      ],
+      "why": "python writes the rule"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command mkdir -p .work/codify/feat-billing-retry"
+          }
+        }
+      ],
+      "why": "command prefix mkdir"
+    }
+  ]
+}

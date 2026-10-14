@@ -1,5 +1,5 @@
 ---
-description: "Navigate a staged workflow (explore, research, design, plan, implement, test, review, verify, retro): suggest the next stage and route the end-of-phase continuation (continue, clear, handoff, background, cloud, clean-stop, compact). Use when: 'workflow', 'what step am I on', 'what comes next', 'pre-pr sequence', 'wrap up', 'how should I continue', 'clear or compact', at session start or a phase boundary, or when the next step is unclear. For a ranked menu of every fitting skill, use /session-flow:show-options."
+description: "Staged workflow navigator (explore, research, design, plan, implement, test, review, verify, retro): suggests the next stage and routes end-of-phase continuation (continue, clear, handoff, background, cloud, clean-stop, compact). Use when: 'workflow', 'what step am I on', 'what comes next', 'pre-pr sequence', 'wrap up', 'how should I continue', 'clear or compact', at session start or a phase boundary, or when the next step is unclear. For a ranked menu of every fitting skill, use /session-flow:show-options."
 argument-hint: "[steps|pre-pr|wrap-up|philosophy|spec-first|continue [auto]]"
 user-invocable: true
 disable-model-invocation: false
@@ -46,7 +46,7 @@ This skill adapts to the consuming repo rather than imposing structure:
   root's `.gitignore` containing `*` (announced). The sibling `handoff` skill's
   `<memory_dir>/handoffs/` holds only handoff save-points, a fixed-filename checklist there would
   clobber across two in-flight topics.
-- **Quality gates.** The consuming repo's own build/test/lint commands and review criteria govern;
+- **Quality gates.** The consuming repo's own build/test/lint commands, review criteria and commit conventions govern;
   this skill names WHERE gates belong in the sequence, not what they contain.
 - **Override boundary.** The stage set itself is fixed. Plugin identity, not consumer config; there
   is no seam to swap in a different taxonomy, and this skill never reads a consumer-supplied one.
@@ -162,8 +162,6 @@ also copy `templates/checklist.md` into the artifact location (see "Consumer con
 consuming repo already tracks the same stages in its own plan artifact, never mirror progress in
 two files.
 
-Which sessions get the task tools is an upstream default we do not restate.
-
 - **Pointer**: when deciding whether this session has the task tools, fetch
   [Task tool availability](https://code.claude.com/docs/en/tools-reference#task-tool-availability)
   live.
@@ -220,8 +218,7 @@ hand the user two candidate owners for one stage decision and letting them sort 
 prohibition on ever showing a set: deliberately laying out the whole option set, ranked and
 annotated, for a human to choose from is a different job, and `/session-flow:show-options` owns it.
 Reach for this skill when the user wants the next stage decided; reach for that one when they want
-the menu. The two are complementary, not competing, and when a request could be either, "what comes
-next" is a stage question and belongs here.
+the menu. When a request could be either, "what comes next" is a stage question and belongs here.
 
 ## Key principles (always apply, regardless of mode)
 
@@ -248,11 +245,3 @@ next" is a stage question and belongs here.
   is worse than none: it confidently routes to things that were renamed or removed. Whenever
   capabilities are added, renamed, or retired, in the consuming setup or in this marketplace,
   re-check that the flows described here still match what exists before trusting a route.
-
-## What this skill does NOT do
-
-- **Does not execute stages**; it is the map, not the territory
-- **Does not replace the consuming repo's own gates**, build/test/lint commands, review criteria,
-  and commit conventions stay repo-owned
-- **Does not require any specific stage skills to exist**, every stage degrades gracefully to
-  inline execution

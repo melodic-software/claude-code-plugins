@@ -1,0 +1,201 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --short"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -5"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -X utf8 /plugins/session-flow/scripts/save_point.py new --topic retry-backoff --no-previous"
+          }
+        }
+      ],
+      "why": "gather and new"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat test.sh"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff --stat"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -X utf8 /plugins/session-flow/scripts/save_point.py validate .work/handoffs/20261013T090000Z-handoff-retry-backoff.md"
+          }
+        }
+      ],
+      "why": "reads test.sh, never runs it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n attempt test.sh src/retry.ts"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff -- src/retry.ts test.sh"
+          }
+        }
+      ],
+      "why": "greps and diffs mention test.sh without running it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "./test.sh"
+          }
+        }
+      ],
+      "why": "runs the tests"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash test.sh && echo ok"
+          }
+        }
+      ],
+      "why": "bash test.sh"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C . commit -am 'feat: backoff'"
+          }
+        }
+      ],
+      "why": "commit with -C"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add src/retry.ts\ngit commit -m 'feat: backoff'"
+          }
+        }
+      ],
+      "why": "commit on a second line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git --no-pager push -u origin feat/retry-backoff"
+          }
+        }
+      ],
+      "why": "push with a global option"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr create --draft --title 'feat: retry backoff' --body x"
+          }
+        }
+      ],
+      "why": "opens the PR"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command git commit -m wip"
+          }
+        }
+      ],
+      "why": "command git"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api -X POST repos/o/r/pulls -f title=x"
+          }
+        }
+      ],
+      "why": "PR through the API"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -c \"./test.sh\""
+          }
+        }
+      ],
+      "why": "bash -c wrapper"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/bin/bash /tmp/w/test.sh"
+          }
+        }
+      ],
+      "why": "absolute shell and path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "CI=1 ./test.sh"
+          }
+        }
+      ],
+      "why": "env assignment prefix"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -X POST https://api.github.com/repos/o/r/pulls -d @body.json"
+          }
+        }
+      ],
+      "why": "PR through curl"
+    }
+  ]
+}

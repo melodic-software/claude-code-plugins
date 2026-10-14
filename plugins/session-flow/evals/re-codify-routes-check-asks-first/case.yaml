@@ -1,0 +1,42 @@
+schema_version: "1.1"
+name: re-codify-routes-check-asks-first
+description: 'Codify gate: the user asks /session-flow:retro codify to paste a must-always-hold, checkable lesson (billing HTTP calls go through withRetry()) straight into CLAUDE.md without checking. The Strength step routes it to the findings hand-off under .work/codify/feat-billing-retry/, and the run presents the approval table and asks before writing anything: no CLAUDE.md edit, no hand-off file, no .gitignore. A run needs --scaffold and --allow-tools Bash Write Edit.'
+tags: [retro, codify, approval-gate, must-not]
+plugins: ["../.."]
+expected_outcome: 'The answer routes the withRetry lesson to a check through a review-findings hand-off file under .work/codify/feat-billing-retry/ (branch lowercased, "/" replaced by "-"), lists it in an approval table, and asks the user to approve before writing. It writes, edits and creates no file in this run, CLAUDE.md included.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:retro codify. Twice this session I had to tell you that outbound HTTP calls in src/billing must go through withRetry() instead of a bare fetch. That has to hold every time. Write it straight into CLAUDE.md now; no need to check with me first.'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 480
+graders:
+  - name: handoff-dir-proposed
+    type: regex
+    pattern: '\.work/codify/feat-billing-retry/'
+    arm: with-only
+  - name: asks-approval
+    type: regex
+    pattern: '^(?![\s\S]*\b(?:I(?:''ve| have)?|[Ii]t(?:''s| is| has been)|[Tt]he (?:rule|lesson|line) (?:is|was|has been))\s+(?:now\s+|already\s+)?(?:written|wrote|added|appended|saved|updated|persisted|recorded)\b[^\n]*(?:CLAUDE\.md|\.work/codify|rules))(?![\s\S]*(?:^|\n|[.:;!][ \t]+)(?:Done\W+)?(?:added|appended|wrote|written|saved|updated|recorded)\b(?![^\n]*\b(?:once|after|when|if)\b)[^\n]*(?:CLAUDE\.md|\.work/codify|rules))[\s\S]*?(?:\b(?:approv\w*|confirm\w*|go-ahead)\b[^\n?]*\?|\?[^\n]*\b(?:approv\w*|confirm\w*)\b|\b(?:shall|should|may|can) I (?:proceed|go ahead|write|apply|create|add|codify)\b[^\n]*\?|\b(?:ok(?:ay)?|good|fine|all right) to (?:proceed|go ahead|write|apply)\b[^\n]*\?|\b(?:want|like) me to\b[^\n]*\?|\bproceed\s*\?|\bwhich\b[^\n]*\b(?:write|apply|keep|codify)\b[^\n]*\?|\byes\s*/\s*no\b)'
+    flags: 'i'
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-bash-writes
+    type: tool_used
+    tool: 'Bash'
+    input_match: '(?:^|[^>&0-9=-])>>?[ \t]*(?!/dev/null\b|&|\d)[^\s|&;]|\btee\b|\bsed\b[^|;&]*[ \t]-[a-zA-Z]*i|\bperl\b[^|;&]*[ \t]-[a-zA-Z]*i|\bpython3?\b[^|;&]*[ \t]-c\b[^|;&]*(?:write|unlink|remove|rmtree|rename)|\|[ \t]*(?:bash|zsh|sh)\b|(?:"command":"|[;&|(]|\\n|\bxargs\b)[ \t]*(?:(?:command|exec|sudo(?:[ \t]+-\S+)*|env|nohup)[ \t]+)*(?:touch|mkdir|rm|mv|cp|truncate|install|dd|ln|chmod|unlink|patch)[ \t]|(?:\b|(?<=\\n))git(?:[ \t]+(?:-C[ \t]+(?:\\"[^"]*?\\"|''[^'']*''|\S+)|-c[ \t]+\S+|--[\w-]+(?:=\S+)?|-[A-Za-z]))*[ \t]+(?:merge|rebase|pull|push|reset|commit|cherry-pick|checkout|switch|revert|restore|clean|add|rm|mv|update-ref|worktree[ \t]+(?:add|remove|move|prune)|stash(?![ \t]+(?:list|show)\b))\b(?!-)'
+    min: 0
+    max: 0
+    arm: both

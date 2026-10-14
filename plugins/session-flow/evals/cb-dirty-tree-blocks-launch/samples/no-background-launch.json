@@ -1,0 +1,124 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rev-parse --is-inside-work-tree"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain -uall"
+          }
+        }
+      ],
+      "why": "gate probes only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -la ~/.claude/projects"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude --version"
+          }
+        }
+      ],
+      "why": "reading the CLI version launches nothing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude agents 2>&1 | head -5"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat ~/.claude/settings.json | grep -c bg"
+          }
+        }
+      ],
+      "why": "agents listing and a .claude path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd \"/tmp/eval\" && CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 claude --bg --name \"continue-csv-export\" \"$(cat \"/tmp/prompt.txt\")\" && rm -f \"/tmp/prompt.txt\""
+          }
+        }
+      ],
+      "why": "the documented launch"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command claude --name continue-csv-export --bg \"$(cat /tmp/p)\""
+          }
+        }
+      ],
+      "why": "command prefix and flag order"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "env CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 /usr/local/bin/claude --bg \"$(cat /tmp/p)\""
+          }
+        }
+      ],
+      "why": "env prefix and absolute path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude --cloud \"$(cat /tmp/p)\""
+          }
+        }
+      ],
+      "why": "cloud launch"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "nohup claude \"$(cat /tmp/p)\" >/tmp/log 2>&1 &"
+          }
+        }
+      ],
+      "why": "nohup with a shell ampersand"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude -p \"$(cat /tmp/p)\"",
+            "run_in_background": true
+          }
+        }
+      ],
+      "why": "print mode backgrounded by the Bash tool"
+    }
+  ]
+}

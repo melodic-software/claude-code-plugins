@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [
+        ".work/running-retros/20261013T120000Z-running-retro-build-fix.md"
+      ],
+      "why": "only the ledger created"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "CLAUDE.local.md"
+      ],
+      "why": "a local instruction file"
+    }
+  ]
+}

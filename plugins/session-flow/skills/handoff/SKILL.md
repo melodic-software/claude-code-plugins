@@ -1,5 +1,5 @@
 ---
-description: "Write a mid-session save-point for /clear-and-resume: a durable handoff file (default) or a copy-paste resume prompt. Use when: 'handoff', 'save state', 'checkpoint this', 'pause', 'come back later', the session is heavy, a context-measuring mechanism says to fork, or responses are visibly drifting or looping. Never on an estimate of the remaining window. To delegate the continuation to a background agent, use /session-flow:continue-in-background."
+description: "Mid-session save-point for /clear-and-resume: a durable handoff file (default) or a copy-paste resume prompt. Use when: 'handoff', 'save state', 'checkpoint this', 'pause', 'come back later', the session is heavy, a context-measuring mechanism says to fork, or responses are visibly drifting or looping. Never on an estimate of the remaining window. To delegate the continuation to a background agent, use /session-flow:continue-in-background."
 argument-hint: "[unattended] [file|prompt] [topic] [purpose...]"
 user-invocable: true
 disable-model-invocation: false
@@ -13,24 +13,20 @@ metadata:
 ## Context. Gather first
 
 Take `session-id`, `branch`, `status`, and `recent-commits` at `-5`. Probe commands, the
-one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion rationale, which
-matters most here because an isolated session is exactly the one that needs a save-point:
+one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion rationale:
 [`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
 
 ## Purpose
 
 When work leaves this session with state that must survive, capture a save-point, a handoff
-document, or a copy-paste resume prompt when follow-ups are small, and `/clear`. Whether a given
-boundary hands off at all is the continuation router's call (see "Handoff or compaction: route by
-task" below).
+document, or a copy-paste resume prompt when follow-ups are small, and `/clear`.
 
-**What licenses that judgment matters as much as the judgment.** The trigger is the user's own
+**What licenses a handoff.** The trigger is the user's own
 report, an instrument that measures the window, or visible decay in the responses themselves,
 never a self-estimated budget. A remaining-context reading is a measurement, not a decay signal;
 volunteering a handoff on the strength of one interrupts work that was fine.
 
-When work leaves this session, we continue it in a fresh window from the save-point file. The
-save-point carries the rest of the plan and a *snapshot* of in-flight state, including what was
+The save-point carries the rest of the plan and a *snapshot* of in-flight state, including what was
 tried, what worked, and approaches already ruled out, so the next session loads that file and
 nothing else and does not waste effort rediscovering dead ends. Whether the work leaves, compacts or
 clears is decided by the continuation router in
@@ -125,8 +121,7 @@ anywhere but a handoff, recommend that route and write no save-point. A user's e
   here rather than to `/compact`
 - Extending the session chain, the deliberate escape-and-resume cadence (save-point, `/clear`,
   fresh session) whose handoff files carry the `session_id`/`previous_handoff` chain that
-  `/session-flow:retro` later walks for retrospective reconstruction. A first-class use this
-  skill owns, not a byproduct of the others
+  `/session-flow:retro` later walks for retrospective reconstruction
 - About to pause for hours/overnight; want a clean resume
 - About to switch to a different task; this one isn't done
 - Crossing a boundary. Handing the work to a colleague, another repository or checkout, or
@@ -143,12 +138,6 @@ anywhere but a handoff, recommend that route and write no save-point. A user's e
 | Going AFK but the work should keep moving | The sibling `/session-flow:continue-in-background` skill, only on the user's explicit request |
 | The machine itself may go away | `/session-flow:clean-stop` semantics, make everything durable off-machine first; a save-point alone is a local file that strands with the machine |
 | Crossing a boundary (colleague, other repo, other agent) | Full file, plus the purpose argument, plus the `Handoff origin:` line the full path's resume prompt already carries, the line the other side re-resolves the file from. The file itself is memory-tier and gitignored, visible only in the checkout that wrote it, so when the other side cannot read that checkout, it must travel out-of-band (send the file with the prompt, or promote its substance into an artifact the other side can read, per the promote rule below) |
-
-## Handoff or compaction: route by task
-
-This skill writes the save-point; it does not choose between handing off, compacting and clearing.
-The continuation router in
-[`../workflow/context/continuation.md`](../workflow/context/continuation.md) makes that choice.
 
 ## Reference other artifacts; promote durable value, never commit the file
 

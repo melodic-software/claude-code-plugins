@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "transcript_scope: worktree (user option unset; default)",
+      "why": "resolution line"
+    },
+    {
+      "answer": "`transcript_scope`: `repo` (docs/conventions/session-flow.yaml)",
+      "why": "backticked"
+    },
+    {
+      "answer": "- **`transcript_scope`:** `worktree` (user option unset, and `docs/conventions/session-flow.yaml` is absent, so the default applies).",
+      "why": "observed: bold markdown label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Searched the default scope.",
+      "why": "no key named"
+    },
+    {
+      "answer": "transcript_scope was resolved.",
+      "why": "no value"
+    },
+    {
+      "answer": "transcript_scope: everything",
+      "why": "invalid value"
+    },
+    {
+      "answer": "Should transcript_scope be repo?",
+      "why": "question, no resolved value"
+    },
+    {
+      "answer": "transcript_scope could not be resolved, so I assumed worktree.",
+      "why": "not resolved"
+    }
+  ]
+}

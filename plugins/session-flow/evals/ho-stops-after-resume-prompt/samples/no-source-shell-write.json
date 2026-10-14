@@ -1,0 +1,79 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat src/retry.ts"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff --stat"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git stash list"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -X utf8 /p/scripts/save_point.py new --topic retry-backoff > .work/new.txt"
+          }
+        }
+      ],
+      "why": "save-point commands and reads"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i \"s/1000 \\* 2/Math.min(30000, 1000 * 2/\" src/retry.ts"
+          }
+        }
+      ],
+      "why": "sed in place on the source"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > src/retry.ts <<EOF\nexport {}\nEOF"
+          }
+        }
+      ],
+      "why": "heredoc redirect into the source"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo exit 0 | tee test.sh"
+          }
+        }
+      ],
+      "why": "tee onto the test script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /p restore src/retry.ts"
+          }
+        }
+      ],
+      "why": "git restore reverts the source"
+    }
+  ]
+}

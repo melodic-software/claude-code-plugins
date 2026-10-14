@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "Searched: terms rate limiter, token bucket; transcript_scope: worktree (default); 1 directory, 0 transcripts.\n\n**Tried**\n- 2026-10-01 token-bucket rate limiter replacing the in-memory map (a1b2c3d)\n- 2026-10-01 sliding-window rate limiter (9f8e7d6)\n\n**Kept**\n- Sliding-window rate limiter, still in place in src/limiter.ts (9f8e7d6)\n\n**Dropped or reverted**\n- Token-bucket rate limiter, reverted in 4c5d6e7: the bucket dropped legitimate requests during traffic bursts.\n\nPull requests: not searched, no GitHub remote. Tracker: not searched, /work-items:track not available.",
+      "why": "full report"
+    },
+    {
+      "answer": "Reverted: token bucket (4c5d6e7), because it dropped requests in bursts.\nKept: sliding window (9f8e7d6).",
+      "why": "terse sections"
+    },
+    {
+      "answer": "**Tried**\n- token-bucket rate limiter (a1b2c3d)\n- sliding-window rate limiter (9f8e7d6)\n\n**Kept**\n- Sliding-window rate limiter (9f8e7d6)\n\n**Dropped or reverted**\n- Token-bucket rate limiter, reverted in 4c5d6e7: it dropped legitimate requests during bursts.",
+      "why": "section headers on their own lines"
+    },
+    {
+      "answer": "Kept:\n- sliding window (9f8e7d6)\nReverted:\n- token bucket (4c5d6e7), dropped requests during bursts",
+      "why": "kept header, bare item"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Kept: token bucket (a1b2c3d)\nReverted: sliding window, dropped requests during bursts (9f8e7d6)",
+      "why": "kept and reverted swapped"
+    },
+    {
+      "answer": "The token bucket was reverted after bursts; the sliding window is still in place.",
+      "why": "no SHA cited"
+    },
+    {
+      "answer": "Token bucket reverted in 4c5d6e7. Sliding window kept (9f8e7d6).",
+      "why": "no burst reason"
+    },
+    {
+      "answer": "Tried a token bucket (a1b2c3d) and a sliding window (9f8e7d6) for bursts. The sliding window remains.",
+      "why": "revert omitted"
+    },
+    {
+      "answer": "Reverted once, the token bucket is still current (a1b2c3d); bursts were the issue. Sliding window kept.",
+      "why": "token bucket called current"
+    },
+    {
+      "answer": "**Kept**\n- Token bucket (a1b2c3d)\n\n**Dropped or reverted**\n- Sliding window (9f8e7d6), dropped requests in bursts",
+      "why": "kept header holds the token bucket"
+    }
+  ]
+}

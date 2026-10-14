@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "- [x] Position located\n- [x] **EXECUTION STOPS HERE**\n\n`/clear`, then copy everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nRead @/tmp/<user>/w/.work/handoffs/20261013T090000Z-handoff-retry-backoff.md and continue its remaining actions, then continue them.\nPrior session: 3b0f5c2e-7d41-4c9a-9a51-2f6e8d0c1a77\nNext: run ./test.sh; commit; open the PR\n──────────────────────────────────────────────────────────\n\nOr: claude --resume 3b0f5c2e-7d41-4c9a-9a51-2f6e8d0c1a77\n",
+      "why": "file-path rails block"
+    },
+    {
+      "answer": "Prompt-only path: CLAUDE_CODE_SESSION_ID is unset.\n\n`/clear`, then copy everything between the dashed lines:\n──────────────────────────────────────────────────────────\n\nGoal: \"cap retry delays\" (2026-10-13)\n- Cap delayFor at 30 seconds in src/retry.ts\n- Run ./test.sh, commit, open the PR\n\n──────────────────────────────────────────────────────────\n",
+      "why": "prompt-only rails with blank lines"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Handoff written to .work/handoffs/20261013T090000Z-handoff-retry-backoff.md. Run /clear and read it.",
+      "why": "file written, no rails prompt"
+    },
+    {
+      "answer": "`/clear`, then copy everything between the dashed lines:\n──────────────────────────────────────────────────────────\n──────────────────────────────────────────────────────────\n",
+      "why": "empty rails"
+    },
+    {
+      "answer": "`/clear`, then copy everything between the dashed lines:\n──────────────────────────────────────────────────────────\nRead @/tmp/<user>/w/.work/handoffs/x-handoff-retry-backoff.md\n",
+      "why": "one rail only"
+    },
+    {
+      "answer": "Copy the prompt below after /clear:\n----------\nRead @.work/handoffs/x.md\n----------\n",
+      "why": "ASCII dashes, no copy instruction"
+    },
+    {
+      "answer": "I did not emit a resume prompt; the handoff file is enough.",
+      "why": "negated"
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -8"
+          }
+        }
+      ],
+      "why": "a read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/.work/handoffs/h.md"
+          }
+        }
+      ],
+      "why": "a file read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/orient.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "one call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/handoffs/new.md",
+            "content": "y"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/orient.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "two calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/src/lease.ts",
+            "content": "z"
+          }
+        }
+      ],
+      "why": "a call after a read"
+    }
+  ]
+}
