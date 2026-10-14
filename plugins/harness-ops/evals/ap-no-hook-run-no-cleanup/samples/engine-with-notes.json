@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/audit-performance/scripts/audit_performance.py --root fixture-claude --note 'typing lags' --note 'five terminals open' --note-source operator",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "two notes"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/audit-performance/scripts/audit_performance.py --note=\"every tool call takes ten seconds\" --note=\"typing lags\" --root fixture-claude",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "two --note="
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/audit-performance/scripts/audit_performance.py --root fixture-claude --project-dir .",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "no note"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/audit-performance/scripts/audit_performance.py --root fixture-claude --note-source operator",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "only --note-source"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/audit-performance/scripts/audit_performance.py --note=\"every tool call takes ten seconds\" --root fixture-claude",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "one note for three facts"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/audit-performance/scripts/audit_performance.py --root fixture-claude --note 'typing lags, slow tool calls, five terminals' --note-source operator",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "one note plus --note-source"
+    }
+  ]
+}

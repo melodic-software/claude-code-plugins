@@ -1,5 +1,5 @@
 ---
-description: "Runs live probes of Claude Code permission, auto-mode, hook, worktree, subagent and sandbox behavior as cases with paired controls; reports pass, fail or inconclusive per case with the Claude Code version. Dry run by default; live runs are opt-in and capped. Use when: 'probe claude code behavior', 'rerun the behavior probes', 'does auto mode still deny this', 'add a probe case', 'which probes does this release touch'."
+description: "Live probes of Claude Code permission, auto-mode, hook, worktree, subagent and sandbox behavior as cases with paired controls, each reported pass, fail or inconclusive with the Claude Code version; dry run by default, live runs opt-in and capped. Use when: 'rerun the behavior probes', 'does auto mode still deny this', 'add a probe case', 'which probes does this release touch'."
 argument-hint: "[validate|dry-run|live [--case <id>]...|recheck <range>|add <area>/<name>]"
 user-invocable: true
 disable-model-invocation: false

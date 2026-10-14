@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/eval-ws/visibility-report.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "report"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/eval-ws/plugins/release/skills/bump/SKILL.md",
+            "content": ""
+          }
+        }
+      ],
+      "why": "blank skill"
+    }
+  ]
+}

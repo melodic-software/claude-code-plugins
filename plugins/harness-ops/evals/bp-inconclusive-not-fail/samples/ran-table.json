@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/behavior-probes/scripts/probe.py table probe-run/results.jsonl",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "table action"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/opt/plugins/harness-ops/skills/behavior-probes/scripts/probe.py\" table /tmp/eval-ws/probe-run/results.jsonl",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "quoted path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat probe-run/results.jsonl",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "raw read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n table /opt/plugins/harness-ops/skills/behavior-probes/scripts/probe.py",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "grep"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ]
+}

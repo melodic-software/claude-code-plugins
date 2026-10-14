@@ -1,0 +1,130 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/known-issues/scripts/registry_manager.py --data-dir /opt/plugin-data/harness-ops list",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "list"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/known-issues/scripts/registry_manager.py --data-dir /opt/plugin-data/harness-ops get 41234 --repo anthropics/claude-code",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "get"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n add /opt/plugins/harness-ops/skills/known-issues/scripts/registry_manager.py",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "grep"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/known-issues/scripts/registry_manager.py add --help",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "add --help"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/known-issues/scripts/registry_manager.py --data-dir /opt/plugin-data/harness-ops add 41234 --repo anthropics/claude-code --title x --url https://github.com/anthropics/claude-code/issues/41234 --feature hooks --impact x",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "add"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/opt/plugins/harness-ops/skills/known-issues/scripts/registry_manager.py\" --data-dir \"/opt/plugin-data/harness-ops\" update 50871 --status open",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "update"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "M=/opt/plugins/harness-ops/skills/known-issues/scripts/registry_manager.py; python3 $M --data-dir /d add 1187 --repo microsoft/mcp --title x --url u --feature mcp --impact x",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "variable"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "for n in 41234 50871; do python3 /opt/plugins/harness-ops/skills/known-issues/scripts/registry_manager.py --data-dir /d add $n --repo anthropics/claude-code --title x --url u --feature f --impact i; done",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "loop with $n"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/known-issues/scripts/registry_manager.py --data-dir /d add --repo anthropics/claude-code --number 41234 --title x",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "add with flags first"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/known-issues/scripts/registry_manager.py --data-dir /d remove anthropics/claude-code#1187",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "remove, non-numeric id"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 ---
-description: "Slowness diagnostic that never 'fixes', run before restarting or deleting: version, retention sweep, install bloat, hook/subagent fan-out, kernel-leak census. Use when: 'Claude Code is slow', 'typing lags', 'my machine freezes when Claude runs', 'audit performance', 'why is this session sluggish', 'diagnose Claude slowness before I nuke anything', 'my hooks are slowing everything down', 'too many subagents'. Upstream bugs: /harness-ops:known-issues. Stale files: /harness-ops:audit-install-state."
+description: "Slowness diagnostic that never 'fixes', run before restarting or deleting: version, retention sweep, install bloat, hook/subagent fan-out, kernel-leak census. Use when: 'Claude Code is slow', 'typing lags', 'my machine freezes when Claude runs', 'why is this session sluggish', 'my hooks are slowing everything down', 'too many subagents'. Upstream bugs: /harness-ops:known-issues. Stale files: /harness-ops:audit-install-state."
 argument-hint: "[unattended] [--root <path>] [--session-id <id>] [--note <fact>]"
 user-invocable: true
 disable-model-invocation: false
@@ -9,7 +9,7 @@ metadata:
   cadence: continuous
 ---
 
-**Arguments.** `[unattended] [--root <path>] [--session-id <id>] [--note <fact>]`. The token `unattended` is consumed by the skill, is never passed to the engine script and never read as a root path; under it the suggestion is recorded in the report instead of asked. Full form: [unattended] [--root <path>] (defaults to $CLAUDE_CONFIG_DIR, else ~/.claude); pass the current session id via --session-id when known, and each operator fact via a repeated --note
+**Arguments.** `[unattended] [--root <path>] [--session-id <id>] [--note <fact>]`. `--root` defaults to `$CLAUDE_CONFIG_DIR`, else `~/.claude`; pass the current session id via `--session-id` when known, and each operator fact via a repeated `--note`. The skill consumes `unattended`: never pass it to the engine or read it as a root; under it, record the suggestion in the report instead of asking.
 
 ## Purpose
 
@@ -28,7 +28,7 @@ walk that takes minutes IS the cost the product's retention sweep pays on that t
 | Question | Owner |
 |---|---|
 | Why is Claude Code slow right now? | **this skill** |
-| The historical cost of these hooks over past sessions | Not this engine: its Never-read rule bars transcripts. A `/doctor` session can read them, so the person asks there (see Reading the report) |
+| The historical cost of these hooks over past sessions | Not this engine (Never read bars transcripts); the person asks a `/doctor` session (see Reading the report) |
 | What exactly is in the install tree, and is anything stale? | `/harness-ops:audit-install-state` |
 | Which plugins are enabled at which scope, and is the fleet current? | `/harness-ops:plugins audit` |
 | Is this a known upstream bug? | `/harness-ops:known-issues` (compose: search the symptoms this report surfaces) |
@@ -85,17 +85,14 @@ you fan out.**
 
 ## Never execute
 
-The engine enumerates the hooks and the statusline command that will fire; it never runs one.
-A hook is third-party code with arbitrary side effects, so timing one by executing it would turn
-a read-only capture into a mutation, and a `PreToolUse` hook run outside a tool call may not even
-be idempotent. Per-hook attribution is the operator's step, taken deliberately and with the
-consequences understood. What the engine supplies for it is the no-op spawn baseline every hook
-pays before doing any work of its own.
+The engine enumerates the hooks and the statusline command that will fire; it never runs one: a
+hook is third-party code with arbitrary side effects, so executing it would make the capture a
+mutation. Per-hook attribution is the operator's deliberate step; the engine supplies the no-op
+spawn baseline every hook pays before its own work.
 
-`fan_out.shell_resolution` resolves WHICH `bash.exe` the harness would hand a shell-form command
-to, and it does so by reading `settings.json` and the environment and stat-ing the path. Neither
-binary is spawned, and the documented search for an unset variable is reported rather than
-walked.
+`fan_out.shell_resolution` resolves which `bash.exe` the harness would hand a shell-form command
+to by reading `settings.json` and the environment and stat-ing the path. No binary is spawned, and
+the documented search for an unset variable is reported, not walked.
 
 ## Run it
 
@@ -106,26 +103,23 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-performance/scripts/audit_performanc
   --project-dir "${CLAUDE_PROJECT_DIR:-.}" > ./claude-performance-report.json
 ```
 
-Pass `--project-dir` whenever a project root is known, so project-scope hooks in that repo's
-`.claude/settings.json` are counted alongside the user-scope and plugin ones. Without it the hook
-inventory reports a floor, not a total.
+Pass `--project-dir` whenever a project root is known, so project-scope hooks are counted; without
+it the hook inventory is a floor, not a total.
 
-Write the report **outside** the install root. Python 3.11+ is the only requirement. No
-PowerShell, no third-party packages. On a machine that is currently struggling, expect the run
-itself to be slow; that is signal, not failure. Report the phase timings prominently.
+Write the report **outside** the install root. Requires Python 3.11+ only. On a struggling machine
+the run itself is slow; that is signal. Report the phase timings prominently.
 
-Escape hatches for a machine too contended for the full pass, in the order to reach for them:
-`--subprocess-timeout <seconds>` raises the per-probe bound (the default of 20 s is below the
-range a statusline render can reach under a storm, and a probe that times out is recorded as a
-finding rather than dropped); `--spawn-samples <n>` and `--population-gap 0` shorten the two
-probes that deliberately take wall-clock time; `--skip-fan-out` and `--skip-processes` drop whole
-phases. Say which flags you passed, because each one narrows what the report can conclude.
+Escape hatches for a machine too contended for the full pass, in this order:
+`--subprocess-timeout <seconds>` raises the per-probe bound (default 20 s; a probe that times out
+is recorded as a finding, not dropped); `--spawn-samples <n>` and `--population-gap 0` shorten the
+two wall-clock probes; `--skip-fan-out` and `--skip-processes` drop whole phases. Say which flags
+you passed: each narrows what the report can conclude.
 
 Pass what is already known through `--note`, one note per fact: what was slow (typing? tool calls?
 the whole machine?), how many terminals were open, what the session was doing, and, on Windows,
 whether Task Manager showed "Antimalware Service Executable" or disk saturation. Declare who
-supplied them with `--note-source`, and let `operator_context` record `absent` for what nobody
-passed, because the engine cannot see intent and a silent gap reads like a clean bill of health.
+supplied them with `--note-source`; `operator_context` records `absent` for what nobody passed, so
+a gap never reads as a clean bill of health.
 
 ## Reading the report. Separate the four suspects
 
@@ -314,27 +308,25 @@ If /doctor is available in your session (claim: `/doctor` is reserved for the pe
 
 ## Gotchas
 
-- **Do not convert this audit into a cleanup.** The single most tempting wrong move is "the tree
-  is big, delete it." Big is not the finding. *unswept* is. A healthy sweep bounds the tree by
-  itself; route a paused sweep to `/harness-config:audit` (settings fix), invoked via the Skill tool, and tell the user to run
-  `/disk-hygiene:clean` for unmanaged leftovers.
+- **Do not convert this audit into a cleanup.** Big is not the finding; *unswept* is. A healthy
+  sweep bounds the tree by itself; route a paused sweep to `/harness-config:audit` (settings fix),
+  invoked via the Skill tool, and tell the user to run `/disk-hygiene:clean` for unmanaged
+  leftovers.
 - **A number alone never convicts.** 100k files with `walk_seconds: 4` on an excluded NVMe volume
   is healthy; 20k files with `walk_seconds: 90` behind a scanning filter driver is the problem.
   Pair counts with timings in every claim.
-- **The report is capture-at-moment tooling.** Run it while slow. A report captured after a
-  restart mostly measures a healthy machine and supports no conclusion about the incident.
-- **`quiesced: false` always.** Counts drift while the engine walks a live tree; report ranges of
-  confidence, not false precision.
+- **Run it while slow.** A report captured after a restart supports no conclusion about the
+  incident.
+- **`quiesced: false` always.** Counts drift while the engine walks a live tree; report ranges, not
+  false precision.
 - **Reinstalling before capturing destroys the version evidence permanently.** If the operator
   already reinstalled, say plainly that suspect 2 can no longer be tested for the past incident.
-- **Never time a hook by running it.** The obvious way to attribute per-hook cost is to execute
-  one and measure it, and it is the one move this skill will not make: a hook is third-party code
-  with arbitrary side effects. Report the enumeration and the spawn baseline, and let the
-  operator attribute. The harness has already timed the Stop hooks that ran: a
-  `stop_hook_summary` record in the session transcript carries `hookCount` and a `hookInfos`
-  array of `{"command", "durationMs"}`, one entry per hook. Reading it executes nothing. The
-  skill still never reads a transcript, so name the route and hand the operator a filter that
-  extracts those records alone, for example
+- **Never time a hook by running it** (see Never execute). Report the enumeration and the spawn
+  baseline, and let the operator attribute. The harness has already timed the Stop hooks that ran:
+  a `stop_hook_summary` record in the session transcript carries `hookCount` and a `hookInfos`
+  array of `{"command", "durationMs"}`, one entry per hook. The skill still never reads a
+  transcript, so name the route and hand the operator a filter that extracts those records alone,
+  for example
   `jq -c 'select(.subtype == "stop_hook_summary") | .hookInfos' <session>.jsonl`. Claim: the
   record and its fields are observed harness behavior, not documented, so treat the shape as
   unstable; basis: 41 such records in one session supplied every per-hook duration an audit
@@ -346,25 +338,20 @@ If /doctor is available in your session (claim: `/doctor` is reserved for the pe
   `jq -c 'select(.type == "attachment") | .attachment | select(.type == "hook_success" or .type == "hook_non_blocking_error") | {hookEvent, hookName, command, durationMs}' <session>.jsonl`.
   `/harness-ops:observability hooks <session>.jsonl` reads both shapes and owns the record of
   their keys and stability.
-- **A single spawn number, unlabeled by machine state, is worse than no number.** The floor
-  itself moves with load, so a reading taken under a storm looks like a permanent property of the
-  machine and is not one. Every quoted timing carries its `concurrent_processes_at_sample`, and a
-  comparison against an earlier capture is only valid at comparable load.
+- **Label every spawn number with machine state.** The floor moves with load: every quoted timing
+  carries its `concurrent_processes_at_sample`, and a comparison against an earlier capture is
+  valid only at comparable load.
 - **A slow spawn floor at idle CPU with the four suspects clear is the host, not the fan-out
-  layer.** On Windows check `kernel_objects` before writing up `slow-spawn-floor`: 1.4 to 4 s per
-  creation at 7% CPU was a Token-object leak, suspending the busiest shells moved it 15%, and a
-  reboot took it to 14 ms. Report the leak, route the reboot and the attribution to the operator,
-  and do not let the fan-out numbers carry the diagnosis.
-- **Do not present parallel hook cost as additive.** Summing hook timings produces a number
-  several times larger than the stall the operator actually observes, which then fails to match
-  the symptom and discredits the whole report.
+  layer.** On Windows check `kernel_objects` before writing up `slow-spawn-floor`: a Token-object
+  leak can produce seconds per process creation at low CPU that a reboot clears. Report the leak,
+  route the reboot and the attribution to the operator, and do not let the fan-out numbers carry
+  the diagnosis.
+- **Do not present parallel hook cost as additive.** Summing hook timings overstates the stall the
+  operator observes several times over.
 - **Config on disk is not config in force.** Check `fan_out.config_liveness` before saying a
-  setting is or is not the cause. This is the failure mode that produces a confidently wrong
-  report: everything looks disabled, and every one of its hooks is still running.
-- **Age is not orphanhood.** Most long-lived helper processes have live parents and are doing
-  their job. Convicting on age alone routes working software to a kill, so read `parent_alive`
-  and leave `unknown` unresolved rather than guessing.
-- **Record the negatives.** When a suspect is tested and cleared, say so and say how it was
-  tested. The bundled reference carries a tested-and-cleared section for exactly this: a plausible
-  cause ruled out by measurement is a finding, and the next operator should not have to re-derive
-  it. Antivirus, filesystem, and shell choice have all looked like the cause and been wrong.
+  setting is or is not the cause: everything can look disabled while its hooks still run.
+- **Age is not orphanhood.** Read `parent_alive`, and leave `unknown` unresolved rather than
+  guessing; most long-lived helpers have live parents.
+- **Record the negatives.** When a suspect is tested and cleared, say so and how, as the bundled
+  reference's tested-and-cleared section does. Antivirus, filesystem, and shell choice have each
+  looked like the cause and been wrong.

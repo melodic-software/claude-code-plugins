@@ -1,0 +1,118 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat docs/native-surfaces/records.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "read store"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import json; print(json.load(open('docs/native-surfaces/records.json'))['rows'][0]['verdict'])\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "python read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.py self-check",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "self-check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n description plugins/demo/skills/session-digest/SKILL.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "grep skill"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/\"defer\"/\"prefer-native\"/' docs/native-surfaces/records.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "sed -i store"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq '.rows[0].verdict=\"complementary\"' docs/native-surfaces/records.json > /tmp/r.json && mv /tmp/r.json docs/native-surfaces/records.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "jq then mv"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 - <<'PY'\nimport json\np='docs/native-surfaces/records.json'\nd=json.load(open(p))\nd['rows'][0]['verdict']='prefer-native'\nopen(p,'w').write(json.dumps(d))\nPY",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "python heredoc write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "perl -pi -e 's/^description: \"/description: \"Prefer recap. /' plugins/demo/skills/session-digest/SKILL.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "perl -pi"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from pathlib import Path; p=Path('docs/native-surfaces/records.json'); p.write_text(p.read_text().replace('defer','superseded'))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "write_text"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 ---
-description: "When the bundled explain-usage skill resolves in this session, prefer it for a plain-language breakdown of this session's tokens; this skill for cross-session trends, cost, hooks, and the local telemetry stores (OTEL DuckDB, hook event log, ccusage). Use when: 'claude observability', 'OTEL', 'token burn rate', 'hook latency', 'cost breakdown', 'how am I doing', 'what did this session do', 'which hooks fired', 'compare two sessions'; read-only except the explicit clean action."
+description: "When the bundled explain-usage skill resolves in this session, prefer it for a plain-language breakdown of this session's tokens; this skill for cross-session reports from the local telemetry stores (OTEL DuckDB, hook event log, ccusage): token burn, cost, hook latency, per-session activity; read-only except the explicit clean action. Use when: 'claude observability', 'how am I doing', 'what did this session do', 'which hooks fired', 'compare two sessions'."
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/build-dashboard.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/build-dashboard.mjs\":*)"]
@@ -153,7 +153,7 @@ builder. Node missing: the markdown report stands and the dashboard is not built
 
 `latency` telemetry record:
 
-`latency` reads one `hook_execution_complete` log event per hook event firing, using its `hook_event`, `total_duration_ms`, `num_hooks` and `session.id`. Our probe of the live OTEL store under Claude Code 2.1.281 observed `total_duration_ms` arriving as a `stringValue`, so the script reads it with an `intValue` fallback in case that changes. `claude.lane` is our own custom attribute, set through `OTEL_RESOURCE_ATTRIBUTES`; rows without it report as lane `unknown`.
+`latency` reads one `hook_execution_complete` log event per hook event firing, using its `hook_event`, `total_duration_ms`, `num_hooks` and `session.id`. `total_duration_ms` was observed as a `stringValue` (probe below); the script falls back to `intValue`. `claude.lane` is our own custom attribute, set through `OTEL_RESOURCE_ATTRIBUTES`; rows without it report as lane `unknown`.
 
 - **Pointer**: for the event and its attributes, see <https://code.claude.com/docs/en/monitoring-usage#hook-execution-complete-event>; the string-typed duration is our probe of the live OTEL store on 2026-09-24; for custom resource attributes, see <https://code.claude.com/docs/en/monitoring-usage#multi-team-organization-support>.
 - **As of**: 2026-10-01 for the docs sections; 2026-09-24, Claude Code 2.1.281, for the probe
@@ -161,7 +161,7 @@ builder. Node missing: the markdown report stands and the dashboard is not built
 
 `compare` reconciliation record:
 
-`compare` treats `claude_code.cost.usage` and `claude_code.token.usage` as the total of record over `api_request` events; when a session's events fall short, `compare` names [anthropics/claude-code#98193](https://github.com/anthropics/claude-code/issues/98193), the open upstream report on missing `api_request` events. Events above the metric are flagged, never clamped, since that report does not cover them. `compare` sums data points only for delta temporality, so a non-delta token or cost metric exits 2.
+`compare` treats `claude_code.cost.usage` and `claude_code.token.usage` as the total of record over `api_request` events; when a session's events fall short, `compare` names [anthropics/claude-code#98193](https://github.com/anthropics/claude-code/issues/98193), the open upstream report on missing `api_request` events. Events above the metric are flagged, never clamped. `compare` sums data points only for delta temporality, so a non-delta token or cost metric exits 2.
 
 - **Pointer**: for missing `api_request` events, see anthropics/claude-code#98193; for the metrics and their attributes, `effort` included, see <https://code.claude.com/docs/en/monitoring-usage#cost-counter> and <https://code.claude.com/docs/en/monitoring-usage#token-counter>; for the event, see <https://code.claude.com/docs/en/monitoring-usage#api-request-event>; for the temporality default, see <https://code.claude.com/docs/en/monitoring-usage#common-configuration-variables>. No docs section covers which requests skip `api_request` as of this date.
 - **As of**: 2026-10-01; #98193 open.
@@ -177,10 +177,10 @@ builder. Node missing: the markdown report stands and the dashboard is not built
 
 Action invocation: `/harness-ops:observability clean [flags]`.
 
-**`clean` requires explicit user confirmation** before running when invoked by the model. Show
-`--dry-run` output first unless user already passed `--dry-run` or explicitly ordered cleanup.
-Routine retention (newest N sessions or the last N days) is the `SessionEnd` hook's job while
-`session_event_log_enabled` is on; `clean` is the operator's explicit sweep.
+**`clean` requires explicit user confirmation** when invoked by the model. Show `--dry-run`
+output first unless the user already passed `--dry-run` or explicitly ordered cleanup. Routine
+retention is the `SessionEnd` hook's job while `session_event_log_enabled` is on; `clean` is the
+operator's explicit sweep.
 
 ### Ad-hoc telemetry reads (no special action)
 
@@ -194,7 +194,7 @@ When the user asks to inspect traces, logs, metrics, or hook data outside a scop
 
 ### 0. Dispatch. Action vs scope
 
-If the first argument is `clean`, `latency`, `compare` or `hooks`: delegate to `scripts/clean.sh`, `scripts/hook-latency.sh`, `scripts/session-compare.sh` or `scripts/hook-transcript-timing.sh` with the remaining arguments and return its exit code.
+An action delegates to its script with the remaining arguments and returns its exit code; anything else is a scope:
 
 ```bash
 if [[ "${1:-}" == "clean" ]]; then

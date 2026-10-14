@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/p/skills/observability/scripts/hook-transcript-timing.sh\" session.jsonl",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "quoted path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/hook-transcript-timing.sh /tmp/ws/session.jsonl",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "absolute transcript"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq -r '.hookInfos[]?' session.jsonl",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "hand jq"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/hook-transcript-timing.sh --help",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "help only"
+    }
+  ]
+}

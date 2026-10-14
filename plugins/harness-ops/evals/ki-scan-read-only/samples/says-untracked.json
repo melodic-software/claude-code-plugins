@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "## Repo Scan: 3 issue references found\n\n### Untracked: 3 issues (run `scan --add` to register)\n\n| # | Repo | Found In |\n|---|---|---|\n| #41234 | anthropics/claude-code | docs/hooks-notes.md:3 |\n| #50871 | anthropics/claude-code | CLAUDE.md:5 |\n| #1187 | microsoft/mcp | scripts/mcp-check.sh:2 |\n\nTo register them, run:\n\n```text\n/harness-ops:known-issues scan --add\n```"
+    },
+    {
+      "answer": "Found anthropics/claude-code#41234, anthropics/claude-code#50871 and microsoft/mcp#1187. None are in the registry yet, so all three are untracked. Run `/harness-ops:known-issues scan --add` to register them."
+    },
+    {
+      "answer": "Three references, all not yet tracked: #41234, #50871, microsoft/mcp #1187. Bare scan is read-only; use scan --add to register them."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No untracked references.",
+      "why": "no"
+    },
+    {
+      "answer": "Untracked: 0",
+      "why": "zero"
+    },
+    {
+      "answer": "### Untracked: 0 issues",
+      "why": "zero heading"
+    },
+    {
+      "answer": "All three are already tracked.",
+      "why": "tracked"
+    },
+    {
+      "answer": "I registered all three in the registry.",
+      "why": "registered"
+    }
+  ]
+}

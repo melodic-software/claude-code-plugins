@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "No profile is stored for this machine yet (`machine-profile/profile.json` is absent), so there is nothing to diff against.\n\nWant me to run the `profile` action to produce one? It discovers the host and records only after you say yes.",
+      "why": "script wording"
+    },
+    {
+      "answer": "There is no stored profile for this host, so `diff` has no baseline (exit 3).\n\nNext: `/harness-ops:machine-profile profile` creates the first profile.",
+      "why": "slash command offer"
+    },
+    {
+      "answer": "The profile document doesn't exist yet. I can run discovery and create a profile now if you'd like.",
+      "why": "doesn't exist"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The diff ran and nothing changed.",
+      "why": "silent all-clear"
+    },
+    {
+      "answer": "Your profile is up to date with the host.",
+      "why": "claims a profile"
+    },
+    {
+      "answer": "This is not no profile; the store has one.",
+      "why": "negated"
+    }
+  ]
+}

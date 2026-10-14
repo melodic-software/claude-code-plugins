@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/eval-ws/overlap-candidates.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "detect output"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "docs/native-surfaces/records.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "store rewrite"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/eval-ws/plugins/demo/skills/session-digest/SKILL.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "skill rewrite"
+    }
+  ]
+}

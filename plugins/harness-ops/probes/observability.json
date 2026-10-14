@@ -1,0 +1,158 @@
+{
+  "skill": "harness-ops:observability",
+  "plugin": "harness-ops",
+  "skill_dir": "plugins/harness-ops/skills/observability",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling harness-ops skills and nearby skills in other plugins a request borders.",
+  "competitors": [
+    "harness-ops:audit-install-state",
+    "harness-ops:audit-native-overlap",
+    "harness-ops:audit-performance",
+    "harness-ops:audit-skill-visibility",
+    "harness-ops:behavior-probes",
+    "harness-ops:changelog",
+    "harness-ops:check",
+    "harness-ops:inventory",
+    "harness-ops:known-issues",
+    "harness-ops:lanes",
+    "harness-ops:machine-profile",
+    "harness-ops:morning-brief",
+    "harness-ops:plugins",
+    "harness-ops:prerequisites",
+    "harness-ops:setup",
+    "disk-hygiene:clean",
+    "harness-config:audit",
+    "context-budget:audit",
+    "session-flow:audit-sessions"
+  ],
+  "competitor_dirs": {
+    "harness-ops:audit-install-state": "plugins/harness-ops/skills/audit-install-state",
+    "harness-ops:audit-native-overlap": "plugins/harness-ops/skills/audit-native-overlap",
+    "harness-ops:audit-performance": "plugins/harness-ops/skills/audit-performance",
+    "harness-ops:audit-skill-visibility": "plugins/harness-ops/skills/audit-skill-visibility",
+    "harness-ops:behavior-probes": "plugins/harness-ops/skills/behavior-probes",
+    "harness-ops:changelog": "plugins/harness-ops/skills/changelog",
+    "harness-ops:check": "plugins/harness-ops/skills/check",
+    "harness-ops:inventory": "plugins/harness-ops/skills/inventory",
+    "harness-ops:known-issues": "plugins/harness-ops/skills/known-issues",
+    "harness-ops:lanes": "plugins/harness-ops/skills/lanes",
+    "harness-ops:machine-profile": "plugins/harness-ops/skills/machine-profile",
+    "harness-ops:morning-brief": "plugins/harness-ops/skills/morning-brief",
+    "harness-ops:plugins": "plugins/harness-ops/skills/plugins",
+    "harness-ops:prerequisites": "plugins/harness-ops/skills/prerequisites",
+    "harness-ops:setup": "plugins/harness-ops/skills/setup",
+    "disk-hygiene:clean": "plugins/disk-hygiene/skills/clean",
+    "harness-config:audit": "plugins/harness-config/skills/audit",
+    "context-budget:audit": "plugins/context-budget/skills/audit",
+    "session-flow:audit-sessions": "plugins/session-flow/skills/audit-sessions"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "How much did I spend on Claude Code this week?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which hooks fired in the last session and how long did each take?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Compare token usage between yesterday's two sessions."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Query the OTEL data I have stored locally for burn rate."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What's my cost breakdown by model over the past month?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Show hook latency percentiles from the event log."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Run ccusage and summarize it for me."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Trim the local telemetry store; it's gotten large."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Tell me how I'm doing across sessions in terms of tokens and cost."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Break down the work of the current session, hook by hook."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Where did this session's tokens go in plain language?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which sessions wasted time and corrections? Audit my transcripts."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Measure how much context startup consumes before I do anything."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Why is Claude Code slow right now?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Set up OpenTelemetry in my own web service."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Draw a chart of my API latency."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is there an outage on the Claude status page?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Look at my cloud bill from Azure."
+    }
+  ]
+}

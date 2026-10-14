@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/plugins/harness-ops/skills/morning-brief/scripts/morning-brief.sh\" --data-dir /tmp/data --now 2026-07-20T08:00Z --counts-json brief/counts.json --pr-json brief/prs.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "quoted script path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /x/morning-brief.sh --data-dir /d --pr-json brief/prs.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "via bash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /x/morning-brief.sh --help",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "help only, no fixtures"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr list --json number,title",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "hand query"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 ---
-description: "Read-only audit of `~/.claude` and `~/.claude.json`: the deep inventory of unmanaged files. Use when: 'audit my .claude folder', 'what is in my ~/.claude', 'why is my Claude Code install so big', 'is anything stale in my Claude directory', 'does Claude Code clean up after itself', 'check cleanupPeriodDays', 'is this lock file dead', 'tidy my Claude Code install'. Deleting: /disk-hygiene:clean."
+description: "Read-only audit of `~/.claude` and `~/.claude.json`: the deep inventory of unmanaged files. Use when: 'what is in my ~/.claude', 'why is my Claude Code install so big', 'does Claude Code clean up after itself', 'check cleanupPeriodDays', 'is this lock file dead', 'tidy my Claude Code install'. Deleting: /disk-hygiene:clean."
 argument-hint: "[unattended] [root]"
 user-invocable: true
 disable-model-invocation: false
@@ -86,7 +86,7 @@ it read by content carries `content_read: true` with the paths opened. Everythin
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-install-state/scripts/install_state.py" \
-  --samples 3 --csv ./claude-install-listing.csv --versions-out ./claude-install-versions.json \
+  --root <root> --samples 3 --csv ./claude-install-listing.csv --versions-out ./claude-install-versions.json \
   > ./claude-install-report.json
 ```
 

@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/eval-ws/notes.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "other file"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/eval-ws/docs/native-surfaces/records.json",
+            "old_string": "\"verdict\": \"defer\"",
+            "new_string": "\"verdict\": \"prefer-native\""
+          }
+        }
+      ],
+      "why": "records verdict"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/eval-ws/plugins/demo/skills/session-digest/SKILL.md",
+            "old_string": "description: \"",
+            "new_string": "description: \"When the bundled recap skill resolves"
+          }
+        }
+      ],
+      "why": "bakes phrase"
+    }
+  ]
+}
