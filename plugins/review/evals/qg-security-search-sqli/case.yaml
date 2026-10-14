@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: qg-security-search-sqli
+context:
+  scaffold_script: scaffold.sh

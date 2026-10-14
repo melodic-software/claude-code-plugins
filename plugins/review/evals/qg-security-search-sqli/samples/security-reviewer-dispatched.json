@@ -1,0 +1,75 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Security review of branch",
+            "prompt": "Review the diff from the merge-base with origin/HEAD; focus on the new search route.",
+            "subagent_type": "review:security-reviewer"
+          }
+        }
+      ],
+      "why": "the plugin's security reviewer dispatched"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": { "command": "git diff origin/main...HEAD" }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Security audit",
+            "prompt": "Audit src/routes/search.js.",
+            "subagent_type": "security-reviewer"
+          }
+        }
+      ],
+      "why": "unprefixed agent name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no subagent: reviewed on the main thread"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Code review",
+            "prompt": "Review the branch.",
+            "subagent_type": "review:code-reviewer"
+          }
+        }
+      ],
+      "why": "wrong reviewer"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Security review",
+            "prompt": "Act as the security-reviewer agent and audit the branch.",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ],
+      "why": "general-purpose agent told to play the reviewer"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": { "skill": "review:security-review" }
+        }
+      ],
+      "why": "the CI lane skill, not the agent"
+    }
+  ]
+}

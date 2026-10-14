@@ -8,4 +8,4 @@ allowed_tools: [Read, Glob, Grep, Skill, Agent, Bash, Write]
 expected_outcome: "The review reports that shorten no longer returns a title at or under the limit unchanged: short titles such as 'Desk lamp' now come back with a trailing ellipsis, and a title of exactly 40 characters loses its last character"
 ---
 
-/review:quality-gate self Quick tidy-up on this branch, can you give it a review pass?
+/review:quality-gate self Quick tidy-up on this branch, can you give it a review pass? No pull request is open for this branch yet.
