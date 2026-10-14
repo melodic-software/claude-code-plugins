@@ -86,9 +86,12 @@ it read by content carries `content_read: true` with the paths opened. Everythin
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-install-state/scripts/install_state.py" \
-  --root <root> --samples 3 --csv ./claude-install-listing.csv --versions-out ./claude-install-versions.json \
+  --samples 3 --csv ./claude-install-listing.csv --versions-out ./claude-install-versions.json \
   > ./claude-install-report.json
 ```
+
+Add `--root PATH` only when a `root` argument was given; without it the engine audits
+`$CLAUDE_CONFIG_DIR`, else `~/.claude`.
 
 Write both artifacts **outside** the target root (`${CLAUDE_PLUGIN_DATA}` resolves *inside* it and
 would be counted by the run that wrote it; in a cloud session use the session scratchpad). If a

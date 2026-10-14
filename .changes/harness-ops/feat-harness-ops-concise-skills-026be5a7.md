@@ -8,7 +8,7 @@ bump: minor
 
 ### Fixed
 
-- `/harness-ops:audit-install-state`'s "Run it" command now passes `--root <root>`, so the engine audits the tree the user named instead of falling back to `$CLAUDE_CONFIG_DIR` or `~/.claude`.
+- `/harness-ops:audit-install-state`'s "Run it" step now adds `--root PATH` when a root argument is given, so the engine audits the tree the user named instead of falling back to `$CLAUDE_CONFIG_DIR` or `~/.claude`; with no root argument the command runs without it.
 
 ### Added
 
