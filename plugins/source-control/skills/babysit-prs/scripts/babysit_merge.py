@@ -2764,8 +2764,49 @@ def _lane_evidence(
         threads,
         is_human=human,
         base_changed=any(e.get("event") == "base_ref_changed" for e in timeline),
+        head_file=_head_file(repo, str(head.get("sha"))),
     )
     return lanes, comments
+
+
+def _head_file(repo: str, head: str) -> Callable[[str, str], str | None]:
+    """`bind()`'s `head_file`: a file's text at `head`, or None only when the
+    comparison from the thread's commit lists it removed. A rename, a capped
+    file list or any other failure raises, so the thread keeps its human test."""
+    cache: dict[tuple[str, str], str | None] = {}
+
+    def read(path: str, original: str) -> str | None:
+        if (path, original) in cache:
+            return cache[(path, original)]
+        proc = gh_capture(
+            [
+                "api",
+                "-H",
+                "Accept: application/vnd.github.raw",
+                f"repos/{repo}/contents/{quote(path)}?ref={head}",
+            ]
+        )
+        if proc.returncode == 0:
+            text: str | None = proc.stdout
+        elif gh_http_status(proc.stderr or "") != 404:
+            raise RuntimeError(f"head-file-unread:{path}")
+        else:
+            files = json_object(
+                gh_json(["api", f"repos/{repo}/compare/{original}...{head}"])
+            ).get("files")
+            # The comparison lists at most 300 files; a full page may hide one.
+            if not is_json_array(files) or len(files) >= 300 or not any(
+                is_json_object(item)
+                and item.get("filename") == path
+                and item.get("status") == "removed"
+                for item in files
+            ):
+                raise RuntimeError(f"head-file-unproven:{path}")
+            text = None
+        cache[(path, original)] = text
+        return text
+
+    return read
 
 
 def score_unattended(

@@ -20,6 +20,9 @@ Inputs are raw GitHub API shapes the caller collects for one pull request:
 - `threads`: `babysit_gh.fetch_review_threads(..., include_resolved=True)`,
   or None when they could not be read.
 - `is_human`: the merge policy's test of one GraphQL actor (or None).
+- `head_file`: reads a file at the pinned head, given its path and the
+  commit a thread was raised on: its text, None when that file was deleted
+  since, raising when neither is proven.
 
 The record format is the lane producer's (ci-workflows
 `.github/workflows/pr-review.yml`, "Report the review status" and "Record
@@ -93,6 +96,7 @@ def bind(
     *,
     is_human: Callable[[Any], bool],
     base_changed: bool = False,
+    head_file: Callable[[str, str], str | None] | None = None,
 ) -> tuple[LaneEvidence, ...]:
     """Evidence for every lane in `LANES`, in that order.
 
@@ -121,7 +125,9 @@ def bind(
         # untagged thread leaves the count on the security lane.
         claimed: set[str] = set()
         return tuple(
-            _bind_lane(lane, head_sha, runs, comments, threads, is_human, claimed)
+            _bind_lane(
+                lane, head_sha, runs, comments, threads, is_human, claimed, head_file
+            )
             for lane in LANES
         )
     except Exception as exc:  # noqa: BLE001 - any doubt is unbound
@@ -137,13 +143,16 @@ def _bind_lane(
     threads: Sequence[Mapping[str, Any]] | None,
     is_human: Callable[[Any], bool],
     claimed: set[str],
+    head_file: Callable[[str, str], str | None] | None,
 ) -> LaneEvidence:
     try:
         lane_runs = _lane_runs(lane, runs)
         reviewed = _resolve(lane, head, lane_runs)
         _require_marker(lane, head, comments)
         _require_marked_runs(lane, lane_runs, comments)
-        count = _open_findings(lane, lane_runs, threads, is_human, claimed, reviewed)
+        count = _open_findings(
+            lane, lane_runs, threads, is_human, claimed, reviewed, head_file
+        )
     except Unbound as exc:
         return LaneEvidence(lane, False, exc.reason, None)
     return LaneEvidence(lane, True, None, count)
@@ -392,16 +401,19 @@ def _open_findings(
     is_human: Callable[[Any], bool],
     claimed: set[str],
     reviewed: str,
+    head_file: Callable[[str, str], str | None] | None = None,
 ) -> int:
     """Summary findings over every completed attempt of the lane on this pull
     request, plus inline threads still open, plus inline findings whose
     thread is gone. A resolved thread is closed when a human resolved it, or
-    when GitHub marks it outdated (its lines changed) and it was opened
-    before the first review at `reviewed` (the head whose review covers the
-    pinned head) started: the lane reviewed the changed lines after it. A
-    thread from any review at `reviewed`, or one whose lines never changed,
-    stays open until a human resolves it, so neither a repeated review nor an
-    unrelated push clears a finding an agent resolved without fixing. A thread stands for a recorded inline finding only when it
+    when GitHub marks it outdated, it was opened before the first review at
+    `reviewed` (the head whose review covers the pinned head) started, and
+    its flagged line is gone from the pinned head (`_line_changed`): the lane
+    reviewed the changed line after it. A thread from any review at
+    `reviewed`, or one whose flagged line is unchanged (GitHub also marks a
+    thread outdated when an edit above it shifts it), stays open until a
+    human resolves it, so neither a repeated review nor an unrelated push
+    clears a finding an agent resolved without fixing. A thread stands for a recorded inline finding only when it
     was opened inside that lane job's run, and it stands for one finding
     across both lanes (`claimed`), so neither an unrecorded review's thread
     nor the other lane's untagged thread hides a missing one."""
@@ -460,11 +472,48 @@ def _open_findings(
         if thread.get("isResolved") is not True:
             open_threads += 1
         elif not (
-            thread.get("isOutdated") is True and first and created and created < first
+            thread.get("isOutdated") is True
+            and first
+            and created
+            and created < first
+            and _line_changed(thread, head_file)
         ) and not is_human(thread.get("resolvedBy")):
             open_threads += 1
     missing = sum(max(k - n, 0) for (_, _, k), n in zip(windows, covered))
     return summary + open_threads + missing
+
+
+def _line_changed(
+    thread: Mapping[str, Any], head_file: Callable[[str, str], str | None] | None
+) -> bool:
+    """Whether the line a thread flagged (the last line of its diff hunk, on
+    the new side) is absent from its file at the pinned head, or the file was
+    deleted. No reader, a blank line or anything unreadable is no evidence."""
+    if head_file is None:
+        return False
+    try:
+        first = thread["comments"][0]
+        path, hunk = first.get("path"), first.get("diffHunk")
+        oid = (first.get("originalCommit") or {}).get("oid")
+        if not (
+            isinstance(path, str)
+            and path
+            and isinstance(hunk, str)
+            and isinstance(oid, str)
+            and SHA_RE.match(oid)
+        ):
+            return False
+        last = hunk.rstrip("\n").rsplit("\n", 1)[-1].rstrip("\r")
+        if last[:1] not in ("+", " ") or not last[1:].strip():
+            return False
+        text = head_file(path, oid)
+        if text is None:
+            return True
+        return isinstance(text, str) and last[1:] not in {
+            line.rstrip("\r") for line in text.split("\n")
+        }
+    except Exception:  # noqa: BLE001 - unreadable is no evidence
+        return False
 
 
 def _time(value: Any) -> datetime | None:

@@ -36,6 +36,8 @@ JOBS = {
     "claude-security-review": "pr-review-security / security-review",
 }
 MAINTAINER = {"__typename": "User", "login": "maintainer"}
+# The flagged line is the hunk's last line.
+HUNK = "@@ -1,2 +1,2 @@\n context\n+run(user_input)"
 
 
 def is_human(actor: Any) -> bool:
@@ -145,6 +147,7 @@ def thread(
     author: dict[str, Any] | None = None,
     created: str = "2026-01-01T00:30:00Z",
     outdated: bool = False,
+    hunk: Any = HUNK,
 ) -> dict[str, Any]:
     return {
         "id": f"t{next(_ids)}",
@@ -156,9 +159,17 @@ def thread(
                 "author": author or {"__typename": "Bot", "login": "claude"},
                 "body": body,
                 "createdAt": created,
+                "path": "app.py",
+                "diffHunk": hunk,
+                "originalCommit": {"oid": S1},
             }
         ],
     }
+
+
+def fixed_head(path: str, original: str) -> str | None:
+    """The file at the pinned head with the flagged line rewritten."""
+    return "context\nrun(clean(user_input))\n"
 
 
 def whole(lane: str, sha: str, n: int = 0, k: int = 0) -> dict[str, Any]:
@@ -239,6 +250,7 @@ class Base(unittest.TestCase):
         runs: list[dict[str, Any]],
         comments: list[dict[str, Any]] | None = None,
         threads: list[dict[str, Any]] | None = (),  # type: ignore[assignment]
+        head_file: Any = fixed_head,
     ) -> dict[str, Any]:
         return by_lane(
             ev.bind(
@@ -247,6 +259,7 @@ class Base(unittest.TestCase):
                 both_markers() if comments is None else comments,
                 list(threads) if threads is not None else None,
                 is_human=is_human,
+                head_file=head_file,
             )
         )
 
@@ -780,6 +793,47 @@ class CountTests(Base):
         result = self.bind(self.rounds(), threads=threads)
         self.assertTrue(result["claude-review"].bound)
         self.assertEqual(result["claude-review"].open_findings, 0)
+
+    def outdated_pusher_resolved(self, head_file: Any, hunk: Any = HUNK) -> int:
+        pusher = {"__typename": "User", "login": "pusher"}
+        threads = [
+            thread(
+                resolved=True, resolved_by=pusher, created=at, outdated=True, hunk=hunk
+            )
+            for at in ("2026-01-01T00:30:00Z", "2026-01-01T02:30:00Z")
+        ]
+        result = self.bind(self.rounds(), threads=threads, head_file=head_file)
+        return result["claude-review"].open_findings
+
+    def test_insert_above_the_unchanged_line_keeps_the_human_test(self) -> None:
+        # GitHub marks the thread outdated, but the flagged line ships as is.
+        shifted = "context\n# unrelated\nrun(user_input)\n"
+        self.assertEqual(self.outdated_pusher_resolved(lambda p, o: shifted), 2)
+
+    def test_changed_line_is_closed(self) -> None:
+        self.assertEqual(self.outdated_pusher_resolved(fixed_head), 0)
+
+    def test_deleted_file_is_closed(self) -> None:
+        self.assertEqual(self.outdated_pusher_resolved(lambda p, o: None), 0)
+
+    def test_unreadable_file_or_hunk_keeps_the_human_test(self) -> None:
+        def unreadable(path: str, original: str) -> str | None:
+            raise RuntimeError("head-file-unread")
+
+        cases = (
+            ("file", unreadable, HUNK),
+            ("no reader", None, HUNK),
+            ("no hunk", fixed_head, None),
+            ("empty hunk", fixed_head, ""),
+            ("left side", fixed_head, "@@ -1,2 +1,1 @@\n context\n-run(user_input)"),
+        )
+        for name, head_file, hunk in cases:
+            with self.subTest(name):
+                self.assertEqual(self.outdated_pusher_resolved(head_file, hunk), 2)
+
+    def test_blank_flagged_line_keeps_the_human_test(self) -> None:
+        hunk = "@@ -1,2 +1,2 @@\n context\n+   \t"
+        self.assertEqual(self.outdated_pusher_resolved(fixed_head, hunk), 2)
 
     def test_earlier_round_with_unchanged_lines_still_needs_a_human(self) -> None:
         # An unrelated push re-reviewed incrementally never re-read the line.

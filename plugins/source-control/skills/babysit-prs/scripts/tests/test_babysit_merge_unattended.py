@@ -1212,6 +1212,41 @@ class ReasonsComment(Unattended):
         self.assertNotIn("risk-comment:POST", self.log)
 
 
+class HeadFile(unittest.TestCase):
+    """`bind()`'s head-file reader proves a deletion, never a rename."""
+
+    def read(self, proc: Any, files: Any = ()) -> str | None:
+        with (
+            mock.patch.object(merge, "gh_capture", return_value=proc),
+            mock.patch.object(merge, "gh_json", return_value={"files": list(files)}),
+        ):
+            return merge._head_file("owner/repo", HEAD)("app.py", "b" * 40)
+
+    @staticmethod
+    def proc(code: int, out: str = "", err: str = "") -> Any:
+        return subprocess.CompletedProcess([], code, out, err)
+
+    def test_text_at_head(self) -> None:
+        self.assertEqual(self.read(self.proc(0, "x\n")), "x\n")
+
+    def test_removed_file_reads_none(self) -> None:
+        gone = self.proc(1, err="gh: Not Found (HTTP 404)")
+        removed = {"filename": "app.py", "status": "removed"}
+        self.assertIsNone(self.read(gone, [removed]))
+
+    def test_renamed_or_unproven_file_raises(self) -> None:
+        gone = self.proc(1, err="gh: Not Found (HTTP 404)")
+        renamed = {"filename": "app.py", "status": "renamed"}
+        removed = {"filename": "app.py", "status": "removed"}
+        for name, proc, files in (
+            ("renamed", gone, [renamed]),
+            ("capped", gone, [removed] + [{"filename": "f"}] * 299),
+            ("forbidden", self.proc(1, err="gh: Forbidden (HTTP 403)"), [removed]),
+        ):
+            with self.subTest(name), self.assertRaises(RuntimeError):
+                self.read(proc, files)
+
+
 class HeadPushers(unittest.TestCase):
     """#7339 item 3: who pushed a commit is known only through a linked login."""
 
