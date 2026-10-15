@@ -115,17 +115,26 @@ say(allowedLines.length > 0 && allowedLines.every((l) => !/Bash/.test(l) || ['al
   "the runner grants the skill no Bash but its check wrappers, the docs scripts and the review-thread tool");
 say(/chmod -R a-w "\$FEEDBACK_DIR"/.test(stage) && /Edit\(\/\$FEEDBACK_DIR\/\*\*\),Write\(\/\$FEEDBACK_DIR\/\*\*\),Edit\(\/\$FEEDBACK_STATE\/\*\*\),Write\(\/\$FEEDBACK_STATE\/\*\*\)/.test(stage),
   "the review-thread tool, its thread file and its log are out of the skill's Edit and Write");
-// review-threads decides before the mint with the job token, and the round
-// step runs only the base copy whose SHA-256 the select step recorded.
+// review-threads decides before the mint with the job token. After the
+// skill, a pinned action (no PATH lookup the activity could redirect) records
+// the gated head and kept threads beside the model's replies; no step of the
+// model run holds a reply or resolve call.
 const select = at((s) => s.id === "feedback-select");
 say(select >= 0 && select < mint && byId("feedback-select").env?.GITHUB_TOKEN === "${{ github.token }}",
   "the review-threads select step runs before the mint, with the job's read-only token");
 say(/proceed != 'false'/.test(byId("head-recheck").if ?? ""), "a select step that does not proceed skips the mint");
-const round = byId("feedback-round");
-const roundScript = String(round.with?.script ?? "");
-const roundCheck = roundScript.indexOf("env.SCRIPT_SHA256");
-say(String(round.uses ?? "").startsWith("actions/github-script@") && roundCheck >= 0 && roundCheck < roundScript.indexOf("await import"),
-  "the round step is a pinned action that checks the base copy's SHA-256 before importing it");
+const feedbackCollect = byId("feedback-collect");
+say(String(feedbackCollect.uses ?? "").startsWith("actions/github-script@") && at((s) => s.id === "feedback-collect") > at((s) => s.id === "promote")
+  && feedbackCollect.env?.HEAD_SHA === "${{ steps.gate.outputs.head-sha }}" && !("github-token" in (feedbackCollect.with ?? {})),
+  "the replies are collected by a pinned action after the promote step, with the gated head and no lane token");
+const runSteps = JSON.stringify(steps);
+say(!/resolveReviewThread|\/replies['"`]|record-round/.test(runSteps) && !/feedback-round/.test(JSON.stringify(steps.map((s) => s.id))),
+  "no step of the write runner replies on or resolves a review thread");
+const actors = at((s) => s.id === "reply-actors");
+say(actors >= 0 && actors < checkout && /\.base\/\.github\/standards\/trusted-actors\/trusted-actors\.json/.test(byId("reply-actors").run ?? ""),
+  "the reply script's trusted-actors list is copied from the base before the head checkout");
+say(/\?\*:feedback-uncertain \| \?\*:feedback-not-landed \| \?\*:feedback-invalid\)/.test(byId("act-script").run ?? ""),
+  "a script escalates only with the reply script's three reasons, and only in review-replies mode");
 say(/chmod -R a-w "\$CHECKS_DIR"/.test(stage) && /disallowed="\$\{disallowed:\+\$disallowed,\}Edit\(\/\$CHECKS_DIR\/\*\*\),Write\(\/\$CHECKS_DIR\/\*\*\)"/.test(stage),
   "the check wrappers and their base copy are read-only to the skill");
 say(/chmod -R a-w "\$DOCS_DIR"/.test(stage) && /disallowed="Edit\(\/\$DOCS_DIR\/\*\*\),Write\(\/\$DOCS_DIR\/\*\*\)"/.test(stage),

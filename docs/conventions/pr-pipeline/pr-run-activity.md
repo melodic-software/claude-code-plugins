@@ -60,9 +60,12 @@ permissions, and passes no App key.
 | `dispatcher-run-id` | `''` | Write file only: the `pr-unblock-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
 | `trusted-base` | `pr-base` | Write file only: `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
+| `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the model job's replies |
 
-The write file has one `workflow_call` output, `escalation-reason`: empty, or why a
-[`prepare: merge-base`](#prepare-merge-base) activity handed the PR to a person.
+The write file has two `workflow_call` outputs. `escalation-reason` is empty, or why a
+[`prepare: merge-base`](#prepare-merge-base) activity, a `prepare: review-threads` activity before
+any model turn, or its reply script handed the PR to a person. `feedback-round` is `true` once a
+`prepare: review-threads` skill ran, so its reply job must run.
 
 Secrets are passed by name, never `inherit`: `claude-code-oauth-token` (skill activities, both
 files) is the only one. Variables: `CLAUDE_LANES_DISABLED` and `CLAUDE_LANES_REPO_DISABLED` (the org
@@ -386,7 +389,9 @@ persists no credentials, so a `read` script cannot push. The write file also exp
 `escalation-reason` input as `ESCALATION_REASON` (empty unless a caller passes one), which the
 `report-escalation` leaf reads, and `TRACKER_CONFIG`, the base's `.work-item-tracker.json` copied
 to `$RUNNER_TEMP/base-script` before the head checkout and checked against its recorded SHA-256
-(or its recorded absence) before the script runs.
+(or its recorded absence) before the script runs. It exports `APP_SENDER_ID` and
+`ESCALATION_REASON_FILE`, and with `review-replies` `FEEDBACK_REPLIES_DIR` and `TRUSTED_ACTORS`
+([prepare: review-threads](#prepare-review-threads)).
 
 ### prepare: merge-base
 
@@ -458,37 +463,62 @@ staged by the model) is committed and pushed. GitHub does not refuse it for the 
 
 ### prepare: review-threads
 
-A write skill leaf whose config sets `prepare: review-threads` answers the reviewer bot's threads
-on the PR. The runner script is the base's `.github/scripts/pr-unblock/address-feedback.mjs`.
+A round of review-thread answers is two jobs, since the broker mints one token per job and a token
+with both `contents: write` and `pull-requests: write` can enqueue a PR. The model job is a
+`mutate-branch` skill leaf whose config sets `prepare: review-threads`: it pushes the fixes and
+posts nothing. The reply job is a `publish-artifact` script leaf with no model, called with
+`review-replies: true`: it posts the model's replies exactly as written, or none. The scripts are
+the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedback.mjs`.
 
-1. After `resolve-config` and before the mint, its `select` runs with the job's `GITHUB_TOKEN`. It
-   keeps each unresolved thread whose every comment is by the reviewer bot (`claude[bot]` in the
-   base's trusted-actors list, by id) and whose first comment's review the reviewer bot submitted
-   on a head that a `claude-lane-reviewed-head` marker from `github-actions[bot]` names. No kept
-   thread skips `not-applicable`. A PR diff touching `.github/**` escalates
-   `feedback-protected-path`, and two earlier round markers the lanes App posted escalate
-   `feedback-round-cap`; both skip `awaiting-human` with nothing minted. Otherwise it writes
-   `$RUNNER_TEMP/lane-feedback/threads.json` and copies itself there with its SHA-256.
+1. After `resolve-config` and before the mint, the model job runs `address-feedback.mjs select`
+   with the job's `GITHUB_TOKEN`. It keeps each unresolved thread whose every comment is by the
+   reviewer bot (`claude[bot]` in the base's trusted-actors list, by id) and whose first comment's
+   review the reviewer bot submitted on a head that a `claude-lane-reviewed-head` marker from
+   `github-actions[bot]` names. No kept thread skips `not-applicable`. A PR diff touching
+   `.github/**` escalates `feedback-protected-path`, and two earlier round markers the lanes App
+   posted escalate `feedback-round-cap`; both skip `awaiting-human` with nothing minted. Otherwise
+   it writes `$RUNNER_TEMP/lane-feedback/threads.json`.
 2. `collect-base-activity` makes that directory read-only and stages a wrapper over the base's
    `feedback-thread.sh` there. The skill keeps the commit tool and gets `Bash(<wrapper> *)`; Edit
-   and Write are denied on the directory and on the tool's log directory. The tool lists the kept
-   threads, checks paths, and replies: it refuses a disposition file outside the scratch directory
-   or off the template, and a `VALID` reply whose fix is not on the lane branch or whose lane
-   branch changes a file no kept thread names or any `.github/` path. It re-reads the thread and
-   skips one that changed, posts the templated reply, resolves a `VALID` thread, and logs it.
+   and Write are denied on the directory and on the tool's replies directory. The tool lists the
+   kept threads, checks paths, and records a reply: it refuses a disposition file outside the
+   scratch directory or off the template, and a `VALID` reply whose fix is not on the lane branch
+   or whose lane branch changes a file no kept thread names or any `.github/` path. It posts
+   nothing.
 3. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
-   `github-script` step checks the copy's SHA-256 and runs
-   `record-round` with the lane token: it posts the round marker as the lanes App, then escalates
-   `feedback-uncertain` for an `UNCERTAIN` or `VALID-defer` log line or an unreadable one, and
-   `feedback-not-landed` for a resolved thread when the promote step failed. A failure of this
-   step fails the activity.
+   `github-script` step writes `run.json` (the gated head and the kept threads' ids, paths and
+   comment ids, from the thread file) beside a copy of the tool's `replies.jsonl`, and the job
+   uploads both as `feedback-replies-<run attempt>`. Its `feedback-round` output is then `true`.
+4. The caller runs the reply job when `feedback-round` is `true`. Before the head checkout it
+   downloads that artifact and copies the base's trusted-actors list. `publish-feedback.mjs` then:
+   - validates the whole artifact: `run.json` as the runner writes it; `replies.jsonl` at most
+     256 KiB, each line an object with exactly `thread`, `disposition`, `evidence`, `fix_sha` and
+     `note`; `thread` one `run.json` names, at most one reply per thread; `disposition` one of
+     `VALID`, `INCORRECT`, `UNCERTAIN`, `VALID-defer`; at most 10 `path:line` evidence entries, no
+     `.` or `..` segment, each a file in the checkout, at least one for `VALID` and `INCORRECT`;
+     a 40-hex `fix_sha` on `VALID` only; a note of 1-2000 characters with no control, direction or
+     zero-width character, no `<!--` or `-->`, and nothing shaped like a GitHub token. Any failure,
+     or a missing artifact, posts no reply and escalates `feedback-invalid`;
+   - for a `VALID` reply, compares the model job's gated head with the PR's current head: the
+     branch must be ahead, hold every fix commit, and change fewer than 300 files, each a kept
+     thread's path and none under `.github/`. Otherwise it posts no reply and escalates
+     `feedback-not-landed`;
+   - re-reads every kept thread and, right before posting, the thread itself, and skips one that
+     is resolved, on another PR, or whose comments are not exactly the ones the model job read;
+   - posts the reply on the thread's root comment in the fixed template (disposition label,
+     backticked evidence, `Fix: <sha>` for `VALID`, the note in a `text` fence longer than any
+     backtick run in it) and resolves the thread only for `VALID`;
+   - posts the round marker as the lanes App whatever happened above, and escalates
+     `feedback-uncertain` for an `UNCERTAIN` or `VALID-defer` reply.
+
+   The script writes its reason to `ESCALATION_REASON_FILE`; the runner accepts only those three
+   reasons, and only with `review-replies`, as the run's `escalation-reason` output.
 
 The skill's limits to kept-thread paths and away from `.github/` are instructions and the tool's
-checks at reply time, not a check on the branch after the model runs. A diff at the files
-listing's limit escalates as `feedback-protected-path`, since it could hide a `.github/` path.
-Residuals: the reply's token redaction cuts only the literal lane token, which the model can
-already publish through a commit; and a reviewed-head marker confirms a head, not one review run,
-so any reviewer-bot review on that head is kept.
+checks at record time; the reply job's compare is the check after the push, and it withholds the
+replies, not the push. A diff at the files listing's limit escalates as `feedback-protected-path`,
+since it could hide a `.github/` path. Residual: a reviewed-head marker confirms a head, not one
+review run, so any reviewer-bot review on that head is kept.
 
 The head re-read in step 5 applies to every `mutate-branch` activity, not only this mode: a
 pr-refine run whose PR branch moved before the mint now posts neutral `superseded-sha` without a

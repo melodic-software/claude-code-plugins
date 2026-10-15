@@ -270,10 +270,10 @@ runs:
               system_prompt="$system_prompt Before you report done, run each of these repository checks as written, with no arguments:$wrappers."
             fi
             # review-threads: the skill reads the runner's thread file, and
-            # replies on and resolves those threads, only through this tool:
+            # records its replies to those threads, only through this tool:
             # a base copy behind a wrapper that fixes its environment, which
-            # the skill's Edit and Write cannot reach. Its log is what the
-            # runner's round step reads after the skill.
+            # the skill's Edit and Write cannot reach. The tool posts nothing;
+            # the runner uploads its replies file for the reply job.
             if [ "$PREPARE" = review-threads ]; then
               [[ $FEEDBACK_DIR =~ ^/[A-Za-z0-9_./-]+$ && $FEEDBACK_STATE =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
                 fail "the review-thread tool directory has a name a rule cannot carry"
@@ -282,12 +282,12 @@ runs:
               cp "$BASE_PATH/plugins/source-control/skills/pull-request/scripts/feedback-thread.sh" "$FEEDBACK_DIR/feedback-thread.sh"
               tool="$FEEDBACK_DIR/bin/feedback-thread"
               printf '#!/usr/bin/env bash\nexport FEEDBACK_THREADS=%q FEEDBACK_LOG=%q FEEDBACK_SCRATCH=%q FEEDBACK_WORKSPACE=%q\nexec bash %q "$@"\n' \
-                "$FEEDBACK_DIR/threads.json" "$FEEDBACK_STATE/log.jsonl" "$SCRATCH" "$WORKSPACE" "$FEEDBACK_DIR/feedback-thread.sh" >"$tool"
+                "$FEEDBACK_DIR/threads.json" "$FEEDBACK_STATE/replies.jsonl" "$SCRATCH" "$WORKSPACE" "$FEEDBACK_DIR/feedback-thread.sh" >"$tool"
               chmod +x "$tool"
               chmod -R a-w "$FEEDBACK_DIR"
               allowed="$allowed,Bash($tool *)"
               disallowed="${disallowed:+$disallowed,}Edit(/$FEEDBACK_DIR/**),Write(/$FEEDBACK_DIR/**),Edit(/$FEEDBACK_STATE/**),Write(/$FEEDBACK_STATE/**)"
-              system_prompt="$system_prompt The review-thread tool is $tool: run it by exactly this path as $tool list, $tool check-paths <path>... and $tool reply <thread-id> <file>, with each disposition file in $SCRATCH."
+              system_prompt="$system_prompt The review-thread tool is $tool: run it by exactly this path as $tool list, $tool check-paths <path>... and $tool record <thread-id> <file>, with each disposition file in $SCRATCH. The tool posts nothing: a later job posts what you record."
             fi
             ;;
           *) fail "the activity's effect is not a known effect" ;;

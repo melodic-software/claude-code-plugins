@@ -209,14 +209,14 @@ test("prepare: review-threads keeps the commit tool and adds only the review-thr
   for (const dir of [feedbackDir, feedbackState]) {
     assert.ok(denied.includes(`Edit(/${dir}/**)`) && denied.includes(`Write(/${dir}/**)`), denied.join(" | "));
   }
-  assert.ok(args.includes(`${tool} reply <thread-id> <file>`), "the system prompt names the tool");
+  assert.ok(args.includes(`${tool} record <thread-id> <file>`), "the system prompt names the tool");
   const write = spawnSync("bash", ["-c", 'echo x >>"$1"', "_", path.join(feedbackDir, "feedback-thread.sh")]);
   assert.notEqual(write.status, 0, "the tool's copy is read-only");
   const run = spawnSync(tool, ["list", "x y"], { cwd: root, encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assert.equal(
     run.stdout.trim(),
-    `threads=${path.join(feedbackDir, "threads.json")} log=${path.join(feedbackState, "log.jsonl")} scratch=${env.SCRATCH} ws=${workspace} args=list x y`,
+    `threads=${path.join(feedbackDir, "threads.json")} log=${path.join(feedbackState, "replies.jsonl")} scratch=${env.SCRATCH} ws=${workspace} args=list x y`,
   );
 });
 

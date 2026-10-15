@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createGitHubApi, judgeLog, main, recordRound, select } from "./address-feedback.mjs";
+import { createGitHubApi, main, select } from "./address-feedback.mjs";
 
 // Ids from .github/standards/trusted-actors/trusted-actors.json and the
 // GitHub users API (github-actions[bot] is 41898282).
@@ -184,32 +184,6 @@ test("injection-shaped finding text is carried as data and changes no decision",
   assert.equal(result.file.threads[0].path, "src/a.js");
 });
 
-test("judgeLog: INCORRECT and resolved VALID pass; UNCERTAIN, VALID-defer or a bad line escalate", () => {
-  const line = (entry) => JSON.stringify(entry);
-  assert.equal(judgeLog("", { promoted: true }), "");
-  assert.equal(
-    judgeLog([line({ disposition: "VALID", resolved: true }), line({ disposition: "INCORRECT" })].join("\n"), { promoted: true }),
-    "",
-  );
-  assert.equal(judgeLog(line({ disposition: "UNCERTAIN" }), { promoted: true }), "feedback-uncertain");
-  assert.equal(judgeLog(line({ disposition: "VALID-defer" }), { promoted: true }), "feedback-uncertain");
-  assert.equal(judgeLog("not json", { promoted: true }), "feedback-uncertain");
-  assert.equal(judgeLog(line({ disposition: "APPROVE" }), { promoted: true }), "feedback-uncertain");
-  assert.equal(judgeLog(line({ disposition: "VALID", resolved: true }), { promoted: false }), "feedback-not-landed");
-  assert.equal(judgeLog(line({ disposition: "INCORRECT" }), { promoted: false }), "");
-});
-
-test("recordRound posts one App marker comment numbered after the earlier rounds", async () => {
-  const api = fakeApi({ issueComments: [{ id: 5, user: { id: APP }, body: `${ROUND}\nround 1` }] });
-  const result = await recordRound({ api, pr: 42, headSha: HEAD, appId: APP, logText: "", promoted: true });
-  assert.equal(result.rounds, 2);
-  assert.equal(result.escalationReason, "");
-  assert.equal(api.posted.length, 1);
-  assert.equal(api.posted[0].pr, 42);
-  assert.equal(api.posted[0].body.split("\n")[0], ROUND);
-  assert.match(api.posted[0].body, /round 2 of 2 on a{40}/);
-});
-
 test("main select writes outputs and the thread file; escalation writes no thread file", async (t) => {
   const dir = mkdtempSync(join(tmpdir(), "address-feedback-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -238,28 +212,20 @@ test("main select writes outputs and the thread file; escalation writes no threa
   assert.throws(() => readFileSync(join(dir, "esc.json")));
 });
 
-test("main record-round reads the tool log and refuses bad inputs", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "address-feedback-"));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const logFile = join(dir, "log.jsonl");
-  writeFileSync(logFile, `${JSON.stringify({ disposition: "UNCERTAIN" })}\n`);
+test("main refuses bad inputs and any subcommand but select", async () => {
   const env = {
     GITHUB_TOKEN: "t",
     GITHUB_REPOSITORY: "o/r",
-    GITHUB_OUTPUT: join(dir, "out"),
+    GITHUB_OUTPUT: join(tmpdir(), "unused"),
     PR_NUMBER: "42",
     HEAD_SHA: HEAD,
     APP_SENDER_ID: String(APP),
-    FEEDBACK_LOG: logFile,
-    PROMOTE_OUTCOME: "success",
   };
   const api = fakeApi();
-  await main(["record-round"], env, { api, log: () => {} });
-  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "escalation-reason=feedback-uncertain\nskip-reason=awaiting-human\n");
-  assert.equal(api.posted.length, 1);
-  await assert.rejects(main(["record-round"], { ...env, HEAD_SHA: "x" }, { api }), /HEAD_SHA/);
-  await assert.rejects(main(["record-round"], { ...env, PR_NUMBER: "0" }, { api }), /PR_NUMBER/);
-  await assert.rejects(main(["nope"], env, { api }), /usage/);
+  await assert.rejects(main(["select"], { ...env, HEAD_SHA: "x" }, { api }), /HEAD_SHA/);
+  await assert.rejects(main(["select"], { ...env, PR_NUMBER: "0" }, { api }), /PR_NUMBER/);
+  await assert.rejects(main(["record-round"], env, { api }), /usage/);
+  assert.equal(api.posted.length, 0);
 });
 
 test("createGitHubApi follows rel=next pages and sends the token", async () => {

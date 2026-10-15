@@ -3,10 +3,14 @@
 ## 1.16.0 - 2026-10-15
 
 Schema: `prepare` takes `review-threads`. `pr-run-activity.md` "prepare: review-threads" says what
-the write runner then does: keep the reviewer bot's unresolved threads on a marker-confirmed head
-before the mint, escalate `feedback-protected-path` or `feedback-round-cap` before any model turn,
-stage the review-thread tool, and post a round marker after the skill, escalating
-`feedback-uncertain` or `feedback-not-landed`. No live activity sets it yet. `version` stays 1.
+the write runner then does in two jobs. The model job keeps the reviewer bot's unresolved threads
+on a marker-confirmed head before the mint, escalates `feedback-protected-path` or
+`feedback-round-cap` before any model turn, stages the review-thread tool, pushes the fixes, and
+uploads the replies the tool recorded; it posts nothing. A script job with the new
+`review-replies` input and no model validates those replies, posts them and resolves only the
+fixed `VALID` threads, posts the round marker, and escalates `feedback-uncertain`,
+`feedback-not-landed` or `feedback-invalid`. The write file gains the `feedback-round` output. No
+live activity sets it yet. `version` stays 1.
 
 ## 1.15.0 - 2026-10-14
 
