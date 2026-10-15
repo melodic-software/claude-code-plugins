@@ -152,10 +152,16 @@ export async function dispatchFeedback({
   }
   // Both review lanes finish on one head, and their dispatchers queue in one
   // concurrency group. The first one's run posts no check until it ends, so
-  // the second skips while a run of this activity for this PR is not done.
+  // the second skips while a run of this activity for this PR, created after
+  // this review started, is not done. An older run (the round whose push made
+  // this head) does not hold the dispatch, or the next round would never start.
   const title = runTitle(settings.activity, number);
+  const reviewStarted = Date.parse(upstream.run_started_at ?? "");
   const active = (await api.listWorkflowRuns(settings.workflow)).filter(
-    (run) => run.status !== "completed" && run.display_title === title,
+    (run) =>
+      run.status !== "completed" &&
+      run.display_title === title &&
+      !(Date.parse(run.created_at ?? "") < reviewStarted),
   );
   if (active.length > 0) {
     return skip(`#${number}: ${settings.workflow} run ${active[0].id} for ${settings.activity} is not done yet`);

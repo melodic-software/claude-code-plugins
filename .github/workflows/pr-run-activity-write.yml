@@ -100,7 +100,7 @@ on:
         description: >-
           For a job after pr-unblock's model job on a pr-feedback-dispatch.yml
           dispatch, that job's head-sha output: the gate and the broker accept
-          the review of that head when only the lanes App's verified commits
+          the review of that head when only commits GitHub signed for the lanes App during the run
           follow it. Empty otherwise.
         required: false
         type: string

@@ -393,7 +393,7 @@ async function verifyDispatcher({
       upstream.head_repository?.full_name === repository &&
       vouches(upstream.actor) &&
       vouches(upstream.triggering_actor) &&
-      (await upstreamHeadHolds({ github, repository, upstreamSha: upstream.head_sha, pullSha: pull.head.sha, expectedUpstreamHead, lanesAppId }));
+      (await upstreamHeadHolds({ github, repository, upstreamSha: upstream.head_sha, pullSha: pull.head.sha, expectedUpstreamHead, lanesAppId, runCreated: created }));
     if (!reviewed) {
       throw new Stop("untrusted-actor");
     }
@@ -403,10 +403,17 @@ async function verifyDispatcher({
 
 // A job after pr-unblock's model job passes the head that job was gated on:
 // the review must be of it, and every commit from it to the PR's current head
-// a signature-verified commit the lanes App authored (that job's own push). A
-// human, foreign, unsigned or truncated range refuses. Without one, the
-// review must be of the PR's current head.
-async function upstreamHeadHolds({ github, repository, upstreamSha, pullSha, expectedUpstreamHead, lanesAppId }) {
+// one GitHub signed for the lanes App (author the App, committer web-flow,
+// signature valid) during this workflow run. That proves an App-token commit
+// made after this run was created, not which lane made it. A human, foreign,
+// unsigned, older or truncated range refuses. Without one, the review must be
+// of the PR's current head.
+//
+// web-flow, the committer GitHub records on commits it signs (seen on the
+// lanes App's commits of #7493, #7494, #7496, #7520 and #7522).
+const WEB_FLOW_ID = 19864447;
+
+async function upstreamHeadHolds({ github, repository, upstreamSha, pullSha, expectedUpstreamHead, lanesAppId, runCreated }) {
   if (expectedUpstreamHead === "") {
     return upstreamSha === pullSha;
   }
@@ -426,7 +433,14 @@ async function upstreamHeadHolds({ github, repository, upstreamSha, pullSha, exp
       (commit) =>
         Number.isInteger(commit?.author?.id) &&
         commit.author.id === lanesAppId &&
-        commit?.commit?.verification?.verified === true,
+        // GitHub signed it (web-flow): an API commit made with the App's
+        // token. A local commit claiming the App as author is committed
+        // and signed by whoever pushed it.
+        commit.committer?.id === WEB_FLOW_ID &&
+        commit?.commit?.verification?.verified === true &&
+        commit.commit.verification.reason === "valid" &&
+        // Committed during this workflow run, not by an earlier lane.
+        timeOf(commit.commit.committer?.date) >= runCreated,
     )
   );
 }

@@ -14,8 +14,8 @@ dispatches `address-feedback` from `workflow_run` when both review lanes have re
 PR's current head and a reviewer-bot thread is open; the trigger gate and the broker accept its
 runs through the review run their record names, which a lanes App push or a listed human must have
 started. The jobs after the model job pass its gated head as `expected-upstream-head`, so the gate
-and the broker accept the review of that head when only signature-verified lanes App commits
-follow it. The dispatcher skips while a `pr-unblock address-feedback #<n>` run (the new
+and the broker accept the review of that head when only commits GitHub signed for the lanes App
+during the run (committer `web-flow`, signature `valid`) follow it. The dispatcher skips while a `pr-unblock address-feedback #<n>` run (the new
 `run-name`) is queued or going, and dispatches nothing until the lane config holds both slots. The
 write file gains the `expected-upstream-head` input and `head-sha` output. No effect grants both `contents: write` and
 `pull-requests: write` but `merge`. No live activity sets either leaf yet. `version` stays 1.

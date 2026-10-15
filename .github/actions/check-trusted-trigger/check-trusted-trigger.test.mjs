@@ -1425,10 +1425,14 @@ test("workflow_run dispatcher: a review a listed human started proceeds", async 
 // gated on, and the PR has since moved by the lanes App's own signed commits.
 const GATED_SHA = "9".repeat(40);
 const afterRoute = `GET /repos/${REPOSITORY}/compare/${GATED_SHA}...${HEAD_SHA}`;
+// The shape of the lanes App's commits on #7493 and #7520: author the App,
+// committer web-flow, signature valid.
+const WEB_FLOW = { login: "web-flow", id: 19864447, type: "User" };
 const laneCommit = (overrides = {}) => ({
   sha: "8".repeat(40),
   author: LANES_BOT,
-  commit: { verification: { verified: true } },
+  committer: WEB_FLOW,
+  commit: { committer: { date: "2026-10-11T12:30:00Z" }, verification: { verified: true, reason: "valid" } },
   ...overrides,
 });
 const range = (...commits) => ({ status: "ahead", total_commits: commits.length, commits });
@@ -1449,7 +1453,13 @@ test("expected upstream head: a PR head still at the gated head proceeds with no
 for (const [label, github] of [
   ["a foreign commit follows the gated head", () => afterRoutes(range(laneCommit(), laneCommit({ author: KYLE })))],
   ["an unsigned lanes App commit follows the gated head", () =>
-    afterRoutes(range(laneCommit({ commit: { verification: { verified: false } } })))],
+    afterRoutes(range(laneCommit({ commit: { committer: { date: "2026-10-11T12:30:00Z" }, verification: { verified: false, reason: "unsigned" } } })))],
+  ["a human signed and pushed a commit naming the App as author", () =>
+    afterRoutes(range(laneCommit({ committer: KYLE })))],
+  ["a verified commit whose reason is not valid follows the gated head", () =>
+    afterRoutes(range(laneCommit({ commit: { committer: { date: "2026-10-11T12:30:00Z" }, verification: { verified: true, reason: "bad_email" } } })))],
+  ["an App commit made before this run was created follows the gated head", () =>
+    afterRoutes(range(laneCommit({ commit: { committer: { date: "2026-10-11T11:00:00Z" }, verification: { verified: true, reason: "valid" } } })))],
   ["a commit with no linked author follows the gated head", () => afterRoutes(range(laneCommit({ author: null })))],
   ["GitHub truncated the range", () => afterRoutes({ ...range(laneCommit()), total_commits: 251 })],
   ["the PR head diverged from the gated head", () => afterRoutes({ ...range(laneCommit()), status: "diverged" })],

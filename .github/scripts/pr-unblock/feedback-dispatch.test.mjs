@@ -222,6 +222,19 @@ test("a second dispatcher for one head skips while the first one's run is queued
   }
 });
 
+test("a run created before this review started (the round whose push made this head) does not hold the dispatch", async () => {
+  const api = fakeApi({
+    run: { run_started_at: "2026-10-15T12:10:00Z" },
+    workflowRuns: [{ id: 1, status: "in_progress", display_title: "pr-unblock address-feedback #42", created_at: "2026-10-15T12:00:00Z" }],
+  });
+  assert.equal((await decide(api)).result.number, 42);
+  const held = fakeApi({
+    run: { run_started_at: "2026-10-15T12:10:00Z" },
+    workflowRuns: [{ id: 2, status: "queued", display_title: "pr-unblock address-feedback #42", created_at: "2026-10-15T12:11:00Z" }],
+  });
+  assert.equal((await decide(held)).result, null);
+});
+
 test("a finished run, another PR's run or another activity's run does not hold the dispatch", async () => {
   const api = fakeApi({
     workflowRuns: [

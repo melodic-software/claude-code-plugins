@@ -166,7 +166,8 @@ the broker request, and no other permission; it never holds `checks: write` or `
    artifact names a `pull_request` run of one of those workflows in this repository, started by
    the lanes App or a listed human, at the PR's current head. A job after pr-unblock's model job
    passes that job's `head-sha` as `expected-upstream-head`: the review must then be of that head,
-   and every commit from it to the PR's current head a signature-verified lanes App commit. The
+   and every commit from it to the PR's current head one GitHub signed for the lanes App (author
+   the App, committer `web-flow`, signature `valid`) after this run was created. The
    gate waits up to 2 minutes for that record while the
    dispatcher run is still going. The checks are in the gate's README. Only
    with a `dispatcher-run-id` does the skill step pass claude-code-action
@@ -692,7 +693,8 @@ check, with a `pr-feedback-dispatched-<upstream id>-<this run's id>` artifact wh
 a `pull_request` run of `pr-review-hosted.yml` or `pr-review-security-hosted.yml` in this
 repository, started (and any re-run) by the lanes bot or a listed human, at the PR's current head,
 or, with `expected_upstream_head` in the body, at that head when every commit from it to the PR's
-current head is a signature-verified lanes bot commit. The client
+current head is one GitHub signed for the lanes bot (committer `web-flow`, signature `valid`) after
+this run was created, and the upstream run lists this pull request. The client
 sends it once and never retries: the broker
 reserves the job's `check_run_id` when it mints, so a second request is denied `already-minted`,
 and a 200 lost in transit leaves a token nobody revokes until it expires within the hour.

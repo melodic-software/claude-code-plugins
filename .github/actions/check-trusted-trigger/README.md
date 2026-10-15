@@ -78,7 +78,9 @@ condition 1 and the actor and author parts of condition 2).
     App (`lanes-app-id`) or a listed human, and `head_sha` equal to the PR's current head. With
     `expected-upstream-head`, `head_sha` must equal it instead, and every commit of
     `GET /compare/<it>...<PR head>` (status `ahead`, untruncated) must have the lanes App as
-    `author` and a verified signature; a human, foreign or unsigned commit stops the run.
+    `author`, `web-flow` as `committer`, a `valid` verified signature, and a committer date no
+    earlier than this run's creation: a commit GitHub signed for an App token during this run. A
+    human, foreign, unsigned or older commit stops the run. It does not prove which lane made it.
 
   The record can land after this run's gate starts, so the gate waits for it. Each read takes the
   dispatcher run's `status` first, then its artifacts, so an upload between the two reads is not
