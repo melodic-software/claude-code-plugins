@@ -87,9 +87,11 @@ on:
     outputs:
       escalation-reason:
         description: >-
-          Why a prepare: merge-base activity handed the PR to a person:
+          Why a prepare activity handed the PR to a person: for merge-base
           protected-path-conflict, workflow-staged, repeat-cap or
-          unresolved-conflict; empty otherwise. Set only by runner steps.
+          unresolved-conflict; for review-threads feedback-protected-path,
+          feedback-round-cap, feedback-uncertain or feedback-not-landed;
+          empty otherwise. Set only by runner steps.
         value: ${{ jobs.run.outputs.escalation-reason }}
       issue-run-started:
         description: >-
@@ -127,7 +129,10 @@ jobs:
     # turn terms only turn a success into a failure. merge-state and a
     # pre-model escalation-reason come from the prepare step, before any
     # model turn; a post-model escalation-reason comes from post.sh after it,
-    # and a forged one can only hand the PR to a person.
+    # and a forged one can only hand the PR to a person. In review-threads
+    # mode the select step decides before any model turn and the round step
+    # after it, from the review-thread tool's log; a forged log line can only
+    # hand the PR to a person too.
     outputs:
       base-sha: ${{ steps.trusted-base.outputs.commit }}
       head-sha: ${{ steps.gate.outputs.head-sha }}
@@ -139,7 +144,9 @@ jobs:
         || '' }}
       can-commit: ${{ steps.config.outputs.can-commit }}
       merge-state: ${{ steps.prepare.outputs.merge-state }}
-      escalation-reason: ${{ steps.prepare.outputs.escalation-reason || steps.post.outputs.escalation-reason }}
+      escalation-reason: >-
+        ${{ steps.prepare.outputs.escalation-reason || steps.post.outputs.escalation-reason
+        || steps.feedback-select.outputs.escalation-reason || steps.feedback-round.outputs.escalation-reason }}
       issue-run-started: ${{ inputs.issue-number != '' && steps.lane-token.outcome == 'success' }}
       # A gate skill succeeds only on a `pass` verdict, a skill that took no
       # model turn fails, and a skill whose commits could not be moved onto
@@ -155,7 +162,7 @@ jobs:
         || steps.act-skill.outcome == 'success'
         && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
         || steps.promote.outcome == 'failure' || steps.act-turns.outcome != 'success'
-        || steps.commit.outcome == 'failure'
+        || steps.commit.outcome == 'failure' || steps.feedback-round.outcome == 'failure'
         || steps.post.outputs.tree != '' && steps.commit.outcome != 'success') && 'failure'
         || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
         || steps.act-script.outcome }}
@@ -197,6 +204,7 @@ jobs:
           fi
           case $ESCALATION_REASON in
             "" | protected-path-conflict | workflow-staged | repeat-cap | unresolved-conflict) ;;
+            feedback-protected-path | feedback-round-cap | feedback-uncertain | feedback-not-landed) ;;
             *)
               echo "::error::the escalation-reason input is not a known escalation reason"
               exit 1
@@ -278,6 +286,31 @@ jobs:
           # commit steps below).
           prepare-supported: "true"
 
+      # review-threads, before the mint and any model turn, with the job's
+      # read-only token: keeps the unresolved threads whose every comment is
+      # the reviewer bot's, on a head a review lane's marker confirms, then
+      # skips (none), escalates (a .github/** diff, or the round cap) or
+      # writes the thread file the skill's review-thread tool reads. The base
+      # script is copied beside it with its SHA-256 for the round step, which
+      # runs after the head checkout replaces .base.
+      - name: Select the review threads
+        id: feedback-select
+        if: steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'review-threads'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          LANE_BRANCH: ${{ format('lane-commits/{0}/{1}/{2}-{3}', inputs.lane, inputs.activity, github.run_id, github.run_attempt) }}
+          FEEDBACK_DIR: ${{ runner.temp }}/lane-feedback
+          TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
+        run: |
+          mkdir -p "$FEEDBACK_DIR"
+          cp .base/.github/scripts/pr-unblock/address-feedback.mjs "$FEEDBACK_DIR/address-feedback.mjs"
+          sum=$(sha256sum <"$FEEDBACK_DIR/address-feedback.mjs")
+          echo "script-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
+          THREAD_FILE="$FEEDBACK_DIR/threads.json" node "$FEEDBACK_DIR/address-feedback.mjs" select
+
       # A read activity belongs in pr-run-activity-read.yml, whose run holds no
       # App key; the caller chose the wrong file.
       - name: Assert the effect is not read
@@ -293,7 +326,9 @@ jobs:
       # on the gated head. Every later step keys on proceed.
       - name: Re-read the PR head before the mint
         id: head-recheck
-        if: steps.config.outputs.applies == 'true' && steps.config.outputs.effect != 'read'
+        if: >-
+          steps.config.outputs.applies == 'true' && steps.config.outputs.effect != 'read'
+          && steps.feedback-select.outputs.proceed != 'false'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           EFFECT: ${{ steps.config.outputs.effect }}
@@ -1028,6 +1063,53 @@ jobs:
                 .catch((error) => core.warning(`Could not delete ${LANE_BRANCH}: ${error.message}`));
             }
 
+      # review-threads, after any model turn: posts the round marker the select
+      # step counts, as the lanes App, then escalates when the review-thread
+      # tool's log holds an UNCERTAIN or VALID (defer) reply, or a resolved
+      # thread whose fix the promote step did not move onto the PR branch. A
+      # failure here fails the activity, since an unrecorded round would not
+      # count toward the cap. A pinned action, like the promote step, since
+      # the activity could have changed PATH.
+      - name: Record the review-threads round
+        id: feedback-round
+        if: >-
+          always() && steps.config.outputs.prepare == 'review-threads'
+          && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          LANE_TOKEN: ${{ steps.lane-token.outputs.token }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          FEEDBACK_DIR: ${{ runner.temp }}/lane-feedback
+          FEEDBACK_LOG: ${{ runner.temp }}/lane-feedback-state/log.jsonl
+          SCRIPT_SHA256: ${{ steps.feedback-select.outputs.script-sha256 }}
+          PROMOTE_OUTCOME: ${{ steps.promote.outcome }}
+        with:
+          retries: 0
+          script: |
+            const { createHash } = require('crypto');
+            const { readFileSync } = require('fs');
+            const { pathToFileURL } = require('url');
+            const env = process.env;
+            const script = `${env.FEEDBACK_DIR}/address-feedback.mjs`;
+            if (createHash('sha256').update(readFileSync(script)).digest('hex') !== env.SCRIPT_SHA256) {
+              core.setFailed('address-feedback.mjs does not match the SHA-256 recorded when it was copied from the base');
+              return;
+            }
+            const { main } = await import(pathToFileURL(script).href);
+            await main(['record-round'], {
+              GITHUB_TOKEN: env.LANE_TOKEN,
+              GITHUB_REPOSITORY: env.GITHUB_REPOSITORY,
+              GITHUB_API_URL: env.GITHUB_API_URL,
+              GITHUB_OUTPUT: env.GITHUB_OUTPUT,
+              PR_NUMBER: env.PR_NUMBER,
+              HEAD_SHA: env.HEAD_SHA,
+              APP_SENDER_ID: env.APP_SENDER_ID,
+              FEEDBACK_LOG: env.FEEDBACK_LOG,
+              PROMOTE_OUTCOME: env.PROMOTE_OUTCOME,
+            });
+
       # Issue mode: the lane branch is kept only when the skill committed to
       # it, and the report-outcome run reads its name from lane.json, written
       # here after the skill ended.
@@ -1174,7 +1256,8 @@ jobs:
           SKIP_REASON: >-
             ${{ steps.config.outputs.skip-reason || steps.head-recheck.outputs.skip-reason
             || steps.prepare.outputs.skip-reason || steps.post.outputs.skip-reason
-            || steps.commit.outputs.skip-reason || steps.act-script.outputs.skip-reason }}
+            || steps.commit.outputs.skip-reason || steps.act-script.outputs.skip-reason
+            || steps.feedback-select.outputs.skip-reason || steps.feedback-round.outputs.skip-reason }}
           ACT_OUTCOME: >-
             ${{ steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'
             && ((steps.post.outputs.escalation-reason != ''
@@ -1182,7 +1265,7 @@ jobs:
             || steps.act-skill.outcome == 'success'
             && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
             || steps.promote.outcome == 'failure' || steps.act-turns.outcome != 'success'
-            || steps.commit.outcome == 'failure'
+            || steps.commit.outcome == 'failure' || steps.feedback-round.outcome == 'failure'
             || steps.post.outputs.tree != '' && steps.commit.outcome != 'success') && 'failure'
             || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
             || steps.act-script.outcome }}

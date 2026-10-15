@@ -104,7 +104,8 @@ for reason in workflow-files bogus '' 'repeat-cap ' REPEAT-CAP; do
 done
 
 # Accepted reasons: one comment, one label, both on the PR.
-for reason in protected-path-conflict workflow-staged repeat-cap unresolved-conflict; do
+for reason in protected-path-conflict workflow-staged repeat-cap unresolved-conflict \
+  feedback-protected-path feedback-round-cap feedback-uncertain feedback-not-landed; do
   setup '[]' '[]'
   run "$reason"
   check "$reason: exit 0" 0 "$RC"

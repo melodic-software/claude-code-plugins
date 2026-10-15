@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## 1.16.0 - 2026-10-15
+
+Schema: `prepare` takes `review-threads`. `pr-run-activity.md` "prepare: review-threads" says what
+the write runner then does: keep the reviewer bot's unresolved threads on a marker-confirmed head
+before the mint, escalate `feedback-protected-path` or `feedback-round-cap` before any model turn,
+stage the review-thread tool, and post a round marker after the skill, escalating
+`feedback-uncertain` or `feedback-not-landed`. No live activity sets it yet. `version` stays 1.
+
 ## 1.15.0 - 2026-10-14
 
 Issue mode: `report-outcome` opens the PR ready, not draft, since the skill's CI mode now runs the

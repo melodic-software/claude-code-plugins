@@ -456,6 +456,35 @@ Residual: a `.github/workflows/` change from the base side of the merge (not con
 staged by the model) is committed and pushed. GitHub does not refuse it for the App's missing
 `workflows` permission: sandbox probe run 38148710292 pushed such merges by all three methods.
 
+### prepare: review-threads
+
+A write skill leaf whose config sets `prepare: review-threads` answers the reviewer bot's threads
+on the PR. The runner script is the base's `.github/scripts/pr-unblock/address-feedback.mjs`.
+
+1. After `resolve-config` and before the mint, its `select` runs with the job's `GITHUB_TOKEN`. It
+   keeps each unresolved thread whose every comment is by the reviewer bot (`claude[bot]` in the
+   base's trusted-actors list, by id) and whose first comment's review the reviewer bot submitted
+   on a head that a `claude-lane-reviewed-head` marker from `github-actions[bot]` names. No kept
+   thread skips `not-applicable`. A PR diff touching `.github/**` escalates
+   `feedback-protected-path`, and two earlier round markers the lanes App posted escalate
+   `feedback-round-cap`; both skip `awaiting-human` with nothing minted. Otherwise it writes
+   `$RUNNER_TEMP/lane-feedback/threads.json` and copies itself there with its SHA-256.
+2. `collect-base-activity` makes that directory read-only and stages a wrapper over the base's
+   `feedback-thread.sh` there. The skill keeps the commit tool and gets `Bash(<wrapper> *)`; Edit
+   and Write are denied on the directory and on the tool's log directory. The tool lists the kept
+   threads, checks paths, and replies: it refuses a disposition file outside the scratch directory
+   or off the template, and a `VALID` reply whose fix is not on the lane branch or whose lane
+   branch changes a file no kept thread names or any `.github/` path. It re-reads the thread and
+   skips one that changed, posts the templated reply, resolves a `VALID` thread, and logs it.
+3. After the promote step, a pinned `github-script` step checks the copy's SHA-256 and runs
+   `record-round` with the lane token: it posts the round marker as the lanes App, then escalates
+   `feedback-uncertain` for an `UNCERTAIN` or `VALID-defer` log line or an unreadable one, and
+   `feedback-not-landed` for a resolved thread when the promote step failed. A failure of this
+   step fails the activity.
+
+The skill's limits to kept-thread paths and away from `.github/` are instructions and the tool's
+checks at reply time, not a check on the branch after the model runs.
+
 The head re-read in step 5 applies to every `mutate-branch` activity, not only this mode: a
 pr-refine run whose PR branch moved before the mint now posts neutral `superseded-sha` without a
 model turn.
