@@ -2438,6 +2438,11 @@ def lane_window(repo: str, agent_identity: str | None) -> dict[str, Any]:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4 or sys.argv[1] != "lane-window":
-        sys.exit("usage: babysit_merge_policy.py lane-window OWNER/REPO AGENT_IDENTITY")
-    print(json.dumps(lane_window(sys.argv[2], sys.argv[3])))
+    import argparse
+
+    parser = argparse.ArgumentParser(description=lane_window.__doc__, allow_abbrev=False)
+    parser.add_argument("command", choices=("lane-window",))
+    parser.add_argument("repo", help="owner/name")
+    parser.add_argument("agent_identity", help="merge.agent-identity")
+    args = parser.parse_args()
+    print(json.dumps(lane_window(args.repo, args.agent_identity)))
