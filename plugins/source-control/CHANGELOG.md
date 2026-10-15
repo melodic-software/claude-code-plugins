@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.1] - 2026-10-15
+
+### Fixed
+
+- **`babysit_merge.py` enqueues on a merge-queue base through GraphQL `enqueuePullRequest`.** GitHub
+  refused the REST `merge-async` call with `merge_action=merge_queue` for the lanes App
+  ("Enqueuer is not authorized to merge"). The mutation pins the vetted head as `expectedHeadOid`
+  and never sets `jump`. A refusal or an answer without a queue entry is held, with no other API
+  tried and nothing recorded. A direct merge still uses `merge-async`.
+
 ## [1.4.0] - 2026-10-15
 
 ### Changed
