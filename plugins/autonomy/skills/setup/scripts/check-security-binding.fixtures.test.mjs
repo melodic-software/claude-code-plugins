@@ -106,6 +106,17 @@ for (const [name, entry] of Object.entries(fixtures)) {
     continue;
   }
   pass(`grade: ${name}`);
+
+  // `--evidence -` reads the same events from stdin and must print the same verdict.
+  if (entry.evidence) {
+    const viaStdin = spawnSync(
+      process.execPath,
+      args.map((arg) => (arg === join(fixturesDir, entry.evidence) ? "-" : arg)),
+      { encoding: "utf8", input: readFileSync(join(fixturesDir, entry.evidence), "utf8"), timeout: 30_000 },
+    );
+    if (viaStdin.status === result.status && viaStdin.stdout === result.stdout) pass(`stdin: ${name}`);
+    else fail(`stdin: ${name}`, `--evidence - printed a different verdict (exit ${viaStdin.status})\n  stdout: ${viaStdin.stdout.trim()}\n  stderr: ${viaStdin.stderr.trim()}`);
+  }
 }
 
 finish(

@@ -57,11 +57,37 @@ What an operator supplies for the seam is in
 in [`cycle-shape.md`](cycle-shape.md) step 0 reports each missing or non-compliant surface by
 option name. The implementation checklist and phased plan are in
 [`promotion-evidence-implementation-plan.md`](promotion-evidence-implementation-plan.md).
+The CI pr-merge lane uses [inline mode](#inline-mode-ci-pr-merge-lane) instead of an events file.
 Whether the
 repository's evidence predicates
 ([`loop-lane-prompts.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/prompts/loops/loop-lane-prompts.md)
 merge-lane copy-blocks) are met is not settled here; the fail-closed table below is how this
 paragraph is applied.
+
+## Inline mode (CI pr-merge lane)
+
+A hosted runner has no operator settings and no host an administrator owns, so the pr-merge lane
+runs `scripts/resolve-promotion-evidence.mjs --inline` (arguments and reasons in its header
+comment). Each call runs the publisher's report-mode GitHub reads in memory and pipes the events to
+the checker as `--evidence -`: no events file, sidecar or artifact, so nothing can go stale between
+publish and read. It prints the file mode's JSON.
+
+Trust model: code at `refs/heads/main` plus the GitHub API. The helper, publisher, checker, binding
+and probe evidence root all come from the job's checkout of the default-branch tip, and the events
+come from GitHub through the lane token. No agent runs on the runner, so the argument paths are
+trusted as given, and the settings, checkout and writability rules in
+[`promotion-evidence-bootstrap.md`](promotion-evidence-bootstrap.md) do not apply. What keeps an
+agent from changing those files is review: each path must sit under `merge.diff-check.denied-paths`
+in the pipeline config, so the lane never merges a change to one. Inline mode never serves a local
+lane.
+
+Epoch guard: inline mode fails closed (`epoch-start-expired`) when the earliest `ratified_at` of a
+cell bound promoted is more than 85 days old, since contrary evidence from before GitHub's
+retention limit may already be gone. Pointer: the public-repository maximum in
+[Configuring the retention period for checks, workflow runs, commit statuses, artifacts, and logs in your organization](https://docs.github.com/en/organizations/managing-organization-settings/configuring-the-retention-period-for-github-actions-artifacts-and-logs-in-your-organization)
+(applies to checks, workflow runs and commit statuses from 2026-10-01). As of 2026-10-15. Recheck
+trigger: that page changes the public-repository maximum or what the policy covers. So a cell stays
+inline-promoted at most 85 days after its `ratified_at`; re-ratifying it starts a new epoch.
 
 ## Fail-closed rules
 
