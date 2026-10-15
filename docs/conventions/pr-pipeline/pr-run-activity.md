@@ -517,11 +517,14 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    - posts the reply on the thread's root comment in the fixed template (disposition label,
      backticked evidence, `Fix: <sha>` for `VALID`, the note in a `text` fence longer than any
      backtick run in it) and resolves the thread only for `VALID`, and only when a re-read after
-     the reply shows exactly the model's comments plus that reply;
+     the reply shows exactly the model's comments plus that reply (one retry on a failed read or
+     resolve). Once a reply posts, the thread is no longer the bot's alone and no later round
+     selects it, so a post, read or resolve failure, or a `VALID` thread left open, stops the
+     posting and escalates `feedback-partial`;
    - posts the round marker as the lanes App whatever happened above, and escalates
      `feedback-uncertain` for an `UNCERTAIN` or `VALID-defer` reply.
 
-   The script writes its reason to `ESCALATION_REASON_FILE`; the runner accepts only those three
+   The script writes its reason to `ESCALATION_REASON_FILE`; the runner accepts only those four
    reasons, and only with `review-replies`, as the run's `escalation-reason` output.
 
 The skill's limits to kept-thread paths and away from `.github/` are instructions and the tool's

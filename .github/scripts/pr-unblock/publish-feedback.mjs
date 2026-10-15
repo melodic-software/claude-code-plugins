@@ -190,6 +190,28 @@ async function fixesLanded({ api, run, headSha, replies }) {
   return true;
 }
 
+// Resolves a VALID thread only while it holds exactly the model's view plus
+// this reply, so a comment posted meanwhile is not resolved unread. One retry
+// covers a transient read or resolve failure; false means it changed.
+async function resolveAfterReply(api, id, expected) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      const after = await api.readThread(id);
+      if (after.isResolved !== false || !sameIds(after.commentIds, expected)) {
+        return false;
+      }
+      if ((await api.resolveThread(id)) !== true) {
+        throw new Error(`replied on ${id} but it does not read resolved`);
+      }
+      return true;
+    } catch (error) {
+      if (attempt >= 2) {
+        throw error;
+      }
+    }
+  }
+}
+
 export async function publish({ api, pr, headSha, appId, reviewerId, readArtifact, fileExists, log = () => {} }) {
   let escalationReason = "";
   try {
@@ -234,24 +256,25 @@ export async function publish({ api, pr, headSha, appId, reviewerId, readArtifac
         log(`skipped ${reply.thread}: it changed since the model job read it`);
         continue;
       }
-      const answer = await api.replyToComment(pr, ids[0], renderReply(reply));
-      if (answer?.in_reply_to_id !== ids[0]) {
-        throw new Error(`the reply on ${reply.thread} did not land on its thread`);
-      }
-      if (reply.disposition === "VALID") {
-        // Resolve only a thread that holds exactly the model's view plus this
-        // reply, so a comment posted meanwhile is not resolved unread.
-        const after = await api.readThread(reply.thread);
-        if (after.isResolved !== false || !sameIds(after.commentIds, [...ids, answer.id])) {
+      // Once a reply posts, the thread is no longer the reviewer bot's alone,
+      // so no later round selects it again: a failure from here on, or a VALID
+      // thread left open, hands the PR to a person instead of stranding it.
+      try {
+        const answer = await api.replyToComment(pr, ids[0], renderReply(reply));
+        if (answer?.in_reply_to_id !== ids[0]) {
+          throw new Error(`the reply on ${reply.thread} did not land on its thread`);
+        }
+        posted.push({ thread: reply.thread, disposition: reply.disposition });
+        if (reply.disposition === "VALID" && !(await resolveAfterReply(api, reply.thread, [...ids, answer.id]))) {
           log(`replied on ${reply.thread} but left it open: it changed while the reply was posted`);
-          posted.push({ thread: reply.thread, disposition: reply.disposition });
+          escalationReason = "feedback-partial";
           continue;
         }
-        if ((await api.resolveThread(reply.thread)) !== true) {
-          throw new Error(`replied on ${reply.thread} but it does not read resolved`);
-        }
+      } catch (error) {
+        log(`stopped at ${reply.thread}: ${String(error?.message ?? error).slice(0, 300)}`);
+        escalationReason = "feedback-partial";
+        break;
       }
-      posted.push({ thread: reply.thread, disposition: reply.disposition });
       log(`replied on ${reply.thread} (${reply.disposition})${reply.disposition === "VALID" ? "; resolved" : ""}`);
     }
     return { escalationReason, posted };

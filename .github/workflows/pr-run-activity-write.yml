@@ -107,7 +107,7 @@ on:
           unresolved-conflict; for review-threads, before any model turn,
           feedback-protected-path or feedback-round-cap; for the
           review-replies script feedback-uncertain, feedback-not-landed or
-          feedback-invalid; empty otherwise. Set only by runner steps and the
+          feedback-invalid or feedback-partial; empty otherwise. Set only by runner steps and the
           base's reply script.
         value: ${{ jobs.run.outputs.escalation-reason }}
       feedback-round:
@@ -238,6 +238,7 @@ jobs:
           case $ESCALATION_REASON in
             "" | protected-path-conflict | workflow-staged | repeat-cap | unresolved-conflict) ;;
             feedback-protected-path | feedback-round-cap | feedback-uncertain | feedback-not-landed | feedback-invalid) ;;
+            feedback-partial) ;;
             *)
               echo "::error::the escalation-reason input is not a known escalation reason"
               exit 1
@@ -1330,6 +1331,7 @@ jobs:
             escalation=$(head -n 1 "$ESCALATION_REASON_FILE" | tr -d '\r')
             case "$FEEDBACK_REPLIES_DIR:$escalation" in
               ?*:feedback-uncertain | ?*:feedback-not-landed | ?*:feedback-invalid) ;;
+              ?*:feedback-partial) ;;
               *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
             esac
           fi

@@ -14,6 +14,7 @@
 #                       | unresolved-conflict | feedback-protected-path
 #                       | feedback-round-cap | feedback-uncertain
 #                       | feedback-not-landed | feedback-invalid
+#                       | feedback-partial
 #   TRACKER_CONFIG      base .work-item-tracker.json
 #                       (default .base/.work-item-tracker.json)
 #   LANES_BOT_LOGIN     the lanes App bot login, the only author whose marker
@@ -46,6 +47,7 @@ case ${ESCALATION_REASON:-} in
   feedback-uncertain) why='a review finding is uncertain or deferred, so a person decides it' ;;
   feedback-not-landed) why='a fix the lane recorded did not reach the branch, so none of its review replies was posted' ;;
   feedback-invalid) why='the review replies the lane recorded did not pass validation, so none was posted' ;;
+  feedback-partial) why='posting the review replies stopped partway, or a fixed thread could not be resolved, so a person finishes them' ;;
   *) die "unknown escalation reason [${ESCALATION_REASON:-}]" ;;
 esac
 [[ ${PR_NUMBER:-} =~ ^[1-9][0-9]*$ ]] || die "PR_NUMBER is not a pull request number"
