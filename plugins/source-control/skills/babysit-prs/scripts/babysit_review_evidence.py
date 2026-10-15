@@ -396,11 +396,12 @@ def _open_findings(
     """Summary findings over every completed attempt of the lane on this pull
     request, plus inline threads still open, plus inline findings whose
     thread is gone. A resolved thread is closed when a human resolved it, or
-    when it was opened before the lane's latest review (the one at
-    `reviewed`, which covers the pinned head) started: the lane reviewed the
-    fix after it. A thread from that latest review stays open until a human
-    resolves it, so an agent resolving the finding it was just given does
-    not clear it. A thread stands for a recorded inline finding only when it
+    when GitHub marks it outdated (its lines changed) and it was opened
+    before the first review at `reviewed` (the head whose review covers the
+    pinned head) started: the lane reviewed the changed lines after it. A
+    thread from any review at `reviewed`, or one whose lines never changed,
+    stays open until a human resolves it, so neither a repeated review nor an
+    unrelated push clears a finding an agent resolved without fixing. A thread stands for a recorded inline finding only when it
     was opened inside that lane job's run, and it stands for one finding
     across both lanes (`claimed`), so neither an unrecorded review's thread
     nor the other lane's untagged thread hides a missing one."""
@@ -409,8 +410,9 @@ def _open_findings(
     summary = 0
     # (job started, job completed, inline findings) per recorded attempt.
     windows: list[tuple[datetime | None, datetime | None, int]] = []
-    # When the latest review started; unknown keeps every thread's human test.
-    latest: datetime | None = None
+    # When the first review at `reviewed` started; unknown keeps every
+    # thread's human test.
+    first: datetime | None = None
     for item in lane_runs:
         for attempt in _attempts(item).values():
             # A draft-skipped run has only the caller job and reviewed nothing.
@@ -435,9 +437,9 @@ def _open_findings(
                 )
             )
             if item["head_sha"] == reviewed and started and (
-                latest is None or started > latest
+                first is None or started < first
             ):
-                latest = started
+                first = started
     if not isinstance(threads, list | tuple):
         raise Unbound("evidence-error")
     covered = [0] * len(windows)
@@ -457,9 +459,9 @@ def _open_findings(
                     break
         if thread.get("isResolved") is not True:
             open_threads += 1
-        elif not (latest and created and created < latest) and not is_human(
-            thread.get("resolvedBy")
-        ):
+        elif not (
+            thread.get("isOutdated") is True and first and created and created < first
+        ) and not is_human(thread.get("resolvedBy")):
             open_threads += 1
     missing = sum(max(k - n, 0) for (_, _, k), n in zip(windows, covered))
     return summary + open_threads + missing

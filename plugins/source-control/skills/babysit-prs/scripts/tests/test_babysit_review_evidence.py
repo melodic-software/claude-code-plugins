@@ -144,11 +144,12 @@ def thread(
     resolved_by: Any = None,
     author: dict[str, Any] | None = None,
     created: str = "2026-01-01T00:30:00Z",
+    outdated: bool = False,
 ) -> dict[str, Any]:
     return {
         "id": f"t{next(_ids)}",
         "isResolved": resolved,
-        "isOutdated": False,
+        "isOutdated": outdated,
         "resolvedBy": resolved_by,
         "comments": [
             {
@@ -773,12 +774,68 @@ class CountTests(Base):
     def test_earlier_rounds_resolved_by_the_pusher_are_closed(self) -> None:
         pusher = {"__typename": "User", "login": "pusher"}
         threads = [
-            thread(resolved=True, resolved_by=pusher, created=at)
+            thread(resolved=True, resolved_by=pusher, created=at, outdated=True)
             for at in ("2026-01-01T00:30:00Z", "2026-01-01T02:30:00Z")
         ]
         result = self.bind(self.rounds(), threads=threads)
         self.assertTrue(result["claude-review"].bound)
         self.assertEqual(result["claude-review"].open_findings, 0)
+
+    def test_earlier_round_with_unchanged_lines_still_needs_a_human(self) -> None:
+        # An unrelated push re-reviewed incrementally never re-read the line.
+        pusher = {"__typename": "User", "login": "pusher"}
+        threads = [
+            thread(resolved=True, resolved_by=pusher, created=at)
+            for at in ("2026-01-01T00:30:00Z", "2026-01-01T02:30:00Z")
+        ]
+        result = self.bind(self.rounds(), threads=threads)
+        self.assertEqual(result["claude-review"].open_findings, 2)
+
+    def test_thread_from_an_earlier_review_of_the_same_head_counts(self) -> None:
+        # Two recorded reviews at S: the second did not supersede the first.
+        runs = self.rounds()
+        runs[-1] = run(
+            "claude-review", S, f"findings=1 inline=1 scope=incremental since={S0}"
+        )
+        again = run(
+            "claude-review", S, f"findings=0 inline=0 scope=incremental since={S0}"
+        )
+        for item, hours in ((runs[-1], ("04", "05")), (again, ("06", "07"))):
+            job = item["attempts"][0]["jobs"][0]
+            job["started_at"] = f"2026-01-01T{hours[0]}:00:00Z"
+            job["completed_at"] = f"2026-01-01T{hours[1]}:00:00Z"
+        runs.append(again)
+        pusher = {"__typename": "User", "login": "pusher"}
+        threads = [
+            thread(resolved=True, resolved_by=MAINTAINER, created=at)
+            for at in ("2026-01-01T00:30:00Z", "2026-01-01T02:30:00Z")
+        ]
+        threads.append(
+            thread(
+                resolved=True,
+                resolved_by=pusher,
+                created="2026-01-01T04:30:00Z",
+                outdated=True,
+            )
+        )
+        result = self.bind(runs, threads=threads)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+    def test_unknown_review_start_keeps_the_human_test(self) -> None:
+        runs = self.rounds()
+        del runs[-1]["attempts"][0]["jobs"][0]["started_at"]
+        pusher = {"__typename": "User", "login": "pusher"}
+        threads = [
+            thread(resolved=True, resolved_by=MAINTAINER, created="2026-01-01T00:30:00Z"),
+            thread(
+                resolved=True,
+                resolved_by=pusher,
+                created="2026-01-01T02:30:00Z",
+                outdated=True,
+            ),
+        ]
+        result = self.bind(runs, threads=threads)
+        self.assertEqual(result["claude-review"].open_findings, 1)
 
     def test_earlier_round_still_unresolved_counts(self) -> None:
         threads = [thread(created="2026-01-01T00:30:00Z")]
