@@ -97,7 +97,8 @@ export const wfRun = (id, event, sha, created, { conclusion = "success", status 
 // the `comments` the REST comment listing returns for it (`issueComment` builds one).
 // `issueList`: the issues and pulls the REST issue listing returns (none by default, so no number
 // is a hole); `goneIssues`: numbers a read of answers 410 Gone; `missingIssues`: numbers it answers
-// 404; `discussions`: discussion number to author login, whose numbers also read 404 as issues.
+// 404; `discussions`: discussion number to author login, whose numbers also read 404 as issues;
+// `lateRuns`: run ids the run listing shows on every page but the first, as if listed mid-read.
 export const pinComment = (sha) => ({ author: actorOf(LANE), body: `<!-- babysit-merge-pin sha=${sha} -->\nThe unattended merge path enqueued this pull request at head \`${sha}\`.`, lastEditedAt: null });
 export const demotionIssue = (number, createdAt, { author = "github-actions[bot]", body = REC.demotionIssue.body, updatedAt = createdAt, comments = [], edits = [], editCount = edits.length } = {}) => ({
   ...REC.demotionIssue,
@@ -121,7 +122,7 @@ export const issueItem = (number, created, { pull = false } = {}) => ({
   created_at: created,
   pull_request: pull ? { url: `https://api.github.com/repos/${REPO}/pulls/${number}` } : null,
 });
-export function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issueEvents = {}, reviews = {}, issues = {}, workflowRuns: explicitRuns = {}, attempts = {}, history, diverged = [], comments = {}, noDefaultDispatch = false, bumpOnPage2, deletedRuns = [], demotionIssues = [], issueList = [], goneIssues = [], missingIssues = [], discussions = {} }) {
+export function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issueEvents = {}, reviews = {}, issues = {}, workflowRuns: explicitRuns = {}, attempts = {}, history, diverged = [], comments = {}, noDefaultDispatch = false, bumpOnPage2, deletedRuns = [], demotionIssues = [], issueList = [], goneIssues = [], missingIssues = [], discussions = {}, lateRuns = [] }) {
   const defaultDispatch = noDefaultDispatch ? [] : pulls.map((p) => wfRun(900000 + p.graph.number, "workflow_dispatch", p.graph.mergeCommit.oid, later(p.graph.mergedAt, 60), { actor: LANE }));
   const explicitIds = new Set(Object.values(explicitRuns).flat().map((r) => r.id));
   const numbered = (runs) =>
@@ -218,7 +219,7 @@ export function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}
       const [size, n] = [Number(m[3]), Number(m[4])];
       if (size * n > 1000) return { total_count: 0, workflow_runs: [] };
       const runs = (workflowRuns[m[1]] ?? [])
-        .filter((r) => Date.parse(r.created_at) >= lo && Date.parse(r.created_at) <= hi)
+        .filter((r) => Date.parse(r.created_at) >= lo && Date.parse(r.created_at) <= hi && !(n === 1 && lateRuns.includes(r.id)))
         .sort((a, b) => b.created_at.localeCompare(a.created_at) || a.id - b.id);
       return { total_count: Math.min(runs.length, 2500), workflow_runs: runs.slice((n - 1) * size, n * size) };
     }

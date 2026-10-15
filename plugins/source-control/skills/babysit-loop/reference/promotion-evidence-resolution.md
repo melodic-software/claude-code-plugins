@@ -98,17 +98,22 @@ modes, fails closed instead of losing a contrary event:
 - `issue-deleted:` or `issue-missing:`: an issue or pull number missing between two created in the
   window that reads 410 Gone, or that does not read back as this repository's. Discussions share
   the number sequence and read 404 as issues: one is no gap unless `github-actions[bot]` or a
-  `--lane-login` wrote it, since a record converted to a discussion keeps its author.
+  `--lane-login` wrote it. Converting an issue keeps the issue under its number (closed and
+  locked) and gives the discussion a new one, so a converted record still counts; the filer check
+  only refuses on a discussion no filer should have opened, which fails closed and costs nothing.
 - Every `babysit-merge-demotion` record `github-actions[bot]` or a `--lane-login` opened, open or
   closed, whose body or any revision carries the marker or whose edit history is not whole, is a
   gate-failure on every cell at its creation and at each repeat-failure comment one of those
   identities posted in the window; anyone else's comment counts for nothing. Records only add
   events, so a lookalike can only demote.
 
-Residuals: a run or issue deleted, transferred or converted to a discussion while it is the newest
-in the window leaves no gap until a later one is created, and a deleted run that is the oldest of
-its workflow in the window leaves none at all; a red scheduled or canary run still counts through the demotion record
-`post-merge-demotion-alert.yml` files when it completes. An identity that can write issues can
+Residuals: a run or issue deleted or transferred while it is the newest in the window leaves no
+gap until a later one is created, and a deleted run that is the oldest of its workflow in the
+window leaves none at all; a red scheduled or canary run still counts through the demotion record
+`post-merge-demotion-alert.yml` files when it completes. An in-window number that reads 404 and
+is no discussion (an issue GitHub hid as spam, or one deleted without a 410) refuses with
+`issue-missing:` for as long as it stays in the read window; in inline mode that window starts 5
+days before the epoch, so the refusal holds until the cell is re-ratified or its epoch expires. An identity that can write issues can
 delete a repeat-failure comment; the red run it names still counts unless also deleted. A
 per-merge full run that pr-merge dispatches with its own `GITHUB_TOKEN` fires no `workflow_run`
 listener, so no demotion record covers it; its deletion shows as a `run_number` gap, or as the

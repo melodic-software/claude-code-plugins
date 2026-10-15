@@ -699,6 +699,17 @@ test("over 1,000 runs in the window are read in halves, and a deletion among the
   }
 });
 
+// A run listed after page 1 was read shifts every later page by one, so the oldest run falls off the
+// last page and one deletion would fit the count: a count that changes between pages refuses.
+test("a run count that changes between page reads refuses, though one deletion would otherwise fit", () => {
+  const runs = Array.from({ length: 202 }, (_, n) => wfRun(200000 + n, "pull_request", shaOf(0xd000), later("2026-09-01T00:00:00Z", n)));
+  const shifted = { workflowRuns: { [FULL]: runs }, deletedRuns: [200099], lateRuns: [200201] };
+  assert.throws(
+    () => run(shifted),
+    (error) => error instanceof PublishError && !(error.failClosedReason ?? "").startsWith("run-deleted") && /run count changed from 200 to 201/.test(error.message),
+  );
+});
+
 // The alert workflow's record: first body line `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`,
 // filed by github-actions[bot], a repeat failure commented as `The post-merge check found this
 // failure again: <run>/attempts/<n>` (.github/workflows/post-merge-demotion-alert.yml).
@@ -747,8 +758,8 @@ test("an issue number missing inside the window refuses with issue-deleted on 41
   const moved = { ...REC.issue, number: 7102, repository_url: "https://api.github.com/repos/someone/elsewhere" };
   assert.throws(() => run({ issueList: listed, issues: { 7102: moved } }), refusesWith("issue-missing: #7102"));
   assert.deepEqual(run({ issueList: listed, issues: { 7102: { ...REC.issueListItem, number: 7102 } } }).events, []);
-  // Discussions share the number sequence and read 404 as issues: anyone's is no gap, but a filer's
-  // may be a record converted to a discussion, and a 404 that is no discussion is missing.
+  // Discussions share the number sequence and read 404 as issues: anyone else's is no gap, a filer's
+  // fails closed, and a 404 that is no discussion is missing.
   assert.deepEqual(run({ issueList: listed, discussions: { 7102: "someone" } }).events, []);
   assert.throws(() => run({ issueList: listed, discussions: { 7102: "github-actions[bot]" } }), refusesWith("issue-missing: #7102"));
   assert.throws(() => run({ issueList: listed, discussions: { 7102: LANE } }), refusesWith("issue-missing: #7102"));

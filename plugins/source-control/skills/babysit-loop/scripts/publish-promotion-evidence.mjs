@@ -389,7 +389,8 @@ function postMergeRuns(gh, repo, branch, merges, { lane, throughMs }) {
 // and total_count stops at 2,500), so a range holding more is read in halves. The list is newest
 // first, but runs created in one second are not in run_number order (measured 2026-10-15), so a
 // range's newest number is the highest on its first page and its oldest the lowest on its last
-// page and the page before. Any answer that does not fit refuses.
+// page and the page before. A count that changes between those reads shifts the pages and could
+// hide one deletion, so it refuses, as does any answer that does not fit.
 const RUN_RESULT_LIMIT = 1000;
 function checkRunNumbers(gh, repo, workflow, loMs, hiMs) {
   const read = (lo, hi, page) => {
@@ -416,7 +417,12 @@ function checkRunNumbers(gh, repo, workflow, loMs, hiMs) {
       return joined(span(lo, mid), span(mid + 1000, hi));
     }
     const last = Math.ceil(total / PAGE);
-    const older = last === 1 ? newer : [...(last > 2 ? read(lo, hi, last - 1).numbers : newer), ...read(lo, hi, last).numbers];
+    const tail = (page) => {
+      const later = read(lo, hi, page);
+      if (later.total !== total) throw new PublishError(`refusing to publish: ${workflow} run count changed from ${total} to ${later.total} while reading runs created ${isoSeconds(lo)}..${isoSeconds(hi)}`);
+      return later.numbers;
+    };
+    const older = last === 1 ? newer : [...(last > 2 ? tail(last - 1) : newer), ...tail(last)];
     if (newer.length === 0 || older.length === 0) throw new PublishError(`refusing to publish: ${workflow} lists ${total} runs created ${isoSeconds(lo)}..${isoSeconds(hi)} but returns none`);
     const [newest, oldest] = [Math.max(...newer), Math.min(...older)];
     if (newest - oldest + 1 > total) throw new EvidenceGone(`run-deleted: ${workflow} lists ${total} runs created ${isoSeconds(lo)}..${isoSeconds(hi)} numbered ${oldest}..${newest}`);
@@ -429,8 +435,9 @@ function checkRunNumbers(gh, repo, workflow, loMs, hiMs) {
 // Issues, pulls and discussions share one number sequence, so a number missing between two created
 // in the window was deleted (410 Gone, pointer: REST "Get an issue"; as of 2026-10-15), moved, or
 // is a discussion, which reads 404 there (measured 2026-10-15). Anyone can open a discussion, so
-// one is no gap unless a filer wrote it: a record converted to a discussion keeps its author. The
-// listing is newest first and stops at the first page reaching before the window.
+// one is no gap unless a filer wrote it, which no filer should: converting an issue keeps it under
+// its number and numbers the discussion anew, so the check only fails closed. The listing is
+// newest first and stops at the first page reaching before the window.
 const DISCUSSION_QUERY = "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){discussion(number:$number){author{__typename login}}}}";
 function checkIssueNumbers(gh, repo, sinceMs, throughMs, filers) {
   const [owner, name] = repo.split("/");
