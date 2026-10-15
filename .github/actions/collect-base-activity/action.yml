@@ -165,10 +165,10 @@ runs:
           mutate-branch | mutate-tracker | publish-artifact | merge)
             # What a write skill needs to do its job unattended: edit files,
             # run subagents, keep state files in a scratch directory (added
-            # as a working directory, which also makes it writable from its
-            # sandboxed Bash) and commit through the action's signed tool.
-            # Its Bash comes from its own allowed-tools. The PR is the review
-            # step; no tool here limits which files it changes.
+            # as a working directory) and commit through the action's signed
+            # tool. Its allowed-tools frontmatter grants nothing under
+            # dontAsk: Bash runs only what a rule in this list allows. The PR
+            # is the review step; no tool here limits which files it changes.
             # In merge-base mode the runner commits what the skill staged,
             # so the skill gets no commit tool and no instruction to commit.
             mkdir -p "$SCRATCH"
@@ -185,15 +185,23 @@ runs:
             fi
             # The web stays off unless the activity sets web-access. On, the
             # skill may search, fetch the listed domains (`any`: every one)
-            # and run the research skills, whose plugins are installed too. A
-            # WebFetch(domain:...) rule also opens that domain to the
-            # skill's sandboxed shell commands, which the research skills
-            # read raw pages with.
+            # and run the research skills, whose plugins are installed too.
+            # No sandbox is enabled, so a domain list limits WebFetch alone;
+            # a shell command such as curl is not held to it.
             disallowed="WebFetch,WebSearch"
             if [ "$(jq -r '.selected["web-access"].enabled // false' "$RESOLVED")" = true ]; then
               # `any` is tested on its own, so no list entry can stand for it.
               if jq -e '.selected["web-access"].domains == "any"' "$RESOLVED" >/dev/null; then
                 allowed="$allowed,WebFetch(domain:*)"
+                # /discovery:read-docs fetches through two scripts in the
+                # plugin copy. Granted for `any` only: they curl any host,
+                # so a domain list keeps them denied. The cache and the page
+                # files go in the scratch directory.
+                [[ $MARKETPLACE =~ ^/[A-Za-z0-9_./-]+$ ]] || fail "the marketplace copy has a name a rule cannot carry"
+                docs="$MARKETPLACE/plugins/discovery/scripts"
+                allowed="$allowed,Bash(bash $docs/fetch-docs.sh *),Bash(bash $docs/docs-cache.sh *)"
+                echo "DOCS_CACHE_DIR=$SCRATCH/docs-cache" >>"$GITHUB_ENV"
+                system_prompt="$system_prompt For /discovery:read-docs, give fetch-docs.sh --out $SCRATCH/docs-<n>, a new <n> per fetch, in place of a mktemp directory."
               else
                 domains=$(jq -r '.selected["web-access"].domains
                   | if type == "array" and length > 0 and all(type == "string") then .[]

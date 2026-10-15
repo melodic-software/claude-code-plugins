@@ -284,7 +284,11 @@ runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
 (`WebFetch(domain:*)` for `any`), and `Skill` for `/discovery:read-docs`, `/discovery:research`,
 `/knowledge:docpage-digest` and `/knowledge:map-corpus`; installs the `discovery` and `knowledge`
 plugins from the base marketplace copy beside the skill's own; and says so in
-`--append-system-prompt`. A `domain:` rule also adds its domain to the sandbox's network allowlist,
+`--append-system-prompt`. For `any` only, it also allows
+`Bash(bash <copy>/plugins/discovery/scripts/fetch-docs.sh *)` and the same rule for
+`docs-cache.sh`, the two scripts `/discovery:read-docs` runs, sets `DOCS_CACHE_DIR` inside the
+scratch directory, and tells the model to give `fetch-docs.sh` an `--out` there; a domain list
+gets neither, since the scripts curl any host. A `domain:` rule also adds its domain to the sandbox's network allowlist,
 so every sandboxed shell command the skill runs, not only the research skills' raw page reads, can
 send requests of any kind to the same domains
 ([permissions: WebFetch](https://code.claude.com/docs/en/permissions#webfetch),

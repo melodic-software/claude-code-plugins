@@ -54,6 +54,8 @@ function stage(overrides) {
   const runTemp = mkdtempSync(path.join(root, "temp-"));
   const output = path.join(runTemp, "github-output");
   writeFileSync(output, "");
+  const envFile = path.join(runTemp, "github-env");
+  writeFileSync(envFile, "");
   const env = {
     PATH: process.env.PATH,
     MARKETPLACE: path.join(runTemp, "base-marketplace"),
@@ -68,6 +70,7 @@ function stage(overrides) {
     PREPARE: "",
     SCRATCH: path.join(runTemp, "lane-scratch"),
     GITHUB_OUTPUT: output,
+    GITHUB_ENV: envFile,
     ...overrides,
   };
   const result = spawnSync("bash", ["-e", "-c", skillScript()], { env, encoding: "utf8" });
@@ -78,7 +81,8 @@ function stage(overrides) {
   const denied = (/--disallowedTools "([^"]*)"/.exec(args)?.[1] ?? "").split(",").filter(Boolean);
   const prompt = /^prompt<<(\S+)\n([\s\S]*?)\n\1$/m.exec(text)?.[2] ?? "";
   const plugins = (/^plugins<<(\S+)\n([\s\S]*?)\n\1$/m.exec(text)?.[2] ?? "").split("\n").filter(Boolean);
-  return { status: result.status, stdout: result.stdout, args, allowed, denied, prompt, plugins };
+  const jobEnv = readFileSync(envFile, "utf8");
+  return { status: result.status, stdout: result.stdout, args, allowed, denied, prompt, plugins, jobEnv, env };
 }
 
 test("an issue lane's prompt names the issue before the activity's args", () => {
@@ -217,6 +221,38 @@ test("web-access with any domain allows every fetch, search and the research ski
   assert.deepEqual(plugins, ["work-items@melodic-software", "discovery@melodic-software", "knowledge@melodic-software"]);
   assert.match(args, /\/discovery:research/);
 });
+
+// pr-run-activity.md, "Skill activities": for `any` only, the two scripts
+// /discovery:read-docs runs, with its cache and page files in the scratch
+// directory.
+function readDocsRules(env) {
+  const docs = `${env.MARKETPLACE}/plugins/discovery/scripts`;
+  return [`Bash(bash ${docs}/fetch-docs.sh *)`, `Bash(bash ${docs}/docs-cache.sh *)`];
+}
+
+test("web-access with any domain allows the read-docs scripts and points their files at the scratch directory", () => {
+  const { status, allowed, args, jobEnv, env } = withWebAccess({ enabled: true, domains: "any" });
+  assert.equal(status, 0);
+  assert.deepEqual(allowed.filter((rule) => rule.startsWith("Bash(")), readDocsRules(env));
+  assert.equal(jobEnv, `DOCS_CACHE_DIR=${env.SCRATCH}/docs-cache\n`);
+  assert.ok(args.includes(`--out ${env.SCRATCH}/docs-`), args);
+});
+
+for (const [name, webAccess, overrides] of [
+  ["without web-access", undefined, {}],
+  ["with web-access disabled", { enabled: false, domains: "any" }, {}],
+  ["with a domain list", { enabled: true, domains: ["code.claude.com"] }, {}],
+  ["for a read skill", { enabled: true, domains: "any" }, { EFFECT: "read" }],
+]) {
+  test(`no read-docs script grant ${name}`, () => {
+    const { status, allowed, jobEnv } = webAccess
+      ? withWebAccess(webAccess, overrides)
+      : stage({ SKILL: "work-items:work" });
+    assert.equal(status, 0);
+    assert.ok(!allowed.some((rule) => rule.startsWith("Bash(")), allowed.join(" | "));
+    assert.equal(jobEnv, "");
+  });
+}
 
 test("web-access with a domain list allows a fetch to those domains only", () => {
   const { status, allowed, denied } = withWebAccess({ enabled: true, domains: ["code.claude.com", "*.github.com"] });
