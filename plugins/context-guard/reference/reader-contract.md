@@ -477,7 +477,8 @@ nothing.
 
 - **Pointer**: per row above.
 - **As of**: 2026-10-10 for the two `autoCompactWindow` rows; 2026-10-15 for the
-  `DISABLE_COMPACT` entry; 2026-08-19 for the other rows.
+  `DISABLE_COMPACT` entry and the `DISABLE_AUTO_COMPACT` manual-`/compact` sentence; 2026-08-19
+  for the other rows.
 - **Recheck trigger**: a release note or one of those sections changes a surface's units, range,
   precedence, or the set of surfaces itself.
 
