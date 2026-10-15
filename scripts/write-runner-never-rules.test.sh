@@ -130,6 +130,14 @@ say(String(feedbackCollect.uses ?? "").startsWith("actions/github-script@") && a
 const runSteps = JSON.stringify(steps);
 say(!/resolveReviewThread|\/replies['"`]|record-round/.test(runSteps) && !/feedback-round/.test(JSON.stringify(steps.map((s) => s.id))),
   "no step of the write runner replies on or resolves a review thread");
+const promoteScript = String(byId("promote").with?.script ?? "");
+const promoteThreads = String(byId("promote").env?.THREAD_FILE ?? "");
+say(promoteThreads.includes("prepare == 'review-threads'") && promoteThreads.includes("lane-feedback/threads.json"),
+  "review-threads mode hands the promote step the kept threads' paths");
+say(promoteScript.indexOf("if (THREAD_FILE)") >= 0 && promoteScript.indexOf("if (THREAD_FILE)") < promoteScript.indexOf("updateRef"),
+  "the promote step checks the lane branch's paths before it moves the PR branch");
+say(/run-sha256/.test(String(feedbackCollect.with?.script ?? "")) && byId("act-script").env?.RUN_SHA256 === "${{ inputs.review-run-sha256 }}",
+  "the reply script gets the SHA-256 of the run.json the collect step wrote");
 const actors = at((s) => s.id === "reply-actors");
 say(actors >= 0 && actors < checkout && /\.base\/\.github\/standards\/trusted-actors\/trusted-actors\.json/.test(byId("reply-actors").run ?? ""),
   "the reply script's trusted-actors list is copied from the base before the head checkout");

@@ -88,6 +88,13 @@ on:
         required: false
         type: boolean
         default: false
+      review-run-sha256:
+        description: >-
+          With review-replies, the model run's feedback-run-sha256 output; the
+          reply script refuses a run.json with any other SHA-256.
+        required: false
+        type: string
+        default: ""
     secrets:
       claude-code-oauth-token:
         description: Claude Code OAuth token for skill activities.
@@ -109,6 +116,12 @@ on:
           uploaded (or the run ended before they could be) and its reply job
           must run. Set only by runner steps.
         value: ${{ jobs.run.outputs.feedback-round }}
+      feedback-run-sha256:
+        description: >-
+          The SHA-256 of the run.json the review-threads runner step wrote;
+          the caller passes it to the reply job as review-run-sha256. Set only
+          by runner steps.
+        value: ${{ jobs.run.outputs.feedback-run-sha256 }}
       issue-run-started:
         description: >-
           Issue mode: `true` once the run got its lane token, so its outcome
@@ -166,6 +179,7 @@ jobs:
       feedback-round: >-
         ${{ steps.config.outputs.prepare == 'review-threads'
         && steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome != '' }}
+      feedback-run-sha256: ${{ steps.feedback-collect.outputs.run-sha256 }}
       issue-run-started: ${{ inputs.issue-number != '' && steps.lane-token.outcome == 'success' }}
       # A gate skill succeeds only on a `pass` verdict, a skill that took no
       # model turn fails, and a skill whose commits could not be moved onto
@@ -1062,11 +1076,16 @@ jobs:
           MERGE_BASE: ${{ steps.config.outputs.prepare == 'merge-base' }}
           COMMIT_OUTCOME: ${{ steps.commit.outcome }}
           COMMIT_SHA: ${{ steps.commit.outputs.commit }}
+          # review-threads mode moves the PR branch only when the lane branch
+          # changes nothing but the kept threads' paths, none under .github/.
+          THREAD_FILE: >-
+            ${{ steps.config.outputs.prepare == 'review-threads'
+            && format('{0}/lane-feedback/threads.json', runner.temp) || '' }}
         with:
           github-token: ${{ steps.lane-token.outputs.token }}
           retries: 0
           script: |
-            const { HEAD_SHA, HEAD_REF, LANE_BRANCH, MERGE_BASE, COMMIT_OUTCOME, COMMIT_SHA } = process.env;
+            const { HEAD_SHA, HEAD_REF, LANE_BRANCH, MERGE_BASE, COMMIT_OUTCOME, COMMIT_SHA, THREAD_FILE } = process.env;
             const tip = async (branch) =>
               (await github.request('GET /repos/{owner}/{repo}/git/ref/{ref}', { ...context.repo, ref: `heads/${branch}` }))
                 .data.object.sha;
@@ -1079,6 +1098,17 @@ jobs:
               if (MERGE_BASE === 'true' && (COMMIT_OUTCOME !== 'success' || !COMMIT_SHA || lane !== COMMIT_SHA)) {
                 core.setFailed(`The lane branch is at ${lane}, not a merge commit the commit step made; the PR branch is not moved`);
                 return;
+              }
+              if (THREAD_FILE) {
+                const paths = new Set(JSON.parse(require('fs').readFileSync(THREAD_FILE, 'utf8')).threads.map((t) => t.path));
+                const { data } = await github.rest.repos.compareCommitsWithBasehead({ ...context.repo, basehead: `${HEAD_SHA}...${lane}` });
+                const bad = data.files.length >= 300 ? ['(300 or more files)'] : data.files
+                  .flatMap((f) => [f.filename, f.previous_filename].filter(Boolean))
+                  .filter((p) => !paths.has(p) || /^\.github(\/|$)/i.test(p));
+                if (bad.length > 0) {
+                  core.setFailed(`The lane branch changes a path no kept thread names or under .github/ (${bad.slice(0, 5).join(', ')}); the PR branch is not moved`);
+                  return;
+                }
               }
               const head = await tip(HEAD_REF);
               if (head !== HEAD_SHA) {
@@ -1134,7 +1164,9 @@ jobs:
               head_sha: HEAD_SHA,
               threads: threads.map((t) => ({ id: t.id, path: t.path, comment_ids: t.comments.map((c) => c.id) })),
             };
-            fs.writeFileSync(`${OUT_DIR}/run.json`, `${JSON.stringify(run)}\n`);
+            const runText = `${JSON.stringify(run)}\n`;
+            fs.writeFileSync(`${OUT_DIR}/run.json`, runText);
+            core.setOutput('run-sha256', require('crypto').createHash('sha256').update(runText).digest('hex'));
             let replies = Buffer.alloc(0);
             if (fs.existsSync(REPLIES_FILE) && fs.lstatSync(REPLIES_FILE).isFile()) {
               const fd = fs.openSync(REPLIES_FILE, 'r');
@@ -1259,6 +1291,7 @@ jobs:
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           FEEDBACK_REPLIES_DIR: ${{ inputs.review-replies && format('{0}/feedback-replies', runner.temp) || '' }}
           TRUSTED_ACTORS: ${{ inputs.review-replies && format('{0}/base-script/.trusted-actors.json', runner.temp) || '' }}
+          RUN_SHA256: ${{ inputs.review-run-sha256 }}
           ESCALATION_REASON_FILE: ${{ runner.temp }}/escalation-reason
         run: |
           if [ "$TRACKER_SHA256" = absent ]; then

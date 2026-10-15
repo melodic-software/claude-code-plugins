@@ -25,9 +25,11 @@
 //   APP_SENDER_ID         the lanes App bot's user id, the round marker author
 //   TRUSTED_ACTORS        the base's trusted-actors.json, for the reviewer bot
 //   FEEDBACK_REPLIES_DIR  the downloaded artifact: run.json and replies.jsonl
+//   RUN_SHA256            run.json's SHA-256, from the model job's runner step
 //   GITHUB_WORKSPACE      the PR head checkout evidence paths are checked in
 //   SKIP_REASON_FILE, ESCALATION_REASON_FILE  where the runner reads them
 
+import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -153,27 +155,39 @@ export function renderReply({ disposition, evidence, fixSha, note }) {
   ].join("\n");
 }
 
-// Every VALID fix must be a commit the PR branch gained after the model job's
-// gated head, and that range may change only the kept threads' paths.
+// Whenever the PR branch moved since the model job's gated head, or a reply is
+// VALID, that range may change only the kept threads' paths (run.json, whose
+// SHA-256 the model job's runner recorded), and nothing under .github/. Every VALID
+// fix must be a commit in that range that changes its own thread's path.
 async function fixesLanded({ api, run, headSha, replies }) {
-  const fixes = replies.filter((reply) => reply.disposition === "VALID").map((reply) => reply.fixSha);
-  if (fixes.length === 0) {
+  const valid = replies.filter((reply) => reply.disposition === "VALID");
+  if (valid.length === 0 && run.head_sha === headSha) {
     return true;
   }
   const comparison = await api.compare(run.head_sha, headSha);
   const commits = new Set((comparison.commits ?? []).map((commit) => commit.sha));
-  const paths = new Set(run.threads.map((thread) => thread.path));
+  const threadPath = new Map(run.threads.map((thread) => [thread.id, thread.path]));
+  const paths = new Set(threadPath.values());
   const files = comparison.files ?? [];
-  return (
+  const inRange =
     ["ahead", "identical"].includes(comparison.status) &&
-    fixes.every((sha) => commits.has(sha)) &&
+    valid.every((reply) => commits.has(reply.fixSha)) &&
     files.length < LIMITS.files &&
     files.every((file) =>
       [file.filename, file.previous_filename].every(
         (path) => path === undefined || (paths.has(path) && !isProtectedPath(path)),
       ),
-    )
-  );
+    );
+  if (!inRange) {
+    return false;
+  }
+  for (const reply of valid) {
+    const changed = ((await api.getCommit(reply.fixSha)).files ?? []).map((file) => file.filename);
+    if (!changed.includes(threadPath.get(reply.thread))) {
+      return false;
+    }
+  }
+  return true;
 }
 
 export async function publish({ api, pr, headSha, appId, reviewerId, readArtifact, fileExists, log = () => {} }) {
@@ -193,6 +207,8 @@ export async function publish({ api, pr, headSha, appId, reviewerId, readArtifac
       escalationReason = "feedback-invalid";
       return { escalationReason, posted: [] };
     }
+    const { kept } = await currentThreads({ api, pr, reviewerId });
+    const now = new Map(kept.map((thread) => [thread.id, thread]));
     if (!(await fixesLanded({ api, run, headSha, replies }))) {
       log("no reply is posted: a VALID fix did not reach the PR branch, or the branch changed another path");
       escalationReason = "feedback-not-landed";
@@ -201,8 +217,6 @@ export async function publish({ api, pr, headSha, appId, reviewerId, readArtifac
     if (replies.some((reply) => reply.disposition === "UNCERTAIN" || reply.disposition === "VALID-defer")) {
       escalationReason = "feedback-uncertain";
     }
-    const { kept } = await currentThreads({ api, pr, reviewerId });
-    const now = new Map(kept.map((thread) => [thread.id, thread]));
     const shown = new Map(run.threads.map((thread) => [thread.id, thread]));
     const posted = [];
     for (const reply of replies) {
@@ -224,8 +238,18 @@ export async function publish({ api, pr, headSha, appId, reviewerId, readArtifac
       if (answer?.in_reply_to_id !== ids[0]) {
         throw new Error(`the reply on ${reply.thread} did not land on its thread`);
       }
-      if (reply.disposition === "VALID" && (await api.resolveThread(reply.thread)) !== true) {
-        throw new Error(`replied on ${reply.thread} but it does not read resolved`);
+      if (reply.disposition === "VALID") {
+        // Resolve only a thread that holds exactly the model's view plus this
+        // reply, so a comment posted meanwhile is not resolved unread.
+        const after = await api.readThread(reply.thread);
+        if (after.isResolved !== false || !sameIds(after.commentIds, [...ids, answer.id])) {
+          log(`replied on ${reply.thread} but left it open: it changed while the reply was posted`);
+          posted.push({ thread: reply.thread, disposition: reply.disposition });
+          continue;
+        }
+        if ((await api.resolveThread(reply.thread)) !== true) {
+          throw new Error(`replied on ${reply.thread} but it does not read resolved`);
+        }
       }
       posted.push({ thread: reply.thread, disposition: reply.disposition });
       log(`replied on ${reply.thread} (${reply.disposition})${reply.disposition === "VALID" ? "; resolved" : ""}`);
@@ -263,10 +287,23 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   const dir = env.FEEDBACK_REPLIES_DIR;
   const read = (name) => {
     const path = join(dir, name);
-    if (lstatSync(path).isSymbolicLink()) {
-      throw new Invalid(`${name} is a symbolic link`);
+    const stat = lstatSync(path);
+    if (!stat.isFile()) {
+      throw new Invalid(`${name} is not a regular file`);
+    }
+    if (stat.size > LIMITS.bytes + 1) {
+      throw new Invalid(`${name} is over the size limit`);
     }
     return readFileSync(path, "utf8");
+  };
+  // run.json must be the bytes the model job's runner step wrote, whose
+  // SHA-256 that job passed out as a runner-computed output.
+  const readRun = () => {
+    const text = read("run.json");
+    if (!/^[0-9a-f]{64}$/.test(env.RUN_SHA256 ?? "") || createHash("sha256").update(text).digest("hex") !== env.RUN_SHA256) {
+      throw new Invalid("run.json does not match the SHA-256 the model job recorded");
+    }
+    return text;
   };
   const { escalationReason } = await publish({
     api:
@@ -281,7 +318,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     headSha: env.HEAD_SHA,
     appId,
     reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
-    readArtifact: () => ({ runText: read("run.json"), repliesText: read("replies.jsonl") }),
+    readArtifact: () => ({ runText: readRun(), repliesText: read("replies.jsonl") }),
     fileExists: (path) => existsSync(join(env.GITHUB_WORKSPACE, path)),
     log,
   });
