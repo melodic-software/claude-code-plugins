@@ -3,6 +3,16 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.6.0] - 2026-10-15
+
+### Changed
+
+- `/work-items:work --issue <n> --ci`: reads a web source through a research skill
+  (`/discovery:read-docs`, `/discovery:research`, `/knowledge:docpage-digest` or
+  `/knowledge:map-corpus`) and lists each page it read in `verification`.
+
+- `/work-items:work --issue <n> --ci` runs the pull-request prep (a fresh-context review, build and tests, lint and the class audits) before it reports done, and records each in `work-outcome.json` as `steps`, which the CI lane posts as `pipeline/<step>` commit statuses. The lane now opens its PR ready.
+
 ## [2.5.0] - 2026-10-14
 
 ### Changed
