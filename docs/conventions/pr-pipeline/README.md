@@ -120,6 +120,9 @@ PR, it carries neither `do-not-merge` nor `needs-human`, both lanes' newest revi
 name the head, an unresolved thread left only by the reviewer bot exists, and the head has no
 `pr-unblock / address-feedback` check run. It records `pr-feedback-dispatched-<upstream id>-<run
 id>`, which the gate and the broker read to tie the run to a review of the PR's current head.
+In `pr-unblock.yml`, `address-feedback` (the model job, `mutate-branch`) is followed by
+`publish-feedback` (a script job with no model, `publish-artifact`), which posts the replies the
+model job recorded ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)).
 
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
@@ -205,10 +208,7 @@ Each leaf declares:
   `read` may search the web, fetch those domains, and run the research skills
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). An activity that turns it on must
   set `reads-untrusted: true` and an effect other than `read`.
-- `effect`: one of `read`, `mutate-branch`, `mutate-pr`, `mutate-tracker`, `publish-artifact`,
-  `merge`. `mutate-pr` is `mutate-branch` plus `pull-requests: write`, for an activity that also
-  replies on and resolves review threads; the lane rules allow it only in `pr-unblock` and
-  `pr-merge`. The
+- `effect`: one of `read`, `mutate-branch`, `mutate-tracker`, `publish-artifact`, `merge`. The
   runner derives ordering from it, takes the token grant from
   [`effect-grants.json`](../../../.github/actions/resolve-config/effect-grants.json), and fails a
   `read` activity that leaves the working tree dirty. An activity that runs head code (tests,
@@ -286,7 +286,7 @@ The reader also adds the config file's own path, `.github/**` and the trusted-ac
 | Scope | Rule | Set by |
 |---|---|---|
 | Triggers of one PR's `pr-unblock` activity | A newer dispatch replaces one still waiting; a running one finishes | workflow group `pr-unblock-<activity>-<n>`, `cancel-in-progress: false` |
-| Within one run | Leaves run in slot order: `report-escalation` after `resolve-conflicts`, and only when it escalated | the caller's `needs:` |
+| Within one run | Leaves run in slot order: `publish-feedback` after `address-feedback` once its skill ran; `report-escalation` after the others, and only when one escalated | the caller's `needs:` |
 | Across PRs | Unbounded: every group is per PR | group names |
 | Within one PR, across write lanes | One queue: a write job waits for the one ahead and never cancels it | job group `pr-pipeline-write-<n>`, `queue: max`, on every write caller job |
 | `pr-unblock-dispatch` | One run at a time; a newer push replaces a waiting run | workflow group `pr-unblock-dispatch` |

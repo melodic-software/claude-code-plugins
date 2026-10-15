@@ -118,6 +118,8 @@ for reason in protected-path-conflict workflow-staged repeat-cap unresolved-conf
   has "$reason: comment says to remove the label" 'remove the `needs-human` label' "$STUB/bodies"
   has "$reason: comment says to dispatch pr-unblock" 'pr-unblock' "$STUB/bodies"
   has "$reason: comment names the PR to dispatch" 'pr-number=42' "$STUB/bodies"
+  if [[ $reason == feedback-* ]]; then want=address-feedback; else want=resolve-conflicts; fi
+  has "$reason: comment names the activity to dispatch" "-f pr-number=42 -f activity=$want" "$STUB/bodies"
   has "$reason: label defaults to needs-human" 'labels[]=needs-human' "$STUB/calls"
 done
 

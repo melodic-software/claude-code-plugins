@@ -89,14 +89,42 @@ jobs:
     secrets:
       claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
 
+  # address-feedback's model job holds contents: write and posts nothing; this
+  # script job, with no model, holds pull-requests: write and posts the replies
+  # that job recorded, exactly as written or not at all, then the round marker.
+  # It runs whenever the model job's skill ran, even when that job failed, so
+  # every round is counted.
+  publish-feedback:
+    needs: address-feedback
+    if: ${{ !cancelled() && needs.address-feedback.outputs.feedback-round == 'true' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      lane: pr-unblock
+      activity: publish-feedback
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      review-replies: true
+
   report-escalation:
-    needs: [resolve-conflicts, address-feedback]
-    # escalation-reason is set only by the write runner's own steps. A later
-    # failure in that run (a failed verdict upload) still escalates. Only one
-    # of the two jobs runs; the skipped one's output is empty.
+    needs: [resolve-conflicts, address-feedback, publish-feedback]
+    # escalation-reason is set only by the write runner's own steps and the
+    # base's reply script. A later failure in that run (a failed verdict
+    # upload) still escalates. At most one of the three escalates: the reply
+    # job runs only after a model turn, and the model job escalates only
+    # before one.
     if: >-
       ${{ !cancelled() && (needs.resolve-conflicts.outputs.escalation-reason != ''
-      || needs.address-feedback.outputs.escalation-reason != '') }}
+      || needs.address-feedback.outputs.escalation-reason != ''
+      || needs.publish-feedback.outputs.escalation-reason != '') }}
     permissions:
       contents: read
       pull-requests: read
@@ -112,6 +140,7 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       escalation-reason: >-
         ${{ needs.resolve-conflicts.outputs.escalation-reason
-        || needs.address-feedback.outputs.escalation-reason }}
+        || needs.address-feedback.outputs.escalation-reason
+        || needs.publish-feedback.outputs.escalation-reason }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip

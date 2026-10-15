@@ -361,7 +361,7 @@ jobs:
           script: |
             const { EFFECT, HEAD_SHA, HEAD_REF, ISSUE_NUMBER } = process.env;
             // Issue mode has no PR branch: the skill commits to a new one.
-            if ((EFFECT !== 'mutate-branch' && EFFECT !== 'mutate-pr') || ISSUE_NUMBER) {
+            if (EFFECT !== 'mutate-branch' || ISSUE_NUMBER) {
               core.setOutput('proceed', 'true');
               return;
             }

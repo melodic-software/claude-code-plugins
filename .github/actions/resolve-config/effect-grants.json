@@ -15,10 +15,5 @@
     "pull-requests": "read",
     "issues": "read"
   },
-  "mutate-pr": {
-    "contents": "write",
-    "pull-requests": "write",
-    "issues": "read"
-  },
   "merge": { "contents": "write", "pull-requests": "write", "issues": "write" }
 }

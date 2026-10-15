@@ -48,6 +48,8 @@ case ${ESCALATION_REASON:-} in
   feedback-invalid) why='the review replies the lane recorded did not pass validation, so none was posted' ;;
   *) die "unknown escalation reason [${ESCALATION_REASON:-}]" ;;
 esac
+activity=resolve-conflicts
+[[ $ESCALATION_REASON != feedback-* ]] || activity=address-feedback
 [[ ${PR_NUMBER:-} =~ ^[1-9][0-9]*$ ]] || die "PR_NUMBER is not a pull request number"
 [[ ${HEAD_SHA:-} =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]] || die "HEAD_SHA is not a commit id"
 [[ ${GITHUB_REPOSITORY:-} =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "GITHUB_REPOSITORY is not owner/repo"
@@ -86,10 +88,10 @@ The pr-unblock lane stopped on this pull request and needs a person: $why.
 - Reason: \`$ESCALATION_REASON\`
 - Resume key: \`$HEAD_SHA\` (the head the lane stopped on)
 
-To resume, deal with the reason above, remove the \`$label\` label (and \`do-not-merge\`, if set), then dispatch the \`pr-unblock\` workflow with \`pr-number=$PR_NUMBER\`:
+To resume, deal with the reason above, remove the \`$label\` label (and \`do-not-merge\`, if set), then dispatch the \`pr-unblock\` workflow with \`pr-number=$PR_NUMBER\` and \`activity=$activity\`:
 
 \`\`\`sh
-gh workflow run pr-unblock.yml -R $GITHUB_REPOSITORY -f pr-number=$PR_NUMBER
+gh workflow run pr-unblock.yml -R $GITHUB_REPOSITORY -f pr-number=$PR_NUMBER -f activity=$activity
 \`\`\`
 EOF
 

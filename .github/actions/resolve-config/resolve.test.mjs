@@ -128,37 +128,6 @@ test("rejection 3: an effect the lane forbids is rejected (mutate-branch in pr-r
   );
 });
 
-const mutatePrConfig = (lane) => `version: 1
-activities:
-  address-feedback:
-    skill: source-control:pull-request
-    effect: mutate-pr
-    gating: advisory
-    reads-untrusted: true
-lanes:
-  ${lane}:
-    stage: ${{ "pr-unblock": "unblock", "pr-refine": "refine" }[lane] ?? "verify"}
-    slots:
-      - activity: address-feedback
-`;
-
-test("mutate-pr resolves in pr-unblock", () => {
-  assert.equal(
-    run(mutatePrConfig("pr-unblock"), { lane: "pr-unblock", activity: "address-feedback" })
-      .selected.effect,
-    "mutate-pr",
-  );
-});
-
-for (const lane of ["pr-run-checks", "pr-review", "pr-review-security", "pr-verify", "pr-require-checks", "pr-refine", "pr-explain"]) {
-  test(`rejection 3: mutate-pr in ${lane} is rejected`, () => {
-    assertRejected(
-      () => run(mutatePrConfig(lane), { lane, activity: "address-feedback" }),
-      "forbidden-by-lane",
-    );
-  });
-}
-
 test("rejection 3: a gate activity in pr-explain is rejected", () => {
   assertRejected(
     () => run(fixture("forbidden-gating.yaml"), { lane: "pr-explain" }),
@@ -543,6 +512,16 @@ test("with an activity, another slot's undecidable predicate leaves that slot un
 
 // Effect grants (contract-spec.md EffectGrant)
 
+// Owner rule (#7032 amendment): a token with contents: write and
+// pull-requests: write can enqueue a pull request, so only merge holds both;
+// the broker refuses any other such grant.
+test("no effect but merge grants both contents: write and pull-requests: write", () => {
+  const both = Object.entries(EFFECT_GRANTS)
+    .filter(([, grant]) => grant.contents === "write" && grant["pull-requests"] === "write")
+    .map(([effect]) => effect);
+  assert.deepEqual(both, ["merge"]);
+});
+
 test("each effect resolves to its App grant", () => {
   const expected = {
     read: { contents: "read", "pull-requests": "read", issues: "read" },
@@ -559,11 +538,6 @@ test("each effect resolves to its App grant", () => {
     "mutate-branch": {
       contents: "write",
       "pull-requests": "read",
-      issues: "read",
-    },
-    "mutate-pr": {
-      contents: "write",
-      "pull-requests": "write",
       issues: "read",
     },
     merge: { contents: "write", "pull-requests": "write", issues: "write" },
