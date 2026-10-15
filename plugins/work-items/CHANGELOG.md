@@ -3,6 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.5.0] - 2026-10-14
+
+### Changed
+
+- `/work-items:work --issue <n> --ci`: `work-outcome.json` gains `changes`, `verification` and
+  `not_done`. The mode runs the checks the runner names, writes an external fact only after reading
+  its source in the run, and marks a required check it could not run or pass `required` in
+  `not_done`, which the lane reports as `stopped`.
+
 ## [2.4.0] - 2026-10-14
 
 ### Added

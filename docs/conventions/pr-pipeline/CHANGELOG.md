@@ -9,6 +9,12 @@ to sandboxed shell commands) and the research skills, with their plugins install
 turns it on for `resolve-issue` with `domains: any`; the token residual now says the model can send
 its token to any allowed domain. `collect-base-activity`'s `plugin` output is now `plugins`, one per line. `version` stays 1.
 
+## 1.13.1 - 2026-10-14
+
+The pr-merge workflow queues extra runs (`concurrency.queue: max`) instead of letting GitHub cancel
+all but one waiting run, which left CANCELLED `merge` checks on PRs. No rule or schema change.
+`version` stays 1.
+
 ## 1.13.0 - 2026-10-14
 
 Schema: a skill leaf's optional `checks`, repository check scripts with fixed flags that a write
