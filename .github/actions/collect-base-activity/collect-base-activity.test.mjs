@@ -236,6 +236,11 @@ test("web-access with any domain allows the read-docs scripts and points their f
   assert.deepEqual(allowed.filter((rule) => rule.startsWith("Bash(")), readDocsRules(env));
   assert.equal(jobEnv, `DOCS_CACHE_DIR=${env.SCRATCH}/docs-cache\n`);
   assert.ok(args.includes(`--out ${env.SCRATCH}/docs-`), args);
+  // The prompt names each script in the unquoted form its rule allows.
+  for (const rule of readDocsRules(env)) {
+    const command = rule.slice("Bash(".length, -" *)".length);
+    assert.ok(args.includes(` ${command} `), `${command} in ${args}`);
+  }
 });
 
 for (const [name, webAccess, overrides] of [
