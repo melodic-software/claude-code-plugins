@@ -96,14 +96,18 @@ modes, fails closed instead of losing a contrary event:
   [Contexts reference](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts).
   As of 2026-10-15. Recheck trigger: that definition changes.
 - `issue-deleted:` or `issue-missing:`: an issue or pull number missing between two created in the
-  window that reads 410 Gone, or that does not read back as this repository's.
+  window that reads 410 Gone, or that does not read back as this repository's. Discussions share
+  the number sequence and read 404 as issues: one is no gap unless `github-actions[bot]` or a
+  `--lane-login` wrote it, since a record converted to a discussion keeps its author.
 - Every `babysit-merge-demotion` record `github-actions[bot]` or a `--lane-login` opened, open or
   closed, whose body or any revision carries the marker or whose edit history is not whole, is a
-  gate-failure on every cell at its creation and at each repeat-failure comment in the window.
-  Records only add events, so a lookalike can only demote.
+  gate-failure on every cell at its creation and at each repeat-failure comment one of those
+  identities posted in the window; anyone else's comment counts for nothing. Records only add
+  events, so a lookalike can only demote.
 
-Residuals: a deleted run or issue that is the newest in the window leaves no gap until a later one
-is created; a red scheduled or canary run still counts through the demotion record
+Residuals: a run or issue deleted, transferred or converted to a discussion while it is the newest
+in the window leaves no gap until a later one is created, and a deleted run that is the oldest of
+its workflow in the window leaves none at all; a red scheduled or canary run still counts through the demotion record
 `post-merge-demotion-alert.yml` files when it completes. An identity that can write issues can
 delete a repeat-failure comment; the red run it names still counts unless also deleted. A
 per-merge full run that pr-merge dispatches with its own `GITHUB_TOKEN` fires no `workflow_run`

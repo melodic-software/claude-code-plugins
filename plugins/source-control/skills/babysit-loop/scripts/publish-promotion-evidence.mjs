@@ -147,8 +147,8 @@ export class UnresolvableError extends PublishError {}
 class IncompleteError extends PublishError {}
 
 // A failed `gh api` call. Only two answers are not read failures: GraphQL NOT_FOUND on the pull
-// request itself (data.repository.pullRequest null, every error path ending in pullRequest), which
-// is returned as the answer, and REST 422 "No commit found for SHA", which is unresolvable. Any
+// request or discussion itself (data.repository.<key> null, every error path ending in that key),
+// which is returned as the answer, and REST 422 "No commit found for SHA", which is unresolvable. Any
 // other failure, a repository NOT_FOUND included, fails the publish.
 export function ghFailure(path, graphql, stdout, stderr) {
   let body = null;
@@ -156,14 +156,16 @@ export function ghFailure(path, graphql, stdout, stderr) {
     body = JSON.parse(stdout);
   } catch {}
   const errors = body?.errors;
-  if (
-    graphql &&
-    body?.data?.repository?.pullRequest === null &&
-    Array.isArray(errors) &&
-    errors.length > 0 &&
-    errors.every((e) => e?.type === "NOT_FOUND" && Array.isArray(e.path) && e.path.at(-1) === "pullRequest")
-  ) {
-    return body;
+  for (const key of ["pullRequest", "discussion"]) {
+    if (
+      graphql &&
+      body?.data?.repository?.[key] === null &&
+      Array.isArray(errors) &&
+      errors.length > 0 &&
+      errors.every((e) => e?.type === "NOT_FOUND" && Array.isArray(e.path) && e.path.at(-1) === key)
+    ) {
+      return body;
+    }
   }
   if (!graphql && String(body?.status) === "422" && /^No commit found for SHA/.test(body?.message ?? "")) throw new UnresolvableError(body.message);
   throw new PublishError(`gh api ${path} failed: ${String(stderr).trim()}`);
@@ -424,10 +426,14 @@ function checkRunNumbers(gh, repo, workflow, loMs, hiMs) {
   span(Math.ceil(loMs / 1000) * 1000, Math.floor(hiMs / 1000) * 1000);
 }
 
-// Issues and pulls share one number sequence, so a number missing between two created in the
-// window was deleted (410 Gone, pointer: REST "Get an issue"; as of 2026-10-15) or moved. The
+// Issues, pulls and discussions share one number sequence, so a number missing between two created
+// in the window was deleted (410 Gone, pointer: REST "Get an issue"; as of 2026-10-15), moved, or
+// is a discussion, which reads 404 there (measured 2026-10-15). Anyone can open a discussion, so
+// one is no gap unless a filer wrote it: a record converted to a discussion keeps its author. The
 // listing is newest first and stops at the first page reaching before the window.
-function checkIssueNumbers(gh, repo, sinceMs, throughMs) {
+const DISCUSSION_QUERY = "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){discussion(number:$number){author{__typename login}}}}";
+function checkIssueNumbers(gh, repo, sinceMs, throughMs, filers) {
+  const [owner, name] = repo.split("/");
   const numbers = new Set();
   for (let page = 1; ; page += 1) {
     const items = gh(`repos/${repo}/issues?state=all&sort=created&direction=desc&per_page=${PAGE}&page=${page}`);
@@ -449,7 +455,9 @@ function checkIssueNumbers(gh, repo, sinceMs, throughMs) {
       issue = gh(`repos/${repo}/issues/${n}`);
     } catch (error) {
       if (/\(HTTP 410\)/.test(error?.message)) throw new EvidenceGone(`issue-deleted: #${n} reads 410 Gone between issues created in the window`);
-      throw error;
+      if (!/\(HTTP 404\)/.test(error?.message)) throw error;
+      const discussion = gh("graphql", { query: DISCUSSION_QUERY, variables: { owner, name, number: n } })?.data?.repository?.discussion;
+      if (discussion && !filers.includes(actorKey(discussion.author))) continue;
     }
     if (issue?.number !== n || !String(issue.repository_url ?? "").toLowerCase().endsWith(`/repos/${repo.toLowerCase()}`)) {
       throw new EvidenceGone(`issue-missing: #${n} is not listed between issues created in the window and does not read back as this repository's`);
@@ -460,15 +468,15 @@ function checkIssueNumbers(gh, repo, sinceMs, throughMs) {
 // The demotion records post-merge-demotion-alert.yml files (and babysit_postmerge.py files under
 // the lane identity), read as babysit_merge_policy.py read_demotion finds candidates: issues a
 // filer opened, updated inside the window, whose body or any revision carries the marker, or
-// whose edit history is not whole. Each yields its creation and every repeat-failure comment
-// inside the window; a comment list that is not whole yields its last update.
+// whose edit history is not whole. Each yields its creation and every repeat-failure comment a
+// filer posted; anyone can comment on a public record, and the alert workflow reads only its own.
 const DEMOTION_MARKER = "<!-- babysit-merge-demotion";
 const DEMOTION_FILER = "github-actions[bot]";
 const DEMOTION_AGAIN = "The post-merge check found this failure again: ";
 const DEMOTION_QUERY =
   "query($owner:String!,$name:String!,$author:String!,$since:DateTime!,$c:String){repository(owner:$owner,name:$name){" +
   "issues(first:50,after:$c,filterBy:{createdBy:$author,since:$since}){pageInfo{hasNextPage endCursor} nodes{number createdAt updatedAt body " +
-  "userContentEdits(first:100){totalCount nodes{diff deletedAt}} comments(last:100){totalCount nodes{body createdAt}}}}}}";
+  "userContentEdits(first:100){totalCount nodes{diff deletedAt}}}}}}";
 const DEMOTION_PAGE_LIMIT = 30;
 
 function demotionRecords(gh, owner, name, filers, since) {
@@ -485,9 +493,9 @@ function demotionRecords(gh, owner, name, filers, since) {
         const whole = Array.isArray(edits?.nodes) && edits.totalCount === edits.nodes.length && edits.nodes.every((e) => typeof e?.diff === "string" && !e.deletedAt);
         if (whole && ![issue?.body, ...edits.nodes.map((e) => e.diff)].some((text) => String(text ?? "").includes(DEMOTION_MARKER))) continue;
         const at = [{ at: issue.createdAt, conclusion: "demotion record filed" }];
-        const comments = issue.comments;
-        if (!Array.isArray(comments?.nodes) || comments.totalCount !== comments.nodes.length) at.push({ at: issue.updatedAt, conclusion: "comments not read whole" });
-        else for (const c of comments.nodes) if (String(c?.body ?? "").startsWith(DEMOTION_AGAIN)) at.push({ at: c.createdAt, conclusion: "repeat failure" });
+        for (const c of pages(gh, `repos/${owner}/${name}/issues/${issue.number}/comments`)) {
+          if (filers.includes(loginKey(c?.user?.login)) && String(c?.body ?? "").startsWith(DEMOTION_AGAIN)) at.push({ at: c.created_at, conclusion: "repeat failure" });
+        }
         for (const sighting of at) out.push({ issue: issue.number, ...sighting });
       }
       if (!issues.pageInfo.hasNextPage) break;
@@ -519,7 +527,8 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   const branch = gh(`repos/${repo}`)?.default_branch;
   if (!branch) throw new PublishError(`gh api repos/${repo}: no default_branch`);
   for (const workflow of [FULL_RUN_WORKFLOW, CANARY_WORKFLOW]) checkRunNumbers(gh, repo, workflow, sinceMs, throughMs);
-  checkIssueNumbers(gh, repo, sinceMs, throughMs);
+  const filers = [...new Set([DEMOTION_FILER, ...laneLogins].map(loginKey))];
+  checkIssueNumbers(gh, repo, sinceMs, throughMs, filers);
   // Merges into the default branch only (babysit_postmerge.py _merged_since). Created-ascending
   // order is stable while paging: an update moves no PR between pages.
   const seen = new Set();
@@ -743,7 +752,6 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   }
 
   // Which merges a record's SHA contains is not read: it is contrary for every cell.
-  const filers = [...new Set([DEMOTION_FILER, ...laneLogins].map(loginKey))];
   for (const record of demotionRecords(gh, owner, name, filers, new Date(sinceMs).toISOString())) {
     if (!inWindow(record.at)) continue;
     for (const cell of CELLS) addEvent(cell, "gate-failure", record.at);

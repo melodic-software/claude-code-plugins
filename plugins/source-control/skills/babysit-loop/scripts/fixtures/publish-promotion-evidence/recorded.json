@@ -188,21 +188,20 @@
   },
   "demotionIssue": {
     "body": "<!-- babysit-merge-demotion sha=aad0b2b69bc22154c61b0857307a183d0c7821a8 signal=canary -->",
-    "comments": {
-      "nodes": [
-        {
-          "body": "Canary green on main since; closing to restore the merge rung.",
-          "createdAt": "2026-10-15T13:08:38Z"
-        }
-      ],
-      "totalCount": 1
-    },
     "createdAt": "2026-10-13T02:43:01Z",
     "number": 7359,
     "updatedAt": "2026-10-15T13:08:39Z",
     "userContentEdits": {
       "nodes": [],
       "totalCount": 0
+    }
+  },
+  "issueComment": {
+    "body": "Canary green on main since; closing to restore the merge rung.",
+    "created_at": "2026-10-15T13:08:38Z",
+    "user": {
+      "login": "kyle-sexton",
+      "type": "User"
     }
   },
   "issueListItem": {

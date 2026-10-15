@@ -9,7 +9,7 @@ import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import * as publisher from "./publish-promotion-evidence.mjs";
 import { collect, PublishError, publish } from "./publish-promotion-evidence.mjs";
-import { actorOf, CANARY, demotionIssue, FULL, GATE, github, issueItem, LANE, later, MECHANICAL, MISSED, page1, pinComment, pr, REC, REPO, SCOPED, shaOf, wfRun } from "./fixtures/publish-promotion-evidence/github-fake.mjs";
+import { actorOf, CANARY, demotionIssue, FULL, GATE, github, issueComment, issueItem, LANE, later, MECHANICAL, MISSED, page1, pinComment, pr, REC, REPO, SCOPED, shaOf, wfRun } from "./fixtures/publish-promotion-evidence/github-fake.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SINCE = "2026-08-01T00:00:00Z";
@@ -676,7 +676,8 @@ test("a run deleted between two runs created inside the window refuses with run-
   assert.throws(() => run({ workflowRuns: { [CANARY]: canaries }, deletedRuns: [42] }), refusesWith(`run-deleted: ${CANARY}`));
 });
 
-test("consecutive run numbers pass, and a re-run attempt keeps its number", () => {
+// That a re-run keeps its number is GitHub's (the pointer above); the fake only lists it that way.
+test("consecutive run numbers pass, a run on its second attempt among them", () => {
   assert.deepEqual(run({ workflowRuns: { [FULL]: schedules([21, 22, 23]) } }).events, []);
   const rerun = wfRun(31, "schedule", shaOf(0xb031), "2026-09-02T00:00:00Z", { attempt: 2, triggering: LANE });
   const result = run({ workflowRuns: { [FULL]: [rerun, ...schedules([32], 3)] }, attempts: { 31: { 1: { ...rerun, run_attempt: 1 } } } });
@@ -701,7 +702,7 @@ test("over 1,000 runs in the window are read in halves, and a deletion among the
 // The alert workflow's record: first body line `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`,
 // filed by github-actions[bot], a repeat failure commented as `The post-merge check found this
 // failure again: <run>/attempts/<n>` (.github/workflows/post-merge-demotion-alert.yml).
-const AGAIN = (at) => ({ body: `The post-merge check found this failure again: https://github.com/${REPO}/actions/runs/9/attempts/2`, createdAt: at });
+const AGAIN = (at, login) => issueComment(`The post-merge check found this failure again: https://github.com/${REPO}/actions/runs/9/attempts/2`, at, login);
 
 test("a demotion issue filed inside the window, open or closed, is a gate-failure on every cell at its creation", () => {
   const result = run({ demotionIssues: [demotionIssue(7001, "2026-09-10T00:00:00Z")] });
@@ -714,11 +715,21 @@ test("a repeat-failure comment inside the window counts; an issue filed before t
   assert.deepEqual(run({ demotionIssues: [old] }).events, gateEvents("2026-09-12T00:00:00Z", ...ALL));
 });
 
+// The repository is public, so anyone can comment on a record: only a filer's comment is a repeat
+// failure, as the alert workflow reads only its own. Every comment is read, however many.
+test("only a filer's repeat-failure comment counts, past the first hundred comments too", () => {
+  const spam = Array.from({ length: 150 }, (_, i) => AGAIN(later("2026-09-12T00:00:00Z", i), "someone"));
+  const record = demotionIssue(7008, "2026-07-01T00:00:00Z", { updatedAt: "2026-09-20T00:00:00Z", comments: [...spam, AGAIN("2026-09-20T00:00:00Z")] });
+  assert.deepEqual(run({ demotionIssues: [record] }).events, gateEvents("2026-09-20T00:00:00Z", ...ALL));
+  const ignored = demotionIssue(7009, "2026-07-01T00:00:00Z", { updatedAt: "2026-09-20T00:00:00Z", comments: spam });
+  assert.deepEqual(run({ demotionIssues: [ignored] }).events, []);
+});
+
 test("a lane-filed lookalike or an edited record can only add gate-failures; an unmarked unedited issue adds none", () => {
-  const lookalike = demotionIssue(7003, "2026-09-10T00:00:00Z", { author: LANE, comments: [{ body: "re-run passed: cleared", createdAt: "2026-09-11T00:00:00Z" }] });
+  const lookalike = demotionIssue(7003, "2026-09-10T00:00:00Z", { author: LANE, comments: [issueComment("re-run passed: cleared", "2026-09-11T00:00:00Z", LANE)] });
   const stripped = demotionIssue(7004, "2026-09-11T00:00:00Z", { body: "nothing here", edits: [{ diff: REC.demotionIssue.body, deletedAt: null }] });
   const truncated = demotionIssue(7005, "2026-09-12T00:00:00Z", { body: "nothing here", edits: [], editCount: 3 });
-  const hidden = demotionIssue(7006, "2026-09-13T00:00:00Z", { updatedAt: "2026-09-20T00:00:00Z", comments: [], commentCount: 101 });
+  const hidden = demotionIssue(7006, "2026-09-13T00:00:00Z", { updatedAt: "2026-09-20T00:00:00Z", comments: [AGAIN("2026-09-20T00:00:00Z", LANE)] });
   const report = demotionIssue(7007, "2026-09-14T00:00:00Z", { body: "<!-- link-check report -->" });
   const result = run({ demotionIssues: [lookalike, stripped, truncated, hidden, report] });
   assert.deepEqual(result.events, [
@@ -736,6 +747,12 @@ test("an issue number missing inside the window refuses with issue-deleted on 41
   const moved = { ...REC.issue, number: 7102, repository_url: "https://api.github.com/repos/someone/elsewhere" };
   assert.throws(() => run({ issueList: listed, issues: { 7102: moved } }), refusesWith("issue-missing: #7102"));
   assert.deepEqual(run({ issueList: listed, issues: { 7102: { ...REC.issueListItem, number: 7102 } } }).events, []);
+  // Discussions share the number sequence and read 404 as issues: anyone's is no gap, but a filer's
+  // may be a record converted to a discussion, and a 404 that is no discussion is missing.
+  assert.deepEqual(run({ issueList: listed, discussions: { 7102: "someone" } }).events, []);
+  assert.throws(() => run({ issueList: listed, discussions: { 7102: "github-actions[bot]" } }), refusesWith("issue-missing: #7102"));
+  assert.throws(() => run({ issueList: listed, discussions: { 7102: LANE } }), refusesWith("issue-missing: #7102"));
+  assert.throws(() => run({ issueList: listed, missingIssues: [7102] }), refusesWith("issue-missing: #7102"));
   // Only numbers between items created inside the window are read.
   assert.deepEqual(run({ issueList: [issueItem(7100, "2026-07-01T00:00:00Z"), ...listed.slice(1)], goneIssues: [7101, 7102] }).events, []);
 });
