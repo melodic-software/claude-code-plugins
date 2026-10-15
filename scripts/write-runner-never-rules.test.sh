@@ -105,13 +105,17 @@ say(skill.with?.allowed_bots === "${{ inputs.dispatcher-run-id != '' && 'github-
 say(/--setting-sources user/.test(args) && /--permission-mode dontAsk/.test(args) && !/bypass/i.test(args),
   "the skill loads user settings only, under dontAsk");
 const stage = readFileSync(".github/actions/collect-base-activity/action.yml", "utf8");
-// The one exception: an activity's `checks`, each a read-only base-copy wrapper
-// the skill may run with no arguments.
+// The two exceptions: an activity's `checks`, each a read-only base-copy
+// wrapper the skill may run with no arguments, and, under web-access `any`,
+// the read-only base copy of the two docs scripts.
+const docsRule = 'allowed="$allowed,Bash(bash $DOCS_DIR/fetch-docs.sh *),Bash(bash $DOCS_DIR/docs-cache.sh *)"';
 const allowedLines = stage.split("\n").filter((l) => /allowed="\$allowed|allowed="Skill/.test(l));
-say(allowedLines.length > 0 && allowedLines.every((l) => !/Bash/.test(l) || l.trim() === 'allowed="$allowed,Bash($wrapper)"'),
-  "the runner grants the skill no Bash but its check wrappers (only the skill's own allowed-tools can)");
+say(allowedLines.length > 0 && allowedLines.every((l) => !/Bash/.test(l) || ['allowed="$allowed,Bash($wrapper)"', docsRule].includes(l.trim())),
+  "the runner grants the skill no Bash but its check wrappers and the docs scripts");
 say(/chmod -R a-w "\$CHECKS_DIR"/.test(stage) && /disallowed="\$\{disallowed:\+\$disallowed,\}Edit\(\/\$CHECKS_DIR\/\*\*\),Write\(\/\$CHECKS_DIR\/\*\*\)"/.test(stage),
   "the check wrappers and their base copy are read-only to the skill");
+say(/chmod -R a-w "\$DOCS_DIR"/.test(stage) && /disallowed="Edit\(\/\$DOCS_DIR\/\*\*\),Write\(\/\$DOCS_DIR\/\*\*\)"/.test(stage),
+  "the docs script copy is read-only to the skill");
 
 // The report-escalation script reads the base's tracker config.
 const tracker = at((s) => s.id === "tracker-config");

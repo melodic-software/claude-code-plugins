@@ -5,7 +5,7 @@
 // instruction to commit, except in merge-base mode, where the runner commits.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
@@ -38,6 +38,9 @@ before(() => {
   root = mkdtempSync(path.join(tmpdir(), "collect-base-activity-"));
   base = path.join(root, "base");
   mkdirSync(path.join(base, "plugins", "source-control"), { recursive: true });
+  const docsScripts = path.join(base, "plugins", "discovery", "scripts");
+  mkdirSync(docsScripts, { recursive: true });
+  for (const name of ["fetch-docs.sh", "docs-cache.sh", "html2md.py"]) writeFileSync(path.join(docsScripts, name), "");
   mkdirSync(path.join(base, ".claude-plugin"));
   writeFileSync(path.join(base, ".claude-plugin", "marketplace.json"), JSON.stringify({ name: "melodic-software" }));
   resolved = path.join(root, "resolved.json");
@@ -59,6 +62,7 @@ function stage(overrides) {
   const env = {
     PATH: process.env.PATH,
     MARKETPLACE: path.join(runTemp, "base-marketplace"),
+    DOCS_DIR: path.join(runTemp, "lane-docs"),
     BASE_PATH: base,
     RESOLVED: resolved,
     SKILL: "source-control:resolve-conflicts",
@@ -213,8 +217,7 @@ test("web-access disabled grants nothing", () => {
 test("web-access with any domain allows every fetch, search and the research skills", () => {
   const { status, allowed, denied, plugins, args } = withWebAccess({ enabled: true, domains: "any" });
   assert.equal(status, 0);
-  assert.deepEqual(denied, []);
-  assert.ok(!args.includes("--disallowedTools"), args);
+  assert.ok(!denied.some((rule) => rule.startsWith("Web")), denied.join(" | "));
   for (const rule of ["WebFetch(domain:*)", "WebSearch", ...RESEARCH_SKILLS]) {
     assert.ok(allowed.includes(rule), `${rule} in ${allowed.join(" | ")}`);
   }
@@ -222,18 +225,22 @@ test("web-access with any domain allows every fetch, search and the research ski
   assert.match(args, /\/discovery:research/);
 });
 
-// pr-run-activity.md, "Skill activities": for `any` only, the two scripts
-// /discovery:read-docs runs, with its cache and page files in the scratch
-// directory.
+// pr-run-activity.md, "Skill activities": for `any` only, the two docs
+// scripts from a read-only copy, with their cache and page files in the
+// scratch directory.
 function readDocsRules(env) {
-  const docs = `${env.MARKETPLACE}/plugins/discovery/scripts`;
-  return [`Bash(bash ${docs}/fetch-docs.sh *)`, `Bash(bash ${docs}/docs-cache.sh *)`];
+  return [`Bash(bash ${env.DOCS_DIR}/fetch-docs.sh *)`, `Bash(bash ${env.DOCS_DIR}/docs-cache.sh *)`];
 }
 
 test("web-access with any domain allows the read-docs scripts and points their files at the scratch directory", () => {
-  const { status, allowed, args, jobEnv, env } = withWebAccess({ enabled: true, domains: "any" });
+  const { status, allowed, denied, args, jobEnv, env } = withWebAccess({ enabled: true, domains: "any" });
   assert.equal(status, 0);
   assert.deepEqual(allowed.filter((rule) => rule.startsWith("Bash(")), readDocsRules(env));
+  // The skill's bare Edit and Write must not reach the scripts its rules run.
+  assert.deepEqual(denied, [`Edit(/${env.DOCS_DIR}/**)`, `Write(/${env.DOCS_DIR}/**)`]);
+  for (const name of ["fetch-docs.sh", "docs-cache.sh", "html2md.py"]) {
+    assert.equal(statSync(path.join(env.DOCS_DIR, name)).mode & 0o222, 0, name);
+  }
   assert.equal(jobEnv, `DOCS_CACHE_DIR=${env.SCRATCH}/docs-cache\n`);
   assert.ok(args.includes(`--out ${env.SCRATCH}/docs-`), args);
   // The prompt names each script in the unquoted form its rule allows.
@@ -258,6 +265,12 @@ for (const [name, webAccess, overrides] of [
     assert.equal(jobEnv, "");
   });
 }
+
+test("a docs script copy path a rule cannot carry fails the stage", () => {
+  const { status, allowed } = withWebAccess({ enabled: true, domains: "any" }, { DOCS_DIR: path.join(root, "has space") });
+  assert.notEqual(status, 0);
+  assert.ok(!allowed.some((rule) => rule.startsWith("Bash(")), allowed.join(" | "));
+});
 
 test("web-access with a domain list allows a fetch to those domains only", () => {
   const { status, allowed, denied } = withWebAccess({ enabled: true, domains: ["code.claude.com", "*.github.com"] });

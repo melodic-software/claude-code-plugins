@@ -284,13 +284,15 @@ runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
 (`WebFetch(domain:*)` for `any`), and `Skill` for `/discovery:read-docs`, `/discovery:research`,
 `/knowledge:docpage-digest` and `/knowledge:map-corpus`; installs the `discovery` and `knowledge`
 plugins from the base marketplace copy beside the skill's own; and says so in
-`--append-system-prompt`. For `any` only, it also allows
-`Bash(bash <copy>/plugins/discovery/scripts/fetch-docs.sh *)` and the same rule for
-`docs-cache.sh`, the two scripts `/discovery:read-docs` runs, sets `DOCS_CACHE_DIR` inside the
-scratch directory, and tells the model to give `fetch-docs.sh` an `--out` there; a domain list
-gets neither, since the scripts curl any host. The prompt gives both commands in full, the path
-expanded and unquoted, because a Bash rule matches the command text as written and a quoted word
-does not match
+`--append-system-prompt`. For `any` only, it also copies `fetch-docs.sh`, `docs-cache.sh` and
+`html2md.py` from the base `discovery` plugin to `$RUNNER_TEMP/lane-docs`, makes the copy
+read-only, denies `Edit` and `Write` on it (else the skill's bare `Edit` and `Write` could rewrite
+a script its rule then runs), allows `Bash(bash <copy>/fetch-docs.sh *)` and the same rule for
+`docs-cache.sh`, sets `DOCS_CACHE_DIR` inside the scratch directory, and tells the model to run
+that copy for every skill that runs the two scripts, with an `--out` in the scratch directory; a
+domain list gets none of it, since the scripts curl any host. The prompt gives the script path
+expanded and unquoted, because a Bash rule matches the words before its `*` as written, so a
+quoted or differently spelled path does not match; arguments after it may be quoted
 ([permissions: What a Bash rule doesn't match](https://code.claude.com/docs/en/permissions#bash-rule-limits);
 as of 2026-10-15; recheck when that table changes). No sandbox is enabled, so a `domain:` rule
 limits `WebFetch` alone; a shell command the lane may run reaches any host.
