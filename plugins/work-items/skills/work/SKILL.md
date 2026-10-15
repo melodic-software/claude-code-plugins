@@ -28,8 +28,12 @@ dispatch, PR or babysit step. It works in place:
 3. Otherwise make the change in the checkout, following the repository's own rules for the files
    you touch and its release record for each plugin you change. Write an external fact (a
    documented default, limit or behavior) only after reading it in the source you cite during
-   this run; the issue's quote of a page is not that source. When you cannot read the source,
-   leave the claim out, and stop if the issue needs it. Commit every changed file with the commit
+   this run; the issue's quote of a page is not that source. Read a web source through a research
+   skill, not a bare fetch: `/discovery:read-docs` for one docs page, `/discovery:research` for a
+   question that needs several sources, `/knowledge:docpage-digest` or `/knowledge:map-corpus`
+   when the issue asks for a page or a site digested. Add each page you read to `verification` as
+   `read <url>: what it says`. When you cannot read the source (the lane allows no web access, or
+   the read fails), leave the claim out, and stop if the issue needs it. Commit every changed file with the commit
    tool the runner gives you. Stop when a finding means the work cannot be finished as the issue
    asks.
 4. Run every check the runner's system prompt names, and fix what fails. Those checks are

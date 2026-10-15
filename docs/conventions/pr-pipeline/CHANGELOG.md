@@ -1,5 +1,14 @@
 # Changelog for the PR pipeline convention
 
+## 1.14.0 - 2026-10-14
+
+Schema: a skill leaf's optional `web-access` (`enabled`, `domains`: `any` or host names), off when
+absent; turning it on requires `reads-untrusted: true` and an effect other than `read`. `pr-run-activity.md` "Skill activities" says
+what the write runner then allows: `WebSearch`, `WebFetch` to those domains (which also opens them
+to sandboxed shell commands) and the research skills, with their plugins installed. The live config
+turns it on for `resolve-issue` with `domains: any`; the token residual now says the model can send
+its token to any allowed domain. `collect-base-activity`'s `plugin` output is now `plugins`, one per line. `version` stays 1.
+
 ## 1.13.2 - 2026-10-14
 
 "The pr-merge lane" considers only pull requests the lanes App opened, and reads the work class from the pull request's single closing issue, never from a
