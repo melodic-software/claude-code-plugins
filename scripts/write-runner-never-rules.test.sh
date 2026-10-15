@@ -108,7 +108,7 @@ const stage = readFileSync(".github/actions/collect-base-activity/action.yml", "
 // The two exceptions: an activity's `checks`, each a read-only base-copy
 // wrapper the skill may run with no arguments, and, under web-access `any`,
 // the read-only base copy of the two docs scripts.
-const docsRule = 'allowed="$allowed,Bash(bash $DOCS_DIR/fetch-docs.sh *),Bash(bash $DOCS_DIR/docs-cache.sh *)"';
+const docsRule = String.raw`allowed="$allowed,Bash(bash $DOCS_DIR/$script *),Bash(bash \\\"$DOCS_DIR/$script\\\" *)"`;
 const allowedLines = stage.split("\n").filter((l) => /allowed="\$allowed|allowed="Skill/.test(l));
 say(allowedLines.length > 0 && allowedLines.every((l) => !/Bash/.test(l) || ['allowed="$allowed,Bash($wrapper)"', docsRule].includes(l.trim())),
   "the runner grants the skill no Bash but its check wrappers and the docs scripts");

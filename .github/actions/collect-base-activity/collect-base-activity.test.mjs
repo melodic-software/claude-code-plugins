@@ -81,7 +81,8 @@ function stage(overrides) {
   const text = readFileSync(output, "utf8");
   const args = /^claude-args=(.*)$/m.exec(text)?.[1] ?? "";
   // The --allowedTools list itself, split at the top-level commas.
-  const allowed = (/--allowedTools "([^"]*)"/.exec(args)?.[1] ?? "").split(/,(?![^(]*\))/);
+  // claude-code-action reads a `\"` inside the quoted list as a literal quote.
+  const allowed = (/--allowedTools "((?:[^"\\]|\\.)*)"/.exec(args)?.[1] ?? "").replaceAll('\\"', '"').split(/,(?![^(]*\))/);
   const denied = (/--disallowedTools "([^"]*)"/.exec(args)?.[1] ?? "").split(",").filter(Boolean);
   const prompt = /^prompt<<(\S+)\n([\s\S]*?)\n\1$/m.exec(text)?.[2] ?? "";
   const plugins = (/^plugins<<(\S+)\n([\s\S]*?)\n\1$/m.exec(text)?.[2] ?? "").split("\n").filter(Boolean);
@@ -229,25 +230,27 @@ test("web-access with any domain allows every fetch, search and the research ski
 // scripts from a read-only copy, with their cache and page files in the
 // scratch directory.
 function readDocsRules(env) {
-  return [`Bash(bash ${env.DOCS_DIR}/fetch-docs.sh *)`, `Bash(bash ${env.DOCS_DIR}/docs-cache.sh *)`];
+  return ["fetch-docs.sh", "docs-cache.sh"].flatMap((script) => [
+    `Bash(bash ${env.DOCS_DIR}/${script} *)`,
+    `Bash(bash "${env.DOCS_DIR}/${script}" *)`,
+  ]);
 }
 
 test("web-access with any domain allows the read-docs scripts and points their files at the scratch directory", () => {
   const { status, allowed, denied, args, jobEnv, env } = withWebAccess({ enabled: true, domains: "any" });
   assert.equal(status, 0);
+  // Both the bare and the double-quoted path, since a rule matches the path as written.
   assert.deepEqual(allowed.filter((rule) => rule.startsWith("Bash(")), readDocsRules(env));
   // The skill's bare Edit and Write must not reach the scripts its rules run.
   assert.deepEqual(denied, [`Edit(/${env.DOCS_DIR}/**)`, `Write(/${env.DOCS_DIR}/**)`]);
   for (const name of ["fetch-docs.sh", "docs-cache.sh", "html2md.py"]) {
     assert.equal(statSync(path.join(env.DOCS_DIR, name)).mode & 0o222, 0, name);
   }
-  assert.equal(jobEnv, `DOCS_CACHE_DIR=${env.SCRATCH}/docs-cache\n`);
-  assert.ok(args.includes(`--out ${env.SCRATCH}/docs-`), args);
-  // The prompt names each script in the unquoted form its rule allows.
-  for (const rule of readDocsRules(env)) {
-    const command = rule.slice("Bash(".length, -" *)".length);
-    assert.ok(args.includes(` ${command} `), `${command} in ${args}`);
-  }
+  // The cache directory travels in the prompt, never through $GITHUB_ENV.
+  assert.equal(jobEnv, "");
+  const cache = `--cache-dir ${env.SCRATCH}/docs-cache`;
+  assert.ok(args.includes(`bash ${env.DOCS_DIR}/fetch-docs.sh --cache ${cache} --out ${env.SCRATCH}/docs-`), args);
+  assert.ok(args.includes(`bash ${env.DOCS_DIR}/docs-cache.sh ${cache} `), args);
 });
 
 for (const [name, webAccess, overrides] of [

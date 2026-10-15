@@ -288,11 +288,12 @@ plugins from the base marketplace copy beside the skill's own; and says so in
 `html2md.py` from the base `discovery` plugin to `$RUNNER_TEMP/lane-docs`, makes the copy
 read-only, denies `Edit` and `Write` on it (else the skill's bare `Edit` and `Write` could rewrite
 a script its rule then runs), allows `Bash(bash <copy>/fetch-docs.sh *)` and the same rule for
-`docs-cache.sh`, sets `DOCS_CACHE_DIR` inside the scratch directory, and tells the model to run
-that copy for every skill that runs the two scripts, with an `--out` in the scratch directory; a
-domain list gets none of it, since the scripts curl any host. The prompt gives the script path
-expanded and unquoted, because a Bash rule matches the words before its `*` as written, so a
-quoted or differently spelled path does not match; arguments after it may be quoted
+`docs-cache.sh`, and tells the model to run that copy for every skill that runs the two scripts,
+with `--cache-dir` and `--out` in the scratch directory; a domain list gets none of it, since the
+scripts curl any host. A Bash rule matches the words before its `*` as written, so a differently
+spelled path does not match while arguments after it may be quoted; each script therefore also
+gets the rule for its double-quoted path, the form the skills' examples use, and the path guard
+keeps quotes and spaces out of the path
 ([permissions: What a Bash rule doesn't match](https://code.claude.com/docs/en/permissions#bash-rule-limits);
 as of 2026-10-15; recheck when that table changes). No sandbox is enabled, so a `domain:` rule
 limits `WebFetch` alone; a shell command the lane may run reaches any host.
