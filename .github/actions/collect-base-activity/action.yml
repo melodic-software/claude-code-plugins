@@ -110,6 +110,7 @@ runs:
       shell: bash
       env:
         MARKETPLACE: ${{ runner.temp }}/base-marketplace
+        DOCS_DIR: ${{ runner.temp }}/lane-docs
         BASE_PATH: ${{ inputs.base-path }}
         RESOLVED: ${{ inputs.resolved-path }}
         SKILL: ${{ inputs.skill }}
@@ -165,10 +166,10 @@ runs:
           mutate-branch | mutate-tracker | publish-artifact | merge)
             # What a write skill needs to do its job unattended: edit files,
             # run subagents, keep state files in a scratch directory (added
-            # as a working directory, which also makes it writable from its
-            # sandboxed Bash) and commit through the action's signed tool.
-            # Its Bash comes from its own allowed-tools. The PR is the review
-            # step; no tool here limits which files it changes.
+            # as a working directory) and commit through the action's signed
+            # tool. Its allowed-tools frontmatter grants nothing under
+            # dontAsk: Bash runs only what a rule in this list allows. The PR
+            # is the review step; no tool here limits which files it changes.
             # In merge-base mode the runner commits what the skill staged,
             # so the skill gets no commit tool and no instruction to commit.
             mkdir -p "$SCRATCH"
@@ -185,15 +186,34 @@ runs:
             fi
             # The web stays off unless the activity sets web-access. On, the
             # skill may search, fetch the listed domains (`any`: every one)
-            # and run the research skills, whose plugins are installed too. A
-            # WebFetch(domain:...) rule also opens that domain to the
-            # skill's sandboxed shell commands, which the research skills
-            # read raw pages with.
+            # and run the research skills, whose plugins are installed too.
+            # No sandbox is enabled, so a domain list limits WebFetch alone;
+            # a shell command such as curl is not held to it.
             disallowed="WebFetch,WebSearch"
             if [ "$(jq -r '.selected["web-access"].enabled // false' "$RESOLVED")" = true ]; then
               # `any` is tested on its own, so no list entry can stand for it.
               if jq -e '.selected["web-access"].domains == "any"' "$RESOLVED" >/dev/null; then
                 allowed="$allowed,WebFetch(domain:*)"
+                # The docs skills fetch through fetch-docs.sh and
+                # docs-cache.sh. Granted for `any` only: they curl any host,
+                # so a domain list keeps them denied. The skill's bare Edit
+                # and Write could rewrite a script the rule then runs, so the
+                # rules name a read-only copy, denied to Edit and Write below.
+                # The prompt puts the cache and the page files in the scratch
+                # directory.
+                [[ $DOCS_DIR =~ ^/[A-Za-z0-9_./-]+$ ]] || fail "the docs script copy has a name a rule cannot carry"
+                mkdir -p "$DOCS_DIR"
+                cp "$BASE_PATH"/plugins/discovery/scripts/{fetch-docs.sh,docs-cache.sh,html2md.py} "$DOCS_DIR/"
+                chmod -R a-w "$DOCS_DIR"
+                # A Bash rule matches the words before its `*` as written, so
+                # each script gets a rule for the bare path and one for the
+                # double-quoted path the skills' examples use. The guard above
+                # keeps quotes and spaces out of the path. `\"` survives the
+                # claude_args quoting as a literal quote.
+                for script in fetch-docs.sh docs-cache.sh; do
+                  allowed="$allowed,Bash(bash $DOCS_DIR/$script *),Bash(bash \\\"$DOCS_DIR/$script\\\" *)"
+                done
+                system_prompt="$system_prompt Any skill that runs fetch-docs.sh or docs-cache.sh runs this copy, by exactly this path, bare or in double quotes: bash $DOCS_DIR/fetch-docs.sh --cache --cache-dir $SCRATCH/docs-cache --out $SCRATCH/docs-<n> <other arguments>, a new <n> per fetch and no mktemp, and bash $DOCS_DIR/docs-cache.sh --cache-dir $SCRATCH/docs-cache <subcommand> <arguments>. Quote the arguments after the path as the skill shows them."
               else
                 domains=$(jq -r '.selected["web-access"].domains
                   | if type == "array" and length > 0 and all(type == "string") then .[]
@@ -208,6 +228,9 @@ runs:
               allowed="$allowed,WebSearch,Skill(discovery:read-docs),Skill(discovery:research),Skill(knowledge:docpage-digest),Skill(knowledge:map-corpus)"
               plugins="$plugins"$'\n'"discovery@$marketplace"$'\n'"knowledge@$marketplace"
               disallowed=""
+              if [ -d "$DOCS_DIR" ]; then
+                disallowed="Edit(/$DOCS_DIR/**),Write(/$DOCS_DIR/**)"
+              fi
               system_prompt="$system_prompt This run may read web pages: read each external source through /discovery:read-docs, /discovery:research, /knowledge:docpage-digest or /knowledge:map-corpus."
             fi
             # The activity's checks run from a base copy outside the working

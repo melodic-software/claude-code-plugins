@@ -267,13 +267,13 @@ A skill with any effect but `read` also gets what it needs to do its job: `Edit`
 (for subagents such as a fix flow's semantic-diff check or a rubric fan-out) and
 `mcp__github_file_ops__commit_files`, the action's signed-commit tool on `CLAUDE_BRANCH`, and a
 scratch directory, `$RUNNER_TEMP/lane-scratch`, passed as `--add-dir` with an `Edit` rule on it so
-its state files and its sandboxed `Bash` redirects land there. `--append-system-prompt` names that
+its state files and its `Bash` redirects land there. `--append-system-prompt` names that
 directory, says no one can answer a question, and, when the grant can commit, tells it to commit
 every file it changed with that tool: the prompt is the slash command alone, so without this the
 skill leaves its edits uncommitted and the lane moves nothing. A `prepare: merge-base` skill
 gets neither the tool nor that sentence: it stages its resolution and the runner commits
-([below](#prepare-merge-base)). Its
-`Bash` comes from its own `allowed-tools`, git included, plus one rule per entry in the activity's
+([below](#prepare-merge-base)). Under `--permission-mode dontAsk` a skill's own `allowed-tools`
+grants nothing: its `Bash` is only what this list allows, one rule per entry in the activity's
 `checks`: `collect-base-activity` copies the base `scripts/` to `$RUNNER_TEMP/lane-checks`, outside
 the working directory, writes a wrapper there that runs the copy with the entry's fixed flags and
 `CHECK_DATA_ROOT` naming the checkout, makes the copy read-only and denies `Edit` and `Write` on
@@ -284,15 +284,25 @@ runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
 (`WebFetch(domain:*)` for `any`), and `Skill` for `/discovery:read-docs`, `/discovery:research`,
 `/knowledge:docpage-digest` and `/knowledge:map-corpus`; installs the `discovery` and `knowledge`
 plugins from the base marketplace copy beside the skill's own; and says so in
-`--append-system-prompt`. A `domain:` rule also adds its domain to the sandbox's network allowlist,
-so every sandboxed shell command the skill runs, not only the research skills' raw page reads, can
-send requests of any kind to the same domains
-([permissions: WebFetch](https://code.claude.com/docs/en/permissions#webfetch),
-[sandboxing: network isolation](https://code.claude.com/docs/en/sandboxing#network-isolation);
-as of 2026-10-14; recheck when either page changes what a `domain:` rule adds to the sandbox).
+`--append-system-prompt`. For `any` only, it also copies `fetch-docs.sh`, `docs-cache.sh` and
+`html2md.py` from the base `discovery` plugin to `$RUNNER_TEMP/lane-docs`, makes the copy
+read-only, denies `Edit` and `Write` on it (else the skill's bare `Edit` and `Write` could rewrite
+a script its rule then runs), allows `Bash(bash <copy>/fetch-docs.sh *)` and the same rule for
+`docs-cache.sh`, and tells the model to run that copy for every skill that runs the two scripts,
+with `--cache-dir` and `--out` in the scratch directory; a domain list gets none of it, since the
+scripts curl any host. A Bash rule matches the words before its `*` as written, so a differently
+spelled path does not match while arguments after it may be quoted; each script therefore also
+gets the rule for its double-quoted path, the form the skills' examples use, and the path guard
+keeps quotes and spaces out of the path
+([permissions: What a Bash rule doesn't match](https://code.claude.com/docs/en/permissions#bash-rule-limits);
+as of 2026-10-15; recheck when that table changes). No sandbox is enabled, so a `domain:` rule
+limits `WebFetch` alone; a shell command the lane may run reaches any host.
 `/discovery:research` can also start its `discovery:research-sweep` workflow, whose subagents run
-under the same grant. Without `web-access`, `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` runs every shell command sandboxed and
-`--permission-mode dontAsk` refuses every host outside the empty allowlist. Fetched pages are
+under the same grant. `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` strips credentials other than GitHub tokens from the shell's
+environment and gives Bash its own PID namespace; it does not sandbox the network
+([env vars: What the subprocess environment scrub removes](https://code.claude.com/docs/en/env-vars#what-the-subprocess-environment-scrub-removes);
+as of 2026-10-15). Without `web-access` the skill has no web tool and no `Bash` rule that fetches,
+so `dontAsk` refuses every fetch. Fetched pages are
 untrusted text, so the activity must set `reads-untrusted: true`. No rule limits which files it changes: with its
 token it can change, commit and push any file in the repository, and claude-code-action writes
 the token into the origin URL under `use_commit_signing`
