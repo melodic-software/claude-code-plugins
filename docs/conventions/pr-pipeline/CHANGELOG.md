@@ -8,6 +8,14 @@ same prep the local pull-request prep does. A `report-statuses` job posts
 failing one holds the pr-merge gate like any failing check.
 `version` stays 1.
 
+## 1.13.2 - 2026-10-14
+
+"The pr-merge lane" considers only pull requests the lanes App opened, and reads the work class from the pull request's single closing issue, never from a
+label on the pull request, and counts a class label the lanes App or a human in person applied.
+`report-outcome` no longer copies `work-class:` labels onto the PR, and `pr-merge.yml` shortlists
+the lanes App's open PRs instead of PRs carrying the label. The live config's comment on
+`merge` says so, and each `denied-paths` entry carries a one-line reason. `version` stays 1.
+
 ## 1.13.1 - 2026-10-14
 
 The pr-merge workflow queues extra runs (`concurrency.queue: max`) instead of letting GitHub cancel

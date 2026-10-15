@@ -1,7 +1,7 @@
 // Expected values come from the lane's plan: a missing or invalid outcome file
 // means `stopped`; `done` opens a ready PR whose body starts `Closes #<issue>`,
-// with a Conventional Commits title (else `chore: work on #<issue>`), the
-// issue's `work-class:` label, and the hold line for scoped, structural and
+// with a Conventional Commits title (else `chore: work on #<issue>`), no
+// label (the class lives on the issue only), and the hold line for scoped, structural and
 // untrusted-provenance work or a trust or lane-power diff; `pushback` and
 // `stopped` comment and add needs-human, and only pushback removes
 // agent-ready.
@@ -82,8 +82,8 @@ test("done replaces a title that is not Conventional Commits", () => {
   assert.equal(decideDone({ outcome: { ...done, title: "Fix a typo" } }).title, "chore: work on #77");
 });
 
-test("done copies the issue's work-class label and only that", () => {
-  assert.deepEqual(decideDone().labels, ["work-class: read-only"]);
+test("done puts no label on the PR, so the class stays on the issue", () => {
+  assert.equal(decideDone({ issueLabels: ["agent-ready", "work-class: mechanical"] }).labels, undefined);
 });
 
 test("read-only work on ordinary files carries no hold line", () => {
@@ -400,7 +400,7 @@ test("main with no outcome files comments stopped and adds needs-human", async (
   });
 });
 
-test("main on done opens a ready PR from the branch and labels it", async () => {
+test("main on done opens a ready PR from the branch and adds no label to it", async () => {
   await withDir(
     { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }) },
     async (dir) => {
@@ -418,12 +418,12 @@ test("main on done opens a ready PR from the branch and labels it", async () => 
       assert.equal(pull.head, BRANCH);
       assert.equal(pull.base, "main");
       assert.ok(pull.body.startsWith("Closes #77\n"));
-      assert.deepEqual(calls.find((c) => c.path.endsWith("/issues/90/labels")).body, { labels: ["work-class: read-only"] });
+      assert.ok(!calls.some((c) => c.path.endsWith("/issues/90/labels")));
     },
   );
 });
 
-test("main on a rerun reuses the open PR from the branch and still labels it", async () => {
+test("main on a rerun reuses the open PR from the branch", async () => {
   await withDir(
     { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }) },
     async (dir) => {
@@ -436,7 +436,7 @@ test("main on a rerun reuses the open PR from the branch and still labels it", a
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
       assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")));
-      assert.ok(calls.some((c) => c.method === "POST" && c.path.endsWith("/issues/90/labels")));
+      assert.ok(!calls.some((c) => c.path.endsWith("/issues/90/labels")));
     },
   );
 });

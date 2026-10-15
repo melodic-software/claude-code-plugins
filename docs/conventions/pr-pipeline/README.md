@@ -384,13 +384,17 @@ The same wrapper run with `--unattended --authority pr-merge` is the pr-merge la
 `merge.authority: pr-merge` and `merge.agent-identity` at the base, and keeps every read above
 except six:
 
-- **Eligibility.** Not a fork or a dependency manager's pull request, a `work-class: mechanical`
-  label on the pull request, and a diff where no path, either side of a rename, matches
-  `merge.diff-check.denied-paths`. No linked issue, opt-in label or lane claim is read.
-- **Who labels.** Until agents act as their own App, a person's token may be an agent's, so only
-  label events by `merge.agent-identity` (the lanes App) count. The owner account's label events
-  and body edits are ignored, and so are another bot's, since a workflow on a pushed branch labels
-  as `github-actions[bot]`. A class label anyone adds can still only make the class stricter.
+- **Eligibility.** Not a fork or a dependency manager's pull request, opened by
+  `merge.agent-identity` (the lanes App; refused `not-lane-authored` otherwise), exactly one closing issue
+  (`closingIssuesReferences`) in this repository whose class is `work-class: mechanical`, and a
+  diff where no path, either side of a rename, matches `merge.diff-check.denied-paths`. The class
+  lives on the issue only: a `work-class:` label on the pull request is never read. No opt-in label
+  or lane claim is read. No closing issue, or more than one, refuses (`linked-issues:<n>`).
+- **Who labels.** A class label event on the issue counts when `merge.agent-identity` (the lanes
+  App) made it, or a human acting in person (write or admin, not through an App) with no edit of
+  the issue body after it. Another bot's events are ignored, since a workflow on a pushed branch
+  labels as `github-actions[bot]`. A class label anyone adds can still only make the class
+  stricter.
 - **Promotion.** No promotion evidence is read. The lane starts with `merge.report-only: true`;
   the owner reads its reports and sets `false` to let it merge.
 - **Kill switches.** The lane token cannot read Actions variables, so the workflow checks the

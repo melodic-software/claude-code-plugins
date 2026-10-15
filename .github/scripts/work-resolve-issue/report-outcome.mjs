@@ -4,9 +4,10 @@
 //
 //   done      opens a ready PR from the run's branch: the body starts
 //             `Closes #<issue>`, the title is the run's when it is Conventional
-//             Commits (else `chore: work on #<issue>`), the PR gets the issue's
-//             `work-class:` labels, and the body carries the hold line when a
-//             human must merge it. The body fills the PR body contract's
+//             Commits (else `chore: work on #<issue>`), and the body carries
+//             the hold line when a human must merge it. The PR gets no label:
+//             the work class lives on the issue only, and the merge gate reads
+//             it from the PR's closing issue. The body fills the PR body contract's
 //             sections from the outcome's summary, changes, verification and
 //             not_done. A done outcome whose not_done holds a required check
 //             is stopped.
@@ -41,7 +42,6 @@ const EXITS = new Set(["done", "pushback", "stopped"]);
 // issue to close.
 const CONVENTIONAL =
   /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._-]+\))?!?: [A-Za-z0-9][A-Za-z0-9 ,.:()'_-]{0,98}$/;
-const WORK_CLASS = /^work-class: /;
 // Work a human merges: the classes past mechanical, and any diff that touches
 // a path the merge lane refuses (merge.diff-check.denied-paths in the base
 // pr-pipeline.yaml), so the two lists cannot drift apart.
@@ -233,9 +233,8 @@ export function decide({
       runUrl,
     });
   }
-  const labels = issueLabels.filter((name) => WORK_CLASS.test(name));
   const hold =
-    labels.some((name) => HOLD_CLASSES.has(name)) ||
+    issueLabels.some((name) => HOLD_CLASSES.has(name)) ||
     changedFiles.length >= COMPARE_FILES_CAP ||
     holdPaths === null ||
     changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob)));
@@ -273,7 +272,6 @@ export function decide({
     issueNumber,
     title: CONVENTIONAL.test(outcome.title) ? outcome.title : `chore: work on #${issueNumber}`,
     body,
-    labels,
     branch,
   };
 }
@@ -364,8 +362,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
           : "",
     });
     if (plan.action === "open-pr") {
-      // A rerun after a failed label write finds the PR it already opened.
-      // Anyone can open a PR between two branches of a public repository, so
+      // A rerun finds the PR it already opened. Anyone can open a PR between two branches of a public repository, so
       // only one the lanes App opened is reused; otherwise the create fails.
       const owner = env.GITHUB_REPOSITORY.split("/")[0];
       const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
@@ -381,9 +378,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
           base,
           draft: false,
         }));
-      if (plan.labels.length) {
-        await github("POST", `${repo}/issues/${pull.number}/labels`, { labels: plan.labels });
-      }
       console.log(`report-outcome: opened PR #${pull.number} for issue #${issueNumber}`);
       return 0;
     }

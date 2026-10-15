@@ -2230,13 +2230,14 @@ LANE_DENIED = (
 
 
 def label_event(
-    event: str, label: str, actor: dict[str, str], at: str
+    event: str, label: str, actor: dict[str, str], at: str, via: Any = None
 ) -> dict[str, Any]:
     return {
         "event": event,
         "label": {"name": label},
         "actor": actor,
         "created_at": at,
+        "performed_via_github_app": via,
     }
 
 
@@ -2267,12 +2268,31 @@ class LaneConfig(unittest.TestCase):
 
 
 class LaneEligibility(unittest.TestCase):
-    """The pr-merge lane's eligibility (plan Design "Eligibility", D14, D17): a
-    `work-class: mechanical` label a CI identity applied, on a diff that
-    touches no denied path. Labels the owner account applies are ignored."""
+    """The pr-merge lane's eligibility (plan Design "Eligibility", D14, D17,
+    D30): the class comes from the pull request's single closing issue, never
+    from a label on the pull request. A `work-class:` label counts when the
+    lane identity's App applied it, or a human in person (not through an App)
+    with no issue body edit after it; the strictest one counting must be
+    `work-class: mechanical`, on a diff that touches no denied path."""
 
-    TIMELINE = f"repos/{REPO}/issues/7/timeline?per_page=100"
+    ISSUE = 41
+    TIMELINE = f"repos/{REPO}/issues/41/timeline?per_page=100"
     FILES = f"repos/{REPO}/pulls/7/files?per_page=100"
+
+    def issue_node(
+        self,
+        number: int = 41,
+        labels: list[str] | None = None,
+        repository: str = REPO,
+        edited: str | None = None,
+    ) -> dict[str, Any]:
+        names = [MECHANICAL] if labels is None else labels
+        return {
+            "number": number,
+            "lastEditedAt": edited,
+            "repository": {"nameWithOwner": repository},
+            "labels": {"totalCount": len(names), "nodes": [{"name": n} for n in names]},
+        }
 
     def fake(
         self,
@@ -2280,8 +2300,17 @@ class LaneEligibility(unittest.TestCase):
         labels: list[str] | None = None,
         events: list[dict[str, Any]] | None = None,
         files: list[str] | None = None,
+        pr_labels: list[str] | None = None,
+        closing: list[dict[str, Any]] | None = None,
+        edited: str | None = None,
+        author: dict[str, str] | None = None,
     ) -> GhFake:
-        names = [MECHANICAL] if labels is None else labels
+        issues = (
+            [self.issue_node(labels=labels, edited=edited)]
+            if closing is None
+            else closing
+        )
+        names = pr_labels or []
         gh = GhFake().install(self)
         gh.graphql["PolicyEligibility"] = {
             "repository": {
@@ -2290,13 +2319,16 @@ class LaneEligibility(unittest.TestCase):
                     "createdAt": PR_CREATED,
                     "lastEditedAt": "2026-10-12T13:00:00Z",
                     "isCrossRepository": False,
-                    "author": user(OPERATOR),
+                    "author": author or bot("agent-lanes"),
                     "headRepositoryOwner": {"login": "owner"},
                     "labels": {
                         "totalCount": len(names),
                         "nodes": [{"name": n} for n in names],
                     },
-                    "closingIssuesReferences": {"totalCount": 0, "nodes": []},
+                    "closingIssuesReferences": {
+                        "totalCount": len(issues),
+                        "nodes": issues,
+                    },
                 }
             }
         }
@@ -2311,47 +2343,103 @@ class LaneEligibility(unittest.TestCase):
             "changed_files": len(self.paths) if changed is None else changed,
         }
         return policy.lane_eligibility(
-            REPO, 7, pr=pr, denied_paths=LANE_DENIED, agent_identity=IDENTITY
+            REPO,
+            7,
+            pr=pr,
+            denied_paths=LANE_DENIED,
+            agent_identity=IDENTITY,
+            permission=HUMANS,
         )
 
-    def test_a_ci_applied_mechanical_label_on_an_allowed_diff_is_eligible(
-        self,
-    ) -> None:
-        # No linked issue, a human author and a body edited after the label:
-        # none of them is a lane rule.
+    def test_a_pr_whose_closing_issue_is_mechanical_is_eligible(self) -> None:
+        # A PR body edited after the label is not a lane rule.
         self.fake()
         result = self.eligibility()
         self.assertTrue(result.eligible, result.reason)
-        self.assertEqual(result.work_class, "C2")
+        self.assertEqual((result.work_class, result.issue), ("C2", 41))
 
-    def test_an_owner_account_label_is_ignored(self) -> None:
+    def test_a_pr_the_lanes_app_did_not_open_is_ineligible(self) -> None:
+        # Anyone with write access could name a mechanical issue in `Closes #N`.
+        for author in (user(OPERATOR), bot("other-app")):
+            with self.subTest(author["login"]):
+                self.fake(author=author)
+                result = self.eligibility()
+                self.assertFalse(result.eligible)
+                self.assertEqual(result.reason, "not-lane-authored")
+
+    def test_a_human_in_person_label_on_the_issue_counts(self) -> None:
         owner = {"login": OPERATOR, "type": "User"}
         self.fake(
             events=[label_event("labeled", MECHANICAL, owner, "2026-10-12T12:01:00Z")]
         )
         result = self.eligibility()
-        self.assertFalse(result.eligible)
-        self.assertEqual(result.reason, "class-label-not-ci-applied")
+        self.assertTrue(result.eligible, result.reason)
 
-    def test_another_bot_label_is_ignored(self) -> None:
-        # A workflow on a branch an agent pushed can label as github-actions.
-        for login in ("github-actions[bot]", "other-app[bot]"):
-            with self.subTest(login):
-                actor = {"login": login, "type": "Bot"}
+    def test_a_mechanical_pr_label_with_a_scoped_issue_is_ineligible(self) -> None:
+        lanes = {"login": "agent-lanes[bot]", "type": "Bot"}
+        self.fake(
+            pr_labels=[MECHANICAL],
+            labels=["work-class: scoped"],
+            events=[
+                label_event(
+                    "labeled", "work-class: scoped", lanes, "2026-10-12T12:01:00Z"
+                )
+            ],
+        )
+        result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "class-not-mechanical:C3")
+
+    def test_a_mechanical_pr_label_alone_is_ineligible(self) -> None:
+        self.fake(pr_labels=[MECHANICAL], labels=[], events=[])
+        self.assertEqual(self.eligibility().reason, "class-missing")
+
+    def test_no_or_several_closing_issues_refuse(self) -> None:
+        self.fake(closing=[])
+        self.assertEqual(self.eligibility().reason, "linked-issues:0")
+        self.fake(closing=[self.issue_node(), self.issue_node(number=42)])
+        self.assertEqual(self.eligibility().reason, "linked-issues:2")
+
+    def test_a_closing_issue_in_another_repository_refuses(self) -> None:
+        self.fake(closing=[self.issue_node(repository="other/repo")])
+        self.assertEqual(self.eligibility().reason, "linked-issue-other-repository")
+
+    def test_a_label_that_is_neither_the_app_nor_a_human_in_person_is_ignored(
+        self,
+    ) -> None:
+        app = {"slug": "some-app"}
+        for name, event in (
+            # A workflow on a branch an agent pushed can label as github-actions.
+            ("github-actions", ("github-actions[bot]", "Bot", None)),
+            ("another bot", ("other-app[bot]", "Bot", None)),
+            ("a person through an App", (OPERATOR, "User", app)),
+            ("a read-only person", ("reader", "User", None)),
+        ):
+            with self.subTest(name):
+                login, kind, via = event
+                actor = {"login": login, "type": kind}
                 self.fake(
                     events=[
                         label_event(
-                            "labeled", MECHANICAL, actor, "2026-10-12T12:01:00Z"
+                            "labeled", MECHANICAL, actor, "2026-10-12T12:01:00Z", via
                         )
                     ]
                 )
-                self.assertEqual(
-                    self.eligibility().reason, "class-label-not-ci-applied"
-                )
+                self.assertEqual(self.eligibility().reason, "class-label-untrusted")
 
-    def test_an_owner_account_removal_of_a_stricter_ci_label_is_ignored(self) -> None:
-        lanes = {"login": "agent-lanes[bot]", "type": "Bot"}
+    def test_an_issue_body_edit_after_a_human_label_refuses(self) -> None:
         owner = {"login": OPERATOR, "type": "User"}
+        self.fake(
+            events=[label_event("labeled", MECHANICAL, owner, "2026-10-12T12:01:00Z")],
+            edited="2026-10-12T12:30:00Z",
+        )
+        self.assertEqual(
+            self.eligibility().reason, "class-provenance:body-edited-after-label"
+        )
+
+    def test_an_untrusted_removal_of_a_stricter_label_is_ignored(self) -> None:
+        lanes = {"login": "agent-lanes[bot]", "type": "Bot"}
+        other = {"login": "other-app[bot]", "type": "Bot"}
         self.fake(
             events=[
                 label_event(
@@ -2359,7 +2447,7 @@ class LaneEligibility(unittest.TestCase):
                 ),
                 CI_LABELED,
                 label_event(
-                    "unlabeled", "work-class: scoped", owner, "2026-10-12T12:02:00Z"
+                    "unlabeled", "work-class: scoped", other, "2026-10-12T12:02:00Z"
                 ),
             ]
         )
@@ -2448,7 +2536,7 @@ class LaneEligibility(unittest.TestCase):
         )
         self.assertEqual(result.reason, "denied-paths-unset")
 
-    def test_no_identity_trusts_no_label(self) -> None:
+    def test_no_identity_trusts_no_author_and_no_app_label(self) -> None:
         self.fake()
         result = policy.lane_eligibility(
             REPO,
@@ -2457,16 +2545,26 @@ class LaneEligibility(unittest.TestCase):
             denied_paths=LANE_DENIED,
             agent_identity=None,
         )
-        self.assertEqual(result.reason, "class-label-not-ci-applied")
-
-    def test_the_enqueue_recheck_reads_the_class_again(self) -> None:
-        self.fake()
-        self.assertIsNone(policy.recheck_lane_class(REPO, 7, agent_identity=IDENTITY))
-        self.fake(labels=[])
+        self.assertEqual(result.reason, "not-lane-authored")
         self.assertEqual(
-            policy.recheck_lane_class(REPO, 7, agent_identity=IDENTITY),
-            "class-label-removed",
+            policy._lane_class(
+                "owner", "repo", LaneEligibility.issue_node(self), None, lambda _: False
+            ),
+            ("C2", "class-label-untrusted"),
         )
+
+    def test_the_enqueue_recheck_reads_the_issue_class_again(self) -> None:
+        def recheck() -> str | None:
+            return policy.recheck_lane_class(
+                REPO, 7, agent_identity=IDENTITY, permission=HUMANS
+            )
+
+        self.fake()
+        self.assertIsNone(recheck())
+        self.fake(labels=[])
+        self.assertEqual(recheck(), "class-label-removed")
+        self.fake(closing=[])
+        self.assertEqual(recheck(), "linked-issues:0")
 
 
 class LaneEnabledSince(unittest.TestCase):

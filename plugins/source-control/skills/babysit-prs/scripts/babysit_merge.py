@@ -3056,7 +3056,13 @@ def unattended_enqueue(
     # read again here: a removal (or a removal and a non-human re-add) since
     # the eligibility read refuses.
     if inputs.get("authority") == merge_policy.PR_MERGE:
-        opt_in = merge_policy.recheck_lane_class(repo, number, agent_identity=identity)
+        opt_in = merge_policy.recheck_lane_class(
+            repo,
+            number,
+            agent_identity=identity,
+            self_logins=inputs.get("self_logins") or frozenset(),
+            permission=inputs.get("permission"),
+        )
     else:
         opt_in = merge_policy.recheck_opt_in(
             repo,
