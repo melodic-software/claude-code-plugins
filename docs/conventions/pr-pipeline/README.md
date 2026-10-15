@@ -52,7 +52,7 @@ no renumbering.
 | Stage | What happens | Starts on |
 |---|---|---|
 | `intake` | Issues are triaged into work items. | issue events |
-| `work` | An agent works one issue a person labeled `agent-ready` to a draft PR, or hands it back ([Issue mode](pr-run-activity.md#issue-mode)). | the `agent-ready` label |
+| `work` | An agent works one issue a person labeled `agent-ready` to a PR opened ready, or hands it back ([Issue mode](pr-run-activity.md#issue-mode)). | the `agent-ready` label |
 | `pre-ready` | The implementer writes the change and may push draft checkpoints at any time. Local today; the design assumes no particular implementer. | the implementer |
 | `refine` | Behavior-preserving changes that make the PR review-ready: simplify, tidy, docs and format fixes. One push at the end. | ready (or opened ready) |
 | `verify` | Checks, reviews and outcome verification on the refined commit. Mechanical and judgment lanes start together; a failed mechanical gate cancels the running judgment lanes, and `pr-require-checks` aggregates the results into `ci-status`. | dispatch from `refine` |
@@ -187,6 +187,11 @@ Each leaf declares:
   flags fixed, that a skill with an effect other than `read` may run. The write runner runs each
   from the base copy against the checkout, so no head code runs
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)).
+- `web-access` (optional, `skill` only, off when absent): `enabled` and `domains`, either `any` or
+  a list of host names (`*.` allowed as a prefix). When on, a skill with an effect other than
+  `read` may search the web, fetch those domains, and run the research skills
+  ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). An activity that turns it on must
+  set `reads-untrusted: true` and an effect other than `read`.
 - `effect`: one of `read`, `mutate-branch`, `mutate-tracker`, `publish-artifact`, `merge`. The
   runner derives ordering from it, takes the token grant from
   [`effect-grants.json`](../../../.github/actions/resolve-config/effect-grants.json), and fails a
@@ -384,13 +389,17 @@ The same wrapper run with `--unattended --authority pr-merge` is the pr-merge la
 `merge.authority: pr-merge` and `merge.agent-identity` at the base, and keeps every read above
 except six:
 
-- **Eligibility.** Not a fork or a dependency manager's pull request, a `work-class: mechanical`
-  label on the pull request, and a diff where no path, either side of a rename, matches
-  `merge.diff-check.denied-paths`. No linked issue, opt-in label or lane claim is read.
-- **Who labels.** Until agents act as their own App, a person's token may be an agent's, so only
-  label events by `merge.agent-identity` (the lanes App) count. The owner account's label events
-  and body edits are ignored, and so are another bot's, since a workflow on a pushed branch labels
-  as `github-actions[bot]`. A class label anyone adds can still only make the class stricter.
+- **Eligibility.** Not a fork or a dependency manager's pull request, opened by
+  `merge.agent-identity` (the lanes App; refused `not-lane-authored` otherwise), exactly one closing issue
+  (`closingIssuesReferences`) in this repository whose class is `work-class: mechanical`, and a
+  diff where no path, either side of a rename, matches `merge.diff-check.denied-paths`. The class
+  lives on the issue only: a `work-class:` label on the pull request is never read. No opt-in label
+  or lane claim is read. No closing issue, or more than one, refuses (`linked-issues:<n>`).
+- **Who labels.** A class label event on the issue counts when `merge.agent-identity` (the lanes
+  App) made it, or a human acting in person (write or admin, not through an App) with no edit of
+  the issue body after it. Another bot's events are ignored, since a workflow on a pushed branch
+  labels as `github-actions[bot]`. A class label anyone adds can still only make the class
+  stricter.
 - **Promotion.** No promotion evidence is read. The lane starts with `merge.report-only: true`;
   the owner reads its reports and sets `false` to let it merge.
 - **Kill switches.** The lane token cannot read Actions variables, so the workflow checks the

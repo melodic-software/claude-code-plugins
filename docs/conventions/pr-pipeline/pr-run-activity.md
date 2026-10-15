@@ -278,8 +278,22 @@ gets neither the tool nor that sentence: it stages its resolution and the runner
 the working directory, writes a wrapper there that runs the copy with the entry's fixed flags and
 `CHECK_DATA_ROOT` naming the checkout, makes the copy read-only and denies `Edit` and `Write` on
 it, allows `Bash(<wrapper>)` with no arguments, and names the
-wrappers in `--append-system-prompt` as checks to run before reporting done. `WebFetch` and `WebSearch` stay off
-(`--disallowedTools`) unless a skill needs them. No rule limits which files it changes: with its
+wrappers in `--append-system-prompt` as checks to run before reporting done. `WebFetch` and
+`WebSearch` stay off (`--disallowedTools`) unless the activity sets `web-access`. With it on, the
+runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
+(`WebFetch(domain:*)` for `any`), and `Skill` for `/discovery:read-docs`, `/discovery:research`,
+`/knowledge:docpage-digest` and `/knowledge:map-corpus`; installs the `discovery` and `knowledge`
+plugins from the base marketplace copy beside the skill's own; and says so in
+`--append-system-prompt`. A `domain:` rule also adds its domain to the sandbox's network allowlist,
+so every sandboxed shell command the skill runs, not only the research skills' raw page reads, can
+send requests of any kind to the same domains
+([permissions: WebFetch](https://code.claude.com/docs/en/permissions#webfetch),
+[sandboxing: network isolation](https://code.claude.com/docs/en/sandboxing#network-isolation);
+as of 2026-10-14; recheck when either page changes what a `domain:` rule adds to the sandbox).
+`/discovery:research` can also start its `discovery:research-sweep` workflow, whose subagents run
+under the same grant. Without `web-access`, `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` runs every shell command sandboxed and
+`--permission-mode dontAsk` refuses every host outside the empty allowlist. Fetched pages are
+untrusted text, so the activity must set `reads-untrusted: true`. No rule limits which files it changes: with its
 token it can change, commit and push any file in the repository, and claude-code-action writes
 the token into the origin URL under `use_commit_signing`
 (`src/github/operations/git-config.ts:129-133` at `ed670b4`), so a `git push` works too. The PR is
@@ -288,7 +302,8 @@ every lane commit. The hardening is the broker's scoped, hour-long token revoked
 ends, base-SHA config and runner, the trusted-actor filter, the kill switch,
 `--setting-sources user`, an explicit `--permission-mode` and never `bypassPermissions`. The
 residuals are in [Trust-root paths](README.md#trust-root-paths): the model can read its token
-(`GH_TOKEN`, `GITHUB_TOKEN`, `.git/config`) until it is revoked, which is
+(`GH_TOKEN`, `GITHUB_TOKEN`, `.git/config`) until it is revoked, and under `web-access` send it to
+any domain the activity allows, which is
 [ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md)'s
 accepted residual, a skill's own `Bash` grant can exceed its job (`Bash(git:*)` in
 `ai-slop:audit`), and a lane commit can change instruction files the PR author's local session
@@ -664,8 +679,8 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
   `work-outcome.json` and the runner's `lane.json` (the kept branch, or empty) are uploaded as the
   `work-outcome-<n>` artifact, and the job output `issue-run-started` is `true` once the token
   was minted.
-- `report-outcome` downloads that artifact. On `done` it opens a draft PR from the branch whose
-  body starts `Closes #<n>`, copies the issue's `work-class:` labels, and adds
+- `report-outcome` downloads that artifact. On `done` it opens a ready (not draft) PR from the branch whose
+  body starts `Closes #<n>`, puts no label on it (the work class stays on the issue), and adds
   `Hold: a human merges this` for scoped, structural or untrusted-provenance work, for a diff that
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
   resolved config; unreadable holds every PR), or for one too large for the compare listing to
@@ -673,7 +688,14 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
   squash-merging the PR closes only `#<n>`. On `pushback` or `stopped`, and when the outcome file is missing
   or invalid, it labels the issue with the human-gated role label and comments why; pushback also
   removes `agent-ready`.
-- No check run is posted: there is no PR head. The run's own result is the record.
+- No check run is posted: there is no PR head. The lane's `report-statuses` job (in
+  `work-resolve-issue.yml`, the lane's only `statuses: write`, on its own `GITHUB_TOKEN`) posts a
+  `pipeline/<activity>` commit status on the lane branch's head for `resolve-issue` and
+  `report-outcome` (from their job results) and for each prep step the run reports in
+  `work-outcome.json`'s `steps` (`review`, `verify`, `checks`). On `done`, a prep step the run
+  never reported posts `error`; one it reported `skipped` posts nothing. No step is skipped on a
+  `pipeline/*` success, and no required check names one, but a `failure` or `error` status
+  counts as a failing check, so it holds the pr-merge gate (fail closed). Descriptions are fixed text.
 
 ## Runs that post no check
 

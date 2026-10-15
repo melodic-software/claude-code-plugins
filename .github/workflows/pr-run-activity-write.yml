@@ -620,7 +620,7 @@ jobs:
           # has already checked the dispatcher run this id names.
           allowed_bots: ${{ inputs.dispatcher-run-id != '' && 'github-actions' || '' }}
           plugin_marketplaces: ${{ runner.temp }}/base-marketplace
-          plugins: ${{ steps.stage.outputs.plugin }}
+          plugins: ${{ steps.stage.outputs.plugins }}
           prompt: ${{ steps.stage.outputs.prompt }}
           claude_args: >-
             --setting-sources user

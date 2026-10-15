@@ -110,7 +110,7 @@ const stage = readFileSync(".github/actions/collect-base-activity/action.yml", "
 const allowedLines = stage.split("\n").filter((l) => /allowed="\$allowed|allowed="Skill/.test(l));
 say(allowedLines.length > 0 && allowedLines.every((l) => !/Bash/.test(l) || l.trim() === 'allowed="$allowed,Bash($wrapper)"'),
   "the runner grants the skill no Bash but its check wrappers (only the skill's own allowed-tools can)");
-say(/chmod -R a-w "\$CHECKS_DIR"/.test(stage) && /disallowed="\$disallowed,Edit\(\/\$CHECKS_DIR\/\*\*\),Write\(\/\$CHECKS_DIR\/\*\*\)"/.test(stage),
+say(/chmod -R a-w "\$CHECKS_DIR"/.test(stage) && /disallowed="\$\{disallowed:\+\$disallowed,\}Edit\(\/\$CHECKS_DIR\/\*\*\),Write\(\/\$CHECKS_DIR\/\*\*\)"/.test(stage),
   "the check wrappers and their base copy are read-only to the skill");
 
 // The report-escalation script reads the base's tracker config.

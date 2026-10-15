@@ -351,6 +351,7 @@ class Unattended(unittest.TestCase):
         # The pr-merge lane's eligibility and its re-read before the enqueue.
         self.lane_eligible = policy.Eligibility(True, None, "C2")
         self.lane_recheck: str | None = None
+        self.lane_recheck_kwargs: list[dict[str, Any]] = []
 
     def _lane_evidence(self, *args: Any) -> Any:
         if self.lane_error is not None:
@@ -453,7 +454,9 @@ class Unattended(unittest.TestCase):
             mock.patch.object(
                 policy,
                 "recheck_lane_class",
-                side_effect=lambda *a, **k: self.lane_recheck,
+                side_effect=lambda *a, **k: (
+                    self.lane_recheck_kwargs.append(k) or self.lane_recheck
+                ),
             ),
             mock.patch.object(policy, "changed_files", return_value=self.files),
             mock.patch.object(
@@ -631,6 +634,15 @@ class LaneMode(Unattended):
         self.assertIn(
             "unattended merge refused: ineligible:class-label-removed", out["blockers"]
         )
+
+    def test_the_enqueue_recheck_keeps_the_self_logins_and_permission(self) -> None:
+        # A listed self login must not count as a human labeler at the
+        # recheck either (#7507).
+        self.lane("--self-logins", "lane-app[bot]")
+        self.assertEqual(len(self.lane_recheck_kwargs), 1)
+        kwargs = self.lane_recheck_kwargs[0]
+        self.assertEqual(kwargs.get("self_logins"), frozenset({"lane-app[bot]"}))
+        self.assertIsNotNone(kwargs.get("permission"))
 
     def test_an_ineligible_pr_is_refused(self) -> None:
         self.lane_eligible = policy.Eligibility(False, "denied-path:.github/x.yml")

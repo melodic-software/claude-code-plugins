@@ -75,8 +75,10 @@ function stage(overrides) {
   const args = /^claude-args=(.*)$/m.exec(text)?.[1] ?? "";
   // The --allowedTools list itself, split at the top-level commas.
   const allowed = (/--allowedTools "([^"]*)"/.exec(args)?.[1] ?? "").split(/,(?![^(]*\))/);
+  const denied = (/--disallowedTools "([^"]*)"/.exec(args)?.[1] ?? "").split(",").filter(Boolean);
   const prompt = /^prompt<<(\S+)\n([\s\S]*?)\n\1$/m.exec(text)?.[2] ?? "";
-  return { status: result.status, stdout: result.stdout, args, allowed, prompt };
+  const plugins = (/^plugins<<(\S+)\n([\s\S]*?)\n\1$/m.exec(text)?.[2] ?? "").split("\n").filter(Boolean);
+  return { status: result.status, stdout: result.stdout, args, allowed, denied, prompt, plugins };
 }
 
 test("an issue lane's prompt names the issue before the activity's args", () => {
@@ -169,4 +171,74 @@ test("an unknown prepare mode fails red before any output", () => {
   assert.notEqual(status, 0);
   assert.match(stdout, /::error::the activity's prepare mode is not a known mode/);
   assert.equal(args, "");
+});
+
+// pr-run-activity.md, "Skill activities": a write skill gets no web tools
+// unless its activity sets web-access. Rule forms from
+// code.claude.com/docs/en/permissions#webfetch: `WebFetch(domain:*)` matches
+// every domain and also opens the sandbox to it; `domain:<host>` one host.
+function withWebAccess(webAccess, overrides = {}) {
+  const dir = mkdtempSync(path.join(root, "web-"));
+  const file = path.join(dir, "resolved.json");
+  writeFileSync(file, JSON.stringify({ selected: { args: "--ci", "web-access": webAccess } }));
+  return stage({ SKILL: "work-items:work", RESOLVED: file, ...overrides });
+}
+
+const RESEARCH_SKILLS = [
+  "Skill(discovery:research)",
+  "Skill(discovery:read-docs)",
+  "Skill(knowledge:docpage-digest)",
+  "Skill(knowledge:map-corpus)",
+];
+
+test("a write skill without web-access has no web tools and only its own plugin", () => {
+  const { status, allowed, denied, plugins } = stage({ SKILL: "work-items:work" });
+  assert.equal(status, 0);
+  assert.deepEqual(denied, ["WebFetch", "WebSearch"]);
+  assert.ok(!allowed.some((rule) => rule.startsWith("Web")), allowed.join(" | "));
+  assert.deepEqual(plugins, ["work-items@melodic-software"]);
+});
+
+test("web-access disabled grants nothing", () => {
+  const { status, allowed, denied } = withWebAccess({ enabled: false, domains: "any" });
+  assert.equal(status, 0);
+  assert.deepEqual(denied, ["WebFetch", "WebSearch"]);
+  assert.ok(!allowed.some((rule) => rule.startsWith("Web") || RESEARCH_SKILLS.includes(rule)), allowed.join(" | "));
+});
+
+test("web-access with any domain allows every fetch, search and the research skills", () => {
+  const { status, allowed, denied, plugins, args } = withWebAccess({ enabled: true, domains: "any" });
+  assert.equal(status, 0);
+  assert.deepEqual(denied, []);
+  assert.ok(!args.includes("--disallowedTools"), args);
+  for (const rule of ["WebFetch(domain:*)", "WebSearch", ...RESEARCH_SKILLS]) {
+    assert.ok(allowed.includes(rule), `${rule} in ${allowed.join(" | ")}`);
+  }
+  assert.deepEqual(plugins, ["work-items@melodic-software", "discovery@melodic-software", "knowledge@melodic-software"]);
+  assert.match(args, /\/discovery:research/);
+});
+
+test("web-access with a domain list allows a fetch to those domains only", () => {
+  const { status, allowed, denied } = withWebAccess({ enabled: true, domains: ["code.claude.com", "*.github.com"] });
+  assert.equal(status, 0);
+  assert.deepEqual(denied, []);
+  const web = allowed.filter((rule) => rule.startsWith("WebFetch"));
+  assert.deepEqual(web, ["WebFetch(domain:code.claude.com)", "WebFetch(domain:*.github.com)"]);
+  assert.ok(allowed.includes("WebSearch"), allowed.join(" | "));
+});
+
+for (const domains of [["code.claude.com,WebFetch"], ["evil.com)"], ["*"], ["any"], ["=any"], [""], ["a b.com"], [], "all"]) {
+  test(`web-access with malformed domains fails red: ${JSON.stringify(domains)}`, () => {
+    const { status, stdout, args } = withWebAccess({ enabled: true, domains });
+    assert.notEqual(status, 0);
+    assert.match(stdout, /::error::web-access/);
+    assert.equal(args, "");
+  });
+}
+
+test("a read skill gets no web tools even with web-access", () => {
+  const { status, allowed, plugins } = withWebAccess({ enabled: true, domains: "any" }, { EFFECT: "read" });
+  assert.equal(status, 0);
+  assert.ok(!allowed.some((rule) => rule.startsWith("Web")), allowed.join(" | "));
+  assert.deepEqual(plugins, ["work-items@melodic-software"]);
 });

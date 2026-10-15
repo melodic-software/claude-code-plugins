@@ -1,5 +1,36 @@
 # Changelog for the PR pipeline convention
 
+## 1.15.0 - 2026-10-14
+
+Issue mode: `report-outcome` opens the PR ready, not draft, since the skill's CI mode now runs the
+same prep the local pull-request prep does. A `report-statuses` job posts
+`pipeline/<activity>` commit statuses for the lane's steps. Nothing is skipped on a success; a
+failing one holds the pr-merge gate like any failing check.
+`version` stays 1.
+
+## 1.14.0 - 2026-10-14
+
+Schema: a skill leaf's optional `web-access` (`enabled`, `domains`: `any` or host names), off when
+absent; turning it on requires `reads-untrusted: true` and an effect other than `read`. `pr-run-activity.md` "Skill activities" says
+what the write runner then allows: `WebSearch`, `WebFetch` to those domains (which also opens them
+to sandboxed shell commands) and the research skills, with their plugins installed. The live config
+turns it on for `resolve-issue` with `domains: any`; the token residual now says the model can send
+its token to any allowed domain. `collect-base-activity`'s `plugin` output is now `plugins`, one per line. `version` stays 1.
+
+## 1.13.2 - 2026-10-14
+
+"The pr-merge lane" considers only pull requests the lanes App opened, and reads the work class from the pull request's single closing issue, never from a
+label on the pull request, and counts a class label the lanes App or a human in person applied.
+`report-outcome` no longer copies `work-class:` labels onto the PR, and `pr-merge.yml` shortlists
+the lanes App's open PRs instead of PRs carrying the label. The live config's comment on
+`merge` says so, and each `denied-paths` entry carries a one-line reason. `version` stays 1.
+
+## 1.13.1 - 2026-10-14
+
+The pr-merge workflow queues extra runs (`concurrency.queue: max`) instead of letting GitHub cancel
+all but one waiting run, which left CANCELLED `merge` checks on PRs. No rule or schema change.
+`version` stays 1.
+
 ## 1.13.0 - 2026-10-14
 
 Schema: a skill leaf's optional `checks`, repository check scripts with fixed flags that a write
