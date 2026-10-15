@@ -8,6 +8,12 @@ same prep the local pull-request prep does. A `report-statuses` job posts
 failing one holds the pr-merge gate like any failing check.
 `version` stays 1.
 
+## 1.13.1 - 2026-10-14
+
+The pr-merge workflow queues extra runs (`concurrency.queue: max`) instead of letting GitHub cancel
+all but one waiting run, which left CANCELLED `merge` checks on PRs. No rule or schema change.
+`version` stays 1.
+
 ## 1.13.0 - 2026-10-14
 
 Schema: a skill leaf's optional `checks`, repository check scripts with fixed flags that a write
