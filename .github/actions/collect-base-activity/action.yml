@@ -163,7 +163,7 @@ runs:
         system_prompt=""
         case "$EFFECT" in
           read) ;;
-          mutate-branch | mutate-tracker | publish-artifact | merge)
+          mutate-branch | mutate-pr | mutate-tracker | publish-artifact | merge)
             # What a write skill needs to do its job unattended: edit files,
             # run subagents, keep state files in a scratch directory (added
             # as a working directory) and commit through the action's signed

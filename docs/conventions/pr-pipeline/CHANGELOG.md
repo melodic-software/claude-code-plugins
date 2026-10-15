@@ -1,5 +1,16 @@
 # Changelog for the PR pipeline convention
 
+## 1.17.0 - 2026-10-15
+
+Schema: `effect` takes `mutate-pr`, `mutate-branch` plus `pull-requests: write`, for an activity
+that replies on and resolves review threads; the lane rules allow it only in `pr-unblock` and
+`pr-merge`, and every activity rule that forbids `mutate-branch` forbids it too. `pr-unblock.yml` takes an `activity` input (`resolve-conflicts`,
+the default, or `address-feedback`), and its dispatch concurrency group names the activity.
+`pr-feedback-dispatch.yml` dispatches `address-feedback` from `workflow_run` when both review lanes
+have reviewed a lanes App PR's current head and a reviewer-bot thread is open; the trigger gate and
+the broker accept its runs through the review run their record names. No live activity sets
+`mutate-pr` yet. `version` stays 1.
+
 ## 1.15.0 - 2026-10-14
 
 Issue mode: `report-outcome` opens the PR ready, not draft, since the skill's CI mode now runs the

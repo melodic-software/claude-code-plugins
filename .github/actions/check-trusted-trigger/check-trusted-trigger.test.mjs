@@ -78,6 +78,8 @@ async function gate({
   triggeringActor = "kyle-sexton",
   dispatcherRunId,
   dispatcherWorkflow,
+  runDispatcherWorkflow,
+  runDispatcherUpstreams,
   requirePr,
   runId,
   dispatchedWorkflow,
@@ -97,6 +99,12 @@ async function gate({
       GITHUB_OUTPUT: outputPath,
       ...(dispatcherRunId === undefined ? {} : { DISPATCHER_RUN_ID: dispatcherRunId }),
       ...(dispatcherWorkflow === undefined ? {} : { DISPATCHER_WORKFLOW: dispatcherWorkflow }),
+      ...(runDispatcherWorkflow === undefined
+        ? {}
+        : { RUN_DISPATCHER_WORKFLOW: runDispatcherWorkflow }),
+      ...(runDispatcherUpstreams === undefined
+        ? {}
+        : { RUN_DISPATCHER_UPSTREAMS: runDispatcherUpstreams }),
       ...(requirePr === undefined ? {} : { REQUIRE_PR: requirePr }),
       ...(runId === undefined ? {} : { GITHUB_RUN_ID: runId }),
       ...(dispatchedWorkflow === undefined ? {} : { DISPATCHED_WORKFLOW: dispatchedWorkflow }),
@@ -1281,4 +1289,152 @@ test("createGitHub raises on a GraphQL response that carries errors", async () =
     new Response(JSON.stringify({ data: null, errors: [{ message: "nope" }] }), { status: 200 });
   const github = createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl });
   await assert.rejects(github("POST", "/graphql", { query: "{}" }), GitHubError);
+});
+
+// A dispatcher started by workflow_run when a review lane finished on the PR
+// (pr-feedback-dispatch.yml). Its run record reports the default branch and its
+// tip, as pr-merge.yml's workflow_run runs do (run 38779143370 after review run
+// 38779135732 on release/plugins).
+
+const RUN_DISPATCHER_WORKFLOW = ".github/workflows/pr-feedback-dispatch.yml";
+const REVIEW_WORKFLOW = ".github/workflows/pr-review-hosted.yml";
+const SECURITY_WORKFLOW = ".github/workflows/pr-review-security-hosted.yml";
+const UPSTREAMS = `${REVIEW_WORKFLOW} ${SECURITY_WORKFLOW}`;
+const UPSTREAM_RUN_ID = "38779135732";
+const upstreamRoute = `GET /repos/${REPOSITORY}/actions/runs/${UPSTREAM_RUN_ID}`;
+const UPSTREAM = {
+  id: Number(UPSTREAM_RUN_ID),
+  name: "pr-review-hosted",
+  path: REVIEW_WORKFLOW,
+  event: "pull_request",
+  status: "completed",
+  head_branch: "feat/lane-probe",
+  head_sha: HEAD_SHA,
+  actor: LANES_BOT,
+  repository: { id: 1, full_name: REPOSITORY },
+  head_repository: { id: 1, full_name: REPOSITORY },
+};
+const RUN_DISPATCHER = {
+  path: RUN_DISPATCHER_WORKFLOW,
+  name: "pr-feedback-dispatch",
+  event: "workflow_run",
+  actor: LANES_BOT,
+  triggering_actor: LANES_BOT,
+};
+const runRecord = (name = `pr-feedback-dispatched-${UPSTREAM_RUN_ID}-${SELF_RUN_ID}`) =>
+  listing(record({ name }));
+
+function runDispatcherRoutes({ dispatcher = {}, upstream = {}, artifacts = runRecord(), ...rest } = {}) {
+  return {
+    ...dispatcherRoutes({ dispatcher: { ...RUN_DISPATCHER, ...dispatcher }, artifacts, ...rest }),
+    [upstreamRoute]: upstream instanceof GitHubError ? upstream : { ...UPSTREAM, ...upstream },
+  };
+}
+
+const runDispatched = (options) =>
+  dispatched({
+    runDispatcherWorkflow: RUN_DISPATCHER_WORKFLOW,
+    runDispatcherUpstreams: UPSTREAMS,
+    ...options,
+  });
+
+test("workflow_run dispatcher: a review run at the PR head proceeds and reads the upstream run", async () => {
+  const github = fakeGitHub(runDispatcherRoutes());
+  assert.deepEqual(await runDispatched({ github }), PROCEED);
+  assert.ok(github.calls.includes(upstreamRoute));
+  assert.ok(github.calls.includes(compareRoute));
+});
+
+test("workflow_run dispatcher: a security review run at the PR head proceeds", async () => {
+  const github = fakeGitHub(
+    runDispatcherRoutes({ upstream: { path: SECURITY_WORKFLOW, name: "pr-review-security-hosted" } }),
+  );
+  assert.deepEqual(await runDispatched({ github }), PROCEED);
+});
+
+for (const [label, overrides] of [
+  ["the upstream is another workflow", { upstream: { path: ".github/workflows/ci.yml" } }],
+  ["the upstream only shares the review workflow's name", {
+    upstream: { path: ".github/workflows/copy.yml", name: "pr-review-hosted" },
+  }],
+  ["the upstream path names the review workflow at another ref", {
+    upstream: { path: `${REVIEW_WORKFLOW}@refs/heads/feat/x` },
+  }],
+  ["the upstream ran on push", { upstream: { event: "push" } }],
+  ["the upstream ran on pull_request_target", { upstream: { event: "pull_request_target" } }],
+  ["the upstream ran on a fork's head", {
+    upstream: { head_repository: { id: 2, full_name: "stranger/claude-code-plugins" } },
+  }],
+  ["the upstream belongs to another repository", {
+    upstream: { repository: { id: 2, full_name: "stranger/claude-code-plugins" } },
+  }],
+  ["the upstream reviewed an older head", { upstream: { head_sha: BASE_SHA } }],
+  ["the upstream read is another run", { upstream: { id: 38779135733 } }],
+  ["the upstream read fails", { upstream: new GitHubError(404, "run") }],
+  ["the dispatcher is the push dispatcher's workflow", { dispatcher: { path: DISPATCHER_WORKFLOW } }],
+  ["the dispatcher ran on another branch", { dispatcher: { head_branch: "feat/forged" } }],
+  ["the dispatcher's head is not on the default branch", { compare: { status: "diverged" } }],
+  ["the dispatcher re-run was triggered by the lanes App", {
+    dispatcher: { run_attempt: 2, triggering_actor: LANES_BOT },
+  }],
+  ["the record names this run under the push dispatcher's prefix", {
+    artifacts: runRecord(`pr-unblock-dispatched-${UPSTREAM_RUN_ID}-${SELF_RUN_ID}`),
+  }],
+  ["the record names another dispatched run", {
+    artifacts: runRecord(`pr-feedback-dispatched-${UPSTREAM_RUN_ID}-38155580530`),
+  }],
+  ["the record names this run but no upstream", {
+    artifacts: runRecord(`pr-feedback-dispatched-${SELF_RUN_ID}`),
+  }],
+  ["the record names two dispatched runs", {
+    artifacts: runRecord(`pr-feedback-dispatched-${UPSTREAM_RUN_ID}-${SELF_RUN_ID}-38155580530`),
+  }],
+]) {
+  test(`workflow_run dispatcher: refused with untrusted-actor when ${label}`, async () => {
+    const github = fakeGitHub(
+      runDispatcherRoutes({ dispatcher: { status: "completed" }, ...overrides }),
+    );
+    assert.deepEqual(await runDispatched({ github }), STOPPED("untrusted-actor"));
+  });
+}
+
+test("workflow_run dispatcher: refused when the gate names no workflow_run dispatcher", async () => {
+  const github = fakeGitHub(runDispatcherRoutes());
+  assert.deepEqual(
+    await runDispatched({ github, runDispatcherWorkflow: "" }),
+    STOPPED("untrusted-actor"),
+  );
+  assert.ok(!github.calls.includes(upstreamRoute));
+});
+
+test("workflow_run dispatcher: refused when the gate names no upstream workflows", async () => {
+  const github = fakeGitHub(runDispatcherRoutes());
+  assert.deepEqual(
+    await runDispatched({ github, runDispatcherUpstreams: "" }),
+    STOPPED("untrusted-actor"),
+  );
+});
+
+test("workflow_run dispatcher: the feedback dispatcher's path on a push run is refused", async () => {
+  const github = fakeGitHub(
+    runDispatcherRoutes({ dispatcher: { event: "push" }, artifacts: listing(record()) }),
+  );
+  assert.deepEqual(await runDispatched({ github }), STOPPED("untrusted-actor"));
+});
+
+test("workflow_run dispatcher: the push dispatcher still proceeds with both configured", async () => {
+  const github = fakeGitHub(dispatcherRoutes());
+  assert.deepEqual(await runDispatched({ github }), PROCEED);
+  assert.ok(!github.calls.includes(upstreamRoute));
+});
+
+test("workflow_run dispatcher: a listed human's own dispatch is unchanged", async () => {
+  const event = fixture("event-workflow-dispatch-dispatcher.json");
+  event.sender = KYLE;
+  const github = fakeGitHub(runDispatcherRoutes());
+  assert.deepEqual(
+    await runDispatched({ github, event, triggeringActor: "kyle-sexton" }),
+    PROCEED,
+  );
+  assert.deepEqual(github.calls, [pullRoute]);
 });

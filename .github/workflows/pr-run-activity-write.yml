@@ -62,7 +62,8 @@ on:
       dispatcher-run-id:
         description: >-
           On a workflow_dispatch sent by github-actions[bot], the
-          pr-unblock-dispatch.yml run that sent it; empty otherwise.
+          pr-unblock-dispatch.yml or pr-feedback-dispatch.yml run that sent
+          it; empty otherwise.
         required: false
         type: string
         default: ""
@@ -241,10 +242,16 @@ jobs:
           denied-actor-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           triggering-actor: ${{ github.triggering_actor }}
           # A dispatch from github-actions[bot] proceeds only when it names a
-          # pr-unblock-dispatch.yml run on the default branch that sent it to
-          # pr-unblock.yml; any other run passes no id and the bot stays unlisted.
+          # pr-unblock-dispatch.yml run on the default branch, or a
+          # pr-feedback-dispatch.yml run whose recorded review run reviewed the
+          # PR's current head, that sent it to pr-unblock.yml; any other run
+          # passes no id and the bot stays unlisted.
           dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
           dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml
+          run-dispatcher-workflow: .github/workflows/pr-feedback-dispatch.yml
+          run-dispatcher-upstreams: >-
+            .github/workflows/pr-review-hosted.yml
+            .github/workflows/pr-review-security-hosted.yml
           dispatched-workflow: .github/workflows/pr-unblock.yml
           # Issue mode reads no PR: the account that applied the label, and
           # any re-runner, must be listed as a human.
@@ -305,7 +312,7 @@ jobs:
           script: |
             const { EFFECT, HEAD_SHA, HEAD_REF, ISSUE_NUMBER } = process.env;
             // Issue mode has no PR branch: the skill commits to a new one.
-            if (EFFECT !== 'mutate-branch' || ISSUE_NUMBER) {
+            if ((EFFECT !== 'mutate-branch' && EFFECT !== 'mutate-pr') || ISSUE_NUMBER) {
               core.setOutput('proceed', 'true');
               return;
             }

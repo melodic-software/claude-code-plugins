@@ -259,6 +259,7 @@
           "enum": [
             "read",
             "mutate-branch",
+            "mutate-pr",
             "mutate-tracker",
             "publish-artifact",
             "merge"

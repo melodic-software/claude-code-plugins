@@ -3,11 +3,11 @@
     "never": "Force-pushes, pushes .github/workflows changes, or runs head code"
   },
   "report-outcome": {
-    "forbidden-effects": ["mutate-branch", "merge"],
+    "forbidden-effects": ["mutate-branch", "mutate-pr", "merge"],
     "never": "Writes to a branch"
   },
   "report-escalation": {
-    "forbidden-effects": ["mutate-branch", "merge"],
+    "forbidden-effects": ["mutate-branch", "mutate-pr", "merge"],
     "never": "Writes to the branch"
   }
 }

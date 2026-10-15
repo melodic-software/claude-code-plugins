@@ -1,37 +1,37 @@
 {
   "work-resolve-issue": {
     "stage": "work",
-    "forbidden-effects": ["merge"],
+    "forbidden-effects": ["mutate-pr", "merge"],
     "never": "Merges, or marks its pull request ready"
   },
   "pr-refine": {
     "stage": "refine",
-    "forbidden-effects": ["merge"],
+    "forbidden-effects": ["mutate-pr", "merge"],
     "never": "Changes behavior"
   },
   "pr-run-checks": {
     "stage": "verify",
-    "forbidden-effects": ["mutate-branch", "merge"],
+    "forbidden-effects": ["mutate-branch", "mutate-pr", "merge"],
     "never": "Writes to the branch"
   },
   "pr-review": {
     "stage": "verify",
-    "forbidden-effects": ["mutate-branch", "merge"],
+    "forbidden-effects": ["mutate-branch", "mutate-pr", "merge"],
     "never": "Pushes fixes"
   },
   "pr-review-security": {
     "stage": "verify",
-    "forbidden-effects": ["mutate-branch", "merge"],
+    "forbidden-effects": ["mutate-branch", "mutate-pr", "merge"],
     "never": "Pushes fixes"
   },
   "pr-verify": {
     "stage": "verify",
-    "forbidden-effects": ["mutate-branch", "merge"],
+    "forbidden-effects": ["mutate-branch", "mutate-pr", "merge"],
     "never": "Pushes fixes"
   },
   "pr-explain": {
     "stage": "verify",
-    "forbidden-effects": ["merge"],
+    "forbidden-effects": ["mutate-pr", "merge"],
     "forbidden-gating": ["gate"],
     "never": "Gates"
   },
@@ -39,6 +39,7 @@
     "stage": "verify",
     "forbidden-effects": [
       "mutate-branch",
+      "mutate-pr",
       "mutate-tracker",
       "publish-artifact",
       "merge"
@@ -57,12 +58,12 @@
   },
   "post-merge-verify": {
     "stage": "post-merge",
-    "forbidden-effects": ["mutate-branch", "merge"],
+    "forbidden-effects": ["mutate-branch", "mutate-pr", "merge"],
     "never": "Edits PRs"
   },
   "post-merge-sweep-comments": {
     "stage": "post-merge",
-    "forbidden-effects": ["merge"],
+    "forbidden-effects": ["mutate-pr", "merge"],
     "never": "Reopens merged PRs"
   }
 }

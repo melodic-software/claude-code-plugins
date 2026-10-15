@@ -61,6 +61,20 @@ inputs:
       .github/workflows/<name>.yml. Empty stops every dispatcher-sent run.
     required: false
     default: ""
+  run-dispatcher-workflow:
+    description: >
+      The workflow path a dispatcher run started by workflow_run must have.
+      Such a run is trusted through the upstream run its record names, not
+      its actor. Empty stops every workflow_run dispatcher.
+    required: false
+    default: ""
+  run-dispatcher-upstreams:
+    description: >
+      Space-separated workflow paths the upstream run of a workflow_run
+      dispatcher may have. It must also be a pull_request run of this
+      repository at the PR's current head. Empty stops every such dispatcher.
+    required: false
+    default: ""
   dispatched-workflow:
     description: >
       The workflow path this run must have when a dispatcher run sent it, and
@@ -119,6 +133,8 @@ runs:
         TRIGGERING_ACTOR: ${{ inputs.triggering-actor }}
         DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
         DISPATCHER_WORKFLOW: ${{ inputs.dispatcher-workflow }}
+        RUN_DISPATCHER_WORKFLOW: ${{ inputs.run-dispatcher-workflow }}
+        RUN_DISPATCHER_UPSTREAMS: ${{ inputs.run-dispatcher-upstreams }}
         DISPATCHED_WORKFLOW: ${{ inputs.dispatched-workflow }}
         REQUIRE_KIND: ${{ inputs.require-kind }}
         REQUIRE_PR: ${{ inputs.require-pr }}

@@ -1,0 +1,106 @@
+name: pr-feedback-dispatch
+
+# Starts pr-unblock's address-feedback activity when a review lane finishes on
+# a lanes App PR: .github/scripts/pr-unblock/feedback-dispatch.mjs dispatches
+# pr-unblock.yml once both lanes have reviewed the PR's current head and an
+# unresolved thread left only by the reviewer bot exists. The write runner
+# denies the lanes App as a workflow_run actor, so the lane cannot run on this
+# event directly; the gate and the broker accept this dispatcher's runs only
+# through the review run its record names, at the PR's current head.
+#
+# No model and no App token: the job's GITHUB_TOKEN can only read and start
+# workflow runs. Of the event, only the upstream run id is used, through env;
+# the script reads everything else back from the API. The dispatched lane runs
+# its own trigger gate, kill switch, config and round cap.
+
+on:
+  # workflow_run runs this file from the default branch, never a PR's copy.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [pr-review-hosted, pr-review-security-hosted]
+    types: [completed]
+
+permissions: {}
+
+# Both review lanes finish on the same head; one listing at a time per head.
+concurrency:
+  group: pr-feedback-dispatch-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    if: >-
+      github.ref == 'refs/heads/main'
+      && github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # check out main
+      pull-requests: read # the PR, its comments and review threads
+      checks: read # skip a head that already has an address-feedback check run
+      actions: write # read the upstream review run; dispatch pr-unblock.yml
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: |
+          echo "::notice::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); nothing dispatched"
+
+      - name: Dispatch address-feedback
+        id: dispatch
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+        run: node .base/.github/scripts/pr-unblock/feedback-dispatch.mjs
+
+      # The record of the run this run dispatched and the review run that
+      # started it: an artifact only steps of this run can upload, read by the
+      # gate and the broker with one list call and no download.
+      - name: Name the dispatched-run record
+        id: record
+        if: always() && steps.dispatch.outputs.run-id != ''
+        env:
+          RUN_ID: ${{ steps.dispatch.outputs.run-id }}
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ ]]; then
+            echo "::error::run-id or the upstream run id is not a run id"
+            exit 1
+          fi
+          printf '{"dispatcher_run_id":%s,"upstream_run_id":%s,"run_id":%s}\n' \
+            "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" >"$RUNNER_TEMP/pr-feedback-dispatched.json"
+          echo "name=pr-feedback-dispatched-$UPSTREAM_RUN_ID-$RUN_ID" >>"$GITHUB_OUTPUT"
+
+      - name: Record the dispatched run
+        if: >-
+          always() && steps.dispatch.outputs.run-id != ''
+          && steps.record.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.record.outputs.name }}
+          path: ${{ runner.temp }}/pr-feedback-dispatched.json
+          retention-days: 1
+          if-no-files-found: error

@@ -20,6 +20,8 @@ condition 1 and the actor and author parts of condition 2).
 | `triggering-actor` | `${{ github.triggering_actor }}` | The login that started this run attempt; empty stops with `untrusted-rerunner` |
 | `dispatcher-run-id` | empty | The dispatcher run that sent a `github-actions[bot]` `workflow_dispatch`; empty keeps today's rules |
 | `dispatcher-workflow` | empty | The workflow path that run must have; empty stops every dispatcher-sent run |
+| `run-dispatcher-workflow` | empty | The workflow path a dispatcher run started by `workflow_run` must have; empty stops every such run |
+| `run-dispatcher-upstreams` | empty | Space-separated workflow paths that dispatcher's upstream run may have; empty stops every such run |
 | `dispatched-workflow` | empty | The workflow path this dispatched run must have; empty stops every dispatcher-sent run |
 | `require-pr` | `true` | `false` checks only the actors and reads no PR |
 | `require-kind` | empty | `human` narrows the actor-only checks to actors listed as `kind: human` |
@@ -60,6 +62,17 @@ condition 1 and the actor and author parts of condition 2).
     `^pr-unblock-dispatched(-[1-9][0-9]{0,14})+$` whose ids include this run's id exactly.
     `pr-unblock-dispatch.yml` uploads that artifact after its dispatch loop, named with every run
     id the dispatch API returned to it, and keeps it for 1 day.
+
+  A dispatcher run whose `event` is `workflow_run` is checked the same way, except:
+  - its `path` must equal `run-dispatcher-workflow` (not `dispatcher-workflow`), and its actor is
+    not checked. Such a run reports the default branch and its tip at the time as `head_branch`
+    and `head_sha` (pr-merge.yml run 38779143370, started by review run 38779135732 on a PR
+    branch), so the branch, tag and ancestry checks apply unchanged;
+  - its record is named `pr-feedback-dispatched-<upstream run id>-<this run's id>`, exactly two
+    ids;
+  - the upstream run, read through `GET /actions/runs/{upstream run id}`, has that `id`, a `path`
+    listed in `run-dispatcher-upstreams`, `event` `pull_request`, `repository` and
+    `head_repository` both this repository, and `head_sha` equal to the PR's current head.
 
   The record can land after this run's gate starts, so the gate waits for it. Each read takes the
   dispatcher run's `status` first, then its artifacts, so an upload between the two reads is not

@@ -152,7 +152,12 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `github-actions[bot]` proceeds only when it names a run of that dispatcher on the default branch
    whose window holds this run's creation and whose `pr-unblock-dispatched-<id>[-<id>...]`
    artifact lists this run's id, and this run is `pr-unblock.yml`; every other bot-sent dispatch
-   stops with `untrusted-actor`. The gate waits up to 2 minutes for that record while the
+   stops with `untrusted-actor`. It also passes
+   `run-dispatcher-workflow: .github/workflows/pr-feedback-dispatch.yml` with the two review
+   workflows as `run-dispatcher-upstreams`: a run of that dispatcher, started by `workflow_run`,
+   vouches with no actor check when its `pr-feedback-dispatched-<upstream id>-<this run's id>`
+   artifact names a `pull_request` run of one of those workflows in this repository at the PR's
+   current head. The gate waits up to 2 minutes for that record while the
    dispatcher run is still going. The checks are in the gate's README. Only
    with a `dispatcher-run-id` does the skill step pass claude-code-action
    `allowed_bots: github-actions`, which otherwise refuses a run a bot started.
@@ -171,7 +176,7 @@ the broker request, and no other permission; it never holds `checks: write` or `
    (`disabled-by-config`, `not-applicable-paths`, `not-applicable`, `awaiting-human`,
    `prerequisite-missing`) mints nothing. With a valid config, the read file fails red with
    `effect-not-read` unless the effect is `read`, and the write file fails red with `effect-read`
-   when it is, whether or not the activity applies. For a `mutate-branch` activity the write file
+   when it is, whether or not the activity applies. For a `mutate-branch` or `mutate-pr` activity the write file
    then re-reads the PR branch from `GET git/ref/heads/<head ref>` (`GET /pulls` can lag a push);
    when it no longer points at the gated head the activity skips with `superseded-sha`, mints
    nothing and runs no model turn. Other effects never write the branch and keep the gated head.
@@ -456,7 +461,7 @@ Residual: a `.github/workflows/` change from the base side of the merge (not con
 staged by the model) is committed and pushed. GitHub does not refuse it for the App's missing
 `workflows` permission: sandbox probe run 38148710292 pushed such merges by all three methods.
 
-The head re-read in step 5 applies to every `mutate-branch` activity, not only this mode: a
+The head re-read in step 5 applies to every `mutate-branch` and `mutate-pr` activity, not only this mode: a
 pr-refine run whose PR branch moved before the mint now posts neutral `superseded-sha` without a
 model turn.
 
@@ -602,7 +607,11 @@ must be an ancestor of the tip and no tag may be named `main`. This run must be 
 `workflow_dispatch` created between the dispatcher run's `run_started_at` and the earlier of its
 `updated_at` and `run_started_at` plus 10 minutes. The dispatcher run must also hold an unexpired
 `pr-unblock-dispatched-<ids>` artifact whose ids include this run's; the broker reads it once,
-with no wait, since the trusted-trigger gate in step 3 has already waited for it. The client
+with no wait, since the trusted-trigger gate in step 3 has already waited for it. A
+`pr-feedback-dispatch.yml` run started by `workflow_run` passes the same checks except the actor
+check, with a `pr-feedback-dispatched-<upstream id>-<this run's id>` artifact whose upstream run is
+a `pull_request` run of `pr-review-hosted.yml` or `pr-review-security-hosted.yml` in this
+repository at the PR's current head. The client
 sends it once and never retries: the broker
 reserves the job's `check_run_id` when it mints, so a second request is denied `already-minted`,
 and a 200 lost in transit leaves a token nobody revokes until it expires within the hour.
@@ -626,7 +635,7 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 | 403 | `event-not-allowed` | Not `pull_request` on `refs/pull/<n>/merge`, or `workflow_dispatch` or `workflow_run` on `refs/heads/main`, or `issues` on `refs/heads/main` from `work-resolve-issue.yml` |
 | 403 | `workflow-not-allowed` | The job is not this repository's `pr-run-activity-write.yml`, or the caller is not a lane under `lanes:` in the tip's `pr-pipeline.yaml` |
 | 403 | `workflow-modified` | The caller or `pr-run-activity-write.yml` differs from the default-branch tip |
-| 403 | `workflow-modified` | With `dispatcher_run_id`: `pr-unblock-dispatch.yml` at the dispatcher run's head differs from the tip |
+| 403 | `workflow-modified` | With `dispatcher_run_id`: the dispatcher workflow at the dispatcher run's head differs from the tip |
 | 403 | `lane-mismatch` | The requested lane is not the caller's file stem |
 | 403 | `activity-not-in-lane`, `slot-disabled`, `config-invalid`, `effect-forbidden-by-lane` | The tip config does not give this activity a write grant |
 | 403 | `effect-read` | The activity is `read`; it belongs in the read file |
