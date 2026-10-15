@@ -142,7 +142,7 @@ for changed in '.github/workflows/release.yml' 'src/other.js' '.GitHub/CODEOWNER
   run reply PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
   assert_exit "a lane branch that changes $changed refuses the VALID reply" 1 "$?"
   assert_eq "no reply is posted when the lane branch changes $changed" 0 "$(posts)"
-  assert_eq "nothing is logged when the lane branch changes $changed" 0 "$(cat "$STUB/log.jsonl" 2>/dev/null | wc -l)"
+  assert_eq "nothing is logged when the lane branch changes $changed" 0 "$(if [[ -f $STUB/log.jsonl ]]; then wc -l <"$STUB/log.jsonl"; else echo 0; fi)"
 done
 setup
 printf '{"commits":[{"sha":"%s"}],"files":[{"filename":"src/b.js","previous_filename":".github/x.yml"}]}' "$FIX" >"$STUB/compare.json"
@@ -191,6 +191,10 @@ assert_contains "the token is marked redacted" "$posted" "[REDACTED]"
 assert_not_contains "control characters are dropped" "$posted" $'\a'
 assert_contains "the note is fenced longer than its own backtick run" "$posted" $'````text\n'
 assert_eq "the note's own fence cannot close the block" '````' "$(tail -n 3 "$STUB/posted" | head -n 1)"
+setup
+disposition $'{"disposition":"INCORRECT","evidence":["src/a.js:3"],"note":"safe‮evil​text"}'
+run reply PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_contains "bidi overrides and zero-width spaces are dropped" "$(cat "$STUB/posted")" "safeeviltext"
 
 # the disposition file must match the template and live in the scratch dir
 for bad in \

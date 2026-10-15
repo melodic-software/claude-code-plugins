@@ -1068,13 +1068,15 @@ jobs:
       # tool's log holds an UNCERTAIN or VALID (defer) reply, or a resolved
       # thread whose fix the promote step did not move onto the PR branch. A
       # failure here fails the activity, since an unrecorded round would not
-      # count toward the cap. A pinned action, like the promote step, since
-      # the activity could have changed PATH.
+      # count toward the cap. It also runs after a cancelled or timed-out
+      # skill, whose resolved threads the promote step never landed. A pinned
+      # action, like the promote step, since the activity could have changed
+      # PATH.
       - name: Record the review-threads round
         id: feedback-round
         if: >-
           always() && steps.config.outputs.prepare == 'review-threads'
-          && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
+          && steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome != ''
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           LANE_TOKEN: ${{ steps.lane-token.outputs.token }}

@@ -140,6 +140,13 @@ test("a PR that changes .github/** escalates feedback-protected-path before any 
   }
 });
 
+test("a diff at the files listing's 3000-file limit escalates, since it could hide a .github/ path", async () => {
+  const files = Array.from({ length: 3000 }, (_, i) => ({ filename: `src/f${i}.js` }));
+  const result = await run(fakeApi({ files }));
+  assert.equal(result.escalationReason, "feedback-protected-path");
+  assert.equal((await run(fakeApi({ files: files.slice(1) }))).decision, "proceed");
+});
+
 test("a path that only starts with .github is not protected", async () => {
   assert.equal((await run(fakeApi({ files: [{ filename: ".githubrc" }] }))).decision, "proceed");
 });

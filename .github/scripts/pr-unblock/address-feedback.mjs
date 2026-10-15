@@ -29,6 +29,10 @@ const REVIEWED_HEAD =
   /^<!-- claude-lane-reviewed-head lane=(claude-review|claude-security-review) sha=([0-9a-f]{40}) -->$/;
 const SHA = /^[0-9a-f]{40}$/;
 const THREAD_COMMENT_CAP = 100;
+// The most files the pulls files listing returns
+// (docs.github.com/en/rest/pulls/pulls#list-pull-requests-files, as of
+// 2026-10-15; recheck when that section changes its limit).
+const FILES_CAP = 3000;
 
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
 
@@ -108,7 +112,12 @@ export async function select({ api, pr, headSha, laneBranch, repository, appId, 
   if (kept.length === 0) {
     return { decision: "skip", skipReason: "not-applicable", threads: kept };
   }
-  if (files.some((file) => isProtectedPath(file.filename) || isProtectedPath(file.previous_filename ?? ""))) {
+  // The files listing stops at FILES_CAP, so a longer diff could hide a
+  // .github/ path and is treated as touching one.
+  if (
+    files.length >= FILES_CAP ||
+    files.some((file) => isProtectedPath(file.filename) || isProtectedPath(file.previous_filename ?? ""))
+  ) {
     return { decision: "escalate", escalationReason: "feedback-protected-path", threads: kept };
   }
   const rounds = countRounds(issueComments, appId);

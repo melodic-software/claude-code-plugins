@@ -25,6 +25,9 @@
 #
 # Exit: 0 done; 1 refused (nothing posted); 2 usage or environment;
 # 3 skipped because the thread changed since the runner read it.
+#
+# allowed() is a predicate: set -e need not reach inside it.
+# shellcheck disable=SC2310
 set -euo pipefail
 
 die() {
@@ -32,22 +35,23 @@ die() {
   exit "$1"
 }
 
-for var in FEEDBACK_THREADS FEEDBACK_LOG FEEDBACK_SCRATCH FEEDBACK_WORKSPACE; do
-  [[ -n ${!var:-} ]] || die 2 "$var is not set"
-done
-[[ -f $FEEDBACK_THREADS ]] || die 2 "no thread file"
-repo=$(jq -er '.repository | select(test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"))' "$FEEDBACK_THREADS") ||
+threads_file=${FEEDBACK_THREADS:-} log_file=${FEEDBACK_LOG:-}
+scratch_dir=${FEEDBACK_SCRATCH:-} workspace=${FEEDBACK_WORKSPACE:-}
+[[ -n $threads_file && -n $log_file && -n $scratch_dir && -n $workspace ]] ||
+  die 2 "FEEDBACK_THREADS, FEEDBACK_LOG, FEEDBACK_SCRATCH and FEEDBACK_WORKSPACE must be set"
+[[ -f $threads_file ]] || die 2 "no thread file"
+repo=$(jq -er '.repository | select(test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"))' "$threads_file") ||
   die 2 "the thread file names no repository"
-pr=$(jq -er '.pr | select(type == "number" and . > 0)' "$FEEDBACK_THREADS") || die 2 "the thread file names no PR"
+pr=$(jq -er '.pr | select(type == "number" and . > 0)' "$threads_file") || die 2 "the thread file names no PR"
 
 # A path a kept thread names, not under .github/ in any letter case.
 allowed() {
   [[ ! ${1,,} =~ ^\.github(/|$) ]] &&
-    jq -e --arg p "$1" 'any(.threads[]; .path == $p)' "$FEEDBACK_THREADS" >/dev/null
+    jq -e --arg p "$1" 'any(.threads[]; .path == $p)' "$threads_file" >/dev/null
 }
 
 cmd_list() {
-  jq '.threads' "$FEEDBACK_THREADS"
+  jq '.threads' "$threads_file"
 }
 
 cmd_check_paths() {
@@ -63,8 +67,11 @@ cmd_check_paths() {
   echo "allowed"
 }
 
+# GraphQL variables, not shell ones.
+# shellcheck disable=SC2016
 THREAD_QUERY='query($id: ID!) { node(id: $id) { ... on PullRequestReviewThread {
   isResolved pullRequest { number } comments(first: 100) { nodes { databaseId body } } } } }'
+# shellcheck disable=SC2016
 RESOLVE_MUTATION='mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { isResolved } } }'
 
 cmd_reply() {
@@ -72,17 +79,17 @@ cmd_reply() {
   local id=$1 file=$2
   [[ $id =~ ^PRRT_[A-Za-z0-9_-]{1,100}$ ]] || die 1 "not a review thread id"
   local thread
-  thread=$(jq -ec --arg id "$id" '.threads[] | select(.id == $id)' "$FEEDBACK_THREADS") ||
+  thread=$(jq -ec --arg id "$id" '.threads[] | select(.id == $id)' "$threads_file") ||
     die 1 "$id is not a kept thread"
-  if [[ -f $FEEDBACK_LOG ]] && jq -se --arg id "$id" 'any(.[]; .thread == $id)' "$FEEDBACK_LOG" >/dev/null 2>&1; then
+  if [[ -f $log_file ]] && jq -se --arg id "$id" 'any(.[]; .thread == $id)' "$log_file" >/dev/null 2>&1; then
     die 1 "$id already has a reply from this run"
   fi
 
   local scratch real
-  scratch=$(realpath -e "$FEEDBACK_SCRATCH") || die 2 "no scratch directory"
+  scratch=$(realpath -e "$scratch_dir") || die 2 "no scratch directory"
   real=$(realpath -e -- "$file") || die 1 "no disposition file"
   [[ $real == "$scratch"/* && -f $real && ! -L $file ]] || die 1 "the disposition file must be a file in $scratch"
-  (($(stat -c %s "$real") <= 16384)) || die 1 "the disposition file is over 16 KiB"
+  (($(wc -c <"$real") <= 16384)) || die 1 "the disposition file is over 16 KiB"
 
   local d
   d=$(jq -ec '
@@ -102,15 +109,15 @@ cmd_reply() {
   disposition=$(jq -r .disposition <<<"$d")
   fix_sha=$(jq -r .fix_sha <<<"$d")
   while IFS= read -r ev; do
-    [[ -f $FEEDBACK_WORKSPACE/${ev%:*} ]] || die 1 "evidence ${ev%:*} is not a file in the checkout"
+    [[ -f $workspace/${ev%:*} ]] || die 1 "evidence ${ev%:*} is not a file in the checkout"
   done < <(jq -r '.evidence[]' <<<"$d")
 
   # A VALID reply names a fix commit on the lane branch, and every file the
   # lane branch changed since the gated head is one a kept thread names.
   if [[ $disposition == VALID ]]; then
     local head lane cmp path
-    head=$(jq -er '.head_sha | select(test("^[0-9a-f]{40}$"))' "$FEEDBACK_THREADS") || die 2 "the thread file names no head"
-    lane=$(jq -er '.lane_branch | select(test("^[A-Za-z0-9._/-]+$"))' "$FEEDBACK_THREADS") || die 2 "the thread file names no lane branch"
+    head=$(jq -er '.head_sha | select(test("^[0-9a-f]{40}$"))' "$threads_file") || die 2 "the thread file names no head"
+    lane=$(jq -er '.lane_branch | select(test("^[A-Za-z0-9._/-]+$"))' "$threads_file") || die 2 "the thread file names no lane branch"
     cmp=$(gh api "repos/$repo/compare/$head...$lane") || die 1 "cannot compare the lane branch with the gated head"
     jq -e --arg sha "$fix_sha" 'any(.commits[]; .sha == $sha)' <<<"$cmp" >/dev/null ||
       die 1 "the fix $fix_sha is not a commit on the lane branch"
@@ -131,19 +138,21 @@ cmd_reply() {
     exit 3
   fi
 
-  local label body fence
+  local label body
   case $disposition in
     VALID) label='VALID, fixed' ;;
     INCORRECT) label='INCORRECT, left open' ;;
     UNCERTAIN) label='UNCERTAIN, left open for a person' ;;
     VALID-defer) label='VALID (defer), left open for a person' ;;
+    *) die 1 "unknown disposition" ;;
   esac
   # The note is model prose that quotes untrusted text: control characters
   # go, mentions and HTML comments are broken with a word joiner, the lane
   # token is cut out, and it sits in a fence longer than any backtick run.
   body=$(jq -r --arg label "$label" --arg t1 "${GH_TOKEN:-}" --arg t2 "${GITHUB_TOKEN:-}" '
     def redact($t): if $t == "" then . else split($t) | join("[REDACTED]") end;
-    (.note | explode | map(select(. == 9 or . == 10 or (. >= 32 and . != 127))) | implode | gsub("@"; "@⁠")
+    (.note | explode | map(select(. == 9 or . == 10 or (. >= 32 and . != 127
+      and (. < 8203 or . > 8207) and (. < 8234 or . > 8238) and (. < 8294 or . > 8297)))) | implode | gsub("@"; "@⁠")
       | gsub("<!--"; "<⁠!--") | gsub("-->"; "-⁠->") | redact($t1) | redact($t2)) as $note
     | ("`" * ([3, ([$note | scan("`+") | length] | max // 0) + 1] | max)) as $fence
     | [ "**pr-unblock / address-feedback: \($label)**", "",
@@ -168,7 +177,7 @@ cmd_reply() {
   fi
   jq -nc --arg thread "$id" --arg disposition "$disposition" --arg sha "$fix_sha" --argjson reply "$reply_id" \
     --argjson resolved "$resolved" '{thread: $thread, disposition: $disposition, fix_sha: $sha, reply_id: $reply, resolved: $resolved}' \
-    >>"$FEEDBACK_LOG"
+    >>"$log_file"
   echo "replied on $id ($disposition)$([[ $resolved == true ]] && echo '; resolved')"
 }
 

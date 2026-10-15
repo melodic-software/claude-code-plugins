@@ -476,14 +476,19 @@ on the PR. The runner script is the base's `.github/scripts/pr-unblock/address-f
    or off the template, and a `VALID` reply whose fix is not on the lane branch or whose lane
    branch changes a file no kept thread names or any `.github/` path. It re-reads the thread and
    skips one that changed, posts the templated reply, resolves a `VALID` thread, and logs it.
-3. After the promote step, a pinned `github-script` step checks the copy's SHA-256 and runs
+3. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
+   `github-script` step checks the copy's SHA-256 and runs
    `record-round` with the lane token: it posts the round marker as the lanes App, then escalates
    `feedback-uncertain` for an `UNCERTAIN` or `VALID-defer` log line or an unreadable one, and
    `feedback-not-landed` for a resolved thread when the promote step failed. A failure of this
    step fails the activity.
 
 The skill's limits to kept-thread paths and away from `.github/` are instructions and the tool's
-checks at reply time, not a check on the branch after the model runs.
+checks at reply time, not a check on the branch after the model runs. A diff at the files
+listing's limit escalates as `feedback-protected-path`, since it could hide a `.github/` path.
+Residuals: the reply's token redaction cuts only the literal lane token, which the model can
+already publish through a commit; and a reviewed-head marker confirms a head, not one review run,
+so any reviewer-bot review on that head is kept.
 
 The head re-read in step 5 applies to every `mutate-branch` activity, not only this mode: a
 pr-refine run whose PR branch moved before the mint now posts neutral `superseded-sha` without a
