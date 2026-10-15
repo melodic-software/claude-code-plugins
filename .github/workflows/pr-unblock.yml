@@ -113,6 +113,7 @@ jobs:
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
       review-replies: true
+      review-run-sha256: ${{ needs.address-feedback.outputs.feedback-run-sha256 }}
 
   report-escalation:
     needs: [resolve-conflicts, address-feedback, publish-feedback]

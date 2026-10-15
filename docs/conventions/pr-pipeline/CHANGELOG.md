@@ -5,8 +5,11 @@
 `pr-unblock.yml` takes an `activity` input (`resolve-conflicts`, the default, or
 `address-feedback`), and its dispatch concurrency group names the activity. `address-feedback`
 runs as two jobs: the model job (`mutate-branch`), then, when its `feedback-round` output is
-`true`, the `publish-feedback` script job (`publish-artifact`, `review-replies: true`), which
-posts the replies; `report-escalation` takes either job's reason. `pr-feedback-dispatch.yml`
+`true`, the `publish-feedback` script job (`publish-artifact`, `review-replies: true`, and the
+model job's `feedback-run-sha256` as `review-run-sha256`), which posts the replies;
+`report-escalation` takes any job's reason and its resume command names the activity. The
+activity rules forbid `address-feedback` every effect that posts and `publish-feedback` every
+effect that pushes. `pr-feedback-dispatch.yml`
 dispatches `address-feedback` from `workflow_run` when both review lanes have reviewed a lanes App
 PR's current head and a reviewer-bot thread is open; the trigger gate and the broker accept its
 runs through the review run their record names. No effect grants both `contents: write` and
