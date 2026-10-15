@@ -285,6 +285,7 @@ UNBOUND = tuple(
 )
 PROMOTED = policy.Promotion(dict.fromkeys(policy.PROMOTABLE_CELLS, "promoted"), None)
 PROCEED = policy.KillSwitch(True, "proceed")
+REAL_ASYNC_MERGE = merge.async_merge
 ENQUEUED = {
     "attempted": True,
     "api": "merge-async",
@@ -407,6 +408,8 @@ class Unattended(unittest.TestCase):
                 }
             if args[0] == "api" and "/compare/" in args[1]:
                 return fixtures.UP_TO_DATE
+            if args[:2] == ["api", f"repos/owner/repo/pulls/{PR}"]:
+                return {"id": self.node_id}
             if args[0] == "api":
                 return self.rules
             raise AssertionError(f"unexpected gh_json call: {args}")
@@ -511,6 +514,10 @@ class Unattended(unittest.TestCase):
             self.log.append("disarm")
         elif "dequeuePullRequest" in joined:
             self.log.append("dequeue-self:" + args[-1])
+        elif "enqueuePullRequest" in joined:
+            self.log.append(f"graphql-enqueue:{args[-3]}:{args[-1]}")
+            answer = async_fixtures._enqueued()
+            return subprocess.CompletedProcess(args, 0, json.dumps(answer), "")
         else:
             self.log.append("write:" + joined)
         return subprocess.CompletedProcess(args, 0, "{}", "")
@@ -584,6 +591,14 @@ class LaneMode(Unattended):
             out["unattended"]["enqueue"]["killSwitch"],
             {"proceed": True, "reason": "proceed"},
         )
+
+    def test_the_lane_enqueues_through_graphql_not_merge_async(self) -> None:
+        self._async_merge = REAL_ASYNC_MERGE  # type: ignore[method-assign]
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertTrue(out["enqueued"])
+        self.assertEqual(self.log, ["pin", f"graphql-enqueue:id=PR_self:head={HEAD}"])
+        self.assertEqual(out["merge"]["api"], "graphql")
 
     def test_a_missing_workflow_kill_switch_stops_the_lane(self) -> None:
         # A stop like the switch itself: no enqueue, and the identity's own
@@ -766,50 +781,21 @@ class AllInputsGood(Unattended):
         self.assertEqual(out["unattended"]["dispatchError"], "HTTP 500")
         self.assertEqual(code, 10)
 
-    def merged_on_enqueue(self, landed_head: str) -> tuple[int, dict[str, Any]]:
-        # The queue landed the entry before async_merge stopped polling, so the
-        # enqueue itself returns `merged` with the read-back already done.
-        record = {
-            **ENQUEUED,
-            "status": "merged",
-            "verifiedMerged": True,
-            "mergedHead": landed_head,
-            "success": landed_head == HEAD,
-        }
-
-        def landed(repo: str, number: int, **kwargs: Any) -> dict[str, Any]:
-            self.log.append(f"enqueue:{kwargs['sha']}:{kwargs['merge_action']}")
-            return dict(record)
-
-        self._async_merge = landed  # type: ignore[method-assign]
+    def test_an_enqueue_is_recorded_at_the_pin_for_the_later_read_back(
+        self,
+    ) -> None:
+        # The enqueue returns before the queue lands it: the merge and its
+        # verifying dispatch come from a later run reading this record back.
+        self._async_merge = REAL_ASYNC_MERGE  # type: ignore[method-assign]
         with tempfile.TemporaryDirectory() as state:
-            return self.run_main("--state-dir", state)
-
-    def test_an_enqueue_that_returns_merged_dispatches_the_full_run(self) -> None:
-        # Codex P1 on #7335: without this the merge had no verifying dispatch.
-        code, out = self.merged_on_enqueue(HEAD)
-        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue", "dispatch"])
-        self.dispatch.assert_called_once_with("owner/repo", ref="main")
-        self.assertIs(out["merged"], True)
-        self.assertIs(out["unattended"]["dispatched"], True)
-        self.assertEqual(code, 0)
-
-    def test_a_failed_dispatch_after_a_merged_enqueue_is_reported(self) -> None:
-        # The merge is this run's own outcome, so the exit stays 0; the next
-        # `babysit-postmerge.sh --remediate` cycle dispatches the run.
-        self.dispatch_error = postmerge.PostMergeWriteError("HTTP 500")
-        code, out = self.merged_on_enqueue(HEAD)
-        self.assertIs(out["merged"], True)
-        self.assertIs(out["unattended"]["dispatched"], False)
-        self.assertEqual(out["unattended"]["dispatchError"], "HTTP 500")
-        self.assertEqual(code, 0)
-
-    def test_an_enqueue_merged_at_another_head_dispatches_nothing(self) -> None:
-        # The read-back did not hold: as on a later run, no dispatch, exit 10.
-        code, out = self.merged_on_enqueue("f" * 40)
+            code, out = self.run_main("--state-dir", state)
+            path = pathlib.Path(state) / merge.PENDING_MERGES_FILE
+            record = json.loads(path.read_text(encoding="utf-8"))["requests"][
+                f"owner/repo#{PR}"
+            ]
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual((record["queued"], record["head"]), (True, HEAD))
         self.dispatch.assert_not_called()
-        self.assertNotIn("dispatched", out["unattended"])
-        self.assertEqual(code, 10)
 
     def test_a_read_back_that_did_not_hold_dispatches_nothing(self) -> None:
         self.pr_view = fixtures._pr(state="MERGED")

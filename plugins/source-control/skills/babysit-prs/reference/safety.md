@@ -672,18 +672,19 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
 
 A ready PR merges through GitHub's async merge API ([GitHub](../../../reference/providers/github/babysit-prs/safety.md#cli-merge)): a `PUT` to the PR's `merge-async` endpoint, then a `GET` on the request's UUID.
 
-- **Which API.** Async when the base is the default branch, when it requires a merge queue, or when
+- **Which API.** Async when the base is the default branch, or when
   the PR is a native stack member under `--stacked-prs`, the bottom layer on any trunk included:
   GitHub documents the async API as the required API for merging a stacked PR. Any other base keeps
   the CLI merge (the forge CLI's merge command, [GitHub](../../../reference/providers/github/babysit-prs/safety.md#cli-merge)), and so does every `--auto` arm: the async API has no auto-merge form. Without
   `--stacked-prs` the gate never reads stack membership, so a bottom layer on a non-default trunk
   goes to the CLI merge, which GitHub refuses for a stacked PR; that fails closed. On the default
   branch a 404 from the endpoint (a host that lacks it) falls back to the CLI merge with the same
-  pin; a queue or a stack member has no other API and holds.
+  pin; a stack member has no other API and holds. A base that requires a merge queue never uses the
+  async API: see **Merge queue** below.
 - **Request.** `sha` is always the head the gate just evaluated: `--allow-unpinned-head` waives only
   the `--expected-head` argument, never the pin, and the CLI merge carries the same head as
-  `--match-head-commit`. `merge_method` is sent for a direct merge only,
-  `merge_action` is `direct_merge` or `merge_queue`, and `bypass_rules` is always `false`. No
+  `--match-head-commit`. `merge_method` is sent, `merge_action` is `direct_merge`, and
+  `bypass_rules` is always `false`. No
   API-version header is sent: the endpoint is documented under the default version as well.
 - **Result.** The gate polls for up to 60 seconds; a 200 means already merged or already queued. A
   409 means a request is already pending, possibly another actor's. When its body states that
@@ -713,9 +714,15 @@ A ready PR merges through GitHub's async merge API ([GitHub](../../../reference/
   nothing is recorded and a later run cannot see the request, so `--state-dir <state-dir>` rides on
   every merge form.
 - **Merge queue.** A default-branch base that requires a merge queue is no longer a blocker. Once
-  every other condition holds, the merge enqueues (`action: enqueue`). `enqueued` is final for the
-  request and is not a merge. Enqueueing is a merge, so only a tier that may merge enqueues, and
-  auto-merge is never armed over a queue. A queue on any other base keeps the hold.
+  every other condition holds, the merge enqueues (`action: enqueue`) through the forge's enqueue
+  mutation, pinned to the evaluated head and never jumping the queue
+  ([GitHub](../../../reference/providers/github/babysit-prs/safety.md#enqueue)). It is one call with
+  no request id and no poll: it succeeds only when the forge returns the new queue entry
+  (`merge.mergeQueue`), and anything else holds with exit `10`, records nothing, and tries no other
+  API. `enqueued` is not a merge: the entry is recorded under `--state-dir`, and a later run reads
+  it back as queued, merged at the pinned head, or dequeued. Enqueueing is a merge, so only a tier
+  that may merge enqueues, and auto-merge is never armed over a queue. A queue on any other base
+  keeps the hold.
 - **A CLI merge the queue took.** The CLI merge adds a PR to the queue on any base that has
   one, `--auto` or not, and exits `0` ([GitHub](../../../reference/providers/github/babysit-prs/safety.md#a-cli-merge-the-queue-took)), so a queue the branch-rules read did not report would read
   as a merge or an arm. After every successful CLI merge the gate reads the PR's queue state
@@ -1013,10 +1020,8 @@ when that full SHA is the head the policy scored, after a
 second kill-switch read and a second read of the opt-in label (presence and provenance), after an
 armed auto-merge is disarmed and refused instead, and after a
 `<!-- babysit-merge-pin sha=<S> -->` comment records the pin for the post-merge read-back. When an
-earlier identity entry sits in the queue, the new one dequeues itself. When the enqueue itself
-returns merged at the pin, the run dispatches the full `pr-require-checks` run at once and exits
-`0`: the policy was clear when it enqueued, and the merge is this run's outcome (a failed dispatch
-is reported the same way as below). A later run with
+earlier identity entry sits in the queue, the new one dequeues itself. The enqueue returns before
+the queue lands the pull request, so a later run with
 `--state-dir` that reads the entry back merged at its pin dispatches the full `pr-require-checks`
 run and still exits `10` with `merged: true`, since the merge it just read back is the in-flight
 unverified auto-merge; a failed dispatch is reported as `dispatchError`, and the next cycle's
