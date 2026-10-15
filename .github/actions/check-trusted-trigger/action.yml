@@ -72,7 +72,23 @@ inputs:
     description: >
       Space-separated workflow paths the upstream run of a workflow_run
       dispatcher may have. It must also be a pull_request run of this
-      repository at the PR's current head. Empty stops every such dispatcher.
+      repository, started (and any re-run) by the lanes App or a listed
+      human, at the PR's current head. Empty stops every such dispatcher.
+    required: false
+    default: ""
+  expected-upstream-head:
+    description: >
+      For a job after pr-unblock's model job, the head that job was gated on.
+      With a workflow_run dispatcher the upstream must have reviewed it, and
+      every commit from it to the PR's current head must be a
+      signature-verified commit the lanes App authored. Empty keeps the
+      current-head rule; set on any other path, it stops the run.
+    required: false
+    default: ""
+  lanes-app-id:
+    description: >
+      The lanes App bot's numeric user id: an upstream review it started
+      vouches, and only its commits may follow expected-upstream-head.
     required: false
     default: ""
   dispatched-workflow:
@@ -135,6 +151,8 @@ runs:
         DISPATCHER_WORKFLOW: ${{ inputs.dispatcher-workflow }}
         RUN_DISPATCHER_WORKFLOW: ${{ inputs.run-dispatcher-workflow }}
         RUN_DISPATCHER_UPSTREAMS: ${{ inputs.run-dispatcher-upstreams }}
+        EXPECTED_UPSTREAM_HEAD: ${{ inputs.expected-upstream-head }}
+        LANES_APP_ID: ${{ inputs.lanes-app-id }}
         DISPATCHED_WORKFLOW: ${{ inputs.dispatched-workflow }}
         REQUIRE_KIND: ${{ inputs.require-kind }}
         REQUIRE_PR: ${{ inputs.require-pr }}

@@ -80,6 +80,8 @@ async function gate({
   dispatcherWorkflow,
   runDispatcherWorkflow,
   runDispatcherUpstreams,
+  expectedUpstreamHead,
+  lanesAppId,
   requirePr,
   runId,
   dispatchedWorkflow,
@@ -105,6 +107,8 @@ async function gate({
       ...(runDispatcherUpstreams === undefined
         ? {}
         : { RUN_DISPATCHER_UPSTREAMS: runDispatcherUpstreams }),
+      ...(expectedUpstreamHead === undefined ? {} : { EXPECTED_UPSTREAM_HEAD: expectedUpstreamHead }),
+      ...(lanesAppId === undefined ? {} : { LANES_APP_ID: lanesAppId }),
       ...(requirePr === undefined ? {} : { REQUIRE_PR: requirePr }),
       ...(runId === undefined ? {} : { GITHUB_RUN_ID: runId }),
       ...(dispatchedWorkflow === undefined ? {} : { DISPATCHED_WORKFLOW: dispatchedWorkflow }),
@@ -1311,6 +1315,7 @@ const UPSTREAM = {
   head_branch: "feat/lane-probe",
   head_sha: HEAD_SHA,
   actor: LANES_BOT,
+  triggering_actor: LANES_BOT,
   repository: { id: 1, full_name: REPOSITORY },
   head_repository: { id: 1, full_name: REPOSITORY },
 };
@@ -1335,6 +1340,7 @@ const runDispatched = (options) =>
   dispatched({
     runDispatcherWorkflow: RUN_DISPATCHER_WORKFLOW,
     runDispatcherUpstreams: UPSTREAMS,
+    lanesAppId: String(LANES_BOT.id),
     ...options,
   });
 
@@ -1389,6 +1395,13 @@ for (const [label, overrides] of [
   ["the record names two dispatched runs", {
     artifacts: runRecord(`pr-feedback-dispatched-${UPSTREAM_RUN_ID}-${SELF_RUN_ID}-38155580530`),
   }],
+  ["the upstream was started by an unlisted account", {
+    upstream: { actor: { login: "stranger", id: 999, type: "User" }, triggering_actor: { login: "stranger", id: 999, type: "User" } },
+  }],
+  ["the upstream was re-run by an unlisted account", {
+    upstream: { triggering_actor: { login: "stranger", id: 999, type: "User" } },
+  }],
+  ["the upstream names no actor", { upstream: { actor: undefined } }],
 ]) {
   test(`workflow_run dispatcher: refused with untrusted-actor when ${label}`, async () => {
     const github = fakeGitHub(
@@ -1397,6 +1410,72 @@ for (const [label, overrides] of [
     assert.deepEqual(await runDispatched({ github }), STOPPED("untrusted-actor"));
   });
 }
+
+test("workflow_run dispatcher: refused when the lanes App id is not passed, since its review then vouches for nothing", async () => {
+  const github = fakeGitHub(runDispatcherRoutes());
+  assert.deepEqual(await runDispatched({ github, lanesAppId: "" }), STOPPED("untrusted-actor"));
+});
+
+test("workflow_run dispatcher: a review a listed human started proceeds", async () => {
+  const github = fakeGitHub(runDispatcherRoutes({ upstream: { actor: KYLE, triggering_actor: KYLE } }));
+  assert.deepEqual(await runDispatched({ github }), PROCEED);
+});
+
+// A job after pr-unblock's model job: the review was of the head that job was
+// gated on, and the PR has since moved by the lanes App's own signed commits.
+const GATED_SHA = "9".repeat(40);
+const afterRoute = `GET /repos/${REPOSITORY}/compare/${GATED_SHA}...${HEAD_SHA}`;
+const laneCommit = (overrides = {}) => ({
+  sha: "8".repeat(40),
+  author: LANES_BOT,
+  commit: { verification: { verified: true } },
+  ...overrides,
+});
+const range = (...commits) => ({ status: "ahead", total_commits: commits.length, commits });
+const afterRoutes = (compare, upstream = {}) =>
+  fakeGitHub({ ...runDispatcherRoutes({ upstream: { head_sha: GATED_SHA, ...upstream } }), [afterRoute]: compare });
+
+test("expected upstream head: verified lanes App commits after the gated head proceed", async () => {
+  const github = afterRoutes(range(laneCommit(), laneCommit({ sha: "7".repeat(40) })));
+  assert.deepEqual(await runDispatched({ github, expectedUpstreamHead: GATED_SHA }), PROCEED);
+  assert.ok(github.calls.includes(afterRoute));
+});
+
+test("expected upstream head: a PR head still at the gated head proceeds with no range read", async () => {
+  const github = fakeGitHub(runDispatcherRoutes());
+  assert.deepEqual(await runDispatched({ github, expectedUpstreamHead: HEAD_SHA }), PROCEED);
+});
+
+for (const [label, github] of [
+  ["a foreign commit follows the gated head", () => afterRoutes(range(laneCommit(), laneCommit({ author: KYLE })))],
+  ["an unsigned lanes App commit follows the gated head", () =>
+    afterRoutes(range(laneCommit({ commit: { verification: { verified: false } } })))],
+  ["a commit with no linked author follows the gated head", () => afterRoutes(range(laneCommit({ author: null })))],
+  ["GitHub truncated the range", () => afterRoutes({ ...range(laneCommit()), total_commits: 251 })],
+  ["the PR head diverged from the gated head", () => afterRoutes({ ...range(laneCommit()), status: "diverged" })],
+  ["the range read fails", () => afterRoutes(new GitHubError(404, "compare"))],
+  ["the upstream reviewed another head than the gated one", () =>
+    afterRoutes(range(laneCommit()), { head_sha: BASE_SHA })],
+  ["the gated head is not a SHA", () => afterRoutes(range(laneCommit()))],
+]) {
+  test(`expected upstream head: refused with untrusted-actor when ${label}`, async () => {
+    const expectedUpstreamHead = label === "the gated head is not a SHA" ? "main" : GATED_SHA;
+    assert.deepEqual(await runDispatched({ github: github(), expectedUpstreamHead }), STOPPED("untrusted-actor"));
+  });
+}
+
+test("expected upstream head: refused on a push dispatcher and on a human's own dispatch", async () => {
+  assert.deepEqual(
+    await runDispatched({ github: fakeGitHub(dispatcherRoutes()), expectedUpstreamHead: HEAD_SHA }),
+    STOPPED("untrusted-actor"),
+  );
+  const event = fixture("event-workflow-dispatch-dispatcher.json");
+  event.sender = KYLE;
+  assert.deepEqual(
+    await runDispatched({ github: fakeGitHub(runDispatcherRoutes()), event, expectedUpstreamHead: HEAD_SHA }),
+    STOPPED("untrusted-actor"),
+  );
+});
 
 test("workflow_run dispatcher: refused when the gate names no workflow_run dispatcher", async () => {
   const github = fakeGitHub(runDispatcherRoutes());

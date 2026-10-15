@@ -31,6 +31,7 @@ function fakeApi({
   comments = [marker("claude-review"), marker("claude-security-review")],
   threads = [thread([CLAUDE])],
   checkRuns = [],
+  workflowRuns = [],
   workflowRunId = 38779200001,
 } = {}) {
   const calls = { dispatch: [] };
@@ -66,6 +67,7 @@ function fakeApi({
     listIssueComments: async () => comments,
     listReviewThreads: async () => threads,
     listCheckRuns: async () => checkRuns,
+    listWorkflowRuns: async () => workflowRuns,
     async dispatchWorkflow(request) {
       calls.dispatch.push(request);
       return { workflowRunId };
@@ -208,6 +210,29 @@ test("main writes run-id and reads the upstream id from UPSTREAM_RUN_ID only", a
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("a second dispatcher for one head skips while the first one's run is queued or going", async () => {
+  for (const status of ["queued", "in_progress", "waiting", "pending"]) {
+    const api = fakeApi({ workflowRuns: [{ id: 1, status, display_title: "pr-unblock address-feedback #42" }] });
+    const { result, lines } = await decide(api);
+    assert.equal(result, null, status);
+    assert.deepEqual(api.calls.dispatch, []);
+    assert.match(lines.at(-1), /run 1 for address-feedback is not done yet/);
+  }
+});
+
+test("a finished run, another PR's run or another activity's run does not hold the dispatch", async () => {
+  const api = fakeApi({
+    workflowRuns: [
+      { id: 1, status: "completed", display_title: "pr-unblock address-feedback #42" },
+      { id: 2, status: "in_progress", display_title: "pr-unblock address-feedback #420" },
+      { id: 3, status: "queued", display_title: "pr-unblock resolve-conflicts #42" },
+    ],
+  });
+  const { result } = await decide(api);
+  assert.equal(result.number, 42);
+  assert.equal(api.calls.dispatch.length, 1);
 });
 
 test("main requires the lanes App id", async () => {

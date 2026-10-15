@@ -16,7 +16,10 @@
 //   github-actions[bot], name that head;
 // - an unresolved review thread exists whose every comment is the reviewer
 //   bot's;
-// - that head has no pr-unblock / address-feedback check run yet.
+// - that head has no pr-unblock / address-feedback check run yet, and no
+//   pr-unblock.yml address-feedback run for the PR is still queued or going.
+// The workflow runs it only when the pr-unblock lane's config holds the
+// address-feedback and publish-feedback slots.
 // The gate and the broker re-check the upstream run and the head; this script
 // only decides whether to spend a run.
 
@@ -67,6 +70,9 @@ export function hasBotThread(threads, reviewerId = DEFAULTS.reviewerId) {
       thread.comments.nodes.every((comment) => comment.author?.databaseId === reviewerId),
   );
 }
+
+// pr-unblock.yml's run-name, which names the activity and the PR.
+export const runTitle = (activity, number) => `pr-unblock ${activity} #${number}`;
 
 // A check run handles the head unless it is the gate's completed neutral skip
 // for an untrusted trigger.
@@ -143,6 +149,16 @@ export async function dispatchFeedback({
   const existing = await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId });
   if (existing.some(handles)) {
     return skip(`#${number}: head ${head} already has a ${settings.checkName} check run`);
+  }
+  // Both review lanes finish on one head, and their dispatchers queue in one
+  // concurrency group. The first one's run posts no check until it ends, so
+  // the second skips while a run of this activity for this PR is not done.
+  const title = runTitle(settings.activity, number);
+  const active = (await api.listWorkflowRuns(settings.workflow)).filter(
+    (run) => run.status !== "completed" && run.display_title === title,
+  );
+  if (active.length > 0) {
+    return skip(`#${number}: ${settings.workflow} run ${active[0].id} for ${settings.activity} is not done yet`);
   }
   const { workflowRunId } = await api.dispatchWorkflow({
     workflow: settings.workflow,
@@ -242,6 +258,11 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
         per_page: "100",
       });
       return (await request(`${repo}/commits/${sha}/check-runs?${query}`)).check_runs;
+    },
+    // The newest workflow_dispatch runs: a run still queued or going is
+    // among them, since a dispatcher waits at most minutes behind it.
+    async listWorkflowRuns(workflow) {
+      return (await request(`${repo}/actions/workflows/${workflow}/runs?event=workflow_dispatch&per_page=100`)).workflow_runs ?? [];
     },
     async dispatchWorkflow({ workflow, ref, inputs }) {
       const result = await request(`${repo}/actions/workflows/${workflow}/dispatches`, "POST", {

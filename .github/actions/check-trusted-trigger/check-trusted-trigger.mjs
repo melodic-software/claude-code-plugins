@@ -288,8 +288,9 @@ async function requireRecorded({ github, repository, dispatcherRunId, runId, via
 // WINDOW_MS after its start. A dispatcher started by workflow_run must be
 // runDispatcherWorkflow instead, and no actor of it is checked: the upstream
 // run its record names must be one of runDispatcherUpstreams, run on
-// pull_request in this repository at the PR's current head. Returns this run's
-// own record.
+// pull_request in this repository, started (and any re-run) by the lanes App
+// or a listed human, at the PR's current head or at expectedUpstreamHead
+// (upstreamHeadHolds). Returns this run's own record.
 async function verifyDispatcher({
   github,
   repository,
@@ -301,6 +302,8 @@ async function verifyDispatcher({
   dispatcherWorkflow,
   runDispatcherWorkflow,
   runDispatcherUpstreams,
+  expectedUpstreamHead,
+  lanesAppId,
   dispatchedWorkflow,
   runId,
   sleep,
@@ -372,21 +375,60 @@ async function verifyDispatcher({
   if (comparison.status !== "ahead" && comparison.status !== "identical") {
     throw new Stop("untrusted-actor");
   }
+  if (expectedUpstreamHead !== "" && (!viaRun || !SHA.test(expectedUpstreamHead))) {
+    throw new Stop("untrusted-actor");
+  }
   const found = await requireRecorded({ github, repository, dispatcherRunId, runId, viaRun, sleep });
   if (viaRun) {
     const upstream = await readOrRefuse(github, `/repos/${repository}/actions/runs/${found}`);
+    // The run the review reacted to was started, and any re-run triggered, by
+    // the lanes App or a listed human.
+    const vouches = (user) =>
+      Number.isInteger(user?.id) && (user.id === lanesAppId || isListedHuman(user));
     const reviewed =
       String(upstream.id) === found &&
       runDispatcherUpstreams.includes(upstream.path) &&
       upstream.event === "pull_request" &&
       upstream.repository?.full_name === repository &&
       upstream.head_repository?.full_name === repository &&
-      upstream.head_sha === pull.head.sha;
+      vouches(upstream.actor) &&
+      vouches(upstream.triggering_actor) &&
+      (await upstreamHeadHolds({ github, repository, upstreamSha: upstream.head_sha, pullSha: pull.head.sha, expectedUpstreamHead, lanesAppId }));
     if (!reviewed) {
       throw new Stop("untrusted-actor");
     }
   }
   return own;
+}
+
+// A job after pr-unblock's model job passes the head that job was gated on:
+// the review must be of it, and every commit from it to the PR's current head
+// a signature-verified commit the lanes App authored (that job's own push). A
+// human, foreign, unsigned or truncated range refuses. Without one, the
+// review must be of the PR's current head.
+async function upstreamHeadHolds({ github, repository, upstreamSha, pullSha, expectedUpstreamHead, lanesAppId }) {
+  if (expectedUpstreamHead === "") {
+    return upstreamSha === pullSha;
+  }
+  if (upstreamSha !== expectedUpstreamHead) {
+    return false;
+  }
+  if (expectedUpstreamHead === pullSha) {
+    return true;
+  }
+  const range = await readOrRefuse(github, `/repos/${repository}/compare/${expectedUpstreamHead}...${pullSha}`);
+  const commits = Array.isArray(range.commits) ? range.commits : [];
+  return (
+    range.status === "ahead" &&
+    commits.length > 0 &&
+    range.total_commits === commits.length &&
+    commits.every(
+      (commit) =>
+        Number.isInteger(commit?.author?.id) &&
+        commit.author.id === lanesAppId &&
+        commit?.commit?.verification?.verified === true,
+    )
+  );
 }
 
 // The re-runner of a dispatched run, read by id from this run's own record:
@@ -435,6 +477,8 @@ export async function evaluateTrigger({
   dispatcherWorkflow = "",
   runDispatcherWorkflow = "",
   runDispatcherUpstreams = [],
+  expectedUpstreamHead = "",
+  lanesAppId = null,
   requirePr = "true",
   requireKind = "",
   runId = "",
@@ -506,11 +550,15 @@ export async function evaluateTrigger({
       dispatcherWorkflow,
       runDispatcherWorkflow,
       runDispatcherUpstreams,
+      expectedUpstreamHead,
+      lanesAppId,
       dispatchedWorkflow,
       runId,
       sleep,
     });
     checkDispatchedRerunner(list, deniedIds, own);
+  } else if (expectedUpstreamHead !== "") {
+    throw new Stop("untrusted-actor");
   } else {
     if (!actors.every((actor) => isListed(ids, actor))) {
       throw new Stop("untrusted-actor");
@@ -570,6 +618,8 @@ export async function main({ env = process.env, github, sleep = defaultSleep } =
       dispatcherWorkflow: env.DISPATCHER_WORKFLOW ?? "",
       runDispatcherWorkflow: env.RUN_DISPATCHER_WORKFLOW ?? "",
       runDispatcherUpstreams: (env.RUN_DISPATCHER_UPSTREAMS ?? "").split(/\s+/).filter(Boolean),
+      expectedUpstreamHead: env.EXPECTED_UPSTREAM_HEAD ?? "",
+      lanesAppId: /^[1-9][0-9]{0,14}$/.test(env.LANES_APP_ID ?? "") ? Number(env.LANES_APP_ID) : null,
       requirePr: env.REQUIRE_PR ?? "true",
       requireKind: env.REQUIRE_KIND ?? "",
       dispatchedWorkflow: env.DISPATCHED_WORKFLOW ?? "",

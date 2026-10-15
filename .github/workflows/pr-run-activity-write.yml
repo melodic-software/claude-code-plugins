@@ -96,6 +96,15 @@ on:
         required: false
         type: string
         default: ""
+      expected-upstream-head:
+        description: >-
+          For a job after pr-unblock's model job on a pr-feedback-dispatch.yml
+          dispatch, that job's head-sha output: the gate and the broker accept
+          the review of that head when only the lanes App's verified commits
+          follow it. Empty otherwise.
+        required: false
+        type: string
+        default: ""
     secrets:
       claude-code-oauth-token:
         description: Claude Code OAuth token for skill activities.
@@ -111,6 +120,9 @@ on:
           feedback-invalid; empty otherwise. Set only by runner steps and the
           base's reply script.
         value: ${{ jobs.run.outputs.escalation-reason }}
+      head-sha:
+        description: The PR head the gate passed, before any push of this run. Set only by runner steps.
+        value: ${{ jobs.run.outputs.head-sha }}
       feedback-round:
         description: >-
           `true` once a review-threads skill ran, so the round's replies were
@@ -293,6 +305,10 @@ jobs:
           run-dispatcher-upstreams: >-
             .github/workflows/pr-review-hosted.yml
             .github/workflows/pr-review-security-hosted.yml
+          # A job after the model job: the review was of the head that job
+          # gated, and only the lanes App's signed commits may follow it.
+          expected-upstream-head: ${{ inputs.expected-upstream-head }}
+          lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           dispatched-workflow: .github/workflows/pr-unblock.yml
           # Issue mode reads no PR: the account that applied the label, and
           # any re-runner, must be listed as a human.
@@ -407,6 +423,7 @@ jobs:
           pr-number: ${{ steps.gate.outputs.pr-number }}
           issue-number: ${{ inputs.issue-number }}
           dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+          expected-upstream-head: ${{ inputs.expected-upstream-head }}
           effect: ${{ steps.config.outputs.effect }}
           contents: ${{ steps.config.outputs.contents }}
           pull-requests: ${{ steps.config.outputs.pull-requests }}

@@ -22,6 +22,8 @@ condition 1 and the actor and author parts of condition 2).
 | `dispatcher-workflow` | empty | The workflow path that run must have; empty stops every dispatcher-sent run |
 | `run-dispatcher-workflow` | empty | The workflow path a dispatcher run started by `workflow_run` must have; empty stops every such run |
 | `run-dispatcher-upstreams` | empty | Space-separated workflow paths that dispatcher's upstream run may have; empty stops every such run |
+| `expected-upstream-head` | empty | For a job after pr-unblock's model job, the head that job gated; set on any path but a `workflow_run` dispatcher, it stops the run |
+| `lanes-app-id` | empty | The lanes App bot's user id: an upstream it started vouches, and only its commits may follow `expected-upstream-head` |
 | `dispatched-workflow` | empty | The workflow path this dispatched run must have; empty stops every dispatcher-sent run |
 | `require-pr` | `true` | `false` checks only the actors and reads no PR |
 | `require-kind` | empty | `human` narrows the actor-only checks to actors listed as `kind: human` |
@@ -72,7 +74,11 @@ condition 1 and the actor and author parts of condition 2).
     ids;
   - the upstream run, read through `GET /actions/runs/{upstream run id}`, has that `id`, a `path`
     listed in `run-dispatcher-upstreams`, `event` `pull_request`, `repository` and
-    `head_repository` both this repository, and `head_sha` equal to the PR's current head.
+    `head_repository` both this repository, an `actor` and `triggering_actor` that are the lanes
+    App (`lanes-app-id`) or a listed human, and `head_sha` equal to the PR's current head. With
+    `expected-upstream-head`, `head_sha` must equal it instead, and every commit of
+    `GET /compare/<it>...<PR head>` (status `ahead`, untruncated) must have the lanes App as
+    `author` and a verified signature; a human, foreign or unsigned commit stops the run.
 
   The record can land after this run's gate starts, so the gate waits for it. Each read takes the
   dispatcher run's `status` first, then its artifacts, so an upload between the two reads is not

@@ -12,7 +12,12 @@ activity rules forbid `address-feedback` every effect that posts and `publish-fe
 effect that pushes. `pr-feedback-dispatch.yml`
 dispatches `address-feedback` from `workflow_run` when both review lanes have reviewed a lanes App
 PR's current head and a reviewer-bot thread is open; the trigger gate and the broker accept its
-runs through the review run their record names. No effect grants both `contents: write` and
+runs through the review run their record names, which a lanes App push or a listed human must have
+started. The jobs after the model job pass its gated head as `expected-upstream-head`, so the gate
+and the broker accept the review of that head when only signature-verified lanes App commits
+follow it. The dispatcher skips while a `pr-unblock address-feedback #<n>` run (the new
+`run-name`) is queued or going, and dispatches nothing until the lane config holds both slots. The
+write file gains the `expected-upstream-head` input and `head-sha` output. No effect grants both `contents: write` and
 `pull-requests: write` but `merge`. No live activity sets either leaf yet. `version` stays 1.
 
 ## 1.16.0 - 2026-10-15

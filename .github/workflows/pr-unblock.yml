@@ -14,6 +14,10 @@ name: pr-unblock
 # trusts the default branch tip, since a conflicting PR's base SHA is stale and
 # the dispatchers run from the tip.
 
+# pr-feedback-dispatch.mjs reads this title to skip a second dispatch while
+# one for the same activity and PR is still queued or going.
+run-name: pr-unblock ${{ inputs.activity }} #${{ inputs.pr-number }}
+
 on:
   workflow_dispatch:
     inputs:
@@ -114,6 +118,12 @@ jobs:
       trusted-base: default-tip
       review-replies: true
       review-run-sha256: ${{ needs.address-feedback.outputs.feedback-run-sha256 }}
+      # The model job's push moved the PR head off the reviewed one; the gate
+      # and the broker accept the review of the head that job gated when only
+      # the lanes App's verified commits follow it. A human dispatch has no
+      # dispatcher and passes none.
+      expected-upstream-head: >-
+        ${{ inputs.dispatcher-run-id != '' && needs.address-feedback.outputs.head-sha || '' }}
 
   report-escalation:
     needs: [resolve-conflicts, address-feedback, publish-feedback]
@@ -144,4 +154,7 @@ jobs:
         || needs.address-feedback.outputs.escalation-reason
         || needs.publish-feedback.outputs.escalation-reason }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      expected-upstream-head: >-
+        ${{ inputs.activity == 'address-feedback' && inputs.dispatcher-run-id != ''
+        && needs.address-feedback.outputs.head-sha || '' }}
       trusted-base: default-tip

@@ -67,9 +67,32 @@ jobs:
         run: |
           echo "::notice::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); nothing dispatched"
 
+      # Nothing is dispatched until the base config gives the pr-unblock lane
+      # both address-feedback slots: until then a dispatched run would only
+      # end at resolve-config.
+      - name: Read the pr-unblock lane's slots
+        id: lane
+        if: steps.kill.outputs.proceed == 'true'
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: pr-unblock
+          base-path: .base
+          output-path: ${{ runner.temp }}/pr-unblock-lane.json
+
+      - name: Report a lane without the address-feedback slots
+        if: >-
+          steps.lane.outcome == 'success'
+          && !(steps.lane.outputs.enabled == 'true'
+          && contains(fromJSON(steps.lane.outputs.slots), 'address-feedback')
+          && contains(fromJSON(steps.lane.outputs.slots), 'publish-feedback'))
+        run: echo "::notice::the pr-unblock lane has no enabled address-feedback and publish-feedback slots; nothing dispatched"
+
       - name: Dispatch address-feedback
         id: dispatch
-        if: steps.kill.outputs.proceed == 'true'
+        if: >-
+          steps.lane.outcome == 'success' && steps.lane.outputs.enabled == 'true'
+          && contains(fromJSON(steps.lane.outputs.slots), 'address-feedback')
+          && contains(fromJSON(steps.lane.outputs.slots), 'publish-feedback')
         env:
           GITHUB_TOKEN: ${{ github.token }}
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}

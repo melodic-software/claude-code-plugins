@@ -62,8 +62,10 @@ permissions, and passes no App key.
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the model job's replies |
 | `review-run-sha256` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-sha256` output |
+| `expected-upstream-head` | `''` | Write file only: for a job after pr-unblock's model job on a `pr-feedback-dispatch.yml` dispatch, that job's `head-sha` output, passed to the gate and the broker (step 3) |
 
-The write file has three `workflow_call` outputs; `feedback-run-sha256` is described with
+The write file has four `workflow_call` outputs. `head-sha` is the PR head the gate passed, before
+any push of the run; `feedback-run-sha256` is described with
 [`prepare: review-threads`](#prepare-review-threads). `escalation-reason` is empty, or why a
 [`prepare: merge-base`](#prepare-merge-base) activity, a `prepare: review-threads` activity before
 any model turn, or its reply script handed the PR to a person. `feedback-round` is `true` once a
@@ -161,8 +163,11 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `run-dispatcher-workflow: .github/workflows/pr-feedback-dispatch.yml` with the two review
    workflows as `run-dispatcher-upstreams`: a run of that dispatcher, started by `workflow_run`,
    vouches with no actor check when its `pr-feedback-dispatched-<upstream id>-<this run's id>`
-   artifact names a `pull_request` run of one of those workflows in this repository at the PR's
-   current head. The gate waits up to 2 minutes for that record while the
+   artifact names a `pull_request` run of one of those workflows in this repository, started by
+   the lanes App or a listed human, at the PR's current head. A job after pr-unblock's model job
+   passes that job's `head-sha` as `expected-upstream-head`: the review must then be of that head,
+   and every commit from it to the PR's current head a signature-verified lanes App commit. The
+   gate waits up to 2 minutes for that record while the
    dispatcher run is still going. The checks are in the gate's README. Only
    with a `dispatcher-run-id` does the skill step pass claude-code-action
    `allowed_bots: github-actions`, which otherwise refuses a run a bot started.
@@ -685,7 +690,9 @@ with no wait, since the trusted-trigger gate in step 3 has already waited for it
 `pr-feedback-dispatch.yml` run started by `workflow_run` passes the same checks except the actor
 check, with a `pr-feedback-dispatched-<upstream id>-<this run's id>` artifact whose upstream run is
 a `pull_request` run of `pr-review-hosted.yml` or `pr-review-security-hosted.yml` in this
-repository at the PR's current head. The client
+repository, started (and any re-run) by the lanes bot or a listed human, at the PR's current head,
+or, with `expected_upstream_head` in the body, at that head when every commit from it to the PR's
+current head is a signature-verified lanes bot commit. The client
 sends it once and never retries: the broker
 reserves the job's `check_run_id` when it mints, so a second request is denied `already-minted`,
 and a 200 lost in transit leaves a token nobody revokes until it expires within the hour.
