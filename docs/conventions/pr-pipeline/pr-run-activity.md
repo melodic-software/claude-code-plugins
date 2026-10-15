@@ -679,7 +679,7 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
   `work-outcome.json` and the runner's `lane.json` (the kept branch, or empty) are uploaded as the
   `work-outcome-<n>` artifact, and the job output `issue-run-started` is `true` once the token
   was minted.
-- `report-outcome` downloads that artifact. On `done` it opens a draft PR from the branch whose
+- `report-outcome` downloads that artifact. On `done` it opens a ready (not draft) PR from the branch whose
   body starts `Closes #<n>`, puts no label on it (the work class stays on the issue), and adds
   `Hold: a human merges this` for scoped, structural or untrusted-provenance work, for a diff that
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
@@ -688,7 +688,14 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
   squash-merging the PR closes only `#<n>`. On `pushback` or `stopped`, and when the outcome file is missing
   or invalid, it labels the issue with the human-gated role label and comments why; pushback also
   removes `agent-ready`.
-- No check run is posted: there is no PR head. The run's own result is the record.
+- No check run is posted: there is no PR head. The lane's `report-statuses` job (in
+  `work-resolve-issue.yml`, the lane's only `statuses: write`, on its own `GITHUB_TOKEN`) posts a
+  `pipeline/<activity>` commit status on the lane branch's head for `resolve-issue` and
+  `report-outcome` (from their job results) and for each prep step the run reports in
+  `work-outcome.json`'s `steps` (`review`, `verify`, `checks`). On `done`, a prep step the run
+  never reported posts `error`; one it reported `skipped` posts nothing. No step is skipped on a
+  `pipeline/*` success, and no required check names one, but a `failure` or `error` status
+  counts as a failing check, so it holds the pr-merge gate (fail closed). Descriptions are fixed text.
 
 ## Runs that post no check
 
