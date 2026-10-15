@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## 1.16.0 - 2026-10-15
+
+"The pr-merge lane" reads promotion evidence: when there is a candidate, `pr-merge.yml` runs
+`resolve-promotion-evidence.mjs --inline` once from `main` against `promotion/binding.json`, and the
+gate merges a PR only when its class's cell (`C2-auto-merge`, `C3-auto-merge`) reads promoted with
+no fail-closed reason. The binding is absent, so nothing is promoted until the owner ratifies one;
+`promotion/README.md` gives the 85-day re-ratify cadence. `version` stays 1.
+
 ## 1.15.0 - 2026-10-14
 
 Issue mode: `report-outcome` opens the PR ready, not draft, since the skill's CI mode now runs the

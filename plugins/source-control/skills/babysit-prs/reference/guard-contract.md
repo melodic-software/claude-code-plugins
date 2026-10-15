@@ -33,6 +33,7 @@ This table scopes `mutation` to DOMAIN state -- GitHub, the queue state file, wo
 | `skills/babysit-prs/scripts/babysit_findings.py` | -- | read-only | nothing | n/a | Pure classification over supplied input; no write of any kind. | -- |
 | `skills/babysit-prs/scripts/pr_review_threads.py` | `scripts/source-control-review-threads` | read-only | nothing | n/a | The pull-request skill's readiness thread gate. It reads unresolved review threads and reports THREADS_OK / THREADS_BLOCKED / THREADS_UNPROVEN; it writes no file and performs no GitHub write. | -- |
 | `scripts/babysit-readiness-gate.sh` | -- | read-only | nothing | n/a | The lane's one entry point outside the skill's own scripts directory, invoked by name from SKILL.md. It counts findings and classification rows over fetched comments and reports READINESS_OK / READINESS_BLOCKED; it writes no file and performs no GitHub write. | -- |
+| `skills/babysit-prs/scripts/babysit_merge_policy.py` | -- | read-only | nothing | n/a | Its one command, `lane-window`, reads the demotion records and prints whether one holds and the promotion window start for pr-merge.yml; it writes no file and performs no GitHub write. | -- |
 
 ## Refusals: guards that fire on argument shape alone
 

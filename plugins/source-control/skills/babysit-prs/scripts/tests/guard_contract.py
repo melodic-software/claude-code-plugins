@@ -1534,6 +1534,19 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         ),
         backed_by=(),
     ),
+    EntryPoint(
+        path="skills/babysit-prs/scripts/babysit_merge_policy.py",
+        wrapper=None,
+        mutation=READ_ONLY,
+        mutates_what="nothing",
+        gate="n/a",
+        claim=(
+            "Its one command, `lane-window`, reads the demotion records and prints "
+            "whether one holds and the promotion window start for pr-merge.yml; it "
+            "writes no file and performs no GitHub write."
+        ),
+        backed_by=(),
+    ),
 )
 
 

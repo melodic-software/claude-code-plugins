@@ -400,8 +400,14 @@ except six:
   the issue body after it. Another bot's events are ignored, since a workflow on a pushed branch
   labels as `github-actions[bot]`. A class label anyone adds can still only make the class
   stricter.
-- **Promotion.** No promotion evidence is read. The lane starts with `merge.report-only: true`;
-  the owner reads its reports and sets `false` to let it merge.
+- **Promotion.** A pull request merges only when its class's one cell (`C2-auto-merge` for C2,
+  `C3-auto-merge` for C3) reads effective `promoted` with no fail-closed reason. When there is at
+  least one candidate, the workflow runs `resolve-promotion-evidence.mjs --inline` once from
+  `main` against the binding in [`promotion/`](promotion/README.md) and passes the result as
+  `--lane-promotion-evidence`. No result, a fail-closed reason, an unpromoted cell, or a
+  demotion record newer than the result refuses (`promotion-unqualified:<reason>`). The lane also
+  starts with `merge.report-only: true`; the owner reads its reports and sets `false` to let it
+  merge.
 - **Kill switches.** The lane token cannot read Actions variables, so the workflow checks the
   switches itself and passes `--lane-kill-switch proceed`. A missing value or any other value
   stops the lane. The value is read once per run, and a stopped run cannot dequeue: to stop at
