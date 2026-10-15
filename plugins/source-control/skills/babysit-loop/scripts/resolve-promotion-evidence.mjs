@@ -44,15 +44,16 @@
 //     --probe-evidence-root <dir> --lane-login <login> [--lane-login ...] --gate-check <name> [--gate-check ...]
 //     [--credential-roots <path,...>] [--missed-blocking-label <name>] [--window-start <ISO>]
 // It runs publish-promotion-evidence.mjs collect() (its report-mode GitHub reads, through `gh` and
-// GH_TOKEN) from the earliest ratified_at of a cell the binding bounds promoted through now, and
-// pipes the events to the checker as `--evidence -`. It prints the same JSON and exits 0, fail-closed
+// GH_TOKEN) from 5 days before the earliest ratified_at of a cell the binding bounds promoted
+// (LOOKBACK_DAYS) through now, and pipes the events to the checker as `--evidence -`. It prints the same JSON and exits 0, fail-closed
 // included, with source "github:<owner/name>" and the arguments under options (scope "argument").
 // The arguments are trusted as given: its caller is a workflow running from the default branch
 // (reference/promotion-evidence-resolution.md, "Inline mode"), so none of the settings, checkout or
 // writability rules above apply. It also fails closed on a missing or malformed argument; a binding
 // with no promoted cell or a promoted cell with no ISO 8601 ratified_at ("epoch-start-missing:");
-// an epoch start more than 85 days before now ("epoch-start-expired:"); and any GitHub read that
-// fails ("github-read-failed:").
+// an epoch start more than 85 days before now ("epoch-start-expired:"); a --repo other than a set
+// GITHUB_REPOSITORY ("repo-mismatch:"); a publisher that cannot be imported
+// ("publisher-unavailable:"); and any GitHub read that fails ("github-read-failed:").
 
 import { spawnSync } from "node:child_process";
 import { accessSync, constants, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -344,6 +345,11 @@ function emitVerdict(run) {
 // (reference/promotion-evidence-resolution.md, "Inline mode"); 5 days of margin.
 const EPOCH_MAX_AGE_DAYS = 85;
 const DAY_MS = 86_400_000;
+// Merges are read from this far before the epoch, so a merge made just before it whose post-merge
+// gate fails inside it still yields that event; the checker ignores the pre-epoch events this
+// also finds. The publisher's 6-hour dispatch deadline is no bound here: a red run counts until
+// the merge is verified. The margin keeps every read within the 90 days.
+const LOOKBACK_DAYS = 90 - EPOCH_MAX_AGE_DAYS;
 
 // The earliest ratified_at among the binding's cells bound promoted: the instant from which every
 // contrary event must still be readable.
@@ -391,6 +397,9 @@ export async function inline({ argv = process.argv.slice(3), gh, now = Date.now(
     emit(null, "usage: --inline needs --repo <owner/name>, --binding, --checker, --probe-evidence-root, and at least one --lane-login and --gate-check");
   }
   source = `github:${values.repo}`;
+  // In Actions, a repository other than the run's own would read no merges and so no demotions.
+  const own = process.env.GITHUB_REPOSITORY;
+  if (own && values.repo !== own) emit(source, `repo-mismatch: --repo ${values.repo} is not GITHUB_REPOSITORY ${own}`);
   const supplied = {
     promotion_evidence_binding: values.binding,
     promotion_evidence_root: values["probe-evidence-root"],
@@ -417,12 +426,17 @@ export async function inline({ argv = process.argv.slice(3), gh, now = Date.now(
   const at = values["window-start"];
   if (at !== undefined && !isStrictIso(at)) emit(source, `--window-start ${JSON.stringify(at)} is not an ISO 8601 date-time with an offset`);
 
-  const { collect } = await import("./publish-promotion-evidence.mjs");
+  let collect;
+  try {
+    ({ collect } = await import("./publish-promotion-evidence.mjs"));
+  } catch (error) {
+    emit(source, `publisher-unavailable: ${error.message}`);
+  }
   let events;
   try {
     ({ events } = collect({
       repo: values.repo,
-      since: new Date(epoch).toISOString(),
+      since: new Date(epoch - LOOKBACK_DAYS * DAY_MS).toISOString(),
       through: new Date(now).toISOString(),
       laneLogins: values["lane-login"],
       gateChecks: values["gate-check"],

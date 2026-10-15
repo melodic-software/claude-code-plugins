@@ -70,7 +70,9 @@ A hosted runner has no operator settings and no host an administrator owns, so t
 runs `scripts/resolve-promotion-evidence.mjs --inline` (arguments and reasons in its header
 comment). Each call runs the publisher's report-mode GitHub reads in memory and pipes the events to
 the checker as `--evidence -`: no events file, sidecar or artifact, so nothing can go stale between
-publish and read. It prints the file mode's JSON.
+publish and read. It reads merges from 5 days before the epoch, so a merge just before it whose
+post-merge gate fails inside it still demotes; the checker ignores the pre-epoch events. It refuses
+a `--repo` other than the run's `GITHUB_REPOSITORY`. It prints the file mode's JSON.
 
 Trust model: code at `refs/heads/main` plus the GitHub API. The helper, publisher, checker, binding
 and probe evidence root all come from the job's checkout of the default-branch tip, and the events

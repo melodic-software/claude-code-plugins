@@ -293,7 +293,7 @@ function bindingFile(ratifiedAt, name = `binding-${++stubCount}.json`) {
 
 // Runs inline mode from the install copy through a wrapper that injects the clock and
 // the `gh` seam: the recorded GitHub over `fixture`, or a `gh api` that fails with `failWith`.
-function runInline({ binding, fixture = {}, failWith = null, now = NOW, extra = [] }) {
+function runInline({ binding, fixture = {}, failWith = null, now = NOW, extra = [], ghRepo = REPO }) {
   seamCount += 1;
   const wrapper = join(installScripts, `inline-seam-${seamCount}.mjs`);
   writeFileSync(
@@ -307,7 +307,7 @@ await inline({ argv: process.argv.slice(2), gh, now: Date.parse(${JSON.stringify
 `,
   );
   const argv = ["--repo", REPO, "--binding", binding, "--checker", ECHO, "--probe-evidence-root", surfaces.root, "--lane-login", LANE, ...GATE.flatMap((g) => ["--gate-check", g]), ...extra];
-  const run = spawnSync(process.execPath, [wrapper, ...argv], { encoding: "utf8", cwd: checkout });
+  const run = spawnSync(process.execPath, [wrapper, ...argv], { encoding: "utf8", cwd: checkout, env: { ...process.env, GITHUB_REPOSITORY: ghRepo } });
   assert.equal(run.status, 0, run.stderr);
   return JSON.parse(run.stdout);
 }
@@ -369,6 +369,35 @@ test("inline mode from the CLI refuses when gh cannot run, and on a usage error"
   assertFailClosed(JSON.parse(noGh.stdout), /^github-read-failed: /);
   const usage = spawnSync(process.execPath, [HELPER, "--inline", "--repo", REPO], { encoding: "utf8", cwd: checkout });
   assertFailClosed(JSON.parse(usage.stdout), /^usage: /);
+});
+
+test("inline mode refuses a --repo other than GITHUB_REPOSITORY", () => {
+  const result = runInline({ binding: bindingFile(daysBefore(NOW, 10)), ghRepo: "melodic-software/other" });
+  assertFailClosed(result, /^repo-mismatch: /);
+});
+
+test("inline mode fails closed with JSON when the publisher cannot be imported", () => {
+  const lone = mkdtempSync(join(base, "no-publisher-"));
+  for (const name of ["resolve-promotion-evidence.mjs", "operator-options.mjs"]) copyFileSync(join(HERE, name), join(lone, name));
+  const binding = bindingFile(new Date(Date.now() - 86_400_000).toISOString());
+  const argv = ["--inline", "--repo", REPO, "--binding", binding, "--checker", ECHO, "--probe-evidence-root", surfaces.root, "--lane-login", LANE, "--gate-check", GATE[0]];
+  const run = spawnSync(process.execPath, [join(lone, "resolve-promotion-evidence.mjs"), ...argv], { encoding: "utf8", cwd: checkout, env: { PATH: process.env.PATH } });
+  assert.equal(run.status, 0, run.stderr);
+  assertFailClosed(JSON.parse(run.stdout), /^publisher-unavailable: /);
+});
+
+test("inline mode counts an in-epoch gate failure of a merge made just before the epoch", () => {
+  // Merged an hour before ratification; the red full run containing it lands after.
+  const epoch = "2026-09-01T00:00:00Z";
+  const fixture = {
+    pulls: [pr(1302, "2026-08-31T23:00:00Z", { labels: [MECHANICAL] })],
+    history: [shaOf(1302), TIP],
+    workflowRuns: { [FULL]: [wfRun(2, "schedule", TIP, "2026-09-01T01:00:00Z", { conclusion: "failure" })] },
+  };
+  const result = runInline({ binding: bindingFile(epoch), fixture });
+  assert.equal(result.failClosedReason, null);
+  assert.equal(result.cells["C2-auto-merge"].effective, "unpromoted");
+  assert.match(result.cells["C2-auto-merge"].line, /gate-failure at 2026-09-01T01:08:00Z/);
 });
 
 test("inline --window-start demotes every cell at that instant", () => {
