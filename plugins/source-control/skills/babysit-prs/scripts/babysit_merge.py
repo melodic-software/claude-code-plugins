@@ -2104,12 +2104,12 @@ ENQUEUE_MUTATION = (
 def enqueue_pull_request(repo: str, number: int, *, sha: str) -> dict[str, Any]:
     """Add the PR to its base's merge queue at the vetted head.
 
-    GraphQL `enqueuePullRequest`, not REST `merge-async` with
-    `merge_action=merge_queue`: GitHub refused the latter for an App
-    installation token ("Enqueuer is not authorized to merge") while the
-    mutation enqueues for the same permissions. `expectedHeadOid` is the
-    server-side pin, as `sha` is for `merge-async`. Returns the `merge` record;
-    `success` only when GitHub answers with the new queue entry.
+    GraphQL `enqueuePullRequest`, which enqueues for an App installation token
+    where REST `merge-async` with `merge_action=merge_queue` answers "Enqueuer
+    is not authorized to merge". `expectedHeadOid` is the server-side pin.
+    Returns the `merge` record; `success` only when GitHub answers with the new
+    queue entry. The call returns before the queue lands the PR: a later run
+    reads the recorded entry back as merged and dispatches the verifying run.
     """
     record: dict[str, Any] = {
         "attempted": True,
@@ -3162,19 +3162,6 @@ def unattended_enqueue(
     result["enqueued"] = record["success"] and record["status"] == "enqueued"
     if pending_path is not None:
         _record_pending(pending_path, repo, number, record, pin, result)
-    if record["success"] and record["status"] == "merged":
-        # The queue landed it before the poll ended and `async_merge` read it
-        # back at the pin: dispatch the verifying full run now, as a later run
-        # does after its read-back.
-        result["merged"] = True
-        try:
-            postmerge.dispatch_full_run(repo, ref=branch)
-            result["unattended"]["dispatched"] = True
-        except postmerge.PostMergeWriteError as exc:
-            result["unattended"]["dispatched"] = False
-            result["unattended"]["dispatchError"] = str(exc)
-        print(json.dumps(result, indent=2))
-        return 0
     if not result["enqueued"]:
         print(json.dumps(result, indent=2))
         return 10

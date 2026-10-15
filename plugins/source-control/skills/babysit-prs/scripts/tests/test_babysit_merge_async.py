@@ -508,9 +508,8 @@ class UnpinnedMergeStillPinsTheEvaluatedHead(AsyncMergeHarness):
 
 
 class MergeQueueIsEnqueued(AsyncMergeHarness):
-    """A merge-queue base is enqueued through GraphQL `enqueuePullRequest`, not
-    the REST `merge-async` call GitHub refused an App installation token with
-    "Enqueuer is not authorized to merge"."""
+    """A merge-queue base is enqueued through GraphQL `enqueuePullRequest`,
+    never REST `merge-async`."""
 
     def test_queue_branch_enqueues_through_graphql_at_the_vetted_head(self) -> None:
         code = self._run(_proc(_enqueued(position=2)), merge_action="merge_queue")
