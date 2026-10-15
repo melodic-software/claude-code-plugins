@@ -58,8 +58,8 @@ permissions:
 # cancels the older run, so per-push reviews do not stack. A skipped actor's
 # same-PR event can cancel an in-flight review through this group; that is
 # accepted: with `synchronize`, the cancelled review was of a head the new
-# event has already superseded. This value is per-LANE and deliberate: the
-# security caller does not copy it (see its own concurrency note).
+# event has already superseded. The security caller cancels superseded runs
+# the same way.
 #
 # The group is the `${{ github.workflow }}`-prefixed canonical form the
 # standards `concurrency-policy` component requires, so a target enforcing
