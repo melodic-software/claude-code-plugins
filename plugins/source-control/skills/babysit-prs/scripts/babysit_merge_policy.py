@@ -2159,6 +2159,61 @@ def read_promotion(
     return Promotion({c: str(v) for c, v in cells.items()}, None)
 
 
+# The one cell each work class needs promoted to merge in the pr-merge lane.
+# Other classes have none and never merge there.
+LANE_CLASS_CELL = {"C2": "C2-auto-merge", "C3": "C3-auto-merge"}
+
+
+def read_promotion_inline(
+    evidence: Path | None,
+    *,
+    window_start: datetime | None,
+    evidence_window_start: str | None,
+) -> Promotion:
+    """The pr-merge lane's promotion evidence: the JSON that
+    `resolve-promotion-evidence.mjs --inline` printed into `evidence` once
+    for the whole run, with `evidence_window_start` as its `--window-start`
+    (empty for none). That must be the newest demotion record's creation
+    the gate itself read (`window_start`), so a record filed after the
+    evidence was read refuses. No file, no JSON object, or a
+    `failClosedReason` is unpromoted, with the reason."""
+    expected = _window_start(window_start) if window_start is not None else ""
+    if (evidence_window_start or "") != expected:
+        return Promotion(
+            None,
+            f"window-start-mismatch:evidence {evidence_window_start or 'none'}"
+            f", newest demotion record {expected or 'none'}",
+        )
+    if evidence is None:
+        return Promotion(None, "evidence-missing")
+    try:
+        result = json.loads(evidence.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return Promotion(None, "evidence-missing")
+    if not isinstance(result, dict):
+        return Promotion(None, "evidence-missing")
+    if result.get("failClosedReason") is not None:
+        return Promotion(None, f"fail-closed:{result['failClosedReason']}")
+    cells = {
+        str(cell): str(json_object(state).get("effective"))
+        for cell, state in json_object(result.get("cells")).items()
+    }
+    return Promotion(cells, None)
+
+
+def lane_promotion_refusal(promo: Promotion, work_class: str | None) -> str | None:
+    """Why the lane's evidence does not let `work_class` merge, or None when
+    its one cell (`LANE_CLASS_CELL`) is effective-promoted."""
+    if promo.cells is None:
+        return promo.reason or "evidence-missing"
+    cell = LANE_CLASS_CELL.get(work_class or "")
+    if cell is None:
+        return f"no-cell-for-class:{work_class}"
+    if promo.cells.get(cell) != "promoted":
+        return f"cell-unpromoted:{cell}"
+    return None
+
+
 @dataclass(frozen=True)
 class PostMergeGate:
     """The post-merge check's answer, as `assess()` consumes it: a refusal
@@ -2185,8 +2240,8 @@ def assess(
     """The policy readers for one pull request, in the wiring order.
 
     `authority` is the caller's: the local babysit lane, or the pr-merge CI
-    lane, which reads `lane_eligibility` in place of `eligibility`, no
-    promotion evidence (D16: report-only, then the owner's live flip), the
+    lane, which reads `lane_eligibility` in place of `eligibility`, needs
+    only its class's one cell promoted (`lane_promotion_refusal`), the
     kill switch from `lane_kill_switch` (`kill_switch`), the rung cap from
     `lane_rung_cap` (`rung_cap`), and only its own
     merges in flight. The
@@ -2305,8 +2360,12 @@ def assess(
         merged_since=floor,
         lane_merges_only=lane,
     )
+    promo = (
+        promotion(demotion.newest_created)
+        if promotion is not None
+        else Promotion(None, "promotion-unread")
+    )
     if lane:
-        promo = Promotion(None, "not-read-in-pr-merge-lane")
         eligible = lane_eligibility(
             repo,
             number,
@@ -2314,15 +2373,13 @@ def assess(
             denied_paths=config.denied_paths,
             **readers,
         )
-        promoted = True
+        lane_refusal = lane_promotion_refusal(promo, eligible.work_class)
+        promoted = lane_refusal is None
+        promotion_refusal = f"promotion-unqualified:{lane_refusal}"
     else:
-        promo = (
-            promotion(demotion.newest_created)
-            if promotion is not None
-            else Promotion(None, "promotion-unread")
-        )
         eligible = eligibility(repo, number, **readers)
         promoted = promo.promoted(eligible.work_class)
+        promotion_refusal = f"promotion-unqualified:{eligible.work_class}"
     details.update(
         rung=rung.rung,
         rungInputs=dict(rung.inputs),
@@ -2348,7 +2405,7 @@ def assess(
             CLASS_RANK.get(eligible.work_class or "", 99) > RUNG_RANK[rung.rung],
             f"class-above-rung:{eligible.work_class}>{rung.rung}",
         ),
-        (not promoted, f"promotion-unqualified:{eligible.work_class}"),
+        (not promoted, promotion_refusal),
     )
     inputs["own_refusal"] = next((text for refused, text in own if refused), None)
     refusals = (
@@ -2364,3 +2421,23 @@ def assess(
     return UnattendedPolicy(
         reason, identity, details, enabled=True, promoted=promoted, inputs=inputs
     )
+
+
+def lane_window(repo: str, agent_identity: str | None) -> dict[str, Any]:
+    """What the pr-merge workflow needs before it reads the promotion
+    evidence: whether a demotion record holds the rung off (then every pull
+    request refuses, so the evidence need not be read), and otherwise the
+    newest record's creation as `--window-start` ("" for none)."""
+    demotion = read_demotion(repo, agent_identity=agent_identity)
+    at = None if demotion.active else demotion.newest_created
+    return {
+        "held": demotion.active,
+        "reason": demotion.reason,
+        "windowStart": _window_start(at) if at is not None else "",
+    }
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 4 or sys.argv[1] != "lane-window":
+        sys.exit("usage: babysit_merge_policy.py lane-window OWNER/REPO AGENT_IDENTITY")
+    print(json.dumps(lane_window(sys.argv[2], sys.argv[3])))

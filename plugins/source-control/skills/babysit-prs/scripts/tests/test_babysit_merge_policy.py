@@ -18,6 +18,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from typing import Any
 from unittest import mock
@@ -2634,6 +2635,7 @@ class LaneAssess(unittest.TestCase):
     def lane_assess(self, **kwargs: Any) -> policy.UnattendedPolicy:
         kwargs.setdefault("lane_kill_switch", "proceed")
         kwargs.setdefault("lane_rung_cap", "")
+        kwargs.setdefault("promotion", lambda s: PROMOTED)
         return self.assess(authority="pr-merge", **kwargs)
 
     def unreadable_variables(self) -> GhFake:
@@ -2744,20 +2746,69 @@ class LaneAssess(unittest.TestCase):
         self.assess(post_merge=lambda floor, who: gate(), promotion=lambda s: PROMOTED)
         self.assertIs(policy.in_flight.call_args.kwargs["lane_merges_only"], False)
 
-    def test_the_lane_permits_without_a_promotion_read(self) -> None:
+    def test_the_lane_permits_when_its_class_cell_is_promoted(self) -> None:
+        # Only C2-auto-merge: the other cells do not hold a C2 pull request.
         self.readable()
         lane = self.lane_clear()
+        windows: list[Any] = []
+        only_c2 = policy.Promotion(
+            {
+                "C2-auto-merge": "promoted",
+                "C3-auto-merge": "unpromoted",
+                "C3-ai-review-blocking": "unpromoted",
+            },
+            None,
+        )
         result = self.lane_assess(
             post_merge=lambda floor, who: gate(),
-            promotion=mock.Mock(side_effect=AssertionError("no local promotion")),
+            promotion=lambda s: windows.append(s) or only_c2,
         )
         self.assertIsNone(result.reason)
         self.assertIs(result.promoted, True)
+        self.assertEqual(windows, [None])
         self.assertIs(result.report()["reportOnly"], True)
         self.assertEqual(
             lane.call_args.kwargs["denied_paths"],
             (".github/**", "docs/conventions/pr-pipeline.yaml"),
         )
+
+    def test_the_lane_refuses_when_its_class_cell_is_not_promoted(self) -> None:
+        # Report-only still reports the would-refuse decision and its reason.
+        cases = (
+            (
+                policy.Promotion({"C2-auto-merge": "unpromoted"}, None),
+                "promotion-unqualified:cell-unpromoted:C2-auto-merge",
+            ),
+            (
+                policy.Promotion({"C3-auto-merge": "promoted"}, None),
+                "promotion-unqualified:cell-unpromoted:C2-auto-merge",
+            ),
+            (
+                policy.Promotion(None, "fail-closed:epoch-start-expired: x"),
+                "promotion-unqualified:fail-closed:epoch-start-expired: x",
+            ),
+            (
+                policy.Promotion(None, "evidence-missing"),
+                "promotion-unqualified:evidence-missing",
+            ),
+        )
+        for promo, reason in cases:
+            with self.subTest(reason=reason):
+                self.readable()
+                self.lane_clear()
+                result = self.lane_assess(
+                    post_merge=lambda floor, who: gate(), promotion=lambda s: promo
+                )
+                self.assertEqual(result.reason, reason)
+                self.assertIs(result.promoted, False)
+                self.assertIs(result.enabled, True)
+                self.assertIs(result.report()["reportOnly"], True)
+
+    def test_the_lane_without_a_promotion_reader_refuses(self) -> None:
+        self.readable()
+        self.lane_clear()
+        result = self.lane_assess(post_merge=lambda floor, who: gate(), promotion=None)
+        self.assertEqual(result.reason, "promotion-unqualified:promotion-unread")
 
     def test_authority_pr_merge_reads_its_own_enabled_since(self) -> None:
         self.readable()
@@ -2776,6 +2827,109 @@ class LaneAssess(unittest.TestCase):
     def test_local_babysit_refuses_a_pr_merge_config(self) -> None:
         self.readable()
         self.assertEqual(self.assess().reason, "authority-unconfigured")
+
+
+class ReadPromotionInline(unittest.TestCase):
+    """`read_promotion_inline`: the pr-merge lane's reader of the JSON
+    `resolve-promotion-evidence.mjs --inline` printed (its header comment
+    fixes the shape), and `lane_promotion_refusal` on its answer."""
+
+    def read(
+        self,
+        text: str | None,
+        *,
+        window_start: Any = None,
+        evidence_window_start: str | None = "",
+    ) -> policy.Promotion:
+        path = None
+        if text is not None:
+            tmp = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+            path = tmp / "promotion.json"
+            path.write_text(text, encoding="utf-8")
+        return policy.read_promotion_inline(
+            path,
+            window_start=window_start,
+            evidence_window_start=evidence_window_start,
+        )
+
+    @staticmethod
+    def printed(reason: str | None, **effective: str) -> str:
+        cells = {
+            cell.replace("_", "-"): {"bound": "promoted", "effective": state, "line": ""}
+            for cell, state in effective.items()
+        }
+        return json.dumps({"source": "github:o/r", "failClosedReason": reason,
+                           "options": {}, "cells": cells})  # fmt: skip
+
+    def test_a_promoted_cell_lets_its_class_merge(self) -> None:
+        promo = self.read(self.printed(None, C2_auto_merge="promoted"))
+        self.assertIsNone(promo.reason)
+        self.assertIsNone(policy.lane_promotion_refusal(promo, "C2"))
+
+    def test_an_unpromoted_cell_refuses_its_class(self) -> None:
+        promo = self.read(
+            self.printed(None, C2_auto_merge="unpromoted", C3_auto_merge="promoted")
+        )
+        self.assertEqual(
+            policy.lane_promotion_refusal(promo, "C2"), "cell-unpromoted:C2-auto-merge"
+        )
+        self.assertIsNone(policy.lane_promotion_refusal(promo, "C3"))
+
+    def test_a_fail_closed_reason_refuses_whatever_the_cells_say(self) -> None:
+        promo = self.read(
+            self.printed("epoch-start-expired: old", C2_auto_merge="promoted")
+        )
+        self.assertIsNone(promo.cells)
+        self.assertEqual(
+            policy.lane_promotion_refusal(promo, "C2"),
+            "fail-closed:epoch-start-expired: old",
+        )
+
+    def test_no_json_refuses(self) -> None:
+        for text in (None, "", "not json", "[]", '"promoted"'):
+            with self.subTest(text=text):
+                promo = self.read(text)
+                self.assertEqual(
+                    policy.lane_promotion_refusal(promo, "C2"), "evidence-missing"
+                )
+
+    def test_a_missing_cell_refuses(self) -> None:
+        promo = self.read(self.printed(None, C3_auto_merge="promoted"))
+        self.assertEqual(
+            policy.lane_promotion_refusal(promo, "C2"), "cell-unpromoted:C2-auto-merge"
+        )
+        no_cells = self.read(json.dumps({"failClosedReason": None}))
+        self.assertEqual(
+            policy.lane_promotion_refusal(no_cells, "C2"),
+            "cell-unpromoted:C2-auto-merge",
+        )
+
+    def test_a_class_with_no_lane_cell_refuses(self) -> None:
+        promo = self.read(self.printed(None, C2_auto_merge="promoted"))
+        for work_class in ("C1", "C4", None):
+            with self.subTest(work_class=work_class):
+                self.assertEqual(
+                    policy.lane_promotion_refusal(promo, work_class),
+                    f"no-cell-for-class:{work_class}",
+                )
+
+    def test_a_demotion_record_newer_than_the_evidence_refuses(self) -> None:
+        text = self.printed(None, C2_auto_merge="promoted")
+        at = policy.datetime(2026, 10, 1, 12, 0, 0, 500, tzinfo=policy.UTC)
+        cases = (
+            (at, "", "window-start-mismatch:evidence none, newest demotion record 2026-10-01T12:00:01Z"),
+            (None, "2026-10-01T12:00:01Z", "window-start-mismatch:evidence 2026-10-01T12:00:01Z, newest demotion record none"),
+        )  # fmt: skip
+        for window_start, given, reason in cases:
+            with self.subTest(given=given):
+                promo = self.read(
+                    text, window_start=window_start, evidence_window_start=given
+                )
+                self.assertEqual(promo.reason, reason)
+        matched = self.read(
+            text, window_start=at, evidence_window_start="2026-10-01T12:00:01Z"
+        )
+        self.assertIsNone(policy.lane_promotion_refusal(matched, "C2"))
 
 
 class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):

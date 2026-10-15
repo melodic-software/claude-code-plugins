@@ -325,6 +325,7 @@ class Unattended(unittest.TestCase):
         self.cap = policy.RungCap(None, "no-cap")
         self.flight = policy.InFlight(True, None)
         self.promotion = PROMOTED
+        self.lane_promotion = PROMOTED
         self.eligible = policy.Eligibility(True, None, "C2", 40)
         self.lanes = BOUND
         self.comments: list[dict[str, Any]] = []
@@ -386,6 +387,7 @@ class Unattended(unittest.TestCase):
         self.post_check = mock.Mock(return_value=self.verdict)
         self.in_flight = mock.Mock(return_value=self.flight)
         self.read_cap = mock.Mock(return_value=self.cap)
+        self.read_inline = mock.Mock(return_value=self.lane_promotion)
 
         def gh_json(args: list[str]) -> Any:
             if args[:2] == ["pr", "view"]:
@@ -447,6 +449,7 @@ class Unattended(unittest.TestCase):
             mock.patch.object(policy, "read_rung_cap", self.read_cap),
             mock.patch.object(policy, "in_flight", self.in_flight),
             mock.patch.object(policy, "read_promotion", return_value=self.promotion),
+            mock.patch.object(policy, "read_promotion_inline", self.read_inline),
             mock.patch.object(policy, "eligibility", return_value=self.eligible),
             mock.patch.object(
                 policy, "lane_eligibility", return_value=self.lane_eligible
@@ -548,7 +551,8 @@ class LaneMode(Unattended):
         )
         # The local opt-in re-read is not a lane rule: reaching it would hold.
         self.opt_in_recheck = "not-lane-authored-or-opted-in"
-        # D16 replaces the local promotion read: an unpromoted cell must not hold.
+        # The lane reads the workflow's inline evidence, never the local
+        # resolver: a local read would refuse.
         self.promotion = policy.Promotion(None, "resolver-failed")
         # The lane never reads the variables kill switch: a read would pop
         # from an empty list and fail the test.
@@ -572,6 +576,32 @@ class LaneMode(Unattended):
         self.assertEqual(
             out["unattended"]["rungCap"], {"value": None, "reason": "no-cap"}
         )
+
+    def test_the_lane_reads_the_workflow_promotion_evidence(self) -> None:
+        code, out = self.lane(
+            "--lane-promotion-evidence", "/runner/promotion.json",
+            "--lane-promotion-window-start", "",
+        )  # fmt: skip
+        self.assertEqual(code, 0, out["blockers"])
+        args, kwargs = self.read_inline.call_args
+        self.assertEqual(args, (pathlib.Path("/runner/promotion.json"),))
+        self.assertEqual(
+            kwargs, {"window_start": None, "evidence_window_start": ""}
+        )
+
+    def test_an_unpromoted_class_cell_refuses_the_lane(self) -> None:
+        self.lane_promotion = policy.Promotion({"C2-auto-merge": "unpromoted"}, None)
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertEqual(
+            out["unattended"]["reason"],
+            "promotion-unqualified:cell-unpromoted:C2-auto-merge",
+        )
+
+    def test_lane_promotion_flags_need_the_lane_authority(self) -> None:
+        code, out = self.run_main("--lane-promotion-evidence", "/runner/p.json")
+        self.assertEqual(code, 2)
+        self.assertIn("--lane-promotion-evidence", out["error"])
 
     def test_a_workflow_cap_below_the_rung_refuses(self) -> None:
         code, out = self.run_main(

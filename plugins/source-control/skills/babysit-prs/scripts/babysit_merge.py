@@ -93,8 +93,9 @@ Contract enforced here (encoded as code, not convention):
   acting login is the policy's configured agent identity, or cannot be read
   while one is configured. `--authority pr-merge` runs it as the CI pr-merge
   lane: `merge.authority` must read pr-merge, eligibility is a C2 class label
-  the identity's App applied on a diff off `merge.diff-check.denied-paths`, no
-  promotion evidence is read, the kill switch is the workflow's own check
+  the identity's App applied on a diff off `merge.diff-check.denied-paths`, the
+  promotion evidence is the workflow's `--lane-promotion-evidence` file and
+  only the class's own cell must be promoted, the kill switch is the workflow's own check
   passed as `--lane-kill-switch proceed` (missing or any other value stops),
   the rung cap is the workflow's `--lane-rung-cap` (empty is no cap),
   only merges the identity enqueued are judged after the fact, and while
@@ -2847,6 +2848,8 @@ def assess_unattended(
     authority: str = merge_policy.LOCAL_BABYSIT,
     lane_kill_switch: str | None = None,
     lane_rung_cap: str | None = None,
+    lane_promotion_evidence: Path | None = None,
+    lane_promotion_window_start: str | None = None,
 ) -> merge_policy.UnattendedPolicy:
     """The unattended decision for one pull request, in the wiring order:
     identity, the credential chokepoint, the kill switch, a default-branch
@@ -2873,6 +2876,12 @@ def assess_unattended(
         )
 
     def promotion(window_start: datetime | None) -> merge_policy.Promotion:
+        if authority == merge_policy.PR_MERGE:
+            return merge_policy.read_promotion_inline(
+                lane_promotion_evidence,
+                window_start=window_start,
+                evidence_window_start=lane_promotion_window_start,
+            )
         return merge_policy.read_promotion(
             checkout=_checkout(),
             window_start=window_start,
@@ -3411,7 +3420,8 @@ def main() -> int:
             "with --unattended, the merge authority this run is (default "
             "local-babysit); merge.authority at the base must name it. "
             "pr-merge is the CI lane: a CI-labeled C2 pull request off the "
-            "denied paths, no promotion read, and nothing written while "
+            "denied paths, promotion read from --lane-promotion-evidence, and "
+            "nothing written while "
             "merge.report-only is true"
         ),
     )
@@ -3432,6 +3442,26 @@ def main() -> int:
             "with --authority pr-merge, the CLAUDE_LANES_MERGE_RUNG_CAP value the "
             "workflow read: empty is no cap, a rung name caps the rung; missing "
             "or any other value holds the rung at off"
+        ),
+    )
+    parser.add_argument(
+        "--lane-promotion-evidence",
+        type=Path,
+        default=None,
+        help=(
+            "with --authority pr-merge, the file holding what "
+            "resolve-promotion-evidence.mjs --inline printed for this run: a "
+            "pull request merges only when its class's cell (C2-auto-merge or "
+            "C3-auto-merge) is promoted; missing, empty or fail-closed refuses"
+        ),
+    )
+    parser.add_argument(
+        "--lane-promotion-window-start",
+        default=None,
+        help=(
+            "with --authority pr-merge, the --window-start that evidence was "
+            "read with (empty for none); it must match the newest demotion "
+            "record the gate reads, or the pull request refuses"
         ),
     )
     args = parser.parse_args()
@@ -3558,11 +3588,18 @@ def main() -> int:
         return _refuse("--auto requires --merge and --expected-head", 2)
     if args.authority is not None and not args.unattended:
         return _refuse("--authority is only meaningful with --unattended", 2)
-    if args.authority != merge_policy.PR_MERGE and (
-        args.lane_kill_switch is not None or args.lane_rung_cap is not None
+    if args.authority != merge_policy.PR_MERGE and any(
+        value is not None
+        for value in (
+            args.lane_kill_switch,
+            args.lane_rung_cap,
+            args.lane_promotion_evidence,
+            args.lane_promotion_window_start,
+        )
     ):
         return _refuse(
-            "--lane-kill-switch and --lane-rung-cap are only meaningful with "
+            "--lane-kill-switch, --lane-rung-cap, --lane-promotion-evidence and "
+            "--lane-promotion-window-start are only meaningful with "
             "--authority pr-merge",
             2,
         )
@@ -3620,6 +3657,8 @@ def main() -> int:
                 authority=args.authority or merge_policy.LOCAL_BABYSIT,
                 lane_kill_switch=args.lane_kill_switch,
                 lane_rung_cap=args.lane_rung_cap,
+                lane_promotion_evidence=args.lane_promotion_evidence,
+                lane_promotion_window_start=args.lane_promotion_window_start,
             )
         except (RuntimeError, ValueError, OSError) as exc:
             return _refuse(f"unattended merge policy unreadable: {exc}", 10)
