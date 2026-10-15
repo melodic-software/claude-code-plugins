@@ -1213,17 +1213,10 @@ def eligibility(
         )
         if opt_in:
             return Eligibility(False, opt_in)
-        linked = json_object(pr.get("closingIssuesReferences"))
-        issues = [json_object(n) for n in json_array(linked.get("nodes"))]
-        if linked.get("totalCount") != 1 or len(issues) != 1:
-            return Eligibility(False, f"linked-issues:{linked.get('totalCount')}")
-        issue = issues[0]
-        issue_number = issue.get("number")
-        repository = json_object(issue.get("repository")).get("nameWithOwner")
-        if str(repository).casefold() != repo.casefold() or not isinstance(
-            issue_number, int
-        ):
-            return Eligibility(False, "linked-issue-other-repository")
+        issue, linked = _closing_issue(pr, repo)
+        if linked:
+            return Eligibility(False, linked)
+        issue_number = issue["number"]
         labels = _label_names(issue)
         if labels is None:
             return Eligibility(False, "class-labels-unreadable")
@@ -1261,6 +1254,22 @@ def eligibility(
     return Eligibility(True, None, work_class, issue_number)
 
 
+def _closing_issue(pr: dict[str, Any], repo: str) -> tuple[dict[str, Any], str | None]:
+    """(the issue, None) for a pull request with exactly one closing issue in
+    this repository, else ({}, the refusal)."""
+    linked = json_object(pr.get("closingIssuesReferences"))
+    issues = [json_object(n) for n in json_array(linked.get("nodes"))]
+    if linked.get("totalCount") != 1 or len(issues) != 1:
+        return {}, f"linked-issues:{linked.get('totalCount')}"
+    issue = issues[0]
+    repository = json_object(issue.get("repository")).get("nameWithOwner")
+    if str(repository).casefold() != repo.casefold() or not isinstance(
+        issue.get("number"), int
+    ):
+        return {}, "linked-issue-other-repository"
+    return issue, None
+
+
 def _foreign_refusal(pr: dict[str, Any], owner: str) -> str | None:
     """`fork` for a head outside this repository, `dependency-manager` for a
     dependency manager's pull request, else None."""
@@ -1279,21 +1288,31 @@ def _foreign_refusal(pr: dict[str, Any], owner: str) -> str | None:
 
 
 def _lane_class(
-    owner: str, name: str, number: int, labels: list[str], identity: str | None
+    owner: str,
+    name: str,
+    issue: dict[str, Any],
+    identity: str | None,
+    human: Callable[[Any], bool],
 ) -> tuple[str | None, str | None]:
-    """(work class, refusal) from the pull request's own `work-class:` labels.
+    """(work class, refusal) from the closing issue's `work-class:` labels.
+    The class lives on the issue only; a label on the pull request never
+    counts (D30).
 
-    Until agents act as their own App (D14), a person's token may be an
-    agent's, so only label events by the lane identity's App (the CI
-    identity that labels lane pull requests) are replayed. Any other actor's
-    are ignored: the owner account's, and another bot's, since a workflow on
-    a branch an agent pushed labels as `github-actions`. A label present now
-    or standing in that replay can only make the class stricter. The
-    strictest class must be C2, present now and standing in the replay."""
+    Label events are replayed from two trusted actors: the lane identity's
+    App, and a human acting in person (`is_human`, no
+    `performed_via_github_app`), the provenance `eligibility` accepts. Any
+    other actor's are ignored, such as another bot's, since a workflow on a
+    branch an agent pushed labels as `github-actions`. A label present now or
+    standing in that replay can only make the class stricter. The strictest
+    class must be C2, present now and standing in the replay, and a human's
+    application must not predate an edit of the issue body."""
+    labels = _label_names(issue)
+    if labels is None:
+        return None, "class-labels-unreadable"
     events = sorted(
         (
             e
-            for e in _timeline(owner, name, number, {})
+            for e in _timeline(owner, name, issue["number"], {})
             if e.get("event") in ("labeled", "unlabeled")
             and str(json_object(e.get("label")).get("name") or "")
             .casefold()
@@ -1301,24 +1320,24 @@ def _lane_class(
         ),
         key=lambda e: _time(e.get("created_at")),
     )
-    trusted: set[str] = set()
+    # Each trusted label, with the time a human applied it (None for the App).
+    trusted: dict[str, datetime | None] = {}
     for event in events:
-        actor = json_object(event.get("actor"))
-        if (
-            not identity
-            or actor_key({"__typename": actor.get("type"), "login": actor.get("login")})
-            != identity.strip().casefold()
+        actor = _rest_actor(event.get("actor"))
+        by_app = bool(identity) and actor_key(actor) == str(identity).strip().casefold()
+        if not by_app and (
+            event.get("performed_via_github_app") is not None or not human(actor)
         ):
             continue
         # GitHub label names are case-insensitive.
         label = str(json_object(event.get("label")).get("name")).casefold()
         if event.get("event") == "labeled":
-            trusted.add(label)
+            trusted[label] = None if by_app else _time(event.get("created_at"))
         else:
-            trusted.discard(label)
+            trusted.pop(label, None)
     folded = (label.casefold() for label in labels)
     current = {label for label in folded if label.startswith(WORK_CLASS_PREFIX)}
-    seen = current | trusted
+    seen = current | set(trusted)
     if not seen:
         return None, "class-missing"
     if any(label not in WORK_CLASS_LABELS for label in seen):
@@ -1330,8 +1349,28 @@ def _lane_class(
     if strictest not in current:
         return work_class, "class-label-removed"
     if strictest not in trusted:
-        return work_class, "class-label-not-ci-applied"
+        return work_class, "class-label-untrusted"
+    applied = trusted[strictest]
+    edited = issue.get("lastEditedAt")
+    if applied is not None and edited and _time(edited) > applied:
+        return work_class, "class-provenance:body-edited-after-label"
     return work_class, None
+
+
+def _lane_human(
+    repo: str,
+    agent_identity: str | None,
+    self_logins: Collection[str],
+    permission: Permission | None,
+) -> Callable[[Any], bool]:
+    permission = permission or permission_reader(repo)
+    return lambda actor: is_human(
+        actor,
+        repo=repo,
+        agent_identity=agent_identity,
+        self_logins=self_logins,
+        permission=permission,
+    )
 
 
 def _denied_path_refusal(
@@ -1366,14 +1405,20 @@ def lane_eligibility(
     pr: Mapping[str, Any],
     denied_paths: Collection[str],
     agent_identity: str | None,
+    self_logins: Collection[str] = frozenset(),
+    permission: Permission | None = None,
 ) -> Eligibility:
     """Whether the pr-merge lane may consider a pull request (plan Design
-    "Eligibility"): not a fork or a dependency manager's, a C2 class by
-    `_lane_class` with `agent_identity` as the trusted labeler, and a diff
-    touching no `merge.diff-check.denied-paths`.
+    "Eligibility"): not a fork or a dependency manager's, opened by the agent
+    identity, exactly one closing
+    issue in this repository whose class `_lane_class` reads as C2, and a
+    diff touching no `merge.diff-check.denied-paths`.
     `pr` is the REST record, whose `changed_files` the file listing must
     reach. Holds (the `do-not-merge` label, a `Hold:` line) are the gate's."""
     owner, name = _split_repo(repo)
+    human = _lane_human(repo, agent_identity, self_logins, permission)
+    work_class = None
+    issue_number = None
     try:
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
         node = json_object(json_object(data.get("repository")).get("pullRequest"))
@@ -1382,32 +1427,45 @@ def lane_eligibility(
         foreign = _foreign_refusal(node, owner)
         if foreign:
             return Eligibility(False, foreign)
-        labels = _label_names(node)
-        if labels is None:
-            return Eligibility(False, "labels-unreadable")
-        work_class, refusal = _lane_class(owner, name, number, labels, agent_identity)
+        # The class sits on the issue, so anyone could name a mechanical
+        # issue in `Closes #N`; only a pull request the lane opened counts.
+        if not _lane_authored(node, agent_identity):
+            return Eligibility(False, "not-lane-authored")
+        issue, refusal = _closing_issue(node, repo)
+        if refusal is None:
+            issue_number = issue["number"]
+            work_class, refusal = _lane_class(owner, name, issue, agent_identity, human)
         if refusal is None:
             refusal = _denied_path_refusal(
                 owner, name, number, pr.get("changed_files"), denied_paths
             )
     except PolicyReadError as exc:
         return Eligibility(False, f"unreadable: {exc}")
-    return Eligibility(refusal is None, refusal, work_class)
+    return Eligibility(refusal is None, refusal, work_class, issue_number)
 
 
 def recheck_lane_class(
-    repo: str, number: int, *, agent_identity: str | None
+    repo: str,
+    number: int,
+    *,
+    agent_identity: str | None,
+    self_logins: Collection[str] = frozenset(),
+    permission: Permission | None = None,
 ) -> str | None:
-    """The lane's class read again right before the enqueue: a label removed
-    or made stricter since the eligibility read refuses."""
+    """The lane's class read again from the closing issue right before the
+    enqueue: a label removed or made stricter, or a closing issue changed,
+    since the eligibility read refuses."""
     owner, name = _split_repo(repo)
+    human = _lane_human(repo, agent_identity, self_logins, permission)
     try:
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
         node = json_object(json_object(data.get("repository")).get("pullRequest"))
-        labels = _label_names(node) if node else None
-        if labels is None:
-            return "labels-unreadable"
-        return _lane_class(owner, name, number, labels, agent_identity)[1]
+        if not node:
+            return "pull-request-unreadable"
+        issue, refusal = _closing_issue(node, repo)
+        if refusal:
+            return refusal
+        return _lane_class(owner, name, issue, agent_identity, human)[1]
     except PolicyReadError as exc:
         return f"unreadable: {exc}"
 
@@ -2254,7 +2312,7 @@ def assess(
             number,
             pr=pr,
             denied_paths=config.denied_paths,
-            agent_identity=identity,
+            **readers,
         )
         promoted = True
     else:

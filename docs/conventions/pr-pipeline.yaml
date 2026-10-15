@@ -114,8 +114,9 @@ lanes:
       - activity: merge-pr
 
 merge:
-  # The lane auto-merges only PRs labeled `work-class: mechanical` (C2):
-  # dependency bumps, lint and format fixes, syncs. The classes C1-C5 (read-only,
+  # The lane auto-merges only PRs whose single closing issue is labeled
+  # `work-class: mechanical` (C2): dependency bumps, lint and format fixes,
+  # syncs. A class label on the PR itself is never read. The classes C1-C5 (read-only,
   # mechanical, scoped, structural, untrusted-provenance) are defined in
   # plugins/autonomy/reference/guardrails/work-classes.md.
   rung: C2
@@ -125,20 +126,32 @@ merge:
   report-only: true
   diff-check:
     denied-paths:
+      # Workflows and their scripts run with repository tokens and secrets.
       - ".github/**"
+      # The lane rules, this file included: a change here changes what the lanes may do.
       - "docs/conventions/**"
+      # The merge gate itself.
       - "plugins/source-control/skills/babysit-prs/**"
       # The gate's wrapper, which pr-merge.yml runs under the lane token.
       - "plugins/source-control/scripts/**"
+      # Project settings, rules and hooks every session in this repository loads.
       - ".claude/**"
+      # Skill text agents follow, including the lanes' own skills.
       - "plugins/*/skills/**"
+      # Agent definitions: their tools, models and instructions.
       - "plugins/*/agents/**"
+      # Hooks run code on every tool call and enforce the guardrails.
       - "plugins/*/hooks/**"
+      # Plugin manifests decide what each plugin loads and grants.
       - "plugins/*/.claude-plugin/**"
+      # Repository scripts CI runs as checks, so a change could weaken a check.
       - "scripts/**"
-      # Agent instructions and the marketplace manifest the lanes load.
+      # The marketplace manifest, which decides which plugins the lanes load.
       - ".claude-plugin/**"
+      # Agent instructions every session loads.
       - "**/AGENTS.md"
+      # Agent instructions every session loads.
       - "**/CLAUDE.md"
+      # The review criteria the AI review lanes apply.
       - "**/REVIEW.md"
     max-changed-lines: 400

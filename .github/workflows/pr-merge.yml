@@ -2,10 +2,10 @@ name: pr-merge
 
 # What this does, in plain words:
 #
-# Some pull requests are low-risk chores (labeled `work-class: mechanical`,
-# also called C2). Instead of the owner merging each one by hand, this
-# workflow asks the existing merge gate (the babysit merge script) about each
-# such PR and, when the gate says yes, adds the PR to GitHub's merge queue at
+# Some pull requests are low-risk chores (the lanes App opened them for an
+# issue labeled `work-class: mechanical`, also called C2). Instead of the
+# owner merging each one by hand, this workflow asks the existing merge gate
+# (the babysit merge script) about each such PR and, when the gate says yes, adds the PR to GitHub's merge queue at
 # the exact commit the gate checked. The merge queue then runs CI one last
 # time and merges.
 #
@@ -194,9 +194,11 @@ jobs:
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
 
-      # Candidates: open, non-draft PRs into main that carry the C2 label.
-      # This is only a shortlist; the gate checks the label's origin and every
-      # other rule again. Read with the job's own read-only token.
+      # Candidates: open, non-draft PRs into main that the lanes App
+      # (merge.agent-identity on main) opened. The work class lives on the
+      # closing issue, never on the PR, so no PR label is read here. This is
+      # only a shortlist; the gate checks the author, the closing issue's class
+      # and every other rule again. Read with the job's own read-only token.
       - name: List the candidate PRs
         id: candidates
         if: steps.lane-token.outputs.token != ''
@@ -205,10 +207,15 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          slug=${identity%\[bot\]}
+          if ! [[ $slug =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+            echo "::error::merge.agent-identity is not an App bot login: $identity"
+            exit 1
+          fi
           gh pr list --repo "$REPO" --base main --state open --limit 500 \
-            --json number,headRefOid,isDraft,updatedAt,labels |
-            jq -c '[.[] | select((.isDraft | not)
-              and any(.labels[]; (.name | ascii_downcase) == "work-class: mechanical"))
+            --author "app/$slug" --json number,headRefOid,isDraft,updatedAt |
+            jq -c '[.[] | select(.isDraft | not)
               | {number, head: .headRefOid, updatedAt}]' >"$RUNNER_TEMP/candidates.json"
           echo "count=$(jq length "$RUNNER_TEMP/candidates.json")" >>"$GITHUB_OUTPUT"
 
