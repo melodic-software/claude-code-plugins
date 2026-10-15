@@ -1104,9 +1104,10 @@ def fetch_review_threads(
     (`fetch_unresolved_review_comments`).
 
     Each thread record carries: `id`, `isResolved`, `isOutdated`, `resolvedBy`
-    ({__typename login}, or None when open or the resolver is unknown), `comments`
+    ({__typename login}, or None when open or the resolver is unknown),
+    `originalStartLine` and `originalLine` (the commented range), `comments`
     (each with author{__typename login}, body, path, url, createdAt, updatedAt,
-    databaseId), `comments_total_count`, and `comments_truncated`. Resolved
+    databaseId, diffHunk, originalCommit{oid}), `comments_total_count`, and `comments_truncated`. Resolved
     threads are dropped unless `include_resolved`. `projection` maps each
     record to the caller's shape inside the loop.
     """
@@ -1118,9 +1119,11 @@ def fetch_review_threads(
         "repository(owner:$o,name:$r){pullRequest(number:$n){"
         "reviewThreads(first:100,after:$cursor){pageInfo{hasNextPage endCursor} "
         "nodes{id isResolved isOutdated resolvedBy{__typename login} "
+        "originalStartLine originalLine "
         f"comments(first:{comments_first})"
         "{totalCount pageInfo{hasNextPage} "
-        "nodes{author{__typename login} body path url createdAt updatedAt databaseId}}}}}}}"
+        "nodes{author{__typename login} body path url createdAt updatedAt databaseId "
+        "diffHunk originalCommit{oid}}}}}}}}"
     )
     threads: list[Any] = []
     cursor: str | None = None
@@ -1216,6 +1219,8 @@ def fetch_review_threads(
                 "isResolved": thread["isResolved"],
                 "isOutdated": thread["isOutdated"],
                 "resolvedBy": thread.get("resolvedBy"),
+                "originalStartLine": thread.get("originalStartLine"),
+                "originalLine": thread.get("originalLine"),
                 "comments": comments,
                 "comments_total_count": total_count,
                 "comments_truncated": bool(comment_page_info["hasNextPage"]),
