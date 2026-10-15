@@ -84,8 +84,52 @@ trusted as given, and the settings, checkout and writability rules in
 agent from changing those files is review: each path must sit under `merge.diff-check.denied-paths`
 in the pipeline config, so the lane never merges a change to one. Inline mode never serves a local
 lane. Unlike the published file, whose publish refuses to drop an earlier event, inline mode
-rebuilds the events on every call, so an identity that can delete a red workflow run removes its
-gate failure.
+rebuilds the events on every call, so deleted evidence would vanish unless the publisher notices
+the deletion.
+
+Deletion: inside the read window (5 days before the epoch through now) the publisher, in both
+modes, fails closed instead of losing a contrary event:
+
+- `run-deleted:`: the runs of `pr-require-checks.yml` and `post-merge-detect-silent-revert.yml`
+  created in the window, every event and branch, must carry consecutive `run_number` values, a
+  re-run included; a gap refuses. Pointer: `run_number` under
+  [github context](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context).
+  As of 2026-10-15. Recheck trigger: that entry changes how numbers are assigned or kept on re-run.
+- `issue-deleted:` or `issue-missing:`: a number missing from the issue listing between two items
+  created in the window is read on its own. Read as deleted, it refuses with `issue-deleted:`;
+  read as anything but this repository's issue or pull, `issue-missing:`. A discussion holding the
+  number is skipped unless `github-actions[bot]` or a `--lane-login` wrote it, which refuses.
+  Pointers: status codes under
+  [Get an issue](https://docs.github.com/en/rest/issues/issues#get-an-issue--status-codes) and
+  [Converting an issue to a discussion](https://docs.github.com/en/discussions/managing-discussions-for-your-community/moderating-discussions#converting-an-issue-to-a-discussion);
+  probe: `gh api repos/cli/cli/issues/14698` against a discussion number, 2026-10-15. Recheck trigger: either section changes, or a live run refuses on a
+  number that holds a discussion.
+- Every `babysit-merge-demotion` record `github-actions[bot]` or a `--lane-login` opened, open or
+  closed, whose body or any revision carries the marker or whose edit history is not whole, is a
+  gate-failure on every cell at its creation and at each repeat-failure comment one of those
+  identities posted in the window; anyone else's comment counts for nothing. Records only add
+  events, so a lookalike can only demote.
+
+Residuals: a run or issue removed while it is the newest in the window leaves no gap until a later
+one is created, and a deleted run that is the oldest of its workflow in the window leaves none at
+all; a red scheduled or canary run still counts through the demotion record
+`post-merge-demotion-alert.yml` files when it completes. A number in the window that reads as
+neither an issue nor a discussion refuses with `issue-missing:` for as long as it stays in the
+read window; in inline mode that window starts 5 days before the epoch, so the refusal holds until
+the cell is re-ratified or its epoch expires. An identity that can write issues can delete a
+repeat-failure comment; the red run it names still counts unless also deleted. No demotion record
+covers a per-merge full run pr-merge dispatches with its own `GITHUB_TOKEN`; its deletion shows as
+a `run_number` gap, or as the 6-hour dispatch-deadline failure when it was the only lane dispatch.
+Pointer:
+[Triggering a workflow from a workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow).
+As of 2026-10-15. Recheck trigger: that section changes which tokens start new runs. The admin
+operator account (and any agent on its token) can still delete runs and issues, edit the
+workflows, or disable the alert; that now fails closed rather than passing silently, but nothing
+stops it. Closing it needs a reader of run-deletion events in the organization audit log, which
+this organization cannot read through the API today. Pointer:
+[Using the audit log API](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/reviewing-the-audit-log-for-your-organization#using-the-audit-log-api).
+As of 2026-10-15. Recheck trigger: the organization changes plan or that section changes which
+plans have the audit-log API.
 
 Epoch guard: inline mode fails closed (`epoch-start-expired`) when the earliest `ratified_at` of a
 cell bound promoted is more than 85 days old, since contrary evidence from before GitHub's
