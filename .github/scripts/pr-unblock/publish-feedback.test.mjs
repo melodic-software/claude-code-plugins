@@ -54,6 +54,9 @@ function fakeApi(overrides = {}) {
         comments: { totalCount: t.ids.length, nodes: t.ids.map((databaseId) => ({ databaseId })) },
       })),
     readThread: async (id) => {
+      if (overrides.readFails?.includes(id)) {
+        throw new Error("POST https://api.github.com/graphql returned 502");
+      }
       const t = overrides.reread?.[id] ?? threads[id];
       // After the reply lands the thread holds it too, plus any comment the
       // case says arrived meanwhile.
@@ -72,15 +75,40 @@ function fakeApi(overrides = {}) {
     },
     resolveThread: async (id) => {
       calls.push(["resolve", id]);
+      if (overrides.resolveLandsThenFails && calls.filter((call) => call[0] === "resolve").length === 1) {
+        threads[id].resolved = true;
+        throw new Error("POST https://api.github.com/graphql returned 502");
+      }
+      if (calls.filter((call) => call[0] === "resolve").length <= (overrides.resolveFailures ?? 0)) {
+        throw new Error("POST https://api.github.com/graphql returned 502");
+      }
       return true;
     },
-    createIssueComment: async (pr, body) => calls.push(["comment", pr, body]),
+    createIssueComment: async (pr, body) => {
+      if (overrides.markerFails) {
+        throw new Error("POST https://api.github.com/repos/o/r/issues/42/comments returned 502");
+      }
+      calls.push(["comment", pr, body]);
+    },
   };
 }
 
 const exists = (path) => ["src/a.js", "docs/b.md"].includes(path);
 
-const run = (api, repliesText, runText = JSON.stringify(RUN)) =>
+// run.json keeping just the threads the replies name, so a case about one
+// reply has a complete reply set; cases about completeness pass RUN itself.
+function runFor(repliesText) {
+  let named;
+  try {
+    named = new Set(repliesText.split("\n").filter(Boolean).map((line) => JSON.parse(line).thread));
+  } catch {
+    return JSON.stringify(RUN);
+  }
+  const threads = RUN.threads.filter((thread) => named.has(thread.id));
+  return JSON.stringify(threads.length > 0 ? { ...RUN, threads } : RUN);
+}
+
+const run = (api, repliesText, runText = runFor(repliesText)) =>
   publish({
     api,
     pr: 42,
@@ -215,11 +243,32 @@ test("feedback-invalid, nothing posted: a malformed run.json or a missing artifa
   assert.equal(api.markers().length, 1);
 });
 
-test("an empty replies file posts nothing and escalates nothing", async () => {
+test("an empty or partial reply set posts nothing and escalates feedback-incomplete", async () => {
+  for (const text of ["", lines(reply())]) {
+    const api = fakeApi();
+    assert.equal((await run(api, text, JSON.stringify(RUN))).escalationReason, "feedback-incomplete");
+    assert.deepEqual(api.posted(), []);
+    assert.deepEqual(api.resolved(), []);
+    assert.equal(api.markers().length, 1);
+  }
+});
+
+test("an INCORRECT reply is posted, left open, and hands the PR to a person", async () => {
   const api = fakeApi();
-  assert.equal((await run(api, "")).escalationReason, "");
-  assert.deepEqual(api.posted(), []);
-  assert.equal(api.markers().length, 1);
+  const result = await run(
+    api,
+    lines(reply({ disposition: "VALID", fix_sha: FIX }), reply({ thread: "PRRT_b", evidence: ["docs/b.md:1"] })),
+    JSON.stringify(RUN),
+  );
+  assert.equal(result.escalationReason, "feedback-disputed");
+  assert.deepEqual(api.posted().map((call) => call[2]), [100, 200]);
+  assert.deepEqual(api.resolved(), ["PRRT_a"]);
+  assert.match(api.posted()[1][3], /INCORRECT, left open/);
+});
+
+test("a VALID-only reply set escalates nothing", async () => {
+  const api = fakeApi();
+  assert.equal((await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })))).escalationReason, "");
 });
 
 for (const [label, compare] of [
@@ -260,11 +309,30 @@ test("feedback-not-landed with no VALID reply when the branch moved onto .github
   }
 });
 
-test("a VALID thread that gained a comment while the reply was posted is replied on but left open", async () => {
+test("a VALID thread that gained a comment while the reply was posted is left open and escalates feedback-partial", async () => {
   const api = fakeApi({ arrivedDuringReply: [101] });
-  await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })));
+  const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })));
   assert.equal(api.posted().length, 1);
   assert.deepEqual(api.resolved(), []);
+  assert.equal(result.escalationReason, "feedback-partial");
+});
+
+test("a resolve that fails once after the reply is retried and resolves", async () => {
+  const api = fakeApi({ resolveFailures: 1 });
+  const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })));
+  assert.deepEqual(api.resolved(), ["PRRT_a", "PRRT_a"]);
+  assert.equal(result.escalationReason, "");
+});
+
+test("a resolve that keeps failing after the reply escalates feedback-partial and posts no later reply", async () => {
+  const api = fakeApi({ resolveFailures: 2 });
+  const result = await run(
+    api,
+    lines(reply({ disposition: "VALID", fix_sha: FIX }), reply({ thread: "PRRT_b", evidence: ["docs/b.md:1"] })),
+  );
+  assert.equal(result.escalationReason, "feedback-partial");
+  assert.deepEqual(api.posted().map((call) => call[2]), [100]);
+  assert.equal(api.markers().length, 1);
 });
 
 test("a thread that changed since the model job read it is skipped; the rest are posted", async () => {
@@ -293,9 +361,32 @@ test("a thread that changed since the model job read it is skipped; the rest are
   assert.deepEqual(human.posted().map((call) => call[2]), [200]);
 });
 
-test("a reply that lands off its thread fails the run after the round marker", async () => {
+test("a resolve that took effect before its answer was lost counts as resolved", async () => {
+  const api = fakeApi({ resolveLandsThenFails: true });
+  const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })));
+  assert.equal(result.escalationReason, "");
+});
+
+test("a failed re-read of the next thread after a reply posted escalates feedback-partial", async () => {
+  const api = fakeApi({ readFails: ["PRRT_b"] });
+  const result = await run(
+    api,
+    lines(reply(), reply({ thread: "PRRT_b", evidence: ["docs/b.md:1"] })),
+  );
+  assert.equal(result.escalationReason, "feedback-partial");
+  assert.deepEqual(api.posted().map((call) => call[2]), [100]);
+});
+
+test("a round marker that cannot be posted still returns an escalation", async () => {
+  const api = fakeApi({ markerFails: true });
+  const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })));
+  assert.equal(result.escalationReason, "feedback-partial");
+});
+
+test("a reply that lands off its thread escalates feedback-partial before the round marker", async () => {
   const api = fakeApi({ landOn: 999 });
-  await assert.rejects(run(api, lines(reply())), /did not land/);
+  const result = await run(api, lines(reply()));
+  assert.equal(result.escalationReason, "feedback-partial");
   assert.equal(api.markers().length, 1);
 });
 
@@ -312,7 +403,8 @@ test("main writes the escalation and skip reason files and refuses a symlinked a
   mkdirSync(replies);
   mkdirSync(join(ws, "src"), { recursive: true });
   writeFileSync(join(ws, "src", "a.js"), "x");
-  writeFileSync(join(replies, "run.json"), JSON.stringify(RUN));
+  const runText = runFor(lines(reply()));
+  writeFileSync(join(replies, "run.json"), runText);
   writeFileSync(join(replies, "replies.jsonl"), lines(reply({ disposition: "UNCERTAIN", evidence: [] })));
   const actors = join(dir, "actors.json");
   writeFileSync(actors, JSON.stringify({ actors: [{ id: REVIEWER, login: "claude[bot]", kind: "bot" }] }));
@@ -327,7 +419,7 @@ test("main writes the escalation and skip reason files and refuses a symlinked a
     GITHUB_WORKSPACE: ws,
     SKIP_REASON_FILE: join(dir, "skip"),
     ESCALATION_REASON_FILE: join(dir, "escalation"),
-    RUN_SHA256: createHash("sha256").update(JSON.stringify(RUN)).digest("hex"),
+    RUN_SHA256: createHash("sha256").update(runText).digest("hex"),
   };
   const api = fakeApi();
   assert.equal(await main(env, { api, log: () => {} }), 0);

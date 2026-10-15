@@ -519,6 +519,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
      a 40-hex `fix_sha` on `VALID` only; a note of 1-2000 characters with no control, direction or
      zero-width character, no `<!--` or `-->`, and nothing shaped like a GitHub token. Any failure,
      or a missing artifact, posts no reply and escalates `feedback-invalid`;
+   - requires exactly one reply per thread in `run.json`; an empty or partial set posts no reply
+     and escalates `feedback-incomplete`;
    - when a reply is `VALID` or the PR branch moved, compares the model job's gated head with the
      PR's current head: the branch must be ahead, hold every fix commit, and change fewer than 300
      files, each a kept thread's path and none under `.github/`, and each fix commit must change
@@ -528,11 +530,15 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    - posts the reply on the thread's root comment in the fixed template (disposition label,
      backticked evidence, `Fix: <sha>` for `VALID`, the note in a `text` fence longer than any
      backtick run in it) and resolves the thread only for `VALID`, and only when a re-read after
-     the reply shows exactly the model's comments plus that reply;
+     the reply shows exactly the model's comments plus that reply (one retry on a failed read or
+     resolve). Once a reply posts, the thread is no longer the bot's alone and no later round
+     selects it, so a post, read or resolve failure stops the posting, and that or a `VALID`
+     thread left open escalates `feedback-partial`, as does a round marker that cannot be posted;
    - posts the round marker as the lanes App whatever happened above, and escalates
-     `feedback-uncertain` for an `UNCERTAIN` or `VALID-defer` reply.
+     `feedback-uncertain` for an `UNCERTAIN` or `VALID-defer` reply, or `feedback-disputed` when an
+     `INCORRECT` evidence reply was posted: that thread stays open for a person to decide.
 
-   The script writes its reason to `ESCALATION_REASON_FILE`; the runner accepts only those three
+   The script writes its reason to `ESCALATION_REASON_FILE`; the runner accepts only those six
    reasons, and only with `review-replies`, as the run's `escalation-reason` output.
 
 The skill's limits to kept-thread paths and away from `.github/` are instructions and the tool's

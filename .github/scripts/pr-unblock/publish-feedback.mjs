@@ -15,8 +15,10 @@
 //      comment the model job did not see; posts the templated reply on its
 //      root comment and resolves it only when it is VALID.
 //   4. Always posts the round marker, as the lanes App.
-//   5. Escalates feedback-invalid, feedback-not-landed or, for an UNCERTAIN or
-//      VALID-defer reply, feedback-uncertain.
+//   5. Escalates feedback-invalid, feedback-incomplete (a kept thread has no
+//      disposition), feedback-not-landed, feedback-partial (posting stopped
+//      after a reply), feedback-uncertain (an UNCERTAIN or VALID-defer reply)
+//      or feedback-disputed (an INCORRECT reply, left open for a person).
 //
 // Environment:
 //   GH_TOKEN              the lane token (pull-requests: write, contents: read)
@@ -190,9 +192,68 @@ async function fixesLanded({ api, run, headSha, replies }) {
   return true;
 }
 
-export async function publish({ api, pr, headSha, appId, reviewerId, readArtifact, fileExists, log = () => {} }) {
-  let escalationReason = "";
+// Resolves a VALID thread only while it holds exactly the model's view plus
+// this reply, so a comment posted meanwhile is not resolved unread. One retry
+// covers a transient read or resolve failure; false means it changed.
+async function resolveAfterReply(api, id, expected) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      const after = await api.readThread(id);
+      if (!sameIds(after.commentIds, expected)) {
+        return false;
+      }
+      // A resolve that took effect before its answer was lost.
+      if (after.isResolved === true && attempt > 1) {
+        return true;
+      }
+      if (after.isResolved !== false) {
+        return false;
+      }
+      if ((await api.resolveThread(id)) !== true) {
+        throw new Error(`replied on ${id} but it does not read resolved`);
+      }
+      return true;
+    } catch (error) {
+      if (attempt >= 2) {
+        throw error;
+      }
+    }
+  }
+}
+
+export async function publish(args) {
+  const { api, pr, headSha, appId, log = () => {} } = args;
+  let result = null;
+  let failure = null;
   try {
+    result = await postReplies({ ...args, log });
+  } catch (error) {
+    failure = error;
+  }
+  // The round counts whatever happened above, so the cap holds. A marker
+  // that cannot be posted still leaves the replies' outcome to a person.
+  try {
+    const rounds = countRounds(await api.listIssueComments(pr), appId) + 1;
+    await api.createIssueComment(
+      pr,
+      [ROUND_MARKER, `pr-unblock / address-feedback finished round ${rounds} of ${MAX_ROUNDS} on ${headSha}.`].join("\n"),
+    );
+    log(`recorded round ${rounds}${result?.escalationReason ? `; escalating ${result.escalationReason}` : ""}`);
+  } catch (error) {
+    log(`could not record the round: ${String(error?.message ?? error).slice(0, 300)}`);
+    if (result !== null && result.escalationReason === "") {
+      result = { ...result, escalationReason: "feedback-partial" };
+    }
+  }
+  if (failure !== null) {
+    throw failure;
+  }
+  return result;
+}
+
+async function postReplies({ api, pr, headSha, reviewerId, readArtifact, fileExists, log }) {
+  let escalationReason = "";
+  {
     let run;
     let replies;
     try {
@@ -205,6 +266,13 @@ export async function publish({ api, pr, headSha, appId, reviewerId, readArtifac
       }
       log(`no reply is posted: ${error instanceof Invalid ? error.message : "the artifact is missing"}`);
       escalationReason = "feedback-invalid";
+      return { escalationReason, posted: [] };
+    }
+    // Every kept thread needs its disposition: one left out would stay open
+    // with no reply, and the head's check run stops another dispatch.
+    if (replies.length !== run.threads.length) {
+      log(`no reply is posted: ${replies.length} of ${run.threads.length} kept threads have a disposition`);
+      escalationReason = "feedback-incomplete";
       return { escalationReason, posted: [] };
     }
     const { kept } = await currentThreads({ api, pr, reviewerId });
@@ -222,47 +290,47 @@ export async function publish({ api, pr, headSha, appId, reviewerId, readArtifac
     for (const reply of replies) {
       const ids = shown.get(reply.thread).comment_ids;
       const fresh = now.get(reply.thread);
-      const reread = fresh && (await api.readThread(reply.thread));
-      if (
-        !fresh ||
-        !sameIds(fresh.comments.map((comment) => comment.id), ids) ||
-        reread.isResolved !== false ||
-        reread.pr !== pr ||
-        reread.commentCount !== ids.length ||
-        !sameIds(reread.commentIds, ids)
-      ) {
-        log(`skipped ${reply.thread}: it changed since the model job read it`);
-        continue;
-      }
-      const answer = await api.replyToComment(pr, ids[0], renderReply(reply));
-      if (answer?.in_reply_to_id !== ids[0]) {
-        throw new Error(`the reply on ${reply.thread} did not land on its thread`);
-      }
-      if (reply.disposition === "VALID") {
-        // Resolve only a thread that holds exactly the model's view plus this
-        // reply, so a comment posted meanwhile is not resolved unread.
-        const after = await api.readThread(reply.thread);
-        if (after.isResolved !== false || !sameIds(after.commentIds, [...ids, answer.id])) {
-          log(`replied on ${reply.thread} but left it open: it changed while the reply was posted`);
-          posted.push({ thread: reply.thread, disposition: reply.disposition });
+      // Once a reply posts, the thread is no longer the reviewer bot's alone,
+      // so no later round selects it again: any failure in this loop stops
+      // the posting, and it or a VALID thread left open hands the PR to a
+      // person instead of stranding a thread.
+      try {
+        const reread = fresh && (await api.readThread(reply.thread));
+        if (
+          !fresh ||
+          !sameIds(fresh.comments.map((comment) => comment.id), ids) ||
+          reread.isResolved !== false ||
+          reread.pr !== pr ||
+          reread.commentCount !== ids.length ||
+          !sameIds(reread.commentIds, ids)
+        ) {
+          log(`skipped ${reply.thread}: it changed since the model job read it`);
           continue;
         }
-        if ((await api.resolveThread(reply.thread)) !== true) {
-          throw new Error(`replied on ${reply.thread} but it does not read resolved`);
+        const answer = await api.replyToComment(pr, ids[0], renderReply(reply));
+        if (answer?.in_reply_to_id !== ids[0]) {
+          throw new Error(`the reply on ${reply.thread} did not land on its thread`);
         }
+        posted.push({ thread: reply.thread, disposition: reply.disposition });
+        if (reply.disposition === "VALID" && !(await resolveAfterReply(api, reply.thread, [...ids, answer.id]))) {
+          log(`replied on ${reply.thread} but left it open: it changed while the reply was posted`);
+          escalationReason = "feedback-partial";
+          continue;
+        }
+      } catch (error) {
+        log(`stopped at ${reply.thread}: ${String(error?.message ?? error).slice(0, 300)}`);
+        escalationReason = "feedback-partial";
+        break;
       }
-      posted.push({ thread: reply.thread, disposition: reply.disposition });
       log(`replied on ${reply.thread} (${reply.disposition})${reply.disposition === "VALID" ? "; resolved" : ""}`);
     }
+    // An INCORRECT thread stays open for a person to decide (owner decision):
+    // its evidence reply is posted, and the PR goes to a person, since no
+    // later round selects a thread the lanes App has answered.
+    if (escalationReason === "" && posted.some((entry) => entry.disposition === "INCORRECT")) {
+      escalationReason = "feedback-disputed";
+    }
     return { escalationReason, posted };
-  } finally {
-    // The round counts whatever happened above, so the cap holds.
-    const rounds = countRounds(await api.listIssueComments(pr), appId) + 1;
-    await api.createIssueComment(
-      pr,
-      [ROUND_MARKER, `pr-unblock / address-feedback finished round ${rounds} of ${MAX_ROUNDS} on ${headSha}.`].join("\n"),
-    );
-    log(`recorded round ${rounds}${escalationReason ? `; escalating ${escalationReason}` : ""}`);
   }
 }
 
