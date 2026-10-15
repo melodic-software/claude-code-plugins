@@ -60,6 +60,7 @@ RECORD_RE = re.compile(
     rf"|skip=(?P<skip>[\w-]+))$"
 )
 SHA_RE = re.compile(rf"^{_SHA}$")
+HUNK_HEADER_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 # The wrapper re-runs a review only after a usage-limit failure, once.
 RATE_LIMIT_CLASS_RE = re.compile(r"\bclass=rate-limit\b")
 MARKER_AUTHOR = "github-actions[bot]"
@@ -408,9 +409,9 @@ def _open_findings(
     thread is gone. A resolved thread is closed when a human resolved it, or
     when GitHub marks it outdated, it was opened before the first review at
     `reviewed` (the head whose review covers the pinned head) started, and
-    its flagged line is gone from the pinned head (`_line_changed`): the lane
-    reviewed the changed line after it. A thread from any review at
-    `reviewed`, or one whose flagged line is unchanged (GitHub also marks a
+    no line of its flagged range is left at the pinned head (`_line_changed`):
+    the lane reviewed the changed lines after it. A thread from any review at
+    `reviewed`, or one with a flagged line unchanged (GitHub also marks a
     thread outdated when an edit above it shifts it), stays open until a
     human resolves it, so neither a repeated review nor an unrelated push
     clears a finding an agent resolved without fixing. A thread stands for a recorded inline finding only when it
@@ -486,32 +487,54 @@ def _open_findings(
 def _line_changed(
     thread: Mapping[str, Any], head_file: Callable[[str, str], str | None] | None
 ) -> bool:
-    """Whether the line a thread flagged (the last line of its diff hunk, on
-    the new side) is absent from its file at the pinned head, or the file was
-    deleted. No reader, a blank line or anything unreadable is no evidence."""
+    """Whether every non-blank line of the range a thread flagged
+    (`originalStartLine`..`originalLine` on the new side, read from the end of
+    its diff hunk) is absent from its file at the pinned head, or the file was
+    deleted. No reader, a range the hunk does not end on, an all-blank range
+    or anything unreadable is no evidence."""
     if head_file is None:
         return False
     try:
         first = thread["comments"][0]
         path, hunk = first.get("path"), first.get("diffHunk")
         oid = (first.get("originalCommit") or {}).get("oid")
+        end = thread.get("originalLine")
+        start = thread.get("originalStartLine")
+        start = end if start is None else start
         if not (
             isinstance(path, str)
             and path
             and isinstance(hunk, str)
             and isinstance(oid, str)
             and SHA_RE.match(oid)
+            and type(start) is int
+            and type(end) is int
+            and 1 <= start <= end
         ):
             return False
-        last = hunk.rstrip("\n").rsplit("\n", 1)[-1].rstrip("\r")
-        if last[:1] not in ("+", " ") or not last[1:].strip():
+        rows = [row.rstrip("\r") for row in hunk.rstrip("\n").split("\n")]
+        header = HUNK_HEADER_RE.match(rows[0])
+        if not header or rows[-1][:1] not in ("+", " "):
+            return False
+        number, flagged = int(header[1]), []
+        for row in rows[1:]:
+            if row[:1] in ("+", " "):
+                if start <= number:
+                    flagged.append(row[1:])
+                number += 1
+        # The hunk must end on the range's last line and hold all of it.
+        if number - 1 != end or len(flagged) != end - start + 1:
+            return False
+        flagged = [line for line in flagged if line.strip()]
+        if not flagged:
             return False
         text = head_file(path, oid)
         if text is None:
             return True
-        return isinstance(text, str) and last[1:] not in {
-            line.rstrip("\r") for line in text.split("\n")
-        }
+        if not isinstance(text, str):
+            return False
+        present = {line.rstrip("\r") for line in text.split("\n")}
+        return not any(line in present for line in flagged)
     except Exception:  # noqa: BLE001 - unreadable is no evidence
         return False
 

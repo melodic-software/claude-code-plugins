@@ -148,12 +148,15 @@ def thread(
     created: str = "2026-01-01T00:30:00Z",
     outdated: bool = False,
     hunk: Any = HUNK,
+    lines: tuple[int | None, int | None] = (None, 2),
 ) -> dict[str, Any]:
     return {
         "id": f"t{next(_ids)}",
         "isResolved": resolved,
         "isOutdated": outdated,
         "resolvedBy": resolved_by,
+        "originalStartLine": lines[0],
+        "originalLine": lines[1],
         "comments": [
             {
                 "author": author or {"__typename": "Bot", "login": "claude"},
@@ -794,11 +797,18 @@ class CountTests(Base):
         self.assertTrue(result["claude-review"].bound)
         self.assertEqual(result["claude-review"].open_findings, 0)
 
-    def outdated_pusher_resolved(self, head_file: Any, hunk: Any = HUNK) -> int:
+    def outdated_pusher_resolved(
+        self, head_file: Any, hunk: Any = HUNK, lines: Any = (None, 2)
+    ) -> int:
         pusher = {"__typename": "User", "login": "pusher"}
         threads = [
             thread(
-                resolved=True, resolved_by=pusher, created=at, outdated=True, hunk=hunk
+                resolved=True,
+                resolved_by=pusher,
+                created=at,
+                outdated=True,
+                hunk=hunk,
+                lines=lines,
             )
             for at in ("2026-01-01T00:30:00Z", "2026-01-01T02:30:00Z")
         ]
@@ -834,6 +844,33 @@ class CountTests(Base):
     def test_blank_flagged_line_keeps_the_human_test(self) -> None:
         hunk = "@@ -1,2 +1,2 @@\n context\n+   \t"
         self.assertEqual(self.outdated_pusher_resolved(fixed_head, hunk), 2)
+
+    RANGE = "@@ -1,2 +1,4 @@\n context\n+query(user_input)\n-old()\n+return rows"
+
+    def test_range_with_only_its_boundary_line_edited_stays_open(self) -> None:
+        head = "context\nquery(user_input)\nreturn rows()\n"
+        self.assertEqual(
+            self.outdated_pusher_resolved(lambda p, o: head, self.RANGE, (2, 3)), 2
+        )
+
+    def test_range_with_every_line_changed_is_closed(self) -> None:
+        head = "context\nquery(clean(user_input))\nreturn rows()\n"
+        self.assertEqual(
+            self.outdated_pusher_resolved(lambda p, o: head, self.RANGE, (2, 3)), 0
+        )
+
+    def test_range_the_hunk_does_not_end_on_stays_open(self) -> None:
+        head = "context\nquery(clean(user_input))\nreturn rows()\n"
+        for name, lines in (
+            ("end mismatch", (2, 4)),
+            ("start before hunk", (0, 3)),
+            ("no line", (None, None)),
+        ):
+            with self.subTest(name):
+                self.assertEqual(
+                    self.outdated_pusher_resolved(lambda p, o: head, self.RANGE, lines),
+                    2,
+                )
 
     def test_earlier_round_with_unchanged_lines_still_needs_a_human(self) -> None:
         # An unrelated push re-reviewed incrementally never re-read the line.
