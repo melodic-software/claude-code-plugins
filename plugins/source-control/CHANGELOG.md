@@ -3,6 +3,15 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.5.2] - 2026-10-15
+
+### Fixed
+
+- The unattended merge gate no longer counts an AI review finding from an earlier round as open
+  once its thread is resolved, its lines have changed, and the lane has reviewed a later head: such
+  a thread is closed whoever resolved it. A thread from any review of the latest reviewed head, or
+  one whose lines never changed, still needs a human to resolve it.
+
 ## [1.5.1] - 2026-10-15
 
 ### Fixed
