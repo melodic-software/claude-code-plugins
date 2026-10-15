@@ -2,14 +2,27 @@
 
 ## 1.17.0 - 2026-10-15
 
-Schema: `effect` takes `mutate-pr`, `mutate-branch` plus `pull-requests: write`, for an activity
-that replies on and resolves review threads; the lane rules allow it only in `pr-unblock` and
-`pr-merge`, and every activity rule that forbids `mutate-branch` forbids it too. `pr-unblock.yml` takes an `activity` input (`resolve-conflicts`,
-the default, or `address-feedback`), and its dispatch concurrency group names the activity.
-`pr-feedback-dispatch.yml` dispatches `address-feedback` from `workflow_run` when both review lanes
-have reviewed a lanes App PR's current head and a reviewer-bot thread is open; the trigger gate and
-the broker accept its runs through the review run their record names. No live activity sets
-`mutate-pr` yet. `version` stays 1.
+`pr-unblock.yml` takes an `activity` input (`resolve-conflicts`, the default, or
+`address-feedback`), and its dispatch concurrency group names the activity. `address-feedback`
+runs as two jobs: the model job (`mutate-branch`), then, when its `feedback-round` output is
+`true`, the `publish-feedback` script job (`publish-artifact`, `review-replies: true`), which
+posts the replies; `report-escalation` takes either job's reason. `pr-feedback-dispatch.yml`
+dispatches `address-feedback` from `workflow_run` when both review lanes have reviewed a lanes App
+PR's current head and a reviewer-bot thread is open; the trigger gate and the broker accept its
+runs through the review run their record names. No effect grants both `contents: write` and
+`pull-requests: write` but `merge`. No live activity sets either leaf yet. `version` stays 1.
+
+## 1.16.0 - 2026-10-15
+
+Schema: `prepare` takes `review-threads`. `pr-run-activity.md` "prepare: review-threads" says what
+the write runner then does in two jobs. The model job keeps the reviewer bot's unresolved threads
+on a marker-confirmed head before the mint, escalates `feedback-protected-path` or
+`feedback-round-cap` before any model turn, stages the review-thread tool, pushes the fixes, and
+uploads the replies the tool recorded; it posts nothing. A script job with the new
+`review-replies` input and no model validates those replies, posts them and resolves only the
+fixed `VALID` threads, posts the round marker, and escalates `feedback-uncertain`,
+`feedback-not-landed` or `feedback-invalid`. The write file gains the `feedback-round` output. No
+live activity sets it yet. `version` stays 1.
 
 ## 1.15.0 - 2026-10-14
 

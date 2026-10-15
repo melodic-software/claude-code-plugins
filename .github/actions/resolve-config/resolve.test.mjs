@@ -1208,6 +1208,13 @@ test("prepare on a non-read skill leaf resolves and is carried on the slot", () 
   );
 });
 
+test("prepare: review-threads on a non-read skill leaf resolves and is carried on the slot", () => {
+  const config = withPrepare((doc) => {
+    doc.activities.simplify.prepare = "review-threads";
+  });
+  assert.equal(runRefine(config, { activity: "simplify", facts: LINT_FACTS }).selected.prepare, "review-threads");
+});
+
 test("prepare on a read skill leaf is rejected", () => {
   const config = withPrepare((doc) => {
     doc.activities.simplify.effect = "read";

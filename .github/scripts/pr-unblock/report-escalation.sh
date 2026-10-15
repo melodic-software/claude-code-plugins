@@ -11,7 +11,9 @@
 #   PR_NUMBER           the pull request
 #   HEAD_SHA            the gated head; it is the resume key
 #   ESCALATION_REASON   protected-path-conflict | workflow-staged | repeat-cap
-#                       | unresolved-conflict
+#                       | unresolved-conflict | feedback-protected-path
+#                       | feedback-round-cap | feedback-uncertain
+#                       | feedback-not-landed | feedback-invalid
 #   TRACKER_CONFIG      base .work-item-tracker.json
 #                       (default .base/.work-item-tracker.json)
 #   LANES_BOT_LOGIN     the lanes App bot login, the only author whose marker
@@ -39,6 +41,11 @@ case ${ESCALATION_REASON:-} in
   workflow-staged) why='the merge stages a change under .github/workflows/, which the lane does not push' ;;
   repeat-cap) why='the lane has resolved conflicts on this branch as many times in a row as its cap allows' ;;
   unresolved-conflict) why='the lane could not resolve every conflict' ;;
+  feedback-protected-path) why='the pull request changes .github/, so the lane does not address its review threads' ;;
+  feedback-round-cap) why='the lane has addressed review threads on this pull request as many rounds as its cap allows' ;;
+  feedback-uncertain) why='a review finding is uncertain or deferred, so a person decides it' ;;
+  feedback-not-landed) why='a fix the lane recorded did not reach the branch, so none of its review replies was posted' ;;
+  feedback-invalid) why='the review replies the lane recorded did not pass validation, so none was posted' ;;
   *) die "unknown escalation reason [${ESCALATION_REASON:-}]" ;;
 esac
 [[ ${PR_NUMBER:-} =~ ^[1-9][0-9]*$ ]] || die "PR_NUMBER is not a pull request number"

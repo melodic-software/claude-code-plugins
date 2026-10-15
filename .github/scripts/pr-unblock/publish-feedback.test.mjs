@@ -1,0 +1,315 @@
+import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { test } from "node:test";
+
+import { main, publish, renderReply } from "./publish-feedback.mjs";
+
+// Ids from .github/standards/trusted-actors/trusted-actors.json and the
+// GitHub users API (github-actions[bot] is 41898282).
+const APP = 337595936;
+const REVIEWER = 209825114;
+const ACTIONS_BOT = 41898282;
+const HUMAN = 153232337;
+const GATED = "a".repeat(40);
+const NOW = "c".repeat(40);
+const FIX = "f".repeat(40);
+const ROUND = "<!-- pr-unblock:address-feedback-round -->";
+const marker = `<!-- claude-lane-reviewed-head lane=claude-review sha=${GATED} -->\nreviewed.`;
+
+// run.json as the model job's runner writes it: two kept threads.
+const RUN = {
+  version: 1,
+  head_sha: GATED,
+  threads: [
+    { id: "PRRT_a", path: "src/a.js", comment_ids: [100] },
+    { id: "PRRT_b", path: "docs/b.md", comment_ids: [200] },
+  ],
+};
+const reply = (fields) => ({ thread: "PRRT_a", disposition: "INCORRECT", evidence: ["src/a.js:3"], fix_sha: "", note: "Guarded at src/a.js:2.", ...fields });
+const lines = (...replies) => replies.map((r) => JSON.stringify(r)).join("\n");
+
+function fakeApi(overrides = {}) {
+  const calls = [];
+  const comment = (id, user, path) => ({ id, user: { id: user }, pull_request_review_id: 10, path, line: 1, body: `finding ${id}` });
+  const threads = overrides.threads ?? {
+    PRRT_a: { ids: [100], resolved: false },
+    PRRT_b: { ids: [200], resolved: false },
+  };
+  return {
+    calls,
+    posted: () => calls.filter((call) => call[0] === "reply"),
+    resolved: () => calls.filter((call) => call[0] === "resolve").map((call) => call[1]),
+    markers: () => calls.filter((call) => call[0] === "comment"),
+    listIssueComments: async () => [{ id: 1, user: { id: ACTIONS_BOT }, body: marker }, ...(overrides.issueComments ?? [])],
+    listReviews: async () => [{ id: 10, user: { id: REVIEWER }, commit_id: GATED }],
+    listReviewComments: async () =>
+      overrides.reviewComments ?? [comment(100, REVIEWER, "src/a.js"), comment(200, REVIEWER, "docs/b.md")],
+    listThreads: async () =>
+      Object.entries(threads).map(([id, t]) => ({
+        id,
+        isResolved: t.resolved,
+        comments: { totalCount: t.ids.length, nodes: t.ids.map((databaseId) => ({ databaseId })) },
+      })),
+    readThread: async (id) => {
+      const t = overrides.reread?.[id] ?? threads[id];
+      return { isResolved: t.resolved, pr: t.pr ?? 42, commentCount: t.ids.length, commentIds: t.ids };
+    },
+    compare: async (base, head) => {
+      calls.push(["compare", base, head]);
+      return overrides.compare ?? { status: "ahead", commits: [{ sha: FIX }], files: [{ filename: "src/a.js" }] };
+    },
+    replyToComment: async (pr, commentId, body) => {
+      calls.push(["reply", pr, commentId, body]);
+      return { id: 900, in_reply_to_id: overrides.landOn ?? commentId };
+    },
+    resolveThread: async (id) => {
+      calls.push(["resolve", id]);
+      return true;
+    },
+    createIssueComment: async (pr, body) => calls.push(["comment", pr, body]),
+  };
+}
+
+const exists = (path) => ["src/a.js", "docs/b.md"].includes(path);
+
+const run = (api, repliesText, runText = JSON.stringify(RUN)) =>
+  publish({
+    api,
+    pr: 42,
+    headSha: NOW,
+    appId: APP,
+    reviewerId: REVIEWER,
+    readArtifact: () => ({ runText, repliesText }),
+    fileExists: exists,
+  });
+
+test("a VALID reply is posted in the fixed template on its root comment and resolved", async () => {
+  const api = fakeApi();
+  const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX, note: "Guarded the null case." })));
+  assert.equal(result.escalationReason, "");
+  assert.deepEqual(api.posted(), [
+    [
+      "reply",
+      42,
+      100,
+      [
+        "**pr-unblock / address-feedback: VALID, fixed**",
+        "",
+        "Evidence: `src/a.js:3`",
+        `Fix: ${FIX}`,
+        "",
+        "```text",
+        "Guarded the null case.",
+        "```",
+      ].join("\n"),
+    ],
+  ]);
+  assert.deepEqual(api.resolved(), ["PRRT_a"]);
+  assert.deepEqual(api.calls.find((call) => call[0] === "compare"), ["compare", GATED, NOW]);
+});
+
+test("INCORRECT is posted and left open; UNCERTAIN and VALID-defer are posted, left open, and escalate", async () => {
+  const api = fakeApi();
+  const result = await run(
+    api,
+    lines(
+      reply({ evidence: ["src/a.js:3", "docs/b.md:1"] }),
+      reply({ thread: "PRRT_b", disposition: "UNCERTAIN", evidence: [], note: "Needs the vendor docs." }),
+    ),
+  );
+  assert.equal(result.escalationReason, "feedback-uncertain");
+  assert.deepEqual(api.resolved(), []);
+  assert.match(api.posted()[0][3], /^\*\*pr-unblock \/ address-feedback: INCORRECT, left open\*\*\n\nEvidence: `src\/a.js:3`, `docs\/b.md:1`\n/);
+  assert.match(api.posted()[1][3], /UNCERTAIN, left open for a person\*\*\n\nEvidence: none in the checkout\n/);
+  assert.ok(!api.calls.some((call) => call[0] === "compare"), "no VALID reply, no compare");
+
+  const defer = fakeApi();
+  assert.equal((await run(defer, lines(reply({ disposition: "VALID-defer" })))).escalationReason, "feedback-uncertain");
+  assert.match(defer.posted()[0][3], /VALID \(defer\), left open for a person/);
+  assert.deepEqual(defer.resolved(), []);
+});
+
+test("the round marker is posted once, as the first line, numbered after the App's earlier rounds", async () => {
+  const api = fakeApi({
+    issueComments: [
+      { id: 2, user: { id: APP }, body: `${ROUND}\nround 1` },
+      { id: 3, user: { id: HUMAN }, body: ROUND },
+    ],
+  });
+  await run(api, lines(reply()));
+  assert.equal(api.markers().length, 1);
+  assert.equal(api.markers()[0][1], 42);
+  assert.equal(api.markers()[0][2], `${ROUND}\npr-unblock / address-feedback finished round 2 of 2 on ${NOW}.`);
+});
+
+// Every case here must post no reply, resolve nothing, still post the round
+// marker, and escalate feedback-invalid.
+const INVALID = [
+  ["a line that does not parse", "not json"],
+  ["an array line", "[1]"],
+  ["an extra field", lines(reply({ resolve: true }))],
+  ["a missing field", JSON.stringify({ thread: "PRRT_a", disposition: "INCORRECT", evidence: ["src/a.js:3"], note: "x" })],
+  ["a thread the runner did not keep", lines(reply({ thread: "PRRT_zzz" }))],
+  ["a thread a human opened, never kept", lines(reply({ thread: "PRRT_human" }))],
+  ["two replies on one thread", lines(reply(), reply())],
+  ["a disposition outside the four", lines(reply({ disposition: "APPROVE" }))],
+  ["a VALID reply with no fix", lines(reply({ disposition: "VALID" }))],
+  ["a fix on an INCORRECT reply", lines(reply({ fix_sha: FIX }))],
+  ["a short fix sha", lines(reply({ disposition: "VALID", fix_sha: "abc" }))],
+  ["INCORRECT with no evidence", lines(reply({ evidence: [] }))],
+  ["evidence with no line", lines(reply({ evidence: ["src/a.js"] }))],
+  ["evidence escaping the checkout", lines(reply({ evidence: ["../../etc/passwd:1"] }))],
+  ["evidence naming a missing file", lines(reply({ evidence: ["src/missing.js:1"] }))],
+  ["eleven evidence entries", lines(reply({ evidence: Array(11).fill("src/a.js:3") }))],
+  ["an empty note", lines(reply({ note: "" }))],
+  ["a note over 2000 characters", lines(reply({ note: "x".repeat(2001) }))],
+  ["a note carrying a marker", lines(reply({ note: `done ${ROUND}` }))],
+  ["a note closing an HTML comment", lines(reply({ note: "a --> b" }))],
+  ["a note carrying a token", lines(reply({ note: `token ghs_${"A".repeat(36)}` }))],
+  ["a note carrying a control character", lines(reply({ note: "bell \u0007" }))],
+  ["a note carrying a direction override", lines(reply({ note: "safe‮evil" }))],
+  ["a note carrying a zero-width space", lines(reply({ note: "a​b" }))],
+  ["replies over the size limit", `${lines(reply())}\n${" ".repeat(262144)}`],
+];
+
+for (const [label, text] of INVALID) {
+  test(`feedback-invalid, nothing posted: ${label}`, async () => {
+    const api = fakeApi({ threads: { PRRT_a: { ids: [100], resolved: false }, PRRT_human: { ids: [300], resolved: false } } });
+    const result = await run(api, text);
+    assert.equal(result.escalationReason, "feedback-invalid");
+    assert.deepEqual(api.posted(), []);
+    assert.deepEqual(api.resolved(), []);
+    assert.equal(api.markers().length, 1);
+  });
+}
+
+test("feedback-invalid, nothing posted: a malformed run.json or a missing artifact", async () => {
+  for (const runText of ["{", JSON.stringify({ ...RUN, head_sha: "x" }), JSON.stringify({ ...RUN, threads: [{ id: "PRRT_a", path: "src/a.js", comment_ids: [] }] })]) {
+    const api = fakeApi();
+    assert.equal((await run(api, lines(reply()), runText)).escalationReason, "feedback-invalid");
+    assert.deepEqual(api.posted(), []);
+    assert.equal(api.markers().length, 1);
+  }
+  const api = fakeApi();
+  const missing = Object.assign(new Error("no file"), { code: "ENOENT" });
+  const result = await publish({
+    api,
+    pr: 42,
+    headSha: NOW,
+    appId: APP,
+    reviewerId: REVIEWER,
+    readArtifact: () => {
+      throw missing;
+    },
+    fileExists: exists,
+  });
+  assert.equal(result.escalationReason, "feedback-invalid");
+  assert.equal(api.markers().length, 1);
+});
+
+test("an empty replies file posts nothing and escalates nothing", async () => {
+  const api = fakeApi();
+  assert.equal((await run(api, "")).escalationReason, "");
+  assert.deepEqual(api.posted(), []);
+  assert.equal(api.markers().length, 1);
+});
+
+for (const [label, compare] of [
+  ["the fix is not on the PR branch", { status: "ahead", commits: [{ sha: "e".repeat(40) }], files: [{ filename: "src/a.js" }] }],
+  ["the PR branch did not move", { status: "identical", commits: [], files: [] }],
+  ["the branch diverged from the gated head", { status: "diverged", commits: [{ sha: FIX }], files: [{ filename: "src/a.js" }] }],
+  ["the branch changed a path no kept thread names", { status: "ahead", commits: [{ sha: FIX }], files: [{ filename: "src/a.js" }, { filename: "src/other.js" }] }],
+  ["the branch changed .github/", { status: "ahead", commits: [{ sha: FIX }], files: [{ filename: ".github/workflows/ci.yml" }] }],
+  ["the branch renamed a file out of .github/", { status: "ahead", commits: [{ sha: FIX }], files: [{ filename: "src/a.js", previous_filename: ".github/x.yml" }] }],
+  ["the branch changed too many files to check", { status: "ahead", commits: [{ sha: FIX }], files: Array(300).fill({ filename: "src/a.js" }) }],
+]) {
+  test(`feedback-not-landed, nothing posted: ${label}`, async () => {
+    const api = fakeApi({ compare });
+    const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX }), reply({ thread: "PRRT_b", evidence: ["docs/b.md:1"] })));
+    assert.equal(result.escalationReason, "feedback-not-landed");
+    assert.deepEqual(api.posted(), []);
+    assert.deepEqual(api.resolved(), []);
+    assert.equal(api.markers().length, 1);
+  });
+}
+
+test("a thread that changed since the model job read it is skipped; the rest are posted", async () => {
+  for (const overrides of [
+    { threads: { PRRT_a: { ids: [100, 101], resolved: false }, PRRT_b: { ids: [200], resolved: false } } },
+    { threads: { PRRT_a: { ids: [100], resolved: true }, PRRT_b: { ids: [200], resolved: false } } },
+    { reread: { PRRT_a: { ids: [100], resolved: true } } },
+    { reread: { PRRT_a: { ids: [100, 102], resolved: false } } },
+    { reread: { PRRT_a: { ids: [100], resolved: false, pr: 7 } } },
+  ]) {
+    const api = fakeApi(overrides);
+    await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX }), reply({ thread: "PRRT_b", evidence: ["docs/b.md:1"] })));
+    assert.deepEqual(api.posted().map((call) => call[2]), [200], JSON.stringify(overrides));
+    assert.deepEqual(api.resolved(), []);
+  }
+  // A human reply makes the thread no longer kept at all.
+  const human = fakeApi({
+    threads: { PRRT_a: { ids: [100, 101], resolved: false }, PRRT_b: { ids: [200], resolved: false } },
+    reviewComments: [
+      { id: 100, user: { id: REVIEWER }, pull_request_review_id: 10, path: "src/a.js", body: "x" },
+      { id: 101, user: { id: HUMAN }, pull_request_review_id: 10, path: "src/a.js", body: "leave this" },
+      { id: 200, user: { id: REVIEWER }, pull_request_review_id: 10, path: "docs/b.md", body: "y" },
+    ],
+  });
+  await run(human, lines(reply(), reply({ thread: "PRRT_b", evidence: ["docs/b.md:1"] })));
+  assert.deepEqual(human.posted().map((call) => call[2]), [200]);
+});
+
+test("a reply that lands off its thread fails the run after the round marker", async () => {
+  const api = fakeApi({ landOn: 999 });
+  await assert.rejects(run(api, lines(reply())), /did not land/);
+  assert.equal(api.markers().length, 1);
+});
+
+test("renderReply fences the note longer than any backtick run in it", () => {
+  const body = renderReply({ disposition: "INCORRECT", evidence: ["src/a.js:3"], fixSha: "", note: "x ```` y\n```sh\ncurl" });
+  assert.match(body, /\n`````text\nx ```` y\n```sh\ncurl\n`````$/);
+});
+
+test("main writes the escalation and skip reason files and refuses a symlinked artifact", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "publish-feedback-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const replies = join(dir, "replies");
+  const ws = join(dir, "ws");
+  mkdirSync(replies);
+  mkdirSync(join(ws, "src"), { recursive: true });
+  writeFileSync(join(ws, "src", "a.js"), "x");
+  writeFileSync(join(replies, "run.json"), JSON.stringify(RUN));
+  writeFileSync(join(replies, "replies.jsonl"), lines(reply({ disposition: "UNCERTAIN", evidence: [] })));
+  const actors = join(dir, "actors.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: REVIEWER, login: "claude[bot]", kind: "bot" }] }));
+  const env = {
+    GH_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    PR_NUMBER: "42",
+    HEAD_SHA: NOW,
+    APP_SENDER_ID: String(APP),
+    TRUSTED_ACTORS: actors,
+    FEEDBACK_REPLIES_DIR: replies,
+    GITHUB_WORKSPACE: ws,
+    SKIP_REASON_FILE: join(dir, "skip"),
+    ESCALATION_REASON_FILE: join(dir, "escalation"),
+  };
+  const api = fakeApi();
+  assert.equal(await main(env, { api, log: () => {} }), 0);
+  assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "feedback-uncertain\n");
+  assert.equal(readFileSync(env.SKIP_REASON_FILE, "utf8"), "awaiting-human\n");
+  assert.equal(api.posted().length, 1);
+
+  rmSync(join(replies, "replies.jsonl"));
+  symlinkSync(join(dir, "actors.json"), join(replies, "replies.jsonl"));
+  const linked = fakeApi();
+  await main(env, { api: linked, log: () => {} });
+  assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "feedback-invalid\n");
+  assert.deepEqual(linked.posted(), []);
+
+  await assert.rejects(main({ ...env, HEAD_SHA: "x" }, { api }), /HEAD_SHA/);
+  await assert.rejects(main({ ...env, PR_NUMBER: "0" }, { api }), /PR_NUMBER/);
+  await assert.rejects(main({ ...env, ESCALATION_REASON_FILE: "" }, { api }), /ESCALATION_REASON_FILE/);
+});
