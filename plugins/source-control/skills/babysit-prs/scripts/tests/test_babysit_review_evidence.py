@@ -752,6 +752,65 @@ class CountTests(Base):
         result = self.bind(runs, threads=threads)
         self.assertEqual(result["claude-security-review"].open_findings, 0)
 
+    def rounds(self) -> list[dict[str, Any]]:
+        # #7520's shape: one inline finding at S1 and at S0, each fixed by
+        # the next push; the latest review, at S, raised nothing.
+        runs = [
+            run("claude-review", S1, "findings=1 inline=1 scope=whole"),
+            run(
+                "claude-review", S0, f"findings=1 inline=1 scope=incremental since={S1}"
+            ),
+            run(
+                "claude-review", S, f"findings=0 inline=0 scope=incremental since={S0}"
+            ),
+        ]
+        for hour, item in enumerate(runs):
+            job = item["attempts"][0]["jobs"][0]
+            job["started_at"] = f"2026-01-01T0{2 * hour}:00:00Z"
+            job["completed_at"] = f"2026-01-01T0{2 * hour + 1}:00:00Z"
+        return runs
+
+    def test_earlier_rounds_resolved_by_the_pusher_are_closed(self) -> None:
+        pusher = {"__typename": "User", "login": "pusher"}
+        threads = [
+            thread(resolved=True, resolved_by=pusher, created=at)
+            for at in ("2026-01-01T00:30:00Z", "2026-01-01T02:30:00Z")
+        ]
+        result = self.bind(self.rounds(), threads=threads)
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 0)
+
+    def test_earlier_round_still_unresolved_counts(self) -> None:
+        threads = [thread(created="2026-01-01T00:30:00Z")]
+        threads.append(
+            thread(
+                resolved=True, resolved_by=MAINTAINER, created="2026-01-01T02:30:00Z"
+            )
+        )
+        result = self.bind(self.rounds(), threads=threads)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+    def test_latest_round_resolved_by_the_pusher_counts(self) -> None:
+        runs = self.rounds()
+        runs[-1] = run(
+            "claude-review", S, f"findings=1 inline=1 scope=incremental since={S0}"
+        )
+        job = runs[-1]["attempts"][0]["jobs"][0]
+        job["started_at"], job["completed_at"] = (
+            "2026-01-01T04:00:00Z",
+            "2026-01-01T05:00:00Z",
+        )
+        pusher = {"__typename": "User", "login": "pusher"}
+        threads = [
+            thread(resolved=True, resolved_by=MAINTAINER, created=at)
+            for at in ("2026-01-01T00:30:00Z", "2026-01-01T02:30:00Z")
+        ]
+        threads.append(
+            thread(resolved=True, resolved_by=pusher, created="2026-01-01T04:30:00Z")
+        )
+        result = self.bind(runs, threads=threads)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
     def test_unread_threads_unbind(self) -> None:
         result = self.bind([whole("claude-review", S)], threads=None)
         self.assertUnbound(result["claude-review"], "threads-unread")

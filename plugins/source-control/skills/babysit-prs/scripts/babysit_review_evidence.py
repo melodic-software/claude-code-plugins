@@ -140,10 +140,10 @@ def _bind_lane(
 ) -> LaneEvidence:
     try:
         lane_runs = _lane_runs(lane, runs)
-        _resolve(lane, head, lane_runs)
+        reviewed = _resolve(lane, head, lane_runs)
         _require_marker(lane, head, comments)
         _require_marked_runs(lane, lane_runs, comments)
-        count = _open_findings(lane, lane_runs, threads, is_human, claimed)
+        count = _open_findings(lane, lane_runs, threads, is_human, claimed, reviewed)
     except Unbound as exc:
         return LaneEvidence(lane, False, exc.reason, None)
     return LaneEvidence(lane, True, None, count)
@@ -167,8 +167,9 @@ def _lane_runs(lane: str, runs: Sequence[Mapping[str, Any]]) -> list[Mapping[str
     return selected
 
 
-def _resolve(lane: str, head: str, lane_runs: list[Mapping[str, Any]]) -> None:
-    """Require a bound run at `head` whose record leads back to a whole review.
+def _resolve(lane: str, head: str, lane_runs: list[Mapping[str, Any]]) -> str:
+    """Require a bound run at `head` whose record leads back to a whole review,
+    and return the head of the review that covers `head`.
 
     A no-change skip binds to the review it names, one hop; an incremental
     review needs every earlier link bound, back to a whole review.
@@ -179,9 +180,10 @@ def _resolve(lane: str, head: str, lane_runs: list[Mapping[str, Any]]) -> None:
         raise Unbound("skip-not-no-change")
     if rec.through is not None:
         rec = _skip_target(lane, rec.through, lane_runs, seen)
+    reviewed = rec.sha
     for _ in range(MAX_CHAIN):
         if rec.whole:
-            return
+            return reviewed
         rec = _link(lane, rec.since, lane_runs, seen)  # type: ignore[arg-type]
         if rec.skip is not None:
             raise Unbound("incremental-gap")
@@ -389,19 +391,26 @@ def _open_findings(
     threads: Sequence[Mapping[str, Any]] | None,
     is_human: Callable[[Any], bool],
     claimed: set[str],
+    reviewed: str,
 ) -> int:
     """Summary findings over every completed attempt of the lane on this pull
-    request, plus inline threads still open or closed by a non-human, plus
-    inline findings whose thread is gone. A thread stands for a recorded
-    inline finding only when it was opened inside that lane job's run, and
-    it stands for one finding across both lanes (`claimed`), so neither an
-    unrecorded review's thread nor the other lane's untagged thread hides a
-    missing one."""
+    request, plus inline threads still open, plus inline findings whose
+    thread is gone. A resolved thread is closed when a human resolved it, or
+    when it was opened before the lane's latest review (the one at
+    `reviewed`, which covers the pinned head) started: the lane reviewed the
+    fix after it. A thread from that latest review stays open until a human
+    resolves it, so an agent resolving the finding it was just given does
+    not clear it. A thread stands for a recorded inline finding only when it
+    was opened inside that lane job's run, and it stands for one finding
+    across both lanes (`claimed`), so neither an unrecorded review's thread
+    nor the other lane's untagged thread hides a missing one."""
     if threads is None:
         raise Unbound("threads-unread")
     summary = 0
     # (job started, job completed, inline findings) per recorded attempt.
     windows: list[tuple[datetime | None, datetime | None, int]] = []
+    # When the latest review started; unknown keeps every thread's human test.
+    latest: datetime | None = None
     for item in lane_runs:
         for attempt in _attempts(item).values():
             # A draft-skipped run has only the caller job and reviewed nothing.
@@ -417,13 +426,18 @@ def _open_findings(
             if rec.findings < rec.inline:  # type: ignore[operator]
                 raise Unbound("count-inconsistent")
             summary += rec.findings - rec.inline  # type: ignore[operator]
+            started = _time(job.get("started_at"))
             windows.append(
                 (
-                    _time(job.get("started_at")),
+                    started,
                     _time(job.get("completed_at")),
                     rec.inline,  # type: ignore[arg-type]
                 )
             )
+            if item["head_sha"] == reviewed and started and (
+                latest is None or started > latest
+            ):
+                latest = started
     if not isinstance(threads, list | tuple):
         raise Unbound("evidence-error")
     covered = [0] * len(windows)
@@ -441,7 +455,9 @@ def _open_findings(
                     covered[i] += 1
                     claimed.add(thread_id)
                     break
-        if thread.get("isResolved") is not True or not is_human(
+        if thread.get("isResolved") is not True:
+            open_threads += 1
+        elif not (latest and created and created < latest) and not is_human(
             thread.get("resolvedBy")
         ):
             open_threads += 1
