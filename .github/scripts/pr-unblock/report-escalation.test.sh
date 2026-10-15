@@ -105,7 +105,8 @@ done
 
 # Accepted reasons: one comment, one label, both on the PR.
 for reason in protected-path-conflict workflow-staged repeat-cap unresolved-conflict \
-  feedback-protected-path feedback-round-cap feedback-uncertain feedback-not-landed feedback-invalid; do
+  feedback-protected-path feedback-round-cap feedback-uncertain feedback-not-landed feedback-invalid \
+  feedback-partial; do
   setup '[]' '[]'
   run "$reason"
   check "$reason: exit 0" 0 "$RC"

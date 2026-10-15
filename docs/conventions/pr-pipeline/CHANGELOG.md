@@ -9,7 +9,7 @@ on a marker-confirmed head before the mint, escalates `feedback-protected-path` 
 uploads the replies the tool recorded; it posts nothing. A script job with the new
 `review-replies` input and no model validates those replies, posts them and resolves only the
 fixed `VALID` threads, posts the round marker, and escalates `feedback-uncertain`,
-`feedback-not-landed` or `feedback-invalid`. The write file gains the `feedback-round` output. No
+`feedback-not-landed`, `feedback-invalid` or `feedback-partial` (posting stopped partway). The write file gains the `feedback-round` output. No
 live activity sets it yet. `version` stays 1.
 
 ## 1.15.0 - 2026-10-14

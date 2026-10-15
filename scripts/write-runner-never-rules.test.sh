@@ -141,8 +141,9 @@ say(/run-sha256/.test(String(feedbackCollect.with?.script ?? "")) && byId("act-s
 const actors = at((s) => s.id === "reply-actors");
 say(actors >= 0 && actors < checkout && /\.base\/\.github\/standards\/trusted-actors\/trusted-actors\.json/.test(byId("reply-actors").run ?? ""),
   "the reply script's trusted-actors list is copied from the base before the head checkout");
-say(/\?\*:feedback-uncertain \| \?\*:feedback-not-landed \| \?\*:feedback-invalid\)/.test(byId("act-script").run ?? ""),
-  "a script escalates only with the reply script's three reasons, and only in review-replies mode");
+say(/\?\*:feedback-uncertain \| \?\*:feedback-not-landed \| \?\*:feedback-invalid\)/.test(byId("act-script").run ?? "")
+  && /\?\*:feedback-partial\)/.test(byId("act-script").run ?? ""),
+  "a script escalates only with the reply script's own reasons, and only in review-replies mode");
 say(/chmod -R a-w "\$CHECKS_DIR"/.test(stage) && /disallowed="\$\{disallowed:\+\$disallowed,\}Edit\(\/\$CHECKS_DIR\/\*\*\),Write\(\/\$CHECKS_DIR\/\*\*\)"/.test(stage),
   "the check wrappers and their base copy are read-only to the skill");
 say(/chmod -R a-w "\$DOCS_DIR"/.test(stage) && /disallowed="Edit\(\/\$DOCS_DIR\/\*\*\),Write\(\/\$DOCS_DIR\/\*\*\)"/.test(stage),

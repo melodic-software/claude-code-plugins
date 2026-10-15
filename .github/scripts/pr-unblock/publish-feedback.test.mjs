@@ -54,6 +54,9 @@ function fakeApi(overrides = {}) {
         comments: { totalCount: t.ids.length, nodes: t.ids.map((databaseId) => ({ databaseId })) },
       })),
     readThread: async (id) => {
+      if (overrides.readFails?.includes(id)) {
+        throw new Error("POST https://api.github.com/graphql returned 502");
+      }
       const t = overrides.reread?.[id] ?? threads[id];
       // After the reply lands the thread holds it too, plus any comment the
       // case says arrived meanwhile.
@@ -72,9 +75,21 @@ function fakeApi(overrides = {}) {
     },
     resolveThread: async (id) => {
       calls.push(["resolve", id]);
+      if (overrides.resolveLandsThenFails && calls.filter((call) => call[0] === "resolve").length === 1) {
+        threads[id].resolved = true;
+        throw new Error("POST https://api.github.com/graphql returned 502");
+      }
+      if (calls.filter((call) => call[0] === "resolve").length <= (overrides.resolveFailures ?? 0)) {
+        throw new Error("POST https://api.github.com/graphql returned 502");
+      }
       return true;
     },
-    createIssueComment: async (pr, body) => calls.push(["comment", pr, body]),
+    createIssueComment: async (pr, body) => {
+      if (overrides.markerFails) {
+        throw new Error("POST https://api.github.com/repos/o/r/issues/42/comments returned 502");
+      }
+      calls.push(["comment", pr, body]);
+    },
   };
 }
 
@@ -260,11 +275,30 @@ test("feedback-not-landed with no VALID reply when the branch moved onto .github
   }
 });
 
-test("a VALID thread that gained a comment while the reply was posted is replied on but left open", async () => {
+test("a VALID thread that gained a comment while the reply was posted is left open and escalates feedback-partial", async () => {
   const api = fakeApi({ arrivedDuringReply: [101] });
-  await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })));
+  const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })));
   assert.equal(api.posted().length, 1);
   assert.deepEqual(api.resolved(), []);
+  assert.equal(result.escalationReason, "feedback-partial");
+});
+
+test("a resolve that fails once after the reply is retried and resolves", async () => {
+  const api = fakeApi({ resolveFailures: 1 });
+  const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })));
+  assert.deepEqual(api.resolved(), ["PRRT_a", "PRRT_a"]);
+  assert.equal(result.escalationReason, "");
+});
+
+test("a resolve that keeps failing after the reply escalates feedback-partial and posts no later reply", async () => {
+  const api = fakeApi({ resolveFailures: 2 });
+  const result = await run(
+    api,
+    lines(reply({ disposition: "VALID", fix_sha: FIX }), reply({ thread: "PRRT_b", evidence: ["docs/b.md:1"] })),
+  );
+  assert.equal(result.escalationReason, "feedback-partial");
+  assert.deepEqual(api.posted().map((call) => call[2]), [100]);
+  assert.equal(api.markers().length, 1);
 });
 
 test("a thread that changed since the model job read it is skipped; the rest are posted", async () => {
@@ -293,9 +327,32 @@ test("a thread that changed since the model job read it is skipped; the rest are
   assert.deepEqual(human.posted().map((call) => call[2]), [200]);
 });
 
-test("a reply that lands off its thread fails the run after the round marker", async () => {
+test("a resolve that took effect before its answer was lost counts as resolved", async () => {
+  const api = fakeApi({ resolveLandsThenFails: true });
+  const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })));
+  assert.equal(result.escalationReason, "");
+});
+
+test("a failed re-read of the next thread after a reply posted escalates feedback-partial", async () => {
+  const api = fakeApi({ readFails: ["PRRT_b"] });
+  const result = await run(
+    api,
+    lines(reply(), reply({ thread: "PRRT_b", evidence: ["docs/b.md:1"] })),
+  );
+  assert.equal(result.escalationReason, "feedback-partial");
+  assert.deepEqual(api.posted().map((call) => call[2]), [100]);
+});
+
+test("a round marker that cannot be posted still returns an escalation", async () => {
+  const api = fakeApi({ markerFails: true });
+  const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })));
+  assert.equal(result.escalationReason, "feedback-partial");
+});
+
+test("a reply that lands off its thread escalates feedback-partial before the round marker", async () => {
   const api = fakeApi({ landOn: 999 });
-  await assert.rejects(run(api, lines(reply())), /did not land/);
+  const result = await run(api, lines(reply()));
+  assert.equal(result.escalationReason, "feedback-partial");
   assert.equal(api.markers().length, 1);
 });
 
