@@ -62,6 +62,7 @@ permissions, and passes no App key.
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the model job's replies |
 | `review-run-sha256` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-sha256` output |
+| `review-run-attempt` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-attempt` output, which names the replies artifact so a re-run of the reply job alone still finds it |
 
 The write file has four `workflow_call` outputs; `issue-run-started` is described below, and `feedback-run-sha256` with
 [`prepare: review-threads`](#prepare-review-threads). `escalation-reason` is empty, or why a
@@ -495,9 +496,11 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    `github-script` step writes `run.json` (the gated head and the kept threads' ids, paths and
    comment ids, from the thread file) beside a copy of the tool's `replies.jsonl`, and the job
    uploads both as `feedback-replies-<run attempt>`. Its `feedback-round` output is then `true`,
-   and `feedback-run-sha256` is the SHA-256 of that `run.json`.
+   `feedback-run-sha256` is the SHA-256 of that `run.json`, and `feedback-run-attempt` is the
+   attempt in the artifact's name.
 4. The caller runs the reply job when `feedback-round` is `true`, passing `feedback-run-sha256` as
-   `review-run-sha256`. Before the head checkout it downloads that artifact and copies the base's
+   `review-run-sha256` and `feedback-run-attempt` as `review-run-attempt` (a re-run of the reply
+   job alone runs as a later attempt but keeps the model job's outputs). Before the head checkout it downloads that artifact and copies the base's
    trusted-actors list. `publish-feedback.mjs` then:
    - validates the whole artifact: `run.json` with exactly that SHA-256; each file a regular file
      read only when within the size limit; `replies.jsonl` at most

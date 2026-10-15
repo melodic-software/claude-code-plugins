@@ -106,6 +106,15 @@ const run = (api, repliesText, runText = JSON.stringify(RUN)) =>
     fileExists: exists,
   });
 
+// The review-thread tool counts the note in code points (jq length); 2000
+// emoji are 4000 UTF-16 units and must still pass here.
+test("a note of exactly 2000 emoji is accepted and posted", async () => {
+  const api = fakeApi();
+  const result = await run(api, lines(reply({ note: "😀".repeat(2000) })));
+  assert.equal(result.escalationReason, "");
+  assert.equal(api.posted().length, 1);
+});
+
 test("a VALID reply is posted in the fixed template on its root comment and resolved", async () => {
   const api = fakeApi();
   const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX, note: "Guarded the null case." })));
@@ -186,6 +195,7 @@ const INVALID = [
   ["eleven evidence entries", lines(reply({ evidence: Array(11).fill("src/a.js:3") }))],
   ["an empty note", lines(reply({ note: "" }))],
   ["a note over 2000 characters", lines(reply({ note: "x".repeat(2001) }))],
+  ["a note of 2001 emoji", lines(reply({ note: "😀".repeat(2001) }))],
   ["a note carrying a marker", lines(reply({ note: `done ${ROUND}` }))],
   ["a note closing an HTML comment", lines(reply({ note: "a --> b" }))],
   ["a note carrying a token", lines(reply({ note: `token ghs_${"A".repeat(36)}` }))],
