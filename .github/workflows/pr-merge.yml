@@ -128,17 +128,22 @@ jobs:
       # behind the run is a listed human (trusted-actors.json on main). Runs
       # started by a bot, such as the lanes App pushing or labeling, or by an
       # unlisted account, stop here quietly instead of failing; the hourly
-      # run picks up whatever they changed.
+      # run picks up whatever they changed. The hourly run itself always
+      # proceeds: nobody starts it, and GitHub names as its actor whoever last
+      # changed the schedule or the default branch, often a bot.
       - name: Check who started the run
         id: who
         if: steps.kill.outputs.proceed == 'true'
         env:
+          EVENT: ${{ github.event_name }}
           ACTOR_ID: ${{ github.actor_id }}
           TRIGGERING_ACTOR: ${{ github.triggering_actor }}
           LIST: .base/.github/standards/trusted-actors/trusted-actors.json
         run: |
           set -euo pipefail
-          if [[ $ACTOR_ID =~ ^[1-9][0-9]*$ ]] &&
+          if [ "$EVENT" = schedule ]; then
+            echo "proceed=true" >>"$GITHUB_OUTPUT"
+          elif [[ $ACTOR_ID =~ ^[1-9][0-9]*$ ]] &&
             jq -e --argjson id "$ACTOR_ID" --arg login "$TRIGGERING_ACTOR" '
               [.actors[] | select(.kind == "human")] as $humans
               | ($humans | any(.id == $id))
@@ -146,7 +151,7 @@ jobs:
             ' "$LIST" >/dev/null; then
             echo "proceed=true" >>"$GITHUB_OUTPUT"
           else
-            echo "::notice::started by ${TRIGGERING_ACTOR:-an unknown account}, who is not a listed human; nothing checked, the hourly run will look"
+            echo "::notice::started by ${TRIGGERING_ACTOR:-an unknown account}, who is not a listed human; nothing checked here, the next hourly run checks every candidate"
             echo "proceed=false" >>"$GITHUB_OUTPUT"
           fi
 
