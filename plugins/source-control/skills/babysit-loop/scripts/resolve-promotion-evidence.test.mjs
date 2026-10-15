@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall } from "./operator-options.mjs";
-import { FULL, GATE, github, LANE, MECHANICAL, pr, REPO, shaOf, wfRun } from "./fixtures/publish-promotion-evidence/github-fake.mjs";
+import { demotionIssue, FULL, GATE, github, issueItem, LANE, MECHANICAL, pr, REPO, shaOf, wfRun } from "./fixtures/publish-promotion-evidence/github-fake.mjs";
 import { collect } from "./publish-promotion-evidence.mjs";
 import { laneWritable } from "./resolve-promotion-evidence.mjs";
 
@@ -398,6 +398,18 @@ test("inline mode counts an in-epoch gate failure of a merge made just before th
   assert.equal(result.failClosedReason, null);
   assert.equal(result.cells["C2-auto-merge"].effective, "unpromoted");
   assert.match(result.cells["C2-auto-merge"].line, /gate-failure at 2026-09-01T01:08:00Z/);
+});
+
+test("inline mode fails closed when a run or demotion issue inside the window was deleted, and demotes on a demotion issue", () => {
+  const binding = bindingFile("2026-09-01T00:00:00Z");
+  const runs = [1, 2, 3].map((id) => wfRun(id, "schedule", TIP, `2026-09-0${id + 1}T00:00:00Z`));
+  const history = [shaOf(1301), TIP];
+  assertFailClosed(runInline({ binding, fixture: { history, workflowRuns: { [FULL]: runs }, deletedRuns: [2] } }), new RegExp(`^run-deleted: ${FULL} `));
+  const issueList = [issueItem(7101, "2026-09-02T00:00:00Z"), issueItem(7103, "2026-09-03T00:00:00Z")];
+  assertFailClosed(runInline({ binding, fixture: { issueList, goneIssues: [7102] } }), /^issue-deleted: #7102 /);
+  const demoted = runInline({ binding, fixture: { demotionIssues: [demotionIssue(7104, "2026-09-04T00:00:00Z")] } });
+  assert.equal(demoted.failClosedReason, null);
+  for (const cell of CELLS) assert.match(demoted.cells[cell].line, /unpromoted \(gate-failure at 2026-09-04T00:00:00Z\)/);
 });
 
 test("inline --window-start demotes every cell at that instant", () => {

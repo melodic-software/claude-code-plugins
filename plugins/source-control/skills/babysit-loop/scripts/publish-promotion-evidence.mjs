@@ -33,10 +33,15 @@
 // matching the enqueuer. For an App lane pass --lane-login as `name[bot]`, or its dispatch runs
 // and pins are not found.
 //
-// A red workflow run deleted before this script reads it is never seen. babysit_postmerge.py
-// dispatches the post-merge full run under the lane identity; whether that identity can also
-// delete runs is the deployment question promotion-evidence-bootstrap.md records with its pointer.
-// Not decided here.
+// Deletion (#7518) refuses the publish rather than erasing a contrary event, inside --since..
+// --through (EvidenceGone, failClosedReason): a run_number gap between two runs of
+// FULL_RUN_WORKFLOW or CANARY_WORKFLOW created in the window ("run-deleted:"), and an issue or
+// pull number missing between two created in the window that reads 410 Gone ("issue-deleted:")
+// or names another repository ("issue-missing:"). The newest run or issue in the window, deleted
+// before a later one exists, leaves no gap. Each babysit-merge-demotion record a filer
+// (github-actions[bot] or a --lane-login) opened, with the marker in its body or any revision, or
+// an edit history that cannot be read whole, is a gate-failure on every cell at its creation and
+// at each repeat-failure comment inside the window: records only ever add events.
 //
 // Anything a lane can write into a PR or commit degrades to a listing or to unclassed-autonomous,
 // never to a refused publish. What refuses is GitHub itself being unreadable: a failed read, an
@@ -111,6 +116,14 @@ const DAY_MS = 86_400_000;
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 
 export class PublishError extends Error {}
+
+// Contrary evidence GitHub no longer lists: the resolver reports failClosedReason as is.
+export class EvidenceGone extends PublishError {
+  constructor(reason) {
+    super(`refusing to publish: ${reason}`);
+    this.failClosedReason = reason;
+  }
+}
 
 function instant(value, name) {
   const ms = typeof value === "string" && ISO.test(value) ? Date.parse(value) : Number.NaN;
@@ -365,6 +378,126 @@ function postMergeRuns(gh, repo, branch, merges, { lane, throughMs }) {
   };
 }
 
+// run_number starts at 1 per workflow, rises with each new run, and a re-run keeps it (pointer:
+// https://docs.github.com/en/actions/reference/workflows-and-actions/contexts, github.run_number;
+// as of 2026-10-15; recheck if that definition changes). So the runs created in [loMs, hiMs],
+// every event and branch, number consecutively unless one between them was deleted. A list
+// filtered by `created` returns at most RUN_RESULT_LIMIT results (pointer: REST "List workflow
+// runs for a workflow"; measured 2026-10-15, past them a page is empty and total_count reads 0,
+// and total_count stops at 2,500), so a range holding more is read in halves. The list is newest
+// first, but runs created in one second are not in run_number order (measured 2026-10-15), so a
+// range's newest number is the highest on its first page and its oldest the lowest on its last
+// page and the page before. Any answer that does not fit refuses.
+const RUN_RESULT_LIMIT = 1000;
+function checkRunNumbers(gh, repo, workflow, loMs, hiMs) {
+  const read = (lo, hi, page) => {
+    const range = encodeURIComponent(`${isoSeconds(lo)}..${isoSeconds(hi)}`);
+    const body = gh(`repos/${repo}/actions/workflows/${workflow}/runs?created=${range}&per_page=${PAGE}&page=${page}`);
+    if (!Number.isInteger(body?.total_count) || !Array.isArray(body.workflow_runs)) throw new PublishError(`gh api ${workflow} runs: no total_count or workflow_runs`);
+    const numbers = body.workflow_runs.map((run) => {
+      if (!Number.isInteger(run?.run_number) || run.run_number < 1) throw new PublishError(`refusing to publish: a ${workflow} run created in the window has no run_number`);
+      return run.run_number;
+    });
+    return { total: body.total_count, numbers };
+  };
+  const joined = (a, b) => {
+    if (!a || !b) return a ?? b;
+    if (b.oldest !== a.newest + 1) throw new EvidenceGone(`run-deleted: ${workflow} runs ${a.newest + 1}..${b.oldest - 1} are missing between runs created in the window`);
+    return { oldest: a.oldest, newest: b.newest };
+  };
+  const span = (lo, hi) => {
+    const { total, numbers: newer } = read(lo, hi, 1);
+    if (total === 0) return null;
+    if (total > RUN_RESULT_LIMIT) {
+      if (hi <= lo) throw new PublishError(`refusing to publish: over ${RUN_RESULT_LIMIT} ${workflow} runs created at ${isoSeconds(lo)}`);
+      const mid = lo + Math.floor((hi - lo) / 2000) * 1000;
+      return joined(span(lo, mid), span(mid + 1000, hi));
+    }
+    const last = Math.ceil(total / PAGE);
+    const older = last === 1 ? newer : [...(last > 2 ? read(lo, hi, last - 1).numbers : newer), ...read(lo, hi, last).numbers];
+    if (newer.length === 0 || older.length === 0) throw new PublishError(`refusing to publish: ${workflow} lists ${total} runs created ${isoSeconds(lo)}..${isoSeconds(hi)} but returns none`);
+    const [newest, oldest] = [Math.max(...newer), Math.min(...older)];
+    if (newest - oldest + 1 > total) throw new EvidenceGone(`run-deleted: ${workflow} lists ${total} runs created ${isoSeconds(lo)}..${isoSeconds(hi)} numbered ${oldest}..${newest}`);
+    if (newest - oldest + 1 < total) throw new PublishError(`refusing to publish: ${workflow} lists ${total} runs created ${isoSeconds(lo)}..${isoSeconds(hi)} numbered only ${oldest}..${newest}`);
+    return { oldest, newest };
+  };
+  span(Math.ceil(loMs / 1000) * 1000, Math.floor(hiMs / 1000) * 1000);
+}
+
+// Issues and pulls share one number sequence, so a number missing between two created in the
+// window was deleted (410 Gone, pointer: REST "Get an issue"; as of 2026-10-15) or moved. The
+// listing is newest first and stops at the first page reaching before the window.
+function checkIssueNumbers(gh, repo, sinceMs, throughMs) {
+  const numbers = new Set();
+  for (let page = 1; ; page += 1) {
+    const items = gh(`repos/${repo}/issues?state=all&sort=created&direction=desc&per_page=${PAGE}&page=${page}`);
+    if (!Array.isArray(items)) throw new PublishError(`gh api repos/${repo}/issues: expected an array`);
+    let before = false;
+    for (const item of items) {
+      if (!Number.isInteger(item?.number)) throw new PublishError(`gh api repos/${repo}/issues: an item without a number`);
+      const created = ms(item.created_at, `issue #${item.number}`);
+      if (created < sinceMs) before = true;
+      else if (created <= throughMs) numbers.add(item.number);
+    }
+    if (before || items.length < PAGE) break;
+  }
+  const sorted = [...numbers].sort((a, b) => a - b);
+  for (let n = sorted[0] + 1; n < sorted.at(-1); n += 1) {
+    if (numbers.has(n)) continue;
+    let issue;
+    try {
+      issue = gh(`repos/${repo}/issues/${n}`);
+    } catch (error) {
+      if (/\(HTTP 410\)/.test(error?.message)) throw new EvidenceGone(`issue-deleted: #${n} reads 410 Gone between issues created in the window`);
+      throw error;
+    }
+    if (issue?.number !== n || !String(issue.repository_url ?? "").toLowerCase().endsWith(`/repos/${repo.toLowerCase()}`)) {
+      throw new EvidenceGone(`issue-missing: #${n} is not listed between issues created in the window and does not read back as this repository's`);
+    }
+  }
+}
+
+// The demotion records post-merge-demotion-alert.yml files (and babysit_postmerge.py files under
+// the lane identity), read as babysit_merge_policy.py read_demotion finds candidates: issues a
+// filer opened, updated inside the window, whose body or any revision carries the marker, or
+// whose edit history is not whole. Each yields its creation and every repeat-failure comment
+// inside the window; a comment list that is not whole yields its last update.
+const DEMOTION_MARKER = "<!-- babysit-merge-demotion";
+const DEMOTION_FILER = "github-actions[bot]";
+const DEMOTION_AGAIN = "The post-merge check found this failure again: ";
+const DEMOTION_QUERY =
+  "query($owner:String!,$name:String!,$author:String!,$since:DateTime!,$c:String){repository(owner:$owner,name:$name){" +
+  "issues(first:50,after:$c,filterBy:{createdBy:$author,since:$since}){pageInfo{hasNextPage endCursor} nodes{number createdAt updatedAt body " +
+  "userContentEdits(first:100){totalCount nodes{diff deletedAt}} comments(last:100){totalCount nodes{body createdAt}}}}}}";
+const DEMOTION_PAGE_LIMIT = 30;
+
+function demotionRecords(gh, owner, name, filers, since) {
+  const out = [];
+  for (const author of filers) {
+    let cursor = null;
+    for (let page = 0; ; page += 1) {
+      if (page === DEMOTION_PAGE_LIMIT) throw new PublishError(`refusing to publish: issues by ${author} run past ${DEMOTION_PAGE_LIMIT} pages`);
+      const variables = { owner, name, author, since, ...(cursor ? { c: cursor } : {}) };
+      const issues = gh("graphql", { query: DEMOTION_QUERY, variables })?.data?.repository?.issues;
+      if (!Array.isArray(issues?.nodes) || typeof issues.pageInfo?.hasNextPage !== "boolean") throw new PublishError(`issues by ${author}: no issue page`);
+      for (const issue of issues.nodes) {
+        const edits = issue?.userContentEdits;
+        const whole = Array.isArray(edits?.nodes) && edits.totalCount === edits.nodes.length && edits.nodes.every((e) => typeof e?.diff === "string" && !e.deletedAt);
+        if (whole && ![issue?.body, ...edits.nodes.map((e) => e.diff)].some((text) => String(text ?? "").includes(DEMOTION_MARKER))) continue;
+        const at = [{ at: issue.createdAt, conclusion: "demotion record filed" }];
+        const comments = issue.comments;
+        if (!Array.isArray(comments?.nodes) || comments.totalCount !== comments.nodes.length) at.push({ at: issue.updatedAt, conclusion: "comments not read whole" });
+        else for (const c of comments.nodes) if (String(c?.body ?? "").startsWith(DEMOTION_AGAIN)) at.push({ at: c.createdAt, conclusion: "repeat failure" });
+        for (const sighting of at) out.push({ issue: issue.number, ...sighting });
+      }
+      if (!issues.pageInfo.hasNextPage) break;
+      cursor = issues.pageInfo.endCursor;
+      if (typeof cursor !== "string" || !cursor) throw new PublishError(`issues by ${author}: a next page with no cursor`);
+    }
+  }
+  return out;
+}
+
 export function collect({ repo, since, through, laneLogins, gateChecks, aiReviewers = [], missedBlockingLabel = MISSED_BLOCKING_LABEL, gh = realGh }) {
   const gate = new Set(gateChecks ?? []);
   if (gate.size === 0) throw new PublishError("at least one --gate-check naming the post-merge gate is required");
@@ -385,6 +518,8 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
 
   const branch = gh(`repos/${repo}`)?.default_branch;
   if (!branch) throw new PublishError(`gh api repos/${repo}: no default_branch`);
+  for (const workflow of [FULL_RUN_WORKFLOW, CANARY_WORKFLOW]) checkRunNumbers(gh, repo, workflow, sinceMs, throughMs);
+  checkIssueNumbers(gh, repo, sinceMs, throughMs);
   // Merges into the default branch only (babysit_postmerge.py _merged_since). Created-ascending
   // order is stable while paging: an update moves no PR between pages.
   const seen = new Set();
@@ -605,6 +740,14 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     for (const r of tracked.filter((c) => c.cls === "C3")) {
       r.aiReviewed = pages(gh, `repos/${repo}/pulls/${r.number}/reviews`).some((review) => reviewers.has(review.user?.login));
     }
+  }
+
+  // Which merges a record's SHA contains is not read: it is contrary for every cell.
+  const filers = [...new Set([DEMOTION_FILER, ...laneLogins].map(loginKey))];
+  for (const record of demotionRecords(gh, owner, name, filers, new Date(sinceMs).toISOString())) {
+    if (!inWindow(record.at)) continue;
+    for (const cell of CELLS) addEvent(cell, "gate-failure", record.at);
+    gateFailures.push({ issue: record.issue, check: "babysit-merge-demotion", conclusion: record.conclusion, at: record.at });
   }
 
   const sorted = [...events.values()].sort((a, b) => Date.parse(a.at) - Date.parse(b.at) || eventKey(a).localeCompare(eventKey(b)));

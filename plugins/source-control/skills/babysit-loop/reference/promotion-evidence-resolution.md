@@ -84,8 +84,38 @@ trusted as given, and the settings, checkout and writability rules in
 agent from changing those files is review: each path must sit under `merge.diff-check.denied-paths`
 in the pipeline config, so the lane never merges a change to one. Inline mode never serves a local
 lane. Unlike the published file, whose publish refuses to drop an earlier event, inline mode
-rebuilds the events on every call, so an identity that can delete a red workflow run removes its
-gate failure.
+rebuilds the events on every call, so deleted evidence would vanish unless the publisher notices
+the deletion.
+
+Deletion: inside the read window (5 days before the epoch through now) the publisher, in both
+modes, fails closed instead of losing a contrary event:
+
+- `run-deleted:`: a missing `run_number` between two runs of `pr-require-checks.yml` or
+  `post-merge-detect-silent-revert.yml` created in the window. A re-run keeps its number, so it
+  leaves no gap. Pointer: `github.run_number` in
+  [Contexts reference](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts).
+  As of 2026-10-15. Recheck trigger: that definition changes.
+- `issue-deleted:` or `issue-missing:`: an issue or pull number missing between two created in the
+  window that reads 410 Gone, or that does not read back as this repository's.
+- Every `babysit-merge-demotion` record `github-actions[bot]` or a `--lane-login` opened, open or
+  closed, whose body or any revision carries the marker or whose edit history is not whole, is a
+  gate-failure on every cell at its creation and at each repeat-failure comment in the window.
+  Records only add events, so a lookalike can only demote.
+
+Residuals: a deleted run or issue that is the newest in the window leaves no gap until a later one
+is created; a red scheduled or canary run still counts through the demotion record
+`post-merge-demotion-alert.yml` files when it completes. An identity that can write issues can
+delete a repeat-failure comment; the red run it names still counts unless also deleted. A
+per-merge full run that pr-merge dispatches with its own `GITHUB_TOKEN` fires no `workflow_run`
+listener, so no demotion record covers it; its deletion shows as a `run_number` gap, or as the
+6-hour dispatch-deadline failure when it was the only lane dispatch. The admin operator account
+(and any agent on its token) can still delete runs and issues, edit the workflows, or disable the
+alert; that now fails closed rather than passing silently, but nothing stops it. Closing it needs a
+reader of the `workflows.delete_workflow_run` audit-log event, which the API offers only on GitHub
+Enterprise Cloud. Pointer:
+[Reviewing the audit log for your organization](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/reviewing-the-audit-log-for-your-organization).
+As of 2026-10-15. Recheck trigger: the organization moves to Enterprise Cloud or that page changes
+which plans have the audit-log API.
 
 Epoch guard: inline mode fails closed (`epoch-start-expired`) when the earliest `ratified_at` of a
 cell bound promoted is more than 85 days old, since contrary evidence from before GitHub's

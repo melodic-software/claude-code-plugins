@@ -91,11 +91,39 @@ export const wfRun = (id, event, sha, created, { conclusion = "success", status 
 // (babysit_merge.py --unattended, babysit_postmerge.py), so each PR gets a correct pin and a green
 // lane dispatch run on its merge commit an hour after merging, unless `comments` sets that PR's
 // comments or `noDefaultDispatch` is set; an explicit run with the same id replaces the default.
+// Each workflow's runs carry run_number 1, 2, ... in creation order unless a run sets its own (a
+// re-run keeps its number); `deletedRuns` lists run ids GitHub no longer lists, gaps included.
+// `demotionIssues`: issue nodes the GraphQL issues query returns, each with an `author` login.
+// `issueList`: the issues and pulls the REST issue listing returns (none by default, so no number
+// is a hole); `goneIssues`: numbers a read of answers 410 Gone.
 export const pinComment = (sha) => ({ author: actorOf(LANE), body: `<!-- babysit-merge-pin sha=${sha} -->\nThe unattended merge path enqueued this pull request at head \`${sha}\`.`, lastEditedAt: null });
-export function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issueEvents = {}, reviews = {}, issues = {}, workflowRuns: explicitRuns = {}, attempts = {}, history, diverged = [], comments = {}, noDefaultDispatch = false, bumpOnPage2 }) {
+export const demotionIssue = (number, createdAt, { author = "github-actions[bot]", body = REC.demotionIssue.body, updatedAt = createdAt, comments = [], commentCount = comments.length, edits = [], editCount = edits.length } = {}) => ({
+  ...REC.demotionIssue,
+  number,
+  author,
+  createdAt,
+  updatedAt,
+  body,
+  comments: { totalCount: commentCount, nodes: comments },
+  userContentEdits: { totalCount: editCount, nodes: edits },
+});
+export const issueItem = (number, created, { pull = false } = {}) => ({
+  ...REC.issueListItem,
+  number,
+  created_at: created,
+  pull_request: pull ? { url: `https://api.github.com/repos/${REPO}/pulls/${number}` } : null,
+});
+export function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issueEvents = {}, reviews = {}, issues = {}, workflowRuns: explicitRuns = {}, attempts = {}, history, diverged = [], comments = {}, noDefaultDispatch = false, bumpOnPage2, deletedRuns = [], demotionIssues = [], issueList = [], goneIssues = [] }) {
   const defaultDispatch = noDefaultDispatch ? [] : pulls.map((p) => wfRun(900000 + p.graph.number, "workflow_dispatch", p.graph.mergeCommit.oid, later(p.graph.mergedAt, 60), { actor: LANE }));
   const explicitIds = new Set(Object.values(explicitRuns).flat().map((r) => r.id));
-  const workflowRuns = { ...explicitRuns, [FULL]: [...defaultDispatch.filter((r) => !explicitIds.has(r.id)), ...(explicitRuns[FULL] ?? [])] };
+  const numbered = (runs) =>
+    [...runs]
+      .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id - b.id)
+      .map((run, index) => ({ run_number: index + 1, ...run }))
+      .filter((run) => !deletedRuns.includes(run.id));
+  const workflowRuns = Object.fromEntries(
+    Object.entries({ ...explicitRuns, [FULL]: [...defaultDispatch.filter((r) => !explicitIds.has(r.id)), ...(explicitRuns[FULL] ?? [])] }).map(([file, runs]) => [file, numbered(runs)]),
+  );
   const branch = history ?? [...pulls].sort((a, b) => a.graph.mergedAt.localeCompare(b.graph.mergedAt)).map((p) => p.graph.mergeCommit.oid);
   const page = (items, path) => {
     const n = Number(/[?&]page=(\d+)/.exec(path)[1]);
@@ -107,13 +135,19 @@ export function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}
       assert.deepEqual([graphql.variables.owner, graphql.variables.name], REPO.split("/"));
       assert.match(graphql.query, /^query\(/);
       assert.doesNotMatch(graphql.query, /mutation/);
-      if (/comments\(/.test(graphql.query)) {
+      if (/pullRequest\(number:\$number\)\{comments\(/.test(graphql.query)) {
         const pull = pulls.find((p) => p.graph.number === graphql.variables.number);
         const all = comments[graphql.variables.number] ?? [pinComment(pull.graph.headRefOid)];
         const n = Number(graphql.variables.c ?? 0);
         const nodes = all.slice(n * 100, (n + 1) * 100);
         const more = all.length > (n + 1) * 100;
         return { data: { repository: { pullRequest: { comments: { ...REC.commentsPage.data.repository.pullRequest.comments, pageInfo: { hasNextPage: more, endCursor: more ? String(n + 1) : null }, nodes } } } } };
+      }
+      if (/issues\(/.test(graphql.query)) {
+        // filterBy createdBy and since (updated at or after); one page.
+        const author = graphql.variables.author.toLowerCase();
+        const nodes = demotionIssues.filter((i) => i.author.toLowerCase() === author && Date.parse(i.updatedAt) >= Date.parse(graphql.variables.since)).map(({ author: _, ...node }) => node);
+        return { data: { repository: { issues: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } } };
       }
       const found = pulls.find((p) => p.graph.number === graphql.variables.number);
       return found ? { data: { repository: { pullRequest: found.graph } } } : REC.pullNotFound;
@@ -130,7 +164,16 @@ export function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}
       const listed = pulls.map((p) => p.list).filter((p) => !m[1] || p.base.ref === m[1]);
       return page(listed.sort((a, b) => sign * a[key].localeCompare(b[key])), rest);
     }
-    if ((m = /^issues\/(\d+)$/.exec(rest))) return issues[m[1]];
+    if ((m = /^issues\/(\d+)$/.exec(rest))) {
+      // The REST "Get an issue" 410 Gone for a deleted issue, in the shape of the recorded 404.
+      if (goneIssues.includes(Number(m[1]))) {
+        return ghFailure(path, undefined, REC.issueNotFound.stdout.replace("Not Found", "This issue was deleted").replace('"404"', '"410"'), "gh: This issue was deleted (HTTP 410)\n");
+      }
+      return issues[m[1]];
+    }
+    if (/^issues\?state=all&sort=created&direction=desc&/.test(rest)) {
+      return page([...issueList].sort((a, b) => b.created_at.localeCompare(a.created_at) || b.number - a.number), rest);
+    }
     if ((m = /^pulls\/(\d+)\/reviews\?/.exec(rest))) return page(reviews[m[1]] ?? [], rest);
     if (/^commits\?since=[^&]+&until=[^&]+&/.test(rest)) return page(commits, rest);
     if ((m = /^commits\/([0-9a-f]{40})\/check-runs\?/.exec(rest))) {
@@ -147,6 +190,19 @@ export function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}
     if ((m = /^actions\/workflows\/([\w.-]+)\/runs\?event=(\w+)&branch=main&created=%3E%3D[^&]+&/.exec(rest))) {
       const runs = (workflowRuns[m[1]] ?? []).filter((r) => r.event === m[2]);
       return { total_count: runs.length, workflow_runs: page(runs, rest) };
+    }
+    if ((m = /^actions\/workflows\/([\w.-]+)\/runs\?created=([^&]+)&per_page=(\d+)&page=(\d+)$/.exec(rest))) {
+      // Every event and branch, newest first, but runs created in one second oldest first (measured
+      // 2026-10-15: runs 3100 and 3101, created in one second, listed 3100 then 3101). With `created`,
+      // GitHub returns at most 1,000 results (REST "List workflow runs for a workflow"); past them, and
+      // measured 2026-10-15, a page is empty with total_count 0, and total_count stops at 2,500.
+      const [lo, hi] = decodeURIComponent(m[2]).split("..").map(Date.parse);
+      const [size, n] = [Number(m[3]), Number(m[4])];
+      if (size * n > 1000) return { total_count: 0, workflow_runs: [] };
+      const runs = (workflowRuns[m[1]] ?? [])
+        .filter((r) => Date.parse(r.created_at) >= lo && Date.parse(r.created_at) <= hi)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at) || a.id - b.id);
+      return { total_count: Math.min(runs.length, 2500), workflow_runs: runs.slice((n - 1) * size, n * size) };
     }
     if ((m = /^actions\/runs\/(\d+)\/attempts\/(\d+)$/.exec(rest))) return attempts[m[1]][m[2]];
     if ((m = /^compare\/([0-9a-f]{40})\.\.\.([0-9a-f]{40})\?/.exec(rest))) {

@@ -9,7 +9,7 @@ import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import * as publisher from "./publish-promotion-evidence.mjs";
 import { collect, PublishError, publish } from "./publish-promotion-evidence.mjs";
-import { actorOf, CANARY, FULL, GATE, github, LANE, later, MECHANICAL, MISSED, page1, pinComment, pr, REC, REPO, SCOPED, shaOf, wfRun } from "./fixtures/publish-promotion-evidence/github-fake.mjs";
+import { actorOf, CANARY, demotionIssue, FULL, GATE, github, issueItem, LANE, later, MECHANICAL, MISSED, page1, pinComment, pr, REC, REPO, SCOPED, shaOf, wfRun } from "./fixtures/publish-promotion-evidence/github-fake.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SINCE = "2026-08-01T00:00:00Z";
@@ -661,4 +661,81 @@ test("the CLI exits 2 on missing required arguments", () => {
   const cli = spawnSync(process.execPath, [join(HERE, "publish-promotion-evidence.mjs"), "--repo", REPO], { encoding: "utf8" });
   assert.equal(cli.status, 2);
   assert.match(cli.stderr, /--lane-login/);
+});
+
+// Deletion. run_number starts at 1 per workflow, rises with each new run and a re-run keeps it
+// (GitHub's contexts reference, github.run_number), so a missing number between two runs created
+// inside the window is a deleted run. The fake numbers runs that way and drops `deletedRuns`.
+const ALL = ["C2-auto-merge", "C3-ai-review-blocking", "C3-auto-merge"];
+const schedules = (ids, day = 2) => ids.map((id, n) => wfRun(id, "schedule", shaOf(0xb000 + id), `2026-09-${String(day + n).padStart(2, "0")}T00:00:00Z`));
+const refusesWith = (reason) => (error) => error instanceof PublishError && error.failClosedReason?.startsWith(reason) && error.message.startsWith(`refusing to publish: ${reason}`);
+
+test("a run deleted between two runs created inside the window refuses with run-deleted, in either workflow", () => {
+  assert.throws(() => run({ workflowRuns: { [FULL]: schedules([21, 22, 23]) }, deletedRuns: [22] }), refusesWith(`run-deleted: ${FULL}`));
+  const canaries = [41, 42, 43].map((id, n) => wfRun(id, "push", shaOf(0xb100 + id), `2026-09-0${n + 2}T00:00:00Z`));
+  assert.throws(() => run({ workflowRuns: { [CANARY]: canaries }, deletedRuns: [42] }), refusesWith(`run-deleted: ${CANARY}`));
+});
+
+test("consecutive run numbers pass, and a re-run attempt keeps its number", () => {
+  assert.deepEqual(run({ workflowRuns: { [FULL]: schedules([21, 22, 23]) } }).events, []);
+  const rerun = wfRun(31, "schedule", shaOf(0xb031), "2026-09-02T00:00:00Z", { attempt: 2, triggering: LANE });
+  const result = run({ workflowRuns: { [FULL]: [rerun, ...schedules([32], 3)] }, attempts: { 31: { 1: { ...rerun, run_attempt: 1 } } } });
+  assert.deepEqual(result.events, []);
+});
+
+test("a deleted run at a window edge is no gap: the newest, the oldest, or one before --since", () => {
+  for (const deleted of [21, 23]) assert.deepEqual(run({ workflowRuns: { [FULL]: schedules([21, 22, 23]) }, deletedRuns: [deleted] }).events, []);
+  const beforeSince = [wfRun(20, "schedule", shaOf(0xb020), "2026-07-30T00:00:00Z"), wfRun(19, "schedule", shaOf(0xb019), "2026-07-31T00:00:00Z")];
+  assert.deepEqual(run({ workflowRuns: { [FULL]: [...beforeSince, ...schedules([21, 22])] }, deletedRuns: [19] }).events, []);
+});
+
+test("over 1,000 runs in the window are read in halves, and a deletion among them still refuses", () => {
+  const many = Array.from({ length: 1002 }, (_, n) => wfRun(100000 + n, "pull_request", shaOf(0xc000), later("2026-09-01T00:00:00Z", n)));
+  assert.deepEqual(run({ workflowRuns: { [FULL]: many } }).events, []);
+  // Any one run but the oldest and newest, so a deletion where two halves meet refuses too.
+  for (let id = 100001; id < 101001; id += 1) {
+    assert.throws(() => run({ workflowRuns: { [FULL]: many }, deletedRuns: [id] }), refusesWith(`run-deleted: ${FULL}`), `run ${id}`);
+  }
+});
+
+// The alert workflow's record: first body line `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`,
+// filed by github-actions[bot], a repeat failure commented as `The post-merge check found this
+// failure again: <run>/attempts/<n>` (.github/workflows/post-merge-demotion-alert.yml).
+const AGAIN = (at) => ({ body: `The post-merge check found this failure again: https://github.com/${REPO}/actions/runs/9/attempts/2`, createdAt: at });
+
+test("a demotion issue filed inside the window, open or closed, is a gate-failure on every cell at its creation", () => {
+  const result = run({ demotionIssues: [demotionIssue(7001, "2026-09-10T00:00:00Z")] });
+  assert.deepEqual(result.events, gateEvents("2026-09-10T00:00:00Z", ...ALL));
+  assert.deepEqual(result.gateFailures.map((g) => g.issue), [7001]);
+});
+
+test("a repeat-failure comment inside the window counts; an issue filed before the window does not", () => {
+  const old = demotionIssue(7002, "2026-07-01T00:00:00Z", { updatedAt: "2026-09-12T00:00:00Z", comments: [AGAIN("2026-07-02T00:00:00Z"), AGAIN("2026-09-12T00:00:00Z")] });
+  assert.deepEqual(run({ demotionIssues: [old] }).events, gateEvents("2026-09-12T00:00:00Z", ...ALL));
+});
+
+test("a lane-filed lookalike or an edited record can only add gate-failures; an unmarked unedited issue adds none", () => {
+  const lookalike = demotionIssue(7003, "2026-09-10T00:00:00Z", { author: LANE, comments: [{ body: "re-run passed: cleared", createdAt: "2026-09-11T00:00:00Z" }] });
+  const stripped = demotionIssue(7004, "2026-09-11T00:00:00Z", { body: "nothing here", edits: [{ diff: REC.demotionIssue.body, deletedAt: null }] });
+  const truncated = demotionIssue(7005, "2026-09-12T00:00:00Z", { body: "nothing here", edits: [], editCount: 3 });
+  const hidden = demotionIssue(7006, "2026-09-13T00:00:00Z", { updatedAt: "2026-09-20T00:00:00Z", comments: [], commentCount: 101 });
+  const report = demotionIssue(7007, "2026-09-14T00:00:00Z", { body: "<!-- link-check report -->" });
+  const result = run({ demotionIssues: [lookalike, stripped, truncated, hidden, report] });
+  assert.deepEqual(result.events, [
+    ...gateEvents("2026-09-10T00:00:00Z", ...ALL),
+    ...gateEvents("2026-09-11T00:00:00Z", ...ALL),
+    ...gateEvents("2026-09-12T00:00:00Z", ...ALL),
+    ...gateEvents("2026-09-13T00:00:00Z", ...ALL),
+    ...gateEvents("2026-09-20T00:00:00Z", ...ALL),
+  ]);
+});
+
+test("an issue number missing inside the window refuses with issue-deleted on 410, and issue-missing when it moved", () => {
+  const listed = [issueItem(7101, "2026-09-01T00:00:00Z"), issueItem(7103, "2026-09-03T00:00:00Z", { pull: true })];
+  assert.throws(() => run({ issueList: listed, goneIssues: [7102] }), refusesWith("issue-deleted: #7102"));
+  const moved = { ...REC.issue, number: 7102, repository_url: "https://api.github.com/repos/someone/elsewhere" };
+  assert.throws(() => run({ issueList: listed, issues: { 7102: moved } }), refusesWith("issue-missing: #7102"));
+  assert.deepEqual(run({ issueList: listed, issues: { 7102: { ...REC.issueListItem, number: 7102 } } }).events, []);
+  // Only numbers between items created inside the window are read.
+  assert.deepEqual(run({ issueList: [issueItem(7100, "2026-07-01T00:00:00Z"), ...listed.slice(1)], goneIssues: [7101, 7102] }).events, []);
 });

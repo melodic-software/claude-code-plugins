@@ -186,6 +186,37 @@
     "stdout": "{\"message\":\"No commit found for SHA: 0123456789abcdef0123456789abcdef01234567\",\"documentation_url\":\"https://docs.github.com/rest/commits/commits#list-pull-requests-associated-with-a-commit\",\"status\":\"422\"}",
     "stderr": "gh: No commit found for SHA: 0123456789abcdef0123456789abcdef01234567 (HTTP 422)\n"
   },
+  "demotionIssue": {
+    "body": "<!-- babysit-merge-demotion sha=aad0b2b69bc22154c61b0857307a183d0c7821a8 signal=canary -->",
+    "comments": {
+      "nodes": [
+        {
+          "body": "Canary green on main since; closing to restore the merge rung.",
+          "createdAt": "2026-10-15T13:08:38Z"
+        }
+      ],
+      "totalCount": 1
+    },
+    "createdAt": "2026-10-13T02:43:01Z",
+    "number": 7359,
+    "updatedAt": "2026-10-15T13:08:39Z",
+    "userContentEdits": {
+      "nodes": [],
+      "totalCount": 0
+    }
+  },
+  "issueListItem": {
+    "created_at": "2026-10-15T15:17:15Z",
+    "number": 7525,
+    "pull_request": {
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/pulls/7525"
+    },
+    "repository_url": "https://api.github.com/repos/melodic-software/claude-code-plugins"
+  },
+  "issueNotFound": {
+    "stdout": "{\"message\":\"Not Found\",\"documentation_url\":\"https://docs.github.com/rest/issues/issues#get-an-issue\",\"status\":\"404\"}",
+    "stderr": "gh: Not Found (HTTP 404)\n"
+  },
   "repoNotFound": {
     "data": {
       "repository": null
