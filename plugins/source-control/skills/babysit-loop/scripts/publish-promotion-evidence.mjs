@@ -106,6 +106,7 @@ const GATE_FAILED = new Set(["failure", "timed_out", "startup_failure"]);
 const GATE_OK = new Set(["success", "neutral", "skipped"]);
 const STATUS_FAILED = new Set(["failure", "error"]);
 const PAGE = 100;
+const MISSED_BLOCKING_LABEL = "ai-review: missed-blocking";
 const DAY_MS = 86_400_000;
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 
@@ -364,7 +365,7 @@ function postMergeRuns(gh, repo, branch, merges, { lane, throughMs }) {
   };
 }
 
-export function collect({ repo, since, through, laneLogins, gateChecks, aiReviewers = [], missedBlockingLabel, gh = realGh }) {
+export function collect({ repo, since, through, laneLogins, gateChecks, aiReviewers = [], missedBlockingLabel = MISSED_BLOCKING_LABEL, gh = realGh }) {
   const gate = new Set(gateChecks ?? []);
   if (gate.size === 0) throw new PublishError("at least one --gate-check naming the post-merge gate is required");
   const sinceMs = instant(since, "--since");
@@ -763,7 +764,7 @@ function main() {
         "lane-login": { type: "string", multiple: true },
         "gate-check": { type: "string", multiple: true },
         "ai-reviewer": { type: "string", multiple: true },
-        "missed-blocking-label": { type: "string", default: "ai-review: missed-blocking" },
+        "missed-blocking-label": { type: "string", default: MISSED_BLOCKING_LABEL },
         out: { type: "string" },
       },
     }));
