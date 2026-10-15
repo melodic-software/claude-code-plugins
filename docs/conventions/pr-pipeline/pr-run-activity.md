@@ -63,7 +63,7 @@ permissions, and passes no App key.
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the model job's replies |
 | `review-run-sha256` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-sha256` output |
 
-The write file has three `workflow_call` outputs; `feedback-run-sha256` is described with
+The write file has four `workflow_call` outputs; `issue-run-started` is described below, and `feedback-run-sha256` with
 [`prepare: review-threads`](#prepare-review-threads). `escalation-reason` is empty, or why a
 [`prepare: merge-base`](#prepare-merge-base) activity, a `prepare: review-threads` activity before
 any model turn, or its reply script handed the PR to a person. `feedback-round` is `true` once a
