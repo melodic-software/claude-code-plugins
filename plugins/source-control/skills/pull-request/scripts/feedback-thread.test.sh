@@ -111,6 +111,18 @@ assert_exit "an UNCERTAIN record with no evidence succeeds" 0 "$?"
 assert_eq "both are recorded in order" "INCORRECT UNCERTAIN" "$(jq -rs 'map(.disposition) | join(" ")' "$STUB/replies.jsonl")"
 assert_eq "INCORRECT and UNCERTAIN make no API call" 0 "$(wc -l <"$STUB/calls")"
 
+# the note limit counts code points, as the reply job does: 2000 emoji pass,
+# 2001 are refused
+setup
+note=$(printf '😀%.0s' {1..2000})
+disposition "{\"disposition\":\"INCORRECT\",\"evidence\":[\"src/a.js:3\"],\"note\":\"$note\"}"
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "a note of exactly 2000 emoji is recorded" 0 "$?"
+setup
+disposition "{\"disposition\":\"INCORRECT\",\"evidence\":[\"src/a.js:3\"],\"note\":\"${note}😀\"}"
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "a note of 2001 emoji is refused" 1 "$?"
+
 # a fix steered outside the thread paths, or into .github/, is not recorded
 for changed in '.github/workflows/release.yml' 'src/other.js' '.GitHub/CODEOWNERS'; do
   setup

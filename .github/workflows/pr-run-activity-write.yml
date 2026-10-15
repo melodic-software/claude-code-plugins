@@ -105,6 +105,14 @@ on:
         required: false
         type: string
         default: ""
+      review-run-attempt:
+        description: >-
+          With review-replies, the model run's feedback-run-attempt output:
+          the attempt whose replies artifact to download. Empty downloads
+          nothing, which the reply script refuses as feedback-invalid.
+        required: false
+        type: string
+        default: ""
     secrets:
       claude-code-oauth-token:
         description: Claude Code OAuth token for skill activities.
@@ -136,6 +144,12 @@ on:
           the caller passes it to the reply job as review-run-sha256. Set only
           by runner steps.
         value: ${{ jobs.run.outputs.feedback-run-sha256 }}
+      feedback-run-attempt:
+        description: >-
+          The run attempt whose feedback-replies-<attempt> artifact holds the
+          round's replies; the caller passes it to the reply job as
+          review-run-attempt. Set only by runner steps.
+        value: ${{ jobs.run.outputs.feedback-run-attempt }}
       issue-run-started:
         description: >-
           Issue mode: `true` once the run got its lane token, so its outcome
@@ -194,6 +208,7 @@ jobs:
         ${{ steps.config.outputs.prepare == 'review-threads'
         && steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome != '' }}
       feedback-run-sha256: ${{ steps.feedback-collect.outputs.run-sha256 }}
+      feedback-run-attempt: ${{ steps.feedback-collect.outcome == 'success' && github.run_attempt || '' }}
       issue-run-started: ${{ inputs.issue-number != '' && steps.lane-token.outcome == 'success' }}
       # A gate skill succeeds only on a `pass` verdict, a skill that took no
       # model turn fails, and a skill whose commits could not be moved onto
@@ -513,11 +528,13 @@ jobs:
       - name: Download the review-thread replies
         if: >-
           steps.head-recheck.outputs.proceed == 'true' && inputs.review-replies
-          && steps.config.outputs.kind == 'script'
+          && steps.config.outputs.kind == 'script' && inputs.review-run-attempt != ''
         continue-on-error: true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: feedback-replies-${{ github.run_attempt }}
+          # The model job's attempt, not this one: "Re-run failed jobs" on
+          # this job alone keeps the model job's outputs from its attempt.
+          name: feedback-replies-${{ inputs.review-run-attempt }}
           path: ${{ runner.temp }}/feedback-replies
 
       - name: Copy the trusted actors for the reply script

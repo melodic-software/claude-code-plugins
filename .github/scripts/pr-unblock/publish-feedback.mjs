@@ -134,7 +134,8 @@ export function parseReplies(text, run, fileExists) {
     );
     check(disposition === "VALID" ? SHA.test(fixSha) : fixSha === "", "a reply's fix_sha does not match its disposition");
     check(
-      typeof note === "string" && note.length > 0 && note.length <= LIMITS.note && !BAD_CHARS.test(note) && !FORBIDDEN.test(note),
+      // Code points, as jq's length counts them in the review-thread tool.
+      typeof note === "string" && note.length > 0 && [...note].length <= LIMITS.note && !BAD_CHARS.test(note) && !FORBIDDEN.test(note),
       "a reply's note is empty, too long, or holds a control character, an HTML comment or a token",
     );
     replies.push({ thread, disposition, evidence, fixSha, note });

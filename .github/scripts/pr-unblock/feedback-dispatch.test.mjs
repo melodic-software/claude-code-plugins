@@ -6,6 +6,19 @@ import { test } from "node:test";
 
 import { createGitHubApi, dispatchFeedback, main } from "./feedback-dispatch.mjs";
 
+// The title GitHub gives a pr-unblock.yml run, read from the workflow file:
+// its top-level run-name scalar as YAML reads it (a double-quoted string, or a
+// plain one cut at " #", which starts a comment), with the inputs filled in.
+function pr_unblockTitle(activity, number) {
+  const workflow = readFileSync(new URL("../../workflows/pr-unblock.yml", import.meta.url), "utf8");
+  const raw = /^run-name:[ \t]*(.*)$/m.exec(workflow)?.[1] ?? "";
+  const value = raw.startsWith('"') ? JSON.parse(raw.slice(0, raw.lastIndexOf('"') + 1)) : raw.split(/[ \t]#/)[0].trim();
+  return value
+    .replaceAll("${{ inputs.activity }}", activity)
+    .replaceAll("${{ inputs.pr-number }}", String(number));
+}
+const TITLE_42 = pr_unblockTitle("address-feedback", 42);
+
 const REPOSITORY = "melodic-software/claude-code-plugins";
 const HEAD = "1111111111111111111111111111111111111111";
 const OLD_HEAD = "2222222222222222222222222222222222222222";
@@ -214,7 +227,7 @@ test("main writes run-id and reads the upstream id from UPSTREAM_RUN_ID only", a
 
 test("a second dispatcher for one head skips while the first one's run is queued or going", async () => {
   for (const status of ["queued", "in_progress", "waiting", "pending"]) {
-    const api = fakeApi({ workflowRuns: [{ id: 1, status, display_title: "pr-unblock address-feedback #42" }] });
+    const api = fakeApi({ workflowRuns: [{ id: 1, status, display_title: TITLE_42 }] });
     const { result, lines } = await decide(api);
     assert.equal(result, null, status);
     assert.deepEqual(api.calls.dispatch, []);
@@ -225,12 +238,12 @@ test("a second dispatcher for one head skips while the first one's run is queued
 test("a run created before this review started (the round whose push made this head) does not hold the dispatch", async () => {
   const api = fakeApi({
     run: { run_started_at: "2026-10-15T12:10:00Z" },
-    workflowRuns: [{ id: 1, status: "in_progress", display_title: "pr-unblock address-feedback #42", created_at: "2026-10-15T12:00:00Z" }],
+    workflowRuns: [{ id: 1, status: "in_progress", display_title: TITLE_42, created_at: "2026-10-15T12:00:00Z" }],
   });
   assert.equal((await decide(api)).result.number, 42);
   const held = fakeApi({
     run: { run_started_at: "2026-10-15T12:10:00Z" },
-    workflowRuns: [{ id: 2, status: "queued", display_title: "pr-unblock address-feedback #42", created_at: "2026-10-15T12:11:00Z" }],
+    workflowRuns: [{ id: 2, status: "queued", display_title: TITLE_42, created_at: "2026-10-15T12:11:00Z" }],
   });
   assert.equal((await decide(held)).result, null);
 });
@@ -238,9 +251,9 @@ test("a run created before this review started (the round whose push made this h
 test("a finished run, another PR's run or another activity's run does not hold the dispatch", async () => {
   const api = fakeApi({
     workflowRuns: [
-      { id: 1, status: "completed", display_title: "pr-unblock address-feedback #42" },
-      { id: 2, status: "in_progress", display_title: "pr-unblock address-feedback #420" },
-      { id: 3, status: "queued", display_title: "pr-unblock resolve-conflicts #42" },
+      { id: 1, status: "completed", display_title: TITLE_42 },
+      { id: 2, status: "in_progress", display_title: pr_unblockTitle("address-feedback", 420) },
+      { id: 3, status: "queued", display_title: pr_unblockTitle("resolve-conflicts", 42) },
     ],
   });
   const { result } = await decide(api);

@@ -138,6 +138,15 @@ say(promoteScript.indexOf("if (THREAD_FILE)") >= 0 && promoteScript.indexOf("if 
   "the promote step checks the lane branch's paths before it moves the PR branch");
 say(/run-sha256/.test(String(feedbackCollect.with?.script ?? "")) && byId("act-script").env?.RUN_SHA256 === "${{ inputs.review-run-sha256 }}",
   "the reply script gets the SHA-256 of the run.json the collect step wrote");
+// "Re-run failed jobs" on the reply job alone bumps github.run_attempt but
+// keeps the model job's outputs, so the replies artifact is named by the
+// model job's attempt on both sides, never by the downloading job's own.
+const replyUpload = steps.find((s) => s.name === "Upload the review-thread replies");
+const replyDownload = steps.find((s) => s.name === "Download the review-thread replies");
+say(replyUpload?.with?.name === "feedback-replies-${{ github.run_attempt }}"
+  && replyDownload?.with?.name === "feedback-replies-${{ inputs.review-run-attempt }}"
+  && wf.jobs.run.outputs["feedback-run-attempt"] === "${{ steps.feedback-collect.outcome == 'success' && github.run_attempt || '' }}",
+  "the reply job downloads the replies by the model job's attempt, so a re-run of it alone still finds them");
 const actors = at((s) => s.id === "reply-actors");
 say(actors >= 0 && actors < checkout && /\.base\/\.github\/standards\/trusted-actors\/trusted-actors\.json/.test(byId("reply-actors").run ?? ""),
   "the reply script's trusted-actors list is copied from the base before the head checkout");

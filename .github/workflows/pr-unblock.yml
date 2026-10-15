@@ -16,7 +16,8 @@ name: pr-unblock
 
 # pr-feedback-dispatch.mjs reads this title to skip a second dispatch while
 # one for the same activity and PR is still queued or going.
-run-name: pr-unblock ${{ inputs.activity }} #${{ inputs.pr-number }}
+# Quoted: unquoted, " #" would start a YAML comment and drop the PR number.
+run-name: "pr-unblock ${{ inputs.activity }} #${{ inputs.pr-number }}"
 
 on:
   workflow_dispatch:
@@ -118,6 +119,9 @@ jobs:
       trusted-base: default-tip
       review-replies: true
       review-run-sha256: ${{ needs.address-feedback.outputs.feedback-run-sha256 }}
+      # The model job's attempt names the replies artifact, so "Re-run failed
+      # jobs" on this job alone still downloads it.
+      review-run-attempt: ${{ needs.address-feedback.outputs.feedback-run-attempt }}
       # The model job's push moved the PR head off the reviewed one; the gate
       # and the broker accept the review of the head that job gated when only
       # commits GitHub signed for the lanes App during this run follow it. A human dispatch has no
