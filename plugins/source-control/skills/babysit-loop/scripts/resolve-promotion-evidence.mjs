@@ -348,7 +348,9 @@ const DAY_MS = 86_400_000;
 // Merges are read from this far before the epoch, so a merge made just before it whose post-merge
 // gate fails inside it still yields that event; the checker ignores the pre-epoch events this
 // also finds. The publisher's 6-hour dispatch deadline is no bound here: a red run counts until
-// the merge is verified. The margin keeps every read within the 90 days.
+// the merge is verified, for merges inside the lookback. The margin keeps every read within the
+// 90 days, so a still-unverified merge older than the lookback whose run goes red inside the epoch
+// yields no event (reference/promotion-evidence-resolution.md, "Inline mode").
 const LOOKBACK_DAYS = 90 - EPOCH_MAX_AGE_DAYS;
 
 // The earliest ratified_at among the binding's cells bound promoted: the instant from which every

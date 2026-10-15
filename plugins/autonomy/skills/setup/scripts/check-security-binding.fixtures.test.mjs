@@ -14,7 +14,7 @@
 // the co-located .test.sh wrapper that scripts/run-plugin-tests.sh discovers.
 
 import { spawnSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
@@ -108,13 +108,14 @@ for (const [name, entry] of Object.entries(fixtures)) {
   pass(`grade: ${name}`);
 
   // `--evidence -` reads the same events from stdin and must print the same verdict.
-  if (entry.evidence) {
+  // A fixture whose evidence file is absent grades only the file read; there is nothing to pipe.
+  if (entry.evidence && existsSync(join(fixturesDir, entry.evidence))) {
     const viaStdin = spawnSync(
       process.execPath,
       args.map((arg) => (arg === join(fixturesDir, entry.evidence) ? "-" : arg)),
       { encoding: "utf8", input: readFileSync(join(fixturesDir, entry.evidence), "utf8"), timeout: 30_000 },
     );
-    if (viaStdin.status === result.status && viaStdin.stdout === result.stdout) pass(`stdin: ${name}`);
+    if (viaStdin.status === result.status && viaStdin.stdout === result.stdout && viaStdin.stderr === result.stderr) pass(`stdin: ${name}`);
     else fail(`stdin: ${name}`, `--evidence - printed a different verdict (exit ${viaStdin.status})\n  stdout: ${viaStdin.stdout.trim()}\n  stderr: ${viaStdin.stderr.trim()}`);
   }
 }

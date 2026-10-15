@@ -71,7 +71,9 @@ runs `scripts/resolve-promotion-evidence.mjs --inline` (arguments and reasons in
 comment). Each call runs the publisher's report-mode GitHub reads in memory and pipes the events to
 the checker as `--evidence -`: no events file, sidecar or artifact, so nothing can go stale between
 publish and read. It reads merges from 5 days before the epoch, so a merge just before it whose
-post-merge gate fails inside it still demotes; the checker ignores the pre-epoch events. It refuses
+post-merge gate fails inside it still demotes; the checker ignores the pre-epoch events. A merge
+older than those 5 days, still unverified at ratification, whose post-merge run goes red inside the
+epoch yields no event. It refuses
 a `--repo` other than the run's `GITHUB_REPOSITORY`. It prints the file mode's JSON.
 
 Trust model: code at `refs/heads/main` plus the GitHub API. The helper, publisher, checker, binding
@@ -81,7 +83,9 @@ trusted as given, and the settings, checkout and writability rules in
 [`promotion-evidence-bootstrap.md`](promotion-evidence-bootstrap.md) do not apply. What keeps an
 agent from changing those files is review: each path must sit under `merge.diff-check.denied-paths`
 in the pipeline config, so the lane never merges a change to one. Inline mode never serves a local
-lane.
+lane. Unlike the published file, whose publish refuses to drop an earlier event, inline mode
+rebuilds the events on every call, so an identity that can delete a red workflow run removes its
+gate failure.
 
 Epoch guard: inline mode fails closed (`epoch-start-expired`) when the earliest `ratified_at` of a
 cell bound promoted is more than 85 days old, since contrary evidence from before GitHub's
