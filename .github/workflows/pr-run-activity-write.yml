@@ -607,11 +607,13 @@ jobs:
           # the CLAUDE_CODE_SUBPROCESS_ENV_SCRUB row stops listing GH_TOKEN
           # and GITHUB_TOKEN as kept).
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
-          # A headless run exits at turn end, dropping any background subagent
-          # or shell command with its result. This runs every subagent in the
-          # foreground and turns off run_in_background
-          # (code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background,
-          # as of 2026-10-15; recheck when that list stops naming this variable).
+          # The action stops reading at Claude's first result message
+          # (base-action/src/run-claude-sdk.ts:198-209), so background work
+          # that reports in a later turn is lost. This runs every subagent in
+          # the foreground and turns off run_in_background
+          # (code.claude.com/docs/en/env-vars, CLAUDE_CODE_DISABLE_BACKGROUND_TASKS
+          # row, as of 2026-10-15; recheck on a claude-code-action bump that
+          # drops that break, or when the row stops naming run_in_background).
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           CLAUDE_BRANCH: ${{ steps.lane-branch.outputs.branch || steps.gate.outputs.head-ref }}
           TRUSTED_CONTEXT_FILE: >-
