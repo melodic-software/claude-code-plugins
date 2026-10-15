@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -54,8 +55,13 @@ function fakeApi(overrides = {}) {
       })),
     readThread: async (id) => {
       const t = overrides.reread?.[id] ?? threads[id];
-      return { isResolved: t.resolved, pr: t.pr ?? 42, commentCount: t.ids.length, commentIds: t.ids };
+      // After the reply lands the thread holds it too, plus any comment the
+      // case says arrived meanwhile.
+      const replied = calls.some((call) => call[0] === "reply" && call[2] === t.ids[0]);
+      const ids = replied ? [...t.ids, 900, ...(overrides.arrivedDuringReply ?? [])] : t.ids;
+      return { isResolved: t.resolved, pr: t.pr ?? 42, commentCount: ids.length, commentIds: ids };
     },
+    getCommit: async (sha) => overrides.commits?.[sha] ?? { files: [{ filename: "src/a.js" }] },
     compare: async (base, head) => {
       calls.push(["compare", base, head]);
       return overrides.compare ?? { status: "ahead", commits: [{ sha: FIX }], files: [{ filename: "src/a.js" }] };
@@ -123,7 +129,7 @@ test("INCORRECT is posted and left open; UNCERTAIN and VALID-defer are posted, l
   assert.deepEqual(api.resolved(), []);
   assert.match(api.posted()[0][3], /^\*\*pr-unblock \/ address-feedback: INCORRECT, left open\*\*\n\nEvidence: `src\/a.js:3`, `docs\/b.md:1`\n/);
   assert.match(api.posted()[1][3], /UNCERTAIN, left open for a person\*\*\n\nEvidence: none in the checkout\n/);
-  assert.ok(!api.calls.some((call) => call[0] === "compare"), "no VALID reply, no compare");
+  assert.deepEqual(api.calls.find((call) => call[0] === "compare"), ["compare", GATED, NOW], "a moved branch is checked even with no VALID reply");
 
   const defer = fakeApi();
   assert.equal((await run(defer, lines(reply({ disposition: "VALID-defer" })))).escalationReason, "feedback-uncertain");
@@ -235,6 +241,32 @@ for (const [label, compare] of [
   });
 }
 
+test("feedback-not-landed, nothing posted: a VALID fix commit that does not change its own thread's path", async () => {
+  const api = fakeApi({
+    compare: { status: "ahead", commits: [{ sha: FIX }], files: [{ filename: "docs/b.md" }] },
+    commits: { [FIX]: { files: [{ filename: "docs/b.md" }] } },
+  });
+  const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })));
+  assert.equal(result.escalationReason, "feedback-not-landed");
+  assert.deepEqual(api.posted(), []);
+});
+
+test("feedback-not-landed with no VALID reply when the branch moved onto .github/ or another path", async () => {
+  for (const filename of [".github/actions/x/action.yml", "src/other.js"]) {
+    const api = fakeApi({ compare: { status: "ahead", commits: [{ sha: FIX }], files: [{ filename }] } });
+    const result = await run(api, lines(reply()));
+    assert.equal(result.escalationReason, "feedback-not-landed", filename);
+    assert.deepEqual(api.posted(), []);
+  }
+});
+
+test("a VALID thread that gained a comment while the reply was posted is replied on but left open", async () => {
+  const api = fakeApi({ arrivedDuringReply: [101] });
+  await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })));
+  assert.equal(api.posted().length, 1);
+  assert.deepEqual(api.resolved(), []);
+});
+
 test("a thread that changed since the model job read it is skipped; the rest are posted", async () => {
   for (const overrides of [
     { threads: { PRRT_a: { ids: [100, 101], resolved: false }, PRRT_b: { ids: [200], resolved: false } } },
@@ -295,12 +327,29 @@ test("main writes the escalation and skip reason files and refuses a symlinked a
     GITHUB_WORKSPACE: ws,
     SKIP_REASON_FILE: join(dir, "skip"),
     ESCALATION_REASON_FILE: join(dir, "escalation"),
+    RUN_SHA256: createHash("sha256").update(JSON.stringify(RUN)).digest("hex"),
   };
   const api = fakeApi();
   assert.equal(await main(env, { api, log: () => {} }), 0);
   assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "feedback-uncertain\n");
   assert.equal(readFileSync(env.SKIP_REASON_FILE, "utf8"), "awaiting-human\n");
   assert.equal(api.posted().length, 1);
+
+  // A run.json other than the bytes the model job's runner hashed is refused.
+  for (const sha of ["0".repeat(64), ""]) {
+    const forged = fakeApi();
+    await main({ ...env, RUN_SHA256: sha }, { api: forged, log: () => {} });
+    assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "feedback-invalid\n");
+    assert.deepEqual(forged.posted(), []);
+    assert.equal(forged.markers().length, 1);
+  }
+
+  // An oversized replies file is refused before it is read.
+  writeFileSync(join(replies, "replies.jsonl"), "x".repeat(262146));
+  const big = fakeApi();
+  await main(env, { api: big, log: () => {} });
+  assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "feedback-invalid\n");
+  assert.deepEqual(big.posted(), []);
 
   rmSync(join(replies, "replies.jsonl"));
   symlinkSync(join(dir, "actors.json"), join(replies, "replies.jsonl"));

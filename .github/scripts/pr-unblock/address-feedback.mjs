@@ -44,6 +44,23 @@ export function countRounds(issueComments, appId) {
   ).length;
 }
 
+// The model job's check run, posted by its report job with the job token on
+// the head it gated. A round that took a model turn ends success or failure;
+// skips end neutral. It counts rounds the reply job could not record (a gate
+// or broker refusal after the push moved the head); a forged one only stops
+// the lane sooner.
+export const MODEL_CHECK = "pr-unblock / address-feedback";
+export function countCheckRounds(checkRunsByCommit) {
+  return checkRunsByCommit.filter((runs) =>
+    runs.some(
+      (run) =>
+        run.name === MODEL_CHECK &&
+        run.app?.slug === "github-actions" &&
+        ["success", "failure"].includes(run.conclusion),
+    ),
+  ).length;
+}
+
 export function reviewedHeads(issueComments) {
   const heads = new Set();
   for (const comment of issueComments) {
@@ -117,7 +134,9 @@ export async function select({ api, pr, headSha, laneBranch, repository, appId, 
   ) {
     return { decision: "escalate", escalationReason: "feedback-protected-path", threads: kept };
   }
-  const rounds = countRounds(issueComments, appId);
+  const commits = await api.listPullCommits(pr);
+  const checkRuns = await Promise.all(commits.map((commit) => api.listCheckRuns(commit.sha, MODEL_CHECK)));
+  const rounds = Math.max(countRounds(issueComments, appId), countCheckRounds(checkRuns));
   if (rounds >= MAX_ROUNDS) {
     return { decision: "escalate", escalationReason: "feedback-round-cap", rounds, threads: kept };
   }
@@ -207,6 +226,14 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
     listIssueComments: (pr) => paginate(`issues/${pr}/comments`),
     listReviews: (pr) => paginate(`pulls/${pr}/reviews`),
     listReviewComments: (pr) => paginate(`pulls/${pr}/comments`),
+    listPullCommits: (pr) => paginate(`pulls/${pr}/commits`),
+    async listCheckRuns(sha, name) {
+      const url = `${repo}/commits/${sha}/check-runs?check_name=${encodeURIComponent(name)}&filter=all&per_page=100`;
+      return (await request(url)).data.check_runs ?? [];
+    },
+    async getCommit(sha) {
+      return (await request(`${repo}/commits/${sha}`)).data;
+    },
     async listThreads(pr) {
       const nodes = [];
       let after = null;

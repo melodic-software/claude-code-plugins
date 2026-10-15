@@ -43,6 +43,8 @@ function fakeApi(overrides = {}) {
     listReviews: async () => overrides.reviews ?? [{ id: 10, user: { id: REVIEWER }, commit_id: HEAD }],
     listReviewComments: async () => overrides.reviewComments ?? [comment(100, REVIEWER)],
     listThreads: async () => overrides.threads ?? [thread("PRRT_1", [100])],
+    listPullCommits: async () => Object.keys(overrides.checks ?? { [HEAD]: [] }).map((sha) => ({ sha })),
+    listCheckRuns: async (sha) => (overrides.checks ?? {})[sha] ?? [],
     createIssueComment: async (pr, body) => posted.push({ pr, body }),
   };
 }
@@ -161,6 +163,23 @@ test("rounds are capped at two: a third round escalates feedback-round-cap with 
   assert.equal(capped.decision, "escalate");
   assert.equal(capped.escalationReason, "feedback-round-cap");
   assert.equal(capped.file, undefined);
+});
+
+test("model-job check runs count rounds the reply job never recorded", async () => {
+  const check = (conclusion, slug = "github-actions", name = "pr-unblock / address-feedback") => ({ name, conclusion, app: { slug } });
+  const checks = (...perCommit) => Object.fromEntries(perCommit.map((runs, i) => [String(i).repeat(40), runs]));
+  const capped = await run(fakeApi({ checks: checks([check("success")], [check("failure")]) }));
+  assert.equal(capped.decision, "escalate");
+  assert.equal(capped.escalationReason, "feedback-round-cap");
+  for (const ignored of [
+    checks([check("success")], [check("neutral")]),
+    checks([check("success")], [check("success", "other-app")]),
+    checks([check("success")], [check("success", "github-actions", "pr-unblock / publish-feedback")]),
+  ]) {
+    const result = await run(fakeApi({ checks: ignored }));
+    assert.equal(result.decision, "proceed");
+    assert.equal(result.rounds, 1);
+  }
 });
 
 test("round markers count only when the lanes App posted them as the first line", async () => {
