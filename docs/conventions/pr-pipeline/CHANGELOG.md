@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 1.18.2 - 2026-10-16
+## 1.18.4 - 2026-10-16
 
 This repository's `pr-pipeline.yaml` adds the `work-unblock` lane (stage `work`) with one
 activity, `label-unblocked` (a script, `mutate-tracker`). `work-unblock.yml` runs it when a
@@ -16,6 +16,14 @@ resolve-issue accepts App-added labels (follow-up by Automation Lanes). Everythi
 from the API when the run starts. A close whose sender is a bot (`sender.type` `Bot`), or whose
 closer or re-runner is not a listed human (each is checked on its own; a re-runner may be
 another listed human), is a clean skip. `version` stays 1.
+
+## 1.18.3 - 2026-10-16
+
+A verdict is bound to the commit it judged: the README no longer promises reuse by patch id or
+content fingerprint. A `pr-merge` merge needs a verdict on the commit being merged, a precondition of
+the lane's own merge rather than a required check, and a lane merge commit needs a fresh one. The
+address-feedback round cap is `loop.review-rounds` (default 2) instead of a fixed 2. This
+repository's `pr-pipeline.yaml` sets it to 3. `version` stays 1.
 
 ## 1.18.1 - 2026-10-16
 

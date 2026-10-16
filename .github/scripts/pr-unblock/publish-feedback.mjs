@@ -47,7 +47,8 @@ import {
   currentThreads,
   isProtectedPath,
   isRoundMarker,
-  MAX_ROUNDS,
+  DEFAULT_MAX_ROUNDS,
+  maxRoundsFrom,
   need,
   positive,
   reviewerIdFrom,
@@ -234,7 +235,7 @@ async function resolveAfterReply(api, id, expected, headMoved) {
 export const modelRunLine = (modelRun) => `<!-- pr-unblock:address-feedback-model-run ${modelRun} -->`;
 
 export async function publish(args) {
-  const { api, pr, headSha, appId, modelRun, log = () => {} } = args;
+  const { api, pr, headSha, appId, modelRun, maxRounds = DEFAULT_MAX_ROUNDS, log = () => {} } = args;
   let result = null;
   let failure = null;
   try {
@@ -255,7 +256,7 @@ export async function publish(args) {
       const rounds = countRounds(comments, appId) + 1;
       await api.createIssueComment(
         pr,
-        [ROUND_MARKER, ...(runLine ? [runLine] : []), `pr-unblock / address-feedback finished round ${rounds} of ${MAX_ROUNDS} on ${headSha}.`].join("\n"),
+        [ROUND_MARKER, ...(runLine ? [runLine] : []), `pr-unblock / address-feedback finished round ${rounds} of ${maxRounds} on ${headSha}.`].join("\n"),
       );
       log(`recorded round ${rounds}${result?.escalationReason ? `; escalating ${result.escalationReason}` : ""}`);
     }
@@ -424,6 +425,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     headRef: env.HEAD_REF,
     appId,
     modelRun,
+    maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
     reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
     readArtifact: () => ({ runText: readRun(), repliesText: read("replies.jsonl") }),
     fileExists: (path) => existsSync(join(env.GITHUB_WORKSPACE, path)),

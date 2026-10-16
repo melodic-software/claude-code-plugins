@@ -44,8 +44,8 @@ activities:
     args: comments --ci
     # Before any model turn the runner keeps only unresolved threads left by
     # the reviewer bot alone on a reviewed head, hands the pull request to a
-    # person when it changes .github/ or two rounds already ran, and gives the
-    # skill the review-thread tool.
+    # person when it changes .github/ or `loop.review-rounds` rounds already
+    # ran, and gives the skill the review-thread tool.
     prepare: review-threads
     # Pushes its fixes to the pull request's branch, nothing else.
     effect: mutate-branch
@@ -184,6 +184,9 @@ lanes:
     stage: work
     slots:
       - activity: label-unblocked
+
+loop:
+  review-rounds: 3
 
 merge:
   # The lane auto-merges only PRs whose single closing issue is labeled
