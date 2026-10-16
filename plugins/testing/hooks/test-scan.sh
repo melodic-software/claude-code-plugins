@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# PostToolUse hook: run the can't-fail scanner on the test file just written.
+# PostToolUse-shaped wrapper: run the can't-fail scanner on the test file just
+# written. No hooks.json row runs it (check-placement moved that reporting off
+# per-edit hooks); test-scan.test.sh still exercises it.
 #
 # ADVISORY: always exits 0. Findings go back to the writing agent through
 # additionalContext; the write has already happened and is never undone.
-# Opt-in: hooks.json starts this only through exec-bash.mjs --require-true
-# TEST_GUARDS_ENABLED, and only for paths its `if` rows (generated from the
-# adapters' files: globs by scripts/gen-hook-filters.sh) match.
 #
 # Scope (hook-precision rule 1): a Write that creates the file reports every
 # test block; an Edit or an overwriting Write reports only blocks that overlap
@@ -15,7 +14,7 @@
 # Session state: every scanned write leaves one file,
 # $DATA/sessions/<pkey>/<session_id>/<tool_use_id>.json, naming the test
 # blocks it created or changed (blocks:null when that is unknown: the whole
-# file), for the task-end judge. A gitignored path, a file the config
+# file). A gitignored path, a file the config
 # excludes, and a working copy under the system temp directory or a Claude
 # session scratchpad write nothing.
 #
