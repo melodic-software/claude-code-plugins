@@ -265,9 +265,7 @@ completed draft is marked ready with `/source-control:pull-request ready` and co
 the normal guarded path; a genuinely in-progress draft stays draft and is reported and escalated with the reason.
 A draft cannot merge until it is marked ready (provider reference "Draft stage"). Completeness of the diff is not the
 only hold reason: an explicit unchecked human-only item named in the PR's own body holds the
-draft too, even when the content is finished and green, and so does a body line starting
-`Draft:`, which `/source-control:pull-request create` writes when a person asked for the draft or
-the PR is a multi-session container: no tier flips it, and the report names that line. See the worker contract in
+draft too, even when the content is finished and green, as does a body line starting `Draft:` (create's mark of a requested or multi-session draft): no tier flips it. See the worker contract in
 [reference/orchestration.md](reference/orchestration.md).
 
 Each per-PR worker owns its local lifecycle end to end: acquire that PR's worker lease and its
