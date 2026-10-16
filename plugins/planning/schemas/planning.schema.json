@@ -21,6 +21,58 @@
       "description": "When true, /planning:design hands off the stub files the change needs with their signatures, and /planning:plan places a stub phase right after phase_order's dead-code removal step (first when there is none). Stub bodies use the language's ordinary not-implemented form. A quoted \"true\" or \"false\" is a string, not a boolean, and is invalid.",
       "type": "boolean",
       "default": false
+    },
+    "shared_session": {
+      "description": "Starting settings for a /planning:interview shared session. Read once, when a session's state is first created; the owner changes a running session from its Host view.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "uploads": {
+          "description": "Whether guests may offer files. The owner still accepts each one.",
+          "type": "boolean",
+          "default": false
+        },
+        "names": {
+          "description": "What guests see of who answered and voted. full: names. initials: initials and vote counts, never voter ids. someone: guests see \"Someone\". The owner and leaders always see names.",
+          "enum": ["full", "initials", "someone"],
+          "default": "full"
+        },
+        "digest_names": {
+          "description": "Whether the round sent to Claude names who answered.",
+          "type": "boolean",
+          "default": false
+        },
+        "claude_take": {
+          "description": "When people see Claude's suggestion cards. answer-first: after they answer or vote. always: at once. Each person can switch for themselves.",
+          "enum": ["answer-first", "always"],
+          "default": "answer-first"
+        },
+        "voting": {
+          "description": "Whether people vote on answers.",
+          "type": "boolean",
+          "default": true
+        },
+        "signoff": {
+          "description": "Whether a leader's lock needs everyone's agreement first. The owner's lock never does.",
+          "type": "boolean",
+          "default": false
+        },
+        "chat": {
+          "description": "Whether the side chat is on. Chat is never sent to Claude.",
+          "type": "boolean",
+          "default": true
+        },
+        "follow": {
+          "description": "Whether pages move to a new round when it arrives.",
+          "type": "boolean",
+          "default": true
+        },
+        "accent": {
+          "description": "The page's accent color.",
+          "enum": ["teal", "indigo", "violet", "amber"],
+          "default": "teal"
+        }
+      }
     }
   }
 }
