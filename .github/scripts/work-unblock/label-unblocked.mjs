@@ -8,17 +8,26 @@
 // classes). Every fact is read from the API now, never from the event
 // payload. No model.
 //
+// On `schedule` it sweeps instead: every issue closed in the last
+// LOOKBACK_HOURS goes through the same rules, so an issue a bot closed (a
+// pull request merge), which starts no close run, is still picked up. A
+// swept close counts only when a listed human or a bot made it. Overlapping
+// windows are harmless: an issue already labeled is left alone, and one whose
+// label a person removed is never labeled again.
+//
 // Environment:
 //   GH_TOKEN               the lane App token (issues: write)
 //   GITHUB_REPOSITORY      owner/repo
-//   GITHUB_EVENT_NAME      must be `issues`
-//   GITHUB_EVENT_PATH      the event payload; only its action, issue number
-//                          and sender are read
+//   GITHUB_EVENT_NAME      `issues` (a close) or `schedule` (the sweep)
+//   GITHUB_EVENT_PATH      the event payload; on `issues` only its action,
+//                          issue number and sender are read; on `schedule`
+//                          it is not read
 //   KILL_SWITCH            `proceed` from the kill-switch step; anything else stops
 //   TRUSTED_ACTORS_PATH    trusted-actors.json from the default branch tip
 //   ACTOR_ID               who closed the issue; must be a listed human
+//                          (`issues` only)
 //   TRIGGERING_ACTOR       who started this run (a re-runner may differ);
-//                          must be a listed human
+//                          must be a listed human (`issues` only)
 //   BASE_PATH              the default branch checkout (default `.base`), whose
 //                          pr-pipeline.yaml holds resolve-issue's admission
 //   GITHUB_API_URL
@@ -36,6 +45,8 @@ const LABEL = "agent-ready";
 const HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "needs-human"]);
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+// The sweep's window: three hourly runs overlap, so a missed run loses nothing.
+export const LOOKBACK_HOURS = 3;
 
 // Whether the account that closed the issue (ACTOR_ID, by id) and the one
 // that started this run (TRIGGERING_ACTOR, by login; a re-runner may be
@@ -49,7 +60,9 @@ export function checkCloser(env) {
   return humans.has(Number(env.ACTOR_ID)) && rerunner !== undefined && humans.has(rerunner);
 }
 
-const escapeCommand =(text) => String(text).replaceAll(/[\r\n%]/g, " ");
+const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
+const reportError = (number, error) =>
+  console.log(`::error title=label-unblocked::#${number}: ${escapeCommand(error?.message ?? error)}`);
 
 // Why `number` is not promoted, or null when it is ready.
 async function refusal({ github, repo, number, ratifiers, admission }) {
@@ -78,6 +91,11 @@ async function refusal({ github, repo, number, ratifiers, admission }) {
   if (pending > 0) {
     return `${pending} blocker(s) not closed as completed`;
   }
+  // Removing the label by hand stops the lane; a person adds it to restart.
+  const events = await paginate(github, `${base}/events`);
+  if (events.some((event) => event.event === "unlabeled" && String(event.label?.name).toLowerCase() === LABEL)) {
+    return `${LABEL} was removed before`;
+  }
   const ratifying = findRatification(await paginate(github, `${base}/comments`), ratifiers);
   if (ratifying === undefined) {
     return "no admission marker from a listed human";
@@ -93,36 +111,42 @@ async function loadAdmission(env) {
   return readAdmission({ basePath: env.BASE_PATH || ".base", activity: "resolve-issue" });
 }
 
-export async function main({ env = process.env, github, admission } = {}) {
-  try {
-    if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
-      throw new Error("GITHUB_REPOSITORY is not owner/repo");
+// The issues closed at or after `since`. The listing's `since` filters on the
+// last update, so the close time is checked here; pull requests, which the
+// listing also returns, are left out.
+async function closedSince(github, repo, since) {
+  const path = `/repos/${repo}/issues?state=closed&since=${encodeURIComponent(since.toISOString())}&sort=updated&direction=desc`;
+  return (await paginate(github, path))
+    .filter((item) => !item.pull_request && NUMBER.test(String(item.number)) && Date.parse(item.closed_at) >= since.getTime())
+    .map((item) => Number(item.number));
+}
+
+// Whether a swept close counts: the close path takes only a listed human's
+// close, and the sweep adds a bot's (a pull request merge, the lanes App). An
+// outside author closing their own blocking issue counts for nothing.
+async function sweptCloser(github, repo, number, ratifiers) {
+  const closer = (await github("GET", `/repos/${repo}/issues/${number}`)).closed_by;
+  return closer?.type === "Bot" || ratifiers.has(closer?.id);
+}
+
+// Labels each issue `closed` blocked that is ready, each at most once per run.
+// Returns how many reads or writes failed.
+async function labelUnblocked({ github, repo, closed, sweep, ratifiers, admission }) {
+  const seen = new Set();
+  let failed = 0;
+  for (const source of closed) {
+    let blocked;
+    try {
+      if (sweep && !(await sweptCloser(github, repo, source, ratifiers))) {
+        console.log(`label-unblocked: #${source} was closed by neither a listed human nor a bot; skipped`);
+        continue;
+      }
+      blocked = await paginate(github, `/repos/${repo}/issues/${source}/dependencies/blocking`);
+    } catch (error) {
+      failed += 1;
+      reportError(source, error);
+      continue;
     }
-    const event = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
-    if (env.GITHUB_EVENT_NAME !== "issues" || event.action !== "closed" || !NUMBER.test(String(event.issue?.number))) {
-      throw new Error("this runs only on an issue closing");
-    }
-    if (env.KILL_SWITCH !== "proceed") {
-      console.log("label-unblocked: the lanes kill switch stops this run; nothing read or labeled");
-      return 0;
-    }
-    // A bot's close (the lanes App's, or a PR merge a bot ran) is skipped
-    // cleanly: the broker refuses it, and a lane close must not loop.
-    if (event.sender?.type === "Bot") {
-      console.log("label-unblocked: a bot closed this issue; nothing read or labeled");
-      return 0;
-    }
-    if (!checkCloser(env)) {
-      console.log("label-unblocked: the closer or the re-runner is not a listed human; nothing read or labeled");
-      return 0;
-    }
-    const repo = env.GITHUB_REPOSITORY;
-    const closed = Number(event.issue.number);
-    const ratifiers = loadTrustedList(env.TRUSTED_ACTORS_PATH).humans;
-    admission ??= await loadAdmission(env);
-    github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
-    const blocked = await paginate(github, `/repos/${repo}/issues/${closed}/dependencies/blocking`);
-    let failed = 0;
     for (const item of blocked) {
       const number = Number(item.number);
       // A label write here can land only in this repository.
@@ -130,6 +154,10 @@ export async function main({ env = process.env, github, admission } = {}) {
         console.log(`label-unblocked: skipped a blocked item outside this repository's issues`);
         continue;
       }
+      if (seen.has(number)) {
+        continue;
+      }
+      seen.add(number);
       try {
         const reason = await refusal({ github, repo, number, ratifiers, admission });
         if (reason !== null) {
@@ -140,9 +168,50 @@ export async function main({ env = process.env, github, admission } = {}) {
         console.log(`label-unblocked: #${number} labeled ${LABEL}`);
       } catch (error) {
         failed += 1;
-        console.log(`::error title=label-unblocked::#${number}: ${escapeCommand(error?.message ?? error)}`);
+        reportError(number, error);
       }
     }
+  }
+  return failed;
+}
+
+export async function main({ env = process.env, github, admission, now = Date.now() } = {}) {
+  try {
+    if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
+      throw new Error("GITHUB_REPOSITORY is not owner/repo");
+    }
+    const sweep = env.GITHUB_EVENT_NAME === "schedule";
+    const event = sweep ? {} : JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
+    if (!sweep && (env.GITHUB_EVENT_NAME !== "issues" || event.action !== "closed" || !NUMBER.test(String(event.issue?.number)))) {
+      throw new Error("this runs only on an issue closing or on the schedule");
+    }
+    if (env.KILL_SWITCH !== "proceed") {
+      console.log("label-unblocked: the lanes kill switch stops this run; nothing read or labeled");
+      return 0;
+    }
+    if (!sweep) {
+      // A bot's close (the lanes App's, or a PR merge a bot ran) is skipped
+      // cleanly: the broker refuses it, and the hourly sweep picks it up.
+      if (event.sender?.type === "Bot") {
+        console.log("label-unblocked: a bot closed this issue; nothing read or labeled");
+        return 0;
+      }
+      if (!checkCloser(env)) {
+        console.log("label-unblocked: the closer or the re-runner is not a listed human; nothing read or labeled");
+        return 0;
+      }
+    }
+    const repo = env.GITHUB_REPOSITORY;
+    const ratifiers = loadTrustedList(env.TRUSTED_ACTORS_PATH).humans;
+    admission ??= await loadAdmission(env);
+    github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+    const closed = sweep
+      ? await closedSince(github, repo, new Date(now - LOOKBACK_HOURS * 3_600_000))
+      : [Number(event.issue.number)];
+    if (sweep) {
+      console.log(`label-unblocked: ${closed.length} issue(s) closed in the last ${LOOKBACK_HOURS} hours`);
+    }
+    const failed = await labelUnblocked({ github, repo, closed, sweep, ratifiers, admission });
     return failed === 0 ? 0 : 1;
   } catch (error) {
     console.log(`::error title=label-unblocked::${escapeCommand(error?.message ?? error)}`);

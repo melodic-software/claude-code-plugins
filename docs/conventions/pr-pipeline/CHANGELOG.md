@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## 1.18.5 - 2026-10-16
+
+`work-unblock.yml` also runs hourly (`schedule`, minute 47, from main only). A scheduled run lists
+the issues closed in the last three hours (`LOOKBACK_HOURS` in `label-unblocked.mjs`; pull
+requests and issues updated but closed earlier are left out), keeps those whose `closed_by` is a
+listed human or a bot, and applies the close path's rules to each issue they blocked, each once
+per run. It catches an issue closed by a bot sender, such as a pull request merge, which the
+close-triggered run skips. A scheduled run has no closer or re-runner to check; the kill switch
+and the `applies` gate still run first, and the token request names no issue. Both paths now
+refuse an issue whose `agent-ready` label was ever removed, so removing it by hand stops the lane
+and overlapping windows never put it back. `version` stays 1.
+
 ## 1.18.4 - 2026-10-16
 
 This repository's `pr-pipeline.yaml` adds the `work-unblock` lane (stage `work`) with one
