@@ -3,6 +3,13 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.6.1] - 2026-10-16
+
+### Fixed
+
+- `decompose` item bodies end with the `<!-- work-items:born-triaged -->` marker, so intake
+  automation can skip items published already triaged instead of re-triaging them (#7608).
+
 ## [2.6.0] - 2026-10-15
 
 ### Changed
