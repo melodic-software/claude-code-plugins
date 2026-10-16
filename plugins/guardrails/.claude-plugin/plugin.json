@@ -114,6 +114,12 @@
       "description": "Blocks a commit subject or gh pr create --title that violates the team-tracked convention pattern in .claude/source-control.md. On by default; with no tracked pattern nothing is enforced. Same exemptions as block-noncanonical-commit.",
       "default": true
     },
+    "git_hooks_notice_enabled": {
+      "type": "boolean",
+      "title": "Git-hooks notice",
+      "description": "At session start, names /guardrails:setup apply install-git-hooks once when this clone lacks a guardrails git-hook entry or holds a drifted one; a declined entry stays quiet. On by default.",
+      "default": true
+    },
     "workflow_resilience_check_enabled": {
       "type": "boolean",
       "title": "Workflow-resilience-check guard",

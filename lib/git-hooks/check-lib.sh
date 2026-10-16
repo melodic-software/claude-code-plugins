@@ -121,14 +121,15 @@ checks_remote_head() {
 # no stdin at all (a hook manager that kept it from this script), the current
 # branch against its upstream is the range.
 checks_push_ranges() {
-  local remote="${CHECKS_ARGS%% *}" zero=0000000000000000000000000000000000000000
+  # An all-zero id of any width: 40 hex digits under SHA-1, 64 under SHA-256.
+  local remote="${CHECKS_ARGS%% *}" zero='^0+$'
   local lref lsha rsha head base seen=0
   [[ -n "$remote" ]] || remote=origin
   while read -r lref lsha _ rsha; do
     [[ -n "$lsha" ]] || continue
     seen=1
-    [[ "$lsha" == "$zero" ]] && continue
-    if [[ "$rsha" != "$zero" ]]; then
+    [[ "$lsha" =~ $zero ]] && continue
+    if ! [[ "$rsha" =~ $zero ]]; then
       printf '%s %s\n' "$rsha" "$lsha"
       continue
     fi

@@ -124,8 +124,9 @@ grep -q 'cli-flag-verify' <<<"$caught" && fail "an advisory verify row was flagg
 # --- SessionStart node notice: shell form, needs no node ---------------------
 # The row's behavior, with and without node and under PowerShell, is run by
 # scripts/node-notice-rows.test.sh; this pins that guardrails keeps it shell form.
-notice=$(jq -c '.hooks.SessionStart[].hooks[]' "$HOOKS_JSON")
-[[ "$(jq -s 'length' <<<"$notice")" -eq 1 ]] || fail "expected one SessionStart row"
+# The other SessionStart row is the git-hooks probe, which git-hooks-notice.test.sh runs.
+notice=$(jq -c '.hooks.SessionStart[].hooks[] | select(.command != "node")' "$HOOKS_JSON")
+[[ "$(jq -s 'length' <<<"$notice")" -eq 1 ]] || fail "expected one shell-form SessionStart row"
 jq -e '.type == "command" and (has("args") | not) and (.command | startswith("sh ") and contains("prerequisites.sh\" node-notice /guardrails:check"))' \
   <<<"$notice" >/dev/null || fail "SessionStart row is not the shell-form node notice: $notice"
 
