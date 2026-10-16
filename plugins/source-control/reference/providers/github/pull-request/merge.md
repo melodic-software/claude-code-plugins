@@ -129,11 +129,40 @@ for _ in $(seq 20); do
 done
 [ "$S" = CLEAN ] || { echo "PR reads ${S:-nothing} at the pinned head, not CLEAN: hold" >&2; exit 1; }
 if jq -e 'any(.[]; .type == "merge_queue")' <<<"$RULES" >/dev/null; then
-  gh pr merge <pr_number> --match-head-commit "$HEAD_SHA"
+  echo "merge-ready $HEAD_SHA queue"
 else
-  gh pr merge <pr_number> --squash --match-head-commit "$HEAD_SHA"
+  echo "merge-ready $HEAD_SHA squash"
 fi
 ```
+
+The script does not merge. When it prints `merge-ready <sha> <queue|squash>`, run the merge as its
+own Bash command in the shape below, with nothing chained before it and every value written
+literally: the PR number, `-R <owner>/<repo>`, your own login (`gh api user --jq .login`) and the
+full 40-character sha the script printed, never a variable, a command substitution or a loop. The
+guard re-checks the head, author, fork, draft, changed files, review checks (none failed) and
+`ci-status` inside the command that merges, so an auto-mode allow entry that requires that guard
+can match it, and a check rerun after the script cannot slip a failed review or an armed auto-merge
+past it. Add `--squash` only
+when the script printed `squash`; behind a merge queue the queue sets the strategy. Keep each
+`|not` clause in its parentheses: jq's `|` binds looser than `and`, so without them a wrong head
+would pass.
+
+```bash
+gh pr view <pr_number> -R <owner>/<repo> --json headRefOid,author,isCrossRepository,isDraft,files,statusCheckRollup --jq '.headRefOid=="<sha>" and .author.login=="<login>" and (.isCrossRepository|not) and (.isDraft|not) and ([.files[].path|select(test("^\\.github/(workflows|actions)/|(^|/)\\.claude/|(^|/)dot_claude/|^\\.chezmoi(data|templates)/|(^|/)(CLAUDE|AGENTS)\\.md(\\.tmpl)?$"))]|length==0) and ([.statusCheckRollup[]|select((.name//"")|test("review"))] as $r|($r|length>0) and ($r|all(.status=="COMPLETED")) and ($r|group_by(.workflowName)|all(any(.[]; .conclusion!="SKIPPED")))) and ([.statusCheckRollup[]|select((.name//"")|test("review"))]|all(.conclusion|IN("SUCCESS","SKIPPED"))) and ([.statusCheckRollup[]|select(.name=="ci-status")]|length>0 and (max_by(.completedAt).conclusion=="SUCCESS"))' | grep -qx true && gh pr merge <pr_number> -R <owner>/<repo> --squash --match-head-commit <sha>
+```
+
+Where the user's own instructions authorize an admin merge for that repository (a required
+code-owner review or a merge queue blocks an otherwise ready merge), use this form instead, and
+only it. It carries exactly `--squash`, `--admin` and `--match-head-commit`, never
+`--delete-branch`:
+
+```bash
+gh pr view <pr_number> -R <owner>/<repo> --json headRefOid,mergeStateStatus,statusCheckRollup,files --jq '.headRefOid=="<sha>" and .mergeStateStatus!="DIRTY" and ([.statusCheckRollup[]|select(.name=="ci-status")]|length>0 and (max_by(.completedAt).conclusion=="SUCCESS")) and all(.statusCheckRollup[]; (.status//"COMPLETED")=="COMPLETED" and (.state//"")!="PENDING") and ([.files[].path|select(test("^\\.github/(workflows|actions)/|(^|/)\\.claude/|(^|/)dot_claude/|^\\.chezmoi(data|templates)/|(^|/)(CLAUDE|AGENTS)\\.md(\\.tmpl)?$"))]|length==0) and ([.statusCheckRollup[]|select((.name//"")|test("review"))] as $r|($r|length>0) and ($r|group_by(.workflowName)|all(any(.[]; .conclusion!="SKIPPED"))) and ($r|all(.conclusion|IN("SUCCESS","SKIPPED")))) and all(.statusCheckRollup[]; (.conclusion//.state//"")|IN("SUCCESS","SKIPPED","NEUTRAL"))' | grep -qx true && gh pr merge <pr_number> -R <owner>/<repo> --squash --admin --match-head-commit <sha>
+```
+
+A merge the permission layer refuses in this shape is a hand-off to the user, not a retry in
+another shape. `grep -qx true` exits non-zero when the guard fails, which is a hold: re-read the PR
+before anything else.
 
 Behind a merge queue `gh pr merge` should enqueue and return; had required checks not passed it
 would arm auto-merge instead. It has also been seen to return with a `CLEAN` PR left out of the

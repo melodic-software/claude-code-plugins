@@ -1,6 +1,6 @@
 {
   "name": "bash-format",
-  "version": "0.10.17",
+  "version": "0.11.0",
   "description": "Auto-format shell scripts with shfmt once per batch of tool calls and again at git pre-commit, and check them with ShellCheck at commit, using the consuming repo's own .editorconfig and .shellcheckrc.",
   "author": {
     "name": "Melodic Software",
