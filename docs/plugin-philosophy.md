@@ -89,7 +89,8 @@ site either reads it or is a documented narrowing/extension of it:
   An unknown class name in the token file is a hard error.
 
 Agent content, schema files, and a fleet-wide bare organization name are **not gated**. That is a
-deliberate narrowing of enforcement to the classes above, not an accident a green build absolves.
+deliberate narrowing of enforcement to the classes above, so a green build does not mean these
+were checked.
 The independent `portability-lint` job stages a related publisher-token class in
 `scripts/skill-portability-tokens.txt`; if that class activates it must consume or align with
 `org-agnosticism-tokens.txt` rather than invent a third set. CI enforces that alignment via
