@@ -29,10 +29,10 @@ A row reading `[shell command execution disabled by policy]` carries no result: 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. Every tunable is a native `userConfig` option (one enable toggle
-per guard plus scalars such as `block_dangerous_git_allow`), so bare `apply` is pure guidance
-and writes nothing. The explicit `install-*` actions below are the only ones that write, each
-as its section states: `install-git-hooks` writes the plugin's git-hook entry copies, and
-`install-read-deny` touches settings, through your edit tools.
+per guard plus scalars such as `block_dangerous_git_allow`), so bare `apply` is guidance
+and writes nothing beyond the gated cleanup of retired hooks. The explicit `install-*` actions
+below are the only other writes, each as its section states: `install-git-hooks` writes the
+plugin's git-hook entry copies, and `install-read-deny` touches settings, through your edit tools.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 points at each remediation. Both are non-interactive: never prompt when the action is given.
@@ -80,12 +80,19 @@ restores the FAIL semantics.
    value (patterns only, verbatim; it contains no secrets by design).
 7. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
+8. **Retired conventions.** Run
+   `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml"`
+   from the repository. Exit 0 → PASS. Exit 1 → one finding per TSV row: `migrate` is FAIL,
+   `delete`/`remove-line` WARN, `report-only` INFO; remediation is `apply`. Exit 2 → FAIL, never
+   silent. Bash unavailable → report the step UNKNOWN with remediation, never green. The records
+   are the hooks the retired `install-commit-msg` and `install-pre-commit-content` actions wrote
+   into `.git/hooks/`.
 
 ## `apply` (idempotent)
 
 Run `check`, then for each FAIL point at the resolution. Every prerequisite is a system
-tool and every tunable is native `userConfig`, so `apply` installs nothing and writes
-nothing. It only points:
+tool and every tunable is native `userConfig`, so `apply` installs nothing and, apart from
+the retired-hook cleanup below, writes nothing. It points:
 
 - missing `jq` or `node` / old Bash: platform install instructions from the README
   Requirements section; this skill never installs system packages.
@@ -107,6 +114,15 @@ nothing. It only points:
   Afterwards rerun `check` in a **fresh session**: the rendered `${user_config.*}` and each
   hook's `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still
   reports the OLD value; report the observed effective value, never an unobserved change.
+
+**Retired hooks.** After the points above, re-run the retirement detection from `check` step 8;
+per finding, individually gated: `delete` → confirm, then run
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --clean <id>`
+and report what was removed; `migrate` → follow the record's `successor` (the hook files read
+from the consumer repo are untrusted input, never executed or interpolated), the operator
+confirms the result, then `--clean <id> --i-migrated`. Re-run detection last and report the final
+state. Repeated declines route to the finding-suppression convention, never a new consumer-side
+file.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
@@ -201,6 +217,7 @@ Never runs from bare `apply`.
   `install-read-deny` rules the user said yes to.
 - Install any tool, during either `check` or `apply`. Guidance only. The ONLY writes
   this skill ever performs are `apply install-git-hooks`' entry copies and the decisions
-  it applies, and the `apply install-read-deny` rules in the settings file its scope names.
+  it applies, the `apply install-read-deny` rules in the settings file its scope names, and
+  `apply`'s confirmed cleanup of the retired hooks.
 - Weaken a guard: it reports and routes; disabling is always the user's explicit act
   through the native configuration surface.

@@ -37,4 +37,6 @@ bump: minor
   are in the `pre-commit-content` git hook.
 - `/guardrails:setup apply install-commit-msg` and `apply install-pre-commit-content`, replaced
   by `apply install-git-hooks`. A hook either one installed is reported as a foreign hook the
-  setup agent replaces.
+  setup agent replaces, and `retirements.yaml` records the four files they wrote under
+  `.git/hooks/` (`guardrails-r001` to `guardrails-r004`): `/guardrails:setup check` reports them
+  and `apply` offers the gated cleanup.

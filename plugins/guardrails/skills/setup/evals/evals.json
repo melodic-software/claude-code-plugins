@@ -63,6 +63,55 @@
         "Reports install.mjs verify output at the end",
         "Does not write a shared .githooks/ copy or set core.hooksPath"
       ]
+    },
+    {
+      "id": 6,
+      "name": "check-reports-retired-commit-msg-hook-guardrails-r001",
+      "prompt": "/guardrails:setup check\n\nThis clone's .git/hooks/commit-msg is the hook the old `apply install-commit-msg` action installed (its second line reads `# guardrails-commit-msg-convention v1`), with guardrails-resolve-convention.sh beside it.",
+      "expected_output": "Runs check-retirements.sh against the plugin's retirements.yaml and reports guardrails-r001 as FAIL (a migrate record) and guardrails-r002 as WARN, with apply as the remediation. Changes no file.",
+      "files": [],
+      "expectations": [
+        "check-retirements.sh is run with --manifest pointing at the plugin's retirements.yaml",
+        "guardrails-r001 is reported as FAIL and guardrails-r002 as WARN, each with apply as the remediation",
+        "No file is changed by check"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "apply-cleans-retired-resolver-guardrails-r002",
+      "prompt": "/guardrails:setup apply\n\nOnly .git/hooks/guardrails-resolve-convention.sh is left from the old install-commit-msg action; the operator says yes to every cleanup.",
+      "expected_output": "Re-runs retirement detection, reports guardrails-r002, and after the operator confirms runs check-retirements.sh with --clean guardrails-r002, reports the removed file, then re-runs detection and reports the final state.",
+      "files": [],
+      "expectations": [
+        "Cleanup of guardrails-r002 runs only after the operator confirms it",
+        "Runs check-retirements.sh --clean guardrails-r002 rather than deleting the file by hand",
+        "Detection is re-run last and the final state is reported"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "apply-migrates-retired-pre-commit-hook-guardrails-r003",
+      "prompt": "/guardrails:setup apply\n\nThis clone still has the pre-commit hook the old `apply install-pre-commit-content` action installed, and the user's own earlier hook it chained sits at .git/hooks/pre-commit.pre-guardrails. The operator confirms each step.",
+      "expected_output": "Reports guardrails-r003 and follows its successor: with the operator confirming, runs --clean guardrails-r003 --i-migrated, moves pre-commit.pre-guardrails back to pre-commit so the user's own hook is kept, and points at apply install-git-hooks to install the pre-commit-content entry, which handles that hook through its foreign-hook decision. Re-runs detection last.",
+      "files": [],
+      "expectations": [
+        "Runs --clean guardrails-r003 with --i-migrated only after the operator confirms the migrated result",
+        "Keeps the user's chained hook by moving .git/hooks/pre-commit.pre-guardrails back to .git/hooks/pre-commit",
+        "Points at apply install-git-hooks for the replacement entry rather than installing it from bare apply",
+        "The old hook's content is treated as untrusted input and never executed"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "apply-cleans-retired-content-lib-guardrails-r004",
+      "prompt": "/guardrails:setup apply\n\nThe old pre-commit hook is gone but .git/hooks/guardrails-content-lib/ is still there. The operator says no to the cleanup.",
+      "expected_output": "Reports guardrails-r004 as WARN, asks before cleaning, and on the operator's no leaves the directory in place and reports it as still present. Never runs --clean guardrails-r004 without a yes.",
+      "files": [],
+      "expectations": [
+        "guardrails-r004 is reported and its cleanup is offered behind its own confirmation",
+        "On the operator's no, check-retirements.sh --clean guardrails-r004 is not run and the directory is left in place",
+        "The final report lists guardrails-r004 as still present"
+      ]
     }
   ]
 }
