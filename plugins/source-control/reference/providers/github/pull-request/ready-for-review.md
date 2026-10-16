@@ -32,15 +32,22 @@ references with `gh pr view`, and each closing issue's state over REST.
 
 ## Read the pre-ready steps at the base
 
-The base branch's copy, from the base repository. A 404, or any failed read, leaves the document
-empty, so every step runs.
+The PR's own base branch, in the PR's own base repository. The repository comes from the PR's
+URL, which names the base repository, never from gh's `{owner}/{repo}` default: in a fork
+checkout with no upstream remote, that default resolves to the fork the PR's author controls.
+`-f ref=` with `-X GET` sends the branch name as an encoded query parameter. `-i` puts the status
+line on stdout, where the reader reads it: only a 404 means no file, and any other failure (auth,
+5xx, no response) fails closed.
 
 ```bash
 BASE=$(gh pr view "$PR_NUMBER" --json baseRefName -q '.baseRefName')
-PRE_READY_DOC=$(gh api "repos/{owner}/{repo}/contents/docs/conventions/source-control.yaml?ref=$BASE" \
-  -H "Accept: application/vnd.github.raw" 2>/dev/null) || PRE_READY_DOC=""
-printf '%s' "$PRE_READY_DOC" | bash "<skill-dir>/scripts/read-pre-ready.sh" -
+BASE_REPO=$(gh pr view "$PR_NUMBER" --json url -q '.url | split("/")[3:5] | join("/")')
+PRE_READY_RESPONSE=$(gh api -i -X GET "repos/$BASE_REPO/contents/docs/conventions/source-control.yaml" \
+  -f ref="$BASE" -H "Accept: application/vnd.github.raw")
+printf '%s' "$PRE_READY_RESPONSE" | bash "<skill-dir>/scripts/read-pre-ready.sh" --http-response
 ```
+
+On a 404, gh also prints `gh: Not Found (HTTP 404)` to stderr; that line is expected.
 
 ## Refresh the base with a merge
 
