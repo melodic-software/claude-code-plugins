@@ -17,7 +17,7 @@ The read-only check is its own skill so the model can invoke it while `setup` st
 
 ## Check
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only its `check` section. Setup's pre-computed rows are not rendered when this skill reads the file, so run every probe (node, jq, actionlint) via Bash. Report the PASS/FAIL table. Stop.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only its `check` section. Setup's pre-computed rows are not rendered when this skill reads the file, so run every probe (node, actionlint, the git-hook verify) via Bash. Report the PASS/FAIL table. Stop.
 
 ## Next
 

@@ -1,87 +1,77 @@
 # actionlint
 
-A Claude Code plugin that lints GitHub Actions workflow files the moment you
-edit them. On every `Write` or `Edit` of a file under `.github/workflows/`
-(`*.yml` or `*.yaml`) it runs [actionlint](https://github.com/rhysd/actionlint)
-and surfaces any findings back to Claude as advisory context.
+A Claude Code plugin that lints GitHub Actions workflow files with
+[actionlint](https://github.com/rhysd/actionlint) at git pre-commit, for every author.
+actionlint only reports, so nothing runs per edit or per batch of tool calls and no finding
+reaches Claude while it edits. An opt-in end-of-turn check shows a session its findings before
+it commits.
 
-It ships no rules of its own and no binary. It runs the `actionlint` already on
-your `PATH`.
+It ships no rules of its own and no binary. It runs the `actionlint` already on your `PATH`.
 
 ## Behavior
 
-- **Lint on edit.** actionlint runs on every edit of a workflow file. It is
-  non-mutating; it only reports.
-- **Advisory, never blocking.** The hook always exits `0`. Findings are reported
-  via `additionalContext`, one line each (`-oneline`); they never reject the
-  edit. Make a commit hook or CI your hard gate. A finding set is reported once
-  per file: an unchanged set on a re-edit sends nothing, and it is sent again
-  after a clean run or after the context is compacted or cleared.
-- **Scoped to workflows.** Only files matching `.github/workflows/*.yml` and
-  `.github/workflows/*.yaml` are linted. Other YAML is left alone. The registration
-  carries the matching `if` filters (`Edit(**/.github/workflows/*.yml)` and the
-  `.yaml` twin), so a Write/Edit of any other file never starts a hook process for it.
-  - **Pointer**: when deciding whether an `if` row keeps a handler from spawning, fetch
-    [hooks: Common fields](https://code.claude.com/docs/en/hooks#common-fields) live.
-    **As of**: 2026-10-11. **Recheck trigger**: that section changes when an `if` rule
-    keeps a handler from running, or which events evaluate it.
-- **Gitignored paths are out of scope.** A workflow file the repository gitignores
-  is not reported. Set `actionlint_lint_gitignored` to `true` to lint gitignored
-  workflow files too. A tracked file that matches an ignore pattern stays in scope.
+- **Report only.** The check never rewrites a file. A finding prints as
+  `<path>:<line>: <message>` on stderr and exits `1`. A finding about a whole workflow (a job
+  with no `runs-on`) carries the line actionlint names for it.
+- **Changed lines only.** At commit it blocks only on a finding that sits on a line the commit
+  adds. Findings already in the file do not block an unrelated edit.
+- **Scoped to workflows.** Only staged files matching `.github/workflows/*.yml` and
+  `.github/workflows/*.yaml` are linted. Other YAML is left alone, and files under `.githooks/`
+  (installed copies) are skipped.
+- **A partly staged file is linted as staged.** The check reads the index, so the lint matches
+  what the commit records.
 - **External run-block linters disabled (`-shellcheck= -pyflakes=`).**
-  actionlint's embedded-bash ShellCheck and `shell: python` pyflakes
-  integrations are turned off. Each spawns a subprocess per `run:` block.
-  ShellCheck deadlocks on large blocks under the Windows subprocess IPC path in
-  actionlint 1.7.x, and either adds latency unsuited to an edit-time hook.
-  Native workflow diagnostics are unaffected; run the full integrations in CI.
-- **Graceful degrade.** When `actionlint` (or `jq`) is not on `PATH` the hook
-  skips and says so, to both Claude (`additionalContext`) and you (`systemMessage`),
-  never a silent no-op. Each notice fires once per session and agent and does not renew; the
-  install route is on your copy only.
-  A missing `node` is the exception: the hook does not launch, so it cannot say anything
-  itself. The transcript shows a hook error notice, and lint does not run.
+  actionlint's embedded-bash ShellCheck and `shell: python` pyflakes integrations are turned off.
+  Each spawns a subprocess per `run:` block. ShellCheck deadlocks on large blocks under the
+  Windows subprocess IPC path in actionlint 1.7.x. Native workflow diagnostics are unaffected;
+  run the full integrations in CI.
+- **Opt-in end-of-turn check.** With `actionlint_end_of_turn` on, a Stop row runs the same check
+  over the uncommitted workflow changes (untracked files included) when a turn ends and hands
+  findings back to Claude once per turn. Nothing is rewritten. Off by default.
+
+## Git pre-commit entry
+
+The plugin ships one git-hook entry, `actionlint-check` (`git-hooks/entries.json`). It reaches
+every author, not only Claude, once `/actionlint:setup apply install-git-hooks [scope=local|shared]`
+registers it with the repository's hook manager (lefthook, husky or plain git hooks). Local scope
+stays in this clone; shared scope commits the copy under `.githooks/actionlint/`.
+`/actionlint:setup check` reports drift, and the SessionStart probe prints one line when the
+entry is missing, stale or edited.
+
+When `actionlint` is missing, an agent's commit fails with the install command; a person's commit
+gets a one-line notice and goes through. `git -c checks.skipmissing=actionlint commit ...` skips the
+check while actionlint is absent. The placement rules are the check-placement convention in the
+marketplace repository.
 
 ## Requirements
 
-- **Bash.** The hook is a Bash script. On native Windows, install
+- **Bash.** The scripts run on Bash 3.2+. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
-  Claude Code can run it under Git Bash.
+  Claude Code can run them under Git Bash.
 - **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`, which
-  finds Bash and runs the script. Absent: the hook does not launch and lint does not run.
-  `/actionlint:setup check` reports it. [Install Node.js](https://nodejs.org/en/download).
-- **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible notice, once per session and agent. [Install jq](https://jqlang.org/download/).
-- **actionlint** on `PATH`. The linter itself. Absent: workflow lint skips
-  with a visible notice, once per session and agent. See the
+  finds Bash and runs the script, and the git-hook installer is a Node script. Absent: the hooks
+  do not launch. `/actionlint:setup check` reports it. [Install Node.js](https://nodejs.org/en/download).
+- **actionlint** on `PATH`. The linter itself. Absent: see the commit behavior above. See the
   [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md).
   A SessionStart probe reports a missing `actionlint` once per session, from
-  `prerequisites.json`, and the PostToolUse notice names the same install route. The two share
-  one latch: the probe's notice is yours, and Claude hears at the hook's first skip. `/actionlint:check` reports whether the binary resolves and installs nothing.
+  `prerequisites.json`, and a drifted git-hook entry. `/actionlint:check` reports whether the
+  binary resolves and installs nothing.
 
 ### Hook budget accounting
 
 Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
-this hook is always-on for every `Write` and `Edit` of a `.yml` or `.yaml` file under
-`.github/workflows/` (every PostToolUse handler in `hooks/hooks.json` carries one of the two `if` rows,
-which keep every other file from spawning it, and the suite pins the whole handler set to the
-script's own workflow filter), so its cost on a clean workflow is the figure that counts.
-Measured on Linux x86_64 under bash 5.2 in a container with `HOOK_TELEMETRY_SINK` and
-`CLAUDE_PROJECT_DIR` unset, twelve interleaved trials against an interleaved `bash -c :` floor
-S of about 4 ms, with a kernel census from `strace -f -e trace=clone,clone3,fork,vfork,execve`
-(2026-09-07, 0.8.43). It predates two later spawns on this path: the gitignore check
-(`hook::file_is_gitignored`, one `git check-ignore`, 0.9.0) and the `node` launcher (0.9.1). The
-figures below exclude both:
+the plugin registers no `PostToolUse` or `PostToolBatch` row, so an edit or a batch of tool calls
+costs nothing. The Stop row fires on every turn end; with `actionlint_end_of_turn` off (its
+default) the launcher's `--require-true` gate closes before bash starts, so it costs one `node`
+process. Measured on WSL2 Ubuntu (bash 5.3.9, actionlint 1.7.12, node 24) on 2026-10-15, spawns
+from `scripts/hook-census.sh`, wall times over ten runs after one warm-up:
 
-| Event | Fires | Wall | Spawn-equivalents | Kernel census |
-| --- | --- | --- | --- | --- |
-| PostToolUse `Write`, clean `.github/workflows/*.yml` | 1 | 34 ms | 7.9 | 14 process creations (one trial in nine reached 15; actionlint's own threads vary), 5 execs: `actionlint`, `git`, two `jq`, the hook's own `bash` |
-| PostToolUse `Write`, any other file | 0 | none | 0 | no process; the `if` rows drop the handler before a spawn |
+| Run | Median wall | Min-max | Spawns |
+| --- | --- | --- | --- |
+| Stop row, `actionlint_end_of_turn` off | not timed | not timed | 1 (the `node` launcher) |
+| Pre-commit entry, one staged clean workflow | 0.033 s | 0.027-0.038 s | not counted |
 
-At a 4 ms floor the spawn-equivalent column mostly measures actionlint's own run time rather
-than spawns, so the census column is the number that transfers to the Windows 11 Git Bash
-reference host the convention calls binding; that host's figure for this plugin has not been
-taken. The residual is actionlint itself plus the payload parse (`jq`) and the root resolver
-(`git`).
+`.performance/ratchets.json` holds the Stop row with the option off at 1 spawn.
 
 ## Install
 
@@ -90,33 +80,21 @@ taken. The residual is actionlint itself plus the payload parse (`jq`) and the r
 /plugin install actionlint@<marketplace>
 ```
 
-Then verify prerequisites with `/actionlint:setup check`.
+Then verify prerequisites with `/actionlint:setup check` and register the pre-commit entry with
+`/actionlint:setup apply install-git-hooks`.
 
 ## Configuration
 
 actionlint auto-discovers its own `.github/actionlint.yaml` config from your
-repository when present. Three `userConfig` options tune the hook itself:
+repository when present. Two `userConfig` options tune the hooks themselves:
 
-- **`actionlint_enabled`** (boolean, default `true`). Kill switch for the
-  actionlint-check hook.
-- **`actionlint_lint_gitignored`** (boolean, default `false`). Set `true` to
-  lint a workflow file the repository gitignores. Off by default.
-- **`stdin_read_timeout`** (number, default `2`, minimum `1`). **Idle** bound in
-  seconds on reading the hook payload from stdin. Any byte arriving resets it, so
-  a large or slowly-delivered payload is never cut off while it is still coming;
-  it fires only once the pipe has gone silent for that long, and this hook then
-  fails open (skips). On a shell whose `read -t` accepts fractional values the
-  bound is read in four slices, so the stall is detected within a quarter of the
-  configured interval; where fractional timeouts are unavailable (Bash 3.2,
-  the macOS system shell) the bound is read as one window and a producer that sends
-  bytes then goes silent can take up to two intervals. A producer that keeps
-  emitting is bounded by Claude Code's own hook timeout, not by this value. If
-  this shell's `read -t` will not accept the setting, or the setting is `0`, the
-  hook falls back to the default.
-  - **Pointer**: when deciding what bounds a hook run past this idle read, fetch
-    [hooks: Timeouts](https://code.claude.com/docs/en/hooks#timeouts) live.
-    **As of**: 2026-10-11. **Recheck trigger**: that section changes how a hook is
-    cancelled at its timeout.
+- **`actionlint_enabled`** (boolean, default `true`). Kill switch for the plugin's Claude Code
+  hooks (the end-of-turn row and the SessionStart probe). It does not govern the git pre-commit
+  entry, which `/actionlint:setup apply install-git-hooks` installs and its `decline` action
+  turns off for a clone.
+- **`actionlint_end_of_turn`** (boolean, default `false`). Set `true` to run the pre-commit check
+  over the uncommitted workflow changes when a turn ends; findings go back to Claude once per turn
+  so they are fixed before it stops. Nothing is rewritten.
 
 Configure interactively with `/plugin configure actionlint@<marketplace>` or headless at
 install time:
@@ -135,9 +113,8 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `actionlint_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED` | Lint GitHub Actions workflow files on edit via actionlint |
-| `actionlint_lint_gitignored` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_ACTIONLINT_LINT_GITIGNORED` | By default the hook leaves a file the repository gitignores alone: it is not reported. Set true to lint gitignored workflow files too. A tracked file that matches an ignore pattern is always in scope. |
-| `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open |
+| `actionlint_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED` | Turn the plugin's Claude Code hooks (the opt-in end-of-turn check and the session-start probe) on or off |
+| `actionlint_end_of_turn` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_ACTIONLINT_END_OF_TURN` | At the end of each turn, run the pre-commit actionlint check over the workflow lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Off by default. |
 
 ### How to set these
 

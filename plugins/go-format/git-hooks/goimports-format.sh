@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+# go-format pre-commit entry: rewrite the staged Go files with goimports.
+#
+#   goimports-format.sh               the staged changes (git runs it as pre-commit)
+#   goimports-format.sh --worktree    the uncommitted changes against HEAD, untracked
+#                                     files included, parsed without rewriting
+#                                     (the opt-in end-of-turn Stop row)
+#
+# goimports reports no lint findings, so this entry rewrites and fails only when
+# goimports itself errors, which it does for a file it cannot parse. Pre-commit:
+# a partly staged file is refused before anything is rewritten (re-staging a
+# rewrite would stage its unstaged hunks too). Then `goimports -w` runs over the
+# staged .go files, the rewritten paths print on stdout and are re-staged, and
+# each parse error prints as "<path>:<line>: <message>" on stderr, exit 1.
+# A file that does not parse is a failure wherever the error sits, so the errors
+# are not narrowed to the lines the commit adds. A staged file since deleted
+# from the work tree is parsed from the index and never rewritten.
+#
+# A file whose leading comment block carries Go's `// Code generated ... DO NOT
+# EDIT.` marker is left alone, as is anything under .githooks/ (installed
+# copies). goimports comes from PATH. Missing goimports follows the
+# check-placement contract in every mode: checks.skipmissing, else fail for an
+# agent and a notice for a person.
+set -uo pipefail
+
+here="${BASH_SOURCE[0]%/*}"
+[[ "$here" == "${BASH_SOURCE[0]}" ]] && here=.
+lib="$here/check-lib.sh"
+[[ -f "$lib" ]] || lib="$here/../lib/git-hooks/check-lib.sh"
+# shellcheck source=../../../lib/git-hooks/check-lib.sh
+. "$lib" || exit 1
+
+checks_init pre-commit "$@" || exit 0
+
+checks_require_tool goimports "go install golang.org/x/tools/cmd/goimports@latest (needs a Go toolchain: https://go.dev/dl/)"
+
+# generated <path>: 0 when the file's leading comment and blank-line run holds
+# the generated-code marker. The scan is a stand-in for go/ast.IsGenerated: it
+# tracks /* */ blocks, tolerates a BOM and CRLF, and stops at the first text
+# that is neither blank nor a comment, even when it follows a comment on the
+# same line, as `/* license */ package p` does.
+generated() {
+  local line rest in_block=0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    rest="${line#$'\xEF\xBB\xBF'}"
+    while :; do
+      if ((in_block)); then
+        [[ "$rest" == *'*/'* ]] || continue 2
+        rest="${rest#*\*/}"
+        in_block=0
+      fi
+      rest="${rest#"${rest%%[![:space:]]*}"}"
+      [[ -n "$rest" ]] || continue 2
+      if [[ "$rest" == //* ]]; then
+        [[ "$rest" =~ ^//\ Code\ generated\ .*\ DO\ NOT\ EDIT\.$ ]] && return 0
+        continue 2
+      fi
+      [[ "$rest" == /\** ]] || return 1
+      rest="${rest#/\*}"
+      in_block=1
+    done
+  done <"$1"
+  return 1
+}
+
+# staged_gone <path>: 0 at pre-commit when <path> is gone from the work tree and
+# the index holds it as a regular file, not a symlink (mode 120000) or a submodule.
+staged_gone() {
+  [[ "$CHECKS_MODE" == pre-commit && ! -e "$1" && ! -L "$1" ]] || return 1
+  [[ "$(git ls-files -s -- ":(literal)$1" 2>/dev/null)" == 100* ]]
+}
+
+files=()
+gone=()
+while IFS= read -r -d '' f; do
+  case "$f" in
+    .githooks/*) continue ;;
+    *.go) ;;
+    *) continue ;;
+  esac
+  if [[ -f "$f" && ! -L "$f" ]]; then
+    generated "$f" && continue
+    files+=("$f")
+  elif staged_gone "$f"; then
+    generated <(git show ":$f" 2>/dev/null) && continue
+    gone+=("$f")
+  fi
+done < <(checks_files)
+((${#files[@]} + ${#gone[@]})) || exit 0
+
+if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#files[@]})); then
+  # Only the Go files are refused, not every staged path, which is what
+  # checks_refuse_partly_staged would walk.
+  refused=0
+  for f in "${files[@]}"; do
+    if checks_partly_staged "$f"; then
+      printf '%s: partly staged; format it or stage it fully, then commit\n' "$f" >&2
+      refused=1
+    fi
+  done
+  ((refused)) && exit 1
+fi
+
+# local_prefix <dir>: the module path of the module holding <dir>, for goimports'
+# -local grouping; empty when go is absent or the directory is outside a module.
+local_prefix() {
+  local mod=""
+  if command -v go >/dev/null 2>&1; then
+    mod="$(cd "$1" 2>/dev/null && go list -m 2>/dev/null)" || mod=""
+    [[ "$mod" == "command-line-arguments" ]] && mod=""
+  fi
+  printf '%s' "$mod"
+}
+
+errs="$CHECKS_TMP/goimports"
+: >"$errs"
+if [[ "$CHECKS_MODE" == pre-commit ]]; then
+  flags=(-w)
+else
+  flags=(-l)
+fi
+
+# run_group <prefix> <files...>: one goimports run over files sharing a -local prefix.
+run_group() {
+  local prefix="$1" args=("${flags[@]}")
+  shift
+  [[ -n "$prefix" ]] && args+=(-local "$prefix")
+  goimports "${args[@]}" -- "$@" >/dev/null 2>>"$errs" || :
+}
+
+# Files arrive sorted, so the files of one module sit together and one run
+# covers them.
+group=()
+group_prefix=""
+for f in ${files[@]+"${files[@]}"}; do
+  dir="${f%/*}"
+  [[ "$dir" == "$f" ]] && dir=.
+  prefix="$(local_prefix "$dir")"
+  if ((${#group[@]})) && [[ "$prefix" != "$group_prefix" ]]; then
+    run_group "$group_prefix" "${group[@]}"
+    group=()
+  fi
+  group_prefix="$prefix"
+  group+=("$f")
+done
+((${#group[@]})) && run_group "$group_prefix" "${group[@]}"
+
+# goimports reads stdin when given no file and names it "<standard input>".
+for f in ${gone[@]+"${gone[@]}"}; do
+  dir="${f%/*}"
+  [[ "$dir" == "$f" ]] && dir=.
+  prefix="$(local_prefix "$dir")"
+  args=()
+  [[ -n "$prefix" ]] && args+=(-local "$prefix")
+  git show ":$f" 2>/dev/null | goimports ${args[@]+"${args[@]}"} 2>"$CHECKS_TMP/one" >/dev/null || :
+  escaped="$(printf '%s' "$f" | sed 's/[#&\\]/\\&/g')"
+  sed "s#^<standard input>:#$escaped:#" "$CHECKS_TMP/one" >>"$errs"
+done
+
+if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#files[@]})); then
+  rewritten=()
+  while IFS= read -r -d '' f; do
+    rewritten+=("$f")
+  done < <(git --literal-pathspecs diff --name-only -z -- "${files[@]}")
+  if ((${#rewritten[@]})); then
+    printf '%s\n' "${rewritten[@]}"
+    git --literal-pathspecs add -- "${rewritten[@]}"
+  fi
+fi
+
+[[ -s "$errs" ]] || exit 0
+
+# goimports prints "<path>:<line>:<col>: <message>"; the contract line drops the
+# column. Anything else it prints passes through.
+sed -e 's/^\(.*\.go\):\([0-9][0-9]*\):[0-9][0-9]*: /\1:\2: /' "$errs" >&2
+printf 'go-format: goimports could not process the files above.\n' >&2
+exit 1
