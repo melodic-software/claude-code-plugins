@@ -17,22 +17,21 @@
   "userConfig": {
     "markdown_format_enabled": {
       "type": "boolean",
-      "title": "Format and lint on edit",
-      "description": "Auto-format and lint Markdown on Write/Edit of .md/.mdc files (runs only when the repo carries a markdownlint config)",
+      "title": "Format Markdown",
+      "description": "Rewrite the Markdown files a batch of tool calls wrote (runs only when the repo carries a markdownlint config)",
       "default": true
     },
     "markdown_format_lint_gitignored": {
       "type": "boolean",
       "title": "Act on files git ignores",
-      "description": "By default the hook leaves gitignored files alone: a scratch tier the repo excludes is neither rewritten nor reported on. Set true to bypass this hook's git check; markdownlint-cli2's own ignores and gitignore config still apply, so a path your markdownlint config excludes stays untouched.",
+      "description": "By default the hook leaves gitignored files alone: a scratch tier the repo excludes is not rewritten. Set true to bypass this hook's git check; markdownlint-cli2's own ignores and gitignore config still apply, so a path your markdownlint config excludes stays untouched.",
       "default": false
     },
-    "markdown_format_max_findings": {
-      "type": "number",
-      "title": "Max findings reported per run",
-      "description": "How many individual markdownlint violations are listed per run. The total count and the leading rule codes are always reported regardless. 0 = unlimited.",
-      "default": 20,
-      "min": 0
+    "markdown_format_end_of_turn": {
+      "type": "boolean",
+      "title": "Check uncommitted Markdown when a turn ends",
+      "description": "When a turn ends, run the pre-commit check over the uncommitted changes (nothing is rewritten) and hand any markdownlint findings back to Claude, at most once per turn. Off by default.",
+      "default": false
     }
   }
 }
