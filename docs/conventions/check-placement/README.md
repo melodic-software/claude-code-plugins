@@ -318,7 +318,7 @@ marketplace comes from these rows.
 | markdown-format, per edit (`.md`, configured) | PostToolUse today | 180 ms median (174-186) | reference host (Linux, WSL2) | 2026-10-15 |
 | powershell-format, per edit (`.ps1`, configured) | PostToolUse today | 973 ms median (918-1,026) | reference host (Linux, WSL2) | 2026-10-15 |
 | ruff-format, per edit (`.py`, configured) | PostToolUse today | 75 ms median (73-83) | reference host (Linux, WSL2) | 2026-10-15 |
-| typos-format, per edit (`.md`) | PostToolUse today; moving to pre-commit | 59 ms median (56-63) | reference host (Linux, WSL2) | 2026-10-15 |
+| typos-format, per edit (`.md`) | PostToolUse until removed; now pre-commit | 59 ms median (56-63) | reference host (Linux, WSL2) | 2026-10-15 |
 
 The per-edit rows are today's `PostToolUse` rows run from each plugin's `hooks/hooks.json` with a
 sample that needs work (hyperfine, 2 warmups, 10 runs; a 15 ms spawn baseline is included). They
