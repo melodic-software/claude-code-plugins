@@ -29,10 +29,10 @@ and what reaches the model.
 5. **Measured cost and model-facing output both decide placement.** A cheap check that prints
    to the model each edit is still misplaced; a silent check that costs seconds per edit is too.
 6. **One local place per report-only check.** Each report-only check runs in exactly one local
-   place, and CI re-runs it on the change only. Exceptions:
-   - formatters, which run once per batch in session (when within the ceiling below) and again
-     at `pre-commit`;
-   - the end-of-turn check, if the typos-format pilot makes it the default.
+   place, and CI re-runs it on the change only. Formatters are the one exception: they run once
+   per batch in session (when within the ceiling below) and again at `pre-commit`. The opt-in
+   end-of-turn check is not an exception, because the
+   [typos-format pilot](#typos-format-pilot-2026-10-15) left it off by default.
 
    Blocking guards that stop a tool call are a separate class and are not counted here.
 7. **CI never skips a check because a local hook reported a pass.** A hook can be missing,
@@ -64,7 +64,8 @@ see the [hooks reference](https://code.claude.com/docs/en/hooks). As of 2026-10-
   lines in the uncommitted diff against `HEAD`) from a `Stop` row behind a
   `<plugin>_end_of_turn` userConfig boolean, default `false`. Its findings exit 2, so the model
   fixes them before the turn ends; the row honors `stop_hook_active` and blocks at most once per
-  turn. The typos-format pilot sets the default for every report-only plugin.
+  turn. It stays off by default for every report-only plugin, per the
+  [typos-format pilot](#typos-format-pilot-2026-10-15).
 
 ## The registration contract
 
@@ -246,6 +247,46 @@ same scope as the hook it declines.
 Every git-hook entry has a test and a measured cost row in the table below. A check script's test
 builds a throwaway repository, stages a file, runs the script, and asserts exit code and stderr;
 each check carries at least one stay-quiet case ([hook-precision](../hook-precision/README.md)).
+
+## typos-format pilot (2026-10-15)
+
+Claude Code 2.1.301, Sonnet, headless, one multi-edit task over four files with seeded misspellings
+in a passage the prompt asked to paste verbatim, then a commit; user settings excluded so only the
+plugin under test loaded, and file changes allowed only through Edit and Write.
+
+Arms: control (today's per-edit `PostToolUse` report), precommit (per-edit row removed, `pre-commit`
+entry installed) and eot (precommit plus the end-of-turn check on). A run completed when the commit
+held all four edits and was typo-free. Control ran n=5. The end-of-turn verdict was decided by one
+run at n=5, so the one-run-margin rule reran both treatment arms, to n=10 each.
+
+| Arm | n | Completed | Median wall s (min-max) | Failed edits | Fixed before turn end |
+|---|---|---|---|---|---|
+| control | 5 | 0 | 23.7 (22.4-26.0) | 0 | 0 |
+| precommit | 10 | 6 | 24.8 (21.2-28.2) | 0 | 6 |
+| eot | 10 | 5 | 24.55 (21.9-29.1) | 0 | 5 |
+
+Regression rule: an arm regresses if it completes fewer tasks than control, or if its median wall
+time or failed edits is worse than control's by more than control's own min-max spread (3.6 s wall,
+0 failed edits).
+
+Verdicts:
+
+- **The report moves off per-edit.** Both arms pass: precommit completed 6/10 and eot 5/10 against
+  control's 0/5, with median wall +1.1 s and +0.9 s against a 3.6 s spread, and no failed edits in
+  any arm.
+- **End-of-turn stays opt-in, default off, for every report-only plugin.** It did not get findings
+  fixed before turn end in more runs than precommit (5 against 6).
+
+Caveats:
+
+- The end-of-turn check never fired in any run: the model always committed within the turn, so the
+  `pre-commit` hook caught every finding first. Testing that mode needs a task that ends a turn with
+  changes uncommitted.
+- Timing and wording are confounded. In every control run the per-edit report reached the model and
+  the model allow-listed the words instead of fixing them; the per-edit message suggests only
+  allow-listing, while the `pre-commit` message says to fix the words first. This pilot cannot
+  separate the two causes.
+- Failed edits were 0 in every run, so that part of the rule had no signal to detect.
 
 ## Duration budgets
 
