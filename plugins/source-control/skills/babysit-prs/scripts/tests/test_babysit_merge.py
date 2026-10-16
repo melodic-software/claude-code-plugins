@@ -1685,6 +1685,31 @@ class RefreshDisarmsAutoMerge(unittest.TestCase):
             self._disarm(armed=True, disable_error=True)
 
 
+class RefreshRefusesDependencyManagerPrs(unittest.TestCase):
+    """A dependency manager's PR is never refreshed: an extra commit on its branch
+    stops the manager's own rebases."""
+
+    def _validate(self, login: str) -> None:
+        pr = {"state": "OPEN", "author": {"login": login}}
+        with mock.patch.object(refresh, "view_pr", return_value=pr):
+            refresh.validate_current_candidate(
+                "owner/repo", PR_NUMBER, HEAD, frozenset({"owner"})
+            )
+
+    def test_dependabot_pr_is_refused(self) -> None:
+        for login in ("dependabot", "app/dependabot", "renovate[bot]"):
+            with (
+                self.subTest(login=login),
+                self.assertRaisesRegex(RuntimeError, "dependency manager"),
+            ):
+                self._validate(login)
+
+    def test_other_author_passes_the_author_check(self) -> None:
+        with self.assertRaises(RuntimeError) as caught:
+            self._validate("octocat")
+        self.assertNotIn("dependency manager", str(caught.exception))
+
+
 class RepoPolicyReachesTheGate(unittest.TestCase):
     """`main` reads the target repository's policy; the flags are the fallback."""
 

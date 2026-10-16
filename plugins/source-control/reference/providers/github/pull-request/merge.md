@@ -33,6 +33,39 @@ When GraphQL is refused, read `.base.ref` and `.head.sha` from one
 
 Update a behind branch with a merge-forward or `gh pr update-branch`.
 
+## Behind-branch exceptions
+
+A base uses a merge queue when its branch rules carry a `merge_queue` rule; skip the update there:
+
+```bash
+gh api --paginate --slurp "repos/{owner}/{repo}/rules/branches/$BASE" \
+  | jq -e 'add | any(.[]; .type == "merge_queue")' >/dev/null && echo 'merge queue: skip the update'
+```
+
+A dependency manager's PR shows its app login as the author (`app/dependabot`, `app/renovate`):
+
+```bash
+gh pr view <pr_number> --json author --jq .author.login
+```
+
+For Dependabot, request the rebase with a comment, never `gh pr update-branch` or a push:
+
+```bash
+gh pr comment <pr_number> --body '@dependabot rebase'
+```
+
+For another manager, use its own documented rebase trigger.
+
+- **Pointer**: what a queue tests, under
+  [about merge queues](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue#about-merge-queues);
+  why extra commits are off limits, under
+  [allowing Dependabot to rebase and force push over extra commits](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/managing-pull-requests-for-dependency-updates#allowing-dependabot-to-rebase-and-force-push-over-extra-commits);
+  the comment commands, under
+  [managing Dependabot pull requests with comment commands](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/managing-pull-requests-for-dependency-updates#managing-dependabot-pull-requests-with-comment-commands).
+- **As of**: 2026-10-16
+- **Recheck trigger**: the merge-queue section changing what a queue tests, or either Dependabot
+  section changing how it treats extra commits or renaming the rebase comment command.
+
 ## Wait for a known merge state
 
 GitHub reports `mergeStateStatus` as `UNKNOWN` while it recomputes it after a push or a ready flip,

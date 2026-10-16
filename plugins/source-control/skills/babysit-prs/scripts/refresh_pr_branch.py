@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+from babysit_classify import is_dependency_author
 from babysit_delta import compute_branch_freshness, head_repository_scope
 from babysit_feedback import fetch_current_human_stop, human_stop_blocks_automation
 from babysit_gh import (
@@ -54,6 +55,12 @@ def validate_current_candidate(
     current = view_pr(repo, number)
     if str(current.get("state") or "").upper() != "OPEN":
         raise RuntimeError("PR is no longer open")
+    author = str(json_object(current.get("author")).get("login") or "")
+    if is_dependency_author(author):
+        raise RuntimeError(
+            f"PR is authored by dependency manager {author}; refusing branch refresh "
+            "(an extra commit stops its own rebases: ask it to rebase instead)"
+        )
     current_policy = head_repository_scope(current, allowed_owners)
     if (
         not current_policy["head_metadata_complete"]
