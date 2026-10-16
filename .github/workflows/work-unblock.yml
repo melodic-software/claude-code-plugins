@@ -25,7 +25,7 @@ name: work-unblock
 # An issue a bot closes (the lanes App, or a PR merge a bot ran) starts no
 # close run; the broker would refuse that mint. The hourly sweep covers it: a
 # scheduled run applies the same rules to every issue a listed human or a
-# merged pull request closed in the last three hours, so one missed run loses nothing.
+# merge (a merged pull request or a commit) closed in the last three hours, so one missed run loses nothing.
 #
 # To stop the lane on one issue, remove its agent-ready label or add a hold
 # label: no later run labels an issue whose agent-ready label was removed.
