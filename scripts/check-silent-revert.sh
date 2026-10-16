@@ -870,15 +870,21 @@ scan_commit() {
   # pre-passes are not limit-gated; only the inexact pass is. This flag
   # is a behavior change, not a pin, and it is inert on attribute_file
   # (pathspec-limited, no pair can form).
-  # .changes/ is excluded: fragments exist to be deleted. A release
-  # (scripts/release-plugins.sh) consumes them into each plugin's
-  # CHANGELOG.md and removes them, so every release deletes recent content
-  # by design -- 7982fc022 (#7618) fired on 494 fragment lines. A squash
-  # that drops a sibling's fragment also drops its code, which still fires.
+  # A commit that changes a plugins/*/CHANGELOG.md is consuming .changes/
+  # fragments into it (scripts/release-plugins.sh), not removing them, so
+  # its fragment deletions are skipped; anywhere else they still count.
+  local -a scope=()
+  local changelog_rc=0
+  git diff --quiet --no-ext-diff --no-textconv "$parent" "$sha" \
+    -- 'plugins/*/CHANGELOG.md' || changelog_rc=$?
+  case "$changelog_rc" in
+  0) ;;
+  1) scope=(-- . ':(exclude).changes/') ;;
+  *) die "git diff failed checking $sha for CHANGELOG changes (exit $changelog_rc)" ;;
+  esac
   run_attributing_git "$enum_list" \
     "git diff --name-only failed enumerating $sha" \
-    diff --name-only -z -M -l0 --diff-filter=MD "$parent" "$sha" \
-    -- . ':(exclude).changes/'
+    diff --name-only -z -M -l0 --diff-filter=MD "$parent" "$sha" "${scope[@]}"
   local file
   while IFS= read -r -d '' file; do
     attribute_file "$parent" "$sha" "$file" >"$file_attr"

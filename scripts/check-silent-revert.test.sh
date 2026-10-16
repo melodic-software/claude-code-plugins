@@ -259,16 +259,13 @@ t_rename_is_not_a_removal() {
   fi
 }
 
-# A release consumes .changes/<plugin>/*.md fragments into each plugin's
-# CHANGELOG.md and deletes them (scripts/release-plugins.sh), so a release
-# commit removes hundreds of lines one recent commit added. 7982fc022 (#7618)
-# fired on exactly that shape. t_fires_on_silent_revert keeps the real removal
-# firing.
-t_release_consuming_fragments_is_not_a_removal() {
-  local repo i
-  mk_repo repo
-  # The changelogs already exist, so the release MODIFIES them and the
-  # fragments report as deletions rather than pairing as renames.
+# drop_fragments <repo> <consume> -- 30 existing plugin changelogs, a recent
+# commit adding ten-line .changes/ fragments (300 lines), then a commit
+# deleting every fragment. With consume=yes that commit also appends the
+# fragments to the changelogs, as scripts/release-plugins.sh does. The
+# changelogs pre-exist so the fragments report as deletions, not renames.
+drop_fragments() {
+  local repo="$1" consume="$2" i j
   for i in $(seq 1 30); do
     mkdir -p "$repo/plugins/plugin$i" "$repo/.changes/plugin$i"
     printf '# Changelog for plugin%s\n\n## 1.0.0\n\n- First release.\n' "$i" \
@@ -276,7 +273,6 @@ t_release_consuming_fragments_is_not_a_removal() {
   done
   git_test_config "$repo" add -A >/dev/null
   git_test_config "$repo" commit -qm "chore: seed the changelogs"
-  local j
   for i in $(seq 1 30); do
     for j in $(seq 1 10); do
       printf 'the plugin%s fragment line %s describes a fix to the guard\n' "$i" "$j"
@@ -284,21 +280,43 @@ t_release_consuming_fragments_is_not_a_removal() {
   done
   git_test_config "$repo" add -A >/dev/null
   git_test_config "$repo" commit -qm "fix: add the guard fragments (#98)"
-  for i in $(seq 1 30); do
-    cat "$repo/.changes/plugin$i/fix-guard-0123abcd.md" >>"$repo/plugins/plugin$i/CHANGELOG.md"
-  done
+  [[ "$(cat "$repo"/.changes/plugin*/*.md | wc -l)" -eq 300 ]] ||
+    fail "fixture built the wrong number of fragment lines (want 300)"
+  if [[ "$consume" = yes ]]; then
+    for i in $(seq 1 30); do
+      cat "$repo/.changes/plugin$i/fix-guard-0123abcd.md" >>"$repo/plugins/plugin$i/CHANGELOG.md"
+    done
+  fi
   git_test_config "$repo" rm -rq .changes >/dev/null
   git_test_config "$repo" add -A >/dev/null
-  git_test_config "$repo" commit -qm "chore(release): release 30 plugins (#99)"
-  [[ "$(cat "$repo"/plugins/plugin*/CHANGELOG.md | grep -c 'fragment line')" -eq 300 ]] ||
-    fail "fixture built the wrong number of fragment lines (want 300)"
-  # The shipped threshold (200), so the 300 lines would fire without the fix.
+  git_test_config "$repo" commit -qm "chore: drop the fragments (#99)"
+}
+
+# Both cases run at the shipped threshold (200) against 300 fragment lines.
+t_release_consuming_fragments_is_not_a_removal() {
+  local repo
+  mk_repo repo
+  drop_fragments "$repo" yes
   run_canary "$repo" --commit HEAD
   if [[ "$RC" -eq 0 ]]; then
-    ok "a release consuming 300 lines of recent .changes/ fragments is not a removal (threshold 200)"
+    ok "a commit consuming 300 lines of recent .changes/ fragments into CHANGELOG.md is not a removal (threshold 200)"
   else
     fail "consumed .changes/ fragments must not fire, rc=$RC: $OUT"
   fi
+}
+
+t_fragments_dropped_without_changelog_still_fire() {
+  local repo sink
+  mk_repo repo
+  drop_fragments "$repo" no
+  sink="$(mktemp "$TMP/x.XXXX")"
+  FINDINGS_SINK="$sink" run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 1 ]] && grep -qE '^[0-9a-f]{40} 300$' "$sink"; then
+    ok "dropping 300 lines of recent .changes/ fragments with no CHANGELOG change fires (threshold 200)"
+  else
+    fail "unconsumed fragment drop must fire 300, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
 }
 
 # The attribution counts must not depend on the CALLER'S GIT CONFIG. They are
@@ -2363,6 +2381,7 @@ t_quiet_outside_recency_window
 t_does_not_sum_across_culprits
 t_rename_is_not_a_removal
 t_release_consuming_fragments_is_not_a_removal
+t_fragments_dropped_without_changelog_still_fire
 t_counts_are_immune_to_ambient_git_config
 t_rename_pin_is_load_bearing
 t_minus_diff_lock_file_is_attributed
