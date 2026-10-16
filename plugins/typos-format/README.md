@@ -49,8 +49,7 @@ same host.
 - **Bash** runs the check (3.2 or newer, so macOS's own bash works). On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows).
 - **Node.js** on `PATH` for the Claude Code rows, which launch through `node hooks/exec-bash.mjs`,
-  and for the installer the setup skill runs. **jq** for the end-of-turn row's shared library.
-  `/typos-format:check` reports what resolves; it is read-only and installs nothing.
+  and for the installer the setup skill runs. `/typos-format:check` reports what resolves; it is read-only and installs nothing.
 
 ## Install
 

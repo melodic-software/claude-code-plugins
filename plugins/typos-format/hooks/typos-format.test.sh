@@ -127,6 +127,14 @@ else
       fail "probe-gate: $label should print the missing-typos notice (rc=$RC_PG out=$OUT_PG)"
     fi
   done
+  # No remaining row needs jq, so a host without it hears nothing about jq.
+  rm -f "$PG_WORK/sysbin/jq"
+  OUT_PG=$(run_probe __unset__)
+  if [[ "$OUT_PG" == *"$MF_NAME"* && "$OUT_PG" != *"jq not on"* ]]; then
+    ok "probe-gate: a missing jq draws no notice"
+  else
+    fail "probe-gate: a missing jq should draw no notice (out=$OUT_PG)"
+  fi
   rm -rf "${PG_WORK:?}"
 fi
 

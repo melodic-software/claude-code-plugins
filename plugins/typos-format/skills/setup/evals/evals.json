@@ -5,7 +5,7 @@
       "id": 1,
       "name": "check-reports-the-git-entry-and-options",
       "prompt": "/typos-format:setup check",
-      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, the typos binary, Node.js, the informational consumer config, the two options, and the git pre-commit entry's verify state, with a never-installed entry as a FAIL whose remediation is apply install-git-hooks.",
+      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, the typos binary, Node.js, the informational consumer config, the two options, and the git pre-commit entry's verify state, with a never-installed entry as a FAIL whose remediation is apply install-git-hooks.",
       "files": [],
       "expectations": [
         "Resolves the typos binary on PATH only, with no per-repo convention, and reports the resolved path plus `typos --version` output when found",
