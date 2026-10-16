@@ -96,9 +96,15 @@ activities:
     inputs: [issue]
     applies-when:
       events: [labeled]
-      # Only issues labeled "work-class: read-only" or "work-class: mechanical"
-      # are admitted; an issue with any other work class starts nothing.
-      labels: ["work-class: read-only", "work-class: mechanical"]
+      # A lane never admits on its own judgment. An issue is admitted when it
+      # is labeled "work-class: read-only" or "work-class: mechanical", or when
+      # the owner ratified it with the admission marker comment
+      # (`<!-- admission: admitted when unblocked, owner batch ratification
+      # YYYY-MM-DD -->`, by a human on the trusted-actor list). An issue with
+      # any other work class starts nothing, even beside an admitted one.
+      admission:
+        classes: ["work-class: read-only", "work-class: mechanical"]
+        ratified: true
       # Only issues labeled agent-ready after this time start a run; an issue
       # labeled earlier starts nothing.
       labeled-after: "2026-10-14T19:21:59Z"
