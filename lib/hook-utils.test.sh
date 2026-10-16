@@ -4071,6 +4071,24 @@ bps_redir_case 'here-doc opener with a redirect glued to the delimiter' \
 bps_redir_case 'fd dup then a stdout redirect' \
   'echo x 2>&1 > file' \
   'ARGV:echo x R:>&|2|1|0|0 R:>||file|0|0'
+# TARGET spells `"$D/f"` and `'$D/f'` alike; RAW keeps each operand as written,
+# so a consumer can tell a live expansion from literal text.
+bps_raw_seen=()
+bps_raw_collect() {
+  local j
+  for ((j = 0; j < ${#HOOK_SEG_REDIR_OP[@]}; j++)); do
+    bps_raw_seen+=("${HOOK_SEG_REDIR_OP[j]}[${HOOK_SEG_REDIR_RAW[j]}]")
+  done
+}
+bps_raw_seen=()
+hook::bash_parse_segments $'echo hé > "$D/a" 2>&1; echo x >\'$D/b\' >>"$D"/c; cat > ${D}/d <<\'EOF\'\nbody\nEOF\necho y >\\$D/e' bps_raw_collect
+bps_raw_want=">[\"\$D/a\"] >&[] >['\$D/b'] >>[\"\$D\"/c] >[\${D}/d] <<[] >[\\\$D/e]"
+if [[ "${bps_raw_seen[*]}" == "$bps_raw_want" ]]; then
+  ok "bash_parse_segments: RAW keeps each redirect operand as written, bytes and quotes intact"
+else
+  fail "bash_parse_segments RAW: got [${bps_raw_seen[*]}], want [$bps_raw_want]"
+fi
+
 # An escaped separator is an argument, not a segment boundary, so the producer
 # and its redirect stay in one segment.
 bps_redir_case 'escaped separator keeps the redirect in the same segment' \

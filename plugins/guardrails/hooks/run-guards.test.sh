@@ -1268,7 +1268,7 @@ PARSE_BODY='bps_cb() {
   local rec="$PARSE_LABEL:" j
   rec+=" [$*] q=[${HOOK_SEG_WORD_QUOTED[*]-}]"
   for ((j = 0; j < ${#HOOK_SEG_REDIR_OP[@]}; j++)); do
-    rec+=" R:${HOOK_SEG_REDIR_OP[j]}|${HOOK_SEG_REDIR_FD[j]}|${HOOK_SEG_REDIR_TARGET[j]}|${HOOK_SEG_REDIR_QUOTED[j]}|${HOOK_SEG_REDIR_OPAQUE[j]}"
+    rec+=" R:${HOOK_SEG_REDIR_OP[j]}|${HOOK_SEG_REDIR_FD[j]}|${HOOK_SEG_REDIR_TARGET[j]}|${HOOK_SEG_REDIR_QUOTED[j]}|${HOOK_SEG_REDIR_OPAQUE[j]}|${HOOK_SEG_REDIR_RAW[j]}"
   done
   printf "%s\n" "$rec" >>"'"$SEEN"'"
   if hook::shell_c_operand "$@"; then
@@ -1285,7 +1285,7 @@ stub parse-a.sh "PARSE_LABEL=a; PARSE_EXIT_ON=; ${PARSE_BODY}"
 stub parse-b.sh "PARSE_LABEL=b; PARSE_EXIT_ON=; ${PARSE_BODY}"
 stub parse-c.sh "PARSE_LABEL=c; PARSE_EXIT_ON=; ${PARSE_BODY}"
 stub parse-exit.sh "PARSE_LABEL=x; PARSE_EXIT_ON=echo; ${PARSE_BODY}"
-SHARE_CMD=$'git commit -m "héllo ✓" 2>&1 >out.log && bash -c \'echo inner > f\'; cat <<EOF >>log\nbody\nEOF\necho "tail" <in'
+SHARE_CMD=$'git commit -m "héllo ✓" 2>&1 >out.log && bash -c \'echo inner > f\'; cat <<EOF >>log\nbody\nEOF\necho "tail" <in >"$D"/o'
 SHARE_PAYLOAD=$(jq -nc --arg c "$SHARE_CMD" '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x",tool_input:{command:$c}}')
 printf -v SHARE_WALK 'walk %q' "$SHARE_CMD"
 share_by_label() { # <label> -> that guard's records, label stripped
@@ -1301,7 +1301,8 @@ bash "$DISPATCH" "$TEST_TMPDIR/count.sh" "$TEST_TMPDIR/parse-a.sh" "$TEST_TMPDIR
 assert_eq "shared parse: the first guard sees what it sees alone" "$SHARE_ALONE" "$(share_by_label a)"
 assert_eq "shared parse: a replaying guard sees the same segments" "$SHARE_ALONE" "$(share_by_label b)"
 assert_eq "shared parse: a third guard sees the same segments" "$SHARE_ALONE" "$(share_by_label c)"
-assert_contains "shared parse: the redirections ride along" "$SHARE_ALONE" "R:>&|2|1|0|0 R:>||out.log|0|0"
+assert_contains "shared parse: the redirections ride along" "$SHARE_ALONE" "R:>&|2|1|0|0| R:>||out.log|0|0|out.log"
+assert_contains "shared parse: a replay keeps each operand as written" "$(share_by_label b)" 'R:>||$D/o|1|0|"$D"/o'
 assert_eq "shared parse: the event's command is walked once" "1" \
   "$(grep -cxF "$SHARE_WALK" "$SEEN.walks")"
 assert_eq "shared parse: a callback's re-parse is walked per guard, never cached" "3" \

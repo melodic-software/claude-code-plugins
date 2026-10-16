@@ -37,7 +37,9 @@
 # directory, where plugins persist their reports — each gated on a project root
 # that does not contain it and confirmed through symlink resolution. See the
 # block above scratch_target_exempt for why exempting those gives up no
-# protection, and why the memory tier is deliberately not one of them.
+# protection, and why the memory tier is deliberately not one of them. A target
+# written through a variable the command first sets to a literal is judged as
+# that literal (_bbh_resolve_var_target).
 #
 # BLOCKING: exits 2 on any detected bypass form.
 
@@ -222,6 +224,10 @@ SEG_TGT=()     # segment i's EFFECTIVE stdout target, lowercased
 SEG_TGT_Q=()   # 1 when quoting or an escape produced that target text
 SEG_TGT_OPQ=() # 1 when the target is not resolvable from this command string
 SEG_TGT_SET=() # 1 when segment i redirects stdout to a file at all
+SEG_WO=()      # SEG_W with case preserved, for the variable resolution below
+SEG_TGT_RAW=() # segment i's effective target as written, quotes included
+SEG_NEST=()    # 1 when segment i runs in a child shell (`bash -c '…'`)
+_BBH_NEST=0
 
 # 1 when this command carries a directory change, which moves the directory a
 # RELATIVE redirect target resolves against. Only the scratch-root axis reads it,
@@ -249,8 +255,9 @@ collect_segment() {
   SEG_WOFF+=("${#SEG_W[@]}")
   SEG_WLEN+=("$#")
   for w in "$@"; do SEG_W+=("${w,,}"); done
+  SEG_WO+=("$@")
   for j in "${HOOK_SEG_WORD_QUOTED[@]}"; do SEG_WQ+=("$j"); done
-  local tgt="" tset=0 tq=0 topq=0
+  local tgt="" tset=0 tq=0 topq=0 traw=""
   for ((j = 0; j < ${#HOOK_SEG_REDIR_OP[@]}; j++)); do
     case "${HOOK_SEG_REDIR_OP[j]}" in
     '>' | '>>') ;;
@@ -264,11 +271,14 @@ collect_segment() {
     tset=1
     tq="${HOOK_SEG_REDIR_QUOTED[j]}"
     topq="${HOOK_SEG_REDIR_OPAQUE[j]}"
+    traw="${HOOK_SEG_REDIR_RAW[j]-}"
   done
   SEG_TGT+=("$tgt")
   SEG_TGT_SET+=("$tset")
   SEG_TGT_Q+=("$tq")
   SEG_TGT_OPQ+=("$topq")
+  SEG_TGT_RAW+=("$traw")
+  SEG_NEST+=("$_BBH_NEST")
   ((SEG_COUNT++))
   # Anchored at the command word, so `git checkout -- cd` and a `--cd-to` flag
   # do not trip it.
@@ -282,7 +292,9 @@ collect_segment() {
   # segment's own row is already written, so the nested parse rebuilding
   # HOOK_SEG_* cannot disturb it.
   if hook::shell_c_operand "$@"; then
+    _BBH_NEST=$((_BBH_NEST + 1))
     hook::bash_parse_segments "$HOOK_SHELL_C_OPERAND" collect_segment
+    _BBH_NEST=$((_BBH_NEST - 1))
   fi
 }
 
@@ -1214,12 +1226,106 @@ staged_write_move_bypass() {
   return 1
 }
 
+# --- Same-command literal variable target -------------------------------------
+#
+# `S=/tmp/x; cat > "$S/run.sh"` writes the same file as `cat > /tmp/x/run.sh`,
+# and a blocked agent retries with that literal, which passes. So a target
+# written `$NAME/rest` is judged as the literal it expands to, but only when the
+# command text proves the expansion. Every test fails closed: the target keeps
+# its own refusal.
+#   - The command STARTS with the assignment: a leading run of `NAME=value`
+#     statements, each ended by `;`, `&&` or a newline, read off the raw command
+#     from its first byte, where no quote can be open. So it runs, unconditionally,
+#     in the shell that later expands the target. The value is bare
+#     `[A-Za-z0-9_./:-]`: nothing to expand, split or glob.
+#   - The target as WRITTEN (HOOK_SEG_REDIR_RAW) is `$NAME/rest` or `${NAME}/rest`,
+#     bare, wholly double-quoted, or with only the variable double-quoted, and rest
+#     uses the value's characters. The written spelling is what tells a live `$`
+#     from a single-quoted or escaped one, and `"$S"x/f` (which names S) from
+#     `$Sx/f`; the quote-stripped target text spells all of them alike.
+#   - The target is not in a child shell (`bash -c '…'`), which does not see an
+#     unexported variable.
+#   - Nothing else in the command can change NAME: NAME is assigned once, no other
+#     word names it bare (`read NAME`, `unset NAME`, `for NAME in`, a prefix
+#     `NAME=v cmd`, `NAME+=x`), no `eval`, `source` or `.` runs, and NAME is not a
+#     variable bash sets or holds readonly itself (`PWD` after a `cd`, `REPLY`).
+# The resolved path then gets exactly the literal's answer from
+# scratch_target_exempt, so a repository file or `.work/` stays blocked.
+#
+# SCOPE (documented residual): a shell function or readonly variable defined
+# outside this command (a profile) is not seen; the staged-move lane does not
+# resolve variables.
+_BBH_VAR_NAMES=()
+_BBH_VAR_VALS=()
+_BBH_VAR_READ=0
+_bbh_leading_assignments() {
+  ((_BBH_VAR_READ)) && return 0
+  _BBH_VAR_READ=1
+  local rest="$COMMAND"
+  local re='^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=([A-Za-z0-9_./:-]+)[[:space:]]*(;|&&|'$'\n'')'
+  while [[ "$rest" =~ $re ]]; do
+    _BBH_VAR_NAMES+=("${BASH_REMATCH[1]}")
+    _BBH_VAR_VALS+=("${BASH_REMATCH[2]}")
+    rest="${rest:${#BASH_REMATCH[0]}}"
+  done
+}
+
+# 0 when segment $1's target resolves as above; the path, lowercased like every
+# target, in _BBH_RESOLVED.
+_BBH_RESOLVED=""
+_bbh_resolve_var_target() {
+  local s="$1" raw="${SEG_TGT_RAW[$1]}" name rest val="" hits=0 k t
+  # shellcheck disable=SC2016  # regex text: the $ is a literal dollar, not an expansion
+  local v='\$([A-Za-z_][A-Za-z0-9_]*)|\$\{([A-Za-z_][A-Za-z0-9_]*)\}' r='(/[A-Za-z0-9_./:-]*)'
+  ((SEG_NEST[s] == 0 && SEG_TGT_OPQ[s] == 0)) || return 1
+  if [[ "$raw" =~ ^($v)$r$ || "$raw" =~ ^\"($v)$r\"$ || "$raw" =~ ^\"($v)\"$r$ ]]; then
+    name="${BASH_REMATCH[2]:-${BASH_REMATCH[3]}}"
+    rest="${BASH_REMATCH[4]}"
+  else
+    return 1
+  fi
+  case "$name" in
+  BASH* | COMP_* | HIST* | READLINE_* | _ | PWD | OLDPWD | HOME | IFS | PATH | CDPATH | DIRSTACK | \
+    REPLY | MAPFILE | OPTARG | OPTIND | OPTERR | RANDOM | SRANDOM | SECONDS | LINENO | EPOCHSECONDS | \
+    EPOCHREALTIME | FUNCNAME | GROUPS | PIPESTATUS | PPID | UID | EUID | SHELLOPTS | COLUMNS | LINES | \
+    HOSTNAME | SHLVL)
+    return 1
+    ;;
+  *) ;; # an ordinary variable bash leaves alone
+  esac
+  _bbh_leading_assignments
+  for ((k = 0; k < ${#_BBH_VAR_NAMES[@]}; k++)); do
+    [[ "${_BBH_VAR_NAMES[k]}" == "$name" ]] || continue
+    hits=$((hits + 1))
+    val="${_BBH_VAR_VALS[k]}"
+  done
+  ((hits == 1)) || return 1
+  # The leading assignment is itself one bare mention; any second one refuses.
+  # shellcheck disable=SC2016  # regex text: the $ inside the bracket is a literal dollar
+  local mention='(^|[^A-Za-z0-9_${])'"$name"'([^A-Za-z0-9_]|$)'
+  hits=0
+  for ((k = 0; k < ${#SEG_WO[@]}; k++)); do
+    [[ "${SEG_WO[k]}" =~ $mention ]] && hits=$((hits + 1))
+  done
+  ((hits == 1)) || return 1
+  for ((t = 0; t < SEG_COUNT; t++)); do
+    peel_command_word "${SEG_WOFF[t]}" "${SEG_WLEN[t]}" || continue
+    case "${SEG_W[PEELED_IDX]}" in
+    eval | source | .) return 1 ;;
+    *) ;; # a command that cannot assign in this shell
+    esac
+  done
+  _BBH_RESOLVED="${val,,}${rest,,}"
+}
+
 # 0 when segment $1's stdout write is exempt: the DISCARD, or a scratch root.
 # Both are decided on the EFFECTIVE target, so `> /allowed/tmp/f > real.txt`
 # still blocks.
 target_exempt() {
   devnull_target_exempt "$1" && return 0
-  scratch_target_exempt "${SEG_TGT[$1]}" "${SEG_TGT_Q[$1]}" "${SEG_TGT_OPQ[$1]}"
+  scratch_target_exempt "${SEG_TGT[$1]}" "${SEG_TGT_Q[$1]}" "${SEG_TGT_OPQ[$1]}" && return 0
+  _bbh_resolve_var_target "$1" || return 1
+  scratch_target_exempt "$_BBH_RESOLVED" 0 0
 }
 
 # `cat >` with no input file is content authoring redirected into a file — the
@@ -1305,8 +1411,9 @@ py_inline_invocation() {
 # only what the blocked agent can act on: the verdict, the Write/Edit remedy,
 # and on the redirect and staged-move lanes why the target was not
 # scratch-exempt plus the roots that would have exempted it. The python lane
-# never consults a scratch root, and the PowerShell lane consults one only for a
-# single literal destination, so their remedy names none.
+# never consults a scratch root, but an agent with no Write tool still needs a
+# route, so it names the roots a script file can go under. The PowerShell lane
+# consults one only for a single literal destination, so its remedy names none.
 #
 # The operator's levers and the guard's scope are not the agent's to act on.
 # The levers go on systemMessage once per session, latched by hook::notice_once,
@@ -1325,10 +1432,10 @@ _bbh_refusal_line() {
   local code="$1" noun="$2"
   case "$code" in
   opaque) _BBH_REFUSAL_LINE="The $noun could not be read as one pathname." ;;
-  quoted) _BBH_REFUSAL_LINE="A quoted or escaped $noun is never scratch-exempt." ;;
+  quoted) _BBH_REFUSAL_LINE="A quoted or escaped $noun is not scratch-exempt." ;;
   no-root) _BBH_REFUSAL_LINE="No scratch root is configured and the project root is unknown." ;;
   relative) _BBH_REFUSAL_LINE="A relative $noun is not exempt after a directory change or without a known cwd; use an absolute path." ;;
-  unnormalized) _BBH_REFUSAL_LINE="A $noun holding \$, a backtick, ~ or a glob character, or a network or above-root path, is never scratch-exempt." ;;
+  unnormalized) _BBH_REFUSAL_LINE="A $noun holding \$, a backtick, ~ or a glob character, or a network or above-root path, is not scratch-exempt." ;;
   temp-default-off) _BBH_REFUSAL_LINE="The project root is itself under the temp directory, so the temp directory is not exempt." ;;
   resolves-outside) _BBH_REFUSAL_LINE="The $noun resolves outside the exempt root." ;;
   plugin-data-unconfirmed) _BBH_REFUSAL_LINE="The $noun could not be confirmed under the plugin data directory and outside the project root." ;;
@@ -1365,7 +1472,7 @@ block_bypass() {
   if [[ "$form" == powershell-computed-positional ]]; then
     echo "BLOCKED: $reason" >&2
   else
-    echo "BLOCKED: $reason. Use the Write or Edit tool." >&2
+    echo "BLOCKED: $reason. Use the Write or Edit tool; without either, write to an unquoted literal path under an exempt root." >&2
   fi
   case "$form" in
   powershell-computed-positional) ;;
@@ -1385,12 +1492,16 @@ block_bypass() {
       [[ -n "$_BBH_REFUSAL_LINE" ]] && echo "$_BBH_REFUSAL_LINE" >&2
       if [[ -n "$_BBH_EXEMPT_ROOTS" ]]; then
         # The quoted and unnormalized reason lines already say the second half.
-        local never="; a quoted or variable-carried one never is"
-        [[ "$code" == quoted || "$code" == unnormalized ]] && never=""
-        echo "Exempt: an unquoted literal $noun under $_BBH_EXEMPT_ROOTS$never." >&2
+        echo "Exempt: an unquoted literal $noun under $_BBH_EXEMPT_ROOTS, or \"\$VAR/rest\" when this command begins with \"VAR=<unquoted literal path>;\" and sets VAR nowhere else." >&2
       fi
     fi
     echo "If Write or Edit is refused for this path, stop and tell the user; the user can add a root to block_hook_bypass_scratch_roots." >&2
+    ;;
+  python-write)
+    _bbh_exempt_roots
+    [[ -n "$_BBH_EXEMPT_ROOTS" ]] &&
+      echo "Or write the script to a file under $_BBH_EXEMPT_ROOTS and run python3 <file>, which this guard does not block." >&2
+    echo "If Write or Edit is refused for this path, stop and tell the user." >&2
     ;;
   *)
     echo "If Write or Edit is refused for this path, stop and tell the user." >&2
