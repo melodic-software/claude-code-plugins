@@ -216,9 +216,12 @@ if command -v check-jsonschema >/dev/null 2>&1; then
     put docs/conventions/source-control.yaml $'pre_ready:\n  - step: code-review\n    enabled: false\n  - step: verify\n    enabled: true'
   run_sut CHECK_JSONSCHEMA_BIN=check-jsonschema
   if [[ $RC -eq 0 ]]; then ok "$label"; else fail "$label: $(state)"; fi
-  names=('an unknown step' 'a non-boolean enabled' 'a missing enabled' 'a mapping keyed by step')
+  names=('an unknown step' 'a non-boolean enabled' 'a missing enabled' 'a mapping keyed by step'
+    'an identical duplicate step' 'a conflicting duplicate step')
   bodies=($'pre_ready:\n  - step: lint\n    enabled: false' $'pre_ready:\n  - step: verify\n    enabled: maybe'
-    $'pre_ready:\n  - step: verify' $'pre_ready:\n  verify:\n    enabled: false')
+    $'pre_ready:\n  - step: verify' $'pre_ready:\n  verify:\n    enabled: false'
+    $'pre_ready:\n  - step: verify\n    enabled: false\n  - step: verify\n    enabled: false'
+    $'pre_ready:\n  - step: verify\n    enabled: true\n  - step: verify\n    enabled: false')
   for i in "${!names[@]}"; do
     label="pre_ready with ${names[i]} fails the source-control schema"
     new_repo && put plugins/source-control/schemas/source-control.schema.json "$(cat "$schema_src")" &&

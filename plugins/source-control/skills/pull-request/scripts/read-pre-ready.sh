@@ -7,19 +7,25 @@
 # schemas/source-control.schema.json.
 #
 # Usage:
-#   read-pre-ready.sh -                 the file's text on stdin
-#   read-pre-ready.sh --http-response   a `gh api -i` response on stdin: a 200
-#                                       is read as the file, a 404 means no
-#                                       file, anything else fails closed
+#   read-pre-ready.sh --base <b> --default-branch <d> -
+#       the file's text on stdin
+#   read-pre-ready.sh --base <b> --default-branch <d> --http-response
+#       a `gh api -i` response on stdin: a 200 is read as the file, a 404
+#       means no file, anything else fails closed
 #
-# There is no file-path form: the head branch must not choose its own gates,
-# so the caller fetches the base branch's copy.
+# --base is the pull request's base branch and --default-branch the base
+# repository's default branch. The list is honored only when the two match:
+# any other base is a branch the PR's author may have pushed unreviewed. An
+# empty value or a mismatch fails closed. There is no file-path form: the head
+# branch must not choose its own gates, so the caller fetches the base's copy.
 #
 # Output, tab-separated. First a source line:
 #   source  default                 no file, no pre_ready key, or an empty list
 #   source  config                  the list was read
-#   source  fail-closed  <reason>   the list cannot be trusted: the base read
-#                                   failed, the file does not parse, pre_ready
+#   source  fail-closed  <reason>   the list cannot be trusted: the base is
+#                                   not the default branch, the base read
+#                                   failed, the input holds a NUL byte, the
+#                                   file does not parse, pre_ready
 #                                   repeats or is not a list, an item is not a
 #                                   {step, enabled} mapping or holds another
 #                                   key, a step is missing, unknown or repeated,
@@ -35,7 +41,7 @@ STEPS=(base-merge plan-evidence code-review security-review verify)
 PARSER="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)/yaml-subset.awk"
 
 usage() {
-  echo "read-pre-ready: usage: read-pre-ready.sh - | read-pre-ready.sh --http-response" >&2
+  echo "read-pre-ready: usage: read-pre-ready.sh --base <b> --default-branch <d> (- | --http-response)" >&2
   exit 2
 }
 
@@ -55,11 +61,40 @@ emit() {
 # The reason can quote the file or the response, so control characters become spaces.
 fail_closed() { emit "fail-closed"$'\t'"${1//[[:cntrl:]]/ }" " "; }
 
-(($# == 1)) || usage
-case "$1" in
--) doc="$(cat)" ;;
+mode="" base="" default="" has_base=0 has_default=0
+while (($#)); do
+  case "$1" in
+  --base | --default-branch)
+    (($# >= 2)) || usage
+    if [[ "$1" == --base ]]; then base="$2" has_base=1; else default="$2" has_default=1; fi
+    shift
+    ;;
+  - | --http-response)
+    [[ -z "$mode" ]] || usage
+    mode="$1"
+    ;;
+  *) usage ;;
+  esac
+  shift
+done
+((has_base && has_default)) && [[ -n "$mode" ]] || usage
+
+[[ -n "$base" ]] || fail_closed "the pull request's base branch could not be read"
+[[ -n "$default" ]] || fail_closed "the base repository's default branch could not be read"
+[[ "$base" == "$default" ]] || fail_closed "base $base is not the default branch $default"
+
+# A command substitution drops NUL bytes (`fal\0se` would read as `false`), so
+# stdin goes to a file and is checked before any variable holds it.
+input_file="$(mktemp)" || fail_closed "no temporary file for the input"
+trap 'rm -f "$input_file"' EXIT
+cat >"$input_file"
+(($(tr -d '\000' <"$input_file" | wc -c) == $(wc -c <"$input_file"))) ||
+  fail_closed "the input holds a NUL byte"
+
+case "$mode" in
+-) doc="$(cat "$input_file")" ;;
 --http-response)
-  response="$(cat)"
+  response="$(cat "$input_file")"
   [[ -n "$response" ]] || fail_closed "the base read returned no response"
   status="${response%%$'\n'*}"
   status="${status%$'\r'}"

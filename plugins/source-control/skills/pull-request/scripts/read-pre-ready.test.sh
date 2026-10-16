@@ -16,7 +16,8 @@ source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
 ALL_ON=$'base-merge\tenabled\nplan-evidence\tenabled\ncode-review\tenabled\nsecurity-review\tenabled\nverify\tenabled'
 
-read_doc() { printf '%s' "$1" | bash "$SCRIPT" - 2>/dev/null; }
+ON_DEFAULT=(--base main --default-branch main)
+read_doc() { printf '%s' "$1" | bash "$SCRIPT" "${ON_DEFAULT[@]}" - 2>/dev/null; }
 
 out=$(read_doc '')
 assert_eq "an empty document runs every step by default" $'source\tdefault\n'"$ALL_ON" "$out"
@@ -85,7 +86,7 @@ check_fail_closed "a repeated key inside an item" \
   $'pre_ready:\n  - step: verify\n    enabled: false\n    step: code-review\n' "pre_ready item 0 repeats a key"
 
 # --http-response reads a `gh api -i` response: the status line decides.
-read_response() { printf '%s' "$1" | bash "$SCRIPT" --http-response 2>/dev/null; }
+read_response() { printf '%s' "$1" | bash "$SCRIPT" "${ON_DEFAULT[@]}" --http-response 2>/dev/null; }
 
 out=$(read_response $'HTTP/2.0 200 OK\r\nContent-Type: application/vnd.github.raw\r\n\r\npre_ready:\n  - step: verify\n    enabled: false\n')
 assert_eq "a 200 response is read as the document" \
@@ -99,6 +100,32 @@ out=$(read_response '')
 assert_eq "no response fails closed and runs every step" \
   $'source\tfail-closed\tthe base read returned no response\n'"$ALL_ON" "$out"
 
+# The list is honored only on the base repository's default branch: any other
+# base is one the PR's author may have pushed unreviewed.
+VERIFY_OFF=$'pre_ready:\n  - step: verify\n    enabled: false\n'
+out=$(printf '%s' "$VERIFY_OFF" | bash "$SCRIPT" --base stack/layer-2 --default-branch main - 2>/dev/null)
+assert_eq "a base other than the default branch fails closed and runs every step" \
+  $'source\tfail-closed\tbase stack/layer-2 is not the default branch main\n'"$ALL_ON" "$out"
+out=$(printf 'HTTP/2.0 200 OK\r\n\r\n%s' "$VERIFY_OFF" | bash "$SCRIPT" --base stack/layer-2 --default-branch main --http-response 2>/dev/null)
+assert_eq "a non-default base fails closed in the response mode too" \
+  $'source\tfail-closed\tbase stack/layer-2 is not the default branch main\n'"$ALL_ON" "$out"
+out=$(printf '%s' "$VERIFY_OFF" | bash "$SCRIPT" --base main --default-branch '' - 2>/dev/null)
+assert_eq "an unread default branch fails closed and runs every step" \
+  $'source\tfail-closed\tthe base repository\'s default branch could not be read\n'"$ALL_ON" "$out"
+out=$(printf '%s' "$VERIFY_OFF" | bash "$SCRIPT" --base '' --default-branch main - 2>/dev/null)
+assert_eq "an unread base branch fails closed and runs every step" \
+  $'source\tfail-closed\tthe pull request\'s base branch could not be read\n'"$ALL_ON" "$out"
+
+# A NUL byte would vanish in a shell variable, turning `fal\0se` into `false`.
+out=$(printf 'pre_ready:\n  - step: verify\n    enabled: fal\000se\n' | bash "$SCRIPT" "${ON_DEFAULT[@]}" - 2>/dev/null)
+assert_eq "a NUL byte in the document fails closed and runs every step" \
+  $'source\tfail-closed\tthe input holds a NUL byte\n'"$ALL_ON" "$out"
+out=$(printf 'HTTP/2.0 200 OK\r\n\r\npre_ready:\n  - step: verify\n    enabled: fal\000se\n' | bash "$SCRIPT" "${ON_DEFAULT[@]}" --http-response 2>/dev/null)
+assert_eq "a NUL byte in a response fails closed and runs every step" \
+  $'source\tfail-closed\tthe input holds a NUL byte\n'"$ALL_ON" "$out"
+
+printf '' | bash "$SCRIPT" - >/dev/null 2>&1
+assert_exit "a read without --base and --default-branch is a usage error" 2 "$?"
 bash "$SCRIPT" >/dev/null 2>&1
 assert_exit "no argument is a usage error" 2 "$?"
 bash "$SCRIPT" "$TEST_TMPDIR/source-control.yaml" >/dev/null 2>&1

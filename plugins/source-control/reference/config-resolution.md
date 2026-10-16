@@ -181,8 +181,9 @@ reads the file itself, through a script where the key names one below.
   `{step, enabled}` mappings over `base-merge`, `plan-evidence`, `code-review`, `security-review`
   and `verify`; a step the list leaves out runs. Team level only, with no `userConfig` option: a
   person cannot switch off a repository's gates. Read at the pull request's base branch, never the
-  head, by `skills/pull-request/scripts/read-pre-ready.sh`, which runs every step when the key is
-  missing or the list cannot be trusted. Semantics and the report:
+  head, by `skills/pull-request/scripts/read-pre-ready.sh`, and honored only when that base is
+  the base repository's default branch. The reader runs every step when the key is missing, the
+  base is another branch, or the list cannot be trusted. Semantics and the report:
   [ready-for-review.md](../skills/pull-request/reference/ready-for-review.md#read-which-pre-flip-steps-run).
 
 ## Review-bot triage rubric (`docs/conventions/source-control.md`)
