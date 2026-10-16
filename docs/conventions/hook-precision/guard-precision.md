@@ -61,9 +61,10 @@ Notes on the rows:
 - **block-root-delete-target.** Of the 129 false positives, 121 delete a variable the same
   command set (from `mktemp`, a loop, another variable, or a literal statements before the
   delete), and 8 are root-shaped text inside a heredoc body the guard reads as commands. A
-  literal is honored only when its statement sits right before the delete in the same shell
-  and nothing in the command can set a variable out of sight: a broader reading let a verified
-  `declare -n`, `trap`, `printf -v` or `eval` reassignment delete `/etc`. The guard stays on
+  literal is honored only when the whole command is exactly `NAME=LITERAL`, one `&&`, `;` or
+  newline, then `rm` whose every expansion is `$NAME` with an optional plain path suffix, with
+  no character that could run, regroup, redirect or quote anything else and no name the shell
+  gives a meaning; any other command reads the variable as unknown. The guard stays on
   because it stops irreversible deletes and its noise has two identified causes: a variable
   the command set, and a heredoc body read as commands. The about 15 not judgeable fires
   target a directory inside a working directory that no longer exists. "About" marks a count extrapolated from a sample of 25 of the 73 outside-tree fires.

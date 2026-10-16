@@ -2199,8 +2199,6 @@ rdt_check_segment() {
   if ((rdt_depth > 1)); then
     rdt_segments=$((rdt_segments + 1))
     ((rdt_segments > MAX_SEGMENTS)) && rdt_block "too-many-readings"
-  elif ((rdt_in_subst == 0)) && [[ "$TOOL_NAME" != "PowerShell" ]]; then
-    rdt_lit_segment "$@"
   fi
   local -a words=("$@")
   local n=$# i=0 j w base sval optarg consume_bare
@@ -2776,149 +2774,44 @@ rdt_strip_tail_to() {
 
 # --- A variable the command itself sets to a literal --------------------------
 #
-# `X=build && rm -rf "$X"` deletes `build`: the statement right before the
-# delete set X in this shell. Such an operand is judged as the literal it
-# names, through every arm below, so `X=/ && rm -rf "$X"` is still a root and
-# `X=/etc; rm -rf "$X"` still lands outside the tree. Only this exact shape is
-# read, and anything else stays a bare variable:
-#   - the assignment is a statement of its own (NAME=value words and nothing
-#     else) at the top level, and EVERY spelling of `NAME=` in the command
-#     opens a statement in this shell (rdt_lit_opens: at its start, or after
-#     a `;` or a newline that ends the one before, outside any `( )`, `$( )`,
-#     group or compound command) that ends in `;`, `&&`, a newline or the end
-#     (rdt_lit_bindable, on the raw text, since the tokenizer does not report
-#     separators);
-#   - the delete is the very next top-level segment, read at the top level: not
-#     a later one, not through a launcher or child shell, not in a substitution;
-#   - each value is plain characters (no glob, `~`, space or quote);
-#   - the command holds nothing that can set a variable out of sight
-#     (RDT_LIT_FORBID_RE): `declare`, `typeset`, `local`, `trap`, `printf`,
-#     `read`, `mapfile`, `readarray`, `eval`, `source`, `.`, a function
-#     definition, `${!`, `<<<` or `IFS`, in any position;
-#   - the delete segment does not itself assign NAME (`X=y rm -rf "$X"`);
-#   - the operand is the variable alone or followed by `/...`.
+# `X=build && rm -rf "$X"` deletes `build`, so its operand is judged as `build`
+# through every arm below (`X=/ && rm -rf "$X"` is still a root). The binding
+# is read only when the WHOLE command, blanks trimmed, is exactly
+#   NAME=LITERAL SEP rm WORD...
+# with SEP one `&&`, `;` or newline; LITERAL plain characters (RDT_LIT_CH),
+# bare or wholly quoted, not led by `-`; each WORD plain characters, or `$NAME` / `"$NAME"`
+# with an optional plain `/...` suffix. No character that could run, redirect,
+# regroup, glob, escape or quote anything else fits that shape. NAME is no name
+# the shell gives a meaning (RDT_LIT_SPECIAL_RE), and the command holds no word
+# that can set a variable (RDT_LIT_FORBID_RE). Anything else binds nothing.
 RDT_LIT_CH='[A-Za-z0-9_.@%+,:/-]'
-RDT_LIT_FORBID_RE='(^|[^A-Za-z0-9_])(declare|typeset|local|trap|printf|read|mapfile|readarray|eval|source|function|IFS)([^A-Za-z0-9_]|$)|(^|[;&|({[:space:]])\.([[:space:]]|$)|\(\)|\$\{!|<<<'
-RDT_LIT_FORBID=0
-[[ "$COMMAND" =~ $RDT_LIT_FORBID_RE ]] && RDT_LIT_FORBID=1
-declare -A RDT_LIT=()
-declare -A RDT_LIT_OK=()
-rdt_top_seg=0
-RDT_LIT_AT=-1
-
-# rdt_lit_opens <text>: the raw text before an assignment, blanks trimmed, ends
-# a statement in this shell: an unescaped `;` outside a comment, or a newline
-# whose line (past blank and comment lines) does not go on through `|`, `&&`,
-# `||` or `\`. Text holding `(`, a backtick, a `{` group or a compound keyword
-# may put the assignment in a subshell or a branch, so it never opens one.
-# shellcheck disable=SC2329  # invoked from rdt_lit_bindable, itself a parser callback
-rdt_lit_opens() {
-  local pre="$1" line code
-  local re_kw='(^|[^A-Za-z0-9_])(if|then|else|elif|do|while|until|case|select)([^A-Za-z0-9_]|$)'
-  local re_brace='(^|[^$])\{' re_hash='(^|[[:blank:]])#'
-  [[ "$pre" == *[\(\`]* || "$pre" =~ $re_brace || "$pre" =~ $re_kw ]] && return 1
-  if [[ "$pre" == *\; ]]; then
-    line="${pre##*$'\n'}"
-    [[ "$pre" != *\\\; && ! "$line" =~ $re_hash ]]
-    return
-  fi
-  [[ "$pre" == *$'\n' ]] || return 1
-  pre="${pre%$'\n'}"
-  while :; do
-    line="${pre##*$'\n'}"
-    code="$line"
-    [[ "$line" =~ $re_hash ]] && code="${line%%"${BASH_REMATCH[0]}"*}"
-    line="${line%"${line##*[![:blank:]]}"}"
-    code="${code%"${code##*[![:blank:]]}"}"
-    [[ "$line" == *[\|\&\\] || "$code" == *[\|\&\\] ]] && return 1
-    [[ -n "$code" || "$pre" != *$'\n'* ]] && return 0
-    pre="${pre%$'\n'*}"
-  done
+RDT_LIT_FORBID_RE='(^|[^A-Za-z0-9_])(declare|typeset|local|readonly|export|set|shopt|setopt|alias|trap|printf|read|mapfile|readarray|eval|source|function|IFS)([^A-Za-z0-9_]|$)|(^|[;&|({[:space:]])\.([[:space:]]|$)|\(\)|\$\{!|<<<'
+RDT_LIT_SPECIAL_RE='^(_.*|.*PATH|.*path|BASH.*|ZSH.*|zsh.*|LC_.*|COMP.*|READLINE.*|HIST.*|hist.*|PROMPT.*|prompt|R?PS[0-9]|dis_.*|IFS|HOME|PWD|OLDPWD|ENV|SHELL|SHELLOPTS|SHLVL|POSIXLY_CORRECT|GLOBIGNORE|EXECIGNORE|FIGNORE|fignore|TMPDIR|TMPPREFIX|DIRSTACK|dirstack|FUNCNAME|FUNCNEST|GROUPS|UID|EUID|GID|EGID|PPID|RANDOM|SRANDOM|SECONDS|LINENO|EPOCHSECONDS|EPOCHREALTIME|epochtime|OPTARG|OPTIND|REPLY|reply|MAPFILE|mapfile|PIPESTATUS|pipestatus|status|argv|ARGC|ARGV0|ERRNO|errnos|signals|options|parameters|commands|functions|aliases|builtins|modules|history|historywords|jobstates|jobtexts|jobdirs|nameddirs|userdirs|funcstack|funcfiletrace|funcsourcetrace|functrace|match|mbegin|mend|MATCH|MBEGIN|MEND|psvar|watch|sysparams|langinfo|terminfo|termcap|widgets|keymaps|patchars|reswords|USERNAME|LOGNAME|TTY|HOST|HOSTNAME|NULLCMD|READNULLCMD|TRY_BLOCK_ERROR|TRY_BLOCK_INTERRUPT|WORDCHARS|ZDOTDIR|LANG|TERM|TMOUT)$'
+RDT_LIT_NAME=""
+RDT_LIT_VAL=""
+rdt_lit_shape() {
+  local c="$COMMAND" ch="$RDT_LIT_CH" lit n v w re
+  lit="(${ch}+|'${ch}+'|\"${ch}+\")"
+  v='\$[A-Za-z_][A-Za-z0-9_]*'
+  w="(${ch}+|${v}(/${ch}*)?|\"${v}\"(/${ch}*)?|\"${v}(/${ch}*)?\")"
+  re="^([A-Za-z_][A-Za-z0-9_]*)=${lit}[[:blank:]]*(&&|;|"$'\n'")[[:blank:]]*rm([[:blank:]]+${w})+\$"
+  c="${c#"${c%%[![:space:]]*}"}"
+  c="${c%"${c##*[![:space:]]}"}"
+  [[ "$TOOL_NAME" != "PowerShell" && ! "$c" =~ $RDT_LIT_FORBID_RE && "$c" =~ $re ]] || return 0
+  n="${BASH_REMATCH[1]}"
+  lit="${BASH_REMATCH[2]}"
+  [[ "$n" =~ $RDT_LIT_SPECIAL_RE ]] && return 0
+  # Every `$` in the delete is NAME itself, never a longer name.
+  w="${c#*=} "
+  for v in / '"' ' ' $'\t'; do w="${w//"\$$n$v"/}"; done
+  [[ "$w" == *\$* ]] && return 0
+  [[ "$lit" == [\'\"]* ]] && lit="${lit:1:${#lit}-2}"
+  # A value rm would read as an option is not a path.
+  [[ "$lit" == -* ]] && return 0
+  RDT_LIT_NAME="$n"
+  RDT_LIT_VAL="$lit"
 }
-
-# rdt_lit_bindable <name>: every `NAME=` / `NAME+=` in the command opens a
-# statement. Answered once per name.
-# shellcheck disable=SC2329  # invoked from rdt_lit_segment, itself a parser callback
-rdt_lit_bindable() {
-  local n="$1" rest m nall=0 nlead=0 re pre stmt sep
-  if [[ -z "${RDT_LIT_OK[$n]+x}" ]]; then
-    re="(^|[^A-Za-z0-9_])${n}\\+?="
-    rest="$COMMAND"
-    while [[ "$rest" =~ $re ]]; do
-      m="${BASH_REMATCH[0]}"
-      pre="${rest%%"$m"*}${BASH_REMATCH[1]}"
-      nall=$((nall + 1))
-      pre="${pre%"${pre##*[![:blank:]]}"}"
-      rest="${rest#*"$m"}"
-      # It opens a statement, and the statement ends in `;`, `&&`, a newline or
-      # the end: a pipe, `&` or `||` runs it in another shell, or not first.
-      [[ -z "$pre" ]] || rdt_lit_opens "$pre" || continue
-      stmt="${rest%%[;&|$'\n']*}"
-      sep="${rest:${#stmt}:2}"
-      [[ "$stmt" == *\\ ]] && continue
-      [[ -z "$sep" || "$sep" == [\;$'\n']* || "$sep" == '&&' ]] && nlead=$((nlead + 1))
-    done
-    RDT_LIT_OK[$n]=0
-    ((nall > 0 && nall == nlead)) && RDT_LIT_OK[$n]=1
-  fi
-  ((RDT_LIT_OK[$n]))
-}
-
-# rdt_lit_segment <argv word>...: a top-level segment's effect on the bindings.
-# Bindings live for exactly the next top-level segment.
-# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
-rdt_lit_segment() {
-  local w n v only=1 re_a='^([A-Za-z_][A-Za-z0-9_]*)\+?=(.*)$'
-  local re_v="^${RDT_LIT_CH}+\$"
-  rdt_top_seg=$((rdt_top_seg + 1))
-  ((rdt_top_seg == RDT_LIT_AT + 1)) || RDT_LIT=()
-  ((RDT_LIT_FORBID)) && return 0
-  for w in "$@"; do
-    [[ "$w" =~ $re_a ]] || only=0
-  done
-  if ((only == 0)); then
-    # The delete segment's own `NAME=x` prefix: NAME expands before it applies.
-    ((${#RDT_LIT[@]})) || return 0
-    for w in "$@"; do
-      for n in "${!RDT_LIT[@]}"; do
-        case "$w" in
-        "$n="* | "$n+="*) unset 'RDT_LIT[$n]' ;;
-        *) ;;
-        esac
-      done
-    done
-    return 0
-  fi
-  RDT_LIT=()
-  RDT_LIT_AT=$rdt_top_seg
-  for w in "$@"; do
-    [[ "$w" =~ $re_a ]] || continue
-    n="${BASH_REMATCH[1]}"
-    v="${BASH_REMATCH[2]}"
-    if [[ "$w" == "$n+="* || ! "$v" =~ $re_v ]] || ! rdt_lit_bindable "$n"; then
-      unset 'RDT_LIT[$n]'
-      continue
-    fi
-    RDT_LIT[$n]="$v"
-  done
-}
-
-# rdt_lit_subst_to <var> <operand>: the operand with a leading bound variable
-# replaced by its literal, else unchanged.
-# shellcheck disable=SC2016  # literal `$` patterns
-rdt_lit_subst_to() {
-  local __n __rest
-  for __n in "${!RDT_LIT[@]}"; do
-    case "$2" in
-    "\$$__n" | "\$$__n"/*) __rest="${2#"\$$__n"}" ;;
-    "\${$__n}" | "\${$__n}"/*) __rest="${2#"\${$__n}"}" ;;
-    *) continue ;;
-    esac
-    printf -v "$1" '%s' "${RDT_LIT[$__n]}$__rest"
-    return 0
-  done
-  printf -v "$1" '%s' "$2"
-}
+rdt_lit_shape
 
 # rdt_check_operand <text> <provenance>: one operand through the root and
 # bare-variable arms, then recorded BY VALUE for the outside-tree judgment at
@@ -2926,8 +2819,11 @@ rdt_lit_subst_to() {
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_check_operand() {
   local w="$1" norm raw
-  if ((${#RDT_LIT[@]} && rdt_depth == 1 && rdt_in_subst == 0 && rdt_top_seg == RDT_LIT_AT + 1)); then
-    rdt_lit_subst_to w "$w"
+  if [[ -n "$RDT_LIT_NAME" ]] && ((rdt_depth == 1 && rdt_in_subst == 0)); then
+    case "$w" in
+    "\$$RDT_LIT_NAME" | "\$$RDT_LIT_NAME"/*) w="$RDT_LIT_VAL${w#"\$$RDT_LIT_NAME"}" ;;
+    *) ;;
+    esac
   fi
   rdt_normalize_to norm "$w"
   if rdt_is_root "$norm"; then

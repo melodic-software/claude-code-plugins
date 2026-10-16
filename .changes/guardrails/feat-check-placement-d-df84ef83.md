@@ -29,11 +29,11 @@ bump: minor
 
 ### Fixed
 
-- `block-root-delete-target` no longer blocks `X=build && rm -rf "$X"`: a variable the
-  statement right before the delete sets to a plain literal, in the same shell, is judged as
-  that literal. An assignment after `|`, `||`, `&&` or a `\` line end, or inside `( )`, `$( )`,
-  backticks, a `{ }` group or a branch, is not, nor is any when the command holds anything that
-  can set a variable out of sight, `IFS` included.
+- `block-root-delete-target` no longer blocks `X=build && rm -rf "$X"`: when the whole
+  command is exactly `NAME=LITERAL`, one `&&`, `;` or newline, then an `rm` whose only
+  expansions are `"$NAME"` or `$NAME` with an optional plain `/...` suffix, the variable is
+  judged as that literal. Any other command, including a comment, a second statement, a
+  braced `${NAME}` or a name the shell sets itself, still blocks the variable.
 - An attended ask is the verdict on the whole command: any denying segment, budget or parse
   cap anywhere in it denies, and one ask names every asking segment.
 - `block-noncanonical-commit` reads the literal spelling of the `-m` argument itself, not a
