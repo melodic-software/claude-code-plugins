@@ -14,7 +14,8 @@ import {
   paginate,
 } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { pipelineEvent } from "./predicate.mjs";
-import { checkConfigPath, laneHasActivity, neededFacts, resolve } from "./resolve.mjs";
+import { findRatification } from "./ratification.mjs";
+import { checkConfigPath, laneHasActivity, loadConfig, neededFacts, resolve } from "./resolve.mjs";
 
 const DEFAULT_BASE_PATH = ".base";
 const DEFAULT_CONFIG_PATH = "docs/conventions/pr-pipeline.yaml";
@@ -23,9 +24,6 @@ const VOCABULARY_PATH =
   ".github/standards/github-actions-conventions/vocabulary.json";
 const CODEOWNERS_PATH = ".github/CODEOWNERS";
 const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
-// The owner's batch ratification of an issue's admission, on a line of its own.
-const RATIFICATION_MARKER =
-  /^<!-- admission: admitted when unblocked, owner batch ratification \d{4}-\d{2}-\d{2} -->$/m;
 // pulls/{n}/files lists at most this many files; a list that long may be cut.
 const FILES_CAP = 3000;
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
@@ -113,16 +111,7 @@ async function gatherFacts(
         github,
         `/repos/${repository}/issues/${Number(issue.number)}/comments`,
       );
-      const ratifying = comments.find(
-        (comment) =>
-          RATIFICATION_MARKER.test(comment.body ?? "") &&
-          ratifiers.has(comment.user?.id) &&
-          // Through a GitHub App, the text is that App's, not the owner's.
-          comment.performed_via_github_app == null &&
-          // An edit keeps the author, so edited text may be another account's.
-          typeof comment.created_at === "string" &&
-          comment.updated_at === comment.created_at,
-      );
+      const ratifying = findRatification(comments, ratifiers);
       facts.ratified = ratifying !== undefined;
       // Which comment ratified it, never its text.
       if (facts.ratified) {
@@ -212,19 +201,13 @@ const escapeCommand = (text) =>
 
 const wait = (ms) => new Promise((done) => setTimeout(done, ms));
 
-// The ResolvedConfig for the request env names, or a throw: a Rejection
-// (with its code) for a config or request the resolver refuses. `event` is the
-// payload; by default it is read from EVENT_PATH. With `absentAsNull`, a valid
-// config whose lane holds no slot for the activity resolves to null.
-export async function resolveFromBase({ env, github, sleep = wait, event, absentAsNull = false }) {
-  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
-  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+function filesUnderBase(basePath, configPath) {
   checkConfigPath(configPath);
   const schema = readJsonUnderBase(basePath, SCHEMA_PATH);
   if (schema === undefined) {
     throw new Error(`no schema at ${SCHEMA_PATH} under base-path`);
   }
-  const files = {
+  return {
     config: readUnderBase(basePath, configPath),
     schema,
     vocabulary: readJsonUnderBase(basePath, VOCABULARY_PATH),
@@ -233,6 +216,27 @@ export async function resolveFromBase({ env, github, sleep = wait, event, absent
     effectGrants: readOwn("./effect-grants.json"),
     activityRules: readOwn("./activity-rules.json"),
   };
+}
+
+// The `admission` predicate the activity's applies-when sets, from the
+// validated config under base-path; a throw when it sets none.
+export function readAdmission({ basePath = DEFAULT_BASE_PATH, configPath = DEFAULT_CONFIG_PATH, activity }) {
+  const doc = loadConfig(filesUnderBase(basePath, configPath), { configPath });
+  const admission = doc.activities[activity]?.["applies-when"]?.admission;
+  if (admission === undefined) {
+    throw new Error(`activity \`${activity}\` sets no admission`);
+  }
+  return admission;
+}
+
+// The ResolvedConfig for the request env names, or a throw: a Rejection
+// (with its code) for a config or request the resolver refuses. `event` is the
+// payload; by default it is read from EVENT_PATH. With `absentAsNull`, a valid
+// config whose lane holds no slot for the activity resolves to null.
+export async function resolveFromBase({ env, github, sleep = wait, event, absentAsNull = false }) {
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  const files = filesUnderBase(basePath, configPath);
   const request = {
     lane: env.LANE,
     activity: env.ACTIVITY || undefined,

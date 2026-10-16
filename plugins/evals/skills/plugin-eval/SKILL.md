@@ -105,16 +105,21 @@ ungranted tool is removed and reported on stderr as `not granted`.
 
 ### Worktree isolation
 
-In a session isolated in a git worktree, the Bash guard refuses any command containing the word
-`eval`, `claude plugin eval --help` included, and the user's own `!` command the same way. This
-applies only when `run` or `init` is about to invoke the CLI; `preflight`, `validate`, `read`, and
-`ci` proceed as usual. Do not retry, wrap the command in a script, route it through another tool,
-or bypass the guard in any other way: it matches the word, so no flag or rewording clears it.
-Stop, print the exact command this skill would have run, and tell the user to paste it into a
-terminal outside Claude Code. For `run` that is `claude plugin eval <target> ...` with an absolute
-`<target>` and an absolute `--json` path inside the isolated worktree, so the command gives the
-same result from any directory; for `init` it is `claude plugin eval init --bare <name>`, which
-takes no `--json` and reaches no model call. After a `run`, read the `--json` file back with the `read` action.
+Under Claude Code's worktree isolation a Bash guard can refuse the CLI; which session shapes it
+covers is in [records](reference/records.md#worktrees). It matters only when `run` or `init`
+invokes the CLI. Never retry, wrap, reroute, or otherwise bypass a refusal. Build the command with
+absolute paths: for `run`, an absolute `<target>` and `--json` path inside the worktree; for
+`init`, `cd <absolute plugin root> && claude plugin eval init --bare <name>`. Take the first route
+that fits:
+
+1. A `run` in a session entered with `EnterWorktree`: ask the user whether to leave the worktree
+   for it. Only on a yes, `ExitWorktree` with `keep`, run it, then `EnterWorktree` back by the
+   worktree's path; on a no, take route 3.
+2. A subagent: return the exact command to the caller, which takes these same routes.
+3. Otherwise print it for the user to run in a terminal outside Claude Code, or in a session
+   started with plain `claude` (not `--worktree`) in the worktree.
+
+After a `run`, read the `--json` file back with the `read` action.
 
 Separately, the CLI refuses a plugin inside a repository with many linked worktrees (`registers
 more linked worktrees than can be screened`). Copy the plugin into a new empty directory outside
@@ -229,6 +234,10 @@ a committed `mocks/.replay/` so agent mocks replay without a model call.
    ```bash
    claude plugin eval <target> --trust-plugin --keep-temp --judge-model opus --json results.json --threshold 0.8 --max-cost-usd <n> --no-publish
    ```
+
+   When preflight's `suite_tools` lists gated tools, add `--allow-tools` with exactly those tools;
+   without the grant each is removed from every run, so a case that must run or verify its own
+   work cannot.
 
    Without `--trust-plugin` a non-TTY run against an untrusted directory is refused with exit 1.
    `--keep-temp` keeps each run's trace for the validity gate under "Reading the delta". A run
@@ -475,7 +484,7 @@ record a drift outcome in this plugin's CHANGELOG.
 | Docker credential-store refusal and the `~/.docker/bin` exemption | <https://code.claude.com/docs/en/changelog> (2.1.293); no docs page covers it | 2026-10-10 | A docs page documents the check, or a release note touches sandbox credential exclusion or exempt paths |
 | Cloud route host and packages | [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) | 2026-10-11 | That section changes its host description or package list |
 | Read-only tool set | <https://code.claude.com/docs/en/plugin-evals#grant-tools> | 2026-10-10 | That section's allowed-tools sentence changes |
-| Worktree Bash guard refusal of `claude plugin eval --help` | Observed on Claude Code 2.1.296 ([records.md](reference/records.md#worktrees)) | 2026-10-13 | A release note touches worktree isolation or `plugin eval` |
+| Worktree Bash guard refusal of `claude plugin eval --help`, and which session shapes it covers | Observed on Claude Code 2.1.301 ([records.md](reference/records.md#worktrees)) | 2026-10-16 | A release note touches worktree isolation or `plugin eval` |
 | Worktree Bash guard refusal of the user's `!` command | Observed on Claude Code 2.1.285 ([records.md](reference/records.md#worktrees)) | 2026-10-01 | A release note touches worktree isolation or `plugin eval` |
 | CLI linked-worktree refusal | Observed on Claude Code 2.1.289 ([records.md](reference/records.md#worktrees)) | 2026-10-04 | A release note changes the limit or the CLI's repository screening |
 | Model and judge resolution | <https://code.claude.com/docs/en/plugin-evals#command-options> | 2026-10-01 | The table changes its `--model` or `--judge-model` row |

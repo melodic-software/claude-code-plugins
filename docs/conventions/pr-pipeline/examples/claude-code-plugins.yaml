@@ -154,7 +154,7 @@ lanes:
         enabled: false
 
 loop:
-  review-rounds: 2
+  review-rounds: 3
   no-progress: 3
 
 merge:

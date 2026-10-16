@@ -1,0 +1,11 @@
+{
+  "entries": [
+    {
+      "name": "goimports-format",
+      "event": "pre-commit",
+      "script": "goimports-format.sh",
+      "tools": ["goimports"],
+      "rewrites": true
+    }
+  ]
+}

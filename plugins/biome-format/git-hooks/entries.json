@@ -1,0 +1,11 @@
+{
+  "entries": [
+    {
+      "name": "biome-check",
+      "event": "pre-commit",
+      "script": "biome-check.sh",
+      "tools": ["biome"],
+      "rewrites": true
+    }
+  ]
+}

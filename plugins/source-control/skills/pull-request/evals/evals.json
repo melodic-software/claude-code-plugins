@@ -603,6 +603,19 @@
         "The report names #600 as already closed",
         "The pull request is not closed and the issue is not reopened"
       ]
+    },
+    {
+      "id": 47,
+      "name": "create-carries-brief-acceptance-criteria",
+      "prompt": "Open a draft PR for this branch. The unit tests pass. Skip prep; there's no related issue.",
+      "expected_output": "The repository's feature branch is one commit ahead of main and its name does not match any topic slug. The gitignored memory directory holds one approved PLAN.md whose Brief lists three acceptance criteria for a CSV export: a UTF-8 byte order mark, RFC 4180 quoting of cells holding a comma, quote or line break, and a header row even with no rows, the last citing an absolute local fixture path. The prompt never mentions the plan. Body assembly finds the single PLAN.md and writes an Acceptance criteria section listing the three criteria as values, with no path into the memory directory and the local path generalized, then opens the PR as a draft.",
+      "files": [],
+      "expectations": [
+        "It reads the single PLAN.md in the memory directory without being told about it",
+        "The PR body written to a file has a section headed Acceptance criteria listing all three of the Brief's criteria",
+        "The body states the criteria as values and cites no path into the memory directory",
+        "The body does not copy the criterion's absolute local path"
+      ]
     }
   ]
 }

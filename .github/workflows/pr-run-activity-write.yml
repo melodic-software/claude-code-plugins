@@ -386,8 +386,11 @@ jobs:
           LANE_BRANCH: ${{ format('lane-commits/{0}/{1}/{2}-{3}', inputs.lane, inputs.activity, github.run_id, github.run_attempt) }}
           FEEDBACK_DIR: ${{ runner.temp }}/lane-feedback
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
+          RESOLVED: ${{ runner.temp }}/resolved-config.json
         run: |
           mkdir -p "$FEEDBACK_DIR"
+          REVIEW_ROUNDS=$(jq -r '.loop["review-rounds"]' "$RESOLVED")
+          export REVIEW_ROUNDS
           THREAD_FILE="$FEEDBACK_DIR/threads.json" node .base/.github/scripts/pr-unblock/address-feedback.mjs select
 
       # A read activity belongs in pr-run-activity-read.yml, whose run holds no
@@ -1421,6 +1424,8 @@ jobs:
           fi
           ACTIVITY_ARGS=$(jq -r '.selected.args // ""' "$RESOLVED")
           export ACTIVITY_ARGS
+          REVIEW_ROUNDS=$(jq -r '.loop["review-rounds"]' "$RESOLVED")
+          export REVIEW_ROUNDS
           unset GH_TOKEN GITHUB_TOKEN
           if [ -n "$LANE_TOKEN" ]; then
             export GH_TOKEN="$LANE_TOKEN"

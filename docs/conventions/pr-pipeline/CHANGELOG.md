@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 1.18.2 - 2026-10-16
+## 1.18.5 - 2026-10-16
 
 The write file gains the `ratified-app-label` input, issue mode only. `work-resolve-issue.yml`
 sets it to `agent-ready` and no longer skips the lanes App's `agent-ready` label: the trigger gate
@@ -8,7 +8,41 @@ lets that one label from the App through only while the issue carries the owner'
 marker, read from the API when the run starts by the rule resolve-issue's admission uses
 (`resolve-config/ratification.mjs`). Because the run reads the issue's title and body, a body
 edit or title change after the newest marker also stops it. Any other App label or event, a
-failed read, or no marker stops the run. The lanes token broker must accept the same labeler for an `issues` mint.
+failed read, or no marker stops the run. The lanes token broker accepts the same labeler for an
+`issues` mint, re-checking the marker. `version` stays 1.
+
+## 1.18.4 - 2026-10-16
+
+This repository's `pr-pipeline.yaml` adds the `work-unblock` lane (stage `work`) with one
+activity, `label-unblocked` (a script, `mutate-tracker`). `work-unblock.yml` runs it when a
+listed human closes an issue: each issue the closed one blocked gets `agent-ready` when it is
+open, every blocker is closed as completed (not as not planned or duplicate), it carries none of
+`needs-owner-decision`, `status: needs-decision` or `needs-human` in any casing, it holds the
+owner's admission marker as resolve-issue reads it (the check now lives in
+`resolve-config/ratification.mjs`, shared by both), and resolve-issue's `admission` admits it
+(no `work-class:` label outside its classes; read from the config by
+`resolve-config`'s `readAdmission`). The workflow stops before the token request when the
+resolved activity does not apply (`enabled: false`). The label starts `work-resolve-issue` once
+resolve-issue accepts App-added labels (follow-up by Automation Lanes). Everything is re-read
+from the API when the run starts. A close whose sender is a bot (`sender.type` `Bot`), or whose
+closer or re-runner is not a listed human (each is checked on its own; a re-runner may be
+another listed human), is a clean skip. `version` stays 1.
+
+## 1.18.3 - 2026-10-16
+
+A verdict is bound to the commit it judged: the README no longer promises reuse by patch id or
+content fingerprint. A `pr-merge` merge needs a verdict on the commit being merged, a precondition of
+the lane's own merge rather than a required check, and a lane merge commit needs a fresh one. The
+address-feedback round cap is `loop.review-rounds` (default 2) instead of a fixed 2. This
+repository's `pr-pipeline.yaml` sets it to 3. `version` stays 1.
+
+## 1.18.1 - 2026-10-16
+
+`pr-merge.yml` no longer wakes on `workflow_run` completions of `pr-require-checks`,
+`pr-review-hosted` and `pr-review-security-hosted`, and its schedule runs every 15 minutes
+instead of hourly. Those completions arrived faster than the serialized runs finished, so the
+`pr-merge` concurrency group's queue reached GitHub's 100-run cap and further runs were rejected.
+Every run already reads every open PR, so the schedule finds what those wake-ups found.
 `version` stays 1.
 
 ## 1.18.0 - 2026-10-16

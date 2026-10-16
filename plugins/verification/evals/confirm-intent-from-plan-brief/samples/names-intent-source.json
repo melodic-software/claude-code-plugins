@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "- Intent source: PLAN.md Brief (.work/slugify/PLAN.md); intent drift: none",
+      "why": "names the PLAN.md rung"
+    },
+    {
+      "answer": "Intent source: the Brief in the slugify plan",
+      "why": "names the Brief"
+    },
+    {
+      "answer": "- **Intent source:** `.work/slugify/PLAN.md`",
+      "why": "bold label, PLAN.md path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Intent source: conversation",
+      "why": "names the conversation, not the plan"
+    },
+    {
+      "answer": "I read PLAN.md and the change misses AC2.",
+      "why": "no intent-source line"
+    },
+    {
+      "answer": "Intent source: conversation; no PLAN.md found",
+      "why": "names the conversation, mentions PLAN.md only as missing"
+    },
+    {
+      "answer": "Intent source: none (PLAN.md candidates listed)",
+      "why": "no intent source taken from the plan"
+    }
+  ]
+}

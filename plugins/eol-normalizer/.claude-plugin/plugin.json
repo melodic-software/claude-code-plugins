@@ -1,7 +1,7 @@
 {
   "name": "eol-normalizer",
-  "version": "0.9.14",
-  "description": "Normalize a written file's working-tree line endings to its .gitattributes eol value on edit: symmetric CRLF/LF driven by git check-attr, advisory and never blocking.",
+  "version": "0.10.0",
+  "description": "Normalize the line endings of the files a batch of tool calls wrote to their .gitattributes eol value in the working tree, once per batch; silent and never blocking.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
