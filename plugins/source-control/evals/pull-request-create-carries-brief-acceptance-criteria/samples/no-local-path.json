@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Acceptance criteria\n\n- AC1: UTF-8 byte order mark.\n- AC2: RFC 4180 quoting.\n- AC3: an export with no rows still writes the header row, matching the empty-export fixture.\n"
+          }
+        }
+      ],
+      "why": "the local path is generalized"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Acceptance criteria\n\n- AC3: an export with no rows still writes the header row, matching /home/dana/fixtures/empty-export.csv.\n"
+          }
+        }
+      ],
+      "why": "the criterion's absolute local path is copied verbatim"
+    }
+  ]
+}

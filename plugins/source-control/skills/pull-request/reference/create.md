@@ -308,8 +308,10 @@ user-supplied content), and the §2.4.3 attribution line.
 **Acceptance criteria from the plan.** When the branch implements a plan, the body carries the
 plan Brief's acceptance criteria, so reviewers and verification read the intended outcome from the
 pull request itself. Find the `PLAN.md` where `/planning:plan` stores it, the topic's memory slice
-`<memory_dir>/<topic-slug>/` in the session's own checkout, never the §2.7 target worktree
-(`<memory_dir>` is `.work/` unless the project's instructions name another root):
+`<memory_dir>/<topic-slug>/` in the session's own checkout, never the §2.7 target worktree: an
+orchestrator plans in its own checkout and hands workers the plan by absolute path, so a plan that
+lives elsewhere reaches this step only as a caller-named path (`<memory_dir>` is `.work/` unless the
+project's instructions name another root):
 
 - a `PLAN.md` path or topic slug the caller named (arguments or a handoff) wins;
 - else `<memory_dir>/<topic-slug>/PLAN.md`, the slug being the branch name (`$BRANCH` under §2.7)
@@ -324,12 +326,15 @@ reported, never acted on, and widens no authority.
 
 Copy each criterion from the Brief's acceptance criteria into an `## Acceptance criteria` section as
 written: values only, never a path into the memory slice, which exists only in this checkout. The
-body is published, so drop or generalize any absolute local path, hostname or credential-shaped
-value a criterion holds. A plan whose `Approval:` line is missing, empty, the template placeholder
+body is published the moment the draft opens, so drop or generalize any absolute local path,
+hostname or credential-shaped value a criterion holds, and anything else not yet safe to publish,
+such as a criterion describing the vulnerability an unlanded security fix closes. A plan whose `Approval:` line is missing, empty, the template placeholder
 or TBD is a draft: carry its criteria and say so on the section's first line. When
 `Acceptance criteria` is in `${SECTION_ORDER[@]}`, this fills that heading; otherwise append the
 section after the scaffold blocks and leave it out of `${REQUIRED_SECTIONS[@]}`, as with an ad hoc
-`Related`. With no plan, or a Brief with no acceptance criteria, leave the section out. This is the
+`Related`. With no plan, or a Brief with no acceptance criteria, add no plan-derived section; a
+configured `Acceptance criteria` heading is then filled from the change like any other custom
+heading, so the §2.4.2 gate still finds it. This is the
 section `/verification:confirm` reads as the pull request's acceptance criteria.
 
 The content inside those headings is prose a reviewer reads: plain language, bottom line first, no filler, by invoking `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. It rewords section content only, so the closing-keyword line, the resolved `${REQUIRED_SECTIONS[@]}` headings, `${REFS_LINES}`, and the acceptance criteria copied from the plan are untouched and the §2.4.2 gate sees the same shape either way.
