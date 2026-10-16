@@ -62,7 +62,8 @@ on:
       dispatcher-run-id:
         description: >-
           On a workflow_dispatch sent by github-actions[bot], the
-          pr-unblock-dispatch.yml run that sent it; empty otherwise.
+          pr-unblock-dispatch.yml or pr-feedback-dispatch.yml run that sent
+          it; empty otherwise.
         required: false
         type: string
         default: ""
@@ -95,6 +96,15 @@ on:
         required: false
         type: string
         default: ""
+      expected-upstream-head:
+        description: >-
+          For a job after pr-unblock's model job on a pr-feedback-dispatch.yml
+          dispatch, that job's head-sha output: the gate and the broker accept
+          the review of that head when only commits GitHub signed for the lanes App during the run
+          follow it. Empty otherwise.
+        required: false
+        type: string
+        default: ""
       review-run-attempt:
         description: >-
           With review-replies, the model run's feedback-run-attempt output:
@@ -115,9 +125,13 @@ on:
           unresolved-conflict; for review-threads, before any model turn,
           feedback-protected-path or feedback-round-cap; for the
           review-replies script feedback-uncertain, feedback-not-landed or
-          feedback-invalid or feedback-partial; empty otherwise. Set only by runner steps and the
+          feedback-invalid, feedback-partial, feedback-incomplete or
+          feedback-disputed; empty otherwise. Set only by runner steps and the
           base's reply script.
         value: ${{ jobs.run.outputs.escalation-reason }}
+      head-sha:
+        description: The PR head the gate passed, before any push of this run. Set only by runner steps.
+        value: ${{ jobs.run.outputs.head-sha }}
       feedback-round:
         description: >-
           `true` once a review-threads skill ran, so the round's replies were
@@ -253,7 +267,7 @@ jobs:
           case $ESCALATION_REASON in
             "" | protected-path-conflict | workflow-staged | repeat-cap | unresolved-conflict) ;;
             feedback-protected-path | feedback-round-cap | feedback-uncertain | feedback-not-landed | feedback-invalid) ;;
-            feedback-partial) ;;
+            feedback-partial | feedback-incomplete | feedback-disputed) ;;
             *)
               echo "::error::the escalation-reason input is not a known escalation reason"
               exit 1
@@ -298,10 +312,20 @@ jobs:
           denied-actor-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           triggering-actor: ${{ github.triggering_actor }}
           # A dispatch from github-actions[bot] proceeds only when it names a
-          # pr-unblock-dispatch.yml run on the default branch that sent it to
-          # pr-unblock.yml; any other run passes no id and the bot stays unlisted.
+          # pr-unblock-dispatch.yml run on the default branch, or a
+          # pr-feedback-dispatch.yml run whose recorded review run reviewed the
+          # PR's current head, that sent it to pr-unblock.yml; any other run
+          # passes no id and the bot stays unlisted.
           dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
           dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml
+          run-dispatcher-workflow: .github/workflows/pr-feedback-dispatch.yml
+          run-dispatcher-upstreams: >-
+            .github/workflows/pr-review-hosted.yml
+            .github/workflows/pr-review-security-hosted.yml
+          # A job after the model job: the review was of the head that job
+          # gated, and only the lanes App's signed commits may follow it.
+          expected-upstream-head: ${{ inputs.expected-upstream-head }}
+          lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           dispatched-workflow: .github/workflows/pr-unblock.yml
           # Issue mode reads no PR: the account that applied the label, and
           # any re-runner, must be listed as a human.
@@ -416,6 +440,7 @@ jobs:
           pr-number: ${{ steps.gate.outputs.pr-number }}
           issue-number: ${{ inputs.issue-number }}
           dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+          expected-upstream-head: ${{ inputs.expected-upstream-head }}
           effect: ${{ steps.config.outputs.effect }}
           contents: ${{ steps.config.outputs.contents }}
           pull-requests: ${{ steps.config.outputs.pull-requests }}
@@ -1348,7 +1373,7 @@ jobs:
             escalation=$(head -n 1 "$ESCALATION_REASON_FILE" | tr -d '\r')
             case "$FEEDBACK_REPLIES_DIR:$escalation" in
               ?*:feedback-uncertain | ?*:feedback-not-landed | ?*:feedback-invalid) ;;
-              ?*:feedback-partial) ;;
+              ?*:feedback-partial | ?*:feedback-incomplete | ?*:feedback-disputed) ;;
               *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
             esac
           fi

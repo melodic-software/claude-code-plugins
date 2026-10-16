@@ -512,6 +512,16 @@ test("with an activity, another slot's undecidable predicate leaves that slot un
 
 // Effect grants (contract-spec.md EffectGrant)
 
+// Owner rule (#7032 amendment): a token with contents: write and
+// pull-requests: write can enqueue a pull request, so only merge holds both;
+// the broker refuses any other such grant.
+test("no effect but merge grants both contents: write and pull-requests: write", () => {
+  const both = Object.entries(EFFECT_GRANTS)
+    .filter(([, grant]) => grant.contents === "write" && grant["pull-requests"] === "write")
+    .map(([effect]) => effect);
+  assert.deepEqual(both, ["merge"]);
+});
+
 test("each effect resolves to its App grant", () => {
   const expected = {
     read: { contents: "read", "pull-requests": "read", issues: "read" },
@@ -1283,6 +1293,36 @@ lanes:
     "forbidden-by-activity",
   );
 });
+
+// Owner shape (#7032 amendment): the model job only pushes, the reply job
+// only posts.
+const feedbackLeaf = (activity, effect) => `version: 1
+activities:
+  ${activity}:
+    ${activity === "address-feedback" ? "skill: source-control:pull-request" : "script: .github/scripts/pr-unblock/publish-feedback.mjs"}
+    effect: ${effect}
+    gating: advisory
+    reads-untrusted: true
+lanes:
+  pr-unblock:
+    stage: unblock
+    slots:
+      - activity: ${activity}
+`;
+
+for (const [activity, allowed, forbidden] of [
+  ["address-feedback", "mutate-branch", ["publish-artifact", "mutate-tracker", "merge"]],
+  ["publish-feedback", "publish-artifact", ["mutate-branch", "mutate-tracker", "merge"]],
+]) {
+  test(`the shipped activity rules give ${activity} ${allowed} and nothing that ${allowed === "mutate-branch" ? "posts" : "pushes"}`, () => {
+    // The live vocabulary: the fixture lacks the verb "publish".
+    const live = { vocabulary: JSON.parse(readFileSync(LIVE_VOCABULARY, "utf8")) };
+    assert.equal(run(feedbackLeaf(activity, allowed), { lane: "pr-unblock", activity }, live).selected.effect, allowed);
+    for (const effect of forbidden) {
+      assertRejected(() => run(feedbackLeaf(activity, effect), { lane: "pr-unblock", activity }, live), "forbidden-by-activity");
+    }
+  });
+}
 
 // Stages
 

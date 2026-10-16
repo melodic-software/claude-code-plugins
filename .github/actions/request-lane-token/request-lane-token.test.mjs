@@ -139,6 +139,28 @@ test("a dispatcher run id is sent as dispatcher_run_id, an integer", () => {
   assert.match(run.output, /^mint-id=5550001-1$/m);
 });
 
+test("an expected upstream head rides with the dispatcher run id as expected_upstream_head", () => {
+  const head = "9".repeat(40);
+  const run = request({ DISPATCHER_RUN_ID: "38155572048", EXPECTED_UPSTREAM_HEAD: head });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(JSON.parse(run.body), {
+    lane: "pr-unblock",
+    activity: "resolve-conflicts",
+    pr_number: 42,
+    dispatcher_run_id: 38155572048,
+    expected_upstream_head: head,
+  });
+});
+
+test("an expected upstream head without a dispatcher run id, or not a SHA, fails before the broker request", () => {
+  for (const env of [{ EXPECTED_UPSTREAM_HEAD: "9".repeat(40) }, { DISPATCHER_RUN_ID: "38155572048", EXPECTED_UPSTREAM_HEAD: "main" }]) {
+    const run = request(env);
+    assert.notEqual(run.status, 0);
+    assert.match(run.stdout, /::error::the expected upstream head must be a commit SHA and ride with a dispatcher run id/);
+    assert.equal(run.body, null);
+  }
+});
+
 test("an empty dispatcher run id leaves the body as it was", () => {
   const run = request({ LANE: "pr-refine", ACTIVITY: "fix-docs" });
   assert.equal(run.status, 0, run.stdout);

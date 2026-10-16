@@ -62,9 +62,12 @@ permissions, and passes no App key.
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the model job's replies |
 | `review-run-sha256` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-sha256` output |
+| `expected-upstream-head` | `''` | Write file only: for a job after pr-unblock's model job on a `pr-feedback-dispatch.yml` dispatch, that job's `head-sha` output, passed to the gate and the broker (step 3) |
 | `review-run-attempt` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-attempt` output, which names the replies artifact so a re-run of the reply job alone still finds it |
 
-The write file has four `workflow_call` outputs; `issue-run-started` is described below, and `feedback-run-sha256` with
+The write file has six `workflow_call` outputs. `head-sha` is the PR head the gate passed, before
+any push of the run; `issue-run-started` is described below; `feedback-run-sha256` and
+`feedback-run-attempt` are described with
 [`prepare: review-threads`](#prepare-review-threads). `escalation-reason` is empty, or why a
 [`prepare: merge-base`](#prepare-merge-base) activity, a `prepare: review-threads` activity before
 any model turn, or its reply script handed the PR to a person. `feedback-round` is `true` once a
@@ -158,7 +161,16 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `github-actions[bot]` proceeds only when it names a run of that dispatcher on the default branch
    whose window holds this run's creation and whose `pr-unblock-dispatched-<id>[-<id>...]`
    artifact lists this run's id, and this run is `pr-unblock.yml`; every other bot-sent dispatch
-   stops with `untrusted-actor`. The gate waits up to 2 minutes for that record while the
+   stops with `untrusted-actor`. It also passes
+   `run-dispatcher-workflow: .github/workflows/pr-feedback-dispatch.yml` with the two review
+   workflows as `run-dispatcher-upstreams`: a run of that dispatcher, started by `workflow_run`,
+   vouches with no actor check when its `pr-feedback-dispatched-<upstream id>-<this run's id>`
+   artifact names a `pull_request` run of one of those workflows in this repository, started by
+   the lanes App or a listed human, at the PR's current head. A job after pr-unblock's model job
+   passes that job's `head-sha` as `expected-upstream-head`: the review must then be of that head,
+   and every commit from it to the PR's current head one GitHub signed for the lanes App (author
+   the App, committer `web-flow`, signature `valid`) after this run was created. The
+   gate waits up to 2 minutes for that record while the
    dispatcher run is still going. The checks are in the gate's README. Only
    with a `dispatcher-run-id` does the skill step pass claude-code-action
    `allowed_bots: github-actions`, which otherwise refuses a run a bot started.
@@ -511,6 +523,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
      a 40-hex `fix_sha` on `VALID` only; a note of 1-2000 characters with no control, direction or
      zero-width character, no `<!--` or `-->`, and nothing shaped like a GitHub token. Any failure,
      or a missing artifact, posts no reply and escalates `feedback-invalid`;
+   - requires exactly one reply per thread in `run.json`; an empty or partial set posts no reply
+     and escalates `feedback-incomplete`;
    - when a reply is `VALID` or the PR branch moved, compares the model job's gated head with the
      PR's current head: the branch must be ahead, hold every fix commit, and change fewer than 300
      files, each a kept thread's path and none under `.github/`, and each fix commit must change
@@ -525,9 +539,10 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
      selects it, so a post, read or resolve failure stops the posting, and that or a `VALID`
      thread left open escalates `feedback-partial`, as does a round marker that cannot be posted;
    - posts the round marker as the lanes App whatever happened above, and escalates
-     `feedback-uncertain` for an `UNCERTAIN` or `VALID-defer` reply.
+     `feedback-uncertain` for an `UNCERTAIN` or `VALID-defer` reply, or `feedback-disputed` when an
+     `INCORRECT` evidence reply was posted: that thread stays open for a person to decide.
 
-   The script writes its reason to `ESCALATION_REASON_FILE`; the runner accepts only those four
+   The script writes its reason to `ESCALATION_REASON_FILE`; the runner accepts only those six
    reasons, and only with `review-replies`, as the run's `escalation-reason` output.
 
 The skill's limits to kept-thread paths and away from `.github/` are instructions and the tool's
@@ -682,7 +697,14 @@ must be an ancestor of the tip and no tag may be named `main`. This run must be 
 `workflow_dispatch` created between the dispatcher run's `run_started_at` and the earlier of its
 `updated_at` and `run_started_at` plus 10 minutes. The dispatcher run must also hold an unexpired
 `pr-unblock-dispatched-<ids>` artifact whose ids include this run's; the broker reads it once,
-with no wait, since the trusted-trigger gate in step 3 has already waited for it. The client
+with no wait, since the trusted-trigger gate in step 3 has already waited for it. A
+`pr-feedback-dispatch.yml` run started by `workflow_run` passes the same checks except the actor
+check, with a `pr-feedback-dispatched-<upstream id>-<this run's id>` artifact whose upstream run is
+a `pull_request` run of `pr-review-hosted.yml` or `pr-review-security-hosted.yml` in this
+repository, started (and any re-run) by the lanes bot or a listed human, at the PR's current head,
+or, with `expected_upstream_head` in the body, at that head when every commit from it to the PR's
+current head is one GitHub signed for the lanes bot (committer `web-flow`, signature `valid`) after
+this run was created, and the upstream run lists this pull request. The client
 sends it once and never retries: the broker
 reserves the job's `check_run_id` when it mints, so a second request is denied `already-minted`,
 and a 200 lost in transit leaves a token nobody revokes until it expires within the hour.
@@ -706,7 +728,7 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 | 403 | `event-not-allowed` | Not `pull_request` on `refs/pull/<n>/merge`, or `workflow_dispatch` or `workflow_run` on `refs/heads/main`, or `issues` on `refs/heads/main` from `work-resolve-issue.yml`, or `schedule` on `refs/heads/main` from `pr-merge.yml` only |
 | 403 | `workflow-not-allowed` | The job is not this repository's `pr-run-activity-write.yml`, or the caller is not a lane under `lanes:` in the tip's `pr-pipeline.yaml` |
 | 403 | `workflow-modified` | The caller or `pr-run-activity-write.yml` differs from the default-branch tip |
-| 403 | `workflow-modified` | With `dispatcher_run_id`: `pr-unblock-dispatch.yml` at the dispatcher run's head differs from the tip |
+| 403 | `workflow-modified` | With `dispatcher_run_id`: the dispatcher workflow at the dispatcher run's head differs from the tip |
 | 403 | `lane-mismatch` | The requested lane is not the caller's file stem |
 | 403 | `activity-not-in-lane`, `slot-disabled`, `config-invalid`, `effect-forbidden-by-lane` | The tip config does not give this activity a write grant |
 | 403 | `effect-read` | The activity is `read`; it belongs in the read file |
