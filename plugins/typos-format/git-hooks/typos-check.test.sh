@@ -121,7 +121,7 @@ INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
 status="$(node "$INSTALL" copy --scope local --repo "$REPO")"
 expect "the vendored installer installs the entry" '[{"entry":"typos-check","status":"installed"}]' "$status"
 expect "the installed copy carries the stamp on line 2" yes \
-  "$(sed -n 2p "$REPO/.git/hooks/typos-format/typos-check.sh" | grep -qE '^# typos-format typos-check sha256:[0-9a-f]{64}$' && echo yes)"
+  "$(grep -qE '^# typos-format typos-check sha256:[0-9a-f]{64}$' <<<"$(sed -n 2p "$REPO/.git/hooks/typos-format/typos-check.sh")" && echo yes)"
 printf 'an old teh line\ncommitted teh\n' >"$REPO/notes.md"
 git -C "$REPO" add notes.md
 err="$(git -C "$REPO" commit -q -m change 2>&1)"

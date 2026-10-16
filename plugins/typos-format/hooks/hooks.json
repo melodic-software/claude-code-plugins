@@ -1,25 +1,6 @@
 {
-  "description": "Corrects spelling in prose and code after a write or edit, optionally checks the uncommitted changes when a turn ends, and reports a missing typos or a drifted git-hook entry at session start.",
+  "description": "Optionally checks the uncommitted changes for typos when a turn ends, and reports a missing typos or a drifted git-hook entry at session start; spelling findings otherwise arrive at commit time.",
   "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit|NotebookEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--run-if-unset-or-true",
-              "TYPOS_FORMAT_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/typos-format.sh"
-            ],
-            "timeout": 15,
-            "statusMessage": "Checking spelling..."
-          }
-        ]
-      }
-    ],
     "Stop": [
       {
         "hooks": [

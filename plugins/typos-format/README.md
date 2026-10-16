@@ -1,216 +1,56 @@
+
 # typos-format
 
-A Claude Code plugin that spell-checks the moment you edit any file. On every
-`Write`, `Edit`, or `NotebookEdit` it runs [typos](https://github.com/crate-ci/typos) and
-surfaces findings back to Claude as advisory context, including remediation
-guidance for allowlisting a false positive. It is **report-only by default**;
-with the `typos_format_write_changes` opt-in it applies typos' safe
-corrections in place and reports every correction it applied.
+A Claude Code plugin that spell-checks with [typos](https://github.com/crate-ci/typos) at commit
+time. Findings arrive when you commit, from a git pre-commit entry that blocks only on a typo in a
+line the commit adds, so they reach every author: Claude, other agents and people. Nothing is
+reported while Claude edits. An opt-in end-of-turn check hands findings in the uncommitted changes
+back to Claude before a turn ends.
 
-It ships one fleet-wide protection of its own: a bundled
-`config/default-typos.toml` injected via `typos -c` so write mode cannot
-silently corrupt git SHAs. Otherwise it runs unconditionally on typos'
-built-in spelling dictionary. If your repository has its own typos
-configuration, in any file typos' own config search finds, typos discovers it
-from the target path and merges `extend-*` keys with the bundled file rather than
-replacing them. No opt-in required. Pointer: the Sources list in
-[typos' configuration reference](https://github.com/crate-ci/typos/blob/master/docs/reference.md#sources).
+The check honors your repository's own typos configuration: typos discovers it from the checked
+path, and the plugin's bundled `config/default-typos.toml` (passed with `-c`, so that SHA-shaped
+hex is not read as a misspelling) merges with it through `extend-*` keys. Pointer: the Sources
+list in [typos' configuration reference](https://github.com/crate-ci/typos/blob/master/docs/reference.md#sources).
 As of: 2026-10-01. Recheck trigger: typos changes its config file names or search order.
-
-## Behavior
-
-- **Runs on every edit, zero-config or not.** typos ships a built-in spelling
-  dictionary and needs no configuration to be useful, so this hook never gates
-  on a consumer typos config existing. When a config IS present, typos' own
-  file-anchored discovery still finds and applies it (allowlist/exclude), in
-  its documented precedence order. This plugin never re-implements that walk.
-- **Scan is language-agnostic; write is extension-scoped.** The read-only scan
-  runs on any edited file (unlike sibling formatter plugins). Opt-in write mode
-  only calls `--write-changes` for an explicit allowlist of source, prose, and
-  hand-edited config extensions. Unknown extensions, extensionless paths, and
-  fixture/lock/binary-adjacent types stay report-only even when
-  `typos_format_write_changes` is on (#2650).
-- **Report-only by default.** A dictionary autocorrect is a content mutation
-  you never asked for, and an unconditional writer here raced sibling
-  formatter hooks on the same file with no defined ordering (#1809). Out of
-  the box the hook reports findings and never modifies a file.
-- **Fix in place is an opt-in, then an allowlist.** With
-  `typos_format_write_changes` set to `true`, `typos --write-changes` applies
-  every correction it has confidence in, but only when the edited path's
-  extension is on the write allowlist. Residual findings surface as advisory
-  context, never auto-applied: an entry with no known correction (e.g. a
-  blank-correction `extend-words` entry marking a term "disallowed"), or one
-  with more than one candidate correction.
-- **Every applied rewrite is disclosed.** A correction changes the content of
-  your file, so the hook reports each one it applied (the word, its
-  replacement, and the line) to Claude *and* to you, capped at ten per run
-  with a count of the remainder. Nothing this hook writes is silent.
-- **Remediation guidance included.** The first report for a file says to
-  allow-list intended words in your typos config (`extend-words`; the
-  [typos config docs](https://github.com/crate-ci/typos/blob/master/docs/reference.md)
-  cover `extend-identifiers` and `extend-ignore-re`). This matters most on the
-  *applied* path. The dictionary has no memory of your repair, so a word you
-  correct by hand is rewritten again on the next edit until the allowlist entry
-  exists.
-- **Each finding set is reported once.** An unchanged set on a re-edit sends
-  nothing; it is sent again after a clean run or after the context is
-  compacted or cleared.
-- **Respects your excludes.** The hook passes `--force-exclude`, so a path
-  your config's `[files] exclude`/`extend-exclude` excludes (generated or
-  vendored code, intentional-misspelling fixtures) is left untouched even
-  though the hook passes it explicitly, with no advisory noise.
-- **Gitignored paths are out of scope.** A file the repository gitignores is
-  neither reported nor rewritten, matching hook-precision rule 6. Set
-  `typos_format_lint_gitignored` to `true` to act on gitignored files too. A
-  tracked file that matches an ignore pattern stays in scope. typos' own
-  `[files] extend-exclude` still applies downstream when the hook does run.
-- **Advisory, never blocking.** The hook always exits `0`. Findings are
-  reported via `additionalContext`; they never reject the edit. Make a commit
-  hook or CI your hard gate.
-
-## Known limitation (write mode only)
-
-We assume no ordering or locking between the matching `PostToolUse` hooks of
-one tool call. Under the report-only default this hook only reads, so the worst
-concurrent outcome is a stale finding. Opting `typos_format_write_changes` on in a repo where a sibling
-formatter hook also rewrites the same file class (e.g. `markdown-format` on
-`.md`, `ruff-format` on `.py`) re-opens the race: each hook independently
-reads-then-writes with no locking, so ordering is **last-writer-wins** and a
-nondeterministic clobber is possible. That double opt-in is your call to
-make; the residual overlap class is tracked fleet-wide in #875.
-
-- **Pointer**: when deciding whether two matching hooks can race, fetch
-  [hooks: Hook handler fields](https://code.claude.com/docs/en/hooks#hook-handler-fields)
-  live. **As of**: 2026-10-11. **Recheck trigger**: that section documents an
-  ordering or locking primitive for matching hooks.
-
-**Timeout tail.** The handler sets `"timeout": 15`, well under the default for a
-command hook, and we treat a hook cancelled at its timeout as having reported
-nothing. Pointer: <https://code.claude.com/docs/en/hooks#timeouts>. As of:
-2026-09-27. Recheck trigger: that section changes the command-hook default or
-what becomes of a cancelled hook's output. In write mode the second typos pass rewrites
-the file before the hook classifies what changed and discloses it, so a cancel
-between the two leaves your file rewritten with no disclosure. The one measured
-case that crossed 15 s, 10,000 residual findings at about 15.7 s, was fixed by
-moving classification to a hash lookup (about 0.6 s); no current case has
-reproduced the window. Report-only mode never writes, so it has no such tail.
-
-## Write paths the hook does not see
-
-The matcher is `Write|Edit|NotebookEdit`, so only those tools reach it. A file
-written through the `Bash` tool (a heredoc, a redirect, `sed -i`), through
-`PowerShell`, or through an MCP filesystem server's write tool is never
-spell-checked. `guardrails`' `block-hook-bypass`, when installed, blocks the
-common Bash redirect and heredoc forms, `python3 -c` writes that use a
-file-write call it recognizes, and the PowerShell write cmdlets; `sed -i`,
-`perl -i`, `tee`, a standalone `cp`, and other interpreters' one-liners such as
-`node -e` are outside what it detects, and it does not see MCP tools. CI is
-the only gate that sees every path. The matcher does not list `MultiEdit`: we
-treat it as a legacy tool outside the built-in set. Pointer: when deciding
-whether `MultiEdit` needs a matcher entry, fetch
-<https://code.claude.com/docs/en/permissions#read-and-edit> live. As of:
-2026-10-11. Recheck trigger: `MultiEdit` appears in the tools reference's
-built-in tool list, or that section stops calling it legacy.
-
-## Requirements
-
-- **Bash.** The hook is a Bash script. On native Windows, install
-  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
-  Claude Code can run it under Git Bash. If `/typos-format:setup` fails to load on
-  native Windows, Git Bash is missing: install Git for Windows and rerun. Pointer: for how a
-  `shell: bash` skill runs without Git Bash, see
-  <https://code.claude.com/docs/en/skills#how-injected-commands-run>. As of: 2026-09-29.
-  Recheck trigger: that section changes what a `shell: bash` skill does when Bash is missing.
-- **Node.js** on `PATH`. The hook row runs `node hooks/exec-bash.mjs`, which finds Bash and
-  runs the script. We do not assume a Claude Code install brings Node, so without `node`
-  the hook does not launch and spelling is not checked. Pointer: when deciding whether a
-  Claude Code install brings Node, fetch
-  <https://code.claude.com/docs/en/setup#install-with-npm> live. As of: 2026-10-11. Recheck
-  trigger: that section or [System requirements](https://code.claude.com/docs/en/setup#system-requirements) changes which install needs Node at runtime. A missing `node` is a hook launch
-  error, not a skip notice, and `/typos-format:setup check` reports it.
-- **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible notice, once per session and agent. [Install jq](https://jqlang.org/download/).
-- **typos** on `PATH`. Unlike Ruff or markdownlint-cli2, typos has no
-  per-repo dependency-manager convention. It is a standalone Rust binary,
-  installed at the machine level (cargo, Homebrew, Conda, pacman, or a
-  pre-built binary). typos is never downloaded on the fly; if it is not
-  present, the hook skips with a visible notice, once per session and agent; your copy carries the
-  install route.
-  [Install typos](https://github.com/crate-ci/typos#install). A SessionStart probe reports a
-  missing `typos` once per session, from `prerequisites.json`, and the PostToolUse notice names
-  the same install route. The two share one latch: the probe's notice is yours, and Claude hears
-  at the hook's first skip. Run `/typos-format:check` to see
-  what resolves; it is read-only and installs nothing.
-
-The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
-(Bash 5.0+); on older bash the telemetry envelope is skipped while typo
-fixing still runs.
-
-### Hook budget accounting
-
-Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
-this hook is always-on for every `Write`, `Edit` and `NotebookEdit`, so its cost on the path
-where `typos` finds nothing is the figure that counts. Each row of the first table is interleaved trials against an
-interleaved `bash -c :` floor on Windows 11 under Git Bash:
-
-| Event | Fires | Spawn-equivalents | Measured | What changed |
-| --- | --- | --- | --- | --- |
-| PostToolUse `Write`, clean `.md` | 1 | 36.3 before, 26.0 after (0.6.35) | 2026-09-02, n=12 | three of sixteen processes gone: two `dirname` calls became parameter expansions and the `notebook_path` copy runs only for a payload that carries one |
-| PostToolUse `Write`, clean `.md` | 1 | 18.7 (0.6.55) | 2026-09-19, n=8, plugin-quality audit | the builtin field parser in the vendored `hook-utils.sh` answers where jq ran |
-
-Linux wall time for 0.7.6, from `hyperfine -N --warmup 3 --runs 30` on a clean `.md` `Write`
-payload (Linux x86_64, bash 5.3, node 24, `typos` 1.49, 2026-09-29, three repeats):
-
-| PostToolUse `Write`, clean `.md` | Mean wall time | What it is |
-| --- | --- | --- |
-| Hook enabled, launcher plus script | 84 to 120 ms | `node hooks/exec-bash.mjs` spawns the script's bash: one `node` process on top of the script's own |
-| Script alone | 58 to 73 ms | `bash hooks/typos-format.sh` |
-| Hook disabled, launcher only | 37 to 45 ms | the launcher exits before bash, but the `node` process itself still starts |
-| `bash -c :` floor | 1 to 2 ms | |
-
-The host was loaded (load average near 30) and the repeats spread by about 40%, so read these as
-ranges and as a launcher cost of roughly 35 to 45 ms, not as absolute figures.
-
-The 0.7.6 table is wall time on a Linux host, not spawn-equivalents: the floor there is about
-1 ms, so a ratio to it says little, and no `strace` was available for a kernel census. The
-Windows rows are the last spawn-equivalent figures. Releases after 0.6.55 have not been measured
-on Windows, and the 0.6.35 and 0.6.55 figures and the 0.6.48 census below predate the launcher
-and the current `hooks/hook-utils.sh`, so they do not describe the 0.7.6 process shape.
-Reproduce the Linux table with `hyperfine -N --input <payload.json>` over the command in
-`hooks/hooks.json`, with `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=false` exported for the
-disabled row.
-
-The residual is the shared library's payload reader and telemetry emitter, cut in 0.6.36 by the
-vendored `hook-utils.sh` (one batched `realpath`, no jq on the envelope), and the `typos` binary
-itself.
-
-`hooks/hooks.json` carries no `if` row, and that is deliberate (#3411). The sibling formatters
-filter by extension at the manifest so a Write of any other file spawns nothing, but the
-read-only scan here is language-agnostic: the set a declarative file-type filter would have to
-reproduce is every file, and a narrower row would silently stop scanning whatever it left out.
-The write-mode allowlist is a separate, later decision inside the script and never gates the
-scan, and `NotebookEdit` stays in the matcher for the same reason. The kernel census
-(`strace -f -e trace=clone,clone3,fork,vfork,execve`, Linux x86_64, `HOOK_TELEMETRY_SINK` and
-`CLAUDE_PROJECT_DIR` unset, 2026-09-07, 0.6.48) on a clean `.md` `Write` is 13 process
-creations and 6 execs (`typos`, `git` twice for the working-tree probe and the root resolver,
-`jq`, `realpath`, the hook's own `bash`).
 
 ## Git pre-commit entry
 
 The plugin ships one git-hook entry, `typos-check` (`git-hooks/entries.json`): a pre-commit
 check that blocks a commit only on a typo in a line the commit adds, printed as
-`<path>:<line>: <message>`. It reaches every author, not only Claude, once
-`/typos-format:setup apply install-git-hooks [scope=local|shared]` registers it with the
+`<path>:<line>: <message>`. A typo on a line the commit leaves alone never blocks, a partly
+staged file is checked as staged, and your config's excludes hold for every path. The entry
+runs once `/typos-format:setup apply install-git-hooks [scope=local|shared]` registers it with the
 repository's hook manager (lefthook, husky or plain git hooks). Local scope stays in this clone;
 shared scope commits the copy under `.githooks/typos-format/`. The bundled
-`config/default-typos.toml` is copied beside it and passed with `-c`, as the per-edit hook passes
-it. `/typos-format:setup check` reports
-drift, and the SessionStart probe prints one line when the entry is missing, stale or edited.
+`config/default-typos.toml` is copied beside it. `/typos-format:setup check` reports drift, and the
+SessionStart probe prints one line when the entry is missing, stale or edited.
 
 When typos is missing, an agent's commit fails with the install command; a person's commit gets a
 one-line notice and goes through. `git -c checks.skipmissing=typos commit ...` skips the check
 while typos is absent. The placement rules are the check-placement convention in the
 marketplace repository.
+
+## End-of-turn check (opt-in)
+
+With `typos_format_end_of_turn` on, a Stop hook runs the same check over the lines changed since
+the last commit, untracked files included. Findings go back to Claude with exit 2, so they are
+fixed before the turn ends; once a Stop hook has continued the turn it stays quiet, so it blocks at
+most once per turn. Off, its default, a turn end costs one process: the node launcher, whose gate
+closes before bash starts (`scripts/hook-census.sh`, WSL2 Ubuntu, 2026-10-15, fenced by
+`.performance/ratchets.json`). On, a clean work tree measured 19 process creations and execs on the
+same host.
+
+## Requirements
+
+- **typos** on `PATH`, installed at the machine level (cargo, Homebrew, Conda, pacman or a
+  pre-built binary; [install typos](https://github.com/crate-ci/typos#install)). It is never
+  downloaded on the fly. The SessionStart probe reports a missing `typos` once per session from
+  `prerequisites.json`.
+- **Bash** runs the check (3.2 or newer, so macOS's own bash works). On native Windows, install
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows).
+- **Node.js** on `PATH` for the Claude Code rows, which launch through `node hooks/exec-bash.mjs`,
+  and for the installer the setup skill runs. **jq** for the end-of-turn row's shared library.
+  `/typos-format:check` reports what resolves; it is read-only and installs nothing.
 
 ## Install
 
@@ -228,13 +68,11 @@ config already in your repository, which the plugin reads automatically. To
 change the rules (allowlist a false positive, ignore a pattern), edit that
 file.
 
-Four `userConfig` options tune the hooks themselves:
+Two `userConfig` options tune the Claude Code hooks; the git pre-commit entry has none:
 
 | Option | Default | Effect |
 |--------|---------|--------|
-| `typos_format_enabled` | `true` | Kill switch. Set `false` for a clean no-op. |
-| `typos_format_write_changes` | `false` | Set `true` to apply corrections in place for write-allowlisted extensions (accepting last-writer-wins with any sibling formatter hook on the same file). Default is report-only: findings are reported, no file is modified. Denied extensions stay report-only even when this is on. |
-| `typos_format_lint_gitignored` | `false` | Set `true` to report (and, in write mode, rewrite) a file the repository gitignores. Off by default. |
+| `typos_format_enabled` | `true` | Kill switch for the SessionStart probe and the end-of-turn check. The installed git pre-commit entry keeps running. |
 | `typos_format_end_of_turn` | `false` | Set `true` to run the pre-commit check over the uncommitted changes when a turn ends; findings go back to Claude once per turn so they are fixed before it stops. |
 
 Set them interactively with `/plugin configure typos-format@<marketplace>`, or headless on the
@@ -254,9 +92,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `typos_format_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED` | Spell-checks every file Claude edits, unconditionally. On by default; report-only unless typos_format_write_changes is on. |
-| `typos_format_write_changes` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES` | Rewrite the file in place for write-allowlisted extensions. Off by default: findings are reported without modifying the file. Turning this on accepts last-writer-wins ordering with any sibling formatter hook that rewrites the same file. Unknown extensions stay report-only. |
-| `typos_format_lint_gitignored` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_LINT_GITIGNORED` | By default the hook leaves a file the repository gitignores alone: it is not rewritten or reported, since a rewrite of an ignored file has no git checkout to undo it. Set true to act on gitignored files too. A tracked file that matches an ignore pattern is always in scope. |
+| `typos_format_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED` | Kill switch for the plugin's Claude Code hooks: the SessionStart probe and drift line, and the opt-in end-of-turn check. On by default. The git pre-commit entry is installed separately and is not affected. |
 | `typos_format_end_of_turn` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_END_OF_TURN` | At the end of each turn, run the pre-commit typos check over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Off by default. |
 
 ### How to set these
@@ -317,117 +153,6 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
-
-## Hook cost accounting
-
-This plugin's PostToolUse hook matches every `Write`, `Edit` and `NotebookEdit`,
-so its cost is paid on every file the agent touches and it owes the
-marketplace's [hook budget](../../docs/conventions/hook-budget/README.md) an
-honest figure.
-
-The opt-in Stop row fires on every turn end. With `typos_format_end_of_turn` off, its default,
-a fire costs one process, the node launcher, whose gate closes before bash starts
-(`scripts/hook-census.sh`, WSL2 Ubuntu, 2026-10-15; fenced by
-`hooks/typos-format-end-of-turn.test.sh`). With the option on, a clean work tree measured 19
-process creations and execs on the same host.
-
-**Method.** `EPOCHREALTIME` wall-clock around a direct hook invocation, 12
-interleaved trials, each preceded by a `bash -c :` spawn-floor run so the
-reported ratio absorbs machine load. The payload is a `PostToolUse` `Write`
-naming a clean scratch file inside a repository, so `typos` finds nothing and
-the hook takes the path that runs on nearly every edit. Windows 11 + Git Bash,
-2026-09-02.
-
-**Counting.** Both process columns come from a `bash -x` trace of that same
-invocation. An exec is a command in command position whose word resolves to a
-file rather than a builtin, function, alias or keyword. A fork is an increase in
-the trace's subshell-nesting depth, one per command substitution or subshell; it
-undercounts, because pipeline elements fork without changing the depth. Forks
-are reported beside execs because they are not free on this host: a command
-substitution measures about half the cost of a spawn, so twenty-nine of them are
-a large share of the run rather than a rounding error.
-
-**Host condition.** The measuring host's `bash -c :` floor was **82 ms** for the
-before run and **77 ms** for the after run, against the convention's reference
-host of **≈ 80 ms**. Absolute milliseconds from a loaded host are not
-comparable; the spawn-equivalent ratio is the figure that holds.
-
-| Benign `Write`, n=12 interleaved | spawn-equivalents | @ 80 ms reference host | exec'd processes | forks |
-| --- | --- | --- | --- | --- |
-| Before (0.6.33) | 36.3 | ≈ 2,904 ms | 16 | 31 |
-| After (0.6.35) | 26.0 | ≈ 2,080 ms | 13 | 29 |
-
-**On 0.6.35 a clean edit cost ≈ 26.0 spawn-equivalents, ≈ 2,080 ms of
-reference-host work, down 28 percent.** Two `dirname` calls became parameter
-expansions, and the jq that copies `notebook_path` onto `file_path` now runs only
-for a payload that carries one, which no `Write` or `Edit` does.
-
-**Later figures.** A plugin-quality audit on 2026-09-19 measured **18.7** on
-0.6.55 with the same method on the Windows host (n=8).
-
-**Residual, and why it stays.** The dominant single cost is the `typos` binary's
-own startup, which is the point of the hook. On the measuring host it resolves
-through a WinGet Links shim, an indirection this hook cannot remove. Of the
-remaining twelve processes, eight to ten belong to the shared
-`hooks/hook-utils.sh`: payload validation, the `file_path` read and its
-project-membership scoping, and the repository-root lookup. That file is a
-registered byte-identical cross-plugin cluster, so changing it is a fleet-wide
-change and not this plugin's to make. Two `cygpath` calls resolve the
-repository-relative argument `typos` runs on, which the tool needs to apply the
-repository's own exclude rules.
-
-**No extension gate is possible here, and that is deliberate.** `typos` is
-language-agnostic, so the scan has no allowlist to short-circuit on: gating it
-by the write-mode allowlist would stop reporting typos in `Dockerfile`,
-`Makefile`, `.gitignore` and every extensionless file. That is a behavior
-change, not a saving.
-
-**A disabled hook costs a `node` process; an enabled edit costs `node` plus bash.** The
-`hooks/hooks.json` row runs `node hooks/exec-bash.mjs --run-if-unset-or-true TYPOS_FORMAT_ENABLED`
-(0.7.1). With `typos_format_enabled` off the launcher exits before it resolves or spawns bash, so
-`node` is the only process the hook creates. With it on, `node` spawns bash for the script, so the
-edit path carries one more process than the pre-0.7.1 row, which `exec`'d the script in place of
-its own shell. The 2026-09-29 Linux run in Hook budget accounting measured 37 to 45 ms disabled and
-84 to 120 ms enabled, against 58 to 73 ms for the script alone. The earlier Windows figures for a disabled
-row describe a row that no longer exists and are not repeated.
-
-### Why the row stays synchronous (#4677)
-
-The row does not set `async: true`, and it is not split into an async report-only row and a
-synchronous write-mode row. Running the report-only scan in the background would take it off the
-per-edit critical path, but it gives up more than it saves:
-
-- **The finding would arrive late.** The finding is useful while Claude is still on the file, and
-  this row relies on a synchronous hook's `additionalContext` arriving with the tool result. An
-  async row would deliver it later. The last edit of a task is exactly the one whose finding would
-  land after Claude reports the task done.
-- **Headless runs would lose findings.** An async row still running when a `claude -p` run ends
-  would not report, so the final edits of a scripted or cloud run would go unchecked.
-- **The 15-second budget would go away.** The row's `timeout` would no longer bound an async run,
-  and every firing would start its own background process with no deduplication. This hook's
-  classifier is sized against that budget.
-- **The missing-`typos` notice would go quiet.** Report-only findings already travel on
-  `additionalContext` alone; this hook sets `systemMessage` only for a rewrite it applied (write
-  mode) and for the notice (once per session and agent) that `typos` is not on `PATH`. As an async row,
-  that notice would reach only Claude, once, and the skip would be invisible to the person who can
-  install the binary.
-
-The synchronous cost this keeps is 472 to 649 ms per edit on a Windows Git Bash host (2026-09-23,
-recorded in #4677), and 27 ms for a clean file and 35 ms with a finding on Linux
-x86_64 (typos-cli 1.50.3, 20 runs each, 2026-09-28). Write mode stays synchronous on its own
-grounds: a background rewrite could race the next `Edit` of the same file, the reason async was
-declined for `eol-normalizer` in #4417.
-
-- **Decision**: keep the one synchronous row in both modes.
-- **Pointer**: for async delivery, `-p` teardown and `timeout` on an async hook, see
-  <https://code.claude.com/docs/en/hooks#run-hooks-in-the-background> and
-  <https://code.claude.com/docs/en/hooks#how-async-hooks-execute>; for where a `PostToolUse`
-  hook's `additionalContext` lands, see
-  <https://code.claude.com/docs/en/hooks#posttooluse-decision-control>.
-- **As of**: 2026-09-28
-- **Recheck trigger**: that section changes when async output is delivered, whether `-p` waits for
-  a running async hook, or whether `timeout` applies to one; or this hook's measured Windows cost
-  on a clean edit exceeds one second.
 
 ## License
 
