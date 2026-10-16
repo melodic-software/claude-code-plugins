@@ -450,7 +450,7 @@ compatibility shim for builds below its declared version floor (pointers:
 
 `version` lives in `plugin.json` only, never in a marketplace entry. The platform resolves
 plugin.json first, but a marketplace-entry copy is dead metadata that silently becomes live if the
-manifest field is ever removed. One home, no shadow.
+manifest field is ever removed.
 
 For project configuration, use neutral repository-relative paths anchored at
 `${CLAUDE_PROJECT_DIR}`. Validate configured paths at the boundary, reject absolute paths and traversal
