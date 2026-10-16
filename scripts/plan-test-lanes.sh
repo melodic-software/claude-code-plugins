@@ -41,7 +41,8 @@
 #     from it) do the same for the Windows plan. The other local actions are
 #     Node packages the selector maps like any other code.
 #   - a Python pin (.python-version, pyproject.toml, uv.lock, requirements*.txt,
-#     .github/requirements-ci*.txt): every Python suite.
+#     .github/requirements-ci*.txt, plugins/animation/requirements.txt, which
+#     test-python installs): every Python suite.
 #   - a Node pin (.node-version, the root package.json or package-lock.json):
 #     every Node package.
 #   - a Node package also runs when a file under its directory, its trigger (a test
@@ -151,7 +152,7 @@ for f in ${changed[@]+"${changed[@]}"}; do
     python_pin=1
     whole_windows=1
     ;;
-  pyproject.toml | uv.lock | requirements*.txt | .github/requirements-ci*.txt) python_pin=1 ;;
+  pyproject.toml | uv.lock | requirements*.txt | .github/requirements-ci*.txt | plugins/animation/requirements.txt) python_pin=1 ;;
   .node-version | package.json | package-lock.json) node_pin=1 ;;
   *) ;;
   esac
