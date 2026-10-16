@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 1.18.0 - 2026-10-16
+## 1.17.3 - 2026-10-16
 
 This repository's `pr-pipeline.yaml` enables the address-feedback round: the `pr-unblock` lane now
 runs `resolve-conflicts`, `address-feedback` (`source-control:pull-request comments --ci`,

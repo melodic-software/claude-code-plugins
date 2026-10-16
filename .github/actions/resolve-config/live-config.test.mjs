@@ -100,11 +100,25 @@ test("live config: report-escalation applies and is granted publish-artifact onl
   );
 });
 
-// The address-feedback round (#7032): expected values from the plan's shape and
-// the effect grants contract, as proven in pr-pipeline-sandbox.
+// Expected values from #7032's acceptance criteria and effect-grants.json.
+test("live config: pr-unblock runs its slots in order", () => {
+  const { lane } = resolve(FILES, {
+    lane: "pr-unblock",
+    activity: "resolve-conflicts",
+    configPath: CONFIG_PATH,
+    basePath: ".base",
+    facts: FACTS,
+  });
+  assert.deepEqual(
+    lane.slots.map((slot) => slot.activity ?? slot.name),
+    ["resolve-conflicts", "address-feedback", "publish-feedback", "report-escalation"],
+  );
+});
+
 test("live config: address-feedback applies to a ready PR with comments --ci and prepare review-threads", () => {
   const slot = selected("pr-unblock", "address-feedback", { mergeable: "clean" });
   assert.equal(slot.applies, true);
+  assert.equal(slot["reads-untrusted"], true);
   assert.equal(slot.skill, "source-control:pull-request");
   assert.equal(slot.args, "comments --ci");
   assert.equal(slot.prepare, "review-threads");
@@ -123,6 +137,9 @@ test("live config: address-feedback waits for a human on a hold label and skips 
 
 test("live config: publish-feedback runs the reply script after address-feedback, granted publish-artifact only", () => {
   const slot = selected("pr-unblock", "publish-feedback");
+  assert.equal(slot.applies, true);
+  // It reads the replies the model wrote.
+  assert.equal(slot["reads-untrusted"], true);
   assert.equal(slot.script, ".github/scripts/pr-unblock/publish-feedback.mjs");
   assert.deepEqual(slot.needs, ["address-feedback"]);
   assert.deepEqual(

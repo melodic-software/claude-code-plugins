@@ -34,15 +34,18 @@ activities:
       labels-absent: [do-not-merge, needs-human]
       draft: [false]
   address-feedback:
-    # Fixes the review lanes' open findings on a pull request the lanes App
-    # opened, and records a reply for each one. It posts nothing itself.
+    # Fixes the review lanes' open findings on a pull request and records a
+    # reply for each one. It posts nothing itself. pr-feedback-dispatch.yml
+    # starts it only on pull requests the lanes App opened; a trusted person
+    # may also dispatch it by hand.
     skill: source-control:pull-request
     # The skill's CI mode for review comments: edits only files a finding
     # names, never under .github/, and writes replies to a file.
     args: comments --ci
     # Before any model turn the runner keeps only unresolved threads left by
-    # the reviewer bot alone on a reviewed head, stops on a .github/ change or
-    # after two rounds, and gives the skill the review-thread tool.
+    # the reviewer bot alone on a reviewed head, hands the pull request to a
+    # person when it changes .github/ or two rounds already ran, and gives the
+    # skill the review-thread tool.
     prepare: review-threads
     # Pushes its fixes to the pull request's branch, nothing else.
     effect: mutate-branch
