@@ -873,6 +873,10 @@ jobs:
                 .map((m) => textOf(m.message?.content))
                 .filter((text) => text.includes('<local-command-stderr>'))
                 .map((text) => redact(text).slice(0, 2000)),
+              // The commands the permission mode denied, so a denial can be diagnosed.
+              denied: (result.permission_denials ?? []).map((d) =>
+                redact(String(d?.tool_input?.command ?? d?.tool_name ?? '')).slice(0, 300),
+              ),
             };
             fs.mkdirSync(REPLY_DIR, { recursive: true });
             fs.writeFileSync(`${REPLY_DIR}/act-turns.json`, `${JSON.stringify(diag, null, 2)}\n`);

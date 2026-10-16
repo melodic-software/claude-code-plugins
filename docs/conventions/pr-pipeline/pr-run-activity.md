@@ -306,7 +306,9 @@ wrapper in `--append-system-prompt`. The wrapper changes to the checkout, refuse
 the value after an `=`) naming an existing path whose real path lies outside the checkout, since a
 script may print lines of a file it reads, sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`
 and command-scope `core.fsmonitor=false` and `core.hooksPath=/dev/null`, then runs the copy with
-the arguments. Any other arguments match, so the list holds only scripts that read and report.
+the arguments and prints `exit status: <n>` to stderr before exiting with that status, since the
+lane denies a chained `; echo "$?"`; the system prompt says to run each wrapper as its own command.
+Any other arguments match, so the list holds only scripts that read and report.
 `WebFetch` and
 `WebSearch` stay off (`--disallowedTools`) unless the activity sets `web-access`. With it on, the
 runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
