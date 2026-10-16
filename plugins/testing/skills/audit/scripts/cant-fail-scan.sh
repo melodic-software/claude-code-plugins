@@ -350,7 +350,7 @@ REPO_PREFIX=""
 # The testing config, resolved by scripts/resolve-config.sh. With no layer
 # file present nothing below runs, so a repository without one pays five file
 # tests. Removals (adapters.disable, paths.exclude, rules off) apply here, so
-# the test-scan hook, which runs this script, goes silent with no plugin change.
+# every caller of this script goes silent with no plugin change.
 # The team and local layers are the scanned repository's own, so a file in a
 # sibling worktree gets that worktree's config.
 CFG_ROOT="${TOP:-${CLAUDE_PROJECT_DIR:-$ROOT}}"
@@ -1212,7 +1212,7 @@ coverage_block() {
     printf '  testing config: %d layer(s); excluded by paths.exclude: %d; included but claimed by no adapter: %d; claimed by a disabled adapter: %d; findings dropped by rules off: %d, kept out of the gate by warn: %d, gated by error: %d\n' \
       "$tc_read" "$tc_excluded" "$tc_unclaimed" "$tc_disabled" "$tc_dropped" "$tc_ungate" "$tc_gate"
     if [[ -z "$FILE" && ${#tc_uncovered[@]} -gt 0 ]]; then
-      printf '  test-scan hook: no shipped hook row matches %s, so the hook skips those files; /testing:setup check prints a hook entry to add\n' \
+      printf '  test-weaken hook: no shipped hook row matches %s, so the hook skips those files; this audit still scans them\n' \
         "$(printf '%s, ' "${tc_uncovered[@]}" | sed 's/, $//')"
     fi
   fi

@@ -23,11 +23,6 @@
       "kind": "cli",
       "need": "required",
       "for": [
-        "hook:test-judge-bg.sh",
-        "hook:test-judge-start.sh",
-        "hook:test-judge.sh",
-        "hook:test-scan-bash.sh",
-        "hook:test-scan.sh",
         "hook:test-weaken.sh"
       ],
       "detect": {

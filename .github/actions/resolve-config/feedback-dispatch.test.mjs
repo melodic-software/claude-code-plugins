@@ -168,10 +168,13 @@ test("a config the resolver refuses fails the run even when the lane has no addr
   await assert.rejects(run(null, text), (error) => error.name === "Rejection" && error.code === "undefined-activity");
 });
 
-test("this repository's own config resolves without failing the run", async () => {
+// The round is enabled in this repository (#7032 Phase 4), so a lanes App PR
+// with an open reviewer-bot thread on a reviewed head is dispatched.
+test("this repository's own config dispatches address-feedback", async () => {
   const { dispatched, lines } = await run(null, readFileSync(join(ROOT, "docs/conventions/pr-pipeline.yaml"), "utf8"));
-  assert.ok(dispatched.length <= 1);
-  assert.match(lines.at(-1), /^(dispatched #42|skip: )/);
+  assert.equal(dispatched.length, 1);
+  assert.equal(dispatched[0].inputs.activity, "address-feedback");
+  assert.match(lines.at(-1), /^dispatched #42 /);
 });
 
 test("a disabled address-feedback slot dispatches nothing", async () => {

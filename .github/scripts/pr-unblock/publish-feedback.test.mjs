@@ -16,7 +16,9 @@ const HUMAN = 153232337;
 const GATED = "a".repeat(40);
 const NOW = "c".repeat(40);
 const FIX = "f".repeat(40);
+const PUSHED = "d".repeat(40);
 const ROUND = "<!-- pr-unblock:address-feedback-round -->";
+const MODEL_RUN = "<!-- pr-unblock:address-feedback-model-run 5000-1 -->";
 const marker = `<!-- claude-lane-reviewed-head lane=claude-review sha=${GATED} -->\nreviewed.`;
 
 // run.json as the model job's runner writes it: two kept threads.
@@ -63,6 +65,11 @@ function fakeApi(overrides = {}) {
       const replied = calls.some((call) => call[0] === "reply" && call[2] === t.ids[0]);
       const ids = replied ? [...t.ids, 900, ...(overrides.arrivedDuringReply ?? [])] : t.ids;
       return { isResolved: t.resolved, pr: t.pr ?? 42, commentCount: ids.length, commentIds: ids };
+    },
+    // The PR branch reads NOW until `movesAfter` reads, then a later push.
+    readBranch: async (ref) => {
+      calls.push(["readBranch", ref]);
+      return calls.filter((call) => call[0] === "readBranch").length > (overrides.movesAfter ?? Infinity) ? PUSHED : NOW;
     },
     getCommit: async (sha) => overrides.commits?.[sha] ?? { files: [{ filename: "src/a.js" }] },
     compare: async (base, head) => {
@@ -113,7 +120,9 @@ const run = (api, repliesText, runText = runFor(repliesText)) =>
     api,
     pr: 42,
     headSha: NOW,
+    headRef: "feature",
     appId: APP,
+    modelRun: "5000-1",
     reviewerId: REVIEWER,
     readArtifact: () => ({ runText, repliesText }),
     fileExists: exists,
@@ -185,7 +194,53 @@ test("the round marker is posted once, as the first line, numbered after the App
   await run(api, lines(reply()));
   assert.equal(api.markers().length, 1);
   assert.equal(api.markers()[0][1], 42);
-  assert.equal(api.markers()[0][2], `${ROUND}\npr-unblock / address-feedback finished round 2 of 2 on ${NOW}.`);
+  assert.equal(api.markers()[0][2], `${ROUND}\n${MODEL_RUN}\npr-unblock / address-feedback finished round 2 of 2 on ${NOW}.`);
+});
+
+// #7545: a re-run of the reply job alone reuses the model run's artifact, so
+// it must not count that model turn as a second round.
+test("a re-run for a model run whose round the App already recorded posts no second marker", async () => {
+  const api = fakeApi({
+    issueComments: [{ id: 2, user: { id: APP }, body: `${ROUND}\n${MODEL_RUN}\nround 1` }],
+  });
+  await run(api, lines(reply()));
+  assert.equal(api.markers().length, 0);
+});
+
+test("a marker naming the run from another author or for another run does not stop the round marker", async () => {
+  for (const issueComments of [
+    [{ id: 2, user: { id: HUMAN }, body: `${ROUND}\n${MODEL_RUN}` }],
+    [{ id: 2, user: { id: APP }, body: `${ROUND}\n<!-- pr-unblock:address-feedback-model-run 5000-2 -->` }],
+    [{ id: 2, user: { id: APP }, body: `note\n${MODEL_RUN}` }],
+  ]) {
+    const api = fakeApi({ issueComments });
+    await run(api, lines(reply()));
+    assert.equal(api.markers().length, 1, JSON.stringify(issueComments));
+  }
+});
+
+// #7545: fixesLanded judged the branch up to the head this job gated; a push
+// after that is unjudged, so nothing is posted or resolved against it.
+test("a push after the gated head, before the first post, posts nothing and escalates feedback-not-landed", async () => {
+  const api = fakeApi({ movesAfter: 0 });
+  const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })));
+  assert.equal(result.escalationReason, "feedback-not-landed");
+  assert.deepEqual(api.posted(), []);
+  assert.deepEqual(api.resolved(), []);
+  assert.equal(api.markers().length, 1);
+  assert.ok(api.calls.some((call) => call[0] === "readBranch" && call[1] === "feature"));
+});
+
+test("a push after a reply posted leaves its VALID thread open, posts no later reply, and escalates feedback-partial", async () => {
+  const api = fakeApi({ movesAfter: 1 });
+  const result = await run(
+    api,
+    lines(reply({ disposition: "VALID", fix_sha: FIX }), reply({ thread: "PRRT_b", evidence: ["docs/b.md:1"] })),
+    JSON.stringify(RUN),
+  );
+  assert.equal(result.escalationReason, "feedback-partial");
+  assert.deepEqual(api.posted().map((call) => call[2]), [100]);
+  assert.deepEqual(api.resolved(), []);
 });
 
 // Every case here must post no reply, resolve nothing, still post the round
@@ -424,6 +479,9 @@ test("main writes the escalation and skip reason files and refuses a symlinked a
     GITHUB_REPOSITORY: "o/r",
     PR_NUMBER: "42",
     HEAD_SHA: NOW,
+    HEAD_REF: "feature",
+    GITHUB_RUN_ID: "5000",
+    MODEL_RUN_ATTEMPT: "1",
     APP_SENDER_ID: String(APP),
     TRUSTED_ACTORS: actors,
     FEEDBACK_REPLIES_DIR: replies,
@@ -437,6 +495,13 @@ test("main writes the escalation and skip reason files and refuses a symlinked a
   assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "feedback-uncertain\n");
   assert.equal(readFileSync(env.SKIP_REASON_FILE, "utf8"), "awaiting-human\n");
   assert.equal(api.posted().length, 1);
+  assert.equal(api.markers()[0][2].split("\n")[1], MODEL_RUN);
+  // No model attempt names no run, so even a marker already on the PR from
+  // an earlier attempt without replies does not stop this one.
+  const noAttempt = fakeApi({ issueComments: [{ id: 2, user: { id: APP }, body: `${ROUND}\nround 1` }] });
+  await main({ ...env, MODEL_RUN_ATTEMPT: "" }, { api: noAttempt, log: () => {} });
+  assert.equal(noAttempt.markers().length, 1);
+  assert.match(noAttempt.markers()[0][2], /^<!-- pr-unblock:address-feedback-round -->\npr-unblock \/ address-feedback finished round 2 of 2/);
 
   // A run.json other than the bytes the model job's runner hashed is refused.
   for (const sha of ["0".repeat(64), ""]) {
@@ -463,5 +528,8 @@ test("main writes the escalation and skip reason files and refuses a symlinked a
 
   await assert.rejects(main({ ...env, HEAD_SHA: "x" }, { api }), /HEAD_SHA/);
   await assert.rejects(main({ ...env, PR_NUMBER: "0" }, { api }), /PR_NUMBER/);
+  await assert.rejects(main({ ...env, HEAD_REF: "" }, { api }), /HEAD_REF/);
+  await assert.rejects(main({ ...env, GITHUB_RUN_ID: "x" }, { api }), /GITHUB_RUN_ID/);
+  await assert.rejects(main({ ...env, MODEL_RUN_ATTEMPT: "1 -->" }, { api }), /MODEL_RUN_ATTEMPT/);
   await assert.rejects(main({ ...env, ESCALATION_REASON_FILE: "" }, { api }), /ESCALATION_REASON_FILE/);
 });

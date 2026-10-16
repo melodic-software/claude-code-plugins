@@ -1,11 +1,11 @@
 # shellcheck shell=bash
-# The task-end test judge's shared pieces, for test-judge-bg.sh (PostToolUse,
-# async), test-judge.sh (Stop) and test-judge-start.sh (SessionStart). Source
-# after scanner-run.sh, with HOOK_DIR, DATA, PKEY, SID (this session) and TPATH
-# (its transcript) set.
+# The test judge's run, ledger and validation pieces, kept for the judge
+# calibration harness (skills/audit/evals/judge-calibration/metrics.sh), which
+# no hook runs. Source after scanner-run.sh, with HOOK_DIR, DATA, PKEY, SID
+# (the run) and TPATH (a transcript path) set.
 #
-# State under $DATA, all pruned after 7 days by test-scan.sh:
-#   sessions/<pkey>/<sid>/<tool_use_id>.json  test-scan's record of each write
+# State under $DATA:
+#   sessions/<pkey>/<sid>/<tool_use_id>.json  a record of each file to judge
 #   verdicts/<pkey>/<sid>/<key-hash>.json     the ledger, written by rename
 #   verdicts/<pkey>/<sid>/blob-<blob id>      a test file as a judge run read it
 #   verdicts/<pkey>/<sid>/unusable-<t>-<pid>.txt  a run's output with no usable result
@@ -446,8 +446,8 @@ judge::busy() {
 }
 
 # judge::reserve_run: reserve one judge run for the session and set RUNRES to
-# its marker, or fail when the optional test_judge_session_runs limit is
-# reached. Under a limit the marker is runs/<pkey>/<sid>/<n>, the first free
+# its marker, or fail when the optional CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS
+# limit is reached (a test seam; metrics.sh unsets it). Under a limit the marker is runs/<pkey>/<sid>/<n>, the first free
 # n from 1 to the limit, created exclusively, so jobs that reach the check
 # together cannot all take the last run. A reservation is kept when the
 # judge starts and released (judge::release_run) when it does not; a job
