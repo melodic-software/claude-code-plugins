@@ -96,6 +96,20 @@ if [[ "${1:-}" == --reset-digests ]]; then
   exit 0
 fi
 
+# The opt-in Stop row (typos_format_end_of_turn; its hooks.json gate is
+# --require-true): the pre-commit entry run over the uncommitted changes. Its
+# findings exit 2, so the model fixes them before the turn ends. Once a Stop
+# hook has continued this turn (stop_hook_active), the row stays quiet, so it
+# blocks at most once per turn. A host without typos already hears of it from
+# the SessionStart probe, so here that is a silent pass, not a block.
+if [[ "${1:-}" == --end-of-turn ]]; then
+  hook::buffer_stdin_to INPUT || exit 0
+  [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
+  command -v typos >/dev/null 2>&1 || exit 0
+  "${BASH:-bash}" "$HOOK_DIR/../git-hooks/typos-check.sh" --worktree >/dev/null && exit 0
+  exit 2
+fi
+
 # The whole prologue: the start stamp, the buffered payload, the jq gate, the
 # parsed path with its basename and directory, the repo root (the CWD typos
 # runs in), and the telemetry-only TOOL behind the sink opt-in. Exits 0 itself

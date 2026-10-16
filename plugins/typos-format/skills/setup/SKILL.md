@@ -1,11 +1,15 @@
 ---
-description: "Verify the typos-format hook's runtime prerequisites and configuration for this repository. Use when: 'set up typos-format', 'configure typos-format', 'is typos-format working', spell-fixing silently isn't happening, or the hook reported a missing prerequisite. Actions: check (read-only verification, default) | apply (resolve what check found). Re-runnable and safe."
-argument-hint: "[check|apply]"
+description: "Verify typos-format's prerequisites and configuration here, and register its git pre-commit entry. Use when: 'set up typos-format', 'configure typos-format', 'is typos-format working', spell-fixing silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | apply | apply install-git-hooks [scope=local|shared]. Re-runnable."
+argument-hint: "[check|apply [install-git-hooks [scope=local|shared]]]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:
   - "Bash(command -v jq*)"
   - "Bash(command -v typos*)"
+  - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" verify:*)"
+  - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs verify:*)"
+  - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" plan:*)"
+  - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs plan:*)"
 shell: bash
 ---
 
@@ -30,7 +34,8 @@ longer names the setting or the string.
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
-reports, `apply` resolves. This plugin owns no consumer-project configuration. Rules come
+reports, `apply` resolves. The only consumer-project files this plugin owns are its git-hook
+entry copies, which `apply install-git-hooks` writes. Rules come
 from the repository's own typos config, and the only tunables are the native `userConfig`
 options (the on/off toggle and the write-mode switch). Unlike sibling formatter plugins
 (Ruff, markdownlint-cli2), typos has no per-repo dependency-manager install path. It is a
@@ -41,7 +46,8 @@ philosophy's never-download-silently rule.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 prints remediation guidance for each FAIL. Both are non-interactive. Never prompt when the
-action is given.
+action is given. `apply install-git-hooks` is the one write path, and it asks only where its
+section says to.
 
 Step 1 of `check` only reports a Bash version because the skill cannot load where bash is missing:
 with `shell: bash` on Windows without Git Bash the invocation fails before any command runs, so
@@ -105,6 +111,42 @@ restores the FAIL semantics. Node.js (step 8) is the exception: the enabled-gate
    Code's native binary neither ships nor uses Node. Basis: [Set
    up](https://code.claude.com/docs/en/setup). As of 2026-09-29. Recheck when a re-read of that
    page no longer says the native install does not use Node.
+9. **Git pre-commit entry.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
+   from the repository. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined` is
+   INFO (this clone said no; silent at session start), and `missing`, `stale` or `modified` is a
+   FAIL whose remediation is `apply install-git-hooks`. A `tool\t<tool>\tmissing` line means the
+   installed entry cannot run here: list every such tool with its install method from the
+   plugin's `prerequisites.json`, so a lane or cloud setup script can provision it before an
+   auto-mode session commits. Outside a git repository, report INFO and skip the step.
+
+## `apply install-git-hooks [scope=local|shared]`
+
+Registers the plugin's git-hook entries (`git-hooks/entries.json`) with the repository's hook
+manager. The installer script only detects, renders and writes files the plugin owns; every step
+that needs judgment comes back to you as a `decisions[]` item, which you reason about and apply
+with your own edit tools.
+
+1. **Scope.** Use the argument when given. Otherwise, when the user is present, ask: `local`
+   (this clone only, nothing committed) or `shared` (committed under `.githooks/typos-format/`,
+   so every teammate and agent gets it). When nobody can answer, use `local`.
+2. **Plan.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" plan --scope <scope>`
+   and read the JSON: `manager`, `actions[]`, `decisions[]`.
+3. **Manager conflict.** A `manager-conflict` decision lists the evidence (two managers, or one
+   this installer does not drive, such as the pre-commit framework). Show it and ask which manager
+   should carry the entry; rerun `plan` with `--manager lefthook|husky|plain`. Without an answer,
+   stop here and report.
+4. **Actions.** When `actions[]` holds `copy` items, run
+   `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" copy --scope <scope>` (plus the same
+   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged` or `refused`
+   per entry; `refused` means a locally edited copy, which the `modified` decision covers.
+5. **Decisions.** Read [reference/git-hook-decisions.md](reference/git-hook-decisions.md) for
+   what each kind asks of you, apply each one, then rerun `plan` until only the decisions you
+   chose to leave remain.
+6. **Verify.** Run `verify` and report its lines as `check` step 9 does.
+
+When the user does not want an entry in this clone, run
+`node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry typos-check`; the
+session-start drift line then stays silent until `verify` runs by hand, and `--undo` reverses it.
 
 ## `apply` (idempotent)
 
@@ -154,7 +196,8 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 ## What this skill does NOT do
 
-- Run the spell-checker. Editing any file exercises the hook end-to-end.
+- Run the spell-checker. Editing any file exercises the hook end-to-end; `git commit` exercises
+  the installed pre-commit entry.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Install `typos`. Installation is always the consumer's own choice and command, at the
   machine level, never a project dependency this skill records.

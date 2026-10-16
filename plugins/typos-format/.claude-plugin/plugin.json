@@ -32,6 +32,12 @@
       "title": "Act on files git ignores",
       "description": "By default the hook leaves a file the repository gitignores alone: it is not rewritten or reported, since a rewrite of an ignored file has no git checkout to undo it. Set true to act on gitignored files too. A tracked file that matches an ignore pattern is always in scope.",
       "default": false
+    },
+    "typos_format_end_of_turn": {
+      "type": "boolean",
+      "title": "Spell-check uncommitted changes at turn end",
+      "description": "At the end of each turn, run the pre-commit typos check over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Off by default.",
+      "default": false
     }
   }
 }

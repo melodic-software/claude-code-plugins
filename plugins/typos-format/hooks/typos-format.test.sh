@@ -1014,12 +1014,20 @@ else
 fi
 # The one other row is the SessionStart prerequisite probe, exec form behind the
 # same launcher gate. The SessionStart node-notice row is pinned fleet-wide by
-# scripts/node-notice-rows.test.sh.
+# scripts/node-notice-rows.test.sh. The opt-in Stop row is pinned below and by
+# typos-format-end-of-turn.test.sh.
 if jq -e --arg checker '${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs' --arg root '${CLAUDE_PLUGIN_ROOT}' \
-  '([.hooks | del(.SessionStart)[][].hooks[]] | length == 1) and ([.hooks.SessionStart[].hooks[] | select(.command == "node" and .args == [$checker, "probe", $root, "--run-if-unset-or-true", "TYPOS_FORMAT_ENABLED"])] | length == 1)' "$HOOKS_JSON" >/dev/null; then
+  '([.hooks | del(.SessionStart, .Stop)[][].hooks[]] | length == 1) and ([.hooks.SessionStart[].hooks[] | select(.command == "node" and .args == [$checker, "probe", $root, "--run-if-unset-or-true", "TYPOS_FORMAT_ENABLED"])] | length == 1)' "$HOOKS_JSON" >/dev/null; then
   ok "hooks.json: one exec-form SessionStart row runs the prerequisites checker's probe behind --run-if-unset-or-true TYPOS_FORMAT_ENABLED"
 else
   fail "hooks.json: expected one exec-form SessionStart prerequisites probe row behind --run-if-unset-or-true TYPOS_FORMAT_ENABLED and no other extra row"
+fi
+# The Stop row is the only one besides, and it is opt-in: --require-true on the
+# default-off typos_format_end_of_turn, after the plugin kill switch.
+if jq -e '([.hooks.Stop[].hooks[] | select(.command == "node" and .args == ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "--run-if-unset-or-true", "TYPOS_FORMAT_ENABLED", "--require-true", "TYPOS_FORMAT_END_OF_TURN", "${CLAUDE_PLUGIN_ROOT}/hooks/typos-format.sh", "--end-of-turn"])] | length == 1) and ([.hooks.Stop[].hooks[]] | length == 1)' "$HOOKS_JSON" >/dev/null; then
+  ok "hooks.json: one Stop row runs --end-of-turn behind --require-true TYPOS_FORMAT_END_OF_TURN"
+else
+  fail "hooks.json: expected exactly one Stop row running --end-of-turn behind --require-true TYPOS_FORMAT_END_OF_TURN"
 fi
 # The SessionStart compact|clear row that resets the findings delta gate.
 if [[ "$(jq '[.hooks.SessionStart[] | select(.matcher == "compact|clear") | .hooks[] | select(.command == "node" and .args == ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/typos-format.sh", "--reset-digests"])] | length' "$HOOKS_JSON")" == "1" ]]; then

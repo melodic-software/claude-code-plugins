@@ -195,6 +195,21 @@ scan, and `NotebookEdit` stays in the matcher for the same reason. The kernel ce
 creations and 6 execs (`typos`, `git` twice for the working-tree probe and the root resolver,
 `jq`, `realpath`, the hook's own `bash`).
 
+## Git pre-commit entry
+
+The plugin ships one git-hook entry, `typos-check` (`git-hooks/entries.json`): a pre-commit
+check that blocks a commit only on a typo in a line the commit adds, printed as
+`<path>:<line>: <message>`. It reaches every author, not only Claude, once
+`/typos-format:setup apply install-git-hooks [scope=local|shared]` registers it with the
+repository's hook manager (lefthook, husky or plain git hooks). Local scope stays in this clone;
+shared scope commits the copy under `.githooks/typos-format/`. `/typos-format:setup check` reports
+drift, and the SessionStart probe prints one line when the entry is missing, stale or edited.
+
+When typos is missing, an agent's commit fails with the install command; a person's commit gets a
+one-line notice and goes through. `git -c checks.skipmissing=typos commit ...` skips the check
+while typos is absent. The placement rules are the check-placement convention in the
+marketplace repository.
+
 ## Install
 
 ```shell
@@ -211,13 +226,14 @@ config already in your repository, which the plugin reads automatically. To
 change the rules (allowlist a false positive, ignore a pattern), edit that
 file.
 
-Three `userConfig` options tune the hook itself:
+Four `userConfig` options tune the hooks themselves:
 
 | Option | Default | Effect |
 |--------|---------|--------|
 | `typos_format_enabled` | `true` | Kill switch. Set `false` for a clean no-op. |
 | `typos_format_write_changes` | `false` | Set `true` to apply corrections in place for write-allowlisted extensions (accepting last-writer-wins with any sibling formatter hook on the same file). Default is report-only: findings are reported, no file is modified. Denied extensions stay report-only even when this is on. |
 | `typos_format_lint_gitignored` | `false` | Set `true` to report (and, in write mode, rewrite) a file the repository gitignores. Off by default. |
+| `typos_format_end_of_turn` | `false` | Set `true` to run the pre-commit check over the uncommitted changes when a turn ends; findings go back to Claude once per turn so they are fixed before it stops. |
 
 Set them interactively with `/plugin configure typos-format@<marketplace>`, or headless on the
 install command:
@@ -239,6 +255,7 @@ reads it from.
 | `typos_format_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED` | Spell-checks every file Claude edits, unconditionally. On by default; report-only unless typos_format_write_changes is on. |
 | `typos_format_write_changes` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES` | Rewrite the file in place for write-allowlisted extensions. Off by default: findings are reported without modifying the file. Turning this on accepts last-writer-wins ordering with any sibling formatter hook that rewrites the same file. Unknown extensions stay report-only. |
 | `typos_format_lint_gitignored` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_LINT_GITIGNORED` | By default the hook leaves a file the repository gitignores alone: it is not rewritten or reported, since a rewrite of an ignored file has no git checkout to undo it. Set true to act on gitignored files too. A tracked file that matches an ignore pattern is always in scope. |
+| `typos_format_end_of_turn` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_END_OF_TURN` | At the end of each turn, run the pre-commit typos check over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Off by default. |
 
 ### How to set these
 
