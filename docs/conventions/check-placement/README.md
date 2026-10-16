@@ -116,6 +116,14 @@ check plugin per ADR 0019); the check helpers are the vendored `lib/git-hooks/ch
 
 `event` is `pre-commit` | `pre-push` | `commit-msg`; `rewrites: true` with `pre-push` is rejected.
 
+An entry may add an optional `assets` array: files the script reads at run time, such as a default
+config (`"assets": ["config/default-typos.toml"]`).
+
+- Each path is relative to the plugin root: no absolute path, no `..` component.
+- Base names are distinct within the entry, and none is `check-lib.sh`.
+- `copy` writes each asset beside the installed script under its base name. At shared scope it
+  stages the asset without the exec bit.
+
 ### Check-script runtime contract
 
 | Item | Rule |
@@ -126,7 +134,7 @@ check plugin per ADR 0019); the check helpers are the vendored `lib/git-hooks/ch
 | Missing tool | named in `git config --get checks.skipmissing` (comma list, whole-name match) and absent: `SKIPPED: <tool> (missing)` on stderr, exit 0. Otherwise an agent (`CLAUDECODE=1` or `AI_AGENT`) gets `FAIL: <tool> missing. Install: <cmd>` plus the skip line, exit 1; a human gets a one-line notice, exit 0 |
 | Findings | `<path>:<line>: <message>` on stderr, exit 1 |
 | Rewrites | in place, rewritten paths on stdout; a partly staged file is left alone and fails with `<path>: partly staged; format it or stage it fully, then commit` |
-| Header | line 2: `# <plugin> <name> sha256:<hex>`, hash of the source script plus check lib |
+| Header | line 2: `# <plugin> <name> sha256:<hex>`, hash of the source script plus check lib and any assets (defined under Drift) |
 
 ### The skip key: `checks.skipmissing`
 
@@ -198,8 +206,9 @@ committed config through their own install step.
 
 ### Drift: the content-hash stamp
 
-Line 2 of every installed copy carries `# <plugin> <name> sha256:<hex>`, the hash of the source
-script plus the check lib it was copied from. The stamp is a content hash, not a plugin version: a
+Line 2 of every installed copy carries `# <plugin> <name> sha256:<hex>`. The hash is sha256 over
+the LF-normalized source script bytes, then a NUL, then the LF-normalized check lib, then, for
+each asset in manifest order, a NUL and that asset's LF-normalized bytes. The stamp is a content hash, not a plugin version: a
 version stamp would flag drift on every release, and at shared scope each rerun would add a commit
 to every consumer repository.
 
@@ -208,8 +217,8 @@ to every consumer repository.
 | State | Meaning | Output |
 |---|---|---|
 | ok | stamp equals the current source hash | silent |
-| stale | stamp differs from the current source hash | drift line |
-| modified | the copy no longer hashes to its stamp | drift line; the agent decides (D1) |
+| stale | stamp differs from the current source hash (a changed source script, check lib or asset) | drift line |
+| modified | the installed copy, or an installed asset, no longer hashes to its stamp | drift line; the agent decides (D1) |
 | missing | not installed and not declined | drift line |
 | declined | `git config --local checks.<plugin>.<name>.declined true` | silent until `verify` runs by hand |
 
