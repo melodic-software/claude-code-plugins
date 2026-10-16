@@ -634,6 +634,36 @@
         "The PR body carries a line starting `Draft:` naming the reason (an early look or a multi-session container)",
         "The report names the supplying level as the request"
       ]
+    },
+    {
+      "id": 49,
+      "name": "ready-skips-a-step-pre-ready-disables-at-base",
+      "prompt": "/pull-request ready. PR 702 is an open draft on branch fix/702-retry-backoff, a code change (not docs-only), with no hold. The repository's docs/conventions/source-control.yaml on the base branch, main, is captured in evals/fixtures/source-control-pre-ready-security-off.yaml relative to the skill directory. The PR's own head branch edits that file to also set code-review to enabled: false. Flip it to ready for review and report.",
+      "expected_output": "The skill reads pre_ready at the base branch, main, never from the head branch, so only security-review is disabled: the head's edit turning off code-review is not used. It merges the base, runs the code review and the verify gate, skips the security review, then runs the hold check again and flips. The report gives one line per step in order, with security-review reported as disabled by pre_ready at main, never as passed, and code-review and verify reported as ran with their results.",
+      "files": [
+        "evals/fixtures/source-control-pre-ready-security-off.yaml"
+      ],
+      "expectations": [
+        "pre_ready is read from the base branch (main), not from the working tree or the head branch, and the head's code-review: false is not applied",
+        "The security review does not run, and the code review and the verify gate do run",
+        "The hold checks, the push when one is needed, and the flip still run",
+        "The report has one line per step in run order, and the security-review line says disabled by pre_ready at main",
+        "The security review is never reported as passed or clean"
+      ]
+    },
+    {
+      "id": 50,
+      "name": "ready-runs-every-step-when-pre-ready-names-an-unknown-step",
+      "prompt": "/pull-request ready. PR 715 is an open draft on branch feat/715-csv-import, a code change, with no hold. The repository's docs/conventions/source-control.yaml on the base branch, main, is captured in evals/fixtures/source-control-pre-ready-unknown-step.yaml relative to the skill directory. Flip it to ready for review and report.",
+      "expected_output": "The list names an unknown step, lint, so the reader fails closed: every pre-flip step runs, the code review included, even though the list sets code-review to false. The report says the step list failed closed and why (unknown step lint), and reports every step as ran or skipped by a built-in condition, none as disabled.",
+      "files": [
+        "evals/fixtures/source-control-pre-ready-unknown-step.yaml"
+      ],
+      "expectations": [
+        "Every pre-flip step runs, including the code review the list tried to turn off",
+        "The report says pre_ready failed closed and names the unknown step lint as the reason",
+        "No step is reported as disabled by pre_ready"
+      ]
     }
   ]
 }

@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## 1.19.3 - 2026-10-16
+
+"Outputs and skips" no longer says a leaf's verdict carries over to a commit with unchanged
+content. A verdict and its findings belong to the commit the leaf judged, as "Activities" already
+states, and a new commit gets a new verdict. `version` stays 1.
+
 ## 1.19.2 - 2026-10-16
 
 `work-unblock.yml` also runs hourly (`schedule`, minute 47, from main only). A scheduled run lists

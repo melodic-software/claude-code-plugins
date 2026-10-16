@@ -318,7 +318,8 @@ Each leaf reports:
 
 - A verdict: `pass`, `fail`, `neutral` or `skipped`.
 - Findings in the detector-findings shape ([`detector-findings`](../detector-findings/README.md)),
-  keyed by commit fingerprint so a verdict carries over when content is unchanged.
+  for the commit the leaf judged. A new commit gets a new verdict, even when its content is
+  unchanged.
 - An artifact bundle per [`record-bundle`](../record-bundle/README.md).
 - A check run named `<lane> / <leaf>`, for example `pr-refine / simplify`; a composite gets none.
 

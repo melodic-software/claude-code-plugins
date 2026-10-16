@@ -11,6 +11,81 @@
       "enum": ["draft", "ready"],
       "default": "draft",
       "description": "State /source-control:pull-request create leaves a pull request in. ready runs /source-control:pull-request ready on the new pull request, which flips it after its gates; draft leaves it a draft for that action to flip later."
+    },
+    "pre_ready": {
+      "type": "array",
+      "maxItems": 5,
+      "allOf": [
+        {
+          "contains": {
+            "properties": { "step": { "const": "base-merge" } },
+            "required": ["step"]
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": { "step": { "const": "plan-evidence" } },
+            "required": ["step"]
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": { "step": { "const": "code-review" } },
+            "required": ["step"]
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": { "step": { "const": "security-review" } },
+            "required": ["step"]
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": { "step": { "const": "verify" } },
+            "required": ["step"]
+          },
+          "minContains": 0,
+          "maxContains": 1
+        }
+      ],
+      "description": "Which pre-flip steps /source-control:pull-request ready runs, read at the pull request's base branch and honored only when that base is the base repository's default branch. A list of {step, enabled} mappings rather than a mapping keyed by step, so the shared YAML-subset reader reads each item by index. A step the list leaves out runs. The hold checks, the push and the flip are not steps here and always run. Each step appears at most once (the allOf maxContains entries); the reader runs every step when one repeats, names an unknown step, or the list does not parse.",
+      "default": [
+        { "step": "base-merge", "enabled": true },
+        { "step": "plan-evidence", "enabled": true },
+        { "step": "code-review", "enabled": true },
+        { "step": "security-review", "enabled": true },
+        { "step": "verify", "enabled": true }
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["step", "enabled"],
+        "properties": {
+          "step": {
+            "enum": [
+              "base-merge",
+              "plan-evidence",
+              "code-review",
+              "security-review",
+              "verify"
+            ],
+            "description": "base-merge: merge the base into the head. plan-evidence: gather the review evidence a plan's Review: value asks for. code-review and security-review: the fresh-context reviews of the pull request's diff. verify: the verify gate on the merged head."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "false skips the step and reports it as disabled by pre_ready at the base branch, never as passing."
+          }
+        }
+      }
     }
   }
 }
