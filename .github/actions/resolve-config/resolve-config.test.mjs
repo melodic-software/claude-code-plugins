@@ -700,11 +700,19 @@ test("an owner marker on the second page of comments admits the issue", async ()
 });
 
 test("a refused comments read fails the run red and admits nothing", async (t) => {
-  const { env } = ratifiedIssue([]);
+  // The labels alone would admit the issue, so only the comments read, which
+  // the API refuses, can fail the run.
+  const { env, github: served } = ratifiedIssue([], ["agent-ready", "work-class: read-only"]);
+  const calls = [];
   const forbidden = async (method, path) => {
-    throw new GitHubError(403, `${method} ${path}`);
+    calls.push(`${method} ${path}`);
+    if (path.startsWith("/repos/melodic-software/claude-code-plugins/issues/7/comments")) {
+      throw new GitHubError(403, `${method} ${path}`);
+    }
+    return served(method, path);
   };
   await assertFailsRed(t, env, /status 403/, forbidden);
+  assert.ok(calls.includes("GET /repos/melodic-software/claude-code-plugins/issues/7/comments?per_page=100&page=1"));
 });
 
 test("a held class added after the label event refuses the issue", async () => {
