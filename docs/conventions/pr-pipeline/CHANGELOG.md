@@ -14,7 +14,8 @@ owner's admission marker as resolve-issue reads it (the check now lives in
 resolved activity does not apply (`enabled: false`). The label starts `work-resolve-issue` once
 resolve-issue accepts App-added labels (follow-up by Automation Lanes). Everything is re-read
 from the API when the run starts. A close whose sender is a bot (`sender.type` `Bot`), or whose
-closer is not a listed human, is a clean skip. `version` stays 1.
+closer or re-runner is not a listed human (each is checked on its own; a re-runner may be
+another listed human), is a clean skip. `version` stays 1.
 
 ## 1.18.1 - 2026-10-16
 

@@ -73,9 +73,11 @@ jobs:
           REASON: ${{ steps.kill.outputs.reason }}
         run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or labeled"
 
-      # The broker mints only when the person who closed the issue is a listed
-      # human (trusted-actors.json on main). Anyone else stops here quietly,
-      # before the token request. The script makes the same check again.
+      # The broker mints only when the person who closed the issue and the one
+      # who started this run (a re-runner may be someone else) are each a
+      # listed human (trusted-actors.json on main). Anything else stops here
+      # quietly, before the token request. The script makes the same check
+      # again.
       - name: Check who closed the issue
         id: who
         if: steps.kill.outputs.proceed == 'true'

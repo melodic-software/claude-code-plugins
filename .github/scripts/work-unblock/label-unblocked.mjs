@@ -16,7 +16,9 @@
 //                          and sender are read
 //   KILL_SWITCH            `proceed` from the kill-switch step; anything else stops
 //   TRUSTED_ACTORS_PATH    trusted-actors.json from the default branch tip
-//   ACTOR_ID, TRIGGERING_ACTOR  who closed the issue; must be one listed human
+//   ACTOR_ID               who closed the issue; must be a listed human
+//   TRIGGERING_ACTOR       who started this run (a re-runner may differ);
+//                          must be a listed human
 //   BASE_PATH              the default branch checkout (default `.base`), whose
 //                          pr-pipeline.yaml holds resolve-issue's admission
 //   GITHUB_API_URL
@@ -35,15 +37,16 @@ const HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "needs-
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
-// Whether the account that closed the issue (ACTOR_ID and TRIGGERING_ACTOR)
-// is one listed human, by id and login. The broker mints only for one.
+// Whether the account that closed the issue (ACTOR_ID, by id) and the one
+// that started this run (TRIGGERING_ACTOR, by login; a re-runner may be
+// another account) are each a listed human. The broker mints only then.
 export function checkCloser(env) {
   if (!NUMBER.test(env.ACTOR_ID ?? "")) {
     return false;
   }
   const { humans, logins } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
-  const id = Number(env.ACTOR_ID);
-  return humans.has(id) && logins.get(String(env.TRIGGERING_ACTOR ?? "").toLowerCase()) === id;
+  const rerunner = logins.get(String(env.TRIGGERING_ACTOR ?? "").toLowerCase());
+  return humans.has(Number(env.ACTOR_ID)) && rerunner !== undefined && humans.has(rerunner);
 }
 
 const escapeCommand =(text) => String(text).replaceAll(/[\r\n%]/g, " ");
@@ -110,7 +113,7 @@ export async function main({ env = process.env, github, admission } = {}) {
       return 0;
     }
     if (!checkCloser(env)) {
-      console.log("label-unblocked: the closer is not a listed human; nothing read or labeled");
+      console.log("label-unblocked: the closer or the re-runner is not a listed human; nothing read or labeled");
       return 0;
     }
     const repo = env.GITHUB_REPOSITORY;
@@ -153,7 +156,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   if (process.argv[2] === "--check-closer") {
     const proceed = checkCloser(process.env);
     writeOutputs({ proceed: String(proceed) });
-    console.log(`label-unblocked: closer ${proceed ? "is" : "is not"} a listed human`);
+    console.log(`label-unblocked: closer and re-runner ${proceed ? "are" : "are not both"} listed humans`);
   } else {
     process.exitCode = await main();
   }

@@ -20,10 +20,11 @@ const ADMISSION = { classes: ["work-class: read-only", "work-class: mechanical"]
 const main = (args) => runMain({ admission: ADMISSION, ...args });
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const TRUSTED = join(HERE, "../../actions/check-trusted-trigger/fixtures/trusted-actors.json");
+const TRUSTED = join(HERE, "fixtures/trusted-actors.json");
 const API = "https://api.github.com";
 const REPO = "melodic-software/claude-code-plugins";
 const OWNER = { id: 153232337, login: "kyle-sexton" };
+const SECOND = { id: 2001, login: "second-maintainer" };
 const LANES_APP_ID = 337595936;
 const MARKER = "<!-- admission: admitted when unblocked, owner batch ratification 2026-10-16 -->";
 const STAMP = "2026-10-16T12:00:00Z";
@@ -288,18 +289,22 @@ test("a failed read on one issue still lets the others through, and fails the ru
   assert.deepEqual(writes(calls), [labeled(21)]);
 });
 
-// The broker mints only for a listed human, so anyone else who closes an
-// issue stops the run quietly, before any API call (and, in the workflow,
-// before the token request, through --check-closer).
-test("a closer who is not a listed human stops the run before any API call", async () => {
+// The broker mints only when the closer and any re-runner are each a listed
+// human, so anyone else stops the run quietly, before any API call (and, in
+// the workflow, before the token request, through --check-closer).
+test("a closer or re-runner who is not a listed human stops the run before any API call", async () => {
   for (const [id, login] of [
+    // An unlisted closer, re-run by nobody else.
     ["1234", "someone-else"],
-    // A listed bot is not a listed human.
-    [String(LANES_APP_ID), "melodic-automation-lanes[bot]"],
-    // The id and the login must name the same listed human.
-    [String(OWNER.id), "someone-else"],
+    // An unlisted closer, re-run by a listed human.
     ["1234", OWNER.login],
+    // A listed bot is not a listed human, as closer or as re-runner.
+    [String(LANES_APP_ID), "melodic-automation-lanes[bot]"],
+    [String(OWNER.id), "melodic-automation-lanes[bot]"],
+    // An unlisted re-runner.
+    [String(OWNER.id), "someone-else"],
     ["", ""],
+    [String(OWNER.id), ""],
   ]) {
     const { github, calls } = oneDependent();
     assert.equal(await main({ env: envFor({}, { ACTOR_ID: id, TRIGGERING_ACTOR: login }), github }), 0);
@@ -307,13 +312,24 @@ test("a closer who is not a listed human stops the run before any API call", asy
   }
 });
 
-test("the closer check answers proceed only for a listed human, in any login casing", () => {
+test("a re-run by a different listed human labels the unblocked issues", async () => {
+  const { github, calls } = oneDependent();
+  assert.equal(await main({ env: envFor({}, { ACTOR_ID: String(OWNER.id), TRIGGERING_ACTOR: SECOND.login }), github }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
+});
+
+test("the closer check answers proceed only when the closer and the re-runner are each a listed human", () => {
   const check = (id, login) => checkCloser({ ACTOR_ID: id, TRIGGERING_ACTOR: login, TRUSTED_ACTORS_PATH: TRUSTED });
   assert.equal(check(String(OWNER.id), OWNER.login), true);
   assert.equal(check(String(OWNER.id), "Kyle-Sexton"), true);
+  assert.equal(check(String(OWNER.id), SECOND.login), true);
+  assert.equal(check(String(SECOND.id), "Kyle-Sexton"), true);
   assert.equal(check("1234", "someone-else"), false);
+  assert.equal(check("1234", OWNER.login), false);
   assert.equal(check(String(LANES_APP_ID), "melodic-automation-lanes[bot]"), false);
+  assert.equal(check(String(OWNER.id), "claude[bot]"), false);
   assert.equal(check(String(OWNER.id), "someone-else"), false);
+  assert.equal(check(String(OWNER.id), ""), false);
   assert.equal(check("x", OWNER.login), false);
 });
 
