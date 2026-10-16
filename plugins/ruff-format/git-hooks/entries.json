@@ -1,0 +1,11 @@
+{
+  "entries": [
+    {
+      "name": "ruff-check",
+      "event": "pre-commit",
+      "script": "ruff-check.sh",
+      "tools": ["ruff"],
+      "rewrites": true
+    }
+  ]
+}

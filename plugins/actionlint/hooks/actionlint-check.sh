@@ -1,135 +1,29 @@
 #!/usr/bin/env bash
-# PostToolUse hook: lint GitHub Actions workflow files via actionlint.
-# Triggered on Write|Edit of .github/workflows/*.yml and *.yaml files.
+# Stop hook (opt-in, actionlint_end_of_turn): run the pre-commit entry over the
+# uncommitted workflow changes when a turn ends.
 #
-# ADVISORY: always exits 0. actionlint findings surface via additionalContext
-# but never block the edit. Make a commit hook or CI your hard gate.
+#   actionlint-check.sh --end-of-turn
 #
-# Graceful degrade: when actionlint (or jq) is not on PATH the hook skips
-# (exit 0) with a visible notice on both the agent and user channels, once per
-# session (the notice does not repeat this session) — the plugin ships no binary of its own.
+# actionlint only reports, so nothing runs per edit or per batch. This row is the
+# one place a session sees its findings before commit: the entry
+# (git-hooks/actionlint-check.sh --worktree) reports what actionlint finds on the
+# lines changed since the last commit, and findings exit 2 so the model fixes
+# them before the turn ends. Once a Stop hook has continued the turn
+# (stop_hook_active) the row stays quiet, so it blocks at most once per turn.
+# The launcher's --require-true gate keeps the script from starting while the
+# option is off.
 
 set -uo pipefail
 
-# Kill switch FIRST, before any library is sourced: a disabled hook must not
-# pay to parse hook-utils.sh to learn it is off. Same predicate as
-# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+[[ "${1:-}" == --end-of-turn ]] || exit 0
 [[ "${CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED:-true}" == "true" ]] || exit 0
-# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
-# subshell for every command substitution even when the body is a builtin
-# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
-# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
-# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
-# no-op and dirname answers `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
-# shellcheck source=hook-utils.sh
-source "$HOOK_DIR/hook-utils.sh"
-
-# The SessionStart compact|clear row: the model lost the reports with its
-# context, so the findings sent this session are sent again.
-if [[ "${1:-}" == --reset-digests ]]; then
-  hook::buffer_stdin_to INPUT && hook::findings_digest_reset "$INPUT"
-  exit 0
-fi
-
-# Every arm exits through hook::finish: telemetry first, then the one JSON
-# document. `--id` because the telemetry hook id is the script's name, not the
-# `actionlint` label the skip notices carry. This hook never rewrites the file,
-# so no verdict is passed and the builder leaves the `changed` key off rather
-# than guessing one.
-#
-# The whole prologue: the start stamp, the buffered payload, the workflow-file
-# filter (applied before the jq gate on the raw payload text, so a non-workflow
-# edit never triggers the jq notice, and again on the parsed path), the jq
-# gate, the parsed path with its basename and directory, the file-anchored repo
-# root, and the telemetry-only TOOL behind the sink opt-in. Exits 0 itself on
-# every path this hook has nothing to do on.
-#
-# --no-membership because hook::read_file_path's CLAUDE_PROJECT_DIR guard is
-# wrong for an advisory PostToolUse linter: the write has already happened when
-# this hook runs, so the guard protects nothing and every false negative is a
-# silent coverage loss (pointer: for what a PostToolUse exit can still affect,
-# fetch https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event
-# live; as of 2026-10-11; recheck trigger: that table's PostToolUse row starts
-# letting a hook block or undo the tool call). The concrete one: GNU realpath under Git Bash does not expand
-# Windows 8.3 short names, so a short-form file_path (<drive>:\...\SOMEDIR~1\...)
-# fails the prefix match against a long-form project dir and the lint silently
-# never runs. The workflow-location globs are what bound this hook's scope.
-#
-# --relative because FILE_REL is also the argument actionlint runs on from the
-# repo root, not just the schema-required data.file. A path the prefix strip
-# could not make relative degrades to its basename, which is right for
-# telemetry but names a DIFFERENT file against the repo root, so the invocation
-# below reads FILE_REL_DEGRADED to know which of the two it holds.
-hook::begin --no-membership --relative actionlint PostToolUse \
-  '*/.github/workflows/*.yml' '*/.github/workflows/*.yaml'
-
-if hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_ACTIONLINT_LINT_GITIGNORED:-false}" "$FILE"; then
-  hook::finish --id actionlint-check skipped findings array '[]'
-fi
-
-# Graceful degrade: actionlint absent -> skip, made VISIBLE once per channel,
-# composed from prerequisites.json. Telemetry (opt-in) also records a "skipped"
-# status so a consumer sink can observe the coverage gap.
-if ! command -v actionlint >/dev/null 2>&1; then
-  AL_MODEL="" AL_USER=""
-  if hook::prereq_notice_to AL_MODEL AL_USER actionlint "$INPUT"; then
-    hook::emit_skip_notice PostToolUse "$AL_MODEL" "$AL_USER"
-  fi
-  hook::finish --id actionlint-check skipped findings array '[]'
-fi
-
-# -shellcheck= and -pyflakes= disable actionlint's external run-block linters
-# (embedded-bash ShellCheck, `shell: python` pyflakes). Both spawn a subprocess
-# per `run:` block — ShellCheck deadlocks on large blocks under the Windows
-# subprocess IPC path in actionlint 1.7.x, and either adds latency unsuited to
-# an edit-time advisory hook. Native workflow diagnostics (the value of this
-# hook) are unaffected; deep run-block linting belongs in a commit hook or CI.
-# A failed cd (repo root vanished, permission) must never read as a clean
-# pass: without this branch an empty AL_OUTPUT would fall through to the
-# clean-workflow telemetry (status ok, findings []), indistinguishable from a
-# real pass. Changing this process's cwd is safe -- the hook exits below.
-if ! cd "$REPO_ROOT" 2>/dev/null; then
-  hook::finish --id actionlint-check error findings array '[]'
-fi
-# The lint target is the repo-relative path so diagnostics echo it, but only
-# when it IS repo-relative. A degraded FILE_REL is a bare basename redacted for
-# telemetry; resolved against the repo root it names a different workflow or
-# none, and this advisory hook would drop real findings silently. Fall back to
-# the absolute path there.
-AL_TARGET="$FILE_REL"
-((FILE_REL_DEGRADED == 0)) || AL_TARGET="$FILE"
-# -oneline prints one line per finding, without the source excerpt under it.
-AL_OUTPUT=$(actionlint -oneline -shellcheck= -pyflakes= -- "$AL_TARGET" 2>&1)
-AL_STATUS=$?
-
-# actionlint exits 0 (clean) or 1 (problems found); anything else -- 2 invalid
-# CLI, 3 fatal, 126/127 launch failure -- means the lint DID NOT run. Report it
-# as an error (output captured as findings for the sink), never as clean.
-if [[ "$AL_STATUS" -ge 2 ]]; then
-  # The raw encode, not hook::findings_to's per-line one: a lint that did not
-  # run leaves a diagnostic whose blank lines are part of the shape a sink is
-  # meant to read back, so this branch keeps actionlint's stdout+stderr
-  # verbatim. There is no agent-channel report on this arm.
-  FINDINGS_JSON='[]'
-  hook::findings_encode_to FINDINGS_JSON "$AL_OUTPUT"
-  hook::finish --id actionlint-check error findings array "$FINDINGS_JSON"
-fi
-
-# The heading names the file once, so each line drops actionlint's path prefix.
-# --delta sends a finding set once per (session, agent, file); the clean run
-# goes through it too, so findings that come back after a fix are sent again.
-AL_OUTPUT=$'\n'"$AL_OUTPUT"
-AL_OUTPUT="${AL_OUTPUT//$'\n'"$AL_TARGET:"/$'\n'}"
-FINDINGS_JSON='[]'
-AL_CTX=""
-# The heading names the repo-relative path, or the basename when that did not
-# resolve; never the absolute path the tool is handed as a fallback.
-AL_SHOWN="$AL_TARGET"
-[[ "$AL_TARGET" == "$FILE" ]] && AL_SHOWN="$FILE_BASE"
-hook::findings_to AL_CTX "actionlint: $AL_SHOWN has findings:" \
-  "$AL_OUTPUT" FINDINGS_JSON --max 20 --delta "$INPUT" "$FILE"
-
-hook::finish --id actionlint-check --context "$AL_CTX" ok findings array "$FINDINGS_JSON"
+IFS= read -r -d '' INPUT || :
+[[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
+err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/actionlint-check.sh" --worktree 2>&1 >/dev/null)" && exit 0
+# silent-skip-ok: the SessionStart probe already reports a missing actionlint (prerequisites.json) and /actionlint:check does too; blocking every turn end on a host problem would not help the model.
+[[ "$err" == "FAIL: "*" missing. Install: "* ]] && exit 0
+printf '%s\n' "$err" >&2
+exit 2
