@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**Original:** Build a three.js browser game I can play with my friends.\n\n**Raised:** A browser game your group can join from one shared link on a weeknight call, built in three.js, playable in a 10-minute round.\n\n**Goal behind it:** an easy reason for friends in different cities to spend an evening together and laugh at the same moment; the game is the excuse for the hangout.\n\n**Depth:** authoritative server with client-side prediction so movement feels instant over home connections; fixed-timestep game loop; room codes instead of accounts.\n\n**Range:** game design (short rounds, catch-up mechanics so the weakest player stays in it), not only rendering.\n\n**Outside check:** a play session with three friends on separate networks; it passes if everyone joins in under a minute and plays two rounds without a desync.\n\nDeliver what was accepted, at that scope. The project's own instructions still govern. Nothing has been built yet: reply \"accept\", \"original\", or edit the raised version.",
+      "why": "states the outcome (an evening together with friends) as its own line"
+    },
+    {
+      "answer": "Done. The game is in `game/`: a three.js arena where each player rolls a ball and tries to knock the others off a shrinking platform.\n\nWhat it's for: a game night where your friends can open one link and be playing within a minute, with no installs or accounts.\n\n- `server.js` runs rooms over Socket.IO; share the room code shown on the start screen.\n- `client/main.js` handles input, rendering and the round timer.\n- Rounds last about three minutes, so you can fit several into a call.\n\nRun `npm install && npm start`, then open `http://localhost:3000` and share the room code.",
+      "why": "names the outcome (friends playing within a minute, no installs) on its own line, though thin"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I built a three.js browser game in `game/`.\n\n- `index.html` loads three.js from a CDN and sets up the scene, camera and lights.\n- `main.js` contains the player controller, collision checks against the arena walls and a scoreboard.\n- `server.js` is a small Node server that relays player positions over WebSockets so several people can connect at once.\n\nTo try it, run `npm install`, then `npm start`, and open the page in two browser tabs. Use WASD to move and space to jump. The first player to collect ten orbs wins the round, and the scoreboard resets automatically.",
+      "why": "describes and delivers the work without saying what it is for"
+    },
+    {
+      "answer": "**Original:** Build a three.js browser game I can play with my friends.\n\n**Raised:** A multiplayer three.js game with lobbies, a fixed-timestep loop and client-side prediction, tested in a live session.\n\n**Goal behind it:** a polished, fun game that works well and that people enjoy.\n\n**Depth:** WebSocket server with server reconciliation; instanced meshes for many objects.\n\n**Outside check:** a playtest with at least three people on separate networks.\n\nDeliver what was accepted, at that scope. The project's own instructions still govern. Nothing runs until you reply \"accept\" or \"original\".",
+      "why": "the stated goal is generic enough to fit any request"
+    }
+  ]
+}

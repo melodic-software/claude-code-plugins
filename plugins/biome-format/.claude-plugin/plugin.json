@@ -1,7 +1,7 @@
 {
   "name": "biome-format",
   "version": "0.8.15",
-  "description": "Auto-format and lint JS/TS/JSX/JSON on edit via Biome, only when a biome.json governs the repo, using the consuming repo's own Biome config.",
+  "description": "Rewrites JavaScript, TypeScript, JSX and JSON with Biome once per batch of tool calls and at git pre-commit, only when a biome.json governs the file, using the consuming repo's own Biome config.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -20,14 +20,20 @@
   "userConfig": {
     "biome_format_enabled": {
       "type": "boolean",
-      "title": "Format and lint on edit",
-      "description": "Format and lint JS/TS/JSX/JSON on edit via Biome",
+      "title": "Rewrite JS/TS/JSON after edits",
+      "description": "After each batch of tool calls, run Biome check --write over the JavaScript, TypeScript and JSON files it wrote",
       "default": true
     },
     "biome_format_lint_gitignored": {
       "type": "boolean",
       "title": "Act on files git ignores",
       "description": "By default the hook leaves a file the repository gitignores alone: it is not rewritten or linted, since a rewrite of an ignored file has no git checkout to undo it. Set true to act on gitignored files too. A tracked file that matches an ignore pattern is always in scope.",
+      "default": false
+    },
+    "biome_format_end_of_turn": {
+      "type": "boolean",
+      "title": "Check JS/TS/JSON in uncommitted changes at turn end",
+      "description": "At the end of each turn, run the pre-commit Biome check over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Nothing is rewritten. Off by default.",
       "default": false
     }
   }

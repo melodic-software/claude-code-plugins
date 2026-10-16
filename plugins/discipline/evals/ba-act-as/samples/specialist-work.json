@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**Original:** Act as a security expert and review my login handler.\n\n**Raised:** a security review that produces findings, not a role-play:\n- Threat-model the login flow with STRIDE and list each threat against this handler.\n- Check the query for injection (the f-string is exploitable) and replace it with a parameterized query.\n- Check password storage against OWASP ASVS V2: plaintext comparison must become Argon2id with a constant-time verify.\n- Check session handling against ASVS V3: regenerate the session ID on login.\n\n**Range, operations:** what on-call needs to spot an attack: a structured log line per failed login and an alert when failures from one IP pass a threshold.\n\n**Outside check:** run `sqlmap` against a local instance, and have someone who did not write the fix read the findings.\n\nDeliver what was accepted, at that scope. The project's own instructions still govern. Nothing is edited until you accept.",
+      "why": "rewrites the persona into named review work and adds operations"
+    },
+    {
+      "answer": "Three problems, worst first:\n\n1. **SQL injection.** The f-string query lets `' OR '1'='1` log in as anyone. Use a parameterized query.\n2. **Plaintext passwords.** Compare against a bcrypt or Argon2 hash, never the raw value.\n3. **No rate limiting.** Nothing stops a password-spraying run.\n\nOne more from the operations side: failed logins aren't logged anywhere, so an attack in progress would never show on a dashboard. Add a log line with the email and source IP on each failure, and alert when one IP fails more than 20 times in five minutes.",
+      "why": "draws on operations and names the actual work, with no persona"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Security review of the login handler:\n\n1. **SQL injection (critical).** `f\"SELECT * FROM users WHERE email = '{form.email}'\"` lets an attacker bypass login. Use a parameterized query.\n2. **Plaintext password comparison (critical).** Store Argon2id hashes and verify with a constant-time check.\n3. **Session fixation (high).** Regenerate the session ID after a successful login.\n4. **No rate limiting (medium).** Add per-account and per-IP throttling.\n5. **Timing difference (low).** Unknown email and wrong password return at different speeds, which leaks which emails exist.\n\nFix 1 and 2 before this ships.",
+      "why": "stays entirely inside the security field"
+    },
+    {
+      "answer": "**Original:** Act as a security expert and review my login handler.\n\n**Raised:** Act as a senior penetration tester, and also as an SRE and an accessibility specialist, and review the handler from each of those three perspectives in turn. You are experts with twenty years of experience; be thorough and leave nothing out.\n\n**Outside check:** a second reviewer reads the result.\n\nDeliver what was accepted, at that scope. The project's own instructions still govern. Nothing runs until you reply \"accept\" or \"original\".",
+      "why": "brings in experts as personas to act out without naming their work"
+    }
+  ]
+}

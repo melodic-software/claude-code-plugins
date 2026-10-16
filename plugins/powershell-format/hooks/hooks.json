@@ -1,42 +1,23 @@
 {
-  "description": "Formats PowerShell scripts, modules and manifests after a write or edit, and reports a missing pwsh at session start.",
+  "description": "Optionally checks the uncommitted PowerShell changes with PSScriptAnalyzer when a turn ends, and reports a missing pwsh or a drifted git-hook entry at session start.",
   "hooks": {
-    "PostToolUse": [
+    "Stop": [
       {
-        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/powershell-format.sh"
+              "--run-if-unset-or-true",
+              "POWERSHELL_FORMAT_ENABLED",
+              "--require-true",
+              "POWERSHELL_FORMAT_END_OF_TURN",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/powershell-format.sh",
+              "--end-of-turn"
             ],
-            "if": "Edit(*.ps1)",
             "timeout": 30,
-            "statusMessage": "Formatting PowerShell..."
-          },
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/powershell-format.sh"
-            ],
-            "if": "Edit(*.psm1)",
-            "timeout": 30,
-            "statusMessage": "Formatting PowerShell..."
-          },
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/powershell-format.sh"
-            ],
-            "if": "Edit(*.psd1)",
-            "timeout": 30,
-            "statusMessage": "Formatting PowerShell..."
+            "statusMessage": "Checking PowerShell in uncommitted changes..."
           }
         ]
       }
@@ -68,21 +49,6 @@
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /powershell-format:check POWERSHELL_FORMAT_ENABLED; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /powershell-format:check POWERSHELL_FORMAT_ENABLED",
             "timeout": 10,
             "statusMessage": "Checking that node is on PATH..."
-          }
-        ]
-      },
-      {
-        "matcher": "compact|clear",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/powershell-format.sh",
-              "--reset-digests"
-            ],
-            "timeout": 10
           }
         ]
       }

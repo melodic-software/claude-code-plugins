@@ -1,31 +1,42 @@
 {
-  "description": "Formats Markdown and reports markdownlint findings after a write or edit.",
+  "description": "Rewrites Markdown with markdownlint-cli2 once per batch of tool calls, optionally checks the uncommitted changes when a turn ends, and reports a missing markdownlint-cli2 or a drifted git-hook entry at session start.",
   "hooks": {
-    "PostToolUse": [
+    "PostToolBatch": [
       {
-        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--run-if-unset-or-true",
+              "MARKDOWN_FORMAT_ENABLED",
+              "--skip-unless-stdin-contains",
+              ".md",
               "${CLAUDE_PLUGIN_ROOT}/hooks/markdown-format.sh"
             ],
-            "if": "Edit(*.md)",
-            "timeout": 15,
-            "statusMessage": "Formatting Markdown..."
-          },
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
           {
             "type": "command",
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/markdown-format.sh"
+              "--run-if-unset-or-true",
+              "MARKDOWN_FORMAT_ENABLED",
+              "--require-true",
+              "MARKDOWN_FORMAT_END_OF_TURN",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/markdown-format.sh",
+              "--end-of-turn"
             ],
-            "if": "Edit(*.mdc)",
-            "timeout": 15,
-            "statusMessage": "Formatting Markdown..."
+            "timeout": 30,
+            "statusMessage": "Checking Markdown in uncommitted changes..."
           }
         ]
       }
@@ -57,21 +68,6 @@
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /markdown-format:check MARKDOWN_FORMAT_ENABLED; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /markdown-format:check MARKDOWN_FORMAT_ENABLED",
             "timeout": 10,
             "statusMessage": "Checking that node is on PATH..."
-          }
-        ]
-      },
-      {
-        "matcher": "compact|clear",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/markdown-format.sh",
-              "--reset-digests"
-            ],
-            "timeout": 10
           }
         ]
       }
