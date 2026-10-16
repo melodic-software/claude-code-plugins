@@ -13,9 +13,8 @@
 # integrations stay off (-shellcheck= -pyflakes=), as in the per-edit hook this
 # replaced: they spawn a process per run block. Files under .githooks/ are
 # installed copies and are skipped. Missing actionlint follows the
-# check-placement contract: checks.skipmissing, else fail for an agent and a
-# notice for a person; --worktree stays silent, since the session-start probe
-# already reports it.
+# check-placement contract in every mode: checks.skipmissing, else fail for an
+# agent and a notice for a person.
 set -uo pipefail
 
 here="${BASH_SOURCE[0]%/*}"
@@ -26,9 +25,6 @@ lib="$here/check-lib.sh"
 . "$lib" || exit 1
 
 checks_init pre-commit "$@" || exit 0
-if [[ "$CHECKS_MODE" == worktree ]]; then
-  command -v actionlint >/dev/null 2>&1 || exit 0
-fi
 checks_require_tool actionlint "brew install actionlint, or another method at https://github.com/rhysd/actionlint/blob/main/docs/install.md"
 
 whole=()

@@ -196,8 +196,11 @@ git -C "$REPO" config checks.skipmissing actionlint
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOLINT" bash "$CHECK" 2>&1)"
 expect "missing actionlint named in checks.skipmissing: skipped with a line, exit 0" "0|SKIPPED: actionlint (missing)" "$?|$out"
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOLINT" bash "$CHECK" --worktree 2>&1)"
+expect "missing actionlint named in checks.skipmissing, --worktree: skipped with a line" "0|SKIPPED: actionlint (missing)" "$?|$out"
 git -C "$REPO" config --unset checks.skipmissing
-expect "missing actionlint, --worktree: silent" "0|" "$?|$out"
+out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOLINT" bash "$CHECK" --worktree 2>&1)"
+expect "missing actionlint, --worktree: an agent fails as at commit time" \
+  "1|FAIL: actionlint missing. Install: $INSTALL_HINT" "$?|${out%%$'\n'*}"
 
 # End to end through the plugin's vendored installer and real commits.
 new_repo

@@ -18,9 +18,8 @@
 # A file whose leading comment block carries Go's `// Code generated ... DO NOT
 # EDIT.` marker is left alone, as is anything under .githooks/ (installed
 # copies). goimports comes from PATH. Missing goimports follows the
-# check-placement contract: checks.skipmissing, else fail for an agent and a
-# notice for a person; the --worktree mode stays silent, since the session-start
-# probe already reports it.
+# check-placement contract in every mode: checks.skipmissing, else fail for an
+# agent and a notice for a person.
 set -uo pipefail
 
 here="${BASH_SOURCE[0]%/*}"
@@ -32,9 +31,6 @@ lib="$here/check-lib.sh"
 
 checks_init pre-commit "$@" || exit 0
 
-if [[ "$CHECKS_MODE" == worktree ]]; then
-  command -v goimports >/dev/null 2>&1 || exit 0
-fi
 checks_require_tool goimports "go install golang.org/x/tools/cmd/goimports@latest (needs a Go toolchain: https://go.dev/dl/)"
 
 # generated <path>: 0 when the file's leading comment and blank-line run holds

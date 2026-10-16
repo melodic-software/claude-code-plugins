@@ -19,8 +19,8 @@
 # none. Files under .githooks/ are installed copies and are skipped. A missing
 # tool follows the check-placement contract: checks.skipmissing, else fail for an
 # agent and a notice for a person; a tool that is skipped only drops its own half
-# (no shfmt: no rewrite; no shellcheck: no findings). The --worktree mode stays
-# silent, since the session-start probe already reports a missing tool.
+# (no shfmt: no rewrite; no shellcheck: no findings). The rule holds in every
+# mode.
 set -uo pipefail
 
 here="${BASH_SOURCE[0]%/*}"
@@ -39,7 +39,6 @@ checks_init pre-commit "$@" || exit 0
 # returns 1 so the other half of the check still runs.
 need() {
   command -v "$1" >/dev/null 2>&1 && return 0
-  [[ "$CHECKS_MODE" == worktree ]] && return 1
   (checks_require_tool "$1" "$2") || exit 1
   return 1
 }

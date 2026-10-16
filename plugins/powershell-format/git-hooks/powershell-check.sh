@@ -22,14 +22,16 @@
 #
 # A settings file that declares CustomRulePath would make PSScriptAnalyzer run
 # repository-supplied rule modules, so that state is skipped until the user
-# approves its exact content: a marker directory under CLAUDE_PLUGIN_DATA, else
-# under the repository's git directory. An agent commit is told the verdict and
-# never the command that grants the approval.
+# approves its exact content: a marker directory under powershell-format/ in the
+# repository's git common directory, the one store every commit and the Stop row
+# read (CLAUDE_PLUGIN_DATA is not used, since an agent's shell can carry another
+# plugin's value). An agent commit is told the verdict and never the command
+# that grants the approval.
 #
-# Missing pwsh follows the check-placement contract: checks.skipmissing, else
-# fail for an agent and a notice for a person. A missing PSScriptAnalyzer module
-# is handled the same way under the name PSScriptAnalyzer. The --worktree mode
-# stays silent for both, since the session-start probe already reports pwsh.
+# Missing pwsh follows the check-placement contract in every mode:
+# checks.skipmissing, else fail for an agent and a notice for a person. A
+# missing PSScriptAnalyzer module is handled the same way under the name
+# PSScriptAnalyzer.
 set -uo pipefail
 
 here="${BASH_SOURCE[0]%/*}"
@@ -80,9 +82,6 @@ while IFS= read -r -d '' f; do
 done < <(checks_files)
 ((${#files[@]})) || exit 0
 
-if [[ "$CHECKS_MODE" == worktree ]]; then
-  command -v pwsh >/dev/null 2>&1 || exit 0
-fi
 checks_require_tool pwsh "see https://learn.microsoft.com/powershell/scripting/install/installing-powershell"
 
 if [[ "$CHECKS_MODE" == pre-commit ]]; then
@@ -113,11 +112,9 @@ to_pwsh_path() {
   printf '%s' "$1"
 }
 
-state_base="${CLAUDE_PLUGIN_DATA:-}"
-if [[ -z "$state_base" ]]; then
-  common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
-  [[ -z "$common" ]] || state_base="$common/powershell-format"
-fi
+state_base=""
+common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+[[ -z "$common" ]] || state_base="$common/powershell-format"
 if [[ "$state_base" == [A-Za-z]:\\* ]] && command -v cygpath >/dev/null 2>&1; then
   state_base="$(cygpath -u "$state_base" 2>/dev/null || printf '%s' "$state_base")"
 fi
@@ -181,7 +178,6 @@ for i in "${!sets[@]}"; do
   case $rc in
     0 | 1) { grep -v '^PSSA_' "$out" || :; } | tr -d '\r' >>"$findings" ;;
     3)
-      [[ "$CHECKS_MODE" == worktree ]] && exit 0
       if checks_skip_listed PSScriptAnalyzer; then
         printf 'SKIPPED: PSScriptAnalyzer (missing)\n' >&2
         exit 0

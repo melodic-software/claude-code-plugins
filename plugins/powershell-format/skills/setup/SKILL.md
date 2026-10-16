@@ -76,9 +76,8 @@ restores the FAIL semantics.
    README **Trust model**: the settings file is executed-adjacent configuration. A
    `CustomRulePath` it declares would load and run repository-supplied rule modules during
    analysis, so the check skips such a settings state until the user approves its exact content (a marker
-   under `${CLAUDE_PLUGIN_DATA}/trust-approvals` in a session, else under the repository's git
-   directory in `powershell-format/trust-approvals`; any settings or rule-module change revokes
-   it). It carries the same trust as build/CI configuration.
+   under the repository's git common directory in `powershell-format/trust-approvals`, one
+   store for every session and commit; any settings or rule-module change revokes it). It carries the same trust as build/CI configuration.
 6. **Hook toggle.** Report the effective `powershell_format_enabled` value:
    `${user_config.powershell_format_enabled}` (unexpanded or empty means default `true`; any
    value other than `true` disables the hooks). Also report `powershell_format_end_of_turn`:

@@ -166,8 +166,8 @@ expect "an agent is told the verdict and never the approval command" \
 expect "an unapproved config never runs: the file keeps its bytes" "$(printf '# T\n\ntext')" "$(cat "$REPO/a.md")"
 out="$(cd "$REPO" && CLAUDE_PLUGIN_DATA="$DATA" bash "$CHECK" 2>&1)"
 marker="$(printf '%s' "$out" | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
-expect "a person's notice carries an approval marker under the approval store" yes \
-  "$([[ -n "$marker" && "$marker" == "$DATA"/trust-approvals/md-* ]] && echo yes)"
+expect "the approval store is the git directory even when CLAUDE_PLUGIN_DATA names another" yes \
+  "$([[ -n "$marker" && "$marker" == "$REPO"/.git/markdown-format/trust-approvals/md-* ]] && echo yes)"
 mkdir -p "$marker"
 out="$(cd "$REPO" && CLAUDE_PLUGIN_DATA="$DATA" bash "$CHECK" 2>"$WORK/stderr")"
 expect "an approved state is linted and rewritten" "0|a.md|" "$?|$out|$(cat "$WORK/stderr")"
@@ -256,8 +256,11 @@ git -C "$REPO" config checks.skipmissing markdownlint-cli2
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOMD" bash "$CHECK" 2>&1)"
 expect "missing markdownlint-cli2 named in checks.skipmissing: skipped with a line, exit 0" "0|SKIPPED: markdownlint-cli2 (missing)" "$?|$out"
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOMD" bash "$CHECK" --worktree 2>&1)"
+expect "missing markdownlint-cli2 named in checks.skipmissing, --worktree: skipped with a line" "0|SKIPPED: markdownlint-cli2 (missing)" "$?|$out"
 git -C "$REPO" config --unset checks.skipmissing
-expect "missing markdownlint-cli2, --worktree: silent" "0|" "$?|$out"
+out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOMD" bash "$CHECK" --worktree 2>&1)"
+expect "missing markdownlint-cli2, --worktree: an agent fails as at commit time" \
+  "1|FAIL: markdownlint-cli2 missing. Install: $MDHELP" "$?|${out%%$'\n'*}"
 git -C "$REPO" reset -q
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOMD" bash "$CHECK" 2>&1)"
 expect "no Markdown staged: a missing markdownlint-cli2 does not fail the commit" "0|" "$?|$out"

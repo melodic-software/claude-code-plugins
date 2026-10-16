@@ -193,8 +193,11 @@ git -C "$REPO" config checks.skipmissing goimports
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOGI" bash "$CHECK" 2>&1)"
 expect "missing goimports named in checks.skipmissing: skipped with a line, exit 0" "0|SKIPPED: goimports (missing)" "$?|$out"
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOGI" bash "$CHECK" --worktree 2>&1)"
+expect "missing goimports named in checks.skipmissing, --worktree: skipped with a line" "0|SKIPPED: goimports (missing)" "$?|$out"
 git -C "$REPO" config --unset checks.skipmissing
-expect "missing goimports, --worktree: silent" "0|" "$?|$out"
+out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOGI" bash "$CHECK" --worktree 2>&1)"
+expect "missing goimports, --worktree: an agent fails as at commit time" \
+  "1|FAIL: goimports missing. Install: $INSTALL_CMD" "$?|${out%%$'\n'*}"
 
 # End to end through the plugin's vendored installer and real commits.
 new_repo

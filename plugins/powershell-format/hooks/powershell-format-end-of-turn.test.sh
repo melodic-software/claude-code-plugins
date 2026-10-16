@@ -78,6 +78,22 @@ expect "on: stop_hook_active means it already blocked this turn" "0|" \
   "$(stop true CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_END_OF_TURN=true)"
 expect "on: the plugin kill switch wins" "0|" \
   "$(stop false CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_END_OF_TURN=true CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=false)"
+# Without pwsh, or with a pwsh that lacks PSScriptAnalyzer (exit 3), the check
+# script fails an agent (git-hooks test); the row turns that one failure into a
+# silent pass, since the SessionStart probe and /powershell-format:check report it.
+NOTOOL="$WORK/no-pwsh"
+mkdir -p "$NOTOOL"
+for t in node git bash sed awk cat mktemp rm dirname grep tr jq; do
+  ln -s "$(command -v "$t")" "$NOTOOL/$t"
+done
+expect "on: a missing pwsh passes silently" "0|" \
+  "$(stop false CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_END_OF_TURN=true PATH="$NOTOOL")"
+NOMOD="$WORK/no-module"
+mkdir -p "$NOMOD"
+printf '#!/usr/bin/env bash\nexit 3\n' >"$NOMOD/pwsh"
+chmod +x "$NOMOD/pwsh"
+expect "on: a missing PSScriptAnalyzer passes silently" "0|" \
+  "$(stop false CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_END_OF_TURN=true PATH="$NOMOD:$NOTOOL")"
 git -C "$R" checkout -q a.ps1
 expect "on: a clean work tree passes" "0|" "$(stop false CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_END_OF_TURN=true)"
 

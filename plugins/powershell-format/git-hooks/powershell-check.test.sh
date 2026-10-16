@@ -168,8 +168,11 @@ git -C "$REPO" config checks.skipmissing pwsh
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOPWSH" bash "$CHECK" 2>&1)"
 expect "missing pwsh named in checks.skipmissing: skipped with a line, exit 0" "0|SKIPPED: pwsh (missing)" "$?|$out"
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOPWSH" bash "$CHECK" --worktree 2>&1)"
+expect "missing pwsh named in checks.skipmissing, --worktree: skipped with a line" "0|SKIPPED: pwsh (missing)" "$?|$out"
 git -C "$REPO" config --unset checks.skipmissing
-expect "missing pwsh, --worktree: silent" "0|" "$?|$out"
+out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOPWSH" bash "$CHECK" --worktree 2>&1)"
+expect "missing pwsh, --worktree: an agent fails as at commit time" \
+  "1|FAIL: pwsh missing. Install: $INSTALL_HINT" "$?|${out%%$'\n'*}"
 
 # A pwsh that reports the module absent (exit 3 from the script).
 STUB="$WORK/stub"
@@ -183,6 +186,9 @@ expect "missing module: an agent fails with the install command" \
 To skip only while PSScriptAnalyzer is missing: git -c checks.skipmissing=PSScriptAnalyzer commit ..." "$?|$out"
 out="$(cd "$REPO" && PATH="$STUB:$PATH" bash "$CHECK" 2>&1)"
 expect "missing module: a person gets a notice and exit 0" "0|NOTICE: PSScriptAnalyzer missing, so this check did not run. Install: $INSTALL_MOD" "$?|$out"
+out="$(cd "$REPO" && CLAUDECODE=1 PATH="$STUB:$PATH" bash "$CHECK" --worktree 2>&1)"
+expect "missing module, --worktree: an agent fails as at commit time" \
+  "1|FAIL: PSScriptAnalyzer missing. Install: $INSTALL_MOD" "$?|${out%%$'\n'*}"
 git -C "$REPO" config checks.skipmissing PSScriptAnalyzer
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$STUB:$PATH" bash "$CHECK" 2>&1)"
 git -C "$REPO" config --unset checks.skipmissing
@@ -222,7 +228,7 @@ expect "an agent is told the verdict and never the approval command" \
   "powershell-format trust gate: PSScriptAnalyzer skipped for files under PSScriptAnalyzerSettings.psd1; it loads repository rule modules and is not approved. Approval is the user's." "$out"
 out="$(cd "$REPO" && CLAUDE_PLUGIN_DATA="$DATA" bash "$CHECK" 2>&1)"
 marker="$(printf '%s' "$out" | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
-expect "a person's notice carries an approval marker under the approval store" "yes" "$([[ -n "$marker" && "$marker" == "$DATA"/trust-approvals/pssa-* ]] && echo yes)"
+expect "the approval store is the git directory even when CLAUDE_PLUGIN_DATA names another" "yes" "$([[ -n "$marker" && "$marker" == "$REPO"/.git/powershell-format/trust-approvals/pssa-* ]] && echo yes)"
 mkdir -p "$marker"
 expect "an approved state is analyzed and rewritten" "0|crp.ps1|" "$(cd "$REPO" && CLAUDE_PLUGIN_DATA="$DATA" bash "$CHECK" 2>"$WORK/stderr" | {
   read -r l
@@ -235,7 +241,7 @@ git -C "$REPO" add crp2.ps1
 (cd "$REPO" && CLAUDE_PLUGIN_DATA="$DATA" CLAUDECODE=1 bash "$CHECK" >/dev/null 2>&1)
 expect "a changed rule module revokes the approval" "get-childitem ." "$(cat "$REPO/crp2.ps1")"
 
-# Without CLAUDE_PLUGIN_DATA the approval store sits in the git directory.
+# Without CLAUDE_PLUGIN_DATA the store is the same git directory.
 (cd "$REPO" && bash "$CHECK" >"$WORK/stdout" 2>"$WORK/stderr")
 marker="$(sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p" "$WORK/stderr")"
 expect "outside a session the approval store is the git directory" "yes" "$([[ "$marker" == "$REPO"/.git/powershell-format/trust-approvals/pssa-* ]] && echo yes)"

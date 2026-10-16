@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Contract tests for the opt-in Stop row (actionlint_end_of_turn), launched
 # exactly as hooks.json registers it: off by default; on, an uncommitted finding
-# exits 2 with the finding on stderr and nothing is rewritten; stop_hook_active
-# keeps it from blocking twice in one turn; the plugin kill switch wins. The
+# exits 2 with the finding on stderr; stop_hook_active keeps it from blocking
+# twice in one turn; the plugin kill switch wins; a missing actionlint passes
+# silently. The
 # spawn budget case fences the cost every user pays per turn with the option
 # off: the node launcher only.
 # Expected values are actionlint's documented output (docs/checks.md): an
@@ -72,11 +73,20 @@ printf '%s' "$BAD" >"$R/.github/workflows/ci.yml"
 expect "off by default: an uncommitted finding does not block" "0|" "$(stop false)"
 expect "on: an uncommitted finding on a changed line exits 2 with the finding" "2|$FINDING" \
   "$(findings "$(stop false CLAUDE_PLUGIN_OPTION_ACTIONLINT_END_OF_TURN=true)")"
-expect "on: nothing is rewritten" "$(printf '%s' "$BAD")" "$(cat "$R/.github/workflows/ci.yml")"
 expect "on: stop_hook_active means it already blocked this turn" "0|" \
   "$(stop true CLAUDE_PLUGIN_OPTION_ACTIONLINT_END_OF_TURN=true)"
 expect "on: the plugin kill switch wins" "0|" \
   "$(stop false CLAUDE_PLUGIN_OPTION_ACTIONLINT_END_OF_TURN=true CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=false)"
+# Without actionlint the check script fails an agent (git-hooks test); the row
+# turns that one failure into a silent pass, since the SessionStart probe
+# already reports the missing tool.
+NOTOOL="$WORK/no-actionlint"
+mkdir -p "$NOTOOL"
+for t in node git bash sed awk cat mktemp rm dirname grep tr jq; do
+  ln -s "$(command -v "$t")" "$NOTOOL/$t"
+done
+expect "on: a missing actionlint passes silently" "0|" \
+  "$(stop false CLAUDE_PLUGIN_OPTION_ACTIONLINT_END_OF_TURN=true PATH="$NOTOOL")"
 git -C "$R" checkout -q .github/workflows/ci.yml
 expect "on: a clean work tree passes" "0|" "$(stop false CLAUDE_PLUGIN_OPTION_ACTIONLINT_END_OF_TURN=true)"
 

@@ -21,9 +21,8 @@
 # these explicit paths. Files under .githooks/ are installed copies and are
 # skipped. Biome comes from node_modules/.bin (the governing config's directory,
 # else the repository root), else PATH. Missing biome follows the check-placement
-# contract: checks.skipmissing, else fail for an agent and a notice for a person;
-# the --worktree mode stays silent, since the session-start probe already reports
-# it.
+# contract in every mode: checks.skipmissing, else fail for an agent and a notice
+# for a person.
 set -uo pipefail
 
 here="${BASH_SOURCE[0]%/*}"
@@ -76,9 +75,6 @@ done < <(checks_files)
 for d in "${dirs[@]}"; do
   [[ -x "$d/node_modules/.bin/biome" ]] && PATH="$PWD/$d/node_modules/.bin:$PATH"
 done
-if [[ "$CHECKS_MODE" == worktree ]]; then
-  command -v biome >/dev/null 2>&1 || exit 0
-fi
 checks_require_tool biome "npm i -D @biomejs/biome, or another method at https://biomejs.dev/guides/getting-started/"
 
 # Each distinct config directory is one Biome run, from that directory, over its

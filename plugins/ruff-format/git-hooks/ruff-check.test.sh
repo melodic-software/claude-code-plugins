@@ -172,8 +172,11 @@ git -C "$REPO" config checks.skipmissing ruff
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NORUFF" bash "$CHECK" 2>&1)"
 expect "missing ruff named in checks.skipmissing: skipped with a line, exit 0" "0|SKIPPED: ruff (missing)" "$?|$out"
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NORUFF" bash "$CHECK" --worktree 2>&1)"
+expect "missing ruff named in checks.skipmissing, --worktree: skipped with a line" "0|SKIPPED: ruff (missing)" "$?|$out"
 git -C "$REPO" config --unset checks.skipmissing
-expect "missing ruff, --worktree: silent" "0|" "$?|$out"
+out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NORUFF" bash "$CHECK" --worktree 2>&1)"
+expect "missing ruff, --worktree: an agent fails as at commit time" \
+  "1|FAIL: ruff missing. Install: pip install ruff, or another method at https://docs.astral.sh/ruff/installation/" "$?|${out%%$'\n'*}"
 
 # ruff only in the repo's own .venv.
 new_repo

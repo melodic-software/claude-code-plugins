@@ -18,9 +18,8 @@
 # approved that config state; until then it is skipped with a notice. Files under
 # .githooks/ are installed copies and are skipped. markdownlint-cli2 comes from
 # PATH, else the repo's own node_modules/.bin. Missing markdownlint-cli2 follows
-# the check-placement contract: checks.skipmissing, else fail for an agent and a
-# notice for a person; the --worktree mode stays silent, since the session-start
-# probe already reports it.
+# the check-placement contract in every mode: checks.skipmissing, else fail for
+# an agent and a notice for a person.
 set -uo pipefail
 
 here="${BASH_SOURCE[0]%/*}"
@@ -91,9 +90,6 @@ if ! command -v markdownlint-cli2 >/dev/null 2>&1; then
   if bin="$(md_local_bin "$first" .)"; then
     PATH="$PWD/${bin%/*}:$PATH"
   fi
-fi
-if [[ "$CHECKS_MODE" == worktree ]]; then
-  command -v markdownlint-cli2 >/dev/null 2>&1 || exit 0
 fi
 checks_require_tool markdownlint-cli2 "npm i -D markdownlint-cli2, or another method at https://github.com/DavidAnson/markdownlint-cli2"
 

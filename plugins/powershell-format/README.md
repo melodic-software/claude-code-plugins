@@ -52,11 +52,9 @@ create; an agent commit's notice says the run was skipped and that approval is
 yours, without the command that grants it. To approve, review the settings file and every rule module it
 references. Treat them with the same trust you give your build and CI
 configuration, then create the marker directory using the exact `mkdir -p`
-command your notice carries. The marker lives under
-`${CLAUDE_PLUGIN_DATA}/trust-approvals` in a Claude Code session, and under the
-repository's git directory (`powershell-format/trust-approvals`) when the entry runs
-outside one, such as a commit in your terminal; an approval in one place does not cover
-the other. The marker is content-addressed over the
+command your notice carries. The marker lives under the repository's git common
+directory, in `powershell-format/trust-approvals`, so one approval covers the end-of-turn
+row, an agent's commit and your own. The marker is content-addressed over the
 repository, the settings file, every file reachable under each declared
 `CustomRulePath` entry (recursively for directories), and every repository
 file those files reference by string literal (transitively, bounded), so a

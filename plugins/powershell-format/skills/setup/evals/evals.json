@@ -37,7 +37,7 @@
       "expectations": [
         "Names CustomRulePath as the mechanism that makes the settings file executed-adjacent — repository-supplied rule modules load and run during analysis",
         "States that the hook gates such a settings state on an explicit per-content trust approval, and that any settings change revokes it",
-        "Names the trust-approval marker location (under CLAUDE_PLUGIN_DATA in a session, else under the repository git directory in powershell-format/trust-approvals) rather than describing the gate vaguely",
+        "Names the trust-approval marker location (under the repository git common directory in powershell-format/trust-approvals) rather than describing the gate vaguely",
         "States that the settings file carries the same trust as build or CI configuration"
       ]
     },

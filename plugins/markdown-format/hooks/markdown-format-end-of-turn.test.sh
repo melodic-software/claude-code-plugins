@@ -80,6 +80,16 @@ expect "on: stop_hook_active means it already blocked this turn" "0|" \
   "$(stop true CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN=true)"
 expect "on: the plugin kill switch wins" "0|" \
   "$(stop false CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN=true CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=false)"
+# Without markdownlint-cli2 the check script fails an agent (git-hooks test);
+# the row turns that one failure into a silent pass, since the SessionStart
+# probe already reports the missing tool.
+NOTOOL="$WORK/no-markdownlint"
+mkdir -p "$NOTOOL"
+for t in node git bash sed awk cat mktemp rm dirname grep tr jq; do
+  ln -s "$(command -v "$t")" "$NOTOOL/$t"
+done
+expect "on: a missing markdownlint-cli2 passes silently" "0|" \
+  "$(stop false CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN=true PATH="$NOTOOL")"
 git -C "$R" checkout -q a.md
 expect "on: a clean work tree passes" "0|" "$(stop false CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN=true)"
 

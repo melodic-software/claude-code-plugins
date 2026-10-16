@@ -38,7 +38,10 @@ IFS= read -r -d '' INPUT || :
 # the row stays quiet, so it blocks at most once per turn.
 if [[ "${1:-}" == --end-of-turn ]]; then
   [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
-  "${BASH:-bash}" "$HOOK_DIR/../git-hooks/goimports-format.sh" --worktree >/dev/null && exit 0
+  err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/goimports-format.sh" --worktree 2>&1 >/dev/null)" && exit 0
+  # silent-skip-ok: the SessionStart probe already reports a missing goimports (prerequisites.json) and /go-format:check does too; blocking every turn end on a host problem would not help the model.
+  [[ "$err" == "FAIL: "*" missing. Install: "* ]] && exit 0
+  printf '%s\n' "$err" >&2
   exit 2
 fi
 

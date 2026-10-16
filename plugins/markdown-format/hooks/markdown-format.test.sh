@@ -342,8 +342,10 @@ for cfg_case in "cjs" "customRules" "backslash"; do
 done
 
 # Once the user approves that config state, through the marker the pre-commit
-# entry names to a person, the batch row rewrites under it: both read one store.
+# entry names to a person, the batch row rewrites under it: both read one store,
+# the git directory, whatever CLAUDE_PLUGIN_DATA names in either process.
 DATA="$WORK/plugin-data"
+OTHER="$WORK/other-plugin-data"
 REPO_OK="$WORK/code-approved"
 new_md_repo "$REPO_OK" NO_CONFIG
 printf 'module.exports = { config: { default: true, MD013: false } };\n' >"$REPO_OK/.markdownlint-cli2.cjs"
@@ -351,12 +353,12 @@ printf '%s' "$NO_NL" >"$REPO_OK/a.md"
 git -C "$REPO_OK" add a.md
 MARKER="$(cd "$REPO_OK" && env -u CLAUDECODE -u AI_AGENT CLAUDE_PLUGIN_DATA="$DATA" bash "$PLUGIN_ROOT/git-hooks/markdown-check.sh" 2>&1 >/dev/null |
   sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
-expect "the pre-commit entry names an approval marker in the session store" yes \
-  "$([[ "$MARKER" == "$DATA"/trust-approvals/md-* ]] && echo yes)"
-OUT=$(fire "$(payload Edit "$REPO_OK/a.md")" CLAUDE_PLUGIN_DATA="$DATA")
+expect "the pre-commit entry names an approval marker in the git directory" yes \
+  "$([[ "$MARKER" == "$REPO_OK"/.git/markdown-format/trust-approvals/md-* ]] && echo yes)"
+OUT=$(fire "$(payload Edit "$REPO_OK/a.md")" CLAUDE_PLUGIN_DATA="$OTHER")
 expect "unapproved: silent and the file untouched" "0|$NO_NL" "$?|$OUT$(cat "$REPO_OK/a.md")"
 mkdir -p "$MARKER"
-OUT=$(fire "$(payload Edit "$REPO_OK/a.md")" CLAUDE_PLUGIN_DATA="$DATA")
+OUT=$(fire "$(payload Edit "$REPO_OK/a.md")" CLAUDE_PLUGIN_DATA="$OTHER")
 expect "approved: the batch row rewrites, silently" "0|${FIXED}x" "$?|$OUT$(
   cat "$REPO_OK/a.md"
   printf x

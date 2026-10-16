@@ -18,9 +18,8 @@
 # or pyproject.toml with a [tool.ruff] section above it), and the config's own
 # excludes hold for these explicit paths (--force-exclude). Files under
 # .githooks/ are installed copies and are skipped. Ruff comes from the repo's
-# .venv, else PATH. Missing ruff follows the check-placement contract:
-# checks.skipmissing, else fail for an agent and a notice for a person; the
-# --worktree mode stays silent, since the session-start probe already reports it.
+# .venv, else PATH. Missing ruff follows the check-placement contract in every
+# mode: checks.skipmissing, else fail for an agent and a notice for a person.
 set -uo pipefail
 
 here="${BASH_SOURCE[0]%/*}"
@@ -38,9 +37,6 @@ for venv_bin in .venv/bin .venv/Scripts; do
     break
   fi
 done
-if [[ "$CHECKS_MODE" == worktree ]]; then
-  command -v ruff >/dev/null 2>&1 || exit 0
-fi
 checks_require_tool ruff "pip install ruff, or another method at https://docs.astral.sh/ruff/installation/"
 
 # governed <path>: 0 when a Ruff configuration sits in the path's directory or

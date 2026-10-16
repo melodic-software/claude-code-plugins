@@ -232,8 +232,11 @@ git -C "$REPO" config checks.skipmissing shellcheck
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$WORK/no-shellcheck" bash "$CHECK" 2>&1)"
 expect "missing shellcheck named in checks.skipmissing: skipped with a line, exit 0" "0|SKIPPED: shellcheck (missing)" "$?|$out"
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$WORK/no-shellcheck" bash "$CHECK" --worktree 2>&1)"
+expect "missing shellcheck named in checks.skipmissing, --worktree: skipped with a line" "0|SKIPPED: shellcheck (missing)" "$?|$out"
 git -C "$REPO" config --unset checks.skipmissing
-expect "missing shellcheck, --worktree: silent" "0|" "$?|$out"
+out="$(cd "$REPO" && CLAUDECODE=1 PATH="$WORK/no-shellcheck" bash "$CHECK" --worktree 2>&1)"
+expect "missing shellcheck, --worktree: an agent fails as at commit time" \
+  "1|FAIL: shellcheck missing. Install: $SC_INSTALL" "$?|${out%%$'\n'*}"
 
 new_repo
 printf '%s\n' "$TABBED" >"$REPO/a.sh"

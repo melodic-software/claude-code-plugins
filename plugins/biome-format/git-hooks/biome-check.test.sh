@@ -224,8 +224,11 @@ git -C "$REPO" config checks.skipmissing biome
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOBIOME" bash "$CHECK" 2>&1)"
 expect "missing biome named in checks.skipmissing: skipped with a line, exit 0" "0|SKIPPED: biome (missing)" "$?|$out"
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOBIOME" bash "$CHECK" --worktree 2>&1)"
+expect "missing biome named in checks.skipmissing, --worktree: skipped with a line" "0|SKIPPED: biome (missing)" "$?|$out"
 git -C "$REPO" config --unset checks.skipmissing
-expect "missing biome, --worktree: silent" "0|" "$?|$out"
+out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOBIOME" bash "$CHECK" --worktree 2>&1)"
+expect "missing biome, --worktree: an agent fails as at commit time" \
+  "1|FAIL: biome missing. Install: $INSTALL_HINT" "$?|${out%%$'\n'*}"
 git -C "$REPO" reset -q
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOBIOME" bash "$CHECK" 2>&1)"
 expect "missing biome with nothing of Biome's staged: an agent is not failed" "0|" "$?|$out"

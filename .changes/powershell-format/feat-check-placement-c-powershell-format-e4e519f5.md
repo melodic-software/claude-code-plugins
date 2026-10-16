@@ -7,7 +7,7 @@ bump: minor
 - A git pre-commit entry, `powershell-check`, that formats the staged PowerShell files with Invoke-Formatter, re-stages them, refuses a partly staged file untouched, and blocks a commit only on a PSScriptAnalyzer finding on a line the commit adds. `/powershell-format:setup apply install-git-hooks [scope=local|shared]` registers it with lefthook, husky or plain git hooks, and `check` reports its drift.
 - The opt-in `powershell_format_end_of_turn` option: when a turn ends, the same check runs over the uncommitted changes, without rewriting, and hands its findings back, at most once per turn.
 - The SessionStart probe reports a missing, stale or edited git-hook entry once per session.
-- A settings file that declares `CustomRulePath` is approved per content under the repository's git directory when the entry runs outside a Claude Code session; inside a session the approval store is still `CLAUDE_PLUGIN_DATA`.
+- A settings file that declares `CustomRulePath` is approved per content under the repository's git common directory (`powershell-format/trust-approvals`), one store for the end-of-turn row, an agent's commit and a person's. The approval store is no longer `CLAUDE_PLUGIN_DATA`, so an approval made there before this release must be made again.
 
 ### Changed
 

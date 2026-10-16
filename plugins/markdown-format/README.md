@@ -63,10 +63,9 @@ commit gets a trust-gate line naming the config and the approval marker to creat
 agent commit's line says the run was skipped and that approval is yours, without the
 command that grants it. To approve, review the config and every module it references,
 with the trust you give your build and CI configuration, then create the marker directory
-with the exact `mkdir -p` command your notice carries. The marker lives under
-`${CLAUDE_PLUGIN_DATA}/trust-approvals` in a Claude Code session, and under the
-repository's git directory (`markdown-format/trust-approvals`) when the entry runs outside
-one, such as a commit in your terminal; an approval in one place does not cover the other.
+with the exact `mkdir -p` command your notice carries. The marker lives under the
+repository's git common directory, in `markdown-format/trust-approvals`, so one approval
+covers the batch row, the end-of-turn row, an agent's commit and your own.
 
 The marker is content-addressed over the repository, every governing code-capable config,
 and every repository file those configs reference by a string literal or path-shaped

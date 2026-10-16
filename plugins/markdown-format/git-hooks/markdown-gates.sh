@@ -242,9 +242,10 @@ md_collect_modules() {
 }
 
 # md_trust <root>: judge the code-capable configs the last md_config_state
-# found. The approval store is CLAUDE_PLUGIN_DATA in a Claude Code session, else
-# markdown-format/ under the repository's git common directory; the approval is
-# a directory there named for a signature over the root, every config and every
+# found. The approval store is markdown-format/ under the repository's git
+# common directory, so the batch row, the Stop row and every commit read one
+# store; CLAUDE_PLUGIN_DATA is not used, since an agent's shell can carry
+# another plugin's value. The approval is a directory there named for a signature over the root, every config and every
 # module md_collect_modules reaches, so a change to any of them, a branch switch
 # included, revokes it. Only the user creates that directory: the pre-commit
 # entry never hands an agent the command. Verdicts are cached per config set.
@@ -273,8 +274,8 @@ md_trust() {
     fi
   fi
   if [[ -z "$MD_TRUST" ]]; then
-    base="${CLAUDE_PLUGIN_DATA:-}"
-    if [[ -z "$base" ]] && common="$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"; then
+    base=""
+    if common="$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"; then
       base="$common/markdown-format"
     fi
     if [[ "$base" == [A-Za-z]:\\* ]] && command -v cygpath >/dev/null 2>&1; then
