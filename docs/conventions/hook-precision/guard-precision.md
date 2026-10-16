@@ -24,7 +24,9 @@ table records the measurement and the verdict for each one. It holds aggregate c
   1,684 fires, was classified on a random sample of 40.
 - **The bar.** ADR 0003 fixes no threshold and asks for one to be named. For a guard that blocks
   a tool call: most of its fires must be right (precision at least 50%), or its false positives
-  must come from one identified cause with a scoped fix. A guard with no fires has undefined
+  must come from one identified cause with a scoped fix. A guard that stops irreversible
+  damage may stay on below the bar when its noise is one identified cause it keeps on
+  purpose; its row names the cause. A guard with no fires has undefined
   precision: its default stays and its contract test's seeded cases show it detects. A
   refusal of a command too long to parse (the shared 16,384-character cap) is counted apart from
   the matcher, because it is the chain's fail-closed posture, not the guard's match.
@@ -35,8 +37,8 @@ table records the measurement and the verdict for each one. It holds aggregate c
 |---|---|---|---|---|---|---|
 | block-dangerous-git (logged) | 35 matcher, 4 length cap | 32 | 3 matcher, 4 cap | 91% matcher, 82% with cap | above the bar | on |
 | block-no-verify (logged) | 12 matcher, 28 length cap | 11 | 1 matcher, 28 cap | 92% matcher, 28% with cap | above the bar on the matcher; the cap is one cause (long heredoc file writes) | on |
-| block-root-delete-target (replay, as shipped) | 129 (15 not judgeable) | about 59 | 55 | about 52% | above the bar | on |
-| block-root-delete-target (replay, before this change) | 225 (about 14 not judgeable) | about 58 | 153 | about 27% | below the bar; the bare-variable fix lifts it | not shipped |
+| block-root-delete-target (replay, as shipped) | 202 (about 15 not judgeable) | about 58 | 129 | about 31% | below 50%, kept on: 121 of the 129 are one cause, a variable the same command sets, which the guard reads only in the one adjacent shape it can prove | on |
+| block-root-delete-target (replay, before this change) | 225 (about 14 not judgeable) | about 58 | 153 | about 27% | same cause | not shipped |
 | block-noncanonical-commit (replay, as shipped) | 0 of 569 | 0 | 0 | undefined | default stays; seeded cases in its contract test | on |
 | block-noncanonical-commit (replay, before this change) | 218 of 569 | 0 | 218 | 0% | a newline is not the hazard (#6464) | not shipped |
 | block-credential-read (replay, as shipped) | 34 | 2 | 32 | 6% | below the bar | **off** |
@@ -56,11 +58,15 @@ Notes on the rows:
   spelled through a command substitution the guard does not evaluate.
 - **block-no-verify.** The one matcher false positive set `core.hooksPath` in a throwaway test
   repository. The length-cap refusals were long heredoc file writes holding no git command.
-- **block-root-delete-target.** Of the 55 false positives, 47 delete a variable the same command
-  set from `mktemp`, a loop or another variable, and 8 are root-shaped text inside a heredoc body
-  the guard reads as commands. The 15 not judgeable fires target a directory inside a working
-  directory that no longer exists. "About" marks a count extrapolated from a sample of 25 of the
-  74 outside-tree fires.
+- **block-root-delete-target.** Of the 129 false positives, 121 delete a variable the same
+  command set (from `mktemp`, a loop, another variable, or a literal statements before the
+  delete), and 8 are root-shaped text inside a heredoc body the guard reads as commands. A
+  literal is honored only when its statement sits right before the delete and nothing in the
+  command can set a variable out of sight: a broader reading let a verified `declare -n`,
+  `trap`, `printf -v` or `eval` reassignment delete `/etc`. The guard stays on because it
+  stops irreversible deletes and its noise is that one deliberate, identified cause. The
+  about 15 not judgeable fires target a directory inside a working directory that no longer
+  exists. "About" marks a count extrapolated from a sample of 25 of the 73 outside-tree fires.
 - **block-credential-read.** 23 of its fires are `gh auth token` inside a substitution whose
   output never reaches the transcript (`TOKEN=$(gh auth token)`), and most of the rest are
   credential words in a heredoc body or a presence check sent to `/dev/null`. The two true
@@ -72,5 +78,9 @@ Notes on the rows:
   tools, `cat`, `head`, `tail`, `sed`, `tee` and redirects, and nothing that prints a token or
   is read through `jq` or PowerShell ("Read and Edit" in
   <https://code.claude.com/docs/en/permissions>, read 2026-10-15).
+- **What block-credential-read no longer guards.** Per Q44, `cat .env` and
+  `bash -c "cat .env"` pass this guard even when it is on. They rely on the native `Read()`
+  deny rules alone, and the same page does not say those rules reach a command wrapped in
+  `bash -c`, so the wrapped form may be unguarded.
 - **block-hook-bypass.** Its false positives are shell writes to scratch, temp and gitignored
   paths, which no Write or Edit guard would have checked.

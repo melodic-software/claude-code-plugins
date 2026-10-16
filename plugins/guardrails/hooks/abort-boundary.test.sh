@@ -9,6 +9,9 @@
 # test-scope: plugins/guardrails/*
 
 set -uo pipefail
+# block-credential-read and block-hook-bypass ship off (plugin.json default
+# false); these cases exercise them, so turn them on.
+export CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED=true CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED=true
 # An interactive session exports CLAUDE_CODE_SESSION_ATTENDED=1, which turns a
 # guard's refusal into an ask (hooks/refuse.sh). Pin it to 0 so a run here
 # gets the result CI gets.

@@ -2413,6 +2413,20 @@ expect_both "dispatched parity: PowerShell git push --force blocks" 2 \
   --command "git push --force" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1"
 
 # --- An attended session asks instead of denying (refuse.sh) ------------------
+# An ask is the verdict on the WHOLE command: a later segment past the alias
+# traversal budget denies the call, alone and through the row.
+BDG_HOPS=""
+for ((bdg_i = 1; bdg_i <= 141; bdg_i++)); do BDG_HOPS+=" -c alias.a$bdg_i=a$((bdg_i + 1))"; done
+expect_both "attended: reset --hard, then an alias chain past the budget, denies" 2 \
+  --command "git reset --hard; git$BDG_HOPS a1" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- CLAUDE_CODE_SESSION_ATTENDED=1
+expect "attended: two dangerous forms ask once, naming both" 0 \
+  --command "git reset --hard; git clean -fd" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_contains "attended: the reason names reset --hard" \
+  "$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")" "git reset --hard discards"
+assert_contains "attended: the reason names clean -f" \
+  "$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")" "git clean with a force flag"
+expect "attended: a dangerous form beside an unreadable PowerShell sink denies" 2 \
+  --tool PowerShell --command 'git reset --hard; iex "x"' --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- CLAUDE_CODE_SESSION_ATTENDED=1
 # Only CLAUDE_CODE_SESSION_ATTENDED exactly 1 asks: an interactive session reads
 # 1, `claude -p` and `claude --bg` read 0, and a CI lane sets nothing.
 expect "attended: git reset --hard exits 0 to ask" 0 \

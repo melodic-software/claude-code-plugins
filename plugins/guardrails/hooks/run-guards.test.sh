@@ -218,6 +218,25 @@ assert_exit "attended: a guard that denies outright still denies" 2 "$RC"
 att_run 0 'git reset --hard'
 assert_exit "unattended: git reset --hard denies" 2 "$RC"
 assert_absent "unattended: no ask document" "$OUT" '"ask"'
+# An ask is the verdict on the whole command: a budget overrun anywhere denies.
+rg_many=""
+for ((rg_i = 1; rg_i <= 600; rg_i++)); do rg_many+=" a$rg_i"; done
+rg_cds=""
+for ((rg_i = 1; rg_i <= 40; rg_i++)); do rg_cds+="; cd x"; done
+rg_hops=""
+for ((rg_i = 1; rg_i <= 141; rg_i++)); do rg_hops+=" -c alias.a$rg_i=a$((rg_i + 1))"; done
+att_run 1 "rm -rf \"\$X\"; rm -rf$rg_many"
+assert_exit "attended row: a bare variable, then past the target budget, denies" 2 "$RC"
+att_run 1 "rm -rf /; rm -rf$rg_many"
+assert_exit "attended row: a root, then past the target budget, denies" 2 "$RC"
+att_run 1 "rm -rf /$rg_cds; rm -rf x"
+assert_exit "attended row: a root, then past the directory-change budget, denies" 2 "$RC"
+att_run 1 "git reset --hard; git$rg_hops a1"
+assert_exit "attended row: reset --hard, then past the alias budget, denies" 2 "$RC"
+att_run 1 'rm -rf "$X"; rm -rf /etc/foo'
+assert_eq "attended row: two asking segments ask" ask "$(hsd permissionDecision)"
+assert_contains "attended row: the reason names the bare variable" "$(hsd permissionDecisionReason)" "bare variable"
+assert_contains "attended row: the reason names the outside-tree delete" "$(hsd permissionDecisionReason)" "/etc/foo"
 att_run 1 'git status'
 assert_exit "attended: an unrelated command passes" 0 "$RC"
 assert_silent "attended: an unrelated command prints nothing" "$OUT$ERR"

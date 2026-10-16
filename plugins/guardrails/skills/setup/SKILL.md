@@ -24,13 +24,16 @@ A row reading `[shell command execution disabled by policy]` carries no result: 
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
-reports, `apply` resolves. This plugin owns no consumer-project configuration. Every
-tunable is a native `userConfig` option (one enable toggle per guard plus the
-`cli_flag_verify_bins`, `cli_flag_verify_skip_bins`, and `block_dangerous_git_allow`
-scalars), so `apply` is pure guidance and writes nothing.
+reports, `apply` resolves. Every tunable is a native `userConfig` option (one enable toggle
+per guard plus the `cli_flag_verify_bins`, `cli_flag_verify_skip_bins`, and
+`block_dangerous_git_allow` scalars), so bare `apply` is pure guidance and writes nothing.
+The explicit `install-*` actions below are the only ones that write, each as its section
+states; `install-read-deny` is the one that touches settings, through your edit tools.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
-points at each remediation. Both are non-interactive. Never prompt when the action is given.
+points at each remediation. Both are non-interactive: never prompt when the action is given.
+The one question any action asks is `install-read-deny`'s scope and consent, and only in an
+attended run.
 
 ## `check` (read-only)
 
@@ -137,10 +140,11 @@ This is the one `apply` action that changes settings, and only this way: the ski
 rules, then you add them to the chosen file with your edit tools. No script writes settings.
 Never runs from bare `apply`.
 
-1. **Scope.** `local` (the default, and the answer when none is given or the run is
-   unattended) is `.claude/settings.local.json` at the repository root; `shared` is the
-   committed `.claude/settings.json`, which the team reviews in a PR. Ask once in an attended
-   run when neither argument is given.
+1. **Scope.** `local` (the default) is `.claude/settings.local.json` at the repository
+   root; `shared` is the committed `.claude/settings.json`, which the team reviews in a PR.
+   Ask once in an attended run when neither argument is given. An unattended run prints the
+   rules and applies the repository rules at `local` scope only, whatever the arguments, and
+   never touches user settings.
 2. **Print the rules** for that file, as a `permissions.deny` list:
    `Read(.env)`, `Read(.env.*)`, `Read(!.env.example)`, `Read(!.env.sample)`,
    `Read(!.env.template)`. A bare filename matches at any depth; each `!` rule carves its
@@ -161,13 +165,16 @@ Never runs from bare `apply`.
 ## What this skill does NOT do
 
 - Exercise a guard. Any matching tool call does that end-to-end.
-- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
+- Write the plugin cache or `pluginConfigs`, or user settings other than the two
+  `install-read-deny` rules the user said yes to.
 - Install any tool, during either `check` or `apply`. Guidance only. The ONLY writes
   this skill ever performs are the explicit `apply install-commit-msg` /
   `apply install-pre-commit-content` actions' files in the operator's own `.git/hooks/`,
-  behind their preflight.
-- Touch `core.hooksPath`, a hook manager's config, or any tracked file. The team
-  enforcement lane is a human decision in a PR.
+  behind their preflight, and the `apply install-read-deny` rules in the settings file
+  its scope names.
+- Touch `core.hooksPath`, a hook manager's config, or any tracked file other than
+  `.claude/settings.json` at `install-read-deny`'s `shared` scope. The team enforcement
+  lane is a human decision in a PR.
 - Weaken a guard: it reports and routes; disabling is always the user's explicit act
   through the native configuration surface.
 

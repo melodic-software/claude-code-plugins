@@ -14,6 +14,9 @@
 # LOOKUP of jq fails, PATH is untouched.
 # test-scope: plugins/guardrails/hooks/*.sh plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/prerequisites.json
 set -uo pipefail
+# block-credential-read and block-hook-bypass ship off (plugin.json default
+# false); these cases exercise them, so turn them on.
+export CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED=true CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED=true
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_TMPDIR="$(mktemp -d)"

@@ -1495,5 +1495,7 @@ HOOK_GIT_INHERITED_LOCATING_OPTS=()
 
 hook::bash_parse_segments "$COMMAND" check_segment
 
+# The whole command was read and nothing in it denies: ask, if any segment asked.
+hook::refuse_flush
 emit_tel "ok" ""
 exit 0

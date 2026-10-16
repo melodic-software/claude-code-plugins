@@ -58,6 +58,12 @@ run "git commit -m from a quoted-heredoc substitution (allowed: the body expands
 run "git commit -m with every \$ and backtick escaped (allowed)" \
   "git commit -m \"fix: costs \\\$5 and \\\`x\\\`\"" 0
 run "git commit --message='...' with a \$ (allowed)" "git commit --message='has \$x'" 0
+# The literal spelling must be the -m argument's own, not one elsewhere.
+run "a single-quoted twin elsewhere does not excuse a double-quoted -m (blocked)" \
+  ": m 'fix \$x'; git commit -m \"fix \$x\"" 2
+run "the same single-quoted message twice (allowed)" "git commit -m 'fix \$x' -m 'fix \$x'" 0
+run "a closed quoted heredoc elsewhere does not excuse an -m one that runs more (blocked)" \
+  ": \"\$(cat <<'EOF'${NL}ok${NL}EOF${NL})\"; git commit -m \"\$(cat <<'EOF'${NL}fix${NL}EOF${NL}rm -rf x${NL})\"" 2
 # A value that is one variable or one command substitution is meant to expand.
 run "git commit -m \"\$msg\" (allowed)" "git commit -m \"\$msg\"" 0
 run "git commit -m \"\$(printf '...')\" (allowed)" \

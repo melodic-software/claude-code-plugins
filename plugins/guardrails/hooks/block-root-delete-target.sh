@@ -403,9 +403,6 @@ MAX_SUBST_DEPTH=32
 # bash exhausts its stack (about 100 levels of runuser on Git Bash).
 MAX_SEGMENT_DEPTH=24
 rdt_depth=0
-# 1 inside the judgment subshell (rdt_judge_pending), where rdt_block hands an
-# ask up to the parent instead of emitting it.
-RDT_IN_JUDGE=0
 
 # The depth cap bounds how deep a reading goes, not how many there are. A
 # launcher read two ways (runuser's -s program and its -u argv) doubles the
@@ -564,14 +561,9 @@ rdt_block() {
   # The guard read the delete and names what it would remove: the user can
   # judge that, so an attended session asks (refuse.sh).
   no-preserve-root | empty-operand | pipeline-target | bare-variable | outside-tree | unplaceable | brace | root-operand)
-    # Inside the judgment subshell an ask document would be lost with the
-    # subshell, so the reason goes up on stdout with status 3 and the parent
-    # asks.
-    if ((RDT_IN_JUDGE)) && hook::refuse_asks; then
-      printf '%s' "${msg%$'\n'}"
-      exit 3
-    fi
+    # Attended, the reason is recorded and the reading goes on (refuse.sh).
     hook::refuse "${msg%$'\n'}"
+    return 0
     ;;
   *) ;;
   esac
@@ -2784,32 +2776,33 @@ rdt_strip_tail_to() {
 
 # --- A variable the command itself sets to a literal --------------------------
 #
-# `S=build; ...; rm -rf "$S"` deletes `build`: an earlier statement set S in
-# this shell. Such an operand is judged as the literal it names, through every
-# arm below, so `X=/ && rm -rf "$X"` is still a root and `X=/etc; rm -rf "$X"`
-# still lands outside the tree. A binding is made, and kept, only where the
-# command proves it:
+# `X=build && rm -rf "$X"` deletes `build`: the statement right before the
+# delete set X in this shell. Such an operand is judged as the literal it
+# names, through every arm below, so `X=/ && rm -rf "$X"` is still a root and
+# `X=/etc; rm -rf "$X"` still lands outside the tree. Only this exact shape is
+# read, and anything else stays a bare variable:
 #   - the assignment is a statement of its own (NAME=value words and nothing
 #     else) at the top level, and EVERY spelling of `NAME=` in the command
 #     opens a statement (after its start, `;` or a newline) that ends in `;`,
 #     `&&`, a newline or the end (rdt_lit_bindable, on the raw text, since the
-#     tokenizer does not report separators). So no assignment to NAME sits
-#     behind `&&` or `||`, in a pipe or `&`, after `then`, `do`, `(` or `{`,
-#     or inside quotes, where it might not run, or run in another shell;
-#   - each value is plain characters (no glob, `~`, space or quote), or such
-#     characters joined with an already bound `$NAME` / `${NAME}`;
-#   - nothing after it can change NAME: a later segment naming NAME as a word
-#     (`read NAME`, `unset NAME`, `for NAME in`, `printf -v NAME`) or assigning
-#     it (`NAME=...`, `export NAME=...`, a `NAME=x cmd` prefix) drops the
-#     binding, and `eval`, `source`, `.` or a function definition drops all;
-#   - the delete is read at the top level: not through a launcher or child
-#     shell (which does not inherit an unexported NAME), and not inside a
-#     substitution;
+#     tokenizer does not report separators);
+#   - the delete is the very next top-level segment, read at the top level: not
+#     a later one, not through a launcher or child shell, not in a substitution;
+#   - each value is plain characters (no glob, `~`, space or quote);
+#   - the command holds nothing that can set a variable out of sight
+#     (RDT_LIT_FORBID_RE): `declare`, `typeset`, `local`, `trap`, `printf`,
+#     `read`, `mapfile`, `readarray`, `eval`, `source`, `.`, a function
+#     definition, `${!` or `<<<`, in any position;
+#   - the delete segment does not itself assign NAME (`X=y rm -rf "$X"`);
 #   - the operand is the variable alone or followed by `/...`.
-# Anything else stays a bare variable.
 RDT_LIT_CH='[A-Za-z0-9_.@%+,:/-]'
+RDT_LIT_FORBID_RE='(^|[^A-Za-z0-9_])(declare|typeset|local|trap|printf|read|mapfile|readarray|eval|source|function)([^A-Za-z0-9_]|$)|(^|[;&|({[:space:]])\.([[:space:]]|$)|\(\)|\$\{!|<<<'
+RDT_LIT_FORBID=0
+[[ "$COMMAND" =~ $RDT_LIT_FORBID_RE ]] && RDT_LIT_FORBID=1
 declare -A RDT_LIT=()
 declare -A RDT_LIT_OK=()
+rdt_top_seg=0
+RDT_LIT_AT=-1
 
 # rdt_lit_bindable <name>: every `NAME=` / `NAME+=` in the command opens a
 # statement. Answered once per name.
@@ -2839,50 +2832,40 @@ rdt_lit_bindable() {
 }
 
 # rdt_lit_segment <argv word>...: a top-level segment's effect on the bindings.
+# Bindings live for exactly the next top-level segment.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
-# shellcheck disable=SC2016  # literal `$` patterns
 rdt_lit_segment() {
-  local w n v i only=1 re_a='^([A-Za-z_][A-Za-z0-9_]*)\+?=(.*)$'
-  local re_v="^(${RDT_LIT_CH}|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$\\{[A-Za-z_][A-Za-z0-9_]*\\})+\$"
-  local re_ref='\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?'
+  local w n v only=1 re_a='^([A-Za-z_][A-Za-z0-9_]*)\+?=(.*)$'
+  local re_v="^${RDT_LIT_CH}+\$"
+  rdt_top_seg=$((rdt_top_seg + 1))
+  ((rdt_top_seg == RDT_LIT_AT + 1)) || RDT_LIT=()
+  ((RDT_LIT_FORBID)) && return 0
   for w in "$@"; do
-    # The command word: one that can run code setting any variable.
-    if ((only)) && ! [[ "$w" =~ $re_a ]]; then
-      only=0
-      case "$w" in
-      eval | source | . | function)
-        RDT_LIT=()
-        return 0
-        ;;
-      *) ;;
-      esac
-    fi
-    if [[ "$w" == *'()'* ]]; then
-      RDT_LIT=()
-      return 0
-    fi
-    ((${#RDT_LIT[@]})) || continue
-    for n in "${!RDT_LIT[@]}"; do
-      case "$w" in
-      "$n" | "$n="* | "$n+="* | "${n}["*) unset 'RDT_LIT[$n]' ;;
-      *) ;;
-      esac
-    done
+    [[ "$w" =~ $re_a ]] || only=0
   done
-  ((only)) || return 0
+  if ((only == 0)); then
+    # The delete segment's own `NAME=x` prefix: NAME expands before it applies.
+    ((${#RDT_LIT[@]})) || return 0
+    for w in "$@"; do
+      for n in "${!RDT_LIT[@]}"; do
+        case "$w" in
+        "$n="* | "$n+="*) unset 'RDT_LIT[$n]' ;;
+        *) ;;
+        esac
+      done
+    done
+    return 0
+  fi
+  RDT_LIT=()
+  RDT_LIT_AT=$rdt_top_seg
   for w in "$@"; do
     [[ "$w" =~ $re_a ]] || continue
     n="${BASH_REMATCH[1]}"
     v="${BASH_REMATCH[2]}"
-    [[ "$w" == "$n+="* || -z "$v" || ! "$v" =~ $re_v ]] && continue
-    rdt_lit_bindable "$n" || continue
-    # Resolve each `$NAME` against the bindings; an unbound one leaves NAME unbound.
-    i=0
-    while [[ "$v" =~ $re_ref ]] && ((i++ < 16)); do
-      [[ -n "${RDT_LIT[${BASH_REMATCH[1]}]+x}" ]] || continue 2
-      v="${v/"${BASH_REMATCH[0]}"/"${RDT_LIT[${BASH_REMATCH[1]}]}"}"
-    done
-    [[ "$v" == *'$'* ]] && continue
+    if [[ "$w" == "$n+="* || ! "$v" =~ $re_v ]] || ! rdt_lit_bindable "$n"; then
+      unset 'RDT_LIT[$n]'
+      continue
+    fi
     RDT_LIT[$n]="$v"
   done
 }
@@ -2910,7 +2893,7 @@ rdt_lit_subst_to() {
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_check_operand() {
   local w="$1" norm raw
-  if ((${#RDT_LIT[@]} && rdt_depth == 1 && rdt_in_subst == 0)); then
+  if ((${#RDT_LIT[@]} && rdt_depth == 1 && rdt_in_subst == 0 && rdt_top_seg == RDT_LIT_AT + 1)); then
     rdt_lit_subst_to w "$w"
   fi
   rdt_normalize_to norm "$w"
@@ -3976,17 +3959,29 @@ fi
 # unset variable under `set -u`, say) ends the subshell with a status other
 # than 0 or 2, and that status is refused here. Run in place, the same error
 # would end the hook with 1, which the fail-open abort boundary passes.
-# Status 3 is an attended ask whose reason the subshell printed (rdt_block).
+# Status 3 means the judgment finished with attended asks recorded, which the
+# subshell hands up on stdout, one per RS (0x1e) field, to join this shell's.
 if ((${#RDT_P_TEXT[@]})); then
   rdt_judge_rc=0
   rdt_judge_ask=$(
-    RDT_IN_JUDGE=1
-    rdt_judge_pending
+    HOOK_REFUSE_PENDING=()
+    rdt_judge_pending || exit
+    ((${#HOOK_REFUSE_PENDING[@]})) || exit 0
+    printf '%s\x1e' "${HOOK_REFUSE_PENDING[@]}"
+    exit 3
   ) || rdt_judge_rc=$?
   ((rdt_judge_rc == 2)) && exit 2
-  ((rdt_judge_rc == 3)) && [[ -n "$rdt_judge_ask" ]] && hook::refuse "$rdt_judge_ask"
+  if ((rdt_judge_rc == 3)) && [[ -n "$rdt_judge_ask" ]]; then
+    while [[ "$rdt_judge_ask" == *$'\x1e'* ]]; do
+      hook::refuse "${rdt_judge_ask%%$'\x1e'*}"
+      rdt_judge_ask="${rdt_judge_ask#*$'\x1e'}"
+    done
+    rdt_judge_rc=0
+  fi
   ((rdt_judge_rc == 0)) || rdt_block "judge-error"
 fi
 
+# The whole command was read and nothing in it denies: ask, if any segment asked.
+hook::refuse_flush
 rdt_emit_tel "ok" ""
 exit 0

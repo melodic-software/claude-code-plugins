@@ -189,6 +189,22 @@ allowed() {
   [[ "$list" == *,"$tok",* ]]
 }
 
+# msg_count_to <var> <text>: how many times <text> occurs in RAW_COMMAND.
+# shellcheck disable=SC2329  # reached via the parse callback chain
+msg_count_to() {
+  local -n __mc_out="$1"
+  local __mc_rest="$RAW_COMMAND" __mc_n=0
+  [[ -n "$2" ]] || {
+    __mc_out=0
+    return 0
+  }
+  while [[ "$__mc_rest" == *"$2"* ]]; do
+    __mc_n=$((__mc_n + 1))
+    __mc_rest="${__mc_rest#*"$2"}"
+  done
+  __mc_out=$__mc_n
+}
+
 # 0 when a `-m` value <$1> is the hazard this guard blocks: the shell may
 # rewrite it before git sees it. That is a value holding a `$` or a backtick
 # that the command does not provably pass literally, or a blanked PowerShell
@@ -198,9 +214,11 @@ allowed() {
 #
 # Literal, so allowed:
 #   - Bash: the value in single quotes right after the option (`-m '...'`,
-#     `-m'...'`, `--message='...'`); double quotes with every `$`, backtick,
-#     `"` and `\` escaped; `"$(cat <<'EOF' ... EOF)"`, whose quoted heredoc
-#     expands nothing;
+#     `-m'...'`, `--message='...'`), or in double quotes with every `$`,
+#     backtick, `"` and `\` escaped, where every place that text appears in
+#     the command is such a spelling; `"$(cat <<'EOF' ... EOF)"`, whose quoted
+#     heredoc expands nothing; a value that is one variable or one command
+#     substitution;
 #   - PowerShell: a message option with no double-quoted span holding `$` or a
 #     backtick (single quotes, `@'` here-strings, plain double quotes).
 # The check reads RAW_COMMAND, the command as the tool received it, because
@@ -209,7 +227,7 @@ allowed() {
 # and `set -u` must not abort the allow path.
 # shellcheck disable=SC2329,SC2016  # reached via the parse callback chain; literal `$` patterns
 msg_value_interpolates() {
-  local v="$1" esc d body re_hd
+  local v="$1" esc d body re_hd hd rest n_all n_safe n_all_q
   if [[ -n "${PS_HERESTRING_PLACEHOLDER+x}" && "$v" == "$PS_HERESTRING_PLACEHOLDER" ]]; then
     [[ "$RAW_COMMAND" == *'@"'* ]]
     return
@@ -223,12 +241,28 @@ msg_value_interpolates() {
     return
   fi
   [[ "$v" == *['$`']* ]] || return 1
-  [[ "$RAW_COMMAND" == *"m '$v'"* || "$RAW_COMMAND" == *"m'$v'"* || "$RAW_COMMAND" == *"='$v'"* ]] && return 1
-  esc="${v//\\/\\\\}"
-  esc="${esc//\"/\\\"}"
-  esc="${esc//\$/\\\$}"
-  esc="${esc//\`/\\\`}"
-  [[ "$RAW_COMMAND" == *"m \"$esc\""* || "$RAW_COMMAND" == *"=\"$esc\""* ]] && return 1
+  # Literal only when EVERY place the text appears in the command is that
+  # literal form right after a message option: one safe spelling elsewhere
+  # (`: m 'fix $x'; git commit -m "fix $x"`) proves nothing about the -m.
+  msg_count_to n_all "$v"
+  if ((n_all > 0)); then
+    msg_count_to n_safe "m '$v'"
+    msg_count_to n_all_q "m'$v'"
+    n_safe=$((n_safe + n_all_q))
+    msg_count_to n_all_q "='$v'"
+    n_safe=$((n_safe + n_all_q))
+    ((n_safe == n_all)) && return 1
+  else
+    esc="${v//\\/\\\\}"
+    esc="${esc//\"/\\\"}"
+    esc="${esc//\$/\\\$}"
+    esc="${esc//\`/\\\`}"
+    msg_count_to n_all "$esc"
+    msg_count_to n_safe "m \"$esc\""
+    msg_count_to n_all_q "=\"$esc\""
+    n_safe=$((n_safe + n_all_q))
+    ((n_all > 0 && n_safe == n_all)) && return 1
+  fi
   # The whole value is one variable (`-m "$msg"`): the expansion is the point.
   [[ "$v" =~ ^\$(\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*)$ ]] && return 1
   # `$(cat <<'EOF' ... EOF)`: a quoted heredoc expands nothing. Read from the
@@ -238,12 +272,18 @@ msg_value_interpolates() {
   re_hd=$'^\\$\\(cat[[:space:]]+<<-?[[:space:]]*[\'"]([A-Za-z_][A-Za-z0-9_]*)[\'"][[:space:]]*\n'
   if [[ "$v" =~ $re_hd ]]; then
     d="${BASH_REMATCH[1]}"
-    [[ "$RAW_COMMAND" == *"${BASH_REMATCH[0]}"* ]] || return 0
-    body=$'\n'"${RAW_COMMAND#*"${BASH_REMATCH[0]}"}"
-    [[ "$body" == *$'\n'"$d"$'\n'* ]] || return 0
-    body="${body#*$'\n'"$d"$'\n'}"
-    [[ "$body" =~ ^[[:space:]]*\) ]] && return 1
-    return 0
+    hd="${BASH_REMATCH[0]}"
+    rest="$RAW_COMMAND"
+    [[ "$rest" == *"$hd"* ]] || return 0
+    # Every such heredoc in the command must close and end its substitution.
+    while [[ "$rest" == *"$hd"* ]]; do
+      body=$'\n'"${rest#*"$hd"}"
+      [[ "$body" == *$'\n'"$d"$'\n'* ]] || return 0
+      body="${body#*$'\n'"$d"$'\n'}"
+      [[ "$body" =~ ^[[:space:]]*\) ]] || return 0
+      rest="$body"
+    done
+    return 1
   fi
   [[ "$v" == '$(cat'* ]] && return 0
   # Any other value that IS one command substitution (`-m "$(printf '...')"`,

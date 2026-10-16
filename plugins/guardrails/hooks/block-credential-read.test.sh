@@ -16,6 +16,16 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
+# The guard ships off (plugin.json default false), and Claude Code exports each
+# option's default as CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED; the script's own unset
+# fallback matches it. Pin that, then turn the guard on for every case below.
+rc=0
+env -u CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED bash "$HOOK_DIR/block-credential-read.sh" <<<"$(command_json 'gh auth token')" >/dev/null 2>&1 || rc=$?
+assert_exit "unset switch: the guard is off, as plugin.json's default" 0 "$rc"
+pj_default=$(jq -r '.userConfig.block_credential_read_enabled.default' "$HOOK_DIR/../.claude-plugin/plugin.json")
+assert_eq "plugin.json default matches the script fallback" false "$pj_default"
+export CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED=true
+
 # run <label> <command> <expected> [ENV=value ...]: the Bash tool.
 run() {
   local label="$1" command="$2" expected="$3"

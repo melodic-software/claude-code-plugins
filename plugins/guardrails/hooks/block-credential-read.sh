@@ -89,7 +89,8 @@ set -uo pipefail
 # a value that is neither `true` nor `false` keeps the guard on and says so
 # through hook::emit_channels, which needs the library, so that arm runs below.
 # scripts/check-killswitch-hoist.sh knows this shape.
-[[ "${CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED:-true}" == "false" ]] && exit 0
+# Unset means the plugin.json default, which is false (off).
+[[ "${CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED:-false}" == "false" ]] && exit 0
 
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
@@ -101,7 +102,7 @@ guard::abort_boundary block-credential-read PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
-_bcr_enabled="${CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED:-true}"
+_bcr_enabled="${CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED:-false}"
 
 # rc 1 (empty stdin) skips; rc 2 (not JSON) FAILS CLOSED; rc 3 (a payload cut
 # short by the pipe, a transport fault) is a loud skip the dispatcher takes once.

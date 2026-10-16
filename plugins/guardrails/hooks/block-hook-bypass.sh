@@ -53,7 +53,8 @@ set -uo pipefail
 # `false` needs nothing from the library, so it exits here; every other value
 # falls through to the unchanged strict-and-loud block below, which the library
 # is loaded in time for. scripts/check-killswitch-hoist.sh knows this shape.
-[[ "${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED:-true}" == "false" ]] && exit 0
+# Unset means the plugin.json default, which is false (off).
+[[ "${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED:-false}" == "false" ]] && exit 0
 
 # The hook's own directory is derived with parameter expansion rather than
 # `dirname`. GNU Bash forks a subshell for every command substitution even when
@@ -82,7 +83,7 @@ source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundar
 # control. Only true/false (unset → true) are accepted; anything else keeps the
 # guard on and tells the user once per session, after stdin is read (it names
 # the session). An exact `false` already exited above.
-_bbh_enabled="${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED:-true}"
+_bbh_enabled="${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED:-false}"
 
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry (the block
