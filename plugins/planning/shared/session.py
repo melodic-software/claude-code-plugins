@@ -187,6 +187,28 @@ def ops_error(doc):
     return schema.first_error(doc, schema.load("ops", SCHEMA_DIR))
 
 
+def cross_field_errors(doc):
+    """The session rules the schema cannot express, each broken one as a sentence: dependsOn names
+    only earlier questions, no two review flags share because and why, a round holds at most 8."""
+    errors, seen, per_round = [], set(), {}
+    for q in doc["questions"]:
+        later = [d for d in q["dependsOn"] if d not in seen]
+        if later:
+            errors.append(f"{q['id']} depends on {', '.join(later)}, not an earlier question.")
+        flags = [(f["because"], json.dumps(f["why"], sort_keys=True)) for f in q["needsReview"]]
+        if len(set(flags)) != len(flags):
+            errors.append(f"{q['id']} holds two review flags with the same because and why.")
+        seen.add(q["id"])
+        per_round[q["round"]] = per_round.get(q["round"], 0) + 1
+    errors += [f"Round {n} holds {k} questions; the most is {MAX_ROUND}." for n, k in sorted(per_round.items()) if k > MAX_ROUND]
+    return errors
+
+
+def document_error(doc):
+    """The first schema or cross-field error in a session document, or None."""
+    return state_error(doc) or next(iter(cross_field_errors(doc)), None)
+
+
 def sha256(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
@@ -470,7 +492,7 @@ class Session:
             raise DomainError(500, "state-invalid", f"{path.name} is not a JSON object.")
         old = doc.get("schemaVersion")
         doc = migrate.migrate(doc)
-        err = state_error(doc)
+        err = document_error(doc)
         if err:
             raise DomainError(500, "state-invalid", f"{path.name}: {err}")
         s = cls(path, doc, clock=clock, ids=ids, validate_writes=validate_writes, assets_dir=assets_dir, plugin_version=plugin_version)
@@ -512,7 +534,7 @@ class Session:
         except (TypeError, ValueError) as exc:
             raise DomainError(500, "state-invalid", f"Nothing was written: {exc}") from exc
         if self.validate_writes:
-            err = state_error(st)
+            err = document_error(st)
             if err:
                 raise DomainError(500, "state-invalid", f"Nothing was written: {err}")
         write_private(self.path, text + "\n")
@@ -2251,7 +2273,11 @@ class Session:
         err = ops_error(doc)
         if err:
             m = re.match(r"\$\.ops\[(\d+)\]", err)
-            raise DomainError(400, "bad-field", err, field="ops", **({"op": int(m.group(1))} if m else {}))
+            at = {"op": int(m.group(1))} if m else {}
+            long = re.search(r"\$\.ops\[\d+\]\.([^\s:;()]+): allows at most (\d+) characters", err)
+            if long:
+                raise DomainError(400, "too-long", err, field=long.group(1), max=int(long.group(2)), **at)
+            raise DomainError(400, "bad-field", err, field="ops", **at)
         with self._tx():
             results = []
             for i, op in enumerate(doc["ops"]):
