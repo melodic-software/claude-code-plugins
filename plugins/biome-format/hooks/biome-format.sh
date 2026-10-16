@@ -1,91 +1,60 @@
 #!/usr/bin/env bash
-# PostToolUse hook: auto-format and lint JS/TS/JSX/JSON files via Biome.
-# Triggered on Write|Edit of *.ts, *.tsx, *.js, *.jsx, *.mjs, *.cjs, *.mts,
-# *.cts, *.json, *.jsonc files.
+# PostToolBatch hook: rewrite the JavaScript, TypeScript and JSON files a batch of
+# tool calls wrote.
 #
-# ADVISORY: always exits 0. `biome check --write` applies safe fixes, formatting,
-# and import sorting; residual Biome diagnostics (errors and, via
-# --error-on-warnings, warnings) surface via additionalContext but never block
-# the edit. A commit hook or CI is the hard gate.
+#   biome-format.sh                 the PostToolBatch row
+#   biome-format.sh --end-of-turn   the opt-in Stop row (biome_format_end_of_turn)
 #
-# Opt-in: Biome runs ONLY when a biome.json or biome.jsonc config governs the
-# edited file — found by walking up from the file to the repo root. A repo that
-# has not adopted a Biome config is left untouched rather than rewritten to
-# Biome's built-in defaults, so the plugin never imposes a style it did not
-# choose. The Biome binary is resolved from the repo's own node_modules (or PATH)
-# — never downloaded.
+# Rewrites only: `biome check --write` (safe fixes, formatting, import sorting),
+# once per Biome config directory over every .ts, .tsx, .js, .jsx, .mjs, .cjs,
+# .mts, .cts, .json and .jsonc file a Write, Edit or MultiEdit in the batch named.
+# It prints nothing and always exits 0, so no finding ever reaches the model per
+# edit; findings are the pre-commit entry's job (git-hooks/biome-check.sh), which
+# also rewrites for every author.
+#
+# PostToolBatch has no matcher, so the row fires on every batch. The launcher
+# cannot prefilter on ten extensions (its flag takes one text), so this script
+# does it with a bash pattern before any other process starts, then reads
+# tool_calls[].tool_input.file_path itself. A file that Read named is never
+# rewritten.
+#
+# Opt-in: a file is rewritten only when a biome.json or biome.jsonc governs it,
+# found by walking up from the file to the repo root; the topmost one wins, and
+# Biome runs from that directory, as Biome itself discovers configuration. A repo
+# that has not adopted a Biome config is left untouched. Biome comes from the
+# repo's node_modules/.bin (walking up from the file) or PATH, never downloaded.
+# Only the canonical names count, not the hidden .biome.json variants, which
+# Biome loads from 2.4 on. Files under .githooks/ are installed copies and are
+# skipped, as are gitignored files unless biome_format_lint_gitignored is true.
+# The batch payload carries no pre-edit bytes, so a file that already drifted from
+# the config is rewritten whole, as the pre-commit entry would.
 
 set -uo pipefail
 
-# Kill switch FIRST, before any library is sourced: a disabled hook must not
-# pay to parse hook-utils.sh to learn it is off. Same predicate as
-# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
 [[ "${CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED:-true}" == "true" ]] || exit 0
-# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
-# subshell for every command substitution even when the body is a builtin
-# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
-# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
-# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
-# no-op and dirname answers `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
-# shellcheck source=hook-utils.sh
-source "$HOOK_DIR/hook-utils.sh"
-# shellcheck source=rewrite-guard.sh
-source "$HOOK_DIR/rewrite-guard.sh"
+IFS= read -r -d '' INPUT || :
 
-# The SessionStart compact|clear row: the model lost the reports with its
-# context, so the findings sent this session are sent again.
-if [[ "${1:-}" == --reset-digests ]]; then
-  hook::buffer_stdin_to INPUT && hook::findings_digest_reset "$INPUT"
-  exit 0
+# The opt-in Stop row: the pre-commit entry run over the uncommitted changes,
+# without rewriting. Findings exit 2 so the model fixes them before the turn
+# ends; once a Stop hook has continued the turn (stop_hook_active) the row stays
+# quiet, so it blocks at most once per turn.
+if [[ "${1:-}" == --end-of-turn ]]; then
+  [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
+  "${BASH:-bash}" "$HOOK_DIR/../git-hooks/biome-check.sh" --worktree >/dev/null && exit 0
+  exit 2
 fi
 
-# The whole prologue: the start stamp, the buffered payload, the jq-free
-# applicability filter, the jq gate, the parsed path with its basename and
-# directory, the file-anchored repo root (which bounds the biome-config opt-in
-# walk below), and the telemetry-only TOOL and FILE_REL behind the sink opt-in.
-# Exits 0 itself on every path this hook has nothing to do on — including a
-# Write or Edit of any other file class, which it decides before the jq gate so
-# such an edit never triggers the jq notice.
-hook::begin biome-format PostToolUse \
-  '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' '*.mts' '*.cts' '*.json' '*.jsonc'
+[[ "$INPUT" =~ \.(ts|tsx|js|jsx|mjs|cjs|mts|cts|json|jsonc)\" ]] || exit 0
+command -v jq >/dev/null 2>&1 || exit 0
+PATHS=$(jq -r '.tool_calls[]? | select(.tool_name == "Write" or .tool_name == "Edit" or .tool_name == "MultiEdit") | .tool_input.file_path? | strings | select(test("\\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|json|jsonc)$"))' <<<"$INPUT" 2>/dev/null) || exit 0
+[[ -n "$PATHS" ]] || exit 0
 
-# Every arm exits through hook::finish, which takes the rewrite disclosure
-# (settling data.changed and releasing the guard's snapshot), emits telemetry
-# with that verdict, and emits the one JSON document — in that order.
-emit_skipped() {
-  hook::finish skipped findings array '[]'
-}
+# shellcheck source=hook-utils.sh
+source "$HOOK_DIR/hook-utils.sh"
 
-# Existence check only, no canonicalization: git already answers an absolute
-# path, and the config walk accepts a relative fallback hint as it stands.
-FILE_DIR_POSIX=""
-[[ -d "$FILE_DIR" ]] && FILE_DIR_POSIX="$FILE_DIR"
-root=""
-[[ -d "$REPO_ROOT" ]] && root="$REPO_ROOT"
-
-# Consumer opt-in: a Biome configuration that governs the edited file. Walk up
-# from the file's directory to the repo root, recording the TOPMOST config dir
-# (closest to the repo root). Biome discovers its configuration from the CWD
-# upward — not from the target file — and a "root" config orchestrates any nested
-# (`"root": false`) configs beneath it, so running from the topmost config's
-# directory is the correct, monorepo-safe CWD. Absence of any config is the
-# opt-out: the file is left untouched.
-#
-# Only the canonical names are accepted, NOT the hidden .biome.json/.biome.jsonc
-# variants: hidden-config loading was added in Biome 2.4, so on an older Biome
-# this gate would fire while Biome's own discovery ignored the dotted file and
-# reformatted with built-in defaults — the exact silent wrong-config reformat the
-# opt-in exists to prevent. Gating on the names every supported Biome discovers keeps
-# the gate in lockstep with discovery across versions. Dotted-config support is
-# deferred behind a Biome>=2.4 probe.
-#
-# `topmost` is what makes this the root config rather than the closest one, and
-# the walk's ceiling is the repo root: with none that resolves it fails closed
-# (hook::walk_up_to) and the file is left alone, rather than being reformatted
-# under a config from above the repository.
 # shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
 biome_config_here() {
   local name
@@ -94,21 +63,7 @@ biome_config_here() {
   done
   return 1
 }
-CONFIG_DIR=""
-hook::walk_up_to CONFIG_DIR "$FILE_DIR_POSIX" "$root" biome_config_here topmost ||
-  emit_skipped
 
-# A file the repository gitignores is neither rewritten nor reported unless
-# biome_format_lint_gitignored is set: a rewrite there has no `git checkout`
-# to undo it. Biome skips an ignored path itself only when the consumer's
-# config enables vcs.useIgnoreFile, which is off by default.
-hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_LINT_GITIGNORED:-false}" "$FILE" &&
-  emit_skipped
-
-# Resolve the Biome binary from the repo's own install (node_modules/.bin/biome,
-# walking up from the file) or PATH — never `npx`, which would download Biome on
-# a per-edit hook. Absent -> skip (the repo opted into config but Biome is not
-# installed; nothing to run).
 BIOME_BIN=""
 # shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
 biome_local_bin_here() {
@@ -116,114 +71,54 @@ biome_local_bin_here() {
   BIOME_BIN="$1/node_modules/.bin/biome"
   return 0
 }
-# shellcheck disable=SC2034  # the caller reads BIOME_BIN, which the predicate sets
-node_modules_dir=""
-hook::walk_up_to node_modules_dir "$FILE_DIR_POSIX" "$root" biome_local_bin_here || true
-if [[ -z "$BIOME_BIN" ]]; then
-  # `command -v` is a builtin; the resolved path is not captured because the
-  # later exec looks the name up on PATH itself.
-  command -v biome >/dev/null 2>&1 && BIOME_BIN=biome
-fi
 
-# The repo opted in via a Biome config but no binary is available → visible
-# once-per-session skip notice, not a silent gap (dim-9 doctrine).
-if [[ -z "$BIOME_BIN" ]]; then
-  BIOME_MODEL="" BIOME_USER=""
-  if hook::prereq_notice_to BIOME_MODEL BIOME_USER biome "$INPUT"; then
-    hook::emit_skip_notice PostToolUse "$BIOME_MODEL" "$BIOME_USER"
+CONFIGS=()
+FILES=()
+ROOTS=()
+seen=$'\n'
+while IFS= read -r path; do
+  path="${path%$'\r'}"
+  [[ -n "$path" && "$seen" != *$'\n'"$path"$'\n'* ]] || continue
+  seen+="$path"$'\n'
+  escaped=""
+  hook::json_escape_to escaped "$path"
+  # Existence, symlink and project membership, as for a single-file hook.
+  hook::read_file_path_to file "{\"tool_input\":{\"file_path\":\"$escaped\"}}" || continue
+  [[ "$file" == */.githooks/* ]] && continue
+  hook::dirname_to dir "$file"
+  hook::repo_root_to root "$dir" || :
+  [[ -d "$root" ]] || continue
+  config_dir=""
+  hook::walk_up_to config_dir "$dir" "$root" biome_config_here topmost || continue
+  hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_LINT_GITIGNORED:-false}" "$file" && continue
+  CONFIGS+=("$config_dir")
+  FILES+=("$file")
+  ROOTS+=("$root")
+done <<<"$PATHS"
+
+# One run per Biome config directory, from that directory with the files named
+# relative to it, as Biome discovers configuration from the working directory.
+done_dirs=$'\n'
+for i in "${!CONFIGS[@]}"; do
+  config_dir="${CONFIGS[i]}"
+  [[ "$done_dirs" != *$'\n'"$config_dir"$'\n'* ]] || continue
+  done_dirs+="$config_dir"$'\n'
+  root="${ROOTS[i]}"
+  group=()
+  for j in "${!CONFIGS[@]}"; do
+    [[ "${CONFIGS[j]}" == "$config_dir" ]] || continue
+    rel="${FILES[j]#"$config_dir"/}"
+    group+=("$rel")
+  done
+  BIOME_BIN=""
+  hook::dirname_to dir "${FILES[i]}"
+  hook::walk_up_to bin_dir "$dir" "$root" biome_local_bin_here || :
+  if [[ -z "$BIOME_BIN" ]]; then
+    command -v biome >/dev/null 2>&1 && BIOME_BIN=biome
   fi
-  emit_skipped
-fi
-
-# Pass the file as a path relative to CONFIG_DIR (the CWD Biome runs in) so the
-# reporter echoes the path as given (e.g. src/app.ts), which the findings parse
-# below strips. CONFIG_DIR and FILE_DIR_POSIX both come from
-# `pwd`, so the prefix strip compares the same form; CONFIG_DIR is an ancestor of
-# the file, so it always matches. Falls back to the absolute path if it does not.
-BIOME_ARG="$FILE"
-if [[ -n "$FILE_DIR_POSIX" ]]; then
-  _file_posix="$FILE_DIR_POSIX/$FILE_BASE"
-  _rel="${_file_posix#"$CONFIG_DIR"/}"
-  [[ "$_rel" != "$_file_posix" ]] && BIOME_ARG="$_rel"
-fi
-
-# Run Biome from the governing config's directory (CWD-anchored discovery).
-# `check` = format + lint + import sorting; --write applies safe fixes;
-# --error-on-warnings makes residual warnings (not just errors) exit non-zero so
-# they surface as advisory context. --reporter=concise prints one line per
-# diagnostic (path, line, column, rule and message) instead of the verbose
-# default boxes.
-#
-# BIOME_CONFIG_PATH is unset for this command: Biome reads it as a config-path
-# override, so a stray user- or project-level export would make Biome format the
-# edit with an unrelated config even though the gate keyed on the repo's own
-# biome.json (verified empirically). Unsetting it keeps the discovered CONFIG_DIR
-# config authoritative — consistent with the in-tree opt-in this plugin is built
-# on (an out-of-tree config has no in-tree biome.json, so the gate skips anyway).
-# Content-mutation disclosure (#1596): Biome may auto-fix and/or reformat layout
-# the user did not request. Name the rewrite on the user channel; stay silent
-# when the file is unchanged. Snapshot lifecycle and single-document
-# composition live in the shared rewrite-guard lib (#3406, #3409): the
-# disclosure is TAKEN once after the check runs and composed into the exiting
-# arm's one JSON document, never emitted mid-run as a second document.
-BIOME_REWRITE_MESSAGE="biome-format: reformatted $FILE_BASE."
-hook::rewrite_guard_begin "$FILE"
-
-BIOME_CTX=""
-FINDINGS_JSON='[]'
-if OUTPUT=$(cd "$CONFIG_DIR" && env -u BIOME_CONFIG_PATH "$BIOME_BIN" check --write --error-on-warnings --reporter=concise "$BIOME_ARG" 2>&1); then
-  # Clean: the disclosure is the whole document, or there is none. The empty
-  # set clears the delta record, so findings that come back are sent again.
-  hook::findings_to BIOME_CTX "" "" --delta "$INPUT" "$FILE"
-  hook::finish --disclose "$BIOME_REWRITE_MESSAGE" ok findings array '[]'
-fi
-
-# Non-zero exit. The concise reporter prints one `<mark> <path>:<line>:<col>:
-# <rule>: <message>` line per diagnostic; their presence is the unambiguous
-# signal that Biome made a lint/format judgment with residual findings. Surface
-# just those lines, without the mark and the path the heading names, and not the
-# summary footer. Status "ok" — the linter RAN and produced a judgment
-# (findings live in data.findings), mirroring the bash-format model where status
-# reflects whether the tool ran, not whether it was clean.
-FINDINGS=""
-while IFS= read -r _line; do
-  [[ "$_line" =~ ^[^[:space:]]+\ (.*)$ && "${BASH_REMATCH[1]}" == "$BIOME_ARG:"* ]] || continue
-  FINDINGS+="${BASH_REMATCH[1]#"$BIOME_ARG:"}"$'\n'
-done <<<"$OUTPUT"
-if [[ -n "$FINDINGS" ]]; then
-  # --delta sends a finding set once per (session, agent, file).
-  # The heading names the config-relative path, or the basename when that did
-  # not resolve; never the absolute path the tool is handed as a fallback.
-  BIOME_SHOWN="$BIOME_ARG"
-  [[ "$BIOME_ARG" == "$FILE" ]] && BIOME_SHOWN="$FILE_BASE"
-  hook::findings_to BIOME_CTX "biome-format: $BIOME_SHOWN has findings:" \
-    "$FINDINGS" FINDINGS_JSON --max 20 --delta "$INPUT" "$FILE"
-  # Findings AND a rewrite disclosure compose into one document (#3406).
-  hook::finish --context "$BIOME_CTX" --disclose "$BIOME_REWRITE_MESSAGE" \
-    ok findings array "$FINDINGS_JSON"
-fi
-
-# No findings, but the file was deliberately ignored by the consumer's Biome
-# config (or a built-in default ignore such as node_modules). Biome exits 1 with
-# "No files were processed in the specified paths." — this is the repo's opt-out,
-# not a finding and not a break, so skip silently without nagging via context.
-# (Biome 2.x respects files.includes ignores even for explicitly-passed paths.)
-if grep -qE 'No files were processed|provided but ignored' <<<"$OUTPUT"; then
-  # An ignored file was not rewritten, so the disclosure is empty and this
-  # emits nothing; the disclosure is still passed so a surprising rewrite
-  # would be disclosed rather than swallowed.
-  hook::finish --disclose "$BIOME_REWRITE_MESSAGE" skipped findings array '[]'
-fi
-
-# Biome broke for non-lint reasons (config parse error, panic, ENOENT) — no
-# judgment was made. Surface the diagnostic via additionalContext (NOT stderr —
-# an advisory hook's exit-0 stderr can trip a false "Hook Error" label). Record
-# as "skipped" (the linter never ran), the same status as the no-config /
-# no-binary paths.
-[[ -n "$OUTPUT" ]] || OUTPUT="biome exited non-zero with no output"
-hook::findings_to BIOME_CTX "biome-format: biome failed on $FILE_BASE:" \
-  "$OUTPUT" --max 10 --delta "$INPUT" "$FILE"
-# The --write pass may already have rewritten the file before Biome broke, so
-# the disclosure composes with the tool-break context as one document.
-hook::finish --context "$BIOME_CTX" --disclose "$BIOME_REWRITE_MESSAGE" \
-  skipped findings array '[]'
+  [[ -n "$BIOME_BIN" ]] || continue
+  # BIOME_CONFIG_PATH is unset: Biome reads it as a config-path override, which
+  # would make the rewrite follow another config than the one that opted in.
+  (cd "$config_dir" && env -u BIOME_CONFIG_PATH "$BIOME_BIN" check --write --no-errors-on-unmatched -- "${group[@]}") >/dev/null 2>&1 || :
+done
+exit 0
