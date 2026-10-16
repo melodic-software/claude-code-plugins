@@ -1195,7 +1195,7 @@ that lane's own invocation overrides it. Remove the label to release the PR.
 
 **Pause a lane: no GitHub control exists.** `paused_until` is written by the lane itself before a
 rate-limit pause and means "do not read my silence as death"; no lane reads it as an instruction.
-The nearest GitHub-state lever is starving the lane: park its remaining issues or hold its PRs. A
+The nearest GitHub-state lever is deliberately leaving the lane no work: park its remaining issues or hold its PRs. A
 standing lane then idles; a drain lane stops at its drain-terminal state (§4) once every remaining
 item is human-gated or escalated and no PR is in flight.
 

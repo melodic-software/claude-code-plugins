@@ -85,7 +85,7 @@ amended by ADR 0038 and its own addendum.
 
 ## Revisit triggers
 
-- Probe #6962 reports → record whether a self-written `claude -p` CI step draws credits.
+- When probe #6962 reports, record whether a self-written `claude -p` CI step draws credits.
 - The credits article changes coverage, expiry, or the one-org link → re-derive decisions 2 and 3.
 - The operator adds a paid backstop or automatic subscription rotation → amend decisions 3 and 4.
 - Probe #6962 reports, or observed billing differs from what the amendment assumes → re-derive the

@@ -28,7 +28,7 @@ in its row. The capacity work sits under #6958.
   2026-10-08, digested and dual-verified 2026-10-16). It is never the pointer where a docs section
   covers the topic.
 - Figures the post reports, each vendor-reported and none carried elsewhere in this repository:
-  3 to 5 (the multiple of a normal run's cost to start a run's spending cap at; vendor-reported:
+  3 to 5 (the multiple of a normal run's cost to use as the starting spending cap; vendor-reported:
   Guardrails, "Set the spending cap from real runs"); 500 cents (the example per-run budget;
   vendor-reported: the same section's budget example).
 - Every rule the post states is a prompt rule for its reference agent. Where this repository meets
