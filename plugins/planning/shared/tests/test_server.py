@@ -145,6 +145,10 @@ class TestHostAndOrigin(ServerCase):
         code, _, out = self.get("/api/state", {"Host": "evil.example"})
         self.assertEqual((code, out["error"]), (403, "bad-host"))
 
+    def test_a_request_with_no_host_is_refused_before_any_tunnel_exists(self):
+        code, _, out = self.get("/api/state", {"Host": ""})
+        self.assertEqual((code, out["error"]), (403, "bad-host"))
+
     def test_localhost_on_the_guest_port_is_served(self):
         code, _, _ = self.get("/api/state", {"Host": f"localhost:{self.port}"})
         self.assertEqual(code, 200)

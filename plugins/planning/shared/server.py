@@ -17,7 +17,7 @@ No secret travels on this command line: the control token and the owner token co
   It adds `POST /api/ops` (Claude's ops) and `GET /api/status`.
 
 The domain rules live in session.py; this file routes, authenticates, caps and renders. It also
-watches the tunnel (tunnel.py): when cloudflared exits it starts a new one, allows the new host and
+watches the tunnel (tunnel.py): when its process exits it starts a new one, allows the new host and
 records the new link, so the owner's view says to share it again.
 """
 
@@ -561,6 +561,8 @@ class App:
         self.write_owner_link()
 
     def host_ok(self, host, origin):
+        if not host:
+            return False
         if host not in self.local_hosts and host != self.tunnel_host:
             now = time.monotonic()
             if now - self._last_sync > 1.0:  # a tunnel share.py just started may not be seen yet

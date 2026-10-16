@@ -36,9 +36,12 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 SCHEMA_DIR = HERE / "schema"
-for _dir in (str(HERE.parent / "surface"), str(HERE)):
-    if _dir not in sys.path:
-        sys.path.insert(0, _dir)
+# This folder first; surface/ last, only for its schema.py, so a same-named module there
+# (server.py, session_bridge.py, a test) never shadows one of ours.
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
+if str(HERE.parent / "surface") not in sys.path:
+    sys.path.append(str(HERE.parent / "surface"))
 migrate = importlib.import_module("migrate")
 schema = importlib.import_module("schema")
 

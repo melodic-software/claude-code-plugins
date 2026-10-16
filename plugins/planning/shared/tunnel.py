@@ -39,6 +39,7 @@ LOG = "cloudflared.log"
 LOCK = ".shared-tunnel.lock"
 URL = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
 START_SECONDS = 30.0  # how long a new tunnel may take to print its address
+MISSING = "missing prerequisite: cloudflared (not on PATH; see the planning plugin's prerequisites.json)"
 
 
 class TunnelDown(Exception):
@@ -97,7 +98,7 @@ def _wait_url(proc, log, seconds):
 def _start(data_dir, port):
     exe = binary()
     if not exe:
-        raise TunnelDown("missing prerequisite: cloudflared (not on PATH)")
+        raise TunnelDown(MISSING)
     d = Path(data_dir)
     log = d / LOG
     try:

@@ -12,7 +12,6 @@ import re
 import stat
 import subprocess
 import sys
-import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -109,6 +108,7 @@ class TestExit(TunnelCase):
 
     def test_a_pid_the_os_gave_to_another_program_is_not_alive(self):
         rec = tunnel.ensure(self.d, 4321)
+        self.addCleanup(detached.stop, rec["pid"], rec["marker"])
         rec["pid"] = os.getpid()  # this test runner: alive, but not cloudflared
         (self.d / tunnel.RECORD).write_text(json.dumps(rec), encoding="utf-8")
         self.assertIsNone(tunnel.alive(self.d))
