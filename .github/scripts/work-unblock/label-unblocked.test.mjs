@@ -52,8 +52,8 @@ const issue = (
   graphCloser,
 });
 // A fixture's `graphCloser` is the `closer` of the issue's last ClosedEvent
-// as GraphQL answers it. For issue 6176, closed when cursor[bot] merged PR
-// 6191, it is that PR: { __typename: "PullRequest", number: 6191, merged:
+// as GraphQL answers it. For an issue closed when an App merged a pull
+// request, it is that pull request: { __typename: "PullRequest", merged:
 // true, repository: { nameWithOwner: "melodic-software/claude-code-plugins" } }.
 // A plain close has none.
 const mergedPr = ({ repo = REPO, number = 900, merged = true } = {}) => ({
@@ -469,7 +469,7 @@ test("the kill switch stops the sweep before any API call", async () => {
 test("the sweep does not read a closed issue outside the window, or a pull request", async () => {
   const pull = { ...closedAt(13, "2026-10-16T11:00:00Z"), pull_request: { url: `${API}/repos/${REPO}/pulls/13` } };
   const { github, calls } = world({
-    // Issue 12 was updated in the window but closed four hours ago.
+    // The second close was updated in the window but closed four hours ago.
     closedList: [closedAt(10, "2026-10-16T11:30:00Z"), closedAt(12, "2026-10-16T08:00:00Z"), pull],
     blocking: [issue(20)],
     blockingOf: { 12: [issue(21)], 13: [issue(21)] },

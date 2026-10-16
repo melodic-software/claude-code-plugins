@@ -144,9 +144,9 @@ async function closedSince(github, repo, since) {
 
 // Whether a close counts: (a) a listed human made it, matched by id; or (b) a
 // merge in this repository closed it: the `closer` GraphQL gives the issue's
-// last ClosedEvent is a merged pull request or a commit here (issue 6176's is
-// PR 6191, merged by cursor[bot]; issue 7602's is PR 7624). The REST close
-// event carries no link to the pull request, so GraphQL is the read. Any
+// last ClosedEvent is a merged pull request or a commit here, whoever merged
+// it. The REST close event carries no link to the pull request, so GraphQL
+// is the read. Any
 // other close, such as a workflow's GITHUB_TOKEN or an outside author closing
 // their own issue, counts for nothing.
 const CLOSER_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
