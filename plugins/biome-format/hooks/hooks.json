@@ -1,119 +1,40 @@
 {
-  "description": "Formats JavaScript, TypeScript, JSON and CSS with Biome after a write or edit.",
+  "description": "Rewrites JavaScript, TypeScript and JSON with Biome once per batch of tool calls, optionally checks the uncommitted changes when a turn ends, and reports a missing biome or a drifted git-hook entry at session start.",
   "hooks": {
-    "PostToolUse": [
+    "PostToolBatch": [
       {
-        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--run-if-unset-or-true",
+              "BIOME_FORMAT_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/biome-format.sh"
             ],
-            "if": "Edit(*.ts)",
-            "timeout": 15,
-            "statusMessage": "Formatting with Biome..."
-          },
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
           {
             "type": "command",
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/biome-format.sh"
+              "--run-if-unset-or-true",
+              "BIOME_FORMAT_ENABLED",
+              "--require-true",
+              "BIOME_FORMAT_END_OF_TURN",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/biome-format.sh",
+              "--end-of-turn"
             ],
-            "if": "Edit(*.tsx)",
-            "timeout": 15,
-            "statusMessage": "Formatting with Biome..."
-          },
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/biome-format.sh"
-            ],
-            "if": "Edit(*.js)",
-            "timeout": 15,
-            "statusMessage": "Formatting with Biome..."
-          },
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/biome-format.sh"
-            ],
-            "if": "Edit(*.jsx)",
-            "timeout": 15,
-            "statusMessage": "Formatting with Biome..."
-          },
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/biome-format.sh"
-            ],
-            "if": "Edit(*.mjs)",
-            "timeout": 15,
-            "statusMessage": "Formatting with Biome..."
-          },
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/biome-format.sh"
-            ],
-            "if": "Edit(*.cjs)",
-            "timeout": 15,
-            "statusMessage": "Formatting with Biome..."
-          },
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/biome-format.sh"
-            ],
-            "if": "Edit(*.mts)",
-            "timeout": 15,
-            "statusMessage": "Formatting with Biome..."
-          },
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/biome-format.sh"
-            ],
-            "if": "Edit(*.cts)",
-            "timeout": 15,
-            "statusMessage": "Formatting with Biome..."
-          },
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/biome-format.sh"
-            ],
-            "if": "Edit(*.json)",
-            "timeout": 15,
-            "statusMessage": "Formatting with Biome..."
-          },
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/biome-format.sh"
-            ],
-            "if": "Edit(*.jsonc)",
-            "timeout": 15,
-            "statusMessage": "Formatting with Biome..."
+            "timeout": 30,
+            "statusMessage": "Checking JavaScript, TypeScript and JSON in uncommitted changes..."
           }
         ]
       }
@@ -145,21 +66,6 @@
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /biome-format:check BIOME_FORMAT_ENABLED; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /biome-format:check BIOME_FORMAT_ENABLED",
             "timeout": 10,
             "statusMessage": "Checking that node is on PATH..."
-          }
-        ]
-      },
-      {
-        "matcher": "compact|clear",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/biome-format.sh",
-              "--reset-digests"
-            ],
-            "timeout": 10
           }
         ]
       }

@@ -1,61 +1,66 @@
 # go-format
 
-A Claude Code plugin that formats Go files and manages their imports the
-moment you edit them. On every `Write` or `Edit` of a `.go` file it runs
-[goimports](https://pkg.go.dev/golang.org/x/tools/cmd/goimports)'s `-w`,
-which adds missing imports, removes unused ones, and applies `gofmt`-
-equivalent formatting. When `goimports` can't parse the file, the hook
-surfaces the syntax error back to Claude as advisory context.
+A Claude Code plugin that formats Go files and manages their imports with
+[goimports](https://pkg.go.dev/golang.org/x/tools/cmd/goimports) in two places: once per batch of
+tool calls in a Claude Code session, and again at git pre-commit for every author. Both run
+`goimports -w`, which adds missing imports, removes unused ones, and applies `gofmt`-equivalent
+formatting. `goimports` reports no lint findings; a file it cannot parse is the only failure, and
+the pre-commit entry reports it.
 
 ## Behavior
 
-- **No consumer-config opt-in gate.** Unlike sibling formatter plugins
-  (`ruff-format`, `typos-format`), this hook needs no repository
-  configuration to run on an edited `.go` file. `goimports`'
-  own docs describe it as "a replacement for your editor's gofmt-on-save
-  hook" and it has no meaningful config-divergence axis when left
-  unconfigured. Running it does not impose a style choice a repo hasn't
-  made, the same reasoning that makes `gofmt` itself safe to run
+- **One rewrite per batch, silent.** A `PostToolBatch` row runs after the tool calls of a turn
+  step resolve. It takes the `.go` files that `Write`, `Edit` or `MultiEdit` calls in the batch
+  named, and runs `goimports -w` once over all of them. It prints nothing and exits `0`: no
+  finding and no notice goes to Claude or the user. A file that `Read` named is never rewritten,
+  and a file `goimports` cannot parse is left as it is.
+  - The row has no matcher or `if` (neither applies to `PostToolBatch`). Its launcher skips the
+    script unless the payload mentions `.go`, so a batch without Go costs one `node` process.
+  - **Pointer**: when deciding what filters a `PostToolBatch` row, fetch
+    [hooks: PostToolBatch](https://code.claude.com/docs/en/hooks#posttoolbatch) live.
+    **As of**: 2026-10-15. **Recheck trigger**: that section adds a matcher or an `if` for the
+    event, or changes the `tool_calls` fields.
+- **No consumer-config opt-in gate.** Unlike sibling formatter plugins (`ruff-format`,
+  `typos-format`), this plugin needs no repository configuration to run on a `.go` file.
+  `goimports`' own docs describe it as "a replacement for your editor's gofmt-on-save hook" and it
+  has no meaningful config-divergence axis when left unconfigured. Running it does not impose a
+  style choice a repo hasn't made, the same reasoning that makes `gofmt` itself safe to run
   unconditionally.
-- **Spawned only for Go files.** The hook is registered with the `if` filter
-  `Edit(*.go)`, so a Write/Edit of any other file never starts a hook process for it.
-  - **Pointer**: when deciding whether an `if` row keeps a handler from spawning, fetch
-    [hooks: Common fields](https://code.claude.com/docs/en/hooks#common-fields) live.
-    **As of**: 2026-10-11. **Recheck trigger**: that section changes when an `if` rule
-    keeps a handler from running, or which events evaluate it.
-- **Extension-scoped.** Only `.go` files trigger the hook (like
-  `ruff-format`'s `*.py`/`*.pyi` filter; unlike `typos-format`'s
-  language-agnostic scope).
-- **Skips generated files.** A file whose leading comment/blank-line block
-  contains Go's canonical `// Code generated ... DO NOT EDIT.` marker is
-  left untouched. This includes files where a copyright/license header
-  (a `//` or `/* */` block) precedes the marker, common for
-  `addlicense`/`goheader` output. `goimports` itself has no awareness of
-  that convention, so this hook adds the guard itself.
-- **Leaves gitignored files alone.** By default a `.go` file the repository
-  gitignores is neither rewritten nor reported, since a rewrite of an ignored
-  file has no git checkout to undo it. A tracked file that matches an ignore
-  pattern stays in scope. Set `go_format_lint_gitignored=true` to act on
-  gitignored files too.
-- **Fix in place.** Formatting and import changes are applied silently. No
-  advisory noise on a successful fix, the same posture as a successful
-  `ruff-format`/`typos-format` autofix pass.
-- **Groups local imports using your module's own path.** When a `go`
-  toolchain is on `PATH`, the hook resolves the edited file's own module
-  path (`go list -m`) and passes it as goimports' `-local` grouping prefix,
-  so your package's own internal imports stay in their own group instead of
-  being collapsed into the third-party group, matching goimports' own
-  `-local` convention without adding any new consumer config. Falls back to
-  goimports' plain default grouping when `go` is absent or the file isn't
-  in a resolvable module.
-- **Syntax errors surface as advisory findings.** When `goimports` can't
-  parse the file, the parse diagnostic is reported via `additionalContext`,
-  never auto-"fixed" and never treated as a tool break.
-- **Advisory, never blocking.** The hook always exits `0`. Findings are
-  reported via `additionalContext`; they never reject the edit. Make a
-  commit hook or CI your hard gate. A finding is reported once per file: an
-  unchanged one on a re-edit sends nothing, and it is sent again after a clean
-  run or after the context is compacted or cleared.
+- **Skips generated files.** A file whose leading comment/blank-line block contains Go's
+  canonical `// Code generated ... DO NOT EDIT.` marker is left untouched, in the session and at
+  commit. This includes files where a copyright/license header (a `//` or `/* */` block) precedes
+  the marker, common for `addlicense`/`goheader` output. `goimports` itself has no awareness of
+  that convention, so the plugin adds the guard itself.
+- **Leaves gitignored files alone.** By default a `.go` file the repository gitignores is not
+  rewritten in the session, since a rewrite of an ignored file has no git checkout to undo it. A
+  tracked file that matches an ignore pattern stays in scope. Set `go_format_lint_gitignored=true`
+  to act on gitignored files too. Files under `.githooks/` (installed copies) are always skipped.
+- **Groups local imports using your module's own path.** When a `go` toolchain is on `PATH`, both
+  places resolve the file's own module path (`go list -m`) and pass it as goimports' `-local`
+  grouping prefix, so your package's own internal imports stay in their own group instead of being
+  collapsed into the third-party group, without adding any new consumer config. Falls back to
+  goimports' plain default grouping when `go` is absent or the file isn't in a resolvable module.
+- **Opt-in end-of-turn check.** With `go_format_end_of_turn` set to `true`, a `Stop` row parses
+  the Go files changed since the last commit (untracked files included), rewrites nothing, and
+  hands back any file `goimports` cannot parse, so it is fixed before the turn ends. It blocks at
+  most once per turn. Off by default.
+
+## Git pre-commit entry
+
+The plugin ships one git-hook entry, `goimports-format` (`git-hooks/entries.json`), which
+rewrites. At commit it refuses a partly staged Go file untouched, runs `goimports -w` over the
+staged `.go` files, re-stages what changed, and blocks the commit only when `goimports` itself
+fails, which it does for a file it cannot parse. Each failure prints as
+`<path>:<line>: <message>`; a file that does not parse blocks wherever the error sits. It reaches
+every author, not only Claude, once `/go-format:setup apply install-git-hooks [scope=local|shared]`
+registers it with the repository's hook manager (lefthook, husky or plain git hooks). Local scope
+stays in this clone; shared scope commits the copy under `.githooks/go-format/`.
+`/go-format:setup check` reports drift, and the SessionStart probe prints one line when the entry
+is missing, stale or edited.
+
+When `goimports` is missing, the entry follows the check-placement convention: an agent commit
+fails with the install command, a person gets a one-line notice, and
+`git -c checks.skipmissing=goimports commit ...` skips it with a printed line.
 
 ## Requirements
 
@@ -64,50 +69,43 @@ surfaces the syntax error back to Claude as advisory context.
   Claude Code can run it under Git Bash.
 - **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`. Without
   node the hooks do not start and nothing is enforced.
-- **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible notice, once per session and agent. [Install jq](https://jqlang.org/download/).
+- **jq** on `PATH`. The batch row reads the file paths with it. Absent: the row does nothing.
+  [Install jq](https://jqlang.org/download/).
 - **goimports** on `PATH`. Like `typos-format`, `goimports` has no
   per-repo dependency-manager convention. It is conventionally
   `go install`ed to the machine-global `$GOPATH/bin`. It is never
-  downloaded on the fly; if it is not present, the hook skips with a
-  visible notice, once per session and agent; the user's copy carries the install route.
+  downloaded on the fly; if it is not present, the batch row skips the files, and the
+  SessionStart probe reports the gap.
   [Install](https://pkg.go.dev/golang.org/x/tools/cmd/goimports):
   `go install golang.org/x/tools/cmd/goimports@latest` (requires a
   [Go toolchain](https://go.dev/dl/)).
 - **`go` on `PATH` (optional).** Used only to resolve the `-local` grouping
-  prefix (`go list -m`). Absent: the hook still formats/fixes imports, just
-  without the `-local` grouping (goimports' plain default behavior).
+  prefix (`go list -m`). Absent: `goimports` still formats and fixes imports, just
+  without the `-local` grouping (its plain default behavior).
 
 A `SessionStart` probe reports a missing `goimports` wherever the plugin is enabled and
 `go_format_enabled` is not `false`, including a repository with no `.go` files, and names
 `/go-format:check`. It installs nothing.
 
-The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
-(Bash 5.0+); on older bash the telemetry envelope is skipped while
-formatting still runs.
-
 ### Hook budget accounting
 
 Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
-this hook is always-on for every `Write` and `Edit` of a `.go` file (every handler in
-`hooks/hooks.json` carries the one `if` row, which keeps every other extension from spawning it,
-and the suite pins the whole handler set to the script's own extension set), so its cost on a
-clean Go file is the figure that counts. Measured on Linux x86_64 under bash 5.2 in a container
-with `HOOK_TELEMETRY_SINK` and `CLAUDE_PROJECT_DIR` unset, twelve interleaved trials against an
-interleaved `bash -c :` floor S of about 4 ms, with a kernel census from
-`strace -f -e trace=clone,clone3,fork,vfork,execve` (2026-09-07, 0.3.46):
+the `PostToolBatch` row is always-on: the event has no matcher, so it fires on every batch of every
+session. Its launcher flag `--skip-unless-stdin-contains .go` closes before bash starts when the
+payload never mentions `.go`. Measured on WSL2 Ubuntu (bash 5.3.9, goimports 0.52.0, go 1.27.2,
+node 24) on 2026-10-15, with the row launched as `hooks.json` registers it, ten fires per case;
+spawns are from `scripts/hook-census.sh`:
 
-| Event | Fires | Wall | Spawn-equivalents | Kernel census |
-| --- | --- | --- | --- | --- |
-| PostToolUse `Write`, clean `.go` (no opt-in; goimports always runs) | 1 | 63 ms | 15.0 | 35 to 37 process creations (the Go runtimes' own threads vary), 12 execs: `goimports` and the `go env` it runs, the hook's own `go list -m` module-path probe, two `git rev-parse` (the working-tree probe and the root resolver), `jq`, `realpath`, the disclosure snapshot's `mktemp`, `cp`, `cmp`, `rm`, and the hook's own `bash` |
-| PostToolUse `Write`, any other extension | 0 | none | 0 | no process; the `if` row drops the handler before a spawn |
+| Batch | Median wall | Min-max | Spawns |
+| --- | --- | --- | --- |
+| No `.go` in the payload | 0.042 s | 0.040-0.050 s | 1 (the `node` launcher) |
+| A `Read` of a `.go` file, nothing to rewrite | 0.052 s | 0.043-0.063 s | 6 |
+| One `Edit` of a `.go` file that needs a rewrite | 0.129 s | 0.111-0.166 s | 24 |
 
-At a 4 ms floor the spawn-equivalent column mostly measures goimports' own run time rather
-than spawns, so the census column is the number that transfers to the Windows 11 Git Bash
-reference host the convention calls binding; that host's figure for this plugin has not been
-taken. The residual is goimports and the `go list` probe plus the shared library's payload
-reader (`jq`), working-tree probe and root resolver (`git` twice, `realpath`) and the
-disclosure snapshot.
+The ceiling for a per-batch formatter row is 1 s median per fire. The pre-commit entry on one
+staged `.go` file that needs a rewrite takes a median 0.078 s (0.068-0.083 s). Fences:
+`.performance/ratchets.json` holds the no-Go row at 1 spawn, and the Stop row with
+`go_format_end_of_turn` off (its default) at 1 spawn.
 
 ## Install
 
@@ -121,12 +119,13 @@ Then verify prerequisites with `/go-format:setup check`.
 ## Configuration
 
 There are no rules to configure. `goimports` runs with no consumer-config
-surface to read. Two `userConfig` options tune the hook itself:
+surface to read. Three `userConfig` options tune the hooks themselves:
 
 | Option | Default | Effect |
 |--------|---------|--------|
 | `go_format_enabled` | `true` | Kill switch. Set `false` for a clean no-op. |
 | `go_format_lint_gitignored` | `false` | Set `true` to also act on files the repository gitignores. |
+| `go_format_end_of_turn` | `false` | Set `true` to parse the uncommitted Go files when a turn ends; a file `goimports` cannot parse goes back to Claude once per turn. Nothing is rewritten. |
 
 Set it interactively with `/plugin configure go-format@<marketplace>`, or headless on the
 install command:
@@ -145,8 +144,9 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `go_format_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED` | Run goimports -w on edit of a Go file |
+| `go_format_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED` | After each batch of tool calls, run goimports -w over the Go files it wrote |
 | `go_format_lint_gitignored` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_GO_FORMAT_LINT_GITIGNORED` | By default the hook leaves a file the repository gitignores alone: it is not rewritten, since a rewrite of an ignored file has no git checkout to undo it. Set true to act on gitignored files too. A tracked file that matches an ignore pattern is always in scope. |
+| `go_format_end_of_turn` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_GO_FORMAT_END_OF_TURN` | At the end of each turn, run goimports over the Go files changed since the last commit and hand back any file it cannot parse, so it is fixed before the turn ends, at most once per turn. Nothing is rewritten. Off by default. |
 
 ### How to set these
 

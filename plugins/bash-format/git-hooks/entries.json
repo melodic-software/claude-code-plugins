@@ -1,0 +1,12 @@
+{
+  "entries": [
+    {
+      "name": "shell-check",
+      "event": "pre-commit",
+      "script": "shell-check.sh",
+      "tools": ["shfmt", "shellcheck", "jq"],
+      "rewrites": true,
+      "assets": ["git-hooks/shfmt-rewrite.sh"]
+    }
+  ]
+}

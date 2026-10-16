@@ -1,5 +1,5 @@
 {
-  "description": "Normalizes line endings after a write or edit so a checkout's own EOL policy holds.",
+  "description": "Normalizes the line endings of the files a batch of tool calls wrote, once per batch, so a checkout's own EOL policy holds in the working tree.",
   "hooks": {
     "SessionStart": [
       {
@@ -14,9 +14,8 @@
         ]
       }
     ],
-    "PostToolUse": [
+    "PostToolBatch": [
       {
-        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
@@ -25,10 +24,11 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "--run-if-unset-or-true",
               "EOL_NORMALIZER_ENABLED",
+              "--skip-unless-stdin-contains",
+              "file_path",
               "${CLAUDE_PLUGIN_ROOT}/hooks/eol-normalizer.sh"
             ],
-            "timeout": 15,
-            "statusMessage": "Normalizing line endings..."
+            "timeout": 15
           }
         ]
       }

@@ -655,7 +655,7 @@ assert_eq "a non-integer --max-rows is a usage error" "2" "$?"
 # Windows path forms: a drive-letter --root and --file round trip
 # --------------------------------------------------------------------------
 # `git rev-parse --show-toplevel` answers `C:/repo` under Git Bash, the spelling
-# hooks/index-drift.sh hands this script; a host with one path form SKIPs visibly.
+# a caller that asks git for the root hands this script; a host with one path form SKIPs visibly.
 winrepo="$(build_fixture)"
 win_root="$(git -C "$winrepo" rev-parse --show-toplevel 2>/dev/null || true)"
 if [[ -z "$win_root" || "$win_root" == "$winrepo" ]]; then

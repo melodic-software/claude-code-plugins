@@ -1,31 +1,42 @@
 {
-  "description": "Formats a shell script with shfmt and reports ShellCheck findings after a write or edit, and reports a missing shfmt or shellcheck at session start.",
+  "description": "Formats shell scripts with shfmt once per batch of tool calls, optionally checks the uncommitted changes when a turn ends, and reports a missing shfmt or shellcheck or a drifted git-hook entry at session start.",
   "hooks": {
-    "PostToolUse": [
+    "PostToolBatch": [
       {
-        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--run-if-unset-or-true",
+              "BASH_FORMAT_ENABLED",
+              "--skip-unless-stdin-contains",
+              "sh\"",
               "${CLAUDE_PLUGIN_ROOT}/hooks/bash-format.sh"
             ],
-            "if": "Edit(*.sh)",
-            "timeout": 15,
-            "statusMessage": "Formatting shell script..."
-          },
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
           {
             "type": "command",
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/bash-format.sh"
+              "--run-if-unset-or-true",
+              "BASH_FORMAT_ENABLED",
+              "--require-true",
+              "BASH_FORMAT_END_OF_TURN",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/bash-format.sh",
+              "--end-of-turn"
             ],
-            "if": "Edit(*.bash)",
-            "timeout": 15,
-            "statusMessage": "Formatting shell script..."
+            "timeout": 30,
+            "statusMessage": "Checking shell scripts in uncommitted changes..."
           }
         ]
       }
@@ -57,21 +68,6 @@
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /bash-format:check BASH_FORMAT_ENABLED; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /bash-format:check BASH_FORMAT_ENABLED",
             "timeout": 10,
             "statusMessage": "Checking that node is on PATH..."
-          }
-        ]
-      },
-      {
-        "matcher": "compact|clear",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/bash-format.sh",
-              "--reset-digests"
-            ],
-            "timeout": 10
           }
         ]
       }

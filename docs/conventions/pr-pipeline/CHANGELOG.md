@@ -8,7 +8,16 @@ with an effect other than `read`, `collect-base-activity` copies each script's b
 base `scripts/`) to a read-only `$RUNNER_TEMP/lane-verify`, denies `Edit` and `Write` on it, and
 allows `Bash(<copy>/bin/<name> *)`, a wrapper that runs the script from the checkout with any
 arguments except a path outside the checkout, with system, global, hook and fsmonitor git config
-switched off. A leaf with effect `read` cannot set it. This repository's `resolve-issue` lists the testing plugin's `cant-fail-scan.sh`.
+switched off. A leaf with effect `read` cannot set it. This repository's `resolve-issue` lists the
+testing plugin's `cant-fail-scan.sh`. `version` stays 1.
+
+## 1.18.1 - 2026-10-16
+
+`pr-merge.yml` no longer wakes on `workflow_run` completions of `pr-require-checks`,
+`pr-review-hosted` and `pr-review-security-hosted`, and its schedule runs every 15 minutes
+instead of hourly. Those completions arrived faster than the serialized runs finished, so the
+`pr-merge` concurrency group's queue reached GitHub's 100-run cap and further runs were rejected.
+Every run already reads every open PR, so the schedule finds what those wake-ups found.
 `version` stays 1.
 
 ## 1.18.0 - 2026-10-16

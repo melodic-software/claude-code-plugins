@@ -193,7 +193,7 @@ between steps must leave content duplicated rather than deleted:
    It earns its cost where deferred surfaces are many and a worker would otherwise never learn they
    exist. It does not where the repository has a handful of nested files a reader meets anyway, or
    where the budget is already tight. **A repository that declines the index is not broken**:
-   `check` reports `NO-BLOCK` and `index-drift` stays quiet, because a repository that never
+   `check` reports `NO-BLOCK` and the `index-check` pre-commit entry stays quiet, because a repository that never
    adopted an index is not drifting from one. With nothing to index at all, `write` says
    `NO-INDEX-NEEDED` and writes nothing; do not hand-write a block in either case.
 7. **Run the repository's own markdown lint**, if it has one: check for a `lint:md` script in
