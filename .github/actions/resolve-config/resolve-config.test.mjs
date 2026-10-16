@@ -15,6 +15,7 @@ import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { GitHubError } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { main } from "./resolve-config.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -671,15 +672,17 @@ const LANES_APP = { id: 337595936, login: "melodic-automation-lanes[bot]" };
 
 // An agent-ready issue with no work class under an admission predicate that
 // takes ratification, its comments served by the fake API.
+// `comments` is page 1, or a function from page number to that page.
 // `labelsNow` is what GET /issues/7 answers when the run reads the labels.
 function ratifiedIssue(comments, labelsNow = ["agent-ready"]) {
+  const page = typeof comments === "function" ? comments : (number) => (number === 1 ? comments : []);
   const { env, base } = workspace();
   place(base, ".github/standards/trusted-actors/trusted-actors.json", join(HERE, "../check-trusted-trigger/fixtures/trusted-actors.json"));
   issueEvent(env, { number: 7, labels: [{ name: "agent-ready" }], updated_at: "2026-10-20T00:00:00Z" });
   withPredicate(env, { events: ["labeled"], admission: { classes: ["work-class: read-only"], ratified: true } });
   const { github, calls } = fakeGitHub({
     "/repos/melodic-software/claude-code-plugins/issues/7/comments": (path) =>
-      new URL(path, "https://x").searchParams.get("page") === "1" ? comments : [],
+      page(Number(new URL(path, "https://x").searchParams.get("page"))),
     "/repos/melodic-software/claude-code-plugins/issues/7": () => ({
       number: 7,
       labels: labelsNow.map((name) => ({ name })),
@@ -687,6 +690,22 @@ function ratifiedIssue(comments, labelsNow = ["agent-ready"]) {
   });
   return { env, github, calls };
 }
+
+test("an owner marker on the second page of comments admits the issue", async () => {
+  const chatter = Array.from({ length: 100 }, () => comment({ id: 1234, login: "someone-else" }, "+1"));
+  const { env, github, calls } = ratifiedIssue((number) => ({ 1: chatter, 2: [comment(OWNER)] })[number] ?? []);
+  assert.equal(await main({ env, github }), 0);
+  assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "true");
+  assert.ok(calls.includes("GET /repos/melodic-software/claude-code-plugins/issues/7/comments?per_page=100&page=2"));
+});
+
+test("a refused comments read fails the run red and admits nothing", async (t) => {
+  const { env } = ratifiedIssue([]);
+  const forbidden = async (method, path) => {
+    throw new GitHubError(403, `${method} ${path}`);
+  };
+  await assertFailsRed(t, env, /status 403/, forbidden);
+});
 
 test("a held class added after the label event refuses the issue", async () => {
   const { env, github } = ratifiedIssue([comment(OWNER)], ["agent-ready", "work-class: scoped"]);
