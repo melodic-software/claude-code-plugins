@@ -31,8 +31,9 @@ bump: minor
 
 - `block-root-delete-target` no longer blocks `X=build && rm -rf "$X"`: when the whole
   command is exactly `NAME=LITERAL`, one `&&`, `;` or newline, then an `rm` whose only
-  expansions are `"$NAME"` or `$NAME` with an optional plain `/...` suffix, the variable is
-  judged as that literal. Any other command, including a comment, a second statement, a
+  expansions are `"$NAME"` or `"$NAME/..."` (a plain suffix inside the double quotes), the
+  variable is judged as that literal. An unquoted `$NAME` binds nothing, since an inherited
+  IFS can split it. Any other command, including a comment, a second statement, a
   braced `${NAME}` or a name the shell sets itself, still blocks the variable.
 - An attended ask is the verdict on the whole command: any denying segment, budget or parse
   cap anywhere in it denies, and one ask names every asking segment.

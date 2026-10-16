@@ -2779,8 +2779,9 @@ rdt_strip_tail_to() {
 # is read only when the WHOLE command, blanks trimmed, is exactly
 #   NAME=LITERAL SEP rm WORD...
 # with SEP one `&&`, `;` or newline; LITERAL plain characters (RDT_LIT_CH),
-# bare or wholly quoted, not led by `-`; each WORD plain characters, or `$NAME` / `"$NAME"`
-# with an optional plain `/...` suffix. No character that could run, redirect,
+# bare or wholly quoted, not led by `-`; each WORD plain characters, or `"$NAME"`
+# or `"$NAME/..."` with a plain suffix inside the quotes. An unquoted `$NAME`
+# binds nothing: an inherited IFS can split it. No character that could run, redirect,
 # regroup, glob, escape or quote anything else fits that shape. NAME is no name
 # the shell gives a meaning (RDT_LIT_SPECIAL_RE), and the command holds no word
 # that can set a variable (RDT_LIT_FORBID_RE). Anything else binds nothing.
@@ -2793,7 +2794,7 @@ rdt_lit_shape() {
   local c="$COMMAND" ch="$RDT_LIT_CH" lit n v w re
   lit="(${ch}+|'${ch}+'|\"${ch}+\")"
   v='\$[A-Za-z_][A-Za-z0-9_]*'
-  w="(${ch}+|${v}(/${ch}*)?|\"${v}\"(/${ch}*)?|\"${v}(/${ch}*)?\")"
+  w="(${ch}+|\"${v}(/${ch}*)?\")"
   re="^([A-Za-z_][A-Za-z0-9_]*)=${lit}[[:blank:]]*(&&|;|"$'\n'")[[:blank:]]*rm([[:blank:]]+${w})+\$"
   c="${c#"${c%%[![:space:]]*}"}"
   c="${c%"${c##*[![:space:]]}"}"

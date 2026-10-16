@@ -2175,6 +2175,16 @@ expect_both 'X=build; rm -rf "$X/" allowed' 0 "${RDT_CWD[@]}" --command 'X=build
 expect_both "X='build' && rm -rf \"\$X/out\" allowed" 0 "${RDT_CWD[@]}" --command "X='build' && rm -rf \"\$X/out\""
 expect_both 'a literal on its own line, then the delete, allowed' 0 "${RDT_CWD[@]}" \
   --command $'X=build\nrm -rf "$X"'
+# An unquoted operand binds nothing: an inherited IFS can split `$X` into
+# other words, so only the double-quoted forms take the literal.
+expect_both 'X=build && rm -rf $X blocks (unquoted)' 2 "${RDT_CWD[@]}" --command 'X=build && rm -rf $X'
+expect_both 'X=build; rm -rf $X/ blocks (unquoted)' 2 "${RDT_CWD[@]}" --command 'X=build; rm -rf $X/'
+expect_both 'X=build && rm -rf "$X"/ blocks (suffix outside the quotes)' 2 "${RDT_CWD[@]}" \
+  --command 'X=build && rm -rf "$X"/'
+expect "attended: an unquoted operand asks" 0 "${RDT_CWD[@]}" \
+  --command 'X=build && rm -rf $X' -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_eq "attended: an unquoted operand's decision is ask" ask \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
 # Outside that exact shape nothing binds, and the variable blocks as on main.
 expect_both 'X="build" && rm -rf "${X}" blocks (a braced expansion)' 2 "${RDT_CWD[@]}" \
   --command 'X="build" && rm -rf "${X}"'
