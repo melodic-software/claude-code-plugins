@@ -1515,20 +1515,18 @@ run_pwsh "PS: module-qualified Write-Error 2> file (blocked)" \
 # act on and nothing else. Every assertion here reads stderr ALONE (GUARD_ERR):
 # a 2>&1 capture also catches the stdout systemMessage and would pass on text
 # the agent never receives.
-MSG_USE=". Use the Write or Edit tool; without either, write to an unquoted literal path under an exempt root."
+MSG_USE=". Use the Write or Edit tool; without either, write to a literal path under an exempt root: unquoted, or single-quoted on PowerShell."
 MSG_REMEDY_SCRATCH="If Write or Edit is refused for this path, stop and tell the user; the user can add a root to block_hook_bypass_scratch_roots."
 MSG_REMEDY_SWITCHES="If Write or Edit is refused for this path, stop and tell the user."
 MSG_PROJ=/srv/repo
 MSG_CFG=/srv/cfg
-MSG_PY_ROUTE="Or write the script to a file under $MSG_CFG/plugins/data, the OS temp directory and run python3 <file>, which this guard does not block."
 # Pinned so the plugin data default has one spelling, and no data dir, so the
 # once per session and agent latch fails open and every block here emits its notice.
 MSG_ENV=(-u CLAUDE_PLUGIN_DATA -u CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS
   CLAUDE_PROJECT_DIR= CLAUDE_CONFIG_DIR="$MSG_CFG")
 
 # PowerShell and python lanes: never a scratch root, so no reason line and a
-# remedy that does not name block_hook_bypass_scratch_roots; the python lane
-# names the roots a script file can be written under and run from.
+# remedy that does not name block_hook_bypass_scratch_roots.
 guard_invoke --tool PowerShell --command "Set-Content f.txt 'x'" -- "${MSG_ENV[@]}"
 assert_exit "message: PowerShell write blocks" 2 "$GUARD_RC"
 assert_eq "message: PowerShell write stderr is verdict and remedy" \
@@ -1562,7 +1560,6 @@ guard_invoke --tool PowerShell --command "python3 -c \"open('x','w').write('a')\
   -- "${MSG_ENV[@]}" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
 assert_eq "message: PowerShell python write stderr is verdict and remedy" \
   "BLOCKED: python inline-code file write bypasses Write/Edit hooks$MSG_USE
-$MSG_PY_ROUTE
 $MSG_REMEDY_SWITCHES" "$GUARD_ERR"
 # The live report: a stdin heredoc on the Bash tool printed the scratch-root
 # advice and the whole Bash scope note.
@@ -1571,7 +1568,6 @@ guard_invoke --command "$MSG_PY_HEREDOC" -- "${MSG_ENV[@]}" "CLAUDE_PROJECT_DIR=
 assert_exit "message: Bash python heredoc write blocks" 2 "$GUARD_RC"
 assert_eq "message: Bash python heredoc stderr is verdict and remedy" \
   "BLOCKED: python inline-code file write bypasses Write/Edit hooks$MSG_USE
-$MSG_PY_ROUTE
 $MSG_REMEDY_SWITCHES" "$GUARD_ERR"
 assert_absent "message: python lane never names the scratch-roots option" \
   "$GUARD_ERR" "block_hook_bypass_scratch_roots"

@@ -1305,9 +1305,8 @@ py_inline_invocation() {
 # only what the blocked agent can act on: the verdict, the Write/Edit remedy,
 # and on the redirect and staged-move lanes why the target was not
 # scratch-exempt plus the roots that would have exempted it. The python lane
-# never consults a scratch root, but an agent with no Write tool still needs a
-# route, so it names the roots a script file can go under. The PowerShell lane
-# consults one only for a single literal destination, so its remedy names none.
+# never consults a scratch root, and the PowerShell lane consults one only for a
+# single literal destination, so their remedy names none.
 #
 # The operator's levers and the guard's scope are not the agent's to act on.
 # The levers go on systemMessage once per session, latched by hook::notice_once,
@@ -1366,7 +1365,7 @@ block_bypass() {
   if [[ "$form" == powershell-computed-positional ]]; then
     echo "BLOCKED: $reason" >&2
   else
-    echo "BLOCKED: $reason. Use the Write or Edit tool; without either, write to an unquoted literal path under an exempt root." >&2
+    echo "BLOCKED: $reason. Use the Write or Edit tool; without either, write to a literal path under an exempt root: unquoted, or single-quoted on PowerShell." >&2
   fi
   case "$form" in
   powershell-computed-positional) ;;
@@ -1392,12 +1391,6 @@ block_bypass() {
       fi
     fi
     echo "If Write or Edit is refused for this path, stop and tell the user; the user can add a root to block_hook_bypass_scratch_roots." >&2
-    ;;
-  python-write)
-    _bbh_exempt_roots
-    [[ -n "$_BBH_EXEMPT_ROOTS" ]] &&
-      echo "Or write the script to a file under $_BBH_EXEMPT_ROOTS and run python3 <file>, which this guard does not block." >&2
-    echo "If Write or Edit is refused for this path, stop and tell the user." >&2
     ;;
   *)
     echo "If Write or Edit is refused for this path, stop and tell the user." >&2

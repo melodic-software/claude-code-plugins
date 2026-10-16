@@ -276,17 +276,17 @@ out of scope until such a signal exists.
   write forms; the operator notice (once per session) points here instead.
 - **`block-hook-bypass` block message and operator levers.** stderr is what the
   blocked agent reads, so it carries only what the agent can act on: the
-  verdict, the Write/Edit remedy, the route for an agent with neither tool (an
-  unquoted literal path under an exempt root), and a remedy for when Write or
+  verdict, the Write/Edit remedy, the route for an agent with neither tool (a
+  literal path under an exempt root, unquoted, or single-quoted on PowerShell),
+  and a remedy for when Write or
   Edit is refused too ("stop and tell the user"). On the `cat`, `echo`/`printf`
   and staged-move lanes it also says why the target was not scratch-exempt and
   lists the roots that exempt an unquoted literal target in this session, with
   no configuration needed for the temp tree when the project root is outside
   it, and that the user can add a root to `block_hook_bypass_scratch_roots`.
   It says a quoted or variable-carried target is never exempt. The python lane
-  never consults a scratch root, but names the roots a script file can be
-  written under and run from. The PowerShell lane consults a root only for a
-  single literal destination, so its message names none. The operator's levers, narrowest
+  never consults a scratch root, and the PowerShell lane consults one only for a
+  single literal destination, so their message names none. The operator's levers, narrowest
   first, are `block_hook_bypass_scratch_roots` (Bash redirect targets and a
   PowerShell command's single literal write destination), a session-scoped disable via `claude --settings`, and the
   user-global `block_hook_bypass_enabled` switch, which persists across every
