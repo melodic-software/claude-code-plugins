@@ -1,9 +1,9 @@
-// Expected values come from issue #7599: when an issue closes, each issue it
-// blocked gets `agent-ready` only when every blocker is closed as completed,
-// it is open, it carries no hold label, the owner ratified it with the
-// admission marker, and it carries no work class resolve-issue refuses (the
-// resolve-issue lane's rule, #7610). Every fact is read from the
-// API when the run starts, never from the event payload. The kill switch and
+// Expected values come from the work-unblock lane's rules: when an issue
+// closes, each issue it blocked gets `agent-ready` only when every blocker is
+// closed as completed, it is open, it carries no hold label, the owner
+// ratified it with the admission marker, and it carries no work class
+// resolve-issue refuses (the resolve-issue lane's admission). Every fact is
+// read from the API when the run starts, never from the event payload. The kill switch and
 // a close by any bot sender stop the run before any API call.
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
@@ -37,7 +37,7 @@ const issue = (number, { state = "open", reason = state === "closed" ? "complete
 });
 const marker = (user = OWNER, body = MARKER) => ({ id: 9, body, user, created_at: STAMP, updated_at: STAMP });
 
-// The closed issue #10 blocks the issues in `blocking`; `issues` is what a
+// The closed issue 10 blocks the issues in `blocking`; `issues` is what a
 // fresh GET /issues/{n} answers, `blockedBy` and `comments` per issue number.
 function world({ blocking, issues = {}, blockedBy = {}, comments = {}, failOn } = {}) {
   const calls = [];
@@ -93,7 +93,7 @@ function envFor(event = {}, extra = {}) {
 const writes = (calls) => calls.filter((call) => !call.startsWith("GET "));
 const labeled = (n) => `POST /repos/${REPO}/issues/${n}/labels {"labels":["agent-ready"]}`;
 
-// #20 is blocked by #10 (now closed) and #11.
+// Issue 20 is blocked by issue 10 (now closed) and issue 11.
 function oneDependent({ sibling = "closed", labels = [], comments = [marker()], state = "open" } = {}) {
   return world({
     blocking: [issue(20, { state, labels })],
@@ -219,7 +219,7 @@ test("a close by a human sender proceeds", async () => {
 });
 
 test("labels are read fresh from the API, never from the blocking list or the payload", async () => {
-  // The blocking list (and the payload) show #20 open and unlabeled; the
+  // The blocking list (and the payload) show issue 20 open and unlabeled; the
   // issue read at run time shows a hold added since.
   const { github, calls } = world({
     blocking: [issue(20)],
