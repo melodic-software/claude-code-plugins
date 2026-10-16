@@ -12,7 +12,7 @@ Structured confirmation that a bug fix actually resolves the reported issue. Cor
 
 ### 1. Restate the original problem
 
-Find the bug report, error message, or symptom description in the conversation. Restate clearly:
+Find the bug report, error message, or symptom description through the intent ladder in [intent.md](intent.md). Restate clearly:
 
 - **What was happening?** (symptom)
 - **What should have been happening?** (expected behavior)
@@ -74,6 +74,7 @@ Pay special attention to tests in same module or feature area as the fix. These 
 - **Symptom**: <what was happening>
 - **Expected**: <what should have been happening>
 - **Conditions**: <reproduction steps>
+- **Intent source**: <rung> (<PLAN.md slug, pull request, issue, or conversation>); intent drift: <none | each contradiction>
 
 ### Root Cause
 <what caused the bug and why>
@@ -104,3 +105,4 @@ Pay special attention to tests in same module or feature area as the fix. These 
 - **CONFIRMED** if reproduction test passes, regressions pass, and root cause is addressed
 - **PARTIALLY CONFIRMED** if symptom is resolved but root cause is uncertain, siblings weren't checked, or a user-level symptom has only a unit-level reproduction
 - **NOT CONFIRMED** if no reproduction test exists, or existing tests fail, or fix is symptom-only
+- **NOT VERIFIED: no intent source** if the intent ladder ([intent.md](intent.md)) found no bug report and no one can be asked
