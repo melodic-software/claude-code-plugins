@@ -17,7 +17,7 @@
   "userConfig": {
     "markdown_format_enabled": {
       "type": "boolean",
-      "title": "Format Markdown",
+      "title": "Rewrite markdown after edits",
       "description": "Rewrite the Markdown files a batch of tool calls wrote (runs only when the repo carries a markdownlint config)",
       "default": true
     },
@@ -29,7 +29,7 @@
     },
     "markdown_format_end_of_turn": {
       "type": "boolean",
-      "title": "Check uncommitted Markdown when a turn ends",
+      "title": "Check markdown in uncommitted changes at turn end",
       "description": "When a turn ends, run the pre-commit check over the uncommitted changes (nothing is rewritten) and hand any markdownlint findings back to Claude, at most once per turn. Off by default.",
       "default": false
     }
