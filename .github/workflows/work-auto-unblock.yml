@@ -18,8 +18,8 @@ name: work-auto-unblock
 # How to stop it: set the organization or repository lanes kill-switch
 # variable to anything but "false". The first steps check that switch.
 #
-# Known limit: the broker refuses a mint on an event the lanes App started,
-# so an issue the lanes App closes starts nothing here.
+# Known limit: an issue a bot closes (the lanes App, or a PR merge a bot ran)
+# starts nothing here; the broker would refuse that mint.
 
 on:
   issues:
@@ -33,9 +33,10 @@ defaults:
 
 jobs:
   label-unblocked:
-    # A close by the lanes App is skipped, so a close the lanes caused cannot
+    # A close by any bot (the lanes App, or a PR merge a bot ran) is a clean
+    # skip: the broker would refuse it, and a close the lanes caused must not
     # loop back into them.
-    if: format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+    if: github.event.sender.type != 'Bot'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -133,7 +134,6 @@ jobs:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           SCRIPT: ${{ steps.config.outputs.script }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
-          LANES_APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node ".base/$SCRIPT"
 

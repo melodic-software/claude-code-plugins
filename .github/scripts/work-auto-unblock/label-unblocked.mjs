@@ -12,7 +12,6 @@
 //   GITHUB_EVENT_PATH      the event payload; only its action, issue number
 //                          and sender are read
 //   KILL_SWITCH            `proceed` from the kill-switch step; anything else stops
-//   LANES_APP_SENDER_ID    the lanes App bot's user id; its closes are skipped
 //   TRUSTED_ACTORS_PATH    trusted-actors.json from the default branch tip
 //   GITHUB_API_URL
 import { readFileSync } from "node:fs";
@@ -59,9 +58,6 @@ export async function main({ env = process.env, github } = {}) {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
     }
-    if (!NUMBER.test(env.LANES_APP_SENDER_ID ?? "")) {
-      throw new Error("LANES_APP_SENDER_ID is not a user id, so a close by the lanes App cannot be told apart");
-    }
     const event = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
     if (env.GITHUB_EVENT_NAME !== "issues" || event.action !== "closed" || !NUMBER.test(String(event.issue?.number))) {
       throw new Error("this runs only on an issue closing");
@@ -70,8 +66,10 @@ export async function main({ env = process.env, github } = {}) {
       console.log("label-unblocked: the lanes kill switch stops this run; nothing read or labeled");
       return 0;
     }
-    if (String(event.sender?.id) === env.LANES_APP_SENDER_ID) {
-      console.log("label-unblocked: the lanes App closed this issue; nothing read or labeled");
+    // A bot's close (the lanes App's, or a PR merge a bot ran) is skipped
+    // cleanly: the broker refuses it, and a lane close must not loop.
+    if (event.sender?.type === "Bot") {
+      console.log("label-unblocked: a bot closed this issue; nothing read or labeled");
       return 0;
     }
     const repo = env.GITHUB_REPOSITORY;

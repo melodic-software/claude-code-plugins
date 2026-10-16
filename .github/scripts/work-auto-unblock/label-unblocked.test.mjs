@@ -3,7 +3,7 @@
 // it carries no hold label, and the owner ratified it with the admission
 // marker (the resolve-issue lane's rule, #7610). Every fact is read from the
 // API when the run starts, never from the event payload. The kill switch and
-// a close by the lanes App stop the run before any API call.
+// a close by any bot sender stop the run before any API call.
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -76,7 +76,6 @@ function envFor(event = {}, extra = {}) {
     GITHUB_EVENT_NAME: "issues",
     GITHUB_EVENT_PATH: eventPath,
     KILL_SWITCH: "proceed",
-    LANES_APP_SENDER_ID: String(LANES_APP_ID),
     TRUSTED_ACTORS_PATH: TRUSTED,
     ...extra,
   };
@@ -152,17 +151,21 @@ test("the kill switch set stops the run before any API call", async () => {
   }
 });
 
-test("a close by the lanes App stops the run before any API call", async () => {
-  const { github, calls } = oneDependent();
-  const event = { sender: { id: LANES_APP_ID, login: "melodic-automation-lanes[bot]" } };
-  assert.equal(await main({ env: envFor(event), github }), 0);
-  assert.deepEqual(calls, []);
+test("a close by any bot (the lanes App, a PR merge by a bot) is a clean skip before any API call", async () => {
+  for (const sender of [
+    { id: LANES_APP_ID, login: "melodic-automation-lanes[bot]", type: "Bot" },
+    { id: 41898282, login: "github-actions[bot]", type: "Bot" },
+  ]) {
+    const { github, calls } = oneDependent();
+    assert.equal(await main({ env: envFor({ sender }), github }), 0);
+    assert.deepEqual(calls, [], sender.login);
+  }
 });
 
-test("a missing lanes App sender id fails red before any API call", async () => {
+test("a close by a human sender proceeds", async () => {
   const { github, calls } = oneDependent();
-  assert.equal(await main({ env: envFor({}, { LANES_APP_SENDER_ID: "" }), github }), 1);
-  assert.deepEqual(calls, []);
+  assert.equal(await main({ env: envFor({ sender: { ...OWNER, type: "User" } }), github }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
 });
 
 test("labels are read fresh from the API, never from the blocking list or the payload", async () => {

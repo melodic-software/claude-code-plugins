@@ -8,8 +8,8 @@ listed human closes an issue: each issue the closed one blocked gets `agent-read
 open, every blocker is closed, it carries none of `needs-owner-decision`,
 `status: needs-decision` or `needs-human`, and it holds the owner's admission marker as
 resolve-issue reads it (the check now lives in `resolve-config/ratification.mjs`, shared by
-both). Everything is re-read from the API when the run starts. A close by the lanes App starts
-nothing. `version` stays 1.
+both). Everything is re-read from the API when the run starts. A close whose sender is a bot
+(`sender.type` `Bot`) is a clean skip. `version` stays 1.
 
 ## 1.18.0 - 2026-10-16
 
