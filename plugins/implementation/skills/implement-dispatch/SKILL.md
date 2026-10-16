@@ -270,7 +270,7 @@ A clear gets the full Step 4 ritual, ending in the resume prompt; a resident bou
 | Worker divergence report | Severity-assess per `/implementation:implement`'s "Step 3: Divergence Detection"; Major → `/planning:plan review` via the Skill tool when installed |
 | Every worker return | Verify against direct evidence, then invoke `/toolchain:check` via the Skill tool main-side (else the project's own build) |
 | Phase sanity check passes | `/implementation:implement`'s "Step 4" ritual (its item-1 verifier gate applies in every mode; orchestrated runs dispatch it, see Phase boundaries) |
-| All phases complete | Invoke `/implementation:implement` via the Skill tool for its "Step 5: Completion and Handoff", handing it the PLAN.md path (outcome verification is that step's `/verification:confirm` route). A source commit made after the last phase's `[DONE]` first gets the post-phase verifier; an autonomous run then gets the trail review |
+| All phases complete | Invoke `/implementation:implement` via the Skill tool for its "Step 5: Completion and Handoff", handing it the PLAN.md path (none under `--items`; outcome verification is that step's `/verification:confirm` route). A source commit made after the last phase's `[DONE]` first gets the post-phase verifier; an autonomous run then gets the trail review |
 
 This skill does not edit inline (the inline cadence, commit discipline and mode context files are `/implementation:implement`'s) and does not create or revise plans.
 
