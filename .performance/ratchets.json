@@ -68,14 +68,14 @@
       "command": "bash scripts/hook-census.sh multi-agent PreToolUse docs-fetcher-gate.mjs '{\"session_id\":\"census\",\"hook_event_name\":\"PreToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"true\"}}' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 1,
-      "goal": "A Bash call outside a multi-agent:docs-fetcher subagent costs only node, which reads the payload, finds another agent_type and stays quiet; the row has no if, so this is what every Bash call costs. Not yet measured with this row: the ceiling is the node-launcher count of testing-posttooluse-bash-test-scan-option-off-spawns, and the first CI run corrects it with propose-tighten. Correlation: unproven: not measured"
+      "goal": "A Bash call outside a multi-agent:docs-fetcher subagent costs only node, which reads the payload, finds another agent_type and stays quiet; the row has no if, so this is what every Bash call costs. Not yet measured with this row: the ceiling is the node-launcher count (1), and the first CI run corrects it with propose-tighten. Correlation: unproven: not measured"
     },
     {
       "name": "discovery-pretooluse-bash-docs-fetcher-gate-spawns",
       "command": "bash scripts/hook-census.sh discovery PreToolUse docs-fetcher-gate.mjs '{\"session_id\":\"census\",\"hook_event_name\":\"PreToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"true\"}}' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 1,
-      "goal": "A Bash call outside a discovery:docs-fetcher subagent costs only node, which reads the payload, finds another agent_type and stays quiet; the row has no if, so this is what every Bash call costs. Not yet measured with this row: the ceiling is the node-launcher count of testing-posttooluse-bash-test-scan-option-off-spawns, and the first CI run corrects it with propose-tighten. Correlation: unproven: not measured"
+      "goal": "A Bash call outside a discovery:docs-fetcher subagent costs only node, which reads the payload, finds another agent_type and stays quiet; the row has no if, so this is what every Bash call costs. Not yet measured with this row: the ceiling is the node-launcher count (1), and the first CI run corrects it with propose-tighten. Correlation: unproven: not measured"
     },
     {
       "name": "js-complexity-share",
