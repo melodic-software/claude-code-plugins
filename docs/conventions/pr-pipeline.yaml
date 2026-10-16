@@ -33,6 +33,39 @@ activities:
       mergeable: [conflicting]
       labels-absent: [do-not-merge, needs-human]
       draft: [false]
+  address-feedback:
+    # Fixes the review lanes' open findings on a pull request the lanes App
+    # opened, and records a reply for each one. It posts nothing itself.
+    skill: source-control:pull-request
+    # The skill's CI mode for review comments: edits only files a finding
+    # names, never under .github/, and writes replies to a file.
+    args: comments --ci
+    # Before any model turn the runner keeps only unresolved threads left by
+    # the reviewer bot alone on a reviewed head, stops on a .github/ change or
+    # after two rounds, and gives the skill the review-thread tool.
+    prepare: review-threads
+    # Pushes its fixes to the pull request's branch, nothing else.
+    effect: mutate-branch
+    # ci-status and the review lanes judge the pushed fix.
+    gating: advisory
+    # Reads review comments, which quote the diff.
+    reads-untrusted: true
+    inputs: [pr, head-sha]
+    applies-when:
+      # A person's hold stops it.
+      labels-absent: [do-not-merge, needs-human]
+      # A draft pull request is skipped.
+      draft: [false]
+  publish-feedback:
+    # Posts the replies address-feedback recorded, exactly as written, resolves
+    # the threads it fixed, and posts the round marker. A script, no model.
+    script: .github/scripts/pr-unblock/publish-feedback.mjs
+    # Writes pull request comments and resolves threads; pushes nothing.
+    effect: publish-artifact
+    gating: advisory
+    # Reads the replies the model wrote.
+    reads-untrusted: true
+    inputs: [pr, head-sha]
   resolve-issue:
     # Works one issue labeled agent-ready: either commits the change to a new
     # branch, or stops and says why. The runner adds `--issue <number>`.
@@ -109,8 +142,15 @@ lanes:
     stage: unblock
     slots:
       - activity: resolve-conflicts
+      # Started by pr-feedback-dispatch.yml after both review lanes reviewed
+      # the head.
+      - activity: address-feedback
+      # Runs after address-feedback, in its own job with its own token.
+      - activity: publish-feedback
+        needs: [address-feedback]
+      # Hands the pull request to a person when any of the three escalates.
       - activity: report-escalation
-        needs: [resolve-conflicts]
+        needs: [resolve-conflicts, address-feedback, publish-feedback]
   pr-merge:
     stage: merge
     slots:

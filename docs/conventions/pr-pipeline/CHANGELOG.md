@@ -1,5 +1,14 @@
 # Changelog for the PR pipeline convention
 
+## 1.18.0 - 2026-10-16
+
+This repository's `pr-pipeline.yaml` enables the address-feedback round: the `pr-unblock` lane now
+runs `resolve-conflicts`, `address-feedback` (`source-control:pull-request comments --ci`,
+`prepare: review-threads`, `mutate-branch`, held by `do-not-merge` or `needs-human`, skipping
+drafts), `publish-feedback` (the reply script, `publish-artifact`) and `report-escalation`, which
+now follows all three. `pr-feedback-dispatch.yml` starts dispatching on lanes App PRs from here
+on. `version` stays 1.
+
 ## 1.17.2 - 2026-10-16
 
 The write runner's promote step re-reads the PR's labels and draft flag with the job's
