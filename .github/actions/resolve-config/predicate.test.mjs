@@ -62,6 +62,31 @@ test("a work-classes miss gives not-applicable", () => {
   assert.equal(applies({ "work-classes": ["C2", "C3"] }, facts).applies, true);
 });
 
+test("admission admits a listed class, and refuses any other class beside it", () => {
+  const admission = { classes: ["work-class: read-only", "work-class: mechanical"] };
+  const issue = (labels, ratified) => ({ event: "labeled", labels, ratified });
+  assert.equal(applies({ admission }, issue(["agent-ready", "work-class: mechanical"])).applies, true);
+  assert.equal(
+    applies({ admission }, issue(["work-class: mechanical", "work-class: scoped"])).skipReason,
+    "not-applicable",
+  );
+  assert.equal(applies({ admission }, issue(["agent-ready"])).skipReason, "not-applicable");
+});
+
+test("admission with ratified also admits a ratified issue with no class, never one with a held class", () => {
+  const admission = { classes: ["work-class: read-only"], ratified: true };
+  const issue = (labels, ratified) => ({ event: "labeled", labels, ratified });
+  assert.equal(applies({ admission }, issue(["agent-ready"], true)).applies, true);
+  assert.equal(applies({ admission }, issue(["agent-ready"], false)).skipReason, "not-applicable");
+  assert.equal(
+    applies({ admission }, issue(["agent-ready", "work-class: scoped"], true)).skipReason,
+    "not-applicable",
+  );
+  assert.throws(() => applies({ admission }, { event: "labeled", labels: [] }), MissingFact);
+  assert.deepEqual(factsFor({ admission }).sort(), ["labels", "ratified"]);
+  assert.deepEqual(factsFor({ admission: { classes: ["work-class: read-only"] } }), ["labels"]);
+});
+
 test("every listed key must match: a paths miss wins over another miss", () => {
   assert.equal(
     applies({ paths: ["src/**"], labels: ["security"] }, facts).skipReason,

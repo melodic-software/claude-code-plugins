@@ -52,10 +52,17 @@ inputs:
       applying leaf that sets `prepare` fails the step otherwise.
     required: false
     default: "false"
+  lanes-app-id:
+    description: >
+      The lanes App bot's numeric user id. Its admission marker counts beside
+      a listed human's; empty, only listed humans ratify.
+    required: false
+    default: ""
   github-token:
     description: >
       Read-only token, used only when an applies-when predicate needs the
-      PR's labels, draft state, mergeability or changed files.
+      PR's labels, draft state, mergeability or changed files, or an issue's
+      labels or comments.
     required: false
     default: ${{ github.token }}
 
@@ -129,6 +136,7 @@ runs:
         PR_NUMBER: ${{ inputs.pr-number }}
         HEAD_SHA: ${{ inputs.head-sha }}
         PREPARE_SUPPORTED: ${{ inputs.prepare-supported }}
+        LANES_APP_ID: ${{ inputs.lanes-app-id }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         REPOSITORY: ${{ github.repository }}
       run: |

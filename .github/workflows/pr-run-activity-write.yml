@@ -355,6 +355,8 @@ jobs:
           output-path: ${{ runner.temp }}/resolved-config.json
           pr-number: ${{ steps.gate.outputs.pr-number }}
           head-sha: ${{ steps.gate.outputs.head-sha }}
+          # Its admission marker on an issue counts beside a listed human's.
+          lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           # This file performs prepare: merge-base (the prepare, post and
           # commit steps below).
           prepare-supported: "true"

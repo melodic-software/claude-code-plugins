@@ -1,7 +1,7 @@
 // `applies-when` over the facts of one run: every listed key must match, and
 // within a key any listed value matches, except `labels-absent`, which matches
-// only when none of its labels is on the PR or issue, and `labeled-after`, one
-// time an issue's label event must come after.
+// only when none of its labels is on the PR or issue, `labeled-after`, one
+// time an issue's label event must come after, and `admission` (admits()).
 import { posix } from "node:path";
 
 export class MissingFact extends Error {
@@ -11,6 +11,18 @@ export class MissingFact extends Error {
     );
     this.name = "MissingFact";
   }
+}
+
+const WORK_CLASS = "work-class: ";
+
+// An issue carrying a work-class label outside `classes` is refused, even
+// beside a listed one. Otherwise it is admitted by a listed class or, with
+// `ratified`, by the owner's ratification marker (the `ratified` fact).
+function admits({ classes, ratified }, labels, facts) {
+  if (labels.some((label) => label.startsWith(WORK_CLASS) && !classes.includes(label))) {
+    return false;
+  }
+  return classes.some((cls) => labels.includes(cls)) || (ratified === true && facts.ratified);
 }
 
 // Predicate key, the fact it reads, and whether the listed values match the
@@ -29,6 +41,7 @@ const KEYS = [
     "labels",
     (listed, labels) => !listed.some((label) => labels.includes(label)),
   ],
+  ["admission", "labels", admits],
   ["work-classes", "workClasses", any((cls, classes) => classes.includes(cls))],
   ["events", "event", any((event, current) => event === current)],
   [
@@ -93,6 +106,9 @@ export function factsFor(predicate) {
   if (predicate?.["labels-absent"] !== undefined) {
     facts.push("freshLabels");
   }
+  if (predicate?.admission?.ratified === true) {
+    facts.push("ratified");
+  }
   return [...new Set(facts)];
 }
 
@@ -106,7 +122,10 @@ export function applies(predicate, facts) {
     if (facts[fact] === undefined) {
       throw new MissingFact(fact);
     }
-    if (!matches(listed, facts[fact])) {
+    if (key === "admission" && listed.ratified === true && facts.ratified === undefined) {
+      throw new MissingFact("ratified");
+    }
+    if (!matches(listed, facts[fact], facts)) {
       if (key === "paths") {
         return { applies: false, skipReason: "not-applicable-paths" };
       }

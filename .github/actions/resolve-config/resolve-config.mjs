@@ -10,6 +10,7 @@ import { pathToFileURL } from "node:url";
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
 import {
   createGitHub,
+  loadTrustedList,
   paginate,
 } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { pipelineEvent } from "./predicate.mjs";
@@ -21,6 +22,10 @@ const SCHEMA_PATH = "docs/conventions/pr-pipeline/pr-pipeline.schema.json";
 const VOCABULARY_PATH =
   ".github/standards/github-actions-conventions/vocabulary.json";
 const CODEOWNERS_PATH = ".github/CODEOWNERS";
+const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
+// The owner's batch ratification of an issue's admission, on a line of its own.
+const RATIFICATION_MARKER =
+  /^<!-- admission: admitted when unblocked, owner batch ratification \d{4}-\d{2}-\d{2} -->$/m;
 // pulls/{n}/files lists at most this many files; a list that long may be cut.
 const FILES_CAP = 3000;
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
@@ -59,7 +64,7 @@ function readJsonUnderBase(basePath, relative) {
 
 async function gatherFacts(
   needed,
-  { eventName, event, prNumber, headSha, repository, github, sleep },
+  { eventName, event, prNumber, headSha, repository, github, sleep, loadRatifiers, lanesAppId },
 ) {
   const facts = { event: pipelineEvent(eventName, event) };
   let pull;
@@ -101,6 +106,20 @@ async function gatherFacts(
   // read now for labels-absent), and its update time is when it was labeled.
   const issue = eventName === "issues" ? event.issue : undefined;
   if (issue !== undefined) {
+    if (needed.includes("ratified")) {
+      const ratifiers = loadRatifiers();
+      const comments = await paginate(
+        github,
+        `/repos/${repository}/issues/${Number(issue.number)}/comments`,
+      );
+      facts.ratified = comments.some(
+        (comment) =>
+          RATIFICATION_MARKER.test(comment.body ?? "") &&
+          ratifiers.has(comment.user?.id) &&
+          // Through another GitHub App, the text is that App's, not the owner's.
+          (comment.performed_via_github_app == null || comment.user?.id === lanesAppId),
+      );
+    }
     if (needed.includes("labeledAt") && typeof issue.updated_at === "string") {
       facts.labeledAt = issue.updated_at;
     }
@@ -210,7 +229,18 @@ export async function resolveFromBase({ env, github, sleep = wait, event, absent
   if (absentAsNull && !laneHasActivity(files, request)) {
     return null;
   }
+  const lanesAppId = /^[1-9][0-9]*$/.test(env.LANES_APP_ID ?? "") ? Number(env.LANES_APP_ID) : undefined;
+  // Who may ratify an issue's admission: the listed humans and the lanes App.
+  const loadRatifiers = () => {
+    if (readUnderBase(basePath, TRUSTED_ACTORS_PATH) === undefined) {
+      throw new Error(`no trusted-actor list at ${TRUSTED_ACTORS_PATH} under base-path`);
+    }
+    const { humans } = loadTrustedList(join(basePath, TRUSTED_ACTORS_PATH));
+    return lanesAppId === undefined ? humans : new Set([...humans, lanesAppId]);
+  };
   const facts = await gatherFacts(neededFacts(files, request), {
+    loadRatifiers,
+    lanesAppId,
     eventName: env.EVENT_NAME,
     event: event ?? JSON.parse(readFileSync(env.EVENT_PATH, "utf8")),
     prNumber: env.PR_NUMBER,

@@ -9,7 +9,8 @@ name: work-resolve-issue
 # resolve-issue runs /work-items:work on the issue and commits to a new branch,
 # or stops and says why. report-outcome then opens a ready PR from that branch,
 # or comments on the issue and labels it needs-human. Which issues are admitted
-# (their work class, and the go-live time) is in docs/conventions/pr-pipeline.yaml.
+# (their work class or the owner's ratification marker, and the go-live time)
+# is in docs/conventions/pr-pipeline.yaml.
 # The kill switch, the labeler check (a listed human) and the token broker run
 # inside pr-run-activity-write.yml.
 
