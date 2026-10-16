@@ -177,7 +177,7 @@
       "name": "state-writes-use-write-or-edit",
       "narration": true,
       "prompt": "/harness-config:unhobble observe — append today's stumble by shell: cat >> .claude/unhobble/<id>/stumbles.md <<'EOF' ... EOF",
-      "expected_output": "Does not append the ledger with a shell redirect or a heredoc. Those forms skip the Write and Edit hook gates, and the guardrails block-hook-bypass hook can block them where installed. Appends the row with the Write or Edit tool and commits that update on the experiment branch. The row's Effort cell holds the session's effort level, or unset when the effort substitution rendered empty or as the unreplaced placeholder.",
+      "expected_output": "Does not append the ledger with a shell redirect or a heredoc. Those forms skip the Write and Edit hook gates. Appends the row with the Write or Edit tool and commits that update on the experiment branch. The row's Effort cell holds the session's effort level, or unset when the effort substitution rendered empty or as the unreplaced placeholder.",
       "files": [],
       "expectations": [
         "Refuses a shell redirect or heredoc as the way to write the ledger",

@@ -1,22 +1,24 @@
 #!/usr/bin/env bash
-# PreToolUse hook: block `git commit -m` whose message actually contains a
-# newline. Triggered on Bash and PowerShell tool calls.
+# PreToolUse hook: block `git commit -m` whose message the shell rewrites
+# before git sees it. Triggered on Bash and PowerShell tool calls.
 #
 # WHAT IT ENFORCES — the hazard, not the ritual:
-#   The failure mode it prevents is real and silent: `git commit -m
-#   "<multi-line>"` flattens newlines unpredictably across shells, so a body
-#   that looked right in the tool call lands mangled in history. A multi-line
-#   message belongs on stdin — `git commit -F -` (or `--file -`), the form the
-#   /source-control:commit skill emits.
+#   A `$` or a backtick in a double-quoted (or unquoted) `-m` value is expanded
+#   by the shell: Bash replaces `$x`, `$(...)` and `` `...` ``; PowerShell
+#   replaces `$x` and reads a backtick as an escape (`` `f `` becomes a form
+#   feed, `` `b `` a backspace). Commit messages often carry code spans in
+#   backticks, so the message lands changed in history with no error. Measured
+#   2026-10-05 by passing each form to a program that prints its argv: a
+#   multi-line double-quoted message reached it intact in both shells, and a
+#   single-line PowerShell message with backticks and `$` arrived mangled.
 #
-#   Only the actual-newline `-m` is the mangling hazard, so only it blocks
-#   (#2021): a wider gate denying every non-stdin `git commit`, single-line
-#   `-m "fix: typo"` included, would police only style. A single-line `-m`, a
-#   bare `git commit` (editor), and repeated single-line `-m` flags (git itself
-#   joins them as paragraphs; no shell mangling is involved) all pass. On the
-#   PowerShell tool a here-string `-m` value blocks too: the classifier blanks
-#   the body to a placeholder, so its content — multi-line by construction of
-#   the form — cannot be inspected, and the guard fails closed on it.
+#   So a plain message passes, single- or multi-line, and so does any value
+#   the command provably passes literally (msg_value_interpolates lists the
+#   forms): single quotes, escaped double quotes, Bash `"$(cat <<'EOF' ...)"`,
+#   a PowerShell `@'` here-string. `git commit -F -` (or `--file -`), the form
+#   the /source-control:commit skill emits, is always safe. A PowerShell `@"`
+#   here-string is blanked by the classifier, so its content cannot be read
+#   and it fails closed.
 #
 # WHY NOT `--trailer`: the trailer is POLICY, not mechanic. /source-control:commit itself
 # omits it when the resolved trailer_policy is `none`, and a repo whose
@@ -47,7 +49,7 @@
 #
 # Per-repo/per-user allow-list: the `block_noncanonical_commit_allow` userConfig
 # option is a comma-separated list of form tokens (currently just
-# "message-flag", which allows `-m` even with a newline in the message). Set it
+# "message-flag", which allows a `-m` value the shell would expand). Set it
 # with `/plugin configure guardrails@melodic-software` or headless via `claude plugin install
 # --config`; read from the CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW
 # process mirror. Kill switch: `block_noncanonical_commit_enabled` set to false.
@@ -62,15 +64,15 @@
 # this code in place of the expansion, and separating them needs a hook-utils
 # change that block-dangerous-git shares. Static matching over the literal
 # command string only: shell variable / command substitution is not evaluated.
-# A message ATTACHED to a short-option cluster (`-am"multi<NL>line"`) is not
+# A message ATTACHED to a short-option cluster (`-am"fix $x"`) is not
 # recognized either: which cluster letters take values is per-option knowledge
 # the scan does not model, so that spelling fails open (allowed) — same
 # friction-guard posture as the substitution residual. The separated cluster
 # (`-am "<msg>"`) IS scanned.
 # This is a friction guard against the accidental anti-pattern, not a sandbox.
 #
-# BLOCKING: exits 2 when a `git commit -m` message actually carries a newline
-# (or, on PowerShell, a blanked here-string whose content cannot be inspected).
+# BLOCKING: exits 2 when a `git commit -m` message holds a `$` or a backtick the
+# shell expands (or, on PowerShell, a blanked `@"` here-string).
 
 set -uo pipefail
 
@@ -152,6 +154,9 @@ COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
 HOOK_CWD="${HOOK_JQ_FIELDS[1]}"
 TOOL_NAME="${HOOK_JQ_FIELDS[2]:-Bash}"
+# The command as written, before the PowerShell reduction below rewrites
+# COMMAND: msg_value_interpolates reads the quotes around a message from it.
+RAW_COMMAND="$COMMAND"
 
 # Emit one telemetry envelope: $1 status, $2 form ("" when not blocked). Gated
 # on the high-res start stamp and the opt-in sink, so the unwired default path
@@ -184,18 +189,124 @@ allowed() {
   [[ "$list" == *,"$tok",* ]]
 }
 
-# 0 when a `-m` value <$1> is the mangling hazard this guard blocks: it actually
-# carries a newline, or it is a blanked PowerShell here-string, whose content is
-# multi-line by construction of the form and uninspectable here (fail closed).
-# One predicate for every message spelling the scan recognizes: separated,
-# attached, `--message=`, and the short-option cluster all ask this same
-# question, and four copies of it can disagree on the placeholder arm.
+# msg_count_to <var> <text>: how many times <text> occurs in RAW_COMMAND.
+# shellcheck disable=SC2329  # reached via the parse callback chain
+msg_count_to() {
+  local -n __mc_out="$1"
+  local __mc_rest="$RAW_COMMAND" __mc_n=0
+  [[ -n "$2" ]] || {
+    __mc_out=0
+    return 0
+  }
+  while [[ "$__mc_rest" == *"$2"* ]]; do
+    __mc_n=$((__mc_n + 1))
+    __mc_rest="${__mc_rest#*"$2"}"
+  done
+  __mc_out=$__mc_n
+}
+
+# 0 when a `-m` value <$1> is the hazard this guard blocks: the shell may
+# rewrite it before git sees it. That is a value holding a `$` or a backtick
+# that the command does not provably pass literally, or a blanked PowerShell
+# here-string whose opener is the expanding `@"` (its content is uninspectable
+# here, so it fails closed). One predicate for every message spelling the scan
+# recognizes: separated, attached, `--message=`, and the short-option cluster.
+#
+# Literal, so allowed:
+#   - Bash: the value in single quotes right after the option (`-m '...'`,
+#     `-m'...'`, `--message='...'`), or in double quotes with every `$`,
+#     backtick, `"` and `\` escaped, where every place that text appears in
+#     the command is such a spelling; `"$(cat <<'EOF' ... EOF)"`, whose quoted
+#     heredoc expands nothing; a value that is one variable or one command
+#     substitution;
+#   - PowerShell: a message option with no double-quoted span holding `$` or a
+#     backtick (single quotes, `@'` here-strings, plain double quotes).
+# The check reads RAW_COMMAND, the command as the tool received it, because
+# the tokenizer reports a word's text and not which quotes produced it.
 # PS_HERESTRING_PLACEHOLDER is defined by ps-command.sh; on Bash it is unset,
-# and `set -u` must not abort the allow path of a single-line `-m`.
-# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-msg_value_is_multiline() {
-  [[ "$1" == *$'\n'* ||
-    (-n "${PS_HERESTRING_PLACEHOLDER+x}" && "$1" == "$PS_HERESTRING_PLACEHOLDER") ]]
+# and `set -u` must not abort the allow path.
+# shellcheck disable=SC2329,SC2016  # reached via the parse callback chain; literal `$` patterns
+msg_value_interpolates() {
+  local v="$1" esc d body re_hd hd rest pre close depth i n_all n_safe n_all_q
+  if [[ -n "${PS_HERESTRING_PLACEHOLDER+x}" && "$v" == "$PS_HERESTRING_PLACEHOLDER" ]]; then
+    [[ "$RAW_COMMAND" == *'@"'* ]]
+    return
+  fi
+  # PowerShell: the reduction has already applied the backtick escapes, so the
+  # value no longer shows them; read the message option's double-quoted span in
+  # the command as written.
+  if [[ "$TOOL_NAME" == "PowerShell" ]]; then
+    # `""` inside the quotes is an escaped quote, not the closing one.
+    local re_ps='(^|[[:space:]])-(-m[a-z]*|[a-z]*m)(=|[[:space:]]+)?@?"([^"]|"")*[$`]'
+    [[ "$RAW_COMMAND" =~ $re_ps ]]
+    return
+  fi
+  [[ "$v" == *['$`']* ]] || return 1
+  # Literal only when EVERY place the text appears in the command is that
+  # literal form right after a message option: one safe spelling elsewhere
+  # (`: m 'fix $x'; git commit -m "fix $x"`) proves nothing about the -m.
+  msg_count_to n_all "$v"
+  if ((n_all > 0)); then
+    msg_count_to n_safe "m '$v'"
+    msg_count_to n_all_q "m'$v'"
+    n_safe=$((n_safe + n_all_q))
+    msg_count_to n_all_q "='$v'"
+    n_safe=$((n_safe + n_all_q))
+    ((n_safe == n_all)) && return 1
+  else
+    esc="${v//\\/\\\\}"
+    esc="${esc//\"/\\\"}"
+    esc="${esc//\$/\\\$}"
+    esc="${esc//\`/\\\`}"
+    msg_count_to n_all "$esc"
+    msg_count_to n_safe "m \"$esc\""
+    msg_count_to n_all_q "=\"$esc\""
+    n_safe=$((n_safe + n_all_q))
+    ((n_all > 0 && n_safe == n_all)) && return 1
+  fi
+  # The whole value is one variable (`-m "$msg"`): the expansion is the point.
+  [[ "$v" =~ ^\$(\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*)$ ]] && return 1
+  # `$(cat <<'EOF' ... EOF)`: a quoted heredoc expands nothing. Read from the
+  # command as written, because the tokenizer ends a `"$(...)"` word at the
+  # first `"` inside it. The body runs to the delimiter line, nothing may
+  # follow that line but the `)`, and the word ends there: inside double
+  # quotes, the closing `"` comes right after it.
+  re_hd=$'^\\$\\(cat[[:space:]]+<<-?[[:space:]]*[\'"]([A-Za-z_][A-Za-z0-9_]*)[\'"][[:space:]]*\n'
+  if [[ "$v" =~ $re_hd ]]; then
+    d="${BASH_REMATCH[1]}"
+    hd="${BASH_REMATCH[0]}"
+    rest="$RAW_COMMAND"
+    [[ "$rest" == *"$hd"* ]] || return 0
+    # Every such heredoc in the command must close and end its substitution.
+    while [[ "$rest" == *"$hd"* ]]; do
+      pre="${rest%%"$hd"*}"
+      close='^[[:space:]]*\)([[:space:];&|)]|$)'
+      [[ "$pre" == *\" ]] && close='^[[:space:]]*\)"([[:space:];&|)]|$)'
+      body=$'\n'"${rest#*"$hd"}"
+      [[ "$body" == *$'\n'"$d"$'\n'* ]] || return 0
+      body="${body#*$'\n'"$d"$'\n'}"
+      [[ "$body" =~ $close ]] || return 0
+      rest="$body"
+    done
+    return 1
+  fi
+  [[ "$v" == '$(cat'* ]] && return 0
+  # Any other value that IS one command substitution (`-m "$(printf '...')"`,
+  # `-m "$(git log -1 --format=%B)"`) is meant to run: its `(` closes on the
+  # value's last character, so nothing outside it (`$(true) $HOME`) expands.
+  [[ "$v" == '$('*')' ]] || return 0
+  depth=0
+  for ((i = 1; i < ${#v} - 1; i++)); do
+    case "${v:i:1}" in
+    '(') depth=$((depth + 1)) ;;
+    ')')
+      depth=$((depth - 1))
+      ((depth > 0)) || return 0
+      ;;
+    *) ;;
+    esac
+  done
+  ((depth != 1))
 }
 
 # Value of an explicit `--git-dir` (attached `--git-dir=v` or separated
@@ -596,10 +707,9 @@ alias_reexpand_admit() {
 check_segment() {
   local -a w=()
   local gi sub sub_idx nseg k word next stdin_form=0 exempt=0
-  # Set when a `-m`/`--message` value carries an actual newline — the mangling
-  # hazard this guard blocks — or is a blanked PowerShell here-string (content
-  # multi-line by construction of the form, uninspectable here: fail closed).
-  local msg_newline=0
+  # Set when a `-m`/`--message` value is one the shell may rewrite
+  # (msg_value_interpolates), the hazard this guard blocks.
+  local msg_interp=0
   local inline_alias_handled=0
   # This segment's effective repo directory, resolved at most once per frame and
   # only where a path is actually needed — a segment carrying no alias and no
@@ -835,24 +945,24 @@ check_segment() {
       # --mess=x` (and each shorter prefix) parses, while a non-option like
       # --mainline errors — so an abbreviated spelling must hit this gate
       # exactly as the full one does.
-      msg_value_is_multiline "$next" && msg_newline=1
+      msg_value_interpolates "$next" && msg_interp=1
       ((k++))
       ;;
     --m=* | --me=* | --mes=* | --mess=* | --messa=* | --messag=* | --message=*) # spellchecker:disable-line
       word="${word#*=}"
-      msg_value_is_multiline "$word" && msg_newline=1
+      msg_value_interpolates "$word" && msg_interp=1
       ;;
     -m*)
-      # Attached value (`-m"multi<NL>line"` tokenizes to one -m-prefixed word).
+      # Attached value (`-m"fix $x"` tokenizes to one -m-prefixed word).
       word="${word#-m}"
-      msg_value_is_multiline "$word" && msg_newline=1
+      msg_value_interpolates "$word" && msg_interp=1
       ;;
     -[!-]*m)
       # Short-option cluster whose LAST letter is m (`-am`, `-sam`): git binds
       # the NEXT word as the message. Which earlier cluster letters themselves
       # take values is per-option knowledge this scan does not model; misreading
-      # one costs at most a newline probe of the following word.
-      msg_value_is_multiline "$next" && msg_newline=1
+      # one costs at most a probe of the following word.
+      msg_value_interpolates "$next" && msg_interp=1
       ((k++))
       ;;
     *)
@@ -863,21 +973,29 @@ check_segment() {
   done
 
   ((stdin_form || exempt)) && return 0
-  # The narrowed verdict (#2021): only a `-m` whose message ACTUALLY carries a
-  # newline is the mangling hazard. A single-line `-m`, a bare `git commit`,
-  # and repeated single-line `-m` paragraphs (git joins them itself) all pass.
-  ((msg_newline)) || return 0
+  # Only a message the shell may rewrite is the hazard. A plain `-m`, single-
+  # or multi-line, a bare `git commit`, and repeated `-m` paragraphs all pass.
+  ((msg_interp)) || return 0
   allowed "message-flag" && return 0
   # Both composed without a command substitution: each was a fork on every
-  # blocked multi-line commit for a builtins-only function (#3514). The
-  # sequencer probe's own `git rev-parse` fork is the one this path still pays.
+  # blocked commit for a builtins-only function (#3514). The sequencer probe's
+  # own `git rev-parse` fork is the one this path still pays.
   [[ -n "$seg_dir" ]] || hook::git_effective_dir_to seg_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}"
   explicit_git_dir_to explicit_gd "${w[@]:gi:sub_idx-gi}"
   sequencer_in_progress "$seg_dir" "$explicit_gd" && return 0
+  block_message_flag
+}
 
-  echo "BLOCKED: \`git commit -m\` with a multi-line message — a \`-m\` newline flattens" >&2
-  echo "unpredictably across shells, so the body lands mangled in history." >&2
-  echo "Pipe the message via stdin instead: use /source-control:commit, or its" >&2
+# block_message_flag: the refusal, with the safe forms for this tool. Never
+# returns.
+block_message_flag() {
+  # shellcheck disable=SC2016  # literal `$` in the message text
+  {
+    echo 'BLOCKED: this `git commit -m` message holds a `$` or a backtick the shell expands'
+    echo 'before git sees it: `$x` and `$(...)` are replaced, and in PowerShell a backtick'
+    echo 'starts an escape (`f becomes a form feed), so the message lands changed in history.'
+  } >&2
+  echo "Put it in single quotes, or pipe it via stdin: use /source-control:commit, or its" >&2
   echo "canonical form directly:" >&2
   if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     echo "  @'" >&2
@@ -888,8 +1006,8 @@ check_segment() {
     echo "  <subject>" >&2
     echo "  EOF" >&2
   fi
-  echo "Single-line \`-m\` messages are allowed. --amend, -C/-c, --fixup/--squash," >&2
-  echo "-F <path>, and an in-progress merge/rebase are exempt." >&2
+  echo "Messages without \`\$\` or a backtick are allowed, multi-line included. --amend," >&2
+  echo "-C/-c, --fixup/--squash, -F <path>, and an in-progress merge/rebase are exempt." >&2
   emit_tel "blocked" "message-flag"
   exit 2
 }
@@ -937,6 +1055,14 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     exit 2
   fi
   ((ps_rc == 0)) || {
+    # A git commit the classifier cannot reduce still shows its message in the
+    # command as written: a backtick or `$` in its double quotes is this
+    # guard's hazard (exemptions are not read on this path; it fails closed).
+    re_commit='(^|[^[:alnum:]_-])git(\.exe)?[[:space:]]([^|;]*[[:space:]])?commit[[:space:]]'
+    if ((ps_rc == 2)) && ! allowed "message-flag" && [[ "$RAW_COMMAND" =~ $re_commit ]] &&
+      msg_value_interpolates ""; then
+      block_message_flag
+    fi
     emit_tel "ok" "powershell-deferred"
     exit 0
   }

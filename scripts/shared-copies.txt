@@ -141,6 +141,7 @@ lib/check-retirements.sh plugins/plugin-quality/lib/check-retirements.sh
 lib/check-retirements.sh plugins/harness-ops/lib/check-retirements.sh
 lib/check-retirements.sh plugins/attribution/lib/check-retirements.sh
 lib/check-retirements.sh plugins/docs-naming/lib/check-retirements.sh
+lib/check-retirements.sh plugins/guardrails/lib/check-retirements.sh
 lib/state-key.sh plugins/harness-config/lib/state-key.sh
 lib/state-key.sh plugins/harness-memory/lib/state-key.sh
 lib/state-key.sh plugins/harness-ops/lib/state-key.sh

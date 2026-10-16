@@ -32,6 +32,10 @@ trap 'rm -rf "$TEST_TMPDIR" "$RDT_AB"' EXIT
 
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
+# An interactive session exports CLAUDE_CODE_SESSION_ATTENDED=1, which turns a
+# refusal into an ask (refuse.sh). Every case below asserts the deny unless it
+# sets the flag itself.
+unset CLAUDE_CODE_SESSION_ATTENDED
 
 # --- 1. MUST FIRE: the operand normalizes to a filesystem root ----------------
 # The measured gap this guard closes. `rm -rf "\\"` passed all eight guards of
@@ -2163,6 +2167,200 @@ expect "a stdin body that is not JSON fails closed" 2 --payload 'not json'
 rc=0
 bash "$HOOK" <<<'{"tool_name":"Bash","tool_input":{}}' >/dev/null 2>&1 || rc=$?
 assert_exit "payload with no command is a skip" 0 "$rc"
+
+# `X=build && rm -rf "$X"` deletes `build`, so it is judged as `build`, but
+# only when the whole command is exactly `NAME=LITERAL SEP rm WORD...`.
+expect_both 'X=build && rm -rf "$X" allowed' 0 "${RDT_CWD[@]}" --command 'X=build && rm -rf "$X"'
+expect_both 'X=build; rm -rf "$X/" allowed' 0 "${RDT_CWD[@]}" --command 'X=build; rm -rf "$X/"'
+expect_both "X='build' && rm -rf \"\$X/out\" allowed" 0 "${RDT_CWD[@]}" --command "X='build' && rm -rf \"\$X/out\""
+expect_both 'a literal on its own line, then the delete, allowed' 0 "${RDT_CWD[@]}" \
+  --command $'X=build\nrm -rf "$X"'
+# An unquoted operand binds nothing: an inherited IFS can split `$X` into
+# other words, so only the double-quoted forms take the literal.
+expect_both 'X=build && rm -rf $X blocks (unquoted)' 2 "${RDT_CWD[@]}" --command 'X=build && rm -rf $X'
+expect_both 'X=build; rm -rf $X/ blocks (unquoted)' 2 "${RDT_CWD[@]}" --command 'X=build; rm -rf $X/'
+expect_both 'X=build && rm -rf "$X"/ blocks (suffix outside the quotes)' 2 "${RDT_CWD[@]}" \
+  --command 'X=build && rm -rf "$X"/'
+expect "attended: an unquoted operand asks" 0 "${RDT_CWD[@]}" \
+  --command 'X=build && rm -rf $X' -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_eq "attended: an unquoted operand's decision is ask" ask \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+# Outside that exact shape nothing binds, and the variable blocks as on main.
+expect_both 'X="build" && rm -rf "${X}" blocks (a braced expansion)' 2 "${RDT_CWD[@]}" \
+  --command 'X="build" && rm -rf "${X}"'
+expect_both 'two literals, then rm -rf "$A" "$B" blocks' 2 "${RDT_CWD[@]}" \
+  --command "A=build B='dist' && rm -rf \"\$A\" \"\$B/x\""
+expect_both 'readonly, then the literal, blocks' 2 "${RDT_CWD[@]}" --command 'readonly X=/etc; X=build; rm -rf "$X"'
+expect_both 'export NAME=literal && rm blocks' 2 "${RDT_CWD[@]}" --command 'export X=build && rm -rf "$X"'
+expect_both 'a second variable in the delete blocks' 2 "${RDT_CWD[@]}" --command 'X=build && rm -rf "$X" "$Y"'
+expect_both 'a second delete blocks' 2 "${RDT_CWD[@]}" --command 'X=build && rm -rf "$X" && rm -rf "$X"'
+expect_both 'a glob after the variable blocks' 2 "${RDT_CWD[@]}" --command 'X=build && rm -rf $X*'
+expect_both 'a comment after the delete blocks' 2 "${RDT_CWD[@]}" --command 'X=build &&rm -rf "$X" # c'
+expect_both 'a line continuation before the separator blocks' 2 "${RDT_CWD[@]}" \
+  --command $'X=build\\\n&& rm -rf "$X"'
+expect_both 'a group around the literal blocks' 2 "${RDT_CWD[@]}" --command '{ X=build; } && rm -rf "$X"'
+expect_both 'a literal with a space blocks' 2 "${RDT_CWD[@]}" --command 'X=a b && rm -rf "$X"'
+expect_both 'a name the shell sets blocks' 2 "${RDT_CWD[@]}" --command 'PWD=build; rm -rf "$PWD"'
+expect_both 'a name zsh ties to PATH blocks' 2 "${RDT_CWD[@]}" --command 'path=build && rm -rf "$path"'
+expect_both 'a name that can set a variable, as the literal, blocks' 2 "${RDT_CWD[@]}" \
+  --command 'X=export && rm -rf "$X"'
+expect_both 'a literal rm reads as an option blocks' 2 "${RDT_CWD[@]}" \
+  --command 'X=--no-preserve-root && rm -rf "$X" build'
+expect_both 'a longer name beside the bound one blocks' 2 "${RDT_CWD[@]}" --command 'X=build && rm -rf "$X" $XY'
+expect "attended: the exact shape is allowed, not asked" 0 "${RDT_CWD[@]}" \
+  --command 'X=build && rm -rf "$X"' -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_eq "attended: the exact shape carries no decision" "" \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+for rdt_cmd in 'X=build && rm -rf "$X" "$Y"' '{ X=build; } && rm -rf "$X"' 'X=build & rm -rf "$X"' \
+  'X=$(pwd) && rm -rf "$X"' 'X=a b && rm -rf "$X"'; do
+  expect "attended: outside the shape asks: $rdt_cmd" 0 "${RDT_CWD[@]}" \
+    --command "$rdt_cmd" -- CLAUDE_CODE_SESSION_ATTENDED=1
+  assert_eq "attended: outside the shape, the decision is ask: $rdt_cmd" ask \
+    "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+done
+expect_both 'a literal several statements before the delete blocks (not adjacent)' 2 "${RDT_CWD[@]}" \
+  --command 'S=build; mkdir -p "$S/x"; git status; rm -rf "$S"'
+expect_both 'a literal built from another variable blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=build; P=$S/probe; rm -rf $P'
+# A later statement that may change the variable drops the binding.
+expect_both 'a reassignment behind || blocks' 2 "${RDT_CWD[@]}" --command 'X=build; true || X=/; rm -rf "$X"'
+expect_both 'a guarded first assignment blocks' 2 "${RDT_CWD[@]}" --command 'X=/; true || X=build; rm -rf "$X"'
+expect_both 'read NAME blocks' 2 "${RDT_CWD[@]}" --command 'X=build; read X; rm -rf "$X"'
+expect_both 'unset NAME blocks' 2 "${RDT_CWD[@]}" --command 'X=build; unset X; rm -rf "$X/"'
+expect_both 'for NAME blocks' 2 "${RDT_CWD[@]}" --command 'X=build; for X in a b; do :; done; rm -rf "$X"'
+expect_both 'printf -v NAME blocks' 2 "${RDT_CWD[@]}" --command "X=build; printf -v X '%s' /; rm -rf \"\$X\""
+expect_both 'export NAME=... blocks' 2 "${RDT_CWD[@]}" --command 'X=build; export X=/; rm -rf "$X"'
+expect_both 'eval blocks' 2 "${RDT_CWD[@]}" --command 'X=build; eval "$C"; rm -rf "$X"'
+expect_both 'a function definition blocks' 2 "${RDT_CWD[@]}" --command 'X=build; f() { X=/; }; f; rm -rf "$X"'
+expect_both 'an assignment inside if/then blocks' 2 "${RDT_CWD[@]}" --command 'if true; then X=build; fi; rm -rf "$X"'
+expect_both 'an assignment in a subshell blocks' 2 "${RDT_CWD[@]}" --command '(X=build); rm -rf "$X"'
+expect_both 'NAME= inside quotes elsewhere blocks' 2 "${RDT_CWD[@]}" --command 'X=build; echo "X=/"; rm -rf "$X"'
+expect_both 'a value from a substitution blocks' 2 "${RDT_CWD[@]}" --command 'D=$(mktemp -d); rm -rf "$D"'
+# Every arm still reads the literal, and only that exact shape is read.
+expect_both 'X=/ && rm -rf "$X" blocks (root)' 2 "${RDT_CWD[@]}" --command 'X=/ && rm -rf "$X"'
+expect_both 'X=/etc && rm -rf "$X" blocks (outside the tree)' 2 "${RDT_CWD[@]}" --command 'X=/etc && rm -rf "$X"'
+expect_both 'X=build | rm -rf "$X" blocks (another shell)' 2 "${RDT_CWD[@]}" --command 'X=build | rm -rf "$X"'
+expect_both 'X=build & rm -rf "$X" blocks (another shell)' 2 "${RDT_CWD[@]}" --command 'X=build & rm -rf "$X"'
+expect_both 'X=build || rm -rf "$X" blocks' 2 "${RDT_CWD[@]}" --command 'X=build || rm -rf "$X"'
+expect_both 'a reassignment from a substitution between them blocks' 2 "${RDT_CWD[@]}" \
+  --command 'X=build && X=$(pwd) && rm -rf "$X"'
+expect_both 'X=$(pwd) && rm -rf "$X" blocks' 2 "${RDT_CWD[@]}" --command 'X=$(pwd) && rm -rf "$X"'
+expect_both 'X=~ && rm -rf "$X" blocks (tilde expands)' 2 "${RDT_CWD[@]}" --command 'X=~ && rm -rf "$X"'
+expect_both 'X=build rm -rf "$X" blocks (prefix assignment expands too late)' 2 "${RDT_CWD[@]}" \
+  --command 'X=build rm -rf "$X"'
+expect_both 'X=build && bash -c rm -rf "$X" blocks (a child shell does not inherit X)' 2 "${RDT_CWD[@]}" \
+  --command "X=build && bash -c 'rm -rf \"\$X\"'"
+expect_both 'X=build && rm -rf "$Y" blocks (a different variable)' 2 "${RDT_CWD[@]}" --command 'X=build && rm -rf "$Y"'
+expect_both 'X=build && rm -rf "$XY" blocks (a longer name)' 2 "${RDT_CWD[@]}" --command 'X=build && rm -rf "$XY"'
+expect_both 'a literal beside a substitution blocks (the tokenizer splits on its parentheses)' 2 "${RDT_CWD[@]}" \
+  --command 'X=build Y=$(pwd) && rm -rf "$X"'
+expect_both 'the non-literal one beside it still blocks' 2 "${RDT_CWD[@]}" \
+  --command 'X=build Y=$(pwd) && rm -rf "$Y"'
+
+# Anything in the command that can set a variable out of sight drops every
+# binding. Each of these once read X as `build` while the shell deleted /etc.
+expect_both 'declare -n beside the literal blocks' 2 "${RDT_CWD[@]}" \
+  --command 'X=build; declare -n R=X; R=/etc; rm -rf "$X"'
+expect_both 'a DEBUG trap beside the literal blocks' 2 "${RDT_CWD[@]}" \
+  --command 'X=build; trap ": ; X=/etc" DEBUG; rm -rf "$X"'
+expect_both 'printf -vNAME beside the literal blocks' 2 "${RDT_CWD[@]}" \
+  --command 'X=build; printf -vX /etc; rm -rf "$X"'
+expect_both 'command eval beside the literal blocks' 2 "${RDT_CWD[@]}" \
+  --command 'X=build; command eval ": ; X=/etc"; rm -rf "$X"'
+expect_both 'builtin eval beside the literal blocks' 2 "${RDT_CWD[@]}" \
+  --command 'X=build; builtin eval ": ; X=/etc"; rm -rf "$X"'
+expect_both 'read <<< beside the literal blocks' 2 "${RDT_CWD[@]}" \
+  --command 'X=build; read X <<< /etc; rm -rf "$X"'
+expect_both 'IFS beside the literal blocks (an unquoted operand splits)' 2 "${RDT_CWD[@]}" \
+  --command 'X=a/etc IFS=a && rm -rf $X'
+expect_both 'IFS set before the literal blocks' 2 "${RDT_CWD[@]}" --command 'IFS=a; X=a/etc; rm -rf $X'
+
+# An assignment that does not run first in this shell is no binding: a line
+# that goes on through ||, | or \ (past a comment), a subshell, a substitution,
+# a group or a branch. Each of these once read HOME as `build`.
+expect_both 'an assignment after a || line end blocks' 2 "${RDT_CWD[@]}" \
+  --command $'true ||\nHOME=build && rm -rf "$HOME"'
+expect_both 'an assignment after a | line end blocks' 2 "${RDT_CWD[@]}" \
+  --command $'true |\nHOME=build && rm -rf "$HOME"'
+expect_both 'an assignment after a continued line blocks' 2 "${RDT_CWD[@]}" \
+  --command $'true || \\\nHOME=build && rm -rf "$HOME"'
+expect_both 'an assignment after || and a comment blocks' 2 "${RDT_CWD[@]}" \
+  --command $'true || # c\nHOME=build && rm -rf "$HOME"'
+expect_both 'an assignment after || and a quoted # blocks' 2 "${RDT_CWD[@]}" \
+  --command $'echo "x\n#" ||\nHOME=build && rm -rf "$HOME"'
+expect_both 'an assignment inside ( ) blocks' 2 "${RDT_CWD[@]}" \
+  --command '(true; HOME=build) && rm -rf "$HOME"'
+expect_both 'an assignment inside ( ) after a quoted ) blocks' 2 "${RDT_CWD[@]}" \
+  --command 'echo ")"; (true; HOME=build) && rm -rf "$HOME"'
+expect_both 'an assignment inside $( ) blocks' 2 "${RDT_CWD[@]}" \
+  --command 'echo $(true; X=build) && rm -rf "$X"'
+expect_both 'an assignment inside backticks blocks' 2 "${RDT_CWD[@]}" \
+  --command 'echo `true; HOME=build` && rm -rf "$HOME"'
+expect_both 'an assignment continued into a pipe blocks' 2 "${RDT_CWD[@]}" \
+  --command $'HOME=build \\\n| rm -rf "$HOME"'
+expect_both 'a comment line before the literal blocks' 2 "${RDT_CWD[@]}" \
+  --command $'# clean the build\nX=build\nrm -rf "$X"'
+expect_both 'a plain statement line before the literal blocks' 2 "${RDT_CWD[@]}" \
+  --command $'true\nX=build && rm -rf "$X"'
+
+# --- 5c. An attended session asks instead of denying (refuse.sh) ---------------
+# An ask is the verdict on the WHOLE command: any segment that denies, and any
+# budget the reading runs past, denies the call, alone and through the row.
+RDT_MANY=""
+for ((rdt_i = 1; rdt_i <= 600; rdt_i++)); do RDT_MANY+=" a$rdt_i"; done
+RDT_CDS=""
+for ((rdt_i = 1; rdt_i <= 40; rdt_i++)); do RDT_CDS+="; cd x"; done
+expect_both 'attended: a bare variable, then a delete past the target budget, denies' 2 "${RDT_CWD[@]}" \
+  --command "rm -rf \"\$X\"; rm -rf$RDT_MANY" -- CLAUDE_CODE_SESSION_ATTENDED=1
+expect_both 'attended: a root, then a delete past the target budget, denies' 2 "${RDT_CWD[@]}" \
+  --command "rm -rf /; rm -rf$RDT_MANY" -- CLAUDE_CODE_SESSION_ATTENDED=1
+expect_both 'attended: a root, then more directory changes than the budget, denies' 2 "${RDT_CWD[@]}" \
+  --command "rm -rf /$RDT_CDS; rm -rf x" -- CLAUDE_CODE_SESSION_ATTENDED=1
+expect 'attended: an operand past the brace budget denies before expanding' 2 "${RDT_CWD[@]}" \
+  --command "rm -rf ${rdt_br}x" -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_contains 'attended: the brace budget refusal names its bound' "$GUARD_ERR" "too large to expand in time"
+expect "attended: two asking segments ask once" 0 "${RDT_CWD[@]}" \
+  --command 'rm -rf "$X"; rm -rf /etc/foo' -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_eq "attended: two asking segments: the decision is ask" ask \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+assert_contains "attended: the reason names the bare variable" \
+  "$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")" "bare variable ('\$X')"
+assert_contains "attended: the reason names the outside-tree delete" \
+  "$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")" "recursive delete of '/etc/foo'"
+expect "attended, dispatched: two asking segments ask once" 0 --via dispatched "${RDT_CWD[@]}" \
+  --command 'rm -rf "$X"; rm -rf /etc/foo' -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_contains "attended, dispatched: the reason names both segments" \
+  "$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")" "/etc/foo"
+expect "attended: rm -rf / exits 0 to ask" 0 --command 'rm -rf /' -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_eq "attended: the decision is ask" ask \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+assert_contains "attended: the reason names the root" \
+  "$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")" \
+  "BLOCKED: recursive delete of a filesystem root (normalizes to '/')."
+expect "attended: a bare variable asks" 0 --command 'rm -rf "$X"' -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_eq "attended: bare variable decision is ask" ask \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+expect "attended: a target outside the tree asks" 0 "${RDT_CWD[@]}" --command 'rm -rf /etc/x' -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_eq "attended: outside-tree decision is ask" ask \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+expect "attended=0: rm -rf / denies" 2 --command 'rm -rf /' -- CLAUDE_CODE_SESSION_ATTENDED=0
+assert_eq "attended=0: no document" "" "$GUARD_OUT"
+expect "attended unset: rm -rf / denies" 2 --command 'rm -rf /'
+# A command the guard cannot finish reading names nothing a person could judge.
+expect "attended: a command over the length cap still denies" 2 \
+  --command "rm -rf $(printf 'x%.0s' {1..16400})" -- CLAUDE_CODE_SESSION_ATTENDED=1
+expect "attended, dispatched: rm -rf / asks too" 0 --via dispatched \
+  --command 'rm -rf /' -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_eq "attended, dispatched: the merged decision is ask" ask \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+expect "attended, dispatched: an outside-tree delete asks (decided in the judgment subshell)" 0 --via dispatched \
+  "${RDT_CWD[@]}" --command 'rm -rf /etc/x' -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_eq "attended, dispatched: outside-tree decision is ask" ask \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+
+# --- 5d. Guards stay on in auto mode -------------------------------------------
+expect_both "auto mode: rm -rf / still blocks" 2 \
+  --payload '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"},"permission_mode":"auto"}'
 
 # --- 6. Kill switch ----------------------------------------------------------
 expect "kill switch disables the guard" 0 --command 'rm -rf /' \

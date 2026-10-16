@@ -42,6 +42,10 @@
 # test-scope: plugins/guardrails/hooks/*.sh plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/hooks/hooks.json plugins/guardrails/prerequisites.json
 
 set -uo pipefail
+# An interactive session exports CLAUDE_CODE_SESSION_ATTENDED=1, which turns a
+# guard's refusal into an ask (hooks/refuse.sh). Pin it to 0 so a run here
+# gets the result CI gets.
+export CLAUDE_CODE_SESSION_ATTENDED=0
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_TMPDIR="$(mktemp -d)"
@@ -282,7 +286,7 @@ if ((JQ_HIDING_WORKS)); then
   checked_advisory=0
   for advisory in "${FAIL_OPEN[@]}"; do
     case "$advisory" in
-    block-hook-bypass.sh | block-noncanonical-commit.sh | block-convention-violation.sh) ;;
+    block-noncanonical-commit.sh | block-convention-violation.sh) ;;
     *) continue ;;
     esac
     checked_advisory=$((checked_advisory + 1))

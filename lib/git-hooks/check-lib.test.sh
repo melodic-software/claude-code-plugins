@@ -183,6 +183,34 @@ git -C "$P" branch -q -u origin/main
 expect "pre-push: no stdin ranges the branch against its upstream" "$base_sha $topic_sha" \
   "$(in_repo "$P" pre-push 'cat "$CHECKS_TMP/push-ranges"' origin url </dev/null)"
 
+# A SHA-256 repository's pre-push records carry a 64-digit zero id.
+REMOTE256="$WORK/remote256.git"
+if git init -q --bare --object-format=sha256 -b main "$REMOTE256" 2>/dev/null; then
+  S="$WORK/s256"
+  git init -q --object-format=sha256 -b main "$S"
+  git -C "$S" config user.name t
+  git -C "$S" config user.email t@example.invalid
+  printf 'base\n' >"$S/f.txt"
+  git -C "$S" add f.txt
+  git -C "$S" commit -q -m base
+  git -C "$S" remote add origin "$REMOTE256"
+  git -C "$S" push -q origin main 2>/dev/null
+  git -C "$S" fetch -q origin
+  git -C "$S" remote set-head origin main >/dev/null
+  base256="$(git -C "$S" rev-parse HEAD)"
+  git -C "$S" switch -q -c topic
+  printf 'base\nmore\n' >"$S/f.txt"
+  git -C "$S" commit -q -am more
+  topic256="$(git -C "$S" rev-parse HEAD)"
+  zero256="$(printf '0%.0s' {1..64})"
+  expect "pre-push sha256: a new branch starts at its merge-base" "$base256 $topic256" \
+    "$(printf 'refs/heads/topic %s refs/heads/topic %s\n' "$topic256" "$zero256" | in_repo "$S" pre-push 'cat "$CHECKS_TMP/push-ranges"' origin url)"
+  expect "pre-push sha256: a deletion is skipped" "" \
+    "$(printf '(delete) %s refs/heads/old %s\n' "$zero256" "$base256" | in_repo "$S" pre-push 'cat "$CHECKS_TMP/push-ranges"' origin url)"
+else
+  echo "skip: this git cannot create a SHA-256 repository"
+fi
+
 # --- bash 3.2 syntax lint ---------------------------------------------------------
 # Constructs newer than bash 3.2 (macOS /bin/bash). Comments are skipped.
 lint_32() {

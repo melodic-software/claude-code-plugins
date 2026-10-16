@@ -74,6 +74,8 @@
 #   check-retirements.sh --help
 #
 #   --root defaults to ${CLAUDE_PROJECT_DIR}, else the git toplevel, else cwd.
+#   When the root is a linked worktree, a `.git/` path resolves under the
+#   common git dir (`.git/hooks/x` is `<git-common-dir>/hooks/x`).
 #
 # Exit (detect): 0 no active leftover (report-only hits may still be listed);
 #                1 at least one active leftover; 2 usage, unreadable manifest,
@@ -482,10 +484,41 @@ matching_line_nrs() {
   done
 }
 
+# A linked worktree's .git is a file, and git's shared files (hooks among them)
+# sit in the main checkout's git dir, so there a `.git/` record path resolves
+# under `git rev-parse --git-common-dir`. Empty in a normal checkout.
+COMMON_DIR=""
+if [[ -f "$ROOT/.git" ]]; then
+  COMMON_DIR=$(git -C "$ROOT" rev-parse --git-common-dir 2>/dev/null | tr -d '\r')
+  case "$COMMON_DIR" in
+  "" | /* | [A-Za-z]:*) ;;
+  *) COMMON_DIR="$ROOT/$COMMON_DIR" ;;
+  esac
+  COMMON_DIR="${COMMON_DIR%/}"
+fi
+
+# target_base <path> — the directory a record path resolves under: the common
+# git dir for a `.git/` path in a linked worktree, else ROOT. target_of <path>
+# — the path on disk.
+target_base() {
+  if [[ -n "$COMMON_DIR" && "$1" == .git/* ]]; then
+    printf '%s' "$COMMON_DIR"
+  else
+    printf '%s' "$ROOT"
+  fi
+}
+target_of() {
+  if [[ -n "$COMMON_DIR" && "$1" == .git/* ]]; then
+    printf '%s/%s' "$COMMON_DIR" "${1#.git/}"
+  else
+    printf '%s/%s' "$ROOT" "$1"
+  fi
+}
+
 # present <index> — 0 when record <index>'s artifact is present in ROOT.
 present() {
   local i="$1" target nrs
-  target="$ROOT/${REC_PATH[$i]}"
+  target=$(target_of "${REC_PATH[$i]}")
   case "${REC_KIND[$i]}" in
   file)
     [[ -f "$target" ]] || return 1
@@ -548,7 +581,8 @@ done
 kind="${REC_KIND[$idx]}"
 path="${REC_PATH[$idx]}"
 action="${REC_ACTION[$idx]}"
-target="$ROOT/$path"
+target=$(target_of "$path")
+base=$(target_base "$path")
 
 if [[ "$action" == "migrate" && $I_MIGRATED -eq 0 ]]; then
   echo "ERROR: $CLEAN_ID is a migrate record: its content must be carried over before the artifact goes." >&2
@@ -560,10 +594,11 @@ fi
 locked_hint="re-run after closing the file (on Windows a locked file makes the remove fail; nothing was changed)"
 
 # File and line cleanup share this: a syntactically clean repo-relative path can
-# still walk a symlink parent out of ROOT. Re-resolve at the moment of use.
+# still walk a symlink parent out of its base (ROOT, or the common git dir).
+# Re-resolve at the moment of use.
 assert_target_inside_root() {
   local real_root real_parent
-  real_root=$(cd "$ROOT" 2>/dev/null && pwd -P) || die "cannot resolve root: $ROOT"
+  real_root=$(cd "$base" 2>/dev/null && pwd -P) || die "cannot resolve root: $base"
   real_parent=$(cd "$(dirname -- "$target")" 2>/dev/null && pwd -P) || die "cannot resolve $path"
   case "$real_parent" in
   "$real_root" | "$real_root"/*) ;;
@@ -591,9 +626,9 @@ file)
   ;;
 dir)
   # rm -rf is the one thing here that can do real damage, so the path is
-  # re-resolved at the moment of use: it must land strictly inside ROOT and
-  # must not be ROOT itself, whatever the manifest text said.
-  real_root=$(cd "$ROOT" 2>/dev/null && pwd -P) || die "cannot resolve root: $ROOT"
+  # re-resolved at the moment of use: it must land strictly inside its base
+  # and must not be the base itself, whatever the manifest text said.
+  real_root=$(cd "$base" 2>/dev/null && pwd -P) || die "cannot resolve root: $base"
   real_target=$(cd "$target" 2>/dev/null && pwd -P) || die "cannot resolve $path"
   [[ "$real_target" != "$real_root" ]] || die "refusing to remove $path — it resolves to the repository root"
   case "$real_target" in

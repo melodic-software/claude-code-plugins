@@ -26,6 +26,10 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DISPATCH="$HOOK_DIR/run-guards.sh"
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
+# An interactive session exports CLAUDE_CODE_SESSION_ATTENDED=1, which turns a
+# guard's refusal into an ask (refuse.sh). Pin it to 0 so every case below
+# gets the result CI gets; the attended cases set it themselves.
+export CLAUDE_CODE_SESSION_ATTENDED=0
 jq_crlf_free
 
 export CLAUDE_PLUGIN_ROOT="$HOOK_DIR/.."
@@ -88,6 +92,8 @@ stub dirname.sh 'printf "%s %s\n" "$(type -t dirname)" "$(dirname /foo)" >>"'"$S
 # the shapes it has to recognize, not on what hook::emit_channels happens to build.
 stub deny.sh 'hook::emit_document "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"stub deny\"}}"'
 stub ask.sh 'hook::emit_document "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\": \"ask\"}}"'
+stub ask1.sh 'hook::emit_document "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"ask one\"}}"'
+stub ask2.sh 'hook::emit_document "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"ask two\"}}"'
 
 PAYLOAD=$(jq -n '{session_id:"s-1",tool_name:"Bash",cwd:"/x",tool_input:{command:"git status --short"}}')
 
@@ -165,6 +171,90 @@ merged_ctx="${merged_ctx//$'\r'/}" # the Windows jq build writes CRLF
 assert_eq "merged additionalContext carries both guards, in order" $'ctx one\n\nctx two' "$merged_ctx"
 assert_eq "merged hookEventName kept" "PreToolUse" "$(jq -r '.hookSpecificOutput.hookEventName' <<<"$OUT")"
 assert_eq "merged systemMessage carries the one guard that set it" "sys two" "$(jq -r '.systemMessage' <<<"$OUT")"
+
+# --- stdout: a permission decision survives the merge (deny > ask) -----------
+hsd() { jq -r ".hookSpecificOutput.$1 // empty" <<<"$OUT" | tr -d '\r'; }
+run "$PAYLOAD" "$TEST_TMPDIR/ask1.sh" "$TEST_TMPDIR/allow.sh"
+assert_exit "ask beside a silent guard exits 0" 0 "$RC"
+assert_eq "ask beside a silent guard: the decision is ask" ask "$(hsd permissionDecision)"
+run "$PAYLOAD" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/ask1.sh"
+assert_eq "ask beside a context document: the decision is ask" ask "$(hsd permissionDecision)"
+assert_eq "ask beside a context document: the context is kept" "ctx one" "$(hsd additionalContext)"
+assert_eq "ask beside a context document: one document" "1" "$(jq -s 'length' <<<"$OUT")"
+run "$PAYLOAD" "$TEST_TMPDIR/ask1.sh" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/ask2.sh"
+assert_eq "two asks: the decision is ask" ask "$(hsd permissionDecision)"
+assert_eq "two asks: both reasons, in order" $'ask one\n\nask two' "$(hsd permissionDecisionReason)"
+run "$PAYLOAD" "$TEST_TMPDIR/ask1.sh" "$TEST_TMPDIR/deny.sh"
+assert_eq "ask beside a deny document: the decision is deny" deny "$(hsd permissionDecision)"
+assert_eq "ask beside a deny document: the deny reason only" "stub deny" "$(hsd permissionDecisionReason)"
+run "$PAYLOAD" "$TEST_TMPDIR/ask1.sh" "$TEST_TMPDIR/block.sh"
+assert_exit "ask beside a guard that exits 2: the call is denied" 2 "$RC"
+assert_absent "ask beside a guard that exits 2: no ask on stdout" "$OUT" '"ask"'
+run "$PAYLOAD" "$TEST_TMPDIR/ask1.sh" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/block.sh"
+assert_exit "ask and context beside an exit 2: denied" 2 "$RC"
+assert_absent "ask and context beside an exit 2: the ask is dropped" "$OUT" '"ask"'
+
+# --- the shipped guards ask through the dispatcher only when attended --------
+ATT_REPO="$TEST_TMPDIR/att-repo"
+git init -q "$ATT_REPO"
+att_run() { # att_run <attended> <command>: the whole shipped Bash row
+  local p
+  p=$(jq -nc --arg c "$2" --arg d "$ATT_REPO" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
+  RC=0
+  OUT=$(env CLAUDE_CODE_SESSION_ATTENDED="$1" bash "$DISPATCH" --lib lib/powershell/ps-command.sh \
+    block-no-verify.sh block-dangerous-git.sh block-noncanonical-commit.sh \
+    block-root-delete-target.sh block-credential-read.sh <<<"$p" 2>"$TEST_TMPDIR/err") || RC=$?
+  ERR=$(cat "$TEST_TMPDIR/err")
+}
+att_run 1 'git reset --hard'
+assert_exit "attended: git reset --hard exits 0 to ask" 0 "$RC"
+assert_eq "attended: git reset --hard asks" ask "$(hsd permissionDecision)"
+assert_contains "attended: the ask names the form" "$(hsd permissionDecisionReason)" "git reset --hard discards uncommitted work"
+att_run 1 'git reset --hard && rm -rf /'
+assert_eq "attended: two refusing guards ask once" ask "$(hsd permissionDecision)"
+assert_contains "attended: the joined reason names the delete too" "$(hsd permissionDecisionReason)" "filesystem root"
+att_run 1 'git reset --hard; git commit --no-verify -m x'
+assert_exit "attended: a guard that denies outright still denies" 2 "$RC"
+att_run 0 'git reset --hard'
+assert_exit "unattended: git reset --hard denies" 2 "$RC"
+assert_absent "unattended: no ask document" "$OUT" '"ask"'
+# An ask is the verdict on the whole command: a budget overrun anywhere denies.
+rg_many=""
+for ((rg_i = 1; rg_i <= 600; rg_i++)); do rg_many+=" a$rg_i"; done
+rg_cds=""
+for ((rg_i = 1; rg_i <= 40; rg_i++)); do rg_cds+="; cd x"; done
+rg_hops=""
+for ((rg_i = 1; rg_i <= 141; rg_i++)); do rg_hops+=" -c alias.a$rg_i=a$((rg_i + 1))"; done
+att_run 1 "rm -rf \"\$X\"; rm -rf$rg_many"
+assert_exit "attended row: a bare variable, then past the target budget, denies" 2 "$RC"
+att_run 1 "rm -rf /; rm -rf$rg_many"
+assert_exit "attended row: a root, then past the target budget, denies" 2 "$RC"
+att_run 1 "rm -rf /$rg_cds; rm -rf x"
+assert_exit "attended row: a root, then past the directory-change budget, denies" 2 "$RC"
+att_run 1 "git reset --hard; git$rg_hops a1"
+assert_exit "attended row: reset --hard, then past the alias budget, denies" 2 "$RC"
+assert_contains "attended row: the alias budget reason is on stderr" "$ERR" "over 128 re-expansions"
+# The same row on a 1 MB stack, where the platform lets the suite set one: the
+# second alias walk no longer runs on top of the first, and a fresh process
+# that still ran out would report nothing and deny.
+if (ulimit -s 1024) 2>/dev/null; then
+  att_p=$(jq -nc --arg c "git reset --hard; git$rg_hops a1" --arg d "$ATT_REPO" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
+  RC=0
+  OUT=$(
+    ulimit -s 1024
+    env CLAUDE_CODE_SESSION_ATTENDED=1 bash "$DISPATCH" --lib lib/powershell/ps-command.sh \
+      block-no-verify.sh block-dangerous-git.sh block-noncanonical-commit.sh \
+      block-root-delete-target.sh block-credential-read.sh <<<"$att_p" 2>/dev/null
+  ) || RC=$?
+  assert_exit "attended row, 1 MB stack: reset --hard, then past the alias budget, denies" 2 "$RC"
+fi
+att_run 1 'rm -rf "$X"; rm -rf /etc/foo'
+assert_eq "attended row: two asking segments ask" ask "$(hsd permissionDecision)"
+assert_contains "attended row: the reason names the bare variable" "$(hsd permissionDecisionReason)" "bare variable"
+assert_contains "attended row: the reason names the outside-tree delete" "$(hsd permissionDecisionReason)" "/etc/foo"
+att_run 1 'git status'
+assert_exit "attended: an unrelated command passes" 0 "$RC"
+assert_silent "attended: an unrelated command prints nothing" "$OUT$ERR"
 
 # --- stdin posture is re-served, not re-read ---------------------------------
 run "" "$TEST_TMPDIR/allow.sh" "$TEST_TMPDIR/block.sh"
@@ -295,14 +385,14 @@ done
 if [[ -x "$SHIM/dirname" && -x "$SHIM/sed" && -x "$SHIM/jq" ]]; then
   : >"$SPAWN_LOG"
   PATH="$SHIM:$PATH" bash "$DISPATCH" --lib lib/powershell/ps-command.sh \
-    block-no-verify.sh block-dangerous-git.sh block-hook-bypass.sh \
+    block-no-verify.sh block-dangerous-git.sh \
     flag-commit-pr-skill-bypass.sh block-noncanonical-commit.sh \
     block-convention-violation.sh block-windows-drive-tmp.sh \
     block-exported-msys-pathconv.sh <<<"$PAYLOAD" >/dev/null
   assert_eq "benign Bash dispatcher spends no jq, dirname or sed" "" "$(cat "$SPAWN_LOG")"
 fi
 DISPATCH_XTRACE=$(PS4='+PID=$BASHPID ' bash -x "$DISPATCH" --lib lib/powershell/ps-command.sh \
-  block-no-verify.sh block-dangerous-git.sh block-hook-bypass.sh \
+  block-no-verify.sh block-dangerous-git.sh \
   flag-commit-pr-skill-bypass.sh block-noncanonical-commit.sh \
   block-convention-violation.sh block-windows-drive-tmp.sh \
   block-exported-msys-pathconv.sh <<<"$PAYLOAD" 2>&1 >/dev/null) || true
@@ -368,7 +458,7 @@ assert_absent "dispatcher does not copy the library's jq_fields (the lib names i
   "$DISPATCH_SRC" 'declare -f'
 assert_absent "dispatcher sources no guard in a command substitution" \
   "$DISPATCH_SRC" '$(source'
-for g in block-no-verify block-dangerous-git block-hook-bypass \
+for g in block-no-verify block-dangerous-git \
   flag-commit-pr-skill-bypass block-noncanonical-commit \
   block-convention-violation block-windows-drive-tmp block-exported-msys-pathconv \
   secret-pattern-detection hardcoded-path-check \
@@ -437,7 +527,7 @@ else
   # plugin name), so the first guard of the call tells the user and the model
   # once and the next guard says nothing: one document, nothing dropped.
   NOJQ_CMD=$(jq -c '. + {session_id: "nojq-s1"}' <<<"$(command_json 'cat > foo.txt && git commit -m x')")
-  run_nojq "$NOJQ_CMD" block-hook-bypass.sh block-noncanonical-commit.sh
+  run_nojq "$NOJQ_CMD" block-convention-violation.sh block-noncanonical-commit.sh
   assert_exit "no jq, real guards: the advisory notices exit 0" 0 "$RC"
   assert_eq "no jq, real guards: exactly one JSON document on stdout" \
     "1" "$(grep -c '^{' <<<"$OUT")"
@@ -446,11 +536,11 @@ else
   assert_absent "no jq, real guards: the second guard's notice is not produced" \
     "$ERR" "run-guards: dropped"
   # A later call in the same session says nothing: the latch holds.
-  run_nojq "$NOJQ_CMD" block-hook-bypass.sh block-noncanonical-commit.sh
+  run_nojq "$NOJQ_CMD" block-convention-violation.sh block-noncanonical-commit.sh
   assert_silent "no jq, real guards: a later call in the session stays quiet" "$OUT$ERR"
   # A guard that denies on a missing prerequisite still denies, and its reason
   # reaches stderr with no dropped document beside it.
-  run_nojq "$(jq -c '.session_id = "nojq-s2"' <<<"$NOJQ_CMD")" block-hook-bypass.sh block-no-verify.sh
+  run_nojq "$(jq -c '.session_id = "nojq-s2"' <<<"$NOJQ_CMD")" block-convention-violation.sh block-no-verify.sh
   assert_exit "no jq, real guards: a fail-closed guard still wins the exit code" 2 "$RC"
   assert_contains "no jq, real guards: the fail-closed reason reaches stderr" \
     "$ERR" "BLOCKED: jq is not on PATH, so guardrails denies every Bash and PowerShell call, and every file write on Windows."
@@ -525,6 +615,54 @@ assert_exit "hard error, closed posture: denies" 2 "$RC"
 assert_contains "hard error, closed posture: the fail-closed line is on stderr" "$ERR" "fail-closed"
 assert_silent "hard error, closed posture: no stdout document" "$OUT"
 assert_eq "hard error, closed posture: the next guard still ran" $'hardc\ngit status --short\nBash' "$(cat "$SEEN")"
+
+# A guard's `exit` runs the next guard from inside its own call, so a guard
+# that exits deep leaves its frames under every guard after it. Git Bash has a
+# 2 MB stack: an attended alias walk that exited about 140 frames down, then a
+# second walk, overflowed it, and bash died with exit 0 and no output, an
+# allow. Past the depth bound the rest runs in a fresh process with an empty
+# stack, and its documents and status still count. The depth a later guard
+# sees is the structural pin; it holds on every platform.
+deep_stub() { # <name> <status>: recurse 100 frames, then exit <status> from the bottom
+  stub "$1" 'd() { if (($1)); then d $(($1 - 1)); else exit '"$2"'; fi; }
+d 100'
+}
+deep_stub deep0.sh 0
+deep_stub deep2.sh 2
+stub depth.sh 'echo "depth=${#FUNCNAME[@]}" >>"'"$SEEN"'"; exit 0'
+stub die.sh 'echo die >>"'"$SEEN"'"; kill -9 "$BASHPID"'
+run "$PAYLOAD" "$TEST_TMPDIR/deep0.sh" "$TEST_TMPDIR/depth.sh" "$TEST_TMPDIR/allow.sh"
+assert_exit "deep exit: the rest of the chain still runs" 0 "$RC"
+deep_seen=$(cat "$SEEN")
+assert_eq "deep exit: the next guard starts on a fresh stack" "depth=3" "${deep_seen%%$'\n'*}"
+assert_eq "deep exit: each later guard ran once" $'depth=3\ngit status --short\nBash' "$deep_seen"
+run "$PAYLOAD" "$TEST_TMPDIR/deep2.sh" "$TEST_TMPDIR/ask1.sh" "$TEST_TMPDIR/ctx1.sh"
+assert_exit "deep exit 2: the block wins over the fresh process's documents" 2 "$RC"
+assert_absent "deep exit 2: the ask from the fresh process is dropped" "$OUT" '"ask"'
+assert_contains "deep exit 2: the fresh process's context is kept" "$(hsd additionalContext)" "ctx one"
+# A rest of the chain that dies before reporting has an unknown verdict, so
+# the call is denied, on the fresh-process path and on the hard-error subshell.
+run "$PAYLOAD" "$TEST_TMPDIR/deep0.sh" "$TEST_TMPDIR/die.sh" "$TEST_TMPDIR/allow.sh"
+assert_exit "deep exit, then the rest dies unreported: denied" 2 "$RC"
+assert_contains "deep exit, then the rest dies unreported: the reason names it" "$ERR" "reported no verdict"
+run "$PAYLOAD" "$TEST_TMPDIR/hard.sh" "$TEST_TMPDIR/die.sh" "$TEST_TMPDIR/allow.sh"
+assert_exit "hard error, then the rest dies unreported: denied" 2 "$RC"
+# Past the bound with a payload a fresh process could not read back the same
+# (a malformed one here): the rest does not run, and the call is denied.
+run "not json" "$TEST_TMPDIR/deep0.sh" "$TEST_TMPDIR/depth.sh"
+assert_exit "deep exit on an unprimed payload: denied" 2 "$RC"
+# The dispatcher's own boundary is fail-open, but not once a guard has
+# blocked: an abort in the merge after that denies. The stub makes the merge
+# fail and its fallback die of an unbound variable.
+stub mergeabort.sh 'hook::emit_document "{\"systemMessage\":\"b\"}"
+jq() { return 1; }
+run_guards::emit_one() { : "${RG_PROBE_UNBOUND?probe abort}"; }
+exit 0'
+run "$PAYLOAD" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/block.sh" "$TEST_TMPDIR/mergeabort.sh"
+assert_exit "a block, then the merge aborts: still denied" 2 "$RC"
+assert_contains "a block, then the merge aborts: the fail-closed line is on stderr" "$ERR" "fail-closed"
+run "$PAYLOAD" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/mergeabort.sh"
+assert_exit "no block, then the merge aborts: the open posture allows" 0 "$RC"
 
 # Two real guards walk the same alias chain in one process. The alias memo in
 # hook::git_alias_admit is per invocation: a memo hit means "already analyzed,
@@ -662,41 +800,29 @@ done
 
 # --- hooks.json wires every guard through the dispatcher by file name ---------
 for g in secret-pattern-detection hardcoded-path-check block-no-verify block-dangerous-git \
-  block-hook-bypass flag-commit-pr-skill-bypass block-noncanonical-commit \
+  flag-commit-pr-skill-bypass block-noncanonical-commit \
   block-convention-violation block-windows-drive-tmp block-exported-msys-pathconv \
-  block-root-delete-target cli-flag-verify skill-reference-verify stale-path-verify; do
+  block-root-delete-target; do
   n=$(jq -r --arg g "$g.sh" '[.hooks[][] | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end | select(contains("run-guards.sh") and contains(" " + $g))] | length' "$HOOKS_JSON")
   if ((n > 0)); then ok "hooks.json dispatches $g"; else bad "hooks.json does not dispatch $g"; fi
   if [[ -f "$HOOK_DIR/$g.sh" ]]; then ok "$g.sh exists on disk"; else bad "$g.sh missing on disk"; fi
 done
 
-# --- PostToolUse rows carry an `if` per extension the verifiers accept --------
-# Claude Code evaluates a handler's `if` before spawning it, so a Write to a file
-# no verifier would scan spawns nothing. That saving holds only while the set of
-# `if` extensions in hooks.json equals the set the three verifiers' own
-# `case "$FILE"` gates accept: an extension added to a gate without an `if` row
-# is a verifier that silently never fires on it, and an `if` row with no gate
-# is a spawn that always early-exits. Both directions are pinned here, against
-# the scripts' source rather than a second hand-kept list.
-post_rows=$(jq -c '[.hooks.PostToolUse[] | select(.matcher == "Write|Edit") | .hooks[]]' "$HOOKS_JSON")
-post_n=$(jq 'length' <<<"$post_rows")
-if ((post_n > 1)); then ok "PostToolUse Write|Edit carries one row per gated extension ($post_n)"; else bad "PostToolUse Write|Edit carries $post_n row(s); expected one per gated extension"; fi
-ungated=$(jq -r '[.[] | select(has("if") | not)] | length' <<<"$post_rows")
-assert_eq "every PostToolUse Write|Edit row carries an if predicate" 0 "$ungated"
-distinct_cmds=$(jq -r '[.[] | [.command, ((.args // []) | join(" ")), .timeout, .statusMessage]] | unique | length' <<<"$post_rows")
-assert_eq "every PostToolUse row runs the same dispatcher line, timeout and statusMessage" 1 "$distinct_cmds"
+# --- the reference-verify git hook reads every extension the verifiers do -----
+# The three verifiers run at commit time through git-hooks/reference-verify.sh,
+# which hands over only the extensions its own `case "$f"` lists. That list must
+# equal the union of the verifiers' `case "$FILE"` gates: an extension a gate
+# accepts and the list omits is a verifier that silently never runs on it. Both
+# sides are read from the scripts' source rather than a second hand-kept list.
 gate_exts_of() { # $1 verifier name -> its case-gate extensions, one per line
   sed -n '/^case "\$FILE" in/,/^esac/p' "$HOOK_DIR/$1.sh" | grep -v '^[[:space:]]*#' | grep -oE '\*\.[a-z0-9]+' | sed 's/^\*\.//' | sort -u
 }
-if_exts=$(jq -r '.[] | .if | capture("^Edit\\(\\*\\.(?<e>[a-z0-9]+)\\)$") | .e' <<<"$post_rows" | sort -u | tr '\n' ' ')
+git_hook_exts=$(sed -n '/^  case "\$f" in/,/^  esac/p' "$HOOK_DIR/../git-hooks/reference-verify.sh" |
+  grep -oE '\*\.[a-z0-9]+' | sed 's/^\*\.//' | sort -u | tr '\n' ' ')
 gate_exts=$(for v in cli-flag-verify skill-reference-verify stale-path-verify; do gate_exts_of "$v"; done | sort -u | tr '\n' ' ')
-assert_eq "if extensions equal the union of the verifiers' case gates" "$gate_exts" "$if_exts"
-for v in cli-flag-verify skill-reference-verify stale-path-verify; do
-  v_exts=$(gate_exts_of "$v" | tr '\n' ' ')
-  for e in $v_exts; do
-    if [[ " $if_exts " == *" $e "* ]]; then ok "$v gate *.$e has an if row"; else bad "$v gate *.$e has no if row"; fi
-  done
-done
+assert_eq "reference-verify.sh extensions equal the union of the verifiers' case gates" "$gate_exts" "$git_hook_exts"
+assert_eq "no PostToolUse row is left for the verifiers" 0 \
+  "$(jq '[.hooks.PostToolUse // [] | .[] | .hooks[]] | length' "$HOOKS_JSON")"
 
 # --- the dispatcher and the guards declare ONE contract ----------------------
 # hooks/guard-requires.sh is where a guard states what it CONSUMES: the payload
