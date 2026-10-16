@@ -1,0 +1,48 @@
+name: Check born triaged
+description: >
+  Decide whether an opened issue skips intake because /work-items:decompose
+  published it already triaged. skip=true only when the issue carries the
+  born-triaged marker, its author is a listed human or the lanes App (by
+  numeric id), and it has an Issue Type and a status label. Re-reads the
+  issue for up to about 25 seconds while only the type or status label is
+  missing. Always exits 0; any read failure emits skip=false.
+
+inputs:
+  issue-number:
+    description: The issue to check.
+    required: false
+    default: ${{ github.event.issue.number }}
+  trusted-actors-path:
+    description: Path to the trusted-actor list, read from a default-branch checkout.
+    required: false
+    default: .base/.github/standards/trusted-actors/trusted-actors.json
+  lanes-app-id:
+    description: The lanes App bot's numeric user id. Empty trusts listed humans only.
+    required: false
+    default: ""
+  github-token:
+    description: Token that can read the issue.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  skip:
+    description: "`true` when intake should skip the issue, otherwise `false`."
+    value: ${{ steps.check.outputs.skip }}
+  reason:
+    description: "`born-triaged`, `no-marker`, `untrusted-author`, `no-type`, `no-status`, `list-unreadable` or `issue-unreadable`."
+    value: ${{ steps.check.outputs.reason }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check the issue
+      id: check
+      shell: bash
+      env:
+        ISSUE_NUMBER: ${{ inputs.issue-number }}
+        TRUSTED_ACTORS_PATH: ${{ inputs.trusted-actors-path }}
+        LANES_APP_ID: ${{ inputs.lanes-app-id }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        REPOSITORY: ${{ github.repository }}
+      run: node "$GITHUB_ACTION_PATH/check-born-triaged.mjs"

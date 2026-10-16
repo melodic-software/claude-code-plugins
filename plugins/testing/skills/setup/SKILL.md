@@ -1,5 +1,5 @@
 ---
-description: "Configure the testing plugin's can't-fail checks for this repository. check prints the resolved testing config cascade, which test-lint rules the repo's lint config turns on per language (a missing one is a finding), an optional instruction line to paste, and a settings hook entry for any test glob the shipped test-scan hook skips; apply writes your answers to docs/conventions/testing.yaml (or to the docs/conventions/testing.md block or .claude/testing.yaml when that is the team file in use). Use when: 'set up testing', 'configure the test scan', 'exclude these tests from the audit', 'add a test glob', 'which test lint rules are missing', 'testing setup'. Re-runnable."
+description: "Configure the testing plugin's can't-fail checks for this repository. check prints the resolved testing config cascade, which test-lint rules the repo's lint config turns on per language (a missing one is a finding), an optional instruction line to paste, and any test glob the shipped test-weaken hook skips; apply writes your answers to docs/conventions/testing.yaml (or to the docs/conventions/testing.md block or .claude/testing.yaml when that is the team file in use). Use when: 'set up testing', 'configure the test scan', 'exclude these tests from the audit', 'add a test glob', 'which test lint rules are missing', 'testing setup'. Re-runnable."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-`/testing:audit` and the opt-in `test-scan` hook find tests by the shipped adapters' filename globs
+`/testing:audit` and the opt-in `test-weaken` hook find tests by the shipped adapters' filename globs
 and judge them by the shipped rule levels. This skill shows what a repository changed about that
 through the testing config, and writes it. `check` changes nothing; `apply` runs `check`,
 asks, writes, and runs `check` again. No argument means `check`.
@@ -51,36 +51,14 @@ expected values are never denied. The agent can write that marker itself: it mak
 visible to reviewers, it does not prove the reason.
 
 Removals (`adapters.disable`, `paths.exclude`, `rules ... off`) apply inside the scanner, so the
-audit and the `test-scan` hook go quiet with no plugin change; an excluded path or a disabled
-adapter silences `test-weaken` too. Additions reach the audit at once, and the
-hook only through the settings entry `check` prints.
+audit goes quiet with no plugin change; an excluded path or a disabled adapter silences
+`test-weaken` too. Additions reach the audit at once; `test-weaken` covers only the shipped globs.
 
-## The task-end test judge
+## The test judge
 
-Three plugin options, not keys of this file, turn on and tune the judge: `test_judge_enabled`
-(default `false`; it needs `test_guards_enabled`, whose scan records the tests it judges),
-`test_judge_model` and `test_judge_fallback_model` (model classes `fable`, `opus`, `sonnet` or
-`haiku`, a last resort because the judge is uncalibrated on it; defaults
-`sonnet` and `opus`), plus `test_judge_effort` (default `medium`) and `test_judge_session_runs`
-(unset: no limit). At the end of each task a separate model asks where the expected value of each
-test the session created or changed came from, and reports FLAG, PASS or UNKNOWN with quoted
-evidence and a proposed diff it never applies.
-
-- Tunable: the options above, and through this file the test globs, adapters and rule levels that
-  decide which files are recorded; per test, a `cant-fail-ok: <reason>` marker, which puts its
-  block in front of the judge rather than hiding it.
-- Fixed: the judge's one question; its one forced turn relays verdicts for the user to approve,
-  and it never gates a stop, a commit or `--check` and never blocks on its own failure; it never
-  applies a fix; its model class differs from every model that wrote the tests; its malfunction guards.
-- Reach: only blocks the session created or changed or that gained a marker, judged by their own
-  text, so a stub in `beforeEach` or a snapshot in a `.snap` file is outside it; a bash test script
-  is one whole file; a test file a Bash call changed is recorded and judged at the Stop when Claude
-  Code records the call's changed files (`bashEditDiffEnabled: true` in user, `--settings` or
-  managed settings, or `CLAUDE_CODE_BASH_EDIT_DIFF=1`); writes through an MCP tool are not
-  recorded.
-- A glob added only through the settings entry `check` prints is recorded in the same plugin data
-  directory as the shipped rows, so the Stop hook judges those tests at the task end. No background
-  job starts for them, so that judging happens at the Stop rather than ahead of it.
+The judge that asks where each changed test's expected value came from runs on demand, as
+`/testing:audit --judge`, and in `/source-control:pull-request` prep. It has no plugin option and
+no hook.
 
 ## `check` (read-only)
 
@@ -120,16 +98,9 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
    only when no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` exists. Verified 2026-09-30
    against code.claude.com/docs/en/memory; recheck when a Claude Code release note changes the
    Project instructions default or which files count. Offer it; do not paste it anywhere.
-4. **hook-entry**: `none`, or a `.claude/settings.json` snippet for each consumer glob no shipped
-   hook row matches. A settings hook receives no `CLAUDE_PLUGIN_ROOT` or `CLAUDE_PLUGIN_OPTION_*`
-   (probed on Claude Code 2.1.284, 2026-09-29, the rows in
-   <https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/tautological-tests/probes.md>; recheck when a Claude Code release note says settings hooks receive
-   plugin variables), so the entry runs the highest installed version under
-   `~/.claude/plugins/cache/<marketplace>/testing` and passes `--enabled`: adding the entry is the
-   opt-in. It pins the marketplace `check` runs from; when `check` runs outside the plugin cache the
-   entry holds a `<marketplace>` placeholder the user must replace. With no installed copy that takes
-   `--enabled`, the entry says so on stderr and exits 0. Show it; the user merges it into their
-   settings.
+4. **hook-entry**: a `none:` line saying test-quality findings come from `/testing:audit`, not a
+   per-edit hook, then, when a consumer glob matches no shipped `test-weaken` row, a line naming
+   those globs: the audit scans them, `test-weaken` skips them. No settings entry is printed.
 
 Then probe the hook launcher, which the script does not: run `command -v node` via Bash and report
 `node` as a FAIL row when it is absent. Every hook row launches through `node hooks/exec-bash.mjs`,
@@ -156,7 +127,7 @@ missing launcher.
 
    Flags: `--include`, `--exclude`, `--enable`, `--disable`, `--adapter-dir`,
    `--extend <id>.<field>=<value>`, `--rule <rule>=off|warn|error`, each repeatable.
-4. Run `check` again and show the hook entry if one is printed. Offer `git add` for the file
+4. Run `check` again. Offer `git add` for the file
    `apply` printed and a commit, and run each only when the user accepts. Personal overrides go in
    `.claude/testing.local.yaml`, which should be gitignored. `check` also prints the optional line
    to paste into `CLAUDE.md` or `AGENTS.md` that points at `docs/conventions/testing.md` when that

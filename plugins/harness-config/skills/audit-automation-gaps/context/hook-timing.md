@@ -41,14 +41,26 @@ even measuring.
 | Event | Can it block? | What slowness costs |
 |---|---|---|
 | `PreToolUse` | Yes, it blocks the tool call | The user waits before the tool runs |
-| `PostToolUse` | No, the tool already ran | Turn latency only; nothing is prevented |
+| `PostToolUse` | No, the tool already ran | Turn latency on every matching edit, plus whatever it sends the model; nothing is prevented |
+| `PostToolBatch` | See the exit-code record below | Turn latency once per batch of parallel tool calls: the in-session formatter slot |
 | `PermissionRequest` | Not via exit code 2 | Denial goes through the `decision` object; an `exit 2` gate here is inert |
 | Any command hook with `async: true` | No, structurally | Nothing; it runs in the background |
 
-Two consequences for a verdict. A `PostToolUse` candidate can never be rejected for blocking,
-because it cannot block, so judge it on turn latency against the resolved budget. And an "async
-gate" is a contradiction: `async: true` is valid only on `type: "command"` hooks, and an async hook
-cannot return a decision at all.
+Three consequences for a verdict. A `PostToolUse` candidate can never be rejected for blocking,
+because it cannot block, so judge it on turn latency against the resolved budget. A report-only
+check (one that only prints findings) is judged on placement before latency: it never belongs on a
+per-edit `PostToolUse` hook, however fast, because its output reaches the model on in-between
+states and it covers only Claude Code's own edits. Place it in a git `pre-commit` hook on changed
+lines, `pre-push` when its measured run is over the commit budget but within 60 s, or CI beyond
+that, and flag an existing per-edit one with that placement (house rule:
+[check-placement](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/check-placement/README.md#the-rubric)).
+A formatter takes the `PostToolBatch` slot only while its median per fire stays at or under 1 s,
+and also runs at `pre-commit`. And an "async gate" is a contradiction: `async: true` is valid only
+on `type: "command"` hooks, and an async hook cannot return a decision at all.
+
+A git hook's cost is the author's wait at commit or push, paid once per commit rather than per
+edit. Judge it against the consuming repository's own commit or push budget where it documents
+one, else the house rule above.
 
 ## Levers to propose instead of a bare threshold
 
@@ -70,5 +82,5 @@ upstream-drift convention. Re-fetch the pointer before acting on either; a date 
 | Decision | Pointer | As of | Recheck trigger |
 |---|---|---|---|
 | A hook with no explicit `timeout` is judged against the per-type and per-event defaults read live, never a number kept here | When judging a hook's timeout, fetch [hooks: common fields](https://code.claude.com/docs/en/hooks#common-fields) live | 2026-10-11 | That section changes a default, or adds a per-event or per-type exception |
-| A `PostToolUse` hook is never treated as a gate | When judging whether a hook can block, fetch the event's row of [hooks: exit code 2 behavior per event](https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event) live | 2026-10-11 | That event's row changes its `Can block?` cell |
+| A `PostToolUse` hook is never treated as a gate, and no report-only check is placed on it per edit | When judging whether a hook can block, fetch the event's row of [hooks: exit code 2 behavior per event](https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event) live | 2026-10-11 | That event's row changes its `Can block?` cell |
 | No official page states a hook latency budget or compares a check in CI against the same check in a hook | Absence checked by reading each page end to end for a performance, latency or placement section: [hooks](https://code.claude.com/docs/en/hooks), [hooks guide](https://code.claude.com/docs/en/hooks-guide), [best practices](https://code.claude.com/docs/en/best-practices), [features overview](https://code.claude.com/docs/en/features-overview). The nearest statements are event-scoped ("SessionStart runs on every session, so keep these hooks fast") and the `SessionEnd` 1.5-second budget, neither of which is a fleet-wide ceiling | 2026-09-12 | A re-fetch of any of the four finds a performance or placement section added |

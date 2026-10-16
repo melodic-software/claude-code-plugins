@@ -223,6 +223,8 @@ The part of the source PLAN.md's `## Design` section this vertical slice touches
 ## Out of scope
 
 - Adjacent work this vertical slice must not change
+
+<!-- work-items:born-triaged -->
 ```
 
 Fill the sections this way:
@@ -233,11 +235,11 @@ Fill the sections this way:
   before the item is picked up.
 - **Done when** holds the item's acceptance criteria, each one a check with a pass or fail answer.
 
-An item body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above, every acceptance criterion, and the quoted design excerpt survive unchanged.
+An item body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above, every acceptance criterion, the quoted design excerpt, and the closing born-triaged marker survive unchanged.
 
 Classify per taxonomy: the **issue type** from the item's nature. `Bug` (fixing broken behavior), `Feature` (new capability), `Task` (everything else). Set through the seam's `--type` on org repos (native Issue Type), or a `type:` label on personal / non-org repos; `area:` from the affected module; the autonomous-eligible label for AFK items, the human-gated label for HITL + investigation items. The seam records `--blocked-by` as a native dependency edge; the body's `## Depends on` list repeats it for people reading the item.
 
-Items published here are **born triaged**: they enter the tracker classified, role-labeled, and briefed at creation, so `/work-items:triage` never re-processes them.
+Items published here are **born triaged**: they enter the tracker classified, role-labeled, and briefed at creation, so `/work-items:triage` never re-processes them. Keep the body's last line, `<!-- work-items:born-triaged -->`, verbatim: a repository's intake automation may key on it, together with the author, the Issue Type and the role label, to skip items born triaged.
 
 **Leave the parent item untouched**: no close, no edit. The new items sit under it; they do not stand in for it.
 

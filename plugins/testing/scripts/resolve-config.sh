@@ -78,7 +78,7 @@
 #           resolve against. Default: the current directory's git toplevel,
 #           else $CLAUDE_PROJECT_DIR.
 #   --home  the directory holding the user-global layer. Default: $HOME.
-#   --quick skip the adapter load and hook.uncovered: the test-scan hook path,
+#   --quick skip the adapter load and hook.uncovered: the test-scan.sh path,
 #           where the scanner's own adapter load still refuses a bad extend.
 #           Adapter ids are still checked, against the adapter files' id: lines.
 #
