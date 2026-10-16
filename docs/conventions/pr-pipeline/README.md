@@ -236,10 +236,13 @@ Each leaf declares:
   activity skips with `not-applicable-paths`: `pr-refine / fix-docs` does not run on a PR whose
   only changed Markdown is instruction surfaces or CODEOWNERS paths, such as this directory.
 - `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, `labels-absent`, work
-  classes, events, `mergeable`, `draft`, `labeled-after`). `mergeable` is `conflicting` or `clean`,
+  classes, events, `mergeable`, `draft`, `labeled-after`, `admission`). `mergeable` is `conflicting` or `clean`,
   read from the PR at the gated head SHA only; unknown mergeability never matches. `labels-absent`
   matches only when none of its labels is on the PR. `labeled-after`, a UTC time, is an issues
-  lane's go-live time: it matches only an issue labeled after it.
+  lane's go-live time: it matches only an issue labeled after it. `admission` is an issues lane's
+  admission rule: an issue carrying a `work-class:` label outside its `classes` is refused, even
+  beside a listed one; otherwise a listed class admits it, or, with `ratified: true`, the owner's
+  batch-ratification marker comment does. A lane never admits on its own judgment.
 
 An activity is idempotent: a rerun on the same commit gives the same verdict or reuses it, a
 mutating activity with nothing to change makes no commit, and each commit it makes names the

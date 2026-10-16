@@ -114,6 +114,20 @@
           "minItems": 1,
           "items": { "$ref": "#/$defs/work-class" }
         },
+        "admission": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["classes"],
+          "description": "Which issues an issues lane admits. An issue carrying a `work-class:` label outside `classes` is refused, even beside a listed one. Otherwise it is admitted by a listed class label or, with `ratified: true`, by the owner's ratification marker: a comment line `<!-- admission: admitted when unblocked, owner batch ratification YYYY-MM-DD -->` posted by a human on the trusted-actor list, not through a GitHub App, and never edited; no bot ratifies. Work-class labels match in any casing or spacing, and labels are read when the run starts. The check cannot tell the owner typing from a local agent posting with the owner's token: it guarantees only that no App or Actions bot can self-admit. Off an issues event `ratified` cannot be decided and fails the run.",
+          "properties": {
+            "classes": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "pattern": "^work-class: [a-z-]+$" }
+            },
+            "ratified": { "type": "boolean" }
+          }
+        },
         "labeled-after": {
           "type": "string",
           "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
