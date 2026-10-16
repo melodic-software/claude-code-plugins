@@ -528,13 +528,14 @@ _bupm_changes="$BUPM_OUT"
 # created in; timestamps are not used, because a run that started earlier can
 # finish later and a caller can set them. A skipped or neutral run never
 # supersedes a completed run with a real conclusion, so a later event that
-# skips a job cannot clear its failure; it does supersede a pending run.
+# skips a job cannot clear its failure; it does supersede a pending run and a
+# cancelled one, which stopped before reaching a conclusion (#7549).
 # shellcheck disable=SC2016
 _bupm_api "repos/$BUPM_REPO/commits/$_bupm_sha/check-runs?per_page=100" --jq '
   [.check_runs | group_by([.name, (.app.id // 0)])[]
     | max_by(.id) as $n
     | if ($n.conclusion | IN("skipped","neutral"))
-      then (map(select(.status == "completed" and (.conclusion | IN("skipped","neutral") | not))) | max_by(.id)) // $n
+      then (map(select(.status == "completed" and (.conclusion | IN("skipped","neutral","cancelled") | not))) | max_by(.id)) // $n
       else $n end] as $runs
   | [$runs[] | select(.status == "completed" and (.conclusion | IN("failure","timed_out","cancelled","action_required","startup_failure","stale"))) | .name] as $f
   | [$runs[] | select(.status != "completed") | .name] as $p
