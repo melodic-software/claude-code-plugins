@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.58.2] - 2026-10-16
+
+### Fixed
+
+- `audit-sessions` friction scan: a tool call accepted by an allow rule (`reasonType: rule`) is no longer counted as `prompt-approved`; only a prompt the person answered is.
+
 ## [0.58.1] - 2026-10-16
 
 ### Changed

@@ -843,7 +843,7 @@ is not reproduced on this host.
 
 **0.32.0, the GitHub MCP write lane.** 2026-09-04, Linux CI host. The lane is a NEW
 `hooks.json` row rather than a widening of the `Write|Edit|MultiEdit|NotebookEdit`
-matcher, which is the whole point of its shape: an MCP matcher on the existing row
+matcher, because an MCP matcher on the existing row
 would have put the new tools' cost on every authored write. As a separate row it
 fires only on `mcp__github__push_files` and `mcp__github__create_or_update_file`, also under a plugin-bundled `github` server (`mcp__plugin_<plugin>_github__<tool>`), so
 the always-on write path pays nothing for it.
