@@ -121,7 +121,7 @@
     {
       "id": 9,
       "name": "work-leaves-a-held-pr-in-draft-when-ready-refuses",
-      "prompt": "/work-items:work\n\nRun autonomously. create --pushed opened draft PR 813 for item #732. The orchestrator dispatched /source-control:pull-request ready for PR 813, which refused: the PR carries the do-not-merge label a teammate added while it was being opened.",
+      "prompt": "/work-items:work\n\nRun autonomously. create --pushed opened draft PR 813 for item #732. The orchestrator dispatched /source-control:pull-request ready --unattended for PR 813, which refused: the PR carries the do-not-merge label a teammate added while it was being opened.",
       "expected_output": "The PR stays a draft. The orchestrator carries ready's refusal reason (the do-not-merge label) into the run's report, does not remove the label, does not flip the PR any other way, and does not merge.",
       "files": [],
       "narration": true,
