@@ -40,28 +40,23 @@ staged_regular() {
   [[ "$entry" == 100* ]]
 }
 
-# typos_excluded <path>: 0 when the repository's typos config excludes <path>.
-# typos only answers for a path that exists, so a path gone from the work tree
-# is asked about in a scratch mirror holding a placeholder and every typos
-# config file on the way down from the top level.
-typos_excluded() {
-  local f="$1" root="." rel="." rest="$1" name
-  if [[ ! -e "$f" ]]; then
-    root="$CHECKS_TMP/mirror"
-    rm -rf "$root"
-    mkdir -p "$root"
-    while :; do
-      for name in typos.toml _typos.toml .typos.toml Cargo.toml pyproject.toml; do
-        [[ -f "$rel/$name" ]] && cp "$rel/$name" "$root/$rel/$name"
-      done
-      [[ "$rest" == */* ]] || break
-      rel="$rel/${rest%%/*}"
-      rest="${rest#*/}"
-      mkdir -p "$root/$rel"
+# staged_mirror <path>: a scratch tree holding the index copy of <path> at its own
+# path, beside every typos config file on the way down from the top level, so
+# the repository's excludes and nested configs govern it as they do the file.
+staged_mirror() {
+  local f="$1" root="$CHECKS_TMP/mirror" rel="." rest="$1" name
+  rm -rf "$root"
+  mkdir -p "$root"
+  while :; do
+    for name in typos.toml _typos.toml .typos.toml Cargo.toml pyproject.toml; do
+      [[ -f "$rel/$name" ]] && cp "$rel/$name" "$root/$rel/$name"
     done
-    : >"$root/$f"
-  fi
-  [[ -z "$(cd "$root" && typos ${config_args[@]+"${config_args[@]}"} --force-exclude --files -- "$f" 2>/dev/null)" ]]
+    [[ "$rest" == */* ]] || break
+    rel="$rel/${rest%%/*}"
+    rest="${rest#*/}"
+    mkdir -p "$root/$rel"
+  done
+  git show ":$f" >"$root/$f" 2>/dev/null
 }
 
 whole=()
@@ -91,18 +86,28 @@ to_contract() {
 
 out="$CHECKS_TMP/findings"
 : >"$out"
-if ((${#whole[@]})); then
-  typos ${config_args[@]+"${config_args[@]}"} --force-exclude --format brief --color never -- "${whole[@]}" | to_contract >>"$out"
-fi
-if ((${#partial[@]})); then
-  for f in "${partial[@]}"; do
-    # The index blob has no path, so ask typos first whether its excludes cover it.
-    staged_regular "$f" || continue
-    typos_excluded "$f" && continue
-    git show ":$f" 2>/dev/null | typos ${config_args[@]+"${config_args[@]}"} --format brief --color never - 2>/dev/null | to_contract |
-      sed "s#^-:#$(printf '%s' "$f" | sed 's/[#&\\]/\\&/g'):#" >>"$out"
-  done
-fi
+# run_typos <dir> <path>...: typos on <path>... from <dir>, findings appended to
+# $out. typos exits 0 when clean and 2 on findings; any other status (a config
+# it cannot read, say) is no verdict, and no verdict blocks.
+run_typos() {
+  local dir="$1" rc
+  shift
+  (cd "$dir" && typos ${config_args[@]+"${config_args[@]}"} --force-exclude --format brief --color never -- "$@") \
+    >"$CHECKS_TMP/typos.out" 2>"$CHECKS_TMP/typos.err"
+  rc=$?
+  if ((rc != 0 && rc != 2)); then
+    cat "$CHECKS_TMP/typos.err" >&2
+    printf 'typos-format: typos exited %s without a verdict; fix what it reports above.\n' "$rc" >&2
+    exit 1
+  fi
+  to_contract <"$CHECKS_TMP/typos.out" >>"$out"
+}
+((${#whole[@]})) && run_typos . "${whole[@]}"
+for f in ${partial[@]+"${partial[@]}"}; do
+  staged_regular "$f" || continue
+  staged_mirror "$f"
+  run_typos "$CHECKS_TMP/mirror" "$f"
+done
 
 checks_filter_findings <"$out" >"$CHECKS_TMP/blocking"
 [[ -s "$CHECKS_TMP/blocking" ]] || exit 0

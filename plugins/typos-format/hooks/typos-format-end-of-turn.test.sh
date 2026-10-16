@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# spellchecker:off
 # Contract tests for the opt-in Stop row (typos_format_end_of_turn), launched
 # exactly as hooks.json registers it: off by default; on, an uncommitted typo
 # exits 2 with the finding on stderr; stop_hook_active keeps it from blocking
@@ -79,5 +80,6 @@ else
   echo "NOTE: strace or scripts/hook-census.sh absent; the spawn budget case did not run."
 fi
 
+# spellchecker:on
 echo "end-of-turn: $PASS passed, $FAIL failed"
 ((FAIL == 0))

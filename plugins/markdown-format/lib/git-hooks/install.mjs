@@ -380,7 +380,7 @@ function lefthookFile(info, scope) {
 function wiring(info, plugin, entry, scope, manager) {
   const p = entryPaths(info, plugin, entry, scope, manager);
   if (manager === "plain") {
-    const wired = isDispatcher(readText(p.dispatcher)) && existsSync(p.marker);
+    const wired = isDispatcher(readText(p.dispatcher)) && lf(readText(p.marker) ?? "") === markerText(plugin, entry);
     return { wired: wired && (scope === "local" || info.hooksPath === SHARED_DIR) };
   }
   const file = manager === "lefthook" ? lefthookFile(info, scope) : `.husky/${entry.event}`;
@@ -621,15 +621,21 @@ function dispatcherState(file) {
   }
 }
 
+// The marker names the script the dispatcher runs; anything else is drift.
+const markerText = (plugin, entry) => `${plugin.name}/${entry.script}\n`;
+
+// stage(info, files, executable) -> whether git add staged every file.
 function stage(info, files, executable) {
-  if (!files.length) return;
+  if (!files.length) return true;
   const rel = files.map((f) => path.relative(info.top, f));
-  git(info.top, ["add", ...(executable ? ["--chmod=+x"] : []), "--", ...rel]);
+  return git(info.top, ["add", ...(executable ? ["--chmod=+x"] : []), "--", ...rel]).ok;
 }
 
-// copy(info, plugin, entry, scope, manager, force) -> installed | refreshed | unchanged | refused | blocked | unsafe-path
+// copy(info, plugin, entry, scope, manager, force) -> installed | refreshed | unchanged | refused | blocked | unsafe-path | stage-failed
 // (blocked: a local install whose hooks dir another manager owns; unsafe-path: a
-// target is or passes through a symlink; nothing is written for either)
+// target is or passes through a symlink; nothing is written for either.
+// stage-failed: a shared install wrote its files but git add failed, so the
+// team would not receive them)
 export function copy(info, plugin, entry, scope, manager, force = false) {
   if (manager === "husky" && scope === "local") throw new UsageError("husky has no local scope; use --scope shared");
   if (hooksDirOwned(info, scope, manager)) return "blocked";
@@ -650,15 +656,15 @@ export function copy(info, plugin, entry, scope, manager, force = false) {
   const exec = [p.script];
   const plainFiles = [...assetFiles]; // staged without the exec bit at shared scope
   if (manager === "plain") {
-    changed = writeIfChanged(p.marker, `${plugin.name}/${entry.script}\n`) || changed;
+    changed = writeIfChanged(p.marker, markerText(plugin, entry)) || changed;
     if (hook !== "foreign" && writeIfChanged(p.dispatcher, DISPATCHER, 0o755)) exec.push(p.dispatcher);
     plainFiles.push(p.marker);
   }
   if (scope === "shared") {
     const attributes = attributesStep(info).action;
     if (attributes) writeIfChanged(attributes.file, `${ATTRIBUTES_LINE}\n`);
-    stage(info, exec, true);
-    stage(info, [p.lib, ...plainFiles, ...(attributes ? [attributes.file] : [])], false);
+    const staged = stage(info, exec, true) && stage(info, [p.lib, ...plainFiles, ...(attributes ? [attributes.file] : [])], false);
+    if (!staged) return "stage-failed";
   }
   git(info.top, ["config", "--local", "--unset", `checks.${plugin.name}.${entry.name}.declined`]);
   if (before === "missing") return "installed";
@@ -789,7 +795,7 @@ function runCopy(info, plugin, opts, io) {
     status: copy(info, plugin, entry, opts.scope, manager, opts.force),
   }));
   io.stdout(JSON.stringify(results));
-  return results.some((r) => r.status === "refused" || r.status === "unsafe-path") ? 1 : 0;
+  return results.some((r) => ["refused", "unsafe-path", "stage-failed"].includes(r.status)) ? 1 : 0;
 }
 
 function dispatch(info, plugin, opts, io) {

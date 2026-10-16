@@ -478,3 +478,20 @@ scripts/pydeps.py
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/pydeps.py -> plugins/animation/scripts/pydeps.py plugins/speech/scripts/pydeps.py plugins/explainer-video/scripts/pydeps.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/git-hooks/install.mjs, the git-hook installer each plugin with a
+# pre-commit entry vendors.
+lib/git-hooks/install.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/git-hooks/install.mjs -> plugins/*/lib/git-hooks/install.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/git-hooks/check-lib.sh, the shared helpers each pre-commit entry sources.
+lib/git-hooks/check-lib.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/git-hooks/check-lib.sh -> plugins/*/lib/git-hooks/check-lib.sh
