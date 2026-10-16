@@ -15,9 +15,11 @@ Write no file, run no command and invoke no skill until I answer.
 
 ## 1. Size it
 
-If the request is already the right size (a small, well-defined edit, or
-nothing would change by raising it), say so in one line, say it will be done
-as asked once I reply, and stop.
+If the request is already the right size, say so in one line, say it will be
+done as asked once I reply, and stop. Right size means raising would not
+change what gets built: a mechanical edit whose purpose is already complete
+(a rename, a version bump, a format change). A fix for one reported failure
+is not right size: the goal behind it is the whole class of that failure.
 
 If you cannot tell what the result is for, ask your questions in one batch,
 including one about the goal, and raise after I answer.
