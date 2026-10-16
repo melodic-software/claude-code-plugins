@@ -1,0 +1,11 @@
+{
+  "entries": [
+    {
+      "name": "typos-check",
+      "event": "pre-commit",
+      "script": "typos-check.sh",
+      "tools": ["typos"],
+      "rewrites": false
+    }
+  ]
+}
