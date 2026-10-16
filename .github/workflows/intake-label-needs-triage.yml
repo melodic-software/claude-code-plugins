@@ -16,8 +16,10 @@ permissions: {}
 jobs:
   # Skips the floor label for an issue /work-items:decompose published
   # already triaged; see .github/actions/check-born-triaged. A failed gate
-  # leaves skip empty, so the label lane runs.
+  # leaves skip empty, so the label lane runs. It runs on opened only, so a
+  # reopened issue still re-acquires the floor.
   born-triaged:
+    if: github.event.action == 'opened'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
