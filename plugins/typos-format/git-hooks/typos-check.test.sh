@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# spellchecker:off
 # Contract tests for the typos-format pre-commit entry (git-hooks/typos-check.sh):
 # a typo on an added line blocks with "<path>:<line>: <message>", one on an
 # unchanged line does not, a partly staged file is judged as staged, the
@@ -105,6 +106,31 @@ git -C "$REPO" add -A
 expect "the repository typos config governs: an excluded path and an allow-listed word pass" "0|" "$(check "$REPO")"
 
 new_repo
+mkdir -p "$REPO/sub"
+printf '[default.extend-words]\nteh = "teh"\n' >"$REPO/sub/_typos.toml"
+printf 'staged teh\n' >"$REPO/sub/a.md"
+git -C "$REPO" add -A
+printf 'staged teh\nunstaged\n' >"$REPO/sub/a.md"
+expect "partly staged: a nested typos config's allow-list governs the staged copy" "0|" "$(check "$REPO")"
+git -C "$REPO" add -A
+rm "$REPO/sub/a.md"
+expect "staged then deleted: a nested typos config's allow-list governs the staged copy" "0|" "$(check "$REPO")"
+
+new_repo
+printf '[default\n' >"$REPO/_typos.toml"
+printf 'an old teh line\nclean line\n' >"$REPO/notes.md"
+git -C "$REPO" add -A
+got="$(check "$REPO")"
+expect "a typos config typos cannot read blocks: no verdict is not a pass" "1|typos-format: typos exited 78 without a verdict; fix what it reports above." \
+  "${got%%|*}|$(printf '%s\n' "${got#*|}" | grep -F 'typos-format:')"
+printf 'an old teh line\nclean line\nstaged\n' >"$REPO/notes.md"
+git -C "$REPO" add notes.md
+printf 'an old teh line\nclean line\nstaged\nunstaged\n' >"$REPO/notes.md"
+got="$(check "$REPO")"
+expect "partly staged under a config typos cannot read: blocks too" "1|typos-format: typos exited 78 without a verdict; fix what it reports above." \
+  "${got%%|*}|$(printf '%s\n' "${got#*|}" | grep -F 'typos-format:')"
+
+new_repo
 printf 'an old teh line\nuncommitted teh\n' >"$REPO/notes.md"
 expect "--worktree: an uncommitted typo blocks" "1|notes.md:2: \`teh\` should be \`the\`
 $HINT" "$(check "$REPO" --worktree)"
@@ -161,5 +187,6 @@ printf 'an old teh line\nfixed in 1aded9f\nagain 1aded9f\n' >"$REPO/notes.md"
 git -C "$REPO" add notes.md
 expect "plugin source: the script finds config/default-typos.toml too" "0|" "$(check "$REPO")"
 
+# spellchecker:on
 echo "typos-check: $PASS passed, $FAIL failed"
 ((FAIL == 0))

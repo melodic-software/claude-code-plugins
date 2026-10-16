@@ -116,9 +116,11 @@ with your own edit tools.
    stop here and report.
 4. **Actions.** When `actions[]` holds `copy` items, run
    `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" copy --scope <scope>` (plus the same
-   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused`
-   or `unsafe-path` per entry; `refused` means a locally edited copy or dispatcher, which the
-   `modified` decision covers, and `unsafe-path` the decision of that name.
+   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused`,
+   `unsafe-path` or `stage-failed` per entry; `refused` means a locally edited copy or dispatcher,
+   which the `modified` decision covers, `unsafe-path` the decision of that name, and
+   `stage-failed` that `git add` failed on a shared install: report it, since the team would not
+   receive the files.
 5. **Decisions.** Read [reference/git-hook-decisions.md](reference/git-hook-decisions.md) for
    what each kind asks of you, apply each one, then rerun `plan` until only the decisions you
    chose to leave remain.

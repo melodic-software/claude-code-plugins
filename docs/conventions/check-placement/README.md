@@ -183,7 +183,7 @@ the consumer git floor moves.
 detect(repo)                  -> { manager: "lefthook"|"husky"|"plain"|"conflict", evidence[] }
 list(repo)                    -> [{ entryId, event, scope, stamp }]
 plan(repo, entries, scope)    -> { actions[], decisions[] }
-copy(repo, entry, scope)      -> "installed" | "refreshed" | "unchanged" | "blocked" | "unsafe-path"   # plugin-owned files only
+copy(repo, entry, scope)      -> "installed" | "refreshed" | "unchanged" | "blocked" | "unsafe-path" | "stage-failed"   # plugin-owned files only
 decline(repo, entryId)        -> sets the git config --local key
 ```
 
@@ -206,6 +206,10 @@ writes nothing for that entry, reports status `unsafe-path`, and exits 1. Only t
 counts as the plugin's own; a hook that carries its sentinel line but differs is a `modified`
 decision, overwritten only by `copy --force`. The installer reads repository files only when they
 are regular files of at most 1 MiB, never through a final symlink; anything else reads as absent.
+
+**`stage-failed`.** A shared install stages what it writes; when `git add` fails (an ignored path,
+a locked index), `copy` reports `stage-failed` and exits 1, since the team would not receive the
+files. A plain marker counts as wired only while it names its entry's script.
 
 ### Where installed copies live
 

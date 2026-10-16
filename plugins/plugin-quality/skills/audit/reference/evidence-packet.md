@@ -219,9 +219,8 @@ Three rules, in force for every packet write:
    *after* the seal, a formatter re-run, a reverted hand-repair, tampering, turning silently
    altered evidence into altered evidence a reader can see.
 
-These escapes do not hold: a non-`.md` extension evades `markdown-format` but not
-`typos-format` when the project-dir gate holds, and it breaks closed-set basenames; a
-`typos` allowlist / `markdownlint` opt-out is unreliable on the `$HOME`-rooted residual;
+These escapes do not hold: a non-`.md` extension evades `markdown-format` but breaks
+closed-set basenames; a `markdownlint` opt-out is unreliable on the `$HOME`-rooted residual;
 a shell redirect to dodge `Write|Edit` is a hook bypass the fleet blocks. Detection, not
 evasion.
 
