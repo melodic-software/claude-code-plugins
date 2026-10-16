@@ -1,5 +1,19 @@
 # Changelog for the PR pipeline convention
 
+## 1.18.0 - 2026-10-16
+
+`applies-when` gains `admission` (`classes`, optional `ratified`), an issues lane's admission
+rule. An issue carrying a `work-class:` label outside `classes`, in any casing or spacing, is
+refused with `not-applicable`, even beside a listed class. Otherwise an exact listed class label
+admits it, or, with `ratified: true`, the owner's batch-ratification marker
+`<!-- admission: admitted when unblocked, owner batch ratification YYYY-MM-DD -->` does: a line
+in a never-edited comment by a human on the trusted-actor list, posted through no GitHub App. No
+bot ratifies, the lanes App included. An `admission` predicate reads the issue's labels when the
+run starts, and with `ratified: true` reads its comments; off an issues event, or when that read
+is refused, the run fails. resolve-config logs the id, author and creation time of the ratifying
+comment, never its text. This repository's `resolve-issue` replaces its `labels` allowlist with
+`admission: { classes: [read-only, mechanical], ratified: true }`. `version` stays 1.
+
 ## 1.17.3 - 2026-10-16
 
 This repository's `pr-pipeline.yaml` enables the address-feedback round: the `pr-unblock` lane now
