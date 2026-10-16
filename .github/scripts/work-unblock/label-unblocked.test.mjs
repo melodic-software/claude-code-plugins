@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { main } from "./label-unblocked.mjs";
+import { checkCloser, main } from "./label-unblocked.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TRUSTED = join(HERE, "../../actions/check-trusted-trigger/fixtures/trusted-actors.json");
@@ -77,6 +77,8 @@ function envFor(event = {}, extra = {}) {
     GITHUB_EVENT_PATH: eventPath,
     KILL_SWITCH: "proceed",
     TRUSTED_ACTORS_PATH: TRUSTED,
+    ACTOR_ID: String(OWNER.id),
+    TRIGGERING_ACTOR: OWNER.login,
     ...extra,
   };
 }
@@ -219,6 +221,48 @@ test("a failed read on one issue still lets the others through, and fails the ru
   });
   assert.equal(await main({ env: envFor(), github }), 1);
   assert.deepEqual(writes(calls), [labeled(21)]);
+});
+
+// The broker mints only for a listed human, so anyone else who closes an
+// issue stops the run quietly, before any API call (and, in the workflow,
+// before the token request, through --check-closer).
+test("a closer who is not a listed human stops the run before any API call", async () => {
+  for (const [id, login] of [
+    ["1234", "someone-else"],
+    // A listed bot is not a listed human.
+    [String(LANES_APP_ID), "melodic-automation-lanes[bot]"],
+    // The id and the login must name the same listed human.
+    [String(OWNER.id), "someone-else"],
+    ["1234", OWNER.login],
+    ["", ""],
+  ]) {
+    const { github, calls } = oneDependent();
+    assert.equal(await main({ env: envFor({}, { ACTOR_ID: id, TRIGGERING_ACTOR: login }), github }), 0);
+    assert.deepEqual(calls, [], `${id} ${login}`);
+  }
+});
+
+test("the closer check answers proceed only for a listed human, in any login casing", () => {
+  const check = (id, login) => checkCloser({ ACTOR_ID: id, TRIGGERING_ACTOR: login, TRUSTED_ACTORS_PATH: TRUSTED });
+  assert.equal(check(String(OWNER.id), OWNER.login), true);
+  assert.equal(check(String(OWNER.id), "Kyle-Sexton"), true);
+  assert.equal(check("1234", "someone-else"), false);
+  assert.equal(check(String(LANES_APP_ID), "melodic-automation-lanes[bot]"), false);
+  assert.equal(check(String(OWNER.id), "someone-else"), false);
+  assert.equal(check("x", OWNER.login), false);
+});
+
+test("a pull request in the blocking list is skipped", async () => {
+  const pull = { ...issue(30), pull_request: { url: `${API}/repos/${REPO}/pulls/30` } };
+  const { github, calls } = world({
+    blocking: [pull],
+    issues: { 30: pull },
+    blockedBy: { 30: [issue(10, { state: "closed" })] },
+    comments: { 30: [marker()] },
+  });
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.deepEqual(writes(calls), []);
+  assert.ok(!calls.some((call) => call.includes("/issues/30")));
 });
 
 test("an event other than an issue closing changes nothing and fails red", async () => {

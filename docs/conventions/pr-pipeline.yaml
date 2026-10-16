@@ -138,7 +138,8 @@ activities:
     # When an issue closes, labels agent-ready each issue it blocked whose
     # blockers are all closed, that carries no hold label, and that the owner
     # ratified with the admission marker resolve-issue reads. The label starts
-    # resolve-issue. A script, no model. .github/workflows/work-unblock.yml
+    # resolve-issue once resolve-issue accepts App-added labels (follow-up by
+    # Automation Lanes). A script, no model. .github/workflows/work-unblock.yml
     # runs it.
     script: .github/scripts/work-unblock/label-unblocked.mjs
     # Adds one label to issues; nothing else.

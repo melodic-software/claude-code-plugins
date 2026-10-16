@@ -8,8 +8,10 @@ listed human closes an issue: each issue the closed one blocked gets `agent-read
 open, every blocker is closed, it carries none of `needs-owner-decision`,
 `status: needs-decision` or `needs-human`, and it holds the owner's admission marker as
 resolve-issue reads it (the check now lives in `resolve-config/ratification.mjs`, shared by
-both). Everything is re-read from the API when the run starts. A close whose sender is a bot
-(`sender.type` `Bot`) is a clean skip. `version` stays 1.
+both). The label starts `work-resolve-issue` once resolve-issue accepts App-added labels
+(follow-up by Automation Lanes). Everything is re-read from the API when the run starts. A
+close whose sender is a bot (`sender.type` `Bot`), or whose closer is not a listed human, is a
+clean skip. `version` stays 1.
 
 ## 1.18.0 - 2026-10-16
 

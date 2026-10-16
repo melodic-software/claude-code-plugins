@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // label-unblocked.mjs: when an issue closes, labels `agent-ready` each issue
-// it blocked that is now ready for the resolve-issue lane: open, every
+// it blocked that is now ready for the resolve-issue lane (the label starts
+// that lane once resolve-issue accepts App-added labels, a follow-up by
+// Automation Lanes): open, every
 // blocker closed, no hold label, not already agent-ready, and ratified by the
 // owner's admission marker (the resolve-issue lane's own check). Every fact
 // is read from the API now, never from the event payload. No model.
@@ -13,12 +15,14 @@
 //                          and sender are read
 //   KILL_SWITCH            `proceed` from the kill-switch step; anything else stops
 //   TRUSTED_ACTORS_PATH    trusted-actors.json from the default branch tip
+//   ACTOR_ID, TRIGGERING_ACTOR  who closed the issue; must be one listed human
 //   GITHUB_API_URL
 import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { findRatification } from "../../actions/resolve-config/ratification.mjs";
 
 const LABEL = "agent-ready";
@@ -27,7 +31,18 @@ const HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "needs-
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
-const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
+// Whether the account that closed the issue (ACTOR_ID and TRIGGERING_ACTOR)
+// is one listed human, by id and login. The broker mints only for one.
+export function checkCloser(env) {
+  if (!NUMBER.test(env.ACTOR_ID ?? "")) {
+    return false;
+  }
+  const { humans, logins } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
+  const id = Number(env.ACTOR_ID);
+  return humans.has(id) && logins.get(String(env.TRIGGERING_ACTOR ?? "").toLowerCase()) === id;
+}
+
+const escapeCommand =(text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
 // Why `number` is not promoted, or null when it is ready.
 async function refusal({ github, repo, number, ratifiers }) {
@@ -72,6 +87,10 @@ export async function main({ env = process.env, github } = {}) {
       console.log("label-unblocked: a bot closed this issue; nothing read or labeled");
       return 0;
     }
+    if (!checkCloser(env)) {
+      console.log("label-unblocked: the closer is not a listed human; nothing read or labeled");
+      return 0;
+    }
     const repo = env.GITHUB_REPOSITORY;
     const closed = Number(event.issue.number);
     const ratifiers = loadTrustedList(env.TRUSTED_ACTORS_PATH).humans;
@@ -105,6 +124,14 @@ export async function main({ env = process.env, github } = {}) {
   }
 }
 
+// `--check-closer` writes only the closer check, as the `proceed` step
+// output, so the workflow can stop before it requests a token.
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  process.exitCode = await main();
+  if (process.argv[2] === "--check-closer") {
+    const proceed = checkCloser(process.env);
+    writeOutputs({ proceed: String(proceed) });
+    console.log(`label-unblocked: closer ${proceed ? "is" : "is not"} a listed human`);
+  } else {
+    process.exitCode = await main();
+  }
 }
