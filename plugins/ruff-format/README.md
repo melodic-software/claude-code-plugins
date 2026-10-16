@@ -104,9 +104,9 @@ from `scripts/hook-census.sh`:
 
 | Batch | Median wall | Min-max | Spawns |
 | --- | --- | --- | --- |
-| No `.py` in the payload | 0.028 s | 0.027-0.037 s | 1 (the `node` launcher) |
-| A `Read` of a `.py` file, nothing to rewrite | 0.038 s | 0.034-0.054 s | 6 |
-| One `Edit` of a `.py` file that needs a rewrite | 0.074 s | 0.064-0.099 s | 17 |
+| No `.py` in the payload | 0.031 s | 0.030-0.033 s | 1 (the `node` launcher) |
+| A `Read` of a `.py` file, nothing to rewrite | 0.039 s | 0.036-0.041 s | 6 |
+| One `Edit` of a `.py` file that needs a rewrite | 0.083 s | 0.073-0.107 s | 17 |
 
 The ceiling for a per-batch formatter row is 1 s median per fire. Fences:
 `.performance/ratchets.json` holds the no-Python row at 1 spawn, and the Stop row with
