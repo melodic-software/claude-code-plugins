@@ -242,8 +242,7 @@ and plain shared hooks read `.githooks/`, from the branch that is checked out. O
 installed hooks, a push from a contributor's branch runs whatever that branch puts in
 `lefthook.yml`, `.husky/` or `.githooks/`. Pinning the check scripts to the merge-base, as this
 repository's pre-push job does, does not reach the config file itself. Before pushing from a branch
-you do not trust, read its diff to those paths, or push with `git push --no-verify` (CI still
-checks the commit).
+you do not trust, read its diff to those paths.
 
 ### Drift: the content-hash stamp
 
