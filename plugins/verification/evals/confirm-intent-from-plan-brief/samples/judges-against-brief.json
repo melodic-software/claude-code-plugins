@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Intent source: PLAN.md Brief. AC1 lowercase and hyphenate: met. AC2 strip punctuation: not met, slugify(\"Hello, World!\") returns \"hello,-world!\". AC3: only AC1 has a test. Verdict: NEEDS WORK.",
+      "why": "Brief criteria, AC2 missed, not CONFIRMED"
+    },
+    {
+      "answer": "Judged against the approved plan's Brief: punctuation is never stripped, so the second acceptance criterion is missing. NEEDS WORK.",
+      "why": "cites the plan, AC2 missing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "What was the goal of this change? Tell me the intent and I will verify it.",
+      "why": "asks instead of using the plan"
+    },
+    {
+      "answer": "slugify lowercases and hyphenates words and its test passes. Verdict: CONFIRMED.",
+      "why": "invented intent, misses AC2, CONFIRMED"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}

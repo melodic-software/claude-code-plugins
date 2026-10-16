@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [1.1.1] - 2026-10-16
+
+### Changed
+
+- Shared `prerequisites.mjs` synced: the SessionStart probe now also reports a drifted git-hook entry for a plugin that ships `git-hooks/entries.json`. This plugin ships none, so its behavior is unchanged.
+
 ## [1.1.0] - 2026-10-13
 
 ### Added

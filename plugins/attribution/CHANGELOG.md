@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.11.8] - 2026-10-16
+
+### Changed
+
+- Shared `prerequisites.mjs` synced: the SessionStart probe now also reports a drifted git-hook entry for a plugin that ships `git-hooks/entries.json`. This plugin ships none, so its behavior is unchanged.
+
 ## [0.11.7] - 2026-10-13
 
 ### Changed
