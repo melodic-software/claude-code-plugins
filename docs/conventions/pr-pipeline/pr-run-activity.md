@@ -62,9 +62,12 @@ permissions, and passes no App key.
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the model job's replies |
 | `review-run-sha256` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-sha256` output |
+| `expected-upstream-head` | `''` | Write file only: for a job after pr-unblock's model job on a `pr-feedback-dispatch.yml` dispatch, that job's `head-sha` output, passed to the gate and the broker (step 3) |
 | `review-run-attempt` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-attempt` output, which names the replies artifact so a re-run of the reply job alone still finds it |
 
-The write file has four `workflow_call` outputs; `issue-run-started` is described below, and `feedback-run-sha256` with
+The write file has six `workflow_call` outputs. `head-sha` is the PR head the gate passed, before
+any push of the run; `issue-run-started` is described below; `feedback-run-sha256` and
+`feedback-run-attempt` are described with
 [`prepare: review-threads`](#prepare-review-threads). `escalation-reason` is empty, or why a
 [`prepare: merge-base`](#prepare-merge-base) activity, a `prepare: review-threads` activity before
 any model turn, or its reply script handed the PR to a person. `feedback-round` is `true` once a
@@ -158,7 +161,16 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `github-actions[bot]` proceeds only when it names a run of that dispatcher on the default branch
    whose window holds this run's creation and whose `pr-unblock-dispatched-<id>[-<id>...]`
    artifact lists this run's id, and this run is `pr-unblock.yml`; every other bot-sent dispatch
-   stops with `untrusted-actor`. The gate waits up to 2 minutes for that record while the
+   stops with `untrusted-actor`. It also passes
+   `run-dispatcher-workflow: .github/workflows/pr-feedback-dispatch.yml` with the two review
+   workflows as `run-dispatcher-upstreams`: a run of that dispatcher, started by `workflow_run`,
+   vouches with no actor check when its `pr-feedback-dispatched-<upstream id>-<this run's id>`
+   artifact names a `pull_request` run of one of those workflows in this repository, started by
+   the lanes App or a listed human, at the PR's current head. A job after pr-unblock's model job
+   passes that job's `head-sha` as `expected-upstream-head`: the review must then be of that head,
+   and every commit from it to the PR's current head one GitHub signed for the lanes App (author
+   the App, committer `web-flow`, signature `valid`) after this run was created. The
+   gate waits up to 2 minutes for that record while the
    dispatcher run is still going. The checks are in the gate's README. Only
    with a `dispatcher-run-id` does the skill step pass claude-code-action
    `allowed_bots: github-actions`, which otherwise refuses a run a bot started.
@@ -330,7 +342,12 @@ to the PR branch would overwrite a push made during the run. After the skill, a 
 `github-script` step fast-forwards the PR branch to the lane branch only while the PR branch is
 still at the gated SHA, and deletes the lane branch either way. When the PR branch has moved, the
 lane's commits are dropped and the activity fails; the push that moved it starts its own
-`synchronize` run, which gates the new head and redoes the activity. A raw `git push` from the
+`synchronize` run, which gates the new head and redoes the activity. Right before the move it
+re-reads the PR's labels and draft flag with the job's `GITHUB_TOKEN`, then reads the PR branch's
+tip last: `do-not-merge`, the base's human-gated role label, a label in the activity's
+`labels-absent` list (both read from the base before the head checkout) or a draft drops the lane's
+commits and skips `awaiting-human`, and a read that fails or a second page of labels moves nothing
+and fails the step. A raw `git push` from the
 skill skips this check. Why a skill activity loads nothing from
 the PR head:
 [ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md).
@@ -423,8 +440,8 @@ the base's copies from step 8, each checked against its recorded SHA-256 before 
    Data API: it fails unless the lane branch is still at the gated head, uploads only the blobs
    `tree-entries.sh` flags (logging `created <k> blobs`), builds the tree on the gated head's tree
    and fails unless it hashes to `post.sh`'s tree, re-reads the PR's labels with the job's
-   `GITHUB_TOKEN` and stops uncommitted (`awaiting-human`) when `do-not-merge` or the base's
-   human-gated role label is on the PR, then creates the commit
+   `GITHUB_TOKEN` and stops uncommitted (`awaiting-human`) when `do-not-merge`, the base's
+   human-gated role label or a `labels-absent` label is on the PR, then creates the commit
    `Merge <default branch> into <head ref>` with trailer
    `Lane-Activity: pr-unblock/resolve-conflicts`, parents `[gated head, trusted base]` and no
    author, committer or signature, so GitHub signs it as the App, and moves the lane branch to it.
@@ -436,7 +453,8 @@ The merge scripts, `tree-entries.sh` and the commit step's `git` run with workfl
 stopped (`::stop-commands::<random>`), since git's output can name head files, and with
 `GIT_NO_REPLACE_OBJECTS=1`; the commit step runs `/usr/bin/git` and `/usr/bin/bash` under an
 allowlisted environment. The kill switch (step 3) stops new runs only; a run already past it
-stops for a hold only at the commit step's label re-read.
+stops for a hold only at the commit step's label re-read and the promote step's label and draft
+re-read.
 
 The run's `escalation-reason` output is prepare's or `post.sh`'s reason, one of
 `protected-path-conflict`, `workflow-staged`, `repeat-cap` or `unresolved-conflict`; a caller
@@ -451,6 +469,7 @@ its check:
 | Clean merge, no model turn, committed, promoted | success | none | empty | success |
 | Clean merge, `post.sh` exits non-zero | failure | none | empty | failure |
 | Hold label added during the run, found before the commit | success | `awaiting-human` | empty | neutral |
+| Hold label or draft set during the run, found before the promote | success | `awaiting-human` | empty | neutral |
 | Model left a conflict | success | `awaiting-human` | `unresolved-conflict` | neutral |
 | Model staged a `.github/workflows/` change | success | `awaiting-human` | `workflow-staged` | neutral |
 | Resolved, committed, promoted | success | none | empty | success |
@@ -511,12 +530,18 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
      a 40-hex `fix_sha` on `VALID` only; a note of 1-2000 characters with no control, direction or
      zero-width character, no `<!--` or `-->`, and nothing shaped like a GitHub token. Any failure,
      or a missing artifact, posts no reply and escalates `feedback-invalid`;
+   - requires exactly one reply per thread in `run.json`; an empty or partial set posts no reply
+     and escalates `feedback-incomplete`;
    - when a reply is `VALID` or the PR branch moved, compares the model job's gated head with the
      PR's current head: the branch must be ahead, hold every fix commit, and change fewer than 300
      files, each a kept thread's path and none under `.github/`, and each fix commit must change
      its own thread's path. Otherwise it posts no reply and escalates `feedback-not-landed`;
    - re-reads every kept thread and, right before posting, the thread itself, and skips one that
      is resolved, on another PR, or whose comments are not exactly the ones the model job read;
+   - re-reads `git/ref heads/<head ref>` right before each post and each resolve, since the
+     compare above judged the branch only up to the head this job gated: once the PR branch is
+     anywhere else it posts and resolves nothing more, escalating `feedback-not-landed` when no
+     reply had posted and `feedback-partial` otherwise;
    - posts the reply on the thread's root comment in the fixed template (disposition label,
      backticked evidence, `Fix: <sha>` for `VALID`, the note in a `text` fence longer than any
      backtick run in it) and resolves the thread only for `VALID`, and only when a re-read after
@@ -524,10 +549,15 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
      resolve). Once a reply posts, the thread is no longer the bot's alone and no later round
      selects it, so a post, read or resolve failure stops the posting, and that or a `VALID`
      thread left open escalates `feedback-partial`, as does a round marker that cannot be posted;
-   - posts the round marker as the lanes App whatever happened above, and escalates
-     `feedback-uncertain` for an `UNCERTAIN` or `VALID-defer` reply.
+   - posts the round marker as the lanes App whatever happened above, once per model run: its
+     second line names the workflow run and `review-run-attempt`, and a re-run of the reply job
+     alone finds a lanes App marker with that line and posts none, so one model turn counts one
+     round. A model run that uploaded no replies names none, and its marker is always posted. It
+     escalates
+     `feedback-uncertain` for an `UNCERTAIN` or `VALID-defer` reply, or `feedback-disputed` when an
+     `INCORRECT` evidence reply was posted: that thread stays open for a person to decide.
 
-   The script writes its reason to `ESCALATION_REASON_FILE`; the runner accepts only those four
+   The script writes its reason to `ESCALATION_REASON_FILE`; the runner accepts only those six
    reasons, and only with `review-replies`, as the run's `escalation-reason` output.
 
 The skill's limits to kept-thread paths and away from `.github/` are instructions and the tool's
@@ -682,7 +712,14 @@ must be an ancestor of the tip and no tag may be named `main`. This run must be 
 `workflow_dispatch` created between the dispatcher run's `run_started_at` and the earlier of its
 `updated_at` and `run_started_at` plus 10 minutes. The dispatcher run must also hold an unexpired
 `pr-unblock-dispatched-<ids>` artifact whose ids include this run's; the broker reads it once,
-with no wait, since the trusted-trigger gate in step 3 has already waited for it. The client
+with no wait, since the trusted-trigger gate in step 3 has already waited for it. A
+`pr-feedback-dispatch.yml` run started by `workflow_run` passes the same checks except the actor
+check, with a `pr-feedback-dispatched-<upstream id>-<this run's id>` artifact whose upstream run is
+a `pull_request` run of `pr-review-hosted.yml` or `pr-review-security-hosted.yml` in this
+repository, started (and any re-run) by the lanes bot or a listed human, at the PR's current head,
+or, with `expected_upstream_head` in the body, at that head when every commit from it to the PR's
+current head is one GitHub signed for the lanes bot (committer `web-flow`, signature `valid`) after
+this run was created, and the upstream run lists this pull request. The client
 sends it once and never retries: the broker
 reserves the job's `check_run_id` when it mints, so a second request is denied `already-minted`,
 and a 200 lost in transit leaves a token nobody revokes until it expires within the hour.
@@ -706,7 +743,7 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 | 403 | `event-not-allowed` | Not `pull_request` on `refs/pull/<n>/merge`, or `workflow_dispatch` or `workflow_run` on `refs/heads/main`, or `issues` on `refs/heads/main` from `work-resolve-issue.yml`, or `schedule` on `refs/heads/main` from `pr-merge.yml` only |
 | 403 | `workflow-not-allowed` | The job is not this repository's `pr-run-activity-write.yml`, or the caller is not a lane under `lanes:` in the tip's `pr-pipeline.yaml` |
 | 403 | `workflow-modified` | The caller or `pr-run-activity-write.yml` differs from the default-branch tip |
-| 403 | `workflow-modified` | With `dispatcher_run_id`: `pr-unblock-dispatch.yml` at the dispatcher run's head differs from the tip |
+| 403 | `workflow-modified` | With `dispatcher_run_id`: the dispatcher workflow at the dispatcher run's head differs from the tip |
 | 403 | `lane-mismatch` | The requested lane is not the caller's file stem |
 | 403 | `activity-not-in-lane`, `slot-disabled`, `config-invalid`, `effect-forbidden-by-lane` | The tip config does not give this activity a write grant |
 | 403 | `effect-read` | The activity is `read`; it belongs in the read file |

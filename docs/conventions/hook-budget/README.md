@@ -6,7 +6,9 @@ for its own hook cost honestly where it accounts at all; nobody summed them, and
 what a consumer experiences: a multi-second stall per tool call that no single plugin reviewed.
 This doc states the ceiling the sum must fit inside. The
 [hook-precision](../hook-precision/README.md) convention owns *what* a hook fires on; this one owns
-*what the always-on set may cost*.
+*what the always-on set may cost*. Where a check runs (Claude Code hook, git hook or CI) and the
+duration budgets for each placement are owned by [check-placement](../check-placement/README.md);
+spawn counts and their CI ratchets stay here.
 
 ## The unit: S
 

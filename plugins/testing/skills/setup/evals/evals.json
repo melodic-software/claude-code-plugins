@@ -10,7 +10,7 @@
     {
       "id": 2,
       "prompt": "Exclude our legacy folder from the can't-fail audit and scan *.it.ts files as Vitest tests.",
-      "expected_output": "Runs check first, then apply with --exclude 'legacy/**' and --extend js-vitest.files='*.it.ts', keeping any values the existing file already holds. Only the team file in use is written: docs/conventions/testing.yaml (created when no team file exists), else the config block of docs/conventions/testing.md, else .claude/testing.yaml. Re-runs check and shows the settings hook entry printed for *.it.ts, which no shipped hook row covers, explaining that the user adds it to .claude/settings.json and that it passes --enabled because settings hooks get no plugin variables. Offers the git add and commit without running them unasked.",
+      "expected_output": "Runs check first, then apply with --exclude 'legacy/**' and --extend js-vitest.files='*.it.ts', keeping any values the existing file already holds. Only the team file in use is written: docs/conventions/testing.yaml (created when no team file exists), else the config block of docs/conventions/testing.md, else .claude/testing.yaml. Re-runs check and shows the hook-entry section: test-quality findings come from /testing:audit, which scans *.it.ts too, while the test-weaken hook skips it because no shipped row matches it. Prints no settings hook entry and never suggests a per-edit PostToolUse hook. Offers the git add and commit without running them unasked.",
       "files": []
     },
     {
