@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# markdown-format pre-commit check: rewrite the staged Markdown files, then
+# report what markdownlint-cli2 still finds on the lines this commit adds.
+#
+#   markdown-check.sh               the staged changes (git runs it as pre-commit)
+#   markdown-check.sh --worktree    the uncommitted changes against HEAD, untracked
+#                                   files included, reported without rewriting
+#                                   (the opt-in end-of-turn Stop row)
+#
+# Pre-commit: a partly staged file is refused before anything is rewritten
+# (re-staging a rewrite would stage its unstaged hunks too). Then
+# `markdownlint-cli2 --fix` runs over the staged .md and .mdc files, the rewritten
+# paths print on stdout and are re-staged, and the findings that remain print as
+# "<path>:<line>: <message>" on stderr, exit 1, only for lines the commit adds.
+#
+# Only a file a markdownlint config governs is touched (see markdown-gates.sh),
+# and a config that can run repository code is skipped with a notice. Files under
+# .githooks/ are installed copies and are skipped. markdownlint-cli2 comes from
+# PATH, else the repo's own node_modules/.bin. Missing markdownlint-cli2 follows
+# the check-placement contract: checks.skipmissing, else fail for an agent and a
+# notice for a person; the --worktree mode stays silent, since the session-start
+# probe already reports it.
+set -uo pipefail
+
+here="${BASH_SOURCE[0]%/*}"
+[[ "$here" == "${BASH_SOURCE[0]}" ]] && here=.
+lib="$here/check-lib.sh"
+[[ -f "$lib" ]] || lib="$here/../lib/git-hooks/check-lib.sh"
+# shellcheck source=../../../lib/git-hooks/check-lib.sh
+. "$lib" || exit 1
+# shellcheck source=markdown-gates.sh
+. "$here/markdown-gates.sh" || exit 1
+
+checks_init pre-commit "$@" || exit 0
+
+files=()
+code_configs=0
+while IFS= read -r -d '' f; do
+  case "$f" in
+  .githooks/*) continue ;;
+  *.md | *.mdc) ;;
+  *) continue ;;
+  esac
+  [[ -f "$f" && ! -L "$f" ]] || continue
+  md_config_state "$f" .
+  case "$MD_STATE" in
+  none) continue ;;
+  code)
+    code_configs=$((code_configs + 1))
+    continue
+    ;;
+  *) ;;
+  esac
+  files+=("$f")
+done < <(checks_files)
+if ((code_configs)) && [[ "$CHECKS_MODE" != worktree ]]; then
+  printf 'markdown-format: skipped %d file(s): their markdownlint config can run repository code.\n' "$code_configs" >&2
+fi
+((${#files[@]})) || exit 0
+
+if ! command -v markdownlint-cli2 >/dev/null 2>&1; then
+  first="${files[0]%/*}"
+  [[ "$first" == "${files[0]}" ]] && first=.
+  if bin="$(md_local_bin "$first" .)"; then
+    PATH="$PWD/${bin%/*}:$PATH"
+  fi
+fi
+if [[ "$CHECKS_MODE" == worktree ]]; then
+  command -v markdownlint-cli2 >/dev/null 2>&1 || exit 0
+fi
+checks_require_tool markdownlint-cli2 "npm i -D markdownlint-cli2, or another method at https://github.com/DavidAnson/markdownlint-cli2"
+
+literal=()
+for f in "${files[@]}"; do
+  literal+=(":$f")
+done
+
+fix=()
+if [[ "$CHECKS_MODE" == pre-commit ]]; then
+  # Only the Markdown files are refused, not every staged path, which is what
+  # checks_refuse_partly_staged would walk.
+  refused=0
+  for f in "${files[@]}"; do
+    if checks_partly_staged "$f"; then
+      printf '%s: partly staged; format it or stage it fully, then commit\n' "$f" >&2
+      refused=1
+    fi
+  done
+  ((refused)) && exit 1
+  fix=(--fix)
+fi
+
+# One run: with --fix, markdownlint-cli2 lists only what it could not fix.
+out="$CHECKS_TMP/markdownlint"
+markdownlint-cli2 ${fix[@]+"${fix[@]}"} "${literal[@]}" >"$out" 2>&1
+rc=$?
+
+if [[ "$CHECKS_MODE" == pre-commit ]]; then
+  rewritten=()
+  while IFS= read -r -d '' f; do
+    rewritten+=("$f")
+  done < <(git diff --name-only -z -- "${files[@]}")
+  if ((${#rewritten[@]})); then
+    printf '%s\n' "${rewritten[@]}"
+    git add -- "${rewritten[@]}"
+  fi
+fi
+
+if ((rc > 1)); then
+  printf 'markdown-format: markdownlint-cli2 failed:\n' >&2
+  cat "$out" >&2
+  exit 1
+fi
+
+checks_changed_lines
+
+# markdownlint-cli2's line is "<path>:<line>[:<col>] [<severity> ]MD<n>/<name> ...";
+# the contract line drops the column and the severity and keeps the path in git's
+# forward-slash spelling. A path holding a colon cannot be told from the line
+# number, so its findings are not listed here.
+to_contract() {
+  sed -n -E -e ':a' -e 's#^([^:]*)\\#\1/#' -e 'ta' \
+    -e 's/^([^:]+):([0-9]+)(:[0-9]+)? ((error|warning) )?(MD[0-9]+\/.*)$/\1:\2: \6/p'
+}
+
+to_contract <"$out" | checks_filter_findings >"$CHECKS_TMP/blocking"
+[[ -s "$CHECKS_TMP/blocking" ]] || exit 0
+cat "$CHECKS_TMP/blocking" >&2
+printf 'markdown-format: fix the findings above, or adjust the repository markdownlint config.\n' >&2
+exit 1
