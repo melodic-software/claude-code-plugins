@@ -162,6 +162,15 @@ out=$(run 7 --unattended)
 assert_exit "a Draft: line with control bytes still holds" 3 "$?"
 assert_not_contains "control bytes are stripped from the reason" "$out" $'\e'
 
+pr "feat(x): add a thing" $'## Related\n\nDraft:\n'
+run 7 --unattended >/dev/null
+assert_exit "an unattended run holds a bare Draft: line" 3 "$?"
+
+pr "feat(x): add a thing" $'## Related\n\nRedraft: the summary after review\n'
+out=$(run 7 --unattended)
+assert_exit "a Redraft: line is not a hold line" 0 "$?"
+assert_silent "a Redraft: line prints nothing" "$out"
+
 pr "feat(x): add a thing" $'## Summary\n\nSee Draft: requested early look\n'
 out=$(run 7 --unattended)
 assert_exit "a mid-line Draft: is not a hold line" 0 "$?"

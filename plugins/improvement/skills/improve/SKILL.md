@@ -185,7 +185,8 @@ Routine, a scheduled workflow, a loop lane). Never inferred from the environment
 
 ## Next
 
-- Draft PR opened: /source-control:pull-request ready.
+- Draft PR opened, interactive run: /source-control:pull-request ready.
+- Draft PR opened, unattended run whose caller authorizes the flip: /source-control:pull-request ready --unattended.
 - Improvement too big for one PR: /planning:plan.
 
 ## Gotchas
