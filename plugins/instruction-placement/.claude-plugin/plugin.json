@@ -8,12 +8,6 @@
   },
   "license": "MIT",
   "userConfig": {
-    "index_drift_hook_enabled": {
-      "type": "boolean",
-      "title": "Index-drift hook",
-      "description": "PostToolUse notice when a write inside a .claude/rules tree leaves the generated index stale. On by default. Advisory and non-blocking; the authoritative gate is /instruction-placement:check in CI. Costs a string comparison on writes outside a rules tree.",
-      "default": true
-    },
     "breadth_max": {
       "type": "number",
       "title": "Over-broad glob ceiling (percent)",

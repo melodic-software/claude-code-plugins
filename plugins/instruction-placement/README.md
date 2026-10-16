@@ -30,9 +30,32 @@ into CI beside the linters.
 
 ## Requirements
 
-- Node.js on `PATH`. The `index-drift` hook launches through `node hooks/exec-bash.mjs`; without
-  `node` it does not run and the index goes unchecked. `/instruction-placement:setup` reports it.
+- Node.js on `PATH`, for the git-hook installer and the session-start probe that reports a missing
+  or drifted entry. Without `node` an installed entry still runs at commit.
+  `/instruction-placement:setup` reports it.
 - `git`, for tracked-file discovery. `jq` and the Claude Code CLI are optional, for `verify-load.sh`.
+
+## Git pre-commit entry
+
+The plugin ships one git-hook entry, `index-check` (`git-hooks/entries.json`), which rewrites
+nothing. It runs when a staged path is under a `.claude/rules/` directory (a deletion or rename
+included) or is the index file, the root `AGENTS.md`, else the root `CLAUDE.md`. If the index block
+no longer matches a fresh render, the commit fails with the regenerate command. A repository with
+no index block has not adopted an index and is never failed. The earlier per-edit hook that told
+Claude about drift after each rules edit is gone: the check costs one render at commit, covers
+every author, and `/instruction-placement:check` still gates the same drift in CI.
+
+`/instruction-placement:setup apply install-git-hooks [scope=local|shared]` registers it with the
+repository's hook manager (lefthook, husky or plain git hooks). Local scope stays in this clone;
+shared scope commits the copy under `.githooks/instruction-placement/`.
+`/instruction-placement:setup check` reports drift, and the SessionStart probe prints one line
+when the entry is missing, stale or edited. The entry needs no external tool.
+
+### Hook budget accounting
+
+The plugin registers no tool-call hook. The `index-check` entry runs only at commit. Measured on
+WSL2 Ubuntu (bash 5.3.9) on 2026-10-15, with the installed copy and one staged rules file against
+an in-sync index, ten runs: median 0.084 s, min-max 0.079-0.094 s.
 
 ## Where the artifacts land
 
@@ -213,7 +236,6 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `index_drift_hook_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED` | PostToolUse notice when a write inside a .claude/rules tree leaves the generated index stale. On by default. Advisory and non-blocking; the authoritative gate is /instruction-placement:check in CI. Costs a string comparison on writes outside a rules tree. |
 | `breadth_max` | number<br>*min 0, max 100* | `75` | `CLAUDE_PLUGIN_OPTION_BREADTH_MAX` | Percent of tracked files above which a rule's paths: glob is reported over-broad. Default 75. Advisory only, never fails the check gate. Raise it in a repository where one extension legitimately covers most files. |
 | `index_max_rows` | number | `40` | `CLAUDE_PLUGIN_OPTION_INDEX_MAX_ROWS` | Surfaces listed individually in the generated index before the remainder is grouped by directory with a count. Default 40. The index is always-loaded, so this bounds its own cost. |
 
@@ -227,7 +249,7 @@ Three supported routes, in the order most people want them:
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
-   claude plugin install instruction-placement@<marketplace> -s <scope> --config index_drift_hook_enabled=<value>
+   claude plugin install instruction-placement@<marketplace> -s <scope> --config breadth_max=<value>
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
@@ -251,7 +273,7 @@ Three supported routes, in the order most people want them:
      "pluginConfigs": {
        "instruction-placement@<marketplace>": {
          "options": {
-           "index_drift_hook_enabled": <value>
+           "breadth_max": <value>
          }
        }
      }
