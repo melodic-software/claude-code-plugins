@@ -465,7 +465,10 @@ levels are in [../../../reference/config-resolution.md](../../../reference/confi
 
 0. **Request.** When the invocation asks for a draft (the user or the calling prompt asks for a
    draft or to show the work early, or says the PR is a multi-session container), the state is
-   `draft` and the level is `request`, whatever the levels below say.
+   `draft` and the level is `request`, whatever the levels below say. Record it in the body as
+   its own last line before the attribution: `Draft: requested early look` or `Draft:
+   multi-session container`. That line tells unattended flippers the draft is a person's
+   choice; only a person removes it or flips the PR.
 1. **Repository level.** When §2.4.1's `config-root.sh classify` printed `repo`, read
    `docs/conventions/source-control.yaml` at the PR's base branch in the base repository, never
    from the working tree or the branch being opened, the same way the review-bot rubric is read

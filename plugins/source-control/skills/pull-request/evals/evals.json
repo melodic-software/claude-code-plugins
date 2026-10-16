@@ -296,7 +296,7 @@
     },
     {
       "id": 24,
-      "name": "pr-open-state-repo-file-only-opens-ready",
+      "name": "pr-open-state-repo-file-ready-opens-draft-then-flips",
       "prompt": "/pull-request create from branch feat/618-export-csv. The repository's docs/conventions/source-control.yaml on the base branch, main, is captured in evals/fixtures/source-control-open-ready.yaml relative to the skill directory. The userConfig option pr_open_state is set to draft. The user is driving this session and answering prompts. Resolve the open state and open the PR.",
       "expected_output": "The repository file sets pr_open_state: ready, which wins over the per-user draft. The PR opens with --draft and create then runs Phase 2.5 (/source-control:pull-request ready) on it, which flips it after its gates; the report names the repository level (docs/conventions/source-control.yaml).",
       "files": [
@@ -631,6 +631,7 @@
         "pr_open_state resolves to draft because the user asked for a draft, even though the repository file sets ready",
         "The PR is opened with --draft (or draft=true on the REST form)",
         "create does not run the ready phase or flip the PR",
+        "The PR body carries a line starting `Draft:` naming the reason (an early look or a multi-session container)",
         "The report names the supplying level as the request"
       ]
     }
