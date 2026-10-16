@@ -54,12 +54,12 @@ Finance staff reconcile refunds against the bank statement each month without as
 
 ## Plan
 
-### Phase 1: monthly refund query [TODO]
+### Phase 1: monthly refund query
 
 - `list_refunds(month)` returns every refund whose timestamp falls in the month.
 - **Sanity Check:** a unit test with refunds on both month edges passes.
 
-### Phase 2: CSV download [TODO]
+### Phase 2: CSV download
 
 - A download endpoint renders the month's refunds as CSV, header row first.
 - **Sanity Check:** a test requesting an empty month gets only the header row.
