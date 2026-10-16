@@ -305,7 +305,28 @@ no scaffold blocks, and the assembled body carries only the closing-keyword line
 (the real-refs rule above applies unchanged: `none` suppresses the *required* scaffold, never
 user-supplied content), and the §2.4.3 attribution line.
 
-The content inside those headings is prose a reviewer reads: plain language, bottom line first, no filler, by invoking `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. It rewords section content only, so the closing-keyword line, the resolved `${REQUIRED_SECTIONS[@]}` headings, and `${REFS_LINES}` are untouched and the §2.4.2 gate sees the same shape either way.
+**Acceptance criteria from the plan.** When the branch implements a plan, the body carries the
+plan Brief's acceptance criteria, so reviewers and verification read the intended outcome from the
+pull request itself. Find the `PLAN.md` where `/planning:plan` stores it, the topic's memory slice
+`<memory_dir>/<topic-slug>/` (`<memory_dir>` is `.work/` unless the project's instructions name
+another root):
+
+- a `PLAN.md` path or topic slug the caller named (arguments, a handoff, or the orchestrator under
+  §2.7) wins;
+- else `<memory_dir>/<topic-slug>/PLAN.md`, the slug derived from the branch name the way
+  `/planning:plan` derives it;
+- else the single `<memory_dir>/*/PLAN.md`. With several and none matching the branch, ask which;
+  with no one to ask, carry none and name the candidates in the §2.6 report.
+
+Copy each criterion from the Brief's acceptance criteria into an `## Acceptance criteria` section as
+written: values only, never a path into the memory slice, which exists only in this checkout. A plan
+with no `Approval:` line is a draft: carry its criteria and say so on the section's first line. When
+`Acceptance criteria` is in `${SECTION_ORDER[@]}`, this fills that heading; otherwise append the
+section after the scaffold blocks and leave it out of `${REQUIRED_SECTIONS[@]}`, as with an ad hoc
+`Related`. With no plan, or a Brief with no acceptance criteria, leave the section out. This is the
+section `/verification:confirm` reads as the pull request's acceptance criteria.
+
+The content inside those headings is prose a reviewer reads: plain language, bottom line first, no filler, by invoking `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. It rewords section content only, so the closing-keyword line, the resolved `${REQUIRED_SECTIONS[@]}` headings, `${REFS_LINES}`, and the acceptance criteria copied from the plan are untouched and the §2.4.2 gate sees the same shape either way.
 
 **Visual evidence.** When the diff changes rendered visual or audio output, the section that records verification (`Verification`, or `Test plan` under `summary-test-plan`) carries before/after media captured while verifying, for example by `/testing:run-e2e` or the Chrome screenshot and GIF tools. The PR create command has no option that uploads a file ([GitHub](../../../reference/providers/github/pull-request/create.md#body-overrides-the-template)), so the section lists each capture's local path and asks the person to drag the files into the PR description on GitHub; when no media could be captured, it says no visual evidence was attached. A project turns this step off in its own CLAUDE.md or AGENTS.md.
 
@@ -315,7 +336,7 @@ The content inside those headings is prose a reviewer reads: plain language, bot
 
 **Left out.** The section that records verification (`Verification`, or `Test plan` under the portable default) ends with one `Left out:` line naming what was not run or checked, each with its reason (for example, `Left out: end-to-end suite, needs a staging environment`), so a reviewer can tell a gap from an omission; when everything relevant was run, it says `Left out: nothing`. When that section closes the body, the §2.4.3 attribution line still follows it as the body's footer.
 
-**Write the body to a file with the Write tool.** Compose the body as literal text: `${CLOSES_LINE}` and a blank line when it is non-empty, then one `## <heading>` block per entry in `${SECTION_ORDER[@]}` with real content, leaving out an optional heading that has none (`Related` carries `${REFS_LINES}` when non-empty, else `N/A`), then the ad hoc `## Related` block when the rule above calls for one. Leave the attribution line out; §2.4.3 appends it after the gates. Write it to an absolute path outside the working tree (the session's scratchpad directory when one is listed, else the system temp directory), for example `<tmp>/pr-body-<branch-slug>.md`, and pass that path as `BODY_FILE` to every call below.
+**Write the body to a file with the Write tool.** Compose the body as literal text: `${CLOSES_LINE}` and a blank line when it is non-empty, then one `## <heading>` block per entry in `${SECTION_ORDER[@]}` with real content, leaving out an optional heading that has none (`Related` carries `${REFS_LINES}` when non-empty, else `N/A`), then the `## Acceptance criteria` block when a plan supplied one and no scaffold heading holds it, then the ad hoc `## Related` block when the rule above calls for one. Leave the attribution line out; §2.4.3 appends it after the gates. Write it to an absolute path outside the working tree (the session's scratchpad directory when one is listed, else the system temp directory), for example `<tmp>/pr-body-<branch-slug>.md`, and pass that path as `BODY_FILE` to every call below.
 
 **Why a file, not a shell variable:** the Write tool's content is a JSON string that no shell parses, so a `$(...)`, `${...}` or backtick typed into the orphan-PR or multi-issue prompt stays literal text with no quoting rule to get right, and a long body never pushes a Bash command past the tool's length cap (observed: inline `--body` calls rejected for length on an unattended lane). The §2.4.2 gates read the same file `--body-file` hands to `gh`.
 
@@ -505,7 +526,7 @@ Record the expected set for comparison in Phase 3.
 
 ## 2.6 Report and stop
 
-Report the PR URL, captured `<pr_number>`, and recorded list of expected CI workflows. Report the open state and the level that supplied it (§2.4.3), for example `open state: draft (default)` or `open state: ready (repository (docs/conventions/source-control.yaml))`. For a draft, say that `/source-control:pull-request ready` is what flips it. End Phase 2 there. The flip (Phase 2.5) and monitoring (Phase 3), if needed, are invoked explicitly via `/source-control:pull-request ready`, `/source-control:pull-request monitor`, or `/source-control:pull-request full`.
+Report the PR URL, captured `<pr_number>`, and recorded list of expected CI workflows. Report the open state and the level that supplied it (§2.4.3), for example `open state: draft (default)` or `open state: ready (repository (docs/conventions/source-control.yaml))`. For a draft, say that `/source-control:pull-request ready` is what flips it. When §2.4.1 found several plans and carried no acceptance criteria, name the candidates. End Phase 2 there. The flip (Phase 2.5) and monitoring (Phase 3), if needed, are invoked explicitly via `/source-control:pull-request ready`, `/source-control:pull-request monitor`, or `/source-control:pull-request full`.
 
 ## 2.7 `create --pushed`: PR-only entry for an orchestrated flow
 
