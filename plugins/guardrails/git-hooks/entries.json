@@ -22,7 +22,7 @@
     },
     {
       "name": "reference-verify",
-      "event": "pre-commit",
+      "event": "pre-push",
       "script": "reference-verify.sh",
       "tools": ["jq"],
       "rewrites": false,

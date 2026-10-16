@@ -6,7 +6,7 @@ a file or a choice the user owns.
 
 | Kind | What you do |
 |---|---|
-| `lefthook-config`, `husky-config` | Merge `snippet` into `file`, keeping the user's own jobs, comments and order; create the file when absent. For a TOML or JSON lefthook config, write the same job in that format. |
+| `lefthook-config`, `husky-config` | Merge `snippet` into `file`, keeping the user's own jobs, comments and order; create the file when absent. For a TOML or JSON lefthook config, write the same job in that format. The `reference-verify` job is `pre-push` and its snippet sets `use_stdin: true`: keep it. When another `pre-push` job there also sets it, tell the user lefthook gives the pushed refs to only one job, so `reference-verify` may check the branch against its upstream instead, and nothing on a branch with no upstream. |
 | `lefthook-install` | Run `lefthook install` so the manager's hooks exist in this clone. |
 | `husky-install` | Tell the user to run the project's install (husky sets `core.hooksPath` on `npm install`). |
 | `husky-shared-only` | Say husky has no per-clone hooks and offer `scope=shared`. |

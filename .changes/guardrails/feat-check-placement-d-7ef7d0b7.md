@@ -10,8 +10,10 @@ bump: minor
   `commit-msg-convention` checks the subject against the team-tracked `subject_pattern`,
   `pre-commit-content` checks secrets and machine-specific paths on the lines a commit adds, and
   `reference-verify` runs cli-flag-verify, skill-reference-verify and stale-path-verify on the
-  lines a commit adds. Each fails the commit on a finding and is declined per clone with
-  `install.mjs decline`.
+  lines the pushed commits add, as a `pre-push` entry because it costs about 10 s on a 44-file
+  change. Each fails the commit or push on a finding and is declined per clone through
+  `/guardrails:setup`, which also removes an installed entry's registration. A cli-flag
+  finding's failure names that way out, since such a finding is unverified, not proven wrong.
 - `block-no-verify` refuses a persistent `git config core.hooksPath <dir>` in any scope unless
   `<dir>` is exactly `.githooks`, and allows the check-placement skip key
   `git -c checks.skipmissing=<tool>`.
@@ -19,11 +21,11 @@ bump: minor
 ### Changed
 
 - cli-flag-verify, skill-reference-verify and stale-path-verify no longer report after every
-  Write or Edit; they run at commit time in the `reference-verify` git hook. Their
+  Write or Edit; they run at push time in the `reference-verify` git hook. Their
   `cli_flag_verify_enabled`, `skill_reference_verify_enabled`, `stale_path_verify_enabled`,
   `cli_flag_verify_bins` and `cli_flag_verify_skip_bins` options are gone: decline the entry
   to turn it off, and set `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS` or
-  `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS` in the committing environment to change the
+  `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS` in the pushing environment to change the
   scanned binaries.
 
 ### Removed

@@ -117,7 +117,8 @@ manager, so the checks cover every commit, not only Claude's tool calls:
 `commit-msg-convention` (the subject against the team-tracked `subject_pattern`, the pattern
 `block-convention-violation` reads), `pre-commit-content` (secrets and machine-specific paths
 on the lines a commit adds, whatever wrote the file) and `reference-verify` (CLI flags,
-`/plugin:skill` references and deleted repository paths on the lines a commit adds). The
+`/plugin:skill` references and deleted repository paths on the lines the pushed commits add;
+a `pre-push` entry, since its cost is over the commit budget). The
 installer script only detects, renders and writes files the plugin owns; every step that
 needs judgment comes back to you as a `decisions[]` item, which you reason about and apply
 with your own edit tools. Never runs from bare `apply`.
@@ -151,7 +152,12 @@ with your own edit tools. Never runs from bare `apply`.
 When the user does not want an entry in this clone, run
 `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry <name>`; the
 session-start drift line then stays silent until `verify` runs by hand, and `--undo` reverses
-it.
+it. Declining records the choice and does not stop an installed copy: when `list` shows the
+entry installed, also remove its registration with your edit tools (the
+`<event>.d/guardrails.<name>` marker for plain hooks, the `guardrails-<name>` job in the lefthook
+config, its line in `.husky/<event>`) and the copy under `guardrails/`, on the user's yes; a shared
+registration is a committed change the team reviews. This is the way out the `reference-verify`
+failure names for a cli-flag finding, which is unverified rather than proven wrong.
 
 ## `apply install-read-deny [local|shared] [user] [remove]` (opt-in, explicit argument only)
 
