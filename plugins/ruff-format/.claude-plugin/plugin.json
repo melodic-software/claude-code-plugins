@@ -1,7 +1,7 @@
 {
   "name": "ruff-format",
   "version": "0.9.16",
-  "description": "Rewrite Python with Ruff once per batch of edits and again at git pre-commit, reporting remaining findings on changed lines at commit, only when a Ruff config governs the repo.",
+  "description": "Auto-format and lint Python on edit via Ruff, only when a Ruff config governs the repo, using the consuming repo's own Ruff config.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
