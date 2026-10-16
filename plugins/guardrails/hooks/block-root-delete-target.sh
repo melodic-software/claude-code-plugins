@@ -532,6 +532,11 @@ rdt_block() {
       "BLOCKED: this recursive delete has a brace expansion ($target) that cannot be judged alternative by alternative." \
       'Fix: write each target out as its own operand.'
     ;;
+  brace-too-large)
+    printf -v msg '%s\n' \
+      "BLOCKED: this recursive delete has a brace expansion ($target) too large to expand in time." \
+      'Fix: write each target out as its own operand.'
+    ;;
   nul-field)
     printf -v msg '%s\n' \
       "BLOCKED: this recursive delete cannot be judged, because the hook payload's $target carries a NUL byte." \
@@ -2745,10 +2750,13 @@ rdt_check_segment() {
       # Bounded before the walk: a word of thousands of braces makes the
       # expander's scan quadratic.
       x="${w//[^\{]/}"
-      ((${#w} > MAX_BRACE_WORD || ${#x} > MAX_BRACE_OPEN)) && rdt_block "brace" "of ${#w} bytes with ${#x} braces"
+      ((${#w} > MAX_BRACE_WORD || ${#x} > MAX_BRACE_OPEN)) && rdt_block "brace-too-large" "of ${#w} bytes with ${#x} braces"
       rc=0
       rdt_brace_expand "$w" || rc=$?
-      ((rc == 0)) || rdt_block "brace" "'$w'"
+      if ((rc != 0)); then
+        rdt_block "brace" "'$w'"
+        continue
+      fi
       if ((${#RDT_BX[@]} != 1)) || [[ "${RDT_BX[0]}" != "$w" ]]; then
         ((q == 1)) && rdt_block "brace" "'$w'"
         bx=(${RDT_BX[@]+"${RDT_BX[@]}"})

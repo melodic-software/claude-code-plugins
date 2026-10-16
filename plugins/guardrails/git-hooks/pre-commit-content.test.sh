@@ -97,6 +97,16 @@ printf 'brand new token=%s\n' "$FAKE_GHP" >"$REPO/new.txt"
 git -C "$REPO" add new.txt
 expect "a new file is judged whole" 1 "$(rc_of "$REPO")"
 
+# Git quotes a name holding `"` whatever core.quotePath says. Windows refuses
+# the name, so the case runs where the file system takes it.
+new_repo
+if printf 'token=%s\n' "$FAKE_GHP" 2>/dev/null >"$REPO/a\"b.txt"; then
+  git -C "$REPO" add -- "a\"b.txt"
+  expect "a token in a file whose name git quotes blocks" 1 "$(rc_of "$REPO")"
+else
+  echo "skip: this file system refuses a name holding a double quote"
+fi
+
 new_repo
 printf 'line one\nline two\nstaged clean\n' >"$REPO/notes.md"
 git -C "$REPO" add notes.md

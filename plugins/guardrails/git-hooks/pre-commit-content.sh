@@ -125,6 +125,11 @@ file_size() {
 }
 
 checks_changed_lines
+# Git quotes a name holding `"`, `\` or a control byte whatever core.quotePath
+# says, so checks_changed_lines has no ranges for it: such a file is judged whole.
+while IFS= read -r -d '' f; do
+  [[ "$f" == *[\"\\[:cntrl:]]* ]] && printf '%s\t1\t2147483647\n' "$f" >>"$CHECKS_TMP/ranges"
+done < <(checks_files)
 
 # added_only <path>: the file with every line the commit does not add blanked,
 # so line numbers hold and only added text is scanned.

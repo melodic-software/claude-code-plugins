@@ -2316,6 +2316,9 @@ expect_both 'attended: a root, then a delete past the target budget, denies' 2 "
   --command "rm -rf /; rm -rf$RDT_MANY" -- CLAUDE_CODE_SESSION_ATTENDED=1
 expect_both 'attended: a root, then more directory changes than the budget, denies' 2 "${RDT_CWD[@]}" \
   --command "rm -rf /$RDT_CDS; rm -rf x" -- CLAUDE_CODE_SESSION_ATTENDED=1
+expect 'attended: an operand past the brace budget denies before expanding' 2 "${RDT_CWD[@]}" \
+  --command "rm -rf ${rdt_br}x" -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_contains 'attended: the brace budget refusal names its bound' "$GUARD_ERR" "too large to expand in time"
 expect "attended: two asking segments ask once" 0 "${RDT_CWD[@]}" \
   --command 'rm -rf "$X"; rm -rf /etc/foo' -- CLAUDE_CODE_SESSION_ATTENDED=1
 assert_eq "attended: two asking segments: the decision is ask" ask \
