@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run the diff-scoped lint checks CI runs, over what this branch changed, before
 # a push spends a CI round on them. One entrypoint, so a person, an agent and the
-# lefthook pre-push job (lefthook.yml, check-affected) all run the same set.
+# pre-push hook (.claude/hooks/check-affected-pre-push.sh) all run the same set.
 #
 #   scripts/check-affected.sh                 the lint checks
 #   scripts/check-affected.sh --tests         ... and scripts/affected-tests.sh --run
@@ -27,8 +27,8 @@
 #   - tests (--tests):     scripts/affected-tests.sh --run --base <base>
 #
 # Code runs from the tree holding this script; the files checked are those of
-# the current directory's repository. A caller can run a merge-base copy of
-# this script against a branch, so the two differ: then every check script
+# the current directory's repository. The pre-push hook runs a merge-base copy
+# of this script against a branch, so the two differ: then every check script
 # runs from the copy with CHECK_DATA_ROOT naming the branch tree, markdownlint
 # reads only the copy's configs (a branch config can load a custom rule, which
 # is code), and checks that run the branch's own code skip: --tests, and the
