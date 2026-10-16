@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "3. Outcome verification: `/verification:confirm .work/late-fee/PLAN.md`",
+      "why": "confirm handed the plan path"
+    },
+    {
+      "answer": "Then /verification:confirm /srv/dev/billing/.work/late-fee/PLAN.md once the diff is final.",
+      "why": "absolute plan path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "3. Outcome verification: `/verification:confirm`",
+      "why": "no plan pointer"
+    },
+    {
+      "answer": "Run /verification:confirm.\nThe plan is .work/late-fee/PLAN.md.",
+      "why": "path not on the confirm line"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    }
+  ]
+}

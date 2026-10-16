@@ -90,7 +90,7 @@ Because the orchestrator stays on the default branch, **every source-touching op
    2. The divergence-escalation clause, verbatim: "if an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise".
    3. The project invariants the task touches, from the project's `CLAUDE.md` / rules, and the run's resolved `integration_posture` line as `/implementation:implement` Step 0 reported it (`plan governs` when an approved plan exists).
    4. The phase's acceptance criteria.
-   5. **The reason the phase exists**: the goal it serves and what the output enables.
+   5. **The reason the phase exists**: the goal it serves and what the output enables, plus the PLAN.md's absolute path in the orchestrator's checkout, where the Brief lives (none under `--items`, or when holdout tests fence the memory slice).
    6. Its **commit authority**: `worker` by default, or `orchestrator` (Commit authority says which of items 8 to 10 change under it).
    7. Any model routing the plan specifies.
    8. **When the worker edits in a dedicated worktree** (an out-of-tree sibling or any checkout other than the session's default): that worktree's absolute path, written literally, plus the anchoring rule in the Gotchas bullet "A worker's worktree cwd does not persist across tool calls". The interactive default is a pre-existing worktree path the brief supplies.
@@ -270,7 +270,7 @@ A clear gets the full Step 4 ritual, ending in the resume prompt; a resident bou
 | Worker divergence report | Severity-assess per `/implementation:implement`'s "Step 3: Divergence Detection"; Major → `/planning:plan review` via the Skill tool when installed |
 | Every worker return | Verify against direct evidence, then invoke `/toolchain:check` via the Skill tool main-side (else the project's own build) |
 | Phase sanity check passes | `/implementation:implement`'s "Step 4" ritual (its item-1 verifier gate applies in every mode; orchestrated runs dispatch it, see Phase boundaries) |
-| All phases complete | Invoke `/implementation:implement` via the Skill tool for its "Step 5: Completion and Handoff" (outcome verification is that step's `/verification:confirm` route). A source commit made after the last phase's `[DONE]` first gets the post-phase verifier; an autonomous run then gets the trail review |
+| All phases complete | Invoke `/implementation:implement` via the Skill tool for its "Step 5: Completion and Handoff", handing it the PLAN.md path (outcome verification is that step's `/verification:confirm` route). A source commit made after the last phase's `[DONE]` first gets the post-phase verifier; an autonomous run then gets the trail review |
 
 This skill does not edit inline (the inline cadence, commit discipline and mode context files are `/implementation:implement`'s) and does not create or revise plans.
 
