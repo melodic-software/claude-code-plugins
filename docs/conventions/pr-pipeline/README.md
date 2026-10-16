@@ -363,9 +363,8 @@ human. Work classes are defined in
   where the lane resolved conflicts, needs a fresh verdict on that commit before the merge. The
   local babysit lane accepts only evidence bound to the pinned head SHA (below).
 - `merge.stack-landing` defaults to `manual`.
-- A repository has one merge authority. The one exception is
-  `.github/workflows/pr-automerge-dependabot.yml`, which merges Dependabot pull requests on its own
-  rules whatever `merge.authority` says.
+- A repository has one merge authority, and it covers Dependabot pull requests too: nothing arms
+  auto-merge on them.
 
 ### The local babysit lane
 
@@ -412,8 +411,8 @@ that fails counts as a refusal.
   the wrapper disarms it.
 - **One merge in flight.** The wrapper refuses while the identity has an entry in the merge queue,
   or while an earlier unattended merge has not passed its post-merge check.
-- **Dependabot.** A dependency-manager author is never eligible for an unattended merge. Those pull
-  requests stay with `pr-automerge-dependabot.yml`.
+- **Dependabot.** A dependency-manager author is never eligible for an unattended merge. A human
+  merges those pull requests, or an attended babysit run that passes `--allow-dependency`.
 
 A human here is a GitHub user, not the agent identity and not an automation login, with write or
 admin permission on the repository.

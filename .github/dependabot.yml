@@ -3,11 +3,10 @@
 # toolchain, the standards-managed runner-policy dependency root, the hash-locked Python CI
 # toolchain, and the miro plugin's Node MCP server. The plugin hooks
 # still use each consuming repository's tools; these manifests exist only to make this repository's
-# validation reproducible. Merge lanes follow the standards dependabot-policy component: the
-# github-actions `vendor-actions` group (non-major only) is the auto-merge lane armed by
-# pr-automerge-dependabot.yml; every other bump is a PR a human reviews and merges once
-# `ci-status` passes. A dependency joins the first group that matches it, so majors fall
-# through to the reviewed `github-actions` group.
+# validation reproducible. Every Dependabot pull request is reviewed and merged like any other
+# pull request once `ci-status` passes; nothing arms auto-merge. A dependency joins the first
+# group that matches it, so github-actions majors fall through from `vendor-actions` to the
+# `github-actions` group.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -15,7 +14,7 @@ updates:
     # Only the `dependencies` label (already in the governed taxonomy). This overrides
     # Dependabot's defaults, suppressing the auto-created snake_case `github_actions`
     # ecosystem label — the label every downstream tool ignores anyway (release notes
-    # group on `dependencies`; auto-merge keys on fetch-metadata outputs).
+    # group on `dependencies`).
     labels:
       - dependencies
     schedule:

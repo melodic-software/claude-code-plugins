@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## 1.19.3 - 2026-10-16
+
+This repository no longer runs `pr-automerge-dependabot.yml`, which armed auto-merge on
+Dependabot pull requests with `GITHUB_TOKEN`; on the merge-queue base those pull requests never
+entered the queue. Merge authority has no Dependabot exception: a human merges a
+dependency-manager pull request, or an attended babysit run that passes `--allow-dependency`.
+`version` stays 1.
+
 ## 1.19.2 - 2026-10-16
 
 `work-unblock.yml` also runs hourly (`schedule`, minute 47, from main only). A scheduled run lists
