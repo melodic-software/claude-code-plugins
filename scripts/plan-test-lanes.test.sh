@@ -174,6 +174,9 @@ check "the Python version pin runs every Windows step, whose jobs set up Python 
 plan -- pyproject.toml
 is "$(key windows_jobs)" '[]' && is "$(key python)" true
 check "another Python pin runs the Python suites but no Windows step" $?
+plan -- plugins/animation/requirements.txt
+is "$(suites python | tr '\n' ' ')" "plugins/p/test_p.py plugins/q/test_q.py "
+check "the animation lock test-python installs is a Python pin" $?
 
 plan -- lib/w.mjs
 is "$(suites bash)" "lib/w.test.sh" && is "$(key node)" false

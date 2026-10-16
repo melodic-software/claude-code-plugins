@@ -2474,7 +2474,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt', '.github/requirements-ci-animation.txt') }}
+          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt', 'plugins/animation/requirements.txt') }}
       - name: Install and verify ShellCheck toolchain
         # This canonical action also makes the exact ShellCheck version
         # available to the bash-format contract suites in this same job. It
@@ -2520,12 +2520,11 @@ jobs:
       # (ANIMATION_REQUIRE_DEPS, SPEECH_REQUIRE_DEPS, INVENTORY_REQUIRE_ACORN).
       - name: Install locked plugin test toolchains
         run: |
-          # Dependabot bumps the animation wheels here (its /.github pip entry) and the plugin's
-          # lock (its /plugins/animation entry) in separate pull requests, so a one-sided bump
-          # fails here instead of merging as drift.
-          diff <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.in | sort) \
-               <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' .github/requirements-ci-animation.txt | sort) \
-            || { echo "::error::.github/requirements-ci-animation.txt and plugins/animation/requirements.in pin different versions; bump the two together"; exit 1; }
+          # The animation lock must hold every pin its requirements.in declares, so an edit to
+          # the .in without regenerating the lock fails here instead of testing a stale lock.
+          stale=$(comm -23 <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.in | sort) \
+                           <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.txt | sort) | paste -sd ' ')
+          [ -z "$stale" ] || { echo "::error::plugins/animation/requirements.txt lacks $stale from requirements.in; regenerate the lock"; exit 1; }
           leg_needs=$(jq -er --arg leg "$LEG" '.[$leg]' <<<"$LEG_PLAN") ||
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           echo "This leg installs: ${leg_needs:-the base toolchains only}"
@@ -2534,7 +2533,7 @@ jobs:
           npm ci --prefix .github/standards/runner-policy
           requirements=(--requirement .github/requirements-ci.txt)
           if [[ "$leg_needs" == *animation* ]]; then
-            requirements+=(--requirement .github/requirements-ci-animation.txt)
+            requirements+=(--requirement plugins/animation/requirements.txt)
           fi
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
@@ -2662,20 +2661,21 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt', '.github/requirements-ci-animation.txt') }}
+          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt', 'plugins/animation/requirements.txt') }}
       - name: Install locked plugin test toolchains
         run: |
-          # The same pin-equality check test-bash makes: a Python pin change runs this lane.
-          diff <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.in | sort) \
-               <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' .github/requirements-ci-animation.txt | sort) \
-            || { echo "::error::.github/requirements-ci-animation.txt and plugins/animation/requirements.in pin different versions; bump the two together"; exit 1; }
+          # The animation lock must hold every pin its requirements.in declares, so an edit to
+          # the .in without regenerating the lock fails here instead of testing a stale lock.
+          stale=$(comm -23 <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.in | sort) \
+                           <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.txt | sort) | paste -sd ' ')
+          [ -z "$stale" ] || { echo "::error::plugins/animation/requirements.txt lacks $stale from requirements.in; regenerate the lock"; exit 1; }
           leg_needs=$(jq -er --arg leg "$LEG" '.[$leg]' <<<"$LEG_PLAN") ||
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           echo "This leg installs: ${leg_needs:-the base toolchains only}"
           npm ci
           requirements=(--requirement .github/requirements-ci.txt)
           if [[ "$leg_needs" == *animation* ]]; then
-            requirements+=(--requirement .github/requirements-ci-animation.txt)
+            requirements+=(--requirement plugins/animation/requirements.txt)
           fi
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
