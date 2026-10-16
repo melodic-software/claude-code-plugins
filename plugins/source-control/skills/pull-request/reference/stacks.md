@@ -27,7 +27,7 @@ short, and fix a lower layer before the upper layers collect review.
 - Build the stack with GitHub's `gh stack` extension (`github/gh-stack`). Read its commands from
   the CLI reference below rather than from memory.
 - Put each dependency in the same layer or a lower one, never a higher one.
-- Each layer is a pull request in its own right: open it as a draft, take it through `ready` and
+- Each layer is a pull request in its own right: open it with `create`, take it through `ready` and
   `monitor`, and hold its title and body to the same contract as any other PR.
 - Inside a linked worktree (`/source-control:worktree`), use an extension release that tracks
   stacks per repository, and the Git floor the CLI reference names. Unattended lanes set

@@ -128,10 +128,10 @@
       "id": 10,
       "name": "ship-run-readies-each-pr-after-create-pushed",
       "prompt": "/work-items:ship run #360. The container body carries `**Execution shape:** per-item PRs`. The user approved the item list; dispatch returned item #361 accepted in worktree /work/wt-361 on branch feat/361-export, committed and pushed, and `/source-control:pull-request create --pushed --worktree /work/wt-361` opened draft PR 905. What does the run do next for that item?",
-      "expected_output": "Right after create --pushed, the run dispatches /source-control:pull-request ready into /work/wt-361, with a brief naming PR 905 so the dispatched agent stops if ready resolves a different PR, and a strong-tier model rather than its own inherited one. ready merges the base, runs the code and security reviews, verifies the merged head and flips the draft. The run merges only when the user says to land it, and does not flip the PR itself.",
+      "expected_output": "Right after create --pushed, the run dispatches /source-control:pull-request ready --unattended into /work/wt-361, with a brief naming PR 905 so the dispatched agent stops if ready resolves a different PR, and a strong-tier model rather than its own inherited one. ready merges the base, runs the code and security reviews, verifies the merged head and flips the draft. The run merges only when the user says to land it, and does not flip the PR itself.",
       "files": [],
       "expectations": [
-        "Dispatches /source-control:pull-request ready after create --pushed, without waiting for the user to say land it",
+        "Dispatches /source-control:pull-request ready --unattended after create --pushed, without waiting for the user to say land it",
         "Runs it in the item's worktree, with the brief naming PR 905 as the PR ready must resolve",
         "Passes an explicit strong-tier model on that dispatch",
         "Never flips the draft with a bare forge command and merges only on the user's go-ahead"

@@ -136,4 +136,55 @@ pr "feat(x): add a thing" ""
 run 7 --repo acme/app >/dev/null
 assert_contains "--repo reaches gh" "$(cat "$TEST_TMPDIR/calls")" "--repo acme/app"
 
+pr "feat(x): add a thing" $'## Related\n\nDraft: multi-session container\n'
+out=$(run 7 --unattended)
+assert_exit "an unattended run refuses a draft a person asked for" 3 "$?"
+assert_contains "the refusal names the Draft: line" "$out" "Draft: multi-session container"
+
+pr "feat(x): add a thing" $'## Related\n\nDraft: requested early look\n'
+run 7 --unattended >/dev/null
+assert_exit "an unattended run refuses a requested early-look draft" 3 "$?"
+
+for line in 'draft: multi-session container' 'Draft:  multi-session container' 'Draft: please hold until the demo' '> Draft: requested early look' $'Draft: multi-session container\r'; do
+  pr "feat(x): add a thing" $'## Related\n\n'"$line"$'\n'
+  run 7 --unattended >/dev/null
+  rc=$?
+  assert_exit "an unattended run holds the Draft: variant $(printf '%q' "$line")" 3 "$rc"
+done
+
+pr "feat(x): add a thing" $'## Related\r\n\r\nDraft: multi-session container\r\n'
+out=$(run 7 --unattended)
+assert_exit "an unattended run holds a Draft: line in a CRLF body" 3 "$?"
+assert_not_contains "the reason carries no carriage return" "$out" $'\r'
+
+pr "feat(x): add a thing" $'## Related\n\nDraft: requested early look \e[2J\a\n'
+out=$(run 7 --unattended)
+assert_exit "a Draft: line with control bytes still holds" 3 "$?"
+assert_not_contains "control bytes are stripped from the reason" "$out" $'\e'
+
+pr "feat(x): add a thing" $'## Related\n\nDraft:\n'
+run 7 --unattended >/dev/null
+assert_exit "an unattended run holds a bare Draft: line" 3 "$?"
+
+pr "feat(x): add a thing" $'## Related\n\nRedraft: the summary after review\n'
+out=$(run 7 --unattended)
+assert_exit "a Redraft: line is not a hold line" 0 "$?"
+assert_silent "a Redraft: line prints nothing" "$out"
+
+pr "feat(x): add a thing" $'## Summary\n\nSee Draft: requested early look\n'
+out=$(run 7 --unattended)
+assert_exit "a mid-line Draft: is not a hold line" 0 "$?"
+assert_silent "a mid-line Draft: prints nothing" "$out"
+
+pr "feat(x): add a thing" $'## Related\n\nDraft: multi-session container\n'
+
+out=$(run 7)
+assert_exit "a person running ready may flip a requested draft" 0 "$?"
+assert_silent "an attended run reports no hold for a Draft: line" "$out"
+
+pr "feat(x): add a thing" $'## Summary\n\nThe draft: still rough.\n'
+out=$(run 7 --unattended)
+assert_exit "an unattended run without a Draft: line passes" 0 "$?"
+assert_silent "an unattended run without a Draft: line prints nothing" "$out"
+
 [[ $FAILED -eq 0 ]] || exit 1
