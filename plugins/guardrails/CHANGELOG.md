@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.5] - 2026-10-16
+
+### Changed
+
+- Shared `check-lib.sh` synced where this plugin carries it: it gains `checks_refuse_config_drift`, which the guardrails entries do not call; no other change to this plugin.
+
 ## [0.51.4] - 2026-10-16
 
 ### Changed
