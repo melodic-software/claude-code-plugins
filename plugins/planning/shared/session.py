@@ -29,6 +29,7 @@ import os
 import re
 import secrets
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -383,6 +384,46 @@ def _used(v):
     return out
 
 
+ASSET_KINDS = {"png": "image", "jpg": "image", "webp": "image", "svg": "svg", "html": "html"}
+ASSET_MAGIC = ((b"\x89PNG\r\n\x1a\n", "png"), (b"\xff\xd8\xff", "jpg"))
+
+
+def _asset_source(path, roots):
+    """An existing regular file under one of `roots`, not a dot-file; refused otherwise."""
+    if not isinstance(path, str) or not os.path.isabs(path):
+        raise _bad("path", "path must be an absolute path to a local file.")
+    try:
+        real = Path(path).resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise _bad("path", f"No file at {path}.") from exc
+    if not real.is_file() or real.name.startswith("."):
+        raise _bad("path", "path must name a regular file that is not hidden.")
+    for root in roots:
+        with contextlib.suppress(OSError):
+            if real.is_relative_to(Path(root).resolve(strict=True)):
+                return real
+    raise _bad("path", "add-asset reads files only from the session's data folder or the system temp folder.")
+
+
+def _asset_type(data, wanted):
+    """The extension the bytes prove: png, jpg and webp by magic number, svg and html by their opening markup."""
+    found = next((ext for magic, ext in ASSET_MAGIC if data.startswith(magic)), None)
+    if found is None and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        found = "webp"
+    if found is None:
+        head = data[:2048].decode("utf-8", "replace").lstrip("﻿ \t\r\n").lower()
+        if head.startswith(("<!doctype html", "<html")):
+            found = "html"
+        elif head.startswith(("<svg", "<?xml")) and "<svg" in head:
+            found = "svg"
+    if found is None:
+        raise _bad("path", "The file is not a PNG, JPEG, WebP, SVG or HTML file.")
+    want = {"jpeg": "jpg"}.get(wanted, wanted)
+    if want is not None and want != found:
+        raise _bad("as", f"as says {wanted}, but the file is {found}.")
+    return found
+
+
 class Session:
     """One shared interview session: the parsed state under one lock, with an injected clock and ids."""
 
@@ -401,6 +442,7 @@ class Session:
         self._last_write = {}  # (pid, route) -> time of the last accepted write
         self._joins = {}  # (guest key, address) -> times of recent joins
         self._base_cache = None
+        self._new_files = []  # files an apply created, removed again when the apply is refused
 
     # -- construction and persistence ---------------------------------------------------------
 
@@ -418,8 +460,12 @@ class Session:
         ids=None,
         validate_writes=False,
         assets_dir=None,
+        owner_token=None,
     ):
-        """A new session file at `path` (refused when one exists) -> (Session, owner token)."""
+        """A new session file at `path` (refused when one exists) -> (Session, owner token).
+
+        `owner_token` is a token the caller already holds (the server reads it from a 0600 file);
+        without one a new token is made."""
         path = Path(path)
         if path.exists():
             raise FileExistsError(f"{path} already exists")
@@ -428,7 +474,7 @@ class Session:
         title = _text({"title": title}, "title", limit=MAX_TITLE)
         goal = _text({"goal": goal}, "goal", limit=MAX_GOAL, empty_ok=True)
         name = _text({"name": owner_name}, "name", limit=MAX_NAME)
-        token = ids.token(32)
+        token = owner_token or ids.token(32)
         state = {
             "schemaVersion": migrate.CURRENT,
             "pluginVersion": plugin_version,
@@ -2280,15 +2326,23 @@ class Session:
             if long:
                 raise DomainError(400, "too-long", err, field=long.group(1), max=int(long.group(2)), **at)
             raise DomainError(400, "bad-field", err, field="ops", **at)
-        with self._tx():
-            results = []
-            for i, op in enumerate(doc["ops"]):
-                try:
-                    results.append(getattr(self, "_op_" + op["op"].replace("-", "_"))(op))
-                except DomainError as exc:
-                    exc.details.setdefault("op", i)
-                    raise
-            return {"results": results}
+        with self._lock:
+            self._new_files = []
+            try:
+                with self._tx():
+                    results = []
+                    for i, op in enumerate(doc["ops"]):
+                        try:
+                            results.append(getattr(self, "_op_" + op["op"].replace("-", "_"))(op))
+                        except DomainError as exc:
+                            exc.details.setdefault("op", i)
+                            raise
+                    return {"results": results}
+            except BaseException:
+                for f in self._new_files:
+                    with contextlib.suppress(OSError):
+                        f.unlink()
+                raise
 
     def _op_set_title(self, op):
         self.state["session"]["title"] = _text(op, "title", limit=MAX_TITLE)
@@ -2474,7 +2528,26 @@ class Session:
         return self._edit_reference({"qid": op["qid"], "remove": op["index"]})
 
     def _op_add_asset(self, op):
-        raise DomainError(501, "not-wired", "add-asset copies a file into assets/, which the server does; session.py alone cannot.")
+        """Copy a local image or HTML file into assets/ under its content id; usable from the next apply."""
+        src = _asset_source(op["path"], (self.path.parent, Path(tempfile.gettempdir())))
+        data = src.read_bytes()
+        if len(data) > ASSET_MAX:
+            raise DomainError(400, "too-long", f"An asset is at most {ASSET_MAX} bytes.", field="path", max=ASSET_MAX)
+        ext = _asset_type(data, op.get("as"))
+        aid = f"{hashlib.sha256(data).hexdigest()[:16]}.{ext}"
+        self.assets_dir.mkdir(parents=True, exist_ok=True)
+        dest = self.assets_dir / aid
+        if not dest.exists():
+            tmp = dest.with_name(f".{aid}.{secrets.token_hex(4)}.tmp")
+            tmp.write_bytes(data)
+            replace_into(tmp, dest)
+            self._new_files.append(dest)
+        meta = {"id": aid, "kind": ASSET_KINDS[ext], "bytes": len(data), "at": self.now(), "scale": op.get("scale", 1)}
+        meta_path = self.assets_dir / f".{aid}.json"
+        if not meta_path.exists():
+            self._new_files.append(meta_path)
+        write_private(meta_path, json.dumps(meta) + "\n")
+        return meta
 
     def _op_make_question_from(self, op):
         prop = self._proposal(op["proposal"])
@@ -2498,6 +2571,76 @@ class Session:
                 raise DomainError(404, "not-found", f"No event {seq}.")
         log["handled"] = sorted(set(log["handled"]) | set(op["seqs"]))
         return {"handled": list(op["seqs"])}
+
+    # -- runtime hooks the server calls ------------------------------------------------------
+
+    def reset_owner_token(self, token):
+        """Make `token` the owner's credential (the server's 0600 secrets file is authoritative)."""
+        with self._lock:
+            if hmac.compare_digest(sha256(token), self.state["credentials"]["owner"]["tokenHash"]):
+                return False
+            with self._tx() as st:
+                st["credentials"]["owner"] = {"tokenHash": sha256(token), "rotatedAt": self.now()}
+            return True
+
+    def set_share(self, url):
+        """Record the guest link's base; a change from an earlier link sets share.changedAt."""
+        with self._lock:
+            old = self.state["session"]["share"]
+            if old["url"] == url:
+                return False
+            with self._tx() as st:
+                share = {"url": url}
+                if old["url"]:
+                    share["changedAt"] = self.now()
+                elif "changedAt" in old:
+                    share["changedAt"] = old["changedAt"]
+                st["session"]["share"] = share
+            return True
+
+    def log_copy(self):
+        """A copy of the event log, for the session-bridge transport."""
+        with self._lock:
+            return copy.deepcopy(self.state["log"])
+
+    def mark_delivered(self, log):
+        """Persist the deliveredAt stamps the transport put on a copy of the log."""
+        stamps = {e["seq"]: e["deliveredAt"] for e in log.get("events", []) if e.get("deliveredAt")}
+        with self._lock:
+            fresh = [e for e in self.state["log"]["events"] if e["seq"] in stamps and not e.get("deliveredAt")]
+            if not fresh:
+                return
+            with self._tx():
+                for e in fresh:
+                    e["deliveredAt"] = stamps[e["seq"]]
+
+    def summary(self):
+        """What `share.sh status` reports: round, people, the owner's queue, unhandled events."""
+        with self._lock:
+            st = self.state
+            cur = self._current_round()
+            handled = set(st["log"]["handled"])
+            active = [p for p in st["people"] if p != HOST and self._active(p)]
+            return {
+                "title": st["session"]["title"],
+                "ended": self._ended(),
+                "guestKey": st["session"]["guestKey"],
+                "share": copy.deepcopy(st["session"]["share"]),
+                "round": {"n": cur["n"], "status": cur["status"]["kind"]} if cur else None,
+                "people": {"joined": len(active), "here": len(self._present() - {HOST})},
+                "queue": {
+                    "requests": sum(1 for r in st["requests"] if r["runner"] == "host" and r["status"]["kind"] == "pending" and self._active(r["pid"])),
+                    "results": sum(1 for lst in st["results"].values() for r in lst if not r["published"]),
+                    "uploads": sum(1 for u in st["uploads"] if u["status"]["kind"] == "offered"),
+                    "merges": sum(1 for m in st["mergeRequests"] if m["status"]["kind"] == "pending"),
+                    "proposals": sum(1 for p in st["proposals"] if p["status"]["kind"] == "new" and self._active(p["pid"])),
+                },
+                "unhandled": sum(1 for e in st["log"]["events"] if e["seq"] not in handled and not e.get("withdrawn")),
+            }
+
+    def presence_rev(self):
+        """A counter that moves on every presence change, which never changes `rev`."""
+        return self._presence_rev
 
     # -- views -------------------------------------------------------------------------------
 

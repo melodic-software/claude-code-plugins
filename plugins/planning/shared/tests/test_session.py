@@ -1903,9 +1903,48 @@ class TestApply(SessionCase):
         err = self.refused_ops("bad-field", {"op": "set-title", "title": "Fine"}, {"op": "drop-session"})
         self.assertEqual(err.details["op"], 1)
 
-    def test_add_asset_has_its_shape_accepted_and_says_it_is_not_wired(self):
-        err = self.refused_ops("not-wired", {"op": "add-asset", "path": "/tmp/shot.png", "scale": 2})
-        self.assertEqual(err.http, 501)
+    def test_add_asset_copies_a_png_from_the_data_folder_under_its_content_id(self):
+        png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 24
+        src = self.tmp / "shot.png"
+        src.write_bytes(png)
+        meta = self.apply({"op": "add-asset", "path": str(src), "scale": 2})["results"][0]
+        self.assertRegex(meta["id"], r"^[0-9a-f]{16}\.png$")
+        self.assertEqual((meta["kind"], meta["bytes"], meta["scale"]), ("image", len(png), 2))
+        self.assertEqual((self.tmp / "assets" / meta["id"]).read_bytes(), png)
+
+    def test_add_asset_reads_from_the_system_temp_folder(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".svg", delete=False, encoding="utf-8") as f:
+            f.write('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
+        self.addCleanup(os.unlink, f.name)
+        meta = self.apply({"op": "add-asset", "path": f.name})["results"][0]
+        self.assertTrue(meta["id"].endswith(".svg"))
+        self.assertEqual(meta["scale"], 1)
+
+    def test_add_asset_refuses_a_path_outside_the_allowed_roots(self):
+        other = Path(tempfile.mkdtemp())  # a sibling of the data folder, outside the temp root patched below
+        self.addCleanup(shutil.rmtree, other, ignore_errors=True)
+        src = other / "shot.png"
+        src.write_bytes(b"\x89PNG\r\n\x1a\n")
+        with mock.patch.object(session.tempfile, "gettempdir", return_value=str(self.tmp / "assets")):
+            err = self.refused_ops("bad-field", {"op": "add-asset", "path": str(src)})
+        self.assertEqual(err.details["field"], "path")
+        self.assertIn("data folder", err.message)
+
+    def test_add_asset_refuses_a_file_whose_bytes_are_not_an_allowed_type(self):
+        src = self.tmp / "notes.png"
+        src.write_text("just text", encoding="utf-8")
+        self.refused_ops("bad-field", {"op": "add-asset", "path": str(src)})
+
+    def test_add_asset_refuses_hidden_files_such_as_the_secrets_file(self):
+        src = self.tmp / ".shared-secrets.json"
+        src.write_text("<html>", encoding="utf-8")
+        self.refused_ops("bad-field", {"op": "add-asset", "path": str(src), "as": "html"})
+
+    def test_a_refused_apply_removes_the_asset_it_copied(self):
+        src = self.tmp / "shot.png"
+        src.write_bytes(b"\x89PNG\r\n\x1a\nrefused")
+        self.refused_ops("wrong-status", {"op": "add-asset", "path": str(src)}, {"op": "ack-round", "round": 1})
+        self.assertEqual(sorted(p.name for p in (self.tmp / "assets").iterdir() if p.name.endswith(".png") and p.name not in (PNG, "1111222233334444.png")), [])
 
     def test_assets_from_add_asset_are_usable_only_in_a_later_apply(self):
         q = choice_q("Q1")
