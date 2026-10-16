@@ -37,7 +37,7 @@ const issue = (number, { state = "open", reason = state === "closed" ? "complete
 });
 const marker = (user = OWNER, body = MARKER) => ({ id: 9, body, user, created_at: STAMP, updated_at: STAMP });
 
-// The closed issue 10 blocks the issues in `blocking`; `issues` is what a
+// The closed blocker, number 10, blocks the issues in `blocking`; `issues` is what a
 // fresh GET /issues/{n} answers, `blockedBy` and `comments` per issue number.
 function world({ blocking, issues = {}, blockedBy = {}, comments = {}, failOn } = {}) {
   const calls = [];
@@ -93,7 +93,7 @@ function envFor(event = {}, extra = {}) {
 const writes = (calls) => calls.filter((call) => !call.startsWith("GET "));
 const labeled = (n) => `POST /repos/${REPO}/issues/${n}/labels {"labels":["agent-ready"]}`;
 
-// Issue 20 is blocked by issue 10 (now closed) and issue 11.
+// Number 20 is blocked by number 10 (now closed) and number 11.
 function oneDependent({ sibling = "closed", labels = [], comments = [marker()], state = "open" } = {}) {
   return world({
     blocking: [issue(20, { state, labels })],
@@ -141,6 +141,23 @@ test("a blocker closed as not planned or duplicate still blocks", async () => {
     });
     assert.equal(await main({ env: envFor(), github }), 0);
     assert.deepEqual(writes(calls), [], reason);
+  }
+});
+
+test("a pull request blocker counts once merged, and not when closed unmerged", async () => {
+  const pull = (merged_at) => ({
+    ...issue(15, { state: "closed", reason: null }),
+    pull_request: { url: `${API}/repos/${REPO}/pulls/15`, merged_at },
+  });
+  for (const [mergedAt, expected] of [["2026-10-16T12:00:00Z", [labeled(20)]], [null, []]]) {
+    const { github, calls } = world({
+      blocking: [issue(20)],
+      issues: { 20: issue(20) },
+      blockedBy: { 20: [issue(10, { state: "closed" }), pull(mergedAt)] },
+      comments: { 20: [marker()] },
+    });
+    assert.equal(await main({ env: envFor(), github }), 0);
+    assert.deepEqual(writes(calls), expected, String(mergedAt));
   }
 });
 
@@ -219,7 +236,7 @@ test("a close by a human sender proceeds", async () => {
 });
 
 test("labels are read fresh from the API, never from the blocking list or the payload", async () => {
-  // The blocking list (and the payload) show issue 20 open and unlabeled; the
+  // The blocking list (and the payload) show number 20 open and unlabeled; the
   // issue read at run time shows a hold added since.
   const { github, calls } = world({
     blocking: [issue(20)],

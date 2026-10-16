@@ -65,9 +65,13 @@ async function refusal({ github, repo, number, ratifiers, admission }) {
     return `already ${LABEL}`;
   }
   // A blocker closed as not planned or duplicate never did the work, and its
-  // author can close it, so only a completed close counts.
+  // author can close it, so only a completed close counts; a pull request
+  // counts only once merged.
+  const done = (blocker) =>
+    blocker.state === "closed" &&
+    (blocker.pull_request ? Boolean(blocker.pull_request.merged_at) : blocker.state_reason === "completed");
   const blockers = await paginate(github, `${base}/dependencies/blocked_by`);
-  const pending = blockers.filter((blocker) => blocker.state !== "closed" || blocker.state_reason !== "completed").length;
+  const pending = blockers.filter((blocker) => !done(blocker)).length;
   if (pending > 0) {
     return `${pending} blocker(s) not closed as completed`;
   }
