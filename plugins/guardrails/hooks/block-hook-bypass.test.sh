@@ -1515,7 +1515,7 @@ run_pwsh "PS: module-qualified Write-Error 2> file (blocked)" \
 # act on and nothing else. Every assertion here reads stderr ALONE (GUARD_ERR):
 # a 2>&1 capture also catches the stdout systemMessage and would pass on text
 # the agent never receives.
-MSG_USE=". Use the Write or Edit tool."
+MSG_USE=". Use the Write or Edit tool; without either, and only if your instructions allow a write, write to a literal path under an exempt root: unquoted, or single-quoted on PowerShell."
 MSG_REMEDY_SCRATCH="If Write or Edit is refused for this path, stop and tell the user; the user can add a root to block_hook_bypass_scratch_roots."
 MSG_REMEDY_SWITCHES="If Write or Edit is refused for this path, stop and tell the user."
 MSG_PROJ=/srv/repo
@@ -1525,8 +1525,8 @@ MSG_CFG=/srv/cfg
 MSG_ENV=(-u CLAUDE_PLUGIN_DATA -u CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS
   CLAUDE_PROJECT_DIR= CLAUDE_CONFIG_DIR="$MSG_CFG")
 
-# PowerShell and python lanes: never a scratch root, so no reason line, no root
-# list, and a remedy that does not name block_hook_bypass_scratch_roots.
+# PowerShell and python lanes: never a scratch root, so no reason line and a
+# remedy that does not name block_hook_bypass_scratch_roots.
 guard_invoke --tool PowerShell --command "Set-Content f.txt 'x'" -- "${MSG_ENV[@]}"
 assert_exit "message: PowerShell write blocks" 2 "$GUARD_RC"
 assert_eq "message: PowerShell write stderr is verdict and remedy" \
@@ -2026,6 +2026,30 @@ run_cwd "default: memory tier blocks with no project root" \
 # No cwd in the payload is the same unprovable relative target as before.
 run "default: relative memory-tier write blocks with no payload cwd" \
   "echo hello > .work/f" 2 "$PROJ_ENV=$PROJ"
+
+# --- A variable-carried target is never exempt ------------------------------
+# Even when the command first sets the variable to a scratch literal: bash has
+# too many ways to change a variable between the assignment and the redirect
+# (`printf -v`, `read`, `trap … DEBUG`, a nameref, `${S:=…}`, `exec {S}>`) for
+# the command text to prove the expansion. The literal spelling still passes.
+SV=/tmp/claude-0/-srv-repo/abc/scratchpad
+# shellcheck disable=SC2016  # the commands are shell text for the guard, not expansions here
+{
+  run_cwd "var: the literal scratch target (allowed)" \
+    "cat > $SV/run.sh" "$PROJ" 0 "$PROJ_ENV=$PROJ"
+  run_cwd "var: quoted \$S target set at the start (blocked)" \
+    "S=$SV; cat > \"\$S/run.sh\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+  run_cwd "var: bare \$S target after && (blocked)" \
+    "S=$SV && echo hi > \$S/out.txt" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+  run_cwd "var: printf -v rewrites the variable (blocked)" \
+    "S=$SV; N=s; printf -v \"\${N^^}\" %s $PROJ; cat > \"\$S/a.py\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+  run_cwd "var: a DEBUG trap rewrites the variable (blocked)" \
+    "S=$SV; N=s; trap \"\${N^^}=$PROJ\" DEBUG; cat > \"\$S/a.py\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+  run_cwd "var: a nameref rewrites the variable (blocked)" \
+    "S=$SV; N=s; declare -n R=\"\${N^^}\"; R=$PROJ; cat > \"\$S/a.py\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+  run_cwd "var: exec {S} reassigns the variable (blocked)" \
+    "S=$SV; exec {S}>/dev/null; cat > \"\$S/a.py\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+}
 
 # --- The second shipped default: the plugin data directory ------------------
 # `<config dir>/plugins/data` is where a plugin persists its reports. It lies

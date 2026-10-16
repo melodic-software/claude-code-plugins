@@ -104,6 +104,16 @@ inputs:
       (require-pr false) to actors listed with kind human, matched by id.
     required: false
     default: ""
+  ratified-app-label:
+    description: >
+      With require-kind human on an issues event, the one label the lanes App
+      (lanes-app-id) may apply to start the lane: it proceeds only while the
+      issue carries a listed human's unedited ratification marker comment,
+      read through the API now, and only for that App or a listed human as
+      re-runner. Any other App event, or a failed read, stops. Empty keeps
+      every App event stopped.
+    required: false
+    default: ""
   require-pr:
     description: >
       `true` gates a PR as described above. `false` checks only the actors
@@ -155,6 +165,7 @@ runs:
         LANES_APP_ID: ${{ inputs.lanes-app-id }}
         DISPATCHED_WORKFLOW: ${{ inputs.dispatched-workflow }}
         REQUIRE_KIND: ${{ inputs.require-kind }}
+        RATIFIED_APP_LABEL: ${{ inputs.ratified-app-label }}
         REQUIRE_PR: ${{ inputs.require-pr }}
         REPOSITORY: ${{ github.repository }}
       run: node "$GITHUB_ACTION_PATH/check-trusted-trigger.mjs"
