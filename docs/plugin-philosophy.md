@@ -525,7 +525,7 @@ default preserving zero-config behavior and no illegal value to get wrong, inclu
 out-of-set values are documented as falling back to that default. A manifest is trivial when all its
 options are, however many it holds: count is not the test and neither is declared `type`.
 
-The line follows from what the native prompt is: a collector, not a verifier. It stores what the
+The line follows from the native prompt being a collector, not a verifier. It stores what the
 consumer typed; it never confirms the path exists, the token authenticates, or two options agree. A
 `setup` skill's `check` is the only surface that can, which is why a non-trivial option requires one.
 A trivial option requires none: every legal value is valid by construction and the default already
@@ -556,8 +556,8 @@ rest of the shape is house doctrine, and says so: upstream documents native *ini
 surfaces (below) but takes no position on a consumer-facing `setup` skill, so the `check`/`apply`
 split and the criteria above rest on the reasoning given here rather than on upstream backing. This
 is a normative target: setup skills that predate this contract are nonconforming until brought into
-conformance, and the fleet conformance audit tracks the gap rather than the doctrine pretending it
-is closed. Setup must be:
+conformance, and the fleet conformance audit tracks the gap rather than treating it as
+closed. Setup must be:
 
 - idempotent and safe to rerun;
 - transparent about what it inferred, changed, skipped, or could not verify;
