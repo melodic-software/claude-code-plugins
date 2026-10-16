@@ -291,6 +291,8 @@ runs:
                 if [ ! -e "$VERIFY_DIR/$unit" ]; then
                   mkdir -p "$VERIFY_DIR/$(dirname "$unit")"
                   cp -R "$BASE_PATH/$unit" "$VERIFY_DIR/$unit"
+                  # chmod does not follow a link, so its target would stay writable.
+                  [ -z "$(find "$VERIFY_DIR/$unit" -type l -print -quit)" ] || fail "a verify-script's directory holds a symbolic link"
                 fi
                 allowed="$allowed,Bash(bash $VERIFY_DIR/$script *),Bash(bash \\\"$VERIFY_DIR/$script\\\" *)"
                 commands="$commands bash $VERIFY_DIR/$script <arguments>;"

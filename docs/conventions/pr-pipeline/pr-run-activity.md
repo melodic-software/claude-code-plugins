@@ -299,7 +299,8 @@ it, allows `Bash(<wrapper>)` with no arguments, and names the
 wrappers in `--append-system-prompt` as checks to run before reporting done. For each entry in
 the activity's `verify-scripts`, it checks the path's shape and that the base holds the script,
 copies the script's whole base plugin directory (or the base `scripts/`) to
-`$RUNNER_TEMP/lane-verify`, so the files the script reads beside itself come along, makes the copy
+`$RUNNER_TEMP/lane-verify`, so the files the script reads beside itself come along, fails if that
+directory holds a symbolic link (whose target `chmod` would leave writable), makes the copy
 read-only, denies `Edit` and `Write` on it, allows `Bash(bash <copy>/<path> *)` and the same rule
 for the double-quoted path, and names each command in `--append-system-prompt`. Any arguments
 match, so the list holds only scripts that read and report. `WebFetch` and

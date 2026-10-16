@@ -246,6 +246,17 @@ test("a verify-script missing from the base fails red", () => {
   assert.equal(args, "");
 });
 
+test("a verify-script whose plugin holds a symbolic link fails red", () => {
+  const scripts = path.join(base, "plugins", "vlink", "scripts");
+  mkdirSync(scripts, { recursive: true });
+  writeFileSync(path.join(scripts, "s.sh"), "echo s\n");
+  spawnSync("ln", ["-sfn", root, path.join(scripts, "out")]);
+  const { status, stdout, args } = withVerify(["plugins/vlink/scripts/s.sh"]);
+  assert.notEqual(status, 0);
+  assert.match(stdout, /::error::a verify-script's directory holds a symbolic link/);
+  assert.equal(args, "");
+});
+
 test("a verify-scripts copy path a rule cannot carry fails red", () => {
   const { status, args } = withVerify([VERIFY], { VERIFY_DIR: path.join(root, "has space") });
   assert.notEqual(status, 0);
