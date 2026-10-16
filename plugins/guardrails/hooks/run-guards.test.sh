@@ -233,6 +233,7 @@ att_run 1 "rm -rf /$rg_cds; rm -rf x"
 assert_exit "attended row: a root, then past the directory-change budget, denies" 2 "$RC"
 att_run 1 "git reset --hard; git$rg_hops a1"
 assert_exit "attended row: reset --hard, then past the alias budget, denies" 2 "$RC"
+((RC == 2)) || printf 'diagnostic: stdout=%s\nstderr=%s\n' "${OUT:0:800}" "${ERR:0:800}"
 att_run 1 'rm -rf "$X"; rm -rf /etc/foo'
 assert_eq "attended row: two asking segments ask" ask "$(hsd permissionDecision)"
 assert_contains "attended row: the reason names the bare variable" "$(hsd permissionDecisionReason)" "bare variable"

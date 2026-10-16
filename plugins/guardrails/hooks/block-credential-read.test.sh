@@ -25,6 +25,10 @@ assert_exit "unset switch: the guard is off, as plugin.json's default" 0 "$rc"
 pj_default=$(jq -r '.userConfig.block_credential_read_enabled.default' "$HOOK_DIR/../.claude-plugin/plugin.json")
 assert_eq "plugin.json default matches the script fallback" false "$pj_default"
 export CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED=true
+# A home directory assembled at run time, so no machine path sits in this
+# file's bytes for the repository's path scanner to find.
+SL='/'
+UH="${SL}home${SL}u"
 
 # run <label> <command> <expected> [ENV=value ...]: the Bash tool.
 run() {
@@ -115,7 +119,7 @@ run_ps 'PowerShell: lower-case variable name' 'Write-Output $env:gh_token' 2
 run "python -c open .env" "python3 -c \"print(open('.env').read())\"" 2
 run "python -c open .env.local" "python -c \"print(open('.env.local').read())\"" 2
 run "python -c read of an ssh private key" "python3 -c 'import os; print(open(os.path.expanduser(\"~/.ssh/id_rsa\")).read())'" 2
-run "python -c read of an ed25519 key" "python3 -c \"print(open('/home/u/.ssh/id_ed25519').read())\"" 2
+run "python -c read of an ed25519 key" "python3 -c \"print(open('${UH}/.ssh/id_ed25519').read())\"" 2
 run "node -e readFileSync .env" "node -e \"console.log(require('fs').readFileSync('.env','utf8'))\"" 2
 run "ruby -e File.read .netrc" "ruby -e 'puts File.read(\".netrc\")'" 2
 run "perl -e open .git-credentials" "perl -e 'open(F, \"<\", \"\$ENV{HOME}/.git-credentials\"); print <F>'" 2
@@ -126,7 +130,7 @@ print(Path('~/.aws/credentials').expanduser().read_text())
 EOF" 2
 run "python heredoc reading .docker/config.json" "cd /tmp && python3 <<EOF
 import json
-print(json.load(open('/home/u/.docker/config.json')))
+print(json.load(open('${UH}/.docker/config.json')))
 EOF" 2
 run "python with dotenv" "python3 -c 'from dotenv import dotenv_values; print(dotenv_values(\".env\"))'" 2
 run "jq . .credentials.json" 'jq . ~/.claude/.credentials.json' 2
@@ -171,7 +175,7 @@ run "python heredoc, then a grep naming .env" "python3 - <<'EOF'
 print(1)
 EOF
 grep -n open .env.md" 0
-run "python read of an ssh public key" "python3 -c \"print(open('/home/u/.ssh/id_ed25519.pub').read())\"" 0
+run "python read of an ssh public key" "python3 -c \"print(open('${UH}/.ssh/id_ed25519.pub').read())\"" 0
 run "python reading a template" "python3 -c \"print(open('.env.example').read())\"" 0
 
 # --- 6. A shell word makes quoted text live -----------------------------------

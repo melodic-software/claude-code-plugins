@@ -97,7 +97,7 @@ new_repo "$TICKET"
 expect "no resolver anywhere: passes rather than block blind" 0 "$(msg "$REPO" "junk subject" "$WORK/lone/commit-msg-convention.sh")"
 
 expect "the sentinel marker stays on line 2 of the source" yes \
-  "$(sed -n 2p "$CHECK" | grep -q 'guardrails-commit-msg-convention' && echo yes)"
+  "$(grep -q 'guardrails-commit-msg-convention' < <(sed -n 2p "$CHECK") && echo yes)"
 
 # End to end through the plugin's vendored installer and a real commit.
 new_repo "$TICKET"
