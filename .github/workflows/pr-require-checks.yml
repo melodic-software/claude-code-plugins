@@ -1653,10 +1653,12 @@ jobs:
       # commit is this pull request's own change on top of main and every entry
       # ahead of it. The group event names no pull request, so this step reads
       # the queued one from the group's head ref
-      # (gh-readonly-queue/<base>/pr-<number>-<head sha>): its author and its
+      # (gh-readonly-queue/<base>/pr-<number>-<base sha>): its author and its
       # head branch, which the release and Dependabot exemptions read on
       # pull_request, and its head commit, fetched so the Dependabot exemption
       # reads the pull request's own commits rather than the queue's squash.
+      # The SHA in the ref is the commit the group is built on, not the pull
+      # request's head, so the head comes from the pull request itself.
       - name: Resolve the queued pull request
         id: queued_pr
         if: github.event_name == 'merge_group'
@@ -1666,13 +1668,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash scripts/run-hygiene-gate.sh queued-pr {0}
         run: |
-          if [[ ! "$QUEUE_HEAD_REF" =~ /pr-([0-9]+)-([0-9a-f]{40})$ ]]; then
-            echo "::error::Cannot read a pull request number and head SHA from the merge group's head ref '$QUEUE_HEAD_REF'."
+          if [[ ! "$QUEUE_HEAD_REF" =~ /pr-([0-9]+)-[0-9a-f]{40}$ ]]; then
+            echo "::error::Cannot read a pull request number from the merge group's head ref '$QUEUE_HEAD_REF'."
             exit 1
           fi
-          number="${BASH_REMATCH[1]}" head_sha="${BASH_REMATCH[2]}"
+          number="${BASH_REMATCH[1]}"
           pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$number")"
           author="$(jq -r '.user.login' <<<"$pr")"
+          head_sha="$(jq -r '.head.sha' <<<"$pr")"
           # A fork's branch name is not this repository's release branch.
           head_ref="$(jq -r --arg repo "$GITHUB_REPOSITORY" 'if .head.repo.full_name == $repo then .head.ref else "" end' <<<"$pr")"
           git fetch --no-tags origin "$head_sha"
