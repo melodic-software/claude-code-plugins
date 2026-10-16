@@ -1,0 +1,7 @@
+{
+  "name": "work-auto-unblock",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

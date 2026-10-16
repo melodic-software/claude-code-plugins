@@ -134,6 +134,19 @@ activities:
     # Reads PR bodies, labels and comments for holds.
     reads-untrusted: true
     inputs: [pr, head-sha]
+  label-unblocked:
+    # When an issue closes, labels agent-ready each issue it blocked whose
+    # blockers are all closed, that carries no hold label, and that the owner
+    # ratified with the admission marker resolve-issue reads. The label starts
+    # resolve-issue. A script, no model. .github/workflows/work-auto-unblock.yml
+    # runs it.
+    script: .github/scripts/work-auto-unblock/label-unblocked.mjs
+    # Adds one label to issues; nothing else.
+    effect: mutate-tracker
+    gating: advisory
+    # Reads issue comments for the admission marker.
+    reads-untrusted: true
+    inputs: [issue]
 
 lanes:
   # Started by the agent-ready label on an issue (.github/workflows/work-resolve-issue.yml).
@@ -164,6 +177,11 @@ lanes:
     stage: merge
     slots:
       - activity: merge-pr
+  # Started by an issue closing (.github/workflows/work-auto-unblock.yml).
+  work-auto-unblock:
+    stage: work
+    slots:
+      - activity: label-unblocked
 
 merge:
   # The lane auto-merges only PRs whose single closing issue is labeled

@@ -1,5 +1,16 @@
 # Changelog for the PR pipeline convention
 
+## 1.18.1 - 2026-10-16
+
+This repository's `pr-pipeline.yaml` adds the `work-auto-unblock` lane (stage `work`) with one
+activity, `label-unblocked` (a script, `mutate-tracker`). `work-auto-unblock.yml` runs it when a
+listed human closes an issue: each issue the closed one blocked gets `agent-ready` when it is
+open, every blocker is closed, it carries none of `needs-owner-decision`,
+`status: needs-decision` or `needs-human`, and it holds the owner's admission marker as
+resolve-issue reads it (the check now lives in `resolve-config/ratification.mjs`, shared by
+both). Everything is re-read from the API when the run starts. A close by the lanes App starts
+nothing. `version` stays 1.
+
 ## 1.18.0 - 2026-10-16
 
 `applies-when` gains `admission` (`classes`, optional `ratified`), an issues lane's admission

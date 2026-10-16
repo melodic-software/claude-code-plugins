@@ -4,6 +4,11 @@
     "forbidden-effects": ["merge"],
     "never": "Merges, or marks its pull request ready"
   },
+  "work-auto-unblock": {
+    "stage": "work",
+    "forbidden-effects": ["mutate-branch", "publish-artifact", "merge"],
+    "never": "Writes to a branch, or labels an issue the owner has not ratified"
+  },
   "pr-refine": {
     "stage": "refine",
     "forbidden-effects": ["merge"],

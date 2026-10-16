@@ -14,6 +14,7 @@ import {
   paginate,
 } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { pipelineEvent } from "./predicate.mjs";
+import { findRatification } from "./ratification.mjs";
 import { checkConfigPath, laneHasActivity, neededFacts, resolve } from "./resolve.mjs";
 
 const DEFAULT_BASE_PATH = ".base";
@@ -23,9 +24,6 @@ const VOCABULARY_PATH =
   ".github/standards/github-actions-conventions/vocabulary.json";
 const CODEOWNERS_PATH = ".github/CODEOWNERS";
 const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
-// The owner's batch ratification of an issue's admission, on a line of its own.
-const RATIFICATION_MARKER =
-  /^<!-- admission: admitted when unblocked, owner batch ratification \d{4}-\d{2}-\d{2} -->$/m;
 // pulls/{n}/files lists at most this many files; a list that long may be cut.
 const FILES_CAP = 3000;
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
@@ -113,16 +111,7 @@ async function gatherFacts(
         github,
         `/repos/${repository}/issues/${Number(issue.number)}/comments`,
       );
-      const ratifying = comments.find(
-        (comment) =>
-          RATIFICATION_MARKER.test(comment.body ?? "") &&
-          ratifiers.has(comment.user?.id) &&
-          // Through a GitHub App, the text is that App's, not the owner's.
-          comment.performed_via_github_app == null &&
-          // An edit keeps the author, so edited text may be another account's.
-          typeof comment.created_at === "string" &&
-          comment.updated_at === comment.created_at,
-      );
+      const ratifying = findRatification(comments, ratifiers);
       facts.ratified = ratifying !== undefined;
       // Which comment ratified it, never its text.
       if (facts.ratified) {
