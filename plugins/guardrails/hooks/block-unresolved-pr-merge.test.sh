@@ -276,7 +276,7 @@ run "a newer skipped run supersedes an older cancelled one" 'gh pr merge 42 --sq
 assert_eq "cancelled then skipped -> no stderr" "" "$ERR"
 scenario none none failed-cancelled-skipped green
 run "a cancelled run between a failure and a skip does not clear the failure" 'gh pr merge 42 --squash' 2
-assert_contains "names the failure behind the cancelled run" "$ERR" "Failing checks: test"
+assert_contains "blocks naming test" "$ERR" "Failing checks: test"
 scenario none none newer-cancelled green
 run "a newest cancelled run still blocks" 'gh pr merge 42 --squash' 2
 assert_contains "names the cancelled check" "$ERR" "Failing checks: test"
