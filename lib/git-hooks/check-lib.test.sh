@@ -6,6 +6,7 @@
 # tolerance, and a bash 3.2 syntax lint. Expected values come from the
 # check-placement contract's runtime table.
 # test-scope: lib/git-hooks/check-lib.sh
+# shellcheck disable=SC2016 # each snippet is single-quoted on purpose: in_repo evaluates it in an inner bash
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE CLAUDECODE AI_AGENT
 

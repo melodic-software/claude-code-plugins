@@ -115,9 +115,9 @@ checks_remote_head() {
 # branch against its upstream is the range.
 checks_push_ranges() {
   local remote="${CHECKS_ARGS%% *}" zero=0000000000000000000000000000000000000000
-  local lref lsha rref rsha head base seen=0
+  local lref lsha rsha head base seen=0
   [[ -n "$remote" ]] || remote=origin
-  while read -r lref lsha rref rsha; do
+  while read -r lref lsha _ rsha; do
     [[ -n "$lsha" ]] || continue
     seen=1
     [[ "$lsha" == "$zero" ]] && continue
