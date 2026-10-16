@@ -8,4 +8,4 @@ bump: minor
 
 ### Added
 
-- A request level for `pr_open_state`: an invocation that asks for a draft, or names the PR a multi-session container, wins over every configured level and writes a `Draft:` line into the PR body. `/source-control:babysit-prs` never flips a draft carrying that line, in any tier.
+- A request level for `pr_open_state`: an invocation that asks for a draft, or names the PR a multi-session container, wins over every configured level and writes a `Draft:` line into the PR body. `/source-control:babysit-prs` never flips a draft carrying that line, in any tier, and `ready --unattended` (passed by every lane, loop and dispatched caller) refuses to flip it, through `check-ready-holds.sh --unattended` (exit 3); a person running `ready` may still flip it.

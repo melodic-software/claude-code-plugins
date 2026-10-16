@@ -5,10 +5,13 @@
 # held when it carries the do-not-merge label (any case), its body says "do not
 # merge" or "don't merge", or its title carries WIP as a word. A body line
 # starting "Hold:" holds the merge only, so it does not hold the flip. It is
-# superseded when an issue it closes is already closed.
+# superseded when an issue it closes is already closed. With --unattended (no
+# person drives the run: a lane, a loop, a dispatched worker), a body line
+# starting "Draft: requested early look" or "Draft: multi-session container"
+# also holds the flip: a person chose that draft, so only a person flips it.
 #
 # Usage:
-#   check-ready-holds.sh <pr> [--repo <owner/repo>]
+#   check-ready-holds.sh <pr> [--repo <owner/repo>] [--unattended]
 #
 # Exit codes:
 #   0  no hold: the flip may go on
@@ -30,10 +33,14 @@ die() {
   exit "$1"
 }
 
-PR="" REPO=""
+PR="" REPO="" UNATTENDED=false
 while (($# > 0)); do
   case "$1" in
   -h | --help) usage ;;
+  --unattended)
+    UNATTENDED=true
+    shift
+    ;;
   --repo)
     (($# >= 2)) || die 1 "--repo needs a value"
     REPO="$2"
@@ -62,7 +69,8 @@ facts=$(gh pr view "$PR" ${repo_args[@]+"${repo_args[@]}"} --json title,body,lab
 # BODY_MERGE_HOLD_RE (babysit_merge.py); its `Hold:` line alternative holds the
 # merge only, so it is left out here. The hyphenated label name is not matched,
 # so a body that only names the label holds nothing.
-reasons=$(jq -r '
+reasons=$(jq -r --argjson unattended "$UNATTENDED" '
+  (if $unattended then (.body // "" | [scan("(?m)^Draft: (?:requested early look|multi-session container)[^\\r\\n]*")] | first // empty | "draft: a person asked for this draft (\(.)); only a person flips it") else empty end),
   ([.labels[]?.name | select(ascii_downcase == "do-not-merge")] | if length > 0 then "label: the pull request carries do-not-merge" else empty end),
   (.body // "" | if test("\\bdo(?:n['"'"'\u2019]?t| not)\\s+merge\\b"; "i") then "body: it says do not merge" else empty end),
   (.title // "" | if test("\\bwip\\b"; "i") then "title: a WIP marker in \"\(gsub("[[:cntrl:]]"; ""))\"" else empty end)

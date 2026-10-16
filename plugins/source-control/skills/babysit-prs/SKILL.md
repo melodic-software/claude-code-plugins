@@ -156,7 +156,7 @@ hyphenated label name in a body is not a hold.
 draft skip. Safe: evaluate and report draft status, never flip a draft ready. Worker and
 autopilot: zero-blocker drafts always route through a worker (see Fan out). The ready flip
 happens only in autopilot, only for a draft its worker assesses complete, and it runs
-`/source-control:pull-request ready` rather than a bare draft flip: that step merges the base
+`/source-control:pull-request ready --unattended` rather than a bare draft flip: that step merges the base
 branch and runs the security review and the verify gate before it flips, which a bare flip does
 not. A PR that `/source-control:pull-request create` took through `ready`, because its
 `pr_open_state` resolved to `ready`, is handled as any non-draft PR; no tier turns it back into a

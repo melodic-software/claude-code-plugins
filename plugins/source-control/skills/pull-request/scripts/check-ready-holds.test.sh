@@ -136,4 +136,22 @@ pr "feat(x): add a thing" ""
 run 7 --repo acme/app >/dev/null
 assert_contains "--repo reaches gh" "$(cat "$TEST_TMPDIR/calls")" "--repo acme/app"
 
+pr "feat(x): add a thing" $'## Related\n\nDraft: multi-session container\n'
+out=$(run 7 --unattended)
+assert_exit "an unattended run refuses a draft a person asked for" 3 "$?"
+assert_contains "the refusal names the Draft: line" "$out" "Draft: multi-session container"
+
+pr "feat(x): add a thing" $'## Related\n\nDraft: requested early look\n'
+run 7 --unattended >/dev/null
+assert_exit "an unattended run refuses a requested early-look draft" 3 "$?"
+
+out=$(run 7)
+assert_exit "a person running ready may flip a requested draft" 0 "$?"
+assert_silent "an attended run reports no hold for a Draft: line" "$out"
+
+pr "feat(x): add a thing" $'## Summary\n\nThe draft: still rough.\n'
+out=$(run 7 --unattended)
+assert_exit "an unattended run without a Draft: line passes" 0 "$?"
+assert_silent "an unattended run without a Draft: line prints nothing" "$out"
+
 [[ $FAILED -eq 0 ]] || exit 1

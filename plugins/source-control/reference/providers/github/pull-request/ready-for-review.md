@@ -21,7 +21,8 @@ gh pr view "$PR_NUMBER" --json isDraft -q '.isDraft'
 ## Check for a hold
 
 ```bash
-bash "<skill-dir>/scripts/check-ready-holds.sh" "$PR_NUMBER"
+bash "<skill-dir>/scripts/check-ready-holds.sh" "$PR_NUMBER"               # a person drives the run
+bash "<skill-dir>/scripts/check-ready-holds.sh" "$PR_NUMBER" --unattended  # no person drives it
 ```
 
 Exit 0: no hold. Exit 3: held or superseded, one reason per line on stdout. Exit 2: a `gh` read

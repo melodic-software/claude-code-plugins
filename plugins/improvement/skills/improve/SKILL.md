@@ -156,7 +156,7 @@ Otherwise, and after a lane that does not ship, fix it here:
    that line in, so the create step has nothing to ask.
 7. **Ready.** For a PR still in draft, follow the repository's own rule for when the author marks a PR ready (some
    repositories run review and test lanes only on ready PRs). Interactive: offer the flip.
-   Unattended: flip through `/source-control:pull-request ready` only when the caller's prompt
+   Unattended: flip through `/source-control:pull-request ready --unattended` only when the caller's prompt
    authorizes it; otherwise leave the draft and say so in the run report.
 
 A human merges. This skill never merges and never edits outside the picked improvement.
