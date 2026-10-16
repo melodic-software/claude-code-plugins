@@ -44,6 +44,15 @@ on:
         required: false
         type: string
         default: ""
+      ratified-app-label:
+        description: >-
+          Issue mode: the one label the lanes App may apply to start the lane,
+          accepted only while the issue carries the owner's unedited
+          ratification marker, re-read by the trigger gate. Empty keeps every
+          App event stopped.
+        required: false
+        type: string
+        default: ""
       default-model:
         description: The model when the activity sets none; empty omits --model.
         required: false
@@ -301,7 +310,8 @@ jobs:
 
       # The lanes App bot never starts a write activity, on any event, so one
       # write cannot chain into the next; a re-run must be started by a listed
-      # account.
+      # account. One exception, in issue mode: the App applying the caller's
+      # ratified-app-label to an issue the owner ratified.
       - name: Check the trigger
         id: gate
         if: steps.kill.outputs.proceed == 'true'
@@ -331,6 +341,7 @@ jobs:
           # any re-runner, must be listed as a human.
           require-pr: ${{ inputs.issue-number == '' }}
           require-kind: ${{ inputs.issue-number != '' && 'human' || '' }}
+          ratified-app-label: ${{ inputs.issue-number != '' && inputs.ratified-app-label || '' }}
 
       # The trusted base is the config, actions and trusted-actor source and,
       # in prepare: merge-base mode, the merge's second parent.

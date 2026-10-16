@@ -10,6 +10,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
+import { findRatification } from "../resolve-config/ratification.mjs";
 
 const ACTOR_KEYS = ["id", "kind", "login"];
 const KINDS = new Set(["human", "bot"]);
@@ -458,13 +459,54 @@ function checkDispatchedRerunner({ ids }, deniedIds, own) {
   }
 }
 
+// ratified-app-label: the lanes App applying exactly that label to an issue
+// starts the lane only while the issue carries the owner's ratification marker
+// (findRatification), read now; any other App event, or a failed read, stops.
+// The re-runner is the App itself or a listed human.
+async function checkRatifiedAppLabel({ event, repository, list, deniedIds, triggeringActor, lanesAppId, ratifiedAppLabel, github }) {
+  if (event.action !== "labeled" || event.label?.name !== ratifiedAppLabel) {
+    throw new Stop("bot-actor");
+  }
+  const number = String(event.issue?.number ?? "");
+  if (!PR_NUMBER.test(number)) {
+    throw new Stop("untrusted-actor");
+  }
+  let comments;
+  try {
+    comments = await paginate(github, `/repos/${repository}/issues/${number}/comments`);
+  } catch {
+    throw new Stop("untrusted-actor");
+  }
+  const ratifying = findRatification(comments, list.humans);
+  if (ratifying === undefined) {
+    throw new Stop("untrusted-actor");
+  }
+  console.log(
+    `check-trusted-trigger: ${ratifiedAppLabel} from the lanes App, ratified by comment ${Number(ratifying.id)}`,
+  );
+  const rerunnerId = list.logins.get(String(triggeringActor).toLowerCase());
+  if (rerunnerId !== lanesAppId && (!list.humans.has(rerunnerId) || deniedIds.has(rerunnerId))) {
+    throw new Stop("untrusted-rerunner");
+  }
+  return { ...stopped("ok"), proceed: "true" };
+}
+
 // require-pr: false. A workflow_dispatch or issues event checks its sender
 // (on issues, the account that applied the label) and the triggering actor, a
 // push only the triggering actor; no PR is read. require-kind human narrows
 // both to actors listed as human.
-function evaluateActors({ eventName, event, list, deniedIds, triggeringActor, requireKind }) {
+async function evaluateActors({ eventName, event, repository, list, deniedIds, triggeringActor, requireKind, lanesAppId, ratifiedAppLabel, github }) {
   if (eventName !== "workflow_dispatch" && eventName !== "issues" && eventName !== "push") {
     throw new Stop("no-pr");
+  }
+  if (
+    eventName === "issues" &&
+    requireKind === "human" &&
+    ratifiedAppLabel !== "" &&
+    lanesAppId !== null &&
+    event.sender?.id === lanesAppId
+  ) {
+    return checkRatifiedAppLabel({ event, repository, list, deniedIds, triggeringActor, lanesAppId, ratifiedAppLabel, github });
   }
   const pool = requireKind === "human" ? list.humans : list.ids;
   if (eventName !== "push") {
@@ -495,6 +537,7 @@ export async function evaluateTrigger({
   lanesAppId = null,
   requirePr = "true",
   requireKind = "",
+  ratifiedAppLabel = "",
   runId = "",
   dispatchedWorkflow = "",
   github,
@@ -508,7 +551,7 @@ export async function evaluateTrigger({
     throw new Stop("no-pr");
   }
   if (requirePr === "false") {
-    return evaluateActors({ eventName, event, list, deniedIds, triggeringActor, requireKind });
+    return evaluateActors({ eventName, event, repository, list, deniedIds, triggeringActor, requireKind, lanesAppId, ratifiedAppLabel, github });
   }
   if (requirePr !== "true") {
     throw new Stop("no-pr");
@@ -636,6 +679,7 @@ export async function main({ env = process.env, github, sleep = defaultSleep } =
       lanesAppId: /^[1-9][0-9]{0,14}$/.test(env.LANES_APP_ID ?? "") ? Number(env.LANES_APP_ID) : null,
       requirePr: env.REQUIRE_PR ?? "true",
       requireKind: env.REQUIRE_KIND ?? "",
+      ratifiedAppLabel: env.RATIFIED_APP_LABEL ?? "",
       dispatchedWorkflow: env.DISPATCHED_WORKFLOW ?? "",
       runId: env.GITHUB_RUN_ID ?? "",
       github: github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),

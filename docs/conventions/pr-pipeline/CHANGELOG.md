@@ -1,5 +1,15 @@
 # Changelog for the PR pipeline convention
 
+## 1.18.2 - 2026-10-16
+
+The write file gains the `ratified-app-label` input, issue mode only. `work-resolve-issue.yml`
+sets it to `agent-ready` and no longer skips the lanes App's `agent-ready` label: the trigger gate
+lets that one label from the App through only while the issue carries the owner's ratification
+marker, read from the API when the run starts by the rule resolve-issue's admission uses
+(`resolve-config/ratification.mjs`). Any other App label or event, a failed read, or no marker
+stops the run. The lanes token broker must accept the same labeler for an `issues` mint.
+`version` stays 1.
+
 ## 1.18.0 - 2026-10-16
 
 `applies-when` gains `admission` (`classes`, optional `ratified`), an issues lane's admission

@@ -703,7 +703,7 @@ The request is `POST <LANES_BROKER_URL>` with `Authorization: Bearer <OIDC token
 body `{"lane": "<lane>", "activity": "<activity>", "pr_number": <n>, "dispatcher_run_id": <id>}`;
 `pr_number` is the gate's PR and is required on `workflow_dispatch` and `workflow_run`. An `issues` request,
 allowed only from `work-resolve-issue.yml`, sends `issue_number` (the `issue-number` input)
-instead, and neither of the other two; its actor, the labeler, must be a listed human. A `merge` request from `pr-merge.yml` names no pull request either; its actor must be a listed human, except on a `schedule` run on `refs/heads/main`, whose actor is whoever last edited the workflow file and is not checked. A re-run of a scheduled run must be started by a listed human. `dispatcher_run_id`, a positive
+instead, and neither of the other two; its actor, the labeler, must be a listed human, or the lanes App on an issue the owner ratified (the broker re-checks the marker). A `merge` request from `pr-merge.yml` names no pull request either; its actor must be a listed human, except on a `schedule` run on `refs/heads/main`, whose actor is whoever last edited the workflow file and is not checked. A re-run of a scheduled run must be started by a listed human. `dispatcher_run_id`, a positive
 JSON integer, is the `dispatcher-run-id` input, sent only when set. The broker reads it only when
 the OIDC actor is `github-actions[bot]`: such a run mints only when the `pr-unblock-dispatch.yml`
 run it names passes the checks the trusted-trigger gate applies. That run must be on `main`,
@@ -796,7 +796,11 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
 - Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
   `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty.
 - The trigger gate runs with `require-pr: false` and `require-kind: human`: the account that
-  applied the label, and any re-runner, must be listed as a human. `check-trusted-base` trusts the
+  applied the label, and any re-runner, must be listed as a human. The one exception is the
+  caller's `ratified-app-label` (`agent-ready` for `work-resolve-issue.yml`): the lanes App may
+  apply it while the issue carries the owner's ratification marker, re-read from the API when the
+  run starts (a listed human's comment, never edited, not posted through an App); the re-runner
+  is then the App or a listed human. The App's other labels never start a run. `check-trusted-base` trusts the
   default branch tip, and that commit is the head the job checks out.
 - `resolve-config` decides the issue's labels from the event payload and `labeled-after`, the
   lane's go-live time, from the issue's update time. The token request sends `issue_number`.
