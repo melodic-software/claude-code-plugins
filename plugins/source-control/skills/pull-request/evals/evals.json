@@ -664,6 +664,32 @@
         "The report says pre_ready failed closed and names the unknown step lint as the reason",
         "No step is reported as disabled by pre_ready"
       ]
+    },
+    {
+      "id": 51,
+      "name": "ready-skips-code-review-for-one-run-with-a-reason",
+      "prompt": "/pull-request ready --skip code-review --reason \"review model is rate-limited until tomorrow\". I am here at the keyboard. PR 731 is an open draft on branch feat/731-export-retry, a code change (not docs-only), with no hold, and the base branch main has no pre_ready list. Flip it to ready for review and report.",
+      "expected_output": "A person is present, code-review is a known step and the reason is not empty, so the code review does not run. The hold check, the base merge, the security review and the verify gate run, then the hold check again and the flip. The code-review report line says skipped by the acting gh login for this run, with the reason, and the same line goes into the PR body's verification section before the flip. The code review is never reported as passed.",
+      "files": [],
+      "expectations": [
+        "The code review does not run, and the base merge, the security review and the verify gate do run",
+        "The hold checks, the push when one is needed, and the flip still run",
+        "The code-review report line says skipped by <login> for this run with the reason review model is rate-limited until tomorrow",
+        "The same skipped line is written into the PR body's verification section",
+        "The code review is never reported as passed or clean"
+      ]
+    },
+    {
+      "id": 52,
+      "name": "ready-refuses-skip-under-unattended",
+      "prompt": "/pull-request ready 744 --unattended --skip security-review,verify --reason \"usage exhausted\". This runs from the work loop lane with no person present. PR 744 is an open draft on branch fix/744-null-guard, a code change, with no hold. Flip it to ready for review and report.",
+      "expected_output": "--skip is a person's consent for one run and this run is unattended, so the override is refused before any step and nothing is skipped. The report says --skip was refused because no person is present, and marks no step as skipped by the override.",
+      "files": [],
+      "expectations": [
+        "The run refuses --skip because it is unattended",
+        "No step is reported as skipped by the override",
+        "The PR is not flipped to ready with the security review or the verify gate left out"
+      ]
     }
   ]
 }

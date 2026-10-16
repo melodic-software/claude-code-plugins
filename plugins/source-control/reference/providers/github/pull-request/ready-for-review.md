@@ -82,6 +82,18 @@ gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid'
 gh pr diff "$PR_NUMBER"
 ```
 
+## Record a skipped step in the body
+
+Write the body to a file, add each `skipped by <login> for this run: <reason>` line under its
+`## Verification` heading, and write it back:
+
+```bash
+BODY_FILE=$(mktemp)
+gh pr view "$PR_NUMBER" --json body -q '.body' >"$BODY_FILE"
+# add the lines under ## Verification, then:
+gh pr edit "$PR_NUMBER" --body-file "$BODY_FILE"
+```
+
 ## Flip to ready
 
 ```bash
