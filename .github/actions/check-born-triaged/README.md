@@ -15,7 +15,8 @@ never skips intake.
 - It has an Issue Type and a status label: `agent-ready`, `needs-human`, or any `status:` label.
 
 The publisher sets the type and labels in calls after the issue is created, so while only those are
-missing the gate re-reads the issue every 5 seconds, 6 reads in all, before it gives up.
+missing the gate re-reads the issue every 5 seconds, 6 reads in all, before it gives up. A publisher
+on gh older than 2.94 sets a `type:` label instead of an Issue Type, so its items still get intake.
 
 ## Inputs
 

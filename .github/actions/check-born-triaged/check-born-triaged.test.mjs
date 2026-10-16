@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { BORN_TRIAGED_MARKER, checkBornTriaged, run } from "./check-born-triaged.mjs";
+
+const SCRIPT = fileURLToPath(new URL("./check-born-triaged.mjs", import.meta.url));
 
 const HUMAN = { id: 153232337, login: "kyle-sexton", kind: "human" };
 const LISTED_BOT = { id: 49699333, login: "dependabot[bot]", kind: "bot" };
@@ -56,6 +63,10 @@ test("does not trust the lanes App when its id is not configured", () => {
 test("triages a hand-opened issue with no marker", () => {
   assert.deepEqual(check({ body: "I found a bug" }), { skip: "false", reason: "no-marker" });
   assert.deepEqual(check({ body: null }), { skip: "false", reason: "no-marker" });
+});
+
+test("triages a marker that is not the body's last line", () => {
+  assert.deepEqual(check({ body: `> quoted ${BORN_TRIAGED_MARKER}\n\nmore text` }), { skip: "false", reason: "no-marker" });
 });
 
 test("triages a marked trusted issue with no Issue Type", () => {
@@ -132,4 +143,43 @@ test("run triages when the issue cannot be read", async () => {
     attempts: 3,
   });
   assert.deepEqual(result, { skip: "false", reason: "issue-unreadable" });
+});
+
+test("checkBornTriaged does not match an author with no id against a list entry with no id", () => {
+  const list = { version: 1, actors: [{ login: "x", kind: "human" }] };
+  assert.equal(check({ author: { login: "x" } }, list).reason, "untrusted-author");
+});
+
+function runCli(env) {
+  const dir = mkdtempSync(path.join(tmpdir(), "born-triaged-"));
+  try {
+    const outputPath = path.join(dir, "output");
+    writeFileSync(outputPath, "");
+    const result = spawnSync(process.execPath, [SCRIPT], {
+      env: { PATH: process.env.PATH, GITHUB_OUTPUT: outputPath, ...env },
+      encoding: "utf8",
+    });
+    const outputs = Object.fromEntries(
+      [...readFileSync(outputPath, "utf8").matchAll(/^(\w+)<<(\S+)\n([^\n]*)\n\2$/gm)].map((m) => [m[1], m[3]]),
+    );
+    return { status: result.status, outputs };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("CLI triages a non-numeric issue number and exits 0", () => {
+  const { status, outputs } = runCli({ ISSUE_NUMBER: "7; echo", TRUSTED_ACTORS_PATH: "/nonexistent" });
+  assert.equal(status, 0);
+  assert.deepEqual(outputs, { skip: "false", reason: "issue-unreadable" });
+});
+
+test("CLI triages an unreadable trusted-actor list and exits 0", () => {
+  const { status, outputs } = runCli({
+    ISSUE_NUMBER: "7",
+    TRUSTED_ACTORS_PATH: "/nonexistent",
+    GITHUB_API_URL: "http://127.0.0.1:9",
+  });
+  assert.equal(status, 0);
+  assert.deepEqual(outputs, { skip: "false", reason: "list-unreadable" });
 });

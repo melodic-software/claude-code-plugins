@@ -35,9 +35,9 @@ jobs:
           path: .base
           persist-credentials: false
           sparse-checkout: |
-            .github/actions/check-born-triaged
-            .github/standards/trusted-actors
-            .node-version
+            /.github/actions/check-born-triaged/
+            /.github/standards/trusted-actors/
+            /.node-version
           sparse-checkout-cone-mode: false
 
       - name: Set up Node

@@ -18,7 +18,12 @@ const PENDING = new Set(["no-type", "no-status"]);
 
 const triage = (reason) => ({ skip: "false", reason });
 
+const isListReadable = (list) => list?.version === 1 && Array.isArray(list.actors);
+
 function isTrustedAuthor(id, list, lanesAppId) {
+  if (!Number.isInteger(id)) {
+    return false;
+  }
   if (/^[1-9][0-9]*$/.test(String(lanesAppId ?? "")) && id === Number(lanesAppId)) {
     return true;
   }
@@ -26,10 +31,12 @@ function isTrustedAuthor(id, list, lanesAppId) {
 }
 
 export function checkBornTriaged({ issue, list, lanesAppId }) {
-  if (list?.version !== 1 || !Array.isArray(list.actors)) {
+  if (!isListReadable(list)) {
     return triage("list-unreadable");
   }
-  if (!String(issue.body ?? "").includes(BORN_TRIAGED_MARKER)) {
+  // The publisher writes the marker as the body's last line, so a quoted copy
+  // mid-body does not count.
+  if (!String(issue.body ?? "").trimEnd().endsWith(BORN_TRIAGED_MARKER)) {
     return triage("no-marker");
   }
   if (!isTrustedAuthor(issue.user?.id, list, lanesAppId)) {
@@ -46,6 +53,9 @@ export function checkBornTriaged({ issue, list, lanesAppId }) {
 }
 
 export async function run({ fetchIssue, list, lanesAppId, sleep = delay, attempts = 6, delayMs = 5000 }) {
+  if (!isListReadable(list)) {
+    return triage("list-unreadable");
+  }
   let result = triage("issue-unreadable");
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     let issue;
