@@ -44,7 +44,7 @@ Scope: `src/export.ts` only.
 
 - AC1: the file starts with a UTF-8 byte order mark so spreadsheet tools detect the encoding.
 - AC2: cells holding a comma, a double quote or a line break are quoted per RFC 4180.
-- AC3: an export with no rows still writes the header row, matching /home/dana/fixtures/empty-export.csv.
+- AC3: an export with no rows still writes the header row, matching /srv/finance-share/fixtures/empty-export.csv.
 
 ## Plan
 

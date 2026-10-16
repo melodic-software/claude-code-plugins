@@ -24,7 +24,7 @@
           "tool": "Write",
           "input": {
             "file_path": "/tmp/pr-body.md",
-            "content": "## Acceptance criteria\n\n- AC3: an export with no rows still writes the header row, matching /home/dana/fixtures/empty-export.csv.\n"
+            "content": "## Acceptance criteria\n\n- AC3: an export with no rows still writes the header row, matching /srv/finance-share/fixtures/empty-export.csv.\n"
           }
         }
       ],
