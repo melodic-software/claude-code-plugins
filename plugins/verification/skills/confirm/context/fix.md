@@ -12,7 +12,7 @@ Structured confirmation that a bug fix actually resolves the reported issue. Cor
 
 ### 1. Restate the original problem
 
-Find the bug report, error message, or symptom description in the conversation. Restate clearly:
+Find the bug report, error message, or symptom description through the intent ladder in [intent.md](intent.md). Restate clearly:
 
 - **What was happening?** (symptom)
 - **What should have been happening?** (expected behavior)

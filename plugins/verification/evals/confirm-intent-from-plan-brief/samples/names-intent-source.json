@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "- Intent source: PLAN.md Brief (.work/slugify/PLAN.md); intent drift: none",
+      "why": "names the PLAN.md rung"
+    },
+    {
+      "answer": "Intent source: the Brief in the slugify plan",
+      "why": "names the Brief"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Intent source: conversation",
+      "why": "names the conversation, not the plan"
+    },
+    {
+      "answer": "I read PLAN.md and the change misses AC2.",
+      "why": "no intent-source line"
+    }
+  ]
+}

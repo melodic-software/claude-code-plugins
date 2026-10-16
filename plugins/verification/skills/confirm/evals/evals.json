@@ -316,6 +316,18 @@
         "Beside the test results, it asks for either payslips recorded from the old code and checked against the new code's output, or a run of both versions on the same inputs with their payslips compared",
         "While passing tests are the only evidence and no equivalence evidence has been supplied, it withholds CONFIRMED"
       ]
+    },
+    {
+      "id": "intent-ladder-01",
+      "name": "fresh-session-reads-plan-brief",
+      "prompt": "/verification:confirm",
+      "expected_output": "A fresh session with no stated intent. The repository is on a feature branch whose name does not match any topic slug, and the memory directory holds one approved PLAN.md whose Brief lists three acceptance criteria for a slugify helper: lowercase and hyphenate, strip punctuation, one unit test per criterion. The uncommitted change meets the first only. Before asking the user, it walks the intent ladder, finds the single PLAN.md, names the PLAN.md Brief as the intent source, and judges the change against the Brief's criteria: punctuation stripping is not met and has no test, so the verdict is NEEDS WORK.",
+      "files": [],
+      "expectations": [
+        "It reads the PLAN.md in the memory directory before asking the user for the goal",
+        "The report names the PLAN.md Brief as the intent source",
+        "It reports the punctuation-stripping criterion as not met, with a verdict other than CONFIRMED"
+      ]
     }
   ]
 }

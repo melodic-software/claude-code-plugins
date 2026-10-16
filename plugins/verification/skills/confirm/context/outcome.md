@@ -4,7 +4,7 @@ Structured comparison of approved plan against actual implementation. Use when a
 
 ## When to use
 
-- An approved plan exists earlier in the conversation
+- An approved plan exists in the topic's PLAN.md or earlier in the conversation
 - User asks "does this match the plan?" or "did we build everything?"
 - Complex multi-step implementation where it's easy to miss items
 
@@ -12,9 +12,9 @@ Structured comparison of approved plan against actual implementation. Use when a
 
 ### 1. Extract the plan
 
-Find the approved plan in the conversation. Extract every deliverable, requirement, and acceptance criterion as a numbered list.
+Find the plan through the intent ladder in [intent.md](intent.md): the PLAN.md Brief first, the conversation last. Extract every deliverable, requirement, and acceptance criterion as a numbered list.
 
-If no formal plan exists but user described requirements, extract those instead.
+If no formal plan exists but a rung holds stated requirements, extract those instead.
 
 ### 2. Map implementation to plan items
 
@@ -77,6 +77,7 @@ Basis: LLM-written test oracles were measured to assert what the code does rathe
 | 1 | <plan item #> | <test name + assertion> | <rank> | pre-existing / self-authored | <criterion, spec, recording, or "none named"> |
 
 ### Assessment
+- Intent source: <rung> (<PLAN.md slug, pull request, issue, or conversation>); intent drift: <none | each contradiction>
 - Plan items: X/Y complete (Z%)
 - Deviations: N (all justified / N unjustified)
 - Scope additions: N (M justified)
