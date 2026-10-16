@@ -42,7 +42,9 @@ gh api --paginate --slurp "repos/{owner}/{repo}/rules/branches/$BASE" \
   | jq -e 'add | any(.[]; .type == "merge_queue")' >/dev/null && echo 'merge queue: skip the update'
 ```
 
-A dependency manager's PR shows its app login as the author (`app/dependabot`, `app/renovate`):
+A dependency manager's PR names its app as the author. The spelling depends on the source:
+`gh pr view` and `gh pr list` print `app/dependabot`, and REST `.user.login` prints
+`dependabot[bot]`. Match either form, as `is_dependency_author` in the babysit-prs engine does:
 
 ```bash
 gh pr view <pr_number> --json author --jq .author.login
@@ -61,10 +63,13 @@ For another manager, use its own documented rebase trigger.
   why extra commits are off limits, under
   [allowing Dependabot to rebase and force push over extra commits](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/managing-pull-requests-for-dependency-updates#allowing-dependabot-to-rebase-and-force-push-over-extra-commits);
   the comment commands, under
-  [managing Dependabot pull requests with comment commands](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/managing-pull-requests-for-dependency-updates#managing-dependabot-pull-requests-with-comment-commands).
+  [managing Dependabot pull requests with comment commands](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/managing-pull-requests-for-dependency-updates#managing-dependabot-pull-requests-with-comment-commands);
+  the author spellings, from a probe of Dependabot PR melodic-software/claude-code-plugins#7492
+  with `gh pr view 7492 --json author` and `gh api repos/{owner}/{repo}/pulls/7492 --jq .user.login`.
 - **As of**: 2026-10-16
-- **Recheck trigger**: the merge-queue section changing what a queue tests, or either Dependabot
-  section changing how it treats extra commits or renaming the rebase comment command.
+- **Recheck trigger**: the merge-queue section changing what a queue tests, either Dependabot
+  section changing how it treats extra commits or renaming the rebase comment command, or a `gh`
+  release changing how it prints a bot author.
 
 ## Wait for a known merge state
 
