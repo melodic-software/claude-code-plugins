@@ -1,10 +1,14 @@
 ---
-description: "Verify the ruff-format hook's runtime prerequisites and configuration for this repository. Use when: 'set up ruff-format', 'configure ruff-format', 'is ruff-format working', formatting silently isn't happening, or the hook reported a missing prerequisite. Actions: check (read-only verification, default) | apply (resolve what check found). Re-runnable and safe."
-argument-hint: "[check|apply] [install-ruff]"
+description: "Verify ruff-format's prerequisites and configuration here, and register its git pre-commit entry. Use when: 'set up ruff-format', 'configure ruff-format', 'is ruff-format working', formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | apply [install-ruff] | apply install-git-hooks [scope=local|shared]. Re-runnable."
+argument-hint: "[check|apply [install-ruff|install-git-hooks [scope=local|shared]]]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:
   - "Bash(command -v jq*)"
+  - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" verify:*)"
+  - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs verify:*)"
+  - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" plan:*)"
+  - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs plan:*)"
 shell: bash
 ---
 
@@ -22,15 +26,17 @@ A row reading `[shell command execution disabled by policy]` carries no result: 
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
-reports, `apply` resolves. This plugin owns no consumer-project configuration. Rules come
-from the repository's own Ruff config, and the only tunable is the native `userConfig`
-toggle, so `apply` is guidance-and-verify, with exactly one write path: the explicitly
-invoked `apply install-ruff` install into the repo's existing managed environment
-described below.
+reports, `apply` resolves. The only consumer-project files this plugin owns are its git-hook
+entry copies, which `apply install-git-hooks` writes. Rules come from the repository's own
+Ruff config, and the tunables are the native `userConfig` options (the on/off toggle, the
+gitignored-file switch and the end-of-turn check). `apply` is otherwise guidance-and-verify,
+with one more write path: the explicitly invoked `apply install-ruff` install into the repo's
+existing managed environment described below.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 remediation; `apply install-ruff` additionally authorizes the consumer-repo install
 described below. All are non-interactive. Never prompt when the action is given.
+`apply install-git-hooks` asks only where its section says to.
 
 ## `check` (read-only)
 
@@ -47,17 +53,15 @@ a deliberately disabled plugin is not broken. Node.js stays FAIL: `hooks.json` s
 before the script can read the toggle. Report the probes informationally and note that re-enabling
 restores the FAIL semantics.
 
-1. **Bash version.** Check against the hook's documented floor (README Requirements),
-   noting any features the hook degrades without (for example telemetry's `EPOCHREALTIME`,
-   Bash 5.0+).
-2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
-   once per session and agent notice instead of formatting.
+1. **Bash version.** Check against the hook's documented floor (README Requirements).
+2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the batch hook then does nothing,
+   since it reads the file paths with `jq`.
 3. **Ruff binary.** Resolve it exactly the way the hook's resolution code does: its
    repo-managed virtual-environment walk (the exact `.venv` interpreter paths it tests for
    the current platform, walking up from the edited file toward the repo root) and then
    `PATH`. Test only what the hook tests. A binary the hook would not accept must not PASS
    here. FAIL when nothing the hook would resolve is present while a Ruff config governs the
-   repo; the hook then emits a visible once-per-session skip notice instead of formatting.
+   repo; the hook then skips the file, and the session-start probe is what reports the gap.
 4. **Consumer Ruff config.** Mirror the hook's opt-in walk: it stops at the FIRST
    (closest) governing config found walking from the edited file's directory up to the repo
    root, honoring Ruff's own same-directory precedence and counting a `pyproject.toml` only
@@ -67,7 +71,10 @@ restores the FAIL semantics.
    Absence is the opt-out by design, so the plugin is inert (INFO, not FAIL), matching the
    README's "ships no rules of its own" stance.
 5. **Hook toggle.** Report the effective `ruff_format_enabled` value:
-   `${user_config.ruff_format_enabled}` (unexpanded or empty means default `true`).
+   `${user_config.ruff_format_enabled}` (unexpanded or empty means default `true`). Also report
+   `ruff_format_end_of_turn`: `${user_config.ruff_format_end_of_turn}` (unexpanded or empty means
+   the shipped default `false`), as INFO: on, the Stop row checks the uncommitted changes once per
+   turn; off, only the batch rewrite and the git pre-commit entry run.
 6. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 7. **Node.js.** Run `command -v node` via Bash. FAIL when absent: every hook launch goes
@@ -77,6 +84,48 @@ restores the FAIL semantics.
    hook process cannot resolve. FAIL when the only hit is such a shim, and report the persisted
    resolution from `[Environment]::GetEnvironmentVariable('Path','Machine')` and `'User'`. An
    in-process hit that is not ephemeral is INFO beside that result, not a PASS by itself.
+8. **Git pre-commit entry.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
+   from the repository. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined` is
+   INFO (this clone said no; silent at session start), and `missing`, `stale` or `modified` is a
+   FAIL whose remediation is `apply install-git-hooks`. A `tool\t<tool>\tmissing` line means the
+   installed entry cannot run here: list every such tool with its install method from the
+   plugin's `prerequisites.json`, so a lane or cloud setup script can provision it before an
+   auto-mode session commits. Outside a git repository, report INFO and skip the step.
+
+## `apply install-git-hooks [scope=local|shared]`
+
+Registers the plugin's git-hook entries (`git-hooks/entries.json`) with the repository's hook
+manager. The installer script only detects, renders and writes files the plugin owns; every step
+that needs judgment comes back to you as a `decisions[]` item, which you reason about and apply
+with your own edit tools.
+
+1. **Scope.** Use the argument when given. Otherwise, when the user is present, ask: `local`
+   (this clone only, nothing committed) or `shared` (committed under `.githooks/ruff-format/`,
+   so every teammate and agent gets it). When nobody can answer, use `local`.
+2. **Plan.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" plan --scope <scope>`
+   and read the JSON: `manager`, `actions[]`, `decisions[]`.
+3. **Manager conflict.** A `manager-conflict` decision lists the evidence (two managers, or one
+   this installer does not drive, such as the pre-commit framework). Show it and ask which manager
+   should carry the entry; rerun `plan` with `--manager lefthook|husky|plain`. Without an answer,
+   stop here and report.
+4. **Actions.** When `actions[]` holds `copy` items, run
+   `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" copy --scope <scope>` (plus the same
+   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused` or
+   `blocked` per entry; `refused` means a locally edited copy, which the `modified` decision
+   covers, and `blocked` means another tool owns the local hooks directory, which the
+   `hooks-path-owned` decision covers.
+5. **Decisions.** Read [reference/git-hook-decisions.md](reference/git-hook-decisions.md) for
+   what each kind asks of you, apply each one, then rerun `plan` until only the decisions you
+   chose to leave remain.
+6. **Verify.** Run `verify` and report its lines as `check` step 8 does.
+
+The entry rewrites: at commit it formats the staged Python files and stages the result, so tell
+the user that a commit can change the files it contains, and that a partly staged Python file is
+refused untouched.
+
+When the user does not want an entry in this clone, run
+`node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry ruff-check`; the
+session-start drift line then stays silent until `verify` runs by hand, and `--undo` reverses it.
 
 ## `apply` (idempotent)
 
@@ -144,7 +193,8 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 ## What this skill does NOT do
 
-- Run the formatter. Editing any `.py`/`.pyi` file exercises the hook end-to-end.
+- Run the formatter. Editing any `.py`/`.pyi` file exercises the hook end-to-end; `git commit`
+  exercises the installed pre-commit entry.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Create a virtual environment, install Ruff globally, or install outside a managed
   environment the repo already uses.

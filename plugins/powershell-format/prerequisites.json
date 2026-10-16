@@ -12,27 +12,9 @@
           "pwsh"
         ]
       },
-      "degrade": "Without pwsh, the hook cannot format or lint edited PowerShell scripts.",
+      "degrade": "Without pwsh, the pre-commit entry cannot format or lint staged PowerShell scripts, and the end-of-turn check stays quiet.",
       "install": {
         "docs": "https://learn.microsoft.com/powershell/scripting/install/installing-powershell"
-      },
-      "check": "/powershell-format:check"
-    },
-    {
-      "id": "jq",
-      "kind": "cli",
-      "need": "required",
-      "for": [
-        "hook:powershell-format.sh"
-      ],
-      "detect": {
-        "any": [
-          "jq"
-        ]
-      },
-      "degrade": "Without jq, the powershell-format hooks skip their work.",
-      "install": {
-        "docs": "https://jqlang.org/download/"
       },
       "check": "/powershell-format:check"
     },

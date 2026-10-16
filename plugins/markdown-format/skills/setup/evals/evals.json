@@ -22,7 +22,7 @@
       "files": [],
       "expectations": [
         "Downgrades the missing jq to INFO in this state and says explicitly that the missing config, not jq, is why nothing happens",
-        "Reports the hook as INFO — inactive, not PASS — for a path no config governs, and states that without the opt-in there is no --fix, no findings, and no per-edit notice",
+        "Reports the hook as INFO — inactive, not PASS — for a path no config governs, and states that without the opt-in there is no rewrite, no findings, and no notice",
         "Never reports markdownlint's own default rules as the fallback — an unconfigured repo gets no rules, not the defaults",
         "Leads with the missing config rather than burying it under passing prerequisites, and names the remediation in the same line"
       ]
@@ -36,7 +36,7 @@
       "expectations": [
         "States that the opt-in is per-path and that a nested config covers only its own subtree while a root config covers the tree",
         "Searches the whole tree while skipping node_modules, and lists each nested config with the directory scope it governs",
-        "Surfaces the README's configuration trust boundary for every config the hook's own risk collection would flag",
+        "Reports every config the gates would not run (a .cjs or .mjs config, or one naming customRules, markdownItPlugins or outputFormatters) as INFO, inactive: markdownlint-cli2 never runs under it, so its files are neither rewritten nor checked",
         "Does not report the repo as covered on the strength of a nested config alone"
       ]
     },
@@ -91,6 +91,19 @@
         "Reports the missing jq as INFO, not FAIL, and notes that re-enabling the toggle restores the FAIL semantics",
         "Probes Node.js by running `node --version` and treats a non-zero exit as FAIL, not merely `command -v node` resolving",
         "Modifies nothing"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "install-git-hooks-defaults-to-local-and-warns-about-rewrites",
+      "prompt": "/markdown-format:setup apply install-git-hooks\n\nNobody is around to answer questions. The repo uses lefthook.",
+      "expected_output": "Uses local scope because nobody can answer, runs the vendored installer's plan, then copy, reads decisions[] (the lefthook config merge is the setup agent's edit, not the installer's), applies them, and verifies. Tells the user a commit can change the Markdown files it contains and that a partly staged Markdown file is refused untouched.",
+      "files": [],
+      "expectations": [
+        "Chooses scope local without asking, because no one can answer",
+        "Runs install.mjs plan and copy, and merges the lefthook snippet itself from the decisions[] item rather than expecting the installer to edit lefthook config",
+        "Runs verify at the end and reports its lines",
+        "States that the entry rewrites staged Markdown and re-stages it, and that a partly staged Markdown file is refused untouched"
       ]
     }
   ]

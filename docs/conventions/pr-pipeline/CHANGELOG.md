@@ -8,6 +8,15 @@ the lane's own merge rather than a required check, and a lane merge commit needs
 address-feedback round cap is `loop.review-rounds` (default 2) instead of a fixed 2. This
 repository's `pr-pipeline.yaml` sets it to 3. `version` stays 1.
 
+## 1.18.1 - 2026-10-16
+
+`pr-merge.yml` no longer wakes on `workflow_run` completions of `pr-require-checks`,
+`pr-review-hosted` and `pr-review-security-hosted`, and its schedule runs every 15 minutes
+instead of hourly. Those completions arrived faster than the serialized runs finished, so the
+`pr-merge` concurrency group's queue reached GitHub's 100-run cap and further runs were rejected.
+Every run already reads every open PR, so the schedule finds what those wake-ups found.
+`version` stays 1.
+
 ## 1.18.0 - 2026-10-16
 
 `applies-when` gains `admission` (`classes`, optional `ratified`), an issues lane's admission

@@ -29,13 +29,6 @@ on:
   # to say which PR to look at: it lists the open PRs from the GitHub API and
   # checks each one, so any trigger leads to the same decisions.
 
-  # A check or a review finished, so a PR may have just become ready. These
-  # are the workflows behind `ci-status` and the two AI review lanes. Nothing
-  # from the finished run is downloaded or executed here.
-  workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [pr-require-checks, pr-review-hosted, pr-review-security-hosted]
-    types: [completed]
-
   # A label or the PR body changed, or a draft became ready. pull_request_target
   # runs this file as it is on main, not the PR's copy, so a PR cannot change
   # what this lane does; the job below never checks out the PR's code.
@@ -46,12 +39,14 @@ on:
   # PR that looks stuck. Only a run on main does anything.
   workflow_dispatch: {}
 
-  # Hourly backstop. Some changes start no workflow (a review thread resolved,
-  # a PR dropped from the merge queue, a missed webhook), so once an hour the
-  # lane looks at every candidate anyway. Its summary also lists candidates
-  # that are still blocked and have not changed for over 24 hours.
+  # Every 15 minutes the lane looks at every candidate. This is how it sees
+  # checks or reviews that finished, a review thread resolved, or a PR dropped
+  # from the merge queue. It does not wake on each CI or review completion:
+  # those arrive faster than runs finish, which would overflow the
+  # concurrency queue below. Its summary also lists candidates that are still
+  # blocked and have not changed for over 24 hours.
   schedule:
-    - cron: "41 * * * *"
+    - cron: "11,26,41,56 * * * *"
 
 permissions: {}
 
@@ -71,14 +66,14 @@ jobs:
       github.ref == 'refs/heads/main'
       && (github.event_name != 'pull_request_target'
       || github.event.pull_request.head.repo.full_name == github.repository)
-      && (github.event_name != 'workflow_run'
-      || github.event.workflow_run.head_repository.full_name == github.repository)
     # One run at a time, and a running one is never cancelled: a cancelled run
     # could stop between the gate's check and its merge-queue write. Extra runs
     # wait in line (`queue: max`) instead of being dropped. Without it GitHub
     # keeps only one waiting run and cancels the rest, which leaves CANCELLED
     # `merge` checks on PRs and makes the merge hook refuse them. Waiting is
-    # harmless because every run re-reads every PR from the API.
+    # harmless because every run re-reads every PR from the API. GitHub caps
+    # the waiting line at 100 runs and rejects the rest, so the triggers above
+    # must start runs more slowly than they finish.
     concurrency:
       group: pr-merge
       queue: max
@@ -127,8 +122,8 @@ jobs:
       # The token broker gives this lane its merge token only when the person
       # behind the run is a listed human (trusted-actors.json on main). Runs
       # started by a bot, such as the lanes App pushing or labeling, or by an
-      # unlisted account, stop here quietly instead of failing; the hourly
-      # run picks up whatever they changed. The hourly run itself always
+      # unlisted account, stop here quietly instead of failing; the next
+      # scheduled run picks up whatever they changed. A scheduled run always
       # proceeds: nobody starts it, and GitHub names as its actor whoever last
       # changed the schedule or the default branch, often a bot.
       - name: Check who started the run
@@ -151,7 +146,7 @@ jobs:
             ' "$LIST" >/dev/null; then
             echo "proceed=true" >>"$GITHUB_OUTPUT"
           else
-            echo "::notice::started by ${TRIGGERING_ACTOR:-an unknown account}, who is not a listed human; nothing checked here, the next hourly run checks every candidate"
+            echo "::notice::started by ${TRIGGERING_ACTOR:-an unknown account}, who is not a listed human; nothing checked here, the next scheduled run checks every candidate"
             echo "proceed=false" >>"$GITHUB_OUTPUT"
           fi
 
