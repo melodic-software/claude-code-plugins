@@ -343,8 +343,9 @@ to the PR branch would overwrite a push made during the run. After the skill, a 
 still at the gated SHA, and deletes the lane branch either way. When the PR branch has moved, the
 lane's commits are dropped and the activity fails; the push that moved it starts its own
 `synchronize` run, which gates the new head and redoes the activity. Right before the move it
-re-reads the PR's labels and draft flag with the job's `GITHUB_TOKEN`: `do-not-merge`, the base's
-human-gated role label (read from the base before the head checkout) or a draft drops the lane's
+re-reads the PR's labels and draft flag with the job's `GITHUB_TOKEN`, then reads the PR branch's
+tip last: `do-not-merge`, the base's human-gated role label, a label in the activity's
+`labels-absent` list (both read from the base before the head checkout) or a draft drops the lane's
 commits and skips `awaiting-human`, and a read that fails or a second page of labels moves nothing
 and fails the step. A raw `git push` from the
 skill skips this check. Why a skill activity loads nothing from
@@ -439,8 +440,8 @@ the base's copies from step 8, each checked against its recorded SHA-256 before 
    Data API: it fails unless the lane branch is still at the gated head, uploads only the blobs
    `tree-entries.sh` flags (logging `created <k> blobs`), builds the tree on the gated head's tree
    and fails unless it hashes to `post.sh`'s tree, re-reads the PR's labels with the job's
-   `GITHUB_TOKEN` and stops uncommitted (`awaiting-human`) when `do-not-merge` or the base's
-   human-gated role label is on the PR, then creates the commit
+   `GITHUB_TOKEN` and stops uncommitted (`awaiting-human`) when `do-not-merge`, the base's
+   human-gated role label or a `labels-absent` label is on the PR, then creates the commit
    `Merge <default branch> into <head ref>` with trailer
    `Lane-Activity: pr-unblock/resolve-conflicts`, parents `[gated head, trusted base]` and no
    author, committer or signature, so GitHub signs it as the App, and moves the lane branch to it.
@@ -551,7 +552,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    - posts the round marker as the lanes App whatever happened above, once per model run: its
      second line names the workflow run and `review-run-attempt`, and a re-run of the reply job
      alone finds a lanes App marker with that line and posts none, so one model turn counts one
-     round. It escalates
+     round. A model run that uploaded no replies names none, and its marker is always posted. It
+     escalates
      `feedback-uncertain` for an `UNCERTAIN` or `VALID-defer` reply, or `feedback-disputed` when an
      `INCORRECT` evidence reply was posted: that thread stays open for a person to decide.
 

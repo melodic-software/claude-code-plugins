@@ -496,9 +496,12 @@ test("main writes the escalation and skip reason files and refuses a symlinked a
   assert.equal(readFileSync(env.SKIP_REASON_FILE, "utf8"), "awaiting-human\n");
   assert.equal(api.posted().length, 1);
   assert.equal(api.markers()[0][2].split("\n")[1], MODEL_RUN);
-  const noAttempt = fakeApi();
+  // No model attempt names no run, so even a marker already on the PR from
+  // an earlier attempt without replies does not stop this one.
+  const noAttempt = fakeApi({ issueComments: [{ id: 2, user: { id: APP }, body: `${ROUND}\nround 1` }] });
   await main({ ...env, MODEL_RUN_ATTEMPT: "" }, { api: noAttempt, log: () => {} });
-  assert.equal(noAttempt.markers()[0][2].split("\n")[1], "<!-- pr-unblock:address-feedback-model-run 5000-none -->");
+  assert.equal(noAttempt.markers().length, 1);
+  assert.match(noAttempt.markers()[0][2], /^<!-- pr-unblock:address-feedback-round -->\npr-unblock \/ address-feedback finished round 2 of 2/);
 
   // A run.json other than the bytes the model job's runner hashed is refused.
   for (const sha of ["0".repeat(64), ""]) {

@@ -164,3 +164,7 @@ test("live config: fix-docs applies to a Markdown change and waits on needs-huma
     "awaiting-human",
   );
 });
+
+test("live config: fix-docs does not apply to a draft PR", () => {
+  assert.equal(skipReason("pr-refine", "fix-docs", { draft: true }), "not-applicable");
+});

@@ -30,11 +30,12 @@ const AsyncFunction = (async () => {}).constructor;
 
 // pull: the GET pulls/<n> body; labels: label names; status and next shape
 // the labels answer.
-async function run({ pull = { draft: false }, labels = [], labelsStatus = 200, labelsNext = false, holdLabel = "needs-human" } = {}) {
+// holdLabels: the hold-label step's output, a JSON array.
+async function run({ pull = { draft: false }, labels = [], labelsStatus = 200, labelsNext = false, holdLabels = '["do-not-merge","needs-human"]', headMovesOnRead = false } = {}) {
   const calls = { failed: [], info: [], outputs: {}, updated: [], deleted: [], fetched: [] };
   let head = GATED;
   const github = {
-    request: async (_route, { ref }) => ({ data: { object: { sha: ref === "heads/lane" ? LANE : head } } }),
+    request: async (_route, { ref }) => ({ data: { object: { sha: ref === "heads/lane" ? LANE : headMovesOnRead && head === GATED ? "c".repeat(40) : head } } }),
     rest: {
       git: {
         updateRef: async ({ ref, sha }) => {
@@ -75,7 +76,7 @@ async function run({ pull = { draft: false }, labels = [], labelsStatus = 200, l
     COMMIT_SHA: "",
     THREAD_FILE: "",
     PR_NUMBER: "42",
-    HOLD_LABEL: holdLabel,
+    HOLD_LABELS: holdLabels,
     READ_TOKEN: "read-only",
     GITHUB_API_URL: "https://api.github.com",
   });
@@ -101,9 +102,21 @@ for (const label of ["do-not-merge", "needs-human"]) {
     `a ${label} label added during the run: nothing moves, awaiting-human, the lane branch is deleted`);
 }
 
-r = await run({ labels: ["status: blocked-human"], holdLabel: "status: blocked-human" });
+r = await run({ labels: ["status: blocked-human"], holdLabels: '["do-not-merge","status: blocked-human"]' });
 say(r.updated.length === 0 && r.outputs["skip-reason"] === "awaiting-human",
   "the base's own human-gated label is a hold");
+
+r = await run({ labels: ["needs-human"], holdLabels: '["do-not-merge","status: blocked-human","needs-human"]' });
+say(r.updated.length === 0 && r.outputs["skip-reason"] === "awaiting-human",
+  "a label from the activity's labels-absent list is a hold beside a custom human-gated label");
+
+r = await run({ labels: ["do-not-merge"], holdLabels: "[]" });
+say(r.updated.length === 0 && r.outputs["skip-reason"] === "awaiting-human",
+  "do-not-merge is a hold even when the list omits it");
+
+r = await run({ headMovesOnRead: true });
+say(r.updated.length === 0 && r.failed.length === 1 && r.fetched.length === 2,
+  "the PR head is re-read after the hold reads, and a moved head moves nothing");
 
 r = await run({ pull: { draft: true } });
 say(r.updated.length === 0 && r.outputs["skip-reason"] === "awaiting-human" && r.deleted.includes("heads/lane"),
@@ -120,8 +133,11 @@ r = await run({ labelsNext: true });
 say(r.updated.length === 0 && (r.threw !== null || r.failed.length > 0),
   "more labels than one page moves nothing and fails the step");
 
-r = await run({ holdLabel: "" });
-say(r.updated.length === 0 && r.failed.length === 1, "no hold label from the base moves nothing and fails the step");
+r = await run({ holdLabels: "" });
+say(r.updated.length === 0 && r.failed.length === 1, "no hold labels from the base moves nothing and fails the step");
+
+r = await run({ holdLabels: "not json" });
+say(r.updated.length === 0 && (r.threw !== null || r.failed.length > 0), "a malformed hold list moves nothing and fails the step");
 EOF
 )
 if [[ -z "$results" ]]; then

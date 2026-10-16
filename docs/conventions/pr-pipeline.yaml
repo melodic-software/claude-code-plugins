@@ -13,6 +13,9 @@ activities:
     applies-when:
       paths: ["**/*.md"]
       labels-absent: [do-not-merge, needs-human]
+      # Skips a draft PR before any model turn, since the promote step drops
+      # a draft's commits anyway.
+      draft: [false]
   resolve-conflicts:
     skill: source-control:resolve-conflicts
     args: ci

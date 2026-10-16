@@ -211,9 +211,12 @@ say(octokitCallers.length === 0, `no github-script step calls getOctokit (${octo
 say(labels >= 0 && labels < cs.indexOf("createCommit") && /do-not-merge/.test(cs) && /HOLD_LABEL/.test(cs),
   "the commit step re-reads the PR's hold labels before creating the commit");
 const holdLabel = byId("hold-label").run ?? "";
-say(/\.base\/\.work-item-tracker\.json/.test(holdLabel) && /echo "label=\$hold_label"/.test(holdLabel)
-  && /steps\.hold-label\.outputs\.label/.test(String(commit.env?.HOLD_LABEL)),
-  "the human-gated role label is resolved from the base before the head checkout");
+const promoteEnv = byId("promote").env ?? {};
+say(/\.base\/\.work-item-tracker\.json/.test(holdLabel) && /labels-absent/.test(holdLabel) && /echo "labels=\$labels"/.test(holdLabel)
+  && [commit.env, promoteEnv].every((env) => /^\$\{\{ steps\.hold-label\.outputs\.labels \}\}$/.test(String(env?.HOLD_LABELS))
+    && String(env?.READ_TOKEN) === "${{ github.token }}")
+  && /^\$\{\{ steps\.gate\.outputs\.pr-number \}\}$/.test(String(promoteEnv.PR_NUMBER)),
+  "the hold labels are resolved from the base before the head checkout and reach the commit and promote steps with the read-only token");
 
 // Promote moves the PR branch only to the commit the commit step made.
 const promote = byId("promote");

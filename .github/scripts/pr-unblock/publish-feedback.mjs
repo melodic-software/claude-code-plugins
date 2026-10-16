@@ -246,14 +246,16 @@ export async function publish(args) {
   // that cannot be posted still leaves the replies' outcome to a person.
   try {
     const comments = await api.listIssueComments(pr);
-    const runLine = modelRunLine(modelRun);
-    if (comments.some((comment) => isRoundMarker(comment, appId) && String(comment.body).split("\n").includes(runLine))) {
+    // With no model run named, the marker is always posted: counting a round
+    // twice hands the PR to a person sooner; skipping one would not.
+    const runLine = modelRun ? modelRunLine(modelRun) : null;
+    if (runLine && comments.some((comment) => isRoundMarker(comment, appId) && String(comment.body).split("\n").includes(runLine))) {
       log(`the round of model run ${modelRun} is already recorded`);
     } else {
       const rounds = countRounds(comments, appId) + 1;
       await api.createIssueComment(
         pr,
-        [ROUND_MARKER, runLine, `pr-unblock / address-feedback finished round ${rounds} of ${MAX_ROUNDS} on ${headSha}.`].join("\n"),
+        [ROUND_MARKER, ...(runLine ? [runLine] : []), `pr-unblock / address-feedback finished round ${rounds} of ${MAX_ROUNDS} on ${headSha}.`].join("\n"),
       );
       log(`recorded round ${rounds}${result?.escalationReason ? `; escalating ${result.escalationReason}` : ""}`);
     }
@@ -379,13 +381,14 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   if (!SHA.test(env.HEAD_SHA)) {
     throw new Error("HEAD_SHA is not a commit id");
   }
-  // An empty attempt is a model run that uploaded no replies; a re-run of
-  // this job still names the same run.
+  // An empty attempt is a model run that uploaded no replies: it names no
+  // run, so its marker is always posted.
   const attempt = env.MODEL_RUN_ATTEMPT ?? "";
   if (attempt !== "" && !/^[1-9][0-9]{0,4}$/.test(attempt)) {
     throw new Error("MODEL_RUN_ATTEMPT is not a run attempt");
   }
-  const modelRun = `${positive(env.GITHUB_RUN_ID, "GITHUB_RUN_ID")}-${attempt || "none"}`;
+  const runId = positive(env.GITHUB_RUN_ID, "GITHUB_RUN_ID");
+  const modelRun = attempt ? `${runId}-${attempt}` : null;
   const dir = env.FEEDBACK_REPLIES_DIR;
   const read = (name) => {
     const path = join(dir, name);
