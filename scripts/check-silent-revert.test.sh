@@ -259,6 +259,43 @@ t_rename_is_not_a_removal() {
   fi
 }
 
+# A release consumes .changes/<plugin>/*.md fragments into each plugin's
+# CHANGELOG.md and deletes them (scripts/release-plugins.sh), so a release
+# commit removes hundreds of lines one recent commit added. 7982fc022 (#7618)
+# fired on exactly that shape. t_fires_on_silent_revert keeps the real removal
+# firing.
+t_release_consuming_fragments_is_not_a_removal() {
+  local repo i
+  mk_repo repo
+  # The changelogs already exist, so the release MODIFIES them and the
+  # fragments report as deletions rather than pairing as renames.
+  for i in $(seq 1 30); do
+    mkdir -p "$repo/plugins/plugin$i" "$repo/.changes/plugin$i"
+    printf '# Changelog for plugin%s\n\n## 1.0.0\n\n- First release.\n' "$i" \
+      >"$repo/plugins/plugin$i/CHANGELOG.md"
+  done
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore: seed the changelogs"
+  for i in $(seq 1 30); do
+    printf 'the plugin%s fragment line %s describes a fix to the guard\n' "$i" $(seq 1 10) \
+      >"$repo/.changes/plugin$i/fix-guard-0123abcd.md"
+  done
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "fix: add the guard fragments (#98)"
+  for i in $(seq 1 30); do
+    cat "$repo/.changes/plugin$i/fix-guard-0123abcd.md" >>"$repo/plugins/plugin$i/CHANGELOG.md"
+  done
+  git_test_config "$repo" rm -rq .changes >/dev/null
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm "chore(release): release 30 plugins (#99)"
+  SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  if [[ "$RC" -eq 0 ]]; then
+    ok "a release consuming 300 lines of recent .changes/ fragments is not a removal"
+  else
+    fail "consumed .changes/ fragments must not fire, rc=$RC: $OUT"
+  fi
+}
+
 # The attribution counts must not depend on the CALLER'S GIT CONFIG. They are
 # what the replay's recorded expectations assert on, so a developer's ambient
 # settings deciding them means a red build on a clean tree, for example under
@@ -2320,6 +2357,7 @@ t_quiet_below_threshold
 t_quiet_outside_recency_window
 t_does_not_sum_across_culprits
 t_rename_is_not_a_removal
+t_release_consuming_fragments_is_not_a_removal
 t_counts_are_immune_to_ambient_git_config
 t_rename_pin_is_load_bearing
 t_minus_diff_lock_file_is_attributed

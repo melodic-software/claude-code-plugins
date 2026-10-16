@@ -870,9 +870,15 @@ scan_commit() {
   # pre-passes are not limit-gated; only the inexact pass is. This flag
   # is a behavior change, not a pin, and it is inert on attribute_file
   # (pathspec-limited, no pair can form).
+  # .changes/ is excluded: fragments exist to be deleted. A release
+  # (scripts/release-plugins.sh) consumes them into each plugin's
+  # CHANGELOG.md and removes them, so every release deletes recent content
+  # by design -- 7982fc022 (#7618) fired on 494 fragment lines. A squash
+  # that drops a sibling's fragment also drops its code, which still fires.
   run_attributing_git "$enum_list" \
     "git diff --name-only failed enumerating $sha" \
-    diff --name-only -z -M -l0 --diff-filter=MD "$parent" "$sha"
+    diff --name-only -z -M -l0 --diff-filter=MD "$parent" "$sha" \
+    -- . ':(exclude).changes/'
   local file
   while IFS= read -r -d '' file; do
     attribute_file "$parent" "$sha" "$file" >"$file_attr"
