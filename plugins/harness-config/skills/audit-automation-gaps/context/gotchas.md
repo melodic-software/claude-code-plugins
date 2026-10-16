@@ -51,8 +51,10 @@ PASS, or an affirmative claim that the concern is frequent, has to pay for a sam
 A candidate phrased as "a `PostToolUse` hook that rejects the edit when the formatter finds a
 problem" cannot exist. The tool has already run by the time the event fires, and exit code 2 there
 shows the hook's stderr to Claude rather than preventing anything. Such a candidate is not a REJECT
-at **Too slow** or **Already enforced**; it is malformed, and the right response is to re-state it
-on a blocking event or to accept it as advisory before running it past any gate.
+at **Too slow** or **Already enforced**; it is malformed. A report-only check is never re-stated
+as an advisory per-edit hook: flag it with its check-placement home (a git `pre-commit` hook on
+changed lines, `pre-push` when its measured run is over the commit budget but within 60 s, CI
+beyond), the same placement the shift-left carve-out's second conjunct requires.
 
 ## An `exit 2` gate on `PermissionRequest` is silently inert
 

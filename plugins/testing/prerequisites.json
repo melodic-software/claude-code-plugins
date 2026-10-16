@@ -23,7 +23,6 @@
       "kind": "cli",
       "need": "required",
       "for": [
-        "hook:test-scan.sh",
         "hook:test-weaken.sh"
       ],
       "detect": {

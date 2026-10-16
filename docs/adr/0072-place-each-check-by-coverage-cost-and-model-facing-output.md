@@ -41,7 +41,8 @@ docs show per-edit lint and test hooks as well.
    hook to act before a tool call or change files in session; a git hook to cover every author;
    `pre-commit` within the commit budget, `pre-push` up to 60 s, CI beyond. Report-only findings
    never reach the model per edit. Each report-only check runs in exactly one local place
-   (formatters excepted) and CI re-runs it on the change only; CI never skips a check because a
+   (formatters excepted, and the end-of-turn check if the typos-format pilot makes it the default)
+   and CI re-runs it on the change only; CI never skips a check because a
    hook passed; the twice-daily full-tree CI run stays.
 2. **Formatters** rewrite once per batch in session from `PostToolBatch`, with no model-facing
    output, while the median per fire stays at or under 1 s, and again at `pre-commit`, rewriting
