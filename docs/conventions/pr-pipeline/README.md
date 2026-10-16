@@ -119,9 +119,10 @@ this repository, exactly one open non-draft PR into `main` has its head, the lan
 PR, it carries neither `do-not-merge` nor `needs-human`, both lanes' newest reviewed-head markers
 name the head, an unresolved thread left only by the reviewer bot exists, the head has no
 `pr-unblock / address-feedback` check run, and no `pr-unblock.yml` run titled
-`pr-unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). It
-dispatches nothing until the base config gives the `pr-unblock` lane enabled `address-feedback`
-and `publish-feedback` slots. It records `pr-feedback-dispatched-<upstream id>-<run
+`pr-unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
+runs the base's resolve-config for that PR and head with `address-feedback` selected, so only that
+slot's `applies-when` is decided, and dispatches only when the `pr-unblock` lane and its
+`address-feedback` and `publish-feedback` slots are enabled and `address-feedback` applies. It records `pr-feedback-dispatched-<upstream id>-<run
 id>`, which the gate and the broker read to tie the run to a review of the PR's current head.
 In `pr-unblock.yml`, `address-feedback` (the model job, `mutate-branch`) is followed by
 `publish-feedback` (a script job with no model, `publish-artifact`), which posts the replies the

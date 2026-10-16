@@ -67,32 +67,17 @@ jobs:
         run: |
           echo "::notice::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); nothing dispatched"
 
-      # Nothing is dispatched until the base config gives the pr-unblock lane
-      # both address-feedback slots: until then a dispatched run would only
-      # end at resolve-config.
-      - name: Read the pr-unblock lane's slots
-        id: lane
+      # The script resolves the pr-unblock lane's address-feedback slot with
+      # the base's resolve-config once it has found the PR and its head, and
+      # dispatches only when the lane and both address-feedback slots are
+      # enabled and the slot applies.
+      - name: Install resolve-config's dependencies
         if: steps.kill.outputs.proceed == 'true'
-        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
-        with:
-          lane: pr-unblock
-          base-path: .base
-          output-path: ${{ runner.temp }}/pr-unblock-lane.json
-
-      - name: Report a lane without the address-feedback slots
-        if: >-
-          steps.lane.outcome == 'success'
-          && !(steps.lane.outputs.enabled == 'true'
-          && contains(fromJSON(steps.lane.outputs.slots), 'address-feedback')
-          && contains(fromJSON(steps.lane.outputs.slots), 'publish-feedback'))
-        run: echo "::notice::the pr-unblock lane has no enabled address-feedback and publish-feedback slots; nothing dispatched"
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
       - name: Dispatch address-feedback
         id: dispatch
-        if: >-
-          steps.lane.outcome == 'success' && steps.lane.outputs.enabled == 'true'
-          && contains(fromJSON(steps.lane.outputs.slots), 'address-feedback')
-          && contains(fromJSON(steps.lane.outputs.slots), 'publish-feedback')
+        if: steps.kill.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}

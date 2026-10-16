@@ -196,6 +196,15 @@ plan -- docs/conventions/pr-pipeline/pr-pipeline.schema.json
 is "$(key node_packages)" ".github/actions/resolve-config" && is "$(key node)" true
 check "a change under a package's trigger directory runs that package" $?
 
+plan -- .github/scripts/pr-unblock/feedback-dispatch.mjs
+is "$(key node_packages)" ".github/actions/resolve-config" && is "$(key node)" true
+check "a change to a package's later trigger file runs that package" $?
+
+plan -- .github/scripts/pr-unblock/report-escalation.sh
+rc=0
+[[ " $(key node_packages) " != *" .github/actions/resolve-config "* ]] || rc=1
+check "a sibling of a trigger file does not run that package" "$rc"
+
 plan -- .node-version
 is "$(key node_packages | wc -w | tr -d ' ')" 6
 check "a Node pin runs every Node package" $?
