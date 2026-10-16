@@ -8,14 +8,15 @@
 #                                files included, reported without rewriting
 #                                (the opt-in end-of-turn Stop row)
 #
-# Pre-commit: a partly staged shell script that shfmt would rewrite is refused
-# before anything is rewritten (re-staging a rewrite would stage its unstaged
-# hunks too). Then shfmt formats the staged .sh and .bash files an .editorconfig
-# section governs (see git-hooks/shfmt-rewrite.sh), the rewritten paths print on
-# stdout and are re-staged, and the ShellCheck findings (warning and above) print
-# as "<path>:<line>: <message>" on stderr, exit 1, only for lines the commit adds.
-# A staged script since deleted from the work tree is checked from the index and
-# never rewritten.
+# Pre-commit: when shfmt can run, a partly staged shell script an .editorconfig
+# section governs is refused before anything is rewritten (re-staging a rewrite
+# would stage its unstaged hunks too). Then shfmt formats the staged .sh and
+# .bash files such a section governs (see git-hooks/shfmt-rewrite.sh), the
+# rewritten paths print on stdout and are re-staged, and the ShellCheck findings
+# (warning and above) print as "<path>:<line>: <message>" on stderr, exit 1, only
+# for lines the commit adds. A staged script since deleted from the work tree, or
+# partly staged and left unrewritten, is checked from the index and never
+# rewritten.
 #
 # The repository's own .shellcheckrc and .editorconfig govern; the plugin ships
 # none. Files under .githooks/ are installed copies and are skipped. A missing
@@ -53,7 +54,7 @@ staged_gone() {
 }
 
 files=()
-gone=()
+indexed=()
 while IFS= read -r -d '' f; do
   case "$f" in
   .githooks/*) continue ;;
@@ -63,10 +64,10 @@ while IFS= read -r -d '' f; do
   if [[ -f "$f" && ! -L "$f" ]]; then
     files+=("$f")
   elif staged_gone "$f"; then
-    gone+=("$f")
+    indexed+=("$f")
   fi
 done < <(checks_files)
-((${#files[@]} + ${#gone[@]})) || exit 0
+((${#files[@]} + ${#indexed[@]})) || exit 0
 
 if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#files[@]})); then
   governed=()
@@ -74,21 +75,20 @@ if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#files[@]})); then
     shfmt_governed "$f" && governed+=("$f")
   done
   if ((${#governed[@]})); then
-    # Only the governed shell files are refused, not every staged path, which is
-    # what checks_refuse_partly_staged would walk.
-    refused=0
-    for f in "${governed[@]}"; do
-      if checks_partly_staged "$f"; then
-        printf '%s: partly staged; format it or stage it fully, then commit\n' "$f" >&2
-        refused=1
-      fi
-    done
-    ((refused)) && exit 1
-
     can_rewrite=1
     need shfmt "see https://github.com/mvdan/sh#shfmt" || can_rewrite=0
     need jq "see https://jqlang.org/download/" || can_rewrite=0
     if ((can_rewrite)); then
+      # Only the governed shell files are refused, not every staged path, which
+      # is what checks_refuse_partly_staged would walk.
+      refused=0
+      for f in "${governed[@]}"; do
+        if checks_partly_staged "$f"; then
+          printf '%s: partly staged; format it or stage it fully, then commit\n' "$f" >&2
+          refused=1
+        fi
+      done
+      ((refused)) && exit 1
       for f in "${governed[@]}"; do
         shfmt_rewrite "$f"
       done
@@ -103,6 +103,16 @@ if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#files[@]})); then
       fi
     fi
   fi
+  # A partly staged script left unrewritten is linted as staged, from the index.
+  whole=()
+  for f in "${files[@]}"; do
+    if checks_partly_staged "$f"; then
+      indexed+=("$f")
+    else
+      whole+=("$f")
+    fi
+  done
+  files=(${whole[@]+"${whole[@]}"})
 fi
 
 need shellcheck "see https://github.com/koalaman/shellcheck#installing" || exit 0
@@ -122,8 +132,9 @@ if ((${#files[@]})); then
   shellcheck -x -f gcc -S warning -- "${files[@]}" >"$out" 2>&1
   rc=$?
 fi
-# A script gone from the work tree is read from the index on stdin, named "-".
-for f in ${gone[@]+"${gone[@]}"}; do
+# A script gone from the work tree or partly staged is read from the index on
+# stdin, named "-".
+for f in ${indexed[@]+"${indexed[@]}"}; do
   git show ":$f" 2>/dev/null | shellcheck -x -f gcc -S warning - >"$CHECKS_TMP/one" 2>&1
   one=${PIPESTATUS[1]}
   ((one > rc)) && rc=$one

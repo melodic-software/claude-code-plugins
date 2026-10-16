@@ -107,6 +107,17 @@ git -C "$REPO" add a.sh
 printf '%s\necho more\n' "$TABBED" >"$REPO/a.sh"
 expect "a partly staged script no section governs is not refused" "0||" "$(check "$REPO")"
 
+new_repo NONE
+printf '%s\necho staged\n' "$SHEBANG" >"$REPO/a.sh"
+git -C "$REPO" add a.sh
+printf '%s\necho staged\necho "$undefined_var"\n' "$SHEBANG" >"$REPO/a.sh"
+expect "partly staged, ungoverned: a finding only in the unstaged lines does not block" "0||" "$(check "$REPO")"
+printf '%s\necho "$undefined_var"\n' "$SHEBANG" >"$REPO/a.sh"
+git -C "$REPO" add a.sh
+printf '%s\necho fixed\necho unstaged\n' "$SHEBANG" >"$REPO/a.sh"
+expect "partly staged, ungoverned: a staged finding blocks though the work tree fixed it" "1||a.sh:2: warning: undefined_var is referenced but not assigned. [SC2154]
+$HINT" "$(check "$REPO")"
+
 new_repo
 printf '%s\necho "$undefined_var"\n' "$SPACED" >"$REPO/a.sh"
 git -C "$REPO" add a.sh
@@ -264,6 +275,11 @@ git -C "$REPO" add a.sh
 git -C "$REPO" config checks.skipmissing shfmt
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$WORK/no-shfmt" bash "$CHECK" 2>&1)"
 expect "missing shfmt named in checks.skipmissing: the rewrite is skipped and ShellCheck still reports" "1|SKIPPED: shfmt (missing)
+a.sh:2: warning: undefined_var is referenced but not assigned. [SC2154]
+$HINT" "$?|$out"
+printf '%s\necho "$undefined_var"\necho unstaged\n' "$SHEBANG" >"$REPO/a.sh"
+out="$(cd "$REPO" && CLAUDECODE=1 PATH="$WORK/no-shfmt" bash "$CHECK" 2>&1)"
+expect "missing shfmt skipped: a partly staged governed script is not refused, and is linted as staged" "1|SKIPPED: shfmt (missing)
 a.sh:2: warning: undefined_var is referenced but not assigned. [SC2154]
 $HINT" "$?|$out"
 git -C "$REPO" config --unset checks.skipmissing

@@ -109,6 +109,34 @@ git -C "$REPO" commit -q -m rule --no-verify
 git -C "$REPO" rm -q .claude/rules/csharp.md
 expect "a staged deletion of a rule the index lists fails" 1 "$(rc_of "$(check "$REPO")")"
 
+new_repo
+add_rule "$REPO"
+git -C "$REPO" add .claude/rules/csharp.md
+bash "$RENDER" write --file "$REPO/AGENTS.md" --root "$REPO" >/dev/null
+expect "a staged rule with the index regenerated but left unstaged fails: the commit holds the stale index" \
+  1 "$(rc_of "$(check "$REPO")")"
+
+new_repo
+add_rule "$REPO"
+bash "$RENDER" write --file "$REPO/AGENTS.md" --root "$REPO" >/dev/null
+git -C "$REPO" add AGENTS.md
+expect "a staged index listing a rule that is not staged fails" 1 "$(rc_of "$(check "$REPO")")"
+
+# A flat copy beside a renderer that fails without a verdict, as a broken
+# installed copy would.
+STUB="$WORK/stub"
+mkdir -p "$STUB"
+cp "$CHECK" "$STUB/index-check.sh"
+cp "$PLUGIN/lib/git-hooks/check-lib.sh" "$STUB/check-lib.sh"
+printf '#!/usr/bin/env bash\necho "render-index.sh: boom" >&2\nexit 2\n' >"$STUB/render-index.sh"
+new_repo
+add_rule "$REPO"
+git -C "$REPO" add .claude/rules/csharp.md
+got="$(CHECK="$STUB/index-check.sh" check "$REPO")"
+expect "a renderer that exits without a verdict blocks instead of passing" 1 "$(rc_of "$got")"
+expect "the renderer's own error is shown" yes \
+  "$(grep -qF 'render-index.sh: boom' < <(err_of "$got") && echo yes)"
+
 new_repo noblock
 add_rule "$REPO"
 git -C "$REPO" add .claude/rules/csharp.md
