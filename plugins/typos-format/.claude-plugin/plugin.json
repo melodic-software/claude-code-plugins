@@ -17,7 +17,7 @@
   "userConfig": {
     "typos_format_enabled": {
       "type": "boolean",
-      "title": "typos-format hooks",
+      "title": "Spell-check session hooks",
       "description": "Kill switch for the plugin's Claude Code hooks: the SessionStart probe and drift line, and the opt-in end-of-turn check. On by default. The git pre-commit entry is installed separately and is not affected.",
       "default": true
     },
