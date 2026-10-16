@@ -94,7 +94,9 @@ runs `verify`. Setup:
 - migrates local to shared on request, as an agent decision (D1).
 
 The installer is the vendored `lib/git-hooks/install.mjs` (canonical in `lib/`, copied into each
-check plugin per ADR 0019); the check helpers are the vendored `lib/git-hooks/check-lib.sh`.
+check plugin per ADR 0019); the check helpers are the vendored `lib/git-hooks/check-lib.sh`. The
+check lib also provides the partly-staged refusal helper: every rewriting check calls it before it
+rewrites, so a file with unstaged changes fails with the Rewrites message below and is left alone.
 
 ### Entry manifest
 
@@ -174,7 +176,7 @@ the consumer git floor moves.
 detect(repo)                  -> { manager: "lefthook"|"husky"|"plain"|"conflict", evidence[] }
 list(repo)                    -> [{ entryId, event, scope, stamp }]
 plan(repo, entries, scope)    -> { actions[], decisions[] }
-copy(repo, entry, scope)      -> "installed" | "refreshed" | "unchanged"   # plugin-owned files only
+copy(repo, entry, scope)      -> "installed" | "refreshed" | "unchanged" | "blocked"   # plugin-owned files only
 decline(repo, entryId)        -> sets the git config --local key
 ```
 
@@ -183,6 +185,12 @@ decline(repo, entryId)        -> sets the git config --local key
 its adapter. `detect` also recognizes other hook managers (the pre-commit framework, simple-git-hooks,
 overcommit, husky v4) and returns them as conflict decisions. A set `core.hooksPath` is treated as
 husky or foreign, never as plain.
+
+**`hooks-path-owned`.** When `core.hooksPath` hands the local hooks directory to another tool (any
+value except the plain shared `.githooks`), `plan` returns only one decision,
+`{kind: "hooks-path-owned", hooksPath, dir}`, with empty `actions`. `copy --scope local` then
+writes nothing, prints `{"installed":[],"decisions":[...]}` with that decision, exits 1, and
+reports status `blocked`. The setup agent decides what to do with the other tool's hooks (D1).
 
 ### Where installed copies live
 
