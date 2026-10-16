@@ -908,7 +908,8 @@ Each worker must:
   PR's own body (a maintainer confirmation, an author-flagged "veto or approve as you see fit"
   deviation, or similar) as an independent reason to hold as draft, distinct from "still being
   written." The content can be otherwise complete and CI-green and still not be the worker's call
-  to promote; report it as a draft held for that named reason, not a skip.
+  to promote; report it as a draft held for that named reason, not a skip. A body line starting
+  `Draft:` (a requested draft or a multi-session container) is such a reason: never promote it.
 
 ## Worker Prompt Template
 

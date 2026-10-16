@@ -130,8 +130,9 @@ version bumps and CHANGELOG entries.
   with pending fragments passes, so the step needs no release detection there. `--check-bump`
   and `--check-required` run on every `merge_group` commit against `HEAD^1` too, so a hand bump
   or a missing fragment cannot merge through the queue. Their exemptions do need detection: CI
-  reads the queued pull request from the group's head ref (`pr-<number>-<head sha>`) and passes
-  its head branch, author and head commit, the values a `pull_request` run takes from its event.
+  reads the queued pull request's number from the group's head ref (`pr-<number>-<base sha>`) and
+  passes its head branch, author and head commit, read from the pull request, the values a
+  `pull_request` run takes from its event.
 - **Aggregation**, by a new `scripts/release-plugins.sh` the workflow runs:
   1. Group the fragments under `.changes/<plugin>/`.
   2. The new version is the manifest's current version raised once at the highest `bump` among

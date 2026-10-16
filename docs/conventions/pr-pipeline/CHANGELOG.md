@@ -1,5 +1,25 @@
 # Changelog for the PR pipeline convention
 
+## 1.19.2 - 2026-10-16
+
+`work-unblock.yml` also runs hourly (`schedule`, minute 47, from main only). A scheduled run lists
+the issues closed in the last three hours (`LOOKBACK_HOURS` in `label-unblocked.mjs`; pull
+requests and issues updated but closed earlier are left out), keeps those with a trusted close,
+and applies the close path's rules to each issue they blocked, each once per run. It catches an
+issue closed by a bot sender, such as a pull request merge, which the close-triggered run skips. A
+scheduled run has no closer or re-runner to check; the kill switch and the `applies` gate still
+run first, and the token request names no issue. On both paths, every blocking issue now counts as
+done only when it was closed as completed with a trusted close, read fresh per blocker: its
+`closed_by` is a listed human (by id), or a merge in this repository closed it: the `closer` of
+the issue's last `ClosedEvent`, read with one GraphQL query, is a merged pull request or a commit
+in this repository. The REST close event carries no link to the pull request, so GraphQL is the
+read. Any other close, such as a workflow's `GITHUB_TOKEN`, does not count. A blocking pull
+request counts only once merged, and a blocker in another repository never counts. An outside
+author closing their own blocking issue therefore unblocks nothing. Both paths also refuse an
+issue whose `agent-ready` label was ever removed, so removing it by hand stops the lane and
+overlapping windows never put it back; a person adds it again to restart. The broker contract in
+`pr-run-activity.md` lists `work-unblock.yml` as a `schedule` caller. `version` stays 1.
+
 ## 1.19.1 - 2026-10-16
 
 The `verify-scripts` wrapper prints `exit status: <n>` to stderr and exits with the script's

@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.5] - 2026-10-16
+
+### Changed
+
+- Bump numpy from 2.5.3 to 2.5.4.
+
 ## [0.12.4] - 2026-10-16
 
 ### Changed
