@@ -5,10 +5,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { parse } from "yaml";
 
 import { resolve, resolveGrant } from "./resolve.mjs";
+import { readAdmission } from "./resolve-config.mjs";
 
 const read = (relative) =>
   readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -262,6 +264,20 @@ test("live config: resolve-issue may only write its branch; report-outcome may o
   assert.deepEqual(grant("report-outcome"), {
     effect: "publish-artifact",
     grant: { contents: "read", "pull-requests": "write", issues: "write" },
+  });
+});
+
+test("live config: label-unblocked may only write issues", () => {
+  assert.deepEqual(resolveGrant(FILES, { lane: "work-unblock", activity: "label-unblocked", configPath: CONFIG_PATH }), {
+    effect: "mutate-tracker",
+    grant: { contents: "read", "pull-requests": "read", issues: "write" },
+  });
+});
+
+test("live config: readAdmission returns resolve-issue's admission, which label-unblocked applies", () => {
+  assert.deepEqual(readAdmission({ basePath: fileURLToPath(new URL("../../..", import.meta.url)), activity: "resolve-issue" }), {
+    classes: ["work-class: read-only", "work-class: mechanical"],
+    ratified: true,
   });
 });
 

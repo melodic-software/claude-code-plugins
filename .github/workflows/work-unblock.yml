@@ -1,0 +1,159 @@
+name: work-unblock
+
+# What this does, in plain words:
+#
+# When an issue closes, each issue it was blocking may now be ready to work.
+# This workflow labels `agent-ready` each blocked issue that is open, has every
+# blocker closed as completed, carries no hold label (needs-owner-decision,
+# status: needs-decision, needs-human) and no work class resolve-issue refuses,
+# and that the owner ratified with the admission marker comment the
+# resolve-issue lane reads. That label starts
+# work-resolve-issue.yml once resolve-issue accepts App-added labels
+# (follow-up by Automation Lanes); until then it marks the issue only. The
+# rules are in
+# .github/scripts/work-unblock/label-unblocked.mjs; the lane and its
+# effect (mutate-tracker) are in docs/conventions/pr-pipeline.yaml.
+#
+# It runs no AI model and never checks out anything but the main branch.
+# The label is added with a lanes App token from the token broker: a label
+# added with the job's own GITHUB_TOKEN could never start a workflow.
+#
+# How to stop it: set the organization or repository lanes kill-switch
+# variable to anything but "false". The first steps check that switch.
+#
+# Known limit: an issue a bot closes (the lanes App, or a PR merge a bot ran)
+# starts nothing here; the broker would refuse that mint.
+
+on:
+  issues:
+    types: [closed]
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  label-unblocked:
+    # A close by any bot (the lanes App, or a PR merge a bot ran) is a clean
+    # skip: the broker would refuse it, and a close the lanes caused must not
+    # loop back into them.
+    if: github.event.sender.type != 'Bot'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # check out main
+      id-token: write # prove to the token broker which workflow this is
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      # The off switch, checked before anything else.
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or labeled"
+
+      # The broker mints only when the person who closed the issue and the one
+      # who started this run (a re-runner may be someone else) are each a
+      # listed human (trusted-actors.json on main). Anything else stops here
+      # quietly, before the token request. The script makes the same check
+      # again.
+      - name: Check who closed the issue
+        id: who
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          ACTOR_ID: ${{ github.actor_id }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+        run: node .base/.github/scripts/work-unblock/label-unblocked.mjs --check-closer
+
+      # Reads the lane's rules from main: the label-unblocked activity's
+      # effect and token permissions.
+      - name: Resolve the config
+        id: config
+        if: steps.who.outputs.proceed == 'true'
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: work-unblock
+          activity: label-unblocked
+          base-path: .base
+          output-path: ${{ runner.temp }}/resolved-config.json
+
+      # Swaps this job's GitHub identity proof for a short-lived lanes App
+      # token for this repository only, with the resolved grant (issues:
+      # write, contents: read, pull-requests: read). The step fails red unless
+      # the broker granted exactly that.
+      - name: Report a lane the config turns off
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies != 'true'
+        env:
+          REASON: ${{ steps.config.outputs.skip-reason }}
+        run: echo "::notice::label-unblocked does not apply (${REASON:-no reason}); nothing read or labeled"
+
+      - name: Request the lane token
+        id: lane-token
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
+        with:
+          broker-url: ${{ vars.LANES_BROKER_URL }}
+          audience: ${{ vars.LANES_BROKER_AUDIENCE }}
+          lane: work-unblock
+          activity: label-unblocked
+          issue-number: ${{ format('{0}', github.event.issue.number) }}
+          effect: ${{ steps.config.outputs.effect }}
+          contents: ${{ steps.config.outputs.contents }}
+          pull-requests: ${{ steps.config.outputs.pull-requests }}
+          issues: ${{ steps.config.outputs.issues }}
+
+      # The script re-reads every blocked issue, its labels, blockers and
+      # comments from the API; nothing is taken from the event but the closed
+      # issue's number and who closed it. It gets the kill switch answer from
+      # the first step and stops on anything but `proceed`.
+      - name: Label the unblocked issues
+        if: steps.lane-token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          SCRIPT: ${{ steps.config.outputs.script }}
+          KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          ACTOR_ID: ${{ github.actor_id }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+        run: node ".base/$SCRIPT"
+
+      # The token is cancelled as soon as the job is done; it would otherwise
+      # expire within the hour. This never fails the job.
+      - name: Revoke the lane token
+        if: always() && steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+        run: |
+          # The header goes through stdin so the token never appears in a
+          # process listing.
+          status=$(printf 'Authorization: Bearer %s\n' "$GH_TOKEN" |
+            curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X DELETE -H @- \
+              -H 'Accept: application/vnd.github+json' "$GITHUB_API_URL/installation/token" || true)
+          if [ "$status" = 204 ]; then
+            echo "the lane token is revoked"
+          else
+            echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
+          fi
