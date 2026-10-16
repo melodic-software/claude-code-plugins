@@ -417,6 +417,15 @@ class TestIdentity(SessionCase):
             self.s.resolve(secret="made-up")
         self.assertEqual(ctx.exception.code, "unknown-session")
 
+    def test_a_pid_from_the_snapshot_sent_as_the_secret_is_refused(self):
+        ann, _ = self.join("Ann")
+        pids = [p["pid"] for p in self.s.snapshot(ann)["people"]]
+        self.assertIn(ann, pids)
+        for pid in pids:
+            with self.assertRaises(session.DomainError) as ctx:
+                self.s.resolve(secret=pid)
+            self.assertEqual((ctx.exception.http, ctx.exception.code), (401, "unknown-session"))
+
     def test_removal_disables_the_secret_and_restore_brings_it_back(self):
         ann, secret = self.join("Ann")
         self.act("set_removed", HOST, {"pid": ann, "on": True})
@@ -482,6 +491,18 @@ class TestRolesAndPeople(SessionCase):
         self.assertEqual((p["role"], p["trusted"], p["status"]["kind"]), ("guest", False, "removed"))
         self.act("set_removed", HOST, {"pid": ann, "on": False})
         self.assertEqual(self.s.state["people"][ann]["role"], "guest")
+
+    def test_only_the_owner_trusts_and_untrusts_a_person(self):
+        ann, lee = self.people("Ann", "Lee")
+        self.act("set_role", HOST, {"pid": lee, "role": "leader"})
+        self.act("set_trust", HOST, {"pid": ann, "on": True})
+        self.assertIs(self.s.state["people"][ann]["trusted"], True)
+        self.assertEqual([n["kind"] for n in self.notes(ann)], ["role"])
+        self.act("set_trust", HOST, {"pid": ann, "on": False})
+        self.assertIs(self.s.state["people"][ann]["trusted"], False)
+        for actor in (lee, ann):
+            self.refused("owner-only", "set_trust", actor, {"pid": ann, "on": True}, http=403)
+        self.assertIs(self.s.state["people"][ann]["trusted"], False)
 
     def test_the_owner_cannot_be_removed(self):
         self.refused("bad-field", "set_removed", HOST, {"pid": HOST, "on": True})
@@ -881,6 +902,18 @@ class TestQuestionBehavior(SessionCase):
         self.refused("not-found", "edit_reference", HOST, {"qid": "Q1", "remove": 5})
         self.refused("owner-only", "edit_reference", self.ann, {"qid": "Q1", "remove": 0})
 
+    def test_a_rect_holding_nan_or_infinity_is_refused(self):
+        variants = [{"id": "v-1", "label": "A", "asset": HTML}, {"id": "v-2", "label": "B", "asset": PNG}]
+        self.open_round({**text_q("Q1", rec=False), "purpose": "gather", "format": {"kind": "prototype", "variants": variants}})
+        for raw in ('{"x": NaN, "y": 0, "w": 10, "h": 10}', '{"x": 0, "y": 0, "w": Infinity, "h": 10}'):
+            rect = json.loads(raw)
+            anchor = {"selector": "#pay", "rect": rect}
+            self.refused("bad-field", "annotate", self.ann, {"qid": "Q1", "variant": "v-1", "text": "Here", "anchor": anchor}, http=400)
+            ref = {"kind": "image", "asset": PNG, "rect": rect}
+            self.refused("bad-field", "edit_reference", HOST, {"qid": "Q1", "reference": ref}, http=400)
+        self.assertEqual(self.s.state["annotations"], [])
+        self.assertEqual(self.question("Q1")["references"], [])
+
     def test_a_question_in_a_round_not_yet_open_takes_no_answers(self):
         self.open_round(text_q("Q1"))
         prop = self.act("propose", self.ann, {"text": "Ask about refunds"})["id"]
@@ -1069,6 +1102,17 @@ class TestLocks(SessionCase):
         self.act("heartbeat", self.bo, {})
         self.act("lock", HOST, {"qid": "Q1", "card": "c:rec"})
         self.assertEqual(self.s.state["locks"]["Q1"]["source"]["card"], "c:rec")
+
+    def test_the_owners_lock_this_one_works_with_no_votes(self):
+        self.act("lock", HOST, {"qid": "Q1", "card": "c:b"})
+        self.assertEqual(self.s.state["locks"]["Q1"]["source"]["card"], "c:b")
+
+    def test_a_leaders_lock_this_one_is_unavailable_until_some_card_has_a_vote(self):
+        self.refused("no-votes", "lock", self.ann, {"qid": "Q1", "card": "c:b"}, http=409)
+        self.assertNotIn("Q1", self.s.state["locks"])
+        self.act("vote", self.bo, {"qid": "Q1", "card": "c:a", "on": True})
+        self.act("lock", self.ann, {"qid": "Q1", "card": "c:b"})
+        self.assertEqual(self.s.state["locks"]["Q1"]["source"]["card"], "c:b")
 
     def test_sign_off_refuses_a_lock_until_everyone_present_agrees(self):
         self.act("update_settings", HOST, {"signoff": True})
@@ -1388,6 +1432,21 @@ class TestChatAndNotifications(SessionCase):
         self.assertEqual(len(self.notes(bo2, "mention")), 1)
         self.assertEqual(self.notes(self.bo, "mention"), [])
 
+    def test_a_mention_in_a_suggestion_notifies_the_named_person_never_the_actor(self):
+        self.open_round(text_q("Q1"))
+        self.act("lock", HOST, {"qid": "Q1", "card": "c:rec"})
+        self.act("suggest", self.ann, {"qid": "Q1", "text": "Collapse it, @Bo?", "note": "@Ann thinks so"})
+        self.assertEqual(len(self.notes(self.bo, "mention")), 1)
+        self.assertEqual(self.notes(self.ann, "mention"), [])
+        self.assertEqual(self.notes(self.cy, "mention"), [])
+
+    def test_a_mention_in_a_request_notifies_the_named_person_never_the_actor(self):
+        self.open_round(text_q("Q1"))
+        self.act("request", self.ann, {"qid": "Q1", "kind": "ask", "text": "@Bo and @Ann asked: which step drops most?"})
+        self.assertEqual(len(self.notes(self.bo, "mention")), 1)
+        self.assertEqual(self.notes(self.ann, "mention"), [])
+        self.assertEqual(self.notes(self.cy, "mention"), [])
+
     def test_votes_roll_up_to_one_line_per_answer_per_hour(self):
         self.open_round(text_q("Q1"))
         self.act("answer", self.ann, {"qid": "Q1", "text": "Mine", "view": "focus"})
@@ -1530,6 +1589,17 @@ class TestRequests(SessionCase):
         self.act("act_on_request", HOST, {"action": "publish", "id": xid})
         self.assertEqual(self.s.snapshot(self.bo)["results"]["Q1"][0]["summary"], "Most shops pin it right.")
         self.assertEqual(len(self.notes(self.ann, "request")), 1)
+
+    def test_a_result_keeps_used_and_why_as_given_on_the_published_card(self):
+        rid = self.ask(self.ann)
+        self.act("act_on_request", HOST, {"action": "run", "ids": [rid]})
+        used = [{"name": "discovery:research", "type": "skill"}, {"name": "context7", "type": "mcp"}]
+        xid = self.apply({**self.result_op(rid), "used": used, "why": "Needed outside evidence."})["results"][0]["id"]
+        res = self.s.state["results"]["Q1"][0]
+        self.assertEqual((res["used"], res["why"]), (used, "Needed outside evidence."))
+        self.act("act_on_request", HOST, {"action": "publish", "id": xid})
+        (card,) = self.s.snapshot(self.bo)["results"]["Q1"]
+        self.assertEqual((card["used"], card["why"]), (used, "Needed outside evidence."))
 
     def test_discard_drops_the_result_and_fails_the_request(self):
         rid = self.ask(self.ann)

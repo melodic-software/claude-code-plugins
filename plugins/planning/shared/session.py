@@ -24,6 +24,7 @@ import hashlib
 import hmac
 import importlib
 import json
+import math
 import os
 import re
 import secrets
@@ -350,8 +351,8 @@ def _rect(v, field):
     out = {}
     for k in ("x", "y", "w", "h"):
         n = v.get(k)
-        if isinstance(n, bool) or not isinstance(n, (int, float)) or n < 0 or (k in ("w", "h") and n <= 0):
-            raise _bad(field, f"{field}.{k} must be a number at least 0 (w and h above 0).")
+        if isinstance(n, bool) or not isinstance(n, (int, float)) or not math.isfinite(n) or n < 0 or (k in ("w", "h") and n <= 0):
+            raise _bad(field, f"{field}.{k} must be a finite number at least 0 (w and h above 0).")
         out[k] = n
     return out
 
@@ -1531,13 +1532,14 @@ class Session:
                 raise DomainError(409, "wrong-purpose", "A gather question is not locked; its answers stand.")
             self._answerable(q)
             tally = self._tally(qid)
+            most = max(tally.values(), default=0)
             if ref is not None:
                 self._card(qid, ref)
+            if most == 0 and not (pid == HOST and ref is not None):
+                raise DomainError(409, "no-votes", "No answer has a vote yet; the owner's Lock this one still works.")
+            if ref is not None:
                 target = ref
             else:
-                most = max(tally.values(), default=0)
-                if most == 0:
-                    raise DomainError(409, "no-votes", "No answer has a vote yet; pick one with Lock this one.")
                 tied = [r for r, n in tally.items() if n == most]
                 if len(tied) > 1:
                     raise DomainError(409, "tie", "Answers are tied; the owner picks one.", tied=tied)
