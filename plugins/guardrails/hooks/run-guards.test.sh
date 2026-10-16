@@ -233,7 +233,21 @@ att_run 1 "rm -rf /$rg_cds; rm -rf x"
 assert_exit "attended row: a root, then past the directory-change budget, denies" 2 "$RC"
 att_run 1 "git reset --hard; git$rg_hops a1"
 assert_exit "attended row: reset --hard, then past the alias budget, denies" 2 "$RC"
-((RC == 2)) || printf 'diagnostic: stdout=%s\nstderr=%s\n' "${OUT:0:800}" "${ERR:0:800}"
+assert_contains "attended row: the alias budget reason is on stderr" "$ERR" "over 128 re-expansions"
+# The same row on a 1 MB stack, where the platform lets the suite set one: the
+# second alias walk no longer runs on top of the first, and a fresh process
+# that still ran out would report nothing and deny.
+if (ulimit -s 1024) 2>/dev/null; then
+  att_p=$(jq -nc --arg c "git reset --hard; git$rg_hops a1" --arg d "$ATT_REPO" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
+  RC=0
+  OUT=$(
+    ulimit -s 1024
+    env CLAUDE_CODE_SESSION_ATTENDED=1 bash "$DISPATCH" --lib lib/powershell/ps-command.sh \
+      block-no-verify.sh block-dangerous-git.sh block-noncanonical-commit.sh \
+      block-root-delete-target.sh block-credential-read.sh <<<"$att_p" 2>/dev/null
+  ) || RC=$?
+  assert_exit "attended row, 1 MB stack: reset --hard, then past the alias budget, denies" 2 "$RC"
+fi
 att_run 1 'rm -rf "$X"; rm -rf /etc/foo'
 assert_eq "attended row: two asking segments ask" ask "$(hsd permissionDecision)"
 assert_contains "attended row: the reason names the bare variable" "$(hsd permissionDecisionReason)" "bare variable"
@@ -601,6 +615,54 @@ assert_exit "hard error, closed posture: denies" 2 "$RC"
 assert_contains "hard error, closed posture: the fail-closed line is on stderr" "$ERR" "fail-closed"
 assert_silent "hard error, closed posture: no stdout document" "$OUT"
 assert_eq "hard error, closed posture: the next guard still ran" $'hardc\ngit status --short\nBash' "$(cat "$SEEN")"
+
+# A guard's `exit` runs the next guard from inside its own call, so a guard
+# that exits deep leaves its frames under every guard after it. Git Bash has a
+# 2 MB stack: an attended alias walk that exited about 140 frames down, then a
+# second walk, overflowed it, and bash died with exit 0 and no output, an
+# allow. Past the depth bound the rest runs in a fresh process with an empty
+# stack, and its documents and status still count. The depth a later guard
+# sees is the structural pin; it holds on every platform.
+deep_stub() { # <name> <status>: recurse 100 frames, then exit <status> from the bottom
+  stub "$1" 'd() { if (($1)); then d $(($1 - 1)); else exit '"$2"'; fi; }
+d 100'
+}
+deep_stub deep0.sh 0
+deep_stub deep2.sh 2
+stub depth.sh 'echo "depth=${#FUNCNAME[@]}" >>"'"$SEEN"'"; exit 0'
+stub die.sh 'echo die >>"'"$SEEN"'"; kill -9 "$BASHPID"'
+run "$PAYLOAD" "$TEST_TMPDIR/deep0.sh" "$TEST_TMPDIR/depth.sh" "$TEST_TMPDIR/allow.sh"
+assert_exit "deep exit: the rest of the chain still runs" 0 "$RC"
+deep_seen=$(cat "$SEEN")
+assert_eq "deep exit: the next guard starts on a fresh stack" "depth=3" "${deep_seen%%$'\n'*}"
+assert_eq "deep exit: each later guard ran once" $'depth=3\ngit status --short\nBash' "$deep_seen"
+run "$PAYLOAD" "$TEST_TMPDIR/deep2.sh" "$TEST_TMPDIR/ask1.sh" "$TEST_TMPDIR/ctx1.sh"
+assert_exit "deep exit 2: the block wins over the fresh process's documents" 2 "$RC"
+assert_absent "deep exit 2: the ask from the fresh process is dropped" "$OUT" '"ask"'
+assert_contains "deep exit 2: the fresh process's context is kept" "$(hsd additionalContext)" "ctx one"
+# A rest of the chain that dies before reporting has an unknown verdict, so
+# the call is denied, on the fresh-process path and on the hard-error subshell.
+run "$PAYLOAD" "$TEST_TMPDIR/deep0.sh" "$TEST_TMPDIR/die.sh" "$TEST_TMPDIR/allow.sh"
+assert_exit "deep exit, then the rest dies unreported: denied" 2 "$RC"
+assert_contains "deep exit, then the rest dies unreported: the reason names it" "$ERR" "reported no verdict"
+run "$PAYLOAD" "$TEST_TMPDIR/hard.sh" "$TEST_TMPDIR/die.sh" "$TEST_TMPDIR/allow.sh"
+assert_exit "hard error, then the rest dies unreported: denied" 2 "$RC"
+# Past the bound with a payload a fresh process could not read back the same
+# (a malformed one here): the rest does not run, and the call is denied.
+run "not json" "$TEST_TMPDIR/deep0.sh" "$TEST_TMPDIR/depth.sh"
+assert_exit "deep exit on an unprimed payload: denied" 2 "$RC"
+# The dispatcher's own boundary is fail-open, but not once a guard has
+# blocked: an abort in the merge after that denies. The stub makes the merge
+# fail and its fallback die of an unbound variable.
+stub mergeabort.sh 'hook::emit_document "{\"systemMessage\":\"b\"}"
+jq() { return 1; }
+run_guards::emit_one() { : "${RG_PROBE_UNBOUND?probe abort}"; }
+exit 0'
+run "$PAYLOAD" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/block.sh" "$TEST_TMPDIR/mergeabort.sh"
+assert_exit "a block, then the merge aborts: still denied" 2 "$RC"
+assert_contains "a block, then the merge aborts: the fail-closed line is on stderr" "$ERR" "fail-closed"
+run "$PAYLOAD" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/mergeabort.sh"
+assert_exit "no block, then the merge aborts: the open posture allows" 0 "$RC"
 
 # Two real guards walk the same alias chain in one process. The alias memo in
 # hook::git_alias_admit is per invocation: a memo hit means "already analyzed,
