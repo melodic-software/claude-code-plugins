@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## 1.19.1 - 2026-10-16
+
+The `verify-scripts` wrapper prints `exit status: <n>` to stderr and exits with the script's
+status, and the system prompt tells the skill to run each wrapper as its own command: a chained
+`; echo "$?"` needs approval the `dontAsk` lane denies. The write file's skill-run diagnostics
+(`act-turns.json` and the step summary) gain `denied`, each command the permission mode denied,
+redacted and cut to 300 characters. `version` stays 1.
+
 ## 1.19.0 - 2026-10-16
 
 A skill leaf gains `verify-scripts`: exact paths of read-only checker scripts under `scripts/`,

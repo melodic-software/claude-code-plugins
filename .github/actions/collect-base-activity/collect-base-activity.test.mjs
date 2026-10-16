@@ -220,6 +220,20 @@ test("a listed verify-script gets one wrapper rule on a read-only copy that runs
   );
 });
 
+// A chained `; echo "$?"` needs approval the dontAsk lane cannot give, so the
+// wrapper reports the script's exit status itself and the prompt says so.
+const RUN_ALONE = "Run each verification wrapper as its own command, not chained to another; it prints the script's exit status.";
+test("the verify-script wrapper prints the script's exit status and exits with it", () => {
+  writeFileSync(path.join(base, "plugins", "vtest", "scripts", "fails.sh"), "echo failing\nexit 3\n");
+  const { status, args, verifyDir } = withVerify([VERIFY, "plugins/vtest/scripts/fails.sh"]);
+  assert.equal(status, 0);
+  assert.ok(args.includes(RUN_ALONE), args);
+  const run = spawnSync(path.join(verifyDir, "bin", "fails"), ["--check"], { cwd: root, encoding: "utf8" });
+  assert.equal(run.status, 3);
+  assert.equal(run.stdout, "failing\n");
+  assert.equal(run.stderr, "exit status: 3\n");
+});
+
 test("the verify-script wrapper refuses a path outside the checkout", () => {
   const { status, dir, wrapper } = withVerify([VERIFY]);
   assert.equal(status, 0);
