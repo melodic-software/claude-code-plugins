@@ -79,6 +79,24 @@ printf 'an old teh line\nstaged ok\nunstaged teh\n' >"$REPO/notes.md"
 expect "partly staged: an unstaged typo does not block the commit" "0|" "$(check "$REPO")"
 
 new_repo
+printf 'gone teh\n' >"$REPO/gone.md"
+git -C "$REPO" add gone.md
+rm "$REPO/gone.md"
+expect "staged then deleted from the work tree: the staged typo still blocks" "1|gone.md:1: \`teh\` should be \`the\`
+$HINT" "$(check "$REPO")"
+printf '[files]\nextend-exclude = ["fixtures/"]\n' >"$REPO/_typos.toml"
+mkdir -p "$REPO/fixtures"
+printf 'fixture teh\n' >"$REPO/fixtures/gone.md"
+git -C "$REPO" add _typos.toml fixtures/gone.md
+git -C "$REPO" rm -q --cached gone.md
+rm -r "$REPO/fixtures"
+expect "staged then deleted: the repository config's excludes still hold" "0|" "$(check "$REPO")"
+ln -s teh-target "$REPO/link.md"
+git -C "$REPO" add link.md
+rm "$REPO/link.md"
+expect "staged then deleted: a staged symlink is not checked" "0|" "$(check "$REPO")"
+
+new_repo
 printf '[files]\nextend-exclude = ["fixtures/"]\n[default.extend-words]\nteh = "teh"\n' >"$REPO/_typos.toml"
 mkdir -p "$REPO/fixtures"
 printf 'fixture teh\n' >"$REPO/fixtures/a.md"

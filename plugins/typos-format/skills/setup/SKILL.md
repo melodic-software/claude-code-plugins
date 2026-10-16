@@ -4,7 +4,6 @@ argument-hint: "[check|apply [install-git-hooks [scope=local|shared]]]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:
-  - "Bash(command -v jq*)"
   - "Bash(command -v typos*)"
   - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" verify:*)"
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs verify:*)"
@@ -15,13 +14,12 @@ shell: bash
 
 ## Pre-computed context
 
-`check`'s tool probes ran at load time. Read these rows instead of re-issuing them; each shows the
+`check`'s tool probe ran at load time. Read this row instead of re-issuing it; it shows the
 tool's path when present, or `absent` when missing:
 
-- `jq`: !`command -v jq 2>/dev/null || echo absent`
 - `typos`: !`command -v typos 2>/dev/null || echo absent`
 
-A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
+A row reading `[shell command execution disabled by policy]` carries no result: run the
 `command -v` probe via Bash instead.
 
 Verification record. Claim: with `disableSkillShellExecution` set, each injected command is
@@ -66,35 +64,33 @@ Spelling findings arrive at commit time, from the git pre-commit entry
 (`${CLAUDE_PLUGIN_ROOT}/git-hooks/typos-check.sh`), and at turn end only when
 `typos_format_end_of_turn` is on. Nothing reports while Claude edits. Read that script and
 `${CLAUDE_PLUGIN_ROOT}/hooks/typos-format.sh` first: probe what they actually do, don't recite
-this file. Then read the pre-computed tool rows, run the remaining probes via Bash, and report a
+this file. Then read the pre-computed tool row, run the remaining probes via Bash, and report a
 PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
-When `typos_format_enabled` is off, a missing `jq` downgrades from FAIL to INFO: only the Claude
-Code rows need it, and they exit through the gate first. typos stays a FAIL either way, because
-the installed git entry runs without Claude Code. Node.js (step 6) is a FAIL either way too.
+typos stays a FAIL even when `typos_format_enabled` is off, because the installed git entry runs
+without Claude Code. Node.js (step 5) is a FAIL either way too.
 
 1. **Bash version.** Check against the README Requirements floor (3.2 or newer).
-2. **`jq`.** The pre-computed `jq` row. FAIL if absent and the end-of-turn check is on.
-3. **typos binary.** The pre-computed `typos` row (PATH only, with no per-repo convention).
+2. **typos binary.** The pre-computed `typos` row (PATH only, with no per-repo convention).
    Report the resolved path and `typos --version` output when found. FAIL when absent: an agent's
    commit then fails with the install command, and a person's commit passes with a notice.
-4. **Consumer typos config (informational only).** typos resolves its own governing config from
+3. **Consumer typos config (informational only).** typos resolves its own governing config from
    each checked path, and the check adds the bundled `config/default-typos.toml` via `typos -c`
    (SHA `extend-ignore-re`); `extend-*` keys merge rather than replace. Report whether a
    `typos.toml`, `_typos.toml`, `.typos.toml`, a `Cargo.toml` with
    `[workspace.metadata.typos]`/`[package.metadata.typos]`, or a `pyproject.toml` with
    `[tool.typos]` governs the repo, as INFO.
-5. **Options.** Report the effective `typos_format_enabled` value
+4. **Options.** Report the effective `typos_format_enabled` value
    (`${user_config.typos_format_enabled}`; unexpanded or empty means `true`) and
    `typos_format_end_of_turn` (`${user_config.typos_format_end_of_turn}`; unexpanded or empty means
    `false`, so findings wait for the commit). Report both as INFO.
-6. **Node.js.** Run `node --version` via Bash. A `command -v node` hit is not enough: a
+5. **Node.js.** Run `node --version` via Bash. A `command -v node` hit is not enough: a
    version-manager shim or a shell function resolves there yet cannot run the launcher. FAIL when
    the command is absent or exits non-zero: the hook rows run `node hooks/exec-bash.mjs` and the
    installer is a node script. Verification record. Claim: Claude Code's native binary neither
    ships nor uses Node. Basis: [Set up](https://code.claude.com/docs/en/setup). As of 2026-09-29.
    Recheck when a re-read of that page no longer says the native install does not use Node.
-7. **Git pre-commit entry.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
+6. **Git pre-commit entry.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
    from the repository. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined` is
    INFO (this clone said no; silent at session start), and `missing`, `stale` or `modified` is a
    FAIL whose remediation is `apply install-git-hooks`. A `tool\t<tool>\tmissing` line means the
@@ -120,12 +116,13 @@ with your own edit tools.
    stop here and report.
 4. **Actions.** When `actions[]` holds `copy` items, run
    `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" copy --scope <scope>` (plus the same
-   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged` or `refused`
-   per entry; `refused` means a locally edited copy, which the `modified` decision covers.
+   `--manager` when you passed one). It prints `installed`, `refreshed`, `unchanged`, `refused`
+   or `unsafe-path` per entry; `refused` means a locally edited copy or dispatcher, which the
+   `modified` decision covers, and `unsafe-path` the decision of that name.
 5. **Decisions.** Read [reference/git-hook-decisions.md](reference/git-hook-decisions.md) for
    what each kind asks of you, apply each one, then rerun `plan` until only the decisions you
    chose to leave remain.
-6. **Verify.** Run `verify` and report its lines as `check` step 7 does.
+6. **Verify.** Run `verify` and report its lines as `check` step 6 does.
 
 When the user does not want an entry in this clone, run
 `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry typos-check`; the
@@ -143,10 +140,10 @@ through the repo's package manager; (2) typos publishes several official install
 platform-appropriate method.
 
 After the consumer installs `typos` themselves, re-run `check` with live Bash probes (the
-pre-computed rows predate the install) and report its actual result.
+pre-computed row predates the install) and report its actual result.
 Never claim resolved without re-verifying. For everything else `apply` only points:
 
-- missing `jq` / Bash / Node.js: platform install instructions from the README Requirements section;
+- missing Bash / Node.js: platform install instructions from the README Requirements section;
   this skill never installs system packages.
 - toggle off: reconfigure through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention
