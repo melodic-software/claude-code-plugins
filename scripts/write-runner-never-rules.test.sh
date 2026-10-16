@@ -71,7 +71,7 @@ say(/protected-path-conflict/.test(prepare.run ?? ""), "a conflicted workflow pa
 say(mint >= 0 && checkout > mint, "the lane token is minted before the head checkout");
 const recheck = at((s) => s.id === "head-recheck");
 say(recheck >= 0 && recheck < mint, "the head re-read runs before the mint");
-for (const id of ["merge-bin", "stage"]) {
+for (const id of ["merge-bin", "hold-label", "stage"]) {
   const i = at((s) => s.id === id);
   say(i >= 0 && i < checkout, `step ${id} copies from the base before the head checkout`);
 }
@@ -151,7 +151,7 @@ const actors = at((s) => s.id === "reply-actors");
 say(actors >= 0 && actors < checkout && /\.base\/\.github\/standards\/trusted-actors\/trusted-actors\.json/.test(byId("reply-actors").run ?? ""),
   "the reply script's trusted-actors list is copied from the base before the head checkout");
 say(/\?\*:feedback-uncertain \| \?\*:feedback-not-landed \| \?\*:feedback-invalid\)/.test(byId("act-script").run ?? "")
-  && /\?\*:feedback-partial\)/.test(byId("act-script").run ?? ""),
+  && /\?\*:feedback-partial \| \?\*:feedback-incomplete \| \?\*:feedback-disputed\)/.test(byId("act-script").run ?? ""),
   "a script escalates only with the reply script's own reasons, and only in review-replies mode");
 say(/chmod -R a-w "\$CHECKS_DIR"/.test(stage) && /disallowed="\$\{disallowed:\+\$disallowed,\}Edit\(\/\$CHECKS_DIR\/\*\*\),Write\(\/\$CHECKS_DIR\/\*\*\)"/.test(stage),
   "the check wrappers and their base copy are read-only to the skill");
@@ -210,8 +210,13 @@ const octokitCallers = steps.filter((s) => /getOctokit/.test(s.with?.script ?? "
 say(octokitCallers.length === 0, `no github-script step calls getOctokit (${octokitCallers.join(", ") || "none"})`);
 say(labels >= 0 && labels < cs.indexOf("createCommit") && /do-not-merge/.test(cs) && /HOLD_LABEL/.test(cs),
   "the commit step re-reads the PR's hold labels before creating the commit");
-say(/\.base\/\.work-item-tracker\.json/.test(copy) && /hold-label=/.test(copy),
-  "the human-gated role label is resolved from the base before the head checkout");
+const holdLabel = byId("hold-label").run ?? "";
+const promoteEnv = byId("promote").env ?? {};
+say(/\.base\/\.work-item-tracker\.json/.test(holdLabel) && /labels-absent/.test(holdLabel) && /echo "labels=\$labels"/.test(holdLabel)
+  && [commit.env, promoteEnv].every((env) => /^\$\{\{ steps\.hold-label\.outputs\.labels \}\}$/.test(String(env?.HOLD_LABELS))
+    && String(env?.READ_TOKEN) === "${{ github.token }}")
+  && /^\$\{\{ steps\.gate\.outputs\.pr-number \}\}$/.test(String(promoteEnv.PR_NUMBER)),
+  "the hold labels are resolved from the base before the head checkout and reach the commit and promote steps with the read-only token");
 
 // Promote moves the PR branch only to the commit the commit step made.
 const promote = byId("promote");

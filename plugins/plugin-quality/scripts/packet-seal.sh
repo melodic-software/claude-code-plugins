@@ -7,9 +7,9 @@
 # PostToolUse may rewrite is the pointer record in
 # skills/audit/reference/evidence-packet.md#packet-files-are-write-once-evidence-sibling-hooks-rewrite-them-in-place
 # (as of 2026-10-11; recheck when that section is renamed or moved, or its
-# pointer stops covering PostToolUse). Observed in this fleet: `typos-format` and
-# `markdown-format` both register that matcher unconditionally and both rewrite
-# in place, damaging exactly what a packet exists to preserve — verbatim
+# pointer stops covering PostToolUse). Observed in this fleet: a formatter
+# plugin such as `markdown-format` registers that matcher and rewrites in
+# place, damaging exactly what a packet exists to preserve — verbatim
 # quotations and code-span identifiers.
 #
 # The rewrite is silent WITH RESPECT TO THE ARTIFACT: it is announced only in

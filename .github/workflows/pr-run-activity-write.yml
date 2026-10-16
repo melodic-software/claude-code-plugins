@@ -62,7 +62,8 @@ on:
       dispatcher-run-id:
         description: >-
           On a workflow_dispatch sent by github-actions[bot], the
-          pr-unblock-dispatch.yml run that sent it; empty otherwise.
+          pr-unblock-dispatch.yml or pr-feedback-dispatch.yml run that sent
+          it; empty otherwise.
         required: false
         type: string
         default: ""
@@ -95,6 +96,15 @@ on:
         required: false
         type: string
         default: ""
+      expected-upstream-head:
+        description: >-
+          For a job after pr-unblock's model job on a pr-feedback-dispatch.yml
+          dispatch, that job's head-sha output: the gate and the broker accept
+          the review of that head when only commits GitHub signed for the lanes App during the run
+          follow it. Empty otherwise.
+        required: false
+        type: string
+        default: ""
       review-run-attempt:
         description: >-
           With review-replies, the model run's feedback-run-attempt output:
@@ -115,9 +125,13 @@ on:
           unresolved-conflict; for review-threads, before any model turn,
           feedback-protected-path or feedback-round-cap; for the
           review-replies script feedback-uncertain, feedback-not-landed or
-          feedback-invalid or feedback-partial; empty otherwise. Set only by runner steps and the
+          feedback-invalid, feedback-partial, feedback-incomplete or
+          feedback-disputed; empty otherwise. Set only by runner steps and the
           base's reply script.
         value: ${{ jobs.run.outputs.escalation-reason }}
+      head-sha:
+        description: The PR head the gate passed, before any push of this run. Set only by runner steps.
+        value: ${{ jobs.run.outputs.head-sha }}
       feedback-round:
         description: >-
           `true` once a review-threads skill ran, so the round's replies were
@@ -253,7 +267,7 @@ jobs:
           case $ESCALATION_REASON in
             "" | protected-path-conflict | workflow-staged | repeat-cap | unresolved-conflict) ;;
             feedback-protected-path | feedback-round-cap | feedback-uncertain | feedback-not-landed | feedback-invalid) ;;
-            feedback-partial) ;;
+            feedback-partial | feedback-incomplete | feedback-disputed) ;;
             *)
               echo "::error::the escalation-reason input is not a known escalation reason"
               exit 1
@@ -298,10 +312,20 @@ jobs:
           denied-actor-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           triggering-actor: ${{ github.triggering_actor }}
           # A dispatch from github-actions[bot] proceeds only when it names a
-          # pr-unblock-dispatch.yml run on the default branch that sent it to
-          # pr-unblock.yml; any other run passes no id and the bot stays unlisted.
+          # pr-unblock-dispatch.yml run on the default branch, or a
+          # pr-feedback-dispatch.yml run whose recorded review run reviewed the
+          # PR's current head, that sent it to pr-unblock.yml; any other run
+          # passes no id and the bot stays unlisted.
           dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
           dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml
+          run-dispatcher-workflow: .github/workflows/pr-feedback-dispatch.yml
+          run-dispatcher-upstreams: >-
+            .github/workflows/pr-review-hosted.yml
+            .github/workflows/pr-review-security-hosted.yml
+          # A job after the model job: the review was of the head that job
+          # gated, and only the lanes App's signed commits may follow it.
+          expected-upstream-head: ${{ inputs.expected-upstream-head }}
+          lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           dispatched-workflow: .github/workflows/pr-unblock.yml
           # Issue mode reads no PR: the account that applied the label, and
           # any re-runner, must be listed as a human.
@@ -416,6 +440,7 @@ jobs:
           pr-number: ${{ steps.gate.outputs.pr-number }}
           issue-number: ${{ inputs.issue-number }}
           dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+          expected-upstream-head: ${{ inputs.expected-upstream-head }}
           effect: ${{ steps.config.outputs.effect }}
           contents: ${{ steps.config.outputs.contents }}
           pull-requests: ${{ steps.config.outputs.pull-requests }}
@@ -547,8 +572,19 @@ jobs:
             exit 1
           fi
           echo "no-progress=$no_progress" >>"$GITHUB_OUTPUT"
-          # The human-gated role label, which the commit step treats as a
-          # hold, resolved from the base the way report-escalation.sh does.
+
+      # The labels the commit and promote steps treat as a hold, as a JSON
+      # array: do-not-merge, the human-gated role label resolved from the base
+      # the way report-escalation.sh does, and the activity's labels-absent
+      # list, all read before the head checkout replaces .base.
+      - name: Read the hold labels from the base
+        id: hold-label
+        if: >-
+          steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.kind == 'skill'
+          && inputs.issue-number == ''
+        env:
+          RESOLVED: ${{ runner.temp }}/resolved-config.json
+        run: |
           hold_label=needs-human
           if [ -f .base/.work-item-tracker.json ]; then
             hold_label=$(jq -er '.config.role_labels // {}
@@ -562,7 +598,13 @@ jobs:
             echo "::error::the human-gated role label is malformed"
             exit 1
           fi
-          echo "hold-label=$hold_label" >>"$GITHUB_OUTPUT"
+          labels=$(jq -ce --arg human "$hold_label" \
+            '["do-not-merge", $human] + [(.selected["applies-when"]["labels-absent"] // [])[] | strings] | unique' \
+            "$RESOLVED") || {
+            echo "::error::cannot read the activity's labels-absent list from the resolved config"
+            exit 1
+          }
+          echo "labels=$labels" >>"$GITHUB_OUTPUT"
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -951,7 +993,7 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           LANE_BRANCH: ${{ steps.lane-branch.outputs.branch }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
-          HOLD_LABEL: ${{ steps.merge-bin.outputs.hold-label }}
+          HOLD_LABELS: ${{ steps.hold-label.outputs.labels }}
           READ_TOKEN: ${{ github.token }}
         with:
           github-token: ${{ steps.lane-token.outputs.token }}
@@ -961,7 +1003,9 @@ jobs:
             const { execFileSync } = require('child_process');
             const { readFileSync } = require('fs');
             const { BIN, TREE_ENTRIES_SHA256, TREE, HEAD_SHA, HEAD_REF, BASE_SHA, DEFAULT_BRANCH, LANE_BRANCH } = process.env;
-            const { PR_NUMBER, HOLD_LABEL, READ_TOKEN } = process.env;
+            const { PR_NUMBER, HOLD_LABELS, READ_TOKEN } = process.env;
+            // Throws on a missing list, so the step fails before any commit.
+            const holds = new Set(['do-not-merge', ...JSON.parse(HOLD_LABELS)]);
             core.setOutput('commit', '');
             core.setOutput('skip-reason', '');
             if (!LANE_BRANCH) {
@@ -1061,7 +1105,7 @@ jobs:
               return;
             }
             const labels = await labelsResponse.json();
-            const held = labels.map((label) => label.name).filter((name) => name === 'do-not-merge' || name === HOLD_LABEL);
+            const held = labels.map((label) => label.name).filter((name) => holds.has(name));
             if (held.length) {
               core.info(`The PR is held (${held.join(', ')}); the merge is not committed`);
               core.setOutput('skip-reason', 'awaiting-human');
@@ -1077,9 +1121,10 @@ jobs:
 
       # Fast-forwards the PR branch to the lane's commits only while it is
       # still at the gated SHA; otherwise the commits are dropped and the run
-      # the new head started redoes the activity. A pinned action, like the
-      # revoke step, since the activity could have changed PATH. The lane
-      # branch is deleted either way.
+      # the new head started redoes the activity. A do-not-merge or human-gated
+      # label, or a draft, set during the run drops them (awaiting-human). A
+      # pinned action, like the revoke step, since the activity could have
+      # changed PATH. The lane branch is deleted either way.
       - name: Move the PR branch to the lane's commits
         id: promote
         if: always() && steps.lane-branch.outputs.branch != '' && inputs.issue-number == ''
@@ -1099,11 +1144,16 @@ jobs:
           THREAD_FILE: >-
             ${{ steps.config.outputs.prepare == 'review-threads'
             && format('{0}/lane-feedback/threads.json', runner.temp) || '' }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          HOLD_LABELS: ${{ steps.hold-label.outputs.labels }}
+          READ_TOKEN: ${{ github.token }}
         with:
           github-token: ${{ steps.lane-token.outputs.token }}
           retries: 0
           script: |
             const { HEAD_SHA, HEAD_REF, LANE_BRANCH, MERGE_BASE, COMMIT_OUTCOME, COMMIT_SHA, THREAD_FILE } = process.env;
+            const { PR_NUMBER, HOLD_LABELS, READ_TOKEN } = process.env;
+            core.setOutput('skip-reason', '');
             const tip = async (branch) =>
               (await github.request('GET /repos/{owner}/{repo}/git/ref/{ref}', { ...context.repo, ref: `heads/${branch}` }))
                 .data.object.sha;
@@ -1128,6 +1178,38 @@ jobs:
                   return;
                 }
               }
+              // A hold or a draft set while the model worked stops the push,
+              // as the merge commit step does: the config decided the hold
+              // predicates only at the start of the job. Read fresh with the
+              // job's read-only token through fetch, since github-script gives
+              // the script no second client.
+              if (!HOLD_LABELS) {
+                core.setFailed('No hold labels were read from the base; the PR branch is not moved');
+                return;
+              }
+              const holds = new Set(['do-not-merge', ...JSON.parse(HOLD_LABELS)]);
+              const read = async (path) => {
+                const response = await fetch(`${process.env.GITHUB_API_URL}/repos/${context.repo.owner}/${context.repo.repo}/${path}`, {
+                  headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${READ_TOKEN}`, 'X-GitHub-Api-Version': '2022-11-28' },
+                });
+                if (!response.ok) {
+                  throw new Error(`Reading ${path} answered ${response.status}; the PR branch is not moved`);
+                }
+                // More labels than one page holds could hide a hold.
+                if (/rel="next"/.test(response.headers.get('link') ?? '')) {
+                  throw new Error(`${path} has more than one page; the PR branch is not moved`);
+                }
+                return response.json();
+              };
+              const pull = await read(`pulls/${Number(PR_NUMBER)}`);
+              const labels = await read(`issues/${Number(PR_NUMBER)}/labels?per_page=100`);
+              const held = labels.map((label) => label.name).filter((name) => holds.has(name));
+              if (held.length || pull.draft !== false) {
+                core.info(`The PR is ${held.length ? `held (${held.join(', ')})` : 'a draft'}; the lane's commits (${lane}) are dropped`);
+                core.setOutput('skip-reason', 'awaiting-human');
+                return;
+              }
+              // The last read before the move, to keep its window short.
               const head = await tip(HEAD_REF);
               if (head !== HEAD_SHA) {
                 core.setFailed(`The PR branch moved from ${HEAD_SHA} to ${head} during the run, so the lane's commits (${lane}) are not applied; the run for the new head redoes the activity`);
@@ -1310,6 +1392,8 @@ jobs:
           FEEDBACK_REPLIES_DIR: ${{ inputs.review-replies && format('{0}/feedback-replies', runner.temp) || '' }}
           TRUSTED_ACTORS: ${{ inputs.review-replies && format('{0}/base-script/.trusted-actors.json', runner.temp) || '' }}
           RUN_SHA256: ${{ inputs.review-run-sha256 }}
+          HEAD_REF: ${{ steps.gate.outputs.head-ref }}
+          MODEL_RUN_ATTEMPT: ${{ inputs.review-run-attempt }}
           ESCALATION_REASON_FILE: ${{ runner.temp }}/escalation-reason
         run: |
           if [ "$TRACKER_SHA256" = absent ]; then
@@ -1348,7 +1432,7 @@ jobs:
             escalation=$(head -n 1 "$ESCALATION_REASON_FILE" | tr -d '\r')
             case "$FEEDBACK_REPLIES_DIR:$escalation" in
               ?*:feedback-uncertain | ?*:feedback-not-landed | ?*:feedback-invalid) ;;
-              ?*:feedback-partial) ;;
+              ?*:feedback-partial | ?*:feedback-incomplete | ?*:feedback-disputed) ;;
               *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
             esac
           fi
@@ -1369,7 +1453,8 @@ jobs:
           SKIP_REASON: >-
             ${{ steps.config.outputs.skip-reason || steps.head-recheck.outputs.skip-reason
             || steps.prepare.outputs.skip-reason || steps.post.outputs.skip-reason
-            || steps.commit.outputs.skip-reason || steps.act-script.outputs.skip-reason
+            || steps.commit.outputs.skip-reason || steps.promote.outputs.skip-reason
+            || steps.act-script.outputs.skip-reason
             || steps.feedback-select.outputs.skip-reason }}
           ACT_OUTCOME: >-
             ${{ steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'

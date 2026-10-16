@@ -54,10 +54,10 @@
       "id": 5,
       "name": "check-runs-its-own-probes-including-node",
       "prompt": "/typos-format:check\n\nnode is not on PATH here, though typos is installed.",
-      "expected_output": "Runs the jq, node and typos probes via Bash, since setup's pre-computed rows are not rendered when this skill reads the file, and reports a Node.js FAIL with the reason.",
+      "expected_output": "Runs the node and typos probes via Bash, since setup's pre-computed rows are not rendered when this skill reads the file, and reports a Node.js FAIL with the reason.",
       "files": [],
       "expectations": [
-        "Runs the jq, node and typos probes via Bash instead of expecting pre-computed rows",
+        "Runs the node and typos probes via Bash instead of expecting pre-computed rows",
         "Reports the missing node as FAIL because every hook launch goes through node hooks/exec-bash.mjs",
         "Installs nothing and stops after the table"
       ]

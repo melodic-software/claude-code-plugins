@@ -1,7 +1,7 @@
 # shellcheck shell=bash
-# Fixtures shared by test-judge-bg.test.sh, test-judge.test.sh and
-# test-judge-start.test.sh: a throwaway repository, the option gates, a stub
-# judge behind TEST_JUDGE_CMD, and writers for the state test-scan leaves.
+# Fixtures for the judge calibration tests (metrics.test.sh): a throwaway
+# repository, the option gates, a stub judge behind TEST_JUDGE_CMD, and writers
+# for the per-file records judge-lib.sh reads.
 # No test calls a real model: a `claude` first on PATH fails loudly.
 # shellcheck disable=SC2034 # read by the sourcing test
 
@@ -82,7 +82,7 @@ export CLAUDE_PLUGIN_DATA="$TMP/data" CLAUDE_PROJECT_DIR="$REPO" HOME="$TMP/home
 # The recorders skip files under the temp root. These fixtures live there, so
 # point the root at a directory that holds none of them (#6037).
 export TEST_SCAN_SKIP_ROOT="$TMP/judge-skip-root"
-export CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true CLAUDE_PLUGIN_OPTION_TEST_JUDGE_ENABLED=true
+export CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true
 export TEST_JUDGE_DEBOUNCE=0 TEST_JUDGE_CMD="$TMP/judge-stub.sh" STUB_DIR="$TMP/stub"
 # Every js_file test has the same body, so verdict reuse would answer most
 # judge runs these suites count; the reuse cases turn it back on.

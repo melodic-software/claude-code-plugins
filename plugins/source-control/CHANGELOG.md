@@ -3,6 +3,29 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.6.1] - 2026-10-16
+
+### Changed
+
+- `/source-control:pull-request` prep runs the `/testing:audit --judge` pass over changed tests when the testing plugin is installed and enabled, and reports `judge pass not run: testing plugin not installed or not enabled` otherwise.
+
+## [1.6.0] - 2026-10-16
+
+### Added
+
+- `/source-control:pull-request comments --ci` answers reviewer-bot threads unattended for the
+  pr-unblock lane's `address-feedback` activity, through a review-thread tool the runner stages:
+  it works only the threads the runner kept, edits only the files they name and never `.github/`,
+  commits its fixes, and records one templated disposition per thread (disposition, `path:line`
+  evidence, fix SHA, prose note). It posts nothing and runs no head code; a later job with no
+  model validates the recorded replies and posts them (#7032).
+
+### Changed
+
+- `/source-control:pull-request comments --ci` now tells the skill to record exactly one
+  disposition for every kept thread: the reply job posts nothing when one is missing, and an
+  `INCORRECT` thread, like `UNCERTAIN` and `VALID-defer`, stays open for a person (#7032).
+
 ## [1.5.2] - 2026-10-15
 
 ### Fixed

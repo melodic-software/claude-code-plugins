@@ -374,8 +374,8 @@ apply").
 
 ### Chosen default
 
-`sonnet` at `medium`, fallback `opus` at `medium`, written to `plugin.json` (`test_judge_model`,
-`test_judge_fallback_model`, `test_judge_effort`) and to `judge-lib.sh`'s in-script defaults.
+`sonnet` at `medium`, fallback `opus` at `medium`, written to `/testing:audit`'s judge pass (its
+default and fallback model and its effort) and to `judge-lib.sh`'s in-script defaults.
 The rule as applied under the consensus labels: the most accurate arms are `opus` `medium` and
 `opus` `high` (71/78), and the tie-breaks make `opus` `high` the reference (lower p95). No arm
 differs from it at 0.05 (lowest p 0.1797), so all seven tie. Among the tied arms `sonnet` wins, and
@@ -387,5 +387,5 @@ The shipped default is `sonnet` `medium` instead. Under GPT's round-2 labels (se
 `sonnet` `medium`. `sonnet` `medium` is tied-best under both label sets, for $0.0164 per row
 against $0.0155 and p95 12.6 s against 11.8 s. The fallback is the best `opus` arm by the same rule
 under the consensus labels: all three tie with `opus` `high`, and `low` has the lowest p95
-(15.3 s). Both classes run at the one `test_judge_effort`, so the fallback runs at `medium`, and
+(15.3 s). Both classes run at the one effort, so the fallback runs at `medium`, and
 `opus` `medium` is also tied-best (71/78).

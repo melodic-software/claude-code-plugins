@@ -49,8 +49,9 @@ The system prompt names the tool's path. It is the only shell command this mode 
    edit more files to get past it. Record the remaining threads and report the refusal.
 
 The reply job resolves a `VALID` thread once its fix is on the pull request's branch.
-`INCORRECT` stays open with its evidence. `UNCERTAIN` and `VALID-defer` stay open, and the pull
-request then goes to a person. Any reply off the template means no reply is posted at all.
+`INCORRECT`, `UNCERTAIN` and `VALID-defer` stay open, and the pull request then goes to a person.
+Record exactly one disposition for every thread `list` returns: a missing one, or any reply off
+the template, means no reply is posted at all.
 
 ## Not in this mode
 
