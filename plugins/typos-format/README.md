@@ -323,6 +323,12 @@ so its cost is paid on every file the agent touches and it owes the
 marketplace's [hook budget](../../docs/conventions/hook-budget/README.md) an
 honest figure.
 
+The opt-in Stop row fires on every turn end. With `typos_format_end_of_turn` off, its default,
+a fire costs one process, the node launcher, whose gate closes before bash starts
+(`scripts/hook-census.sh`, WSL2 Ubuntu, 2026-10-15; fenced by
+`hooks/typos-format-end-of-turn.test.sh`). With the option on, a clean work tree measured 19
+process creations and execs on the same host.
+
 **Method.** `EPOCHREALTIME` wall-clock around a direct hook invocation, 12
 interleaved trials, each preceded by a `bash -c :` spawn-floor run so the
 reported ratio absorbs machine load. The payload is a `PostToolUse` `Write`
