@@ -683,7 +683,24 @@ function ratifiedIssue(comments) {
   return { env, github, calls };
 }
 
-const comment = (user, body = MARKER, app = null) => ({ user, body, performed_via_github_app: app });
+const POSTED = "2026-10-16T12:00:00Z";
+const comment = (user, body = MARKER, app = null, updated = POSTED) => ({
+  user,
+  body,
+  performed_via_github_app: app,
+  created_at: POSTED,
+  updated_at: updated,
+});
+
+// An edit changes neither the author nor the App, so an edited comment's text
+// may be another account's.
+test("an owner marker comment edited after it was posted does not admit", async () => {
+  const { env, github } = ratifiedIssue([comment(OWNER, MARKER, null, "2026-10-16T12:05:00Z")]);
+  assert.equal(await main({ env, github }), 0);
+  const outputs = readOutputs(env.GITHUB_OUTPUT);
+  assert.equal(outputs.applies, "false");
+  assert.equal(outputs["skip-reason"], "not-applicable");
+});
 
 test("an issue the owner ratified with the admission marker is admitted with no work class", async () => {
   const { env, github, calls } = ratifiedIssue([comment(OWNER)]);

@@ -117,7 +117,10 @@ async function gatherFacts(
           RATIFICATION_MARKER.test(comment.body ?? "") &&
           ratifiers.has(comment.user?.id) &&
           // Through a GitHub App, the text is that App's, not the owner's.
-          comment.performed_via_github_app == null,
+          comment.performed_via_github_app == null &&
+          // An edit keeps the author, so edited text may be another account's.
+          typeof comment.created_at === "string" &&
+          comment.updated_at === comment.created_at,
       );
     }
     if (needed.includes("labeledAt") && typeof issue.updated_at === "string") {
