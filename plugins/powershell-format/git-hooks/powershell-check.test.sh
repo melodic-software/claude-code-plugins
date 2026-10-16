@@ -101,6 +101,24 @@ expect "a finding on an added line blocks, naming that line" "1||a.ps1:2: [Warni
 expect "the finding is followed by the hint" "$HINT" "$(printf '%s' "$got" | tail -1)"
 
 new_repo
+mkdir -p "$REPO/scripts"
+printf 'Get-ChildItem .\n$global:foo = 1\n' >"$REPO/scripts/gone.ps1"
+printf 'get-childitem .\n' >"$REPO/a.ps1"
+git -C "$REPO" add scripts/gone.ps1 a.ps1
+rm -r "$REPO/scripts"
+got="$(check "$REPO")"
+expect "staged then deleted from the work tree: the staged finding still blocks; a present file is still rewritten" "1|a.ps1|scripts/gone.ps1:2: [Warning] PSAvoidGlobalVars:" "$(first_line "$got")"
+expect "staged then deleted: the file is not recreated" "no" "$([[ -e "$REPO/scripts/gone.ps1" ]] && echo yes || echo no)"
+git -C "$REPO" rm -q --cached scripts/gone.ps1
+printf 'get-childitem .\n' >"$REPO/gone.ps1"
+ln -s missing.ps1 "$REPO/link.ps1"
+git -C "$REPO" add gone.ps1 link.ps1
+rm "$REPO/gone.ps1" "$REPO/link.ps1"
+got="$(check "$REPO")"
+expect "staged then deleted: a miscased file is reported, not rewritten; a symlink is not checked" "1||gone.ps1:1: [Information] PSUseCorrectCasing:" "$(first_line "$got" | sed 's/ PSUseCorrectCasing: .*/ PSUseCorrectCasing:/')"
+expect "staged then deleted: the index keeps its bytes" "get-childitem ." "$(git -C "$REPO" show :gone.ps1)"
+
+new_repo
 printf '$global:foo = 1\n' >"$REPO/seed.ps1"
 git -C "$REPO" add seed.ps1
 git -C "$REPO" commit -q -m old --no-verify

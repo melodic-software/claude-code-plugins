@@ -12,7 +12,8 @@
 # --fix` (safe fixes) and `ruff format` run over the staged .py and .pyi files,
 # the rewritten paths print on stdout and are re-staged, and the findings that
 # remain print as "<path>:<line>: <message>" on stderr, exit 1, only for lines
-# the commit adds.
+# the commit adds. A staged file since deleted from the work tree is checked
+# from the index and never rewritten.
 #
 # Only a file a Ruff configuration governs is touched (a .ruff.toml, ruff.toml,
 # or pyproject.toml with a [tool.ruff] section above it), and the config's own
@@ -59,22 +60,33 @@ governed() {
   done
 }
 
+# staged_gone <path>: 0 at pre-commit when <path> is gone from the work tree and
+# the index holds it as a regular file, not a symlink (mode 120000) or a submodule.
+staged_gone() {
+  [[ "$CHECKS_MODE" == pre-commit && ! -e "$1" && ! -L "$1" ]] || return 1
+  [[ "$(git ls-files -s -- ":(literal)$1" 2>/dev/null)" == 100* ]]
+}
+
 files=()
+gone=()
 while IFS= read -r -d '' f; do
   case "$f" in
   .githooks/*) continue ;;
   *.py | *.pyi) ;;
   *) continue ;;
   esac
-  [[ -f "$f" && ! -L "$f" ]] || continue
   governed "$f" || continue
-  files+=("$f")
+  if [[ -f "$f" && ! -L "$f" ]]; then
+    files+=("$f")
+  elif staged_gone "$f"; then
+    gone+=("$f")
+  fi
 done < <(checks_files)
-((${#files[@]})) || exit 0
+((${#files[@]} + ${#gone[@]})) || exit 0
 
 common=(--force-exclude --no-cache --quiet)
 
-if [[ "$CHECKS_MODE" == pre-commit ]]; then
+if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#files[@]})); then
   # Only the Python files are refused, not every staged path, which is what
   # checks_refuse_partly_staged would walk.
   refused=0
@@ -108,14 +120,30 @@ to_contract() {
 }
 
 out="$CHECKS_TMP/ruff"
-ruff check --no-fix --output-format concise "${common[@]}" -- "${files[@]}" >"$out" 2>&1
-rc=$?
-if ((rc > 1)); then
-  printf 'ruff-format: ruff failed:\n' >&2
-  cat "$out" >&2
-  exit 1
+: >"$CHECKS_TMP/contract"
+if ((${#files[@]})); then
+  ruff check --no-fix --output-format concise "${common[@]}" -- "${files[@]}" >"$out" 2>&1
+  rc=$?
+  if ((rc > 1)); then
+    printf 'ruff-format: ruff failed:\n' >&2
+    cat "$out" >&2
+    exit 1
+  fi
+  to_contract <"$out" >>"$CHECKS_TMP/contract"
 fi
-to_contract <"$out" | checks_filter_findings >"$CHECKS_TMP/blocking"
+# --stdin-filename names the path, so the config and its excludes hold for it.
+for f in ${gone[@]+"${gone[@]}"}; do
+  git show ":$f" 2>/dev/null |
+    ruff check --no-fix --output-format concise "${common[@]}" --stdin-filename "$f" - >"$out" 2>&1
+  rc=${PIPESTATUS[1]}
+  if ((rc > 1)); then
+    printf 'ruff-format: ruff failed on %s:\n' "$f" >&2
+    cat "$out" >&2
+    exit 1
+  fi
+  to_contract <"$out" >>"$CHECKS_TMP/contract"
+done
+checks_filter_findings <"$CHECKS_TMP/contract" >"$CHECKS_TMP/blocking"
 [[ -s "$CHECKS_TMP/blocking" ]] || exit 0
 cat "$CHECKS_TMP/blocking" >&2
 printf 'ruff-format: fix the findings above, or adjust the repository Ruff config.\n' >&2

@@ -99,6 +99,39 @@ git -C "$REPO" add seed.ts
 expect "a finding on an added line blocks, naming that line" "1||seed.ts:3: lint/correctness/noUnusedVariables: This variable unusedVar is unused.
 $HINT" "$(check "$REPO")"
 
+new_repo '{ "files": { "includes": ["**", "!**/gen/**"] } }'
+mkdir -p "$REPO/pkg/sub"
+printf '{ "root": false, "extends": "//" }\n' >"$REPO/pkg/biome.json"
+printf 'export const a=1\nconst unusedVar = 1;\n' >"$REPO/pkg/sub/gone.ts"
+git -C "$REPO" add pkg/biome.json pkg/sub/gone.ts
+rm -r "$REPO/pkg/sub"
+expect "staged then deleted from the work tree: the staged finding still blocks, nothing rewritten" "1||pkg/sub/gone.ts:2: lint/correctness/noUnusedVariables: This variable unusedVar is unused.
+$HINT" "$(check "$REPO")"
+expect "staged then deleted: the file is not recreated" "no" "$([[ -e "$REPO/pkg/sub/gone.ts" ]] && echo yes || echo no)"
+expect "staged then deleted: the index keeps its unformatted bytes" "$(printf 'export const a=1\nconst unusedVar = 1;')" "$(git -C "$REPO" show :pkg/sub/gone.ts)"
+git -C "$REPO" rm -q --cached pkg/sub/gone.ts
+mkdir -p "$REPO/gen"
+printf 'const unusedVar = 1;\n' >"$REPO/gen/g.ts"
+git -C "$REPO" add gen/g.ts
+rm -r "$REPO/gen"
+expect "staged then deleted: the config's ignores still hold" "0||" "$(check "$REPO")"
+git -C "$REPO" rm -q --cached gen/g.ts
+printf '{ "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true } }\n' >"$REPO/biome.json"
+printf 'vendor/\n' >"$REPO/.gitignore"
+mkdir -p "$REPO/vendor"
+printf 'const unusedVar = 1;\n' >"$REPO/vendor/v.ts"
+printf 'const unusedVar = 1;\n' >"$REPO/kept.ts"
+git -C "$REPO" add -f vendor/v.ts
+git -C "$REPO" add kept.ts
+rm -r "$REPO/vendor" "$REPO/kept.ts"
+expect "staged then deleted: with vcs.useIgnoreFile the .gitignore holds and the rest is checked" "1||kept.ts:1: lint/correctness/noUnusedVariables: This variable unusedVar is unused.
+$HINT" "$(check "$REPO")"
+git -C "$REPO" rm -q --cached vendor/v.ts kept.ts
+ln -s missing.ts "$REPO/link.ts"
+git -C "$REPO" add link.ts
+rm "$REPO/link.ts"
+expect "staged then deleted: a staged symlink is not checked" "0||" "$(check "$REPO")"
+
 new_repo
 printf 'const unusedVar = 1;\n' >"$REPO/seed.ts"
 git -C "$REPO" add seed.ts

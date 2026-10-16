@@ -90,6 +90,26 @@ git -C "$REPO" add seed.py
 expect "a finding on an added line blocks, naming that line" "1||seed.py:3: F821 Undefined name \`undefined_name\`
 $HINT" "$(check "$REPO")"
 
+new_repo 'extend-exclude = ["gen"]'
+printf 'x=1\nprint(undefined_name)\n' >"$REPO/gone.py"
+git -C "$REPO" add gone.py
+rm "$REPO/gone.py"
+expect "staged then deleted from the work tree: the staged finding still blocks, nothing rewritten" "1||gone.py:2: F821 Undefined name \`undefined_name\`
+$HINT" "$(check "$REPO")"
+expect "staged then deleted: the file is not recreated" "no" "$([[ -e "$REPO/gone.py" ]] && echo yes || echo no)"
+expect "staged then deleted: the index keeps its bytes" "$(printf 'x=1\nprint(undefined_name)')" "$(git -C "$REPO" show :gone.py)"
+git -C "$REPO" rm -q --cached gone.py
+mkdir -p "$REPO/gen"
+printf 'print(undefined_name)\n' >"$REPO/gen/g.py"
+git -C "$REPO" add gen/g.py
+rm -r "$REPO/gen"
+expect "staged then deleted: the config's excludes still hold" "0||" "$(check "$REPO")"
+git -C "$REPO" rm -q --cached gen/g.py
+ln -s missing.py "$REPO/link.py"
+git -C "$REPO" add link.py
+rm "$REPO/link.py"
+expect "staged then deleted: a staged symlink is not checked" "0||" "$(check "$REPO")"
+
 new_repo
 printf 'print(undefined_name)\n' >"$REPO/seed.py"
 git -C "$REPO" add seed.py

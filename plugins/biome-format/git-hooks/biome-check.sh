@@ -13,6 +13,8 @@
 # .tsx, .js, .jsx, .mjs, .cjs, .mts, .cts, .json and .jsonc files, the rewritten
 # paths print on stdout and are re-staged, and the findings that remain print as
 # "<path>:<line>: <message>" on stderr, exit 1, only for lines the commit adds.
+# A staged file since deleted from the work tree is checked from the index and
+# never rewritten.
 #
 # Only a file a Biome configuration governs is touched: a biome.json or
 # biome.jsonc in the file's directory or above it, up to the repository root. The
@@ -55,18 +57,35 @@ biome_config_dir() {
   [[ -n "$CONFIG_DIR" ]]
 }
 
+# staged_gone <path>: 0 at pre-commit when <path> is gone from the work tree and
+# the index holds it as a regular file, not a symlink (mode 120000) or a submodule.
+staged_gone() {
+  [[ "$CHECKS_MODE" == pre-commit && ! -e "$1" && ! -L "$1" ]] || return 1
+  [[ "$(git ls-files -s -- ":(literal)$1" 2>/dev/null)" == 100* ]]
+}
+
+# The work tree's files run where they are; a file gone from the work tree runs
+# from its staged content in a scratch mirror ("staged" below), never rewritten.
 files=()
 dirs=()
+kinds=()
 while IFS= read -r -d '' f; do
   case "$f" in
   .githooks/*) continue ;;
   *.ts | *.tsx | *.js | *.jsx | *.mjs | *.cjs | *.mts | *.cts | *.json | *.jsonc) ;;
   *) continue ;;
   esac
-  [[ -f "$f" && ! -L "$f" ]] || continue
+  if [[ -f "$f" && ! -L "$f" ]]; then
+    kind=tree
+  elif staged_gone "$f"; then
+    kind=staged
+  else
+    continue
+  fi
   biome_config_dir "$f" || continue
   files+=("$f")
   dirs+=("$CONFIG_DIR")
+  kinds+=("$kind")
 done < <(checks_files)
 ((${#files[@]})) || exit 0
 
@@ -77,22 +96,49 @@ for d in "${dirs[@]}"; do
 done
 checks_require_tool biome "npm i -D @biomejs/biome, or another method at https://biomejs.dev/guides/getting-started/"
 
-# Each distinct config directory is one Biome run, from that directory, over its
-# files named relative to it. Sets GROUP_DIR, GROUP_BIN and GROUP (the paths).
-done_dirs=$'\n'
-group_dirs=()
-for d in "${dirs[@]}"; do
-  [[ "$done_dirs" != *$'\n'"$d"$'\n'* ]] || continue
-  done_dirs+="$d"$'\n'
-  group_dirs+=("$d")
+# mirror <path>: the staged content of <path> under $CHECKS_TMP/staged at the
+# same relative path, beside a copy of every Biome config and ignore file on the
+# way down from the top level, so Biome run there reads the repository's config
+# and, with vcs.useIgnoreFile, its ignores.
+mirror() {
+  local root="$CHECKS_TMP/staged" rel=. rest="$1" name
+  mkdir -p "$root"
+  while :; do
+    for name in biome.json biome.jsonc .gitignore .ignore; do
+      [[ -f "$rel/$name" ]] && cp "$rel/$name" "$root/$rel/$name"
+    done
+    [[ "$rest" == */* ]] || break
+    rel="$rel/${rest%%/*}"
+    rest="${rest#*/}"
+    mkdir -p "$root/$rel"
+  done
+  git show ":$1" >"$root/$1" 2>/dev/null
+}
+for i in "${!files[@]}"; do
+  [[ "${kinds[i]}" == staged ]] && mirror "${files[i]}"
 done
 
-load_group() { # <config dir>
+# Each distinct config directory and kind is one Biome run, from that directory,
+# over its files named relative to it. Sets GROUP_DIR, GROUP_KIND, GROUP_BIN and
+# GROUP (the paths).
+done_groups=$'\n'
+group_dirs=()
+group_kinds=()
+for i in "${!files[@]}"; do
+  key="${kinds[i]} ${dirs[i]}"
+  [[ "$done_groups" != *$'\n'"$key"$'\n'* ]] || continue
+  done_groups+="$key"$'\n'
+  group_dirs+=("${dirs[i]}")
+  group_kinds+=("${kinds[i]}")
+done
+
+load_group() { # <config dir> <kind>
   local i f
   GROUP_DIR="$1"
+  GROUP_KIND="$2"
   GROUP=()
   for i in "${!files[@]}"; do
-    [[ "${dirs[i]}" == "$GROUP_DIR" ]] || continue
+    [[ "${dirs[i]}" == "$GROUP_DIR" && "${kinds[i]}" == "$GROUP_KIND" ]] || continue
     f="${files[i]}"
     if [[ "$GROUP_DIR" == . ]]; then GROUP+=("$f"); else GROUP+=("${f#"$GROUP_DIR"/}"); fi
   done
@@ -107,16 +153,21 @@ load_group() { # <config dir>
 # run_biome <output file> [biome check options...]: BIOME_CONFIG_PATH is unset so
 # a stray export cannot swap the discovered config for another one.
 run_biome() {
-  local out="$1"
+  local out="$1" base=.
   shift
-  (cd "$GROUP_DIR" && env -u BIOME_CONFIG_PATH "$GROUP_BIN" check "$@" --no-errors-on-unmatched -- "${GROUP[@]}") >"$out" 2>&1
+  [[ "$GROUP_KIND" == staged ]] && base="$CHECKS_TMP/staged"
+  (cd "$base/$GROUP_DIR" && env -u BIOME_CONFIG_PATH "$GROUP_BIN" check "$@" --no-errors-on-unmatched -- "${GROUP[@]}") >"$out" 2>&1
 }
 
 if [[ "$CHECKS_MODE" == pre-commit ]]; then
   # Only the Biome files are refused, not every staged path, which is what
   # checks_refuse_partly_staged would walk.
   refused=0
-  for f in "${files[@]}"; do
+  tree=()
+  for i in "${!files[@]}"; do
+    [[ "${kinds[i]}" == tree ]] || continue
+    f="${files[i]}"
+    tree+=("$f")
     if checks_partly_staged "$f"; then
       printf '%s: partly staged; format it or stage it fully, then commit\n' "$f" >&2
       refused=1
@@ -124,15 +175,18 @@ if [[ "$CHECKS_MODE" == pre-commit ]]; then
   done
   ((refused)) && exit 1
 
-  for d in "${group_dirs[@]}"; do
-    load_group "$d"
+  for i in "${!group_dirs[@]}"; do
+    [[ "${group_kinds[i]}" == tree ]] || continue
+    load_group "${group_dirs[i]}" tree
     run_biome "$CHECKS_TMP/write" --write || :
   done
 
   rewritten=()
-  while IFS= read -r -d '' f; do
-    rewritten+=("$f")
-  done < <(git diff --name-only -z -- "${files[@]}")
+  if ((${#tree[@]})); then
+    while IFS= read -r -d '' f; do
+      rewritten+=("$f")
+    done < <(git diff --name-only -z -- "${tree[@]}")
+  fi
   if ((${#rewritten[@]})); then
     printf '%s\n' "${rewritten[@]}"
     git add -- "${rewritten[@]}"
@@ -169,8 +223,8 @@ has_diagnostic() {
 }
 
 : >"$CHECKS_TMP/contract"
-for d in "${group_dirs[@]}"; do
-  load_group "$d"
+for i in "${!group_dirs[@]}"; do
+  load_group "${group_dirs[i]}" "${group_kinds[i]}"
   out="$CHECKS_TMP/report"
   run_biome "$out" --error-on-warnings --reporter=concise
   rc=$?

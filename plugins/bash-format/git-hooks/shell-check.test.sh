@@ -114,6 +114,21 @@ expect "a finding on an added line blocks, naming that line" "1||a.sh:5: warning
 $HINT" "$(check "$REPO")"
 
 new_repo
+mkdir -p "$REPO/bin"
+printf '%s\necho "$undefined_var"\n' "$TABBED" >"$REPO/bin/gone.sh"
+git -C "$REPO" add bin/gone.sh
+rm -r "${REPO:?}/bin"
+expect "staged then deleted from the work tree: the staged finding still blocks, nothing rewritten" "1||bin/gone.sh:5: warning: undefined_var is referenced but not assigned. [SC2154]
+$HINT" "$(check "$REPO")"
+expect "staged then deleted: the script is not recreated" "no" "$([[ -e "$REPO/bin/gone.sh" ]] && echo yes || echo no)"
+expect "staged then deleted: the index keeps its unformatted bytes" "$TABBED"$'\necho "$undefined_var"' "$(git -C "$REPO" show :bin/gone.sh)"
+git -C "$REPO" rm -q --cached bin/gone.sh
+ln -s missing.sh "$REPO/link.sh"
+git -C "$REPO" add link.sh
+rm "$REPO/link.sh"
+expect "staged then deleted: a staged symlink is not checked" "0||" "$(check "$REPO")"
+
+new_repo
 printf '%s\necho "$undefined_var"\n' "$SHEBANG" >"$REPO/seed.sh"
 git -C "$REPO" add seed.sh
 git -C "$REPO" commit -q -m old --no-verify

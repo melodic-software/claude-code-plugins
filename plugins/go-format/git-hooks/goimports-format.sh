@@ -13,7 +13,8 @@
 # staged .go files, the rewritten paths print on stdout and are re-staged, and
 # each parse error prints as "<path>:<line>: <message>" on stderr, exit 1.
 # A file that does not parse is a failure wherever the error sits, so the errors
-# are not narrowed to the lines the commit adds.
+# are not narrowed to the lines the commit adds. A staged file since deleted
+# from the work tree is parsed from the index and never rewritten.
 #
 # A file whose leading comment block carries Go's `// Code generated ... DO NOT
 # EDIT.` marker is left alone, as is anything under .githooks/ (installed
@@ -61,20 +62,32 @@ generated() {
   return 1
 }
 
+# staged_gone <path>: 0 at pre-commit when <path> is gone from the work tree and
+# the index holds it as a regular file, not a symlink (mode 120000) or a submodule.
+staged_gone() {
+  [[ "$CHECKS_MODE" == pre-commit && ! -e "$1" && ! -L "$1" ]] || return 1
+  [[ "$(git ls-files -s -- ":(literal)$1" 2>/dev/null)" == 100* ]]
+}
+
 files=()
+gone=()
 while IFS= read -r -d '' f; do
   case "$f" in
     .githooks/*) continue ;;
     *.go) ;;
     *) continue ;;
   esac
-  [[ -f "$f" && ! -L "$f" ]] || continue
-  generated "$f" && continue
-  files+=("$f")
+  if [[ -f "$f" && ! -L "$f" ]]; then
+    generated "$f" && continue
+    files+=("$f")
+  elif staged_gone "$f"; then
+    generated <(git show ":$f" 2>/dev/null) && continue
+    gone+=("$f")
+  fi
 done < <(checks_files)
-((${#files[@]})) || exit 0
+((${#files[@]} + ${#gone[@]})) || exit 0
 
-if [[ "$CHECKS_MODE" == pre-commit ]]; then
+if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#files[@]})); then
   # Only the Go files are refused, not every staged path, which is what
   # checks_refuse_partly_staged would walk.
   refused=0
@@ -118,7 +131,7 @@ run_group() {
 # covers them.
 group=()
 group_prefix=""
-for f in "${files[@]}"; do
+for f in ${files[@]+"${files[@]}"}; do
   dir="${f%/*}"
   [[ "$dir" == "$f" ]] && dir=.
   prefix="$(local_prefix "$dir")"
@@ -131,7 +144,19 @@ for f in "${files[@]}"; do
 done
 ((${#group[@]})) && run_group "$group_prefix" "${group[@]}"
 
-if [[ "$CHECKS_MODE" == pre-commit ]]; then
+# goimports reads stdin when given no file and names it "<standard input>".
+for f in ${gone[@]+"${gone[@]}"}; do
+  dir="${f%/*}"
+  [[ "$dir" == "$f" ]] && dir=.
+  prefix="$(local_prefix "$dir")"
+  args=()
+  [[ -n "$prefix" ]] && args+=(-local "$prefix")
+  git show ":$f" 2>/dev/null | goimports ${args[@]+"${args[@]}"} 2>"$CHECKS_TMP/one" >/dev/null || :
+  escaped="$(printf '%s' "$f" | sed 's/[#&\\]/\\&/g')"
+  sed "s#^<standard input>:#$escaped:#" "$CHECKS_TMP/one" >>"$errs"
+done
+
+if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#files[@]})); then
   rewritten=()
   while IFS= read -r -d '' f; do
     rewritten+=("$f")

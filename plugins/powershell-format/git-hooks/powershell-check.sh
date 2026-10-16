@@ -12,7 +12,8 @@
 # runs over the staged .ps1, .psm1 and .psd1 files, the rewritten paths print on
 # stdout and are re-staged, and the findings that remain print as
 # "<path>:<line>: [<severity>] <rule>: <message>" on stderr, exit 1, only for
-# lines the commit adds.
+# lines the commit adds. A staged file since deleted from the work tree is
+# analyzed from the index and never rewritten.
 #
 # Only a file that a PSScriptAnalyzerSettings.psd1 governs is touched (the closest
 # one at or above the file, up to the repository root), and the settings file
@@ -65,8 +66,18 @@ find_settings() {
   done
 }
 
+# staged_gone <path>: 0 at pre-commit when <path> is gone from the work tree and
+# the index holds it as a regular file, not a symlink (mode 120000) or a submodule.
+staged_gone() {
+  [[ "$CHECKS_MODE" == pre-commit && ! -e "$1" && ! -L "$1" ]] || return 1
+  [[ "$(git ls-files -s -- ":(literal)$1" 2>/dev/null)" == 100* ]]
+}
+
+# kinds: "tree" runs on the work tree's file; "staged" on its staged content,
+# written to $CHECKS_TMP/staged, for a file gone from the work tree.
 files=()
 sets=()
+kinds=()
 SETTINGS=""
 while IFS= read -r -d '' f; do
   case "$f" in
@@ -75,20 +86,40 @@ while IFS= read -r -d '' f; do
     *.ps1 | *.psm1 | *.psd1) ;;
     *) continue ;;
   esac
-  [[ -f "$f" && ! -L "$f" ]] || continue
+  if [[ -f "$f" && ! -L "$f" ]]; then
+    kind=tree
+  elif staged_gone "$f"; then
+    kind=staged
+  else
+    continue
+  fi
   find_settings "$f" || continue
   files+=("$f")
   sets+=("$SETTINGS")
+  kinds+=("$kind")
 done < <(checks_files)
 ((${#files[@]})) || exit 0
 
 checks_require_tool pwsh "see https://learn.microsoft.com/powershell/scripting/install/installing-powershell"
 
+tree=()
+for i in "${!files[@]}"; do
+  f="${files[i]}"
+  if [[ "${kinds[i]}" == tree ]]; then
+    tree+=("$f")
+  else
+    dir=.
+    [[ "$f" == */* ]] && dir="${f%/*}"
+    mkdir -p "$CHECKS_TMP/staged/$dir"
+    git show ":$f" >"$CHECKS_TMP/staged/$f" 2>/dev/null
+  fi
+done
+
 if [[ "$CHECKS_MODE" == pre-commit ]]; then
   # Only the PowerShell files are refused, not every staged path, which is what
   # checks_refuse_partly_staged would walk.
   refused=0
-  for f in "${files[@]}"; do
+  for f in ${tree[@]+"${tree[@]}"}; do
     if checks_partly_staged "$f"; then
       printf '%s: partly staged; format it or stage it fully, then commit\n' "$f" >&2
       refused=1
@@ -160,19 +191,25 @@ ps1_arg="$(to_pwsh_path "$ps1")"
 findings="$CHECKS_TMP/findings"
 : >"$findings"
 broken=0
+staged_arg="$(to_pwsh_path "$CHECKS_TMP/staged")"
 done_sets=$'\n'
+noticed=$'\n'
 for i in "${!sets[@]}"; do
   set_file="${sets[i]}"
-  [[ "$done_sets" != *$'\n'"$set_file"$'\n'* ]] || continue
-  done_sets+="$set_file"$'\n'
+  kind="${kinds[i]}"
+  [[ "$done_sets" != *$'\n'"$kind $set_file"$'\n'* ]] || continue
+  done_sets+="$kind $set_file"$'\n'
   list="$CHECKS_TMP/list"
   : >"$list"
   for j in "${!sets[@]}"; do
-    [[ "${sets[j]}" == "$set_file" ]] && printf '%s\n' "${files[j]}" >>"$list"
+    [[ "${sets[j]}" == "$set_file" && "${kinds[j]}" == "$kind" ]] && printf '%s\n' "${files[j]}" >>"$list"
   done
+  # Staged content is analyzed where it was written, never rewritten.
+  run_root="$root_arg" run_mode="$mode"
+  [[ "$kind" == staged ]] && run_root="$staged_arg" run_mode=analyze
   out="$CHECKS_TMP/pwsh-out"
-  PSSA_SETTINGS="$(to_pwsh_path "$PWD/$set_file")" PSSA_ROOT="$root_arg" PSSA_REPO_ROOT="$root_arg" \
-  PSSA_LIST="$(to_pwsh_path "$list")" PSSA_MODE="$mode" PSSA_STATE_BASE="$state_arg" \
+  PSSA_SETTINGS="$(to_pwsh_path "$PWD/$set_file")" PSSA_ROOT="$run_root" PSSA_REPO_ROOT="$root_arg" \
+  PSSA_LIST="$(to_pwsh_path "$list")" PSSA_MODE="$run_mode" PSSA_STATE_BASE="$state_arg" \
     pwsh -NoProfile -NonInteractive -File "$ps1_arg" >"$out" 2>&1
   rc=$?
   case $rc in
@@ -190,7 +227,12 @@ for i in "${!sets[@]}"; do
       printf 'NOTICE: PSScriptAnalyzer missing, so this check did not run. Install: pwsh -Command Install-Module PSScriptAnalyzer -Scope CurrentUser\n' >&2
       exit 0
       ;;
-    6) [[ "$CHECKS_MODE" == worktree ]] || trust_notice "$out" "$set_file" ;;
+    6)
+      if [[ "$CHECKS_MODE" != worktree && "$noticed" != *$'\n'"$set_file"$'\n'* ]]; then
+        noticed+="$set_file"$'\n'
+        trust_notice "$out" "$set_file"
+      fi
+      ;;
     *)
       broken=1
       printf 'powershell-format: PSScriptAnalyzer failed under %s:\n' "$set_file" >&2
@@ -199,11 +241,11 @@ for i in "${!sets[@]}"; do
   esac
 done
 
-if [[ "$CHECKS_MODE" == pre-commit ]]; then
+if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#tree[@]})); then
   rewritten=()
   while IFS= read -r -d '' f; do
     rewritten+=("$f")
-  done < <(git diff --name-only -z -- "${files[@]}")
+  done < <(git diff --name-only -z -- "${tree[@]}")
   if ((${#rewritten[@]})); then
     printf '%s\n' "${rewritten[@]}"
     git add -- "${rewritten[@]}"

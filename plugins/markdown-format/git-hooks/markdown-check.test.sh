@@ -147,6 +147,29 @@ printf '# T\n\ntext' >"$REPO/gen/g.md"
 git -C "$REPO" add .markdownlint-cli2.jsonc gen/g.md
 expect "a file the markdownlint config ignores is left alone" "0||" "$(check "$REPO")"
 expect "an ignored file keeps its bytes" "$(printf '# T\n\ntext')" "$(cat "$REPO/gen/g.md")"
+git -C "$REPO" rm -q --cached gen/g.md
+rm -r "$REPO/gen"
+mkdir -p "$REPO/gen" "$REPO/docs/deep"
+printf '# T\n\n<b>x</b>\n' >"$REPO/gen/g.md"
+printf '{ "default": true, "MD013": false, "MD041": false }\n' >"$REPO/docs/.markdownlint.json"
+printf 'text\n\n<b>x</b>' >"$REPO/docs/deep/gone.md"
+git -C "$REPO" add gen/g.md docs/.markdownlint.json docs/deep/gone.md
+rm -r "$REPO/gen" "$REPO/docs/deep"
+# Nothing can be fixed in place, so the fixable MD047 is reported too; MD041
+# stays off, as the nested config says.
+expect "staged then deleted from the work tree: the staged findings block under the nested config, ignores hold, nothing rewritten" "1||docs/deep/gone.md:3: MD033/no-inline-html Inline HTML [Element: b]
+docs/deep/gone.md:3: MD047/single-trailing-newline Files should end with a single newline character
+$HINT" "$(check "$REPO")"
+expect "staged then deleted: the file is not recreated" "no" "$([[ -e "$REPO/docs/deep/gone.md" ]] && echo yes || echo no)"
+expect "staged then deleted: the index keeps its unfixed bytes" "$(printf 'text\n\n<b>x</b>')x" "$(
+  git -C "$REPO" show :docs/deep/gone.md
+  printf x
+)"
+git -C "$REPO" rm -q --cached gen/g.md docs/deep/gone.md
+ln -s missing.md "$REPO/link.md"
+git -C "$REPO" add link.md
+rm "$REPO/link.md"
+expect "staged then deleted: a staged symlink is not checked" "0||" "$(check "$REPO")"
 
 # A config that can run repository code: skipped until the user approves its
 # exact content state, as powershell-format gates CustomRulePath.
@@ -175,6 +198,12 @@ expect "the approved rewrite landed" "${FIXED}x" "$(
   cat "$REPO/a.md"
   printf x
 )"
+printf '# T\n\n<b>x</b>\n' >"$REPO/gone.md"
+git -C "$REPO" add gone.md
+rm "$REPO/gone.md"
+expect "staged then deleted under an approved config that requires a module: still checked" "1||gone.md:3: MD033/no-inline-html Inline HTML [Element: b]
+$HINT" "$(CLAUDE_PLUGIN_DATA="$DATA" check "$REPO")"
+git -C "$REPO" rm -q --cached gone.md
 printf '// unreviewed revision\n' >>"$REPO/helper.cjs"
 printf '# T\n\ntext' >"$REPO/b.md"
 git -C "$REPO" add b.md

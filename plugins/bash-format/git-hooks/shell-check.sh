@@ -14,6 +14,8 @@
 # section governs (see git-hooks/shfmt-rewrite.sh), the rewritten paths print on
 # stdout and are re-staged, and the ShellCheck findings (warning and above) print
 # as "<path>:<line>: <message>" on stderr, exit 1, only for lines the commit adds.
+# A staged script since deleted from the work tree is checked from the index and
+# never rewritten.
 #
 # The repository's own .shellcheckrc and .editorconfig govern; the plugin ships
 # none. Files under .githooks/ are installed copies and are skipped. A missing
@@ -43,19 +45,30 @@ need() {
   return 1
 }
 
+# staged_gone <path>: 0 at pre-commit when <path> is gone from the work tree and
+# the index holds it as a regular file, not a symlink (mode 120000) or a submodule.
+staged_gone() {
+  [[ "$CHECKS_MODE" == pre-commit && ! -e "$1" && ! -L "$1" ]] || return 1
+  [[ "$(git ls-files -s -- ":(literal)$1" 2>/dev/null)" == 100* ]]
+}
+
 files=()
+gone=()
 while IFS= read -r -d '' f; do
   case "$f" in
   .githooks/*) continue ;;
   *.sh | *.bash) ;;
   *) continue ;;
   esac
-  [[ -f "$f" && ! -L "$f" ]] || continue
-  files+=("$f")
+  if [[ -f "$f" && ! -L "$f" ]]; then
+    files+=("$f")
+  elif staged_gone "$f"; then
+    gone+=("$f")
+  fi
 done < <(checks_files)
-((${#files[@]})) || exit 0
+((${#files[@]} + ${#gone[@]})) || exit 0
 
-if [[ "$CHECKS_MODE" == pre-commit ]]; then
+if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#files[@]})); then
   governed=()
   for f in "${files[@]}"; do
     shfmt_governed "$f" && governed+=("$f")
@@ -103,8 +116,20 @@ to_contract() {
 }
 
 out="$CHECKS_TMP/shellcheck"
-shellcheck -x -f gcc -S warning -- "${files[@]}" >"$out" 2>&1
-rc=$?
+: >"$out"
+rc=0
+if ((${#files[@]})); then
+  shellcheck -x -f gcc -S warning -- "${files[@]}" >"$out" 2>&1
+  rc=$?
+fi
+# A script gone from the work tree is read from the index on stdin, named "-".
+for f in ${gone[@]+"${gone[@]}"}; do
+  git show ":$f" 2>/dev/null | shellcheck -x -f gcc -S warning - >"$CHECKS_TMP/one" 2>&1
+  one=${PIPESTATUS[1]}
+  ((one > rc)) && rc=$one
+  escaped="$(printf '%s' "$f" | sed 's/[#&\\]/\\&/g')"
+  sed "s#^-:#$escaped:#" "$CHECKS_TMP/one" >>"$out"
+done
 to_contract <"$out" | checks_filter_findings >"$CHECKS_TMP/blocking"
 if [[ -s "$CHECKS_TMP/blocking" ]]; then
   cat "$CHECKS_TMP/blocking" >&2

@@ -161,6 +161,19 @@ printf '%s' "$BAD" >"$REPO/$WF/ci.yml"
 expect "a finding only in the unstaged edit does not block" "0||" "$(check "$REPO")"
 
 new_repo
+printf '%s' "$BAD" >"$REPO/$WF/ci.yml"
+git -C "$REPO" add "$WF/ci.yml"
+rm "$REPO/$WF/ci.yml"
+expect "staged then deleted from the work tree: the staged finding still blocks" "1||$WF/ci.yml:7: $MSG
+$HINT" "$(check "$REPO")"
+expect "staged then deleted: the file is not recreated" "no" "$([[ -e "$REPO/$WF/ci.yml" ]] && echo yes || echo no)"
+ln -s missing.yml "$REPO/$WF/link.yml"
+git -C "$REPO" add "$WF/link.yml"
+git -C "$REPO" rm -q --cached "$WF/ci.yml"
+rm "$REPO/$WF/link.yml"
+expect "staged then deleted: a staged symlink is not checked" "0||" "$(check "$REPO")"
+
+new_repo
 printf '%s' "$CLEAN" >"$REPO/$WF/ci.yml"
 git -C "$REPO" add "$WF/ci.yml"
 git -C "$REPO" commit -q -m clean --no-verify
