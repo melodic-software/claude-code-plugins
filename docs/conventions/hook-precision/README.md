@@ -8,8 +8,8 @@ positive into a regression test instead of a re-filed issue.
 
 Guardrails hooks repeatedly shipped false-positive over-fires, each found by a babysit worker on a real
 pass, hand-filed and fixed in isolation. The classes below are those over-fires
-generalized; the discipline after them is what stops the pipeline from paying for the next one at production
-time.
+generalized; the discipline after them makes the next false positive fail a test instead of surfacing in
+production.
 
 ## The rules
 

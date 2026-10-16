@@ -963,8 +963,8 @@ is its sibling constraint, and the write-time doctrine budgeting both lives in
 - **Evidence-gated additions.** A new standing instruction requires observed, repeated stumble
   evidence against the current model, the same failure seen more than once, never anticipation
   of a failure a past model had. Name the evidence where the instruction is added (PR body or an
-  adjacent comment). Anticipatory instructions are the veteran-engineer failure mode: they encode
-  the last model's weaknesses as the next model's ceiling.
+  adjacent comment). Anticipatory instructions guard against weaknesses of earlier models and can
+  cap what the next model does.
 - **Generation-triggered ablation.** Instructions are disposable per model generation. At each
   Claude model release, re-audit standing instruction surfaces against the new model
   (`harness-config:audit-instructions` for the static text-vs-doctrine pass, on any release;
@@ -1011,8 +1011,8 @@ requires for addition: config-disable first where a kill switch exists, delete o
 rationale; a hybrid gets its behavioral surface trimmed while its policy residue stays; and the
 security carve-out below overrides every row of the rubric.
 
-Model-capability claims never relax the security posture. Injection resistance in current models is
-measurably better but bounded and hedged in the primary sources; the plugin-acceptance security
+Model-capability claims never relax the security posture. Current models resist prompt injection better
+than earlier ones, but not completely; the plugin-acceptance security
 review's deny-by-default stance on egress and trust delegation is policy, not a model-era
 workaround, and stays regardless of model generation.
 
