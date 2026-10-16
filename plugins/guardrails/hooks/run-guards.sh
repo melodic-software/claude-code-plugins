@@ -646,7 +646,7 @@ hook::repo_root_to() {
 
 # One tokenization per event (HOW above). The record is one string's parse,
 # as flat arrays: per segment its argv count and redirection count, then the
-# words, their HOOK_SEG_WORD_QUOTED flags and the six HOOK_SEG_REDIR_* arrays
+# words, their HOOK_SEG_WORD_QUOTED flags and the five HOOK_SEG_REDIR_* arrays
 # end to end. Only an outermost call records or stores, so a callback's
 # re-parse of a substring cannot evict the event's command; the depth is reset
 # before each guard, because a guard's `exit` inside a callback never unwinds
@@ -663,7 +663,6 @@ RUN_GUARDS_BPS_RFD=()
 RUN_GUARDS_BPS_RTGT=()
 RUN_GUARDS_BPS_RQ=()
 RUN_GUARDS_BPS_ROPQ=()
-RUN_GUARDS_BPS_RRAW=()
 
 # shellcheck disable=SC2329  # invoked by every guard sourced below
 hook::bash_parse_segments() {
@@ -677,7 +676,7 @@ hook::bash_parse_segments() {
   fi
   local __rg_bps_cb="$2"
   local -a __rg_bps_argc=() __rg_bps_redc=() __rg_bps_words=() __rg_bps_wq=()
-  local -a __rg_bps_rop=() __rg_bps_rfd=() __rg_bps_rtgt=() __rg_bps_rq=() __rg_bps_ropq=() __rg_bps_rraw=()
+  local -a __rg_bps_rop=() __rg_bps_rfd=() __rg_bps_rtgt=() __rg_bps_rq=() __rg_bps_ropq=()
   RUN_GUARDS_BPS_DEPTH=1
   hook::bash_parse_segments_uncached "$1" run_guards::bps_record
   RUN_GUARDS_BPS_DEPTH=0
@@ -691,7 +690,6 @@ hook::bash_parse_segments() {
   RUN_GUARDS_BPS_RTGT=(${__rg_bps_rtgt[@]+"${__rg_bps_rtgt[@]}"})
   RUN_GUARDS_BPS_RQ=(${__rg_bps_rq[@]+"${__rg_bps_rq[@]}"})
   RUN_GUARDS_BPS_ROPQ=(${__rg_bps_ropq[@]+"${__rg_bps_ropq[@]}"})
-  RUN_GUARDS_BPS_RRAW=(${__rg_bps_rraw[@]+"${__rg_bps_rraw[@]}"})
   RUN_GUARDS_BPS_HAVE=1
 }
 
@@ -709,7 +707,6 @@ run_guards::bps_record() {
   __rg_bps_rtgt+=(${HOOK_SEG_REDIR_TARGET[@]+"${HOOK_SEG_REDIR_TARGET[@]}"})
   __rg_bps_rq+=(${HOOK_SEG_REDIR_QUOTED[@]+"${HOOK_SEG_REDIR_QUOTED[@]}"})
   __rg_bps_ropq+=(${HOOK_SEG_REDIR_OPAQUE[@]+"${HOOK_SEG_REDIR_OPAQUE[@]}"})
-  __rg_bps_rraw+=(${HOOK_SEG_REDIR_RAW[@]+"${HOOK_SEG_REDIR_RAW[@]}"})
   "$__rg_bps_cb" "$@"
 }
 
@@ -736,14 +733,12 @@ run_guards::bps_replay() {
     HOOK_SEG_REDIR_TARGET=()
     HOOK_SEG_REDIR_QUOTED=()
     HOOK_SEG_REDIR_OPAQUE=()
-    HOOK_SEG_REDIR_RAW=()
     for ((__rg_j = 0; __rg_j < __rg_c; __rg_j++)); do
       HOOK_SEG_REDIR_OP+=("${RUN_GUARDS_BPS_ROP[__rg_r + __rg_j]}")
       HOOK_SEG_REDIR_FD+=("${RUN_GUARDS_BPS_RFD[__rg_r + __rg_j]}")
       HOOK_SEG_REDIR_TARGET+=("${RUN_GUARDS_BPS_RTGT[__rg_r + __rg_j]}")
       HOOK_SEG_REDIR_QUOTED+=("${RUN_GUARDS_BPS_RQ[__rg_r + __rg_j]}")
       HOOK_SEG_REDIR_OPAQUE+=("${RUN_GUARDS_BPS_ROPQ[__rg_r + __rg_j]}")
-      HOOK_SEG_REDIR_RAW+=("${RUN_GUARDS_BPS_RRAW[__rg_r + __rg_j]}")
     done
     __rg_w=$((__rg_w + __rg_a))
     __rg_r=$((__rg_r + __rg_c))
@@ -755,7 +750,6 @@ run_guards::bps_replay() {
   HOOK_SEG_REDIR_TARGET=()
   HOOK_SEG_REDIR_QUOTED=()
   HOOK_SEG_REDIR_OPAQUE=()
-  HOOK_SEG_REDIR_RAW=()
   RUN_GUARDS_BPS_DEPTH=$__rg_depth
 }
 

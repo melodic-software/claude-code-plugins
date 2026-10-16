@@ -1521,14 +1521,14 @@ MSG_REMEDY_SWITCHES="If Write or Edit is refused for this path, stop and tell th
 MSG_PROJ=/srv/repo
 MSG_CFG=/srv/cfg
 MSG_PY_ROUTE="Or write the script to a file under $MSG_CFG/plugins/data, the OS temp directory and run python3 <file>, which this guard does not block."
-MSG_EXEMPT="Exempt: an unquoted literal target under $MSG_CFG/plugins/data, the OS temp directory, or \"\$VAR/rest\" when this command begins with \"VAR=<unquoted literal path>;\" and sets VAR nowhere else."
 # Pinned so the plugin data default has one spelling, and no data dir, so the
 # once per session and agent latch fails open and every block here emits its notice.
 MSG_ENV=(-u CLAUDE_PLUGIN_DATA -u CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS
   CLAUDE_PROJECT_DIR= CLAUDE_CONFIG_DIR="$MSG_CFG")
 
-# PowerShell and python lanes: never a scratch root, so no reason line, no root
-# list, and a remedy that does not name block_hook_bypass_scratch_roots.
+# PowerShell and python lanes: never a scratch root, so no reason line and a
+# remedy that does not name block_hook_bypass_scratch_roots; the python lane
+# names the roots a script file can be written under and run from.
 guard_invoke --tool PowerShell --command "Set-Content f.txt 'x'" -- "${MSG_ENV[@]}"
 assert_exit "message: PowerShell write blocks" 2 "$GUARD_RC"
 assert_eq "message: PowerShell write stderr is verdict and remedy" \
@@ -1585,8 +1585,8 @@ guard_invoke --command "echo x > \"/tmp/claude-0/-srv-repo/abc/scratchpad/probe.
 assert_exit "message: quoted scratchpad target blocks" 2 "$GUARD_RC"
 assert_eq "message: quoted scratchpad stderr is exactly four lines" \
   "BLOCKED: echo/printf > file write bypasses Write/Edit hooks$MSG_USE
-A quoted or escaped target is not scratch-exempt.
-$MSG_EXEMPT
+A quoted or escaped target is never scratch-exempt.
+Exempt: an unquoted literal target under $MSG_CFG/plugins/data, the OS temp directory.
 $MSG_REMEDY_SCRATCH" "$GUARD_ERR"
 assert_contains "message: the latch-less block still emits the operator notice" \
   "$GUARD_OUT" '"systemMessage"'
@@ -1606,10 +1606,10 @@ reason_is "relative target with no cwd" \
   "A relative target is not exempt after a directory change or without a known cwd; use an absolute path." \
   "echo x > out.log" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
 reason_is "variable-carried target" \
-  "A target holding \$, a backtick, ~ or a glob character, or a network or above-root path, is not scratch-exempt." \
+  "A target holding \$, a backtick, ~ or a glob character, or a network or above-root path, is never scratch-exempt." \
   "echo x > \$f" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
 reason_is "variable under an absolute prefix" \
-  "A target holding \$, a backtick, ~ or a glob character, or a network or above-root path, is not scratch-exempt." \
+  "A target holding \$, a backtick, ~ or a glob character, or a network or above-root path, is never scratch-exempt." \
   "echo x > /tmp/\$f" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
 # A literal target outside every root is told, in one line, that only an
 # unquoted literal path under the exempt roots (the temp tree with no
@@ -1625,7 +1625,7 @@ reason_is "absolute target with no exempt root" \
 # does not repeat it.
 guard_invoke --command "echo x > /tmp/\$f" -- "${MSG_ENV[@]}" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
 assert_eq "reason: variable-carried target's roots line carries no repeat" \
-  "$MSG_EXEMPT" \
+  "Exempt: an unquoted literal target under $MSG_CFG/plugins/data, the OS temp directory." \
   "$(sed -n 3p <<<"$GUARD_ERR")"
 # A temp-rooted project turns the temp default off; that is the reason, not "not
 # under an exempt root", and the root list no longer offers the temp tree.
@@ -2031,57 +2031,28 @@ run_cwd "default: memory tier blocks with no project root" \
 run "default: relative memory-tier write blocks with no payload cwd" \
   "echo hello > .work/f" 2 "$PROJ_ENV=$PROJ"
 
-# --- A variable the command set to a literal is judged as that literal ------
-# `S=/tmp/x; cat > "$S/run.sh"` writes the same file as `cat > /tmp/x/run.sh`,
-# and the blocked agent retried with the literal, which passes. The stay-quiet
-# cases fail before the resolution; every other shape keeps its block.
+# --- A variable-carried target is never exempt ------------------------------
+# Even when the command first sets the variable to a scratch literal: bash has
+# too many ways to change a variable between the assignment and the redirect
+# (`printf -v`, `read`, `trap … DEBUG`, a nameref, `${S:=…}`, `exec {S}>`) for
+# the command text to prove the expansion. The literal spelling still passes.
 SV=/tmp/claude-0/-srv-repo/abc/scratchpad
 # shellcheck disable=SC2016  # the commands are shell text for the guard, not expansions here
 {
-  run_cwd "var: quoted \$S target set at the start (allowed)" \
-    "S=$SV; cat > \"\$S/run.sh\" <<'EOF'
-echo hi
-EOF" "$PROJ" 0 "$PROJ_ENV=$PROJ"
-  run_cwd "var: bare \$S target after && (allowed)" \
-    "S=$SV && echo hi > \$S/out.txt" "$PROJ" 0 "$PROJ_ENV=$PROJ"
-  run_cwd "var: \${S} with only the variable quoted (allowed)" \
-    "S=$SV; printf x > \"\${S}\"/out.txt" "$PROJ" 0 "$PROJ_ENV=$PROJ"
-  run_cwd "var: second of two leading assignments (allowed)" \
-    "D=$SV; F=x; cat > \"\$D/f.sh\"" "$PROJ" 0 "$PROJ_ENV=$PROJ"
-  run_cwd "var: value is a repo path (blocked)" \
-    "S=$PROJ/src; cat > \"\$S/a.py\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
-  run_cwd "var: value is the memory tier (blocked)" \
-    "S=$PROJ/.work; cat > \"\$S/notes.md\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
-  run_cwd "var: reassigned later (blocked)" \
-    "S=$SV; S=$PROJ; cat > \"\$S/run.sh\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
-  run_cwd "var: prefix assignment on the writer (blocked)" \
-    "S=$SV; S=$PROJ cat > \"\$S/run.sh\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
-  run_cwd "var: quoted assignment value (blocked)" \
-    "S=\"$SV\"; cat > \"\$S/run.sh\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
-  run_cwd "var: command-substitution value (blocked)" \
-    "S=\$(mktemp -d); cat > \"\$S/run.sh\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
-  run_cwd "var: assignment after a conditional (blocked)" \
-    "false && S=$SV; cat > \"\$S$PROJ/a.py\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
-  run_cwd "var: assignment in a subshell (blocked)" \
-    "(S=$SV); cat > \"\$S$PROJ/a.py\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
-  run_cwd "var: single-quoted \$ is literal text (blocked)" \
-    "S=$SV; cat > '\$S/run.sh'" "$PROJ" 2 "$PROJ_ENV=$PROJ"
-  run_cwd "var: escaped \$ is literal text (blocked)" \
-    "S=$SV; cat > \\\$S/run.sh" "$PROJ" 2 "$PROJ_ENV=$PROJ"
-  run_cwd "var: quote ends the name before more identifier text (blocked)" \
-    "S=$SV; Sc=$SV; cat > \"\$S\"c/run.sh" "$PROJ" 2 "$PROJ_ENV=$PROJ"
-  run_cwd "var: unpaired brace (blocked)" \
-    "S=$SV; cat > \$S}/run.sh" "$PROJ" 2 "$PROJ_ENV=$PROJ"
-  run_cwd "var: target in a child shell (blocked)" \
-    "S=$SV; bash -c 'cat > \"\$S/run.sh\"'" "$PROJ" 2 "$PROJ_ENV=$PROJ"
-  run_cwd "var: read into the variable (blocked)" \
-    "S=$SV; read -r S; cat > \"\$S/run.sh\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
-  run_cwd "var: eval in the command (blocked)" \
-    "S=$SV; eval \"\$X\"; cat > \"\$S/run.sh\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
-  run_cwd "var: PWD, which cd resets (blocked)" \
-    "PWD=$SV; cd $PROJ; cat > \"\$PWD/a.py\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
-  run_cwd "var: an unset variable (blocked)" \
-    "cat > \"\$S/run.sh\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+  run_cwd "var: the literal scratch target (allowed)" \
+    "cat > $SV/run.sh" "$PROJ" 0 "$PROJ_ENV=$PROJ"
+  run_cwd "var: quoted \$S target set at the start (blocked)" \
+    "S=$SV; cat > \"\$S/run.sh\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+  run_cwd "var: bare \$S target after && (blocked)" \
+    "S=$SV && echo hi > \$S/out.txt" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+  run_cwd "var: printf -v rewrites the variable (blocked)" \
+    "S=$SV; N=s; printf -v \"\${N^^}\" %s $PROJ; cat > \"\$S/a.py\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+  run_cwd "var: a DEBUG trap rewrites the variable (blocked)" \
+    "S=$SV; N=s; trap \"\${N^^}=$PROJ\" DEBUG; cat > \"\$S/a.py\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+  run_cwd "var: a nameref rewrites the variable (blocked)" \
+    "S=$SV; N=s; declare -n R=\"\${N^^}\"; R=$PROJ; cat > \"\$S/a.py\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+  run_cwd "var: exec {S} reassigns the variable (blocked)" \
+    "S=$SV; exec {S}>/dev/null; cat > \"\$S/a.py\"" "$PROJ" 2 "$PROJ_ENV=$PROJ"
 }
 
 # --- The second shipped default: the plugin data directory ------------------

@@ -4472,15 +4472,13 @@ hook::_bps_orphan_pending() {
 # own locals through dynamic scope, so it is not callable on its own.
 # shellcheck disable=SC2154  # every unassigned name here is a local of hook::bash_parse_segments_uncached
 hook::_bps_close_word() {
-  local _bps_q=0 _bps_last _bps_raw
+  local _bps_q=0 _bps_last
   if ((wq_quoted || wq_esc)); then
     if ((wq_quoted && !wq_plain && !wq_esc)); then _bps_q=2; else _bps_q=1; fi
   fi
   if ((pend)); then
     _bps_last=$((${#HOOK_SEG_REDIR_OP[@]} - 1))
     HOOK_SEG_REDIR_TARGET[_bps_last]="$word"
-    printf -v _bps_raw '%s' "${chars[@]:wbeg:i-wbeg}"
-    HOOK_SEG_REDIR_RAW[_bps_last]="$_bps_raw"
     ((_bps_q)) && HOOK_SEG_REDIR_QUOTED[_bps_last]=1
     ((wq_open)) && HOOK_SEG_REDIR_OPAQUE[_bps_last]=1
     pend=0
@@ -4513,7 +4511,6 @@ hook::_bps_flush_segment() {
   HOOK_SEG_REDIR_TARGET=()
   HOOK_SEG_REDIR_QUOTED=()
   HOOK_SEG_REDIR_OPAQUE=()
-  HOOK_SEG_REDIR_RAW=()
 }
 
 # hook::_bps_chars <cmd>: fill hook::bash_parse_segments_uncached's `chars`
@@ -4589,10 +4586,6 @@ hook::bash_parse_segments() {
 #                             a quote that never closed, an operand cut short by
 #                             a control operator or end of input, or one a
 #                             process substitution supplied.
-#   HOOK_SEG_REDIR_RAW[j]     the operand exactly as written, quotes and escapes
-#                             included (`"$D"/f` stays `"$D"/f`), so a consumer can
-#                             tell `"$D/f"` from `'$D/f'`, which TARGET spells
-#                             alike; "" for a dup, a close or a here-doc opener.
 #
 # A segment with redirections but no argv word (`> f` alone) invokes no
 # callback, so its redirections are not reported.
@@ -4617,9 +4610,6 @@ hook::bash_parse_segments_uncached() {
   # it, whether any character reached it unquoted, whether a backslash escape
   # did, and whether a span was still open at end of input. Reset with the word.
   local wq_quoted=0 wq_plain=0 wq_esc=0 wq_open=0
-  # Index in `chars` of the first character of the word being assembled.
-  # shellcheck disable=SC2034  # read by hook::_bps_close_word through dynamic scope
-  local wbeg=0
   local -a seg=()
   HOOK_SEG_WORD_QUOTED=()
   HOOK_SEG_REDIR_OP=()
@@ -4627,7 +4617,6 @@ hook::bash_parse_segments_uncached() {
   HOOK_SEG_REDIR_TARGET=()
   HOOK_SEG_REDIR_QUOTED=()
   HOOK_SEG_REDIR_OPAQUE=()
-  HOOK_SEG_REDIR_RAW=()
   # Pending heredoc delimiters (FIFO) and their `<<-` tab-strip flags. A
   # heredoc body is the command's stdin, not commands — recorded when `<<`
   # is seen and skipped wholesale at the command-line newline.
@@ -4635,7 +4624,6 @@ hook::bash_parse_segments_uncached() {
 
   for ((i = 0; i < n; i++)); do
     c="${chars[i]}"
-    ((have)) || wbeg=$i
     case "$c" in
     "'")
       ((i++))
@@ -4814,7 +4802,6 @@ hook::bash_parse_segments_uncached() {
         HOOK_SEG_REDIR_TARGET+=("$delim")
         HOOK_SEG_REDIR_QUOTED+=("$hquoted")
         HOOK_SEG_REDIR_OPAQUE+=(0)
-        HOOK_SEG_REDIR_RAW+=("")
         continue
       fi
       if ((i + 1 < n)) && [[ "${chars[i + 1]}" == '(' ]]; then
@@ -4846,7 +4833,6 @@ hook::bash_parse_segments_uncached() {
         HOOK_SEG_REDIR_TARGET+=("$rdup")
         HOOK_SEG_REDIR_QUOTED+=(0)
         HOOK_SEG_REDIR_OPAQUE+=(0)
-        HOOK_SEG_REDIR_RAW+=("")
         # A dup or close already names its target; every other form takes the
         # next word.
         [[ -n "$rdup" ]] || pend=1

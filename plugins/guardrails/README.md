@@ -283,13 +283,10 @@ out of scope until such a signal exists.
   lists the roots that exempt an unquoted literal target in this session, with
   no configuration needed for the temp tree when the project root is outside
   it, and that the user can add a root to `block_hook_bypass_scratch_roots`.
-  A redirect target written `$VAR/rest` (bare, `"$VAR/rest"` or `"$VAR"/rest`)
-  is judged as the literal it expands to when the command begins with
-  `VAR=<unquoted literal>;` (or `&&`) and changes `VAR` nowhere else; any other
-  quoted or variable-carried target is not exempt. The python lane names the
-  roots a script file can be written under and run from. The PowerShell lane
-  consults a root only for a single literal destination, so its message names
-  none. The operator's levers, narrowest
+  It says a quoted or variable-carried target is never exempt. The python lane
+  never consults a scratch root, but names the roots a script file can be
+  written under and run from. The PowerShell lane consults a root only for a
+  single literal destination, so its message names none. The operator's levers, narrowest
   first, are `block_hook_bypass_scratch_roots` (Bash redirect targets and a
   PowerShell command's single literal write destination), a session-scoped disable via `claude --settings`, and the
   user-global `block_hook_bypass_enabled` switch, which persists across every
