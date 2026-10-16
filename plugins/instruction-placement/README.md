@@ -4,7 +4,7 @@ Routes agent-instruction content to the surface that loads it at the right momen
 
 A convention that only matters when someone edits a `.cs` file should not be paid for in every
 session. Claude Code already provides the machinery to fix that: path-scoped rules and nested
-instruction files. Using it correctly is harder than it looks, and no way of getting it wrong
+instruction files. Using it goes wrong easily, because no mistake
 raises an error. This plugin finds the content worth moving, validates the move mechanically
 before proposing it, and executes it behind a human gate.
 
