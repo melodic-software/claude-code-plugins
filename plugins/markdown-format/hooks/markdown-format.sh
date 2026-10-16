@@ -44,6 +44,7 @@ if [[ "${1:-}" == --end-of-turn ]]; then
 fi
 
 [[ "$INPUT" == *.md* ]] || exit 0
+# silent-skip-ok: the SessionStart probe reports a missing jq (prerequisites.json)
 command -v jq >/dev/null 2>&1 || exit 0
 PATHS=$(jq -r '.tool_calls[]? | select(.tool_name == "Write" or .tool_name == "Edit" or .tool_name == "MultiEdit") | .tool_input.file_path? | strings | select(test("\\.(md|mdc)$"))' <<<"$INPUT" 2>/dev/null) || exit 0
 [[ -n "$PATHS" ]] || exit 0

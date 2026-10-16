@@ -97,12 +97,10 @@ findings back to Claude, at most once per turn.
   target escapes the repository's `node_modules` tree. The plugin never falls back to
   `npx`, installs a package, or touches the network.
 
-A missing `markdownlint-cli2` is reported once per session by the `SessionStart` probe
-(`lib/prerequisites.mjs probe`), which also reports a missing, stale or edited git-hook
-entry. The probe honors `markdown_format_enabled` and does not look for a markdownlint
-config, so it can report in a repository that has none. `jq` is deliberately absent from
-`prerequisites.json`: the probe does not consult the per-repo config opt-in, and a missing
-`jq` should not be announced in repositories that never opted in.
+A missing `markdownlint-cli2` or `jq` is reported once per session by the `SessionStart`
+probe (`lib/prerequisites.mjs probe`), which also reports a missing, stale or edited
+git-hook entry. The probe honors `markdown_format_enabled` and does not look for a
+markdownlint config, so it can report in a repository that has none.
 
 ### Hook budget accounting
 

@@ -7,7 +7,7 @@
 # off: the node launcher only.
 # test-scope: plugins/markdown-format/hooks/hooks.json plugins/markdown-format/git-hooks/markdown-check.sh plugins/markdown-format/.claude-plugin/plugin.json
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN="$(cd "$HOOK_DIR/.." && pwd)"

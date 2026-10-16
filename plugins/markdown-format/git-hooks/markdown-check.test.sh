@@ -11,7 +11,7 @@
 # is MD033/no-inline-html and has no fix.
 # test-scope: plugins/markdown-format/git-hooks/entries.json plugins/markdown-format/git-hooks/markdown-gates.sh plugins/markdown-format/lib/git-hooks/check-lib.sh plugins/markdown-format/lib/git-hooks/install.mjs
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE CLAUDECODE AI_AGENT
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK="$HERE/markdown-check.sh"
@@ -242,7 +242,7 @@ INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
 status="$(node "$INSTALL" copy --scope local --repo "$REPO")"
 expect "the vendored installer installs the entry" '[{"entry":"markdown-check","status":"installed"}]' "$status"
 expect "the installed copy carries the stamp on line 2" yes \
-  "$(sed -n 2p "$REPO/.git/hooks/markdown-format/markdown-check.sh" | grep -qE '^# markdown-format markdown-check sha256:[0-9a-f]{64}$' && echo yes)"
+  "$(grep -qE '^# markdown-format markdown-check sha256:[0-9a-f]{64}$' < <(sed -n 2p "$REPO/.git/hooks/markdown-format/markdown-check.sh") && echo yes)"
 expect "the gates file is installed beside the script" yes \
   "$([[ -f "$REPO/.git/hooks/markdown-format/markdown-gates.sh" ]] && echo yes)"
 printf '# T\n\ntext' >"$REPO/a.md"
