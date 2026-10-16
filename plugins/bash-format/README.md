@@ -184,7 +184,7 @@ reads it from.
 
 ### How to set these
 
-Three supported routes:
+Three supported routes, in the order most people want them:
 
 1. **Interactively.** Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure bash-format@<marketplace>`.
