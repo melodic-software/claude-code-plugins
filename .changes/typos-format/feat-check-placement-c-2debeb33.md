@@ -1,5 +1,8 @@
 ---
-bump: none
+bump: patch
 ---
 
-Test-only: drops an unused test helper copy and stops a test case restating the plugin hint wording; the shared git-hook helper copy gains a function the typos entry does not call, so nothing a user runs changes.
+### Changed
+
+- Shared `check-lib.sh` synced where this plugin carries it: it gains `checks_refuse_config_drift`, which the typos entry does not call.
+- Test-only: drops an unused test helper copy and stops a test case restating the plugin hint wording.

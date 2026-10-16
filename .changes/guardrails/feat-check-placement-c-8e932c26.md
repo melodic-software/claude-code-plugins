@@ -1,5 +1,7 @@
 ---
-bump: none
+bump: patch
 ---
 
-The shared git-hook helper copy gains a function the guardrails entries do not call; nothing a user runs changes.
+### Changed
+
+- Shared `check-lib.sh` synced where this plugin carries it: it gains `checks_refuse_config_drift`, which the guardrails entries do not call; no other change to this plugin.
