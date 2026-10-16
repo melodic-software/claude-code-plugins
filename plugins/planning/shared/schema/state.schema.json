@@ -1,0 +1,873 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state",
+  "title": "Shared interview session file",
+  "description": "state.json of one shared interview session. Sum types are objects tagged by a one-value `kind` enum. Maps keyed by person id (`pid`), question id (`Q<N>`) or card ref are objects. Times (`at`, `Ts`) are float epoch seconds from the server clock. Rules that compare fields (dependsOn names earlier ids, one review flag per because and why, at most 8 questions per round, one vote per person) are checked by session.py, not here.",
+  "type": "object",
+  "required": [
+    "schemaVersion", "pluginVersion", "writtenBy", "rev", "session", "people", "credentials", "rounds",
+    "questions", "cards", "votes", "reactions", "locks", "suggestions", "suggestionVotes", "proposals",
+    "chat", "requests", "results", "uploads", "annotations", "prefs", "notifications", "mergeRequests",
+    "aboutYou", "log"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {"enum": [1]},
+    "pluginVersion": {"type": "string"},
+    "writtenBy": {"type": "string"},
+    "rev": {"type": "integer", "minimum": 0},
+    "session": {"$ref": "#/$defs/session"},
+    "people": {"type": "object", "additionalProperties": {"$ref": "#/$defs/person"}},
+    "credentials": {"$ref": "#/$defs/credentials"},
+    "rounds": {"type": "array", "items": {"$ref": "#/$defs/round"}},
+    "questions": {"type": "array", "items": {"$ref": "#/$defs/question"}},
+    "cards": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/card"}}},
+    "votes": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": {"$ref": "#/$defs/cardRef"}}},
+    "reactions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {"type": "object", "additionalProperties": {"$ref": "#/$defs/reaction"}}
+      }
+    },
+    "locks": {"type": "object", "additionalProperties": {"$ref": "#/$defs/lock"}},
+    "suggestions": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/suggestion"}}},
+    "suggestionVotes": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": {"type": "string"}}},
+    "proposals": {"type": "array", "items": {"$ref": "#/$defs/proposal"}},
+    "chat": {"type": "array", "items": {"$ref": "#/$defs/chatMessage"}},
+    "requests": {"type": "array", "items": {"$ref": "#/$defs/request"}},
+    "results": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/result"}}},
+    "uploads": {"type": "array", "items": {"$ref": "#/$defs/upload"}},
+    "annotations": {"type": "array", "items": {"$ref": "#/$defs/annotation"}},
+    "prefs": {"type": "object", "additionalProperties": {"$ref": "#/$defs/prefs"}},
+    "notifications": {
+      "type": "object",
+      "additionalProperties": {"type": "array", "maxItems": 500, "items": {"$ref": "#/$defs/notification"}}
+    },
+    "mergeRequests": {"type": "array", "items": {"$ref": "#/$defs/mergeRequest"}},
+    "aboutYou": {"type": "object", "additionalProperties": {"$ref": "#/$defs/aboutYou"}},
+    "log": {"$ref": "#/$defs/eventLog"}
+  },
+  "$defs": {
+    "ts": {"type": "number"},
+    "seq": {"type": "integer", "minimum": 1},
+    "pid": {"type": "string"},
+    "qid": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/questionId"},
+    "text": {"type": "string", "maxLength": 2000},
+    "note": {"type": "string", "maxLength": 200},
+    "url": {"type": "string"},
+    "assetId": {"type": "string"},
+    "cardRef": {"type": "string"},
+    "reaction": {"enum": ["thumbs", "heart", "idea"]},
+    "rect": {
+      "type": "object",
+      "required": ["x", "y", "w", "h"],
+      "additionalProperties": false,
+      "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "w": {"type": "number"}, "h": {"type": "number"}}
+    },
+    "session": {
+      "type": "object",
+      "required": ["title", "goal", "createdAt", "phase", "share", "guestKey", "settings", "seq"],
+      "additionalProperties": false,
+      "properties": {
+        "title": {"type": "string", "maxLength": 80},
+        "goal": {"type": "string", "maxLength": 200},
+        "createdAt": {"$ref": "#/$defs/ts"},
+        "phase": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["live"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "at"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["ended"]}, "at": {"$ref": "#/$defs/ts"}}
+            }
+          ]
+        },
+        "share": {
+          "type": "object",
+          "required": ["url"],
+          "additionalProperties": false,
+          "properties": {"url": {"$ref": "#/$defs/url"}, "changedAt": {"$ref": "#/$defs/ts"}}
+        },
+        "guestKey": {"type": "string"},
+        "settings": {"$ref": "#/$defs/settings"},
+        "seq": {
+          "type": "object",
+          "required": ["P", "S", "R", "X", "M", "G", "U", "N", "A"],
+          "additionalProperties": false,
+          "properties": {
+            "P": {"type": "integer", "minimum": 0},
+            "S": {"type": "integer", "minimum": 0},
+            "R": {"type": "integer", "minimum": 0},
+            "X": {"type": "integer", "minimum": 0},
+            "M": {"type": "integer", "minimum": 0},
+            "G": {"type": "integer", "minimum": 0},
+            "U": {"type": "integer", "minimum": 0},
+            "N": {"type": "integer", "minimum": 0},
+            "A": {"type": "integer", "minimum": 0}
+          }
+        }
+      }
+    },
+    "settings": {
+      "type": "object",
+      "required": ["voting", "signoff", "chat", "follow", "names", "digestNames", "uploads", "claudeTake", "theme"],
+      "additionalProperties": false,
+      "properties": {
+        "voting": {"type": "boolean"},
+        "signoff": {"type": "boolean"},
+        "chat": {"type": "boolean"},
+        "follow": {"type": "boolean"},
+        "names": {"enum": ["full", "initials", "someone"]},
+        "digestNames": {"type": "boolean"},
+        "uploads": {"type": "boolean"},
+        "claudeTake": {"enum": ["answerFirst", "always"]},
+        "theme": {
+          "type": "object",
+          "required": ["mode", "accent"],
+          "additionalProperties": false,
+          "properties": {
+            "mode": {"enum": ["system", "light", "dark"]},
+            "accent": {"enum": ["teal", "indigo", "violet", "amber"]}
+          }
+        }
+      }
+    },
+    "person": {
+      "type": "object",
+      "required": ["pid", "name", "joinedAt", "role", "trusted", "color", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "pid": {"$ref": "#/$defs/pid"},
+        "name": {"type": "string", "maxLength": 40},
+        "joinedAt": {"$ref": "#/$defs/ts"},
+        "role": {"enum": ["owner", "leader", "guest"]},
+        "trusted": {"type": "boolean"},
+        "color": {"enum": ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10"]},
+        "status": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["active"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "at", "by"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["removed"]}, "at": {"$ref": "#/$defs/ts"}, "by": {"enum": ["host"]}}
+            }
+          ]
+        }
+      }
+    },
+    "credentials": {
+      "type": "object",
+      "required": ["owner", "secrets"],
+      "additionalProperties": false,
+      "properties": {
+        "owner": {
+          "type": "object",
+          "required": ["tokenHash", "rotatedAt"],
+          "additionalProperties": false,
+          "properties": {"tokenHash": {"type": "string"}, "rotatedAt": {"$ref": "#/$defs/ts"}}
+        },
+        "secrets": {"type": "object", "additionalProperties": {"$ref": "#/$defs/pid"}}
+      }
+    },
+    "round": {
+      "type": "object",
+      "required": ["n", "openedAt", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "n": {"type": "integer", "minimum": 1},
+        "openedAt": {"$ref": "#/$defs/ts"},
+        "status": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["kind"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["open"]},
+                "ready": {
+                  "type": "object",
+                  "required": ["by", "at"],
+                  "additionalProperties": false,
+                  "properties": {"by": {"$ref": "#/$defs/pid"}, "at": {"$ref": "#/$defs/ts"}}
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "sentAt", "eventSeq"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["sent"]}, "sentAt": {"$ref": "#/$defs/ts"}, "eventSeq": {"$ref": "#/$defs/seq"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "sentAt", "ackAt", "eventSeq"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["working"]},
+                "sentAt": {"$ref": "#/$defs/ts"},
+                "ackAt": {"$ref": "#/$defs/ts"},
+                "eventSeq": {"$ref": "#/$defs/seq"}
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "sentAt", "ackAt", "closedAt", "next"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["closed"]},
+                "sentAt": {"$ref": "#/$defs/ts"},
+                "ackAt": {"$ref": "#/$defs/ts"},
+                "closedAt": {"$ref": "#/$defs/ts"},
+                "next": {"type": ["integer", "null"], "minimum": 1}
+              }
+            }
+          ]
+        }
+      }
+    },
+    "purpose": {"enum": ["decide", "gather", "poll"]},
+    "answerScope": {"enum": ["person", "device"]},
+    "option": {
+      "type": "object",
+      "required": ["id", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"enum": ["opt-1", "opt-2", "opt-3", "opt-4"]},
+        "label": {"$ref": "#/$defs/text"},
+        "image": {"$ref": "#/$defs/assetId"}
+      }
+    },
+    "variant": {
+      "type": "object",
+      "required": ["id", "label", "asset"],
+      "additionalProperties": false,
+      "properties": {"id": {"type": "string"}, "label": {"$ref": "#/$defs/text"}, "asset": {"$ref": "#/$defs/assetId"}}
+    },
+    "format": {
+      "oneOf": [
+        {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["text"]}}},
+        {
+          "type": "object",
+          "required": ["kind", "options"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["choice"]},
+            "options": {"type": "array", "minItems": 2, "maxItems": 4, "items": {"$ref": "#/$defs/option"}}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "image", "rect"],
+          "additionalProperties": false,
+          "properties": {"kind": {"enum": ["confirm"]}, "image": {"$ref": "#/$defs/assetId"}, "rect": {"$ref": "#/$defs/rect"}}
+        },
+        {
+          "type": "object",
+          "required": ["kind", "variants"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["prototype"]},
+            "variants": {"type": "array", "minItems": 2, "maxItems": 6, "items": {"$ref": "#/$defs/variant"}}
+          }
+        }
+      ]
+    },
+    "reference": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "asset"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["image"]},
+            "asset": {"$ref": "#/$defs/assetId"},
+            "rect": {"$ref": "#/$defs/rect"},
+            "caption": {"$ref": "#/$defs/text"}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "text", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["quote"]},
+            "text": {"$ref": "#/$defs/text"},
+            "source": {"type": "string"},
+            "url": {"$ref": "#/$defs/url"}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "url"],
+          "additionalProperties": false,
+          "properties": {"kind": {"enum": ["link"]}, "url": {"$ref": "#/$defs/url"}, "title": {"type": "string"}}
+        }
+      ]
+    },
+    "references": {"type": "array", "maxItems": 8, "items": {"$ref": "#/$defs/reference"}},
+    "origin": {
+      "oneOf": [
+        {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["claude"]}}},
+        {
+          "type": "object",
+          "required": ["kind", "proposal"],
+          "additionalProperties": false,
+          "properties": {"kind": {"enum": ["proposal"]}, "proposal": {"type": "string"}}
+        },
+        {
+          "type": "object",
+          "required": ["kind", "proposal", "by"],
+          "additionalProperties": false,
+          "properties": {"kind": {"enum": ["host"]}, "proposal": {"type": "string"}, "by": {"$ref": "#/$defs/pid"}}
+        }
+      ]
+    },
+    "reviewFlag": {
+      "type": "object",
+      "required": ["because", "at", "why"],
+      "additionalProperties": false,
+      "properties": {
+        "because": {"$ref": "#/$defs/qid"},
+        "at": {"$ref": "#/$defs/ts"},
+        "why": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["lock-changed"]}}},
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["unlocked"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "suggestion"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["suggested"]}, "suggestion": {"type": "string"}}
+            }
+          ]
+        }
+      }
+    },
+    "questionRules": {
+      "description": "A recommendation only on a `text` question that did not come from the host; `answerScope: device` never on a `prototype` question.",
+      "allOf": [
+        {
+          "anyOf": [
+            {
+              "properties": {
+                "format": {"properties": {"kind": {"enum": ["text"]}}},
+                "origin": {"properties": {"kind": {"enum": ["claude", "proposal"]}}}
+              }
+            },
+            {"properties": {"recommendation": {"type": "null"}}}
+          ]
+        },
+        {
+          "anyOf": [
+            {"properties": {"format": {"properties": {"kind": {"enum": ["text", "choice", "confirm"]}}}}},
+            {"properties": {"answerScope": {"enum": ["person"]}}}
+          ]
+        }
+      ]
+    },
+    "question": {
+      "type": "object",
+      "required": ["id", "text", "alternatives", "dependsOn", "round", "purpose", "format", "answerScope", "references", "origin", "needsReview"],
+      "additionalProperties": false,
+      "allOf": [{"$ref": "#/$defs/questionRules"}],
+      "properties": {
+        "id": {"$ref": "#/$defs/qid"},
+        "text": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/text"},
+        "short": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/short"},
+        "scope": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/scope"},
+        "context": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/context"},
+        "recommendation": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/recommendation"},
+        "basis": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/basis"},
+        "alternatives": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/alternatives"},
+        "dependsOn": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/dependsOn"},
+        "round": {"type": "integer", "minimum": 1},
+        "purpose": {"$ref": "#/$defs/purpose"},
+        "format": {"$ref": "#/$defs/format"},
+        "answerScope": {"$ref": "#/$defs/answerScope"},
+        "references": {"$ref": "#/$defs/references"},
+        "origin": {"$ref": "#/$defs/origin"},
+        "lockedText": {"type": "string"},
+        "needsReview": {"type": "array", "items": {"$ref": "#/$defs/reviewFlag"}}
+      }
+    },
+    "deviceKind": {"enum": ["phone", "tablet", "computer"]},
+    "deviceInfo": {
+      "type": "object",
+      "required": ["kind", "browser", "screen"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"$ref": "#/$defs/deviceKind"},
+        "browser": {"enum": ["chrome", "safari", "firefox", "edge", "samsung", "in-app", "other"]},
+        "screen": {
+          "type": "object",
+          "required": ["w", "h"],
+          "additionalProperties": false,
+          "properties": {"w": {"type": "integer", "minimum": 0}, "h": {"type": "integer", "minimum": 0}}
+        }
+      }
+    },
+    "card": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "pid", "text", "at", "cites", "view"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["person"]},
+            "pid": {"$ref": "#/$defs/pid"},
+            "device": {"$ref": "#/$defs/deviceKind"},
+            "text": {"$ref": "#/$defs/text"},
+            "at": {"$ref": "#/$defs/ts"},
+            "pick": {"type": "string"},
+            "cites": {"type": "array", "items": {"type": "string"}},
+            "editedAfterVotes": {"type": "integer", "minimum": 0},
+            "deviceInfo": {"$ref": "#/$defs/deviceInfo"},
+            "view": {"enum": ["focus", "compare", "tree", "host", "prototype"]},
+            "late": {
+              "type": "object",
+              "required": ["round"],
+              "additionalProperties": false,
+              "properties": {"round": {"type": "integer", "minimum": 1}}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "key", "at"],
+          "additionalProperties": false,
+          "properties": {"kind": {"enum": ["claude"]}, "key": {"enum": ["rec", "a", "b", "c", "d"]}, "at": {"$ref": "#/$defs/ts"}}
+        },
+        {
+          "type": "object",
+          "required": ["kind", "option"],
+          "additionalProperties": false,
+          "properties": {"kind": {"enum": ["option"]}, "option": {"type": "string"}}
+        }
+      ]
+    },
+    "lock": {
+      "type": "object",
+      "required": ["at", "by", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "at": {"$ref": "#/$defs/ts"},
+        "by": {"$ref": "#/$defs/pid"},
+        "source": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["kind", "card", "text"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["card"]}, "card": {"$ref": "#/$defs/cardRef"}, "text": {"type": "string"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "suggestion", "text"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["suggestion"]}, "suggestion": {"type": "string"}, "text": {"type": "string"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "text", "from"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["edited"]}, "text": {"$ref": "#/$defs/text"}, "from": {"type": ["string", "null"]}}
+            }
+          ]
+        }
+      }
+    },
+    "suggestion": {
+      "type": "object",
+      "required": ["id", "pid", "text", "note", "at", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "pid": {"$ref": "#/$defs/pid"},
+        "text": {"$ref": "#/$defs/text"},
+        "note": {"$ref": "#/$defs/note"},
+        "at": {"$ref": "#/$defs/ts"},
+        "fromProposal": {"type": "string"},
+        "status": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["open"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "at"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["used"]}, "at": {"$ref": "#/$defs/ts"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "at"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["dismissed"]}, "at": {"$ref": "#/$defs/ts"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "by", "at"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["closed"]}, "by": {"enum": ["unlock"]}, "at": {"$ref": "#/$defs/ts"}}
+            }
+          ]
+        }
+      }
+    },
+    "proposal": {
+      "type": "object",
+      "required": ["id", "pid", "text", "at", "via", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "pid": {"$ref": "#/$defs/pid"},
+        "text": {"$ref": "#/$defs/text"},
+        "at": {"$ref": "#/$defs/ts"},
+        "via": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["direct"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "message", "by"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["chat"]}, "message": {"type": "string"}, "by": {"$ref": "#/$defs/pid"}}
+            }
+          ]
+        },
+        "status": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["new"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "by"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["parked"]}, "by": {"$ref": "#/$defs/pid"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "question"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["question"]}, "question": {"$ref": "#/$defs/qid"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "question", "suggestion"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["suggested"]}, "question": {"$ref": "#/$defs/qid"}, "suggestion": {"type": "string"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "question", "reason"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["merged"]}, "question": {"$ref": "#/$defs/qid"}, "reason": {"type": "string"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "reason"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["later"]}, "reason": {"type": "string"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "reason"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["not-placed"]}, "reason": {"type": "string"}}
+            }
+          ]
+        }
+      }
+    },
+    "chatMessage": {
+      "type": "object",
+      "required": ["id", "pid", "text", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "pid": {"$ref": "#/$defs/pid"},
+        "text": {"$ref": "#/$defs/text"},
+        "at": {"$ref": "#/$defs/ts"},
+        "replyTo": {
+          "type": "object",
+          "required": ["id", "pid", "excerpt"],
+          "additionalProperties": false,
+          "properties": {"id": {"type": "string"}, "pid": {"$ref": "#/$defs/pid"}, "excerpt": {"type": "string", "maxLength": 140}}
+        },
+        "proposed": {"type": "string"}
+      }
+    },
+    "requestKind": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/event#/$defs/requestKind"},
+    "request": {
+      "type": "object",
+      "required": ["id", "pid", "qid", "at", "kind", "text", "edited", "runner", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "pid": {"$ref": "#/$defs/pid"},
+        "qid": {"$ref": "#/$defs/qid"},
+        "at": {"$ref": "#/$defs/ts"},
+        "kind": {"$ref": "#/$defs/requestKind"},
+        "text": {"$ref": "#/$defs/text"},
+        "edited": {"type": "boolean"},
+        "runner": {"enum": ["host", "self"]},
+        "status": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["pending"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "since"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["running"]}, "since": {"$ref": "#/$defs/ts"}, "eventSeq": {"$ref": "#/$defs/seq"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "at"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["declined"]}, "at": {"$ref": "#/$defs/ts"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "at", "result"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["done"]}, "at": {"$ref": "#/$defs/ts"}, "result": {"type": "string"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "at", "reason", "cancelled"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["failed"]},
+                "at": {"$ref": "#/$defs/ts"},
+                "reason": {"type": "string"},
+                "cancelled": {"type": "boolean"}
+              }
+            }
+          ]
+        }
+      }
+    },
+    "used": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type"],
+        "additionalProperties": false,
+        "properties": {"name": {"type": "string"}, "type": {"enum": ["skill", "workflow", "mcp", "cli"]}}
+      }
+    },
+    "sources": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "type": "object",
+        "required": ["title", "url"],
+        "additionalProperties": false,
+        "properties": {"title": {"type": "string"}, "url": {"$ref": "#/$defs/url"}}
+      }
+    },
+    "summary": {"type": "string", "maxLength": 4000},
+    "report": {"type": "string", "maxLength": 60000},
+    "result": {
+      "type": "object",
+      "required": ["id", "qid", "at", "request", "kind", "used", "why", "summary", "sources", "report", "by", "published"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "qid": {"$ref": "#/$defs/qid"},
+        "at": {"$ref": "#/$defs/ts"},
+        "request": {"type": ["string", "null"]},
+        "kind": {"$ref": "#/$defs/requestKind"},
+        "used": {"$ref": "#/$defs/used"},
+        "why": {"type": "string"},
+        "summary": {"$ref": "#/$defs/summary"},
+        "sources": {"$ref": "#/$defs/sources"},
+        "report": {"$ref": "#/$defs/report"},
+        "by": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["host-claude"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "pid"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["guest-claude"]}, "pid": {"$ref": "#/$defs/pid"}}
+            }
+          ]
+        },
+        "published": {"type": "boolean"}
+      }
+    },
+    "upload": {
+      "type": "object",
+      "required": ["id", "pid", "at", "qid", "file", "ext", "mime", "size", "chunks", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "pid": {"$ref": "#/$defs/pid"},
+        "at": {"$ref": "#/$defs/ts"},
+        "qid": {"type": ["string", "null"]},
+        "file": {"type": "string"},
+        "ext": {"type": "string"},
+        "mime": {"type": "string"},
+        "size": {"type": "integer", "minimum": 0},
+        "thumb": {"type": "string"},
+        "chunks": {"type": "integer", "minimum": 0},
+        "status": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["offered"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "tmp"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["accepted"]}, "tmp": {"type": "string"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "tmp", "received", "bytes"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["uploading"]},
+                "tmp": {"type": "string"},
+                "received": {"type": "integer", "minimum": 0},
+                "bytes": {"type": "integer", "minimum": 0}
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "stored", "sha256"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["done"]}, "stored": {"type": "string"}, "sha256": {"type": "string"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "at"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["declined"]}, "at": {"$ref": "#/$defs/ts"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "at"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["withdrawn"]}, "at": {"$ref": "#/$defs/ts"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "reason"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["failed"]}, "reason": {"type": "string"}}
+            }
+          ]
+        }
+      }
+    },
+    "annotation": {
+      "type": "object",
+      "required": ["id", "pid", "qid", "variant", "at", "text", "anchor"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "pid": {"$ref": "#/$defs/pid"},
+        "qid": {"$ref": "#/$defs/qid"},
+        "variant": {"type": "string"},
+        "at": {"$ref": "#/$defs/ts"},
+        "text": {"$ref": "#/$defs/text"},
+        "anchor": {
+          "type": "object",
+          "required": ["selector", "rect"],
+          "additionalProperties": false,
+          "properties": {"selector": {"type": "string"}, "rect": {"$ref": "#/$defs/rect"}}
+        }
+      }
+    },
+    "pref": {
+      "type": "object",
+      "required": ["value", "at"],
+      "additionalProperties": false,
+      "properties": {"value": {}, "at": {"$ref": "#/$defs/ts"}}
+    },
+    "prefs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "claudeTake": {"$ref": "#/$defs/pref"},
+        "sort": {"$ref": "#/$defs/pref"},
+        "filter": {"$ref": "#/$defs/pref"},
+        "round": {"$ref": "#/$defs/pref"},
+        "expandedRounds": {"$ref": "#/$defs/pref"},
+        "theme": {"$ref": "#/$defs/pref"},
+        "accent": {"$ref": "#/$defs/pref"},
+        "follow": {"$ref": "#/$defs/pref"},
+        "mute": {"$ref": "#/$defs/pref"}
+      }
+    },
+    "notification": {
+      "type": "object",
+      "required": ["id", "kind", "title", "at", "read"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "kind": {"enum": ["mention", "reply", "request", "proposal", "round", "merge", "role", "queue", "ready", "votes"]},
+        "title": {"type": "string"},
+        "at": {"$ref": "#/$defs/ts"},
+        "read": {"type": "boolean"},
+        "by": {"$ref": "#/$defs/pid"},
+        "body": {"type": "string"},
+        "qid": {"$ref": "#/$defs/qid"},
+        "msg": {"type": "string"},
+        "rollup": {
+          "type": "object",
+          "required": ["key", "since", "n"],
+          "additionalProperties": false,
+          "properties": {"key": {"type": "string"}, "since": {"$ref": "#/$defs/ts"}, "n": {"type": "integer", "minimum": 1}}
+        }
+      }
+    },
+    "mergeRequest": {
+      "type": "object",
+      "required": ["id", "from", "to", "at", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "from": {"$ref": "#/$defs/pid"},
+        "to": {"$ref": "#/$defs/pid"},
+        "at": {"$ref": "#/$defs/ts"},
+        "status": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["pending"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "at"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["approved"]}, "at": {"$ref": "#/$defs/ts"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "at", "why"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["declined"]}, "at": {"$ref": "#/$defs/ts"}, "why": {"enum": ["host", "gone"]}}
+            }
+          ]
+        }
+      }
+    },
+    "aboutYou": {
+      "type": "object",
+      "required": ["techComfort", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "techComfort": {"enum": ["low", "ok", "high"]},
+        "note": {"type": "string"},
+        "at": {"$ref": "#/$defs/ts"}
+      }
+    },
+    "eventLog": {
+      "type": "object",
+      "required": ["seq", "events", "handled"],
+      "additionalProperties": false,
+      "properties": {
+        "seq": {"type": "integer", "minimum": 0},
+        "events": {"type": "array", "items": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/event"}},
+        "handled": {"type": "array", "items": {"$ref": "#/$defs/seq"}}
+      }
+    }
+  }
+}

@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://melodic-software.github.io/claude-code-plugins/planning/shared/ops",
+  "title": "Shared interview session ops file",
+  "description": "Input to `share.sh apply --file`, written by Claude. Every op applies under the state lock and all of them land or none does. `op` tags the variant. A question's `id` is the interview ledger's next `Q<N>`. An asset id from `add-asset` is usable only in a later apply. Rules that compare fields or count across ops (dependsOn names earlier ids, at most 8 questions per round, a placement per pending proposal, one placement per proposal) are checked by session.py, not here.",
+  "type": "object",
+  "required": ["ops"],
+  "additionalProperties": false,
+  "properties": {
+    "ops": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          {"$ref": "#/$defs/set-title"},
+          {"$ref": "#/$defs/set-goal"},
+          {"$ref": "#/$defs/open-round"},
+          {"$ref": "#/$defs/close-round"},
+          {"$ref": "#/$defs/ack-round"},
+          {"$ref": "#/$defs/result"},
+          {"$ref": "#/$defs/fail-request"},
+          {"$ref": "#/$defs/add-reference"},
+          {"$ref": "#/$defs/remove-reference"},
+          {"$ref": "#/$defs/add-asset"},
+          {"$ref": "#/$defs/make-question-from"},
+          {"$ref": "#/$defs/handle"}
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "qid": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/questionId"},
+    "set-title": {
+      "type": "object",
+      "required": ["op", "title"],
+      "additionalProperties": false,
+      "properties": {"op": {"enum": ["set-title"]}, "title": {"type": "string", "maxLength": 80}}
+    },
+    "set-goal": {
+      "type": "object",
+      "required": ["op", "goal"],
+      "additionalProperties": false,
+      "properties": {"op": {"enum": ["set-goal"]}, "goal": {"type": "string", "maxLength": 200}}
+    },
+    "open-round": {
+      "type": "object",
+      "required": ["op", "questions"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["open-round"]},
+        "questions": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/questionInput"}},
+        "placements": {"$ref": "#/$defs/placements"}
+      }
+    },
+    "close-round": {
+      "type": "object",
+      "required": ["op"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["close-round"]},
+        "placements": {"$ref": "#/$defs/placements"},
+        "reason": {"type": "string"}
+      }
+    },
+    "ack-round": {
+      "type": "object",
+      "required": ["op", "round"],
+      "additionalProperties": false,
+      "properties": {"op": {"enum": ["ack-round"]}, "round": {"type": "integer", "minimum": 1}}
+    },
+    "result": {
+      "type": "object",
+      "required": ["op", "qid", "kind", "used", "why", "summary", "sources", "report"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["result"]},
+        "qid": {"$ref": "#/$defs/qid"},
+        "request": {"type": "string"},
+        "kind": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/requestKind"},
+        "used": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/used"},
+        "why": {"type": "string"},
+        "summary": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/summary"},
+        "sources": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/sources"},
+        "report": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/report"}
+      }
+    },
+    "fail-request": {
+      "type": "object",
+      "required": ["op", "request", "reason"],
+      "additionalProperties": false,
+      "properties": {"op": {"enum": ["fail-request"]}, "request": {"type": "string"}, "reason": {"type": "string"}}
+    },
+    "add-reference": {
+      "type": "object",
+      "required": ["op", "qid", "reference"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["add-reference"]},
+        "qid": {"$ref": "#/$defs/qid"},
+        "reference": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/reference"}
+      }
+    },
+    "remove-reference": {
+      "type": "object",
+      "required": ["op", "qid", "index"],
+      "additionalProperties": false,
+      "properties": {"op": {"enum": ["remove-reference"]}, "qid": {"$ref": "#/$defs/qid"}, "index": {"type": "integer", "minimum": 0}}
+    },
+    "add-asset": {
+      "type": "object",
+      "required": ["op", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["add-asset"]},
+        "path": {"type": "string"},
+        "as": {"type": "string"},
+        "scale": {"enum": [1, 2]}
+      }
+    },
+    "make-question-from": {
+      "type": "object",
+      "required": ["op", "proposal", "question"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["make-question-from"]},
+        "proposal": {"type": "string"},
+        "question": {"$ref": "#/$defs/questionInput"}
+      }
+    },
+    "handle": {
+      "type": "object",
+      "required": ["op", "seqs"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["handle"]},
+        "seqs": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}}
+      }
+    },
+    "questionInput": {
+      "type": "object",
+      "required": ["id", "text", "alternatives", "dependsOn", "purpose", "format"],
+      "additionalProperties": false,
+      "allOf": [{"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/questionRules"}],
+      "properties": {
+        "id": {"$ref": "#/$defs/qid"},
+        "text": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/text"},
+        "short": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/short"},
+        "scope": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/scope"},
+        "context": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/context"},
+        "recommendation": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/recommendation"},
+        "basis": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/basis"},
+        "alternatives": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/alternatives"},
+        "dependsOn": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/dependsOn"},
+        "purpose": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/purpose"},
+        "format": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/format"},
+        "answerScope": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/answerScope"},
+        "references": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/references"}
+      }
+    },
+    "placements": {"type": "array", "items": {"$ref": "#/$defs/placement"}},
+    "placement": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["proposal", "as"],
+          "additionalProperties": false,
+          "properties": {"proposal": {"type": "string"}, "as": {"enum": ["question"]}, "question": {"$ref": "#/$defs/questionInput"}}
+        },
+        {
+          "type": "object",
+          "required": ["proposal", "as", "question", "after"],
+          "additionalProperties": false,
+          "properties": {
+            "proposal": {"type": "string"},
+            "as": {"enum": ["later-round"]},
+            "question": {"$ref": "#/$defs/questionInput"},
+            "after": {"type": "array", "items": {"$ref": "#/$defs/qid"}}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["proposal", "as", "target"],
+          "additionalProperties": false,
+          "properties": {
+            "proposal": {"type": "string"},
+            "as": {"enum": ["suggestion"]},
+            "target": {"$ref": "#/$defs/qid"},
+            "text": {"type": "string"},
+            "reason": {"type": "string"}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["proposal", "as", "target", "reason"],
+          "additionalProperties": false,
+          "properties": {"proposal": {"type": "string"}, "as": {"enum": ["merge"]}, "target": {"$ref": "#/$defs/qid"}, "reason": {"type": "string"}}
+        },
+        {
+          "type": "object",
+          "required": ["proposal", "as", "reason"],
+          "additionalProperties": false,
+          "properties": {"proposal": {"type": "string"}, "as": {"enum": ["later"]}, "reason": {"type": "string"}}
+        },
+        {
+          "type": "object",
+          "required": ["proposal", "as", "reason"],
+          "additionalProperties": false,
+          "properties": {"proposal": {"type": "string"}, "as": {"enum": ["not-placed"]}, "reason": {"type": "string"}}
+        }
+      ]
+    }
+  }
+}

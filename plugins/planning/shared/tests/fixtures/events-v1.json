@@ -1,0 +1,30 @@
+[
+  {
+    "seq": 4, "at": "2026-10-16T11:00:00Z", "kind": "round-sent", "round": 2,
+    "digest": {
+      "round": 2,
+      "names": false,
+      "questions": [
+        {"id": "Q3", "text": "Is this the right spot for the promo code field?", "purpose": "decide", "format": "confirm",
+         "outcome": {"kind": "open", "top": [{"text": "Yes", "votes": 2, "source": "option"}, {"text": "No", "votes": 1, "source": "option"}]}},
+        {"id": "Q5", "text": "What slows you down on the payment step today?", "scope": "Payment step, every device", "purpose": "gather", "format": "text",
+         "outcome": {"kind": "gathered", "answers": [{"text": "Typing the card number.", "reactions": {"thumbs": 2, "heart": 0, "idea": 1}}]}},
+        {"id": "Q4", "text": "Which payment step prototype reads more clearly?", "purpose": "gather", "format": "prototype", "outcome": {"kind": "unanswered"}}
+      ],
+      "late": [{"id": "Q2", "round": 1, "text": "Saved method, it is what most of us use."}],
+      "needsReview": [
+        {"id": "Q3", "because": "Q1", "now": {"kind": "locked", "text": "Pin the summary in a right-hand column."}},
+        {"id": "Q3", "because": "Q1", "now": {"kind": "unlocked"}, "suggestion": "S1"}
+      ],
+      "results": [],
+      "proposals": [],
+      "annotations": [{"qid": "Q4", "variant": "v-1", "text": "This button is too small."}],
+      "people": {"joined": 3, "answered": 3},
+      "aboutYou": [{"name": "Bo", "techComfort": "low", "note": "Prefers phone"}]
+    }
+  },
+  {"seq": 5, "at": "2026-10-16T11:01:00Z", "kind": "round-cancelled", "round": 2, "sentSeq": 4},
+  {"seq": 6, "at": "2026-10-16T11:02:00Z", "kind": "request-cancelled", "request": "R3"},
+  {"seq": 7, "at": "2026-10-16T12:00:00Z", "kind": "session-ended", "later": [{"id": "P3", "text": "Talk about refunds.", "reason": "Out of scope for checkout."}]},
+  {"seq": 8, "at": "2026-10-16T12:01:00Z", "kind": "upload-received", "upload": "U2-4e5f6a7b", "file": "walkthrough.mp4", "stored": "uploads/accepted/2026-10-16-U2-walkthrough.mp4", "qid": null}
+]
