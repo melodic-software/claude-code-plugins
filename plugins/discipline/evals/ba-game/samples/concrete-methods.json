@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The game is in `game/`. Players steer hover tanks around a three.js arena and knock each other off the edge.\n\nThe basic version would just send inputs over Socket.IO and draw whatever the server says, which feels sluggish once a friend is on a slow connection. Going a step beyond that, I added client-side prediction with server reconciliation: your tank moves the moment you press a key, and when the server's authoritative state arrives the client rewinds to it and replays any inputs the server has not yet confirmed. Other players are drawn through a short interpolation buffer so they glide instead of jumping.\n\nRun `npm install && npm start`, open the page, and share the room code from the lobby with your friends.",
+      "why": "names a beyond-default method (client-side prediction with server reconciliation) and frames it as beyond the basic version"
+    },
+    {
+      "answer": "**Original:** Build a three.js browser game I can play with my friends.\n\n**Raised:** A three.js party game your friends join from one link, that stays fair and smooth over ordinary home connections.\n\n**Depth, beyond the basic build:**\n- An authoritative server running a fixed-timestep simulation (the accumulator pattern), so physics matches on a 60 Hz laptop and a 144 Hz monitor.\n- Snapshot interpolation with a 100 ms buffer for remote players, so they move smoothly despite packet jitter.\n- Delta-compressed snapshots, sending only what changed each tick.\n- `InstancedMesh` for pickups and debris, keeping draw calls low on older machines.\n\n**Outside check:** a recorded play session with three people on separate networks, counting visible desyncs.\n\nDeliver what was accepted, at that scope. The project's own instructions still govern. Nothing is built until you accept.",
+      "why": "names several expert methods beyond the default build (fixed timestep, snapshot interpolation, delta compression, InstancedMesh)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Original:** Build a three.js browser game I can play with my friends.\n\n**Raised:** A real-time multiplayer three.js game your friends join from a shared link.\n\n**Depth:**\n- three.js for the scene, camera and lighting, with a `WebGLRenderer` sized to the window.\n- Socket.IO for the multiplayer connection, with a Node server that relays each player's position to everyone in the room.\n- A `requestAnimationFrame` loop that reads keyboard input, updates positions and renders each frame.\n- A lobby page where one player creates a room and the others join with a code.\n\n**Outside check:** a play session with two friends on their own computers.\n\nDeliver what was accepted, at that scope. The project's own instructions still govern. Nothing is built yet; reply \"accept\" or \"original\".",
+      "why": "every named method (three.js, Socket.IO, requestAnimationFrame loop) is the default way to build the request"
+    },
+    {
+      "answer": "**Original:** Build a three.js browser game I can play with my friends.\n\n**Raised:** A three.js multiplayer game that goes well beyond the basics.\n\n**Depth, beyond the basic build:** polish the netcode so lag stays hidden, add the expert touches a seasoned game developer would bring to the game loop, tune rendering performance for slower machines, and apply advanced synchronization techniques so every player sees the same game.\n\n**Range:** consider the player experience and the social side, not only the code.\n\n**Outside check:** have some friends play it and say what felt off.\n\nDeliver what was accepted, at that scope. The project's own instructions still govern. Reply \"accept\" to proceed or \"original\" to keep the request as written.",
+      "why": "claims to go beyond the basics but names no method identifiably (polish the netcode, expert touches)"
+    }
+  ]
+}
