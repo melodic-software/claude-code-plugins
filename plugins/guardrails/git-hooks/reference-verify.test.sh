@@ -185,6 +185,17 @@ expect "a file the checkout lacks is judged from the pushed tip" \
   "1|NEW.md:1: stale-path-verify: cited path(s) in NEW.md were deleted from this repo:" \
   "$(push_check refs/heads/fresh "$tip" "$ZERO")"
 
+# A force-added gitignored file is what the push sends, so it is verified.
+new_repo
+printf 'tool.sh\n' >"$REPO/.gitignore"
+printf '#!/usr/bin/env bash\nfaketool --bogus\n' >"$REPO/tool.sh"
+git -C "$REPO" add .gitignore
+git -C "$REPO" add -f tool.sh
+git -C "$REPO" commit -q -m ignored --no-verify
+expect "a pushed force-added gitignored file is verified" \
+  "1|tool.sh:1: cli-flag-verify: unknown flag(s) in tool.sh, unverified, not proven wrong: the installed --help may predate the flag." \
+  "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
+
 new_repo
 printf 'faketool --bogus in a text file\n' >"$REPO/notes.txt"
 commit_all notes

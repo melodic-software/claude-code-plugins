@@ -122,7 +122,6 @@ check_range() {
   checks_changed_lines
   while IFS= read -r -d '' f; do
     verified_type "$f" || continue
-    git check-ignore -q --no-index -- "$f" 2>/dev/null && continue
     regular_file "$f" || continue
     if is_new "$f"; then
       text="$(
