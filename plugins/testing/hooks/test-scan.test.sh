@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Contract test for test-scan.sh, the testing plugin's PostToolUse hook.
+# Contract test for test-scan.sh, the testing plugin's PostToolUse-shaped scan
+# wrapper. No shipped hook row runs it; /testing:audit is the shipped route.
 #
 # Builds a throwaway git repository per run, writes test files into it, and
 # pipes hand-built PostToolUse payloads through the hook. Covers the option
@@ -9,7 +10,7 @@
 # expectations, constant restatements), the lead for findings of tests that
 # can fail, the marker prune, the per-call dedup that keeps two
 # overlapping `if` rows from reporting twice, and the per-write session state
-# (blocks, project key, prune) the task-end judge reads.
+# (blocks, project key, prune).
 # test-scope: plugins/testing/hooks/hooks.json plugins/testing/skills/audit/adapters/*.yaml
 
 # shellcheck disable=SC2016 # fence lines in fixtures are literal text
@@ -467,163 +468,6 @@ run Write "$REPO/src/sum.test.ts" st5 "" st-prune2
 if [[ ! -e "$S/emptykey/emptysid" ]]; then ok "prune: an empty directory over an hour old is removed"; else fail "prune: an empty directory over an hour old is removed"; fi
 if [[ -d "$S/newkey/newsid" ]]; then ok "prune: a fresh empty directory stays for its writer"; else fail "prune: a fresh empty directory stays for its writer"; fi
 
-# Bash route: test-scan-bash.sh reads tool_response.bashEditDiff and runs
-# test-scan.sh per changed test file.
-BASH_HOOK="$HOOK_DIR/test-scan-bash.sh"
-# bash_payload <tool_use_id> <bashEditDiff json, or "" for none>
-bash_payload() {
-  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg u "$1" --arg d "$2" --arg tp "$TPATH" --arg c "$PCWD" '{hook_event_name: "PostToolUse", tool_name: "Bash",
-    session_id: "sb", tool_use_id: $u, transcript_path: $tp, cwd: $c, tool_input: {command: "true"},
-    tool_response: {stdout: "", stderr: "", interrupted: false}}
-    | if $d == "" then . else .tool_response.bashEditDiff = ($d | fromjson) end'
-}
-# diff_of <created|edit> <file> [hunks json]: a one-file bashEditDiff
-diff_of() {
-  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg k "$1" --arg f "$2" --argjson h "${3:-[]}" '{changedFiles: [$f], moreFiles: 0,
-    files: [{filePath: $f, hunks: $h} + (if $k == "created" then {created: true} else {} end)]}'
-}
-ADD_ALL='[{"oldStart":0,"oldLines":0,"newStart":1,"newLines":1,"lines":["+x"]}]'
-bash_run() {
-  out="$(bash_payload "$1" "$2" | bash "$BASH_HOOK" 2>/dev/null)"
-  rc=$?
-}
-
-bash_run bash-1 "$(diff_of created "$REPO/src/sum.test.ts" "$ADD_ALL")"
-if [[ $rc -eq 0 ]]; then ok "(f) Bash: exits 0"; else fail "(f) Bash: exit $rc"; fi
-assert_contains "(f) a created zero-assertion test file reports rule-zero-assertion" "$out" "rule-zero-assertion"
-assert_contains "(f) the finding goes back through additionalContext" "$out" '"additionalContext"'
-
-bash_run bash-2 ""
-assert_empty "(g) no bashEditDiff: no output" "$out"
-if [[ $rc -eq 0 ]]; then ok "(g) no bashEditDiff: exits 0"; else fail "(g) no bashEditDiff: exit $rc"; fi
-bash_run bash-3 "$(diff_of edit "$REPO/src/app.ts" "$ADD_ALL")"
-assert_empty "(g) only non-test files changed: no output" "$out"
-bash_run bash-4 '{"changedFiles":[],"moreFiles":0,"files":[]}'
-assert_empty "(g) an empty diff: no output" "$out"
-out="$(bash_payload bash-5 "$(diff_of created "$REPO/src/sum.test.ts" "$ADD_ALL")" |
-  CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED='' node "$HOOK_DIR/exec-bash.mjs" \
-    --require-true TEST_GUARDS_ENABLED "$BASH_HOOK" 2>&1)"
-assert_empty "(g) option unset: the launcher never starts the hook" "$out"
-out="$(bash_payload bash-5b "$(diff_of created "$REPO/src/sum.test.ts" "$ADD_ALL")" |
-  CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED='' bash "$BASH_HOOK" 2>&1)"
-assert_empty "(g) option unset: nothing runs" "$out"
-
-# Scope follows hook-precision rule 1: an edited file reports only blocks its
-# hunks touch; a file listed without hunks reports nothing.
-bash_run bash-6 "$(diff_of edit "$REPO/src/mixed.test.ts" "$(jq -c .structuredPatch <<<"$EDIT_GOOD")")"
-assert_not_contains "(h) a Bash edit inside the good block leaves the bad block quiet" "$out" "rule-zero-assertion"
-bash_run bash-7 "$(diff_of edit "$REPO/src/mixed.test.ts" "$(jq -c .structuredPatch <<<"$EDIT_BAD")")"
-assert_contains "(h) a Bash edit inside the bad block reports it" "$out" "rule-zero-assertion"
-bash_run bash-8 "$(MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg f "$REPO/src/mixed.test.ts" '{changedFiles: [$f], moreFiles: 0, files: []}')"
-assert_empty "(h) a changed file past the hunk list reports nothing" "$out"
-bash_run bash-9 "$(diff_of created "$REPO/scratch/ignored.test.ts" "$ADD_ALL")"
-assert_empty "(h) a gitignored test file is skipped" "$out"
-
-# Two test files in one call each report, in one document.
-two="$(MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg a "$REPO/src/sum.test.ts" --arg b "$REPO/src/again.test.ts" --argjson h "$ADD_ALL" \
-  '{changedFiles: [$a, $b], moreFiles: 0,
-    files: [{filePath: $a, created: true, hunks: $h}, {filePath: $b, created: true, hunks: $h}]}')"
-bash_run bash-10 "$two"
-assert_contains "(i) two files: the first reports" "$out" "rule-zero-assertion"
-assert_contains "(i) two files: the second reports" "$out" "rule-recomputed-expectation"
-if [[ "$(jq -s length <<<"$out" 2>/dev/null)" == 1 ]]; then ok "(i) two files: one JSON document"; else fail "(i) two files: one JSON document (got: ${out:0:300})"; fi
-
-# A scanner that fails is reported on stderr, as on the Write and Edit route.
-cat >"$TMP/fail.sh" <<'EOF'
-#!/usr/bin/env bash
-exit 3
-EOF
-err="$(bash_payload bash-11 "$(diff_of created "$REPO/src/sum.test.ts" "$ADD_ALL")" |
-  TEST_SCAN_SCANNER="$TMP/fail.sh" bash "$BASH_HOOK" 2>&1 >/dev/null)"
-assert_contains "(k) a failing scanner's diagnostic reaches stderr" "$err" "scanner exited 3"
-
-# A test file a Bash call changed leaves the same session record as a Write or
-# Edit, so the task-end judge covers it: one per changed test file, keyed by
-# the call's tool_use_id and the file's place in the call.
-bash_run bs-1 "$(diff_of created "$REPO/src/mixed.test.ts" "$ADD_ALL")"
-assert_jq "Bash state: a created file records every block, as a create" "$(rec sb bs-1-1)" \
-  '.create == true and .lines == null and (.blocks | map(.name)) == ["adds", "adds two"] and .file == "'"$REPO"'/src/mixed.test.ts"'
-bash_run bs-2 "$(diff_of edit "$REPO/src/mixed.test.ts" "$(jq -c .structuredPatch <<<"$EDIT_GOOD")")"
-assert_jq "Bash state: an edit records the block its hunk touched and the lines it wrote" "$(rec sb bs-2-1)" \
-  '.create == false and .lines == [9] and .blocks == [{name: "adds two", ordinal: 1, start: 8, end: 10}]'
-bash_run bs-3 "$(MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg f "$REPO/src/mixed.test.ts" '{changedFiles: [$f], moreFiles: 0, files: []}')"
-assert_jq "Bash state: a changed file with no hunks records blocks:null, the whole file" "$(rec sb bs-3-1)" '.blocks == null'
-bash_run bs-4 "$two"
-check_two="$(rec sb bs-4-1) $(rec sb bs-4-2)"
-if [[ "$check_two" == *"/sb/bs-4-1.json "*"/sb/bs-4-2.json" ]]; then ok "Bash state: two test files in one call leave two records"; else fail "Bash state: two test files in one call leave two records ($check_two)"; fi
-
-# A test file a checkout, pull or merge brought in is unchanged from HEAD in
-# its own repository, as git diff sees it, and git last moved HEAD with that
-# checkout, pull or merge: the session did not write it, so it is neither
-# scanned nor recorded. One the call changed, or one HEAD lacks, is.
-gc() { git -C "$1" -c commit.gpgsign=false -c user.name=t -c user.email=t@t "${@:2}"; }
-HR="$TMP/headrepo"
-mkdir -p "$HR/src"
-git -C "$HR" init -q
-cp "$REPO/src/sum.test.ts" "$HR/src/kept.test.ts"
-cp "$REPO/src/sum.test.ts" "$HR/src/also.test.ts"
-git -C "$HR" add -A
-gc "$HR" commit -qm init
-git -C "$HR" checkout -q -b work
-# The hunk covers the zero-assertion test body (line 5), so a scan would report it.
-BODY='[{"oldStart":5,"oldLines":1,"newStart":5,"newLines":1,"lines":["-  sum(1, 2);","+  sum(1, 2);"]}]'
-bash_run hd-1 "$(diff_of edit "$HR/src/kept.test.ts" "$BODY")"
-assert_not_contains "Bash HEAD: a test file identical to HEAD is not scanned" "$out" "rule-zero-assertion"
-assert_empty "Bash HEAD: a test file identical to HEAD gives no output" "$out"
-assert_empty "Bash HEAD: a test file identical to HEAD leaves no record" "$(rec sb hd-1-1)"
-printf '%s\n' "test('more', () => {" "  sum(2, 2);" "});" >>"$HR/src/kept.test.ts"
-bash_run hd-2 "$(diff_of edit "$HR/src/kept.test.ts" "$ADD_ALL")"
-assert_contains "Bash HEAD: an edited tracked test file is recorded" "$(rec sb hd-2-1)" "/sb/hd-2-1.json"
-cp "$REPO/src/sum.test.ts" "$HR/src/fresh.test.ts"
-bash_run hd-3 "$(diff_of created "$HR/src/fresh.test.ts" "$ADD_ALL")"
-assert_contains "Bash HEAD: an untracked new test file is recorded" "$(rec sb hd-3-1)" "/sb/hd-3-1.json"
-# The repository is the file's own, found at either separator: a
-# backslash-only path (a Windows path) to a file identical to HEAD stays quiet.
-b=$'\\'
-if command -v cygpath >/dev/null; then BS="$(cygpath -w "$HR/src/also.test.ts")"; else BS="${HR//\//$b}${b}src${b}also.test.ts"; fi
-out="$(bash_payload hd-4 "$(diff_of edit "$BS" "$ADD_ALL")" | bash "$BASH_HOOK" 2>&1)"
-assert_empty "Bash HEAD: a backslash path to a file identical to HEAD is not scanned" "$out"
-assert_empty "Bash HEAD: a backslash path to a file identical to HEAD leaves no record" "$(rec sb hd-4-1)"
-# A tracked test edited and committed in one call matches HEAD afterwards, but
-# a commit last moved HEAD, so it is still recorded for the judge.
-cp "$REPO/src/sum.test.ts" "$HR/src/mine.test.ts"
-git -C "$HR" add src/mine.test.ts
-gc "$HR" commit -qm mine
-printf '%s\n' "test('mine', () => {" "  sum(3, 3);" "});" >>"$HR/src/mine.test.ts"
-gc "$HR" commit -qm weaken src/mine.test.ts
-bash_run hd-6 "$(diff_of edit "$HR/src/mine.test.ts" "$ADD_ALL")"
-assert_contains "Bash HEAD: a test edited and committed in one call is recorded" "$(rec sb hd-6-1)" "/sb/hd-6-1.json"
-# Test files a merge brought in stay quiet, and do not take the cap's slots
-# from a new test file the same call wrote.
-git -C "$HR" checkout -q -b side
-for i in 1 2 3 4; do cp "$REPO/src/sum.test.ts" "$HR/src/p$i.test.ts"; done
-git -C "$HR" add src/p1.test.ts src/p2.test.ts src/p3.test.ts src/p4.test.ts
-gc "$HR" commit -qm side
-git -C "$HR" checkout -q work
-gc "$HR" merge -q --no-edit side
-bash_run hd-7 "$(diff_of edit "$HR/src/p1.test.ts" "$BODY")"
-assert_empty "Bash HEAD: a test file a merge brought in gives no output" "$out"
-assert_empty "Bash HEAD: a test file a merge brought in leaves no record" "$(rec sb hd-7-1)"
-cp "$REPO/src/sum.test.ts" "$HR/src/new.test.ts"
-five="$(MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg d "$HR/src" --argjson h "$ADD_ALL" '[range(1; 5) | "\($d)/p\(.).test.ts"] + ["\($d)/new.test.ts"]
-  | {changedFiles: ., moreFiles: 0, files: map({filePath: ., hunks: $h})}')"
-bash_run hd-8 "$five"
-assert_jq "Bash HEAD: a new test file after four merged ones is still recorded" "$(rec sb hd-8-1)" '.file == "'"$HR"'/src/new.test.ts"'
-# A file committed with CRLF line endings under core.autocrlf=true is
-# unchanged to git, though hash-object's eol filter hashes it differently.
-CR="$TMP/crlfrepo"
-mkdir -p "$CR/src"
-git -C "$CR" init -q
-git -C "$CR" config core.autocrlf false
-printf '%s\r\n' "import { test, expect } from 'vitest';" "import { sum } from './sum';" "" "test('adds', () => {" "  sum(1, 2);" "});" >"$CR/src/crlf.test.ts"
-git -C "$CR" add -A
-gc "$CR" commit -qm init
-git -C "$CR" checkout -q -b work
-git -C "$CR" config core.autocrlf true
-out="$(bash_payload hd-5 "$(diff_of edit "$CR/src/crlf.test.ts" "$BODY")" | bash "$BASH_HOOK" 2>&1)"
-assert_empty "Bash HEAD: a CRLF test file unchanged under core.autocrlf=true is not scanned" "$out"
-assert_empty "Bash HEAD: a CRLF test file unchanged under core.autocrlf=true leaves no record" "$(rec sb hd-5-1)"
-
 # A working copy under the temp root, or in a Claude session scratchpad, is
 # not a test the session authored: no judge record (#6037). The skip root is
 # injectable so the fixtures above still record.
@@ -647,12 +491,6 @@ chmod +x "$TMP/shortbin/cygpath"
 out="$(payload Write "$REPO/KYLESE~1/short.test.ts" stskip "" sk-short "$CREATE" |
   TEST_SCAN_SKIP_ROOT="$TEST_SCAN_SKIP_ROOT" TESTING_OSTYPE=msys PATH="$TMP/shortbin:$PATH" bash "$HOOK" 2>/dev/null)"
 assert_empty "8.3 short temp copy: no judge record" "$(rec stskip sk-short)"
-out="$(bash_payload sk-bash "$(diff_of created "$REPO/hold/copied.test.ts" "$ADD_ALL")" |
-  TEST_SCAN_SKIP_ROOT="$REPO/hold" bash "$BASH_HOOK" 2>/dev/null)"
-assert_empty "Bash temp copy: no judge record" "$(rec sb sk-bash-1)"
-out="$(bash_payload sk-pad "$(diff_of created "$REPO/claude/proj/sess/scratchpad/pad.test.ts" "$ADD_ALL")" |
-  bash "$BASH_HOOK" 2>/dev/null)"
-assert_empty "Bash scratchpad copy: no judge record" "$(rec sb sk-pad-1)"
 
 # With TMPDIR, TMP and TEMP all unset, the POSIX defaults /tmp and /var/tmp
 # are still the temp root. The fixtures are made there by name, not through
@@ -667,9 +505,6 @@ assert_contains "control: a /tmp copy records when the root is elsewhere" "$(rec
 out="$(payload Write "$DEF_TMP/def.test.ts" stskip "" sk-def "$CREATE" |
   env -u TEST_SCAN_SKIP_ROOT -u TMPDIR -u TMP -u TEMP bash "$HOOK" 2>/dev/null)"
 assert_empty "temp vars unset: a /tmp copy leaves no judge record" "$(rec stskip sk-def)"
-out="$(bash_payload sk-def-bash "$(diff_of created "$DEF_TMP/def.test.ts" "$ADD_ALL")" |
-  env -u TEST_SCAN_SKIP_ROOT -u TMPDIR -u TMP -u TEMP bash "$BASH_HOOK" 2>/dev/null)"
-assert_empty "temp vars unset: a Bash /tmp copy leaves no judge record" "$(rec sb sk-def-bash-1)"
 if [[ -n "$VAR_TMP" ]]; then
   cp "$REPO/src/sum.test.ts" "$VAR_TMP/var.test.ts"
   out="$(payload Write "$VAR_TMP/var.test.ts" stskip "" sk-var "$CREATE" |
@@ -704,9 +539,6 @@ assert_empty "POSIX-spelled temp var, long payload path: no judge record" "$(rec
 out="$(payload Write "$REPO/LONGTE~1/short.test.ts" stskip "" sk-long-short "$CREATE" |
   TEST_SCAN_SKIP_ROOT="$REPO/posixtmp" TESTING_OSTYPE=msys PATH="$TMP/formbin:$PATH" bash "$HOOK" 2>/dev/null)"
 assert_empty "POSIX-spelled temp var, short payload path: no judge record" "$(rec stskip sk-long-short)"
-out="$(bash_payload sk-long-bash "$(diff_of created "$REPO/Long Temp/long.test.ts" "$ADD_ALL")" |
-  TEST_SCAN_SKIP_ROOT="$REPO/posixtmp" TESTING_OSTYPE=msys PATH="$TMP/formbin:$PATH" bash "$BASH_HOOK" 2>/dev/null)"
-assert_empty "POSIX-spelled temp var, Bash long path: no judge record" "$(rec sb sk-long-bash-1)"
 
 echo
 echo "$PASS passed, $FAIL failed"

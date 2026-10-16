@@ -51,8 +51,10 @@ PASS, or an affirmative claim that the concern is frequent, has to pay for a sam
 A candidate phrased as "a `PostToolUse` hook that rejects the edit when the formatter finds a
 problem" cannot exist. The tool has already run by the time the event fires, and exit code 2 there
 shows the hook's stderr to Claude rather than preventing anything. Such a candidate is not a REJECT
-at **Too slow** or **Already enforced**; it is malformed, and the right response is to re-state it
-on a blocking event or to accept it as advisory before running it past any gate.
+at **Too slow** or **Already enforced**; it is malformed. A report-only check is never re-stated
+as an advisory per-edit hook: flag it with its check-placement home (a git `pre-commit` hook on
+changed lines, `pre-push` when its measured run is over the commit budget but within 60 s, CI
+beyond), the same placement the shift-left carve-out's second conjunct requires.
 
 ## An `exit 2` gate on `PermissionRequest` is silently inert
 
@@ -67,8 +69,9 @@ the verdict, not after.
 ## The candidate generator reaches a handful of the documented events
 
 The hooks documentation names 33 events. This skill's own candidate guidance names three of them:
-`context/gap-analysis.md` asks only about a `PostToolUse` formatter, and `context/hook-timing.md`
-prices `PreToolUse`, `PostToolUse` and `PermissionRequest`. Everything else, session lifecycle,
+`context/gap-analysis.md` asks about formatters and report-only checks on `PostToolBatch`,
+`PostToolUse` and git hooks, and `context/hook-timing.md` prices `PreToolUse`, `PostToolUse`,
+`PostToolBatch` and `PermissionRequest`. Everything else, session lifecycle,
 compaction, subagent and task boundaries, file and config change, model switch, elicitation, is
 absent from the questions the skill asks, so a genuine gap on one of those events cannot surface as
 a candidate at all. That is a recall ceiling in the generator, and it is invisible in the output: a

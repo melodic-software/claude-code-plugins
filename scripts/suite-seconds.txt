@@ -555,9 +555,6 @@ plugins/speech/scripts/test_assets.py 1
 plugins/speech/scripts/test_elevenlabs.py 1
 plugins/speech/scripts/test_narrate.py 1
 plugins/speech/scripts/test_speech_pydeps.py 4
-plugins/testing/hooks/test-judge-bg.test.sh 20
-plugins/testing/hooks/test-judge-start.test.sh 1
-plugins/testing/hooks/test-judge.test.sh 56
 plugins/testing/hooks/test-scan.test.sh 11
 plugins/testing/hooks/test-weaken.test.sh 6
 plugins/testing/scripts/gen-hook-filters.test.sh 1
