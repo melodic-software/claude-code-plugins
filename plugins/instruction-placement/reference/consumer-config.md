@@ -11,8 +11,8 @@ README summarizes and points here.
 
 ## Why this is not `userConfig`, and not the memory tier
 
-The plugin's `userConfig` block stays where it is: the index-drift hook toggle, the breadth ceiling,
-the index row cap. Those are personal, enable-time dials, and a personal value for any of them
+The plugin's `userConfig` block stays where it is: the breadth ceiling and the index row cap.
+Those are personal, enable-time dials, and a personal value for any of them
 changes what one operator's own report ranks while the finding it moves is still reported.
 
 A decline is not a dial. It removes a finding from every future report, so a gitignored personal

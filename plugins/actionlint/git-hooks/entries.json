@@ -1,0 +1,11 @@
+{
+  "entries": [
+    {
+      "name": "actionlint-check",
+      "event": "pre-commit",
+      "script": "actionlint-check.sh",
+      "tools": ["actionlint"],
+      "rewrites": false
+    }
+  ]
+}

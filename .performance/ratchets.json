@@ -29,6 +29,20 @@
       "goal": "With typos_format_end_of_turn at its default (false), the Stop row costs only the node launcher: the --require-true gate closes before bash starts. Stop fires on every turn end, so this is what every turn costs a user who never opted in. Measured 1 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
     },
     {
+      "name": "ruff-format-posttoolbatch-no-python-spawns",
+      "command": "bash scripts/hook-census.sh ruff-format PostToolBatch ruff-format.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolBatch\",\"cwd\":\"@DIR@\",\"tool_calls\":[{\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\"},\"tool_use_id\":\"toolu_census\",\"tool_response\":\"# readme\"}]}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 1,
+      "goal": "The PostToolBatch row has no matcher or if, so it fires on every batch of every session. A batch whose payload never mentions .py costs only the node launcher: --skip-unless-stdin-contains closes before bash starts. Measured 1 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+    },
+    {
+      "name": "ruff-format-stop-end-of-turn-option-off-spawns",
+      "command": "bash scripts/hook-census.sh ruff-format Stop ruff-format.sh '{\"session_id\":\"census\",\"hook_event_name\":\"Stop\",\"stop_hook_active\":false,\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 1,
+      "goal": "With ruff_format_end_of_turn at its default (false), the Stop row costs only the node launcher: the --require-true gate closes before bash starts. Stop fires on every turn end, so this is what every turn costs a user who never opted in. Measured 1 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+    },
+    {
       "name": "multi-agent-pretooluse-bash-docs-fetcher-gate-spawns",
       "command": "bash scripts/hook-census.sh multi-agent PreToolUse docs-fetcher-gate.mjs '{\"session_id\":\"census\",\"hook_event_name\":\"PreToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"true\"}}' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
@@ -48,6 +62,90 @@
       "field": "share",
       "ceiling": 2.54,
       "goal": "Production JavaScript functions (.js .jsx .mjs .cjs, scoped by scripts/js-complexity-share.py: test files, vendored files and sanctioned copies out) at cyclomatic complexity 20 or above, the code-metrics reference (ISO/IEC 5055:2021 section 8.2.117), stay at most this percent of the functions measured. A no-worse ratchet, not a target. Measured 2.54 (52 of 2046) at 7787be41e with lizard 1.24.0, pinned in .github/requirements-ci.txt; the counter prints its lizard version. Correlation: unproven: a code-shape share, not a runtime cost"
+    },
+    {
+      "name": "biome-format-posttoolbatch-no-biome-file-spawns",
+      "command": "bash scripts/hook-census.sh biome-format PostToolBatch biome-format.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolBatch\",\"cwd\":\"@DIR@\",\"tool_calls\":[{\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\"},\"tool_use_id\":\"toolu_census\",\"tool_response\":\"# readme\"}]}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 3,
+      "goal": "The PostToolBatch row has no matcher or if, so it fires on every batch of every session, and it carries no --skip-unless-stdin-contains because Biome covers ten extensions. A batch of a Read with no Biome extension costs the node launcher, bash and nothing else: the extension test in biome-format.sh exits before jq runs. Measured 3 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+    },
+    {
+      "name": "biome-format-stop-end-of-turn-option-off-spawns",
+      "command": "bash scripts/hook-census.sh biome-format Stop biome-format.sh '{\"session_id\":\"census\",\"hook_event_name\":\"Stop\",\"stop_hook_active\":false,\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 1,
+      "goal": "With biome_format_end_of_turn at its default (false), the Stop row costs only the node launcher: the --require-true gate closes before bash starts. Stop fires on every turn end, so this is what every turn costs a user who never opted in. Measured 1 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+    },
+    {
+      "name": "go-format-posttoolbatch-no-go-spawns",
+      "command": "bash scripts/hook-census.sh go-format PostToolBatch go-format.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolBatch\",\"cwd\":\"@DIR@\",\"tool_calls\":[{\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\"},\"tool_use_id\":\"toolu_census\",\"tool_response\":\"# readme\"}]}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 1,
+      "goal": "The PostToolBatch row has no matcher or if, so it fires on every batch of every session. A batch whose payload never mentions .go costs only the node launcher: --skip-unless-stdin-contains closes before bash starts. Measured 1 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+    },
+    {
+      "name": "go-format-stop-end-of-turn-option-off-spawns",
+      "command": "bash scripts/hook-census.sh go-format Stop go-format.sh '{\"session_id\":\"census\",\"hook_event_name\":\"Stop\",\"stop_hook_active\":false,\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 1,
+      "goal": "With go_format_end_of_turn at its default (false), the Stop row costs only the node launcher: the --require-true gate closes before bash starts. Stop fires on every turn end, so this is what every turn costs a user who never opted in. Measured 1 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+    },
+    {
+      "name": "bash-format-posttoolbatch-no-shell-spawns",
+      "command": "bash scripts/hook-census.sh bash-format PostToolBatch bash-format.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolBatch\",\"cwd\":\"@DIR@\",\"tool_calls\":[{\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\"},\"tool_use_id\":\"toolu_census\",\"tool_response\":\"# readme\"}]}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 1,
+      "goal": "The PostToolBatch row has no matcher or if, so it fires on every batch of every session. A batch whose payload never mentions a .sh or .bash path costs only the node launcher: --skip-unless-stdin-contains closes before bash starts. Measured 1 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+    },
+    {
+      "name": "bash-format-stop-end-of-turn-option-off-spawns",
+      "command": "bash scripts/hook-census.sh bash-format Stop bash-format.sh '{\"session_id\":\"census\",\"hook_event_name\":\"Stop\",\"stop_hook_active\":false,\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 1,
+      "goal": "With bash_format_end_of_turn at its default (false), the Stop row costs only the node launcher: the --require-true gate closes before bash starts. Stop fires on every turn end, so this is what every turn costs a user who never opted in. Measured 1 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+    },
+    {
+      "name": "eol-normalizer-posttoolbatch-no-file-path-spawns",
+      "command": "bash scripts/hook-census.sh eol-normalizer PostToolBatch eol-normalizer.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolBatch\",\"cwd\":\"@DIR@\",\"tool_calls\":[{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"true\"},\"tool_use_id\":\"toolu_census\",\"tool_response\":\"\"}]}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 1,
+      "goal": "The PostToolBatch row has no matcher or if, so it fires on every batch of every session. A batch whose payload never mentions file_path costs only the node launcher: --skip-unless-stdin-contains closes before bash starts. Measured 1 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+    },
+    {
+      "name": "eol-normalizer-posttoolbatch-read-only-spawns",
+      "command": "bash scripts/hook-census.sh eol-normalizer PostToolBatch eol-normalizer.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolBatch\",\"cwd\":\"@DIR@\",\"tool_calls\":[{\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\"},\"tool_use_id\":\"toolu_census\",\"tool_response\":\"# readme\"}]}' --setup 'printf \"x\\r\\n\" >README.md && printf \"* text=auto eol=lf\\n\" >.gitattributes' --check 'test ! -s \"$HOOK_STDOUT\" && test \"$(wc -c <README.md)\" -eq 3'",
+      "field": "spawns",
+      "ceiling": 3,
+      "goal": "A batch of only a Read names a file_path, so it passes the launcher's stdin test and starts bash; the hook exits before jq because no Write or Edit is in the payload, so the cost is the node launcher and that one bash. The setup gives the read file CRLF endings under an eol=lf .gitattributes, and the check asserts the Read left them alone. Measured 3 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+    },
+    {
+      "name": "actionlint-stop-end-of-turn-option-off-spawns",
+      "command": "bash scripts/hook-census.sh actionlint Stop actionlint-check.sh '{\"session_id\":\"census\",\"hook_event_name\":\"Stop\",\"stop_hook_active\":false,\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 1,
+      "goal": "With actionlint_end_of_turn at its default (false), the Stop row costs only the node launcher: the --require-true gate closes before bash starts. Stop fires on every turn end, so this is what every turn costs a user who never opted in. Measured 1 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+    },
+    {
+      "name": "markdown-format-posttoolbatch-no-markdown-spawns",
+      "command": "bash scripts/hook-census.sh markdown-format PostToolBatch markdown-format.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolBatch\",\"cwd\":\"@DIR@\",\"tool_calls\":[{\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"@DIR@/a.txt\"},\"tool_use_id\":\"toolu_census\",\"tool_response\":\"# readme\"}]}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 1,
+      "goal": "The PostToolBatch row has no matcher or if, so it fires on every batch of every session. A batch whose payload never mentions .md costs only the node launcher: --skip-unless-stdin-contains closes before bash starts. Measured 1 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+    },
+    {
+      "name": "markdown-format-stop-end-of-turn-option-off-spawns",
+      "command": "bash scripts/hook-census.sh markdown-format Stop markdown-format.sh '{\"session_id\":\"census\",\"hook_event_name\":\"Stop\",\"stop_hook_active\":false,\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 1,
+      "goal": "With markdown_format_end_of_turn at its default (false), the Stop row costs only the node launcher: the --require-true gate closes before bash starts. Stop fires on every turn end, so this is what every turn costs a user who never opted in. Measured 1 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+    },
+    {
+      "name": "powershell-format-stop-end-of-turn-option-off-spawns",
+      "command": "bash scripts/hook-census.sh powershell-format Stop powershell-format.sh '{\"session_id\":\"census\",\"hook_event_name\":\"Stop\",\"stop_hook_active\":false,\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 1,
+      "goal": "With powershell_format_end_of_turn at its default (false), the Stop row costs only the node launcher: the --require-true gate closes before bash starts. Stop fires on every turn end, so this is what every turn costs a user who never opted in. Measured 1 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
     }
   ]
 }

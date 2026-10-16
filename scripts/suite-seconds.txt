@@ -342,7 +342,6 @@ plugins/harness-ops/skills/prerequisites/scripts/check-prerequisites.test.sh 1
 plugins/implementation/scripts/agent-contract-sync.test.sh 1
 plugins/implementation/skills/implement-dispatch/reattach-slice.test.sh 1
 plugins/instruction-placement/evals/adherence-experiment.test.sh 1
-plugins/instruction-placement/hooks/index-drift.test.sh 1
 plugins/instruction-placement/scripts/detect.test.sh 1
 plugins/instruction-placement/scripts/glob-tools.test.sh 16
 plugins/instruction-placement/scripts/lib/discover.test.sh 1
