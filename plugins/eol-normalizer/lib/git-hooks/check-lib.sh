@@ -203,6 +203,21 @@ checks_filter_findings() {
     }'
 }
 
+# checks_refuse_partly_staged: a rewriting check calls this before it rewrites.
+# Each staged path that also has unstaged changes gets the contract line on
+# stderr; returns 1 when any did, since re-staging a rewrite would stage the
+# unstaged hunks too.
+checks_refuse_partly_staged() {
+  local f refused=0
+  while IFS= read -r -d '' f; do
+    if checks_partly_staged "$f"; then
+      printf '%s: partly staged; format it or stage it fully, then commit\n' "$f" >&2
+      refused=1
+    fi
+  done < <(checks_files)
+  return "$refused"
+}
+
 checks_partly_staged() {
   [[ "$CHECKS_MODE" == pre-commit ]] || return 1
   if [[ ! -f "$CHECKS_TMP/unstaged" ]]; then

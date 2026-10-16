@@ -19,4 +19,5 @@ owns.
 | `declined` | This clone declined the entry. In an attended run ask whether to install it (an install clears the decline); unattended, leave it. |
 | `missing-tool` | Report `install` as the way to get the tool; never install it yourself. |
 | `no-ci-rerun` | Tell the user no CI workflow in this repository runs `tool`, so a skipped or human-passed commit is not re-checked anywhere. |
+| `hooks-path-owned` | `core.hooksPath` points the local hooks dir at another tool's directory (`dir`), so nothing was written. Offer `scope=shared` through that manager, or ask before changing `core.hooksPath`. |
 | `manager-conflict` | Show `evidence` and ask which manager carries the entry; rerun `plan` with `--manager`. |

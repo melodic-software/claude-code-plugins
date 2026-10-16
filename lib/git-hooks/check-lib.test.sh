@@ -74,6 +74,17 @@ expect "partly-staged: a file with unstaged changes is detected" yes \
 expect "partly-staged: a fully staged file is not" no \
   "$(in_repo "$R" pre-commit 'checks_partly_staged "b c.md" && echo yes || echo no')"
 
+expect "partly-staged refusal: the contract line and a non-zero status" \
+  "a.txt: partly staged; format it or stage it fully, then commit|1" \
+  "$(in_repo "$R" pre-commit 'checks_refuse_partly_staged; echo "|$?"' 2>&1 | tr -d '\n')"
+git -C "$R" add a.txt
+expect "partly-staged refusal: fully staged files pass" "|0" \
+  "$(in_repo "$R" pre-commit 'checks_refuse_partly_staged; echo "|$?"' 2>&1 | tr -d '\n')"
+# Back to the partly staged state the worktree cases below read.
+printf 'one\nTWO\nthree\nfour\n' >"$R/a.txt"
+git -C "$R" add a.txt
+printf 'one\nTWO\nthree\nfour\nfive\n' >"$R/a.txt"
+
 # --- worktree mode --------------------------------------------------------------
 printf 'loose\n' >"$R/untracked.txt"
 expect "worktree files: tracked changes against HEAD plus untracked" $'a.txt\nb c.md\nuntracked.txt' \
