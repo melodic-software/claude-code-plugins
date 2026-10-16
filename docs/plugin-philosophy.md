@@ -943,7 +943,7 @@ worktree. Outside a git repository the file stays in the folder you ran from.
 
 ## Instruction economy
 
-Every standing instruction this marketplace ships is a per-session tax on every consumer, paid
+Every standing instruction this marketplace ships costs every consumer context in every session, paid
 whether or not the instruction ever fires: a CLAUDE.md line, a hook that corrects model behavior, a
 skill's always-loaded listing text. (Whether a skill's description enters that
 always-loaded listing at all is the invocation-mode choice, owned by the rubric at
@@ -956,7 +956,7 @@ Recheck trigger: either section moves or stops recommending pruning. Anthropic r
 the same doctrine to Claude Code's own system prompt for the Claude 5 generation; no docs page
 covers that as of 2026-08-08
 (correlate with <https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models>).
-Context load is not the only budget: the human maintainer's cognitive load
+Context load is not the only budget. The human maintainer's cognitive load
 is its sibling constraint, and the write-time doctrine budgeting both lives in
 `docs-hygiene:write-for-agents`. Four rules follow:
 

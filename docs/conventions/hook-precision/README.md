@@ -83,7 +83,7 @@ both are non-negotiable:
 - **Every filed production false positive becomes a MUST-stay-quiet case in that hook's existing
   `*.test.sh`.** The co-located contract test *is* the fixture corpus. True-positive MUST-fire cases and
   false-positive MUST-stay-quiet cases live side by side and run in CI on any `plugins/guardrails/hooks/**`
-  change. An over-fire that is fixed but not pinned by a committed stay-quiet case is left half-fixed: the
+  change. An over-fire that is fixed but not pinned by a committed stay-quiet case is left half-fixed. The
   next author can reopen it and nothing catches them.
 - **Every fix lands repro-first.** The new stay-quiet case must *fail* against the unmodified hook
   (reproducing the over-fire) and pass after the fix. A stay-quiet assertion that is already green before the
