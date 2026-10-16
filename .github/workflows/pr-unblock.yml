@@ -5,31 +5,45 @@ name: pr-unblock
 # exchanged at LANES_BROKER_URL for audience LANES_BROKER_AUDIENCE.
 # Job contract: docs/conventions/pr-pipeline/pr-run-activity.md.
 #
-# workflow_dispatch only: GitHub runs no pull_request workflow on a conflicting
-# PR. pr-unblock-dispatch.yml sends one dispatch per conflicting PR after a push
-# to the default branch and sets dispatcher-run-id; a trusted human may dispatch
-# with pr-number alone. Both jobs trust the default branch tip, since a
-# conflicting PR's base SHA is stale.
+# workflow_dispatch only. resolve-conflicts: GitHub runs no pull_request
+# workflow on a conflicting PR, so pr-unblock-dispatch.yml sends one dispatch
+# per conflicting PR after a push to the default branch. address-feedback:
+# pr-feedback-dispatch.yml sends one after a review lane finishes on a lanes App
+# PR with unresolved reviewer-bot threads. Both set dispatcher-run-id; a
+# trusted human may dispatch with pr-number and activity alone. Every job
+# trusts the default branch tip, since a conflicting PR's base SHA is stale and
+# the dispatchers run from the tip.
+
+# pr-feedback-dispatch.mjs reads this title to skip a second dispatch while
+# one for the same activity and PR is still queued or going.
+# Quoted: unquoted, " #" would start a YAML comment and drop the PR number.
+run-name: "pr-unblock ${{ inputs.activity }} #${{ inputs.pr-number }}"
 
 on:
   workflow_dispatch:
     inputs:
       pr-number:
-        description: The PR to resolve conflicts on.
+        description: The PR to unblock.
         required: true
         type: string
+      activity:
+        description: What to unblock.
+        required: false
+        type: choice
+        options: [resolve-conflicts, address-feedback]
+        default: resolve-conflicts
       dispatcher-run-id:
-        description: The pr-unblock-dispatch.yml run that sent this dispatch; empty for a human dispatch.
+        description: The dispatcher run that sent this dispatch; empty for a human dispatch.
         required: false
         type: string
         default: ""
 
 permissions: {}
 
-# A newer dispatch for the same PR replaces one still waiting; a running one
-# finishes.
+# A newer dispatch of the same activity for the same PR replaces one still
+# waiting; a running one finishes.
 concurrency:
-  group: pr-unblock-${{ inputs.pr-number }}
+  group: pr-unblock-${{ inputs.activity }}-${{ inputs.pr-number }}
   cancel-in-progress: false
 
 jobs:
@@ -37,7 +51,7 @@ jobs:
     # The per-PR write queue sits on the job behind this if:, so a run that
     # does nothing, or a dispatch the lanes App sent, never waits in it.
     if: >-
-      inputs.pr-number != ''
+      inputs.pr-number != '' && inputs.activity == 'resolve-conflicts'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
     permissions:
       contents: read
@@ -58,11 +72,74 @@ jobs:
     secrets:
       claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
 
+  address-feedback:
+    if: >-
+      inputs.pr-number != '' && inputs.activity == 'address-feedback'
+      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      lane: pr-unblock
+      activity: address-feedback
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+    secrets:
+      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # address-feedback's model job holds contents: write and posts nothing; this
+  # script job, with no model, holds pull-requests: write and posts the replies
+  # that job recorded, exactly as written or not at all, then the round marker.
+  # It runs whenever the model job's skill ran, even when that job failed, so
+  # every round is counted.
+  publish-feedback:
+    needs: address-feedback
+    if: ${{ !cancelled() && needs.address-feedback.outputs.feedback-round == 'true' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      lane: pr-unblock
+      activity: publish-feedback
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      review-replies: true
+      review-run-sha256: ${{ needs.address-feedback.outputs.feedback-run-sha256 }}
+      # The model job's attempt names the replies artifact, so "Re-run failed
+      # jobs" on this job alone still downloads it.
+      review-run-attempt: ${{ needs.address-feedback.outputs.feedback-run-attempt }}
+      # The model job's push moved the PR head off the reviewed one; the gate
+      # and the broker accept the review of the head that job gated when only
+      # commits GitHub signed for the lanes App during this run follow it. A human dispatch has no
+      # dispatcher and passes none.
+      expected-upstream-head: >-
+        ${{ inputs.dispatcher-run-id != '' && needs.address-feedback.outputs.head-sha || '' }}
+
   report-escalation:
-    needs: resolve-conflicts
-    # escalation-reason is set only by the write runner's own steps. A later
-    # failure in that run (a failed verdict upload) still escalates.
-    if: ${{ !cancelled() && needs.resolve-conflicts.outputs.escalation-reason != '' }}
+    needs: [resolve-conflicts, address-feedback, publish-feedback]
+    # escalation-reason is set only by the write runner's own steps and the
+    # base's reply script. A later failure in that run (a failed verdict
+    # upload) still escalates. At most one of the three escalates: the reply
+    # job runs only after a model turn, and the model job escalates only
+    # before one.
+    if: >-
+      ${{ !cancelled() && (needs.resolve-conflicts.outputs.escalation-reason != ''
+      || needs.address-feedback.outputs.escalation-reason != ''
+      || needs.publish-feedback.outputs.escalation-reason != '') }}
     permissions:
       contents: read
       pull-requests: read
@@ -76,6 +153,12 @@ jobs:
       lane: pr-unblock
       activity: report-escalation
       pr-number: ${{ inputs.pr-number }}
-      escalation-reason: ${{ needs.resolve-conflicts.outputs.escalation-reason }}
+      escalation-reason: >-
+        ${{ needs.resolve-conflicts.outputs.escalation-reason
+        || needs.address-feedback.outputs.escalation-reason
+        || needs.publish-feedback.outputs.escalation-reason }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      expected-upstream-head: >-
+        ${{ inputs.activity == 'address-feedback' && inputs.dispatcher-run-id != ''
+        && needs.address-feedback.outputs.head-sha || '' }}
       trusted-base: default-tip

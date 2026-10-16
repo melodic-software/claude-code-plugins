@@ -15,8 +15,10 @@
 //      comment the model job did not see; posts the templated reply on its
 //      root comment and resolves it only when it is VALID.
 //   4. Always posts the round marker, as the lanes App.
-//   5. Escalates feedback-invalid, feedback-not-landed or, for an UNCERTAIN or
-//      VALID-defer reply, feedback-uncertain.
+//   5. Escalates feedback-invalid, feedback-incomplete (a kept thread has no
+//      disposition), feedback-not-landed, feedback-partial (posting stopped
+//      after a reply), feedback-uncertain (an UNCERTAIN or VALID-defer reply)
+//      or feedback-disputed (an INCORRECT reply, left open for a person).
 //
 // Environment:
 //   GH_TOKEN              the lane token (pull-requests: write, contents: read)
@@ -267,6 +269,13 @@ async function postReplies({ api, pr, headSha, reviewerId, readArtifact, fileExi
       escalationReason = "feedback-invalid";
       return { escalationReason, posted: [] };
     }
+    // Every kept thread needs its disposition: one left out would stay open
+    // with no reply, and the head's check run stops another dispatch.
+    if (replies.length !== run.threads.length) {
+      log(`no reply is posted: ${replies.length} of ${run.threads.length} kept threads have a disposition`);
+      escalationReason = "feedback-incomplete";
+      return { escalationReason, posted: [] };
+    }
     const { kept } = await currentThreads({ api, pr, reviewerId });
     const now = new Map(kept.map((thread) => [thread.id, thread]));
     if (!(await fixesLanded({ api, run, headSha, replies }))) {
@@ -315,6 +324,12 @@ async function postReplies({ api, pr, headSha, reviewerId, readArtifact, fileExi
         break;
       }
       log(`replied on ${reply.thread} (${reply.disposition})${reply.disposition === "VALID" ? "; resolved" : ""}`);
+    }
+    // An INCORRECT thread stays open for a person to decide (owner decision):
+    // its evidence reply is posted, and the PR goes to a person, since no
+    // later round selects a thread the lanes App has answered.
+    if (escalationReason === "" && posted.some((entry) => entry.disposition === "INCORRECT")) {
+      escalationReason = "feedback-disputed";
     }
     return { escalationReason, posted };
   }

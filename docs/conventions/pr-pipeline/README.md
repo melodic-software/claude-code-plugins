@@ -93,7 +93,7 @@ reader applies.
 | `pr-verify` | dispatch from `pr-refine` |
 | `pr-explain` | dispatch from `pr-refine`, alongside verify |
 | `pr-require-checks` | each verify result |
-| `pr-unblock` | a dispatch for each conflicting PR after a push to the default branch, or a trusted human's dispatch |
+| `pr-unblock` | a dispatch for each conflicting PR after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
 | `post-merge-verify` | push to the default branch |
 | `post-merge-sweep-comments` | push to the default branch |
@@ -110,6 +110,22 @@ that runs on a push to `main` and on a trusted human's `workflow_dispatch`:
 - A hand run or a re-run must be started by a listed human (`check-trusted-trigger` with
   `require-pr: false` and `require-kind: human`).
 - With the kill switch on, the run ends green with a notice and dispatches nothing.
+
+`pr-unblock`'s `address-feedback` dispatches come from `pr-feedback-dispatch.yml`, also scripted,
+on `workflow_run` `completed` of `pr-review-hosted` and `pr-review-security-hosted`. It takes only
+the upstream run id from the event and reads the rest back. It dispatches `pr-unblock.yml` with
+`activity: address-feedback` when the upstream is a `pull_request` run of one of those two paths in
+this repository, exactly one open non-draft PR into `main` has its head, the lanes App opened that
+PR, it carries neither `do-not-merge` nor `needs-human`, both lanes' newest reviewed-head markers
+name the head, an unresolved thread left only by the reviewer bot exists, the head has no
+`pr-unblock / address-feedback` check run, and no `pr-unblock.yml` run titled
+`pr-unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). It
+dispatches nothing until the base config gives the `pr-unblock` lane enabled `address-feedback`
+and `publish-feedback` slots. It records `pr-feedback-dispatched-<upstream id>-<run
+id>`, which the gate and the broker read to tie the run to a review of the PR's current head.
+In `pr-unblock.yml`, `address-feedback` (the model job, `mutate-branch`) is followed by
+`publish-feedback` (a script job with no model, `publish-artifact`), which posts the replies the
+model job recorded ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)).
 
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
@@ -272,11 +288,12 @@ The reader also adds the config file's own path, `.github/**` and the trusted-ac
 
 | Scope | Rule | Set by |
 |---|---|---|
-| Triggers of one PR's `pr-unblock` | A newer dispatch replaces one still waiting; a running one finishes | workflow group `pr-unblock-<n>`, `cancel-in-progress: false` |
-| Within one run | Leaves run in slot order: `report-escalation` after `resolve-conflicts`, and only when it escalated | the caller's `needs:` |
+| Triggers of one PR's `pr-unblock` activity | A newer dispatch replaces one still waiting; a running one finishes | workflow group `pr-unblock-<activity>-<n>`, `cancel-in-progress: false` |
+| Within one run | Leaves run in slot order: `publish-feedback` after `address-feedback` once its skill ran; `report-escalation` after the others, and only when one escalated | the caller's `needs:` |
 | Across PRs | Unbounded: every group is per PR | group names |
 | Within one PR, across write lanes | One queue: a write job waits for the one ahead and never cancels it | job group `pr-pipeline-write-<n>`, `queue: max`, on every write caller job |
 | `pr-unblock-dispatch` | One run at a time; a newer push replaces a waiting run | workflow group `pr-unblock-dispatch` |
+| `pr-feedback-dispatch` | One run per reviewed head at a time; a waiting one is replaced | workflow group `pr-feedback-dispatch-<head SHA>` |
 
 The write group sits on each caller job, behind an `if:` that leaves out the lanes App's own
 `pull_request` events, so a lane's push never queues a job in it.
