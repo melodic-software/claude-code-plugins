@@ -105,26 +105,20 @@ ungranted tool is removed and reported on stderr as `not granted`.
 
 ### Worktree isolation
 
-A session Claude Code isolated in a worktree (started with `--worktree`, moved by `EnterWorktree`,
-or spawned with `isolation: "worktree"`) has a Bash guard that refuses any command containing the
-word `eval`, and every subagent it spawns inherits that isolation. A session started normally
-with a git worktree as its working directory is not isolated and runs the CLI as usual
-([records](reference/records.md#worktrees)). The guard matters only when `run` or `init` is about
-to invoke the CLI; `preflight`, `validate`, `read`, and `ci` proceed as usual. Do not retry, wrap
-the command in a script, route it through another tool, or bypass the guard in any other way: it
-matches the word, so no flag or rewording clears it.
+A session Claude Code isolated in a worktree (`--worktree`, `EnterWorktree`, or `isolation:
+"worktree"`), and every subagent it spawns, has a Bash guard that refuses any command containing
+the word `eval`; a normal session whose working directory is a git worktree is not isolated
+([records](reference/records.md#worktrees)). It matters only when `run` or `init` invokes the CLI.
+Never retry, wrap, reroute, or otherwise bypass it: it matches the word, so nothing clears it.
+Build the command with absolute paths: for `run`, an absolute `<target>` and `--json` path inside
+the worktree; for `init`, `claude plugin eval init --bare <name>`. Take the first route that fits:
 
-Build the command with absolute paths so it gives the same result from any directory: for `run`,
-`claude plugin eval <target> ...` with an absolute `<target>` and an absolute `--json` path inside
-the worktree; for `init`, `claude plugin eval init --bare <name>`, which takes no `--json` and
-reaches no model call. Then take the first route that applies:
-
-1. Entered with `EnterWorktree`: call `ExitWorktree` with `keep`, run the command, then call
-   `EnterWorktree` with the worktree's path to return.
-2. A worktree-isolated subagent: stop and return the exact command to the caller, which runs it
-   from its own session when that session is not isolated.
-3. Otherwise, print the exact command and tell the user to run it in a terminal outside Claude
-   Code, or in a session started with plain `claude` (not `--worktree`) from the worktree.
+1. Entered with `EnterWorktree`: `ExitWorktree` with `keep`, run it, then `EnterWorktree` back by
+   the worktree's path.
+2. A worktree-isolated subagent: return the exact command to the caller to run from its own
+   non-isolated session.
+3. Otherwise print it for the user to run in a terminal outside Claude Code, or in a session
+   started with plain `claude` (not `--worktree`) in the worktree.
 
 After a `run`, read the `--json` file back with the `read` action.
 
