@@ -169,6 +169,95 @@ for (const check of ["scripts/check-x.sh; rm -rf /", "../scripts/check-x.sh", "s
   });
 }
 
+// pr-run-activity.md, "Skill activities": each listed verify-script runs with
+// any arguments from a read-only base copy of its plugin, so a file it reads
+// beside itself (here ../../../scripts/lib.sh) comes along.
+const VERIFY = "plugins/vtest/skills/audit/scripts/scan.sh";
+function withVerify(list, overrides = {}) {
+  const dir = mkdtempSync(path.join(root, "verify-"));
+  const scripts = path.join(base, "plugins", "vtest", "skills", "audit", "scripts");
+  mkdirSync(scripts, { recursive: true });
+  mkdirSync(path.join(base, "plugins", "vtest", "scripts"), { recursive: true });
+  writeFileSync(
+    path.join(scripts, "scan.sh"),
+    'here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\nsource "$here/../../../scripts/lib.sh"\necho "from=$0 lib=$LIB args=$*"\n',
+  );
+  writeFileSync(path.join(scripts, "unlisted.sh"), "echo unlisted\n");
+  writeFileSync(path.join(base, "plugins", "vtest", "scripts", "lib.sh"), "LIB=base\n");
+  const file = path.join(dir, "resolved.json");
+  writeFileSync(file, JSON.stringify({ selected: { args: "--ci", "verify-scripts": list } }));
+  const verifyDir = path.join(dir, "lane-verify");
+  return { verifyDir, ...stage({ SKILL: "work-items:work", RESOLVED: file, VERIFY_DIR: verifyDir, ...overrides }) };
+}
+
+test("a listed verify-script gets the bare and quoted rule on a read-only copy that runs with any arguments", () => {
+  const { status, allowed, denied, args, verifyDir } = withVerify([VERIFY]);
+  assert.equal(status, 0);
+  const copy = path.join(verifyDir, VERIFY);
+  assert.deepEqual(
+    allowed.filter((rule) => rule.startsWith("Bash")),
+    [`Bash(bash ${copy} *)`, `Bash(bash "${copy}" *)`],
+  );
+  assert.ok(denied.includes(`Edit(/${verifyDir}/**)`) && denied.includes(`Write(/${verifyDir}/**)`), denied.join(" | "));
+  assert.ok(args.includes(`bash ${copy} <arguments>`), "the system prompt names the command");
+  for (const file of [copy, path.join(verifyDir, "plugins", "vtest", "scripts", "lib.sh")]) {
+    const write = spawnSync("bash", ["-c", 'echo x >>"$1"', "_", file]);
+    assert.notEqual(write.status, 0, `${file} is read-only`);
+  }
+  const run = spawnSync("bash", [copy, "--check", "a b"], { cwd: root, encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout.trim(), `from=${copy} lib=base args=--check a b`);
+});
+
+test("a script the list does not name gets no rule, even beside a listed one", () => {
+  const { status, allowed } = withVerify([VERIFY]);
+  assert.equal(status, 0);
+  assert.ok(!allowed.some((rule) => rule.includes("unlisted.sh")), allowed.join(" | "));
+});
+
+test("without verify-scripts no copy or rule is made", () => {
+  const { status, allowed, verifyDir } = withVerify(undefined);
+  assert.equal(status, 0);
+  assert.ok(!allowed.some((rule) => rule.startsWith("Bash")), allowed.join(" | "));
+  assert.throws(() => statSync(verifyDir));
+});
+
+for (const bad of [
+  "plugins/vtest/skills/audit/scripts/*.sh",
+  "plugins/vtest/skills/audit/scripts/scan.sh --check",
+  "plugins/vtest/skills/audit/scripts/scan.sh *",
+  "plugins/vtest/../vtest/skills/audit/scripts/scan.sh",
+  "/plugins/vtest/scripts/lib.sh",
+  "plugins/vtest/lib.sh",
+  'plugins/vtest/scripts/x".sh',
+]) {
+  test(`a verify-script outside the allowed shape fails red: ${bad}`, () => {
+    const { status, stdout, args } = withVerify([bad]);
+    assert.notEqual(status, 0);
+    assert.match(stdout, /::error::a verify-script must be the exact path of a scripts\/ script/);
+    assert.equal(args, "");
+  });
+}
+
+test("a verify-script missing from the base fails red", () => {
+  const { status, stdout, args } = withVerify(["plugins/vtest/scripts/missing.sh"]);
+  assert.notEqual(status, 0);
+  assert.match(stdout, /::error::a verify-script is not in the base/);
+  assert.equal(args, "");
+});
+
+test("a verify-scripts copy path a rule cannot carry fails red", () => {
+  const { status, args } = withVerify([VERIFY], { VERIFY_DIR: path.join(root, "has space") });
+  assert.notEqual(status, 0);
+  assert.equal(args, "");
+});
+
+test("a read skill gets no verify-script rule", () => {
+  const { status, allowed } = withVerify([VERIFY], { EFFECT: "read" });
+  assert.equal(status, 0);
+  assert.ok(!allowed.some((rule) => rule.startsWith("Bash")), allowed.join(" | "));
+});
+
 test("a read skill gets no check wrapper", () => {
   const { status, allowed } = withChecks(["scripts/check-x.sh --check"], { EFFECT: "read" });
   assert.equal(status, 0);

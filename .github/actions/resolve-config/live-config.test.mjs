@@ -233,6 +233,17 @@ test("live config: resolve-issue may run the changelog fragment check", () => {
   ]);
 });
 
+// #7597: the issue's done-when runs the can't-fail scan, a read-only checker.
+// check-skill.sh (#7598) runs each skill's test scripts, so it is not listed.
+test("live config: resolve-issue may run the can't-fail scan; no other activity lists verify-scripts", () => {
+  assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE)["verify-scripts"], [
+    "plugins/testing/skills/audit/scripts/cant-fail-scan.sh",
+  ]);
+  const doc = parse(FILES.config);
+  const others = Object.entries(doc.activities).filter(([name, a]) => name !== "resolve-issue" && a["verify-scripts"]);
+  assert.deepEqual(others, []);
+});
+
 // Owner decision 2026-10-14: the run may read any web page.
 test("live config: resolve-issue may read any domain; no other activity reads the web", () => {
   assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE)["web-access"], { enabled: true, domains: "any" });

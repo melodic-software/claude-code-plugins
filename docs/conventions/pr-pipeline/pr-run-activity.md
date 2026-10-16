@@ -296,7 +296,13 @@ grants nothing: its `Bash` is only what this list allows, one rule per entry in 
 the working directory, writes a wrapper there that runs the copy with the entry's fixed flags and
 `CHECK_DATA_ROOT` naming the checkout, makes the copy read-only and denies `Edit` and `Write` on
 it, allows `Bash(<wrapper>)` with no arguments, and names the
-wrappers in `--append-system-prompt` as checks to run before reporting done. `WebFetch` and
+wrappers in `--append-system-prompt` as checks to run before reporting done. For each entry in
+the activity's `verify-scripts`, it checks the path's shape and that the base holds the script,
+copies the script's whole base plugin directory (or the base `scripts/`) to
+`$RUNNER_TEMP/lane-verify`, so the files the script reads beside itself come along, makes the copy
+read-only, denies `Edit` and `Write` on it, allows `Bash(bash <copy>/<path> *)` and the same rule
+for the double-quoted path, and names each command in `--append-system-prompt`. Any arguments
+match, so the list holds only scripts that read and report. `WebFetch` and
 `WebSearch` stay off (`--disallowedTools`) unless the activity sets `web-access`. With it on, the
 runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
 (`WebFetch(domain:*)` for `any`), and `Skill` for `/discovery:read-docs`, `/discovery:research`,
