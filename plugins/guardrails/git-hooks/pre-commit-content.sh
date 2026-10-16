@@ -125,11 +125,6 @@ file_size() {
 }
 
 checks_changed_lines
-# Git quotes a name holding `"`, `\` or a control byte whatever core.quotePath
-# says, so checks_changed_lines has no ranges for it: such a file is judged whole.
-while IFS= read -r -d '' f; do
-  [[ "$f" == *[\"\\[:cntrl:]]* ]] && printf '%s\t1\t2147483647\n' "$f" >>"$CHECKS_TMP/ranges"
-done < <(checks_files)
 
 # added_only <path>: the file with every line the commit does not add blanked,
 # so line numbers hold and only added text is scanned.
@@ -140,7 +135,9 @@ added_only() {
 }
 
 out="$CHECKS_TMP/findings"
+whole="$CHECKS_TMP/findings-whole"
 : >"$out"
+: >"$whole"
 while IFS= read -r -d '' f; do
   if [[ "$CHECKS_MODE" == worktree ]]; then
     [[ -f "$f" && ! -L "$f" ]] || continue
@@ -152,7 +149,15 @@ while IFS= read -r -d '' f; do
   fi
   is_binary "$f" && continue
   (($(file_size "$f") <= MAX_BYTES)) || continue
-  text="$(file_text "$f" | added_only "$f"; printf x)"
+  sink="$out"
+  if [[ "$f" == *[\"\\[:cntrl:]]* ]]; then
+    # Git quotes such a name whatever core.quotePath says, so the range table
+    # holds no entry for it: the file is judged whole, past the range filter.
+    text="$(file_text "$f"; printf x)"
+    sink="$whole"
+  else
+    text="$(file_text "$f" | added_only "$f"; printf x)"
+  fi
   text="${text%x}"
   [[ -n "${text//[[:space:]]/}" ]] || continue
 
@@ -163,17 +168,20 @@ while IFS= read -r -d '' f; do
         for n in ${nums//,/ }; do
           printf '%s:%s: secret or credential pattern: %s\n' "$f" "$n" "$label"
         done
-      done >>"$out"
+      done >>"$sink"
   fi
   if ! path_exempt "$f"; then
     hpp::scan_text "$text" "$scan_root" "$PWD/$f" |
       awk -v f="$f" '
         /^[^ \t].*:$/ && !/^[0-9]+:/ { label = substr($0, 1, length($0) - 1); next }
-        match($0, /^[0-9]+:/) { printf "%s:%s: machine-specific path (%s)\n", f, substr($0, 1, RLENGTH - 1), label }' >>"$out"
+        match($0, /^[0-9]+:/) { printf "%s:%s: machine-specific path (%s)\n", f, substr($0, 1, RLENGTH - 1), label }' >>"$sink"
   fi
 done < <(checks_files)
 
-checks_filter_findings <"$out" | sort -u -t: -k1,1 -k2,2n >"$CHECKS_TMP/blocking"
+{
+  checks_filter_findings <"$out"
+  cat "$whole"
+} | sort -u -t: -k1,1 -k2,2n >"$CHECKS_TMP/blocking"
 [[ -s "$CHECKS_TMP/blocking" ]] || exit 0
 cat "$CHECKS_TMP/blocking" >&2
 printf 'guardrails: remove the secrets or machine-specific paths above from the change (use a placeholder, an environment variable or a portable path), then commit again.\n' >&2

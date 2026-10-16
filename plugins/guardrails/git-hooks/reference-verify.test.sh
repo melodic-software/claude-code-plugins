@@ -123,6 +123,12 @@ printf '#!/usr/bin/env bash\nfaketool --bogus\necho fine\n' >"$REPO/run.sh"
 commit_all more
 expect "an unknown flag on a line an earlier push added does not block" "0|" \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
+git -C "$REPO" push -q --no-verify origin main 2>/dev/null
+pushed="$(git -C "$REPO" rev-parse HEAD)"
+git -C "$REPO" mv run.sh tool.sh
+commit_all rename
+expect "a pure rename adds no line, so an earlier unknown flag does not block" "0|" \
+  "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
 
 new_repo
 # shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text

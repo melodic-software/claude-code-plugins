@@ -118,12 +118,18 @@ out="$CHECKS_TMP/findings"
 
 # check_range: every file the current range (or the worktree) changes.
 check_range() {
-  local f text payload ctx line msg
+  local f text payload ctx line msg _
+  local -A renamed=()
   checks_changed_lines
+  # A rename's destination is missing from the base but is no new text: only
+  # the lines the range adds to it are judged.
+  while IFS= read -r -d '' _ && IFS= read -r -d '' _ && IFS= read -r -d '' f; do
+    renamed["$f"]=1
+  done < <(checks_diff --name-status -M --diff-filter=R -z 2>/dev/null)
   while IFS= read -r -d '' f; do
     verified_type "$f" || continue
     regular_file "$f" || continue
-    if is_new "$f"; then
+    if [[ -z "${renamed["$f"]+x}" ]] && is_new "$f"; then
       text="$(
         file_text "$f"
         printf x

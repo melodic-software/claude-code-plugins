@@ -106,6 +106,13 @@ if printf 'token=%s\n' "$FAKE_GHP" 2>/dev/null >"$REPO/a\"b.txt"; then
 else
   echo "skip: this file system refuses a name holding a double quote"
 fi
+new_repo
+if printf 'see %s here\n' "$FAKE_LINUX" 2>/dev/null >"$REPO/a"$'\t'"b.txt"; then
+  git -C "$REPO" add -- "a"$'\t'"b.txt"
+  expect "a home path in a file whose name holds a tab blocks" 1 "$(rc_of "$REPO")"
+else
+  echo "skip: this file system refuses a name holding a tab"
+fi
 
 new_repo
 printf 'line one\nline two\nstaged clean\n' >"$REPO/notes.md"
