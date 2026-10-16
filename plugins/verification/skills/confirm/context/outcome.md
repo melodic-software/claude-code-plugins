@@ -1,6 +1,6 @@
 # Outcome Confirmation Mode
 
-Structured comparison of approved plan against actual implementation. Use when an approved plan exists in the conversation and you need to verify every item was delivered.
+Structured comparison of approved plan against actual implementation. Use when an approved plan exists (a PLAN.md Brief, the pull request, the issue, or the conversation) and you need to verify every item was delivered.
 
 ## When to use
 
@@ -91,6 +91,7 @@ Basis: LLM-written test oracles were measured to assert what the code does rathe
 - **CONFIRMED** if all plan items are COMPLETE, deviations are justified, and Stage 1 left no environment skip
 - **NEEDS WORK** if any plan items are MISSING or PARTIAL without justification
 - **NOT VERIFIED** if no gap was found but Stage 1 left an environment skip (a missing tool, including one too old for the check, or missing dependencies): name each skip and its reason, and what running it needs
+- **NOT VERIFIED: no intent source** when the intent ladder ([intent.md](intent.md)) found nothing and no one can be asked
 - **NOT VERIFIED** under `proof_level: strict` when a proof box is empty or its perf box has no baseline (see [Proof boxes](#proof-boxes))
 - Under any verdict, list an ecosystem whose only checks were syntax-only as "no real check ran"; it does not change the verdict by itself and never counts as a mechanical pass
 - If NEEDS WORK, list specific gaps with suggested actions
