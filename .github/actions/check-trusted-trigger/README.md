@@ -118,8 +118,10 @@ condition 1 and the actor and author parts of condition 2).
   whose sender is `lanes-app-id`, the label event must be `labeled` with exactly that label, or it
   stops with `bot-actor`. The gate then reads the issue's comments and proceeds only when one
   holds the ratification marker (`findRatification` in `../resolve-config/ratification.mjs`: a
-  listed human's comment, never edited, not posted through an App). A failed read or no such
-  comment stops with `untrusted-actor`. The re-runner must be the App or a listed human, not
+  listed human's comment, never edited, not posted through an App; a denied id does not count).
+  The run reads the issue's title and body, so the gate also reads, through GraphQL, when the body
+  was last edited and the title last changed: either after the newest such comment stops. A
+  failed read or no such comment stops with `untrusted-actor`. The re-runner must be the App or a listed human, not
   denied, or it stops with `untrusted-rerunner`. Empty keeps the App denied on every event.
 - **`workflow_run`.** Same repository when `workflow_run.head_repository.full_name` equals the
   repository. The PR is looked up from the run's head SHA, because `pull_requests` is empty for

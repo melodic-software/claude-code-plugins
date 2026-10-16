@@ -6,8 +6,9 @@ The write file gains the `ratified-app-label` input, issue mode only. `work-reso
 sets it to `agent-ready` and no longer skips the lanes App's `agent-ready` label: the trigger gate
 lets that one label from the App through only while the issue carries the owner's ratification
 marker, read from the API when the run starts by the rule resolve-issue's admission uses
-(`resolve-config/ratification.mjs`). Any other App label or event, a failed read, or no marker
-stops the run. The lanes token broker must accept the same labeler for an `issues` mint.
+(`resolve-config/ratification.mjs`). Because the run reads the issue's title and body, a body
+edit or title change after the newest marker also stops it. Any other App label or event, a
+failed read, or no marker stops the run. The lanes token broker must accept the same labeler for an `issues` mint.
 `version` stays 1.
 
 ## 1.18.0 - 2026-10-16

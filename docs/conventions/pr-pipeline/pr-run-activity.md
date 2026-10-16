@@ -799,7 +799,8 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
   applied the label, and any re-runner, must be listed as a human. The one exception is the
   caller's `ratified-app-label` (`agent-ready` for `work-resolve-issue.yml`): the lanes App may
   apply it while the issue carries the owner's ratification marker, re-read from the API when the
-  run starts (a listed human's comment, never edited, not posted through an App); the re-runner
+  run starts (a listed human's comment, never edited, not posted through an App), with no body
+  edit or title change since the newest such comment; the re-runner
   is then the App or a listed human. The App's other labels never start a run. `check-trusted-base` trusts the
   default branch tip, and that commit is the head the job checks out.
 - `resolve-config` decides the issue's labels from the event payload and `labeled-after`, the

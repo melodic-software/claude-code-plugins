@@ -1032,15 +1032,28 @@ const ownerComment = (overrides = {}) => ({
   ...overrides,
 });
 
+const graphqlRoute = "POST /graphql";
+const edits = ({ lastEditedAt = null, renamedAt } = {}) => ({
+  data: {
+    repository: {
+      issue: {
+        lastEditedAt,
+        timelineItems: { nodes: renamedAt === undefined ? [] : [{ createdAt: renamedAt }] },
+      },
+    },
+  },
+});
+
 function appLabel({
   label = "agent-ready",
   action = "labeled",
   sender = LANES_APP,
   comments = [ownerComment()],
+  issueEdits = edits(),
   eventName = "issues",
   ...rest
 } = {}) {
-  const github = fakeGitHub({ [commentsRoute]: comments });
+  const github = fakeGitHub({ [commentsRoute]: comments, [graphqlRoute]: issueEdits });
   return gate({
     eventName,
     event: { action, label: { name: label }, issue: { number: 7 }, sender, repository: { full_name: REPOSITORY } },
@@ -1058,7 +1071,46 @@ function appLabel({
 test("ratified-app-label: the App's agent-ready label on an issue with the owner's marker proceeds", async () => {
   const { outputs, calls } = await appLabel();
   assert.deepEqual(outputs, ACTORS_OK);
-  assert.deepEqual(calls, [commentsRoute]);
+  assert.deepEqual(calls, [commentsRoute, graphqlRoute]);
+});
+
+test("ratified-app-label: a body edit before the marker proceeds", async () => {
+  const { outputs } = await appLabel({ issueEdits: edits({ lastEditedAt: "2026-10-16T14:00:00Z", renamedAt: "2026-10-16T13:00:00Z" }) });
+  assert.deepEqual(outputs, ACTORS_OK);
+});
+
+test("ratified-app-label: a body edit after the marker stops with untrusted-actor", async () => {
+  const { outputs } = await appLabel({ issueEdits: edits({ lastEditedAt: "2026-10-16T15:00:00Z" }) });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
+test("ratified-app-label: a title change after the marker stops with untrusted-actor", async () => {
+  const { outputs } = await appLabel({ issueEdits: edits({ renamedAt: "2026-10-16T15:00:00Z" }) });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
+test("ratified-app-label: a later marker re-ratifies an edit made after the first", async () => {
+  const later = ownerComment({ id: 502, created_at: "2026-10-16T16:00:00Z", updated_at: "2026-10-16T16:00:00Z" });
+  const { outputs } = await appLabel({
+    comments: [ownerComment(), later],
+    issueEdits: edits({ lastEditedAt: "2026-10-16T15:00:00Z" }),
+  });
+  assert.deepEqual(outputs, ACTORS_OK);
+});
+
+test("ratified-app-label: a failed edit-history read stops with untrusted-actor", async () => {
+  const { outputs } = await appLabel({ issueEdits: new GitHubError(502, graphqlRoute) });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
+test("ratified-app-label: an edit history with no issue stops with untrusted-actor", async () => {
+  const { outputs } = await appLabel({ issueEdits: { data: { repository: { issue: null } } } });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
+test("ratified-app-label: a marker from a denied human stops with untrusted-actor", async () => {
+  const { outputs } = await appLabel({ deniedActorIds: "337595936 153232337", triggeringActor: "melodic-automation-lanes[bot]" });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
 });
 
 test("ratified-app-label: a listed human re-running the App's run proceeds", async () => {

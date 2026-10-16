@@ -459,6 +459,16 @@ function checkDispatchedRerunner({ ids }, deniedIds, own) {
   }
 }
 
+// When an issue's body was last edited and its title last changed.
+const ISSUE_EDITS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    issue(number: $number) {
+      lastEditedAt
+      timelineItems(itemTypes: [RENAMED_TITLE_EVENT], last: 1) { nodes { ... on RenamedTitleEvent { createdAt } } }
+    }
+  }
+}`;
+
 // ratified-app-label: the lanes App applying exactly that label to an issue
 // starts the lane only while the issue carries the owner's ratification marker
 // (findRatification), read now; any other App event, or a failed read, stops.
@@ -477,8 +487,26 @@ async function checkRatifiedAppLabel({ event, repository, list, deniedIds, trigg
   } catch {
     throw new Stop("untrusted-actor");
   }
-  const ratifying = findRatification(comments, list.humans);
+  const ratifiers = new Set([...list.humans].filter((id) => !deniedIds.has(id)));
+  // The newest ratifying comment: the owner ratified the title and body as they
+  // stood then, and the run reads them, so an edit since stops the run.
+  const ratifying = comments
+    .filter((comment) => findRatification([comment], ratifiers) !== undefined)
+    .reduce((newest, comment) => (newest === undefined || timeOf(comment.created_at) > timeOf(newest.created_at) ? comment : newest), undefined);
   if (ratifying === undefined) {
+    throw new Stop("untrusted-actor");
+  }
+  const [owner, name] = repository.split("/");
+  let issue;
+  try {
+    ({ issue } = (await github("POST", "/graphql", { query: ISSUE_EDITS_QUERY, variables: { owner, name, number: Number(number) } })).data.repository);
+  } catch {
+    throw new Stop("untrusted-actor");
+  }
+  const ratifiedAt = timeOf(ratifying.created_at);
+  const editedAt = [issue?.lastEditedAt, ...(issue?.timelineItems?.nodes ?? []).map((node) => node?.createdAt)];
+  // Comparisons with NaN are false, so an unparseable time stops too.
+  if (!isPlainObject(issue) || !editedAt.every((time) => time == null || timeOf(time) <= ratifiedAt)) {
     throw new Stop("untrusted-actor");
   }
   console.log(
