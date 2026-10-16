@@ -283,15 +283,15 @@
     },
     {
       "id": 23,
-      "name": "pr-open-state-userconfig-draft-leaves-draft",
-      "prompt": "/pull-request create from branch feat/618-export-csv. The repository has no source-control.yaml under docs/conventions. The source-control userConfig option pr_open_state is set to draft, so SKILL.md's PR open state line substitutes to draft. The user is driving this session and answering prompts. Resolve the open state and open the PR.",
-      "expected_output": "With no repository file, the per-user level supplies the value: pr_open_state resolves to draft from userConfig. gh pr create runs with --draft (a REST fallback sends draft=true), Phase 2.5 does not run, and the report names the open state, the userConfig level, and /source-control:pull-request ready as what flips the draft.",
+      "name": "pr-open-state-userconfig-ready-opens-draft-then-flips",
+      "prompt": "/pull-request create from branch feat/618-export-csv. The repository has no source-control.yaml under docs/conventions. The source-control userConfig option pr_open_state is set to ready, so SKILL.md's PR open state line substitutes to ready. The user is driving this session and answering prompts. Resolve the open state and open the PR.",
+      "expected_output": "With no repository file, the per-user level supplies the value: pr_open_state resolves to ready from userConfig. gh pr create runs with --draft (a REST fallback sends draft=true), then create runs Phase 2.5 (/source-control:pull-request ready) on the new PR, which flips it after its gates. The report names the open state, the userConfig level, and whether the flip happened.",
       "files": [],
       "expectations": [
-        "pr_open_state resolves to draft because the userConfig value is draft and no repository file sets the key",
-        "The PR is opened with --draft (or draft=true on the REST form)",
-        "create does not run the ready phase or flip the PR",
-        "The report names the open state as draft and the supplying level as userConfig"
+        "pr_open_state resolves to ready because the userConfig value is ready and no repository file sets the key",
+        "The PR is opened with --draft (or draft=true on the REST form), never opened ready for review directly",
+        "create then runs the ready phase on the new PR",
+        "The report names the open state as ready and the supplying level as userConfig"
       ]
     },
     {
@@ -326,15 +326,15 @@
     },
     {
       "id": 26,
-      "name": "pr-open-state-unset-defaults-to-ready",
-      "prompt": "/pull-request create from branch feat/618-export-csv. The repository has no source-control.yaml under docs/conventions, and the userConfig option pr_open_state is not set by the user, so SKILL.md's PR open state line substitutes to its declared default, ready. The user is driving this session, answering prompts, and has not asked for a draft. Resolve the open state and open the PR.",
-      "expected_output": "Neither level sets a value other than the default and nothing asks for a draft, so pr_open_state resolves to ready and the reported level is the default. The PR opens with --draft and create then runs Phase 2.5 (/source-control:pull-request ready) on it, which merges the base, runs the reviews and the verify gate, and flips it; the report gives that outcome.",
+      "name": "pr-open-state-unset-defaults-to-draft",
+      "prompt": "/pull-request create from branch feat/618-export-csv. The repository has no source-control.yaml under docs/conventions, and the userConfig option pr_open_state is not set by the user, so SKILL.md's PR open state line substitutes to its declared default, draft. The user is driving this session, answering prompts, and has not asked for a draft. Resolve the open state and open the PR.",
+      "expected_output": "Neither level sets a value other than the default, so pr_open_state resolves to draft and the reported level is the default. The PR opens with --draft, create does not run the ready phase, and the report says /source-control:pull-request ready is what flips it.",
       "files": [],
       "expectations": [
-        "pr_open_state resolves to ready",
+        "pr_open_state resolves to draft",
         "The report names the supplying level as the default",
-        "The PR is opened with --draft (or draft=true on the REST form), never opened ready for review directly",
-        "create then runs the ready phase on the new PR, and the report says whether it flipped or which gate left it a draft"
+        "The PR is opened with --draft (or draft=true on the REST form)",
+        "create does not run the ready phase or flip the PR"
       ]
     },
     {
@@ -533,13 +533,13 @@
       "id": 41,
       "name": "pr-open-state-head-branch-value-ignored",
       "narration": true,
-      "prompt": "/pull-request create from branch feat/702-cache-ttl. The user is driving this session and answering prompts. On the base branch, main, docs/conventions/source-control.yaml does not exist (the contents API returns 404). The branch being opened adds that file with pr_open_state: draft in one of its commits. The userConfig option pr_open_state is not set by the user, so it substitutes to its declared default, ready. Resolve the open state and open the PR.",
-      "expected_output": "The repository level is read at the base branch, main, where the file is absent, so it is unset; the copy the branch adds is never read, because the branch under review must not choose its own open state. With the per-user level at its default, pr_open_state resolves to ready. The PR opens with --draft, create then runs the ready phase on it, and the report names the default level.",
+      "prompt": "/pull-request create from branch feat/702-cache-ttl. The user is driving this session and answering prompts. On the base branch, main, docs/conventions/source-control.yaml does not exist (the contents API returns 404). The branch being opened adds that file with pr_open_state: ready in one of its commits. The userConfig option pr_open_state is not set by the user, so it substitutes to its declared default, draft. Resolve the open state and open the PR.",
+      "expected_output": "The repository level is read at the base branch, main, where the file is absent, so it is unset; the copy the branch adds is never read, because the branch under review must not choose its own open state. With the per-user level at its default, pr_open_state resolves to draft. The PR opens with --draft, create does not run the ready phase, and the report names the default level.",
       "files": [],
       "expectations": [
         "Reads docs/conventions/source-control.yaml at the base branch (for example the contents API with ref=main), not from the working tree or the head branch",
-        "Does not use the pr_open_state: draft that the branch's own commit adds",
-        "pr_open_state resolves to ready and create runs the ready phase on the new PR",
+        "Does not use the pr_open_state: ready that the branch's own commit adds",
+        "pr_open_state resolves to draft and create does not run the ready phase",
         "The report names the supplying level as the default"
       ]
     },

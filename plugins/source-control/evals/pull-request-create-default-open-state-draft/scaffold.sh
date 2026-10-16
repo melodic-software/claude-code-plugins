@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Seeds the eval workspace with a git repo whose feature branch is one commit ahead of main and a
 # bare local origin so the push step succeeds. No docs/conventions/source-control.yaml exists, so
-# pr_open_state comes from its default.
+# pr_open_state comes from its default, draft.
 set -euo pipefail
 
 git init -q --bare ../eval-origin.git

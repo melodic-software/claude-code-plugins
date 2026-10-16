@@ -480,9 +480,9 @@ levels are in [../../../reference/config-resolution.md](../../../reference/confi
    trailing `# comment` removed) wins. Report the level as `repository
    (docs/conventions/source-control.yaml at <base-branch>)`.
 2. **Per-user level.** Otherwise take the substituted value from SKILL.md's "PR open state" line.
-   `draft` reports the level as `userConfig`.
-3. **Default.** Otherwise, meaning a substituted `ready` or the unsubstituted token, the state is
-   `ready` and the level is `default`.
+   `ready` reports the level as `userConfig`.
+3. **Default.** Otherwise, meaning a substituted `draft` or the unsubstituted token, the state is
+   `draft` and the level is `default`. A repository opts into `ready` at the repository level.
 
 A value other than `draft` or `ready` at the level that supplied it is not used: say which level
 held which value, take the state as `draft`, and report the level as `invalid value at <level>
@@ -555,7 +555,7 @@ Record the expected set for comparison in Phase 3.
 
 ## 2.6 Report and stop
 
-Report the PR URL, captured `<pr_number>`, and recorded list of expected CI workflows. Report the open state and the level that supplied it (§2.4.3), for example `open state: ready (default)` or `open state: draft (request)`. For a `ready` state, report Phase 2.5's outcome: flipped, or left a draft with the gate that stopped it. For a draft, say that `/source-control:pull-request ready` is what flips it. When §2.4.1 found several plans and carried no acceptance criteria, name the candidates. End Phase 2 there. Monitoring (Phase 3), if needed, is invoked explicitly via `/source-control:pull-request monitor` or `/source-control:pull-request full`.
+Report the PR URL, captured `<pr_number>`, and recorded list of expected CI workflows. Report the open state and the level that supplied it (§2.4.3), for example `open state: draft (default)` or `open state: ready (repository (docs/conventions/source-control.yaml at main))`. For a `ready` state, report Phase 2.5's outcome: flipped, or left a draft with the gate that stopped it. For a draft, say that `/source-control:pull-request ready` is what flips it. When §2.4.1 found several plans and carried no acceptance criteria, name the candidates. End Phase 2 there. Monitoring (Phase 3), if needed, is invoked explicitly via `/source-control:pull-request monitor` or `/source-control:pull-request full`.
 
 ## 2.7 `create --pushed`: PR-only entry for an orchestrated flow
 

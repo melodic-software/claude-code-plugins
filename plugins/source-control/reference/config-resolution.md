@@ -159,7 +159,7 @@ one reads the file itself.
   `/source-control:pull-request ready`, which merges the base, runs the reviews and the verify
   gate, and flips it, while `draft` leaves that flip for later. The state meanings are in
   [create.md](../skills/pull-request/reference/create.md#243-create-pr) §2.4.3. Resolution, lowest first, where a later level wins:
-  1. the default, `ready`;
+  1. the default, `draft` (a repository opts into `ready`);
   2. the `pr_open_state` `userConfig` value (the per-user level);
   3. `pr_open_state` in `docs/conventions/source-control.yaml` (the repository level);
   4. an invocation that asks for a draft or names the PR a multi-session container (the request
@@ -175,7 +175,7 @@ one reads the file itself.
   `draft` or `ready` at either level is reported, naming the level, and resolves to `draft`: an
   unknown value never flips a PR ready for review. A `pr_open_state` H2 in any
   `source-control.md` layer is not read. `create` reports which level supplied the value. The
-  `userConfig` option declares `ready` as its default, so a substituted `ready` is reported as the
+  `userConfig` option declares `draft` as its default, so a substituted `draft` is reported as the
   default level: the two give the same result.
 
 ## Review-bot triage rubric (`docs/conventions/source-control.md`)
