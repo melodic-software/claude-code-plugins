@@ -79,6 +79,15 @@ activities:
     # (--check-required needs committed work, and the lane commits through
     # the API, not in the checkout).
     checks: ["scripts/check-changelog-fragments.sh --check"]
+    # Repository scripts the run may call with any arguments it chooses, to
+    # check its work the way an issue's done-when says. Each runs from a
+    # read-only copy of the base. List only scripts that read files and
+    # report: one that changes files, runs code from the checkout (a test,
+    # a linter it finds there) or reaches the network would hand the run
+    # that power. skill-quality's check-skill.sh is left out because it runs
+    # each skill's scripts/*.test.sh and a markdownlint from the checkout.
+    verify-scripts:
+      - plugins/testing/skills/audit/scripts/cant-fail-scan.sh
     # Lets the run read web pages, so it can check a fact against its source
     # (for example a documented default on a vendor docs page) instead of
     # trusting the issue's quote. It may search the web and read any site,
