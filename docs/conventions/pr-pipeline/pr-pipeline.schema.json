@@ -201,6 +201,9 @@
         "verify-scripts": ["skill"],
         "web-access": ["skill"]
       },
+      "dependentSchemas": {
+        "verify-scripts": { "properties": { "effect": { "not": { "const": "read" } } } }
+      },
       "if": {
         "required": ["web-access"],
         "properties": { "web-access": { "properties": { "enabled": { "const": true } } } }
@@ -237,7 +240,7 @@
             "type": "string",
             "pattern": "^(scripts|plugins/[a-z0-9-]+/(skills/[a-z0-9-]+/)?scripts)/[A-Za-z0-9_-]+\\.sh$"
           },
-          "description": "Exact repository-relative paths of read-only checker scripts a skill with an effect other than read may run with any arguments. The write runner copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows `bash <copy>/<path>` with any arguments. List only scripts that read and report: never one that changes files, runs code from the checkout, or reaches the network."
+          "description": "Exact repository-relative paths of read-only checker scripts a skill with an effect other than read may run with any arguments. The write runner copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout with any arguments but a path outside it. Needs an effect other than read. List only scripts that read and report: never one that changes files, runs code from the checkout, or reaches the network."
         },
         "web-access": {
           "type": "object",

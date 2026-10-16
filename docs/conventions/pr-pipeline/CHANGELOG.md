@@ -6,8 +6,9 @@ A skill leaf gains `verify-scripts`: exact paths of read-only checker scripts un
 `plugins/<plugin>/scripts/` or `plugins/<plugin>/skills/<skill>/scripts/`, no globs. For a skill
 with an effect other than `read`, `collect-base-activity` copies each script's base plugin (or the
 base `scripts/`) to a read-only `$RUNNER_TEMP/lane-verify`, denies `Edit` and `Write` on it, and
-allows `Bash(bash <copy>/<path> *)` plus the double-quoted path, so the script runs with any
-arguments. This repository's `resolve-issue` lists the testing plugin's `cant-fail-scan.sh`.
+allows `Bash(<copy>/bin/<name> *)`, a wrapper that runs the script from the checkout with any
+arguments except a path outside the checkout, with system, global, hook and fsmonitor git config
+switched off. A leaf with effect `read` cannot set it. This repository's `resolve-issue` lists the testing plugin's `cant-fail-scan.sh`.
 `version` stays 1.
 
 ## 1.18.0 - 2026-10-16

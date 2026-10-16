@@ -76,6 +76,11 @@ for (const path of [
   });
 }
 
+// Only the write runner grants them, so a read skill's list would do nothing.
+test("verify-scripts with effect read fails the schema", () => {
+  rejected({ effect: "read", "verify-scripts": ["scripts/check-x.sh"] });
+});
+
 test("an empty or repeating verify-scripts list fails the schema", () => {
   rejected({ "verify-scripts": [] });
   rejected({ "verify-scripts": ["scripts/check-x.sh", "scripts/check-x.sh"] });

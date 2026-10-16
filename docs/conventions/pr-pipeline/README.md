@@ -210,8 +210,9 @@ Each leaf declares:
 - `verify-scripts` (optional, `skill` only): exact repository-relative paths of read-only checker
   scripts, each `scripts/<name>.sh`, `plugins/<plugin>/scripts/<name>.sh` or
   `plugins/<plugin>/skills/<skill>/scripts/<name>.sh`, that a skill with an effect other than
-  `read` may run with any arguments. The write runner runs each from a read-only base copy of its
-  plugin (or of `scripts/`) against the checkout
+  `read` may run with any arguments but a path outside the checkout; a `read` leaf cannot set it.
+  The write runner runs each from a read-only base copy of its plugin (or of `scripts/`) against
+  the checkout
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The arguments are the model's, so
   list only scripts that read and report: never one that changes files, runs code from the
   checkout or reaches the network.
