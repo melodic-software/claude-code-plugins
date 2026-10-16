@@ -183,8 +183,9 @@ Three cap decisions, each with the section that owns the figure.
    the size. A disclosure the content-mutation rule above requires must reach the reader inline
    and whole, so a hook that must stay inline caps itself under the figure with a truncation that
    keeps its counts and says it truncated, leaving headroom for JSON escaping. The adopting
-   reference is `plugins/typos-format/hooks/typos-format.sh` (4,000 for `systemMessage`, 8,000 for
-   `additionalContext`).
+   reference was typos-format's per-edit hook (4,000 for `systemMessage`, 8,000 for
+   `additionalContext`); typos-format now reports at commit time through its git pre-commit entry,
+   with an opt-in end-of-turn check, and sends neither channel per edit.
    - **Pointer**: for the output cap and what happens over it, see
      <https://code.claude.com/docs/en/hooks#json-output>.
    - **As of**: 2026-10-04
@@ -387,7 +388,8 @@ Fleet audits check, per wired producer hook:
   conditions rather than to follow the precedent.
 - Every path on which the hook rewrote file content names what it changed on the user channel,
   bounded by a per-run cap with the remainder reported as a count. Not mechanically gated, but
-  reviewed per hook. The adopting reference is `plugins/typos-format/hooks/typos-format.sh`.
+  reviewed per hook. The adopting reference was typos-format's per-edit write mode, removed when
+  typos-format moved to reporting at commit time (pre-commit entry, opt-in end-of-turn check).
 - The hook emits the telemetry envelope for every **meaningful outcome**: a check that ran and
   produced a result (ok / blocked / skipped-for-cause). A pure inapplicability short-circuit
   (wrong tool type, excluded path, empty content, outside the project) that fires before any

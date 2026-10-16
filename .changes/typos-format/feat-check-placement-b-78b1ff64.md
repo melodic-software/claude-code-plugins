@@ -10,4 +10,4 @@ bump: minor
 
 ### Removed
 
-- The per-edit PostToolUse spell-check row: findings now arrive at commit time from the pre-commit entry, or at turn end with `typos_format_end_of_turn` on. Its write mode and the `typos_format_write_changes` and `typos_format_lint_gitignored` options went with it.
+- The per-edit PostToolUse spell-check row: findings now arrive at commit time from the pre-commit entry, or at turn end with `typos_format_end_of_turn` on. Its write mode, the `typos_format_write_changes` and `typos_format_lint_gitignored` options, and the SessionStart `compact|clear` row that re-sent its findings went with it.

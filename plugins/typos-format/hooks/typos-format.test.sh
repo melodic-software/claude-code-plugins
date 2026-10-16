@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Contract test for typos-format's Claude Code hook rows after spell-check
 # findings moved to commit time: the hooks.json row set (no per-edit
-# PostToolUse row; the SessionStart probe, node-notice and compact|clear rows;
+# PostToolUse row and no digest reset; the SessionStart probe and node-notice rows;
 # the opt-in Stop row), the prerequisites manifest, the SessionStart probe's
 # kill-switch gate, and typos-format.sh's remaining entry points. The Stop
 # row's behavior is typos-format-end-of-turn.test.sh; the pre-commit check is
@@ -37,19 +37,20 @@ if [[ "$(jq -c '.hooks | keys' "$HOOKS_JSON")" == '["SessionStart","Stop"]' ]]; 
 else
   fail "hooks.json: want events [SessionStart, Stop], got $(jq -c '.hooks | keys' "$HOOKS_JSON")"
 fi
-# SessionStart carries exactly three commands: the prerequisites probe behind
-# the plugin kill switch, the node-notice row (pinned fleet-wide by
-# scripts/node-notice-rows.test.sh), and the compact|clear digest reset.
+# SessionStart carries exactly two commands: the prerequisites probe behind the
+# plugin kill switch and the node-notice row (pinned fleet-wide by
+# scripts/node-notice-rows.test.sh). No row resets per-edit finding digests:
+# nothing writes them now that findings arrive at commit time.
 if jq -e --arg checker '${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs' --arg root '${CLAUDE_PLUGIN_ROOT}' \
-  '([.hooks.SessionStart[].hooks[]] | length == 3) and ([.hooks.SessionStart[].hooks[] | select(.command == "node" and .args == [$checker, "probe", $root, "--run-if-unset-or-true", "TYPOS_FORMAT_ENABLED"])] | length == 1)' "$HOOKS_JSON" >/dev/null; then
-  ok "hooks.json: three SessionStart commands, one the probe behind --run-if-unset-or-true TYPOS_FORMAT_ENABLED"
+  '([.hooks.SessionStart[].hooks[]] | length == 2) and ([.hooks.SessionStart[].hooks[] | select(.command == "node" and .args == [$checker, "probe", $root, "--run-if-unset-or-true", "TYPOS_FORMAT_ENABLED"])] | length == 1)' "$HOOKS_JSON" >/dev/null; then
+  ok "hooks.json: two SessionStart commands, one the probe behind --run-if-unset-or-true TYPOS_FORMAT_ENABLED"
 else
-  fail "hooks.json: expected three SessionStart commands including the gated prerequisites probe"
+  fail "hooks.json: expected two SessionStart commands including the gated prerequisites probe"
 fi
-if [[ "$(jq '[.hooks.SessionStart[] | select(.matcher == "compact|clear") | .hooks[] | select(.command == "node" and .args == ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/typos-format.sh", "--reset-digests"])] | length' "$HOOKS_JSON")" == "1" ]]; then
-  ok "hooks.json: one SessionStart compact|clear row runs the script with --reset-digests"
+if [[ "$(jq '[.hooks[][] | select(.matcher == "compact|clear")] + [.. | strings | select(. == "--reset-digests")] | length' "$HOOKS_JSON")" == "0" ]]; then
+  ok "hooks.json: no compact|clear row and no --reset-digests argument"
 else
-  fail "hooks.json: expected one SessionStart compact|clear --reset-digests row"
+  fail "hooks.json: a compact|clear or --reset-digests row is still registered"
 fi
 if jq -e '([.hooks.Stop[].hooks[] | select(.command == "node" and .args == ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "--run-if-unset-or-true", "TYPOS_FORMAT_ENABLED", "--require-true", "TYPOS_FORMAT_END_OF_TURN", "${CLAUDE_PLUGIN_ROOT}/hooks/typos-format.sh", "--end-of-turn"])] | length == 1) and ([.hooks.Stop[].hooks[]] | length == 1)' "$HOOKS_JSON" >/dev/null; then
   ok "hooks.json: one Stop row runs --end-of-turn behind --require-true TYPOS_FORMAT_END_OF_TURN"
@@ -137,14 +138,10 @@ if [[ $rc -eq 0 && -z "$out" ]]; then
 else
   fail "script: no-flag invocation gave rc=$rc out=$out"
 fi
-DATA="$(mktemp -d)"
-out="$(printf '{"session_id":"s","hook_event_name":"SessionStart","source":"compact"}' | CLAUDE_PLUGIN_DATA="$DATA" bash "$HOOK" --reset-digests 2>&1)"
-rc=$?
-rm -rf "$DATA"
-if [[ $rc -eq 0 && -z "$out" ]]; then
-  ok "script: --reset-digests exits 0 silently"
+if grep -q -- '--reset-digests' "$HOOK"; then
+  fail "script: typos-format.sh still carries a --reset-digests branch"
 else
-  fail "script: --reset-digests gave rc=$rc out=$out"
+  ok "script: no --reset-digests branch remains"
 fi
 out="$(printf '{"stop_hook_active":false}' | CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=false bash "$HOOK" --end-of-turn 2>&1)"
 rc=$?

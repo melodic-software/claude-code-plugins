@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# typos-format hook entry for the two rows that remain after spell-check
+# typos-format hook entry for the one row that remains after spell-check
 # findings moved to commit time (the git pre-commit entry in git-hooks/):
 #
 #   typos-format.sh --end-of-turn    the opt-in Stop row (typos_format_end_of_turn)
-#   typos-format.sh --reset-digests  the SessionStart compact|clear row
 #
 # Any other invocation exits 0 and does nothing.
 
@@ -20,11 +19,6 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
-
-if [[ "${1:-}" == --reset-digests ]]; then
-  hook::buffer_stdin_to INPUT && hook::findings_digest_reset "$INPUT"
-  exit 0
-fi
 
 # The opt-in Stop row (its hooks.json gate is --require-true): the pre-commit
 # entry run over the uncommitted changes. Its findings exit 2, so the model

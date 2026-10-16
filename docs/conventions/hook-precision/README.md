@@ -146,7 +146,7 @@ never stands in for the gate.
 | `go-format` | rewriting (goimports) | shared, `go_format_lint_gitignored` | conforms (#4671) |
 | `powershell-format` | rewriting (Invoke-Formatter) and reporting (PSScriptAnalyzer) | shared, `powershell_format_lint_gitignored` | conforms (#4671) |
 | `ruff-format` | rewriting and reporting (Ruff) | shared, `ruff_format_lint_gitignored` | conforms (#4671) |
-| `typos-format` | reporting, and rewriting when write mode is on | shared, `typos_format_lint_gitignored` | conforms (#4671); registers with no `if` filter because typos is language-agnostic |
+| `typos-format` | none in session: findings arrive at commit time from its git pre-commit entry, with an opt-in end-of-turn check over uncommitted changes | not applicable: no per-edit hook remains | not applicable |
 | `actionlint` (`actionlint-check`) | reporting only | shared, `actionlint_lint_gitignored`; `hook::begin --no-membership`, `if`-bounded to `**/.github/workflows/*.y*ml` | conforms (#4671); lowest exposure, since it never rewrites and an ignored workflow file is rare |
 
 The helpers live in `lib/hook-utils.sh`. The six hooks that use the snapshot and disclosure guard
