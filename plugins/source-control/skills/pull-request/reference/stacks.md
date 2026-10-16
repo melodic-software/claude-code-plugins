@@ -33,7 +33,7 @@ short, and fix a lower layer before the upper layers collect review.
   stacks per repository, and the Git floor the CLI reference names. Unattended lanes set
   `GH_STACK_NO_UPDATE_NOTIFIER=1` to keep its upgrade notice out of their output.
 - After pushing to a lower layer, restack the layers above yourself (`gh stack rebase`, then
-  `gh stack push`); a push to a lower layer does not move them.
+  `gh stack push`).
 
 - **Pointer**: when you need a command, the worktree requirements or the environment switches,
   fetch [Stacked PRs CLI commands](https://docs.github.com/en/pull-requests/reference/stacked-prs-cli-commands#worktree-support)
@@ -53,11 +53,10 @@ short, and fix a lower layer before the upper layers collect review.
   synchronous REST merge endpoint does not support stacks.
 - The trunk's rules govern every layer, and GitHub evaluates them when the merge runs, not when it
   is requested. A stack merge cannot bypass them.
-- Merging a lower layer alone leaves the layers above open; GitHub retargets and rebases them,
-  which re-runs their checks and review lanes.
-- On a trunk with a merge queue, the stack is enqueued with one queue entry per layer, each layer
-  runs the required checks on its own queue branch, and the layers land together, one squash
-  commit per layer. Treat the stack as queued until each PR reads `MERGED`.
+- After a partial merge, expect the layers above to re-run their checks and review lanes on their
+  new head before they are ready again.
+- Treat a stack as merging until every one of its PRs reads `MERGED`; on a trunk with a merge
+  queue, read how the queue takes the stack from the pointer below, live.
 - `/source-control:babysit-prs` holds stack layers for a human unless its `babysit_stacked_prs`
   option is on.
 
@@ -68,9 +67,9 @@ short, and fix a lower layer before the upper layers collect review.
   for the synchronous endpoint's limit,
   [Merge a pull request](https://docs.github.com/rest/pulls/pulls?apiVersion=2026-03-10#merge-a-pull-request).
   Correlate with the
-  [general availability changelog](https://github.blog/changelog/2026-10-06-stacked-pull-requests-generally-available/).
-  The queue behavior above is what the #7664 probe observed, since the two docs pages describe
-  queue grouping differently.
+  [general availability changelog](https://github.blog/changelog/2026-10-06-stacked-pull-requests-generally-available/)
+  and with the queue probe in the pull request that closed
+  [#7664](https://github.com/melodic-software/claude-code-plugins/issues/7664).
 - **As of**: 2026-10-16
 - **Recheck trigger**: either docs page changes how a stack queues or merges, or a stack in a
   merge queue lands its layers in separate passes.
