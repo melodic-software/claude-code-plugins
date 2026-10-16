@@ -343,10 +343,14 @@ NO_PREFIX=$(
   cat <<'EOF'
 rule user settings deny PowerShell(*env:*lefthook*)
 rule user settings deny Bash(git:* push)
+rule user settings deny Bash(* git:* push)
+rule user settings deny Bash(*foo:* rm -rf /)
 EOF
 )
 OUT=$(lint "$NO_PREFIX")
-assert_eq "only the command-prefix rule fires" 1 "$(count_matching "$OUT" '\[C6-colonStar\]')"
+assert_eq "only the command-prefix rules fire" 3 "$(count_matching "$OUT" '\[C6-colonStar\]')"
+assert_contains "a leading wildcard before prefix-shaped words still fires" "$OUT" "[C6-colonStar] user Bash(* git:* push)"
+assert_contains "a leading wildcard glued to a prefix still fires" "$OUT" "[C6-colonStar] user Bash(*foo:* rm -rf /)"
 assert_not_contains "a leading-wildcard literal colon is not called broken" "$OUT" "PowerShell(*env:*lefthook*)"
 
 # --- One rule, one explanation -----------------------------------------------
