@@ -58,6 +58,12 @@ run "git commit -m from a quoted-heredoc substitution (allowed: the body expands
 run "git commit -m with every \$ and backtick escaped (allowed)" \
   "git commit -m \"fix: costs \\\$5 and \\\`x\\\`\"" 0
 run "git commit --message='...' with a \$ (allowed)" "git commit --message='has \$x'" 0
+# A value that is one variable or one command substitution is meant to expand.
+run "git commit -m \"\$msg\" (allowed)" "git commit -m \"\$msg\"" 0
+run "git commit -m \"\$(printf '...')\" (allowed)" \
+  "git commit -m \"\$(printf 'fix: x\\n\\nbody \`y\`')\"" 0
+run "quoted-heredoc substitution whose body holds double quotes (allowed)" \
+  "git commit -m \"\$(cat <<'EOF'${NL}fix: say \"quoted\" words${NL}EOF${NL})\"" 0
 run "wsl git commit -m multi-line (blocked)" "wsl git commit -m \"feat: x \$body\"" 2
 run "wsl git commit -m single-line (allowed)" "wsl git commit -m 'feat: x'" 0
 run "git commit -am multi-line (bundled cluster, blocked)" "git commit -am \"feat: x \$body\"" 2

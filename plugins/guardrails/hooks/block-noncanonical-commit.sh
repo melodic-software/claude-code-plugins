@@ -229,18 +229,26 @@ msg_value_interpolates() {
   esc="${esc//\$/\\\$}"
   esc="${esc//\`/\\\`}"
   [[ "$RAW_COMMAND" == *"m \"$esc\""* || "$RAW_COMMAND" == *"=\"$esc\""* ]] && return 1
+  # The whole value is one variable (`-m "$msg"`): the expansion is the point.
+  [[ "$v" =~ ^\$(\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*)$ ]] && return 1
+  # `$(cat <<'EOF' ... EOF)`: a quoted heredoc expands nothing. Read from the
+  # command as written, because the tokenizer ends a `"$(...)"` word at the
+  # first `"` inside it. The body runs to the delimiter line, and nothing may
+  # follow that line but the `)`.
   re_hd=$'^\\$\\(cat[[:space:]]+<<-?[[:space:]]*[\'"]([A-Za-z_][A-Za-z0-9_]*)[\'"][[:space:]]*\n'
   if [[ "$v" =~ $re_hd ]]; then
     d="${BASH_REMATCH[1]}"
-    body="${v#"${BASH_REMATCH[0]}"}"
-    body="${body%)}"
-    body="${body%"${body##*[![:space:]]}"}"
-    # The body runs to the delimiter line; nothing may follow it but the `)`.
-    [[ "$body" == *$'\n'"$d" || "$body" == "$d" ]] || return 0
-    body="${body%"$d"}"
-    [[ $'\n'"$body" == *$'\n'"$d"$'\n'* ]] && return 0
-    return 1
+    [[ "$RAW_COMMAND" == *"${BASH_REMATCH[0]}"* ]] || return 0
+    body=$'\n'"${RAW_COMMAND#*"${BASH_REMATCH[0]}"}"
+    [[ "$body" == *$'\n'"$d"$'\n'* ]] || return 0
+    body="${body#*$'\n'"$d"$'\n'}"
+    [[ "$body" =~ ^[[:space:]]*\) ]] && return 1
+    return 0
   fi
+  [[ "$v" == '$(cat'* ]] && return 0
+  # Any other value that IS one command substitution (`-m "$(printf '...')"`,
+  # `-m "$(git log -1 --format=%B)"`) is meant to run.
+  [[ "$v" == '$('* ]] && return 1
   return 0
 }
 

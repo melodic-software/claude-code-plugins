@@ -1,6 +1,6 @@
 {
   "name": "guardrails",
-  "description": "Fifteen toggleable guards. Blocks: secret writes, machine-specific paths, git hook bypass, force-push and reset --hard, Bash file-write workarounds, Windows drive-root /tmp writes, exported MSYS path-conversion overrides, recursive deletes of roots or paths outside the session tree, git commit -m messages the shell would expand, commit subjects or PR titles that break the declared convention. Warns on: invented CLI flags, unresolved /plugin:skill refs, removed repo paths, Workflow fan-out, direct gh pr create.",
+  "description": "Fifteen toggleable guards. Blocks: secret writes, machine-specific paths, git hook bypass, force-push and reset --hard, Bash file-write workarounds, Windows drive-root /tmp writes, exported MSYS path-conversion overrides, recursive deletes of roots or paths outside the session tree, multi-line git commit -m, commit subjects or PR titles that break the declared convention. Warns on: invented CLI flags, unresolved /plugin:skill refs, removed repo paths, Workflow fan-out, direct gh pr create.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -57,8 +57,8 @@
     "block_credential_read_enabled": {
       "type": "boolean",
       "title": "Block-credential-read guard",
-      "description": "Blocks a Bash or PowerShell command whose output is a credential: git credential fill and credential-helper get, gh auth token, echo or printenv of a token-shaped variable, and an interpreter (python -c, node -e) reading .git-credentials, .netrc, .env, ~/.ssh/id_* or ~/.aws/credentials. cat of those files is left to the Read() deny rules /guardrails:setup prints. On by default.",
-      "default": true
+      "description": "Blocks a command whose output is a credential: git credential fill, gh auth token, a token-shaped variable echoed, and an interpreter (python -c, node -e) reading .env, .netrc, ~/.ssh/id_* or ~/.aws/credentials. cat is left to Read() deny rules. Off by default: precision below the bar.",
+      "default": false
     },
     "block_credential_read_allow": {
       "type": "string",
@@ -75,8 +75,8 @@
     "block_hook_bypass_enabled": {
       "type": "boolean",
       "title": "Block-hook-bypass guard",
-      "description": "Blocks Bash file-write workarounds that circumvent Write and Edit hook gates. On by default.",
-      "default": true
+      "description": "Blocks Bash file-write workarounds that circumvent Write and Edit hook gates. Off by default: its measured precision is below the bar.",
+      "default": false
     },
     "block_hook_bypass_scratch_roots": {
       "type": "string",

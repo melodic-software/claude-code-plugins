@@ -266,9 +266,13 @@ match_shapes() {
 interpreter_reads() {
   local s="$1" lead="$2" pre="$3" sp='[[:space:]]' nl=$'\n' sq="'" dq='"'
   local re_int="${lead}${pre}(python[0-9.]*|py|node|nodejs|deno|bun|ruby|perl|php)(\\.exe)?(${sp}|\$)"
-  local path="(^|[^a-z0-9_])(\\.git-credentials|\\.netrc|_netrc|\\.env(\\.[a-z0-9_-]+)?|\\.credentials\\.json|\\.docker[/\\\\]config\\.json|\\.ssh[/\\\\]id_[a-z0-9_]+|\\.aws[/\\\\]credentials)([^a-z0-9_.-]|\$)"
+  local path="(\\.git-credentials|\\.netrc|_netrc|\\.env(\\.[a-z0-9_-]+)?|\\.credentials\\.json|\\.docker[/\\\\]config\\.json|\\.ssh[/\\\\]id_[a-z0-9_]+|\\.aws[/\\\\]credentials)([^a-z0-9_.-]|\$)"
   local verb='(open|read|dotenv|file_get_contents|slurp|cat|source)'
-  local re_read="${verb}[^${nl}]*${path}|${path}[^${nl}]*${verb}"
+  # The file name sits in a string literal on the verb's line, as code names a
+  # path: right after the opening quote, or after a separator inside it. Prose
+  # that mentions `Read(.env)` holds no quote between the two.
+  local lit="[${sq}${dq}]([^${sq}${dq}${nl}]*[^a-z0-9_${sq}${dq}${nl}])?"
+  local re_read="${verb}[^${nl}]*${lit}${path}|${lit}${path}[^${nl}]*${verb}"
   local re_hd="<<-?${sp}*[${sq}${dq}]?([a-z0-9_]+)"
   local rest line code
   while [[ "$s" =~ $re_int ]]; do

@@ -2169,7 +2169,7 @@ bash "$HOOK" <<<'{"tool_name":"Bash","tool_input":{}}' >/dev/null 2>&1 || rc=$?
 assert_exit "payload with no command is a skip" 0 "$rc"
 
 # --- 5b. A variable the command sets to a literal first ------------------------
-# `X=build && rm -rf "$X"` deletes `build`, so it is judged as `build`. This
+# `S=build; ...; rm -rf "$S"` deletes `build`, so it is judged as `build`. This
 # once blocked as a bare variable.
 expect_both 'X=build && rm -rf "$X" allowed' 0 "${RDT_CWD[@]}" --command 'X=build && rm -rf "$X"'
 expect_both 'X=build; rm -rf "$X/" allowed' 0 "${RDT_CWD[@]}" --command 'X=build; rm -rf "$X/"'
@@ -2178,13 +2178,31 @@ expect_both 'two literals, then rm -rf "$A" "$B" allowed' 0 "${RDT_CWD[@]}" \
   --command "A=build B='dist' && rm -rf \"\$A\" \"\$B/x\""
 expect_both 'a literal on its own line, then the delete, allowed' 0 "${RDT_CWD[@]}" \
   --command $'X=build\nrm -rf "$X"'
+expect_both 'a literal several statements before the delete, allowed' 0 "${RDT_CWD[@]}" \
+  --command 'S=build; mkdir -p "$S/x"; git status; rm -rf "$S"'
+expect_both 'a literal built from a bound one, allowed' 0 "${RDT_CWD[@]}" \
+  --command 'S=build; P=$S/probe; rm -rf $P'
+# A later statement that may change the variable drops the binding.
+expect_both 'a reassignment behind || blocks' 2 "${RDT_CWD[@]}" --command 'X=build; true || X=/; rm -rf "$X"'
+expect_both 'a guarded first assignment blocks' 2 "${RDT_CWD[@]}" --command 'X=/; true || X=build; rm -rf "$X"'
+expect_both 'read NAME blocks' 2 "${RDT_CWD[@]}" --command 'X=build; read X; rm -rf "$X"'
+expect_both 'unset NAME blocks' 2 "${RDT_CWD[@]}" --command 'X=build; unset X; rm -rf "$X/"'
+expect_both 'for NAME blocks' 2 "${RDT_CWD[@]}" --command 'X=build; for X in a b; do :; done; rm -rf "$X"'
+expect_both 'printf -v NAME blocks' 2 "${RDT_CWD[@]}" --command "X=build; printf -v X '%s' /; rm -rf \"\$X\""
+expect_both 'export NAME=... blocks' 2 "${RDT_CWD[@]}" --command 'X=build; export X=/; rm -rf "$X"'
+expect_both 'eval blocks' 2 "${RDT_CWD[@]}" --command 'X=build; eval "$C"; rm -rf "$X"'
+expect_both 'a function definition blocks' 2 "${RDT_CWD[@]}" --command 'X=build; f() { X=/; }; f; rm -rf "$X"'
+expect_both 'an assignment inside if/then blocks' 2 "${RDT_CWD[@]}" --command 'if true; then X=build; fi; rm -rf "$X"'
+expect_both 'an assignment in a subshell blocks' 2 "${RDT_CWD[@]}" --command '(X=build); rm -rf "$X"'
+expect_both 'NAME= inside quotes elsewhere blocks' 2 "${RDT_CWD[@]}" --command 'X=build; echo "X=/"; rm -rf "$X"'
+expect_both 'a value from a substitution blocks' 2 "${RDT_CWD[@]}" --command 'D=$(mktemp -d); rm -rf "$D"'
 # Every arm still reads the literal, and only that exact shape is read.
 expect_both 'X=/ && rm -rf "$X" blocks (root)' 2 "${RDT_CWD[@]}" --command 'X=/ && rm -rf "$X"'
 expect_both 'X=/etc && rm -rf "$X" blocks (outside the tree)' 2 "${RDT_CWD[@]}" --command 'X=/etc && rm -rf "$X"'
 expect_both 'X=build | rm -rf "$X" blocks (another shell)' 2 "${RDT_CWD[@]}" --command 'X=build | rm -rf "$X"'
 expect_both 'X=build & rm -rf "$X" blocks (another shell)' 2 "${RDT_CWD[@]}" --command 'X=build & rm -rf "$X"'
 expect_both 'X=build || rm -rf "$X" blocks' 2 "${RDT_CWD[@]}" --command 'X=build || rm -rf "$X"'
-expect_both 'a segment between the literal and the delete blocks' 2 "${RDT_CWD[@]}" \
+expect_both 'a reassignment from a substitution between them blocks' 2 "${RDT_CWD[@]}" \
   --command 'X=build && X=$(pwd) && rm -rf "$X"'
 expect_both 'X=$(pwd) && rm -rf "$X" blocks' 2 "${RDT_CWD[@]}" --command 'X=$(pwd) && rm -rf "$X"'
 expect_both 'X=~ && rm -rf "$X" blocks (tilde expands)' 2 "${RDT_CWD[@]}" --command 'X=~ && rm -rf "$X"'
@@ -2194,8 +2212,10 @@ expect_both 'X=build && bash -c rm -rf "$X" blocks (a child shell does not inher
   --command "X=build && bash -c 'rm -rf \"\$X\"'"
 expect_both 'X=build && rm -rf "$Y" blocks (a different variable)' 2 "${RDT_CWD[@]}" --command 'X=build && rm -rf "$Y"'
 expect_both 'X=build && rm -rf "$XY" blocks (a longer name)' 2 "${RDT_CWD[@]}" --command 'X=build && rm -rf "$XY"'
-expect_both 'a non-literal word beside the literal blocks' 2 "${RDT_CWD[@]}" \
+expect_both 'a literal beside a non-literal assignment is still read' 0 "${RDT_CWD[@]}" \
   --command 'X=build Y=$(pwd) && rm -rf "$X"'
+expect_both 'the non-literal one beside it still blocks' 2 "${RDT_CWD[@]}" \
+  --command 'X=build Y=$(pwd) && rm -rf "$Y"'
 
 # --- 5c. An attended session asks instead of denying (refuse.sh) ---------------
 expect "attended: rm -rf / exits 0 to ask" 0 --command 'rm -rf /' -- CLAUDE_CODE_SESSION_ATTENDED=1

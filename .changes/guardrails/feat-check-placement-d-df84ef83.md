@@ -14,6 +14,10 @@ bump: minor
 
 ### Changed
 
+- `block-credential-read` and `block-hook-bypass` are now off by default: measured on local
+  session logs, 6% and 35% of their refusals were right, below the ADR 0003 bar. Turn either
+  back on with its `_enabled` option. The per-guard figures are in
+  `docs/conventions/hook-precision/guard-precision.md`.
 - `block-noncanonical-commit` now blocks a `git commit -m` message holding a `$` or a backtick
   the shell expands (double quotes or none in Bash, double quotes or `@"` in PowerShell), and no
   longer blocks a message only because it spans several lines.
@@ -24,7 +28,10 @@ bump: minor
 
 ### Fixed
 
-- `block-root-delete-target` no longer blocks `X=build && rm -rf "$X"`: a variable the
-  command's first segment sets to a plain literal is judged as that literal.
+- `block-root-delete-target` no longer blocks `S=build; ...; rm -rf "$S"`: a variable an
+  earlier statement of the same command sets to a plain literal is judged as that literal,
+  unless a later statement may change it.
+- `block-noncanonical-commit` leaves `-m "$msg"` and `-m "$(...)"` alone: a value that is one
+  variable or one command substitution is meant to expand.
 - `block-credential-read` no longer treats a shell name inside an argument, such as a grep
   pattern, as a shell that runs the rest of the command.

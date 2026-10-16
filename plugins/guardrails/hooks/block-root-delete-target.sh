@@ -2197,9 +2197,8 @@ rdt_check_segment() {
   if ((rdt_depth > 1)); then
     rdt_segments=$((rdt_segments + 1))
     ((rdt_segments > MAX_SEGMENTS)) && rdt_block "too-many-readings"
-  elif ((rdt_in_subst == 0)); then
-    rdt_top_seg=$((rdt_top_seg + 1))
-    ((rdt_top_seg == 1 && RDT_LIT_OK)) && rdt_lit_record "$@"
+  elif ((rdt_in_subst == 0)) && [[ "$TOOL_NAME" != "PowerShell" ]]; then
+    rdt_lit_segment "$@"
   fi
   local -a words=("$@")
   local n=$# i=0 j w base sval optarg consume_bare
@@ -2775,42 +2774,106 @@ rdt_strip_tail_to() {
 
 # --- A variable the command itself sets to a literal --------------------------
 #
-# `X=build && rm -rf "$X"` deletes `build`: the first segment sets X in this
-# shell and the next one reads it. Such an operand is judged as the literal it
-# names, through every arm below, so `X=/ && rm -rf "$X"` is still a root.
-# Only that shape is read:
-#   - the command OPENS with NAME=value words and nothing else, joined to the
-#     next segment by `&&`, `;` or a newline (RDT_LIT_RE, on the raw text, since
-#     the tokenizer does not report separators). A pipe, `&` or `||` runs the
-#     assignment in another shell or not before the delete;
-#   - each value is plain characters, unquoted or wholly quoted: no `$`, glob,
-#     `~` or space, so it expands to itself;
-#   - the delete is the very next segment, read at the top level: not a later
-#     segment (something between could change NAME), not through a launcher or
-#     child shell (which does not inherit an unexported NAME), and not inside a
+# `S=build; ...; rm -rf "$S"` deletes `build`: an earlier statement set S in
+# this shell. Such an operand is judged as the literal it names, through every
+# arm below, so `X=/ && rm -rf "$X"` is still a root and `X=/etc; rm -rf "$X"`
+# still lands outside the tree. A binding is made, and kept, only where the
+# command proves it:
+#   - the assignment is a statement of its own (NAME=value words and nothing
+#     else) at the top level, and EVERY spelling of `NAME=` in the command
+#     opens a statement (after its start, `;` or a newline) that ends in `;`,
+#     `&&`, a newline or the end (rdt_lit_bindable, on the raw text, since the
+#     tokenizer does not report separators). So no assignment to NAME sits
+#     behind `&&` or `||`, in a pipe or `&`, after `then`, `do`, `(` or `{`,
+#     or inside quotes, where it might not run, or run in another shell;
+#   - each value is plain characters (no glob, `~`, space or quote), or such
+#     characters joined with an already bound `$NAME` / `${NAME}`;
+#   - nothing after it can change NAME: a later segment naming NAME as a word
+#     (`read NAME`, `unset NAME`, `for NAME in`, `printf -v NAME`) or assigning
+#     it (`NAME=...`, `export NAME=...`, a `NAME=x cmd` prefix) drops the
+#     binding, and `eval`, `source`, `.` or a function definition drops all;
+#   - the delete is read at the top level: not through a launcher or child
+#     shell (which does not inherit an unexported NAME), and not inside a
 #     substitution;
 #   - the operand is the variable alone or followed by `/...`.
 # Anything else stays a bare variable.
-RDT_LIT_CH='[A-Za-z0-9_.@%+,:/-]+'
-RDT_LIT_WORD="[A-Za-z_][A-Za-z0-9_]*=(${RDT_LIT_CH}|\"${RDT_LIT_CH}\"|'${RDT_LIT_CH}')"
-RDT_LIT_RE="^[[:space:]]*(${RDT_LIT_WORD}[[:space:]]+)*${RDT_LIT_WORD}[[:space:]]*(&&|;|"$'\n'")"
-RDT_LIT_OK=0
-[[ "$TOOL_NAME" != "PowerShell" && "$COMMAND" =~ $RDT_LIT_RE ]] && RDT_LIT_OK=1
+RDT_LIT_CH='[A-Za-z0-9_.@%+,:/-]'
 declare -A RDT_LIT=()
-rdt_top_seg=0
+declare -A RDT_LIT_OK=()
 
-# rdt_lit_record <argv word>...: the first segment's bindings, or none when any
-# word is not a plain NAME=value.
+# rdt_lit_bindable <name>: every `NAME=` / `NAME+=` in the command opens a
+# statement. Answered once per name.
+# shellcheck disable=SC2329  # invoked from rdt_lit_segment, itself a parser callback
+rdt_lit_bindable() {
+  local n="$1" rest m nall=0 nlead=0 re pre stmt sep
+  if [[ -z "${RDT_LIT_OK[$n]+x}" ]]; then
+    re="(^|[^A-Za-z0-9_])${n}\\+?="
+    rest="$COMMAND"
+    while [[ "$rest" =~ $re ]]; do
+      m="${BASH_REMATCH[0]}"
+      pre="${rest%%"$m"*}${BASH_REMATCH[1]}"
+      nall=$((nall + 1))
+      pre="${pre%"${pre##*[![:blank:]]}"}"
+      rest="${rest#*"$m"}"
+      # It opens a statement, and the statement ends in `;`, `&&`, a newline or
+      # the end: a pipe, `&` or `||` runs it in another shell, or not first.
+      [[ -z "$pre" || "$pre" == *[\;$'\n'] ]] || continue
+      stmt="${rest%%[;&|$'\n']*}"
+      sep="${rest:${#stmt}:2}"
+      [[ -z "$sep" || "$sep" == [\;$'\n']* || "$sep" == '&&' ]] && nlead=$((nlead + 1))
+    done
+    RDT_LIT_OK[$n]=0
+    ((nall > 0 && nall == nlead)) && RDT_LIT_OK[$n]=1
+  fi
+  ((RDT_LIT_OK[$n]))
+}
+
+# rdt_lit_segment <argv word>...: a top-level segment's effect on the bindings.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
-rdt_lit_record() {
-  local w re="^([A-Za-z_][A-Za-z0-9_]*)=(${RDT_LIT_CH})\$"
+# shellcheck disable=SC2016  # literal `$` patterns
+rdt_lit_segment() {
+  local w n v i only=1 re_a='^([A-Za-z_][A-Za-z0-9_]*)\+?=(.*)$'
+  local re_v="^(${RDT_LIT_CH}|\\\$[A-Za-z_][A-Za-z0-9_]*|\\\$\\{[A-Za-z_][A-Za-z0-9_]*\\})+\$"
+  local re_ref='\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?'
   for w in "$@"; do
-    if [[ "$w" =~ $re ]]; then
-      RDT_LIT["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
-    else
+    # The command word: one that can run code setting any variable.
+    if ((only)) && ! [[ "$w" =~ $re_a ]]; then
+      only=0
+      case "$w" in
+      eval | source | . | function)
+        RDT_LIT=()
+        return 0
+        ;;
+      *) ;;
+      esac
+    fi
+    if [[ "$w" == *'()'* ]]; then
       RDT_LIT=()
       return 0
     fi
+    ((${#RDT_LIT[@]})) || continue
+    for n in "${!RDT_LIT[@]}"; do
+      case "$w" in
+      "$n" | "$n="* | "$n+="* | "${n}["*) unset 'RDT_LIT[$n]' ;;
+      *) ;;
+      esac
+    done
+  done
+  ((only)) || return 0
+  for w in "$@"; do
+    [[ "$w" =~ $re_a ]] || continue
+    n="${BASH_REMATCH[1]}"
+    v="${BASH_REMATCH[2]}"
+    [[ "$w" == "$n+="* || -z "$v" || ! "$v" =~ $re_v ]] && continue
+    rdt_lit_bindable "$n" || continue
+    # Resolve each `$NAME` against the bindings; an unbound one leaves NAME unbound.
+    i=0
+    while [[ "$v" =~ $re_ref ]] && ((i++ < 16)); do
+      [[ -n "${RDT_LIT[${BASH_REMATCH[1]}]+x}" ]] || continue 2
+      v="${v/"${BASH_REMATCH[0]}"/"${RDT_LIT[${BASH_REMATCH[1]}]}"}"
+    done
+    [[ "$v" == *'$'* ]] && continue
+    RDT_LIT[$n]="$v"
   done
 }
 
@@ -2837,7 +2900,7 @@ rdt_lit_subst_to() {
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_check_operand() {
   local w="$1" norm raw
-  if ((${#RDT_LIT[@]} && rdt_top_seg == 2 && rdt_depth == 1 && rdt_in_subst == 0)); then
+  if ((${#RDT_LIT[@]} && rdt_depth == 1 && rdt_in_subst == 0)); then
     rdt_lit_subst_to w "$w"
   fi
   rdt_normalize_to norm "$w"

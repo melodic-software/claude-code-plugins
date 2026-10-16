@@ -151,6 +151,12 @@ s=open('t.sh').read()
 s+='printf x >\"\$HOME/.netrc\"'
 EOF" 0
 run "python with no file read" 'python3 -c "print(1)" && grep KEY README.md' 0
+run "python editing a doc that names Read(.env)" "python3 - <<'EOF'
+s=open('notes.md').read()
+s+='''
+- Q44: native Read() deny rules (.env, ~/.ssh/**) that setup offers
+'''
+EOF" 0
 run "python heredoc, then a grep naming .env" "python3 - <<'EOF'
 print(1)
 EOF

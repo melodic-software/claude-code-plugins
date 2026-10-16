@@ -128,8 +128,8 @@ interactions to state in the report.
 
 Native `Read()` deny rules keep credential files out of the Read tool and out of the file
 commands Claude Code recognizes in Bash (`cat`, `head`, `tail`, `sed`, redirects).
-`block-credential-read` covers what no deny rule reaches: an interpreter that opens the file
-itself (`python3 -c "open('.env')"`). Pointer: "Read and Edit" in
+`block-credential-read`, off by default, covers what no deny rule reaches when it is on: an
+interpreter that opens the file itself (`python3 -c "open('.env')"`). Pointer: "Read and Edit" in
 <https://code.claude.com/docs/en/permissions>. As of: 2026-10-15. Recheck trigger: that
 section changes which tools or Bash commands a `Read` deny rule reaches, or its pattern syntax.
 
@@ -155,8 +155,8 @@ Never runs from bare `apply`.
    rerun adds nothing and reports each rule as already present.
 5. **Remove.** With `remove`, delete exactly the rules step 2 (and step 3, for `user`) prints
    from that file, and nothing else. Every rule stays removable this way.
-6. **Report** the file, each rule added, already present or removed, and that
-   `block-credential-read` still covers interpreter reads.
+6. **Report** the file, each rule added, already present or removed, and whether
+   `block_credential_read_enabled` is on, since only that guard covers interpreter reads.
 
 ## What this skill does NOT do
 
