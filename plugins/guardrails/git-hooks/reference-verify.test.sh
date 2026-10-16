@@ -132,6 +132,59 @@ expect "a new file citing a deleted repository path blocks" \
   "1|README.md:1: stale-path-verify: cited path(s) in README.md were deleted from this repo:" \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
 
+# The verifiers judge the pushed tip's tree, not the checkout. Each case below
+# pushes a branch while main, which differs from it, is checked out.
+# new_readme_repo: new_repo plus a pushed README.md, so a branch edits it.
+new_readme_repo() {
+  new_repo
+  printf '# R\n' >"$REPO/README.md"
+  commit_all readme
+  git -C "$REPO" push -q --no-verify origin main 2>/dev/null
+}
+
+# A branch that restores a deleted path may cite it.
+new_readme_repo
+git -C "$REPO" checkout -q -b restore
+mkdir -p "$REPO/docs"
+printf 'gone\n' >"$REPO/docs/gone.md"
+# shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text
+printf '# R\nSee `docs/gone.md` for the details.\n' >"$REPO/README.md"
+commit_all restore
+tip="$(git -C "$REPO" rev-parse HEAD)"
+git -C "$REPO" checkout -q main
+expect "a pushed tip that holds a cited path passes though the checkout lacks it" "0|" \
+  "$(push_check refs/heads/restore "$tip" "$ZERO")"
+expect "the check leaves no worktree behind" 1 "$(git -C "$REPO" worktree list | wc -l | tr -d ' ')"
+
+# A branch that deletes a cited path blocks though the checkout has the file.
+new_readme_repo
+mkdir -p "$REPO/docs"
+printf 'kept\n' >"$REPO/docs/kept.md"
+commit_all kept
+git -C "$REPO" push -q --no-verify origin main 2>/dev/null
+git -C "$REPO" checkout -q -b drop
+git -C "$REPO" rm -q docs/kept.md
+# shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text
+printf '# R\nSee `docs/kept.md` for the details.\n' >"$REPO/README.md"
+commit_all drop
+tip="$(git -C "$REPO" rev-parse HEAD)"
+git -C "$REPO" checkout -q main
+expect "a pushed tip that deletes a cited path blocks though the checkout has it" \
+  "1|README.md:2: stale-path-verify: cited path(s) in README.md were deleted from this repo:" \
+  "$(push_check refs/heads/drop "$tip" "$ZERO")"
+
+# A file only the pushed branch has is still judged.
+new_repo
+git -C "$REPO" checkout -q -b fresh
+# shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text
+printf 'See `docs/gone.md` for the details.\n' >"$REPO/NEW.md"
+commit_all fresh
+tip="$(git -C "$REPO" rev-parse HEAD)"
+git -C "$REPO" checkout -q main
+expect "a file the checkout lacks is judged from the pushed tip" \
+  "1|NEW.md:1: stale-path-verify: cited path(s) in NEW.md were deleted from this repo:" \
+  "$(push_check refs/heads/fresh "$tip" "$ZERO")"
+
 new_repo
 printf 'faketool --bogus in a text file\n' >"$REPO/notes.txt"
 commit_all notes

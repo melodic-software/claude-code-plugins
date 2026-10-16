@@ -22,7 +22,9 @@
 # merge-base with the remote's default branch, a deletion skipped. A hook
 # manager that keeps stdin from this script (lefthook passes it to only one
 # use_stdin job) leaves the lib's fallback: the current branch against its
-# upstream. Each range is checked on its own, against that range's tip.
+# upstream. Each range is checked on its own, in that range's tip: the
+# checkout when HEAD is the tip and the tree is clean, else a temporary
+# detached worktree of the tip, removed afterwards.
 #
 # A finding prints as "<path>:<line>: <message>" on stderr, the line being the
 # file's first added line, and exits 1. Missing jq follows the check-placement
@@ -151,15 +153,40 @@ check_range() {
   done < <(checks_files)
 }
 
+# tip_is_checkout: the checkout is the tip's tree (HEAD is $TIP, nothing changed
+# or untracked), so the verifiers can read it directly.
+tip_is_checkout() {
+  [[ "$TIP" == "$(git rev-parse --verify --quiet HEAD 2>/dev/null)" && -z "$(git status --porcelain 2>/dev/null)" ]]
+}
+
 if [[ "$CHECKS_MODE" == worktree ]]; then
   check_range
 else
   # The lib's diff helpers read $CHECKS_TMP/push-ranges; narrow it to one range
   # at a time so each file's text and added lines come from that range's tip.
+  top="$PWD"
+  tip_tree="$CHECKS_TMP/tip"
+  mkdir -p "$CHECKS_TMP/no-hooks"
+  # shellcheck disable=SC2064 # expand now: both paths are fixed here
+  trap "rm -rf '$CHECKS_TMP'; git -C '$top' worktree prune 2>/dev/null" EXIT
   mv "$CHECKS_TMP/push-ranges" "$CHECKS_TMP/all-ranges"
   while read -r BASE TIP <&3; do
     printf '%s %s\n' "$BASE" "$TIP" >"$CHECKS_TMP/push-ranges"
-    check_range
+    if tip_is_checkout; then
+      check_range
+      continue
+    fi
+    # The verifiers read the tree around a file (cited paths, the plugins
+    # tree, an edited file's other lines), so they run in a detached checkout
+    # of the tip. An empty hooks path keeps post-checkout hooks from firing.
+    if ! git -c core.hooksPath="$CHECKS_TMP/no-hooks" worktree add -q --detach "$tip_tree" "$TIP" >/dev/null 2>&1; then
+      printf 'NOTICE: could not check out %s, so it was not checked.\n' "$TIP" >&2
+      continue
+    fi
+    cd "$tip_tree" && check_range
+    cd "$top" || exit 1
+    git worktree remove --force "$tip_tree" >/dev/null 2>&1
+    git worktree prune 2>/dev/null
   done 3<"$CHECKS_TMP/all-ranges"
 fi
 

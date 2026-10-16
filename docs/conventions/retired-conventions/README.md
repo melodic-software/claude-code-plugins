@@ -143,7 +143,9 @@ bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --help
 ```
 
 `--root` follows the cascade contract's repo-root anchoring rule: it defaults to
-`${CLAUDE_PROJECT_DIR}`, else the git toplevel, else the current directory.
+`${CLAUDE_PROJECT_DIR}`, else the git toplevel, else the current directory. When the root is a
+linked worktree, a `.git/` path resolves under `git rev-parse --git-common-dir`, where git keeps
+the files every worktree shares, such as hooks: `.git/hooks/x` is `<git-common-dir>/hooks/x`.
 
 **Detection output.** One TSV row per leftover on stdout, a human summary on stderr:
 
@@ -163,7 +165,7 @@ id<TAB>kind<TAB>path<TAB>action<TAB>status<TAB>note
 
 | Exit | Meaning |
 |---|---|
-| 0 | Cleaned. `delete` unlinks the file (only if `content_match`, when declared, still matches) or removes the directory (only after re-resolving that it is inside the root and is not the root itself); `remove-line` rewrites the file keeping every non-matching line byte-for-byte (and, when `heading` is set, only removing matches inside that heading's section body), via a temp file in the same directory and a rename, so a CRLF file stays CRLF. |
+| 0 | Cleaned. `delete` unlinks the file (only if `content_match`, when declared, still matches) or removes the directory (only after re-resolving that it is inside the root, or the common git dir for a linked worktree's `.git/` path, and is not that directory itself); `remove-line` rewrites the file keeping every non-matching line byte-for-byte (and, when `heading` is set, only removing matches inside that heading's section body), via a temp file in the same directory and a rename, so a CRLF file stays CRLF. |
 | 1 | Nothing present to clean. |
 | 2 | Usage, invalid record, unknown id, a `migrate` record without `--i-migrated`, or a failed remove or rename. **On Windows a failed remove is usually a locked file**: nothing is left half-done; close the file and re-run. |
 

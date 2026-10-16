@@ -35,16 +35,25 @@ repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 subject_ere="$(bash "$resolver" "$repo_root" subject_pattern 2>/dev/null)" || subject_ere=""
 [[ -n "$subject_ere" ]] || exit 0
 
-# The first line that is neither empty nor a comment is the subject. The
-# comment character follows core.commentChar; `auto` cannot be known here.
+# The subject is the first non-empty line git keeps. Git drops comment lines
+# only under the strip cleanup: commit.cleanup=strip, or the default when an
+# editor ran. Git sets GIT_EDITOR=: for this hook when none did (-m, -F), so a
+# `-m "#123 fix"` subject is kept and checked. A --cleanup flag cannot be seen
+# here. The comment character follows core.commentChar; `auto` cannot be known
+# here.
 comment_char="$(git config --get core.commentChar 2>/dev/null || true)"
 [[ -n "$comment_char" && "$comment_char" != auto ]] || comment_char="#"
+case "$(git config --get commit.cleanup 2>/dev/null || true)" in
+strip) strip=1 ;;
+verbatim | whitespace | scissors) strip=0 ;;
+*) if [[ "${GIT_EDITOR:-}" == ":" ]]; then strip=0; else strip=1; fi ;;
+esac
 
 subject=""
 while IFS= read -r line || [[ -n "$line" ]]; do
   line="${line%$'\r'}"
   [[ -n "$line" ]] || continue
-  [[ "${line:0:1}" == "$comment_char" ]] && continue
+  ((strip)) && [[ "${line:0:1}" == "$comment_char" ]] && continue
   subject="$line"
   break
 done <"$msg_file"

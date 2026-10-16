@@ -15,8 +15,10 @@
 #
 # Each file is judged the way a Write or Edit of it would be: a new file on its
 # whole content, a changed file on the lines the commit adds, read from the
-# index (the work tree with --worktree). Skipped: gitignored paths, symbolic
-# links, submodules, files git calls binary, and files over 1 MiB. The two
+# index (the work tree with --worktree). Every staged path is judged, a
+# force-added gitignored one included; --worktree leaves out untracked
+# gitignored files. Skipped: symbolic links, submodules, files git calls
+# binary, and files over 1 MiB. The two
 # guards' path exemptions apply (tests/fixtures for secrets only).
 #
 # Findings print as "<path>:<line>: <message>" on stderr and exit 1. The
@@ -135,7 +137,6 @@ added_only() {
 out="$CHECKS_TMP/findings"
 : >"$out"
 while IFS= read -r -d '' f; do
-  git check-ignore -q --no-index -- "$f" 2>/dev/null && continue
   if [[ "$CHECKS_MODE" == worktree ]]; then
     [[ -f "$f" && ! -L "$f" ]] || continue
   else

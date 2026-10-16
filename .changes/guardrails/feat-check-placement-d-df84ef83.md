@@ -15,10 +15,11 @@ bump: minor
 
 ### Changed
 
-- `block-credential-read` and `block-hook-bypass` are now off by default: measured on local
-  session logs, 6% and 35% of their refusals were right, below the ADR 0003 bar. Turn either
-  back on with its `_enabled` option. The per-guard figures are in
-  `docs/conventions/hook-precision/guard-precision.md`.
+- `block-credential-read` is now off by default: measured on local session logs, 6% of its
+  refusals were right, below the ADR 0003 bar. Turn it back on with its
+  `block_credential_read_enabled` option. The per-guard figures are in
+  `docs/conventions/hook-precision/guard-precision.md`; `block-hook-bypass` is removed (see
+  Removed).
 - `block-noncanonical-commit` now blocks a `git commit -m` message holding a `$` or a backtick
   the shell expands (double quotes or none in Bash, double quotes or `@"` in PowerShell), and no
   longer blocks a message only because it spans several lines.

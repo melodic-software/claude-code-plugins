@@ -2,8 +2,8 @@
 # Contract tests for the guardrails pre-commit entry (git-hooks/pre-commit-content.sh):
 # a secret or machine-specific path on a line the commit adds blocks with
 # "<path>:<line>: <message>"; one on an unchanged line, in an unstaged change,
-# in a gitignored, symlinked or binary file, or under an exempt path does not;
-# --worktree covers uncommitted and untracked files; and the plugin's vendored
+# in a symlinked or binary file, or under an exempt path does not; a staged
+# gitignored file is judged and an untracked one is not; --worktree covers uncommitted and untracked files; and the plugin's vendored
 # installer wires the entry, pattern libraries included, so `git commit` runs it.
 # test-scope: plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/lib/secret-detection/secret-patterns.sh plugins/guardrails/lib/path-detection/hardcoded-path-patterns.sh
 set -uo pipefail
@@ -117,12 +117,18 @@ printf 'see %s\n' "$FAKE_LINUX" >"$REPO/tests/fixtures/path.txt"
 git -C "$REPO" add -A
 expect "tests/fixtures is still scanned for machine paths" 1 "$(rc_of "$REPO")"
 
+# A force-added ignored file is what the commit holds, and .env is the usual
+# secret carrier.
 new_repo
-printf 'ignored.txt\n' >"$REPO/.gitignore"
-printf 'token=%s\n' "$FAKE_GHP" >"$REPO/ignored.txt"
+printf '.env\n' >"$REPO/.gitignore"
+printf 'token=%s\n' "$FAKE_GHP" >"$REPO/.env"
 git -C "$REPO" add .gitignore
-git -C "$REPO" add -f ignored.txt
-expect "a gitignored file force-added is not judged" "0|" "$(check "$REPO")"
+git -C "$REPO" add -f .env
+expect "a gitignored file force-added is judged" "1|.env:1: secret or credential pattern: GitHub PAT
+$HINT" "$(check "$REPO")"
+expect "--worktree: a tracked gitignored file is judged" 1 "$(rc_of "$REPO" --worktree)"
+git -C "$REPO" rm -q --cached .env
+expect "--worktree: an untracked gitignored file is not judged" "0|" "$(check "$REPO" --worktree)"
 
 new_repo
 ln -s "token=$FAKE_GHP" "$REPO/link.txt"

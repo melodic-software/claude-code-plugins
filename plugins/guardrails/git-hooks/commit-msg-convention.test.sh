@@ -6,7 +6,7 @@
 # installer wires the entry so `git commit` runs it from the installed copy.
 # test-scope: plugins/guardrails/git-hooks/entries.json plugins/guardrails/hooks/resolve-convention-pattern.sh plugins/guardrails/lib/git-hooks/install.mjs
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT GIT_EDITOR
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK="$HERE/commit-msg-convention.sh"
@@ -65,6 +65,20 @@ expect "fixup! passes (autosquash)" 0 "$(msg "$REPO" "fixup! anything at all")"
 expect "squash! passes (autosquash)" 0 "$(msg "$REPO" "squash! anything")"
 expect "amend! passes (autosquash)" 0 "$(msg "$REPO" "amend! anything")"
 expect "an empty message is git's to refuse" 0 "$(msg "$REPO" "")"
+# With no editor (-m, -F) git keeps comment lines, and says so to the hook with
+# GIT_EDITOR=:, so a subject starting with the comment character is the subject.
+noedit() { # <repo> <message> -> rc
+  printf '%s\n' "$2" >"$WORK/msg"
+  (cd "$1" && GIT_EDITOR=: bash "$CHECK" "$WORK/msg") >/dev/null 2>&1
+  echo $?
+}
+expect "no editor: a # subject is the subject" 1 "$(noedit "$REPO" "#123 fix thing")"
+expect "no editor: a # subject is the subject even with a body" 1 "$(noedit "$REPO" $'#123 fix thing\n\nABC-1: body')"
+git -C "$REPO" config commit.cleanup strip
+expect "commit.cleanup=strip: # lines are comments though no editor ran" 0 "$(noedit "$REPO" $'#123 note\nABC-9: real subject')"
+git -C "$REPO" config commit.cleanup verbatim
+expect "commit.cleanup=verbatim: a # line is the subject though an editor ran" 1 "$(msg "$REPO" $'#123 note\nABC-9: real subject')"
+git -C "$REPO" config --unset commit.cleanup
 git -C "$REPO" config core.commentChar ';'
 expect "core.commentChar lines are skipped" 0 "$(msg "$REPO" $'; junk comment\nABC-1: subject')"
 expect "core.commentChar: a # line is the subject" 1 "$(msg "$REPO" $'# not a comment now\nABC-1: subject')"
@@ -94,6 +108,8 @@ expect "the resolver asset is installed beside the copy" yes \
   "$(cmp -s "$PLUGIN/hooks/resolve-convention-pattern.sh" "$REPO/.git/hooks/guardrails/resolve-convention-pattern.sh" && echo yes)"
 git -C "$REPO" commit -q --allow-empty -m "junk subject" 2>/dev/null
 expect "git commit runs the installed entry and refuses an off-convention subject" 1 "$?"
+git -C "$REPO" commit -q --allow-empty -m "#123 fix thing" 2>/dev/null
+expect "git commit -m refuses a subject that starts with #" 1 "$?"
 git -C "$REPO" commit -q --allow-empty -m "ABC-2: fine subject" 2>/dev/null
 expect "git commit with a matching subject succeeds" 0 "$?"
 expect "verify reports the entry ok" "ok	commit-msg-convention" \
