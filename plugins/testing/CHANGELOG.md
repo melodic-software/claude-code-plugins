@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.2] - 2026-10-16
+
+### Changed
+
+- `/testing:cleanup` no longer calls the batch's pull request a draft: `/source-control:pull-request create` decides its open state.
+
 ## [0.27.1] - 2026-10-16
 
 ### Changed

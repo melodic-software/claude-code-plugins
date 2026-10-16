@@ -1,6 +1,6 @@
 {
   "name": "markdown-format",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "description": "Rewrites Markdown with markdownlint-cli2 once per batch of tool calls and at git pre-commit, only in repos that carry their own markdownlint config; findings are reported at commit.",
   "author": {
     "name": "Melodic Software",
