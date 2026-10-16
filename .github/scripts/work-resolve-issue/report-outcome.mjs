@@ -2,11 +2,15 @@
 // report-outcome.mjs: the work-resolve-issue lane's report-outcome leaf. Reads
 // what the resolve-issue run left and acts on the issue, with no model:
 //
-//   done      opens a draft PR from the run's branch: the body starts
+//   done      opens a ready PR from the run's branch: the body starts
 //             `Closes #<issue>`, the title is the run's when it is Conventional
-//             Commits (else `chore: work on #<issue>`), the PR gets the issue's
-//             `work-class:` labels, and the body carries the hold line when a
-//             human must merge it.
+//             Commits (else `chore: work on #<issue>`), and the body carries
+//             the hold line when a human must merge it. The PR gets no label:
+//             the work class lives on the issue only, and the merge gate reads
+//             it from the PR's closing issue. The body fills the PR body contract's
+//             sections from the outcome's summary, changes, verification and
+//             not_done. A done outcome whose not_done holds a required check
+//             is stopped.
 //   pushback  comments why, adds the human-gated label, removes agent-ready.
 //   stopped   comments why, adds the human-gated label, and names the branch
 //             that holds any partial work. A missing or invalid outcome file
@@ -38,18 +42,45 @@ const EXITS = new Set(["done", "pushback", "stopped"]);
 // issue to close.
 const CONVENTIONAL =
   /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._-]+\))?!?: [A-Za-z0-9][A-Za-z0-9 ,.:()'_-]{0,98}$/;
-const WORK_CLASS = /^work-class: /;
 // Work a human merges: the classes past mechanical, and any diff that touches
 // a path the merge lane refuses (merge.diff-check.denied-paths in the base
 // pr-pipeline.yaml), so the two lists cannot drift apart.
 const HOLD_CLASSES = new Set(["work-class: scoped", "work-class: structural", "work-class: untrusted-provenance"]);
 const MAX_TEXT = 3000;
+const MAX_ITEMS = 20;
+const MAX_ITEM = 300;
 // GET /compare lists at most this many files, so a listing this long may
 // hide a hold path.
 const COMPARE_FILES_CAP = 300;
 
-const stopped = (reason) => ({ exit: "stopped", reason, title: "", summary: "" });
+const stopped = (reason) => ({ exit: "stopped", reason, title: "", summary: "", changes: [], verification: [], notDone: [], steps: [] });
 const text = (value) => (typeof value === "string" ? value.slice(0, MAX_TEXT) : "");
+const list = (value) =>
+  Array.isArray(value) ? value.filter((item) => typeof item === "string").slice(0, MAX_ITEMS).map((item) => item.slice(0, MAX_ITEM)) : [];
+// A not_done entry is a string or {what, required}; required marks a check the
+// run had to pass and did not, and counts whatever `what` holds.
+const notDoneList = (value) =>
+  (Array.isArray(value) ? value : [])
+    .map((item) =>
+      typeof item === "string"
+        ? { what: item, required: false }
+        : item?.required === true
+          ? { what: typeof item.what === "string" ? item.what : "A required check the run did not name.", required: true }
+          : typeof item?.what === "string"
+            ? { what: item.what, required: false }
+            : null,
+    )
+    .filter(Boolean)
+    .slice(0, MAX_ITEMS)
+    .map(({ what, required }) => ({ what: what.slice(0, MAX_ITEM), required }));
+
+// The prep steps the run reports, each {activity, result}, both strings;
+// post-statuses.mjs decides which of them it posts.
+const stepList = (value) =>
+  (Array.isArray(value) ? value : [])
+    .filter((item) => typeof item?.activity === "string" && typeof item?.result === "string")
+    .slice(0, MAX_ITEMS)
+    .map(({ activity, result }) => ({ activity: activity.slice(0, 40), result: result.slice(0, 20) }));
 
 // The merge lane's denied-path globs from the resolved config, or null when
 // they cannot be read, which holds every PR.
@@ -73,22 +104,60 @@ export function readOutcome(path) {
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed) || !EXITS.has(parsed.exit)) {
     return stopped("The run's outcome file names no known exit (done, pushback or stopped).");
   }
-  return { exit: parsed.exit, reason: text(parsed.reason), title: text(parsed.title), summary: text(parsed.summary) };
+  return {
+    exit: parsed.exit,
+    reason: text(parsed.reason),
+    title: text(parsed.title),
+    summary: text(parsed.summary),
+    changes: list(parsed.changes),
+    verification: list(parsed.verification),
+    notDone: notDoneList(parsed.not_done),
+    steps: stepList(parsed.steps),
+  };
 }
 
-// Model text goes inside a fenced block, so it adds no mention or markup when
-// rendered. Squash merge copies the body as plain text, so issue references
-// are broken too: `#` becomes a full-width ＃ and `/issues/` or `/pull/` gains
-// a space, so no closing keyword in it can close an issue.
+// Model text is data. HTML comments go; `&` is escaped first, so no entity
+// can spell `@` or `#`, then raw HTML (`<`, `>`) and link syntax (`[`, `]`,
+// which could hide a reference definition). `@` is dropped so nothing
+// mentions anyone, and issue references are broken: squash merge copies the
+// body as plain text, so `#` becomes a full-width ＃, `GH-` and `/issues/` or
+// `/pull/` gain a space, and no closing keyword in it can close an issue.
+// `://` and `www.` gain a space too, so no bare URL autolinks.
+// Control characters other than newline go. The cap applies after escaping.
+const neutral = (value, cap) =>
+  value
+    .replaceAll(/<!--[\s\S]*?(-->|$)/g, "")
+    .replaceAll("\r\n", "\n")
+    .replaceAll(/[\u0000-\u0009\u000b-\u001f\u007f]/g, " ")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("[", "\\[")
+    .replaceAll("]", "\\]")
+    .replaceAll("@", "")
+    .replaceAll("#", "＃")
+    .replaceAll(/\bGH-/gi, "GH -")
+    .replaceAll(/\/(issues|pull)\//gi, "/$1 /")
+    .replaceAll("://", ": //")
+    .replaceAll(/\bwww\./gi, "www .")
+    .slice(0, cap)
+    .replace(/&[a-z]*$|\\$/, "");
+
+// Every line prefixed `> `, so no line of it can start a heading or leave the
+// quote, and the text wraps when rendered.
 const quoted = (value) =>
-  [
-    "```text",
-    (value || "(none)")
-      .replaceAll("`", "'")
-      .replaceAll("#", "＃")
-      .replaceAll(/\/(issues|pull)\//gi, "/$1 /"),
-    "```",
-  ].join("\n");
+  neutral(value || "(none)", MAX_TEXT)
+    .trim()
+    .split("\n")
+    .map((line) => (line.trim() ? `> ${line.trimEnd()}` : ">"))
+    .join("\n");
+
+// One line per item, so an item cannot open a section of its own.
+const bullets = (items) =>
+  items
+    .slice(0, MAX_ITEMS)
+    .map((item) => `- ${neutral(item.replaceAll(/\s+/g, " "), MAX_ITEM).trim()}`)
+    .join("\n");
 
 function handBack({ outcome, issueNumber, branch, humanLabel, runUrl }) {
   const pushback = outcome.exit === "pushback";
@@ -102,6 +171,9 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl }) {
     "",
     quoted(outcome.reason || outcome.summary),
   ];
+  if (outcome.notDone.length) {
+    lines.push("", "What the run says it did not do:", "", bullets(outcome.notDone.map(({ what }) => what)));
+  }
   if (branch) {
     lines.push("", `Partial work is on the branch \`${branch}\`.`);
   }
@@ -135,6 +207,7 @@ export function decide({
   humanLabel = "needs-human",
   runUrl = "",
 }) {
+  outcome = { changes: [], verification: [], notDone: [], ...outcome };
   if (outcome.exit === "done" && !branch) {
     return handBack({
       outcome: stopped("The run reported done but committed nothing."),
@@ -147,12 +220,27 @@ export function decide({
   if (outcome.exit !== "done") {
     return handBack({ outcome, issueNumber, branch, humanLabel, runUrl });
   }
-  const labels = issueLabels.filter((name) => WORK_CLASS.test(name));
+  if (outcome.notDone.some(({ required }) => required)) {
+    return handBack({
+      outcome: {
+        ...outcome,
+        exit: "stopped",
+        reason: "The run reported done but left a required check undone, so it is not finished.",
+      },
+      issueNumber,
+      branch,
+      humanLabel,
+      runUrl,
+    });
+  }
   const hold =
-    labels.some((name) => HOLD_CLASSES.has(name)) ||
+    issueLabels.some((name) => HOLD_CLASSES.has(name)) ||
     changedFiles.length >= COMPARE_FILES_CAP ||
     holdPaths === null ||
     changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob)));
+  // The sections of the PR body contract (.claude/rules/pr-body-contract.md),
+  // in the org PR template's order, with the run's gaps above the work.
+  const gaps = outcome.notDone.map(({ what }) => what);
   const body = [
     `Closes #${issueNumber}`,
     ...(hold ? ["", HOLD_LINE] : []),
@@ -162,14 +250,18 @@ export function decide({
     "Opened by the work-resolve-issue lane. The run's own summary:",
     "",
     quoted(outcome.summary),
+    ...(gaps.length ? ["", "## Not verified", "", bullets(gaps)] : []),
     "",
     "## Fix",
     "",
-    `The commits on \`${branch}\`.`,
+    outcome.changes.length ? bullets(outcome.changes) : "The run listed no changes; the diff shows them.",
     "",
     "## Verification",
     "",
-    runUrl ? `The lane run: ${runUrl}` : "The lane run.",
+    outcome.verification.length ? `The run reports:\n\n${bullets(outcome.verification)}` : "The run listed no checks.\n",
+    runUrl ? `- The lane run: ${runUrl}` : "- The lane run.",
+    "",
+    gaps.length ? "Left out: the items under Not verified." : "Left out: nothing the run reported.",
     "",
     "## Related",
     "",
@@ -180,7 +272,6 @@ export function decide({
     issueNumber,
     title: CONVENTIONAL.test(outcome.title) ? outcome.title : `chore: work on #${issueNumber}`,
     body,
-    labels,
     branch,
   };
 }
@@ -206,7 +297,7 @@ function humanLabelFrom(path) {
   return label;
 }
 
-function readBranch(dir, issueNumber) {
+export function readBranch(dir, issueNumber) {
   try {
     const { branch } = JSON.parse(readFileSync(join(dir, "lane.json"), "utf8"));
     return new RegExp(`^work-resolve-issue/issue-${issueNumber}-[1-9][0-9]*-[1-9][0-9]*$`).test(branch ?? "") ? branch : "";
@@ -271,8 +362,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
           : "",
     });
     if (plan.action === "open-pr") {
-      // A rerun after a failed label write finds the PR it already opened.
-      // Anyone can open a PR between two branches of a public repository, so
+      // A rerun finds the PR it already opened. Anyone can open a PR between two branches of a public repository, so
       // only one the lanes App opened is reused; otherwise the create fails.
       const owner = env.GITHUB_REPOSITORY.split("/")[0];
       const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
@@ -286,12 +376,9 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
           body: plan.body,
           head: plan.branch,
           base,
-          draft: true,
+          draft: false,
         }));
-      if (plan.labels.length) {
-        await github("POST", `${repo}/issues/${pull.number}/labels`, { labels: plan.labels });
-      }
-      console.log(`report-outcome: opened draft PR #${pull.number} for issue #${issueNumber}`);
+      console.log(`report-outcome: opened PR #${pull.number} for issue #${issueNumber}`);
       return 0;
     }
     // The label first, so a failed comment still leaves the issue with a person.

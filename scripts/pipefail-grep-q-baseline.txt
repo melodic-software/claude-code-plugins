@@ -92,7 +92,6 @@ plugins/source-control/skills/pull-request/scripts/resolve-remote.sh
 plugins/testing/hooks/test-scan.sh
 plugins/testing/scripts/resolve-config.sh
 plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh
-plugins/typos-format/hooks/typos-format.test.sh
 plugins/wizard/skills/unattended/template.test.sh
 plugins/work-items/scripts/lib/legacy-frontier-tier-signal.sh
 plugins/work-items/tools/work-item-tracker/adapters/linear/schema-check/fidelity.sh

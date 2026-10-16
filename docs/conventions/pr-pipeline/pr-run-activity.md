@@ -60,9 +60,18 @@ permissions, and passes no App key.
 | `dispatcher-run-id` | `''` | Write file only: the `pr-unblock-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
 | `trusted-base` | `pr-base` | Write file only: `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
+| `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the model job's replies |
+| `review-run-sha256` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-sha256` output |
+| `expected-upstream-head` | `''` | Write file only: for a job after pr-unblock's model job on a `pr-feedback-dispatch.yml` dispatch, that job's `head-sha` output, passed to the gate and the broker (step 3) |
+| `review-run-attempt` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-attempt` output, which names the replies artifact so a re-run of the reply job alone still finds it |
 
-The write file has one `workflow_call` output, `escalation-reason`: empty, or why a
-[`prepare: merge-base`](#prepare-merge-base) activity handed the PR to a person.
+The write file has six `workflow_call` outputs. `head-sha` is the PR head the gate passed, before
+any push of the run; `issue-run-started` is described below; `feedback-run-sha256` and
+`feedback-run-attempt` are described with
+[`prepare: review-threads`](#prepare-review-threads). `escalation-reason` is empty, or why a
+[`prepare: merge-base`](#prepare-merge-base) activity, a `prepare: review-threads` activity before
+any model turn, or its reply script handed the PR to a person. `feedback-round` is `true` once a
+`prepare: review-threads` skill ran, so its reply job must run.
 
 Secrets are passed by name, never `inherit`: `claude-code-oauth-token` (skill activities, both
 files) is the only one. Variables: `CLAUDE_LANES_DISABLED` and `CLAUDE_LANES_REPO_DISABLED` (the org
@@ -152,7 +161,16 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `github-actions[bot]` proceeds only when it names a run of that dispatcher on the default branch
    whose window holds this run's creation and whose `pr-unblock-dispatched-<id>[-<id>...]`
    artifact lists this run's id, and this run is `pr-unblock.yml`; every other bot-sent dispatch
-   stops with `untrusted-actor`. The gate waits up to 2 minutes for that record while the
+   stops with `untrusted-actor`. It also passes
+   `run-dispatcher-workflow: .github/workflows/pr-feedback-dispatch.yml` with the two review
+   workflows as `run-dispatcher-upstreams`: a run of that dispatcher, started by `workflow_run`,
+   vouches with no actor check when its `pr-feedback-dispatched-<upstream id>-<this run's id>`
+   artifact names a `pull_request` run of one of those workflows in this repository, started by
+   the lanes App or a listed human, at the PR's current head. A job after pr-unblock's model job
+   passes that job's `head-sha` as `expected-upstream-head`: the review must then be of that head,
+   and every commit from it to the PR's current head one GitHub signed for the lanes App (author
+   the App, committer `web-flow`, signature `valid`) after this run was created. The
+   gate waits up to 2 minutes for that record while the
    dispatcher run is still going. The checks are in the gate's README. Only
    with a `dispatcher-run-id` does the skill step pass claude-code-action
    `allowed_bots: github-actions`, which otherwise refuses a run a bot started.
@@ -267,14 +285,43 @@ A skill with any effect but `read` also gets what it needs to do its job: `Edit`
 (for subagents such as a fix flow's semantic-diff check or a rubric fan-out) and
 `mcp__github_file_ops__commit_files`, the action's signed-commit tool on `CLAUDE_BRANCH`, and a
 scratch directory, `$RUNNER_TEMP/lane-scratch`, passed as `--add-dir` with an `Edit` rule on it so
-its state files and its sandboxed `Bash` redirects land there. `--append-system-prompt` names that
+its state files and its `Bash` redirects land there. `--append-system-prompt` names that
 directory, says no one can answer a question, and, when the grant can commit, tells it to commit
 every file it changed with that tool: the prompt is the slash command alone, so without this the
 skill leaves its edits uncommitted and the lane moves nothing. A `prepare: merge-base` skill
 gets neither the tool nor that sentence: it stages its resolution and the runner commits
-([below](#prepare-merge-base)). Its
-`Bash` comes from its own `allowed-tools`, git included. `WebFetch` and `WebSearch` stay off
-(`--disallowedTools`) unless a skill needs them. No rule limits which files it changes: with its
+([below](#prepare-merge-base)). Under `--permission-mode dontAsk` a skill's own `allowed-tools`
+grants nothing: its `Bash` is only what this list allows, one rule per entry in the activity's
+`checks`: `collect-base-activity` copies the base `scripts/` to `$RUNNER_TEMP/lane-checks`, outside
+the working directory, writes a wrapper there that runs the copy with the entry's fixed flags and
+`CHECK_DATA_ROOT` naming the checkout, makes the copy read-only and denies `Edit` and `Write` on
+it, allows `Bash(<wrapper>)` with no arguments, and names the
+wrappers in `--append-system-prompt` as checks to run before reporting done. `WebFetch` and
+`WebSearch` stay off (`--disallowedTools`) unless the activity sets `web-access`. With it on, the
+runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
+(`WebFetch(domain:*)` for `any`), and `Skill` for `/discovery:read-docs`, `/discovery:research`,
+`/knowledge:docpage-digest` and `/knowledge:map-corpus`; installs the `discovery` and `knowledge`
+plugins from the base marketplace copy beside the skill's own; and says so in
+`--append-system-prompt`. For `any` only, it also copies `fetch-docs.sh`, `docs-cache.sh` and
+`html2md.py` from the base `discovery` plugin to `$RUNNER_TEMP/lane-docs`, makes the copy
+read-only, denies `Edit` and `Write` on it (else the skill's bare `Edit` and `Write` could rewrite
+a script its rule then runs), allows `Bash(bash <copy>/fetch-docs.sh *)` and the same rule for
+`docs-cache.sh`, and tells the model to run that copy for every skill that runs the two scripts,
+with `--cache-dir` and `--out` in the scratch directory; a domain list gets none of it, since the
+scripts curl any host. A Bash rule matches the words before its `*` as written, so a differently
+spelled path does not match while arguments after it may be quoted; each script therefore also
+gets the rule for its double-quoted path, the form the skills' examples use, and the path guard
+keeps quotes and spaces out of the path
+([permissions: What a Bash rule doesn't match](https://code.claude.com/docs/en/permissions#bash-rule-limits);
+as of 2026-10-15; recheck when that table changes). No sandbox is enabled, so a `domain:` rule
+limits `WebFetch` alone; a shell command the lane may run reaches any host.
+`/discovery:research` can also start its `discovery:research-sweep` workflow, whose subagents run
+under the same grant. `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` strips credentials other than GitHub tokens from the shell's
+environment and gives Bash its own PID namespace; it does not sandbox the network
+([env vars: What the subprocess environment scrub removes](https://code.claude.com/docs/en/env-vars#what-the-subprocess-environment-scrub-removes);
+as of 2026-10-15). Without `web-access` the skill has no web tool and no `Bash` rule that fetches,
+so `dontAsk` refuses every fetch. Fetched pages are
+untrusted text, so the activity must set `reads-untrusted: true`. No rule limits which files it changes: with its
 token it can change, commit and push any file in the repository, and claude-code-action writes
 the token into the origin URL under `use_commit_signing`
 (`src/github/operations/git-config.ts:129-133` at `ed670b4`), so a `git push` works too. The PR is
@@ -283,7 +330,8 @@ every lane commit. The hardening is the broker's scoped, hour-long token revoked
 ends, base-SHA config and runner, the trusted-actor filter, the kill switch,
 `--setting-sources user`, an explicit `--permission-mode` and never `bypassPermissions`. The
 residuals are in [Trust-root paths](README.md#trust-root-paths): the model can read its token
-(`GH_TOKEN`, `GITHUB_TOKEN`, `.git/config`) until it is revoked, which is
+(`GH_TOKEN`, `GITHUB_TOKEN`, `.git/config`) until it is revoked, and under `web-access` send it to
+any domain the activity allows, which is
 [ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md)'s
 accepted residual, a skill's own `Bash` grant can exceed its job (`Bash(git:*)` in
 `ai-slop:audit`), and a lane commit can change instruction files the PR author's local session
@@ -294,7 +342,12 @@ to the PR branch would overwrite a push made during the run. After the skill, a 
 `github-script` step fast-forwards the PR branch to the lane branch only while the PR branch is
 still at the gated SHA, and deletes the lane branch either way. When the PR branch has moved, the
 lane's commits are dropped and the activity fails; the push that moved it starts its own
-`synchronize` run, which gates the new head and redoes the activity. A raw `git push` from the
+`synchronize` run, which gates the new head and redoes the activity. Right before the move it
+re-reads the PR's labels and draft flag with the job's `GITHUB_TOKEN`, then reads the PR branch's
+tip last: `do-not-merge`, the base's human-gated role label, a label in the activity's
+`labels-absent` list (both read from the base before the head checkout) or a draft drops the lane's
+commits and skips `awaiting-human`, and a read that fails or a second page of labels moves nothing
+and fails the step. A raw `git push` from the
 skill skips this check. Why a skill activity loads nothing from
 the PR head:
 [ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md).
@@ -356,7 +409,9 @@ persists no credentials, so a `read` script cannot push. The write file also exp
 `escalation-reason` input as `ESCALATION_REASON` (empty unless a caller passes one), which the
 `report-escalation` leaf reads, and `TRACKER_CONFIG`, the base's `.work-item-tracker.json` copied
 to `$RUNNER_TEMP/base-script` before the head checkout and checked against its recorded SHA-256
-(or its recorded absence) before the script runs.
+(or its recorded absence) before the script runs. It exports `APP_SENDER_ID` and
+`ESCALATION_REASON_FILE`, and with `review-replies` `FEEDBACK_REPLIES_DIR` and `TRUSTED_ACTORS`
+([prepare: review-threads](#prepare-review-threads)).
 
 ### prepare: merge-base
 
@@ -385,8 +440,8 @@ the base's copies from step 8, each checked against its recorded SHA-256 before 
    Data API: it fails unless the lane branch is still at the gated head, uploads only the blobs
    `tree-entries.sh` flags (logging `created <k> blobs`), builds the tree on the gated head's tree
    and fails unless it hashes to `post.sh`'s tree, re-reads the PR's labels with the job's
-   `GITHUB_TOKEN` and stops uncommitted (`awaiting-human`) when `do-not-merge` or the base's
-   human-gated role label is on the PR, then creates the commit
+   `GITHUB_TOKEN` and stops uncommitted (`awaiting-human`) when `do-not-merge`, the base's
+   human-gated role label or a `labels-absent` label is on the PR, then creates the commit
    `Merge <default branch> into <head ref>` with trailer
    `Lane-Activity: pr-unblock/resolve-conflicts`, parents `[gated head, trusted base]` and no
    author, committer or signature, so GitHub signs it as the App, and moves the lane branch to it.
@@ -398,7 +453,8 @@ The merge scripts, `tree-entries.sh` and the commit step's `git` run with workfl
 stopped (`::stop-commands::<random>`), since git's output can name head files, and with
 `GIT_NO_REPLACE_OBJECTS=1`; the commit step runs `/usr/bin/git` and `/usr/bin/bash` under an
 allowlisted environment. The kill switch (step 3) stops new runs only; a run already past it
-stops for a hold only at the commit step's label re-read.
+stops for a hold only at the commit step's label re-read and the promote step's label and draft
+re-read.
 
 The run's `escalation-reason` output is prepare's or `post.sh`'s reason, one of
 `protected-path-conflict`, `workflow-staged`, `repeat-cap` or `unresolved-conflict`; a caller
@@ -413,6 +469,7 @@ its check:
 | Clean merge, no model turn, committed, promoted | success | none | empty | success |
 | Clean merge, `post.sh` exits non-zero | failure | none | empty | failure |
 | Hold label added during the run, found before the commit | success | `awaiting-human` | empty | neutral |
+| Hold label or draft set during the run, found before the promote | success | `awaiting-human` | empty | neutral |
 | Model left a conflict | success | `awaiting-human` | `unresolved-conflict` | neutral |
 | Model staged a `.github/workflows/` change | success | `awaiting-human` | `workflow-staged` | neutral |
 | Resolved, committed, promoted | success | none | empty | success |
@@ -425,6 +482,89 @@ its check:
 Residual: a `.github/workflows/` change from the base side of the merge (not conflicted, not
 staged by the model) is committed and pushed. GitHub does not refuse it for the App's missing
 `workflows` permission: sandbox probe run 38148710292 pushed such merges by all three methods.
+
+### prepare: review-threads
+
+A round of review-thread answers is two jobs, since the broker mints one token per job and a token
+with both `contents: write` and `pull-requests: write` can enqueue a PR. The model job is a
+`mutate-branch` skill leaf whose config sets `prepare: review-threads`: it pushes the fixes and
+posts nothing. The reply job is a `publish-artifact` script leaf with no model, called with
+`review-replies: true`: it posts the model's replies exactly as written, or none. The scripts are
+the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedback.mjs`.
+
+1. After `resolve-config` and before the mint, the model job runs `address-feedback.mjs select`
+   with the job's `GITHUB_TOKEN`. It keeps each unresolved thread whose every comment is by the
+   reviewer bot (`claude[bot]` in the base's trusted-actors list, by id) and whose first comment's
+   review the reviewer bot submitted on a head that a `claude-lane-reviewed-head` marker from
+   `github-actions[bot]` names. No kept thread skips `not-applicable`. A PR diff touching
+   `.github/**` escalates `feedback-protected-path`, and two earlier rounds escalate
+   `feedback-round-cap`: the larger of the round markers the lanes App posted and the PR commits
+   carrying a `github-actions` `pr-unblock / address-feedback` check run that ended `success` or
+   `failure` (a round whose reply job was refused still counts). Both skip `awaiting-human` with
+   nothing minted. Otherwise
+   it writes `$RUNNER_TEMP/lane-feedback/threads.json`.
+2. `collect-base-activity` makes that directory read-only and stages a wrapper over the base's
+   `feedback-thread.sh` there. The skill keeps the commit tool and gets `Bash(<wrapper> *)`; Edit
+   and Write are denied on the directory and on the tool's replies directory. The tool lists the
+   kept threads, checks paths, and records a reply: it refuses a disposition file outside the
+   scratch directory or off the template, and a `VALID` reply whose fix is not on the lane branch
+   or whose lane branch changes a file no kept thread names or any `.github/` path. It posts
+   nothing. The promote step then moves the PR branch only when the lane branch changes nothing
+   but kept-thread paths, none under `.github/`, in fewer than 300 files.
+3. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
+   `github-script` step writes `run.json` (the gated head and the kept threads' ids, paths and
+   comment ids, from the thread file) beside a copy of the tool's `replies.jsonl`, and the job
+   uploads both as `feedback-replies-<run attempt>`. Its `feedback-round` output is then `true`,
+   `feedback-run-sha256` is the SHA-256 of that `run.json`, and `feedback-run-attempt` is the
+   attempt in the artifact's name.
+4. The caller runs the reply job when `feedback-round` is `true`, passing `feedback-run-sha256` as
+   `review-run-sha256` and `feedback-run-attempt` as `review-run-attempt` (a re-run of the reply
+   job alone runs as a later attempt but keeps the model job's outputs). Before the head checkout it downloads that artifact and copies the base's
+   trusted-actors list. `publish-feedback.mjs` then:
+   - validates the whole artifact: `run.json` with exactly that SHA-256; each file a regular file
+     read only when within the size limit; `replies.jsonl` at most
+     256 KiB, each line an object with exactly `thread`, `disposition`, `evidence`, `fix_sha` and
+     `note`; `thread` one `run.json` names, at most one reply per thread; `disposition` one of
+     `VALID`, `INCORRECT`, `UNCERTAIN`, `VALID-defer`; at most 10 `path:line` evidence entries, no
+     `.` or `..` segment, each a file in the checkout, at least one for `VALID` and `INCORRECT`;
+     a 40-hex `fix_sha` on `VALID` only; a note of 1-2000 characters with no control, direction or
+     zero-width character, no `<!--` or `-->`, and nothing shaped like a GitHub token. Any failure,
+     or a missing artifact, posts no reply and escalates `feedback-invalid`;
+   - requires exactly one reply per thread in `run.json`; an empty or partial set posts no reply
+     and escalates `feedback-incomplete`;
+   - when a reply is `VALID` or the PR branch moved, compares the model job's gated head with the
+     PR's current head: the branch must be ahead, hold every fix commit, and change fewer than 300
+     files, each a kept thread's path and none under `.github/`, and each fix commit must change
+     its own thread's path. Otherwise it posts no reply and escalates `feedback-not-landed`;
+   - re-reads every kept thread and, right before posting, the thread itself, and skips one that
+     is resolved, on another PR, or whose comments are not exactly the ones the model job read;
+   - re-reads `git/ref heads/<head ref>` right before each post and each resolve, since the
+     compare above judged the branch only up to the head this job gated: once the PR branch is
+     anywhere else it posts and resolves nothing more, escalating `feedback-not-landed` when no
+     reply had posted and `feedback-partial` otherwise;
+   - posts the reply on the thread's root comment in the fixed template (disposition label,
+     backticked evidence, `Fix: <sha>` for `VALID`, the note in a `text` fence longer than any
+     backtick run in it) and resolves the thread only for `VALID`, and only when a re-read after
+     the reply shows exactly the model's comments plus that reply (one retry on a failed read or
+     resolve). Once a reply posts, the thread is no longer the bot's alone and no later round
+     selects it, so a post, read or resolve failure stops the posting, and that or a `VALID`
+     thread left open escalates `feedback-partial`, as does a round marker that cannot be posted;
+   - posts the round marker as the lanes App whatever happened above, once per model run: its
+     second line names the workflow run and `review-run-attempt`, and a re-run of the reply job
+     alone finds a lanes App marker with that line and posts none, so one model turn counts one
+     round. A model run that uploaded no replies names none, and its marker is always posted. It
+     escalates
+     `feedback-uncertain` for an `UNCERTAIN` or `VALID-defer` reply, or `feedback-disputed` when an
+     `INCORRECT` evidence reply was posted: that thread stays open for a person to decide.
+
+   The script writes its reason to `ESCALATION_REASON_FILE`; the runner accepts only those six
+   reasons, and only with `review-replies`, as the run's `escalation-reason` output.
+
+The skill's limits to kept-thread paths and away from `.github/` are instructions and the tool's
+checks at record time; the promote step's path check is what holds the push, and the reply job's
+compare withholds the replies when the branch changed anything else. A diff at the files listing's limit escalates as `feedback-protected-path`,
+since it could hide a `.github/` path. Residual: a reviewed-head marker confirms a head, not one
+review run, so any reviewer-bot review on that head is kept.
 
 The head re-read in step 5 applies to every `mutate-branch` activity, not only this mode: a
 pr-refine run whose PR branch moved before the mint now posts neutral `superseded-sha` without a
@@ -563,7 +703,7 @@ The request is `POST <LANES_BROKER_URL>` with `Authorization: Bearer <OIDC token
 body `{"lane": "<lane>", "activity": "<activity>", "pr_number": <n>, "dispatcher_run_id": <id>}`;
 `pr_number` is the gate's PR and is required on `workflow_dispatch` and `workflow_run`. An `issues` request,
 allowed only from `work-resolve-issue.yml`, sends `issue_number` (the `issue-number` input)
-instead, and neither of the other two; its actor, the labeler, must be a listed human. `dispatcher_run_id`, a positive
+instead, and neither of the other two; its actor, the labeler, must be a listed human. A `merge` request from `pr-merge.yml` names no pull request either; its actor must be a listed human, except on a `schedule` run on `refs/heads/main`, whose actor is whoever last edited the workflow file and is not checked. A re-run of a scheduled run must be started by a listed human. `dispatcher_run_id`, a positive
 JSON integer, is the `dispatcher-run-id` input, sent only when set. The broker reads it only when
 the OIDC actor is `github-actions[bot]`: such a run mints only when the `pr-unblock-dispatch.yml`
 run it names passes the checks the trusted-trigger gate applies. That run must be on `main`,
@@ -572,7 +712,14 @@ must be an ancestor of the tip and no tag may be named `main`. This run must be 
 `workflow_dispatch` created between the dispatcher run's `run_started_at` and the earlier of its
 `updated_at` and `run_started_at` plus 10 minutes. The dispatcher run must also hold an unexpired
 `pr-unblock-dispatched-<ids>` artifact whose ids include this run's; the broker reads it once,
-with no wait, since the trusted-trigger gate in step 3 has already waited for it. The client
+with no wait, since the trusted-trigger gate in step 3 has already waited for it. A
+`pr-feedback-dispatch.yml` run started by `workflow_run` passes the same checks except the actor
+check, with a `pr-feedback-dispatched-<upstream id>-<this run's id>` artifact whose upstream run is
+a `pull_request` run of `pr-review-hosted.yml` or `pr-review-security-hosted.yml` in this
+repository, started (and any re-run) by the lanes bot or a listed human, at the PR's current head,
+or, with `expected_upstream_head` in the body, at that head when every commit from it to the PR's
+current head is one GitHub signed for the lanes bot (committer `web-flow`, signature `valid`) after
+this run was created, and the upstream run lists this pull request. The client
 sends it once and never retries: the broker
 reserves the job's `check_run_id` when it mints, so a second request is denied `already-minted`,
 and a 200 lost in transit leaves a token nobody revokes until it expires within the hour.
@@ -593,14 +740,14 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 | 400 | (none) | The body is not `{lane, activity, pr_number?, issue_number?, dispatcher_run_id?}` with valid names and positive integers, or `issue_number` is missing on `issues` or present off it |
 | 403 | `invalid-token`, `wrong-audience` | The OIDC token does not verify, or is for another audience |
 | 403 | `wrong-owner`, `repo-not-allowed`, `self-hosted-runner` | Not a melodic-software repository on the broker's allowlist, or not a GitHub-hosted runner |
-| 403 | `event-not-allowed` | Not `pull_request` on `refs/pull/<n>/merge`, or `workflow_dispatch` or `workflow_run` on `refs/heads/main`, or `issues` on `refs/heads/main` from `work-resolve-issue.yml` |
+| 403 | `event-not-allowed` | Not `pull_request` on `refs/pull/<n>/merge`, or `workflow_dispatch` or `workflow_run` on `refs/heads/main`, or `issues` on `refs/heads/main` from `work-resolve-issue.yml`, or `schedule` on `refs/heads/main` from `pr-merge.yml` only |
 | 403 | `workflow-not-allowed` | The job is not this repository's `pr-run-activity-write.yml`, or the caller is not a lane under `lanes:` in the tip's `pr-pipeline.yaml` |
 | 403 | `workflow-modified` | The caller or `pr-run-activity-write.yml` differs from the default-branch tip |
-| 403 | `workflow-modified` | With `dispatcher_run_id`: `pr-unblock-dispatch.yml` at the dispatcher run's head differs from the tip |
+| 403 | `workflow-modified` | With `dispatcher_run_id`: the dispatcher workflow at the dispatcher run's head differs from the tip |
 | 403 | `lane-mismatch` | The requested lane is not the caller's file stem |
 | 403 | `activity-not-in-lane`, `slot-disabled`, `config-invalid`, `effect-forbidden-by-lane` | The tip config does not give this activity a write grant |
 | 403 | `effect-read` | The activity is `read`; it belongs in the read file |
-| 403 | `untrusted-actor`, `untrusted-author`, `bot-actor` | The actor, the PR author or a re-runner is not on the tip's trusted-actor list, or is the lanes bot |
+| 403 | `untrusted-actor`, `untrusted-author`, `bot-actor` | The actor, the PR author or a re-runner is not on the tip's trusted-actor list (a scheduled `pr-merge.yml` run has no actor check, and its re-runner must be a listed human), or is the lanes bot |
 | 403 | `untrusted-actor` | With `dispatcher_run_id` from `github-actions[bot]`: the dispatcher run or this run is missing or fails a dispatcher check above |
 | 503 | `github-unavailable` | With `dispatcher_run_id`: a dispatcher, run, tag or compare read failed; nothing was minted |
 | 403 | `pr-not-eligible` | The PR is not open, not from a branch of this repository, or does not target `main` |
@@ -659,8 +806,8 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
   `work-outcome.json` and the runner's `lane.json` (the kept branch, or empty) are uploaded as the
   `work-outcome-<n>` artifact, and the job output `issue-run-started` is `true` once the token
   was minted.
-- `report-outcome` downloads that artifact. On `done` it opens a draft PR from the branch whose
-  body starts `Closes #<n>`, copies the issue's `work-class:` labels, and adds
+- `report-outcome` downloads that artifact. On `done` it opens a ready (not draft) PR from the branch whose
+  body starts `Closes #<n>`, puts no label on it (the work class stays on the issue), and adds
   `Hold: a human merges this` for scoped, structural or untrusted-provenance work, for a diff that
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
   resolved config; unreadable holds every PR), or for one too large for the compare listing to
@@ -668,7 +815,14 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
   squash-merging the PR closes only `#<n>`. On `pushback` or `stopped`, and when the outcome file is missing
   or invalid, it labels the issue with the human-gated role label and comments why; pushback also
   removes `agent-ready`.
-- No check run is posted: there is no PR head. The run's own result is the record.
+- No check run is posted: there is no PR head. The lane's `report-statuses` job (in
+  `work-resolve-issue.yml`, the lane's only `statuses: write`, on its own `GITHUB_TOKEN`) posts a
+  `pipeline/<activity>` commit status on the lane branch's head for `resolve-issue` and
+  `report-outcome` (from their job results) and for each prep step the run reports in
+  `work-outcome.json`'s `steps` (`review`, `verify`, `checks`). On `done`, a prep step the run
+  never reported posts `error`; one it reported `skipped` posts nothing. No step is skipped on a
+  `pipeline/*` success, and no required check names one, but a `failure` or `error` status
+  counts as a failing check, so it holds the pr-merge gate (fail closed). Descriptions are fixed text.
 
 ## Runs that post no check
 

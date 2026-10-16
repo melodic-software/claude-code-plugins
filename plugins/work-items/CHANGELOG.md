@@ -3,6 +3,41 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.6.1] - 2026-10-16
+
+### Fixed
+
+- `decompose` item bodies end with the `<!-- work-items:born-triaged -->` marker, so intake
+  automation can skip items published already triaged instead of re-triaging them (#7608).
+
+## [2.6.0] - 2026-10-15
+
+### Changed
+
+- `/work-items:work --issue <n> --ci`: reads a web source through a research skill
+  (`/discovery:read-docs`, `/discovery:research`, `/knowledge:docpage-digest` or
+  `/knowledge:map-corpus`) and lists each page it read in `verification`.
+
+- `/work-items:work --issue <n> --ci` runs the pull-request prep (a fresh-context review, build and tests, lint and the class audits) before it reports done, and records each in `work-outcome.json` as `steps`, which the CI lane posts as `pipeline/<step>` commit statuses. The lane now opens its PR ready.
+
+## [2.5.0] - 2026-10-14
+
+### Changed
+
+- `/work-items:work --issue <n> --ci`: `work-outcome.json` gains `changes`, `verification` and
+  `not_done`. The mode runs the checks the runner names, writes an external fact only after reading
+  its source in the run, and marks a required check it could not run or pass `required` in
+  `not_done`, which the lane reports as `stopped`.
+
+## [2.4.0] - 2026-10-14
+
+### Added
+
+- `/work-items:work --issue <n> --ci`: the mode the `work-resolve-issue` CI lane runs on one issue
+  labeled `agent-ready`. It reads the issue the runner wrote, pushes back on an unclear issue,
+  otherwise commits the change, and writes `work-outcome.json` (`done`, `pushback` or `stopped`)
+  for the lane to open a draft PR or hand the issue back.
+
 ## [2.3.0] - 2026-10-14
 
 ### Added

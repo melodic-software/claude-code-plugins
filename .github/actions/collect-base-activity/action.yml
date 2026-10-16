@@ -3,10 +3,11 @@ description: >
   Copy what an activity runs out of the base checkout before the PR head
   replaces it: a script's whole directory to $RUNNER_TEMP/base-script, or for
   a skill the base plugins/ and .claude-plugin/ to
-  $RUNNER_TEMP/base-marketplace, plus the skill's plugin, prompt (with its
+  $RUNNER_TEMP/base-marketplace, plus the plugins to install, prompt (with its
   changed-paths) and claude_args (with read access to the marketplace copy,
-  and for any effect but read the write tool set, a scratch directory and,
-  unless the runner commits for it, the instruction to commit). Contract: docs/conventions/pr-pipeline/pr-run-activity.md, run job
+  and for any effect but read the write tool set, a scratch directory, the
+  web tools when the activity sets web-access and, unless the runner commits
+  for it, the instruction to commit). Contract: docs/conventions/pr-pipeline/pr-run-activity.md, run job
   step 8 and Skill activities.
 
 inputs:
@@ -49,6 +50,9 @@ inputs:
       The activity's prepare mode from resolve-config, empty for none. With
       `merge-base` the runner commits the staged merge after the skill, so
       the skill gets neither the commit tool nor the instruction to commit.
+      With `review-threads` the skill also gets the review-thread tool, a
+      read-only wrapper over the base's feedback-thread.sh that reads the
+      thread file the runner wrote to $RUNNER_TEMP/lane-feedback.
     required: false
     default: ""
   resolved-path:
@@ -66,9 +70,11 @@ inputs:
     default: .base
 
 outputs:
-  plugin:
-    description: "`<plugin>@<marketplace>`, for a skill."
-    value: ${{ steps.skill.outputs.plugin }}
+  plugins:
+    description: >
+      The plugins to install for a skill, one `<plugin>@<marketplace>` per
+      line: the skill's own, plus the research plugins under web-access.
+    value: ${{ steps.skill.outputs.plugins }}
   claude-args:
     description: The skill's claude_args after the fixed ones.
     value: ${{ steps.skill.outputs.claude-args }}
@@ -107,6 +113,7 @@ runs:
       shell: bash
       env:
         MARKETPLACE: ${{ runner.temp }}/base-marketplace
+        DOCS_DIR: ${{ runner.temp }}/lane-docs
         BASE_PATH: ${{ inputs.base-path }}
         RESOLVED: ${{ inputs.resolved-path }}
         SKILL: ${{ inputs.skill }}
@@ -117,6 +124,10 @@ runs:
         CAN_COMMIT: ${{ inputs.can-commit }}
         PREPARE: ${{ inputs.prepare }}
         SCRATCH: ${{ runner.temp }}/lane-scratch
+        CHECKS_DIR: ${{ runner.temp }}/lane-checks
+        FEEDBACK_DIR: ${{ runner.temp }}/lane-feedback
+        FEEDBACK_STATE: ${{ runner.temp }}/lane-feedback-state
+        WORKSPACE: ${{ github.workspace }}
         ISSUE_NUMBER: ${{ inputs.issue-number }}
       run: |
         fail() {
@@ -136,7 +147,7 @@ runs:
         [[ $SKILL =~ ^[a-z0-9-]+:[a-z0-9-]+$ ]] || fail "the skill must be <plugin>:<skill>"
         [[ $MAX_TURNS =~ ^[1-9][0-9]*$ ]] || fail "max-turns must be a positive integer"
         case "$PREPARE" in
-          "" | merge-base) ;;
+          "" | merge-base | review-threads) ;;
           *) fail "the activity's prepare mode is not a known mode" ;;
         esac
         # resolve-config already filtered these; a name outside this set
@@ -152,6 +163,7 @@ runs:
         # where an unlisted read is denied, so the skill could not read its
         # own reference files. A rule path starting `//` is absolute.
         allowed="Skill($SKILL),Read(/$MARKETPLACE/**)"
+        plugins="${SKILL%%:*}@$marketplace"
         disallowed=""
         system_prompt=""
         case "$EFFECT" in
@@ -159,10 +171,10 @@ runs:
           mutate-branch | mutate-tracker | publish-artifact | merge)
             # What a write skill needs to do its job unattended: edit files,
             # run subagents, keep state files in a scratch directory (added
-            # as a working directory, which also makes it writable from its
-            # sandboxed Bash) and commit through the action's signed tool.
-            # Its Bash comes from its own allowed-tools. The PR is the review
-            # step; no tool here limits which files it changes.
+            # as a working directory) and commit through the action's signed
+            # tool. Its allowed-tools frontmatter grants nothing under
+            # dontAsk: Bash runs only what a rule in this list allows. The PR
+            # is the review step; no tool here limits which files it changes.
             # In merge-base mode the runner commits what the skill staged,
             # so the skill gets no commit tool and no instruction to commit.
             mkdir -p "$SCRATCH"
@@ -171,12 +183,111 @@ runs:
               allowed="$allowed,mcp__github_file_ops__commit_files"
             fi
             allowed="$allowed,Edit(/$SCRATCH/**)"
-            disallowed="WebFetch,WebSearch"
             system_prompt="You run unattended as a CI lane activity on $subject, and no one can answer a question. Run every step the skill instructions name. Your scratchpad directory is $SCRATCH: put every temporary or state file there."
             if [ "$CAN_COMMIT" = true ] && [ "$PREPARE" != merge-base ]; then
               # The slash command never says the edits reach the PR only as
               # commits on CLAUDE_BRANCH.
               system_prompt="$system_prompt A change to a repository file reaches the branch only as a commit: before you finish, commit every repository file you changed with the mcp__github_file_ops__commit_files tool. An uncommitted change is discarded when the run ends."
+            fi
+            # The web stays off unless the activity sets web-access. On, the
+            # skill may search, fetch the listed domains (`any`: every one)
+            # and run the research skills, whose plugins are installed too.
+            # No sandbox is enabled, so a domain list limits WebFetch alone;
+            # a shell command such as curl is not held to it.
+            disallowed="WebFetch,WebSearch"
+            if [ "$(jq -r '.selected["web-access"].enabled // false' "$RESOLVED")" = true ]; then
+              # `any` is tested on its own, so no list entry can stand for it.
+              if jq -e '.selected["web-access"].domains == "any"' "$RESOLVED" >/dev/null; then
+                allowed="$allowed,WebFetch(domain:*)"
+                # The docs skills fetch through fetch-docs.sh and
+                # docs-cache.sh. Granted for `any` only: they curl any host,
+                # so a domain list keeps them denied. The skill's bare Edit
+                # and Write could rewrite a script the rule then runs, so the
+                # rules name a read-only copy, denied to Edit and Write below.
+                # The prompt puts the cache and the page files in the scratch
+                # directory.
+                [[ $DOCS_DIR =~ ^/[A-Za-z0-9_./-]+$ ]] || fail "the docs script copy has a name a rule cannot carry"
+                mkdir -p "$DOCS_DIR"
+                cp "$BASE_PATH"/plugins/discovery/scripts/{fetch-docs.sh,docs-cache.sh,html2md.py} "$DOCS_DIR/"
+                chmod -R a-w "$DOCS_DIR"
+                # A Bash rule matches the words before its `*` as written, so
+                # each script gets a rule for the bare path and one for the
+                # double-quoted path the skills' examples use. The guard above
+                # keeps quotes and spaces out of the path. `\"` survives the
+                # claude_args quoting as a literal quote.
+                for script in fetch-docs.sh docs-cache.sh; do
+                  allowed="$allowed,Bash(bash $DOCS_DIR/$script *),Bash(bash \\\"$DOCS_DIR/$script\\\" *)"
+                done
+                system_prompt="$system_prompt Any skill that runs fetch-docs.sh or docs-cache.sh runs this copy, by exactly this path, bare or in double quotes: bash $DOCS_DIR/fetch-docs.sh --cache --cache-dir $SCRATCH/docs-cache --out $SCRATCH/docs-<n> <other arguments>, a new <n> per fetch and no mktemp, and bash $DOCS_DIR/docs-cache.sh --cache-dir $SCRATCH/docs-cache <subcommand> <arguments>. Quote the arguments after the path as the skill shows them."
+              else
+                domains=$(jq -r '.selected["web-access"].domains
+                  | if type == "array" and length > 0 and all(type == "string") then .[]
+                    else error("bad") end' "$RESOLVED") ||
+                  fail "web-access: domains must be any or a list of host names"
+                host='^(\*\.)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+                while IFS= read -r domain; do
+                  [[ $domain =~ $host ]] || fail "web-access: a domain is not a host name"
+                  allowed="$allowed,WebFetch(domain:$domain)"
+                done <<<"$domains"
+              fi
+              allowed="$allowed,WebSearch,Skill(discovery:read-docs),Skill(discovery:research),Skill(knowledge:docpage-digest),Skill(knowledge:map-corpus)"
+              plugins="$plugins"$'\n'"discovery@$marketplace"$'\n'"knowledge@$marketplace"
+              disallowed=""
+              if [ -d "$DOCS_DIR" ]; then
+                disallowed="Edit(/$DOCS_DIR/**),Write(/$DOCS_DIR/**)"
+              fi
+              system_prompt="$system_prompt This run may read web pages: read each external source through /discovery:read-docs, /discovery:research, /knowledge:docpage-digest or /knowledge:map-corpus."
+            fi
+            # The activity's checks run from a base copy outside the working
+            # directory, which the skill cannot edit, against the checkout,
+            # through a wrapper with the flags fixed: the Bash rule allows the
+            # wrapper alone, with no arguments.
+            mapfile -t checks < <(jq -r '.selected.checks // [] | .[]' "$RESOLVED")
+            if ((${#checks[@]})); then
+              [[ $CHECKS_DIR =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
+                fail "the checks directory or workspace has a name a rule cannot carry"
+              shape='^scripts/[A-Za-z0-9_-]+\.sh( --[a-z][a-z-]*)*$'
+              for check in "${checks[@]}"; do
+                [[ $check =~ $shape ]] || fail "a check must be a scripts/ script with fixed flags"
+              done
+              mkdir -p "$CHECKS_DIR/bin"
+              cp -R "$BASE_PATH/scripts" "$CHECKS_DIR/"
+              wrappers=""
+              for check in "${checks[@]}"; do
+                script=${check%% *}
+                flags=${check#"$script"}
+                wrapper="$CHECKS_DIR/bin/$(basename "$script" .sh)"
+                [ ! -e "$wrapper" ] || fail "two checks run the same script"
+                printf '#!/usr/bin/env bash\ncd %q || exit 2\nCHECK_DATA_ROOT=%q exec %q%s\n' \
+                  "$WORKSPACE" "$WORKSPACE" "$CHECKS_DIR/$script" "$flags" >"$wrapper"
+                chmod +x "$wrapper"
+                allowed="$allowed,Bash($wrapper)"
+                wrappers="$wrappers $wrapper"
+              done
+              # The skill's bare Edit and Write must not reach the copy it runs.
+              chmod -R a-w "$CHECKS_DIR"
+              disallowed="${disallowed:+$disallowed,}Edit(/$CHECKS_DIR/**),Write(/$CHECKS_DIR/**)"
+              system_prompt="$system_prompt Before you report done, run each of these repository checks as written, with no arguments:$wrappers."
+            fi
+            # review-threads: the skill reads the runner's thread file, and
+            # records its replies to those threads, only through this tool:
+            # a base copy behind a wrapper that fixes its environment, which
+            # the skill's Edit and Write cannot reach. The tool posts nothing;
+            # the runner uploads its replies file for the reply job.
+            if [ "$PREPARE" = review-threads ]; then
+              [[ $FEEDBACK_DIR =~ ^/[A-Za-z0-9_./-]+$ && $FEEDBACK_STATE =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
+                fail "the review-thread tool directory has a name a rule cannot carry"
+              [ -f "$FEEDBACK_DIR/threads.json" ] || fail "review-threads: the runner wrote no thread file"
+              mkdir -p "$FEEDBACK_DIR/bin" "$FEEDBACK_STATE"
+              cp "$BASE_PATH/plugins/source-control/skills/pull-request/scripts/feedback-thread.sh" "$FEEDBACK_DIR/feedback-thread.sh"
+              tool="$FEEDBACK_DIR/bin/feedback-thread"
+              printf '#!/usr/bin/env bash\nexport FEEDBACK_THREADS=%q FEEDBACK_LOG=%q FEEDBACK_SCRATCH=%q FEEDBACK_WORKSPACE=%q\nexec bash %q "$@"\n' \
+                "$FEEDBACK_DIR/threads.json" "$FEEDBACK_STATE/replies.jsonl" "$SCRATCH" "$WORKSPACE" "$FEEDBACK_DIR/feedback-thread.sh" >"$tool"
+              chmod +x "$tool"
+              chmod -R a-w "$FEEDBACK_DIR"
+              allowed="$allowed,Bash($tool *)"
+              disallowed="${disallowed:+$disallowed,}Edit(/$FEEDBACK_DIR/**),Write(/$FEEDBACK_DIR/**),Edit(/$FEEDBACK_STATE/**),Write(/$FEEDBACK_STATE/**)"
+              system_prompt="$system_prompt The review-thread tool is $tool: run it by exactly this path as $tool list, $tool check-paths <path>... and $tool record <thread-id> <file>, with each disposition file in $SCRATCH. The tool posts nothing: a later job posts what you record."
             fi
             ;;
           *) fail "the activity's effect is not a known effect" ;;
@@ -212,7 +323,9 @@ runs:
         done
         delimiter="prompt_$(openssl rand -hex 16)"
         {
-          echo "plugin=${SKILL%%:*}@$marketplace"
+          echo "plugins<<$delimiter"
+          printf '%s\n' "$plugins"
+          echo "$delimiter"
           echo "claude-args=$claude_args"
           echo "prompt<<$delimiter"
           printf '%s\n' "$command_line"

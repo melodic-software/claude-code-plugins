@@ -3,6 +3,103 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.6.1] - 2026-10-16
+
+### Changed
+
+- `/source-control:pull-request` prep runs the `/testing:audit --judge` pass over changed tests when the testing plugin is installed and enabled, and reports `judge pass not run: testing plugin not installed or not enabled` otherwise.
+
+## [1.6.0] - 2026-10-16
+
+### Added
+
+- `/source-control:pull-request comments --ci` answers reviewer-bot threads unattended for the
+  pr-unblock lane's `address-feedback` activity, through a review-thread tool the runner stages:
+  it works only the threads the runner kept, edits only the files they name and never `.github/`,
+  commits its fixes, and records one templated disposition per thread (disposition, `path:line`
+  evidence, fix SHA, prose note). It posts nothing and runs no head code; a later job with no
+  model validates the recorded replies and posts them (#7032).
+
+### Changed
+
+- `/source-control:pull-request comments --ci` now tells the skill to record exactly one
+  disposition for every kept thread: the reply job posts nothing when one is missing, and an
+  `INCORRECT` thread, like `UNCERTAIN` and `VALID-defer`, stays open for a person (#7032).
+
+## [1.5.2] - 2026-10-15
+
+### Fixed
+
+- The unattended merge gate no longer counts an AI review finding from an earlier round as open
+  once its thread is resolved, its lines have changed, and the lane has reviewed a later head: such
+  a thread is closed whoever resolved it. A thread from any review of the latest reviewed head, or
+  one whose lines never changed, still needs a human to resolve it.
+
+## [1.5.1] - 2026-10-15
+
+### Fixed
+
+- Promotion evidence now fails closed when contrary evidence is deleted: a `run_number` gap in
+  the post-merge workflows (`run-deleted:`) or a missing issue number that reads 410 Gone
+  (`issue-deleted:`) inside the read window refuses the publish and the inline resolver, and every
+  `babysit-merge-demotion` record counts as a gate-failure on every cell (#7518).
+
+## [1.5.0] - 2026-10-15
+
+### Added
+
+- **`resolve-promotion-evidence.mjs --inline` computes promotion evidence each call.** For the CI
+  pr-merge lane: it runs the publisher's report-mode GitHub reads in memory from the binding's
+  earliest promoted `ratified_at` and pipes the events to the checker as `--evidence -`, printing
+  the file mode's JSON with no events file. It fails closed when that epoch start is missing or
+  more than 85 days old (GitHub keeps a public repository's runs, checks and statuses at most 90
+  days), or when a GitHub read fails. The file mode is unchanged.
+
+## [1.4.1] - 2026-10-15
+
+### Fixed
+
+- **`babysit_merge.py` enqueues on a merge-queue base through GraphQL `enqueuePullRequest`.** GitHub
+  refused the REST `merge-async` call with `merge_action=merge_queue` for the lanes App
+  ("Enqueuer is not authorized to merge"). The mutation pins the vetted head as `expectedHeadOid`
+  and never sets `jump`. A refusal or an answer without a queue entry is held, with no other API
+  tried and nothing recorded. A direct merge still uses `merge-async`.
+
+## [1.4.0] - 2026-10-15
+
+### Changed
+
+- The pr-merge lane gate considers only pull requests the lanes App opened (`not-lane-authored` otherwise), and reads the work class from the pull request's single closing issue, never from a label on the pull request. No closing issue, or more than one, refuses with `linked-issues:<n>`. A class label counts when the lanes App applied it, or a human in person with no issue body edit after it; any other label is `class-label-untrusted`. The enqueue-time recheck keeps the run's self logins and permission reader.
+
+## [1.3.0] - 2026-10-14
+
+### Added
+
+- **`babysit_merge.py --unattended --authority pr-merge`, the pr-merge lane's gate.** It needs
+  `merge.authority: pr-merge` and `merge.agent-identity` at the base, reads its own enabling
+  commit for the post-merge floor, and replaces local eligibility with the lane's: a
+  `work-class: mechanical` label the lane identity's App applied (the owner account's and other
+  bots' label events are ignored; any class label can only make the class stricter) on a diff off
+  `merge.diff-check.denied-paths`. No promotion evidence is read; the class is read again before
+  the enqueue. While `merge.report-only` is true, `--merge` runs as a check that writes nothing.
+
+- **The post-merge check counts the pr-merge lane's full-run dispatch.** A `pr-require-checks`
+  dispatch by `github-actions[bot]` counts as the identity's when a run of
+  `.github/workflows/pr-merge.yml` on the branch (not a `pull_request_target` run) uploaded the
+  artifact `pr-merge-dispatched-<run id>`. A dispatch by another workflow, branch or actor still
+  does not.
+
+### Fixed
+
+- **The pr-merge lane no longer refuses every PR on the kill switch.** `--authority pr-merge` takes
+  the kill switch from the workflow as `--lane-kill-switch proceed` instead of reading Actions
+  variables its token cannot read. A missing value or any other value stops the lane. Local babysit
+  still reads the variables and refuses `--lane-kill-switch`. The rung cap comes the same way, as
+  `--lane-rung-cap` (empty is no cap; a missing or unknown value holds the rung at off).
+- **The pr-merge lane judges only its own merges (#7481).** In lane mode the post-merge check and
+  the in-flight rule count only merges the agent identity enqueued; `babysit_postmerge.py
+  --lane-merges-only` does the same. A release App's merge on main no longer counts as a lane merge.
+
 ## [1.2.1] - 2026-10-14
 
 ### Changed

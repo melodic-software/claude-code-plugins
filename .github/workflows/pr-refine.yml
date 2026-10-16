@@ -41,4 +41,4 @@ jobs:
       activity: fix-docs
       pr-number: ${{ inputs.pr-number }}
     secrets:
-      claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}

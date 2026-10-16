@@ -825,6 +825,57 @@ class DispatchCoverage(CheckCase):
         self.assertFalse(verdict.needs_dispatch)
 
 
+class LaneMergesOnly(CheckCase):
+    """#7481: the pr-merge lane's check counts only merges the agent identity
+    enqueued. A release App's own enqueue (the fixture's `example-sync`, as
+    #7468 was) is not the lane's, so it is neither judged nor dispatched for."""
+
+    def lane_check(self) -> pm.PostMergeVerdict:
+        return pm.check(
+            REPO,
+            agent_identity=IDENTITY,
+            is_human=human,
+            merged_since=SINCE,
+            now=datetime(2026, 10, 12, 11, 0, tzinfo=UTC),
+            pinned_sha=lambda merge: HEAD_SHA,
+            lane_merges_only=True,
+        )
+
+    def test_another_apps_merge_is_not_counted(self) -> None:
+        verdict = self.lane_check()
+        self.assertEqual(self.numbers(verdict), [])
+        self.assertTrue(verdict.ok)
+        self.assertFalse(verdict.needs_dispatch)
+
+    def test_the_identitys_own_enqueue_is_still_counted(self) -> None:
+        self.gh.merged = [merged_pr(), identity_merge(number=7002)]
+        verdict = self.lane_check()
+        self.assertEqual(self.numbers(verdict), [7002])
+        self.assertTrue(verdict.needs_dispatch)
+
+    def test_without_the_flag_another_apps_merge_still_counts(self) -> None:
+        # Local babysit keeps judging every non-human merge.
+        verdict = self.check()
+        self.assertEqual(self.numbers(verdict), [7001])
+        self.assertTrue(verdict.needs_dispatch)
+
+    def test_derive_skips_a_merge_the_identity_did_not_enqueue(self) -> None:
+        other = merged_pr()
+        own = identity_merge(number=7002)
+        derive = pm.policy.derive_auto_merge
+        self.assertIsNone(derive(other, human, IDENTITY, lane_merges_only=True))
+        self.assertEqual(
+            derive(own, human, IDENTITY, lane_merges_only=True).number, 7002
+        )
+        self.assertEqual(derive(other, human, IDENTITY).number, 7001)
+
+    def test_the_cli_flag_counts_only_lane_merges(self) -> None:
+        code, report = Cli.main(self, "--lane-merges-only")
+        self.assertEqual(code, 0)
+        self.assertEqual(report["autoMerges"], [])
+        self.assertIs(report["needsDispatch"], False)
+
+
 class Remediation(CheckCase):
     def failing_verdict(self) -> pm.PostMergeVerdict:
         self.gh.merged = [identity_merge()]

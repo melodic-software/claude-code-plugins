@@ -200,7 +200,7 @@ jobs:
       - name: Run the plugin eval
         working-directory: .base
         env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
           # Strips credentials from Bash subprocesses inside each eval run.
           # The env-scrub input set false gives "0", the opt-out value Claude
           # Code's own messages name.

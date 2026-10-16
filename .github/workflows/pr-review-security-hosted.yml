@@ -44,8 +44,7 @@ on:
     # the reusable to the files changed since the last completed review. The check
     # stays advisory: github-iac ADR 0011 forbids any organization ruleset
     # from making an agentic review a merge or deployment prerequisite. With
-    # the per-PR group below not cancelling, pushes during a review queue at
-    # most one pending run per PR (GitHub keeps only the newest pending).
+    # the per-PR group below cancelling, a push supersedes the in-flight review.
     #
     # NO `merge_group:`: the pinned action cannot serve that event; see
     # melodic-software/ci-workflows#272 before enabling a merge queue.
@@ -54,18 +53,15 @@ on:
 permissions:
   contents: read
 
-# No top-level concurrency block: the standards `concurrency-policy` component
-# requires a `${{ github.workflow }}`-prefixed group and literal
-# `cancel-in-progress: true`, which this lane cannot ship. A canceled run of
-# a check a ruleset might later read is not a skip and does not read success,
-# so canceling an in-flight review can wedge the merge behind a void check.
-# Concurrency lives on the `pr-review-security` job below
-# (`cancel-in-progress: false`, no queue), which is the shape a
-# `delegated-job-level` concurrency-policy exception waives. And NO job-level
-# queue group: a full queue CANCELS new arrivals, which is the same wedge; a
-# queue is added only if overflow smoke-testing proves otherwise. These are
-# per-LANE values, deliberately different from the code-review caller's (which
-# cancels superseded runs). Do not normalize the two.
+# Per-PR supersede group: a newer event for the same PR, a push included,
+# cancels the older run, so reviews of superseded heads do not stack. The
+# merge guard judges only the newest run of each check, so a cancelled run on
+# a superseded head does not block merge. The group is the
+# `${{ github.workflow }}`-prefixed canonical form the standards
+# `concurrency-policy` component requires.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   pr-review-security:
@@ -78,10 +74,6 @@ jobs:
                              # the lane's reviewed-head marker comment
       id-token: write        # OIDC, mints the Claude GitHub App token (required
                              # even with an OAuth/API-key credential)
-    # Per-PR serialization without cancellation. See the workflow header.
-    concurrency:
-      group: pr-review-security-${{ github.event.pull_request.number || github.run_id }}
-      cancel-in-progress: false
     uses: melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@4cfd14e8b6f8b740f5f0af27f80139a0d40a596d # v0.42.1
     with:
       runner: ubuntu-24.04

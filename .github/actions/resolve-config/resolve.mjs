@@ -375,6 +375,13 @@ function laneSlots(doc, lane) {
   });
 }
 
+// Whether the lane holds a slot for the activity, in a config that passes
+// every check loadConfig makes; a config that does not is a Rejection.
+export function laneHasActivity(files, { lane, activity, configPath }) {
+  const doc = loadConfig(files, { configPath });
+  return laneSlots(doc, lane).some((entry) => entry.name === activity);
+}
+
 // The index of the requested activity's slot, -1 when none was requested.
 function selectedIndex(entries, lane, activity) {
   if (activity === undefined || activity === "") {
@@ -555,6 +562,8 @@ function resolveSlot(
     [kind]: activity[kind],
     ...(activity.args === undefined ? {} : { args: activity.args }),
     ...(activity.prepare === undefined ? {} : { prepare: activity.prepare }),
+    ...(activity.checks === undefined ? {} : { checks: activity.checks }),
+    ...(activity["web-access"] === undefined ? {} : { "web-access": activity["web-access"] }),
     effect: activity.effect,
     gating: activity.gating,
     "reads-untrusted": activity["reads-untrusted"],

@@ -1,60 +1,19 @@
 {
   "name": "testing",
-  "version": "0.26.0",
-  "description": "Test-stage discipline: /testing:plan (coverage gaps, test plans), /testing:write (TDD authoring), /testing:run-e2e (live E2E and smoke checks), /testing:diagnose (failing-test root cause, with a fix-until-green workflow across files), /testing:audit (can't-fail test audit with a fail-closed gate), /testing:cleanup (rewrite, quarantine, or delete low-value tests behind a mutation gate), /testing:setup, and opt-in hooks that scan test files Claude writes and flag edits that weaken tests.",
+  "version": "0.27.0",
+  "description": "Test-stage discipline: /testing:plan (coverage gaps, test plans), /testing:write (TDD authoring), /testing:run-e2e (live E2E and smoke checks), /testing:diagnose (failing-test root cause, with a fix-until-green workflow across files), /testing:audit (can't-fail test audit with a fail-closed gate), /testing:cleanup (rewrite, quarantine, or delete low-value tests behind a mutation gate), /testing:setup, and an opt-in hook that flags edits that weaken tests.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": [
-    "testing",
-    "tdd",
-    "test-plan",
-    "e2e",
-    "diagnose",
-    "coverage",
-    "skill"
-  ],
+  "keywords": ["testing", "tdd", "test-plan", "e2e", "diagnose", "coverage", "skill"],
   "userConfig": {
     "test_guards_enabled": {
       "type": "boolean",
       "title": "Test guard hooks",
-      "description": "Scan each test file Claude writes or edits for tests that cannot fail, and ask Claude for a reason when an edit removes or skips tests or assertions. Off by default.",
+      "description": "Ask Claude for a reason when an edit removes or skips tests or assertions. Off by default.",
       "default": false
-    },
-    "test_judge_enabled": {
-      "type": "boolean",
-      "title": "Task-end test judge",
-      "description": "At each task's end, a separate model asks where the expected value of each test the session created or changed came from, and reports FLAG, PASS or UNKNOWN with quoted evidence and a proposed fix it never applies. Needs test_guards_enabled, whose scan records the tests it judges. Off by default.",
-      "default": false
-    },
-    "test_judge_model": {
-      "type": "string",
-      "title": "Test judge model",
-      "description": "Model class the judge runs on: fable, opus, sonnet (default) or haiku. When a model of that class wrote the tests, the fallback or another class is used. haiku is the last resort: the judge is uncalibrated on it and may favor outputs labeled as Claude's own (self-preference bias).",
-      "default": "sonnet",
-      "options": ["fable", "opus", "sonnet", "haiku"]
-    },
-    "test_judge_fallback_model": {
-      "type": "string",
-      "title": "Test judge fallback model",
-      "description": "Model class the judge uses when the main class wrote the tests: fable, opus (default), sonnet or haiku.",
-      "default": "opus",
-      "options": ["fable", "opus", "sonnet", "haiku"]
-    },
-    "test_judge_effort": {
-      "type": "string",
-      "title": "Test judge effort",
-      "description": "Effort level for the judge; medium by default. For the levels the judge's model supports, see https://code.claude.com/docs/en/model-config#adjust-effort-level (as of 2026-10-02; recheck when the level list changes). It has no effect on a model that has no effort levels.",
-      "default": "medium",
-      "options": ["low", "medium", "high", "xhigh", "max"]
-    },
-    "test_judge_session_runs": {
-      "type": "number",
-      "title": "Test judge runs per session",
-      "description": "Most judge runs one session may start (one run judges one file). Unset means no limit.",
-      "min": 1
     },
     "e2e_driver": {
       "type": "string",

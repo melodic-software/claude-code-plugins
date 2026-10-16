@@ -188,18 +188,14 @@ exists to outlive. This is the record the `auditor` agent and `scripts/packet-se
 - **Recheck trigger**: either section changes when `PostToolUse` runs, whether it may rewrite a
   tool's result, or what a matcher matches on, or a release note names `PostToolUse`.
 
-**Accurate scope (verified 2026-09-02 against `plugins/markdown-format/hooks/hooks.json`,
-`plugins/typos-format/hooks/hooks.json`, and `hook::read_file_path` in the shared
-`hooks/hook-utils.sh`; recheck when either formatter's `hooks.json` or the shared lib's path
-scoping changes).** `markdown-format` is not unconditional `Write|Edit`: handlers
-use `if: "Edit(*.md)"` / `"Edit(*.mdc)"`. Both formatters go through `hook::read_file_path`,
+**Accurate scope (verified 2026-09-02 against `plugins/markdown-format/hooks/hooks.json` and
+`hook::read_file_path` in the shared `hooks/hook-utils.sh`; recheck when that `hooks.json` or the
+shared lib's path scoping changes).** `markdown-format` is not unconditional `Write|Edit`:
+handlers use `if: "Edit(*.md)"` / `"Edit(*.mdc)"`. It goes through `hook::read_file_path`,
 which scopes to `CLAUDE_PROJECT_DIR`, then the git worktree, and **fails closed**. A packet
-outside both is not rewritten. Discovery is file-anchored (`markdown-format`) or
-target-path-anchored (`typos-format`), not cwd-anchored. Residual: a `$HOME`-rooted session
-with a home-level markdownlint config, where `--fix` still rewrites. `typos-format` replaces
-word tokens and does not skip fences, so "corrected identifiers inside a citation" is its
-class when it runs. Leading-character normalization of a quoted line is
-`markdownlint --fix`, not `typos`. Keep the full apparatus against that residual (a
+outside both is not rewritten. Its config discovery is file-anchored, not cwd-anchored.
+Residual: a `$HOME`-rooted session with a home-level markdownlint config, where `--fix` still
+rewrites, including leading-character normalization of a quoted line. Keep the full apparatus against that residual (a
 `$HOME`-rooted session is a normal invoke). Sealing proves non-alteration after write, never
 truth at write time.
 
@@ -223,9 +219,8 @@ Three rules, in force for every packet write:
    *after* the seal, a formatter re-run, a reverted hand-repair, tampering, turning silently
    altered evidence into altered evidence a reader can see.
 
-These escapes do not hold: a non-`.md` extension evades `markdown-format` but not
-`typos-format` when the project-dir gate holds, and it breaks closed-set basenames; a
-`typos` allowlist / `markdownlint` opt-out is unreliable on the `$HOME`-rooted residual;
+These escapes do not hold: a non-`.md` extension evades `markdown-format` but breaks
+closed-set basenames; a `markdownlint` opt-out is unreliable on the `$HOME`-rooted residual;
 a shell redirect to dodge `Write|Edit` is a hook bypass the fleet blocks. Detection, not
 evasion.
 

@@ -12,7 +12,7 @@
           "typos"
         ]
       },
-      "degrade": "Without typos, the hook cannot spell-check edited files.",
+      "degrade": "Without typos, commits and the end-of-turn check go unchecked for typos, and an agent's commit fails until typos is installed.",
       "install": {
         "cargo": "cargo install typos-cli",
         "docs": "https://github.com/crate-ci/typos#install"
@@ -22,16 +22,16 @@
     {
       "id": "jq",
       "kind": "cli",
-      "need": "required",
+      "need": "optional",
       "for": [
-        "hook:typos-format.sh"
+        "plugin"
       ],
       "detect": {
         "any": [
           "jq"
         ]
       },
-      "degrade": "Without jq, the typos-format hooks skip their work.",
+      "degrade": "Without jq, the end-of-turn row reads its hook input with the shared hook library's builtin JSON check alone.",
       "install": {
         "docs": "https://jqlang.org/download/"
       },

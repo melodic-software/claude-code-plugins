@@ -114,6 +114,20 @@
           "minItems": 1,
           "items": { "$ref": "#/$defs/work-class" }
         },
+        "admission": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["classes"],
+          "description": "Which issues an issues lane admits. An issue carrying a `work-class:` label outside `classes` is refused, even beside a listed one. Otherwise it is admitted by a listed class label or, with `ratified: true`, by the owner's ratification marker: a comment line `<!-- admission: admitted when unblocked, owner batch ratification YYYY-MM-DD -->` posted by a human on the trusted-actor list, not through a GitHub App, and never edited; no bot ratifies. Work-class labels match in any casing or spacing, and labels are read when the run starts. The check cannot tell the owner typing from a local agent posting with the owner's token: it guarantees only that no App or Actions bot can self-admit. Off an issues event `ratified` cannot be decided and fails the run.",
+          "properties": {
+            "classes": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "pattern": "^work-class: [a-z-]+$" }
+            },
+            "ratified": { "type": "boolean" }
+          }
+        },
         "labeled-after": {
           "type": "string",
           "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
@@ -182,18 +196,63 @@
       "dependentRequired": {
         "model": ["skill"],
         "max-turns": ["skill"],
-        "prepare": ["skill"]
+        "prepare": ["skill"],
+        "checks": ["skill"],
+        "web-access": ["skill"]
+      },
+      "if": {
+        "required": ["web-access"],
+        "properties": { "web-access": { "properties": { "enabled": { "const": true } } } }
+      },
+      "then": {
+        "properties": { "reads-untrusted": { "const": true }, "effect": { "not": { "const": "read" } } }
       },
       "properties": {
         "skill": { "$ref": "#/$defs/skill" },
         "prepare": {
-          "enum": ["merge-base"],
-          "description": "What the write runner does around a skill with an effect other than read. merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents."
+          "enum": ["merge-base", "review-threads"],
+          "description": "What the write runner does around a skill with an effect other than read. merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents. review-threads: before any model turn, keep the PR's unresolved reviewer-bot threads on a reviewed head and escalate on a .github/** diff or the round cap; give the skill the review-thread tool; after it, upload the replies it recorded, which a review-replies script job validates and posts with the round marker."
         },
         "args": {
           "type": "string",
           "minLength": 1,
           "description": "Arguments passed verbatim: after the skill name in that skill's own syntax, or to the script."
+        },
+        "checks": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^scripts/[A-Za-z0-9_-]+\\.sh( --[a-z][a-z-]*)*$"
+          },
+          "description": "Repository check scripts a skill with an effect other than read may run, each with its fixed flags. The write runner runs each from the base copy against the checkout, through a wrapper the skill can call with no arguments."
+        },
+        "web-access": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "default": { "enabled": false },
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "domains": {
+              "oneOf": [
+                { "const": "any" },
+                {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^(\\*\\.)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+                  }
+                }
+              ]
+            }
+          },
+          "if": { "properties": { "enabled": { "const": true } } },
+          "then": { "required": ["domains"] },
+          "description": "Whether a skill with an effect other than read may read the web, off when absent. On, the write runner allows WebSearch, WebFetch to the listed domains (`any`: every domain), and the research skills, and the listed domains also open to the skill's sandboxed shell commands. On needs reads-untrusted: true and an effect other than read."
         },
         "model": {
           "type": "string",
