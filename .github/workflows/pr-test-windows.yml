@@ -486,3 +486,17 @@ jobs:
       - name: Test the repo-sweep state script on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/playbooks/skills/repo-sweep/scripts/state.test.sh')
         run: bash plugins/playbooks/skills/repo-sweep/scripts/state.test.sh
+      - name: Set up Python
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/planning/shared/tests/test_server.py')
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+      # The shared session's API suites: detached.py's Windows branches (DETACHED_PROCESS,
+      # OpenProcess liveness, msvcrt locks), SO_EXCLUSIVEADDRUSE, and share.py run without bash.
+      # The fake tunnel is fixtures/fake_cloudflared.py here; command-line checks SKIP.
+      - name: Test the shared session API on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/planning/shared/tests/test_server.py')
+        run: python -m unittest discover -v -s plugins/planning/shared/tests -p 'test_s*.py'
+      - name: Test the shared session tunnel on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/planning/shared/tests/test_server.py')
+        run: python -m unittest discover -v -s plugins/planning/shared/tests -p 'test_tunnel.py'
