@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# Black-box contract test for go-format.sh (the go-format plugin hook).
+# Black-box contract test for the go-format PostToolBatch row, launched exactly
+# as hooks.json registers it (node exec-bash.mjs with the row's args).
 #
-# Proves WIRING: the hook fires only on *.go files (extension pre-filter),
-# runs goimports with no consumer-config opt-in gate (gitignored files aside; the one
-# deliberate shape difference from ruff-format/typos-format), skips files carrying
-# Go's generated-code marker, autofixes imports/formatting in place, surfaces
-# a syntax error as an advisory finding (not a tool break), honors the kill
-# switch, and emits a schema-valid telemetry envelope.
+# Proves WIRING: one PostToolBatch row and no PostToolUse row; the row rewrites
+# the .go files a Write, Edit or MultiEdit in the batch named, once per batch,
+# and never anything a Read named; it prints nothing (no finding, no disclosure
+# reaches the model) and exits 0; no Go config is needed; a file with Go's
+# generated-code marker, a file under .githooks/, a gitignored file and a
+# disabled plugin are left alone; a batch with no Go edit costs only the launcher.
 #
 # Self-contained: builds throwaway git repos with runtime-generated fixtures.
-# The hook is invoked from an UNRELATED cwd so any reliance on the caller's
-# own working directory would surface.
+# The row is run from an UNRELATED cwd so any reliance on the caller's working
+# directory would surface.
 #
-# Requires a real goimports binary: $GOIMPORTS_TEST_BIN if set, else
-# `goimports` on PATH. Without one the behavioral assertions cannot run, so
-# the suite skips.
+# Requires a real goimports binary: $GOIMPORTS_TEST_BIN if set, else `goimports`
+# on PATH. Without one the behavioral assertions cannot run, so the suite skips.
 # test-scope: plugins/go-format/.claude-plugin/plugin.json plugins/go-format/hooks/hooks.json plugins/go-format/prerequisites.json
 
 set -uo pipefail
@@ -24,7 +24,9 @@ set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOOK="$HOOK_DIR/go-format.sh"
+PLUGIN_ROOT="${HOOK_DIR%/*}"
+HOOKS_JSON="$HOOK_DIR/hooks.json"
+REPO_ROOT="$(cd "$PLUGIN_ROOT/../.." && pwd)"
 
 PASS=0
 FAIL=0
@@ -36,594 +38,42 @@ ok() {
   echo "ok: $*"
   PASS=$((PASS + 1))
 }
-
-# Resolve a real goimports binary. Skip the suite when none is available.
-if [[ -n "${GOIMPORTS_TEST_BIN:-}" && -x "${GOIMPORTS_TEST_BIN}" ]]; then
-  REAL_GOIMPORTS="${GOIMPORTS_TEST_BIN}"
-elif command -v goimports >/dev/null 2>&1; then
-  REAL_GOIMPORTS="$(command -v goimports)"
-else
-  echo "SKIP: no goimports binary (set GOIMPORTS_TEST_BIN or put goimports on PATH) -- go-format hook tests skipped"
-  exit 0
-fi
-# The PATH every run that needs the real binary hands the hook.
-GOIMPORTS_PATH="$(dirname "$REAL_GOIMPORTS"):$PATH"
-
-WORK="$(mktemp -d)"
-UNRELATED="$(mktemp -d)"
-cleanup() { rm -rf "$WORK" "$UNRELATED"; }
-trap cleanup EXIT
-
-# shellcheck source=hook-test-sink.sh
-source "$HOOK_DIR/hook-test-sink.sh"
-
-new_go_repo() {
-  local r="$1"
-  mkdir -p "$r"
-  git -C "$r" init -q
-  git -C "$r" config user.email t@t.t
-  git -C "$r" config user.name t
+expect() { # <label> <want> <got>
+  if [[ "$2" == "$3" ]]; then ok "$1"; else fail "$1: want [$2] got [$3]"; fi
 }
 
-# Invoke the hook from an unrelated cwd with caller-supplied env (NAME=VALUE
-# ...). CLAUDE_PROJECT_DIR is left UNSET so read_file_path's membership guard is
-# disabled (not part of the fire gate).
-run_hook_env() {
-  local file_path="$1" payload
-  shift
-  # A here-string, never a pipe: the kill switch exits before reading stdin, and
-  # a printf still writing then fails on the closed pipe, which pipefail reports.
-  printf -v payload '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path"
-  (
-    cd "$UNRELATED" || return 1
-    env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK" <<<"$payload"
-  )
-}
-
-# The plain enabled-hook run against the real goimports binary.
-run_hook() {
-  run_hook_env "$1" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true PATH="$GOIMPORTS_PATH"
-}
-
-REPO="$WORK/consumer"
-new_go_repo "$REPO"
-
-# --- Case 1: unconditional (no config anywhere) -> still runs ---------------
-# Unlike ruff-format/typos-format, go-format has NO consumer-config opt-in
-# gate — it must autofix even with zero Go-specific config present.
-printf 'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/needs_import.go"
-OUT=$(run_hook "$REPO/needs_import.go")
-RC=$?
-if [[ $RC -eq 0 ]]; then ok "no config anywhere -> exit 0 (unconditional)"; else fail "no-config exit $RC"; fi
-if grep -q 'import "fmt"' "$REPO/needs_import.go"; then
-  ok "no config anywhere -> import still added (unconditional, no opt-in gate)"
-else
-  fail "no-config -> import not added: $(cat "$REPO/needs_import.go")"
-fi
-
-# --- Case 2: clean file -> exit 0, empty stdout ------------------------------
-printf 'package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/clean.go"
-OUT=$(run_hook "$REPO/clean.go")
-RC=$?
-if [[ $RC -eq 0 ]]; then ok "clean file -> exit 0"; else fail "clean file exit $RC"; fi
-if [[ -z "$OUT" ]]; then ok "clean file -> empty stdout"; else fail "clean file stdout not empty: $OUT"; fi
-
-# --- Case 3: import needed by edit -> auto-added in a subdir -----------------
-mkdir -p "$REPO/src"
-printf 'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/src/fix.go"
-OUT=$(run_hook "$REPO/src/fix.go")
-RC=$?
-if [[ $RC -eq 0 ]]; then ok "missing import (subdir) -> exit 0 (advisory)"; else fail "missing import exit $RC"; fi
-if grep -q 'import "fmt"' "$REPO/src/fix.go"; then
-  ok "missing import (subdir) -> auto-added"
-else
-  fail "missing import -> not added: $(cat "$REPO/src/fix.go")"
-fi
-if printf '%s' "$OUT" | jq -e '.systemMessage == "go-format: reformatted fix.go."' >/dev/null 2>&1; then
-  ok "missing import -> user-channel mutation disclosure"
-else
-  fail "missing import -> missing systemMessage disclosure: $OUT"
-fi
-
-# --- Case 4: unused import -> auto-removed -----------------------------------
-printf 'package main\n\nimport (\n\t"fmt"\n\t"os"\n)\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/unused.go"
-run_hook "$REPO/unused.go" >/dev/null
-if ! grep -q '"os"' "$REPO/unused.go"; then
-  ok "unused import -> auto-removed"
-else
-  fail "unused import -> still present: $(cat "$REPO/unused.go")"
-fi
-
-# --- Case 4b: -local grouping auto-derived from the file's own go.mod -------
-# Without -local, goimports lumps local (in-module) imports into the same
-# group as third-party imports. The hook should derive -local from the
-# edited file's own module path (`go list -m`) so a repo's own internal
-# packages get their own group, matching goimports' documented -local
-# behavior — requires a real `go` binary on PATH (skip this case if absent,
-# same posture as the goimports-binary requirement for the whole suite).
-if command -v go >/dev/null 2>&1; then
-  REPO_LOCAL="$WORK/local-grouping"
-  new_go_repo "$REPO_LOCAL"
-  printf 'module example.com/localtest\n\ngo 1.23\n' >"$REPO_LOCAL/go.mod"
-  mkdir -p "$REPO_LOCAL/internal/pkg"
-  printf 'package pkg\n\nfunc Hello() string { return "hi" }\n' >"$REPO_LOCAL/internal/pkg/pkg.go"
-  # A third-party-shaped (unresolved, never fetched) import is required to
-  # observe -local's effect: with only stdlib + local imports present,
-  # goimports' output is IDENTICAL with or without -local (empirically
-  # confirmed) — -local's job is separating LOCAL from THIRD-PARTY, and
-  # goimports can reorder an already-present import without resolving it.
-  printf 'package main\n\nimport (\n\t"example.com/localtest/internal/pkg"\n\t"fmt"\n\t"github.com/pkg/errors"\n)\n\nfunc main() {\n\tfmt.Println(pkg.Hello())\n\t_ = errors.New("x")\n}\n' >"$REPO_LOCAL/main.go"
-  run_hook "$REPO_LOCAL/main.go" >/dev/null
-  # With -local applied, the local import gets its own trailing group,
-  # separated from the third-party group by a blank line (goimports'
-  # un-grouped default would instead lump local + third-party into one
-  # sorted block after stdlib).
-  if grep -qF $'"github.com/pkg/errors"\n\n\t"example.com/localtest/internal/pkg"' "$REPO_LOCAL/main.go"; then
-    ok "-local auto-derived from go.mod -> local import grouped separately from third-party"
-  else
-    fail "-local grouping not applied: $(cat "$REPO_LOCAL/main.go")"
-  fi
-else
-  echo "SKIP: no go binary on PATH -- -local grouping case (4b) skipped"
-fi
-
-# --- Case 5: generated-file marker -> skipped, left untouched ---------------
-printf '// Code generated by protoc-gen-go. DO NOT EDIT.\npackage main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/generated.go"
-BEFORE_GEN="$(cat "$REPO/generated.go")"
-OUT=$(run_hook "$REPO/generated.go")
-RC=$?
-if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "generated-marker file -> exit 0, silent"; else fail "generated-marker not silent (rc=$RC out=$OUT)"; fi
-if [[ "$(cat "$REPO/generated.go")" == "$BEFORE_GEN" ]]; then
-  ok "generated-marker file -> left untouched (import NOT added despite being missing)"
-else
-  fail "generated-marker file -> was rewritten: $(cat "$REPO/generated.go")"
-fi
-
-# --- Case 5b: marker preceded by a license-header comment block -------------
-# Common real-world shape (addlicense/goheader-style tooling prepends a
-# copyright header before the generated-code marker) — the marker is NOT on
-# the file's first non-blank line. The guard must still catch it.
-printf '// Copyright 2026 Example Corp. All rights reserved.\n// Use of this source code is governed by a BSD-style\n// license that can be found in the LICENSE file.\n\n// Code generated by "stringer -type Op"; DO NOT EDIT.\npackage main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/generated-header.go"
-BEFORE_GH="$(cat "$REPO/generated-header.go")"
-run_hook "$REPO/generated-header.go" >/dev/null
-if [[ "$(cat "$REPO/generated-header.go")" == "$BEFORE_GH" ]]; then
-  ok "generated-marker behind a license-header block -> still caught, left untouched"
-else
-  fail "generated-marker behind a license-header block -> was rewritten: $(cat "$REPO/generated-header.go")"
-fi
-
-# --- Case 5c: marker line has a trailing CRLF \r -----------------------------
-printf '// Code generated by protoc-gen-go. DO NOT EDIT.\r\npackage main\r\n\r\nfunc main() {\r\n\tfmt.Println("hi")\r\n}\r\n' >"$REPO/generated-crlf.go"
-BEFORE_CRLF="$(cat "$REPO/generated-crlf.go")"
-run_hook "$REPO/generated-crlf.go" >/dev/null
-if [[ "$(cat "$REPO/generated-crlf.go")" == "$BEFORE_CRLF" ]]; then
-  ok "generated-marker with CRLF line endings -> still caught, left untouched"
-else
-  fail "generated-marker with CRLF line endings -> was rewritten"
-fi
-
-# --- Case 5d: UTF-8 BOM before the marker on the first line -----------------
-printf '\xEF\xBB\xBF// Code generated by protoc-gen-go. DO NOT EDIT.\npackage main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/generated-bom.go"
-BEFORE_BOM="$(cat "$REPO/generated-bom.go")"
-run_hook "$REPO/generated-bom.go" >/dev/null
-if [[ "$(cat "$REPO/generated-bom.go")" == "$BEFORE_BOM" ]]; then
-  ok "generated-marker with a leading UTF-8 BOM -> still caught, left untouched"
-else
-  fail "generated-marker with a leading UTF-8 BOM -> was rewritten"
-fi
-
-# --- Case 5e: marker AFTER the leading comment/blank block -> NOT generated -
-# The marker must appear before the first non-comment, non-blank line to
-# count — a file that merely mentions the marker text after `package main`
-# has already started is real (or at least not-provably-generated) code and
-# must still be formatted normally.
-printf 'package main\n\n// Code generated by protoc-gen-go. DO NOT EDIT.\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/not-generated.go"
-run_hook "$REPO/not-generated.go" >/dev/null
-if grep -q 'import "fmt"' "$REPO/not-generated.go"; then
-  ok "marker after leading block -> not treated as generated, import still added"
-else
-  fail "marker after leading block -> wrongly treated as generated: $(cat "$REPO/not-generated.go")"
-fi
-
-# --- Case 5f: marker preceded by a /* */ block-comment license header -------
-# Go's own convention ("go help generate": the marker "must appear before
-# the first non-comment, non-blank text in the file") does not restrict
-# "comment" to `//` style — a block-comment license header must not defeat
-# the guard either.
-printf '/*\nCopyright 2026 Example Corp. All rights reserved.\n*/\n\n// Code generated by protoc-gen-go. DO NOT EDIT.\npackage main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/generated-block-header.go"
-BEFORE_BLOCK="$(cat "$REPO/generated-block-header.go")"
-run_hook "$REPO/generated-block-header.go" >/dev/null
-if [[ "$(cat "$REPO/generated-block-header.go")" == "$BEFORE_BLOCK" ]]; then
-  ok "generated-marker behind a /* */ block-comment header -> still caught, left untouched"
-else
-  fail "generated-marker behind a /* */ block-comment header -> was rewritten: $(cat "$REPO/generated-block-header.go")"
-fi
-
-# --- Case 5g: INDENTED /* */ block-comment header before the marker ---------
-# go/ast.IsGenerated classifies a file as generated regardless of
-# block-comment indentation; comment-shape classification must tolerate
-# leading whitespace even though the marker regex itself stays
-# column-0-anchored (matching Go's own convention exactly).
-printf '  /*\n  Copyright 2026 Example Corp. All rights reserved.\n  */\n\n// Code generated by protoc-gen-go. DO NOT EDIT.\npackage main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/generated-indented-block-header.go"
-BEFORE_INDENT_BLOCK="$(cat "$REPO/generated-indented-block-header.go")"
-run_hook "$REPO/generated-indented-block-header.go" >/dev/null
-if [[ "$(cat "$REPO/generated-indented-block-header.go")" == "$BEFORE_INDENT_BLOCK" ]]; then
-  ok "generated-marker behind an INDENTED /* */ block-comment header -> still caught, left untouched"
-else
-  fail "generated-marker behind an indented /* */ block-comment header -> was rewritten: $(cat "$REPO/generated-indented-block-header.go")"
-fi
-
-# --- Case 5h: TAB-only separator line before the marker ---------------------
-# The blank-line check must treat any horizontal whitespace as blank, not
-# just literal spaces — a tab-only line between a block-comment header and
-# the marker must not be misread as non-comment content.
-printf '/*\nCopyright.\n*/\n\t\n// Code generated by protoc-gen-go. DO NOT EDIT.\npackage main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/generated-tab-blank.go"
-BEFORE_TAB_BLANK="$(cat "$REPO/generated-tab-blank.go")"
-run_hook "$REPO/generated-tab-blank.go" >/dev/null
-if [[ "$(cat "$REPO/generated-tab-blank.go")" == "$BEFORE_TAB_BLANK" ]]; then
-  ok "generated-marker with a TAB-only separator line -> still caught, left untouched"
-else
-  fail "generated-marker with a tab-only separator line -> was rewritten: $(cat "$REPO/generated-tab-blank.go")"
-fi
-
-# --- Case 6: non-.go extension -> hook does not fire -------------------------
-printf 'this is not go' >"$REPO/notes.txt"
-BEFORE_TXT="$(cat "$REPO/notes.txt")"
-OUT=$(run_hook "$REPO/notes.txt")
-RC=$?
-if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "non-.go file -> exit 0, silent"; else fail "non-.go file not silent (rc=$RC out=$OUT)"; fi
-if [[ "$(cat "$REPO/notes.txt")" == "$BEFORE_TXT" ]]; then ok "non-.go file -> untouched"; else fail "non-.go file -> was modified"; fi
-
-# --- Case 7: syntax error -> surfaced as advisory finding, not a tool break --
-printf 'package main\n\nfunc main() {\n\tfmt.Println("hi"\n}\n' >"$REPO/syntax.go"
-OUT=$(run_hook "$REPO/syntax.go")
-RC=$?
-if [[ $RC -eq 0 ]]; then ok "syntax error -> exit 0 (advisory)"; else fail "syntax error exit $RC (must be advisory)"; fi
-if printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null 2>&1; then
-  CTX=$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext')
-  if printf '%s' "$CTX" | grep -qi 'syntax error'; then
-    ok "syntax error -> surfaced in additionalContext as a finding"
-  else
-    fail "syntax error ctx wrong shape: $CTX"
-  fi
-  # The heading names the file; the lines carry no absolute path.
-  if [[ "$CTX" == "go-format: syntax.go has a syntax error:"$'\n'"  "[0-9]* && "$CTX" != *"$REPO"* ]]; then
-    ok "syntax error -> lines drop goimports' absolute path prefix"
-  else
-    fail "syntax error -> report shape: $CTX"
-  fi
-else
-  fail "syntax error -> no additionalContext JSON: $OUT"
-fi
-
-# --- Case 7a: an unchanged syntax error is sent once --------------------------
-# With a data directory the error is sent on the first edit and not on the next;
-# telemetry still records it. A SessionStart compact resets the record, and a
-# clean run clears it, so the error is sent again when it returns.
-DELTA_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
-run_delta() {
-  run_hook_env "$1" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true PATH="$GOIMPORTS_PATH" CLAUDE_PLUGIN_DATA="$DELTA_DATA" "${@:2}"
-}
-delta_ctx() { jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$1" 2>/dev/null; }
-D1=$(run_delta "$REPO/syntax.go")
-TELD="$(mktemp "$WORK/teld.XXXXXX")"
-SINKD="$(make_sink "cat >\"$TELD\"")"
-D2=$(run_delta "$REPO/syntax.go" HOOK_TELEMETRY_SINK="$SINKD")
-wait_for_sink "$TELD"
-if [[ "$(delta_ctx "$D1")" == *'syntax error'* && -z "$D2" ]]; then
-  ok "delta: an unchanged syntax error is sent once, then nothing"
-else
-  fail "delta: first='$D1' second='$D2'"
-fi
-if [[ -s "$TELD" ]] && jq -e '.data.findings | length > 0' "$TELD" >/dev/null 2>&1; then
-  ok "delta: telemetry still records the finding the context left out"
-else
-  fail "delta: telemetry findings: $(cat "$TELD" 2>/dev/null)"
-fi
-printf '{"source":"clear"}' | env CLAUDE_PLUGIN_DATA="$DELTA_DATA" bash "$HOOK" --reset-digests
-D3=$(run_delta "$REPO/syntax.go")
-if [[ "$(delta_ctx "$D3")" == *'syntax error'* ]]; then
-  ok "delta: SessionStart clear resets the record, so the error is sent again"
-else
-  fail "delta: after clear reset: '$D3'"
-fi
-SYNTAX_SRC="$(cat "$REPO/syntax.go")"
-printf 'package main\n\nfunc main() {}\n' >"$REPO/syntax.go"
-run_delta "$REPO/syntax.go" >/dev/null
-printf '%s\n' "$SYNTAX_SRC" >"$REPO/syntax.go"
-D4=$(run_delta "$REPO/syntax.go")
-if [[ "$(delta_ctx "$D4")" == *'syntax error'* ]]; then
-  ok "delta: an error that returns after a clean run is sent again"
-else
-  fail "delta: after clean run: '$D4'"
-fi
-
-# --- Case 7b: snapshot hygiene (#3405) ---------------------------------------
-# The disclosure snapshot must be released on EVERY arm. Each run gets its own
-# empty TMPDIR; mktemp honors it, so a leftover file IS the leaked snapshot.
-# Non-vacuity: the rewrite run proves snapshots land in this TMPDIR (the
-# disclosure fires only when a snapshot exists to compare against).
-SNAP_TMP="$WORK/snap-tmp"
-
-mkdir -p "$SNAP_TMP"
-printf 'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/snap-clean.go"
-OUT=$(run_hook_env "$REPO/snap-clean.go" TMPDIR="$SNAP_TMP" PATH="$GOIMPORTS_PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true)
-if printf '%s' "$OUT" | jq -e '.systemMessage' >/dev/null 2>&1; then
-  ok "snapshot: rewrite run under isolated TMPDIR discloses (snapshots live here)"
-else
-  fail "snapshot: rewrite run did not disclose under isolated TMPDIR: $OUT"
-fi
-LEFT=$(find "$SNAP_TMP" -type f 2>/dev/null | wc -l | tr -d '[:space:]')
-if [[ "$LEFT" == "0" ]]; then ok "snapshot: clean arm leaves no temp file"; else fail "snapshot: clean arm left $LEFT temp file(s)"; fi
-
-rm -rf "$SNAP_TMP" && mkdir -p "$SNAP_TMP"
-printf 'package main\n\nfunc main() {\n\tfmt.Println("hi"\n}\n' >"$REPO/snap-syntax.go"
-OUT=$(run_hook_env "$REPO/snap-syntax.go" TMPDIR="$SNAP_TMP" PATH="$GOIMPORTS_PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true)
-LEFT=$(find "$SNAP_TMP" -type f 2>/dev/null | wc -l | tr -d '[:space:]')
-if [[ "$LEFT" == "0" ]]; then ok "snapshot: syntax-error arm leaves no temp file (#3405)"; else fail "snapshot: syntax-error arm left $LEFT temp file(s) (#3405)"; fi
-DOCS=$(printf '%s' "$OUT" | jq -s 'length' 2>/dev/null)
-if [[ "$DOCS" == "1" ]]; then ok "syntax-error arm emits exactly one JSON document"; else fail "syntax-error arm emitted $DOCS documents: $OUT"; fi
-
-# --- Case 7c: tool-break arm releases the snapshot (#3405) -------------------
-# A goimports stub that dies with an unexpected exit code drives the
-# catch-all arm; the snapshot must still be released and the diagnostic must
-# be one JSON document.
-BREAK_BIN="$WORK/break-bin"
-mkdir -p "$BREAK_BIN"
-printf '#!/usr/bin/env bash\necho "internal panic" >&2\nexit 3\n' >"$BREAK_BIN/goimports"
-chmod +x "$BREAK_BIN/goimports"
-rm -rf "$SNAP_TMP" && mkdir -p "$SNAP_TMP"
-printf 'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/snap-break.go"
-OUT=$(run_hook_env "$REPO/snap-break.go" TMPDIR="$SNAP_TMP" PATH="$BREAK_BIN:$PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true)
-RC=$?
-if [[ $RC -eq 0 ]]; then ok "tool break -> exit 0 (advisory)"; else fail "tool break exit $RC"; fi
-LEFT=$(find "$SNAP_TMP" -type f 2>/dev/null | wc -l | tr -d '[:space:]')
-if [[ "$LEFT" == "0" ]]; then ok "snapshot: tool-break arm leaves no temp file (#3405)"; else fail "snapshot: tool-break arm left $LEFT temp file(s) (#3405)"; fi
-DOCS=$(printf '%s' "$OUT" | jq -s 'length' 2>/dev/null)
-if [[ "$DOCS" == "1" ]]; then ok "tool-break arm emits exactly one JSON document"; else fail "tool-break arm emitted $DOCS documents: $OUT"; fi
-
-# --- Case 8: kill switch bypasses hook ---------------------------------------
-printf 'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/kill.go"
-BEFORE_K="$(cat "$REPO/kill.go")"
-OUT=$(run_hook_env "$REPO/kill.go" PATH="$GOIMPORTS_PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=false)
-RC=$?
-if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch off -> exit 0 silent"; else fail "kill switch failed (rc=$RC out=$OUT)"; fi
-if [[ "$(cat "$REPO/kill.go")" == "$BEFORE_K" ]]; then ok "kill switch -> file untouched"; else fail "kill switch -> file was modified"; fi
-
-# ============================================================================
-# Telemetry
-# ============================================================================
-
-# --- Sink unset -> empty stdout, exit 0 (parity) ------------------------------
-printf 'package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/tel-clean.go"
-OUT_NS=$(run_hook_env "$REPO/tel-clean.go" -u HOOK_TELEMETRY_SINK PATH="$GOIMPORTS_PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true)
-RC_NS=$?
-if [[ $RC_NS -eq 0 && -z "$OUT_NS" ]]; then
-  ok "telemetry/sink-unset: exit 0, empty stdout (parity)"
-else
-  fail "telemetry/sink-unset: rc=$RC_NS out=$OUT_NS"
-fi
-
-# --- Stub sink + syntax-error finding -> envelope status ok with findings ---
-printf 'package main\n\nfunc main() {\n\tfmt.Println("hi"\n}\n' >"$REPO/tel.go"
-TEL="$(mktemp)"
-SINK="$(make_sink "cat >\"$TEL\"")"
-# Capture THIS run's stdout (#3367). Discarding it and grepping a `$OUT` last
-# assigned by an earlier case made the stdout-leak assertion below vacuous: it
-# checked output the telemetry run never produced, so it would have kept
-# passing had the hook started printing the envelope.
-TEL_OUT=$(run_hook_env "$REPO/tel.go" PATH="$GOIMPORTS_PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK")
-wait_for_sink "$TEL"
-if [[ -s "$TEL" ]]; then
-  ok "telemetry/stub-sink: envelope received"
-  if check_envelope "$TEL"; then ok "envelope: matches envelope schema"; else fail "envelope: does not match envelope schema. envelope=$(cat "$TEL")"; fi
-  if [[ "$(jq -r '.hook' "$TEL")" == "go-format" ]]; then ok "envelope: hook is go-format"; else fail "envelope: hook=$(jq -r '.hook' "$TEL")"; fi
-  if [[ "$(jq -r '.status' "$TEL")" == "ok" ]]; then ok "envelope: status ok"; else fail "envelope: status=$(jq -r '.status' "$TEL")"; fi
-  if [[ "$(jq -r '.schema_version' "$TEL")" == "1.1" ]]; then ok "envelope: schema_version 1.1"; else fail "envelope: schema_version=$(jq -r '.schema_version' "$TEL")"; fi
-  if [[ "$(jq '.data.findings | length' "$TEL")" -ge 1 ]]; then ok "envelope: findings populated"; else fail "envelope: findings empty ($(jq '.data.findings' "$TEL"))"; fi
-  if jq -e '.data.findings[0] | type == "string"' "$TEL" >/dev/null 2>&1; then ok "envelope: findings are flat strings"; else fail "envelope: findings[0] wrong type ($(jq '.data.findings[0]' "$TEL"))"; fi
-  # goimports could not parse the file, so it wrote nothing back.
-  if [[ "$(jq -r '.data.changed' "$TEL")" == "false" ]]; then ok "envelope: data.changed false (syntax error, nothing rewritten)"; else fail "envelope: data.changed=$(jq -c '.data.changed' "$TEL")"; fi
-  FREL=$(jq -r '.data.file' "$TEL")
-  if [[ -n "$FREL" && "$FREL" != /* && "$FREL" != ?:* ]]; then ok "envelope: data.file repo-relative ($FREL)"; else fail "envelope: data.file not repo-relative: $FREL"; fi
-  if jq -e '.duration_ms | type == "number" and . >= 0 and floor == .' "$TEL" >/dev/null 2>&1; then ok "envelope: duration_ms non-negative int"; else fail "envelope: duration_ms invalid ($(jq .duration_ms "$TEL"))"; fi
-  # Staleness guard: the fixture is a syntax-error file, so THIS run must have
-  # put its advisory additionalContext JSON on stdout. An empty capture means
-  # the assertion below is grepping nothing and proves nothing.
-  if [[ -n "$TEL_OUT" ]]; then
-    ok "envelope: telemetry run's own stdout captured (leak assertion has something to check)"
-  else
-    fail "envelope: telemetry run produced no stdout — leak assertion would be vacuous"
-  fi
-  if ! printf '%s' "$TEL_OUT" | grep -q schema_version 2>/dev/null; then ok "envelope: never leaked into hook's own stdout"; else fail "envelope leaked into stdout: $TEL_OUT"; fi
-else
-  fail "telemetry/stub-sink: no envelope written"
-fi
-rm -f "$TEL"
-
-# --- Stub sink + layout rewrite -> data.changed true (#3755) ------------------
-printf 'package main\n\nimport "fmt"\n\nfunc main() {fmt.Println("tel")}\n' >"$REPO/tel-fmt.go"
-TELF="$(mktemp)"
-SINKF="$(make_sink "cat >\"$TELF\"")"
-OUT_F=$(run_hook_env "$REPO/tel-fmt.go" PATH="$GOIMPORTS_PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKF")
-wait_for_sink "$TELF"
-if [[ -s "$TELF" ]]; then
-  if [[ "$(jq -r '.status' "$TELF")" == "ok" ]]; then ok "telemetry/rewrite: status ok"; else fail "telemetry/rewrite: status=$(jq -r '.status' "$TELF")"; fi
-  if [[ "$(jq -r '.data.changed' "$TELF")" == "true" ]]; then ok "telemetry/rewrite: data.changed true after goimports reformatted the file"; else fail "telemetry/rewrite: data.changed=$(jq -c '.data.changed' "$TELF")"; fi
-  if [[ "$OUT_F" == *'"systemMessage"'* ]]; then ok "telemetry/rewrite: the disclosure still reaches stdout"; else fail "telemetry/rewrite: disclosure missing from stdout: $OUT_F"; fi
-else
-  fail "telemetry/rewrite: no envelope written"
-fi
-rm -f "$TELF"
-
-# --- Stub sink + kill switch -> status skipped -------------------------------
-printf 'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/tel2.go"
-TELS="$(mktemp)"
-SINKS="$(make_sink "cat >\"$TELS\"")"
-run_hook_env "$REPO/tel2.go" PATH="$GOIMPORTS_PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=false HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
-if [[ -s "$TELS" ]]; then
-  fail "telemetry/kill-switch: envelope written despite kill switch (should exit before telemetry)"
-else
-  ok "telemetry/kill-switch: no envelope written (hook exits before telemetry setup)"
-fi
-rm -f "$TELS"
-
-# --- Missing-tool visibility (dim-9 doctrine) --------------------------------
-# Fake-bin dir of exec wrappers (no goimports): a *.go edit must produce a
-# visible once-per-session skip notice on both channels, silent on the
-# second run. jq removal then exercises the input-parsing gate.
-FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
-for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink rm; do
-  real_t="$(command -v "$t" 2>/dev/null)" || continue
-  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
-  chmod +x "$FAKEBIN/$t"
-done
-REPO_NG="$WORK/no-goimports"
-mkdir -p "$REPO_NG"
-git -C "$REPO_NG" init -q
-printf 'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO_NG/app.go"
-NG_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
-run_ng() {
-  (
-    cd "$UNRELATED" || return 1
-    printf '{"session_id":"test-nogoimports-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_NG/app.go" |
-      env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$NG_DATA" \
-        CLAUDE_PLUGIN_ROOT="${HOOK_DIR%/*}" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true bash "$HOOK"
-  )
-}
-OUT_NG=$(run_ng)
-RC_NG=$?
-if [[ $RC_NG -eq 0 ]]; then ok "goimports-absent -> exit 0"; else fail "goimports-absent exit $RC_NG"; fi
-# The manifest's degrade and check reach the model; the install route reaches
-# the user only.
-if jq -e '(.hookSpecificOutput.additionalContext | startswith("go-format: goimports not on the hook PATH. Without goimports,") and contains("/go-format:check") and (contains("go install") | not))
-    and (.systemMessage | contains("go install golang.org/x/tools/cmd/goimports"))' <<<"$OUT_NG" >/dev/null 2>&1; then
-  ok "goimports-absent -> manifest notice, install route on the user channel only"
-else
-  fail "goimports-absent: notice missing or malformed: $OUT_NG"
-fi
-OUT_NG2=$(run_ng)
-if [[ -z "$OUT_NG2" ]]; then
-  ok "goimports-absent -> second run same session is silent (once-per-session)"
-else
-  fail "goimports-absent second run not silent: $OUT_NG2"
-fi
-
-# jq-absent -> visible once per session and agent notice (input parsing gate).
-rm -f "$FAKEBIN/jq"
-JQ_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
-OUT_NOJQ=$(
-  cd "$UNRELATED" || exit 1
-  printf '{"session_id":"test-nojq-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_NG/app.go" |
-    env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$JQ_DATA" \
-      CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true bash "$HOOK"
-)
-RC_NOJQ=$?
-if [[ $RC_NOJQ -eq 0 && "$OUT_NOJQ" == *'"systemMessage"'* && "$OUT_NOJQ" == *jq* ]]; then
-  ok "jq-absent -> exit 0 with visible notice"
-else
-  fail "jq-absent (rc=$RC_NOJQ out=$OUT_NOJQ)"
-fi
-
-# --- hooks.json: the if rows equal the script's own extension set (#3411) ----
-# The if rows are what keep a Write or Edit of any other file from spawning
-# this hook: Claude Code evaluates a handler's `if` at match time and drops the
-# handler without a spawn (hooks reference, `if`, re-fetched 2026-09-07; the
-# installed CLI logs "Skipping hook due to if condition ... not matching"), and
-# an Edit(...) rule is the one consulted for Write and NotebookEdit as well.
-# The script's own filter stays as defense in depth, so the two sets must be
-# IDENTICAL: an if row the script does not handle spawns a process that exits
-# at the filter, and an extension the script handles with no if row is a silent
-# regression, since the hook then never runs for it.
-#
-# The script's set is the glob list it hands hook::begin, lifted from that call
-# with continuation lines joined the way bash joins them. One declaration
-# serves both of the script's gates — the jq-free pre-filter and the re-check
-# on the parsed path — so the two cannot disagree with each other and this
-# pairing with the manifest is the only one left to check. An extraction that
-# finds no call fails loudly below rather than passing on no evidence.
-#
-# On the manifest side every handler under every event and matcher group is
-# read. Two things are pinned separately, since they answer different
-# questions. The `if` rows, which paths a handler applies to: the values
-# across every handler must be exactly the derived set, one row each, so a
-# handler with no if, an if outside the set, a `Write(...)` rule, a duplicate
-# row or an unfiltered group under any event fails. The group, which tools
-# invoke the handler at all: every group must be PostToolUse with a matcher
-# whose alternation is exactly Write and Edit in either order, the two tools
-# whose payload carries a file this script formats (the rule validator folds
-# Write and NotebookEdit into an Edit(...) rule, but the matcher is the tool
-# name regex the harness consults first, and a matcher narrowed to one tool
-# is the hook silently never running for the other, which no if row can show).
-# The command must be the plugin's own script by either quoting placement,
-# with no prefix, suffix or argument. What this does not reach is a
-# registration outside hooks/hooks.json.
-HOOKS_JSON="$HOOK_DIR/hooks.json"
-BEGIN_LINE="$(awk '
-  /^hook::begin[[:space:]]/ {
-    line = $0
-    while (line ~ /\\$/) {
-      sub(/[[:space:]]*\\$/, "", line)
-      if ((getline nxt) <= 0) break
-      sub(/^[[:space:]]+/, "", nxt)
-      line = line " " nxt
-    }
-    print line
-    exit
-  }' "$HOOK")"
-SCRIPT_EXTS="$(printf '%s\n' "$BEGIN_LINE" |
-  sed -n 's/^.*[[:space:]]PostToolUse[[:space:]][[:space:]]*//p' |
-  tr -d "'\"" | tr ' ' '\n' | grep . | LC_ALL=C sort -u)"
-EXPECTED_IF="$(printf '%s\n' "$SCRIPT_EXTS" | sed 's/.*/Edit(&)/' | tr '\n' ' ')"
-EXPECTED_IF="${EXPECTED_IF% }"
-EXPECTED_COUNT="$(printf '%s\n' "$SCRIPT_EXTS" | grep -c .)"
-if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "$EXPECTED_COUNT" -gt 0 ]]; then
-  # The node-notice SessionStart row is filtered out here and pinned fleet-wide by
-  # scripts/node-notice-rows.test.sh.
-  # The one row outside this gate is the SessionStart prerequisite probe, exec
-  # form, which is asserted on its own here.
-  ALL_HANDLERS="$(jq -c '[.hooks | to_entries[] | .key as $ev | .value[]? | .matcher as $m | .hooks[]? | select((.command // "") | contains("node-notice") | not) | . + {event: $ev, matcher: ($m // "(none)")}]' "$HOOKS_JSON")"
-  PROBE_COUNT="$(jq -c --arg checker '${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs' --arg root '${CLAUDE_PLUGIN_ROOT}' '[.[] | select(.event == "SessionStart" and .command == "node" and .args == [$checker, "probe", $root, "--run-if-unset-or-true", "GO_FORMAT_ENABLED"])] | length' <<<"$ALL_HANDLERS")"
-  HANDLERS="$(jq -c --arg checker '${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs' --arg root '${CLAUDE_PLUGIN_ROOT}' '[.[] | select((.event == "SessionStart" and .command == "node" and .args == [$checker, "probe", $root, "--run-if-unset-or-true", "GO_FORMAT_ENABLED"]) | not)]' <<<"$ALL_HANDLERS")"
-  if [[ "$PROBE_COUNT" == "1" ]]; then
-    ok "hooks.json: one exec-form SessionStart row runs the prerequisites checker's probe behind the go_format_enabled gate"
-  else
-    fail "hooks.json: expected one exec-form SessionStart prerequisites probe row gated on GO_FORMAT_ENABLED, found $PROBE_COUNT"
-  fi
-  # The SessionStart compact|clear row that resets the findings delta gate.
+# --- hooks.json: one PostToolBatch row, an opt-in Stop row, no PostToolUse ----
+# The batch row takes no matcher and no `if`: the hooks reference says neither
+# applies to the event, so its launcher flag is the only filter. The script reads
+# the paths itself.
+if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
   # shellcheck disable=SC2016 # the CLAUDE_PLUGIN_ROOT placeholders are literal manifest text
-  RESET_SEL='.event == "SessionStart" and .matcher == "compact|clear" and .command == "node" and .args == ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/go-format.sh", "--reset-digests"]'
-  if [[ "$(jq "[.[] | select($RESET_SEL)] | length" <<<"$HANDLERS")" == "1" ]]; then
-    ok "hooks.json: one SessionStart compact|clear row runs the script with --reset-digests"
-  else
-    fail "hooks.json: expected one SessionStart compact|clear --reset-digests row"
-  fi
-  HANDLERS="$(jq -c "[.[] | select(($RESET_SEL) | not)]" <<<"$HANDLERS")"
-  HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
-  HANDLER_GROUPS="$(jq -r '[.[] | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
-  GROUPS_OFF="$(jq -r '[.[] | select(.event != "PostToolUse" or ((.matcher | split("|") | sort | unique) != ["Edit", "Write"])) | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
-  IF_VALUES="$(jq -r '[.[] | (.if // "(none)")] | sort | join(" ")' <<<"$HANDLERS")"
-  WRITE_IF="$(jq '[.[] | select(has("if") and (.if | startswith("Write(")))] | length' <<<"$HANDLERS")"
-  CMD_OFF="$(jq -r --arg script '${CLAUDE_PLUGIN_ROOT}/hooks/go-format.sh' '
-    [.[] | select(
-      ((.command == "node") and ((.args // []) | index($script)))
-      | not) | (.command // "(none)")] | unique | join(",")' <<<"$HANDLERS")"
-  if [[ "$HANDLER_COUNT" == "$EXPECTED_COUNT" && "$IF_VALUES" == "$EXPECTED_IF" && "$WRITE_IF" == "0" && -z "$GROUPS_OFF" && -z "$CMD_OFF" ]]; then
-    ok "hooks.json: every handler ($HANDLER_GROUPS) is a PostToolUse Write and Edit group running the plugin's script, and the if rows are exactly $EXPECTED_IF, the script's own hook::begin glob list"
-  else
-    fail "hooks.json launch gate: handlers=$HANDLER_COUNT/$EXPECTED_COUNT groups=$HANDLER_GROUPS groups_off='$GROUPS_OFF' if='$IF_VALUES' expected='$EXPECTED_IF' write_if=$WRITE_IF cmd_off='$CMD_OFF'"
-  fi
+  EXPECTED_ROW='["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--run-if-unset-or-true","GO_FORMAT_ENABLED","--skip-unless-stdin-contains",".go","${CLAUDE_PLUGIN_ROOT}/hooks/go-format.sh"]'
+  expect "hooks.json: no PostToolUse row" "0" "$(jq '[.hooks.PostToolUse // [] | .[]] | length' "$HOOKS_JSON")"
+  expect "hooks.json: one PostToolBatch group with one handler" "1 1" "$(jq -r '.hooks.PostToolBatch | "\(length) \(.[0].hooks | length)"' "$HOOKS_JSON")"
+  expect "hooks.json: the batch handler has no matcher, no if, and runs the script behind the .go prefilter" \
+    "node true true $EXPECTED_ROW" \
+    "$(jq -r '.hooks.PostToolBatch[0] as $g | $g.hooks[0] | "\(.command) \($g | has("matcher") | not) \(has("if") | not) \(.args | tojson)"' "$HOOKS_JSON")"
+  # shellcheck disable=SC2016
+  EXPECTED_STOP='["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--run-if-unset-or-true","GO_FORMAT_ENABLED","--require-true","GO_FORMAT_END_OF_TURN","${CLAUDE_PLUGIN_ROOT}/hooks/go-format.sh","--end-of-turn"]'
+  expect "hooks.json: the Stop row is gated on the end-of-turn option" "$EXPECTED_STOP" "$(jq -c '.hooks.Stop[0].hooks[0].args' "$HOOKS_JSON")"
+  expect "hooks.json: the end-of-turn option is declared, default false" "boolean false" \
+    "$(jq -r '.userConfig.go_format_end_of_turn | "\(.type) \(.default)"' "$PLUGIN_ROOT/.claude-plugin/plugin.json")"
+  expect "hooks.json: SessionStart holds the probe and the node notice only" "2" "$(jq '[.hooks.SessionStart[] | .hooks[]] | length' "$HOOKS_JSON")"
 else
-  fail "hooks.json launch-gate assertions need jq, $HOOKS_JSON and a hook::begin glob list in the script (begin='$BEGIN_LINE' globs=(${SCRIPT_EXTS//$'\n'/ }))"
+  fail "hooks.json assertions need jq and $HOOKS_JSON"
 fi
 
-# --- SessionStart probe honors go_format_enabled ------------------------------
+# --- SessionStart probe honors go_format_enabled -------------------------------
 # With the option false the plugin is off, so the missing-goimports notice is
 # noise. The row's --run-if-unset-or-true gate makes the launcher exit 0 before
 # bash starts. The argv is read out of hooks.json, so the row and this test
 # cannot disagree. The unset and true cases guard against gating everything off.
 NODE_BIN="$(command -v node || true)"
 SYS_PATH="/usr/bin:/bin"
+WORK="$(mktemp -d)"
+UNRELATED="$(mktemp -d)"
+trap 'rm -rf "$WORK" "$UNRELATED"' EXIT
 if [[ -z "$NODE_BIN" ]] || ! command -v jq >/dev/null 2>&1; then
   echo "SKIP: node or jq not on PATH -- SessionStart probe gate cases skipped"
 elif PATH="$SYS_PATH" command -v goimports >/dev/null 2>&1; then
@@ -631,7 +81,7 @@ elif PATH="$SYS_PATH" command -v goimports >/dev/null 2>&1; then
 else
   PROBE_ARGS=()
   while IFS= read -r probe_arg; do
-    PROBE_ARGS+=("${probe_arg//\$\{CLAUDE_PLUGIN_ROOT\}/${HOOK_DIR%/*}}")
+    PROBE_ARGS+=("${probe_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
   done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON")
   # run_probe_row <data-dir> [NAME=value ...]: the row under a clean environment.
   run_probe_row() {
@@ -646,11 +96,7 @@ else
     PROBE_OUT="$(run_probe_row "$PROBE_DATA" ${probe_env[@]+"${probe_env[@]}"})"
     PROBE_RC=$?
     if [[ "$probe_case" == false ]]; then
-      if [[ $PROBE_RC -eq 0 && -z "$PROBE_OUT" ]]; then
-        ok "probe-gate/false: go_format_enabled=false exits 0 with no goimports notice"
-      else
-        fail "probe-gate/false: want rc 0 and empty stdout (rc=$PROBE_RC out=$PROBE_OUT)"
-      fi
+      expect "probe-gate/false: go_format_enabled=false exits 0 with no goimports notice" "0|" "$PROBE_RC|$PROBE_OUT"
     elif [[ $PROBE_RC -eq 0 && "$PROBE_OUT" == *"goimports not on the hook PATH"* ]]; then
       ok "probe-gate/$probe_case: go_format_enabled $probe_case still reports the missing goimports"
     else
@@ -659,29 +105,207 @@ else
   done
 fi
 
-# --- Gitignored path (#4671): not rewritten by default ------------------------
-# goimports would add the missing "fmt" import; under an ignored directory it
-# does not run, unless go_format_lint_gitignored is set.
+# Resolve a real goimports binary. Skip the rest of the suite when none is available.
+if [[ -n "${GOIMPORTS_TEST_BIN:-}" && -x "${GOIMPORTS_TEST_BIN}" ]]; then
+  REAL_GOIMPORTS="${GOIMPORTS_TEST_BIN}"
+elif command -v goimports >/dev/null 2>&1; then
+  REAL_GOIMPORTS="$(command -v goimports)"
+else
+  echo "SKIP: no goimports binary (set GOIMPORTS_TEST_BIN or put goimports on PATH) -- remaining go-format hook tests skipped"
+  echo "PASS=$PASS FAIL=$FAIL"
+  [[ $FAIL -eq 0 ]]
+  exit
+fi
+# The PATH every run that needs the real binary hands the hook.
+GOIMPORTS_PATH="$(dirname "$REAL_GOIMPORTS"):$PATH"
+
+# The row's args from hooks.json, with the plugin root substituted.
+mapfile -t ROW_ARGS < <(jq -r '.hooks.PostToolBatch[0].hooks[0].args[]' "$HOOKS_JSON" | sed "s#\${CLAUDE_PLUGIN_ROOT}#$PLUGIN_ROOT#g")
+
+new_go_repo() {
+  local r="$1"
+  mkdir -p "$r"
+  git -C "$r" init -q
+  git -C "$r" config user.email t@t.t
+  git -C "$r" config user.name t
+}
+
+# payload <tool> <file>...: a PostToolBatch payload with one call per file.
+payload() {
+  local tool="$1"
+  shift
+  jq -n --arg t "$tool" '{session_id: "s", hook_event_name: "PostToolBatch", tool_calls: [$ARGS.positional[] | {tool_name: $t, tool_input: {file_path: .}, tool_use_id: "toolu_x", tool_response: "ok"}]}' --args "$@"
+}
+
+# fire <payload> [env...]: the registered row, from an unrelated cwd. CLAUDE_PROJECT_DIR
+# stays unset so scoping falls to git-working-tree membership.
+fire() {
+  local p="$1"
+  shift
+  (
+    cd "$UNRELATED" || return 1
+    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true PATH="$GOIMPORTS_PATH" "$@" node "${ROW_ARGS[@]}" <<<"$p" 2>&1
+  )
+}
+
+# run_edit <file>: Edit one file in a batch; prints the row's whole output.
+run_edit() { fire "$(payload Edit "$1")"; }
+
+NEEDS_IMPORT=$'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}'
+WITH_IMPORT=$'package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("hi")\n}'
+
+REPO="$WORK/consumer"
+new_go_repo "$REPO"
+mkdir -p "$REPO/src"
+
+# --- No Go config anywhere: the file is still rewritten, and nothing prints ----
+printf '%s\n' "$NEEDS_IMPORT" >"$REPO/src/fix.go"
+OUT=$(run_edit "$REPO/src/fix.go")
+RC=$?
+expect "Edit of a subdirectory file: the missing import is added" "$WITH_IMPORT" "$(cat "$REPO/src/fix.go")"
+expect "a rewrite prints nothing to the model or the user, exit 0" "0|" "$RC|$OUT"
+
+printf '%s\n' "$WITH_IMPORT" >"$REPO/clean.go"
+OUT=$(run_edit "$REPO/clean.go")
+expect "a clean file: silent exit 0 and unchanged" "0||$WITH_IMPORT" "$?|$OUT|$(cat "$REPO/clean.go")"
+
+printf 'package main\n\nimport (\n\t"fmt"\n\t"os"\n)\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/unused.go"
+run_edit "$REPO/unused.go" >/dev/null
+unused_src="$(cat "$REPO/unused.go")"
+expect "an unused import is removed and the used one stays" "no yes" \
+  "$([[ "$unused_src" == *'"os"'* ]] && echo yes || echo no) $([[ "$unused_src" == *'"fmt"'* ]] && echo yes || echo no)"
+
+# A syntax error is left alone and nothing about it reaches the model.
+BROKEN=$'package main\n\nfunc main() {\n\tfmt.Println("hi"\n}'
+printf '%s\n' "$BROKEN" >"$REPO/syntax.go"
+OUT=$(run_edit "$REPO/syntax.go")
+expect "a file that does not parse: silent, exit 0, bytes unchanged" "0||$BROKEN" "$?|$OUT|$(cat "$REPO/syntax.go")"
+
+# -local: the module's own imports get their own group after third-party ones.
+if command -v go >/dev/null 2>&1; then
+  REPO_LOCAL="$WORK/local-grouping"
+  new_go_repo "$REPO_LOCAL"
+  printf 'module example.com/localtest\n\ngo 1.23\n' >"$REPO_LOCAL/go.mod"
+  mkdir -p "$REPO_LOCAL/internal/pkg"
+  printf 'package pkg\n\nfunc Hello() string { return "hi" }\n' >"$REPO_LOCAL/internal/pkg/pkg.go"
+  printf 'package main\n\nimport (\n\t"example.com/localtest/internal/pkg"\n\t"fmt"\n\t"github.com/pkg/errors"\n)\n\nfunc main() {\n\tfmt.Println(pkg.Hello())\n\t_ = errors.New("x")\n}\n' >"$REPO_LOCAL/main.go"
+  run_edit "$REPO_LOCAL/main.go" >/dev/null
+  grouped="$(cat "$REPO_LOCAL/main.go")"
+  expect "-local derived from go.mod: the module's own import is grouped after third-party ones" yes \
+    "$([[ "$grouped" == *$'"github.com/pkg/errors"\n\n\t"example.com/localtest/internal/pkg"'* ]] && echo yes)"
+else
+  echo "SKIP: no go binary on PATH -- -local grouping case skipped"
+fi
+
+# --- The batch -----------------------------------------------------------------
+# One call, several files, all rewritten; a Read, a non-Go file and a duplicate
+# are not.
+for f in b1 b2 b3; do printf '%s\n' "$NEEDS_IMPORT" >"$REPO/$f.go"; done
+printf 'q=1\n' >"$REPO/notes.txt"
+BATCH="$(jq -n --arg d "$REPO" '{session_id: "s", hook_event_name: "PostToolBatch", tool_calls: [
+  {tool_name: "Write", tool_input: {file_path: "\($d)/b1.go"}, tool_use_id: "1", tool_response: "ok"},
+  {tool_name: "Edit", tool_input: {file_path: "\($d)/b2.go"}, tool_use_id: "2", tool_response: "ok"},
+  {tool_name: "Edit", tool_input: {file_path: "\($d)/b1.go"}, tool_use_id: "3", tool_response: "ok"},
+  {tool_name: "Edit", tool_input: {file_path: "\($d)/notes.txt"}, tool_use_id: "4", tool_response: "ok"},
+  {tool_name: "Read", tool_input: {file_path: "\($d)/b3.go"}, tool_use_id: "5", tool_response: "1\tpackage main"},
+  {tool_name: "Bash", tool_input: {command: "ls b3.go"}, tool_use_id: "6", tool_response: "b3.go"}]}')"
+OUT=$(fire "$BATCH")
+expect "a mixed batch prints nothing" "0|" "$?|$OUT"
+expect "batch: a Write'd .go is rewritten" "$WITH_IMPORT" "$(cat "$REPO/b1.go")"
+expect "batch: an Edit'd .go is rewritten" "$WITH_IMPORT" "$(cat "$REPO/b2.go")"
+expect "batch: a Read'd .go is never rewritten" "$NEEDS_IMPORT" "$(cat "$REPO/b3.go")"
+expect "batch: a non-Go file is untouched" "q=1" "$(cat "$REPO/notes.txt")"
+
+# A file that does not parse does not stop its neighbors from being rewritten.
+printf '%s\n' "$BROKEN" >"$REPO/bad.go"
+printf '%s\n' "$NEEDS_IMPORT" >"$REPO/good.go"
+fire "$(payload Edit "$REPO/bad.go" "$REPO/good.go")" >/dev/null
+expect "a file that does not parse does not stop another file in the batch" "$WITH_IMPORT" "$(cat "$REPO/good.go")"
+
+printf '%s\n' "$NEEDS_IMPORT" >"$REPO/multi.go"
+fire "$(payload MultiEdit "$REPO/multi.go")" >/dev/null
+expect "a MultiEdit'd file is rewritten" "$WITH_IMPORT" "$(cat "$REPO/multi.go")"
+
+# --- Skips ----------------------------------------------------------------------
+# Go's generated-code marker, behind a license header, a block comment, a BOM, CRLF.
+GEN_BODY=$'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n'
+printf '// Code generated by protoc-gen-go. DO NOT EDIT.\n%s' "$GEN_BODY" >"$REPO/gen1.go"
+printf '// Copyright 2026 Example Corp.\n\n// Code generated by "stringer -type Op"; DO NOT EDIT.\n%s' "$GEN_BODY" >"$REPO/gen2.go"
+printf '/*\nCopyright.\n*/\n\n// Code generated by protoc-gen-go. DO NOT EDIT.\n%s' "$GEN_BODY" >"$REPO/gen3.go"
+printf '  /*\n  Copyright.\n  */\n\t\n// Code generated by protoc-gen-go. DO NOT EDIT.\n%s' "$GEN_BODY" >"$REPO/gen4.go"
+printf '// Code generated by protoc-gen-go. DO NOT EDIT.\r\npackage main\r\n\r\nfunc main() {\r\n\tfmt.Println("hi")\r\n}\r\n' >"$REPO/gen5.go"
+printf '\xEF\xBB\xBF// Code generated by protoc-gen-go. DO NOT EDIT.\n%s' "$GEN_BODY" >"$REPO/gen6.go"
+for g in gen1 gen2 gen3 gen4 gen5 gen6; do cp "$REPO/$g.go" "$WORK/$g.before"; done
+fire "$(payload Edit "$REPO/gen1.go" "$REPO/gen2.go" "$REPO/gen3.go" "$REPO/gen4.go" "$REPO/gen5.go" "$REPO/gen6.go")" >/dev/null
+for g in gen1 gen2 gen3 gen4 gen5 gen6; do
+  expect "generated marker ($g): the file keeps its bytes" "same" "$(cmp -s "$REPO/$g.go" "$WORK/$g.before" && echo same || echo changed)"
+done
+
+# The marker after the package clause is not a generated file.
+printf 'package main\n\n// Code generated by protoc-gen-go. DO NOT EDIT.\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/late.go"
+run_edit "$REPO/late.go" >/dev/null
+late_src="$(cat "$REPO/late.go")"
+expect "the marker after the leading block does not make a file generated" yes "$([[ "$late_src" == *'import "fmt"'* ]] && echo yes)"
+
+# .githooks/ holds installed copies of check scripts, never rewritten here.
+mkdir -p "$REPO/.githooks/go-format"
+printf '%s\n' "$NEEDS_IMPORT" >"$REPO/.githooks/go-format/copy.go"
+fire "$(payload Write "$REPO/.githooks/go-format/copy.go")" >/dev/null
+expect "a file under .githooks/ is skipped" "$NEEDS_IMPORT" "$(cat "$REPO/.githooks/go-format/copy.go")"
+
+# The kill switch.
+printf '%s\n' "$NEEDS_IMPORT" >"$REPO/kill.go"
+OUT=$(fire "$(payload Edit "$REPO/kill.go")" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=false)
+expect "kill switch off: silent and the file untouched" "0|$NEEDS_IMPORT" "$?|$OUT$(cat "$REPO/kill.go")"
+
+# goimports absent: the file is skipped silently; the SessionStart probe reports the gap.
+REPO_NG="$WORK/no-goimports"
+new_go_repo "$REPO_NG"
+printf '%s\n' "$NEEDS_IMPORT" >"$REPO_NG/app.go"
+FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
+for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink rm node; do
+  real_t="$(command -v "$t" 2>/dev/null)" || continue
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
+  chmod +x "$FAKEBIN/$t"
+done
+OUT=$(fire "$(payload Edit "$REPO_NG/app.go")" PATH="$FAKEBIN")
+expect "goimports absent: silent exit 0 and the file untouched" "0|$NEEDS_IMPORT" "$?|$OUT$(cat "$REPO_NG/app.go")"
+
+# Gitignored path: neither rewritten by default, unless go_format_lint_gitignored is set.
 REPO_IGN="$WORK/gitignored"
 new_go_repo "$REPO_IGN"
 git -C "$REPO_IGN" config core.excludesFile /dev/null
 printf '.work/\n' >"$REPO_IGN/.gitignore"
 mkdir -p "$REPO_IGN/.work"
-printf 'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO_IGN/.work/scratch.go"
-IGN_BEFORE="$(cat "$REPO_IGN/.work/scratch.go")"
-OUT=$(run_hook "$REPO_IGN/.work/scratch.go")
-if [[ "$(cat "$REPO_IGN/.work/scratch.go")" == "$IGN_BEFORE" ]]; then
-  ok "gitignored: file not rewritten"
+printf '%s\n' "$NEEDS_IMPORT" >"$REPO_IGN/.work/scratch.go"
+OUT=$(run_edit "$REPO_IGN/.work/scratch.go")
+expect "gitignored: silent and the file not rewritten" "0|$NEEDS_IMPORT" "$?|$OUT$(cat "$REPO_IGN/.work/scratch.go")"
+fire "$(payload Edit "$REPO_IGN/.work/scratch.go")" CLAUDE_PLUGIN_OPTION_GO_FORMAT_LINT_GITIGNORED=true >/dev/null
+expect "gitignored + go_format_lint_gitignored=true: import added" "$WITH_IMPORT" "$(cat "$REPO_IGN/.work/scratch.go")"
+
+# Symlinked repo root: the file reached through a symlinked directory is still rewritten.
+if ln -s "$WORK/symlink-real" "$WORK/symlink-link" 2>/dev/null; then
+  REPO_SL="$WORK/symlink-real"
+  new_go_repo "$REPO_SL"
+  mkdir -p "$REPO_SL/pkg"
+  printf '%s\n' "$NEEDS_IMPORT" >"$REPO_SL/pkg/mod.go"
+  run_edit "$WORK/symlink-link/pkg/mod.go" >/dev/null
+  expect "symlinked root: the file is rewritten" "$WITH_IMPORT" "$(cat "$REPO_SL/pkg/mod.go")"
 else
-  fail "gitignored: file was rewritten: $(cat "$REPO_IGN/.work/scratch.go")"
+  echo "SKIP: symlinks unavailable on this filesystem -- symlinked-root case skipped"
 fi
-if [[ -z "$OUT" ]]; then ok "gitignored: silent"; else fail "gitignored: output: $OUT"; fi
-run_hook_env "$REPO_IGN/.work/scratch.go" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true PATH="$GOIMPORTS_PATH" \
-  CLAUDE_PLUGIN_OPTION_GO_FORMAT_LINT_GITIGNORED=true >/dev/null
-if grep -q '"fmt"' "$REPO_IGN/.work/scratch.go"; then
-  ok "gitignored + go_format_lint_gitignored=true: import added"
+
+# --- Spawn budget ----------------------------------------------------------------
+# PostToolBatch has no matcher, so the row fires on every batch of every session.
+# A batch that never mentions .go costs only the node launcher.
+CENSUS="$REPO_ROOT/scripts/hook-census.sh"
+if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1; then
+  out="$(bash "$CENSUS" go-format PostToolBatch go-format.sh \
+    '{"session_id":"census","hook_event_name":"PostToolBatch","cwd":"@DIR@","tool_calls":[{"tool_name":"Read","tool_input":{"file_path":"@DIR@/README.md"},"tool_use_id":"toolu_census","tool_response":"# readme"}]}' \
+    --check 'test ! -s "$HOOK_STDOUT"')"
+  expect "spawn budget: a batch with no Go costs only the node launcher" "spawns=1" "${out%% *}"
 else
-  fail "gitignored + opt-in: not rewritten: $(cat "$REPO_IGN/.work/scratch.go")"
+  echo "NOTE: strace or scripts/hook-census.sh absent; the spawn budget case did not run."
 fi
 
 echo
