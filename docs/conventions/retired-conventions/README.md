@@ -215,7 +215,7 @@ final re-run is the evidence-bearing readback the setup contract already require
 (`migrate` FAIL, `delete`/`remove-line` WARN, `report-only` INFO) is the same one the fleet sweep
 uses, so a consumer sees one severity for one record wherever it is reported.
 
-**Why `migrate` is FAIL and the others WARN.** A `delete` or `remove-line` leftover is inert: the
+**Why `migrate` is FAIL and the others WARN.** A `delete` or `remove-line` leftover is inert because the
 plugin no longer reads it, and the only cost is clutter. A `migrate` leftover is the dual-read
 window: the plugin is still reading the retired file as authority, so the consumer's effective
 configuration depends on a file that the plugin's docs no longer describe. That is a live divergence,
@@ -239,8 +239,8 @@ never offer.
 ## The runtime fleet sweep
 
 Detection inside a plugin's own setup covers a consumer who re-runs that setup. It does not cover a
-consumer who updated the plugin and never re-ran setup, the documented death spiral of a leftover
-that is never re-checked. So `harness-config`'s `audit-pass` skill carries one lane that sweeps
+consumer who updated the plugin and never re-ran setup, and that consumer's leftover is never
+re-checked. So `harness-config`'s `audit-pass` skill carries one lane that sweeps
 **every installed plugin's** manifest against the target repository at runtime: it enumerates
 `retirements.yaml` files from installed plugin roots, runs harness-config's own canonical helper copy
 against each, and emits one finding per active row keyed by record id, `report-only` rows as INFO,
