@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# Behavior test: the "Move the PR branch to the lane's commits" step in
+# pr-run-activity-write.yml re-reads the PR's labels and draft flag right
+# before it moves the PR branch, and drops the lane's commits (awaiting-human)
+# when a do-not-merge or human-gated label, or a draft, was set during the run.
+# A read it cannot complete moves nothing. Runs the step's github-script body
+# with a stub `github`, `core` and `fetch`.
+# test-scope: .github/workflows/pr-run-activity-write.yml .github/standards/runner-policy/package.json
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/test-harness.sh
+. "$ROOT/scripts/lib/test-harness.sh"
+
+results=$(
+  cd "$ROOT" && node --input-type=module - <<'EOF'
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+const require = createRequire(`${process.cwd()}/.github/standards/runner-policy/package.json`);
+const YAML = require("yaml");
+
+const say = (good, text) => console.log(`${good ? "ok" : "fail"}\t${text}`);
+const wf = YAML.parse(readFileSync(".github/workflows/pr-run-activity-write.yml", "utf8"));
+const step = wf.jobs.run.steps.find((s) => s.name === "Move the PR branch to the lane's commits");
+say(Boolean(step?.with?.script), "the run job has a promote step with a script");
+
+const GATED = "a".repeat(40);
+const LANE = "b".repeat(40);
+const AsyncFunction = (async () => {}).constructor;
+
+// pull: the GET pulls/<n> body; labels: label names; status and next shape
+// the labels answer.
+async function run({ pull = { draft: false }, labels = [], labelsStatus = 200, labelsNext = false, holdLabel = "needs-human" } = {}) {
+  const calls = { failed: [], info: [], outputs: {}, updated: [], deleted: [], fetched: [] };
+  let head = GATED;
+  const github = {
+    request: async (_route, { ref }) => ({ data: { object: { sha: ref === "heads/lane" ? LANE : head } } }),
+    rest: {
+      git: {
+        updateRef: async ({ ref, sha }) => {
+          calls.updated.push(ref);
+          head = sha;
+        },
+        deleteRef: async ({ ref }) => {
+          calls.deleted.push(ref);
+        },
+      },
+    },
+  };
+  const core = {
+    info: (m) => calls.info.push(m),
+    warning: () => {},
+    setFailed: (m) => calls.failed.push(m),
+    setOutput: (k, v) => {
+      calls.outputs[k] = v;
+    },
+  };
+  const fetch = async (url, { headers }) => {
+    calls.fetched.push([url, headers.Authorization]);
+    const isLabels = url.includes("/labels");
+    const status = isLabels ? labelsStatus : 200;
+    return {
+      ok: status < 300,
+      status,
+      headers: { get: () => (isLabels && labelsNext ? '<https://x/?page=2>; rel="next"' : "") },
+      json: async () => (isLabels ? labels.map((name) => ({ name })) : pull),
+    };
+  };
+  Object.assign(process.env, {
+    HEAD_SHA: GATED,
+    HEAD_REF: "feature",
+    LANE_BRANCH: "lane",
+    MERGE_BASE: "false",
+    COMMIT_OUTCOME: "",
+    COMMIT_SHA: "",
+    THREAD_FILE: "",
+    PR_NUMBER: "42",
+    HOLD_LABEL: holdLabel,
+    READ_TOKEN: "read-only",
+    GITHUB_API_URL: "https://api.github.com",
+  });
+  const context = { repo: { owner: "o", repo: "r" } };
+  let threw = null;
+  try {
+    await new AsyncFunction("github", "core", "context", "fetch", "require", step.with.script)(github, core, context, fetch, require);
+  } catch (e) {
+    threw = e;
+  }
+  return { ...calls, threw };
+}
+
+let r = await run();
+say(r.updated.length === 1 && r.failed.length === 0 && !r.threw && r.outputs["skip-reason"] === "",
+  "no hold and not a draft: the PR branch moves to the lane's commits");
+say(r.fetched.length === 2 && r.fetched.every(([, auth]) => auth === "Bearer read-only"),
+  "the labels and the draft flag are read with the job's read-only token");
+
+for (const label of ["do-not-merge", "needs-human"]) {
+  r = await run({ labels: ["bug", label] });
+  say(r.updated.length === 0 && r.outputs["skip-reason"] === "awaiting-human" && r.deleted.includes("heads/lane"),
+    `a ${label} label added during the run: nothing moves, awaiting-human, the lane branch is deleted`);
+}
+
+r = await run({ labels: ["status: blocked-human"], holdLabel: "status: blocked-human" });
+say(r.updated.length === 0 && r.outputs["skip-reason"] === "awaiting-human",
+  "the base's own human-gated label is a hold");
+
+r = await run({ pull: { draft: true } });
+say(r.updated.length === 0 && r.outputs["skip-reason"] === "awaiting-human" && r.deleted.includes("heads/lane"),
+  "a PR converted to a draft during the run: nothing moves, awaiting-human");
+
+r = await run({ pull: {} });
+say(r.updated.length === 0, "a PR whose draft flag does not read false moves nothing");
+
+r = await run({ labelsStatus: 502 });
+say(r.updated.length === 0 && (r.threw !== null || r.failed.length > 0) && r.deleted.includes("heads/lane"),
+  "a labels read that fails moves nothing and fails the step");
+
+r = await run({ labelsNext: true });
+say(r.updated.length === 0 && (r.threw !== null || r.failed.length > 0),
+  "more labels than one page moves nothing and fails the step");
+
+r = await run({ holdLabel: "" });
+say(r.updated.length === 0 && r.failed.length === 1, "no hold label from the base moves nothing and fails the step");
+EOF
+)
+if [[ -z "$results" ]]; then
+  fail "the check printed nothing; is .github/standards/runner-policy installed?"
+fi
+while IFS=$'\t' read -r verdict text; do
+  [[ -n "$verdict" ]] || continue
+  if [[ "$verdict" == ok ]]; then ok "$text"; else fail "$text"; fi
+done <<<"$results"
+
+test_harness::report

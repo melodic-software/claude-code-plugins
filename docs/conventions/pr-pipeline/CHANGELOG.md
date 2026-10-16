@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## 1.17.2 - 2026-10-16
+
+The write runner's promote step re-reads the PR's labels and draft flag with the job's
+`GITHUB_TOKEN` right before it moves the PR branch: `do-not-merge`, the base's human-gated role
+label or a draft set while the activity ran drops the lane's commits and skips `awaiting-human`,
+for every `mutate-branch` activity that promotes. The human-gated label is now read from the base
+by its own step for every PR-mode skill, not only merge-base. `publish-feedback.mjs` re-reads the
+PR branch before each post and each resolve and posts nothing more once it moved past the head the
+job gated (`feedback-not-landed` before any reply, `feedback-partial` after one), and its round
+marker names the model run, so a re-run of the reply job alone posts no second marker. The
+script needs `HEAD_REF`, `GITHUB_RUN_ID` and `MODEL_RUN_ATTEMPT`. `version` stays 1.
+
 ## 1.17.1 - 2026-10-16
 
 `pr-feedback-dispatch.yml` no longer resolves the whole `pr-unblock` lane, which decided every

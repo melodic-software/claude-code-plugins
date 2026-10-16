@@ -71,7 +71,7 @@ say(/protected-path-conflict/.test(prepare.run ?? ""), "a conflicted workflow pa
 say(mint >= 0 && checkout > mint, "the lane token is minted before the head checkout");
 const recheck = at((s) => s.id === "head-recheck");
 say(recheck >= 0 && recheck < mint, "the head re-read runs before the mint");
-for (const id of ["merge-bin", "stage"]) {
+for (const id of ["merge-bin", "hold-label", "stage"]) {
   const i = at((s) => s.id === id);
   say(i >= 0 && i < checkout, `step ${id} copies from the base before the head checkout`);
 }
@@ -210,7 +210,9 @@ const octokitCallers = steps.filter((s) => /getOctokit/.test(s.with?.script ?? "
 say(octokitCallers.length === 0, `no github-script step calls getOctokit (${octokitCallers.join(", ") || "none"})`);
 say(labels >= 0 && labels < cs.indexOf("createCommit") && /do-not-merge/.test(cs) && /HOLD_LABEL/.test(cs),
   "the commit step re-reads the PR's hold labels before creating the commit");
-say(/\.base\/\.work-item-tracker\.json/.test(copy) && /hold-label=/.test(copy),
+const holdLabel = byId("hold-label").run ?? "";
+say(/\.base\/\.work-item-tracker\.json/.test(holdLabel) && /echo "label=\$hold_label"/.test(holdLabel)
+  && /steps\.hold-label\.outputs\.label/.test(String(commit.env?.HOLD_LABEL)),
   "the human-gated role label is resolved from the base before the head checkout");
 
 // Promote moves the PR branch only to the commit the commit step made.
