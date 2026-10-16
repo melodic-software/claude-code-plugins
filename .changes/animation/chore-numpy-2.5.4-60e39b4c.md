@@ -1,0 +1,7 @@
+---
+bump: patch
+---
+
+### Changed
+
+- Bump numpy from 2.5.3 to 2.5.4.

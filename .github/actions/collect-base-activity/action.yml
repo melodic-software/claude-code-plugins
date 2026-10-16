@@ -125,6 +125,7 @@ runs:
         PREPARE: ${{ inputs.prepare }}
         SCRATCH: ${{ runner.temp }}/lane-scratch
         CHECKS_DIR: ${{ runner.temp }}/lane-checks
+        VERIFY_DIR: ${{ runner.temp }}/lane-verify
         FEEDBACK_DIR: ${{ runner.temp }}/lane-feedback
         FEEDBACK_STATE: ${{ runner.temp }}/lane-feedback-state
         WORKSPACE: ${{ github.workspace }}
@@ -268,6 +269,65 @@ runs:
               chmod -R a-w "$CHECKS_DIR"
               disallowed="${disallowed:+$disallowed,}Edit(/$CHECKS_DIR/**),Write(/$CHECKS_DIR/**)"
               system_prompt="$system_prompt Before you report done, run each of these repository checks as written, with no arguments:$wrappers."
+            fi
+            # The activity's verify-scripts run with any arguments from a
+            # read-only base copy of the script's plugin (or of scripts/),
+            # so the files a script reads beside itself come along. Each runs
+            # through a wrapper that starts in the checkout, refuses an
+            # argument naming a path outside it (a script may print what it
+            # reads), and keeps git from loading system, global or hook and
+            # fsmonitor programs.
+            mapfile -t verify < <(jq -r '.selected["verify-scripts"] // [] | .[]' "$RESOLVED")
+            if ((${#verify[@]})); then
+              [[ $VERIFY_DIR =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
+                fail "the verify-scripts copy or workspace has a name a rule cannot carry"
+              shape='^(scripts|plugins/[a-z0-9-]+/(skills/[a-z0-9-]+/)?scripts)/[A-Za-z0-9_-]+\.sh$'
+              mkdir -p "$VERIFY_DIR/bin"
+              commands=""
+              for script in "${verify[@]}"; do
+                [[ $script =~ $shape ]] || fail "a verify-script must be the exact path of a scripts/ script"
+                [ -f "$BASE_PATH/$script" ] || fail "a verify-script is not in the base"
+                unit=scripts
+                if [[ $script == plugins/* ]]; then
+                  rest=${script#plugins/}
+                  unit=plugins/${rest%%/*}
+                fi
+                if [ ! -e "$VERIFY_DIR/$unit" ]; then
+                  mkdir -p "$VERIFY_DIR/$(dirname "$unit")"
+                  cp -R "$BASE_PATH/$unit" "$VERIFY_DIR/$unit"
+                  # chmod does not follow a link, so its target would stay writable.
+                  [ -z "$(find "$VERIFY_DIR/$unit" -type l -print -quit)" ] || fail "a verify-script's directory holds a symbolic link"
+                fi
+                verifier="$VERIFY_DIR/bin/$(basename "$script" .sh)"
+                [ ! -e "$verifier" ] || fail "two verify-scripts share a file name"
+                {
+                  printf '#!/usr/bin/env bash\nworkspace=%q\ncopy=%q\n' "$WORKSPACE" "$VERIFY_DIR/$script"
+                  printf '%s\n' \
+                    'cd "$workspace" && workspace=$(pwd -P) || exit 2' \
+                    'for arg in "$@"; do' \
+                    '  for path in "$arg" "${arg#*=}"; do' \
+                    '    [ -e "$path" ] || [ -L "$path" ] || continue' \
+                    '    real=$(realpath -e -- "$path") || exit 2' \
+                    '    case $real in' \
+                    '      "$workspace" | "$workspace"/*) ;;' \
+                    '      *) echo "refused: $path is outside the checkout" >&2 && exit 2 ;;' \
+                    '    esac' \
+                    '  done' \
+                    'done' \
+                    'export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_COUNT=2' \
+                    'export GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null' \
+                    'bash "$copy" "$@"' \
+                    'status=$?' \
+                    'echo "exit status: $status" >&2' \
+                    'exit "$status"'
+                } >"$verifier"
+                chmod +x "$verifier"
+                allowed="$allowed,Bash($verifier *)"
+                commands="$commands $verifier <arguments>;"
+              done
+              chmod -R a-w "$VERIFY_DIR"
+              disallowed="${disallowed:+$disallowed,}Edit(/$VERIFY_DIR/**),Write(/$VERIFY_DIR/**)"
+              system_prompt="$system_prompt To run one of these repository verification scripts, run its wrapper by exactly this path, with the script's own arguments and paths inside the checkout:${commands%;}. Run each verification wrapper as its own command, not chained to another; it prints the script's exit status."
             fi
             # review-threads: the skill reads the runner's thread file, and
             # records its replies to those threads, only through this tool:
