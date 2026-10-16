@@ -943,7 +943,7 @@ worktree. Outside a git repository the file stays in the folder you ran from.
 
 ## Instruction economy
 
-Every standing instruction this marketplace ships is a per-session tax on every consumer, paid
+Every standing instruction this marketplace ships costs every consumer context in every session, paid
 whether or not the instruction ever fires: a CLAUDE.md line, a hook that corrects model behavior, a
 skill's always-loaded listing text. (Whether a skill's description enters that
 always-loaded listing at all is the invocation-mode choice, owned by the rubric at
@@ -956,15 +956,15 @@ Recheck trigger: either section moves or stops recommending pruning. Anthropic r
 the same doctrine to Claude Code's own system prompt for the Claude 5 generation; no docs page
 covers that as of 2026-08-08
 (correlate with <https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models>).
-Context load is not the only budget: the human maintainer's cognitive load
+Context load is not the only budget. The human maintainer's cognitive load
 is its sibling constraint, and the write-time doctrine budgeting both lives in
 `docs-hygiene:write-for-agents`. Four rules follow:
 
 - **Evidence-gated additions.** A new standing instruction requires observed, repeated stumble
   evidence against the current model, the same failure seen more than once, never anticipation
   of a failure a past model had. Name the evidence where the instruction is added (PR body or an
-  adjacent comment). Anticipatory instructions are the veteran-engineer failure mode: they encode
-  the last model's weaknesses as the next model's ceiling.
+  adjacent comment). Anticipatory instructions encode an earlier model's weaknesses as a cap on
+  what the next model does.
 - **Generation-triggered ablation.** Instructions are disposable per model generation. At each
   Claude model release, re-audit standing instruction surfaces against the new model
   (`harness-config:audit-instructions` for the static text-vs-doctrine pass, on any release;
@@ -1000,7 +1000,7 @@ Mechanism never implies class. A context-injection can be pure policy (relaying 
 findings), and a deny-gate can be behavioral (a block whose predicate is a guess about model
 competence rather than a checkable invariant).
 
-One nuance does the most work: a hook with a *behavioral purpose* but a *non-derivable ground-truth
+One nuance matters most. A hook with a *behavioral purpose* but a *non-derivable ground-truth
 oracle*, such as diffing written flags against a binary's live `--help`, globbing the live plugin tree
 after a rename, or querying git history for a path's disappearance, is a keep, not an ablation
 candidate. It corrects hallucination with machine ground truth no model can know unaided, so "it
@@ -1011,9 +1011,9 @@ requires for addition: config-disable first where a kill switch exists, delete o
 rationale; a hybrid gets its behavioral surface trimmed while its policy residue stays; and the
 security carve-out below overrides every row of the rubric.
 
-Model-capability claims never relax the security posture. Injection resistance in current models is
-measurably better but bounded and hedged in the primary sources; the plugin-acceptance security
-review's deny-by-default stance on egress and trust delegation is policy, not a model-era
+Model-capability claims never relax the security posture. Current models resist prompt injection
+measurably better than earlier ones, but not completely, and the primary sources hedge that claim;
+the plugin-acceptance security review's deny-by-default stance on egress and trust delegation is policy, not a model-era
 workaround, and stays regardless of model generation.
 
 The complementary task-design doctrine, describe the task, guardrails, and exit criteria, give the
@@ -1030,8 +1030,8 @@ Two further axes are settled elsewhere, and neither is implied by the rubric abo
 
 ## Fresh-eyes checkpoints
 
-A context that produced work is structurally the weakest place to judge that work: the reasoning that
-made a mistake plausible is still active, so a self-check inherits the bias. A fresh-context (non-fork)
+A context that produced work is structurally the weakest place to judge that work, because the reasoning
+that made a mistake plausible is still active and a self-check inherits the bias. A fresh-context (non-fork)
 subagent, generic or named, removes it: it starts in its own fresh context window, blind to the
 reasoning under review. A fork does not: it inherits the parent session's full conversation history, so
 it carries the same bias forward. Upstream recommends fresh-context review as well as describing
@@ -1074,7 +1074,7 @@ never the advisor's command flags, which drift against the surface their owner e
 
 What does not need it: deterministic gates (a script's pass/fail cannot be biased by context, so prefer
 one wherever the judgment is mechanical), and judgment over external input the context did not produce
-(triage of another author's issue or PR). Delegation cost is real; the rule buys unbiased judgment
+(triage of another author's issue or PR). Delegation cost is real; the rule gives unbiased judgment
 exactly where bias is structural, and nothing elsewhere.
 
 The deterministic-gate exemption is narrow: it reaches the mechanical judgment itself, where the gate's
@@ -1111,13 +1111,13 @@ this rule instead of restating it.
    - **As of**: 2026-10-04.
    - **Recheck trigger**: that setting is renamed or removed, or the carve-out stops naming the PR's
      verify stage as its verdict.
-4. **The testing plugin's task-end judge is the precedent.** With `test_judge_enabled` on, a
-   separate model reviews the tests a session created or changed at the end of each task, so the
-   session that wrote a test never grades it.
-   - **Pointer**: the `test_judge_enabled` option of the testing plugin, documented in `/testing:setup`.
-   - **As of**: 2026-10-04.
-   - **Recheck trigger**: the option is renamed or removed, or the judge stops running in a context
-     separate from the session it judges.
+4. **The testing plugin's judge pass is the precedent.** `/testing:audit --judge` hands the tests a
+   change created or changed to a fresh-context subagent on another model class, so the session
+   that wrote a test never grades it.
+   - **Pointer**: the judge pass section of `/testing:audit`.
+   - **As of**: 2026-10-15.
+   - **Recheck trigger**: the pass is renamed or removed, or the judge stops running in a context
+     separate from the session that wrote the tests.
 5. **Deterministic gates stay exempt**, within the narrow scope stated above: a script's pass or fail
    is the verdict, so no author bias reaches it.
 
@@ -1157,7 +1157,7 @@ A dispatch prompt at any rung:
 - **degrades when absent**: a preferred named agent or advisor that is not installed routes to the
   generic fresh-context subagent, never to a command that may not resolve; and
 - **bounds what counts as a finding**: correctness and the stated requirements, everything else
-  optional. An unbounded adversarial prompt buys noise at the same price as judgment, and chasing
+  optional. An unbounded adversarial prompt returns many low-value findings at full cost, and chasing
   every reported gap over-engineers the work. Pointer:
   <https://code.claude.com/docs/en/best-practices#add-an-adversarial-review-step>. As of:
   2026-08-10. Recheck trigger: that section stops recommending a bounded review.
@@ -1259,7 +1259,7 @@ per-spawn `model`.
 - **Recheck trigger:** the switch stops overriding definition and per-spawn `model` values, or the
   subagents page stops describing it.
 
-There is no per-plugin model surface: we read plugin `userConfig` as typed options with no model
+There is no per-plugin model surface. We read plugin `userConfig` as typed options with no model
 semantics, so doctrine travels by authoring-time conformance in each skill, not runtime
 configuration (Pointer:
 [plugin manifest reference: user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
@@ -1352,7 +1352,7 @@ list restated here. Outside the pair, `plugins/implementation/agents/scoped-impl
 the fast tier at `medium` effort, the [effort floor](#effort-floor), and runs only plan-routed
 well-scoped phases, dispatched with an explicit per-invocation `model`.
 
-That floor is the consumer's to lose. An enterprise `availableModels` allowlist reaches frontmatter
+A consumer can lose that floor. An enterprise `availableModels` allowlist reaches frontmatter
 pins too, and Claude Code handles a blocked pin differently for a subagent than for a skill or
 command. Our conclusion, with the per-surface rules left at the pointer: a subagent lane's tier is
 not self-enforcing, because a blocked pin can land below the session (an `opus` pin under an
@@ -1667,8 +1667,8 @@ request.
 Checking the value set mechanically stays deferred: a lint rule's source of truth is the harness's
 own accepted-value list, which this section deliberately does not restate.
 
-Session-level effort is the consumer's own knob, out of plugin scope: plugins never set session
-effort. A plugin may advise a session level for a phase of work, but it never changes the user's
+Session-level effort is the consumer's own setting and out of plugin scope. Plugins never set
+session effort. A plugin may advise a session level for a phase of work, but it never changes the user's
 session level or saved level (Pointer: for how a level is set and saved, see
 [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level);
 for the ultracode setting, see

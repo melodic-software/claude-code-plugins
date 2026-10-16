@@ -184,14 +184,15 @@ Think of subagents as automations for the most common PR workflows:
 
 ## 7. Hooks
 
-### PostToolUse Hooks for Formatting
+### Hooks for Formatting
 
-PostToolUse hook auto-formats Claude's code. Claude generates well-formatted code 90% of the time; the hook catches edge cases preventing CI failures.
+A hook auto-formats Claude's code. Claude generates well-formatted code 90% of the time; the hook catches edge cases preventing CI failures.
+
+Run it once per batch of edits rather than after every edit: a formatter that rewrites the file between edits Claude sent together can break the later ones. A `PostToolBatch` hook fires after the whole batch, so every edit lands first:
 
 ```json
-"PostToolUse": [
+"PostToolBatch": [
   {
-    "matcher": "Write|Edit",
     "hooks": [
       {
         "type": "command",
@@ -201,6 +202,15 @@ PostToolUse hook auto-formats Claude's code. Claude generates well-formatted cod
   }
 ]
 ```
+
+Keep it only while it stays fast (this marketplace's line is a 1 s median per fire); a slower formatter belongs in a git `pre-commit` hook only. Run the formatter in a git `pre-commit` hook as well, so humans and other agents get the same formatting.
+
+> Boris's original tip used a per-edit `PostToolUse` hook with a `Write|Edit` matcher. For when
+> `PostToolBatch` fires and what it receives, see
+> [hooks: PostToolBatch](https://code.claude.com/docs/en/hooks#posttoolbatch); for this
+> marketplace's placement rules, see
+> [check-placement](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/check-placement/README.md#formatters).
+> As of 2026-10-15; recheck when that hooks section adds a matcher or stops firing once per batch.
 
 ### Stop Hooks for Long-Running Tasks
 

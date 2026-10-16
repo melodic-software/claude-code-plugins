@@ -324,10 +324,11 @@ Three consequences for residency, and each one bounds a pair rather than admitti
     rule above, and never against a main-session surface.
   - **The cell says no.** Nothing is prevented, so there is no act and no gate to pair; treat the
     message as transient feedback and pair it as nothing. `PostToolUse` is the worked example: its
-    row says it cannot block, because the tool has run, and this repository's own `PostToolUse` linter
-    is built on that row. `plugins/actionlint/hooks/actionlint-check.sh` deliberately always
-    exits 0 and surfaces findings as advisory context, because an exit 2 there could block
-    nothing. Reading any `PostToolUse` handler's exit-2 stderr as a prohibition on the tool it ran
+    row says it cannot block, because the tool has run. A per-edit linter there can only surface
+    findings as advisory context, which is why the actionlint plugin's `actionlint-check.sh`
+    belongs in a git `pre-commit` entry that blocks the commit rather than per edit
+    ([check-placement](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/check-placement/README.md#the-rubric)).
+    Reading any `PostToolUse` handler's exit-2 stderr as a prohibition on the tool it ran
     *after* would manufacture an unsatisfiable conflict against any instruction requiring that
     tool. The tool already ran, and the hook can neither block nor undo it. Registered instead on
     `PreToolUse`, whose row blocks the tool call, the same handler WOULD enter the comparison set

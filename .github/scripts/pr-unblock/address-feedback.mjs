@@ -38,10 +38,10 @@ export function isProtectedPath(path) {
 }
 
 // Round markers the lanes App posted; any other author's copy is ignored.
+export const isRoundMarker = (comment, appId) => comment.user?.id === appId && firstLine(comment.body) === ROUND_MARKER;
+
 export function countRounds(issueComments, appId) {
-  return issueComments.filter(
-    (comment) => comment.user?.id === appId && firstLine(comment.body) === ROUND_MARKER,
-  ).length;
+  return issueComments.filter((comment) => isRoundMarker(comment, appId)).length;
 }
 
 // The model job's check run, posted by its report job with the job token on
@@ -254,6 +254,10 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
         commentCount: node?.comments?.totalCount,
         commentIds: (node?.comments?.nodes ?? []).map((comment) => comment.databaseId),
       };
+    },
+    // From git/ref, which GET /pulls can lag behind after a push.
+    async readBranch(ref) {
+      return (await request(`${repo}/git/ref/heads/${ref.split("/").map(encodeURIComponent).join("/")}`)).data.object.sha;
     },
     async compare(base, head) {
       return (await request(`${repo}/compare/${base}...${head}`)).data;

@@ -1,5 +1,61 @@
 # Changelog for the PR pipeline convention
 
+## 1.17.3 - 2026-10-16
+
+This repository's `pr-pipeline.yaml` enables the address-feedback round: the `pr-unblock` lane now
+runs `resolve-conflicts`, `address-feedback` (`source-control:pull-request comments --ci`,
+`prepare: review-threads`, `mutate-branch`, held by `do-not-merge` or `needs-human`, skipping
+drafts), `publish-feedback` (the reply script, `publish-artifact`) and `report-escalation`, which
+now follows all three. `pr-feedback-dispatch.yml` starts dispatching on lanes App PRs from here
+on. `version` stays 1.
+
+## 1.17.2 - 2026-10-16
+
+The write runner's promote step re-reads the PR's labels and draft flag with the job's
+`GITHUB_TOKEN` right before it moves the PR branch: `do-not-merge`, the base's human-gated role
+label, a label in the activity's `labels-absent` list, or a draft set while the activity ran drops
+the lane's commits and skips `awaiting-human`, for every `mutate-branch` activity that promotes.
+The hold labels are now read from the base by their own step for every PR-mode skill, not only
+merge-base, and the merge commit step holds on the same list. `fix-docs` gains `draft: [false]`,
+so it skips a draft before any model turn. `publish-feedback.mjs` re-reads the
+PR branch before each post and each resolve and posts nothing more once it moved past the head the
+job gated (`feedback-not-landed` before any reply, `feedback-partial` after one), and its round
+marker names the model run, so a re-run of the reply job alone posts no second marker (a model run
+that uploaded no replies names none and always posts). The
+script needs `HEAD_REF`, `GITHUB_RUN_ID` and `MODEL_RUN_ATTEMPT`. `version` stays 1.
+
+## 1.17.1 - 2026-10-16
+
+`pr-feedback-dispatch.yml` no longer resolves the whole `pr-unblock` lane, which decided every
+slot's `applies-when` and failed on `resolve-conflicts`' `mergeable` predicate with no head SHA.
+`feedback-dispatch.mjs` finds the PR and its head first, then resolves only the `address-feedback`
+slot for them, and dispatches only when the lane, `address-feedback` and `publish-feedback` are
+enabled and `address-feedback` applies. A disabled slot no longer counts as present, and a lane with
+no `address-feedback` slot still skips; a config the resolver refuses fails the run. resolve-config's
+`resolve-config.mjs` exports `resolveFromBase`, which returns the resolved config or throws the
+resolver's refusal (with `absentAsNull`, null for a valid config whose lane lacks the activity);
+`main` wraps it. `resolve.mjs` exports `laneHasActivity`.
+
+## 1.17.0 - 2026-10-15
+
+`pr-unblock.yml` takes an `activity` input (`resolve-conflicts`, the default, or
+`address-feedback`), and its dispatch concurrency group names the activity. `address-feedback`
+runs as two jobs: the model job (`mutate-branch`), then, when its `feedback-round` output is
+`true`, the `publish-feedback` script job (`publish-artifact`, `review-replies: true`, and the
+model job's `feedback-run-sha256` as `review-run-sha256`), which posts the replies;
+`report-escalation` takes any job's reason and its resume command names the activity. The
+activity rules forbid `address-feedback` every effect that posts and `publish-feedback` every
+effect that pushes. `pr-feedback-dispatch.yml`
+dispatches `address-feedback` from `workflow_run` when both review lanes have reviewed a lanes App
+PR's current head and a reviewer-bot thread is open; the trigger gate and the broker accept its
+runs through the review run their record names, which a lanes App push or a listed human must have
+started. The jobs after the model job pass its gated head as `expected-upstream-head`, so the gate
+and the broker accept the review of that head when only commits GitHub signed for the lanes App
+during the run (committer `web-flow`, signature `valid`) follow it. The dispatcher skips while a `pr-unblock address-feedback #<n>` run (the new
+`run-name`) is queued or going, and dispatches nothing until the lane config holds both slots. The
+write file gains the `expected-upstream-head` input and `head-sha` output. No effect grants both `contents: write` and
+`pull-requests: write` but `merge`. No live activity sets either leaf yet. `version` stays 1.
+
 ## 1.16.0 - 2026-10-15
 
 Schema: `prepare` takes `review-threads`. `pr-run-activity.md` "prepare: review-threads" says what
@@ -9,7 +65,9 @@ on a marker-confirmed head before the mint, escalates `feedback-protected-path` 
 uploads the replies the tool recorded; it posts nothing. A script job with the new
 `review-replies` input and no model validates those replies, posts them and resolves only the
 fixed `VALID` threads, posts the round marker, and escalates `feedback-uncertain`,
-`feedback-not-landed`, `feedback-invalid` or `feedback-partial` (posting stopped partway). The write file gains the `feedback-round` output. No
+`feedback-not-landed`, `feedback-invalid`, `feedback-partial` (posting stopped partway),
+`feedback-incomplete` (a kept thread has no disposition) or `feedback-disputed` (an INCORRECT
+reply, left open for a person). The write file gains the `feedback-round` output. No
 live activity sets it yet. `version` stays 1.
 
 ## 1.15.0 - 2026-10-14

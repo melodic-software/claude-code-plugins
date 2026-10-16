@@ -170,14 +170,14 @@ exemplar.
 ## Overlay naming and the consumer `.gitignore`
 
 The overlay is spelled `*.local.*`: the stem, `.local`, then the original extension. One spelling
-across the fleet is the point: a consumer adds one `.gitignore` line and every current and future
+across the fleet means a consumer adds one `.gitignore` line and every current and future
 surface is covered.
 
 ```gitignore
 .claude/**/*.local.*
 ```
 
-That is the whole convention: **one line, recursive form, for every surface**. `.claude/**/` matches
+That is the whole convention, **one line in recursive form for every surface**. `.claude/**/` matches
 zero or more directories, so this single rule covers a flat `.claude/source-control.local.md` and a
 one-deep `.claude/ecosystems/python.local.yaml` alike, and would cover a deeper nested overlay if a
 surface grew one, while leaving team files tracked. The narrower
@@ -451,8 +451,8 @@ decision.
   malformed layer were absent and treats unknown keys as inert. `plugins/testing/scripts/resolve-config.sh`
   instead exits 2, naming the file and line, on any layer it cannot read or parse, on an unknown
   key or an invalid value, and on a team or overlay layer that is a symlink. `/testing:audit`
-  refuses to scan (`cant-fail-scan.sh` prints `refusing to scan`), and the `test-scan` hook reports
-  the error and does not check the file. A docs block is held to the same stop, so two config
+  refuses to scan (`cant-fail-scan.sh` prints `refusing to scan`), and the `test-weaken` hook logs
+  the scanner's failure and does not check the edit. A docs block is held to the same stop, so two config
   blocks in `docs/conventions/testing.md` stop the scan where the location axis says the layer
   degrades. The scanner is a gate whose `--check` exit treats an unread input as a failure: a
   scan with a layer dropped would apply different `paths.exclude` or `rules.*` values than the team
@@ -494,7 +494,7 @@ conformance.
 | `docs-naming` | later layer; team on named policy-floor keys | per-key |
 | `rendered-views` | later layer | per-key |
 | `testing` (`run-e2e`) | later layer | per-key |
-| `testing` (`audit`, `test-scan`) | later layer; the first present of `testing.yaml`, the docs block and `.claude/testing.yaml` in the team layer | per-key (scalars override, lists concatenate) |
+| `testing` (`audit`, `test-weaken`) | later layer; the first present of `testing.yaml`, the docs block and `.claude/testing.yaml` in the team layer | per-key (scalars override, lists concatenate) |
 | `testing` (`check-visual-parity`) | lowest value (policy floor) | per-key |
 | `plugin-quality` | team via pointer line | convention doc |
 | `architecture` | team via pointer line | convention doc |
@@ -526,8 +526,8 @@ conformance.
 
 ## Implementers
 
-Conformance is tracked, not assumed. A surface is listed here whether or not it conforms. The gap is
-the point. Each row states the surface's conformance **as it exists on `main`**, never as a
+Conformance is tracked, not assumed. A surface is listed here whether or not it conforms, so the gap
+stays visible. Each row states the surface's conformance **as it exists on `main`**, never as a
 migration intends it to be; a row that ran ahead of the code would report a closed gap that is still
 open. Every row fills `Who wins` and `Merge form` with one short phrase each, never blank. Every row
 below is currently expressed as a **dedicated file**; a surface that migrates to a convention doc
@@ -559,7 +559,7 @@ its conformance cell.
 | `docs-naming` | `.claude/docs-naming.json` | all three | later layer; team on named policy-floor keys | per-key | conforms, with the one sanctioned dual-read declared by retirement records `docs-naming-r001` and `docs-naming-r002` (the retired `.claude/docs-hygiene.json` and `.claude/docs-hygiene.local.json` are read as authority, with a WARN, only while the new name is absent); per-key override on `file_names.*`, with a policy-floor class on `tiers`, `generated`, `sweep_exclude`, `sweep_exclude_sites`, and the three `exempt_*` keys: a personal layer may ADD entries and never remove them, and `generated` is team-layer only. Those keys decide what `/docs-naming:realign-file-names` does to a tree (which files are frozen, which reference forms are rewritten, and which shell command runs after a move), so narrowing one from a single machine would weaken a team decision, while adding a scope root or an exemption weakens nothing and stays open. `rule`, `regex`, and `redirect_map` are nearest-wins. Keys owned by [`plugins/docs-naming/reference/config.md`](../../../plugins/docs-naming/reference/config.md), which also partitions them from plugin `userConfig` (this plugin declares none, so a layer naming one is an inert unknown key). Written by `/docs-naming:setup apply`, resolved by `plugins/docs-naming/scripts/resolve-config.sh` |
 | `rendered-views` | `.claude/rendered-views.md` | all three | later layer | per-key | conforms; per-key override on `medium`, no policy-floor class (taste dial, the `ai-slop` precedent). Keys owned by [`rendered-views`](../rendered-views/README.md), which also partitions them from plugin `userConfig` dials (never keys in this surface; a layer declaring one is reported as an inert unknown key). Resolved by `visualization:visualize` (wave-1 exemplar) |
 | `testing` (`run-e2e`) | `.claude/testing/e2e.md` for `recording` / `browser_mode`; `docs/conventions/testing.yaml`, `~/.claude/testing.yaml` and `.claude/testing.local.yaml` for `e2e_driver` / `reuse_running_instance`, over the plugin's `userConfig`; `docs/conventions/testing.yaml` and `.claude/testing.local.yaml` only for `feature_map_dir` (no user-global file, no `userConfig`) | all three | later layer | per-key | conforms; per-key override, keys owned by `/testing:run-e2e`. The three YAML keys are resolved by `resolve-config.sh e2e`, which reports the supplying layer and resolves an unknown or refused value to the default without stopping |
-| `testing` (`audit`, `test-scan`) | team: `docs/conventions/testing.yaml` (schema `plugins/testing/schemas/testing.schema.json`), else the `yaml config` block in `docs/conventions/testing.md` (read for one more release), else `.claude/testing.yaml`; user-global `~/.claude/testing.yaml`; overlay `.claude/testing.local.yaml` | all three | later layer; the first present of `testing.yaml`, the docs block and `.claude/testing.yaml` in the team layer | per-key (scalars override, lists concatenate) | conforms to [ADR 0064](../../adr/0064-home-plugin-customization-in-docs-conventions-yaml.md), except the declared stop on an unusable layer, which replaces rule 5's soft degrade and its inert unknown keys (see Declared): one warning names each shadowed team file. Keys and layer merge owned by `plugins/testing/scripts/resolve-config.sh`; written by `/testing:setup apply`, read by `/testing:audit` and the `test-scan` hook, which skip the two `run-e2e` keys the same file carries |
+| `testing` (`audit`, `test-weaken`) | team: `docs/conventions/testing.yaml` (schema `plugins/testing/schemas/testing.schema.json`), else the `yaml config` block in `docs/conventions/testing.md` (read for one more release), else `.claude/testing.yaml`; user-global `~/.claude/testing.yaml`; overlay `.claude/testing.local.yaml` | all three | later layer; the first present of `testing.yaml`, the docs block and `.claude/testing.yaml` in the team layer | per-key (scalars override, lists concatenate) | conforms to [ADR 0064](../../adr/0064-home-plugin-customization-in-docs-conventions-yaml.md), except the declared stop on an unusable layer, which replaces rule 5's soft degrade and its inert unknown keys (see Declared): one warning names each shadowed team file. Keys and layer merge owned by `plugins/testing/scripts/resolve-config.sh`; written by `/testing:setup apply`, read by `/testing:audit` and the `test-weaken` hook, which skip the two `run-e2e` keys the same file carries |
 | `testing` (`check-visual-parity`) | team: `docs/conventions/testing.yaml` read from origin's default branch (the working tree only when the repository has no `origin`); user-global `~/.claude/testing.yaml`; overlay `.claude/testing.local.yaml`; per user: the plugin's `pixel_tolerance` `userConfig` option | all three, plus the user option | lowest value (policy floor) | per-key | declared deviation from [ADR 0064](../../adr/0064-home-plugin-customization-in-docs-conventions-yaml.md) Decision 5's floor wording, as the `implementation` row: the `pixel_tolerance` map keeps a tighten-only `userConfig` option. The team value, else the default 0, is the ceiling; a personal layer or the option can only lower it, and a raise is reported as ignored. An invalid layer is named with its file or option, key and value and dropped (Decision 7). Resolved by `visual-compare.sh config` in `/testing:check-visual-parity`, which reports the supplying layer; the test scan skips the map and `/testing:setup apply` keeps it |
 | `plugin-quality` | convention doc at the consumer's convention home, `<home>/plugin-quality/README.md` (the pointer line binds `<home>`) | team, via pointer line | team via pointer line | convention doc | migrated (expression-doctrine pilot, ADR 0018): conformance is retirement record `plugin-quality-r001` (dual-read window while the retired `.claude/plugin-quality.md` persists: WARN-visible, the file reads as authority until cleaned); overlay layer retired by `plugin-quality-r002`, user-global layer retired prose-only (machine scope, outside the manifest); keys owned by the plugin's `reference/config.md` |
 | `architecture` | convention doc at the consumer's convention home, `<home>/architecture/README.md` (the pointer line binds `<home>`) | team, via pointer line | team via pointer line | convention doc | new surface under the expression doctrine, so there is no retirement record: nothing migrated into it, no dedicated-file layer was ever expressed, and no dual-read window exists. `architecture_dir` has no default (an undeclared, unconfirmed value stops every `/architecture:map-*` skill and routes to `/architecture:setup` rather than picking a directory); `landscape_dialect` defaults to `mermaid` and is read by `map-landscape` alone; the other map views take their dialect from `authoring-formats`. Optional `component_layers` is read by `map-components`. Keys owned by the plugin's [`reference/config.md`](../../../plugins/architecture/reference/config.md#map-family-dialect-decision), which maps that landscape key against `authoring-formats`'s `diagram_dialect.system` rather than restating mermaid fitness here; written by `/architecture:setup apply`, read by every `/architecture:map-*` skill for `architecture_dir` |
