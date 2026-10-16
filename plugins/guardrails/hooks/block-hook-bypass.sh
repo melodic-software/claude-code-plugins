@@ -1365,7 +1365,7 @@ block_bypass() {
   if [[ "$form" == powershell-computed-positional ]]; then
     echo "BLOCKED: $reason" >&2
   else
-    echo "BLOCKED: $reason. Use the Write or Edit tool." >&2
+    echo "BLOCKED: $reason. Use the Write or Edit tool; without either, and only if your instructions allow a write, write to a literal path under an exempt root: unquoted, or single-quoted on PowerShell." >&2
   fi
   case "$form" in
   powershell-computed-positional) ;;

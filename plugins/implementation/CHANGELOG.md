@@ -3,6 +3,12 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.0] - 2026-10-16
+
+### Changed
+
+- `/implementation:implement` hands `/verification:confirm` the PLAN.md path at Step 5, and `/implementation:implement-dispatch` puts the PLAN.md's absolute path in each plan-driven worker brief (not under `--items` or holdout tests) and passes it on to Step 5, so a fresh session can read the Brief.
+
 ## [0.29.0] - 2026-10-14
 
 ### Added
