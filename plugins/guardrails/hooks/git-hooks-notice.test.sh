@@ -3,6 +3,7 @@
 # lacks the guardrails git-hook entries: run as hooks.json declares it, in a fresh clone,
 # with the option off, and with every entry declined.
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 HERE="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
