@@ -291,7 +291,7 @@ class FrictionScan:
                 cause=permission["cause"], reason=permission["reason"], hook=permission["hook"],
                 source=permission["source"], reason_type=permission["reason_type"],
             )
-        elif (permission["source"] or "").startswith("user"):
+        elif (permission["source"] or "").startswith("user") and permission["reason_type"] != "rule":
             self._event("prompt-approved", ts, tool=name, shape=shape, flags=flags, target=target, source=permission["source"])
 
     def block(self, scrub, excerpt_chars: int) -> dict:
