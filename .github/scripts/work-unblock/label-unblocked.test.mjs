@@ -65,7 +65,7 @@ function world({ blocking, issues = {}, blockedBy = {}, comments = {}, failOn } 
 }
 
 function envFor(event = {}, extra = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "auto-unblock-"));
+  const dir = mkdtempSync(join(tmpdir(), "work-unblock-"));
   const eventPath = join(dir, "event.json");
   writeFileSync(
     eventPath,

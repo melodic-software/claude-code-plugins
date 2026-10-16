@@ -2,8 +2,8 @@
 
 ## 1.18.1 - 2026-10-16
 
-This repository's `pr-pipeline.yaml` adds the `work-auto-unblock` lane (stage `work`) with one
-activity, `label-unblocked` (a script, `mutate-tracker`). `work-auto-unblock.yml` runs it when a
+This repository's `pr-pipeline.yaml` adds the `work-unblock` lane (stage `work`) with one
+activity, `label-unblocked` (a script, `mutate-tracker`). `work-unblock.yml` runs it when a
 listed human closes an issue: each issue the closed one blocked gets `agent-ready` when it is
 open, every blocker is closed, it carries none of `needs-owner-decision`,
 `status: needs-decision` or `needs-human`, and it holds the owner's admission marker as

@@ -95,7 +95,7 @@ reader applies.
 | `pr-require-checks` | each verify result |
 | `pr-unblock` | a dispatch for each conflicting PR after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
-| `work-auto-unblock` | an issue closing, by a listed human; labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified |
+| `work-unblock` | an issue closing, by a listed human; labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified |
 | `post-merge-verify` | push to the default branch |
 | `post-merge-sweep-comments` | push to the default branch |
 

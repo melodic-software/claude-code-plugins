@@ -138,9 +138,9 @@ activities:
     # When an issue closes, labels agent-ready each issue it blocked whose
     # blockers are all closed, that carries no hold label, and that the owner
     # ratified with the admission marker resolve-issue reads. The label starts
-    # resolve-issue. A script, no model. .github/workflows/work-auto-unblock.yml
+    # resolve-issue. A script, no model. .github/workflows/work-unblock.yml
     # runs it.
-    script: .github/scripts/work-auto-unblock/label-unblocked.mjs
+    script: .github/scripts/work-unblock/label-unblocked.mjs
     # Adds one label to issues; nothing else.
     effect: mutate-tracker
     gating: advisory
@@ -177,8 +177,8 @@ lanes:
     stage: merge
     slots:
       - activity: merge-pr
-  # Started by an issue closing (.github/workflows/work-auto-unblock.yml).
-  work-auto-unblock:
+  # Started by an issue closing (.github/workflows/work-unblock.yml).
+  work-unblock:
     stage: work
     slots:
       - activity: label-unblocked

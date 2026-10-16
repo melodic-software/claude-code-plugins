@@ -1,4 +1,4 @@
-name: work-auto-unblock
+name: work-unblock
 
 # What this does, in plain words:
 #
@@ -8,7 +8,7 @@ name: work-auto-unblock
 # status: needs-decision, needs-human), and that the owner ratified with the
 # admission marker comment the resolve-issue lane reads. That label starts
 # work-resolve-issue.yml. The rules are in
-# .github/scripts/work-auto-unblock/label-unblocked.mjs; the lane and its
+# .github/scripts/work-unblock/label-unblocked.mjs; the lane and its
 # effect (mutate-tracker) are in docs/conventions/pr-pipeline.yaml.
 #
 # It runs no AI model and never checks out anything but the main branch.
@@ -100,7 +100,7 @@ jobs:
         if: steps.who.outputs.proceed == 'true'
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
-          lane: work-auto-unblock
+          lane: work-unblock
           activity: label-unblocked
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
@@ -116,7 +116,7 @@ jobs:
         with:
           broker-url: ${{ vars.LANES_BROKER_URL }}
           audience: ${{ vars.LANES_BROKER_AUDIENCE }}
-          lane: work-auto-unblock
+          lane: work-unblock
           activity: label-unblocked
           issue-number: ${{ format('{0}', github.event.issue.number) }}
           effect: ${{ steps.config.outputs.effect }}

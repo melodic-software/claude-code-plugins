@@ -255,7 +255,7 @@ test("live config: resolve-issue may only write its branch; report-outcome may o
 });
 
 test("live config: label-unblocked may only write issues", () => {
-  assert.deepEqual(resolveGrant(FILES, { lane: "work-auto-unblock", activity: "label-unblocked", configPath: CONFIG_PATH }), {
+  assert.deepEqual(resolveGrant(FILES, { lane: "work-unblock", activity: "label-unblocked", configPath: CONFIG_PATH }), {
     effect: "mutate-tracker",
     grant: { contents: "read", "pull-requests": "read", issues: "write" },
   });
