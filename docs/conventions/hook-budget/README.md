@@ -90,7 +90,7 @@ wall time: process spawn is most expensive there, and the fleet's reference meas
 disk-hygiene engine gate) measures ≈ 5.9 s parallel wall and the per-Write set (two formatters +
 three guardrails verifiers) ≈ 1.9 s. #1809's single-writer change removes per-Write work only in
 repos without a markdownlint config; in an opted-in repo the per-Write set is unchanged (typos-format
-still scans in report-only mode), so these figures remain the reference accounting until
+then scanned each edit; it now reports at commit time), so these figures remain the reference accounting until
 re-measured.
 
 ## Reference figures (2026-09-02, after the hook-performance program)

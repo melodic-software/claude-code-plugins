@@ -6,7 +6,7 @@
 # the cost every user pays per turn with the option off: the node launcher only.
 # test-scope: plugins/typos-format/hooks/hooks.json plugins/typos-format/git-hooks/typos-check.sh plugins/typos-format/.claude-plugin/plugin.json
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_END_OF_TURN CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_END_OF_TURN CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN="$(cd "$HOOK_DIR/.." && pwd)"

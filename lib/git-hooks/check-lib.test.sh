@@ -8,7 +8,7 @@
 # test-scope: lib/git-hooks/check-lib.sh
 # shellcheck disable=SC2016 # each snippet is single-quoted on purpose: in_repo evaluates it in an inner bash
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE CLAUDECODE AI_AGENT
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB="$HERE/check-lib.sh"

@@ -219,7 +219,6 @@ where the formatter every writer calls lives:
 | Producer | `hook` value | Data schema |
 |----------|--------------|-------------|
 | `markdown-format` plugin | `markdown-format` | `data/markdown-format.schema.json` |
-| `typos-format` plugin | `typos-format` | `data/typos-format.schema.json` |
 | `ruff-format` plugin | `ruff-format` | `data/ruff-format.schema.json` |
 | `go-format` plugin | `go-format` | `data/go-format.schema.json` |
 | `bash-format` plugin | `bash-format` | `data/bash-format.schema.json` |

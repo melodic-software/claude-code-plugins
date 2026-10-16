@@ -20,9 +20,9 @@ lib="$here/check-lib.sh"
 # shellcheck source=../../../lib/git-hooks/check-lib.sh
 . "$lib" || exit 1
 
-# The plugin's bundled typos config, passed with -c as the per-edit hook passes
-# it, so both apply the same protections: beside an installed copy (an entry
-# asset), or under config/ when run from the plugin itself.
+# The plugin's bundled typos config, passed with -c so SHA-shaped hex is not read
+# as a misspelling: beside an installed copy (an entry asset), or under config/
+# when run from the plugin itself.
 config="$here/default-typos.toml"
 [[ -f "$config" ]] || config="$here/../config/default-typos.toml"
 config_args=()

@@ -3,28 +3,28 @@
   "evals": [
     {
       "id": 1,
-      "name": "check-reports-write-mode-as-info-not-pass",
+      "name": "check-reports-the-git-entry-and-options",
       "prompt": "/typos-format:setup check",
-      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, the typos binary, Node.js, the informational consumer config, the typos_format_enabled toggle, the write-mode switch, and hook registration — with write mode reported as INFO, not PASS, when it is at the shipped default.",
+      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, the typos binary, Node.js, the informational consumer config, the two options, and the git pre-commit entry's verify state, with a never-installed entry as a FAIL whose remediation is apply install-git-hooks.",
       "files": [],
       "expectations": [
-        "Resolves the typos binary on PATH only, matching the hook — no .venv-style per-repo convention — and reports the resolved path plus `typos --version` output when found",
-        "Reports the effective typos_format_write_changes value and states that unexpanded or empty means the shipped default false, with only the literal true enabling writes",
-        "Reports write mode as INFO, not PASS, when writes are off, on the stated grounds that every prerequisite can pass while the one behavior the consumer came here for was never turned on",
+        "Resolves the typos binary on PATH only, with no per-repo convention, and reports the resolved path plus `typos --version` output when found",
+        "Runs the installer's verify and reports a missing, stale or modified git entry as a FAIL naming `apply install-git-hooks`, and a declined one as INFO",
+        "Reports typos_format_end_of_turn as INFO, stating that unexpanded or empty means false, so findings wait for the commit",
         "Names the remediation in the same line rather than leaving the reader to infer it"
       ]
     },
     {
       "id": 2,
-      "name": "report-only-is-a-configuration-answer-not-a-repair",
-      "prompt": "/typos-format:setup apply\n\nThe hook is clearly running — I see the findings — but it never actually fixes the typos in my files.",
-      "expected_output": "Answers that the hook is working as shipped: writes were never turned on, so this is a configuration answer rather than a repair. Offers the /plugin configure route (or the headless install rerun with --config typos_format_write_changes=true) and states what turning it on accepts.",
+      "name": "no-findings-while-editing-is-by-design",
+      "prompt": "/typos-format:setup apply\n\nThe plugin is installed but I never see any spelling findings while Claude edits my files.",
+      "expected_output": "Answers that this is the shipped design: findings arrive at commit time from the git pre-commit entry, not per edit. Checks whether that entry is installed and offers apply install-git-hooks if not, and offers the opt-in typos_format_end_of_turn option for findings before a turn ends.",
       "files": [],
       "expectations": [
-        "States plainly that report-only is the shipped default and the hook is working as intended — a configuration answer, not a defect to repair",
-        "Names typos_format_write_changes as the specific key, and that only the literal true enables writes while any other value stays report-only",
-        "States what turning writes on accepts: last-writer-wins ordering against any sibling hook that rewrites the same file",
-        "For the opposite case — writes already on and a few corrections unwanted — routes to allow-listing those words in the repository's typos config rather than switching the whole hook back to report-only"
+        "States that nothing reports per edit by design and that findings arrive when a commit runs the pre-commit entry",
+        "Checks the git entry with the installer's verify and, when it is missing, routes to `apply install-git-hooks [scope=local|shared]`",
+        "Names typos_format_end_of_turn as the opt-in that hands findings in uncommitted changes back before a turn ends, off by default",
+        "Does not present the absence of per-edit findings as a defect to repair"
       ]
     },
     {
@@ -63,7 +63,7 @@
         "Runs check first even on the repeat invocation",
         "Reports \"already configured\" and performs no write",
         "Does not re-print install guidance for the binary once it resolves",
-        "Runs the spell-checker on no file — editing a file is what exercises the hook end-to-end"
+        "Runs the spell-checker on no file — a git commit is what exercises the installed pre-commit entry"
       ]
     },
     {
@@ -73,8 +73,8 @@
       "expected_output": "Routes the headless change to a plain `claude plugin install typos-format@<marketplace> -s <scope> --config typos_format_enabled=false` rerun, states that against an already-installed plugin it prints `already installed` and still writes the value (citing the plugin-reconfiguration convention as the owner of the verified-version record), rules out uninstalling to reconfigure, and ends by rerunning check in a fresh session and reporting the observed effective value.",
       "files": [],
       "expectations": [
-        "Prescribes a plain `claude plugin install … --config typos_format_enabled=false` rerun, naming this plugin's own key and the false value the request asked for, and notes the flag is repeatable for typos_format_write_changes",
-        "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting both the toggle and the write-mode switch to their manifest defaults",
+        "Prescribes a plain `claude plugin install … --config typos_format_enabled=false` rerun, naming this plugin's own key and the false value the request asked for, and notes the flag is repeatable per key, such as typos_format_end_of_turn",
+        "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting both the toggle and the end-of-turn opt-in to their manifest defaults",
         "Cites the marketplace's plugin-reconfiguration convention as the owner of the --config-against-an-installed-plugin claim's verified-version record rather than stamping a CLI version itself, and requires the check rerun to happen in a FRESH session because the rendered user_config token is injected at skill load",
         "Notes that -s defaults to user, so the scope `claude plugin list` reports must be passed and a project/local scope needs the command run from that project's directory",
         "Ends by rerunning check and reporting the OBSERVED effective toggle value rather than asserting the change took effect"

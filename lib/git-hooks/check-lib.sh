@@ -18,6 +18,9 @@
 #   checks_filter_findings     stdin "<path>:<line>: <message>" lines; prints
 #                              those inside a changed range
 #   checks_partly_staged <p>   0 when <p> has unstaged changes too
+#   checks_refuse_partly_staged
+#                              a rewriting check calls this first: prints the
+#                              contract line per partly staged path, returns 1
 #   checks_require_tool <tool> <install>
 #                              returns 0 when the tool is on PATH, else exits
 #                              the script with the contract's missing-tool rule
