@@ -31,6 +31,7 @@ first-class use, and the audit may honestly return clean.
   - [sweep-all (composed runbook)](#sweep-all-composed-runbook)
   - [wait-what (one-shot communication repair)](#wait-what-one-shot-communication-repair)
   - [hold-my-hand (standing session posture)](#hold-my-hand-standing-session-posture)
+  - [be-ambitious (one-shot request raise)](#be-ambitious-one-shot-request-raise)
 - [Consumer conventions](#consumer-conventions)
 - [Install](#install)
 - [Configuration](#configuration)
@@ -58,13 +59,14 @@ report, lives once at plugin scope in
 [`context/re-anchor-audit-correct.md`](context/re-anchor-audit-correct.md);
 each skill carries only its own delta.
 
-Beyond the correctors, the plugin ships three **declared further species**: skills that are *not* correctors and re-anchor no discipline of their own:
+Beyond the correctors, the plugin ships four **declared further species**: skills that are *not* correctors and re-anchor no discipline of their own:
 
 | Skill | Species | What it does |
 |---|---|---|
 | `/discipline:sweep-all` | Composed runbook | Runs the whole bundle as one pass. Fans out an audit-only subagent per in-scope corrector, then applies the corrections on the main thread in a fixed order; at session start it reports a cheap posture digest instead |
 | `/discipline:wait-what` | One-shot communication repair | User-invoked only. Type it when the last message did not land; the model re-pitches it with the missing context, in ASD-STE100 Simplified Technical English, using the project's ubiquitous language. Never model-invoked, never in the batch |
 | `/discipline:hold-my-hand` | Standing session posture | Partitions the remaining work into phases and presents only the current one, never the phases after it beyond a one-line count. Each phase names where to be, its numbered steps and exact commands, the expected output, the common failure, who performs each step, and the exact reply that advances. Never in the batch |
+| `/discipline:be-ambitious` | One-shot request raise | User-invoked only. Shows one request beside a raised version (the goal behind it, expert methods and an outside check, more than one field), fenced to the scope you accept, and executes nothing until you answer. Never model-invoked, never in the batch |
 
 ## What each skill does
 
@@ -343,8 +345,8 @@ preserves every member's human gate.
 
 ### wait-what (one-shot communication repair)
 
-A **declared further species**, not a corrector, and the plugin's only
-user-invoked-only skill (`disable-model-invocation: true`): the human is the
+A **declared further species**, not a corrector, and user-invoked only
+(`disable-model-invocation: true`): the human is the
 only party who can detect that a message did not land, so the model never
 fires it. Type it the moment you notice you are skimming, the model has
 drifted into jargon it invented, stacked acronyms, or explained a decision
@@ -384,6 +386,25 @@ posture the user did not ask for.
 
 ```shell
 /discipline:hold-my-hand   # phase it, one phase at a time
+```
+
+### be-ambitious (one-shot request raise)
+
+A **declared further species**, not a corrector, and user-invoked only
+(`disable-model-invocation: true`): only you know you wanted more than you
+asked for. Give it a request, or type it bare to use your previous message.
+It shows the original beside a raised version and names the axes it applied:
+Altitude (the goal behind the goal and a purpose line), Depth (what a top
+expert would add, the rawest material, named methods, and a check outside the
+model) and Range (nouns turned to verbs, fields beyond the obvious one, a
+specialist's work instead of a persona). A crew or a red team appears only as
+a proposal. A hard target appears only when you opt in, and then always with
+an abort line. Every raised version ends with a scope fence, and nothing runs
+until you accept; a request already the right size gets a one-line "no
+change". It carries no `discipline-batch` tier.
+
+```shell
+/discipline:be-ambitious Make me a personal website   # raise this request
 ```
 
 ## Consumer conventions
