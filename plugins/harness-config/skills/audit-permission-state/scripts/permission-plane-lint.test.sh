@@ -336,6 +336,19 @@ EOF
 OUT=$(lint "$PARAM_KINDS")
 assert_eq "no parameter form fires, in any kind" 0 "$(count_matching "$OUT" '\[C6-colonStar\]')"
 
+# A body that starts with `*` has no command prefix, so its colon is the literal
+# it means to match (`$env:LEFTHOOK...`), not a misplaced `:*` suffix.
+NO_PREFIX=$(
+  printf '%s\n' "$SURFACES"
+  cat <<'EOF'
+rule user settings deny PowerShell(*env:*lefthook*)
+rule user settings deny Bash(git:* push)
+EOF
+)
+OUT=$(lint "$NO_PREFIX")
+assert_eq "only the command-prefix rule fires" 1 "$(count_matching "$OUT" '\[C6-colonStar\]')"
+assert_not_contains "a leading-wildcard literal colon is not called broken" "$OUT" "PowerShell(*env:*lefthook*)"
+
 # --- One rule, one explanation -----------------------------------------------
 # `allow Agent(model:*-haiku)` drew BOTH colonStar and allowParam, with two
 # different mechanics -- and colonStar explains it as a literal-colon Bash
