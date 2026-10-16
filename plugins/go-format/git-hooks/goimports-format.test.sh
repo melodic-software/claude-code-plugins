@@ -105,7 +105,7 @@ git -C "$REPO" add bad.go good.go
 expect "a file goimports cannot parse blocks, naming its line; the other file is still rewritten" "1|good.go|bad.go:4: missing ',' before newline in argument list
 bad.go:5: expected operand, found '}'
 $TAIL" "$(check "$REPO")"
-expect "the unparseable file keeps its bytes" "$(printf '%s' "$BROKEN")" "$(cat "$REPO/bad.go")"
+expect "the unparsable file keeps its bytes" "$(printf '%s' "$BROKEN")" "$(cat "$REPO/bad.go")"
 expect "the file that parsed is re-staged despite the failure" "$WITH_IMPORT" "$(git -C "$REPO" show :good.go)"
 
 new_repo

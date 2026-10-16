@@ -65,8 +65,8 @@ findings() { printf '%s' "${1%$'\n'*}"; }
 FINDING="a.go:4: missing ',' before newline in argument list
 a.go:5: expected operand, found '}'"
 printf '%s\n' "$BROKEN" >"$R/a.go"
-expect "off by default: an uncommitted unparseable file does not block" "0|" "$(stop false)"
-expect "on: an uncommitted unparseable file exits 2 with its line" "2|$FINDING" \
+expect "off by default: an uncommitted unparsable file does not block" "0|" "$(stop false)"
+expect "on: an uncommitted unparsable file exits 2 with its line" "2|$FINDING" \
   "$(findings "$(stop false CLAUDE_PLUGIN_OPTION_GO_FORMAT_END_OF_TURN=true)")"
 expect "on: nothing is rewritten" "$BROKEN" "$(cat "$R/a.go")"
 expect "on: stop_hook_active means it already blocked this turn" "0|" \
