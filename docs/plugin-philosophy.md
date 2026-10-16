@@ -1259,7 +1259,7 @@ per-spawn `model`.
 - **Recheck trigger:** the switch stops overriding definition and per-spawn `model` values, or the
   subagents page stops describing it.
 
-There is no per-plugin model surface: we read plugin `userConfig` as typed options with no model
+There is no per-plugin model surface. We read plugin `userConfig` as typed options with no model
 semantics, so doctrine travels by authoring-time conformance in each skill, not runtime
 configuration (Pointer:
 [plugin manifest reference: user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
@@ -1667,8 +1667,8 @@ request.
 Checking the value set mechanically stays deferred: a lint rule's source of truth is the harness's
 own accepted-value list, which this section deliberately does not restate.
 
-Session-level effort is the consumer's own knob, out of plugin scope: plugins never set session
-effort. A plugin may advise a session level for a phase of work, but it never changes the user's
+Session-level effort is the consumer's own setting and out of plugin scope. Plugins never set
+session effort. A plugin may advise a session level for a phase of work, but it never changes the user's
 session level or saved level (Pointer: for how a level is set and saved, see
 [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level);
 for the ultracode setting, see
