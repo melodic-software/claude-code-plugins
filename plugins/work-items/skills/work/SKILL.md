@@ -26,18 +26,49 @@ dispatch, PR or babysit step. It works in place:
 2. Push back, before any edit, when the issue leaves a decision open: what to change, where, or
    how to tell it is done. Do not guess.
 3. Otherwise make the change in the checkout, following the repository's own rules for the files
-   you touch and its release record for each plugin you change. Commit every changed file with
-   the commit tool the runner gives you. Stop when a finding means the work cannot be finished as
-   the issue asks.
-4. Last, write `work-outcome.json` to the same scratchpad directory:
+   you touch and its release record for each plugin you change. Write an external fact (a
+   documented default, limit or behavior) only after reading it in the source you cite during
+   this run; the issue's quote of a page is not that source. Read a web source through a research
+   skill, not a bare fetch: `/discovery:read-docs` for one docs page, `/discovery:research` for a
+   question that needs several sources, `/knowledge:docpage-digest` or `/knowledge:map-corpus`
+   when the issue asks for a page or a site digested. Add each page you read to `verification` as
+   `read <url>: what it says`. When you cannot read the source (the lane allows no web access, or
+   the read fails), leave the claim out, and stop if the issue needs it. Commit every changed file with the commit
+   tool the runner gives you. Stop when a finding means the work cannot be finished as the issue
+   asks.
+4. Run every check the runner's system prompt names, and fix what fails. Those checks are
+   required, and so is any other check the repository's rules require for the files you touched.
+   A required check you could not run or could not pass goes in `not_done` with
+   `"required": true`, and the lane then reports the run `stopped`, whatever `exit` says.
+   Then run the prep `/source-control:pull-request prep` defines, since the lane opens the PR
+   ready: only this plugin is loaded here, so use its stated fallback for each step. Review your
+   whole diff in one fresh-context subagent and fix each finding you confirm, then build, test and
+   lint the touched files, and run the audit each touched file class owes. Commit the fixes.
+   Record each step in `steps`: `review` (the review), `verify` (build and tests) and `checks`
+   (lint and the class audits), each `pass`, `fail` or `skipped`. The lane posts them as
+   `pipeline/<step>` commit statuses.
+5. Last, write `work-outcome.json` to the same scratchpad directory:
 
    ```json
-   {"exit": "done", "reason": "", "title": "fix(scope): subject", "summary": "What changed and how it was checked."}
+   {
+     "exit": "done",
+     "reason": "",
+     "title": "fix(scope): subject",
+     "summary": "What changed and why, in two or three sentences.",
+     "changes": ["path/to/file.md: what changed in it"],
+     "verification": ["the check you ran: what it showed"],
+     "not_done": [{"what": "what you skipped or could not check, and why", "required": false}],
+     "steps": [{"activity": "review", "result": "pass"}]
+   }
    ```
 
    `exit` is `done` (committed), `pushback` (nothing started; `reason` is the question a person
    must answer) or `stopped` (stopped partway; `reason` says why). `title` is a Conventional
-   Commits title for the PR. With no valid file, the lane reports the run as `stopped`.
+   Commits title for the PR. `changes` lists each changed file and what changed in it;
+   `verification` lists each check you ran and its result; `not_done` lists everything you skipped,
+   could not check or left unverified, so a reviewer sees the gaps first. Put nothing in
+   `verification` you did not run in this run. With no valid file, the lane reports the run as
+   `stopped`.
 
 ## Shared tracker context
 

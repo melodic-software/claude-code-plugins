@@ -22,7 +22,8 @@ Contract enforced here (encoded as code, not convention):
   resolve or reply to review threads, force-push, or change settings.
 - A ready PR on the default branch merges through the async merge API with the
   vetted head as `sha`, polled to a terminal status; on a base that requires a
-  merge queue it is enqueued instead (`enqueued` is queued, not merged). A host
+  merge queue it is enqueued instead, through GraphQL `enqueuePullRequest` with
+  the vetted head as `expectedHeadOid` (`enqueued` is queued, not merged). A host
   without the endpoint (404) falls back to `gh pr merge` for a direct merge.
   Under `--stacked-prs` every stack member, the bottom layer included, merges
   through the async API too (GitHub's required API for a stacked PR) and never
@@ -93,8 +94,11 @@ Contract enforced here (encoded as code, not convention):
   while one is configured. `--authority pr-merge` runs it as the CI pr-merge
   lane: `merge.authority` must read pr-merge, eligibility is a C2 class label
   the identity's App applied on a diff off `merge.diff-check.denied-paths`, no
-  promotion evidence is read, and while `merge.report-only` is true `--merge`
-  runs as a check that writes nothing.
+  promotion evidence is read, the kill switch is the workflow's own check
+  passed as `--lane-kill-switch proceed` (missing or any other value stops),
+  the rung cap is the workflow's `--lane-rung-cap` (empty is no cap),
+  only merges the identity enqueued are judged after the fact, and while
+  `merge.report-only` is true `--merge` runs as a check that writes nothing.
 
 Readiness is gated on GitHub's own `mergeStateStatus == CLEAN` (which integrates
 required checks, approvals, conversation resolution, and up-to-date where the
@@ -2089,6 +2093,82 @@ def report_queue_routing(result: dict[str, Any], queue: dict[str, Any]) -> int:
     return 10
 
 
+# https://docs.github.com/en/graphql/reference/pulls#enqueuepullrequest
+# `jump` is never sent: it puts the PR at the front of the queue.
+ENQUEUE_MUTATION = (
+    "mutation($id:ID!,$head:GitObjectID!){enqueuePullRequest("
+    "input:{pullRequestId:$id,expectedHeadOid:$head}){mergeQueueEntry{state position}}}"
+)
+
+
+def enqueue_pull_request(repo: str, number: int, *, sha: str) -> dict[str, Any]:
+    """Add the PR to its base's merge queue at the vetted head.
+
+    GraphQL `enqueuePullRequest`, which enqueues for an App installation token
+    where REST `merge-async` with `merge_action=merge_queue` answers "Enqueuer
+    is not authorized to merge". `expectedHeadOid` is the server-side pin.
+    Returns the `merge` record; `success` only when GitHub answers with the new
+    queue entry. The call returns before the queue lands the PR: a later run
+    reads the recorded entry back as merged and dispatches the verifying run.
+    """
+    record: dict[str, Any] = {
+        "attempted": True,
+        "auto": False,
+        "api": "graphql",
+        "mergeAction": "merge_queue",
+        "uuid": None,
+        "status": None,
+        "message": "",
+        "success": False,
+        "endpointMissing": False,
+    }
+    try:
+        node = gh_json(
+            ["api", f"repos/{repo}/pulls/{number}", "--jq", "{id: .node_id}"]
+        )
+    except (RuntimeError, json.JSONDecodeError) as exc:
+        node = None
+        record["message"] = f"could not read the pull request id: {exc}"
+    node_id = json_object(node).get("id")
+    if not isinstance(node_id, str) or not node_id:
+        record["attempted"] = False
+        record["message"] = (
+            record["message"] or "the pull request read returned no id"
+        ) + " -- not enqueued"
+        return record
+    proc = gh_capture(
+        ["api", "graphql", "-f", f"query={ENQUEUE_MUTATION}"]
+        + ["-f", f"id={node_id}", "-f", f"head={sha}"]
+    )
+    payload = _async_payload(proc.stdout)
+    data = json_object(json_object(payload.get("data")).get("enqueuePullRequest"))
+    entry = data.get("mergeQueueEntry")
+    errors = [
+        str(json_object(error).get("message") or "")
+        for error in payload.get("errors") or []
+        if is_json_object(error)
+    ]
+    if is_json_object(entry):
+        # An entry is a live enqueue even beside errors: reported enqueued so
+        # it is recorded and checked against the one-in-flight rule.
+        record["status"] = "enqueued"
+        record["success"] = True
+        record["mergeQueue"] = {
+            "state": entry.get("state"),
+            "position": entry.get("position"),
+        }
+        if errors:
+            record["message"] = "; ".join(e for e in errors if e)
+        return record
+    record["status"] = "failed" if errors else None
+    record["message"] = "; ".join(e for e in errors if e) or (
+        proc.stderr.strip() or "enqueuePullRequest returned no merge queue entry"
+    )
+    if proc.stderr.strip():
+        record["stderr"] = proc.stderr.strip()
+    return record
+
+
 def async_merge(
     repo: str,
     number: int,
@@ -2099,10 +2179,14 @@ def async_merge(
 ) -> dict[str, Any]:
     """Request an async merge or enqueue, poll it, and verify a reported merge.
 
-    Returns the `merge` record. `endpointMissing` marks a 404 on the request
-    itself (a host without the endpoint, such as an older GitHub Enterprise
-    Server): the PR was just read, so the 404 is the endpoint's, not the PR's.
+    Returns the `merge` record. An enqueue goes through
+    `enqueue_pull_request`; only a direct merge uses `merge-async`.
+    `endpointMissing` marks a 404 on the request itself (a host without the
+    endpoint, such as an older GitHub Enterprise Server): the PR was just read,
+    so the 404 is the endpoint's, not the PR's.
     """
+    if merge_action == "merge_queue":
+        return enqueue_pull_request(repo, number, sha=sha)
     request = request_async_merge(
         repo, number, sha=sha, merge_action=merge_action, method=method
     )
@@ -2680,8 +2764,49 @@ def _lane_evidence(
         threads,
         is_human=human,
         base_changed=any(e.get("event") == "base_ref_changed" for e in timeline),
+        head_file=_head_file(repo, str(head.get("sha"))),
     )
     return lanes, comments
+
+
+def _head_file(repo: str, head: str) -> Callable[[str, str], str | None]:
+    """`bind()`'s `head_file`: a file's text at `head`, or None only when the
+    comparison from the thread's commit lists it removed. A rename, a capped
+    file list or any other failure raises, so the thread keeps its human test."""
+    cache: dict[tuple[str, str], str | None] = {}
+
+    def read(path: str, original: str) -> str | None:
+        if (path, original) in cache:
+            return cache[(path, original)]
+        proc = gh_capture(
+            [
+                "api",
+                "-H",
+                "Accept: application/vnd.github.raw",
+                f"repos/{repo}/contents/{quote(path)}?ref={head}",
+            ]
+        )
+        if proc.returncode == 0:
+            text: str | None = proc.stdout
+        elif gh_http_status(proc.stderr or "") != 404:
+            raise RuntimeError(f"head-file-unread:{path}")
+        else:
+            files = json_object(
+                gh_json(["api", f"repos/{repo}/compare/{original}...{head}"])
+            ).get("files")
+            # The comparison lists at most 300 files; a full page may hide one.
+            if not is_json_array(files) or len(files) >= 300 or not any(
+                is_json_object(item)
+                and item.get("filename") == path
+                and item.get("status") == "removed"
+                for item in files
+            ):
+                raise RuntimeError(f"head-file-unproven:{path}")
+            text = None
+        cache[(path, original)] = text
+        return text
+
+    return read
 
 
 def score_unattended(
@@ -2761,6 +2886,8 @@ def assess_unattended(
     *,
     self_logins: frozenset[str],
     authority: str = merge_policy.LOCAL_BABYSIT,
+    lane_kill_switch: str | None = None,
+    lane_rung_cap: str | None = None,
 ) -> merge_policy.UnattendedPolicy:
     """The unattended decision for one pull request, in the wiring order:
     identity, the credential chokepoint, the kill switch, a default-branch
@@ -2775,6 +2902,7 @@ def assess_unattended(
             is_human=postmerge._default_is_human(repo, identity, self_logins),
             merged_since=floor,
             pinned_sha=postmerge.pin_reader(repo, identity),
+            lane_merges_only=authority == merge_policy.PR_MERGE,
         )
         refusal = None
         if not verdict.ok:
@@ -2798,6 +2926,8 @@ def assess_unattended(
         post_merge=post_merge,
         promotion=promotion,
         authority=authority,
+        lane_kill_switch=lane_kill_switch,
+        lane_rung_cap=lane_rung_cap,
     )
     return score_unattended(repo, number, policy, self_logins)
 
@@ -2999,7 +3129,9 @@ def unattended_enqueue(
     posted before the enqueue and the enqueue goes nowhere without it; after
     the enqueue the queue is
     re-read and, when another identity entry was enqueued earlier, this one
-    dequeues itself."""
+    dequeues itself. In the pr-merge lane the kill switch "read again" is the
+    value the workflow passed at the start of its run, so a flip during the
+    run does not stop this enqueue."""
     inputs = policy.inputs or {}
     identity, branch = str(inputs["identity"]), str(inputs["branch"])
     pin = str(result.get("headRefOid") or "")
@@ -3027,7 +3159,11 @@ def unattended_enqueue(
         return hold("auto-merge is armed on this pull request; disarmed, not enqueued")
     if queue["inQueue"] or queue["merged"]:
         return hold("the pull request is already queued or merged")
-    kill = merge_policy.read_kill_switch(repo)
+    kill = merge_policy.kill_switch(
+        repo,
+        authority=str(inputs.get("authority")),
+        lane_value=inputs.get("lane_kill_switch"),
+    )
     step["killSwitch"] = {"proceed": kill.proceed, "reason": kill.reason}
     if not kill.proceed:
         try:
@@ -3042,7 +3178,13 @@ def unattended_enqueue(
     # read again here: a removal (or a removal and a non-human re-add) since
     # the eligibility read refuses.
     if inputs.get("authority") == merge_policy.PR_MERGE:
-        opt_in = merge_policy.recheck_lane_class(repo, number, agent_identity=identity)
+        opt_in = merge_policy.recheck_lane_class(
+            repo,
+            number,
+            agent_identity=identity,
+            self_logins=inputs.get("self_logins") or frozenset(),
+            permission=inputs.get("permission"),
+        )
     else:
         opt_in = merge_policy.recheck_opt_in(
             repo,
@@ -3067,19 +3209,6 @@ def unattended_enqueue(
     result["enqueued"] = record["success"] and record["status"] == "enqueued"
     if pending_path is not None:
         _record_pending(pending_path, repo, number, record, pin, result)
-    if record["success"] and record["status"] == "merged":
-        # The queue landed it before the poll ended and `async_merge` read it
-        # back at the pin: dispatch the verifying full run now, as a later run
-        # does after its read-back.
-        result["merged"] = True
-        try:
-            postmerge.dispatch_full_run(repo, ref=branch)
-            result["unattended"]["dispatched"] = True
-        except postmerge.PostMergeWriteError as exc:
-            result["unattended"]["dispatched"] = False
-            result["unattended"]["dispatchError"] = str(exc)
-        print(json.dumps(result, indent=2))
-        return 0
     if not result["enqueued"]:
         print(json.dumps(result, indent=2))
         return 10
@@ -3327,6 +3456,25 @@ def main() -> int:
             "merge.report-only is true"
         ),
     )
+    parser.add_argument(
+        "--lane-kill-switch",
+        default=None,
+        help=(
+            "with --authority pr-merge, the result of the workflow's own "
+            "kill-switch check (the lane token cannot read Actions variables): "
+            "only the exact value 'proceed' proceeds; missing or any other "
+            "value stops the lane"
+        ),
+    )
+    parser.add_argument(
+        "--lane-rung-cap",
+        default=None,
+        help=(
+            "with --authority pr-merge, the CLAUDE_LANES_MERGE_RUNG_CAP value the "
+            "workflow read: empty is no cap, a rung name caps the rung; missing "
+            "or any other value holds the rung at off"
+        ),
+    )
     args = parser.parse_args()
 
     def _refuse(message: str, code: int, **envelope: object) -> int:
@@ -3451,6 +3599,14 @@ def main() -> int:
         return _refuse("--auto requires --merge and --expected-head", 2)
     if args.authority is not None and not args.unattended:
         return _refuse("--authority is only meaningful with --unattended", 2)
+    if args.authority != merge_policy.PR_MERGE and (
+        args.lane_kill_switch is not None or args.lane_rung_cap is not None
+    ):
+        return _refuse(
+            "--lane-kill-switch and --lane-rung-cap are only meaningful with "
+            "--authority pr-merge",
+            2,
+        )
 
     pending_path: Path | None = None
     if args.state_dir is not None:
@@ -3503,6 +3659,8 @@ def main() -> int:
                 number,
                 self_logins=bot_selves,
                 authority=args.authority or merge_policy.LOCAL_BABYSIT,
+                lane_kill_switch=args.lane_kill_switch,
+                lane_rung_cap=args.lane_rung_cap,
             )
         except (RuntimeError, ValueError, OSError) as exc:
             return _refuse(f"unattended merge policy unreadable: {exc}", 10)
@@ -3781,10 +3939,11 @@ def main() -> int:
         return 10
 
     # A ready PR merges through the async merge API: REST (so it works where
-    # GraphQL is refused), the only API that enqueues, and GitHub's required API
-    # for merging any stacked PR, the bottom layer included. It is used on the
-    # default branch, for a queue, and for a stack member; any other base keeps
-    # `gh pr merge`. Auto-merge has no async form and keeps `gh pr merge`.
+    # GraphQL is refused) and GitHub's required API for merging any stacked PR,
+    # the bottom layer included. It is used on the default branch and for a
+    # stack member; a queue base is enqueued through GraphQL instead
+    # (`enqueue_pull_request`). Any other base keeps `gh pr merge`. Auto-merge
+    # has no async form and keeps `gh pr merge`.
     if not arm_auto:
         stack = json_object(result.get("stack"))
         stack_lands = bool(stack.get("landsLowerLayers"))

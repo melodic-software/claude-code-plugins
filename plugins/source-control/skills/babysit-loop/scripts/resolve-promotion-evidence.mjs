@@ -38,6 +38,24 @@
 // values from a repository's settings env block never reach it. It reports only what the
 // checker printed and never re-derives the resolution algorithm. It writes no file but the
 // --window-start copy and reads nothing in the checkout.
+//
+// Inline mode, for the CI pr-merge lane, computes the events instead of reading a file:
+//   node resolve-promotion-evidence.mjs --inline --repo <owner/name> --binding <file> --checker <file>
+//     --probe-evidence-root <dir> --lane-login <login> [--lane-login ...] --gate-check <name> [--gate-check ...]
+//     [--credential-roots <path,...>] [--missed-blocking-label <name>] [--window-start <ISO>]
+// It runs publish-promotion-evidence.mjs collect() (its report-mode GitHub reads, through `gh` and
+// GH_TOKEN) from 5 days before the earliest ratified_at of a cell the binding bounds promoted
+// (LOOKBACK_DAYS) through now, and pipes the events to the checker as `--evidence -`. It prints the same JSON and exits 0, fail-closed
+// included, with source "github:<owner/name>" and the arguments under options (scope "argument").
+// The arguments are trusted as given: its caller is a workflow running from the default branch
+// (reference/promotion-evidence-resolution.md, "Inline mode"), so none of the settings, checkout or
+// writability rules above apply. It also fails closed on a missing or malformed argument; a binding
+// with no promoted cell or a promoted cell with no ISO 8601 ratified_at ("epoch-start-missing:");
+// an epoch start more than 85 days before now ("epoch-start-expired:"); a --repo other than a set
+// GITHUB_REPOSITORY ("repo-mismatch:"); a publisher that cannot be imported
+// ("publisher-unavailable:"); a deleted run or issue the publisher finds in the window
+// ("run-deleted:", "issue-deleted:", "issue-missing:"); and any GitHub read that fails
+// ("github-read-failed:").
 
 import { spawnSync } from "node:child_process";
 import { accessSync, constants, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -160,6 +178,8 @@ function isStrictIso(value) {
   );
 }
 
+const restartEvents = (events, at) => [...events, ...PROMOTABLE_CELLS.map((cell) => ({ cell, event: "gate-failure", at }))];
+
 // The source's events plus one gate-failure per promotable cell at `at`, written outside every
 // root and removed on exit.
 function restartedCopy(path, at, roots) {
@@ -177,7 +197,7 @@ function restartedCopy(path, at, roots) {
     if (isInside(dir, root) || isInside(root, dir)) emit(source, `the --window-start copy ${dir} would sit inside or contain ${root}`);
   }
   const copy = join(dir, "evidence.json");
-  writeFileSync(copy, JSON.stringify([...events, ...PROMOTABLE_CELLS.map((cell) => ({ cell, event: "gate-failure", at }))]));
+  writeFileSync(copy, JSON.stringify(restartEvents(events, at)));
   return copy;
 }
 
@@ -280,15 +300,27 @@ export function main({ platform = process.platform, ...judge } = {}) {
   const credentialSetting = options.promotion_evidence_credential_roots;
   if (credentialSetting) refuseLaneWritable(credentialSetting.file, credentialSetting.file, judge);
   const credentialRoots = credentialRootsArgs(credentialSetting?.value, roots);
+  emitVerdict(runChecker(checker, [binding, "--evidence", evidence, "--probe-evidence-root", probeRoot, ...credentialRoots]));
+}
 
+// The checker, run with an allowlisted environment; `input`, when given, is its stdin.
+function runChecker(checker, args, input) {
   const checkerEnv = Object.fromEntries(
     CHECKER_ENV_KEYS.filter((key) => key in process.env).map((key) => [key, process.env[key]]),
   );
-  const run = spawnSync(
-    process.execPath,
-    [checker, binding, "--evidence", evidence, "--probe-evidence-root", probeRoot, ...credentialRoots],
-    { cwd: dirname(checker), env: checkerEnv, encoding: "utf8", shell: false, timeout: TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
-  );
+  return spawnSync(process.execPath, [checker, ...args], {
+    cwd: dirname(checker),
+    env: checkerEnv,
+    encoding: "utf8",
+    shell: false,
+    timeout: TIMEOUT_MS,
+    maxBuffer: 16 * 1024 * 1024,
+    input,
+  });
+}
+
+// Emits the cells the checker's evaluation block printed, or fails closed on anything else.
+function emitVerdict(run) {
   if (run.error) emit(source, `checker did not complete (${run.error.code ?? run.error.message})`);
   if (run.status !== 0) {
     const detail = (run.stderr ?? "").trim().split(/\r?\n/)[0].slice(0, 500);
@@ -311,6 +343,117 @@ export function main({ platform = process.platform, ...judge } = {}) {
   emit(source, null, printed);
 }
 
+// GitHub keeps a public repository's workflow runs, checks and commit statuses at most 90 days
+// (reference/promotion-evidence-resolution.md, "Inline mode"); 5 days of margin.
+const EPOCH_MAX_AGE_DAYS = 85;
+const DAY_MS = 86_400_000;
+// Merges are read from this far before the epoch, so a merge made just before it whose post-merge
+// gate fails inside it still yields that event; the checker ignores the pre-epoch events this
+// also finds. The publisher's 6-hour dispatch deadline is no bound here: a red run counts until
+// the merge is verified, for merges inside the lookback. The margin keeps every read within the
+// 90 days, so a still-unverified merge older than the lookback whose run goes red inside the epoch
+// yields no event (reference/promotion-evidence-resolution.md, "Inline mode").
+const LOOKBACK_DAYS = 90 - EPOCH_MAX_AGE_DAYS;
+
+// The earliest ratified_at among the binding's cells bound promoted: the instant from which every
+// contrary event must still be readable.
+function epochStart(path) {
+  let binding;
+  try {
+    binding = JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    emit(source, `--binding ${path} cannot be read as JSON (${error.code ?? error.message})`);
+  }
+  const promoted = Object.entries(binding?.promotion_state ?? {}).filter(([, entry]) => entry?.state === "promoted");
+  if (promoted.length === 0) emit(source, "epoch-start-missing: no cell is bound promoted");
+  for (const [cell, entry] of promoted) {
+    if (typeof entry.ratified_at !== "string" || !isStrictIso(entry.ratified_at)) {
+      emit(source, `epoch-start-missing: ${cell} is bound promoted with no ISO 8601 ratified_at`);
+    }
+  }
+  return Math.min(...promoted.map(([, entry]) => Date.parse(entry.ratified_at)));
+}
+
+// gh and now are the test seam; the CLI entry below passes neither.
+export async function inline({ argv = process.argv.slice(3), gh, now = Date.now() } = {}) {
+  let values;
+  try {
+    ({ values } = parseArgs({
+      args: argv,
+      options: {
+        repo: { type: "string" },
+        binding: { type: "string" },
+        checker: { type: "string" },
+        "probe-evidence-root": { type: "string" },
+        "credential-roots": { type: "string" },
+        "lane-login": { type: "string", multiple: true, default: [] },
+        "gate-check": { type: "string", multiple: true, default: [] },
+        "missed-blocking-label": { type: "string" },
+        "window-start": { type: "string" },
+      },
+      strict: true,
+      allowPositionals: false,
+    }));
+  } catch (error) {
+    emit(null, `usage: ${error.message}`);
+  }
+  if (!/^[\w.-]+\/[\w.-]+$/.test(values.repo ?? "") || values["lane-login"].length === 0 || values["gate-check"].length === 0) {
+    emit(null, "usage: --inline needs --repo <owner/name>, --binding, --checker, --probe-evidence-root, and at least one --lane-login and --gate-check");
+  }
+  source = `github:${values.repo}`;
+  // In Actions, a repository other than the run's own would read no merges and so no demotions.
+  const own = process.env.GITHUB_REPOSITORY;
+  if (own && values.repo !== own) emit(source, `repo-mismatch: --repo ${values.repo} is not GITHUB_REPOSITORY ${own}`);
+  const supplied = {
+    promotion_evidence_binding: values.binding,
+    promotion_evidence_root: values["probe-evidence-root"],
+    promotion_evidence_checker: values.checker,
+    promotion_evidence_credential_roots: values["credential-roots"],
+  };
+  options = Object.fromEntries(
+    Object.entries(supplied)
+      .filter(([, value]) => value !== undefined)
+      .map(([key, value]) => [key, { value, scope: "argument", file: null }]),
+  );
+
+  const checker = resolveInput("--checker", values.checker, []);
+  const binding = resolveInput("--binding", values.binding, []);
+  const probeRoot = resolveInput("--probe-evidence-root", values["probe-evidence-root"], []);
+  const credentialRoots = credentialRootsArgs(values["credential-roots"], []);
+  const epoch = epochStart(binding);
+  if (now - epoch > EPOCH_MAX_AGE_DAYS * DAY_MS) {
+    emit(
+      source,
+      `epoch-start-expired: the promotion epoch started ${new Date(epoch).toISOString()}, over ${EPOCH_MAX_AGE_DAYS} days ago, and GitHub may already have deleted contrary evidence from its start`,
+    );
+  }
+  const at = values["window-start"];
+  if (at !== undefined && !isStrictIso(at)) emit(source, `--window-start ${JSON.stringify(at)} is not an ISO 8601 date-time with an offset`);
+
+  let collect;
+  try {
+    ({ collect } = await import("./publish-promotion-evidence.mjs"));
+  } catch (error) {
+    emit(source, `publisher-unavailable: ${error.message}`);
+  }
+  let events;
+  try {
+    ({ events } = collect({
+      repo: values.repo,
+      since: new Date(epoch - LOOKBACK_DAYS * DAY_MS).toISOString(),
+      through: new Date(now).toISOString(),
+      laneLogins: values["lane-login"],
+      gateChecks: values["gate-check"],
+      missedBlockingLabel: values["missed-blocking-label"],
+      ...(gh ? { gh } : {}),
+    }));
+  } catch (error) {
+    emit(source, error.failClosedReason ?? `github-read-failed: ${error.message}`);
+  }
+  const evidence = at === undefined ? events : restartEvents(events, at);
+  emitVerdict(runChecker(checker, [binding, "--evidence", "-", "--probe-evidence-root", probeRoot, ...credentialRoots], JSON.stringify(evidence)));
+}
+
 function isEntry() {
   try {
     return realpathSync.native(process.argv[1]) === realpathSync.native(fileURLToPath(import.meta.url));
@@ -318,4 +461,7 @@ function isEntry() {
     return false;
   }
 }
-if (isEntry()) main();
+if (isEntry()) {
+  if (process.argv[2] === "--inline") await inline();
+  else main();
+}

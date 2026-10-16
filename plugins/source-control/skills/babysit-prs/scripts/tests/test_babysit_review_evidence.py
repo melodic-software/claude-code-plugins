@@ -36,6 +36,8 @@ JOBS = {
     "claude-security-review": "pr-review-security / security-review",
 }
 MAINTAINER = {"__typename": "User", "login": "maintainer"}
+# The flagged line is the hunk's last line.
+HUNK = "@@ -1,2 +1,2 @@\n context\n+run(user_input)"
 
 
 def is_human(actor: Any) -> bool:
@@ -144,20 +146,33 @@ def thread(
     resolved_by: Any = None,
     author: dict[str, Any] | None = None,
     created: str = "2026-01-01T00:30:00Z",
+    outdated: bool = False,
+    hunk: Any = HUNK,
+    lines: tuple[int | None, int | None] = (None, 2),
 ) -> dict[str, Any]:
     return {
         "id": f"t{next(_ids)}",
         "isResolved": resolved,
-        "isOutdated": False,
+        "isOutdated": outdated,
         "resolvedBy": resolved_by,
+        "originalStartLine": lines[0],
+        "originalLine": lines[1],
         "comments": [
             {
                 "author": author or {"__typename": "Bot", "login": "claude"},
                 "body": body,
                 "createdAt": created,
+                "path": "app.py",
+                "diffHunk": hunk,
+                "originalCommit": {"oid": S1},
             }
         ],
     }
+
+
+def fixed_head(path: str, original: str) -> str | None:
+    """The file at the pinned head with the flagged line rewritten."""
+    return "context\nrun(clean(user_input))\n"
 
 
 def whole(lane: str, sha: str, n: int = 0, k: int = 0) -> dict[str, Any]:
@@ -238,6 +253,7 @@ class Base(unittest.TestCase):
         runs: list[dict[str, Any]],
         comments: list[dict[str, Any]] | None = None,
         threads: list[dict[str, Any]] | None = (),  # type: ignore[assignment]
+        head_file: Any = fixed_head,
     ) -> dict[str, Any]:
         return by_lane(
             ev.bind(
@@ -246,6 +262,7 @@ class Base(unittest.TestCase):
                 both_markers() if comments is None else comments,
                 list(threads) if threads is not None else None,
                 is_human=is_human,
+                head_file=head_file,
             )
         )
 
@@ -751,6 +768,196 @@ class CountTests(Base):
         threads = [thread(resolved=True, resolved_by=MAINTAINER)]
         result = self.bind(runs, threads=threads)
         self.assertEqual(result["claude-security-review"].open_findings, 0)
+
+    def rounds(self) -> list[dict[str, Any]]:
+        # #7520's shape: one inline finding at S1 and at S0, each fixed by
+        # the next push; the latest review, at S, raised nothing.
+        runs = [
+            run("claude-review", S1, "findings=1 inline=1 scope=whole"),
+            run(
+                "claude-review", S0, f"findings=1 inline=1 scope=incremental since={S1}"
+            ),
+            run(
+                "claude-review", S, f"findings=0 inline=0 scope=incremental since={S0}"
+            ),
+        ]
+        for hour, item in enumerate(runs):
+            job = item["attempts"][0]["jobs"][0]
+            job["started_at"] = f"2026-01-01T0{2 * hour}:00:00Z"
+            job["completed_at"] = f"2026-01-01T0{2 * hour + 1}:00:00Z"
+        return runs
+
+    def test_earlier_rounds_resolved_by_the_pusher_are_closed(self) -> None:
+        pusher = {"__typename": "User", "login": "pusher"}
+        threads = [
+            thread(resolved=True, resolved_by=pusher, created=at, outdated=True)
+            for at in ("2026-01-01T00:30:00Z", "2026-01-01T02:30:00Z")
+        ]
+        result = self.bind(self.rounds(), threads=threads)
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 0)
+
+    def outdated_pusher_resolved(
+        self, head_file: Any, hunk: Any = HUNK, lines: Any = (None, 2)
+    ) -> int:
+        pusher = {"__typename": "User", "login": "pusher"}
+        threads = [
+            thread(
+                resolved=True,
+                resolved_by=pusher,
+                created=at,
+                outdated=True,
+                hunk=hunk,
+                lines=lines,
+            )
+            for at in ("2026-01-01T00:30:00Z", "2026-01-01T02:30:00Z")
+        ]
+        result = self.bind(self.rounds(), threads=threads, head_file=head_file)
+        return result["claude-review"].open_findings
+
+    def test_insert_above_the_unchanged_line_keeps_the_human_test(self) -> None:
+        # GitHub marks the thread outdated, but the flagged line ships as is.
+        shifted = "context\n# unrelated\nrun(user_input)\n"
+        self.assertEqual(self.outdated_pusher_resolved(lambda p, o: shifted), 2)
+
+    def test_changed_line_is_closed(self) -> None:
+        self.assertEqual(self.outdated_pusher_resolved(fixed_head), 0)
+
+    def test_deleted_file_is_closed(self) -> None:
+        self.assertEqual(self.outdated_pusher_resolved(lambda p, o: None), 0)
+
+    def test_unreadable_file_or_hunk_keeps_the_human_test(self) -> None:
+        def unreadable(path: str, original: str) -> str | None:
+            raise RuntimeError("head-file-unread")
+
+        cases = (
+            ("file", unreadable, HUNK),
+            ("no reader", None, HUNK),
+            ("no hunk", fixed_head, None),
+            ("empty hunk", fixed_head, ""),
+            ("left side", fixed_head, "@@ -1,2 +1,1 @@\n context\n-run(user_input)"),
+        )
+        for name, head_file, hunk in cases:
+            with self.subTest(name):
+                self.assertEqual(self.outdated_pusher_resolved(head_file, hunk), 2)
+
+    def test_blank_flagged_line_keeps_the_human_test(self) -> None:
+        hunk = "@@ -1,2 +1,2 @@\n context\n+   \t"
+        self.assertEqual(self.outdated_pusher_resolved(fixed_head, hunk), 2)
+
+    RANGE = "@@ -1,2 +1,4 @@\n context\n+query(user_input)\n-old()\n+return rows"
+
+    def test_range_with_only_its_boundary_line_edited_stays_open(self) -> None:
+        head = "context\nquery(user_input)\nreturn rows()\n"
+        self.assertEqual(
+            self.outdated_pusher_resolved(lambda p, o: head, self.RANGE, (2, 3)), 2
+        )
+
+    def test_range_with_every_line_changed_is_closed(self) -> None:
+        head = "context\nquery(clean(user_input))\nreturn rows()\n"
+        self.assertEqual(
+            self.outdated_pusher_resolved(lambda p, o: head, self.RANGE, (2, 3)), 0
+        )
+
+    def test_range_the_hunk_does_not_end_on_stays_open(self) -> None:
+        head = "context\nquery(clean(user_input))\nreturn rows()\n"
+        for name, lines in (
+            ("end mismatch", (2, 4)),
+            ("start before hunk", (0, 3)),
+            ("no line", (None, None)),
+        ):
+            with self.subTest(name):
+                self.assertEqual(
+                    self.outdated_pusher_resolved(lambda p, o: head, self.RANGE, lines),
+                    2,
+                )
+
+    def test_earlier_round_with_unchanged_lines_still_needs_a_human(self) -> None:
+        # An unrelated push re-reviewed incrementally never re-read the line.
+        pusher = {"__typename": "User", "login": "pusher"}
+        threads = [
+            thread(resolved=True, resolved_by=pusher, created=at)
+            for at in ("2026-01-01T00:30:00Z", "2026-01-01T02:30:00Z")
+        ]
+        result = self.bind(self.rounds(), threads=threads)
+        self.assertEqual(result["claude-review"].open_findings, 2)
+
+    def test_thread_from_an_earlier_review_of_the_same_head_counts(self) -> None:
+        # Two recorded reviews at S: the second did not supersede the first.
+        runs = self.rounds()
+        runs[-1] = run(
+            "claude-review", S, f"findings=1 inline=1 scope=incremental since={S0}"
+        )
+        again = run(
+            "claude-review", S, f"findings=0 inline=0 scope=incremental since={S0}"
+        )
+        for item, hours in ((runs[-1], ("04", "05")), (again, ("06", "07"))):
+            job = item["attempts"][0]["jobs"][0]
+            job["started_at"] = f"2026-01-01T{hours[0]}:00:00Z"
+            job["completed_at"] = f"2026-01-01T{hours[1]}:00:00Z"
+        runs.append(again)
+        pusher = {"__typename": "User", "login": "pusher"}
+        threads = [
+            thread(resolved=True, resolved_by=MAINTAINER, created=at)
+            for at in ("2026-01-01T00:30:00Z", "2026-01-01T02:30:00Z")
+        ]
+        threads.append(
+            thread(
+                resolved=True,
+                resolved_by=pusher,
+                created="2026-01-01T04:30:00Z",
+                outdated=True,
+            )
+        )
+        result = self.bind(runs, threads=threads)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+    def test_unknown_review_start_keeps_the_human_test(self) -> None:
+        runs = self.rounds()
+        del runs[-1]["attempts"][0]["jobs"][0]["started_at"]
+        pusher = {"__typename": "User", "login": "pusher"}
+        threads = [
+            thread(resolved=True, resolved_by=MAINTAINER, created="2026-01-01T00:30:00Z"),
+            thread(
+                resolved=True,
+                resolved_by=pusher,
+                created="2026-01-01T02:30:00Z",
+                outdated=True,
+            ),
+        ]
+        result = self.bind(runs, threads=threads)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+    def test_earlier_round_still_unresolved_counts(self) -> None:
+        threads = [thread(created="2026-01-01T00:30:00Z")]
+        threads.append(
+            thread(
+                resolved=True, resolved_by=MAINTAINER, created="2026-01-01T02:30:00Z"
+            )
+        )
+        result = self.bind(self.rounds(), threads=threads)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+    def test_latest_round_resolved_by_the_pusher_counts(self) -> None:
+        runs = self.rounds()
+        runs[-1] = run(
+            "claude-review", S, f"findings=1 inline=1 scope=incremental since={S0}"
+        )
+        job = runs[-1]["attempts"][0]["jobs"][0]
+        job["started_at"], job["completed_at"] = (
+            "2026-01-01T04:00:00Z",
+            "2026-01-01T05:00:00Z",
+        )
+        pusher = {"__typename": "User", "login": "pusher"}
+        threads = [
+            thread(resolved=True, resolved_by=MAINTAINER, created=at)
+            for at in ("2026-01-01T00:30:00Z", "2026-01-01T02:30:00Z")
+        ]
+        threads.append(
+            thread(resolved=True, resolved_by=pusher, created="2026-01-01T04:30:00Z")
+        )
+        result = self.bind(runs, threads=threads)
+        self.assertEqual(result["claude-review"].open_findings, 1)
 
     def test_unread_threads_unbind(self) -> None:
         result = self.bind([whole("claude-review", S)], threads=None)

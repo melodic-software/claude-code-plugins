@@ -9,31 +9,15 @@ import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import * as publisher from "./publish-promotion-evidence.mjs";
 import { collect, PublishError, publish } from "./publish-promotion-evidence.mjs";
+import { actorOf, CANARY, demotionIssue, FULL, GATE, github, issueComment, issueItem, LANE, later, MECHANICAL, MISSED, page1, pinComment, pr, REC, REPO, SCOPED, shaOf, wfRun } from "./fixtures/publish-promotion-evidence/github-fake.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-// Real `gh api` responses, recorded 2026-10-12 and 2026-10-13 and trimmed to the fields the
-// publisher reads: from this repository (PRs #7352 and #7063, a merge commit, a check run, a
-// status, an issue event, a review, a comment page, workflow runs, a compare, NOT_FOUND and 422
-// answers) and one ConnectedEvent from cli/cli #14616. The comment page's body is trimmed to its
-// first line. Each case copies a record and varies number, labels, merger and timestamps.
-const REC = JSON.parse(readFileSync(join(HERE, "fixtures", "publish-promotion-evidence", "recorded.json"), "utf8"));
-const REPO = "melodic-software/claude-code-plugins";
-const LANE = "lane-bot[bot]";
 const SINCE = "2026-08-01T00:00:00Z";
 const THROUGH = "2026-10-05T00:00:00Z";
-const MECHANICAL = "work-class: mechanical";
-const SCOPED = "work-class: scoped";
-const MISSED = "ai-review: missed-blocking";
 
 const base = mkdtempSync(join(tmpdir(), "publish-promotion-evidence-"));
 after(() => rmSync(base, { recursive: true, force: true }));
 
-const shaOf = (number) => number.toString(16).padStart(40, "0");
-const later = (at, minutes) => new Date(Date.parse(at) + minutes * 60_000).toISOString().replace(".000Z", "Z");
-
-// GraphQL spells an App as `__typename: Bot` with the bare slug; REST adds `[bot]`.
-const actorOf = (login) => (login === null ? null : login.endsWith("[bot]") ? { __typename: "Bot", login: login.slice(0, -5) } : { __typename: "User", login });
-const page1 = (nodes, hasNextPage = false) => ({ pageInfo: { hasNextPage }, nodes });
 // REC.pullGraph: a recorded pull whose one closing reference, number 6007, is labeled `work-class: scoped`.
 const ISSUE_6007 = REC.pullGraph.data.repository.pullRequest.closingIssuesReferences.nodes;
 const queued = (at, enqueuer, actor = enqueuer) => ({ __typename: "AddedToMergeQueueEvent", createdAt: at, actor: actorOf(actor), enqueuer: actorOf(enqueuer) });
@@ -41,127 +25,7 @@ const queued = (at, enqueuer, actor = enqueuer) => ({ __typename: "AddedToMergeQ
 const LINK = REC.connectedEventFromCliCli14616;
 const link = (type, issue, at) => ({ ...LINK, __typename: type, createdAt: at, subject: { ...LINK.subject, number: issue } });
 
-function pr(
-  number,
-  mergedAt,
-  { labels = [], merger = LANE, title = REC.pullListItem.title, body = REC.pullListItem.body, linked = [], timeline = [], lastEditedAt = null, patch = {}, base = "main", head = shaOf(number + 0x100000) } = {},
-) {
-  const names = labels.map((name) => ({ name }));
-  return {
-    graph: {
-      ...REC.pullGraph.data.repository.pullRequest,
-      number,
-      headRefOid: head,
-      mergedAt,
-      lastEditedAt,
-      mergeCommit: { oid: shaOf(number) },
-      mergedBy: actorOf(merger),
-      labels: page1(names),
-      closingIssuesReferences: page1(linked),
-      timelineItems: page1(timeline),
-      ...patch,
-    },
-    list: {
-      ...REC.pullListItem,
-      base: { ...REC.pullListItem.base, ref: base },
-      number,
-      title,
-      body,
-      labels: names,
-      created_at: later(mergedAt, -60),
-      merged_at: mergedAt,
-      updated_at: later(mergedAt, 1),
-      merge_commit_sha: shaOf(number),
-    },
-  };
-}
 const labelEvent = (event, name, at, login = "kyle-sexton", type = "User") => ({ ...REC.issueEvent, event, label: { name }, actor: { login, type }, created_at: at });
-
-// A recorded GitHub: answers only the GET paths the publisher is expected to call, with the
-// documented semantics of each (list sort order, check-runs `filter=latest` by default, statuses
-// newest first), and throws on any other, so an unexpected or mutating call fails the case.
-// A run marked `superseded` was re-run: only `filter=all` returns it.
-// `bumpOnPage2` updates that PR (a comment, a label) between the listing's first and second page.
-// `workflowRuns`: {<workflow file>: [run]}; `attempts`: {<run id>: {<n>: run}}; `history`: the
-// default branch's commits oldest first (linear, as a merge-queue branch is), defaulting to the
-// merge commits in merge order.
-// `diverged`: head SHAs a compare reports as diverged. A PR number not in `pulls` answers with the
-// recorded NOT_FOUND response.
-// The lane posts a pin comment on every PR it enqueues and dispatches a full run after every merge
-// (babysit_merge.py --unattended, babysit_postmerge.py), so each PR gets a correct pin and a green
-// lane dispatch run on its merge commit an hour after merging, unless `comments` sets that PR's
-// comments or `noDefaultDispatch` is set; an explicit run with the same id replaces the default.
-const pinComment = (sha) => ({ author: actorOf(LANE), body: `<!-- babysit-merge-pin sha=${sha} -->\nThe unattended merge path enqueued this pull request at head \`${sha}\`.`, lastEditedAt: null });
-function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issueEvents = {}, reviews = {}, issues = {}, workflowRuns: explicitRuns = {}, attempts = {}, history, diverged = [], comments = {}, noDefaultDispatch = false, bumpOnPage2 }) {
-  const defaultDispatch = noDefaultDispatch ? [] : pulls.map((p) => wfRun(900000 + p.graph.number, "workflow_dispatch", p.graph.mergeCommit.oid, later(p.graph.mergedAt, 60), { actor: LANE }));
-  const explicitIds = new Set(Object.values(explicitRuns).flat().map((r) => r.id));
-  const workflowRuns = { ...explicitRuns, [FULL]: [...defaultDispatch.filter((r) => !explicitIds.has(r.id)), ...(explicitRuns[FULL] ?? [])] };
-  const branch = history ?? [...pulls].sort((a, b) => a.graph.mergedAt.localeCompare(b.graph.mergedAt)).map((p) => p.graph.mergeCommit.oid);
-  const page = (items, path) => {
-    const n = Number(/[?&]page=(\d+)/.exec(path)[1]);
-    return items.slice((n - 1) * 100, n * 100);
-  };
-  const runsFor = (number) => checkRuns[number] ?? [{ ...REC.checkRun, completed_at: later(pulls.find((p) => p.graph.number === number).graph.mergedAt, 5) }];
-  return (path, graphql) => {
-    if (path === "graphql") {
-      assert.deepEqual([graphql.variables.owner, graphql.variables.name], REPO.split("/"));
-      assert.match(graphql.query, /^query\(/);
-      assert.doesNotMatch(graphql.query, /mutation/);
-      if (/comments\(/.test(graphql.query)) {
-        const pull = pulls.find((p) => p.graph.number === graphql.variables.number);
-        const all = comments[graphql.variables.number] ?? [pinComment(pull.graph.headRefOid)];
-        const n = Number(graphql.variables.c ?? 0);
-        const nodes = all.slice(n * 100, (n + 1) * 100);
-        const more = all.length > (n + 1) * 100;
-        return { data: { repository: { pullRequest: { comments: { ...REC.commentsPage.data.repository.pullRequest.comments, pageInfo: { hasNextPage: more, endCursor: more ? String(n + 1) : null }, nodes } } } } };
-      }
-      const found = pulls.find((p) => p.graph.number === graphql.variables.number);
-      return found ? { data: { repository: { pullRequest: found.graph } } } : REC.pullNotFound;
-    }
-    if (path === `repos/${REPO}`) return REC.repo;
-    const prefix = `repos/${REPO}/`;
-    assert.ok(path.startsWith(prefix), path);
-    const rest = path.slice(prefix.length);
-    let m;
-    if ((m = /^pulls\?state=closed(?:&base=([\w.-]+))?&sort=(created|updated)&direction=(asc|desc)&/.exec(rest))) {
-      if (bumpOnPage2 && /[?&]page=2\b/.test(rest)) pulls.find((p) => p.list.number === bumpOnPage2).list.updated_at = "2026-10-04T00:00:00Z";
-      const key = m[2] === "created" ? "created_at" : "updated_at";
-      const sign = m[3] === "asc" ? 1 : -1;
-      const listed = pulls.map((p) => p.list).filter((p) => !m[1] || p.base.ref === m[1]);
-      return page(listed.sort((a, b) => sign * a[key].localeCompare(b[key])), rest);
-    }
-    if ((m = /^issues\/(\d+)$/.exec(rest))) return issues[m[1]];
-    if ((m = /^pulls\/(\d+)\/reviews\?/.exec(rest))) return page(reviews[m[1]] ?? [], rest);
-    if (/^commits\?since=[^&]+&until=[^&]+&/.test(rest)) return page(commits, rest);
-    if ((m = /^commits\/([0-9a-f]{40})\/check-runs\?/.exec(rest))) {
-      const runs = runsFor(parseInt(m[1], 16)).filter((r) => /[?&]filter=all\b/.test(rest) || !r.superseded);
-      return { total_count: runs.length, check_runs: page(runs, rest) };
-    }
-    if ((m = /^commits\/([0-9a-f]{40})\/pulls$/.exec(rest))) {
-      // A SHA no commit has: the recorded 422, as realGh hands it to ghFailure.
-      if (!branch.includes(m[1])) return publisher.ghFailure(path, undefined, REC.commitNotFound.stdout, REC.commitNotFound.stderr);
-      return pulls.filter((p) => p.graph.mergeCommit.oid === m[1]).map((p) => ({ number: p.graph.number, merged_at: p.graph.mergedAt, merge_commit_sha: m[1] }));
-    }
-    if ((m = /^commits\/([0-9a-f]{40})\/statuses\?/.exec(rest))) return page(statuses[parseInt(m[1], 16)] ?? [], rest);
-    if ((m = /^issues\/(\d+)\/events\?/.exec(rest))) return page(issueEvents[m[1]] ?? [], rest);
-    if ((m = /^actions\/workflows\/([\w.-]+)\/runs\?event=(\w+)&branch=main&created=%3E%3D[^&]+&/.exec(rest))) {
-      const runs = (workflowRuns[m[1]] ?? []).filter((r) => r.event === m[2]);
-      return { total_count: runs.length, workflow_runs: page(runs, rest) };
-    }
-    if ((m = /^actions\/runs\/(\d+)\/attempts\/(\d+)$/.exec(rest))) return attempts[m[1]][m[2]];
-    if ((m = /^compare\/([0-9a-f]{40})\.\.\.([0-9a-f]{40})\?/.exec(rest))) {
-      const [base, head] = [branch.indexOf(m[1]), branch.indexOf(m[2])];
-      assert.ok(base >= 0 && head >= 0, `compare outside the recorded history: ${rest}`);
-      const status = diverged.includes(m[2]) ? "diverged" : head > base ? "ahead" : head === base ? "identical" : "behind";
-      const ahead = head > base ? branch.slice(base + 1, head + 1).map((sha) => ({ sha })) : [];
-      return { ...REC.compare, status, ahead_by: ahead.length, total_commits: ahead.length, commits: page(ahead, rest) };
-    }
-    throw new Error(`unrecorded gh api call: ${path}`);
-  };
-}
-
-// The recorded check run and status name the post-merge gate in every case.
-const GATE = [REC.checkRun.name, REC.status.context];
 
 function run(fixture, extra = {}) {
   return collect({ repo: REPO, since: SINCE, through: THROUGH, laneLogins: [LANE], gateChecks: GATE, missedBlockingLabel: MISSED, gh: github(fixture), ...extra });
@@ -169,21 +33,6 @@ function run(fixture, extra = {}) {
 
 const termOf = (result, cell, name) => result.cells[cell].terms.find((t) => t.term === name);
 
-const FULL = "pr-require-checks.yml";
-const CANARY = "post-merge-detect-silent-revert.yml";
-const wfRun = (id, event, sha, created, { conclusion = "success", status = "completed", attempt = 1, actor = "github-merge-queue[bot]", triggering = actor, updated = later(created, 8) } = {}) => ({
-  ...REC.workflowRun,
-  id,
-  event,
-  head_sha: sha,
-  created_at: created,
-  updated_at: updated,
-  status,
-  conclusion: status === "completed" ? conclusion : null,
-  run_attempt: attempt,
-  actor: { login: actor },
-  triggering_actor: { login: triggering },
-});
 const gateEvents = (at, ...cells) => cells.map((cell) => ({ cell, event: "gate-failure", at }));
 // A green lane dispatch run and a green canary run on `tip`: check() calls each merge they contain
 // verified.
@@ -812,4 +661,109 @@ test("the CLI exits 2 on missing required arguments", () => {
   const cli = spawnSync(process.execPath, [join(HERE, "publish-promotion-evidence.mjs"), "--repo", REPO], { encoding: "utf8" });
   assert.equal(cli.status, 2);
   assert.match(cli.stderr, /--lane-login/);
+});
+
+// Deletion. run_number starts at 1 per workflow, rises with each new run and a re-run keeps it
+// (GitHub's contexts reference, github.run_number), so a missing number between two runs created
+// inside the window is a deleted run. The fake numbers runs that way and drops `deletedRuns`.
+const ALL = ["C2-auto-merge", "C3-ai-review-blocking", "C3-auto-merge"];
+const schedules = (ids, day = 2) => ids.map((id, n) => wfRun(id, "schedule", shaOf(0xb000 + id), `2026-09-${String(day + n).padStart(2, "0")}T00:00:00Z`));
+const refusesWith = (reason) => (error) => error instanceof PublishError && error.failClosedReason?.startsWith(reason) && error.message.startsWith(`refusing to publish: ${reason}`);
+
+test("a run deleted between two runs created inside the window refuses with run-deleted, in either workflow", () => {
+  assert.throws(() => run({ workflowRuns: { [FULL]: schedules([21, 22, 23]) }, deletedRuns: [22] }), refusesWith(`run-deleted: ${FULL}`));
+  const canaries = [41, 42, 43].map((id, n) => wfRun(id, "push", shaOf(0xb100 + id), `2026-09-0${n + 2}T00:00:00Z`));
+  assert.throws(() => run({ workflowRuns: { [CANARY]: canaries }, deletedRuns: [42] }), refusesWith(`run-deleted: ${CANARY}`));
+});
+
+// That a re-run keeps its number is GitHub's (the pointer above); the fake only lists it that way.
+test("consecutive run numbers pass, a run on its second attempt among them", () => {
+  assert.deepEqual(run({ workflowRuns: { [FULL]: schedules([21, 22, 23]) } }).events, []);
+  const rerun = wfRun(31, "schedule", shaOf(0xb031), "2026-09-02T00:00:00Z", { attempt: 2, triggering: LANE });
+  const result = run({ workflowRuns: { [FULL]: [rerun, ...schedules([32], 3)] }, attempts: { 31: { 1: { ...rerun, run_attempt: 1 } } } });
+  assert.deepEqual(result.events, []);
+});
+
+test("a deleted run at a window edge is no gap: the newest, the oldest, or one before --since", () => {
+  for (const deleted of [21, 23]) assert.deepEqual(run({ workflowRuns: { [FULL]: schedules([21, 22, 23]) }, deletedRuns: [deleted] }).events, []);
+  const beforeSince = [wfRun(20, "schedule", shaOf(0xb020), "2026-07-30T00:00:00Z"), wfRun(19, "schedule", shaOf(0xb019), "2026-07-31T00:00:00Z")];
+  assert.deepEqual(run({ workflowRuns: { [FULL]: [...beforeSince, ...schedules([21, 22])] }, deletedRuns: [19] }).events, []);
+});
+
+test("over 1,000 runs in the window are read in halves, and a deletion among them still refuses", () => {
+  const many = Array.from({ length: 1002 }, (_, n) => wfRun(100000 + n, "pull_request", shaOf(0xc000), later("2026-09-01T00:00:00Z", n)));
+  assert.deepEqual(run({ workflowRuns: { [FULL]: many } }).events, []);
+  // Any one run but the oldest and newest, so a deletion where two halves meet refuses too.
+  for (let id = 100001; id < 101001; id += 1) {
+    assert.throws(() => run({ workflowRuns: { [FULL]: many }, deletedRuns: [id] }), refusesWith(`run-deleted: ${FULL}`), `run ${id}`);
+  }
+});
+
+// A run listed after page 1 was read shifts every later page by one, so the oldest run falls off the
+// last page and one deletion would fit the count: a count that changes between pages refuses.
+test("a run count that changes between page reads refuses, though one deletion would otherwise fit", () => {
+  const runs = Array.from({ length: 202 }, (_, n) => wfRun(200000 + n, "pull_request", shaOf(0xd000), later("2026-09-01T00:00:00Z", n)));
+  const shifted = { workflowRuns: { [FULL]: runs }, deletedRuns: [200099], lateRuns: [200201] };
+  assert.throws(
+    () => run(shifted),
+    (error) => error instanceof PublishError && !(error.failClosedReason ?? "").startsWith("run-deleted") && /run count changed from 200 to 201/.test(error.message),
+  );
+});
+
+// The alert workflow's record: first body line `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`,
+// filed by github-actions[bot], a repeat failure commented as `The post-merge check found this
+// failure again: <run>/attempts/<n>` (.github/workflows/post-merge-demotion-alert.yml).
+const AGAIN = (at, login) => issueComment(`The post-merge check found this failure again: https://github.com/${REPO}/actions/runs/9/attempts/2`, at, login);
+
+test("a demotion issue filed inside the window, open or closed, is a gate-failure on every cell at its creation", () => {
+  const result = run({ demotionIssues: [demotionIssue(7001, "2026-09-10T00:00:00Z")] });
+  assert.deepEqual(result.events, gateEvents("2026-09-10T00:00:00Z", ...ALL));
+  assert.deepEqual(result.gateFailures.map((g) => g.issue), [7001]);
+});
+
+test("a repeat-failure comment inside the window counts; an issue filed before the window does not", () => {
+  const old = demotionIssue(7002, "2026-07-01T00:00:00Z", { updatedAt: "2026-09-12T00:00:00Z", comments: [AGAIN("2026-07-02T00:00:00Z"), AGAIN("2026-09-12T00:00:00Z")] });
+  assert.deepEqual(run({ demotionIssues: [old] }).events, gateEvents("2026-09-12T00:00:00Z", ...ALL));
+});
+
+// The repository is public, so anyone can comment on a record: only a filer's comment is a repeat
+// failure, as the alert workflow reads only its own. Every comment is read, however many.
+test("only a filer's repeat-failure comment counts, past the first hundred comments too", () => {
+  const spam = Array.from({ length: 150 }, (_, i) => AGAIN(later("2026-09-12T00:00:00Z", i), "someone"));
+  const record = demotionIssue(7008, "2026-07-01T00:00:00Z", { updatedAt: "2026-09-20T00:00:00Z", comments: [...spam, AGAIN("2026-09-20T00:00:00Z")] });
+  assert.deepEqual(run({ demotionIssues: [record] }).events, gateEvents("2026-09-20T00:00:00Z", ...ALL));
+  const ignored = demotionIssue(7009, "2026-07-01T00:00:00Z", { updatedAt: "2026-09-20T00:00:00Z", comments: spam });
+  assert.deepEqual(run({ demotionIssues: [ignored] }).events, []);
+});
+
+test("a lane-filed lookalike or an edited record can only add gate-failures; an unmarked unedited issue adds none", () => {
+  const lookalike = demotionIssue(7003, "2026-09-10T00:00:00Z", { author: LANE, comments: [issueComment("re-run passed: cleared", "2026-09-11T00:00:00Z", LANE)] });
+  const stripped = demotionIssue(7004, "2026-09-11T00:00:00Z", { body: "nothing here", edits: [{ diff: REC.demotionIssue.body, deletedAt: null }] });
+  const truncated = demotionIssue(7005, "2026-09-12T00:00:00Z", { body: "nothing here", edits: [], editCount: 3 });
+  const hidden = demotionIssue(7006, "2026-09-13T00:00:00Z", { updatedAt: "2026-09-20T00:00:00Z", comments: [AGAIN("2026-09-20T00:00:00Z", LANE)] });
+  const report = demotionIssue(7007, "2026-09-14T00:00:00Z", { body: "<!-- link-check report -->" });
+  const result = run({ demotionIssues: [lookalike, stripped, truncated, hidden, report] });
+  assert.deepEqual(result.events, [
+    ...gateEvents("2026-09-10T00:00:00Z", ...ALL),
+    ...gateEvents("2026-09-11T00:00:00Z", ...ALL),
+    ...gateEvents("2026-09-12T00:00:00Z", ...ALL),
+    ...gateEvents("2026-09-13T00:00:00Z", ...ALL),
+    ...gateEvents("2026-09-20T00:00:00Z", ...ALL),
+  ]);
+});
+
+test("an issue number missing inside the window refuses with issue-deleted on 410, and issue-missing when it moved", () => {
+  const listed = [issueItem(7101, "2026-09-01T00:00:00Z"), issueItem(7103, "2026-09-03T00:00:00Z", { pull: true })];
+  assert.throws(() => run({ issueList: listed, goneIssues: [7102] }), refusesWith("issue-deleted: #7102"));
+  const moved = { ...REC.issue, number: 7102, repository_url: "https://api.github.com/repos/someone/elsewhere" };
+  assert.throws(() => run({ issueList: listed, issues: { 7102: moved } }), refusesWith("issue-missing: #7102"));
+  assert.deepEqual(run({ issueList: listed, issues: { 7102: { ...REC.issueListItem, number: 7102 } } }).events, []);
+  // Discussions share the number sequence and read 404 as issues: anyone else's is no gap, a filer's
+  // fails closed, and a 404 that is no discussion is missing.
+  assert.deepEqual(run({ issueList: listed, discussions: { 7102: "someone" } }).events, []);
+  assert.throws(() => run({ issueList: listed, discussions: { 7102: "github-actions[bot]" } }), refusesWith("issue-missing: #7102"));
+  assert.throws(() => run({ issueList: listed, discussions: { 7102: LANE } }), refusesWith("issue-missing: #7102"));
+  assert.throws(() => run({ issueList: listed, missingIssues: [7102] }), refusesWith("issue-missing: #7102"));
+  // Only numbers between items created inside the window are read.
+  assert.deepEqual(run({ issueList: [issueItem(7100, "2026-07-01T00:00:00Z"), ...listed.slice(1)], goneIssues: [7101, 7102] }).events, []);
 });

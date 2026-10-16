@@ -11,7 +11,11 @@
 #   PR_NUMBER           the pull request
 #   HEAD_SHA            the gated head; it is the resume key
 #   ESCALATION_REASON   protected-path-conflict | workflow-staged | repeat-cap
-#                       | unresolved-conflict
+#                       | unresolved-conflict | feedback-protected-path
+#                       | feedback-round-cap | feedback-uncertain
+#                       | feedback-not-landed | feedback-invalid
+#                       | feedback-partial | feedback-incomplete
+#                       | feedback-disputed
 #   TRACKER_CONFIG      base .work-item-tracker.json
 #                       (default .base/.work-item-tracker.json)
 #   LANES_BOT_LOGIN     the lanes App bot login, the only author whose marker
@@ -39,8 +43,18 @@ case ${ESCALATION_REASON:-} in
   workflow-staged) why='the merge stages a change under .github/workflows/, which the lane does not push' ;;
   repeat-cap) why='the lane has resolved conflicts on this branch as many times in a row as its cap allows' ;;
   unresolved-conflict) why='the lane could not resolve every conflict' ;;
+  feedback-protected-path) why='the pull request changes .github/, so the lane does not address its review threads' ;;
+  feedback-round-cap) why='the lane has addressed review threads on this pull request as many rounds as its cap allows' ;;
+  feedback-uncertain) why='a review finding is uncertain or deferred, so a person decides it' ;;
+  feedback-not-landed) why='a fix the lane recorded did not reach the branch, so none of its review replies was posted' ;;
+  feedback-invalid) why='the review replies the lane recorded did not pass validation, so none was posted' ;;
+  feedback-partial) why='posting the review replies stopped partway, or a fixed thread could not be resolved, so a person finishes them' ;;
+  feedback-incomplete) why='the lane did not record a disposition for every review thread it kept, so none was posted' ;;
+  feedback-disputed) why='the lane replied with evidence that a review finding is incorrect; a person decides and resolves that thread' ;;
   *) die "unknown escalation reason [${ESCALATION_REASON:-}]" ;;
 esac
+activity=resolve-conflicts
+[[ $ESCALATION_REASON != feedback-* ]] || activity=address-feedback
 [[ ${PR_NUMBER:-} =~ ^[1-9][0-9]*$ ]] || die "PR_NUMBER is not a pull request number"
 [[ ${HEAD_SHA:-} =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]] || die "HEAD_SHA is not a commit id"
 [[ ${GITHUB_REPOSITORY:-} =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "GITHUB_REPOSITORY is not owner/repo"
@@ -79,10 +93,10 @@ The pr-unblock lane stopped on this pull request and needs a person: $why.
 - Reason: \`$ESCALATION_REASON\`
 - Resume key: \`$HEAD_SHA\` (the head the lane stopped on)
 
-To resume, deal with the reason above, remove the \`$label\` label (and \`do-not-merge\`, if set), then dispatch the \`pr-unblock\` workflow with \`pr-number=$PR_NUMBER\`:
+To resume, deal with the reason above, remove the \`$label\` label (and \`do-not-merge\`, if set), then dispatch the \`pr-unblock\` workflow with \`pr-number=$PR_NUMBER\` and \`activity=$activity\`:
 
 \`\`\`sh
-gh workflow run pr-unblock.yml -R $GITHUB_REPOSITORY -f pr-number=$PR_NUMBER
+gh workflow run pr-unblock.yml -R $GITHUB_REPOSITORY -f pr-number=$PR_NUMBER -f activity=$activity
 \`\`\`
 EOF
 

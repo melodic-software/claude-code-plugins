@@ -61,6 +61,36 @@ inputs:
       .github/workflows/<name>.yml. Empty stops every dispatcher-sent run.
     required: false
     default: ""
+  run-dispatcher-workflow:
+    description: >
+      The workflow path a dispatcher run started by workflow_run must have.
+      Such a run is trusted through the upstream run its record names, not
+      its actor. Empty stops every workflow_run dispatcher.
+    required: false
+    default: ""
+  run-dispatcher-upstreams:
+    description: >
+      Space-separated workflow paths the upstream run of a workflow_run
+      dispatcher may have. It must also be a pull_request run of this
+      repository, started (and any re-run) by the lanes App or a listed
+      human, at the PR's current head. Empty stops every such dispatcher.
+    required: false
+    default: ""
+  expected-upstream-head:
+    description: >
+      For a job after pr-unblock's model job, the head that job was gated on.
+      With a workflow_run dispatcher the upstream must have reviewed it, and
+      every commit from it to the PR's current head must be a
+      signature-verified commit the lanes App authored. Empty keeps the
+      current-head rule; set on any other path, it stops the run.
+    required: false
+    default: ""
+  lanes-app-id:
+    description: >
+      The lanes App bot's numeric user id: an upstream review it started
+      vouches, and only its commits may follow expected-upstream-head.
+    required: false
+    default: ""
   dispatched-workflow:
     description: >
       The workflow path this run must have when a dispatcher run sent it, and
@@ -119,6 +149,10 @@ runs:
         TRIGGERING_ACTOR: ${{ inputs.triggering-actor }}
         DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
         DISPATCHER_WORKFLOW: ${{ inputs.dispatcher-workflow }}
+        RUN_DISPATCHER_WORKFLOW: ${{ inputs.run-dispatcher-workflow }}
+        RUN_DISPATCHER_UPSTREAMS: ${{ inputs.run-dispatcher-upstreams }}
+        EXPECTED_UPSTREAM_HEAD: ${{ inputs.expected-upstream-head }}
+        LANES_APP_ID: ${{ inputs.lanes-app-id }}
         DISPATCHED_WORKFLOW: ${{ inputs.dispatched-workflow }}
         REQUIRE_KIND: ${{ inputs.require-kind }}
         REQUIRE_PR: ${{ inputs.require-pr }}

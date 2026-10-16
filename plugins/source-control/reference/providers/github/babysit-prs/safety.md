@@ -26,7 +26,19 @@ The spoke's "CLI merge" is `gh pr merge`. It carries the head pin as `--match-he
 (`gh pr merge --match-head-commit`), the CLI counterpart of the async merge API's `sha`.
 
 The async merge API is called with `gh api` (`gh` has no subcommand for it): a `PUT` to the PR's
-`merge-async` endpoint, then a `GET` on the request's UUID.
+`merge-async` endpoint, then a `GET` on the request's UUID. It carries direct merges only.
+
+### Enqueue
+
+A merge-queue base is enqueued with `gh api graphql` and the `enqueuePullRequest` mutation:
+`pullRequestId` is the PR's `node_id`, read over REST, and `expectedHeadOid` is the vetted head.
+`jump` is never sent. The REST `merge-async` call with `merge_action=merge_queue` answers a GitHub
+App installation token with "Enqueuer is not authorized to merge", so the gate does not use it.
+
+- **Pointer:** [`enqueuePullRequest`](https://docs.github.com/en/graphql/reference/pulls#enqueuepullrequest).
+- **As of:** 2026-10-14.
+- **Recheck trigger:** that mutation or its input changes, or GitHub documents App enqueue through
+  `merge-async`.
 
 ### A CLI merge the queue took
 

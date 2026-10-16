@@ -7,9 +7,10 @@ name: work-resolve-issue
 # Job contract: docs/conventions/pr-pipeline/pr-run-activity.md, Issue mode.
 #
 # resolve-issue runs /work-items:work on the issue and commits to a new branch,
-# or stops and says why. report-outcome then opens a draft PR from that branch,
+# or stops and says why. report-outcome then opens a ready PR from that branch,
 # or comments on the issue and labels it needs-human. Which issues are admitted
-# (their work class, and the go-live time) is in docs/conventions/pr-pipeline.yaml.
+# (their work class or the owner's ratification marker, and the go-live time)
+# is in docs/conventions/pr-pipeline.yaml.
 # The kill switch, the labeler check (a listed human) and the token broker run
 # inside pr-run-activity-write.yml.
 
@@ -44,7 +45,50 @@ jobs:
       trusted-base: default-tip
       timeout-minutes: 50
     secrets:
-      claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # One `pipeline/<activity>` commit status per lane step on the lane branch's
+  # head (post-statuses.mjs). No step is skipped on them; a failing one holds
+  # the merge gate like any failing check. This is the lane's only `statuses: write` grant, on the job's own
+  # GITHUB_TOKEN, and it runs only scripts from the default branch tip.
+  report-statuses:
+    needs: [resolve-issue, report-outcome]
+    if: ${{ !cancelled() && needs.resolve-issue.outputs.issue-run-started == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      # A run that uploaded no outcome posts what its job results say.
+      - name: Download the issue outcome
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: work-outcome-${{ github.event.issue.number }}
+          path: ${{ runner.temp }}/work-outcome
+
+      - name: Post the pipeline statuses
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          WORK_OUTCOME_DIR: ${{ runner.temp }}/work-outcome
+          RESOLVE_RESULT: ${{ needs.resolve-issue.result }}
+          REPORT_RESULT: ${{ needs.report-outcome.result }}
+        run: node .base/.github/scripts/work-resolve-issue/post-statuses.mjs
 
   report-outcome:
     needs: resolve-issue

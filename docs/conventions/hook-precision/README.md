@@ -8,8 +8,8 @@ positive into a regression test instead of a re-filed issue.
 
 Guardrails hooks repeatedly shipped false-positive over-fires, each found by a babysit worker on a real
 pass, hand-filed and fixed in isolation. The classes below are those over-fires
-generalized; the discipline after them is what stops the pipeline from paying for the next one at production
-time.
+generalized; the discipline after them makes the next false positive fail a test instead of surfacing in
+production.
 
 ## The rules
 
@@ -45,7 +45,7 @@ them turns every next over-fire into a committed regression test. A hook is prec
    Fail toward acting: git absent, no repository, or a `check-ignore` error runs the hook as before,
    because a skip that fired on an error would disable the hook invisibly. The counter-case, a developer
    who wants an ignored local script formatted, is what the opt-in is for. The shared implementation for
-   the nine hooks is `hook::gitignored_out_of_scope` in `lib/hook-utils.sh`. They skip a
+   the eight hooks is `hook::gitignored_out_of_scope` in `lib/hook-utils.sh`. They skip a
    gitignored file by default and run on it only with the `<plugin>_lint_gitignored` opt-in; that is the
    maintainer's decision on #4671.
 
@@ -83,7 +83,7 @@ both are non-negotiable:
 - **Every filed production false positive becomes a MUST-stay-quiet case in that hook's existing
   `*.test.sh`.** The co-located contract test *is* the fixture corpus. True-positive MUST-fire cases and
   false-positive MUST-stay-quiet cases live side by side and run in CI on any `plugins/guardrails/hooks/**`
-  change. An over-fire that is fixed but not pinned by a committed stay-quiet case is left half-fixed: the
+  change. An over-fire that is fixed but not pinned by a committed stay-quiet case is left half-fixed. The
   next author can reopen it and nothing catches them.
 - **Every fix lands repro-first.** The new stay-quiet case must *fail* against the unmodified hook
   (reproducing the over-fire) and pass after the fix. A stay-quiet assertion that is already green before the
@@ -132,26 +132,30 @@ Existing adopters conform by carrying the rule their over-fire needed:
 - `block-noncanonical-commit` gates on the canonical `-F -` marker alone, dropping the `--trailer`
   conjunct its advisory predecessor required (rule 4).
 
-### Rule 6 conformance: the nine format and lint hooks
+### Rule 6 conformance: the eight format and lint hooks
 
 The harness `if` filter cannot express "gitignored", so it narrows spawn cost only and
 never stands in for the gate.
 
+A row whose Verdict ends "reporting moves to pre-commit" reports per edit today; under
+[check-placement](../check-placement/README.md) that reporting moves to a `pre-commit` entry on
+changed lines, and rewrites stay in session from one `PostToolBatch` row while within the
+per-batch ceiling.
+
 | Hook | Acts on the file by | Gate | Verdict |
 |---|---|---|---|
-| `markdown-format` | rewriting (`markdownlint-cli2 --fix`) and reporting | shared, `markdown_format_lint_gitignored` | conforms (#4671); local `file_is_gitignored` removed |
-| `bash-format` | rewriting (shfmt) and reporting (ShellCheck) | shared, `bash_format_lint_gitignored` | conforms (#4671) |
-| `biome-format` | rewriting and reporting (Biome) | shared, `biome_format_lint_gitignored` | conforms (#4671) |
+| `markdown-format` | rewriting (`markdownlint-cli2 --fix`) and reporting | shared, `markdown_format_lint_gitignored` | conforms (#4671); local `file_is_gitignored` removed; reporting moves to pre-commit |
+| `bash-format` | rewriting (shfmt) and reporting (ShellCheck) | shared, `bash_format_lint_gitignored` | conforms (#4671); reporting moves to pre-commit |
+| `biome-format` | rewriting and reporting (Biome) | shared, `biome_format_lint_gitignored` | conforms (#4671); reporting moves to pre-commit |
 | `eol-normalizer` | rewriting line endings | shared, `eol_normalizer_lint_gitignored`, checked only when a rewrite is planned | conforms (#4671); registers with no `if` filter because its matcher is every write |
 | `go-format` | rewriting (goimports) | shared, `go_format_lint_gitignored` | conforms (#4671) |
-| `powershell-format` | rewriting (Invoke-Formatter) and reporting (PSScriptAnalyzer) | shared, `powershell_format_lint_gitignored` | conforms (#4671) |
-| `ruff-format` | rewriting and reporting (Ruff) | shared, `ruff_format_lint_gitignored` | conforms (#4671) |
-| `typos-format` | reporting, and rewriting when write mode is on | shared, `typos_format_lint_gitignored` | conforms (#4671); registers with no `if` filter because typos is language-agnostic |
-| `actionlint` (`actionlint-check`) | reporting only | shared, `actionlint_lint_gitignored`; `hook::begin --no-membership`, `if`-bounded to `**/.github/workflows/*.y*ml` | conforms (#4671); lowest exposure, since it never rewrites and an ignored workflow file is rare |
+| `powershell-format` | rewriting (Invoke-Formatter) and reporting (PSScriptAnalyzer) | shared, `powershell_format_lint_gitignored` | conforms (#4671); reporting moves to pre-commit |
+| `ruff-format` | rewriting and reporting (Ruff) | shared, `ruff_format_lint_gitignored` | conforms (#4671); reporting moves to pre-commit |
+| `actionlint` (`actionlint-check`) | reporting only | shared, `actionlint_lint_gitignored`; `hook::begin --no-membership`, `if`-bounded to `**/.github/workflows/*.y*ml` | conforms (#4671); lowest exposure, since it never rewrites and an ignored workflow file is rare; reporting moves to pre-commit |
 
 The helpers live in `lib/hook-utils.sh`. The six hooks that use the snapshot and disclosure guard
 (`bash-format`, `biome-format`, `eol-normalizer`, `go-format`, `powershell-format`, `ruff-format`) also
-carry `rewrite-guard.sh`. `actionlint`, `markdown-format` and `typos-format` do not, because they never
+carry `rewrite-guard.sh`. `actionlint` and `markdown-format` do not, because they never
 call `hook::rewrite_guard_begin`.
 
 The gitignore signal is kept separate from the two disposable-root lists the fleet already has:

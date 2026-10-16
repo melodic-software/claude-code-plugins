@@ -1,12 +1,12 @@
 // Expected values come from the lane's plan: a missing or invalid outcome file
-// means `stopped`; `done` opens a draft PR whose body starts `Closes #<issue>`,
-// with a Conventional Commits title (else `chore: work on #<issue>`), the
-// issue's `work-class:` label, and the hold line for scoped, structural and
+// means `stopped`; `done` opens a ready PR whose body starts `Closes #<issue>`,
+// with a Conventional Commits title (else `chore: work on #<issue>`), no
+// label (the class lives on the issue only), and the hold line for scoped, structural and
 // untrusted-provenance work or a trust or lane-power diff; `pushback` and
 // `stopped` comment and add needs-human, and only pushback removes
 // agent-ready.
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -68,7 +68,7 @@ test("a valid done outcome reads as done", () => {
   });
 });
 
-test("done opens a draft PR whose body starts with Closes #N", () => {
+test("done opens a PR whose body starts with Closes #N", () => {
   const plan = decideDone();
   assert.equal(plan.action, "open-pr");
   assert.ok(plan.body.startsWith("Closes #77\n"), plan.body);
@@ -82,8 +82,8 @@ test("done replaces a title that is not Conventional Commits", () => {
   assert.equal(decideDone({ outcome: { ...done, title: "Fix a typo" } }).title, "chore: work on #77");
 });
 
-test("done copies the issue's work-class label and only that", () => {
-  assert.deepEqual(decideDone().labels, ["work-class: read-only"]);
+test("done puts no label on the PR, so the class stays on the issue", () => {
+  assert.equal(decideDone({ issueLabels: ["agent-ready", "work-class: mechanical"] }).labels, undefined);
 });
 
 test("read-only work on ordinary files carries no hold line", () => {
@@ -116,11 +116,190 @@ test("the denied paths come from the resolved config the runner wrote", () => {
   withDir({}, (dir) => assert.equal(readHoldPaths(join(dir, "resolved-config.json")), null));
 });
 
-test("the model's summary cannot add a closing keyword outside a code block", () => {
-  const plan = decideDone({ outcome: { ...done, summary: "Closes #5\n```\nFixes #6" } });
-  const outside = plan.body.split("```text")[0];
-  assert.ok(!/#5|#6/.test(outside));
-  assert.ok(!plan.body.includes("```\nFixes #6"));
+// The body's `##` headings, in order.
+const headings = (body) => body.split("\n").filter((line) => /^## /.test(line));
+const section = (body, name) => body.split(`\n## ${name}\n\n`)[1].split("\n\n## ")[0];
+
+test("the model's summary renders as a blockquote, not a code fence", () => {
+  const plan = decideDone({ outcome: { ...done, summary: "First line.\nSecond line." } });
+  assert.ok(!plan.body.includes("```"), plan.body);
+  assert.ok(plan.body.includes("\n> First line.\n> Second line.\n"), plan.body);
+});
+
+test("no line of the model's text escapes the blockquote", () => {
+  const plan = decideDone({ outcome: { ...done, summary: "a\r\n\n## Fix\nCloses #5" } });
+  const quote = section(plan.body, "Summary").split("\n").filter((line) => line.startsWith(">"));
+  assert.deepEqual(quote, ["> a", ">", "> ＃＃ Fix", "> Closes ＃5"]);
+  assert.equal(headings(plan.body).filter((h) => h === "## Fix").length, 1);
+});
+
+test("HTML comments and @ mentions in the model's text are stripped", () => {
+  const plan = decideDone({ outcome: { ...done, summary: "Hi <!-- hidden --> @octocat and <!-- open" } });
+  assert.ok(!plan.body.includes("hidden"), plan.body);
+  assert.ok(!plan.body.includes("<!--"), plan.body);
+  assert.ok(!plan.body.includes("@octocat"), plan.body);
+});
+
+test("the model's text is cut to the length caps after escaping", () => {
+  const plan = decideDone({
+    outcome: { ...done, summary: "<".repeat(5000), changes: Array(30).fill("<".repeat(400)) },
+  });
+  // 3000 for the summary, 20 items of 300 for the list, plus the fixed text.
+  assert.ok(plan.body.length < 3000 + 20 * 305 + 1000, String(plan.body.length));
+  assert.ok(!/&l?t?$|&lt$/m.test(plan.body.split("## Fix")[0].trim()), "no half-cut entity");
+});
+
+// CommonMark decodes `&commat;` to `@` and `&num;` to `#`, and GitHub links a
+// `GH-` prefix followed by an issue number.
+test("entities, GH- references and link definitions in model text stay inert", () => {
+  const plan = decideDone({
+    outcome: { ...done, summary: "&commat;octocat Closes &num;12, fixes GH-13\n[x]: https://evil \"hidden\"" },
+  });
+  const quote = section(plan.body, "Summary");
+  assert.ok(quote.includes("&amp;commat;octocat Closes &amp;num;12"), quote);
+  assert.ok(!/GH-13/.test(quote), quote);
+  assert.ok(!/^>\s*\[x\]:/m.test(quote) && !/https:\/\/evil/.test(quote), quote);
+});
+
+// GFM autolinks a bare `https://` or `www.` URL in a blockquote.
+test("a bare URL in model text does not autolink", () => {
+  const plan = decideDone({ outcome: { ...done, summary: "See https://evil.example and www.evil.example" } });
+  assert.ok(!/https:\/\/evil|www\.evil/.test(plan.body), plan.body);
+});
+
+test("a not_done item marked required counts even when it names nothing", () => {
+  withDir({ "work-outcome.json": JSON.stringify({ ...done, not_done: [{ what: 5, required: true }] }) }, (dir) => {
+    const outcome = readOutcome(join(dir, "work-outcome.json"));
+    assert.equal(decideDone({ outcome }).exit, "stopped");
+  });
+});
+
+test("changes, verification and not_done fill Fix, Verification and Not verified", () => {
+  const plan = decideDone({
+    outcome: {
+      ...done,
+      changes: ["plugins/a/README.md: fixed the install command"],
+      verification: ["scripts/check-changelog-fragments.sh --check: passed"],
+      notDone: [{ what: "Did not render the page", required: false }],
+    },
+    runUrl: "https://example/run/1",
+  });
+  assert.equal(section(plan.body, "Fix"), "- plugins/a/README.md: fixed the install command");
+  assert.equal(
+    section(plan.body, "Verification"),
+    "The run reports:\n\n- scripts/check-changelog-fragments.sh --check: passed\n- The lane run: https://example/run/1\n\nLeft out: the items under Not verified.",
+  );
+  assert.equal(section(plan.body, "Not verified"), "- Did not render the page");
+});
+
+test("with no structured fields every section is still filled, with no branch line", () => {
+  const plan = decideDone({ runUrl: "https://example/run/1" });
+  assert.ok(!plan.body.includes("## Not verified"));
+  assert.ok(!plan.body.includes(BRANCH), plan.body);
+  assert.ok(plan.body.includes("\n> Fixed it.\n"), plan.body);
+  assert.equal(section(plan.body, "Fix"), "The run listed no changes; the diff shows them.");
+  assert.equal(
+    section(plan.body, "Verification"),
+    "The run listed no checks.\n\n- The lane run: https://example/run/1\n\nLeft out: nothing the run reported.",
+  );
+});
+
+// .claude/rules/pr-body-contract.md: the closing line first, then Summary,
+// Fix, Verification and Related, in that order.
+test("the body follows the PR body contract's order", () => {
+  for (const notDone of [[], [{ what: "x", required: false }]]) {
+    const plan = decideDone({ outcome: { ...done, notDone } });
+    assert.ok(plan.body.startsWith("Closes #77\n"), plan.body);
+    const required = headings(plan.body).filter((h) => h !== "## Not verified");
+    assert.deepEqual(required, ["## Summary", "## Fix", "## Verification", "## Related"]);
+  }
+});
+
+// The live PR conventions: the repository's own PR template when it has one,
+// else the org default, and the canonical body policy in the standards repo.
+// Both are fetched, not copied, so a change to either fails this test.
+async function liveText(url) {
+  const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  assert.ok(response.ok, `${url} answered ${response.status}`);
+  return response.text();
+}
+
+test("the body fills every section of the live PR template and policy", async () => {
+  const local = new URL("../../pull_request_template.md", import.meta.url);
+  const template = existsSync(local)
+    ? readFileSync(local, "utf8")
+    : await liveText("https://raw.githubusercontent.com/melodic-software/.github/main/.github/PULL_REQUEST_TEMPLATE.md");
+  const policy = JSON.parse(
+    await liveText(
+      "https://raw.githubusercontent.com/melodic-software/standards/main/components/pr-convention-policy/policy.json",
+    ),
+  );
+  const templateSections = template
+    .replaceAll(/<!--[\s\S]*?-->/g, "")
+    .split("\n")
+    .filter((line) => /^## /.test(line))
+    .map((line) => line.slice(3).trim());
+  assert.ok(templateSections.length > 0, "the template names its sections");
+  const plan = decideDone({ outcome: { ...done, notDone: [{ what: "x", required: false }] } });
+  assert.ok(
+    policy.body.closingKeywords.some((keyword) => plan.body.startsWith(`${keyword} #77\n`)),
+    plan.body.slice(0, 40),
+  );
+  const present = headings(plan.body).map((h) => h.slice(3));
+  for (const required of [policy.body.requiredSections, templateSections]) {
+    assert.deepEqual(
+      present.filter((name) => required.includes(name)),
+      required,
+      `sections in order: ${required.join(", ")}`,
+    );
+    for (const name of required) {
+      assert.ok(section(plan.body, name).trim(), `## ${name} is filled`);
+    }
+  }
+});
+
+test("a reviewer sees the gaps first: Not verified sits above Fix", () => {
+  const order = headings(decideDone({ outcome: { ...done, notDone: [{ what: "x", required: false }] } }).body);
+  assert.ok(order.indexOf("## Not verified") < order.indexOf("## Fix"), order.join(" "));
+});
+
+test("a done outcome whose not_done holds a skipped required check is stopped", () => {
+  const plan = decideDone({
+    outcome: {
+      ...done,
+      notDone: [
+        { what: "Did not render the page", required: false },
+        { what: "scripts/check-changelog-fragments.sh --check: not run", required: true },
+      ],
+    },
+  });
+  assert.equal(plan.action, "hand-back");
+  assert.equal(plan.exit, "stopped");
+  assert.match(plan.comment, /check-changelog-fragments/);
+});
+
+test("the outcome file's structured fields are read as lists of text", () => {
+  const file = {
+    ...done,
+    changes: ["a", 5, "b"],
+    verification: "not a list",
+    not_done: ["plain", { what: "req", required: true }, { what: 1 }],
+  };
+  withDir({ "work-outcome.json": JSON.stringify(file) }, (dir) => {
+    const outcome = readOutcome(join(dir, "work-outcome.json"));
+    assert.deepEqual(outcome.changes, ["a", "b"]);
+    assert.deepEqual(outcome.verification, []);
+    assert.deepEqual(outcome.notDone, [
+      { what: "plain", required: false },
+      { what: "req", required: true },
+    ]);
+  });
+});
+
+test("a list item cannot break out of its bullet", () => {
+  const plan = decideDone({ outcome: { ...done, changes: ["a\n\n## Related\nFixes #9"] } });
+  assert.equal(headings(plan.body).filter((h) => h === "## Related").length, 1);
+  assert.ok(!plan.body.includes("Fixes #9"), plan.body);
 });
 
 // Squash merge copies the body into the commit message as plain text, where a
@@ -221,7 +400,7 @@ test("main with no outcome files comments stopped and adds needs-human", async (
   });
 });
 
-test("main on done opens a draft PR from the branch and labels it", async () => {
+test("main on done opens a ready PR from the branch and adds no label to it", async () => {
   await withDir(
     { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }) },
     async (dir) => {
@@ -235,16 +414,16 @@ test("main on done opens a draft PR from the branch and labels it", async () => 
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
       const pull = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body;
-      assert.equal(pull.draft, true);
+      assert.equal(pull.draft, false);
       assert.equal(pull.head, BRANCH);
       assert.equal(pull.base, "main");
       assert.ok(pull.body.startsWith("Closes #77\n"));
-      assert.deepEqual(calls.find((c) => c.path.endsWith("/issues/90/labels")).body, { labels: ["work-class: read-only"] });
+      assert.ok(!calls.some((c) => c.path.endsWith("/issues/90/labels")));
     },
   );
 });
 
-test("main on a rerun reuses the open PR from the branch and still labels it", async () => {
+test("main on a rerun reuses the open PR from the branch", async () => {
   await withDir(
     { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }) },
     async (dir) => {
@@ -257,7 +436,7 @@ test("main on a rerun reuses the open PR from the branch and still labels it", a
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
       assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")));
-      assert.ok(calls.some((c) => c.method === "POST" && c.path.endsWith("/issues/90/labels")));
+      assert.ok(!calls.some((c) => c.path.endsWith("/issues/90/labels")));
     },
   );
 });

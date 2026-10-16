@@ -3,6 +3,14 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.8] - 2026-10-15
+
+### Changed
+
+- Shared `prerequisites.mjs` synced: the SessionStart probe now also reports a drifted git-hook
+  entry for a plugin that ships `git-hooks/entries.json`. This plugin ships none, so its behavior
+  is unchanged.
+
 ## [0.1.7] - 2026-10-13
 
 ### Fixed
