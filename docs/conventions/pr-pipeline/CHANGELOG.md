@@ -1,5 +1,22 @@
 # Changelog for the PR pipeline convention
 
+## 1.18.4 - 2026-10-16
+
+This repository's `pr-pipeline.yaml` adds the `work-unblock` lane (stage `work`) with one
+activity, `label-unblocked` (a script, `mutate-tracker`). `work-unblock.yml` runs it when a
+listed human closes an issue: each issue the closed one blocked gets `agent-ready` when it is
+open, every blocker is closed as completed (not as not planned or duplicate), it carries none of
+`needs-owner-decision`, `status: needs-decision` or `needs-human` in any casing, it holds the
+owner's admission marker as resolve-issue reads it (the check now lives in
+`resolve-config/ratification.mjs`, shared by both), and resolve-issue's `admission` admits it
+(no `work-class:` label outside its classes; read from the config by
+`resolve-config`'s `readAdmission`). The workflow stops before the token request when the
+resolved activity does not apply (`enabled: false`). The label starts `work-resolve-issue` once
+resolve-issue accepts App-added labels (follow-up by Automation Lanes). Everything is re-read
+from the API when the run starts. A close whose sender is a bot (`sender.type` `Bot`), or whose
+closer or re-runner is not a listed human (each is checked on its own; a re-runner may be
+another listed human), is a clean skip. `version` stays 1.
+
 ## 1.18.3 - 2026-10-16
 
 A verdict is bound to the commit it judged: the README no longer promises reuse by patch id or
