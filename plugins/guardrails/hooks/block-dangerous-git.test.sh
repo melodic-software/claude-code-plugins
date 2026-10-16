@@ -2446,10 +2446,10 @@ assert_eq "attended: benign command stays silent" "" "$GUARD_OUT"
 # A command the guard cannot read names nothing a person could judge.
 expect "attended: a command over the length cap still denies" 2 \
   --command "git status $(printf 'x%.0s' {1..16400})" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- CLAUDE_CODE_SESSION_ATTENDED=1
-# Under the dispatcher a merged document keeps no decision, so an ask beside
-# another guard's document would be lost: it denies there.
-expect "attended, dispatched: git reset --hard still denies" 2 --via dispatched \
+expect "attended, dispatched: git reset --hard asks too" 0 --via dispatched \
   --command "git reset --hard" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_eq "attended, dispatched: the merged decision is ask" ask \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
 
 # --- Guards stay on in auto mode -----------------------------------------------
 AUTO_PAYLOAD=$(MSYS_NO_PATHCONV=1 jq -n --arg d "$REPO_SHA1" \

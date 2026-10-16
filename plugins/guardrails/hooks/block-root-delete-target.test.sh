@@ -2236,8 +2236,14 @@ expect "attended unset: rm -rf / denies" 2 --command 'rm -rf /'
 # A command the guard cannot finish reading names nothing a person could judge.
 expect "attended: a command over the length cap still denies" 2 \
   --command "rm -rf $(printf 'x%.0s' {1..16400})" -- CLAUDE_CODE_SESSION_ATTENDED=1
-expect "attended, dispatched: rm -rf / still denies" 2 --via dispatched \
+expect "attended, dispatched: rm -rf / asks too" 0 --via dispatched \
   --command 'rm -rf /' -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_eq "attended, dispatched: the merged decision is ask" ask \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+expect "attended, dispatched: an outside-tree delete asks (decided in the judgment subshell)" 0 --via dispatched \
+  "${RDT_CWD[@]}" --command 'rm -rf /etc/x' -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_eq "attended, dispatched: outside-tree decision is ask" ask \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
 
 # --- 5d. Guards stay on in auto mode -------------------------------------------
 expect_both "auto mode: rm -rf / still blocks" 2 \

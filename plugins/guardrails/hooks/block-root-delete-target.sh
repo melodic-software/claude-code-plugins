@@ -403,6 +403,9 @@ MAX_SUBST_DEPTH=32
 # bash exhausts its stack (about 100 levels of runuser on Git Bash).
 MAX_SEGMENT_DEPTH=24
 rdt_depth=0
+# 1 inside the judgment subshell (rdt_judge_pending), where rdt_block hands an
+# ask up to the parent instead of emitting it.
+RDT_IN_JUDGE=0
 
 # The depth cap bounds how deep a reading goes, not how many there are. A
 # launcher read two ways (runuser's -s program and its -u argv) doubles the
@@ -561,6 +564,13 @@ rdt_block() {
   # The guard read the delete and names what it would remove: the user can
   # judge that, so an attended session asks (refuse.sh).
   no-preserve-root | empty-operand | pipeline-target | bare-variable | outside-tree | unplaceable | brace | root-operand)
+    # Inside the judgment subshell an ask document would be lost with the
+    # subshell, so the reason goes up on stdout with status 3 and the parent
+    # asks.
+    if ((RDT_IN_JUDGE)) && hook::refuse_asks; then
+      printf '%s' "${msg%$'\n'}"
+      exit 3
+    fi
     hook::refuse "${msg%$'\n'}"
     ;;
   *) ;;
@@ -3966,10 +3976,15 @@ fi
 # unset variable under `set -u`, say) ends the subshell with a status other
 # than 0 or 2, and that status is refused here. Run in place, the same error
 # would end the hook with 1, which the fail-open abort boundary passes.
+# Status 3 is an attended ask whose reason the subshell printed (rdt_block).
 if ((${#RDT_P_TEXT[@]})); then
   rdt_judge_rc=0
-  (rdt_judge_pending) || rdt_judge_rc=$?
+  rdt_judge_ask=$(
+    RDT_IN_JUDGE=1
+    rdt_judge_pending
+  ) || rdt_judge_rc=$?
   ((rdt_judge_rc == 2)) && exit 2
+  ((rdt_judge_rc == 3)) && [[ -n "$rdt_judge_ask" ]] && hook::refuse "$rdt_judge_ask"
   ((rdt_judge_rc == 0)) || rdt_block "judge-error"
 fi
 

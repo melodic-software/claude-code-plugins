@@ -66,6 +66,11 @@ Notes on the rows:
   credential words in a heredoc body or a presence check sent to `/dev/null`. The two true
   positives echoed a key prefix and printed a credentials JSON file. With the guard off by
   default, the `Read()` deny rules `/guardrails:setup apply install-read-deny` prints cover the
-  Read tool and `cat`-family reads.
+  Read tool and `cat`-family reads. The guard keeps its `gh-auth-token`, `credential-fill` and
+  `env-echo` families and its `jq` and PowerShell `Get-Content` reads for anyone who turns it
+  on, because the permissions page documents a `Read()` deny rule reaching the built-in file
+  tools, `cat`, `head`, `tail`, `sed`, `tee` and redirects, and nothing that prints a token or
+  is read through `jq` or PowerShell ("Read and Edit" in
+  <https://code.claude.com/docs/en/permissions>, read 2026-10-15).
 - **block-hook-bypass.** Its false positives are shell writes to scratch, temp and gitignored
   paths, which no Write or Edit guard would have checked.

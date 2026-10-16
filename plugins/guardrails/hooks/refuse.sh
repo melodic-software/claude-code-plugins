@@ -19,13 +19,11 @@
 # 2026-10-15. Recheck trigger: that section renames `permissionDecision` or its
 # `ask` value, or a launch shape without a person starts reading 1.
 #
-# Under run-guards.sh it always denies. The dispatcher merges several guards'
-# documents into one that keeps only additionalContext and systemMessage, so
-# an ask beside any other guard's document would be dropped and the call let
-# through. RUN_GUARDS_PID is the dispatcher's own marker.
+# Under run-guards.sh the ask document is merged with the other guards' output
+# (deny over ask), and any guard's exit 2 still denies the call.
 
 hook::refuse_asks() {
-  [[ "${CLAUDE_CODE_SESSION_ATTENDED-}" == 1 && -z "${RUN_GUARDS_PID-}" ]]
+  [[ "${CLAUDE_CODE_SESSION_ATTENDED-}" == 1 ]]
 }
 
 hook::refuse() {

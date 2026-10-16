@@ -26,6 +26,10 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DISPATCH="$HOOK_DIR/run-guards.sh"
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
+# An interactive session exports CLAUDE_CODE_SESSION_ATTENDED=1, which turns a
+# guard's refusal into an ask (refuse.sh). Pin it to 0 so every case below
+# gets the result CI gets; the attended cases set it themselves.
+export CLAUDE_CODE_SESSION_ATTENDED=0
 jq_crlf_free
 
 export CLAUDE_PLUGIN_ROOT="$HOOK_DIR/.."
@@ -88,6 +92,8 @@ stub dirname.sh 'printf "%s %s\n" "$(type -t dirname)" "$(dirname /foo)" >>"'"$S
 # the shapes it has to recognize, not on what hook::emit_channels happens to build.
 stub deny.sh 'hook::emit_document "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"stub deny\"}}"'
 stub ask.sh 'hook::emit_document "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\": \"ask\"}}"'
+stub ask1.sh 'hook::emit_document "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"ask one\"}}"'
+stub ask2.sh 'hook::emit_document "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"ask two\"}}"'
 
 PAYLOAD=$(jq -n '{session_id:"s-1",tool_name:"Bash",cwd:"/x",tool_input:{command:"git status --short"}}')
 
@@ -165,6 +171,56 @@ merged_ctx="${merged_ctx//$'\r'/}" # the Windows jq build writes CRLF
 assert_eq "merged additionalContext carries both guards, in order" $'ctx one\n\nctx two' "$merged_ctx"
 assert_eq "merged hookEventName kept" "PreToolUse" "$(jq -r '.hookSpecificOutput.hookEventName' <<<"$OUT")"
 assert_eq "merged systemMessage carries the one guard that set it" "sys two" "$(jq -r '.systemMessage' <<<"$OUT")"
+
+# --- stdout: a permission decision survives the merge (deny > ask) -----------
+hsd() { jq -r ".hookSpecificOutput.$1 // empty" <<<"$OUT" | tr -d '\r'; }
+run "$PAYLOAD" "$TEST_TMPDIR/ask1.sh" "$TEST_TMPDIR/allow.sh"
+assert_exit "ask beside a silent guard exits 0" 0 "$RC"
+assert_eq "ask beside a silent guard: the decision is ask" ask "$(hsd permissionDecision)"
+run "$PAYLOAD" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/ask1.sh"
+assert_eq "ask beside a context document: the decision is ask" ask "$(hsd permissionDecision)"
+assert_eq "ask beside a context document: the context is kept" "ctx one" "$(hsd additionalContext)"
+assert_eq "ask beside a context document: one document" "1" "$(jq -s 'length' <<<"$OUT")"
+run "$PAYLOAD" "$TEST_TMPDIR/ask1.sh" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/ask2.sh"
+assert_eq "two asks: the decision is ask" ask "$(hsd permissionDecision)"
+assert_eq "two asks: both reasons, in order" $'ask one\n\nask two' "$(hsd permissionDecisionReason)"
+run "$PAYLOAD" "$TEST_TMPDIR/ask1.sh" "$TEST_TMPDIR/deny.sh"
+assert_eq "ask beside a deny document: the decision is deny" deny "$(hsd permissionDecision)"
+assert_eq "ask beside a deny document: the deny reason only" "stub deny" "$(hsd permissionDecisionReason)"
+run "$PAYLOAD" "$TEST_TMPDIR/ask1.sh" "$TEST_TMPDIR/block.sh"
+assert_exit "ask beside a guard that exits 2: the call is denied" 2 "$RC"
+assert_absent "ask beside a guard that exits 2: no ask on stdout" "$OUT" '"ask"'
+run "$PAYLOAD" "$TEST_TMPDIR/ask1.sh" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/block.sh"
+assert_exit "ask and context beside an exit 2: denied" 2 "$RC"
+assert_absent "ask and context beside an exit 2: the ask is dropped" "$OUT" '"ask"'
+
+# --- the shipped guards ask through the dispatcher only when attended --------
+ATT_REPO="$TEST_TMPDIR/att-repo"
+git init -q "$ATT_REPO"
+att_run() { # att_run <attended> <command>: the whole shipped Bash row
+  local p
+  p=$(jq -nc --arg c "$2" --arg d "$ATT_REPO" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
+  RC=0
+  OUT=$(env CLAUDE_CODE_SESSION_ATTENDED="$1" bash "$DISPATCH" --lib lib/powershell/ps-command.sh \
+    block-no-verify.sh block-dangerous-git.sh block-noncanonical-commit.sh \
+    block-root-delete-target.sh block-credential-read.sh <<<"$p" 2>"$TEST_TMPDIR/err") || RC=$?
+  ERR=$(cat "$TEST_TMPDIR/err")
+}
+att_run 1 'git reset --hard'
+assert_exit "attended: git reset --hard exits 0 to ask" 0 "$RC"
+assert_eq "attended: git reset --hard asks" ask "$(hsd permissionDecision)"
+assert_contains "attended: the ask names the form" "$(hsd permissionDecisionReason)" "git reset --hard discards uncommitted work"
+att_run 1 'git reset --hard && rm -rf /'
+assert_eq "attended: two refusing guards ask once" ask "$(hsd permissionDecision)"
+assert_contains "attended: the joined reason names the delete too" "$(hsd permissionDecisionReason)" "filesystem root"
+att_run 1 'git reset --hard; git commit --no-verify -m x'
+assert_exit "attended: a guard that denies outright still denies" 2 "$RC"
+att_run 0 'git reset --hard'
+assert_exit "unattended: git reset --hard denies" 2 "$RC"
+assert_absent "unattended: no ask document" "$OUT" '"ask"'
+att_run 1 'git status'
+assert_exit "attended: an unrelated command passes" 0 "$RC"
+assert_silent "attended: an unrelated command prints nothing" "$OUT$ERR"
 
 # --- stdin posture is re-served, not re-read ---------------------------------
 run "" "$TEST_TMPDIR/allow.sh" "$TEST_TMPDIR/block.sh"

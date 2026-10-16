@@ -142,7 +142,9 @@
 #     unprimed payload is measured by its own length, which no command inside
 #     it can exceed.
 #   * stdout: one emitter passes through verbatim. Several are merged into one
-#     document (contexts joined by a blank line) because a hook process gets
+#     document (contexts joined by a blank line; a `permissionDecision` kept,
+#     deny over ask, with the reasons of the guards that chose it joined; an
+#     exit 2 from any guard still denies the call) because a hook process gets
 #     one JSON document on stdout; as separate hooks each document was
 #     delivered on its own. Pointer:
 #     https://code.claude.com/docs/en/hooks#json-output. As of: 2026-10-11.
@@ -983,6 +985,15 @@ run_guards::finish() {
   # The dispatcher's own boundary again, for the merge below: the last guard's
   # boundary is what the trap holds at this point.
   guard::abort_boundary run-guards "$_GAB_EVENT" open 0 2
+  # A guard that exited 2 denies the call, so an ask another guard emitted is
+  # dropped rather than shown beside the deny.
+  if ((RC == 2 && ${#OUTS[@]})); then
+    local __rg_keep=() __rg_d __rg_re_ask='"permissionDecision"[[:space:]]*:[[:space:]]*"ask"'
+    for __rg_d in "${OUTS[@]}"; do
+      [[ "$__rg_d" =~ $__rg_re_ask ]] || __rg_keep+=("$__rg_d")
+    done
+    OUTS=(${__rg_keep[@]+"${__rg_keep[@]}"})
+  fi
   if ((${#OUTS[@]} == 1)); then
     printf '%s\n' "${OUTS[0]}"
   elif ((${#OUTS[@]} > 1)); then
@@ -990,13 +1001,22 @@ run_guards::finish() {
       run_guards::emit_one "without jq"
     else
       local merged
+      # A permission decision survives the merge: deny over ask, and the
+      # reasons of every guard that chose the winning decision are joined.
       merged=$(printf '%s\n' "${OUTS[@]}" | jq -cs '
-        { hookSpecificOutput: {
-            hookEventName: (map(.hookSpecificOutput.hookEventName // empty) | .[0] // ""),
-            additionalContext: (map(.hookSpecificOutput.additionalContext // empty) | join("\n\n")) },
-          systemMessage: (map(.systemMessage // empty) | join("\n\n")) }
+        (map(.hookSpecificOutput.permissionDecision // empty)) as $d
+        | (if any($d[]; . == "deny") then "deny" elif any($d[]; . == "ask") then "ask" else "" end) as $dec
+        | { hookSpecificOutput: ({
+              hookEventName: (map(.hookSpecificOutput.hookEventName // empty) | .[0] // ""),
+              additionalContext: (map(.hookSpecificOutput.additionalContext // empty) | join("\n\n")) }
+            + (if $dec == "" then {} else {
+                permissionDecision: $dec,
+                permissionDecisionReason: (map(select(.hookSpecificOutput.permissionDecision == $dec)
+                  | .hookSpecificOutput.permissionDecisionReason // empty) | join("\n\n")) } end)),
+            systemMessage: (map(.systemMessage // empty) | join("\n\n")) }
         | if .systemMessage == "" then del(.systemMessage) else . end
-        | if .hookSpecificOutput.additionalContext == "" then del(.hookSpecificOutput) else . end
+        | if .hookSpecificOutput.additionalContext == "" then del(.hookSpecificOutput.additionalContext) else . end
+        | if (.hookSpecificOutput | keys) == ["hookEventName"] then del(.hookSpecificOutput) else . end
         | if . == {} then empty else . end' 2>/dev/null)
       # The Windows jq build writes CRLF; a raw CR never belongs in a JSON document.
       merged="${merged//$'\r'/}"

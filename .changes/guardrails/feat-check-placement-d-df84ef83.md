@@ -7,10 +7,11 @@ bump: minor
 - `/guardrails:setup apply install-read-deny [local|shared] [user] [remove]` prints the
   `Read()` deny rules for `.env` files (and, with `user` and your yes, `~/.ssh/**` and
   `~/.aws/**`) and adds or removes them in the settings file you choose.
-- `block-dangerous-git` and `block-root-delete-target` can ask instead of deny when a person
-  is at the session (`CLAUDE_CODE_SESSION_ATTENDED` exactly `1`), through the new
-  `hooks/refuse.sh`. Under the shipped dispatcher they still deny, because its merge of
-  several guards' output keeps no permission decision.
+- `block-dangerous-git` and `block-root-delete-target` ask instead of deny when a person is
+  at the session (`CLAUDE_CODE_SESSION_ATTENDED` exactly `1`) and the guard read what would
+  run, through the new `hooks/refuse.sh`. A command a guard cannot read is still denied.
+- `run-guards.sh` keeps a permission decision when it merges several guards' output: deny
+  over ask, the asking guards' reasons joined, and any guard's exit 2 still denies the call.
 
 ### Changed
 
