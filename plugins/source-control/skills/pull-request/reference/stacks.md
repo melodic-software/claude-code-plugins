@@ -11,7 +11,7 @@ stack layer: merging it lands that PR alone, into that branch.
   reference, linked below, carry the commands; read them there rather than from memory, since the
   feature is in public preview.
 - Put each dependency in the same layer or a lower one, never a higher one.
-- Each layer is a pull request in its own right: open it as a draft, take it through `ready` and
+- Each layer is a pull request in its own right: open it with `create`, take it through `ready` and
   `monitor`, and hold its title and body to the same contract as any other PR.
 - Inside a linked worktree (`/source-control:worktree`), use extension v0.2.0 or later with Git
   2.36 or later. Earlier versions track a stack per directory, so a stack built in one worktree is

@@ -9,8 +9,8 @@
     "$schema": { "type": "string" },
     "pr_open_state": {
       "enum": ["draft", "ready"],
-      "default": "draft",
-      "description": "State /source-control:pull-request create opens a pull request in. draft opens a draft that /source-control:pull-request ready later flips; ready opens it ready for review."
+      "default": "ready",
+      "description": "State /source-control:pull-request create leaves a pull request in. ready runs /source-control:pull-request ready on the new pull request, which flips it after its gates; draft leaves it a draft for that action to flip later."
     }
   }
 }

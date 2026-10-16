@@ -1,12 +1,14 @@
 # claude-code-plugins
 
-## Open a pull request as a draft
+## Pull request states
 
-Open every pull request as a draft; flip it to ready once the work is done (the stop list below
-says when that needs the user): a draft skips the test lanes and both AI review lanes, and once
-it is ready they run again on every push. None of their checks is required; `ci-status` is the
-only one. Flip with `/source-control:pull-request ready`, which merges the base, reviews and
-verifies the merged head, and then marks it ready.
+Open pull requests with `/source-control:pull-request create`, which owns what save point, draft
+and ready mean and when a pull request stays a draft; this repository keeps its default,
+`pr_open_state: ready` (`docs/conventions/source-control.yaml`). A draft skips the test lanes and
+both AI review lanes, and once it is ready they run on every push. None of their checks is
+required; `ci-status` is the only one. A pull request reaches ready only through
+`/source-control:pull-request ready`, which merges the base, reviews and verifies the merged head,
+and then marks it ready (the stop list below says when that needs the user).
 
 Title every pull request in Conventional Commits form, `<type>[(<scope>)]: <subject>`;
 `ci-status` fails any other title.

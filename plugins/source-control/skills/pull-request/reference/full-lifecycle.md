@@ -7,7 +7,7 @@ invocation carried `full`; every other action routes through the phase table in
 
 Run Phase 1 → Phase 2 → Phase 2.5 → Phase 3 → Phase 4 as a continuous flow. Phase transitions are automatic. Don't pause between phases except at **decision gates** where the outcome could vary, plus one interactive-only checkpoint at the create boundary.
 
-**Phase 2.5 sits between create and monitor.** Phase 2 opens a draft, Phase 2.5 reviews and verifies the merged head and flips it out of draft ([ready-for-review.md](ready-for-review.md)), and Phase 3 monitors the CI and review activity that flip starts. Reaching monitor without the flip means monitoring a draft that no reviewer has been asked to read.
+**Phase 2.5 sits between create and monitor.** Phase 2 opens a draft and, inside `full`, leaves the flip to this step whatever the open state, Phase 2.5 reviews and verifies the merged head and flips it out of draft ([ready-for-review.md](ready-for-review.md)), and Phase 3 monitors the CI and review activity that flip starts. Reaching monitor without the flip means monitoring a draft that no reviewer has been asked to read.
 
 **Create→ready checkpoint (`full` only):**
 
@@ -16,7 +16,7 @@ After Phase 2 reports the PR URL, detect session mode:
 - **Interactive** (no autonomous-session marker like `CLAUDE_CODE_REMOTE=true`): ask the user whether to proceed to Phase 2.5 (ready) and Phase 3 (monitor) in this session. Acceptable responses: proceed (continue to Phase 2.5) / stop (end after create, leaving the draft) / handoff (end; another session/routine will pick up the flip and monitoring). Default on no-response is stop.
 - **Autonomous** (`CLAUDE_CODE_REMOTE=true` or equivalent): no prompt; continue to Phase 2.5 without pausing. There is no user to ask.
 
-Standalone `create` (not invoked inside `full`) always stops after Phase 2. See [reference/create.md](create.md) §2.6.
+Standalone `create` (not invoked inside `full`) stops after Phase 2, and after Phase 2.5 when its open state is `ready`; it never monitors. See [reference/create.md](create.md) §2.6.
 
 **Decision gates (pause for user):**
 

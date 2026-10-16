@@ -1,11 +1,11 @@
 ---
-description: "Improve one thing in any target, from a method or a doc to a whole feature, measured against the repo's written standards and, when a focus asks for it, current upstream guidance. Ships the smallest complete improvement as one small draft PR. With no arguments it reads the conversation for a target and focus and confirms both with the user before acting. Use when: 'improve this', 'improve X', 'make this faster', 'fix one thing', 'make this match our standards', 'bring this up to current .NET', 'find something small and fix it', or a scheduled improve-one-thing run. Skip: a ranked list of options ('what should we improve') is /improvement:find; a structure-only lane sweep is code-tidying:tidy; an observed failure is debugging:debug."
+description: "Improve one thing in any target, from a method or a doc to a whole feature, measured against the repo's written standards and, when a focus asks for it, current upstream guidance. Ships the smallest complete improvement as one small PR. With no arguments it reads the conversation for a target and focus and confirms both with the user before acting. Use when: 'improve this', 'improve X', 'make this faster', 'fix one thing', 'make this match our standards', 'bring this up to current .NET', 'find something small and fix it', or a scheduled improve-one-thing run. Skip: a ranked list of options ('what should we improve') is /improvement:find; a structure-only lane sweep is code-tidying:tidy; an observed failure is debugging:debug."
 argument-hint: "[dry-run] [target ...] [--focus <lens>] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
-  summary: Find one gap in a target against a stated standard and ship the fix as one draft PR
+  summary: Find one gap in a target against a stated standard and ship the fix as one PR
 ---
 
 ## Repository context. Gather first
@@ -28,7 +28,7 @@ Arguments: `$ARGUMENTS`
 ## Purpose
 
 Answer "make this better" with one shipped improvement. The skill finds one gap between a target
-and a stated standard, fixes it, and opens one small draft PR. Small is the point: a run that
+and a stated standard, fixes it, and opens one small PR. Small is the point: a run that
 ships one reviewable change can run whenever there is a spare moment, or on a schedule, without
 piling up review debt.
 
@@ -146,15 +146,15 @@ Otherwise, and after a lane that does not ship, fix it here:
    check is fixed or the change is dropped; it never ships red.
 5. **Commit** through `/source-control:commit` via the Skill tool, one commit for the
    improvement. Where that skill is absent, `git commit` with a Conventional Commits subject.
-6. **Open the PR** through `/source-control:pull-request create` via the Skill tool, which opens
-   it as a draft. Where that skill is absent, push the branch and open a draft PR with the
+6. **Open the PR** through `/source-control:pull-request create` via the Skill tool, which leaves
+   it ready or a draft by its open-state rule. Where that skill is absent, push the branch and open a draft PR with the
    forge's own tooling, passing the title and a body file: a CLI that prompts for a missing
    title or body fails where no one can answer.
    The PR body names the gap, the standard and its basis, and how the change was verified, and
    it states the issue linkage up front: `Closes #N` when the improvement settles a known issue,
    otherwise `No related issue: improve-one-thing against <standard>`. An unattended run passes
    that line in, so the create step has nothing to ask.
-7. **Ready.** Follow the repository's own rule for when the author marks a PR ready (some
+7. **Ready.** For a PR still in draft, follow the repository's own rule for when the author marks a PR ready (some
    repositories run review and test lanes only on ready PRs). Interactive: offer the flip.
    Unattended: flip through `/source-control:pull-request ready` only when the caller's prompt
    authorizes it; otherwise leave the draft and say so in the run report.

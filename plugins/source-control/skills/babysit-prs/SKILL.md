@@ -158,9 +158,9 @@ autopilot: zero-blocker drafts always route through a worker (see Fan out). The 
 happens only in autopilot, only for a draft its worker assesses complete, and it runs
 `/source-control:pull-request ready` rather than a bare draft flip: that step merges the base
 branch and runs the security review and the verify gate before it flips, which a bare flip does
-not. A PR that `/source-control:pull-request create` opened ready for review, because the
-repository or its author set `pr_open_state: ready`, is handled as any non-draft PR; no tier turns
-it back into a draft.
+not. A PR that `/source-control:pull-request create` took through `ready`, because its
+`pr_open_state` resolved to `ready`, is handled as any non-draft PR; no tier turns it back into a
+draft.
 
 ## Autopilot
 

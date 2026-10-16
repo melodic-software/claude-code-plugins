@@ -42,8 +42,8 @@
     "pr_open_state": {
       "type": "string",
       "title": "PR open state",
-      "description": "State /source-control:pull-request create opens a PR in. draft (default) opens a draft that the ready action flips later; ready opens it for review at once. A repository's pr_open_state in docs/conventions/source-control.yaml wins over this value.",
-      "default": "draft",
+      "description": "State /source-control:pull-request create leaves a PR in. ready (default) runs the ready action's gates on the new PR and flips it; draft leaves it a draft for the ready action to flip later. A repository's pr_open_state in docs/conventions/source-control.yaml wins over this value, and a request for a draft wins over both.",
+      "default": "ready",
       "options": ["draft", "ready"]
     },
     "fetch_logs_max_bytes": {

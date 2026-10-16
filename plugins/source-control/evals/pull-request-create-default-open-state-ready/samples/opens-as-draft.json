@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "PR_URL=$(gh pr create --draft --head fix/null-user --title 'fix: return an empty user instead of null' --body-file /tmp/body.md)"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api --method POST repos/{owner}/{repo}/pulls -f title='fix: return an empty user' -f head=fix/null-user -f base=main -F body=@/tmp/body.md -F draft=true"
+          }
+        }
+      ],
+      "why": "REST fallback sends draft as a boolean"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr create --head fix/null-user --title 'fix: return an empty user instead of null' --body-file /tmp/body.md"
+          }
+        }
+      ],
+      "why": "opened ready for review, skipping the draft that ready flips"
+    },
+    {
+      "answer": []
+    }
+  ]
+}
