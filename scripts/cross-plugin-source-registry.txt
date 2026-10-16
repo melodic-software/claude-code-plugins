@@ -22,9 +22,6 @@ hooks/hook-utils.sh
 # Cluster line for the duplication audit: the root canonical and the copies.
 lib/hook-utils.sh -> plugins/*/hooks/hook-utils.sh
 
-# Dedicated check: scripts/sync-shared-copies.sh --check
-hooks/rewrite-guard.sh
-
 # Dedicated check: scripts/sync-shared-copies.sh --check.
 # Cluster line for the duplication audit: the root canonical and the copies.
 lib/rewrite-guard.sh -> plugins/*/hooks/rewrite-guard.sh

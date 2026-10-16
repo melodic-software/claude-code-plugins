@@ -10,7 +10,7 @@
 # --paths mode with a minimal, class-scoped token list
 # (SHELL_PORTABILITY_TOKENS) built per test so a fixture is never coupled to
 # the shipping list's other active classes; two cases run against the REAL
-# shipped token list and the REAL corpus — the known-good markdown-format.sh
+# shipped token list and the REAL corpus — the known-good markdown-gates.sh
 # reference implementation, and the shipping list's staged-class inertness —
 # to prove the shipping config, not just the mechanism.
 #
@@ -1677,10 +1677,10 @@ rm -rf "$fx"
 # =============================================================================
 
 # --- the reference implementation this issue names as known-good is clean --
-if out="$(scan_paths "$REAL_TOKENS" "$REPO_ROOT/plugins/markdown-format/hooks/markdown-format.sh" 2>&1)"; then
-  ok "the shipped token list does not flag markdown-format.sh's reference implementation"
+if out="$(scan_paths "$REAL_TOKENS" "$REPO_ROOT/plugins/markdown-format/git-hooks/markdown-gates.sh" 2>&1)"; then
+  ok "the shipped token list does not flag markdown-gates.sh's reference implementation"
 else
-  fail "markdown-format.sh must stay clean under the shipped token list, got: $out"
+  fail "markdown-gates.sh must stay clean under the shipped token list, got: $out"
 fi
 
 # --- date -d and stat -c are now ACTIVE in the shipped list (#1510) --------

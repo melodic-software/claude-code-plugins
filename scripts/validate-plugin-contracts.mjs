@@ -1284,7 +1284,7 @@ const optionWarn = (path, message) =>
   warnings.push(`${relative(root, path)}: ${message} (${OPTION_NAMING_DOC})`);
 const spacedLower = (text) => text.toLowerCase().replace(/[-\s]+/g, " ").trim();
 // Capitalized words that are proper nouns, so they may follow the first word.
-const TITLE_PROPER_NOUNS = new Set(["Windows", "Linux", "Claude", "Python", "Playwright"]);
+const TITLE_PROPER_NOUNS = new Set(["Windows", "Linux", "Claude", "Python", "Playwright", "Go"]);
 // Emphasis such as *strict*, but not a literal wildcard such as ps-unparsable-*.
 const SINGLE_ASTERISK_EMPHASIS = /(?:^|[\s(])\*(?=\S)[^*\n]*\S\*(?=$|[\s.,;:!?)])/;
 

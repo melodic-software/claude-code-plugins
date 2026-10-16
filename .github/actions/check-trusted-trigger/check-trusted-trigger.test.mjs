@@ -1476,7 +1476,7 @@ test("createGitHub raises on a GraphQL response that carries errors", async () =
 
 // A dispatcher started by workflow_run when a review lane finished on the PR
 // (pr-feedback-dispatch.yml). Its run record reports the default branch and its
-// tip, as pr-merge.yml's workflow_run runs do (run 38779143370 after review run
+// tip, as pr-merge.yml's workflow_run runs did (run 38779143370 after review run
 // 38779135732 on release/plugins).
 
 const RUN_DISPATCHER_WORKFLOW = ".github/workflows/pr-feedback-dispatch.yml";

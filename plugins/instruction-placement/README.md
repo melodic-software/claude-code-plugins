@@ -4,8 +4,8 @@ Routes agent-instruction content to the surface that loads it at the right momen
 
 A convention that only matters when someone edits a `.cs` file should not be paid for in every
 session. Claude Code already provides the machinery to fix that: path-scoped rules and nested
-instruction files. Using it correctly is harder than it looks, and every way of getting it
-wrong fails silently. This plugin finds the content worth moving, validates the move mechanically
+instruction files. Using it goes wrong easily, because no mistake
+raises an error. This plugin finds the content worth moving, validates the move mechanically
 before proposing it, and executes it behind a human gate.
 
 ## Skills
@@ -20,7 +20,7 @@ before proposing it, and executes it behind a human gate.
 | `/instruction-placement:delta` | Read-only movement report | Re-runs the audit and reports only what changed since last time, above a noise budget, suppressing every finding the operator already declined |
 | `/instruction-placement:migrate` | Per-repository human-gated move | Plans and carries out a repository's move to `AGENTS.md` as the content home, with a `CLAUDE.md` shim while one is needed |
 
-`realign` and `migrate` are the two mutating surfaces; both gate every change on the operator.
+`realign` and `migrate` are the two mutating skills; both gate every change on the operator.
 
 Run `setup` first on a new repository. It catches the one failure the other gates cannot see, an
 index Claude Code never loads. Then `audit`. Nothing changes until you accept a specific finding in
@@ -30,9 +30,32 @@ into CI beside the linters.
 
 ## Requirements
 
-- Node.js on `PATH`. The `index-drift` hook launches through `node hooks/exec-bash.mjs`; without
-  `node` it does not run and the index goes unchecked. `/instruction-placement:setup` reports it.
+- Node.js on `PATH`, for the git-hook installer and the session-start probe that reports a missing
+  or drifted entry. Without `node` an installed entry still runs at commit.
+  `/instruction-placement:setup` reports it.
 - `git`, for tracked-file discovery. `jq` and the Claude Code CLI are optional, for `verify-load.sh`.
+
+## Git pre-commit entry
+
+The plugin ships one git-hook entry, `index-check` (`git-hooks/entries.json`), which rewrites
+nothing. It runs when a staged path is under a `.claude/rules/` directory (a deletion or rename
+included) or is the index file, the root `AGENTS.md`, else the root `CLAUDE.md`. If the index block
+no longer matches a fresh render, the commit fails with the regenerate command. A repository with
+no index block has not adopted an index and is never failed. The earlier per-edit hook that told
+Claude about drift after each rules edit is gone: the check costs one render at commit, covers
+every author, and `/instruction-placement:check` still gates the same drift in CI.
+
+`/instruction-placement:setup apply install-git-hooks [scope=local|shared]` registers it with the
+repository's hook manager (lefthook, husky or plain git hooks). Local scope stays in this clone;
+shared scope commits the copy under `.githooks/instruction-placement/`.
+`/instruction-placement:setup check` reports drift, and the SessionStart probe prints one line
+when the entry is missing, stale or edited. The entry needs no external tool.
+
+### Hook budget accounting
+
+The plugin registers no tool-call hook. The `index-check` entry runs only at commit. Measured on
+WSL2 Ubuntu (bash 5.3.9) on 2026-10-15, with the installed copy and one staged rules file against
+an in-sync index, ten runs: median 0.084 s, min-max 0.079-0.094 s.
 
 ## Where the artifacts land
 
@@ -70,8 +93,7 @@ comes from the glob.
 Code 2.1.268: a subagent dispatched *after* its parent had loaded a nested `CLAUDE.md`, a nested
 `AGENTS.md`, and a path-scoped rule held none of them, and each one arrived only once the subagent
 itself read a path that surface covered. The glob is matched against the requested path, so even a
-read that finds no file fires it. Delegation therefore resets the trigger rather than closing the
-door, and what is left is that nothing tells an agent a rule exists until its trigger happens to
+read that finds no file fires it. Delegation therefore resets the trigger instead of removing it, and what is left is that nothing tells an agent a rule exists until its trigger happens to
 match: the agent editing C# who was never told to read the C# rule first acts without it. This is why
 every accepted move regenerates an **always-loaded index** of deferred surfaces, which the main
 session and every subagent that loads the CLAUDE.md hierarchy receive, and that turns an unnamed
@@ -171,7 +193,7 @@ The dividing line: those audits ask whether a piece of content is *good*, *neede
 This plugin asks only where it should **live**, and owns the one capability none of them has, the
 validated move, including glob derivation and the index that keeps the result reachable.
 
-These routes are **operative, not decorative**. When a candidate raises one of these questions, the
+When a candidate raises one of these questions, the
 audit invokes the named skill via the Skill tool if its plugin is installed, and otherwise keeps the
 observation in the report as an unjudged note. A routed candidate is reported as routed, never
 silently dropped, and never re-classified as a placement finding just because the sibling was
@@ -193,7 +215,7 @@ Conditions that should change this plugin, recorded so they are acted on rather 
 | Reading `AGENTS.md` directly stops depending on a remote feature flag, and every pinned `claude-code-action` installs a CLI that reads it | Run `/instruction-placement:migrate cutover-check` once it ships (#4281); when every condition is met, the `CLAUDE.md` shims a repository carries can come out |
 | A measurement shows a `Write`-triggered path-scoped rule arrives before the file is written (the trigger itself shipped in Claude Code 2.1.288) | Drop the structural deny on creation-governing content |
 | Rules gain an official `description:` frontmatter field | Make the index's description source explicit rather than a preferred-if-present convention |
-| A second consumer needs the findings artifact | Promote its contract to a documented cross-plugin seam **before** that consumer ships, per the convention registry. The contract's stability guarantees and the three promotion prerequisites are already written down in [`context/findings-artifact.md`](context/findings-artifact.md); the owner doc is deliberately not written yet, because an interface with one implementation is a guess |
+| A second consumer needs the findings artifact | Promote its contract to a documented cross-plugin interface **before** that consumer ships, per the convention registry. The contract's stability guarantees and the three promotion prerequisites are already written down in [`context/findings-artifact.md`](context/findings-artifact.md); the owner doc is deliberately not written yet, because an interface with one implementation is a guess |
 | The glob engine needs semantics bash cannot express cleanly | Reconsider the hand-rolled expander; it exists to avoid `eval` on repository content |
 
 ## Configuration
@@ -213,7 +235,6 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `index_drift_hook_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED` | PostToolUse notice when a write inside a .claude/rules tree leaves the generated index stale. On by default. Advisory and non-blocking; the authoritative gate is /instruction-placement:check in CI. Costs a string comparison on writes outside a rules tree. |
 | `breadth_max` | number<br>*min 0, max 100* | `75` | `CLAUDE_PLUGIN_OPTION_BREADTH_MAX` | Percent of tracked files above which a rule's paths: glob is reported over-broad. Default 75. Advisory only, never fails the check gate. Raise it in a repository where one extension legitimately covers most files. |
 | `index_max_rows` | number | `40` | `CLAUDE_PLUGIN_OPTION_INDEX_MAX_ROWS` | Surfaces listed individually in the generated index before the remainder is grouped by directory with a count. Default 40. The index is always-loaded, so this bounds its own cost. |
 
@@ -227,7 +248,7 @@ Three supported routes, in the order most people want them:
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
-   claude plugin install instruction-placement@<marketplace> -s <scope> --config index_drift_hook_enabled=<value>
+   claude plugin install instruction-placement@<marketplace> -s <scope> --config breadth_max=<value>
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
@@ -251,7 +272,7 @@ Three supported routes, in the order most people want them:
      "pluginConfigs": {
        "instruction-placement@<marketplace>": {
          "options": {
-           "index_drift_hook_enabled": <value>
+           "breadth_max": <value>
          }
        }
      }

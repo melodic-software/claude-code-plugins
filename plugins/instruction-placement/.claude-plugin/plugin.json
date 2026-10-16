@@ -1,19 +1,13 @@
 {
   "name": "instruction-placement",
   "version": "0.23.1",
-  "description": "Routes agent instructions to the surface that loads them at the right time. audit finds conventions narrower than the always-loaded CLAUDE.md or AGENTS.md holding them, or stranded in docs Claude never loads, and proposes a destination with a validated paths glob; safety-class content is never demoted. realign applies moves item by item and regenerates an index. check verifies globs and index. migrate moves content to AGENTS.md with a CLAUDE.md shim. setup checks the index is readable.",
+  "description": "Routes agent instructions to the surface that loads them at the right time. audit finds conventions narrower than the always-loaded CLAUDE.md or AGENTS.md, or stranded in docs Claude never loads, and proposes a destination with a validated paths glob; safety content is never demoted. realign applies each move and regenerates an index. check verifies globs and index. migrate moves content to AGENTS.md with a CLAUDE.md shim. setup registers a git pre-commit entry that fails on a stale rules index.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
   "userConfig": {
-    "index_drift_hook_enabled": {
-      "type": "boolean",
-      "title": "Index-drift hook",
-      "description": "PostToolUse notice when a write inside a .claude/rules tree leaves the generated index stale. On by default. Advisory and non-blocking; the authoritative gate is /instruction-placement:check in CI. Costs a string comparison on writes outside a rules tree.",
-      "default": true
-    },
     "breadth_max": {
       "type": "number",
       "title": "Over-broad glob ceiling (percent)",

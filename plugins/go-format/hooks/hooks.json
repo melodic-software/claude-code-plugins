@@ -1,20 +1,42 @@
 {
-  "description": "Formats Go source and its imports after a write or edit.",
+  "description": "Formats Go source and its imports with goimports once per batch of tool calls, optionally checks the uncommitted changes when a turn ends, and reports a missing goimports or a drifted git-hook entry at session start.",
   "hooks": {
-    "PostToolUse": [
+    "PostToolBatch": [
       {
-        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--run-if-unset-or-true",
+              "GO_FORMAT_ENABLED",
+              "--skip-unless-stdin-contains",
+              ".go",
               "${CLAUDE_PLUGIN_ROOT}/hooks/go-format.sh"
             ],
-            "if": "Edit(*.go)",
-            "timeout": 15,
-            "statusMessage": "Formatting Go imports..."
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--run-if-unset-or-true",
+              "GO_FORMAT_ENABLED",
+              "--require-true",
+              "GO_FORMAT_END_OF_TURN",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/go-format.sh",
+              "--end-of-turn"
+            ],
+            "timeout": 30,
+            "statusMessage": "Checking Go in uncommitted changes..."
           }
         ]
       }
@@ -46,21 +68,6 @@
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /go-format:check GO_FORMAT_ENABLED; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /go-format:check GO_FORMAT_ENABLED",
             "timeout": 10,
             "statusMessage": "Checking that node is on PATH..."
-          }
-        ]
-      },
-      {
-        "matcher": "compact|clear",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/go-format.sh",
-              "--reset-digests"
-            ],
-            "timeout": 10
           }
         ]
       }

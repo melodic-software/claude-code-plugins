@@ -11,6 +11,15 @@ edit or title change after the newest marker also stops it. Any other App label 
 failed read, or no marker stops the run. The lanes token broker must accept the same labeler for an `issues` mint.
 `version` stays 1.
 
+## 1.18.1 - 2026-10-16
+
+`pr-merge.yml` no longer wakes on `workflow_run` completions of `pr-require-checks`,
+`pr-review-hosted` and `pr-review-security-hosted`, and its schedule runs every 15 minutes
+instead of hourly. Those completions arrived faster than the serialized runs finished, so the
+`pr-merge` concurrency group's queue reached GitHub's 100-run cap and further runs were rejected.
+Every run already reads every open PR, so the schedule finds what those wake-ups found.
+`version` stays 1.
+
 ## 1.18.0 - 2026-10-16
 
 `applies-when` gains `admission` (`classes`, optional `ratified`), an issues lane's admission
