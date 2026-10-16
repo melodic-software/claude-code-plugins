@@ -1,0 +1,12 @@
+{
+  "entries": [
+    {
+      "name": "index-check",
+      "event": "pre-commit",
+      "script": "index-check.sh",
+      "tools": [],
+      "rewrites": false,
+      "assets": ["scripts/render-index.sh", "scripts/lib/discover.sh"]
+    }
+  ]
+}

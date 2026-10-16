@@ -1,5 +1,5 @@
 {
-  "description": "Detects a rules index drifting out of step with the rule files it indexes, after a write or edit.",
+  "description": "Reports a missing node or a drifted rules-index git-hook entry at session start.",
   "hooks": {
     "SessionStart": [
       {
@@ -7,27 +7,25 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /instruction-placement:check-prerequisites INDEX_DRIFT_HOOK_ENABLED; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /instruction-placement:check-prerequisites INDEX_DRIFT_HOOK_ENABLED",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs",
+              "probe",
+              "${CLAUDE_PLUGIN_ROOT}"
+            ],
             "timeout": 10,
-            "statusMessage": "Checking that node is on PATH..."
+            "statusMessage": "Checking the rules-index git hook..."
           }
         ]
-      }
-    ],
-    "PostToolUse": [
+      },
       {
-        "matcher": "Write|Edit",
+        "matcher": "startup|resume|clear|fork",
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/index-drift.sh"
-            ],
-            "if": "Edit(**/.claude/rules/*.md)",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /instruction-placement:check-prerequisites; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /instruction-placement:check-prerequisites",
             "timeout": 10,
-            "statusMessage": "Checking rules index..."
+            "statusMessage": "Checking that node is on PATH..."
           }
         ]
       }

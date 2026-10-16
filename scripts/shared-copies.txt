@@ -482,6 +482,7 @@ lib/git-hooks/install.mjs plugins/powershell-format/lib/git-hooks/install.mjs
 lib/git-hooks/install.mjs plugins/eol-normalizer/lib/git-hooks/install.mjs
 lib/git-hooks/install.mjs plugins/actionlint/lib/git-hooks/install.mjs
 lib/git-hooks/install.mjs plugins/guardrails/lib/git-hooks/install.mjs
+lib/git-hooks/install.mjs plugins/instruction-placement/lib/git-hooks/install.mjs
 lib/git-hooks/check-lib.sh plugins/typos-format/lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh plugins/ruff-format/lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh plugins/bash-format/lib/git-hooks/check-lib.sh
@@ -492,3 +493,4 @@ lib/git-hooks/check-lib.sh plugins/powershell-format/lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh plugins/eol-normalizer/lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh plugins/actionlint/lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh plugins/guardrails/lib/git-hooks/check-lib.sh
+lib/git-hooks/check-lib.sh plugins/instruction-placement/lib/git-hooks/check-lib.sh
