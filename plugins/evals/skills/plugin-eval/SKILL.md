@@ -109,12 +109,12 @@ Under Claude Code's worktree isolation a Bash guard can refuse the CLI; which se
 covers is in [records](reference/records.md#worktrees). It matters only when `run` or `init`
 invokes the CLI. Never retry, wrap, reroute, or otherwise bypass a refusal. Build the command with
 absolute paths: for `run`, an absolute `<target>` and `--json` path inside the worktree; for
-`init`, `claude plugin eval init --bare <name>`, run from the plugin root. Take the first route
+`init`, `cd <absolute plugin root> && claude plugin eval init --bare <name>`. Take the first route
 that fits:
 
 1. A `run` in a session entered with `EnterWorktree`: ask the user whether to leave the worktree
    for it. Only on a yes, `ExitWorktree` with `keep`, run it, then `EnterWorktree` back by the
-   worktree's path.
+   worktree's path; on a no, take route 3.
 2. A subagent: return the exact command to the caller, which takes these same routes.
 3. Otherwise print it for the user to run in a terminal outside Claude Code, or in a session
    started with plain `claude` (not `--worktree`) in the worktree.
