@@ -752,6 +752,21 @@ test("an issue the owner ratified with the admission marker is admitted with no 
   ]);
 });
 
+test("the step log names the comment that ratified the issue, never its body", async (t) => {
+  const marker = { ...comment(OWNER, `${MARKER}secret-looking text`), id: 4242 };
+  const { env, github } = ratifiedIssue([marker]);
+  const log = t.mock.method(console, "log", () => {});
+  const code = await main({ env, github });
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  log.mock.restore();
+  assert.equal(code, 0);
+  assert.ok(
+    lines.includes(`resolve-config: ratified by comment 4242 from kyle-sexton at ${POSTED}`),
+    lines.join(" | "),
+  );
+  assert.ok(lines.every((line) => !line.includes("secret-looking") && !line.includes("<!--")));
+});
+
 // D33: a lane never admits work on its own, so the lanes App cannot ratify.
 test("an admission marker authored by the lanes App does not admit", async () => {
   const { env, github } = ratifiedIssue([comment(LANES_APP, MARKER, { slug: "melodic-automation-lanes" })]);

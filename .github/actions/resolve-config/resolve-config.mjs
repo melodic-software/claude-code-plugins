@@ -113,7 +113,7 @@ async function gatherFacts(
         github,
         `/repos/${repository}/issues/${Number(issue.number)}/comments`,
       );
-      facts.ratified = comments.some(
+      const ratifying = comments.find(
         (comment) =>
           RATIFICATION_MARKER.test(comment.body ?? "") &&
           ratifiers.has(comment.user?.id) &&
@@ -123,6 +123,15 @@ async function gatherFacts(
           typeof comment.created_at === "string" &&
           comment.updated_at === comment.created_at,
       );
+      facts.ratified = ratifying !== undefined;
+      // Which comment ratified it, never its text.
+      if (facts.ratified) {
+        console.log(
+          escapeCommand(
+            `resolve-config: ratified by comment ${Number(ratifying.id)} from ${ratifying.user.login} at ${ratifying.created_at}`,
+          ),
+        );
+      }
     }
     if (needed.includes("labeledAt") && typeof issue.updated_at === "string") {
       facts.labeledAt = issue.updated_at;
