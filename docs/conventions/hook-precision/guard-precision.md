@@ -37,8 +37,8 @@ table records the measurement and the verdict for each one. It holds aggregate c
 |---|---|---|---|---|---|---|
 | block-dangerous-git (logged) | 35 matcher, 4 length cap | 32 | 3 matcher, 4 cap | 91% matcher, 82% with cap | above the bar | on |
 | block-no-verify (logged) | 12 matcher, 28 length cap | 11 | 1 matcher, 28 cap | 92% matcher, 28% with cap | above the bar on the matcher; the cap is one cause (long heredoc file writes) | on |
-| block-root-delete-target (replay, as shipped) | 202 (about 15 not judgeable) | about 58 | 129 | about 31% | below 50%, kept on: 121 of the 129 are a variable the same command sets, which the guard reads only in the one adjacent shape it can prove; the other 8 are a heredoc body read as commands | on |
-| block-root-delete-target (replay, before this change) | 225 (about 14 not judgeable) | about 58 | 153 | about 27% | same cause | not shipped |
+| block-root-delete-target (replay, as shipped) | 225 (about 14 not judgeable) | about 58 | 153 | about 27% | below 50%, kept on: 145 of the 153 are a variable the same command sets, which the guard reads only in the one exact shape it can prove; the other 8 are a heredoc body read as commands | on |
+| block-root-delete-target (replay, before this change) | 225 (about 14 not judgeable) | about 58 | 153 | about 27% | same fires as shipped | not shipped |
 | block-noncanonical-commit (replay, as shipped) | 0 of 569 | 0 | 0 | undefined | default stays; seeded cases in its contract test | on |
 | block-noncanonical-commit (replay, before this change) | 218 of 569 | 0 | 218 | 0% | a newline is not the hazard (#6464) | not shipped |
 | block-credential-read (replay, as shipped) | 34 | 2 | 32 | 6% | below the bar | **off** |
@@ -58,16 +58,20 @@ Notes on the rows:
   spelled through a command substitution the guard does not evaluate.
 - **block-no-verify.** The one matcher false positive set `core.hooksPath` in a throwaway test
   repository. The length-cap refusals were long heredoc file writes holding no git command.
-- **block-root-delete-target.** Of the 129 false positives, 121 delete a variable the same
+- **block-root-delete-target.** Of the 153 false positives, 145 delete a variable the same
   command set (from `mktemp`, a loop, another variable, or a literal statements before the
   delete), and 8 are root-shaped text inside a heredoc body the guard reads as commands. A
   literal is honored only when the whole command is exactly `NAME=LITERAL`, one `&&`, `;` or
-  newline, then `rm` whose every expansion is `$NAME` with an optional plain path suffix, with
-  no character that could run, regroup, redirect or quote anything else and no name the shell
-  gives a meaning; any other command reads the variable as unknown. The guard stays on
-  because it stops irreversible deletes and its noise has two identified causes: a variable
-  the command set, and a heredoc body read as commands. The about 15 not judgeable fires
-  target a directory inside a working directory that no longer exists. "About" marks a count extrapolated from a sample of 25 of the 73 outside-tree fires.
+  newline, then `rm` whose every expansion is `"$NAME"` or `"$NAME/..."` with a plain path
+  suffix inside the double quotes, with no character that could run, regroup, redirect or
+  quote anything else and no name the shell gives a meaning; any other command, an unquoted
+  `$NAME` included, reads the variable as unknown. No logged delete has that exact shape, so
+  the shipped guard fires on the same calls as the guard before this change: a replay of
+  both on 2026-10-16 over the same transcripts found no call on which they differ. The guard
+  stays on because it stops irreversible deletes and its noise has two identified causes: a
+  variable the command set, and a heredoc body read as commands. The about 14 not judgeable
+  fires target a directory inside a working directory that no longer exists. "About" marks a
+  count extrapolated from a sample of 25 of the 73 outside-tree fires.
 - **block-credential-read.** 23 of its fires are `gh auth token` inside a substitution whose
   output never reaches the transcript (`TOKEN=$(gh auth token)`), and most of the rest are
   credential words in a heredoc body or a presence check sent to `/dev/null`. The two true
