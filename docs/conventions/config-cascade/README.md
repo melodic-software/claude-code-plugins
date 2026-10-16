@@ -170,14 +170,14 @@ exemplar.
 ## Overlay naming and the consumer `.gitignore`
 
 The overlay is spelled `*.local.*`: the stem, `.local`, then the original extension. One spelling
-across the fleet is the point: a consumer adds one `.gitignore` line and every current and future
+across the fleet means a consumer adds one `.gitignore` line and every current and future
 surface is covered.
 
 ```gitignore
 .claude/**/*.local.*
 ```
 
-That is the whole convention: **one line, recursive form, for every surface**. `.claude/**/` matches
+That is the whole convention, **one line in recursive form for every surface**. `.claude/**/` matches
 zero or more directories, so this single rule covers a flat `.claude/source-control.local.md` and a
 one-deep `.claude/ecosystems/python.local.yaml` alike, and would cover a deeper nested overlay if a
 surface grew one, while leaving team files tracked. The narrower
@@ -526,8 +526,8 @@ conformance.
 
 ## Implementers
 
-Conformance is tracked, not assumed. A surface is listed here whether or not it conforms. The gap is
-the point. Each row states the surface's conformance **as it exists on `main`**, never as a
+Conformance is tracked, not assumed. A surface is listed here whether or not it conforms, so the gap
+stays visible. Each row states the surface's conformance **as it exists on `main`**, never as a
 migration intends it to be; a row that ran ahead of the code would report a closed gap that is still
 open. Every row fills `Who wins` and `Merge form` with one short phrase each, never blank. Every row
 below is currently expressed as a **dedicated file**; a surface that migrates to a convention doc

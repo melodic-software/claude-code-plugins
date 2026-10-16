@@ -1000,7 +1000,7 @@ Mechanism never implies class. A context-injection can be pure policy (relaying 
 findings), and a deny-gate can be behavioral (a block whose predicate is a guess about model
 competence rather than a checkable invariant).
 
-One nuance does the most work: a hook with a *behavioral purpose* but a *non-derivable ground-truth
+One nuance matters most. A hook with a *behavioral purpose* but a *non-derivable ground-truth
 oracle*, such as diffing written flags against a binary's live `--help`, globbing the live plugin tree
 after a rename, or querying git history for a path's disappearance, is a keep, not an ablation
 candidate. It corrects hallucination with machine ground truth no model can know unaided, so "it
@@ -1074,7 +1074,7 @@ never the advisor's command flags, which drift against the surface their owner e
 
 What does not need it: deterministic gates (a script's pass/fail cannot be biased by context, so prefer
 one wherever the judgment is mechanical), and judgment over external input the context did not produce
-(triage of another author's issue or PR). Delegation cost is real; the rule buys unbiased judgment
+(triage of another author's issue or PR). Delegation cost is real; the rule gives unbiased judgment
 exactly where bias is structural, and nothing elsewhere.
 
 The deterministic-gate exemption is narrow: it reaches the mechanical judgment itself, where the gate's
@@ -1157,7 +1157,7 @@ A dispatch prompt at any rung:
 - **degrades when absent**: a preferred named agent or advisor that is not installed routes to the
   generic fresh-context subagent, never to a command that may not resolve; and
 - **bounds what counts as a finding**: correctness and the stated requirements, everything else
-  optional. An unbounded adversarial prompt buys noise at the same price as judgment, and chasing
+  optional. An unbounded adversarial prompt returns many low-value findings at full cost, and chasing
   every reported gap over-engineers the work. Pointer:
   <https://code.claude.com/docs/en/best-practices#add-an-adversarial-review-step>. As of:
   2026-08-10. Recheck trigger: that section stops recommending a bounded review.
@@ -1352,7 +1352,7 @@ list restated here. Outside the pair, `plugins/implementation/agents/scoped-impl
 the fast tier at `medium` effort, the [effort floor](#effort-floor), and runs only plan-routed
 well-scoped phases, dispatched with an explicit per-invocation `model`.
 
-That floor is the consumer's to lose. An enterprise `availableModels` allowlist reaches frontmatter
+A consumer can lose that floor. An enterprise `availableModels` allowlist reaches frontmatter
 pins too, and Claude Code handles a blocked pin differently for a subagent than for a skill or
 command. Our conclusion, with the per-surface rules left at the pointer: a subagent lane's tier is
 not self-enforcing, because a blocked pin can land below the session (an `opus` pin under an
