@@ -241,6 +241,23 @@ expect "a config that builds paths is unpinnable, with no approval route" \
 expect "an unpinnable config never runs: the file keeps its bytes" "$(printf '# T\n\ntext')" "$(cat "$REPO/a.md")"
 
 new_repo NONE
+printf 'module.exports = require("#cfg");\n' >"$REPO/.markdownlint-cli2.cjs"
+printf '# T\n\ntext' >"$REPO/a.md"
+git -C "$REPO" add a.md
+expect "a config requiring a package.json imports specifier is unpinnable" \
+  "0||$GATE_LEAD .markdownlint-cli2.cjs; it names code through an expression no approval can pin, so lint stays off." "$(check "$REPO")"
+
+new_repo NONE
+mkdir -p "$REPO/sub"
+printf 'module.exports = require("./helper.cjs");\n' >"$REPO/sub/cfg.cjs"
+printf 'module.exports = { config: { default: true } };\n' >"$REPO/sub/helper.cjs"
+ln -s sub/cfg.cjs "$REPO/.markdownlint-cli2.cjs"
+printf '# T\n\ntext' >"$REPO/a.md"
+git -C "$REPO" add a.md
+expect "a symlinked code config is unpinnable: its requires resolve from the link target" \
+  "0||$GATE_LEAD .markdownlint-cli2.cjs; it names code through an expression no approval can pin, so lint stays off." "$(check "$REPO")"
+
+new_repo NONE
 printf '{ "default": true }\n' >"$REPO/.markdownlint.json"
 printf '# T\n\ntext' >"$REPO/a.md"
 git -C "$REPO" add a.md

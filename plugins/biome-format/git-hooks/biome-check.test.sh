@@ -286,6 +286,20 @@ git -C "$REPO" add pkg/a.ts
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOBIOME" bash "$CHECK" 2>&1)"
 expect "biome found in the governing config directory's node_modules/.bin" "0|pkg/a.ts" "$?|$out"
 
+# A node_modules the repository commits is never run, even when it shadows the
+# biome on PATH.
+new_repo
+mkdir -p "$REPO/node_modules/.bin"
+printf '#!/bin/sh\ntouch "%s"\nexit 0\n' "$WORK/committed-ran" >"$REPO/node_modules/.bin/biome"
+chmod +x "$REPO/node_modules/.bin/biome"
+git -C "$REPO" add node_modules/.bin/biome
+git -C "$REPO" commit -q -m vendored --no-verify
+printf 'export const a=1\n' >"$REPO/a.ts"
+git -C "$REPO" add a.ts
+out="$(cd "$REPO" && CLAUDECODE=1 bash "$CHECK" 2>&1)"
+expect "a committed node_modules/.bin/biome is passed over for the one on PATH" "0|a.ts" "$?|$out"
+expect "the committed biome never ran" no "$([[ -e "$WORK/committed-ran" ]] && echo yes || echo no)"
+
 # End to end through the plugin's vendored installer and real commits.
 new_repo
 INSTALL="$PLUGIN/lib/git-hooks/install.mjs"

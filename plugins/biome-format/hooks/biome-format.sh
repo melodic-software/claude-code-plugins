@@ -71,6 +71,8 @@ BIOME_BIN=""
 # shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
 biome_local_bin_here() {
   [[ -f "$1/node_modules/.bin/biome" ]] || return 1
+  # A node_modules the repository commits is its code, not the user's install.
+  [[ -z "$(git -C "$1" ls-files -- ':(literal)node_modules' 2>/dev/null)" ]] || return 1
   BIOME_BIN="$1/node_modules/.bin/biome"
   return 0
 }

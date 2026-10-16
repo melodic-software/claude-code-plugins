@@ -160,10 +160,10 @@ if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#files[@]})); then
   rewritten=()
   while IFS= read -r -d '' f; do
     rewritten+=("$f")
-  done < <(git diff --name-only -z -- "${files[@]}")
+  done < <(git --literal-pathspecs diff --name-only -z -- "${files[@]}")
   if ((${#rewritten[@]})); then
     printf '%s\n' "${rewritten[@]}"
-    git add -- "${rewritten[@]}"
+    git --literal-pathspecs add -- "${rewritten[@]}"
   fi
 fi
 

@@ -73,6 +73,8 @@ RUFF_BIN=""
 # shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
 ruff_venv_bin_here() {
   local cand
+  # A .venv the repository commits is its code, not the user's install.
+  [[ -z "$(git -C "$1" ls-files -- ':(literal).venv' 2>/dev/null)" ]] || return 1
   for cand in "$1/.venv/bin/ruff" "$1/.venv/Scripts/ruff.exe"; do
     if [[ -x "$cand" ]]; then
       RUFF_BIN="$cand"

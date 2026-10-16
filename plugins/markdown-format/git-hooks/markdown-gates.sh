@@ -140,11 +140,13 @@ md_abs() {
 # call left over once every plainly written require("x") or import("x") is
 # deleted: a loader the plain pattern did not consume takes an argument the scan
 # cannot read. A letter-capable escape in a string refuses it too, since Node
-# decodes it to another path. POSIX ERE only, no \b, so BSD grep reads it alike.
+# decodes it to another path, and so does a "#" specifier, which package.json
+# "imports" maps to a file the scan never sees. POSIX ERE only, no \b, so BSD grep reads it alike.
 # Deliberately over-approximating: the cost of a false refusal is a skipped run.
 md_unpinnable_js() {
   grep -Eq \
     -e "(require[[:space:]]*\([[:space:]]*|from[[:space:]]*)[\"'](node:)?path[\"']" \
+    -e "(require[[:space:]]*\([[:space:]]*|import[[:space:]]*\([[:space:]]*|from[[:space:]]*)[\"']#" \
     -e 'path[[:space:]]*\.[[:space:]]*(join|resolve|normalize)[[:space:]]*\(' \
     -e 'require[[:space:]]*\.[[:space:]]*resolve[[:space:]]*\(' \
     -e 'import[[:space:]]*\.[[:space:]]*meta' \
@@ -174,6 +176,12 @@ md_collect_modules() {
   local seen_scan=$'\n' seen_mod=$'\n' queue=()
   shift
   for item in "$@"; do
+    # A symlinked config loads its requires from the link target's directory,
+    # which the scan below would not read.
+    if [[ -L "$item" ]]; then
+      MD_TRUST_BLOCK=unpinnable
+      return 1
+    fi
     res="$(md_abs "$item")" || return 1
     queue+=("$res")
   done
@@ -317,7 +325,8 @@ md_local_bin() {
   root="$(cd -P -- "$2" 2>/dev/null && pwd -P)" || return 1
   while :; do
     cand="$dir/node_modules/.bin/markdownlint-cli2"
-    if [[ -f "$cand" && -x "$cand" ]]; then
+    # A node_modules the repository commits is its code, not the user's install.
+    if [[ -f "$cand" && -x "$cand" && -z "$(git -C "$dir" ls-files -- ':(literal)node_modules' 2>/dev/null)" ]]; then
       target="$cand"
       depth=0
       while [[ -L "$target" ]]; do

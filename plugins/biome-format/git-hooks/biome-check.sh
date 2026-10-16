@@ -89,10 +89,17 @@ while IFS= read -r -d '' f; do
 done < <(checks_files)
 ((${#files[@]})) || exit 0
 
+# local_biome <dir>: 0 when <dir> holds a local Biome install git does not
+# track. A node_modules the repository commits is its code, not the user's
+# install, and a commit hook never runs it.
+local_biome() {
+  [[ -x "$1/node_modules/.bin/biome" && -z "$(git -C "$1" ls-files -- ':(literal)node_modules' 2>/dev/null)" ]]
+}
+
 # The local install comes first on PATH so the missing-tool rule sees it.
-[[ -x node_modules/.bin/biome ]] && PATH="$PWD/node_modules/.bin:$PATH"
+local_biome . && PATH="$PWD/node_modules/.bin:$PATH"
 for d in "${dirs[@]}"; do
-  [[ -x "$d/node_modules/.bin/biome" ]] && PATH="$PWD/$d/node_modules/.bin:$PATH"
+  local_biome "$d" && PATH="$PWD/$d/node_modules/.bin:$PATH"
 done
 checks_require_tool biome "npm i -D @biomejs/biome, or another method at https://biomejs.dev/guides/getting-started/"
 
@@ -143,9 +150,9 @@ load_group() { # <config dir> <kind>
     if [[ "$GROUP_DIR" == . ]]; then GROUP+=("$f"); else GROUP+=("${f#"$GROUP_DIR"/}"); fi
   done
   GROUP_BIN=biome
-  if [[ -x "$GROUP_DIR/node_modules/.bin/biome" ]]; then
+  if local_biome "$GROUP_DIR"; then
     GROUP_BIN="$PWD/$GROUP_DIR/node_modules/.bin/biome"
-  elif [[ -x node_modules/.bin/biome ]]; then
+  elif local_biome .; then
     GROUP_BIN="$PWD/node_modules/.bin/biome"
   fi
 }
@@ -185,11 +192,11 @@ if [[ "$CHECKS_MODE" == pre-commit ]]; then
   if ((${#tree[@]})); then
     while IFS= read -r -d '' f; do
       rewritten+=("$f")
-    done < <(git diff --name-only -z -- "${tree[@]}")
+    done < <(git --literal-pathspecs diff --name-only -z -- "${tree[@]}")
   fi
   if ((${#rewritten[@]})); then
     printf '%s\n' "${rewritten[@]}"
-    git add -- "${rewritten[@]}"
+    git --literal-pathspecs add -- "${rewritten[@]}"
   fi
 fi
 

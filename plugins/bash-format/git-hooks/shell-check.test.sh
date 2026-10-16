@@ -78,6 +78,16 @@ expect "the rewrite is re-staged: the index holds the formatted bytes" "$SPACED"
 expect "re-staged: no unstaged change remains" "" "$(git -C "$REPO" diff --name-only)"
 
 new_repo
+printf '%s\necho other\n' "$SHEBANG" >"$REPO/other.sh"
+git -C "$REPO" add other.sh
+git -C "$REPO" commit -q -m other --no-verify
+printf '%s\necho other\necho unstaged\n' "$SHEBANG" >"$REPO/other.sh"
+printf '%s\n' "$TABBED" >"$REPO/*.sh"
+git -C "$REPO" add -- ':(literal)*.sh'
+expect "a staged name holding glob characters re-stages only itself" "0|*.sh|" "$(check "$REPO")"
+expect "glob name: an unstaged script it would match stays unstaged" "*.sh" "$(git -C "$REPO" diff --cached --name-only)"
+
+new_repo
 printf '%s\n' "$TABBED" >"$REPO/a.bash"
 git -C "$REPO" add a.bash
 expect "a .bash file is checked but [*.sh] does not govern it, so it is not rewritten" "0||" "$(check "$REPO")"

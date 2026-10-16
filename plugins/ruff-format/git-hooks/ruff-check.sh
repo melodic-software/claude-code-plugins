@@ -32,7 +32,11 @@ lib="$here/check-lib.sh"
 
 checks_init pre-commit "$@" || exit 0
 
-for venv_bin in .venv/bin .venv/Scripts; do
+# A .venv the repository commits is its code, not the user's install, and a
+# commit hook never runs it.
+venv_dirs=()
+[[ -z "$(git ls-files -- ':(literal).venv' 2>/dev/null)" ]] && venv_dirs=(.venv/bin .venv/Scripts)
+for venv_bin in ${venv_dirs[@]+"${venv_dirs[@]}"}; do
   if [[ -x "$venv_bin/ruff" || -x "$venv_bin/ruff.exe" ]]; then
     PATH="$PWD/$venv_bin:$PATH"
     break
@@ -104,10 +108,10 @@ if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#files[@]})); then
   rewritten=()
   while IFS= read -r -d '' f; do
     rewritten+=("$f")
-  done < <(git diff --name-only -z -- "${files[@]}")
+  done < <(git --literal-pathspecs diff --name-only -z -- "${files[@]}")
   if ((${#rewritten[@]})); then
     printf '%s\n' "${rewritten[@]}"
-    git add -- "${rewritten[@]}"
+    git --literal-pathspecs add -- "${rewritten[@]}"
   fi
 fi
 
