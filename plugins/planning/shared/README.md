@@ -126,6 +126,7 @@ build reloads itself.
   | Heartbeat | 1 a second per person (429 otherwise) |
   | Stored chat, notes, suggestions | the newest 2000 messages; 2000 notes; 200 suggestions per question, with votes on a dropped one dropped too |
   | Connections served at once | 64; one more is answered 503 `busy` |
+
 - **Headers.** Every answer, http.server's own refusals (414, 501 and the like) included:
   `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
   `Referrer-Policy: no-referrer`. HTML adds the page policy (`default-src 'self'` ...
