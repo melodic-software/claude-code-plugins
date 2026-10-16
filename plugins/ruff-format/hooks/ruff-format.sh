@@ -1,109 +1,61 @@
 #!/usr/bin/env bash
-# PostToolUse hook: auto-format and lint Python files via Ruff.
-# Triggered on Write|Edit of *.py and *.pyi files.
+# PostToolBatch hook: rewrite the Python files a batch of tool calls wrote.
 #
-# ADVISORY: always exits 0. `ruff check --fix` applies safe fixes and
-# `ruff format` formats in place; residual diagnostics surface via
-# additionalContext but never block the edit. A commit hook or CI is the hard
-# gate.
+#   ruff-format.sh                 the PostToolBatch row
+#   ruff-format.sh --end-of-turn   the opt-in Stop row (ruff_format_end_of_turn)
 #
-# Opt-in: Ruff runs ONLY when a Ruff configuration governs the edited file — a
+# Rewrites only: `ruff check --fix` (safe fixes) and `ruff format`, once per
+# batch over every .py and .pyi file a Write, Edit or MultiEdit in the batch
+# named. It prints nothing and always exits 0, so no finding ever reaches the
+# model per edit; findings are the pre-commit entry's job
+# (git-hooks/ruff-check.sh), which also rewrites for every author.
+#
+# PostToolBatch has no matcher, so the row fires on every batch. The launcher
+# skips the script unless the payload mentions ".py", and the script then reads
+# tool_calls[].tool_input.file_path itself, so a batch with no Python edit costs
+# one node process. A file that Read named is never rewritten.
+#
+# Opt-in: a file is rewritten only when a Ruff configuration governs it (a
 # .ruff.toml, ruff.toml, or pyproject.toml with a [tool.ruff] section, found by
-# walking up from the file to the repo root (Ruff ignores a pyproject.toml
-# without [tool.ruff] for discovery, so the gate does too). A repo that has not
-# adopted a Ruff config is left untouched rather than rewritten to Ruff's
-# built-in defaults, so the plugin never imposes a style it did not choose. The
-# Ruff binary is resolved from the repo's own .venv (or PATH) — never
-# downloaded.
+# walking up from the file to the repo root, as Ruff itself discovers it). A repo
+# that has not adopted a Ruff config is left untouched. Ruff comes from the
+# repo's own .venv (walking up from the file) or PATH, never downloaded. Known
+# limitation: the bare `[tool]` header with `ruff = { ... }` inline table is not
+# recognized, so such a repo is skipped (a missed opt-in, never a wrong edit).
 #
-# --unfixable F401 protects just-added imports: during iterative editing an
-# import often lands one edit before the code that uses it, and Ruff's F401
-# auto-fix would delete it in between. The flag EXTENDS the consumer config's
-# own unfixable list rather than replacing it (verified against ruff 0.15).
-# F401 still surfaces as an advisory finding — only the auto-deletion is
-# suppressed.
+# --unfixable F401 protects an import that lands one edit before the code that
+# uses it; the pre-commit entry removes unused imports once the change is whole.
+# Files under .githooks/ are installed copies and are skipped, as are gitignored
+# files unless ruff_format_lint_gitignored is true. The batch payload carries no
+# pre-edit bytes, so a file that already drifted from the config is rewritten
+# whole, as the pre-commit entry would.
 
 set -uo pipefail
 
-# Kill switch FIRST, before any library is sourced: a disabled hook must not
-# pay to parse hook-utils.sh to learn it is off. Same predicate as
-# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
 [[ "${CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED:-true}" == "true" ]] || exit 0
-# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
-# subshell for every command substitution even when the body is a builtin
-# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
-# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
-# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
-# no-op and dirname answers `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
-# shellcheck source=hook-utils.sh
-source "$HOOK_DIR/hook-utils.sh"
-# shellcheck source=rewrite-guard.sh
-source "$HOOK_DIR/rewrite-guard.sh"
+IFS= read -r -d '' INPUT || :
 
-# The SessionStart compact|clear row: the model lost the reports with its
-# context, so the findings sent this session are sent again.
-if [[ "${1:-}" == --reset-digests ]]; then
-  hook::buffer_stdin_to INPUT && hook::findings_digest_reset "$INPUT"
-  exit 0
+# The opt-in Stop row: the pre-commit entry run over the uncommitted changes,
+# without rewriting. Findings exit 2 so the model fixes them before the turn
+# ends; once a Stop hook has continued the turn (stop_hook_active) the row stays
+# quiet, so it blocks at most once per turn.
+if [[ "${1:-}" == --end-of-turn ]]; then
+  [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
+  "${BASH:-bash}" "$HOOK_DIR/../git-hooks/ruff-check.sh" --worktree >/dev/null && exit 0
+  exit 2
 fi
 
-# The whole prologue: the start stamp, the buffered payload, the jq-free
-# applicability filter, the jq gate, the parsed path with its basename and
-# directory, the file-anchored repo root (which bounds the config opt-in walk
-# below), and the telemetry-only TOOL behind the sink opt-in. Exits 0 itself on
-# every path this hook has nothing to do on — including a Write or Edit of
-# anything but a Python file, which it decides before the jq gate so a
-# non-Python edit never triggers the jq notice.
-#
-# --relative because FILE_REL serves two consumers here, not just telemetry: it
-# is also the argument Ruff runs on from the repo root, so it is resolved with
-# or without a sink. A path the prefix strip could not make relative degrades
-# to its basename, which is right for telemetry but names a DIFFERENT file when
-# resolved against the repo root, so the invocation below reads
-# FILE_REL_DEGRADED to know which of the two it holds.
-hook::begin --relative ruff-format PostToolUse '*.py' '*.pyi'
+[[ "$INPUT" == *.py* ]] || exit 0
+command -v jq >/dev/null 2>&1 || exit 0
+PATHS=$(jq -r '.tool_calls[]? | select(.tool_name == "Write" or .tool_name == "Edit" or .tool_name == "MultiEdit") | .tool_input.file_path? | strings | select(test("\\.pyi?$"))' <<<"$INPUT" 2>/dev/null) || exit 0
+[[ -n "$PATHS" ]] || exit 0
 
-# Every arm exits through hook::finish, which takes the rewrite disclosure
-# (settling data.changed and releasing the guard's snapshot), emits telemetry
-# with that verdict, and emits the one JSON document — in that order.
-emit_skipped() {
-  hook::finish skipped findings array '[]'
-}
+# shellcheck source=hook-utils.sh
+source "$HOOK_DIR/hook-utils.sh"
 
-# Existence check only, no canonicalization: git already answers an absolute
-# path, and `cd "$RUN_DIR"` accepts a relative fallback hint as it stands.
-FILE_DIR_POSIX=""
-[[ -d "$FILE_DIR" ]] && FILE_DIR_POSIX="$FILE_DIR"
-root=""
-[[ -d "$REPO_ROOT" ]] && root="$REPO_ROOT"
-
-# Consumer opt-in: a Ruff configuration that governs the edited file. Walk up
-# from the file's directory to the repo root, stopping at the FIRST config found
-# — Ruff itself resolves the closest config per file (file-anchored, not
-# CWD-anchored), so the closest hit is exactly the config that will govern the
-# run. Same-directory precedence mirrors Ruff's (.ruff.toml > ruff.toml >
-# pyproject.toml). A pyproject.toml counts only when it carries a [tool.ruff]
-# section (or a [tool.ruff.*] subtable) — Ruff skips it for discovery otherwise.
-# Absence of any config is the opt-out: the file is left untouched.
-#
-# Known limitation: this line-anchored grep only recognizes the `[tool.ruff]`
-# header form. TOML also allows the equivalent config as an inline table under
-# a bare `[tool]` header (`[tool]` + `ruff = { ... }`), which Ruff itself does
-# honor — a repo using that form is treated as un-configured here and the gate
-# skips it. Fails safe (a missed opt-in, never a wrong edit); left undetected
-# rather than heuristically matched because a robust check needs real TOML
-# parsing (inline tables span lines, nest arbitrarily, and the `ruff` key can
-# appear in any order under `[tool]`), and a multi-pass grep risks a false
-# positive from an unrelated `ruff = "..."` key in a different table or a
-# commented-out line.
-#
-# The walk's ceiling is the repo root and it fails closed without one
-# (hook::walk_up_to): the gate decides whether this repository's Python files
-# get rewritten, so an unresolvable root leaves them alone rather than adopting
-# a config from above the repository.
 # shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
 ruff_config_here() {
   local dir="$1" name
@@ -113,21 +65,7 @@ ruff_config_here() {
   [[ -f "$dir/pyproject.toml" ]] &&
     grep -qE '^[[:space:]]*\[tool\.ruff(\]|[.])' "$dir/pyproject.toml" 2>/dev/null
 }
-# shellcheck disable=SC2034  # the gate reads the walk's verdict, not which directory carried the config
-CONFIG_DIR=""
-hook::walk_up_to CONFIG_DIR "$FILE_DIR_POSIX" "$root" ruff_config_here || emit_skipped
 
-# A file the repository gitignores is neither rewritten nor reported unless
-# ruff_format_lint_gitignored is set: a rewrite there has no `git checkout` to
-# undo it. Ruff's own respect-gitignore does not reach a path passed
-# explicitly, even under --force-exclude, so the hook decides.
-hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_LINT_GITIGNORED:-false}" "$FILE" &&
-  emit_skipped
-
-# Resolve the Ruff binary from the repo's own virtual environment (.venv,
-# walking up from the file; bin/ on POSIX, Scripts/ on Windows) or PATH — never
-# `uvx`/`pipx run`, which would download Ruff on a per-edit hook. Absent -> skip
-# (the repo opted into config but Ruff is not installed; nothing to run).
 RUFF_BIN=""
 # shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
 ruff_venv_bin_here() {
@@ -140,141 +78,48 @@ ruff_venv_bin_here() {
   done
   return 1
 }
-# shellcheck disable=SC2034  # the caller reads RUFF_BIN, which the predicate sets
-venv_dir=""
-hook::walk_up_to venv_dir "$FILE_DIR_POSIX" "$root" ruff_venv_bin_here || true
-if [[ -z "$RUFF_BIN" ]]; then
-  # `command -v` is a builtin; the resolved path is not captured because the
-  # later exec looks the name up on PATH itself.
-  command -v ruff >/dev/null 2>&1 && RUFF_BIN=ruff
-fi
 
-# The repo opted in via a Ruff config but no binary is available: a skip notice
-# once per channel, composed from prerequisites.json, not a silent gap.
-if [[ -z "$RUFF_BIN" ]]; then
-  RUFF_MODEL="" RUFF_USER=""
-  if hook::prereq_notice_to RUFF_MODEL RUFF_USER ruff "$INPUT"; then
-    hook::emit_skip_notice PostToolUse "$RUFF_MODEL" "$RUFF_USER"
+ROOTS=()
+FILES=()
+seen=$'\n'
+while IFS= read -r path; do
+  path="${path%$'\r'}"
+  [[ -n "$path" && "$seen" != *$'\n'"$path"$'\n'* ]] || continue
+  seen+="$path"$'\n'
+  escaped=""
+  hook::json_escape_to escaped "$path"
+  # Existence, symlink and project membership, as for a single-file hook.
+  hook::read_file_path_to file "{\"tool_input\":{\"file_path\":\"$escaped\"}}" || continue
+  [[ "$file" == */.githooks/* ]] && continue
+  hook::dirname_to dir "$file"
+  hook::repo_root_to root "$dir" || :
+  [[ -d "$root" ]] || continue
+  hook::walk_up_to config_dir "$dir" "$root" ruff_config_here || continue
+  hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_LINT_GITIGNORED:-false}" "$file" && continue
+  ROOTS+=("$root")
+  FILES+=("$file")
+done <<<"$PATHS"
+
+# One check and one format run per repository root, over all its files.
+done_roots=$'\n'
+for i in "${!ROOTS[@]}"; do
+  root="${ROOTS[i]}"
+  [[ "$done_roots" != *$'\n'"$root"$'\n'* ]] || continue
+  done_roots+="$root"$'\n'
+  group=()
+  for j in "${!ROOTS[@]}"; do
+    [[ "${ROOTS[j]}" == "$root" ]] && group+=("${FILES[j]}")
+  done
+  RUFF_BIN=""
+  hook::dirname_to dir "${group[0]}"
+  hook::walk_up_to venv_dir "$dir" "$root" ruff_venv_bin_here || :
+  if [[ -z "$RUFF_BIN" ]]; then
+    command -v ruff >/dev/null 2>&1 && RUFF_BIN=ruff
   fi
-  emit_skipped
-fi
-
-# Pass the file as a path relative to the repo root (the CWD Ruff runs in) so
-# concise diagnostics echo a clean repo-relative path (e.g. src/app.py) instead
-# of an absolute one. FILE_REL already holds that path, computed above with
-# cygpath long-form normalization — a raw prefix strip against `pwd` output is
-# NOT enough on Windows Git Bash, where the same directory can surface as
-# /tmp/..., /c/..., or a short-name (KYLESE~1) form depending on how it was
-# reached. Falls back to the absolute path when the repo root did not resolve
-# (RUN_DIR would not anchor FILE_REL), the file is outside it, or FILE_REL
-# degraded to a bare basename — that basename is a redaction for telemetry, and
-# resolving it against the repo root would lint a different file or none, which
-# on this advisory hook means real findings silently disappear.
-RUFF_ARG="$FILE"
-RUN_DIR="${root:-$FILE_DIR_POSIX}"
-if [[ -n "$root" && "$FILE_REL_DEGRADED" -eq 0 && -n "$FILE_REL" && "$FILE_REL" != "$FILE" ]]; then
-  RUFF_ARG="$FILE_REL"
-fi
-
-# Common flags for every Ruff invocation. --force-exclude honors the config's
-# exclude/extend-exclude even for this explicitly-passed path, so a file the
-# repo excludes (generated or vendored code) is left untouched with no advisory
-# noise. --no-cache keeps Ruff from writing a .ruff_cache directory into the
-# consumer's repo on every edit — a single-file run gains nothing from the
-# cache. Discovery is file-anchored, so the config that governs is the repo's
-# own regardless of flags.
-RUFF_COMMON=(--force-exclude --no-cache --quiet)
-RUFF_FIX=(--no-unsafe-fixes --unfixable F401)
-
-# Pre-existing drift gate: each pass below runs only when the file was already
-# clean for that pass before this edit. A file that drifted from the repo's
-# Ruff config (written before the config changed, say) is not, and a pass over
-# it rewrites every drifted line, so a small edit lands as a whole-file diff.
-# The pre-edit bytes are the Write/Edit `tool_response.originalFile`, checked
-# through stdin under the file's own name so the same config governs. No
-# original (a Write that created the file, or a payload without the field)
-# leaves nothing to preserve, and both passes run.
-PRE_EDIT=$(jq -j '(.tool_response | objects | .originalFile | strings | "1" + . + ".") // "0"' <<<"$INPUT" 2>/dev/null) || PRE_EDIT=0
-PRE_EDIT_KNOWN=0
-if [[ "$PRE_EDIT" == 1* ]]; then
-  PRE_EDIT="${PRE_EDIT#1}"
-  PRE_EDIT="${PRE_EDIT%.}"
-  PRE_EDIT_KNOWN=1
-fi
-# was_clean <ruff subcommand and check flags...>: 0 when the pre-edit bytes
-# pass that check, or when there are no pre-edit bytes.
-was_clean() {
-  ((PRE_EDIT_KNOWN)) || return 0
-  printf '%s' "$PRE_EDIT" | (cd "$RUN_DIR" && "$RUFF_BIN" "$@" "${RUFF_COMMON[@]}" --stdin-filename "$RUFF_ARG" -) >/dev/null 2>&1
-}
-
-# Pass 1: apply safe lint fixes, keeping F401 unfixable per the header
-# rationale. --no-unsafe-fixes is explicit, not the default restated: a
-# consumer config may set unsafe-fixes = true, aimed at interactive runs —
-# an unattended edit-time pass must never apply fixes Ruff itself labels as
-# possibly not intent-preserving (same principle as --no-fix on the verify
-# pass below). Pass 2: format. Both are best-effort; the verify pass below
-# is the single source of residual findings.
-#
-# Content-mutation disclosure (#1596): Ruff may auto-fix lint issues and/or
-# reformat layout the user did not request. Name the rewrite on the user
-# channel; stay silent when the file is unchanged. Snapshot lifecycle and
-# single-document composition live in the shared rewrite-guard lib (#3406,
-# #3409): the disclosure is TAKEN at each exit arm and composed into that
-# arm's one JSON document, never emitted mid-run as a second document.
-RUFF_REWRITE_MESSAGE="ruff-format: reformatted $FILE_BASE."
-hook::rewrite_guard_begin "$FILE"
-was_clean check --diff "${RUFF_FIX[@]}" &&
-  { (cd "$RUN_DIR" && "$RUFF_BIN" check --fix "${RUFF_FIX[@]}" "${RUFF_COMMON[@]}" "$RUFF_ARG") >/dev/null 2>&1 || true; }
-was_clean format --check &&
-  { (cd "$RUN_DIR" && "$RUFF_BIN" format "${RUFF_COMMON[@]}" "$RUFF_ARG") >/dev/null 2>&1 || true; }
-
-# Verify pass — a pure reporter. --no-fix matters: a consumer config may set
-# fix=true, which would make a bare `ruff check` re-apply fixes here, including
-# the F401 deletion the --unfixable guard above just prevented. One concise
-# line per diagnostic; syntax errors (including target-version-aware ones —
-# Ruff's parser flags syntax not yet valid on the configured Python floor)
-# arrive on the same channel. Exit 0 = clean, 1 = findings, 2 = Ruff itself
-# failed (bad config, internal error).
-OUTPUT=$(cd "$RUN_DIR" && "$RUFF_BIN" check --no-fix --output-format concise "${RUFF_COMMON[@]}" "$RUFF_ARG" 2>&1)
-RC=$?
-((RC == 0)) && OUTPUT=""
-# The heading names the file once, so each line drops Ruff's path prefix, in
-# either separator.
-OUTPUT=$'\n'"$OUTPUT"
-OUTPUT="${OUTPUT//$'\n'"$RUFF_ARG:"/$'\n'}"
-OUTPUT="${OUTPUT//$'\n'"${RUFF_ARG//\//\\}:"/$'\n'}"
-
-# --delta sends a finding set once per (session, agent, file); the clean run
-# goes through it too, so findings that come back after a fix are sent again.
-RUFF_CTX=""
-if [[ $RC -eq 0 || ($RC -eq 1 && -n "${OUTPUT//$'\n'/}") ]]; then
-  FINDINGS_JSON='[]'
-  # The heading names the repo-relative path, or the basename when that did not
-  # resolve; never the absolute path the tool is handed as a fallback.
-  RUFF_SHOWN="$RUFF_ARG"
-  [[ "$RUFF_ARG" == "$FILE" ]] && RUFF_SHOWN="$FILE_BASE"
-  hook::findings_to RUFF_CTX "ruff-format: $RUFF_SHOWN has findings:" \
-    "$OUTPUT" FINDINGS_JSON --max 20 --delta "$INPUT" "$FILE"
-  # Findings AND a rewrite disclosure compose into one document (#3406).
-  # Status "ok" — the linter RAN and produced a judgment (findings live in
-  # data.findings), mirroring the sibling formatter plugins where status
-  # reflects whether the tool ran, not whether it was clean.
-  hook::finish --context "$RUFF_CTX" --disclose "$RUFF_REWRITE_MESSAGE" \
-    ok findings array "$FINDINGS_JSON"
-fi
-
-# Ruff broke for non-lint reasons (config parse error, internal error) — no
-# judgment was made. Surface the diagnostic via additionalContext (NOT stderr —
-# an advisory hook's exit-0 stderr can trip a false "Hook Error" label). Record
-# as "skipped" (the linter never ran to judgment), the same status as the
-# no-config / no-binary paths.
-[[ -n "${OUTPUT//$'\n'/}" ]] || OUTPUT="exit $RC"
-hook::findings_to RUFF_CTX "ruff-format: ruff failed on $FILE_BASE:" \
-  "$OUTPUT" --max 10 --delta "$INPUT" "$FILE"
-# The fix/format passes may already have rewritten the file before the verify
-# pass broke, so the disclosure is still owed and composes with the tool-break
-# context as one document (#3406); the take inside hook::finish is also what
-# records that rewrite in data.changed.
-hook::finish --context "$RUFF_CTX" --disclose "$RUFF_REWRITE_MESSAGE" \
-  skipped findings array '[]'
+  [[ -n "$RUFF_BIN" ]] || continue
+  # --force-exclude honors the config's excludes for explicit paths; --no-cache
+  # keeps a .ruff_cache out of the consumer's repo.
+  (cd "$root" && "$RUFF_BIN" check --fix --no-unsafe-fixes --unfixable F401 --force-exclude --no-cache --quiet -- "${group[@]}") >/dev/null 2>&1 || :
+  (cd "$root" && "$RUFF_BIN" format --force-exclude --no-cache --quiet -- "${group[@]}") >/dev/null 2>&1 || :
+done
+exit 0
