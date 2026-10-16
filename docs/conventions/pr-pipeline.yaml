@@ -137,7 +137,8 @@ activities:
   label-unblocked:
     # When an issue closes (or, hourly, for each issue a listed human or a
     # bot closed in the last three hours), labels agent-ready each issue it
-    # blocked whose blockers are all closed as completed, that carries no
+    # blocked whose blockers are all closed as completed by a listed human or
+    # a bot (a pull request: merged; another repository's: never), that carries no
     # hold label, whose agent-ready label was never removed, that the owner
     # ratified with the admission marker resolve-issue reads, and that
     # resolve-issue's admission admits. The label starts

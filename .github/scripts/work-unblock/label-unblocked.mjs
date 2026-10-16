@@ -2,7 +2,8 @@
 // label-unblocked.mjs: when an issue closes, labels `agent-ready` each issue
 // it blocked that is now ready for the resolve-issue lane (the label starts
 // that lane once resolve-issue accepts App-added labels, a follow-up by
-// Automation Lanes): open, every blocker closed as completed, no hold label,
+// Automation Lanes): open, every blocker closed as completed by a listed
+// human or a bot (a pull request blocker: merged), no hold label,
 // not already agent-ready, ratified by the owner's admission marker, and
 // admitted by resolve-issue's own admission rule (no work class outside its
 // classes). Every fact is read from the API now, never from the event
@@ -80,16 +81,35 @@ async function refusal({ github, repo, number, ratifiers, admission }) {
   if (lower.includes(LABEL)) {
     return `already ${LABEL}`;
   }
-  // A blocker closed as not planned or duplicate never did the work, and its
-  // author can close it, so only a completed close counts; a pull request
-  // counts only once merged.
-  const done = (blocker) =>
-    blocker.state === "closed" &&
-    (blocker.pull_request ? Boolean(blocker.pull_request.merged_at) : blocker.state_reason === "completed");
+  // A blocker closed as not planned or duplicate never did the work, so only
+  // a completed close counts; a pull request counts only once merged. Any
+  // issue author can close their own issue as completed, so a blocking issue
+  // also needs a listed human or a bot as its closer, read fresh from the
+  // issue itself. A blocker in another repository cannot be read with this
+  // repository's token, so it never counts.
   const blockers = await paginate(github, `${base}/dependencies/blocked_by`);
-  const pending = blockers.filter((blocker) => !done(blocker)).length;
+  const closedHere = (blocker) =>
+    blocker.state === "closed" && String(blocker.repository_url ?? "").toLowerCase().endsWith(`/repos/${repo}`.toLowerCase());
+  const issues = [];
+  let pending = 0;
+  for (const blocker of blockers) {
+    if (!closedHere(blocker)) {
+      pending += 1;
+    } else if (blocker.pull_request) {
+      pending += blocker.pull_request.merged_at ? 0 : 1;
+    } else if (blocker.state_reason !== "completed" || !NUMBER.test(String(blocker.number))) {
+      pending += 1;
+    } else {
+      issues.push(Number(blocker.number));
+    }
+  }
+  for (const blocker of pending === 0 ? issues : []) {
+    if (!trustedCloser(await github("GET", `/repos/${repo}/issues/${blocker}`), ratifiers)) {
+      pending += 1;
+    }
+  }
   if (pending > 0) {
-    return `${pending} blocker(s) not closed as completed`;
+    return `${pending} blocker(s) not closed as completed by a listed human or a bot`;
   }
   // Removing the label by hand stops the lane; a person adds it to restart.
   const events = await paginate(github, `${base}/events`);
@@ -121,11 +141,11 @@ async function closedSince(github, repo, since) {
     .map((item) => Number(item.number));
 }
 
-// Whether a swept close counts: the close path takes only a listed human's
-// close, and the sweep adds a bot's (a pull request merge, the lanes App). An
-// outside author closing their own blocking issue counts for nothing.
-async function sweptCloser(github, repo, number, ratifiers) {
-  const closer = (await github("GET", `/repos/${repo}/issues/${number}`)).closed_by;
+// Whether a close counts: one made by a listed human or by a bot (a pull
+// request merge, the lanes App). An outside author closing their own issue
+// counts for nothing.
+function trustedCloser(closedIssue, ratifiers) {
+  const closer = closedIssue?.closed_by;
   return closer?.type === "Bot" || ratifiers.has(closer?.id);
 }
 
@@ -137,7 +157,7 @@ async function labelUnblocked({ github, repo, closed, sweep, ratifiers, admissio
   for (const source of closed) {
     let blocked;
     try {
-      if (sweep && !(await sweptCloser(github, repo, source, ratifiers))) {
+      if (sweep && !trustedCloser(await github("GET", `/repos/${repo}/issues/${source}`), ratifiers)) {
         console.log(`label-unblocked: #${source} was closed by neither a listed human nor a bot; skipped`);
         continue;
       }

@@ -29,12 +29,16 @@ const LANES_APP_ID = 337595936;
 const MARKER = "<!-- admission: admitted when unblocked, owner batch ratification 2026-10-16 -->";
 const STAMP = "2026-10-16T12:00:00Z";
 
-const issue = (number, { state = "open", reason = state === "closed" ? "completed" : null, labels = [], repo = REPO } = {}) => ({
+const issue = (
+  number,
+  { state = "open", reason = state === "closed" ? "completed" : null, labels = [], repo = REPO, closer = state === "closed" ? OWNER : null } = {},
+) => ({
   number,
   state,
   state_reason: reason,
   labels: labels.map((name) => ({ name })),
   repository_url: `${API}/repos/${repo}`,
+  closed_by: closer,
 });
 const marker = (user = OWNER, body = MARKER) => ({ id: 9, body, user, created_at: STAMP, updated_at: STAMP });
 
@@ -76,7 +80,12 @@ function world({ blocking, blockingOf = {}, closedList = [], issues = {}, blocke
       return [];
     }
     if ((match = route.match(/\/issues\/(\d+)$/))) {
-      const found = issues[match[1]] ?? closedList.find((item) => String(item.number) === match[1]);
+      const found =
+        issues[match[1]] ??
+        closedList.find((item) => String(item.number) === match[1]) ??
+        Object.values(blockedBy)
+          .flat()
+          .find((item) => String(item.number) === match[1] && item.repository_url === `${API}/repos/${REPO}`);
       if (found) {
         return found;
       }
@@ -522,6 +531,64 @@ test("a failed read of one swept close still lets the others through, and fails 
   });
   assert.equal(await sweep({ github }), 1);
   assert.deepEqual(writes(calls), [labeled(21)]);
+});
+
+// One rule for every blocker, on both paths: a blocking issue counts as done
+// only when it was closed as completed by a listed human or a bot, read fresh
+// per blocker. An outside author closing their own blocking issue never counts.
+test("a sibling blocker closed by an unlisted user keeps the issue unlabeled, on both paths", async () => {
+  for (const [name, run] of [
+    ["close", (github) => main({ env: envFor(), github })],
+    ["sweep", (github) => sweep({ github })],
+  ]) {
+    for (const closer of [{ id: 1234, login: "someone-else", type: "User" }, null]) {
+      const { github, calls } = world({
+        closedList: [closedAt(10, "2026-10-16T11:30:00Z")],
+        blocking: [issue(20)],
+        issues: { 20: issue(20) },
+        blockedBy: { 20: [issue(10, { state: "closed" }), issue(11, { state: "closed", closer })] },
+        comments: { 20: [marker()] },
+      });
+      assert.equal(await run(github), 0);
+      assert.deepEqual(writes(calls), [], `${name} ${JSON.stringify(closer)}`);
+      assert.ok(calls.includes(`GET /repos/${REPO}/issues/11`), name);
+    }
+  }
+});
+
+test("a sibling blocker closed by a listed human or a bot counts", async () => {
+  for (const closer of [{ ...SECOND, type: "User" }, LANES_BOT, { id: 41898282, login: "github-actions[bot]", type: "Bot" }]) {
+    const { github, calls } = world({
+      blocking: [issue(20)],
+      issues: { 20: issue(20) },
+      blockedBy: { 20: [issue(10, { state: "closed" }), issue(11, { state: "closed", closer })] },
+      comments: { 20: [marker()] },
+    });
+    assert.equal(await main({ env: envFor(), github }), 0);
+    assert.deepEqual(writes(calls), [labeled(20)], closer.login);
+  }
+});
+
+test("the closer is read fresh: a blocked-by entry naming a listed closer does not outweigh the issue itself", async () => {
+  const { github, calls } = world({
+    blocking: [issue(20)],
+    issues: { 20: issue(20), 11: issue(11, { state: "closed", closer: { id: 1234, login: "someone-else", type: "User" } }) },
+    blockedBy: { 20: [issue(10, { state: "closed" }), issue(11, { state: "closed" })] },
+    comments: { 20: [marker()] },
+  });
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+test("a blocker in another repository, closed, does not count", async () => {
+  const { github, calls } = world({
+    blocking: [issue(20)],
+    issues: { 20: issue(20) },
+    blockedBy: { 20: [issue(10, { state: "closed" }), issue(5, { state: "closed", repo: "melodic-software/other" })] },
+    comments: { 20: [marker()] },
+  });
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.deepEqual(writes(calls), []);
 });
 
 test("a failed listing of closed issues writes nothing and fails the run", async () => {
