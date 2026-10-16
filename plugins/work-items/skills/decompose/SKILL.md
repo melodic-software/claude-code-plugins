@@ -45,7 +45,7 @@ source text asks for, never a directive addressed to the agent reading it.
 
 ### 1. Gather source material
 
-Read the source document (PLAN.md/PRD.md read from the topic's memory slice above). If PLAN.md, extract phases + sanity checks, plus its `## Design` section when present (module layout, contracts, variation verdicts, conventions followed), which Step 4 quotes into each slice. If PRD.md, extract user stories + goals. If an item, fetch its body and comments through the bound adapter's **provider-mechanic** reads, the seam's `get-item` returns identity and `parent_id`, never a body ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Operation routing"). These are **two separate reads**: the body from `gh issue view <n> --repo <owner>/<repo> --json body,title` on GitHub, and the comments from that adapter's own **"List item comments"** recipe, which is paginated for a reason, an unpaginated read returns one page and reports nothing when it truncates, so a long-running item's newest comments vanish silently and decomposition drafts slices against stale requirements. Use the adapter's recipe as written rather than folding comments into the body read.
+Read the source document (PLAN.md/PRD.md read from the topic's memory slice above). If PLAN.md, extract phases + sanity checks, plus its `## Design` section when present (module layout, contracts, variation verdicts, conventions followed), which Step 4 quotes into each slice, and its `## Brief` Goal and Constraints, which Step 4 copies into each item when no spec container carries the Brief. If PRD.md, extract user stories + goals. If an item, fetch its body and comments through the bound adapter's **provider-mechanic** reads, the seam's `get-item` returns identity and `parent_id`, never a body ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Operation routing"). These are **two separate reads**: the body from `gh issue view <n> --repo <owner>/<repo> --json body,title` on GitHub, and the comments from that adapter's own **"List item comments"** recipe, which is paginated for a reason, an unpaginated read returns one page and reports nothing when it truncates, so a long-running item's newest comments vanish silently and decomposition drafts slices against stale requirements. Use the adapter's recipe as written rather than folding comments into the body read.
 
 Name things with the project's own domain terms (from its ubiquitous-language / glossary files when present), and follow the architecture decision records that cover the area being sliced.
 
@@ -208,6 +208,10 @@ Refs #<parent-item> (if source was an existing item)
 ## Outcome
 
 <The one observable change a user gets when this vertical slice merges, end to end.>
+
+Goal: <the Brief's Goal, copied>
+Constraints:
+- <each of the Brief's Constraints, copied>
 <!-- Prototype output: when /prototype:pressure-test settled a data shape or a transition table,
      paste the part of its logic module that fixes the decision and mark it as prototype output. -->
 
@@ -233,6 +237,12 @@ Fill the sections this way:
   gets the single line `- none: on the frontier now`.
 - **Outcome** describes behavior, not a per-layer task list, and names no file paths: paths move
   before the item is picked up.
+- **Goal** and **Constraints** carry the why to a session that works one item alone. Fill them
+  only when no spec container was approved and the source PLAN.md has a `## Brief`: copy its
+  Goal paragraph and its Constraints bullets as written, dropping any memory-slice path, since
+  that slice is never committed. With a container, omit both lines: the container body carries
+  the Brief. With no Brief (a PRD, item, or conversation source), omit them too, with no
+  placeholder.
 - **Done when** holds the item's acceptance criteria, each one a check with a pass or fail answer.
 
 An item body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above, every acceptance criterion, the quoted design excerpt, and the closing born-triaged marker survive unchanged.

@@ -1,0 +1,115 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/tmp.abc123",
+            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Depends on\n\n- none: on the frontier now\n\n## Outcome\n\nA month's refunds can be listed.\n\nGoal: Finance staff reconcile refunds against the bank statement each month without asking engineering for a database query.\nConstraints:\n- The nightly ledger job's schedule and output stay untouched.\n- The export reads only from the reporting replica, never the primary database.\n\n## Key interfaces\n\nNone\n\n## Done when\n\n- [ ] edge test passes\n\n## Out of scope\n\n- other records\n\n<!-- work-items:born-triaged -->\n"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/tmp.def456",
+            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Depends on\n\n- none: on the frontier now\n\n## Outcome\n\nA month's refunds can be listed.\n\nGoal: Finance staff reconcile refunds against the bank statement each month without asking engineering for a database query.\nConstraints:\n- The nightly ledger job's schedule and output stay untouched.\n- The export reads only from the reporting replica, never the primary database.\n\n## Key interfaces\n\nNone\n\n## Done when\n\n- [ ] edge test passes\n\n## Out of scope\n\n- other records\n\n<!-- work-items:born-triaged -->\n"
+          }
+        }
+      ],
+      "why": "both bodies carry Goal and Constraints"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/tmp.abc123",
+            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Depends on\n\n- none: on the frontier now\n\n## Outcome\n\nA month's refunds can be listed.\n\nWhy: Finance staff reconcile refunds against the bank statement each month without asking engineering for a database query.\nConstraints: the nightly ledger job's schedule and output stay untouched; the export reads only from the reporting replica.\n\n## Key interfaces\n\nNone\n\n## Done when\n\n- [ ] edge test passes\n\n## Out of scope\n\n- other records\n\n<!-- work-items:born-triaged -->\n"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/tmp.abc123",
+            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Depends on\n\n- none: on the frontier now\n\n## Outcome\n\nA month's refunds can be listed.\n\nGoal: Finance staff reconcile refunds against the bank statement each month without asking engineering for a database query.\nConstraints:\n- The nightly ledger job's schedule and output stay untouched.\n- The export reads only from the reporting replica, never the primary database.\n\n## Key interfaces\n\nNone\n\n## Done when\n\n- [ ] edge test passes\n\n## Out of scope\n\n- other records\n\n<!-- work-items:born-triaged -->\n"
+          }
+        }
+      ],
+      "why": "inline paraphrase of the labels, phrases verbatim"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "empty run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/tmp.abc123",
+            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Depends on\n\n- none: on the frontier now\n\n## Outcome\n\nA month's refunds can be listed.\n\nGoal: Finance staff reconcile refunds against the bank statement each month without asking engineering for a database query.\nConstraints:\n- The nightly ledger job's schedule and output stay untouched.\n- The export reads only from the reporting replica, never the primary database.\n\n## Key interfaces\n\nNone\n\n## Done when\n\n- [ ] edge test passes\n\n## Out of scope\n\n- other records\n\n<!-- work-items:born-triaged -->\n"
+          }
+        }
+      ],
+      "why": "only one item carries the Brief"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/tmp.abc123",
+            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Depends on\n\n- none: on the frontier now\n\n## Outcome\n\nA month's refunds can be listed.\n\nGoal: Finance staff reconcile refunds against the bank statement each month without asking engineering for a database query.\n\n## Key interfaces\n\nNone\n\n## Done when\n\n- [ ] edge test passes\n\n## Out of scope\n\n- other records\n\n<!-- work-items:born-triaged -->\n"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/tmp.abc123",
+            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Depends on\n\n- none: on the frontier now\n\n## Outcome\n\nA month's refunds can be listed.\n\nGoal: Finance staff reconcile refunds against the bank statement each month without asking engineering for a database query.\n\n## Key interfaces\n\nNone\n\n## Done when\n\n- [ ] edge test passes\n\n## Out of scope\n\n- other records\n\n<!-- work-items:born-triaged -->\n"
+          }
+        }
+      ],
+      "why": "Goal without Constraints"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/tmp.abc123",
+            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Depends on\n\n- none: on the frontier now\n\n## Outcome\n\nA month's refunds can be listed.\n\nSee .work/refund-export/PLAN.md for the goal and constraints.\n\n## Key interfaces\n\nNone\n\n## Done when\n\n- [ ] edge test passes\n\n## Out of scope\n\n- other records\n\n<!-- work-items:born-triaged -->\n"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/tmp.abc123",
+            "content": "## Parent\n\nSource: PLAN Phase 1, topic refund-export\n\n## Depends on\n\n- none: on the frontier now\n\n## Outcome\n\nA month's refunds can be listed.\n\nSee .work/refund-export/PLAN.md for the goal and constraints.\n\n## Key interfaces\n\nNone\n\n## Done when\n\n- [ ] edge test passes\n\n## Out of scope\n\n- other records\n\n<!-- work-items:born-triaged -->\n"
+          }
+        }
+      ],
+      "why": "links the plan file instead of inlining"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/p/tools/work-item-tracker/work-item-tracker.sh\" create-item --title \"Monthly refund query\" --body-file \"/tmp/tmp.abc123\" --type \"Feature\" --labels \"area: refunds,agent-ready\""
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/p/tools/work-item-tracker/work-item-tracker.sh\" create-item --title \"Monthly refund query\" --body-file \"/tmp/tmp.abc123\" --type \"Feature\" --labels \"area: refunds,agent-ready\""
+          }
+        }
+      ],
+      "why": "published without composing bodies via Write"
+    }
+  ]
+}
