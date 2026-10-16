@@ -5,7 +5,7 @@
 // dispatches nothing when the slot is disabled. Lives here because it needs
 // resolve-config's dependencies.
 import assert from "node:assert/strict";
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -122,8 +122,8 @@ function fakes() {
   return { api, github, dispatched, reads };
 }
 
-async function run(slot) {
-  const base = baseWith(config(slot));
+async function run(slot, text = config(slot)) {
+  const base = baseWith(text);
   const { api, github, dispatched, reads } = fakes();
   const lines = [];
   try {
@@ -153,6 +153,18 @@ test("a lane whose resolve-conflicts slot has a mergeable predicate dispatches o
   // address-feedback's labels-absent and draft were decided from a fresh PR
   // read; resolve-conflicts' mergeable was not.
   assert.deepEqual(reads, [`GET /repos/${REPOSITORY}/pulls/42`]);
+});
+
+test("a lane with no address-feedback slot skips without failing the run", async () => {
+  const { dispatched, lines } = await run(null, config("").replace("        needs: [address-feedback]\n", ""));
+  assert.deepEqual(dispatched, []);
+  assert.match(lines.at(-1), /no enabled address-feedback and publish-feedback slots/);
+});
+
+test("this repository's own config resolves without failing the run", async () => {
+  const { dispatched, lines } = await run(null, readFileSync(join(ROOT, "docs/conventions/pr-pipeline.yaml"), "utf8"));
+  assert.ok(dispatched.length <= 1);
+  assert.match(lines.at(-1), /^(dispatched #42|skip: )/);
 });
 
 test("a disabled address-feedback slot dispatches nothing", async () => {

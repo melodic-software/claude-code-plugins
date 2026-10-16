@@ -180,6 +180,55 @@ const escapeCommand = (text) =>
 
 const wait = (ms) => new Promise((done) => setTimeout(done, ms));
 
+// The ResolvedConfig for the request env names, or a throw: a Rejection
+// (with its code) for a config or request the resolver refuses. `event` is the
+// payload; by default it is read from EVENT_PATH.
+export async function resolveFromBase({ env, github, sleep = wait, event }) {
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  checkConfigPath(configPath);
+  const schema = readJsonUnderBase(basePath, SCHEMA_PATH);
+  if (schema === undefined) {
+    throw new Error(`no schema at ${SCHEMA_PATH} under base-path`);
+  }
+  const files = {
+    config: readUnderBase(basePath, configPath),
+    schema,
+    vocabulary: readJsonUnderBase(basePath, VOCABULARY_PATH),
+    codeowners: readUnderBase(basePath, CODEOWNERS_PATH),
+    laneRules: readOwn("./lane-rules.json"),
+    effectGrants: readOwn("./effect-grants.json"),
+    activityRules: readOwn("./activity-rules.json"),
+  };
+  const request = {
+    lane: env.LANE,
+    activity: env.ACTIVITY || undefined,
+    configPath,
+    basePath,
+  };
+  const facts = await gatherFacts(neededFacts(files, request), {
+    eventName: env.EVENT_NAME,
+    event: event ?? JSON.parse(readFileSync(env.EVENT_PATH, "utf8")),
+    prNumber: env.PR_NUMBER,
+    headSha: env.HEAD_SHA,
+    repository: env.REPOSITORY,
+    sleep,
+    github:
+      github ??
+      createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),
+  });
+  const resolved = resolve(files, { ...request, facts });
+  // A runner that does not perform the prepare step would run the skill
+  // without it, so an applying leaf that needs one fails instead.
+  const { selected: chosen } = resolved;
+  if (chosen?.applies && chosen.prepare && env.PREPARE_SUPPORTED !== "true") {
+    throw new Error(
+      `activity \`${chosen.name}\` sets prepare: ${chosen.prepare}, and this runner does not pass prepare-supported: true`,
+    );
+  }
+  return resolved;
+}
+
 export async function main({ env = process.env, github, sleep = wait } = {}) {
   const outputPath = env.OUTPUT_PATH;
   try {
@@ -187,48 +236,7 @@ export async function main({ env = process.env, github, sleep = wait } = {}) {
       throw new Error("output-path is not set");
     }
     rmSync(outputPath, { force: true });
-    const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
-    const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
-    checkConfigPath(configPath);
-    const schema = readJsonUnderBase(basePath, SCHEMA_PATH);
-    if (schema === undefined) {
-      throw new Error(`no schema at ${SCHEMA_PATH} under base-path`);
-    }
-    const files = {
-      config: readUnderBase(basePath, configPath),
-      schema,
-      vocabulary: readJsonUnderBase(basePath, VOCABULARY_PATH),
-      codeowners: readUnderBase(basePath, CODEOWNERS_PATH),
-      laneRules: readOwn("./lane-rules.json"),
-      effectGrants: readOwn("./effect-grants.json"),
-      activityRules: readOwn("./activity-rules.json"),
-    };
-    const request = {
-      lane: env.LANE,
-      activity: env.ACTIVITY || undefined,
-      configPath,
-      basePath,
-    };
-    const facts = await gatherFacts(neededFacts(files, request), {
-      eventName: env.EVENT_NAME,
-      event: JSON.parse(readFileSync(env.EVENT_PATH, "utf8")),
-      prNumber: env.PR_NUMBER,
-      headSha: env.HEAD_SHA,
-      repository: env.REPOSITORY,
-      sleep,
-      github:
-        github ??
-        createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),
-    });
-    const resolved = resolve(files, { ...request, facts });
-    // A runner that does not perform the prepare step would run the skill
-    // without it, so an applying leaf that needs one fails instead.
-    const { selected: chosen } = resolved;
-    if (chosen?.applies && chosen.prepare && env.PREPARE_SUPPORTED !== "true") {
-      throw new Error(
-        `activity \`${chosen.name}\` sets prepare: ${chosen.prepare}, and this runner does not pass prepare-supported: true`,
-      );
-    }
+    const resolved = await resolveFromBase({ env, github, sleep });
     writeFileSync(outputPath, `${JSON.stringify(resolved, null, 2)}\n`);
     writeOutputs(outputsFor(resolved), env.GITHUB_OUTPUT);
     const selected = resolved.selected;

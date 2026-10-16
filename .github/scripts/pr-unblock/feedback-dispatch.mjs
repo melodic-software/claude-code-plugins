@@ -24,9 +24,7 @@
 // The gate and the broker re-check the upstream run and the head; this script
 // only decides whether to spend a run.
 
-import { appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 export const DEFAULTS = Object.freeze({
@@ -173,8 +171,8 @@ export async function dispatchFeedback({
     return skip(`#${number}: ${settings.workflow} run ${active[0].id} for ${settings.activity} is not done yet`);
   }
   const resolved = await resolveSlot({ number, head });
-  const enabled = (name) => resolved.lane.slots.some((slot) => slot.name === name && slot.enabled === true);
-  if (resolved.lane.enabled !== true || !enabled(settings.activity) || !enabled(settings.replyActivity)) {
+  const enabled = (name) => resolved?.lane.slots.some((slot) => slot.name === name && slot.enabled === true);
+  if (resolved?.lane.enabled !== true || !enabled(settings.activity) || !enabled(settings.replyActivity)) {
     return skip(`the ${settings.lane} lane has no enabled ${settings.activity} and ${settings.replyActivity} slots`);
   }
   if (resolved.selected?.applies !== true) {
@@ -300,40 +298,35 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
 // head, on a workflow_dispatch event. Naming the activity keeps another slot's
 // predicate (resolve-conflicts' mergeable) from needing facts this run lacks.
 // The workflow installs resolve-config's dependencies before this runs.
+// A lane with no address-feedback slot resolves to null; any other refusal
+// throws.
 export async function resolveFeedbackSlot({ number, head, env, github, settings = DEFAULTS }) {
-  const { main: resolveConfig } = await import(
+  const { resolveFromBase } = await import(
     new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
   );
-  const dir = mkdtempSync(join(env.RUNNER_TEMP || tmpdir(), "feedback-slot-"));
   try {
-    const eventPath = join(dir, "event.json");
-    const outputPath = join(dir, "resolved.json");
-    writeFileSync(eventPath, "{}");
-    const code = await resolveConfig({
+    return await resolveFromBase({
       env: {
         LANE: settings.lane,
         ACTIVITY: settings.activity,
         BASE_PATH: env.BASE_PATH || ".base",
-        OUTPUT_PATH: outputPath,
         EVENT_NAME: "workflow_dispatch",
-        EVENT_PATH: eventPath,
         PR_NUMBER: String(number),
         HEAD_SHA: head,
         // Only reading: the dispatched write runner performs the prepare step.
         PREPARE_SUPPORTED: "true",
-        GITHUB_OUTPUT: join(dir, "outputs"),
         GITHUB_TOKEN: env.GITHUB_TOKEN,
         GITHUB_API_URL: env.GITHUB_API_URL,
         REPOSITORY: env.GITHUB_REPOSITORY,
       },
+      event: {},
       github,
     });
-    if (code !== 0) {
-      throw new Error(`resolve-config could not resolve the ${settings.lane} lane's ${settings.activity} slot`);
+  } catch (error) {
+    if (error?.name === "Rejection" && error.code === "undefined-activity") {
+      return null;
     }
-    return JSON.parse(readFileSync(outputPath, "utf8"));
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
+    throw error;
   }
 }
 

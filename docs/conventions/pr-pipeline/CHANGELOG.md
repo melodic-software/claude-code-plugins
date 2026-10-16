@@ -6,7 +6,10 @@
 slot's `applies-when` and failed on `resolve-conflicts`' `mergeable` predicate with no head SHA.
 `feedback-dispatch.mjs` finds the PR and its head first, then resolves only the `address-feedback`
 slot for them, and dispatches only when the lane, `address-feedback` and `publish-feedback` are
-enabled and `address-feedback` applies. A disabled slot no longer counts as present.
+enabled and `address-feedback` applies. A disabled slot no longer counts as present, and a lane with
+no `address-feedback` slot still skips. resolve-config's `resolve-config.mjs` exports
+`resolveFromBase`, which returns the resolved config or throws the resolver's refusal; `main`
+wraps it.
 
 ## 1.17.0 - 2026-10-15
 

@@ -88,16 +88,21 @@ function fakeApi({
   };
 }
 
-// What resolve-config writes for the pr-unblock lane with address-feedback
-// selected: the lane, every slot with its enabled flag, and the selected slot.
+// What resolveFeedbackSlot returns: resolve-config's ResolvedConfig for the
+// pr-unblock lane with address-feedback selected (the lane, every slot with
+// its enabled flag, the selected slot), or null when the lane has no
+// address-feedback slot (resolve-config's undefined-activity refusal).
 const resolvedLane = ({ laneEnabled = true, slots = {}, applies = true, skipReason = null } = {}) => {
+  if (Object.hasOwn(slots, "address-feedback") && slots["address-feedback"] === undefined) {
+    return null;
+  }
   const enabled = { "resolve-conflicts": true, "address-feedback": true, "publish-feedback": true, "report-escalation": true, ...slots };
   const all = Object.entries(enabled)
     .filter(([, on]) => on !== undefined)
     .map(([name, on]) => ({ name, enabled: on, applies: null, "skip-reason": null }));
   const selected = all.find((slot) => slot.name === "address-feedback");
-  if (selected) Object.assign(selected, { applies, "skip-reason": skipReason });
-  return { lane: { name: "pr-unblock", enabled: laneEnabled, slots: all }, selected: selected ?? null };
+  Object.assign(selected, { applies, "skip-reason": skipReason });
+  return { lane: { name: "pr-unblock", enabled: laneEnabled, slots: all }, selected };
 };
 
 async function decide(api, resolved = resolvedLane()) {
@@ -152,6 +157,7 @@ test("the address-feedback slot is resolved for the PR and the reviewed head", a
 for (const [label, resolved, reason] of [
   ["the address-feedback slot is disabled", resolvedLane({ slots: { "address-feedback": false } }), /no enabled address-feedback and publish-feedback slots/],
   ["the publish-feedback slot is disabled", resolvedLane({ slots: { "publish-feedback": false } }), /no enabled address-feedback and publish-feedback slots/],
+  ["the lane has no address-feedback slot", resolvedLane({ slots: { "address-feedback": undefined } }), /no enabled address-feedback and publish-feedback slots/],
   ["the lane has no publish-feedback slot", resolvedLane({ slots: { "publish-feedback": undefined } }), /no enabled address-feedback and publish-feedback slots/],
   ["the lane is disabled", resolvedLane({ laneEnabled: false }), /no enabled address-feedback and publish-feedback slots/],
   ["address-feedback does not apply", resolvedLane({ applies: false, skipReason: "awaiting-human" }), /does not apply \(awaiting-human\)/],
