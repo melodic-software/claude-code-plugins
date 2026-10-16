@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
+import babysit_dependabot as dependabot
 import babysit_repo_config as repo_config
 from babysit_classify import (
     actor_kind,
@@ -408,10 +409,16 @@ class PipelineConfig:
     # `merge.report-only`: the gate reports and writes nothing. Absent is
     # false; any value but true or false is true.
     report_only: bool = False
+    # `merge.dependabot.mode`, the pr-merge lane's Dependabot class: `off`
+    # (absent, or any other value) refuses every Dependabot pull request,
+    # `report` reports it and writes nothing, and `enforce` merges it
+    # whatever `merge.report-only` says.
+    dependabot_mode: str = "off"
 
 
 LOCAL_BABYSIT = "local-babysit"
 PR_MERGE = "pr-merge"
+DEPENDABOT_MODES = ("off", "report", "enforce")
 
 
 def enabled_authority(config: PipelineConfig) -> str | None:
@@ -508,6 +515,7 @@ def read_config_at(repo: str, base_sha: str) -> PipelineConfig:
             ("merge.diff-check.max-changed-lines", False),
             ("merge.diff-check.denied-paths", True),
             ("merge.report-only", False),
+            ("merge.dependabot.mode", False),
         ],
     )
     if values is None:
@@ -530,6 +538,12 @@ def read_config_at(repo: str, base_sha: str) -> PipelineConfig:
     report_only = scalar("merge.report-only")
     if report_only not in (None, "true", "false"):
         notes.append(f"merge.report-only {report_only!r} is not true or false")
+    dependabot_mode = scalar("merge.dependabot.mode") or "off"
+    if dependabot_mode not in DEPENDABOT_MODES:
+        notes.append(
+            f"merge.dependabot.mode {dependabot_mode!r} is not off, report or enforce"
+        )
+        dependabot_mode = "off"
     return PipelineConfig(
         base_sha=base_sha,
         rung=rung,
@@ -540,6 +554,7 @@ def read_config_at(repo: str, base_sha: str) -> PipelineConfig:
         loop_merge=loop_merge,
         notes=tuple(notes),
         report_only=report_only not in (None, "false"),
+        dependabot_mode=dependabot_mode,
     )
 
 
@@ -999,6 +1014,8 @@ class Eligibility:
     reason: str | None
     work_class: str | None = None
     issue: int | None = None
+    # A Dependabot pull request's tier, in the pr-merge lane only.
+    dependabot: dependabot.Classification | None = None
 
 
 def _label_names(node: dict[str, Any]) -> list[str] | None:
@@ -1442,6 +1459,123 @@ def lane_eligibility(
     except PolicyReadError as exc:
         return Eligibility(False, f"unreadable: {exc}")
     return Eligibility(refusal is None, refusal, work_class, issue_number)
+
+
+# A commit's file list stops at this many entries, so a full one may hide more.
+COMMIT_FILES_LIMIT = 300
+CI_STATUS_CHECK = "ci-status"
+
+
+def is_dependabot_pull_request(pr: Mapping[str, Any]) -> bool:
+    """A REST pull request opened by Dependabot's App."""
+    user = json_object(pr.get("user"))
+    return user.get("type") == "Bot" and dependabot.is_dependabot(user.get("login"))
+
+
+def _commit_files(owner: str, name: str) -> Callable[[str], list[str] | None]:
+    def files(sha: str) -> list[str] | None:
+        if not SHA_RE.fullmatch(sha):
+            return None
+        status, payload = _get(f"repos/{owner}/{name}/commits/{sha}")
+        listing = json_object(payload).get("files")
+        if status != 200 or not is_json_array(listing):
+            return None
+        if len(listing) >= COMMIT_FILES_LIMIT:
+            return None
+        return [str(json_object(f).get("filename") or "") for f in listing]
+
+    return files
+
+
+def _ci_status(owner: str, name: str, head: str) -> str:
+    """`success`, `pending`, or the conclusion of a finished `ci-status` run on
+    `head` that did not succeed; `unreadable` when the runs cannot be read."""
+    status, payload = _get(
+        f"repos/{owner}/{name}/commits/{head}/check-runs"
+        f"?check_name={CI_STATUS_CHECK}&filter=latest&per_page=100"
+    )
+    runs = [json_object(r) for r in json_array(json_object(payload).get("check_runs"))]
+    if status != 200 or not SHA_RE.fullmatch(head):
+        return "unreadable"
+    if not runs or any(r.get("status") != "completed" for r in runs):
+        return "pending"
+    failed = [
+        str(r.get("conclusion")) for r in runs if r.get("conclusion") != "success"
+    ]
+    return failed[0] if failed else "success"
+
+
+def dependabot_eligibility(
+    repo: str,
+    number: int,
+    *,
+    pr: Mapping[str, Any],
+    agent_identity: str | None,
+) -> Eligibility:
+    """Whether the pr-merge lane may merge a Dependabot pull request: not a
+    fork, opened by Dependabot's App, tier `auto` (`babysit_dependabot.classify`:
+    every commit Dependabot's and verified, every update non-major), a green
+    `ci-status` on the head, and no human blocking comment. A finished
+    `ci-status` that failed makes the tier `review`, which the lane never
+    merges; one still running is tier `auto`, not yet eligible. The class is
+    C2 (mechanical), so the rung and its cap still bind it. No closing issue
+    and no denied-path rule: `ci-status` is the gate. The `do-not-merge` label
+    and a body hold are the gate's, as for every pull request."""
+    owner, name = _split_repo(repo)
+    head = str(json_object(pr.get("head")).get("sha") or "")
+    try:
+        data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
+        node = json_object(json_object(data.get("repository")).get("pullRequest"))
+        if not node:
+            return Eligibility(False, "pull-request-unreadable")
+        head_owner = json_object(node.get("headRepositoryOwner")).get("login")
+        if (
+            node.get("isCrossRepository") is not False
+            or str(head_owner).casefold() != owner.casefold()
+        ):
+            return Eligibility(False, "fork")
+        author = json_object(node.get("author"))
+        if author.get("__typename") != "Bot" or not dependabot.is_dependabot(
+            author.get("login")
+        ):
+            return Eligibility(False, "not-dependabot-authored")
+        commits = _paginated(
+            f"repos/{owner}/{name}/pulls/{number}/commits?per_page=100",
+            f"#{number} commits",
+        )
+        total = pr.get("commits")
+        if (
+            not isinstance(total, int)
+            or isinstance(total, bool)
+            or total != len(commits)
+        ):
+            return Eligibility(False, f"commits-listed:{len(commits)}-of:{total}")
+        tier = dependabot.classify(
+            str(pr.get("title") or ""), commits, _commit_files(owner, name)
+        )
+        if tier.tier == dependabot.AUTO:
+            ci = _ci_status(owner, name, head)
+            if ci not in ("success", "pending", "unreadable"):
+                tier = dependabot.Classification(
+                    dependabot.REVIEW, f"ci-status:{ci}", tier.updates
+                )
+        if tier.tier != dependabot.AUTO:
+            return Eligibility(
+                False, f"dependabot-review:{tier.reason}", dependabot=tier
+            )
+        if ci != "success":
+            return Eligibility(False, f"ci-status:{ci}", "C2", dependabot=tier)
+        blockers = _human_blockers(owner, name, number, str(agent_identity or ""))
+        if blockers:
+            return Eligibility(
+                False,
+                f"human-blocking-comment:{','.join(blockers)}",
+                "C2",
+                dependabot=tier,
+            )
+    except PolicyReadError as exc:
+        return Eligibility(False, f"unreadable: {exc}")
+    return Eligibility(True, None, "C2", dependabot=tier)
 
 
 def recheck_lane_class(
@@ -2185,7 +2319,9 @@ def assess(
     """The policy readers for one pull request, in the wiring order.
 
     `authority` is the caller's: the local babysit lane, or the pr-merge CI
-    lane, which reads `lane_eligibility` in place of `eligibility`, no
+    lane, which reads `lane_eligibility` in place of `eligibility` (and
+    `dependabot_eligibility` for a Dependabot pull request, whose report-only
+    is `merge.dependabot.mode` short of `enforce`), no
     promotion evidence (D16: report-only, then the owner's live flip), the
     kill switch from `lane_kill_switch` (`kill_switch`), the rung cap from
     `lane_rung_cap` (`rung_cap`), and only its own
@@ -2217,7 +2353,12 @@ def assess(
         raise PolicyReadError(f"{CONFIG_PATH} at {base_sha}: {config.error}")
     identity = config.agent_identity
     lane = authority == PR_MERGE
-    details: dict[str, Any] = {"baseSha": base_sha, "reportOnly": config.report_only}
+    # A Dependabot pull request in the lane answers to its own switch.
+    dependabot_pr = lane and is_dependabot_pull_request(pr)
+    report_only = (
+        config.dependabot_mode != "enforce" if dependabot_pr else config.report_only
+    )
+    details: dict[str, Any] = {"baseSha": base_sha, "reportOnly": report_only}
     inputs: dict[str, Any] = {
         "pr": pr,
         "config": config,
@@ -2305,7 +2446,19 @@ def assess(
         merged_since=floor,
         lane_merges_only=lane,
     )
-    if lane:
+    if dependabot_pr:
+        promo = Promotion(None, "not-read-in-pr-merge-lane")
+        eligible = (
+            dependabot_eligibility(repo, number, pr=pr, agent_identity=identity)
+            if config.dependabot_mode != "off"
+            else Eligibility(False, "dependabot-merge-off")
+        )
+        promoted = True
+        details["dependabot"] = {
+            "mode": config.dependabot_mode,
+            **(eligible.dependabot.report() if eligible.dependabot else {}),
+        }
+    elif lane:
         promo = Promotion(None, "not-read-in-pr-merge-lane")
         eligible = lane_eligibility(
             repo,

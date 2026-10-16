@@ -2821,5 +2821,245 @@ class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):
         self.assertEqual(out["actingLogin"], "Agent-Lanes[bot]")
 
 
+DEPENDABOT_EMAIL = "49699333+dependabot[bot]@users.noreply.github.com"
+
+
+def dependabot_commit(
+    update_type: str = "semver-minor",
+    *,
+    name: str = "dependabot[bot]",
+    email: str = DEPENDABOT_EMAIL,
+) -> dict[str, Any]:
+    message = (
+        "build(deps): bump x\n\n---\nupdated-dependencies:\n"
+        f"- dependency-name: x\n  update-type: version-update:{update_type}\n...\n"
+    )
+    return {
+        "sha": "d" * 40,
+        "commit": {
+            "message": message,
+            "author": {"name": name, "email": email},
+            "committer": {"email": "noreply@github.com"},
+            "verification": {"verified": True},
+        },
+    }
+
+
+class DependabotConfig(unittest.TestCase):
+    """`merge.dependabot.mode`: absent or unknown is off, so a repository
+    that never set it keeps refusing every Dependabot pull request."""
+
+    def test_the_mode_is_read_and_anything_else_is_off(self) -> None:
+        for written, mode in (
+            (None, "off"),
+            ("enforce", "enforce"),
+            ("report", "report"),
+            ("off", "off"),
+            ("yes", "off"),
+        ):
+            with self.subTest(written=written):
+                text = LANE_PIPELINE
+                if written is not None:
+                    text += f"  dependabot:\n    mode: {written}\n"
+                config_fake(self, text)
+                self.assertEqual(policy.read_config_at(REPO, SHA).dependabot_mode, mode)
+
+
+class DependabotEligibility(unittest.TestCase):
+    """The pr-merge lane's Dependabot class: tier `auto` on verified
+    Dependabot commits with non-major updates, a green `ci-status`, and no
+    human blocking comment. No closing issue and no denied paths are read."""
+
+    HEAD = "e" * 40
+    COMMITS = f"repos/{REPO}/pulls/7/commits?per_page=100"
+    CI = (
+        f"repos/{REPO}/commits/{'e' * 40}/check-runs"
+        "?check_name=ci-status&filter=latest&per_page=100"
+    )
+
+    def fake(
+        self,
+        *,
+        commits: list[dict[str, Any]] | None = None,
+        ci: list[dict[str, Any]] | None = None,
+        comments: list[dict[str, Any]] | None = None,
+        author: dict[str, str] | None = None,
+        cross: bool = False,
+    ) -> GhFake:
+        gh = GhFake().install(self)
+        gh.graphql["PolicyEligibility"] = {
+            "repository": {
+                "pullRequest": {
+                    "number": 7,
+                    "isCrossRepository": cross,
+                    "author": author or bot("dependabot"),
+                    "headRepositoryOwner": {"login": "owner"},
+                }
+            }
+        }
+        self.commits = [dependabot_commit()] if commits is None else commits
+        gh.rest[self.COMMITS] = self.commits
+        runs = [{"status": "completed", "conclusion": "success"}] if ci is None else ci
+        gh.rest[self.CI] = {"check_runs": runs}
+        gh.rest[f"repos/{REPO}/issues/7/comments?per_page=100"] = comments or []
+        gh.rest[f"repos/{REPO}/pulls/7/reviews?per_page=100"] = []
+        gh.rest[f"repos/{REPO}/pulls/7/comments?per_page=100"] = []
+        return gh
+
+    def eligibility(self, title: str = "build(deps): bump x") -> Any:
+        pr = {
+            "number": 7,
+            "title": title,
+            "commits": len(self.commits),
+            "head": {"sha": self.HEAD},
+            "user": {"login": "dependabot[bot]", "type": "Bot"},
+        }
+        return policy.dependabot_eligibility(REPO, 7, pr=pr, agent_identity=IDENTITY)
+
+    def test_a_patch_or_minor_bump_on_a_green_ci_status_is_eligible_as_c2(self) -> None:
+        for kind in ("semver-patch", "semver-minor"):
+            with self.subTest(kind=kind):
+                gh = self.fake(commits=[dependabot_commit(kind)])
+                result = self.eligibility()
+                self.assertTrue(result.eligible, result.reason)
+                self.assertEqual(result.work_class, "C2")
+                self.assertIsNone(result.issue)
+                self.assertEqual(result.dependabot.tier, "auto")
+                calls = " ".join(" ".join(c) for c in gh.calls)
+                self.assertNotIn("/files", calls)
+                self.assertNotIn("timeline", calls)
+
+    def test_a_major_bump_is_tier_review(self) -> None:
+        self.fake(commits=[dependabot_commit("semver-major")])
+        result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "dependabot-review:major:x")
+        self.assertEqual(result.dependabot.tier, "review")
+
+    def test_a_commit_not_dependabots_is_tier_review(self) -> None:
+        pushed = dependabot_commit(name="octocat", email="octocat@example.com")
+        self.fake(commits=[dependabot_commit(), pushed])
+        result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(
+            result.reason, f"dependabot-review:commit-not-dependabot:{'d' * 12}"
+        )
+
+    def test_a_red_ci_status_is_tier_review(self) -> None:
+        self.fake(ci=[{"status": "completed", "conclusion": "failure"}])
+        result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "dependabot-review:ci-status:failure")
+        self.assertEqual(result.dependabot.tier, "review")
+
+    def test_a_running_or_missing_ci_status_waits_at_tier_auto(self) -> None:
+        for runs in ([], [{"status": "in_progress", "conclusion": None}]):
+            with self.subTest(runs=runs):
+                self.fake(ci=runs)
+                result = self.eligibility()
+                self.assertFalse(result.eligible)
+                self.assertEqual(result.reason, "ci-status:pending")
+                self.assertEqual(result.dependabot.tier, "auto")
+
+    def test_a_human_hold_comment_refuses(self) -> None:
+        hold = {
+            "user": {"login": "maintainer", "type": "User"},
+            "author_association": "MEMBER",
+            "body": "Do not merge this one yet",
+        }
+        self.fake(comments=[hold])
+        result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "human-blocking-comment:maintainer")
+
+    def test_a_fork_or_another_author_is_ineligible(self) -> None:
+        self.fake(cross=True)
+        self.assertEqual(self.eligibility().reason, "fork")
+        self.fake(author=bot("renovate"))
+        self.assertEqual(self.eligibility().reason, "not-dependabot-authored")
+
+    def test_a_commit_list_short_of_the_pull_requests_count_is_ineligible(self) -> None:
+        self.fake()
+        self.commits = [dependabot_commit(), dependabot_commit()]
+        self.assertEqual(self.eligibility().reason, "commits-listed:1-of:2")
+
+
+class DependabotAssess(unittest.TestCase):
+    """`assess(authority="pr-merge")` on a Dependabot pull request: its own
+    eligibility and its own report-only, `merge.dependabot.mode`."""
+
+    readable = LaneAssess.readable
+    fake = Assess.fake
+
+    def assess_mode(self, mode: str | None, eligible: Any = None) -> Any:
+        gh = self.readable()
+        text = LANE_PIPELINE + (f"  dependabot:\n    mode: {mode}\n" if mode else "")
+        gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"] = file_payload(
+            text
+        )
+        gh.rest[f"repos/{REPO}/pulls/1"]["user"] = {
+            "login": "dependabot[bot]",
+            "type": "Bot",
+        }
+        tier = policy.dependabot.Classification("auto", None)
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(
+            mock.patch.object(
+                policy, "in_flight", return_value=policy.InFlight(True, None)
+            )
+        )
+        self.read = stack.enter_context(
+            mock.patch.object(
+                policy,
+                "dependabot_eligibility",
+                return_value=eligible
+                or policy.Eligibility(True, None, "C2", dependabot=tier),
+            )
+        )
+        for other in ("lane_eligibility", "eligibility"):
+            stack.enter_context(
+                mock.patch.object(policy, other, side_effect=AssertionError)
+            )
+        return policy.assess(
+            REPO,
+            1,
+            acting_login=IDENTITY,
+            authority="pr-merge",
+            post_merge=lambda floor, who: gate(),
+            lane_kill_switch="proceed",
+            lane_rung_cap="",
+        )
+
+    def test_enforce_merges_while_the_lane_is_report_only(self) -> None:
+        result = self.assess_mode("enforce")
+        self.assertIsNone(result.reason)
+        self.assertIs(result.report()["reportOnly"], False)
+        self.assertEqual(result.report()["dependabot"]["tier"], "auto")
+
+    def test_report_writes_nothing_and_off_refuses(self) -> None:
+        self.assertIs(self.assess_mode("report").report()["reportOnly"], True)
+        result = self.assess_mode(None)
+        self.assertEqual(result.reason, "ineligible:dependabot-merge-off")
+        self.read.assert_not_called()
+
+    def test_tier_review_is_refused(self) -> None:
+        tier = policy.dependabot.Classification("review", "major:x")
+        result = self.assess_mode(
+            "enforce",
+            policy.Eligibility(False, "dependabot-review:major:x", dependabot=tier),
+        )
+        self.assertEqual(result.reason, "ineligible:dependabot-review:major:x")
+
+    def test_the_rung_still_binds_the_class(self) -> None:
+        self.readable()
+        result = None
+        with mock.patch.object(
+            policy, "rung_cap", return_value=policy.RungCap("off", "x")
+        ):
+            result = self.assess_mode("enforce")
+        self.assertEqual(result.reason, "rung-off:rungCap")
+
+
 if __name__ == "__main__":
     unittest.main()

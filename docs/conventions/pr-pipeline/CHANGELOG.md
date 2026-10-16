@@ -1,5 +1,19 @@
 # Changelog for the PR pipeline convention
 
+## 1.20.0 - 2026-10-16
+
+`merge.dependabot.mode` (`off`, `report`, `enforce`; absent is `off`) adds the pr-merge lane's
+Dependabot class (ADR 0073). The lane lists Dependabot's open pull requests unless the mode is
+`off`. A tier `auto` one (verified Dependabot commits, or the repository's `[dependabot skip]`
+version-bump commit, and every update in the commit metadata `semver-patch` or `semver-minor`)
+merges once `ci-status` succeeded on its head, through the lane's gate as C2 with no closing
+issue, denied-path rule or diff risk score; tier `review` (a major, an unknown update type, any
+other commit, a failed `ci-status`) never merges there and is the pr-unblock lane's. The mode, not
+`merge.report-only`, decides whether a Dependabot pull request writes, and the workflow starts the
+post-merge full run when either can merge. `.github/workflows/pr-automerge-dependabot.yml` is
+removed, and "Merge authority" no longer names it as an exception to the single authority.
+`version` stays 1.
+
 ## 1.19.3 - 2026-10-16
 
 "Outputs and skips" no longer says a leaf's verdict carries over to a commit with unchanged

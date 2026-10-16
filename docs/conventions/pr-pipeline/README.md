@@ -364,9 +364,9 @@ human. Work classes are defined in
   where the lane resolved conflicts, needs a fresh verdict on that commit before the merge. The
   local babysit lane accepts only evidence bound to the pinned head SHA (below).
 - `merge.stack-landing` defaults to `manual`.
-- A repository has one merge authority. The one exception is
-  `.github/workflows/pr-automerge-dependabot.yml`, which merges Dependabot pull requests on its own
-  rules whatever `merge.authority` says.
+- A repository has one merge authority, Dependabot pull requests included: the pr-merge lane
+  merges tier `auto` ones and the pr-unblock lane's review activity takes tier `review` ones
+  ([Dependabot pull requests](#dependabot-pull-requests), below).
 
 ### The local babysit lane
 
@@ -413,8 +413,8 @@ that fails counts as a refusal.
   the wrapper disarms it.
 - **One merge in flight.** The wrapper refuses while the identity has an entry in the merge queue,
   or while an earlier unattended merge has not passed its post-merge check.
-- **Dependabot.** A dependency-manager author is never eligible for an unattended merge. Those pull
-  requests stay with `pr-automerge-dependabot.yml`.
+- **Dependabot.** A dependency-manager author is never eligible for a local unattended merge. The
+  pr-merge lane owns Dependabot pull requests (below).
 
 A human here is a GitHub user, not the agent identity and not an automation login, with write or
 admin permission on the repository.
@@ -448,8 +448,40 @@ except six:
 - **Post-merge check and one merge in flight.** Only merges the agent identity enqueued count. A
   merge by a person or by another App, such as a release pull request, is not the lane's.
 
-While `merge.report-only` is true, the workflow starts no full CI run either; its summary says
-whether it would have.
+While `merge.report-only` is true and `merge.dependabot.mode` is not `enforce`, the workflow starts
+no full CI run either; its summary says whether it would have.
+
+### Dependabot pull requests
+
+No Dependabot pull request waits on a human
+([ADR 0073](../../adr/0073-merge-dependabot-pull-requests-in-the-pr-merge-lane.md)). The pr-merge
+lane lists Dependabot's open pull requests beside its own and judges each as its own class, in
+place of the eligibility above:
+
+- **Tier `auto`.** Every commit is a GitHub-verified Dependabot commit, or the repository's
+  `[dependabot skip]` version-bump commit (authored by `github-actions[bot]`, verified, touching
+  only a plugin's `plugin.json` or `CHANGELOG.md`). Every dependency the commit metadata
+  (`updated-dependencies`) lists is a `semver-patch` or `semver-minor` update, in any ecosystem;
+  a `Bump X from A to B` title that reads as major, or a group title whose update count the
+  metadata does not match, is not.
+- **Tier `review`.** Anything else: a major update, an unknown update type, any other commit, or a
+  finished `ci-status` that did not succeed. The lane never merges it; the pr-unblock lane's review
+  activity takes it.
+- **Gate.** A tier `auto` pull request merges once `ci-status` succeeded on its head, through the
+  same gate as the lane's own: mergeable, no `do-not-merge` label, no body hold, no blocking
+  comment from a human with write access, the rung (C2) and its cap, the kill switches, the
+  post-merge check and one merge in flight. No closing issue, denied-path rule or diff risk score
+  applies: `ci-status` is the gate, and a workflow pin bump touches `.github/**` by definition.
+- **Switch.** `merge.dependabot.mode` decides it, not `merge.report-only`: `enforce` merges,
+  `report` reports and writes nothing, and `off` (the default) refuses every Dependabot pull
+  request and leaves them unlisted.
+
+The class is `babysit_dependabot.py` beside the wrapper; its tier is the seam the review activity
+reads. Auto-merge armed with `GITHUB_TOKEN` is not used: GitHub's
+[`GITHUB_TOKEN` page](https://docs.github.com/en/actions/concepts/security/github_token) says
+"events triggered by the `GITHUB_TOKEN` will not create a new workflow run" (`workflow_dispatch`,
+`repository_dispatch` and some `pull_request` events excepted, not `merge_group`), so the queue
+entry such an arm makes never gets its `ci-status` run and never lands (#6717, #7512).
 
 `.github/workflows/pr-merge.yml` runs the lane's `merge-pr` activity with no model and no head
 checkout. A label, body or ready change on a PR, a manual dispatch and a schedule every 15 minutes

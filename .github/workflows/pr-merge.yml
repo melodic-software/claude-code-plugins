@@ -9,11 +9,19 @@ name: pr-merge
 # the exact commit the gate checked. The merge queue then runs CI one last
 # time and merges.
 #
+# Dependabot PRs are the other kind it merges: a patch or minor bump made only
+# of Dependabot's own verified commits, once `ci-status` passes (tier `auto`).
+# A major bump, any other commit, or a failed `ci-status` is tier `review`,
+# which this workflow never merges; the pr-unblock lane reviews those.
+#
 # It runs no AI model and never checks out a PR's own code: every script it
 # runs comes from the main branch. The rules live in
 # docs/conventions/pr-pipeline.yaml (`merge:` and `lanes.pr-merge`); while
 # `merge.report-only` is true there, the lane only reports what it would do
-# and changes nothing: it adds no PR to the queue and starts no CI run.
+# for its own PRs and changes nothing for them. Dependabot PRs follow
+# `merge.dependabot.mode` instead: `enforce` merges them, `report` only
+# reports, `off` (or no setting) refuses them. While neither merges, the lane
+# adds no PR to the queue and starts no CI run.
 #
 # How to stop it: set the CLAUDE_LANES_DISABLED (organization) or
 # CLAUDE_LANES_REPO_DISABLED (repository) Actions variable to anything but
@@ -84,12 +92,13 @@ jobs:
       pull-requests: read # list the open PRs
       id-token: write # prove to the token broker which workflow this is
     outputs:
-      # `true` when the lane is live (not report-only) and either a PR merged
-      # during this run and the gate could not start the follow-up full CI
-      # run itself (its token cannot start workflows), or the post-merge
-      # check says an earlier lane merge still needs one. In report-only mode
-      # it is never true; the summary says what would have been started.
-      dispatch: ${{ steps.mode.outputs.report-only == 'false' && (steps.gate.outputs.dispatch == 'true' || steps.post-merge.outputs.needs-dispatch == 'true') }}
+      # `true` when the lane can merge (its own PRs are not report-only, or
+      # Dependabot PRs are enforced) and either a PR merged during this run
+      # and the gate could not start the follow-up full CI run itself (its
+      # token cannot start workflows), or the post-merge check says an
+      # earlier lane merge still needs one. While neither can merge it is
+      # never true; the summary says what would have been started.
+      dispatch: ${{ steps.mode.outputs.live == 'true' && (steps.gate.outputs.dispatch == 'true' || steps.post-merge.outputs.needs-dispatch == 'true') }}
     steps:
       # Everything below runs from main as it is right now, never from a PR.
       - name: Check out the default branch tip
@@ -162,19 +171,36 @@ jobs:
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
 
-      # Report-only or live, read the same way the gate reads it: only
-      # `false` (or no setting at all) is live. Anything else is report-only,
-      # and then this run starts no CI run either.
+      # Report-only or live, read the same way the gate reads it: for the
+      # lane's own PRs only `false` (or no setting at all) is live; for
+      # Dependabot PRs only `merge.dependabot.mode: enforce` is, and only
+      # `report` or `enforce` lists them at all. While neither is live this
+      # run starts no CI run either.
       - name: Read report-only
         id: mode
         if: steps.config.outcome == 'success'
         run: |
           set -euo pipefail
-          value=$(yq '.merge."report-only"' .base/docs/conventions/pr-pipeline.yaml)
+          config=.base/docs/conventions/pr-pipeline.yaml
+          value=$(yq '.merge."report-only"' "$config")
           case "$value" in
-            false | null) echo "report-only=false" >>"$GITHUB_OUTPUT" ;;
-            *) echo "report-only=true" >>"$GITHUB_OUTPUT" ;;
+            false | null) report_only=false ;;
+            *) report_only=true ;;
           esac
+          dependabot=$(yq '.merge.dependabot.mode // "off"' "$config")
+          case "$dependabot" in
+            report | enforce) ;;
+            *) dependabot=off ;;
+          esac
+          live=false
+          if [ "$report_only" = false ] || [ "$dependabot" = enforce ]; then
+            live=true
+          fi
+          {
+            echo "report-only=$report_only"
+            echo "dependabot=$dependabot"
+            echo "live=$live"
+          } >>"$GITHUB_OUTPUT"
 
       # Swaps this job's GitHub identity proof for a short-lived token of the
       # lanes App, with exactly the permissions resolved above. The broker
@@ -195,9 +221,10 @@ jobs:
           issues: ${{ steps.config.outputs.issues }}
 
       # Candidates: open, non-draft PRs into main that the lanes App
-      # (merge.agent-identity on main) opened. The work class lives on the
-      # closing issue, never on the PR, so no PR label is read here. This is
-      # only a shortlist; the gate checks the author, the closing issue's class
+      # (merge.agent-identity on main) opened, plus Dependabot's unless
+      # merge.dependabot.mode is off. The work class lives on the closing
+      # issue, never on the PR, so no PR label is read here. This is only a
+      # shortlist; the gate checks the author, the class or Dependabot tier
       # and every other rule again. Read with the job's own read-only token.
       - name: List the candidate PRs
         id: candidates
@@ -205,6 +232,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          DEPENDABOT: ${{ steps.mode.outputs.dependabot }}
         run: |
           set -euo pipefail
           identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
@@ -213,17 +241,25 @@ jobs:
             echo "::error::merge.agent-identity is not an App bot login: $identity"
             exit 1
           fi
-          gh pr list --repo "$REPO" --base main --state open --limit 500 \
-            --author "app/$slug" --json number,headRefOid,isDraft,updatedAt |
-            jq -c '[.[] | select(.isDraft | not)
-              | {number, head: .headRefOid, updatedAt}]' >"$RUNNER_TEMP/candidates.json"
+          authors=("app/$slug")
+          if [ "$DEPENDABOT" != off ]; then
+            authors+=(app/dependabot)
+          fi
+          for author in "${authors[@]}"; do
+            gh pr list --repo "$REPO" --base main --state open --limit 500 \
+              --author "$author" --json number,headRefOid,isDraft,updatedAt
+          done |
+            jq -cs '[add[] | select(.isDraft | not)
+              | {number, head: .headRefOid, updatedAt}] | unique_by(.number)' >"$RUNNER_TEMP/candidates.json"
           echo "count=$(jq length "$RUNNER_TEMP/candidates.json")" >>"$GITHUB_OUTPUT"
 
       # The gate itself, once per candidate, using the lane App's token. It is
       # the same script the local babysit loop uses, run as the pr-merge lane:
       # it refuses on any hold, missing review, failing check, risk above LOW,
       # a changed file on the denied list, or a head that moved since listing.
-      # When it passes (and report-only is off) it posts the checked commit as
+      # A Dependabot PR is judged by its tier and `ci-status` instead of the
+      # risk score and denied list.
+      # When it passes (and that PR's kind is live) it posts the checked commit as
       # a pin comment and adds the PR to the merge queue at that commit.
       # The gate's token cannot read the kill switch, so it gets this run's
       # own answer from the first step: the word `proceed`, or nothing. It
@@ -302,7 +338,7 @@ jobs:
         if: always() && steps.gate.outcome != 'skipped'
         env:
           EVENT: ${{ github.event_name }}
-          REPORT_ONLY: ${{ steps.mode.outputs.report-only }}
+          LIVE: ${{ steps.mode.outputs.live }}
           WANTS_DISPATCH: ${{ steps.gate.outputs.dispatch == 'true' || steps.post-merge.outputs.needs-dispatch == 'true' }}
         run: |
           set -euo pipefail
@@ -319,7 +355,7 @@ jobs:
             echo
             if [ "$WANTS_DISPATCH" != true ]; then
               echo "Full CI run on main: not needed."
-            elif [ "$REPORT_ONLY" = false ]; then
+            elif [ "$LIVE" = true ]; then
               echo "Full CI run on main: started by the next job."
             else
               echo "Full CI run on main: would be started; report-only, so none was."
@@ -355,8 +391,8 @@ jobs:
   # After a lane merge, the post-merge check wants a full CI run of main.
   # Starting a workflow needs `actions: write`, which the lane App token does
   # not have, so this separate job does it with the job's own GitHub token. It
-  # runs when the merge job says a full run is needed, which it never does in
-  # report-only mode. A run woken by pull_request_target
+  # runs when the merge job says a full run is needed, which it never does
+  # while nothing can merge. A run woken by pull_request_target
   # leaves it to the next run: the post-merge check does not trust a dispatch
   # from that event, which runs the PR base branch's copy of this file.
   dispatch-full-run:
