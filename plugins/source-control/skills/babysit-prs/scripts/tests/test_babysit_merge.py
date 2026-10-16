@@ -1685,6 +1685,89 @@ class RefreshDisarmsAutoMerge(unittest.TestCase):
             self._disarm(armed=True, disable_error=True)
 
 
+class RefreshRefusesDependencyManagerPrs(unittest.TestCase):
+    """A dependency manager's PR is never refreshed: an extra commit on its branch
+    stops the manager's own rebases."""
+
+    def _validate(self, login: str, extra: frozenset[str] = frozenset()) -> None:
+        pr = {"state": "OPEN", "author": {"login": login}}
+        policy = mock.Mock(extra_dependency_manager_logins=extra)
+        with (
+            mock.patch.object(refresh, "view_pr", return_value=pr),
+            mock.patch.object(refresh.repo_policy, "resolve", return_value=policy),
+        ):
+            refresh.validate_current_candidate(
+                "owner/repo", PR_NUMBER, HEAD, frozenset({"owner"})
+            )
+
+    def test_configured_extra_login_is_refused(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "dependency manager"):
+            self._validate("acme-deps[bot]", frozenset({"acme-deps"}))
+
+    def test_dependabot_pr_is_refused(self) -> None:
+        # `gh pr view` reports app/dependabot; REST reports dependabot[bot].
+        for login in (
+            "dependabot",
+            "app/dependabot",
+            "dependabot[bot]",
+            "renovate[bot]",
+        ):
+            with (
+                self.subTest(login=login),
+                self.assertRaisesRegex(RuntimeError, "dependency manager"),
+            ):
+                self._validate(login)
+
+    def test_other_author_passes_the_author_check(self) -> None:
+        with self.assertRaises(RuntimeError) as caught:
+            self._validate("octocat")
+        self.assertNotIn("dependency manager", str(caught.exception))
+
+
+class RefreshRefusesMergeQueueBases(unittest.TestCase):
+    """A behind head on a merge-queue base is never refreshed, even when GitHub
+    reports BEHIND; an unreadable rules answer refuses too."""
+
+    def _validate(self, queue: bool | None) -> None:
+        repo = "owner/repo"
+        pr = {
+            "state": "OPEN",
+            "author": {"login": "octocat"},
+            "headRefOid": HEAD,
+            "mergeable": "MERGEABLE",
+            "mergeStateStatus": "BEHIND",
+            "baseRefName": "main",
+        }
+        policy = mock.Mock(extra_dependency_manager_logins=frozenset())
+        scope = {"head_metadata_complete": True, "branch_write_allowed": True}
+        with (
+            mock.patch.object(refresh, "view_pr", return_value=pr),
+            mock.patch.object(refresh.repo_policy, "resolve", return_value=policy),
+            mock.patch.object(refresh, "head_repository_scope", return_value=scope),
+            mock.patch.object(refresh, "fetch_current_human_stop", return_value={}),
+            mock.patch.object(
+                refresh,
+                "find_open_prs_for_head_ref",
+                return_value=[f"{repo}#{PR_NUMBER}"],
+            ),
+            mock.patch.object(refresh, "base_requires_merge_queue", return_value=queue),
+        ):
+            refresh.validate_current_candidate(
+                repo, PR_NUMBER, HEAD, frozenset({"owner"})
+            )
+
+    def test_queue_base_is_refused(self) -> None:
+        for queue in (True, None):
+            with (
+                self.subTest(queue=queue),
+                self.assertRaisesRegex(RuntimeError, "merge queue"),
+            ):
+                self._validate(queue)
+
+    def test_base_without_queue_passes(self) -> None:
+        self._validate(False)
+
+
 class RepoPolicyReachesTheGate(unittest.TestCase):
     """`main` reads the target repository's policy; the flags are the fallback."""
 
