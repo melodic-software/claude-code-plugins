@@ -1075,8 +1075,8 @@ never the advisor's command flags, which drift against the surface their owner e
 
 What does not need it: deterministic gates (a script's pass/fail cannot be biased by context, so prefer
 one wherever the judgment is mechanical), and judgment over external input the context did not produce
-(triage of another author's issue or PR). Delegation cost is real; the rule gives unbiased judgment
-exactly where bias is structural, and nothing elsewhere.
+(triage of another author's issue or PR). Delegation cost is real; the rule buys unbiased judgment
+only where bias is structural.
 
 The deterministic-gate exemption is narrow: it reaches the mechanical judgment itself, where the gate's
 pass/fail *is* the verdict, and not a subjective self-review that merely runs ahead of a gate. A build/test/lint
