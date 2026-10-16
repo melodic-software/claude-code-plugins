@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.23.2] - 2026-10-16
+
+### Changed
+
+- `boris`: the formatting-hook tip runs the formatter once per batch from `PostToolBatch` and again at git `pre-commit`, in place of a per-edit `PostToolUse` hook. The vendored upstream baseline still matches upstream v8.16.0.
+
 ## [0.23.1] - 2026-10-14
 
 ### Changed
