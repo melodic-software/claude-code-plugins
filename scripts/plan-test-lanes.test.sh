@@ -201,8 +201,9 @@ is "$(key node_packages)" ".github/actions/resolve-config" && is "$(key node)" t
 check "a change to a package's later trigger file runs that package" $?
 
 plan -- .github/scripts/pr-unblock/report-escalation.sh
-[[ " $(key node_packages) " != *" .github/actions/resolve-config "* ]]
-check "a sibling of a trigger file does not run that package" $?
+rc=0
+[[ " $(key node_packages) " != *" .github/actions/resolve-config "* ]] || rc=1
+check "a sibling of a trigger file does not run that package" "$rc"
 
 plan -- .node-version
 is "$(key node_packages | wc -w | tr -d ' ')" 6
