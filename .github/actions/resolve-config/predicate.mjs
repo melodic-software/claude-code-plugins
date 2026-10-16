@@ -13,13 +13,16 @@ export class MissingFact extends Error {
   }
 }
 
-const WORK_CLASS = "work-class: ";
+// Any casing or spacing of `work-class:` names a class.
+const WORK_CLASS = /^\s*work-class\s*:\s*/i;
+const normalClass = (label) => `work-class: ${label.replace(WORK_CLASS, "").trim().toLowerCase()}`;
 
 // An issue carrying a work-class label outside `classes` is refused, even
 // beside a listed one. Otherwise it is admitted by a listed class or, with
 // `ratified`, by the owner's ratification marker (the `ratified` fact).
 function admits({ classes, ratified }, labels, facts) {
-  if (labels.some((label) => label.startsWith(WORK_CLASS) && !classes.includes(label))) {
+  const allowed = new Set(classes.map(normalClass));
+  if (labels.some((label) => WORK_CLASS.test(label) && !allowed.has(normalClass(label)))) {
     return false;
   }
   return classes.some((cls) => labels.includes(cls)) || (ratified === true && facts.ratified);
