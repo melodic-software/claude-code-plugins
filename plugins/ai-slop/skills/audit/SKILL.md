@@ -58,6 +58,12 @@ typography rules (em dashes, emoji, paste residue, citation tokens, tracking par
 blockquotes and double-quoted spans. A document that quotes a wording tell to document it, and a
 changelog that backticks the phrase a fix removed, stay marker-free by construction.
 
+A generated region, from a standalone `<!-- BEGIN GENERATED: ... -->` line through its
+`<!-- END GENERATED: ... -->` line, belongs to the script the marker names. Neither layer audits
+it and the fix flow never edits a byte inside it, rubric and voice rewrites included: that script
+regenerates the region, and its drift check fails on a hand edit. Fix wording there in the
+generator.
+
 ## Action router
 
 | Argument | Action |
