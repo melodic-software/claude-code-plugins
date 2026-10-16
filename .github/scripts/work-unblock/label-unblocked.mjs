@@ -3,7 +3,7 @@
 // it blocked that is now ready for the resolve-issue lane (the label starts
 // that lane once resolve-issue accepts App-added labels, a follow-up by
 // Automation Lanes): open, every blocker closed as completed by a listed
-// human or a bot (a pull request blocker: merged), no hold label,
+// human or a merge (a pull request blocker: merged), no hold label,
 // not already agent-ready, ratified by the owner's admission marker, and
 // admitted by resolve-issue's own admission rule (no work class outside its
 // classes). Every fact is read from the API now, never from the event
@@ -12,7 +12,7 @@
 // On `schedule` it sweeps instead: every issue closed in the last
 // LOOKBACK_HOURS goes through the same rules, so an issue a bot closed (a
 // pull request merge), which starts no close run, is still picked up. A
-// swept close counts only when a listed human or a bot made it. Overlapping
+// swept close counts only when a listed human or a merge made it. Overlapping
 // windows are harmless: an issue already labeled is left alone, and one whose
 // label a person removed is never labeled again.
 //
@@ -84,8 +84,8 @@ async function refusal({ github, repo, number, ratifiers, admission }) {
   // A blocker closed as not planned or duplicate never did the work, so only
   // a completed close counts; a pull request counts only once merged. Any
   // issue author can close their own issue as completed, so a blocking issue
-  // also needs a listed human or a bot as its closer, read fresh from the
-  // issue itself. A blocker in another repository cannot be read with this
+  // also needs a trusted close (trustedClose), read fresh from the issue
+  // itself. A blocker in another repository cannot be read with this
   // repository's token, so it never counts.
   const blockers = await paginate(github, `${base}/dependencies/blocked_by`);
   const closedHere = (blocker) =>
@@ -104,12 +104,12 @@ async function refusal({ github, repo, number, ratifiers, admission }) {
     }
   }
   for (const blocker of pending === 0 ? issues : []) {
-    if (!trustedCloser(await github("GET", `/repos/${repo}/issues/${blocker}`), ratifiers)) {
+    if (!(await trustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${blocker}`), ratifiers))) {
       pending += 1;
     }
   }
   if (pending > 0) {
-    return `${pending} blocker(s) not closed as completed by a listed human or a bot`;
+    return `${pending} blocker(s) not closed as completed by a listed human or a merge`;
   }
   // Removing the label by hand stops the lane; a person adds it to restart.
   const events = await paginate(github, `${base}/events`);
@@ -141,12 +141,47 @@ async function closedSince(github, repo, since) {
     .map((item) => Number(item.number));
 }
 
-// Whether a close counts: one made by a listed human or by a bot (a pull
-// request merge, the lanes App). An outside author closing their own issue
-// counts for nothing.
-function trustedCloser(closedIssue, ratifiers) {
+// Whether a close counts: (a) a listed human made it, matched by id; or (b) a
+// merge closed it. For a pull request merge GitHub records a `closed` event
+// with no commit_id, and the only link is a `cross-referenced` event from the
+// merged PR, merged a second or so before the close (issue 6176, closed when
+// cursor[bot] merged PR 6191; issue 7602, closed when a person merged PR
+// 7624). So a merged PR in this repository counts when it merged within
+// MERGE_WINDOW_MS before the close and its merger is the issue's closer; a
+// `closed` event carrying a commit (a push to the default branch) counts too.
+// Any other bot close, such as a workflow's GITHUB_TOKEN, counts for nothing,
+// as does an outside author closing their own issue.
+const MERGE_WINDOW_MS = 60_000;
+async function trustedClose(github, repo, closedIssue, ratifiers) {
   const closer = closedIssue?.closed_by;
-  return closer?.type === "Bot" || ratifiers.has(closer?.id);
+  if (ratifiers.has(closer?.id)) {
+    return true;
+  }
+  const closedTime = Date.parse(closedIssue?.closed_at);
+  if (!Number.isInteger(closer?.id) || !NUMBER.test(String(closedIssue.number)) || Number.isNaN(closedTime)) {
+    return false;
+  }
+  const near = (at, before) => {
+    const gap = closedTime - Date.parse(at);
+    return gap <= MERGE_WINDOW_MS && (before ? gap >= 0 : gap >= -MERGE_WINDOW_MS);
+  };
+  const timeline = await paginate(github, `/repos/${repo}/issues/${closedIssue.number}/timeline`);
+  if (timeline.some((event) => event.event === "closed" && /^[0-9a-f]{40}$/.test(String(event.commit_id)) && near(event.created_at, false))) {
+    return true;
+  }
+  const here = `/repos/${repo}`.toLowerCase();
+  for (const event of timeline) {
+    const source = event.event === "cross-referenced" ? event.source?.issue : undefined;
+    const mergedAt = source?.pull_request?.merged_at;
+    if (!mergedAt || !String(source.repository_url ?? "").toLowerCase().endsWith(here) || !NUMBER.test(String(source.number)) || !near(mergedAt, true)) {
+      continue;
+    }
+    const pull = await github("GET", `/repos/${repo}/pulls/${source.number}`);
+    if (pull.merged_at && pull.merged_by?.id === closer.id) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // Labels each issue `closed` blocked that is ready, each at most once per run.
@@ -157,8 +192,8 @@ async function labelUnblocked({ github, repo, closed, sweep, ratifiers, admissio
   for (const source of closed) {
     let blocked;
     try {
-      if (sweep && !trustedCloser(await github("GET", `/repos/${repo}/issues/${source}`), ratifiers)) {
-        console.log(`label-unblocked: #${source} was closed by neither a listed human nor a bot; skipped`);
+      if (sweep && !(await trustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${source}`), ratifiers))) {
+        console.log(`label-unblocked: #${source} was closed by neither a listed human nor a merge; skipped`);
         continue;
       }
       blocked = await paginate(github, `/repos/${repo}/issues/${source}/dependencies/blocking`);

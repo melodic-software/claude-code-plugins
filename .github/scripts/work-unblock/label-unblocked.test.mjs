@@ -29,9 +29,18 @@ const LANES_APP_ID = 337595936;
 const MARKER = "<!-- admission: admitted when unblocked, owner batch ratification 2026-10-16 -->";
 const STAMP = "2026-10-16T12:00:00Z";
 
+const CLOSED = "2026-10-16T11:30:00Z";
 const issue = (
   number,
-  { state = "open", reason = state === "closed" ? "completed" : null, labels = [], repo = REPO, closer = state === "closed" ? OWNER : null } = {},
+  {
+    state = "open",
+    reason = state === "closed" ? "completed" : null,
+    labels = [],
+    repo = REPO,
+    closer = state === "closed" ? OWNER : null,
+    at = state === "closed" ? CLOSED : null,
+    timeline = [],
+  } = {},
 ) => ({
   number,
   state,
@@ -39,7 +48,27 @@ const issue = (
   labels: labels.map((name) => ({ name })),
   repository_url: `${API}/repos/${repo}`,
   closed_by: closer,
+  closed_at: at,
+  timeline,
 });
+// The timeline of an issue a merged pull request closed, as GitHub records it
+// (issue 6176, closed by cursor[bot] merging PR 6191): the `closed` event has
+// no commit_id; a `cross-referenced` event from the merged PR, merged a second
+// before the close, is the only link.
+const shifted = (at, seconds) => new Date(Date.parse(at) + seconds * 1000).toISOString();
+// `pull` is what GET /pulls/{n} answers for the cross-referencing PR.
+const mergedPr = (at, by, { mergedAt = shifted(at, -1), repo = REPO, number = 900 } = {}) => [
+  {
+    event: "cross-referenced",
+    source: {
+      type: "issue",
+      issue: { number, repository_url: `${API}/repos/${repo}`, pull_request: { merged_at: mergedAt } },
+      pull: { number, merged_at: mergedAt, merged_by: by },
+    },
+  },
+  { event: "closed", commit_id: null, created_at: at },
+];
+const commitClose = (at) => [{ event: "closed", commit_id: "a".repeat(40), created_at: at }];
 const marker = (user = OWNER, body = MARKER) => ({ id: 9, body, user, created_at: STAMP, updated_at: STAMP });
 
 // The closed blocker, number 10, blocks the issues in `blocking`; `issues` is what a
@@ -79,16 +108,28 @@ function world({ blocking, blockingOf = {}, closedList = [], issues = {}, blocke
     if (method === "POST" && (match = route.match(/\/issues\/(\d+)\/labels$/))) {
       return [];
     }
-    if ((match = route.match(/\/issues\/(\d+)$/))) {
-      const found =
-        issues[match[1]] ??
-        closedList.find((item) => String(item.number) === match[1]) ??
-        Object.values(blockedBy)
-          .flat()
-          .find((item) => String(item.number) === match[1] && item.repository_url === `${API}/repos/${REPO}`);
-      if (found) {
-        return found;
+    const lookup = (number) =>
+      issues[number] ??
+      closedList.find((item) => String(item.number) === number) ??
+      Object.values(blockedBy)
+        .flat()
+        .find((item) => String(item.number) === number && item.repository_url === `${API}/repos/${REPO}`);
+    // A fixture's `timeline` field is what GET /issues/{n}/timeline answers.
+    if ((match = route.match(/\/issues\/(\d+)\/timeline$/))) {
+      return listed(lookup(match[1])?.timeline ?? []);
+    }
+    if ((match = route.match(/\/pulls\/(\d+)$/))) {
+      const fixtures = [...Object.values(issues), ...closedList, ...Object.values(blockedBy).flat()];
+      const pull = fixtures
+        .flatMap((item) => item.timeline ?? [])
+        .map((event) => event.source?.pull)
+        .find((candidate) => String(candidate?.number) === match[1]);
+      if (pull) {
+        return pull;
       }
+    }
+    if ((match = route.match(/\/issues\/(\d+)$/)) && lookup(match[1])) {
+      return lookup(match[1]);
     }
     throw new Error(`unexpected ${method} ${path}`);
   };
@@ -384,15 +425,13 @@ test("an event other than an issue closing changes nothing and fails red", async
 const NOW = Date.parse("2026-10-16T12:00:00Z");
 const SINCE = "2026-10-16T09:00:00.000Z";
 const LANES_BOT = { id: LANES_APP_ID, login: "melodic-automation-lanes[bot]", type: "Bot" };
-const closedAt = (number, at, closer = LANES_BOT) => ({
-  ...issue(number, { state: "closed" }),
-  closed_at: at,
-  closed_by: closer,
-});
+// A swept close; by default the lanes App merged a pull request that closed it.
+const closedAt = (number, at, closer = LANES_BOT, timeline = mergedPr(at, closer, { number: 900 + number })) =>
+  issue(number, { state: "closed", at, closer, timeline });
 const sweep = (args, extra = {}) =>
   main({
     now: NOW,
-    env: envFor({ schedule: "23 * * * *" }, {
+    env: envFor({ schedule: "47 * * * *" }, {
       GITHUB_EVENT_NAME: "schedule",
       ACTOR_ID: String(LANES_APP_ID),
       TRIGGERING_ACTOR: LANES_BOT.login,
@@ -467,17 +506,17 @@ test("the sweep reads an issue blocked by two swept closes once", async () => {
 });
 
 // The close path acts only on a close by a listed human; the sweep keeps that
-// and adds closes by a bot (a PR merge, the lanes App). An outside author who
-// closes their own blocking issue starts nothing.
-test("the sweep acts on a close by a listed human or a bot, never by anyone else", async () => {
-  for (const [closer, expected] of [
-    [{ ...OWNER, type: "User" }, [labeled(20)]],
-    [LANES_BOT, [labeled(20)]],
-    [{ id: 1234, login: "someone-else", type: "User" }, []],
-    [null, []],
+// and adds closes by a merged pull request. An outside author who closes their
+// own blocking issue starts nothing.
+test("the sweep acts on a close by a listed human or a merged pull request, never by anyone else", async () => {
+  for (const [closer, timeline, expected] of [
+    [{ ...OWNER, type: "User" }, [], [labeled(20)]],
+    [LANES_BOT, mergedPr(CLOSED, LANES_BOT, { number: 910 }), [labeled(20)]],
+    [{ id: 1234, login: "someone-else", type: "User" }, [], []],
+    [null, [], []],
   ]) {
     const { github, calls } = world({
-      closedList: [closedAt(10, "2026-10-16T11:30:00Z", closer)],
+      closedList: [closedAt(10, CLOSED, closer, timeline)],
       blocking: [issue(20)],
       issues: { 20: issue(20) },
       blockedBy: { 20: [issue(10, { state: "closed" })] },
@@ -556,16 +595,70 @@ test("a sibling blocker closed by an unlisted user keeps the issue unlabeled, on
   }
 });
 
-test("a sibling blocker closed by a listed human or a bot counts", async () => {
-  for (const closer of [{ ...SECOND, type: "User" }, LANES_BOT, { id: 41898282, login: "github-actions[bot]", type: "Bot" }]) {
-    const { github, calls } = world({
+test("a sibling blocker closed by a listed human counts", async () => {
+  const { github, calls } = world({
+    blocking: [issue(20)],
+    issues: { 20: issue(20) },
+    blockedBy: { 20: [issue(10, { state: "closed" }), issue(11, { state: "closed", closer: { ...SECOND, type: "User" } })] },
+    comments: { 20: [marker()] },
+  });
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
+});
+
+// A bot close counts only with merged-PR evidence; a GITHUB_TOKEN close from
+// any workflow (github-actions[bot]) or an App close with no merge does not.
+const siblingClosed = (closer, timeline) =>
+  world({
+    blocking: [issue(20)],
+    issues: { 20: issue(20) },
+    blockedBy: { 20: [issue(10, { state: "closed" }), issue(11, { state: "closed", closer, timeline })] },
+    comments: { 20: [marker()] },
+  });
+const ACTIONS_BOT = { id: 41898282, login: "github-actions[bot]", type: "Bot" };
+const MAINTAINER = { id: 3003, login: "unlisted-maintainer", type: "User" };
+
+test("a bot close with no merged-PR evidence does not count, as a sibling or as a swept close", async () => {
+  for (const closer of [LANES_BOT, ACTIONS_BOT]) {
+    const sibling = siblingClosed(closer, [{ event: "closed", commit_id: null, created_at: CLOSED }]);
+    assert.equal(await main({ env: envFor(), github: sibling.github }), 0);
+    assert.deepEqual(writes(sibling.calls), [], `sibling ${closer.login}`);
+    const swept = world({
+      closedList: [closedAt(10, CLOSED, closer, [])],
       blocking: [issue(20)],
       issues: { 20: issue(20) },
-      blockedBy: { 20: [issue(10, { state: "closed" }), issue(11, { state: "closed", closer })] },
+      blockedBy: { 20: [issue(10, { state: "closed" })] },
       comments: { 20: [marker()] },
     });
+    assert.equal(await sweep({ github: swept.github }), 0);
+    assert.deepEqual(writes(swept.calls), [], `swept ${closer.login}`);
+  }
+});
+
+test("a close by a merged pull request or a commit counts, whoever merged it", async () => {
+  for (const [closer, timeline] of [
+    [LANES_BOT, mergedPr(CLOSED, LANES_BOT)],
+    [{ id: 206951365, login: "cursor[bot]", type: "Bot" }, mergedPr(CLOSED, { id: 206951365, login: "cursor[bot]", type: "Bot" })],
+    [MAINTAINER, mergedPr(CLOSED, MAINTAINER)],
+    [MAINTAINER, commitClose(CLOSED)],
+  ]) {
+    const { github, calls } = siblingClosed(closer, timeline);
     assert.equal(await main({ env: envFor(), github }), 0);
-    assert.deepEqual(writes(calls), [labeled(20)], closer.login);
+    assert.deepEqual(writes(calls), [labeled(20)], `${closer.login} ${JSON.stringify(timeline)}`);
+  }
+});
+
+test("a merged PR does not count when it merged outside the minute before the close, in another repository, or by someone else", async () => {
+  for (const timeline of [
+    mergedPr(CLOSED, LANES_BOT, { mergedAt: shifted(CLOSED, -3600) }),
+    mergedPr(CLOSED, LANES_BOT, { mergedAt: shifted(CLOSED, 3600) }),
+    mergedPr(CLOSED, LANES_BOT, { repo: "melodic-software/other" }),
+    mergedPr(CLOSED, ACTIONS_BOT),
+    mergedPr(CLOSED, LANES_BOT, { mergedAt: null }),
+  ]) {
+    const { github, calls } = siblingClosed(LANES_BOT, timeline);
+    assert.equal(await main({ env: envFor(), github }), 0);
+    assert.deepEqual(writes(calls), [], JSON.stringify(timeline));
   }
 });
 

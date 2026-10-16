@@ -4,15 +4,19 @@
 
 `work-unblock.yml` also runs hourly (`schedule`, minute 47, from main only). A scheduled run lists
 the issues closed in the last three hours (`LOOKBACK_HOURS` in `label-unblocked.mjs`; pull
-requests and issues updated but closed earlier are left out), keeps those whose `closed_by` is a
-listed human or a bot, and applies the close path's rules to each issue they blocked, each once
-per run. It catches an issue closed by a bot sender, such as a pull request merge, which the
-close-triggered run skips. A scheduled run has no closer or re-runner to check; the kill switch
-and the `applies` gate still run first, and the token request names no issue. On both paths,
-every blocking issue now counts as done only when it was closed as completed and its `closed_by`,
-read fresh with one request per blocker, is a listed human or a bot; a blocking pull request counts
-only once merged, and a blocker in another repository never counts. An outside author closing
-their own blocking issue therefore unblocks nothing. Both paths also refuse an issue whose
+requests and issues updated but closed earlier are left out), keeps those with a trusted close,
+and applies the close path's rules to each issue they blocked, each once per run. It catches an
+issue closed by a bot sender, such as a pull request merge, which the close-triggered run skips. A
+scheduled run has no closer or re-runner to check; the kill switch and the `applies` gate still
+run first, and the token request names no issue. On both paths, every blocking issue now counts as
+done only when it was closed as completed with a trusted close, read fresh per blocker: its
+`closed_by` is a listed human (by id), or a merge closed it. A merge close is a `closed` timeline
+event carrying a commit, or a `cross-referenced` timeline event from a pull request in this
+repository merged within the minute before the close by the issue's `closed_by`. GitHub records a
+pull request merge close with no `commit_id`, so the cross-reference is the link. Any other bot
+close, such as a workflow's `GITHUB_TOKEN`, does not count. A blocking pull request counts only
+once merged, and a blocker in another repository never counts. An outside author closing their own
+blocking issue therefore unblocks nothing. Both paths also refuse an issue whose
 `agent-ready` label was ever removed, so removing it by hand stops the lane and overlapping windows
 never put it back; a person adds it again to restart. `version` stays 1.
 

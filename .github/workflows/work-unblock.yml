@@ -4,7 +4,7 @@ name: work-unblock
 #
 # When an issue closes, each issue it was blocking may now be ready to work.
 # This workflow labels `agent-ready` each blocked issue that is open, has every
-# blocker closed as completed by a listed human or a bot (a pull request
+# blocker closed as completed by a listed human or a merge (a pull request
 # blocker: merged), carries no hold label (needs-owner-decision,
 # status: needs-decision, needs-human) and no work class resolve-issue refuses,
 # and that the owner ratified with the admission marker comment the
@@ -24,8 +24,8 @@ name: work-unblock
 #
 # An issue a bot closes (the lanes App, or a PR merge a bot ran) starts no
 # close run; the broker would refuse that mint. The hourly sweep covers it: a
-# scheduled run applies the same rules to every issue a listed human or a bot
-# closed in the last three hours, so one missed run loses nothing.
+# scheduled run applies the same rules to every issue a listed human or a
+# merged pull request closed in the last three hours, so one missed run loses nothing.
 #
 # To stop the lane on one issue, remove its agent-ready label or add a hold
 # label: no later run labels an issue whose agent-ready label was removed.
