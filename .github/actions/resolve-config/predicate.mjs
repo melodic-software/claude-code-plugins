@@ -103,7 +103,7 @@ export function factsFor(predicate) {
   const facts = KEYS.filter(
     ([key, fact]) => predicate?.[key] !== undefined && fact !== "event",
   ).map(([, fact]) => fact);
-  if (predicate?.["labels-absent"] !== undefined) {
+  if (predicate?.["labels-absent"] !== undefined || predicate?.admission !== undefined) {
     facts.push("freshLabels");
   }
   if (predicate?.admission?.ratified === true) {

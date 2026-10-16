@@ -83,8 +83,9 @@ test("admission with ratified also admits a ratified issue with no class, never 
     "not-applicable",
   );
   assert.throws(() => applies({ admission }, { event: "labeled", labels: [] }), MissingFact);
-  assert.deepEqual(factsFor({ admission }).sort(), ["labels", "ratified"]);
-  assert.deepEqual(factsFor({ admission: { classes: ["work-class: read-only"] } }), ["labels"]);
+  // Labels are read now, so a held class added while the run waits still refuses it.
+  assert.deepEqual(factsFor({ admission }).sort(), ["freshLabels", "labels", "ratified"]);
+  assert.deepEqual(factsFor({ admission: { classes: ["work-class: read-only"] } }).sort(), ["freshLabels", "labels"]);
 });
 
 test("every listed key must match: a paths miss wins over another miss", () => {

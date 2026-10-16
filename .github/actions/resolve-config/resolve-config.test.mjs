@@ -671,7 +671,8 @@ const LANES_APP = { id: 337595936, login: "melodic-automation-lanes[bot]" };
 
 // An agent-ready issue with no work class under an admission predicate that
 // takes ratification, its comments served by the fake API.
-function ratifiedIssue(comments) {
+// `labelsNow` is what GET /issues/7 answers when the run reads the labels.
+function ratifiedIssue(comments, labelsNow = ["agent-ready"]) {
   const { env, base } = workspace();
   place(base, ".github/standards/trusted-actors/trusted-actors.json", join(HERE, "../check-trusted-trigger/fixtures/trusted-actors.json"));
   issueEvent(env, { number: 7, labels: [{ name: "agent-ready" }], updated_at: "2026-10-20T00:00:00Z" });
@@ -679,9 +680,21 @@ function ratifiedIssue(comments) {
   const { github, calls } = fakeGitHub({
     "/repos/melodic-software/claude-code-plugins/issues/7/comments": (path) =>
       new URL(path, "https://x").searchParams.get("page") === "1" ? comments : [],
+    "/repos/melodic-software/claude-code-plugins/issues/7": () => ({
+      number: 7,
+      labels: labelsNow.map((name) => ({ name })),
+    }),
   });
   return { env, github, calls };
 }
+
+test("a held class added after the label event refuses the issue", async () => {
+  const { env, github } = ratifiedIssue([comment(OWNER)], ["agent-ready", "work-class: scoped"]);
+  assert.equal(await main({ env, github }), 0);
+  const outputs = readOutputs(env.GITHUB_OUTPUT);
+  assert.equal(outputs.applies, "false");
+  assert.equal(outputs["skip-reason"], "not-applicable");
+});
 
 const POSTED = "2026-10-16T12:00:00Z";
 const comment = (user, body = MARKER, app = null, updated = POSTED) => ({
@@ -706,7 +719,10 @@ test("an issue the owner ratified with the admission marker is admitted with no 
   const { env, github, calls } = ratifiedIssue([comment(OWNER)]);
   assert.equal(await main({ env, github }), 0);
   assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "true");
-  assert.deepEqual(calls, ["GET /repos/melodic-software/claude-code-plugins/issues/7/comments?per_page=100&page=1"]);
+  assert.deepEqual(calls, [
+    "GET /repos/melodic-software/claude-code-plugins/issues/7/comments?per_page=100&page=1",
+    "GET /repos/melodic-software/claude-code-plugins/issues/7",
+  ]);
 });
 
 // D33: a lane never admits work on its own, so the lanes App cannot ratify.
@@ -750,7 +766,8 @@ test("an owner comment that only quotes or misstates the marker admits nothing",
 test("an admission predicate that takes ratification fails red off an issues event", async (t) => {
   const { env } = workspace();
   withPredicate(env, { admission: { classes: ["work-class: read-only"], ratified: true } });
-  await assertFailsRed(t, env, /needs ratified/);
+  // The PR's labels are served, so only the ratification is left undecided.
+  await assertFailsRed(t, env, /needs ratified/, fakeGitHub(pullRoutes({ changedFiles: 0, files: [] })).github);
 });
 
 test("a work-classes predicate fails red: no run supplies work classes yet", async (t) => {
