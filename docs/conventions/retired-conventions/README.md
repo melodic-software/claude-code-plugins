@@ -143,7 +143,9 @@ bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --help
 ```
 
 `--root` follows the cascade contract's repo-root anchoring rule: it defaults to
-`${CLAUDE_PROJECT_DIR}`, else the git toplevel, else the current directory.
+`${CLAUDE_PROJECT_DIR}`, else the git toplevel, else the current directory. When the root is a
+linked worktree, a `.git/` path resolves under `git rev-parse --git-common-dir`, where git keeps
+the files every worktree shares, such as hooks: `.git/hooks/x` is `<git-common-dir>/hooks/x`.
 
 **Detection output.** One TSV row per leftover on stdout, a human summary on stderr:
 
@@ -163,7 +165,7 @@ id<TAB>kind<TAB>path<TAB>action<TAB>status<TAB>note
 
 | Exit | Meaning |
 |---|---|
-| 0 | Cleaned. `delete` unlinks the file (only if `content_match`, when declared, still matches) or removes the directory (only after re-resolving that it is inside the root and is not the root itself); `remove-line` rewrites the file keeping every non-matching line byte-for-byte (and, when `heading` is set, only removing matches inside that heading's section body), via a temp file in the same directory and a rename, so a CRLF file stays CRLF. |
+| 0 | Cleaned. `delete` unlinks the file (only if `content_match`, when declared, still matches) or removes the directory (only after re-resolving that it is inside the root, or the common git dir for a linked worktree's `.git/` path, and is not that directory itself); `remove-line` rewrites the file keeping every non-matching line byte-for-byte (and, when `heading` is set, only removing matches inside that heading's section body), via a temp file in the same directory and a rename, so a CRLF file stays CRLF. |
 | 1 | Nothing present to clean. |
 | 2 | Usage, invalid record, unknown id, a `migrate` record without `--i-migrated`, or a failed remove or rename. **On Windows a failed remove is usually a locked file**: nothing is left half-done; close the file and re-run. |
 
@@ -213,7 +215,7 @@ final re-run is the evidence-bearing readback the setup contract already require
 (`migrate` FAIL, `delete`/`remove-line` WARN, `report-only` INFO) is the same one the fleet sweep
 uses, so a consumer sees one severity for one record wherever it is reported.
 
-**Why `migrate` is FAIL and the others WARN.** A `delete` or `remove-line` leftover is inert: the
+**Why `migrate` is FAIL and the others WARN.** A `delete` or `remove-line` leftover is inert because the
 plugin no longer reads it, and the only cost is clutter. A `migrate` leftover is the dual-read
 window: the plugin is still reading the retired file as authority, so the consumer's effective
 configuration depends on a file that the plugin's docs no longer describe. That is a live divergence,
@@ -237,8 +239,8 @@ never offer.
 ## The runtime fleet sweep
 
 Detection inside a plugin's own setup covers a consumer who re-runs that setup. It does not cover a
-consumer who updated the plugin and never re-ran setup, the documented death spiral of a leftover
-that is never re-checked. So `harness-config`'s `audit-pass` skill carries one lane that sweeps
+consumer who updated the plugin and never re-ran setup, and that consumer's leftover is never
+re-checked. So `harness-config`'s `audit-pass` skill carries one lane that sweeps
 **every installed plugin's** manifest against the target repository at runtime: it enumerates
 `retirements.yaml` files from installed plugin roots, runs harness-config's own canonical helper copy
 against each, and emits one finding per active row keyed by record id, `report-only` rows as INFO,
@@ -299,6 +301,7 @@ the row states the manifest as it exists on `main`.
 | `source-control` | 1 | 2026-07-23 |
 | `plugin-quality` | 2 | 2026-09-01 |
 | `docs-naming` | 2 | 2026-10-01 |
+| `guardrails` | 4 | 2026-10-16 |
 
 Row shape for a plugin adding itself: `` `<plugin>` `` \| count \| `YYYY-MM-DD`. The convention-doc
 expression-form pilot was `plugin-quality`'s `.claude/plugin-quality.md` (ADR 0018), retired by that
