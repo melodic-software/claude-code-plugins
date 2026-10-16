@@ -7,9 +7,10 @@ slot's `applies-when` and failed on `resolve-conflicts`' `mergeable` predicate w
 `feedback-dispatch.mjs` finds the PR and its head first, then resolves only the `address-feedback`
 slot for them, and dispatches only when the lane, `address-feedback` and `publish-feedback` are
 enabled and `address-feedback` applies. A disabled slot no longer counts as present, and a lane with
-no `address-feedback` slot still skips. resolve-config's `resolve-config.mjs` exports
-`resolveFromBase`, which returns the resolved config or throws the resolver's refusal; `main`
-wraps it.
+no `address-feedback` slot still skips; a config the resolver refuses fails the run. resolve-config's
+`resolve-config.mjs` exports `resolveFromBase`, which returns the resolved config or throws the
+resolver's refusal (with `absentAsNull`, null for a valid config whose lane lacks the activity);
+`main` wraps it. `resolve.mjs` exports `laneHasActivity`.
 
 ## 1.17.0 - 2026-10-15
 

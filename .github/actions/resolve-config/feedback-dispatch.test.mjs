@@ -161,6 +161,13 @@ test("a lane with no address-feedback slot skips without failing the run", async
   assert.match(lines.at(-1), /no enabled address-feedback and publish-feedback slots/);
 });
 
+test("a config the resolver refuses fails the run even when the lane has no address-feedback slot", async () => {
+  // The lane names an activity the config never defines, and has no
+  // address-feedback slot: the refusal is not an absent slot.
+  const text = config("      - activity: ghost").replace("        needs: [address-feedback]\n", "");
+  await assert.rejects(run(null, text), (error) => error.name === "Rejection" && error.code === "undefined-activity");
+});
+
 test("this repository's own config resolves without failing the run", async () => {
   const { dispatched, lines } = await run(null, readFileSync(join(ROOT, "docs/conventions/pr-pipeline.yaml"), "utf8"));
   assert.ok(dispatched.length <= 1);

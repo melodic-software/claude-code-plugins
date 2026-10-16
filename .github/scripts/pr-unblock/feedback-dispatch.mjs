@@ -298,36 +298,30 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
 // head, on a workflow_dispatch event. Naming the activity keeps another slot's
 // predicate (resolve-conflicts' mergeable) from needing facts this run lacks.
 // The workflow installs resolve-config's dependencies before this runs.
-// A lane with no address-feedback slot resolves to null; any other refusal
-// throws.
+// A valid config whose lane has no address-feedback slot resolves to null;
+// every refusal, a malformed config included, throws.
 export async function resolveFeedbackSlot({ number, head, env, github, settings = DEFAULTS }) {
   const { resolveFromBase } = await import(
     new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
   );
-  try {
-    return await resolveFromBase({
-      env: {
-        LANE: settings.lane,
-        ACTIVITY: settings.activity,
-        BASE_PATH: env.BASE_PATH || ".base",
-        EVENT_NAME: "workflow_dispatch",
-        PR_NUMBER: String(number),
-        HEAD_SHA: head,
-        // Only reading: the dispatched write runner performs the prepare step.
-        PREPARE_SUPPORTED: "true",
-        GITHUB_TOKEN: env.GITHUB_TOKEN,
-        GITHUB_API_URL: env.GITHUB_API_URL,
-        REPOSITORY: env.GITHUB_REPOSITORY,
-      },
-      event: {},
-      github,
-    });
-  } catch (error) {
-    if (error?.name === "Rejection" && error.code === "undefined-activity") {
-      return null;
-    }
-    throw error;
-  }
+  return resolveFromBase({
+    absentAsNull: true,
+    env: {
+      LANE: settings.lane,
+      ACTIVITY: settings.activity,
+      BASE_PATH: env.BASE_PATH || ".base",
+      EVENT_NAME: "workflow_dispatch",
+      PR_NUMBER: String(number),
+      HEAD_SHA: head,
+      // Only reading: the dispatched write runner performs the prepare step.
+      PREPARE_SUPPORTED: "true",
+      GITHUB_TOKEN: env.GITHUB_TOKEN,
+      GITHUB_API_URL: env.GITHUB_API_URL,
+      REPOSITORY: env.GITHUB_REPOSITORY,
+    },
+    event: {},
+    github,
+  });
 }
 
 // Writes run-id, the dispatched run, as a step output; the workflow records
