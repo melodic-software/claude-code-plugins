@@ -8,7 +8,7 @@
 # "teh" -> "the" is typos' own built-in correction, the fixture every case uses.
 # test-scope: plugins/typos-format/git-hooks/entries.json plugins/typos-format/lib/git-hooks/check-lib.sh plugins/typos-format/lib/git-hooks/install.mjs
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE CLAUDECODE AI_AGENT
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK="$HERE/typos-check.sh"
@@ -131,14 +131,14 @@ expect "verify reports ok after the install" "ok	typos-check" "$(node "$INSTALL"
 expect "the bundled config is installed beside the copy" yes \
   "$(cmp -s "$PLUGIN/config/default-typos.toml" "$REPO/.git/hooks/typos-format/default-typos.toml" && echo yes)"
 
-# The bundled config ignores SHA-shaped hex, as the per-edit hook does: typos
+# The bundled config ignores SHA-shaped hex (its extend-ignore-re): typos
 # alone reads "1aded9f" as the misspelling "aded".
 printf 'an old teh line\nfixed in 1aded9f\n' >"$REPO/notes.md"
 git -C "$REPO" add notes.md
 expect "control: typos without the bundled config flags the SHA" 2 \
   "$(git -C "$REPO" show :notes.md | typos --format brief - >/dev/null 2>&1; echo $?)"
 err="$(git -C "$REPO" commit -q -m sha 2>&1)"
-expect "installed copy: a SHA on an added line passes, as with the per-edit hook" "0|" "$?|$err"
+expect "installed copy: the bundled config lets a SHA on an added line pass" "0|" "$?|$err"
 printf 'an old teh line\nfixed in 1aded9f\nagain 1aded9f\n' >"$REPO/notes.md"
 git -C "$REPO" add notes.md
 expect "plugin source: the script finds config/default-typos.toml too" "0|" "$(check "$REPO")"
