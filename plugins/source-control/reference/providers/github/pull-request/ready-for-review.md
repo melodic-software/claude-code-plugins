@@ -84,14 +84,16 @@ gh pr diff "$PR_NUMBER"
 
 ## Record a skipped step in the body
 
-Write the body to a file, add each `skipped by <login> for this run: <reason>` line under its
-`## Verification` heading, and write it back:
+`ready-skip-body.sh` writes the marked block (see its header). One `--step` per step `--skip`
+removed; the new body is built in full before the write, so a failed read or build never
+blanks the body:
 
 ```bash
-BODY_FILE=$(mktemp)
-gh pr view "$PR_NUMBER" --json body -q '.body' >"$BODY_FILE"
-# add the lines under ## Verification, then:
-gh pr edit "$PR_NUMBER" --body-file "$BODY_FILE"
+LOGIN=$(gh api user --jq .login) || exit 1
+BODY=$(gh pr view "$PR_NUMBER" --json body -q '.body') || exit 1
+NEW_BODY=$(printf '%s\n' "$BODY" |
+  bash "<skill-dir>/scripts/ready-skip-body.sh" --login "$LOGIN" --reason "$REASON" --step code-review) || exit 1
+printf '%s' "$NEW_BODY" | gh pr edit "$PR_NUMBER" --body-file -
 ```
 
 ## Flip to ready

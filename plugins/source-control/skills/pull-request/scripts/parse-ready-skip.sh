@@ -50,6 +50,7 @@ done
 reason="${reason//[[:cntrl:]]/ }"
 [[ "$reason" =~ [^[:space:]] ]] || die 2 "--reason is empty"
 
+[[ "$skip" != *[[:cntrl:]]* ]] || die 2 "--skip holds a control character"
 given=" "
 IFS=, read -r -a items <<<"$skip,"
 ((${#items[@]})) || die 2 "--skip names no step"

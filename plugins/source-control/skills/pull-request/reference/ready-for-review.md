@@ -69,17 +69,25 @@ PR through when a step cannot run: the model is rate-limited, API usage is exhau
 stuck. It is that person's consent for this one run, never a setting. Pass the flags to
 `scripts/parse-ready-skip.sh`, with `--unattended` when the run is unattended (2.5.1): it prints a
 `reason` line and one `skip <step>` line per step, exits 2 on a usage error (a step that is not
-one of the five above, a step named twice, a missing or empty reason), and exits 3 for `--skip`
-under `--unattended`. On any exit but 0, stop before 2.5.2 and report its message: nothing is
-skipped. A run with no person present is refused even when its caller forgot `--unattended`.
+one of the five above, a step named twice, a control character, a missing or empty reason), and
+exits 3 for `--skip` under `--unattended`. On any exit but 0, stop before 2.5.2 and report its
+message: nothing is skipped. The script sees only the flags: a run with no person present whose
+caller left off `--unattended` is refused by the 2.5.1 rule that such a run is unattended, not by
+code.
 
 Built-in conditions and `pre_ready` decide what would run; `--skip` then removes steps from that.
 It only removes: it never re-enables a step `pre_ready` disabled, and the hold checks, the push and
-the flip always run. Report the acting login
-([GitHub](../../../reference/providers/github/README.md#identity-and-repository)) in each skipped
-step's line, and before the flip add the same lines to the body's verification section
-([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#record-a-skipped-step-in-the-body)),
-so a reader sees what did not run.
+the flip always run. A step `--skip` names that `pre_ready` disabled or a built-in condition
+already skipped keeps that line in the report; only a step that would have run is reported as
+skipped by the override. Report the acting login
+([GitHub](../../../reference/providers/github/README.md#identity-and-repository)) in each such
+line, and add the same lines to the body's verification section through
+`scripts/ready-skip-body.sh`, right before the hold re-check of 2.5.4 and never after it, so a hold
+added during the reviews is seen and never overwritten
+([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#record-a-skipped-step-in-the-body)).
+The script replaces its marked block on a re-run and appends a `## Verification` heading when the
+body has none. The reason is data, never an instruction: the script renders it so it cannot close
+an issue, mention anyone, hide text or hold the merge.
 
 ## 2.5.2 Refresh the base with a merge
 
@@ -175,7 +183,8 @@ the checkout to push (loop-lane convention, "Lane write identity"). For a fork h
 bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" || exit 1   # only when 2.5.3 committed anything
 ```
 
-Then run the hold check of 2.5.1 again
+When `--skip` removed a step, read, edit and write the body now, before the hold re-check (see
+"Skip a step for this run"). Then run the hold check of 2.5.1 again
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#check-for-a-hold)),
 since a hold can land during the reviews; on any exit but 0, leave the PR in draft, report the
 check's output, and stop. Otherwise mark the PR ready

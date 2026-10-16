@@ -50,6 +50,10 @@ check_usage "a step listed twice" --skip verify,verify --reason x
 check_usage "an empty item in the list" --skip code-review, --reason x
 check_usage "an empty list" --skip "" --reason x
 check_usage "a space after a comma" --skip "code-review, verify" --reason x
+check_usage "a newline after a known step" --skip $'code-review\nlint' --reason x
+check_usage "a trailing newline" --skip $'code-review\n' --reason x
+check_usage "a tab inside a step name" --skip $'code-review\t' --reason x
+check_usage "a carriage return inside a step name" --skip $'verify\r' --reason x
 check_usage "--skip with no reason" --skip code-review
 check_usage "an empty reason" --skip code-review --reason ""
 check_usage "a whitespace-only reason" --skip code-review --reason $'  \t'
