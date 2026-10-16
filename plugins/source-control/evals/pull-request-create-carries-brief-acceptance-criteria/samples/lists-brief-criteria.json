@@ -35,6 +35,18 @@
         }
       ],
       "why": "capitalized heading, checkbox list, section ends the body"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Summary\n\nFix.\n\n## Acceptance criteria\n\n- Byte order mark at the start of the file\n- Quoting per RFC 4180\n- Header row written when there are no rows\n"
+          }
+        }
+      ],
+      "why": "bullets that start with a capital letter"
     }
   ],
   "fail": [
