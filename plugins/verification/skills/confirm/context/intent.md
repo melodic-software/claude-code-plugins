@@ -8,8 +8,8 @@ disk comes first.
 1. **The PLAN.md Brief.** Skip this rung in a pipeline lane (`TRUSTED_CONTEXT_FILE` set and
    non-empty): the memory slice is never committed, so a lane checkout holds no plan of its own.
    Otherwise resolve `<memory_dir>` by the lifecycle artifact protocol
-   ([`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md)
-   § Ownership and placement): `.work/` unless the project's instructions declare another root.
+   ([`reference/artifact-protocol.md`](../../../reference/artifact-protocol.md) at the plugin
+   root, § Ownership and placement): `.work/` unless the project's instructions declare another root.
    Then pick the slice:
    - a PLAN.md path or topic slug the caller named (arguments or handoff) wins;
    - else `<memory_dir>/<topic-slug>/PLAN.md`, the slug derived from the current branch name with
