@@ -276,7 +276,7 @@ out of scope until such a signal exists.
   write forms; the operator notice (once per session) points here instead.
 - **`block-hook-bypass` block message and operator levers.** stderr is what the
   blocked agent reads, so it carries only what the agent can act on: the
-  verdict, the Write/Edit remedy, the route for an agent with neither tool (a
+  verdict, the Write/Edit remedy, the route for an agent with neither tool whose instructions allow a write (a
   literal path under an exempt root, unquoted, or single-quoted on PowerShell),
   and a remedy for when Write or
   Edit is refused too ("stop and tell the user"). On the `cat`, `echo`/`printf`

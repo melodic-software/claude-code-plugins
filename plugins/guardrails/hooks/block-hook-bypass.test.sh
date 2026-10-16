@@ -1515,7 +1515,7 @@ run_pwsh "PS: module-qualified Write-Error 2> file (blocked)" \
 # act on and nothing else. Every assertion here reads stderr ALONE (GUARD_ERR):
 # a 2>&1 capture also catches the stdout systemMessage and would pass on text
 # the agent never receives.
-MSG_USE=". Use the Write or Edit tool; without either, write to a literal path under an exempt root: unquoted, or single-quoted on PowerShell."
+MSG_USE=". Use the Write or Edit tool; without either, and only if your instructions allow a write, write to a literal path under an exempt root: unquoted, or single-quoted on PowerShell."
 MSG_REMEDY_SCRATCH="If Write or Edit is refused for this path, stop and tell the user; the user can add a root to block_hook_bypass_scratch_roots."
 MSG_REMEDY_SWITCHES="If Write or Edit is refused for this path, stop and tell the user."
 MSG_PROJ=/srv/repo
