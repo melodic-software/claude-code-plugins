@@ -159,22 +159,23 @@ where `$` and backticks expand. `<path>` below stands for a path quoted that way
 1. **Base.** `<base>` is the argument when given, else `origin/HEAD`. Resolve
    `MB=$(git merge-base "<base>" HEAD)` and diff from `MB` in every step below. When it does not
    resolve, say so and stop; never judge the whole tree by default.
-2. **Blocks.** For each test file in `git diff -z --name-only --diff-filter=AM "$MB"` (read
-   NUL-delimited) plus untracked,
-   not-ignored files the adapters claim, list its blocks with
-   `cant-fail-scan.sh --file <path> --blocks`, adding `--lines <list>` built from
-   `git diff -U0 "$MB" -- <path>` hunks for a modified file (a new file: every block). A file
+2. **Blocks.** For each test file in `git diff -z --name-only --diff-filter=AMR "$MB"` (read
+   NUL-delimited, renamed files included) plus untracked, not-ignored files the adapters claim,
+   list its blocks with `cant-fail-scan.sh --file <path> --blocks`, adding `--lines <list>` built
+   from `git diff -U0 "$MB" -- <path>` hunks for a modified file (a new or renamed file: every
+   block). A file
    the scanner claims with no blocks (a bash test script) is one whole-file block, its changed
    lines given as a hint. No block in scope: report `judge: no changed test blocks` and stop.
 3. **Writers.** The models that wrote a file's tests are this session's model, when this session
-   changed the file, plus every model named in a `Co-Authored-By` trailer of a commit touching it
+   changed the file, the model of every subagent this session dispatched that changed it, plus
+   every model named in a `Co-Authored-By` trailer of a commit touching it
    since the base: `git log --format='%(trailers:key=Co-Authored-By,valueonly)' "$MB"..HEAD --
    <path>`. Map each to its class (`fable`, `opus`, `sonnet`, `haiku`). When neither source names
    a model, judge with the fallback class `opus` and say in the report that the writer is unknown.
 4. **Judge.** Dispatch the `testing:test-judge` agent, never `general-purpose`, once per file,
    with `effort: medium` (the calibrated default in `evals/judge-calibration/calibration.md`) and a
-   per-call `model` whose class is not among the file's writers: `sonnet` by default, `opus` when
-   a Sonnet model wrote it. When every class you could pick wrote it, report its blocks UNKNOWN,
+   per-call `model` whose class is in none of the file's writers: the first of `sonnet` and `opus`
+   that no writer has. When both are writers, report its blocks UNKNOWN,
    "no independent judge class". Run at most 4 at once, in waves. With someone present, state the
    file count first, and above 10 files ask before dispatching. The dispatch prompt is
    `${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-prompt.md`, then section 1 of
