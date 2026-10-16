@@ -137,17 +137,22 @@ Existing adopters conform by carrying the rule their over-fire needed:
 The harness `if` filter cannot express "gitignored", so it narrows spawn cost only and
 never stands in for the gate.
 
+A row whose Verdict ends "reporting moves to pre-commit" reports per edit today; under
+[check-placement](../check-placement/README.md) that reporting moves to a `pre-commit` entry on
+changed lines, and rewrites stay in session from one `PostToolBatch` row while within the
+per-batch ceiling.
+
 | Hook | Acts on the file by | Gate | Verdict |
 |---|---|---|---|
-| `markdown-format` | rewriting (`markdownlint-cli2 --fix`) and reporting | shared, `markdown_format_lint_gitignored` | conforms (#4671); local `file_is_gitignored` removed |
-| `bash-format` | rewriting (shfmt) and reporting (ShellCheck) | shared, `bash_format_lint_gitignored` | conforms (#4671) |
-| `biome-format` | rewriting and reporting (Biome) | shared, `biome_format_lint_gitignored` | conforms (#4671) |
+| `markdown-format` | rewriting (`markdownlint-cli2 --fix`) and reporting | shared, `markdown_format_lint_gitignored` | conforms (#4671); local `file_is_gitignored` removed; reporting moves to pre-commit |
+| `bash-format` | rewriting (shfmt) and reporting (ShellCheck) | shared, `bash_format_lint_gitignored` | conforms (#4671); reporting moves to pre-commit |
+| `biome-format` | rewriting and reporting (Biome) | shared, `biome_format_lint_gitignored` | conforms (#4671); reporting moves to pre-commit |
 | `eol-normalizer` | rewriting line endings | shared, `eol_normalizer_lint_gitignored`, checked only when a rewrite is planned | conforms (#4671); registers with no `if` filter because its matcher is every write |
 | `go-format` | rewriting (goimports) | shared, `go_format_lint_gitignored` | conforms (#4671) |
-| `powershell-format` | rewriting (Invoke-Formatter) and reporting (PSScriptAnalyzer) | shared, `powershell_format_lint_gitignored` | conforms (#4671) |
-| `ruff-format` | rewriting and reporting (Ruff) | shared, `ruff_format_lint_gitignored` | conforms (#4671) |
-| `typos-format` | reporting, and rewriting when write mode is on | shared, `typos_format_lint_gitignored` | conforms (#4671); registers with no `if` filter because typos is language-agnostic |
-| `actionlint` (`actionlint-check`) | reporting only | shared, `actionlint_lint_gitignored`; `hook::begin --no-membership`, `if`-bounded to `**/.github/workflows/*.y*ml` | conforms (#4671); lowest exposure, since it never rewrites and an ignored workflow file is rare |
+| `powershell-format` | rewriting (Invoke-Formatter) and reporting (PSScriptAnalyzer) | shared, `powershell_format_lint_gitignored` | conforms (#4671); reporting moves to pre-commit |
+| `ruff-format` | rewriting and reporting (Ruff) | shared, `ruff_format_lint_gitignored` | conforms (#4671); reporting moves to pre-commit |
+| `typos-format` | reporting, and rewriting when write mode is on | shared, `typos_format_lint_gitignored` | conforms (#4671); registers with no `if` filter because typos is language-agnostic; reporting moves to pre-commit |
+| `actionlint` (`actionlint-check`) | reporting only | shared, `actionlint_lint_gitignored`; `hook::begin --no-membership`, `if`-bounded to `**/.github/workflows/*.y*ml` | conforms (#4671); lowest exposure, since it never rewrites and an ignored workflow file is rare; reporting moves to pre-commit |
 
 The helpers live in `lib/hook-utils.sh`. The six hooks that use the snapshot and disclosure guard
 (`bash-format`, `biome-format`, `eol-normalizer`, `go-format`, `powershell-format`, `ruff-format`) also
