@@ -86,6 +86,7 @@ if [[ -z "$NODE_BIN" ]]; then
   fail "probe-gate: node is not on PATH, and every hook row launches through node"
 else
   PG_WORK="$(mktemp -d)"
+  trap 'rm -rf "$PG_WORK"' EXIT
   mkdir -p "$PG_WORK/sysbin" "$PG_WORK/cwd"
   for dir in /usr/local/bin /usr/bin /bin; do
     for exe in "$dir"/*; do
