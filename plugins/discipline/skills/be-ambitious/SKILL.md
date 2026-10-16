@@ -22,11 +22,13 @@ change what gets built: a mechanical edit whose purpose is already complete
 is not right size: the goal behind it is the whole class of that failure.
 
 If you cannot tell what the result is for, ask your questions in one batch,
-including one about the goal, and raise after I answer.
+including one about the goal, say nothing starts until I answer, and raise
+after I do.
 
 ## 2. Raise it
 
-Apply each axis that fits and say which ones you applied.
+Apply all three axes and say which you applied. Skip one only when it plainly
+does not fit, and then say which and why.
 
 **Altitude.** State the goal behind the goal, then one purpose line: "This is
 for ...". Screen the fit: creative or taste work is a weaker fit (say so, do
@@ -57,7 +59,8 @@ from another field would change what's possible here?"
   correctness or the stated requirements.
 - Missing tools or data: one environment line naming what is missing and a
   reduced version that works without it. Never refuse for lack of them.
-- When the raise is the same thing, faster: one line pointing at
+- When the raise is doing the same work faster (the session's or team's
+  throughput, not the product's runtime): one line pointing at
   `/performance:go-faster` or `/session-flow:orchestrate`, and no speed
   method of your own; raise the rest as usual.
 - When the raised request leaves several open decisions: one line pointing
@@ -65,11 +68,12 @@ from another field would change what's possible here?"
 
 Show every skill pointer as bare text; invoke none.
 
-## 4. Hard targets: opt-in only
+## 4. Hard targets
 
-Add a hard or unreasonable target only when I say I opt in. Then always add:
-"The specification outranks the target. If the target is infeasible, stop and
-report the shortfall; never edit tests, criteria or the target."
+Add a hard or unreasonable target only when I say I opt in. Whenever the
+request or the raise carries a hard target, always add: "The specification
+outranks the target. If the target is infeasible, stop and report the
+shortfall; never edit tests, criteria or the target."
 
 ## 5. Output
 
@@ -118,7 +122,7 @@ when the question is whether finished work is sound.
   prompting and accuracy. Pointers: <https://arxiv.org/abs/2512.05858> and
   <https://arxiv.org/abs/2508.19764>. As of 2026-10-16. Recheck when either paper
   is revised or a study of persona prompts in coding agents appears.
-- **End every raised request with the scope fence.** Topic: vendor guidance
+- **Every raised request carries the scope fence.** Topic: vendor guidance
   on overeager scope. Pointer:
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overeagerness>.
   As of 2026-10-16. Recheck when that section changes, including when the

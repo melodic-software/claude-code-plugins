@@ -5,7 +5,7 @@
       "id": 1,
       "name": "nostalgic-personal-site",
       "prompt": "/discipline:be-ambitious Make me a personal website with a nostalgic late-90s feel.",
-      "expected_output": "Shows the original request beside a raised version and names which of Altitude, Depth and Range it applied. The raised version states the goal behind the site and one purpose line, carries the deeper-version pass (expert additions, raw material, named methods, an outside check), turns nouns into verbs, offers a reduced version when assets or tools are missing, and ends with the scope fence. Nothing is built until the user accepts.",
+      "expected_output": "Shows the original request beside a raised version and names which of Altitude, Depth and Range it applied. The raised version states the goal behind the site and one purpose line, carries the deeper-version pass (expert additions, raw material, named methods, an outside check), turns nouns into verbs, offers a reduced version when assets or tools are missing, and carries the scope fence. Nothing is built until the user accepts.",
       "files": [],
       "expectations": [
         "Shows the original request and the raised version side by side",
@@ -17,7 +17,7 @@
         "States no hard or unreasonable target, since the user did not opt into one",
         "Shows any pointer to another skill as bare /plugin:skill text and invokes no other skill",
         "Offers a reduced version when tools or data are missing instead of refusing",
-        "Ends with 'deliver what was accepted, at that scope' and 'the project's own instructions still govern'",
+        "Carries the scope fence lines 'deliver what was accepted, at that scope' and 'the project's own instructions still govern'",
         "Creates no file and runs no command before the user accepts"
       ]
     },
@@ -33,7 +33,6 @@
         "Carries the line 'What tool from another field would change what's possible here?'",
         "Proposes any specialist crew only as a hand-off to /planning:plan, never spawning one",
         "When the raised request leaves several open decisions, names /planning:interview as the next step",
-        "Treats the user's acceptance reply as the go-ahead and asks for no second confirmation",
         "Executes nothing until the user accepts"
       ]
     },
@@ -47,7 +46,7 @@
         "Raises past the single reported crash to the goal behind it",
         "Names an executable outside check before a fresh-context reviewer",
         "Points at /discipline:scrutinize-dont-coast rather than restating it",
-        "Ends with the scope fence lines"
+        "Carries the scope fence lines"
       ]
     },
     {
@@ -72,7 +71,7 @@
         "Keeps the hard target only because the user opted in",
         "States that the specification outranks the target",
         "Carries the abort line: if the target is infeasible, stop and report; never edit tests, criteria or the target",
-        "Ends with the scope fence lines"
+        "Carries the scope fence lines"
       ]
     }
   ]
