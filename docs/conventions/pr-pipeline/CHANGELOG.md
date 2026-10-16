@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 1.19.1 - 2026-10-16
+## 1.19.2 - 2026-10-16
 
 `work-unblock.yml` also runs hourly (`schedule`, minute 47, from main only). A scheduled run lists
 the issues closed in the last three hours (`LOOKBACK_HOURS` in `label-unblocked.mjs`; pull
@@ -19,6 +19,14 @@ author closing their own blocking issue therefore unblocks nothing. Both paths a
 issue whose `agent-ready` label was ever removed, so removing it by hand stops the lane and
 overlapping windows never put it back; a person adds it again to restart. The broker contract in
 `pr-run-activity.md` lists `work-unblock.yml` as a `schedule` caller. `version` stays 1.
+
+## 1.19.1 - 2026-10-16
+
+The `verify-scripts` wrapper prints `exit status: <n>` to stderr and exits with the script's
+status, and the system prompt tells the skill to run each wrapper as its own command: a chained
+`; echo "$?"` needs approval the `dontAsk` lane denies. The write file's skill-run diagnostics
+(`act-turns.json` and the step summary) gain `denied`, each command the permission mode denied,
+redacted and cut to 300 characters. `version` stays 1.
 
 ## 1.19.0 - 2026-10-16
 

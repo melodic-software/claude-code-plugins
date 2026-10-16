@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.6] - 2026-10-16
+
+### Fixed
+
+- `block-hook-bypass` block message: an agent with neither Write nor Edit whose instructions allow a write is told to write to a literal path under an exempt root, unquoted or, on PowerShell, single-quoted.
+
 ## [0.51.5] - 2026-10-16
 
 ### Changed

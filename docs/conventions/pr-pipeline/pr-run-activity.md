@@ -306,7 +306,9 @@ wrapper in `--append-system-prompt`. The wrapper changes to the checkout, refuse
 the value after an `=`) naming an existing path whose real path lies outside the checkout, since a
 script may print lines of a file it reads, sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`
 and command-scope `core.fsmonitor=false` and `core.hooksPath=/dev/null`, then runs the copy with
-the arguments. Any other arguments match, so the list holds only scripts that read and report.
+the arguments and prints `exit status: <n>` to stderr before exiting with that status, since the
+lane denies a chained `; echo "$?"`; the system prompt says to run each wrapper as its own command.
+Any other arguments match, so the list holds only scripts that read and report.
 `WebFetch` and
 `WebSearch` stay off (`--disallowedTools`) unless the activity sets `web-access`. With it on, the
 runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
@@ -397,8 +399,9 @@ A slash command whose expansion fails ends with a `success` result and no model 
 reports success, but the skill did nothing. A skill pre-compute (`` !`...` ``) line with a command
 that matches no `allowed-tools` grant does this under `--permission-mode dontAsk`. A step after the
 skill reads the execution file and fails when `num_turns` is 0 or `modelUsage` is empty. It writes
-`subtype`, `is_error`, `num_turns`, `duration_ms`, the model names, and any `<local-command-stderr>`
-text (lane token cut out) to the step summary and to `act-turns.json` in the same artifact. The
+`subtype`, `is_error`, `num_turns`, `duration_ms`, the model names, any `<local-command-stderr>`
+text, and in the write file `denied`, each command the permission mode denied cut to 300
+characters (lane token cut out of both) to the step summary and to `act-turns.json` in the same artifact. The
 full execution file is not uploaded: it holds head text and tool output.
 
 ### Script activities
