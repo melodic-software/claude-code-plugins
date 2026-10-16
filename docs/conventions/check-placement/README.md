@@ -297,13 +297,14 @@ marketplace comes from these rows.
 | Budget | Value | Basis |
 |---|---|---|
 | Per-batch formatter (`PostToolBatch`) | 1 s median per fire | judgment from the measured spread; revisit after the typos-format pilot |
-| Commit (`pre-commit` set) | from a measured staged-file run of the installed set; not yet measured | the typos-format pilot records the first run |
+| Commit (`pre-commit` set) | set from one staged-file run of every shipped `pre-commit` entry together on the same 44-file set, measured when the rollout PR (C) lands | until then the per-entry rows below stand |
 | Push (`pre-push`) | 60 s | judgment from the measured spread; beyond it, CI only |
 
 ### Measured rows
 
 | Hook | Placement | Measured | Host | Date |
 |---|---|---|---|---|
+| typos-format `pre-commit` entry (typos 1.51.1, plain dispatcher), staged sets from real `origin/main` commits | pre-commit | 1 file 0.039 s (0.038-0.040); 10 files 0.125 s (0.122-0.133); 44 files 0.508 s (0.491-0.681) | reference host (Linux, WSL2, 32 CPUs) | 2026-10-15 |
 | `scripts/check-affected.sh --no-fetch` (this repository) | pre-push | 15.5 s median on a 28-file range; 0.52 s on one file | reference host (Linux, WSL2) | 2026-10-15 |
 | actionlint, per edit (`.github/workflows/*.yml`) | PostToolUse today; moving to pre-commit | 44 ms median (43-47) | reference host (Linux, WSL2) | 2026-10-15 |
 | bash-format, per edit (`.sh`, configured) | PostToolUse today | 64 ms median (62-68) | reference host (Linux, WSL2) | 2026-10-15 |
