@@ -3,6 +3,12 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.14] - 2026-10-16
+
+### Fixed
+
+- The empty-output-folder render test now asserts the folder is still empty after `clear_previous`, so it fails if the cleanup creates files.
+
 ## [0.2.13] - 2026-10-16
 
 ### Changed

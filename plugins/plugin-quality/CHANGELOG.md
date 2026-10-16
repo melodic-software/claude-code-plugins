@@ -5,6 +5,13 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.2] - 2026-10-16
+
+### Fixed
+
+- `lib/check-retirements.sh` finds and cleans a `.git/` leftover, such as a retired git hook,
+  when run from a linked worktree: such a path resolves under `git rev-parse --git-common-dir`.
+
 ## [0.15.1] - 2026-10-16
 
 ### Changed
