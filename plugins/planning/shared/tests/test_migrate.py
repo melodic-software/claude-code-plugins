@@ -2,16 +2,37 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import unittest
 from pathlib import Path
 from unittest import mock
 
 SHARED = Path(__file__).resolve().parent.parent
-if str(SHARED) not in sys.path:
-    sys.path.insert(0, str(SHARED))
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+for _dir in (SHARED, SHARED.parent / "surface"):
+    if str(_dir) not in sys.path:
+        sys.path.insert(0, str(_dir))
 
-import migrate  # noqa: E402
+import migrate  # noqa: E402  (sys.path is set just above)
+import schema  # noqa: E402  (sys.path is set just above)
+
+STATE = schema.load("state", SHARED / "schema")
+
+
+class TestChain(unittest.TestCase):
+    def test_every_versions_fixture_migrates_to_a_valid_current_document(self):
+        for version in range(1, migrate.CURRENT + 1):
+            doc = json.loads((FIXTURES / f"state-v{version}.json").read_text(encoding="utf-8"))
+            self.assertEqual(doc["schemaVersion"], version)
+            out = migrate.migrate(doc)
+            self.assertEqual(out["schemaVersion"], migrate.CURRENT)
+            self.assertIsNone(schema.first_error(out, STATE), f"state-v{version}.json")
+
+    def test_the_v1_chain_is_the_identity_while_v1_is_current(self):
+        doc = json.loads((FIXTURES / "state-v1.json").read_text(encoding="utf-8"))
+        self.assertEqual(migrate.CURRENT, 1)
+        self.assertEqual(migrate.migrate(doc), doc)
 
 
 class TestMigrate(unittest.TestCase):

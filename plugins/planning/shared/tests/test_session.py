@@ -430,6 +430,17 @@ class TestIdentity(SessionCase):
     def test_a_forged_pid_is_refused(self):
         self.refused("unknown-session", "propose", "not-a-person", {"text": "Hi"}, http=401)
 
+    def test_a_body_naming_a_leaders_pid_grants_nothing(self):
+        leader, _ = self.join("Lee")
+        guest, _ = self.join("Gus")
+        self.act("set_role", HOST, {"pid": leader, "role": "leader"})
+        self.open_round(text_q("Q1"))
+        for body in ({"qid": "Q1", "card": "c:rec", "pid": leader}, {"qid": "Q1", "card": "c:rec", "pid": HOST, "by": leader}):
+            self.refused("moderator-only", "lock", guest, body, http=403)
+        self.act("answer", guest, {"qid": "Q1", "text": "Mine", "view": "focus", "pid": leader})
+        authors = [c["pid"] for c in self.s.state["cards"]["Q1"] if c["kind"] == "person"]
+        self.assertEqual(authors, [guest])
+
     def test_a_guest_cannot_act_as_the_owner_or_a_moderator(self):
         ann, _ = self.join("Ann")
         self.refused("owner-only", "set_title", ann, {"title": "Mine now"}, http=403)
@@ -480,6 +491,17 @@ class TestRolesAndPeople(SessionCase):
         self.assertEqual(self.act("rename", bo, {"name": "ann"})["name"], "ann 2")
         self.refused("empty", "rename", bo, {"name": "  "})
         self.refused("too-long", "rename", bo, {"name": "z" * 41})
+
+    def test_a_rename_shows_on_everything_the_person_wrote(self):
+        ann, _ = self.join("Ann")
+        self.open_round(text_q("Q1"))
+        self.act("answer", ann, {"qid": "Q1", "text": "Mine", "view": "focus"})
+        rev = self.s.state["rev"]
+        self.act("rename", ann, {"name": "Annabel"})
+        self.assertEqual(self.s.state["rev"], rev + 1)
+        snap = self.s.snapshot(HOST)
+        self.assertEqual({p["pid"]: p["name"] for p in snap["people"]}[ann], "Annabel")
+        self.assertNotIn('"Ann"', json.dumps(snap))
 
     def test_color_takes_one_of_c1_to_c10(self):
         ann, _ = self.join("Ann")
@@ -1078,6 +1100,13 @@ class TestLocks(SessionCase):
     def test_suggest_is_refused_on_an_open_unlocked_question(self):
         self.refused("not-locked", "suggest", self.bo, {"qid": "Q1", "text": "Answer instead"}, http=409)
 
+    def test_suggest_is_allowed_on_an_unlocked_question_of_a_closed_round(self):
+        self.send()
+        self.ack(1)
+        self.open_round(text_q("Q4"))
+        self.act("suggest", self.bo, {"qid": "Q1", "text": "Reconsider this"})
+        self.assertEqual(self.s.state["suggestions"]["Q1"][0]["text"], "Reconsider this")
+
     def test_a_suggestion_note_over_200_is_refused(self):
         self.act("lock", HOST, {"qid": "Q1", "card": "c:rec"})
         self.refused("too-long", "suggest", self.bo, {"qid": "Q1", "text": "Change", "note": "n" * 201})
@@ -1633,6 +1662,322 @@ class TestSessionControls(SessionCase):
     def test_link_rotation_is_owner_only(self):
         self.refused("owner-only", "rotate_guest_link", self.ann, {})
         self.refused("owner-only", "rotate_owner_link", self.ann, {})
+
+
+# ---------------------------------------------------------------------------------------------
+# Item 10: digest and event log
+# ---------------------------------------------------------------------------------------------
+
+
+class TestDigest(SessionCase):
+    def setUp(self):
+        super().setUp()
+        self.ann, self.bo, self.cy = self.people("Ann", "Bo", "Cy")
+
+    def digest(self):
+        self.send()
+        return self.events("round-sent")[-1]["digest"]
+
+    def by_id(self, digest):
+        return {q["id"]: q for q in digest["questions"]}
+
+    def test_a_locked_question_reports_its_text_and_source_without_names_by_default(self):
+        self.open_round(text_q("Q1"))
+        self.act("answer", self.ann, {"qid": "Q1", "text": "Right column", "view": "focus"})
+        self.act("lock", HOST, {"qid": "Q1", "card": f"p:{self.ann}"})
+        d = self.digest()
+        self.assertFalse(d["names"])
+        self.assertEqual(self.by_id(d)["Q1"]["outcome"], {"kind": "locked", "text": "Right column", "source": "person"})
+        self.assertNotIn("Ann", json.dumps(d))
+
+    def test_digest_names_adds_by_for_answers_and_about_you(self):
+        self.act("update_settings", HOST, {"digestNames": True})
+        self.act("set_about_you", self.bo, {"techComfort": "low"})
+        self.open_round(text_q("Q1"))
+        self.act("answer", self.ann, {"qid": "Q1", "text": "Right column", "view": "focus"})
+        self.act("vote", self.bo, {"qid": "Q1", "card": f"p:{self.ann}", "on": True})
+        d = self.digest()
+        top = self.by_id(d)["Q1"]["outcome"]["top"][0]
+        self.assertEqual(top, {"text": "Right column", "votes": 1, "source": "person", "by": "Ann"})
+        self.assertEqual(d["aboutYou"], [{"name": "Bo", "techComfort": "low"}])
+
+    def test_about_you_is_absent_without_digest_names(self):
+        self.act("set_about_you", self.bo, {"techComfort": "low"})
+        self.open_round(text_q("Q1"))
+        self.assertNotIn("aboutYou", self.digest())
+
+    def test_an_open_question_reports_its_top_three_answers_by_votes(self):
+        self.open_round(text_q("Q1"))
+        self.act("answer", self.ann, {"qid": "Q1", "text": "Ann's", "view": "focus"})
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Bo's", "view": "focus"})
+        self.act("answer", self.cy, {"qid": "Q1", "text": "Cy's", "view": "focus"})
+        self.act("answer", HOST, {"qid": "Q1", "text": "Kim's", "view": "host"})
+        self.act("vote", self.ann, {"qid": "Q1", "card": f"p:{self.bo}", "on": True})
+        self.act("vote", self.cy, {"qid": "Q1", "card": f"p:{self.bo}", "on": True})
+        self.act("vote", self.bo, {"qid": "Q1", "card": "c:rec", "on": True})
+        top = self.by_id(self.digest())["Q1"]["outcome"]["top"]
+        self.assertEqual([(t["text"], t["votes"], t["source"]) for t in top], [("Bo's", 2, "person"), ("Recommended for Q1.", 1, "claude-rec"), ("Ann's", 0, "person")])
+
+    def test_an_untouched_question_is_unanswered(self):
+        self.open_round(text_q("Q1"))
+        self.assertEqual(self.by_id(self.digest())["Q1"]["outcome"], {"kind": "unanswered"})
+
+    def test_a_gather_question_reports_each_answer_with_reaction_counts(self):
+        self.open_round(text_q("Q1", purpose="gather"))
+        self.act("answer", self.ann, {"qid": "Q1", "text": "Address form", "view": "focus"})
+        self.act("react", self.bo, {"qid": "Q1", "card": f"p:{self.ann}", "reaction": "thumbs"})
+        self.act("react", self.cy, {"qid": "Q1", "card": f"p:{self.ann}", "reaction": "idea"})
+        out = self.by_id(self.digest())["Q1"]["outcome"]
+        self.assertEqual(out, {"kind": "gathered", "answers": [{"text": "Address form", "reactions": {"thumbs": 1, "heart": 0, "idea": 1}}]})
+
+    def test_a_poll_reports_counts_per_option_and_whether_it_closed(self):
+        self.open_round(choice_q("Q1"))
+        self.act("pick", self.ann, {"qid": "Q1", "option": "opt-2", "view": "focus"})
+        self.act("pick", self.bo, {"qid": "Q1", "option": "opt-2", "view": "focus"})
+        self.act("pick", self.cy, {"qid": "Q1", "option": "opt-1", "view": "focus"})
+        out = self.by_id(self.digest())["Q1"]["outcome"]
+        self.assertEqual(out, {"kind": "poll", "closed": False, "counts": [{"option": "Card", "votes": 1}, {"option": "Saved method", "votes": 2}, {"option": "None", "votes": 0}]})
+
+    def test_late_answers_go_with_the_next_send(self):
+        self.open_round(text_q("Q1"))
+        self.send()
+        self.ack(1)
+        self.open_round(text_q("Q2"))
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Thought of it later", "view": "tree"})
+        d = self.digest()
+        self.assertEqual(d["late"], [{"id": "Q1", "round": 1, "text": "Thought of it later"}])
+
+    def test_needs_review_names_the_changed_question_and_its_state_now(self):
+        self.open_round(text_q("Q1"), text_q("Q2", depends=["Q1"]))
+        self.act("lock", HOST, {"qid": "Q1", "card": "c:rec"})
+        self.act("edit_lock", HOST, {"qid": "Q1", "text": "Changed"})
+        self.assertEqual(self.digest()["needsReview"], [{"id": "Q2", "because": "Q1", "now": {"kind": "locked", "text": "Changed"}}])
+
+    def test_results_and_pending_proposals_are_in_the_digest(self):
+        self.open_round(text_q("Q1"))
+        rid = self.act("request", self.ann, {"qid": "Q1", "kind": "research", "text": "Look it up"})["id"]
+        self.act("act_on_request", HOST, {"action": "run", "ids": [rid]})
+        xid = self.apply(TestRequests.result_op(None, rid))["results"][0]["id"]
+        self.act("act_on_request", HOST, {"action": "publish", "id": xid})
+        prop = self.act("propose", self.bo, {"text": "Ask about refunds"})["id"]
+        d = self.digest()
+        self.assertEqual(d["results"], [{"qid": "Q1", "id": xid, "kind": "research", "summary": "Most shops pin it right."}])
+        self.assertEqual(d["proposals"], [{"id": prop, "text": "Ask about refunds"}])
+
+    def test_an_unpublished_result_stays_out_of_the_digest(self):
+        self.open_round(text_q("Q1"))
+        rid = self.act("request", self.ann, {"qid": "Q1", "kind": "research", "text": "Look it up"})["id"]
+        self.act("act_on_request", HOST, {"action": "run", "ids": [rid]})
+        self.apply(TestRequests.result_op(None, rid))
+        self.assertEqual(self.digest()["results"], [])
+
+    def test_a_removed_persons_content_is_absent(self):
+        self.act("update_settings", HOST, {"digestNames": True})
+        self.open_round(text_q("Q1"))
+        self.act("answer", self.ann, {"qid": "Q1", "text": "Ann's secret idea", "view": "focus"})
+        self.act("propose", self.ann, {"text": "Ann's proposal"})
+        self.act("set_removed", HOST, {"pid": self.ann, "on": True})
+        d = self.digest()
+        self.assertNotIn("Ann", json.dumps(d))
+        self.assertEqual(d["people"]["joined"], 2)
+
+    def test_people_counts_who_joined_and_who_answered(self):
+        self.open_round(text_q("Q1"))
+        self.act("answer", self.ann, {"qid": "Q1", "text": "Mine", "view": "focus", "deviceInfo": {"kind": "phone", "browser": "safari", "screen": {"w": 390, "h": 844}}})
+        self.act("vote", self.bo, {"qid": "Q1", "card": "c:rec", "on": True})
+        self.assertEqual(self.digest()["people"], {"joined": 3, "answered": 2, "devices": {"phone": 1, "tablet": 0, "computer": 0}})
+
+    def test_every_digest_is_schema_valid(self):
+        self.act("update_settings", HOST, {"digestNames": True})
+        self.open_round(text_q("Q1"), choice_q("Q2"), text_q("Q3", purpose="gather"))
+        self.act("answer", self.ann, {"qid": "Q1", "text": "Mine", "view": "focus"})
+        self.act("pick", self.bo, {"qid": "Q2", "option": "opt-1", "view": "focus"})
+        self.act("answer", self.cy, {"qid": "Q3", "text": "Slow", "view": "focus"})
+        self.send()
+        ev = self.events("round-sent")[-1]
+        self.assertIsNone(session.schema.first_error(ev, session.schema.load("event", session.SCHEMA_DIR)))
+
+    def test_handle_marks_events_handled_and_refuses_unknown_seqs(self):
+        self.open_round(text_q("Q1"))
+        self.send()
+        seq = self.events("round-sent")[0]["seq"]
+        self.apply({"op": "handle", "seqs": [seq]})
+        self.assertEqual(self.s.state["log"]["handled"], [seq])
+        self.refused_ops("not-found", {"op": "handle", "seqs": [seq + 5]})
+
+    def test_events_carry_increasing_seqs_and_utc_times(self):
+        self.open_round(text_q("Q1"))
+        self.send()
+        self.act("cancel_round", HOST, {})
+        evs = self.events()
+        self.assertEqual([e["seq"] for e in evs], [1, 2])
+        self.assertRegex(evs[0]["at"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+        self.assertEqual(self.s.state["log"]["seq"], 2)
+
+
+# ---------------------------------------------------------------------------------------------
+# Item 11: apply ops all or nothing
+# ---------------------------------------------------------------------------------------------
+
+
+class TestApply(SessionCase):
+    def test_ops_land_all_or_none(self):
+        before = copy_state(self.s)
+        disk = self.path.read_bytes()
+        err = self.refused_ops("wrong-status", {"op": "set-title", "title": "Changed"}, {"op": "ack-round", "round": 1})
+        self.assertEqual(err.details["op"], 1)
+        self.assertEqual(self.s.state, before)
+        self.assertEqual(self.path.read_bytes(), disk)
+
+    def test_a_schema_invalid_op_is_refused_naming_its_index(self):
+        err = self.refused_ops("bad-field", {"op": "set-title", "title": "Fine"}, {"op": "drop-session"})
+        self.assertEqual(err.details["op"], 1)
+
+    def test_add_asset_has_its_shape_accepted_and_says_it_is_not_wired(self):
+        err = self.refused_ops("not-wired", {"op": "add-asset", "path": "/tmp/shot.png", "scale": 2})
+        self.assertEqual(err.http, 501)
+
+    def test_assets_from_add_asset_are_usable_only_in_a_later_apply(self):
+        q = choice_q("Q1")
+        q["format"]["options"][0]["image"] = "abcdefabcdefabcd.png"
+        self.refused_ops("bad-field", {"op": "open-round", "questions": [q]})
+
+    def test_add_and_remove_reference_ops(self):
+        self.open_round(text_q("Q1"))
+        self.apply({"op": "add-reference", "qid": "Q1", "reference": {"kind": "link", "url": "https://example.com/a"}})
+        self.apply({"op": "remove-reference", "qid": "Q1", "index": 0})
+        self.assertEqual(self.question("Q1")["references"], [])
+
+    def test_the_phase_one_ops_samples_parse(self):
+        for name in ("ops-open-round.json", "ops-result.json", "ops-handle.json"):
+            self.assertIsNone(session.ops_error(json.loads((FIXTURES / name).read_text(encoding="utf-8"))), name)
+
+    def test_one_apply_can_ack_and_open_the_next_round(self):
+        self.open_round(text_q("Q1"))
+        self.send()
+        out = self.apply({"op": "ack-round", "round": 1}, {"op": "open-round", "questions": [text_q("Q2")]}, {"op": "handle", "seqs": [1]})
+        self.assertEqual([r.get("round") for r in out["results"][:2]], [1, 2])
+        self.assertEqual([r["status"]["kind"] for r in self.s.state["rounds"]], ["closed", "open"])
+
+
+# ---------------------------------------------------------------------------------------------
+# Snapshots: anonymous view, per-viewer view, Show names masking
+# ---------------------------------------------------------------------------------------------
+
+
+class TestSnapshots(SessionCase):
+    def setUp(self):
+        super().setUp()
+        self.ann, self.bo, self.cy = self.people("Ann", "Bo", "Cy")
+        self.act("set_role", HOST, {"pid": self.ann, "role": "leader"})
+        self.open_round(text_q("Q1"))
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Bo's answer", "view": "focus", "deviceInfo": {"kind": "phone", "browser": "safari", "screen": {"w": 390, "h": 844}}})
+        self.act("vote", self.cy, {"qid": "Q1", "card": f"p:{self.bo}", "on": True})
+        self.act("vote", self.ann, {"qid": "Q1", "card": f"p:{self.bo}", "on": True})
+
+    def card(self, snap, ref):
+        return next(c for c in snap["cards"]["Q1"] if c["ref"] == ref)
+
+    def test_the_anonymous_view_has_exactly_four_keys(self):
+        self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": False, "schemaVersion": 1})
+        self.act("rotate_guest_link", HOST, {})
+        self.assertTrue(self.s.anonymous_view()["joinNeedsKey"])
+
+    def test_a_removed_person_reads_nothing(self):
+        self.act("set_removed", HOST, {"pid": self.cy, "on": True})
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.snapshot(self.cy)
+        self.assertEqual(ctx.exception.code, "removed")
+
+    def test_full_names_show_names_and_voter_ids(self):
+        snap = self.s.snapshot(self.cy)
+        self.assertIn("Bo", [p["name"] for p in snap["people"]])
+        self.assertEqual(self.card(snap, f"p:{self.bo}")["votes"], sorted([self.ann, self.cy]))
+
+    def test_initials_send_initials_and_counts_keeping_only_the_viewers_own_vote(self):
+        self.act("update_settings", HOST, {"names": "initials"})
+        snap = self.s.snapshot(self.cy)
+        names = {p["name"] for p in snap["people"]}
+        self.assertNotIn("Bo", names)
+        self.assertIn("B", names)
+        votes = self.card(snap, f"p:{self.bo}")["votes"]
+        self.assertEqual(sorted(votes), sorted(["", self.cy]))
+        self.assertNotIn(self.ann, json.dumps(snap["cards"]))
+
+    def test_someone_shows_guests_someone(self):
+        self.act("update_settings", HOST, {"names": "someone"})
+        snap = self.s.snapshot(self.cy)
+        self.assertEqual({p["name"] for p in snap["people"]}, {"Someone"})
+        for name in ("Ann", "Bo", "Kim"):
+            self.assertNotIn(f'"{name}"', json.dumps(snap))
+
+    def test_owner_and_leaders_always_get_full_names(self):
+        self.act("update_settings", HOST, {"names": "someone"})
+        for viewer in (HOST, self.ann):
+            snap = self.s.snapshot(viewer)
+            self.assertIn("Bo", [p["name"] for p in snap["people"]])
+            self.assertIn(self.cy, self.card(snap, f"p:{self.bo}")["votes"])
+
+    def test_credentials_log_and_others_prefs_and_notifications_never_appear(self):
+        self.act("set_prefs", self.bo, {"set": {"theme": "dark"}})
+        self.act("chat", self.ann, {"text": "@Bo hello"})
+        self.send()
+        for viewer in (HOST, self.ann, self.cy):
+            snap = self.s.snapshot(viewer)
+            self.assertFalse({"credentials", "log"} & set(snap))
+            text = json.dumps(snap)
+            self.assertNotIn(self.owner_token, text)
+            self.assertNotIn("tokenHash", text)
+            if viewer != self.bo:
+                self.assertNotIn("mentioned you", json.dumps(snap["me"]))
+
+    def test_view_and_device_info_reach_only_the_owner(self):
+        self.assertNotIn("deviceInfo", json.dumps(self.s.snapshot(self.cy)))
+        self.assertNotIn("deviceInfo", json.dumps(self.s.snapshot(self.ann)))
+        details = self.s.snapshot(HOST)["cardDetails"]["Q1"][f"p:{self.bo}"]
+        self.assertEqual(details["deviceInfo"]["kind"], "phone")
+
+    def test_a_removed_persons_content_is_hidden_until_restored(self):
+        self.act("set_removed", HOST, {"pid": self.bo, "on": True})
+        snap = self.s.snapshot(self.cy)
+        self.assertNotIn("Bo's answer", json.dumps(snap))
+        self.assertNotIn(self.bo, [p["pid"] for p in snap["people"]])
+        self.assertIn(self.bo, [p["pid"] for p in self.s.snapshot(HOST)["removed"]])
+        self.act("set_removed", HOST, {"pid": self.bo, "on": False})
+        self.assertIn("Bo's answer", json.dumps(self.s.snapshot(self.cy)))
+
+    def test_moderators_see_who_is_behind(self):
+        self.assertEqual(self.s.snapshot(self.ann)["behind"], {self.ann: 0, self.bo: 0, self.cy: 0})
+        self.assertNotIn("behind", self.s.snapshot(self.cy))
+
+    def test_a_snapshot_carries_schema_version_and_rev(self):
+        snap = self.s.snapshot(self.cy)
+        self.assertEqual((snap["schemaVersion"], snap["rev"]), (1, self.s.state["rev"]))
+
+    def test_the_shared_part_is_built_once_per_rev(self):
+        first = self.s._base()
+        self.assertIs(self.s._base(), first)
+        self.act("chat", self.cy, {"text": "New rev"})
+        self.assertIsNot(self.s._base(), first)
+
+    def test_a_snapshot_does_not_change_when_state_changes_later(self):
+        snap = self.s.snapshot(self.cy)
+        text = json.dumps(snap)
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Edited later", "view": "focus"})
+        self.assertEqual(json.dumps(snap), text)
+
+    def test_guests_still_read_the_session_after_it_ends(self):
+        self.act("end_session", HOST, {"on": True})
+        snap = self.s.snapshot(self.cy)
+        self.assertTrue(snap["ended"])
+        self.assertIn("Bo's answer", json.dumps(snap))
+        self.assertTrue(self.s.anonymous_view()["ended"])
+
+    def test_presence_shows_who_is_here_within_the_ttl(self):
+        self.s.heartbeat(self.bo, {"q": "Q1", "typing": True})
+        self.assertEqual([p["pid"] for p in self.s.snapshot(self.cy)["presence"]], [self.bo])
+        self.clock.tick(session.PRESENCE_TTL + 1)
+        self.assertEqual(self.s.snapshot(self.cy)["presence"], [])
 
 
 if __name__ == "__main__":
