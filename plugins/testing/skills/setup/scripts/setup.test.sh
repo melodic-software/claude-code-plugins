@@ -59,7 +59,7 @@ assert_line "xunit brings xUnit2021" "$out" '^cs +xUnit2021 +PRESENT'
 assert_line "Bash has no maintained rule" "$out" '^bash .*no maintained rule'
 assert_contains "the instruction line is printed to paste" "$out" "never edits them"
 assert_line "with CLAUDE.md and AGENTS.md, it names CLAUDE.md, the one Claude Code loads" "$out" '^Optional\..* Paste this into CLAUDE\.md yourself:$'
-assert_contains "no consumer glob means no hook entry" "$out" "none: every consumer test glob is covered"
+assert_contains "no consumer glob means no skipped-glob line" "$out" "none: test-quality findings come from /testing:audit"
 
 printf "import vitest from '@vitest/eslint-plugin';\nexport default [vitest.configs.recommended];\n" >"$R/eslint.config.mjs"
 printf '[tool.ruff.lint]\nextend-select = ["PT", "PLR0124"]\n' >"$R/pyproject.toml"
@@ -91,67 +91,17 @@ run check
 assert_line "check prints the resolved config" "$out" $'^rules\\.weak-oracle\twarn$'
 assert_line "the layer record names testing.yaml" "$out" "^layer"$'\t'"$TY\$"
 assert_not_contains "with no docs/conventions/testing.md, check offers no pointer line" "$out" "If testing, read"
-assert_contains "and a hook entry for the uncovered glob" "$out" '"if": "Write(*.it.ts)"'
-# shellcheck disable=SC2016 # literal command text
-assert_contains "that runs test-scan with --enabled" "$out" 'exec bash \"$p\" --enabled'
-assert_contains "with an Edit row too" "$out" '"if": "Edit(*.it.ts)"'
-assert_contains "run outside the plugin cache, the marketplace is a placeholder" "$out" 'cache/<marketplace>\"/testing/'
-assert_contains "with a note saying so" "$out" 'replace <marketplace>'
-cmd="$(sed -n '/^{/,$p' <<<"$out" | jq -r '.hooks.PostToolUse[0].hooks[0].command')"
-rc=0
-got="$(echo '{}' | bash -c "$cmd" 2>&1)" || rc=$?
-assert_eq "left unreplaced, the entry says so on stderr and exits 0" \
-  "0:testing: no installed test-scan.sh under ~/.claude/plugins/cache/<marketplace>/testing takes --enabled; this settings hook did nothing" "$rc:$got"
-
-# The entry, run from a cached copy: pinned to that copy's marketplace, the
-# highest version (numeric major.minor.patch) whatever the mtimes, and never silent.
-C="$HOME/.claude/plugins/cache"
-mkdir -p "$C/mk/testing" "$C/other/testing/9.0.0/hooks"
-ln -s "$(cd "$(dirname "$SETUP")/../../.." && pwd)" "$C/mk/testing/0.0.1"
-for v in 1.9.0 1.10.0; do
-  mkdir -p "$C/mk/testing/$v/hooks"
-  printf 'cat >/dev/null; echo "%s $*" # --enabled\n' "$v" >"$C/mk/testing/$v/hooks/test-scan.sh"
-done
-printf 'echo other --enabled\n' >"$C/other/testing/9.0.0/hooks/test-scan.sh"
-touch -d '1 minute ago' "$C/mk/testing/1.10.0/hooks/test-scan.sh"
-rc=0
-out="$(bash "$C/mk/testing/0.0.1/skills/setup/scripts/setup.sh" check --root "$R" 2>&1)" || rc=$?
-assert_contains "run from the cache, the entry pins that marketplace" "$out" 'cache/mk\"/testing/*/hooks/test-scan.sh'
-cmd="$(sed -n '/^{/,$p' <<<"$out" | jq -r '.hooks.PostToolUse[0].hooks[0].command')"
-entry() {
-  rc=0
-  out="$(echo '{}' | bash -c "$cmd" 2>&1)" || rc=$?
-}
-entry
-assert_eq "the entry runs the highest version, not the newest mtime" "0:1.10.0 --enabled" "$rc:$out"
-rm -rf "$C/mk/testing/1.10.0" "$C/mk/testing/0.0.1"
-printf 'echo old\n' >"$C/mk/testing/1.9.0/hooks/test-scan.sh"
-entry
-assert_contains "a copy that predates --enabled prints why on stderr" "$out" "--enabled"
-assert_eq "and exits 0" 0 "$rc"
-assert_eq "without running it" "" "$(grep -x old <<<"$out")"
-rm -rf "$C/mk"
-entry
-assert_contains "no installed copy prints why on stderr" "$out" "test-scan"
-assert_eq "and exits 0" 0 "$rc"
-rm -rf "$HOME/.claude/plugins"
-
-# A marketplace name that is not a plain name is never spliced into the command.
-# shellcheck disable=SC2016 # the name must not expand
-bad='m$(touch pwned)k'
-mkdir -p "$C/$bad/testing"
-ln -s "$(cd "$(dirname "$SETUP")/../../.." && pwd)" "$C/$bad/testing/0.0.1"
-out="$(bash "$C/$bad/testing/0.0.1/skills/setup/scripts/setup.sh" check --root "$R" 2>&1)"
-assert_contains "a marketplace name with shell syntax falls back to the placeholder" "$out" 'cache/<marketplace>\"/testing/'
-assert_eq "and is not in the entry" "" "$(grep -F 'pwned' <<<"$out")"
-rm -rf "$HOME/.claude/plugins"
+assert_contains "the hook-entry section points at /testing:audit" "$out" "none: test-quality findings come from /testing:audit on demand, not a per-edit hook"
+assert_contains "and names the consumer glob the test-weaken rows skip" "$out" "/testing:audit scans *.it.ts too"
+assert_eq "and prints no settings hook entry" "" "$(grep -F -e 'PostToolUse' -e '"if":' -e 'test-scan.sh' <<<"$out")"
 
 # A paths.include glob adds no basename to the hook's `if` rows, so it needs
 # no entry.
 cp "$TY" "$T/kept.yaml"
 run apply --include 'legacy/**' --include 'tests/*.py'
 run check
-assert_contains "paths.include globs print no hook entry" "$out" "none: every consumer test glob is covered"
+assert_contains "paths.include globs name no skipped glob" "$out" "none: test-quality findings come from /testing:audit"
+assert_eq "and no scans-too line" "" "$(grep -F 'scans' <<<"$out")"
 assert_eq "and no Write(**) or Write(*.py) row" "" "$(grep -F -e 'Write(**)' -e 'Write(*.py)' <<<"$out")"
 cp "$T/kept.yaml" "$TY"
 

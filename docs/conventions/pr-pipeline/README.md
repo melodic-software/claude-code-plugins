@@ -52,7 +52,7 @@ no renumbering.
 | Stage | What happens | Starts on |
 |---|---|---|
 | `intake` | Issues are triaged into work items. | issue events |
-| `work` | An agent works one issue a person labeled `agent-ready` to a draft PR, or hands it back ([Issue mode](pr-run-activity.md#issue-mode)). | the `agent-ready` label |
+| `work` | An agent works one issue a person labeled `agent-ready` to a PR opened ready, or hands it back ([Issue mode](pr-run-activity.md#issue-mode)). | the `agent-ready` label |
 | `pre-ready` | The implementer writes the change and may push draft checkpoints at any time. Local today; the design assumes no particular implementer. | the implementer |
 | `refine` | Behavior-preserving changes that make the PR review-ready: simplify, tidy, docs and format fixes. One push at the end. | ready (or opened ready) |
 | `verify` | Checks, reviews and outcome verification on the refined commit. Mechanical and judgment lanes start together; a failed mechanical gate cancels the running judgment lanes, and `pr-require-checks` aggregates the results into `ci-status`. | dispatch from `refine` |
@@ -93,7 +93,7 @@ reader applies.
 | `pr-verify` | dispatch from `pr-refine` |
 | `pr-explain` | dispatch from `pr-refine`, alongside verify |
 | `pr-require-checks` | each verify result |
-| `pr-unblock` | a dispatch for each conflicting PR after a push to the default branch, or a trusted human's dispatch |
+| `pr-unblock` | a dispatch for each conflicting PR after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
 | `post-merge-verify` | push to the default branch |
 | `post-merge-sweep-comments` | push to the default branch |
@@ -110,6 +110,23 @@ that runs on a push to `main` and on a trusted human's `workflow_dispatch`:
 - A hand run or a re-run must be started by a listed human (`check-trusted-trigger` with
   `require-pr: false` and `require-kind: human`).
 - With the kill switch on, the run ends green with a notice and dispatches nothing.
+
+`pr-unblock`'s `address-feedback` dispatches come from `pr-feedback-dispatch.yml`, also scripted,
+on `workflow_run` `completed` of `pr-review-hosted` and `pr-review-security-hosted`. It takes only
+the upstream run id from the event and reads the rest back. It dispatches `pr-unblock.yml` with
+`activity: address-feedback` when the upstream is a `pull_request` run of one of those two paths in
+this repository, exactly one open non-draft PR into `main` has its head, the lanes App opened that
+PR, it carries neither `do-not-merge` nor `needs-human`, both lanes' newest reviewed-head markers
+name the head, an unresolved thread left only by the reviewer bot exists, the head has no
+`pr-unblock / address-feedback` check run, and no `pr-unblock.yml` run titled
+`pr-unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
+runs the base's resolve-config for that PR and head with `address-feedback` selected, so only that
+slot's `applies-when` is decided, and dispatches only when the `pr-unblock` lane and its
+`address-feedback` and `publish-feedback` slots are enabled and `address-feedback` applies. It records `pr-feedback-dispatched-<upstream id>-<run
+id>`, which the gate and the broker read to tie the run to a review of the PR's current head.
+In `pr-unblock.yml`, `address-feedback` (the model job, `mutate-branch`) is followed by
+`publish-feedback` (a script job with no model, `publish-artifact`), which posts the replies the
+model job recorded ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)).
 
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
@@ -178,11 +195,23 @@ Each leaf declares:
   verbatim: after the skill name in that skill's own syntax, or to the script.
 - `prepare` (optional, `skill` only, effect other than `read`): what the write runner does around
   the skill. `merge-base` merges the base tip into the gated head without committing before the
-  skill runs, and commits the result with both as parents after it. A write runner performs this
+  skill runs, and commits the result with both as parents after it. `review-threads` keeps the
+  PR's unresolved reviewer-bot threads and decides skip, escalate or proceed before any model
+  turn, gives the skill the review-thread tool, and uploads the replies it records for a reply job
+  with no model to post ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)). A write runner performs this
   only where it declares support by passing `prepare-supported: true` to `resolve-config`; anywhere
   else an applying leaf that sets `prepare` fails red rather than running without it.
 - `model` and `max-turns` (optional, `skill` only): the model and turn budget for the Claude Code
   run. When unset, `pr-run-activity`'s defaults apply.
+- `checks` (optional, `skill` only): repository check scripts, each `scripts/<name>.sh` with its
+  flags fixed, that a skill with an effect other than `read` may run. The write runner runs each
+  from the base copy against the checkout, so no head code runs
+  ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)).
+- `web-access` (optional, `skill` only, off when absent): `enabled` and `domains`, either `any` or
+  a list of host names (`*.` allowed as a prefix). When on, a skill with an effect other than
+  `read` may search the web, fetch those domains, and run the research skills
+  ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). An activity that turns it on must
+  set `reads-untrusted: true` and an effect other than `read`.
 - `effect`: one of `read`, `mutate-branch`, `mutate-tracker`, `publish-artifact`, `merge`. The
   runner derives ordering from it, takes the token grant from
   [`effect-grants.json`](../../../.github/actions/resolve-config/effect-grants.json), and fails a
@@ -207,10 +236,13 @@ Each leaf declares:
   activity skips with `not-applicable-paths`: `pr-refine / fix-docs` does not run on a PR whose
   only changed Markdown is instruction surfaces or CODEOWNERS paths, such as this directory.
 - `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, `labels-absent`, work
-  classes, events, `mergeable`, `draft`, `labeled-after`). `mergeable` is `conflicting` or `clean`,
+  classes, events, `mergeable`, `draft`, `labeled-after`, `admission`). `mergeable` is `conflicting` or `clean`,
   read from the PR at the gated head SHA only; unknown mergeability never matches. `labels-absent`
   matches only when none of its labels is on the PR. `labeled-after`, a UTC time, is an issues
-  lane's go-live time: it matches only an issue labeled after it.
+  lane's go-live time: it matches only an issue labeled after it. `admission` is an issues lane's
+  admission rule: an issue carrying a `work-class:` label outside its `classes` is refused, even
+  beside a listed one; otherwise a listed class admits it, or, with `ratified: true`, the owner's
+  batch-ratification marker comment does. A lane never admits on its own judgment.
 
 An activity is idempotent: a rerun on the same commit gives the same verdict or reuses it, a
 mutating activity with nothing to change makes no commit, and each commit it makes names the
@@ -260,11 +292,12 @@ The reader also adds the config file's own path, `.github/**` and the trusted-ac
 
 | Scope | Rule | Set by |
 |---|---|---|
-| Triggers of one PR's `pr-unblock` | A newer dispatch replaces one still waiting; a running one finishes | workflow group `pr-unblock-<n>`, `cancel-in-progress: false` |
-| Within one run | Leaves run in slot order: `report-escalation` after `resolve-conflicts`, and only when it escalated | the caller's `needs:` |
+| Triggers of one PR's `pr-unblock` activity | A newer dispatch replaces one still waiting; a running one finishes | workflow group `pr-unblock-<activity>-<n>`, `cancel-in-progress: false` |
+| Within one run | Leaves run in slot order: `publish-feedback` after `address-feedback` once its skill ran; `report-escalation` after the others, and only when one escalated | the caller's `needs:` |
 | Across PRs | Unbounded: every group is per PR | group names |
 | Within one PR, across write lanes | One queue: a write job waits for the one ahead and never cancels it | job group `pr-pipeline-write-<n>`, `queue: max`, on every write caller job |
 | `pr-unblock-dispatch` | One run at a time; a newer push replaces a waiting run | workflow group `pr-unblock-dispatch` |
+| `pr-feedback-dispatch` | One run per reviewed head at a time; a waiting one is replaced | workflow group `pr-feedback-dispatch-<head SHA>` |
 
 The write group sits on each caller job, behind an `if:` that leaves out the lanes App's own
 `pull_request` events, so a lane's push never queues a job in it.
@@ -378,17 +411,33 @@ admin permission on the repository.
 
 The same wrapper run with `--unattended --authority pr-merge` is the pr-merge lane's gate. It needs
 `merge.authority: pr-merge` and `merge.agent-identity` at the base, and keeps every read above
-except three:
+except six:
 
-- **Eligibility.** Not a fork or a dependency manager's pull request, a `work-class: mechanical`
-  label on the pull request, and a diff where no path, either side of a rename, matches
-  `merge.diff-check.denied-paths`. No linked issue, opt-in label or lane claim is read.
-- **Who labels.** Until agents act as their own App, a person's token may be an agent's, so only
-  label events by `merge.agent-identity` (the lanes App) count. The owner account's label events
-  and body edits are ignored, and so are another bot's, since a workflow on a pushed branch labels
-  as `github-actions[bot]`. A class label anyone adds can still only make the class stricter.
+- **Eligibility.** Not a fork or a dependency manager's pull request, opened by
+  `merge.agent-identity` (the lanes App; refused `not-lane-authored` otherwise), exactly one closing issue
+  (`closingIssuesReferences`) in this repository whose class is `work-class: mechanical`, and a
+  diff where no path, either side of a rename, matches `merge.diff-check.denied-paths`. The class
+  lives on the issue only: a `work-class:` label on the pull request is never read. No opt-in label
+  or lane claim is read. No closing issue, or more than one, refuses (`linked-issues:<n>`).
+- **Who labels.** A class label event on the issue counts when `merge.agent-identity` (the lanes
+  App) made it, or a human acting in person (write or admin, not through an App) with no edit of
+  the issue body after it. Another bot's events are ignored, since a workflow on a pushed branch
+  labels as `github-actions[bot]`. A class label anyone adds can still only make the class
+  stricter.
 - **Promotion.** No promotion evidence is read. The lane starts with `merge.report-only: true`;
   the owner reads its reports and sets `false` to let it merge.
+- **Kill switches.** The lane token cannot read Actions variables, so the workflow checks the
+  switches itself and passes `--lane-kill-switch proceed`. A missing value or any other value
+  stops the lane. The value is read once per run, and a stopped run cannot dequeue: to stop at
+  once, cancel the running pr-merge run and dequeue the lane's pull request by hand.
+- **Cap variable.** For the same reason the workflow passes `CLAUDE_LANES_MERGE_RUNG_CAP` from its
+  `vars` context as `--lane-rung-cap`. Empty (unset) is no cap; `off`, `C2` or `C3` caps the rung;
+  a missing flag or any other value holds the rung at `off`.
+- **Post-merge check and one merge in flight.** Only merges the agent identity enqueued count. A
+  merge by a person or by another App, such as a release pull request, is not the lane's.
+
+While `merge.report-only` is true, the workflow starts no full CI run either; its summary says
+whether it would have.
 
 `.github/workflows/pr-merge.yml` runs the lane's `merge-pr` activity with no model and no head
 checkout. A finished `ci-status` or review run, a label, body or ready change on a PR, a manual

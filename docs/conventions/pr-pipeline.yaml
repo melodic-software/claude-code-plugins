@@ -13,6 +13,9 @@ activities:
     applies-when:
       paths: ["**/*.md"]
       labels-absent: [do-not-merge, needs-human]
+      # Skips a draft PR before any model turn, since the promote step drops
+      # a draft's commits anyway.
+      draft: [false]
   resolve-conflicts:
     skill: source-control:resolve-conflicts
     args: ci
@@ -30,11 +33,62 @@ activities:
       mergeable: [conflicting]
       labels-absent: [do-not-merge, needs-human]
       draft: [false]
+  address-feedback:
+    # Fixes the review lanes' open findings on a pull request and records a
+    # reply for each one. It posts nothing itself. pr-feedback-dispatch.yml
+    # starts it only on pull requests the lanes App opened; a trusted person
+    # may also dispatch it by hand.
+    skill: source-control:pull-request
+    # The skill's CI mode for review comments: edits only files a finding
+    # names, never under .github/, and writes replies to a file.
+    args: comments --ci
+    # Before any model turn the runner keeps only unresolved threads left by
+    # the reviewer bot alone on a reviewed head, hands the pull request to a
+    # person when it changes .github/ or two rounds already ran, and gives the
+    # skill the review-thread tool.
+    prepare: review-threads
+    # Pushes its fixes to the pull request's branch, nothing else.
+    effect: mutate-branch
+    # ci-status and the review lanes judge the pushed fix.
+    gating: advisory
+    # Reads review comments, which quote the diff.
+    reads-untrusted: true
+    inputs: [pr, head-sha]
+    applies-when:
+      # A person's hold stops it.
+      labels-absent: [do-not-merge, needs-human]
+      # A draft pull request is skipped.
+      draft: [false]
+  publish-feedback:
+    # Posts the replies address-feedback recorded, exactly as written, resolves
+    # the threads it fixed, and posts the round marker. A script, no model.
+    script: .github/scripts/pr-unblock/publish-feedback.mjs
+    # Writes pull request comments and resolves threads; pushes nothing.
+    effect: publish-artifact
+    gating: advisory
+    # Reads the replies the model wrote.
+    reads-untrusted: true
+    inputs: [pr, head-sha]
   resolve-issue:
     # Works one issue labeled agent-ready: either commits the change to a new
     # branch, or stops and says why. The runner adds `--issue <number>`.
     skill: work-items:work
     args: --ci
+    # Validates the format of every changelog fragment before the skill
+    # reports done. A missing fragment is caught on the PR by ci-status
+    # (--check-required needs committed work, and the lane commits through
+    # the API, not in the checkout).
+    checks: ["scripts/check-changelog-fragments.sh --check"]
+    # Lets the run read web pages, so it can check a fact against its source
+    # (for example a documented default on a vendor docs page) instead of
+    # trusting the issue's quote. It may search the web and read any site,
+    # through the research skills (/discovery:research and the like), and
+    # lists each page it read in its report. Off unless set here; `domains`
+    # can name sites instead of `any`. A page can try to steer the run, so a
+    # person still reviews every PR the run opens.
+    web-access:
+      enabled: true
+      domains: any
     effect: mutate-branch
     gating: advisory
     # Reads the issue's title and body, which anyone can write.
@@ -42,13 +96,20 @@ activities:
     inputs: [issue]
     applies-when:
       events: [labeled]
-      # Only issues triaged as read-only work start the lane for now.
-      labels: ["work-class: read-only"]
-      # The go-live time: a label applied before it starts nothing. The far
-      # future keeps the lane off; the owner sets the real time to turn it on.
-      labeled-after: "2099-01-01T00:00:00Z"
+      # A lane never admits on its own judgment. An issue is admitted when it
+      # is labeled "work-class: read-only" or "work-class: mechanical", or when
+      # the owner ratified it with the admission marker comment
+      # (`<!-- admission: admitted when unblocked, owner batch ratification
+      # YYYY-MM-DD -->`, by a human on the trusted-actor list). An issue with
+      # any other work class starts nothing, even beside an admitted one.
+      admission:
+        classes: ["work-class: read-only", "work-class: mechanical"]
+        ratified: true
+      # Only issues labeled agent-ready after this time start a run; an issue
+      # labeled earlier starts nothing.
+      labeled-after: "2026-10-14T19:21:59Z"
   report-outcome:
-    # Opens a draft pull request from the branch, or comments on the issue
+    # Opens a ready pull request from the branch, or comments on the issue
     # and labels it needs-human. A script, no model.
     script: .github/scripts/work-resolve-issue/report-outcome.mjs
     effect: publish-artifact
@@ -90,16 +151,24 @@ lanes:
     stage: unblock
     slots:
       - activity: resolve-conflicts
+      # Started by pr-feedback-dispatch.yml after both review lanes reviewed
+      # the head.
+      - activity: address-feedback
+      # Runs after address-feedback, in its own job with its own token.
+      - activity: publish-feedback
+        needs: [address-feedback]
+      # Hands the pull request to a person when any of the three escalates.
       - activity: report-escalation
-        needs: [resolve-conflicts]
+        needs: [resolve-conflicts, address-feedback, publish-feedback]
   pr-merge:
     stage: merge
     slots:
       - activity: merge-pr
 
 merge:
-  # The lane auto-merges only PRs labeled `work-class: mechanical` (C2):
-  # dependency bumps, lint and format fixes, syncs. The classes C1-C5 (read-only,
+  # The lane auto-merges only PRs whose single closing issue is labeled
+  # `work-class: mechanical` (C2): dependency bumps, lint and format fixes,
+  # syncs. A class label on the PR itself is never read. The classes C1-C5 (read-only,
   # mechanical, scoped, structural, untrusted-provenance) are defined in
   # plugins/autonomy/reference/guardrails/work-classes.md.
   rung: C2
@@ -109,20 +178,32 @@ merge:
   report-only: true
   diff-check:
     denied-paths:
+      # Workflows and their scripts run with repository tokens and secrets.
       - ".github/**"
+      # The lane rules, this file included: a change here changes what the lanes may do.
       - "docs/conventions/**"
+      # The merge gate itself.
       - "plugins/source-control/skills/babysit-prs/**"
       # The gate's wrapper, which pr-merge.yml runs under the lane token.
       - "plugins/source-control/scripts/**"
+      # Project settings, rules and hooks every session in this repository loads.
       - ".claude/**"
+      # Skill text agents follow, including the lanes' own skills.
       - "plugins/*/skills/**"
+      # Agent definitions: their tools, models and instructions.
       - "plugins/*/agents/**"
+      # Hooks run code on every tool call and enforce the guardrails.
       - "plugins/*/hooks/**"
+      # Plugin manifests decide what each plugin loads and grants.
       - "plugins/*/.claude-plugin/**"
+      # Repository scripts CI runs as checks, so a change could weaken a check.
       - "scripts/**"
-      # Agent instructions and the marketplace manifest the lanes load.
+      # The marketplace manifest, which decides which plugins the lanes load.
       - ".claude-plugin/**"
+      # Agent instructions every session loads.
       - "**/AGENTS.md"
+      # Agent instructions every session loads.
       - "**/CLAUDE.md"
+      # The review criteria the AI review lanes apply.
       - "**/REVIEW.md"
     max-changed-lines: 400

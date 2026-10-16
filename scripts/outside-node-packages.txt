@@ -2,6 +2,7 @@
 # (miro, ai-briefing generate, video-digest extraction, course-digest extraction).
 # The runner executes each directory's own `npm test`. It does not guess
 # `node --test` versus vitest. #3703
+.github/actions/check-born-triaged
 .github/actions/check-kill-switch
 .github/actions/check-signed-commits
 .github/actions/check-trusted-base

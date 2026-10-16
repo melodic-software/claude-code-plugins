@@ -76,15 +76,15 @@ PACKAGES_LIST="scripts/outside-node-packages.txt"
 EXCLUSIONS_LIST="scripts/outside-node-exclusions.txt"
 DEFAULT_SECONDS=5
 # The five Node sub-projects with CI steps of their own in test-node:
-# <package> <owner directory of its suites> [<trigger>], where the trigger is
-# a test facade or, ending in `/`, a directory its suites read. The packages in
+# <package> <owner directory of its suites> [<trigger>...], where a trigger is
+# a test facade, a file or, ending in `/`, a directory its suites read. The packages in
 # scripts/outside-node-packages.txt follow, each its own owner.
 SUBPROJECTS="\
 plugins/miro/server plugins/miro/
 plugins/ai-briefing/skills/generate/output/build plugins/ai-briefing/skills/generate/ plugins/ai-briefing/skills/generate/scripts/run-tests.sh
 plugins/knowledge/skills/video-digest/extraction plugins/knowledge/skills/video-digest/ plugins/knowledge/skills/video-digest/scripts/run-tests.sh
 plugins/knowledge/skills/course-digest/extraction plugins/knowledge/skills/course-digest/ plugins/knowledge/skills/course-digest/scripts/run-tests.sh
-.github/actions/resolve-config .github/actions/resolve-config/ docs/conventions/pr-pipeline/"
+.github/actions/resolve-config .github/actions/resolve-config/ docs/conventions/pr-pipeline/ docs/conventions/pr-pipeline.yaml .github/scripts/pr-unblock/feedback-dispatch.mjs"
 
 usage() {
   awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}" >&2
@@ -267,7 +267,8 @@ while read -r pkg owner trigger; do
   [[ -n "${PKG_SET[$pkg]+x}" ]] && run=1
   if ((!run)) && [[ ${#changed[@]} -gt 0 ]]; then
     triggers=("$pkg/")
-    [[ -n "$trigger" ]] && triggers+=("$trigger")
+    read -ra extra <<<"$trigger"
+    triggers+=(${extra[@]+"${extra[@]}"})
     if [[ -f "$pkg/package.json" ]]; then
       while IFS= read -r dep; do
         [[ -n "$dep" ]] && triggers+=("$(normpath "$pkg/$dep")/")

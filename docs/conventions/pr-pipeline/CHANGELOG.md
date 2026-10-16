@@ -1,5 +1,146 @@
 # Changelog for the PR pipeline convention
 
+## 1.18.0 - 2026-10-16
+
+`applies-when` gains `admission` (`classes`, optional `ratified`), an issues lane's admission
+rule. An issue carrying a `work-class:` label outside `classes`, in any casing or spacing, is
+refused with `not-applicable`, even beside a listed class. Otherwise an exact listed class label
+admits it, or, with `ratified: true`, the owner's batch-ratification marker
+`<!-- admission: admitted when unblocked, owner batch ratification YYYY-MM-DD -->` does: a line
+in a never-edited comment by a human on the trusted-actor list, posted through no GitHub App. No
+bot ratifies, the lanes App included. An `admission` predicate reads the issue's labels when the
+run starts, and with `ratified: true` reads its comments; off an issues event, or when that read
+is refused, the run fails. resolve-config logs the id, author and creation time of the ratifying
+comment, never its text. This repository's `resolve-issue` replaces its `labels` allowlist with
+`admission: { classes: [read-only, mechanical], ratified: true }`. `version` stays 1.
+
+## 1.17.3 - 2026-10-16
+
+This repository's `pr-pipeline.yaml` enables the address-feedback round: the `pr-unblock` lane now
+runs `resolve-conflicts`, `address-feedback` (`source-control:pull-request comments --ci`,
+`prepare: review-threads`, `mutate-branch`, held by `do-not-merge` or `needs-human`, skipping
+drafts), `publish-feedback` (the reply script, `publish-artifact`) and `report-escalation`, which
+now follows all three. `pr-feedback-dispatch.yml` starts dispatching on lanes App PRs from here
+on. `version` stays 1.
+
+## 1.17.2 - 2026-10-16
+
+The write runner's promote step re-reads the PR's labels and draft flag with the job's
+`GITHUB_TOKEN` right before it moves the PR branch: `do-not-merge`, the base's human-gated role
+label, a label in the activity's `labels-absent` list, or a draft set while the activity ran drops
+the lane's commits and skips `awaiting-human`, for every `mutate-branch` activity that promotes.
+The hold labels are now read from the base by their own step for every PR-mode skill, not only
+merge-base, and the merge commit step holds on the same list. `fix-docs` gains `draft: [false]`,
+so it skips a draft before any model turn. `publish-feedback.mjs` re-reads the
+PR branch before each post and each resolve and posts nothing more once it moved past the head the
+job gated (`feedback-not-landed` before any reply, `feedback-partial` after one), and its round
+marker names the model run, so a re-run of the reply job alone posts no second marker (a model run
+that uploaded no replies names none and always posts). The
+script needs `HEAD_REF`, `GITHUB_RUN_ID` and `MODEL_RUN_ATTEMPT`. `version` stays 1.
+
+## 1.17.1 - 2026-10-16
+
+`pr-feedback-dispatch.yml` no longer resolves the whole `pr-unblock` lane, which decided every
+slot's `applies-when` and failed on `resolve-conflicts`' `mergeable` predicate with no head SHA.
+`feedback-dispatch.mjs` finds the PR and its head first, then resolves only the `address-feedback`
+slot for them, and dispatches only when the lane, `address-feedback` and `publish-feedback` are
+enabled and `address-feedback` applies. A disabled slot no longer counts as present, and a lane with
+no `address-feedback` slot still skips; a config the resolver refuses fails the run. resolve-config's
+`resolve-config.mjs` exports `resolveFromBase`, which returns the resolved config or throws the
+resolver's refusal (with `absentAsNull`, null for a valid config whose lane lacks the activity);
+`main` wraps it. `resolve.mjs` exports `laneHasActivity`.
+
+## 1.17.0 - 2026-10-15
+
+`pr-unblock.yml` takes an `activity` input (`resolve-conflicts`, the default, or
+`address-feedback`), and its dispatch concurrency group names the activity. `address-feedback`
+runs as two jobs: the model job (`mutate-branch`), then, when its `feedback-round` output is
+`true`, the `publish-feedback` script job (`publish-artifact`, `review-replies: true`, and the
+model job's `feedback-run-sha256` as `review-run-sha256`), which posts the replies;
+`report-escalation` takes any job's reason and its resume command names the activity. The
+activity rules forbid `address-feedback` every effect that posts and `publish-feedback` every
+effect that pushes. `pr-feedback-dispatch.yml`
+dispatches `address-feedback` from `workflow_run` when both review lanes have reviewed a lanes App
+PR's current head and a reviewer-bot thread is open; the trigger gate and the broker accept its
+runs through the review run their record names, which a lanes App push or a listed human must have
+started. The jobs after the model job pass its gated head as `expected-upstream-head`, so the gate
+and the broker accept the review of that head when only commits GitHub signed for the lanes App
+during the run (committer `web-flow`, signature `valid`) follow it. The dispatcher skips while a `pr-unblock address-feedback #<n>` run (the new
+`run-name`) is queued or going, and dispatches nothing until the lane config holds both slots. The
+write file gains the `expected-upstream-head` input and `head-sha` output. No effect grants both `contents: write` and
+`pull-requests: write` but `merge`. No live activity sets either leaf yet. `version` stays 1.
+
+## 1.16.0 - 2026-10-15
+
+Schema: `prepare` takes `review-threads`. `pr-run-activity.md` "prepare: review-threads" says what
+the write runner then does in two jobs. The model job keeps the reviewer bot's unresolved threads
+on a marker-confirmed head before the mint, escalates `feedback-protected-path` or
+`feedback-round-cap` before any model turn, stages the review-thread tool, pushes the fixes, and
+uploads the replies the tool recorded; it posts nothing. A script job with the new
+`review-replies` input and no model validates those replies, posts them and resolves only the
+fixed `VALID` threads, posts the round marker, and escalates `feedback-uncertain`,
+`feedback-not-landed`, `feedback-invalid`, `feedback-partial` (posting stopped partway),
+`feedback-incomplete` (a kept thread has no disposition) or `feedback-disputed` (an INCORRECT
+reply, left open for a person). The write file gains the `feedback-round` output. No
+live activity sets it yet. `version` stays 1.
+
+## 1.15.0 - 2026-10-14
+
+Issue mode: `report-outcome` opens the PR ready, not draft, since the skill's CI mode now runs the
+same prep the local pull-request prep does. A `report-statuses` job posts
+`pipeline/<activity>` commit statuses for the lane's steps. Nothing is skipped on a success; a
+failing one holds the pr-merge gate like any failing check.
+`version` stays 1.
+
+## 1.14.0 - 2026-10-14
+
+Schema: a skill leaf's optional `web-access` (`enabled`, `domains`: `any` or host names), off when
+absent; turning it on requires `reads-untrusted: true` and an effect other than `read`. `pr-run-activity.md` "Skill activities" says
+what the write runner then allows: `WebSearch`, `WebFetch` to those domains (which also opens them
+to sandboxed shell commands) and the research skills, with their plugins installed. The live config
+turns it on for `resolve-issue` with `domains: any`; the token residual now says the model can send
+its token to any allowed domain. `collect-base-activity`'s `plugin` output is now `plugins`, one per line. `version` stays 1.
+
+## 1.13.2 - 2026-10-14
+
+"The pr-merge lane" considers only pull requests the lanes App opened, and reads the work class from the pull request's single closing issue, never from a
+label on the pull request, and counts a class label the lanes App or a human in person applied.
+`report-outcome` no longer copies `work-class:` labels onto the PR, and `pr-merge.yml` shortlists
+the lanes App's open PRs instead of PRs carrying the label. The live config's comment on
+`merge` says so, and each `denied-paths` entry carries a one-line reason. `version` stays 1.
+
+## 1.13.1 - 2026-10-14
+
+The pr-merge workflow queues extra runs (`concurrency.queue: max`) instead of letting GitHub cancel
+all but one waiting run, which left CANCELLED `merge` checks on PRs. No rule or schema change.
+`version` stays 1.
+
+## 1.13.0 - 2026-10-14
+
+Schema: a skill leaf's optional `checks`, repository check scripts with fixed flags that a write
+skill may run. `pr-run-activity.md` "Skill activities" says how the write runner runs them from the
+base copy against the checkout. The live config gives `resolve-issue` the changelog fragment format check.
+`version` stays 1.
+
+## 1.12.4 - 2026-10-14
+
+"The pr-merge lane" names three more reads it changes: the kill switch comes from the workflow's
+own check (`--lane-kill-switch proceed`; missing or any other value stops), the rung cap from the
+workflow's `vars` (`--lane-rung-cap`; empty is no cap), and the post-merge check
+and in-flight rule count only merges the agent identity enqueued. In report-only mode the workflow
+starts no full CI run. `version` stays 1.
+
+## 1.12.3 - 2026-10-14
+
+The `work-resolve-issue` lane's allowlist gains `work-class: mechanical` beside `work-class: read-only`,
+and the comment above it names both. `labeled-after` is unchanged. `version` stays 1.
+
+## 1.12.2 - 2026-10-14
+
+The `work-resolve-issue` lane goes live: its `labeled-after` is now 2026-10-14T19:21:59Z, so issues
+labeled `agent-ready` after that time start a run. The allowlist stays `work-class: read-only`
+only. `version` stays 1.
+
 ## 1.12.1 - 2026-10-14
 
 The live config gains the `pr-merge` lane with one `merge-pr` activity (effect `merge`, the babysit

@@ -5,6 +5,13 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.14.7] - 2026-10-16
+
+### Changed
+
+- `audit-automation-gaps` no longer recommends a per-edit `PostToolUse` hook for a report-only check and flags an existing one with its placement: a git `pre-commit` hook on changed lines, `pre-push` up to 60 s, CI beyond. Formatters are recommended once per batch (`PostToolBatch`) within a 1 s median per fire, and at `pre-commit`. The shift-left carve-out's second conjunct now requires that placement, where it used to accept an advisory per-edit hook.
+- `audit-instructions`' `PostToolUse` worked example places the actionlint check in a git `pre-commit` entry.
+
 ## [1.14.6] - 2026-10-14
 
 ### Changed

@@ -6,6 +6,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
+import { parse } from "yaml";
+
 import { resolve, resolveGrant } from "./resolve.mjs";
 
 const read = (relative) =>
@@ -98,21 +100,145 @@ test("live config: report-escalation applies and is granted publish-artifact onl
   );
 });
 
-// An agent-ready label event on a read-only issue. The shipped cutover is the
-// far future, so the lane stays off until the owner sets the go-live time.
-const ISSUE = { event: "labeled", labels: ["agent-ready", "work-class: read-only"], labeledAt: "2026-10-20T00:00:00Z" };
-
-test("live config: resolve-issue starts nothing before the owner sets the go-live time", () => {
-  assert.equal(skipReason("work-resolve-issue", "resolve-issue", ISSUE), "not-applicable");
+// Expected values from #7032's acceptance criteria and effect-grants.json.
+test("live config: pr-unblock runs its slots in order", () => {
+  const { lane } = resolve(FILES, {
+    lane: "pr-unblock",
+    activity: "resolve-conflicts",
+    configPath: CONFIG_PATH,
+    basePath: ".base",
+    facts: FACTS,
+  });
+  assert.deepEqual(
+    lane.slots.map((slot) => slot.activity ?? slot.name),
+    ["resolve-conflicts", "address-feedback", "publish-feedback", "report-escalation"],
+  );
 });
 
-test("live config: after the go-live time resolve-issue admits read-only issues only", () => {
-  const after = { ...ISSUE, labeledAt: "2099-01-01T00:00:01Z" };
-  assert.equal(selected("work-resolve-issue", "resolve-issue", after).applies, true);
+test("live config: address-feedback applies to a ready PR with comments --ci and prepare review-threads", () => {
+  const slot = selected("pr-unblock", "address-feedback", { mergeable: "clean" });
+  assert.equal(slot.applies, true);
+  assert.equal(slot["reads-untrusted"], true);
+  assert.equal(slot.skill, "source-control:pull-request");
+  assert.equal(slot.args, "comments --ci");
+  assert.equal(slot.prepare, "review-threads");
+  assert.deepEqual(
+    resolveGrant(FILES, { lane: "pr-unblock", activity: "address-feedback", configPath: CONFIG_PATH }),
+    { effect: "mutate-branch", grant: { contents: "write", "pull-requests": "read", issues: "read" } },
+  );
+});
+
+test("live config: address-feedback waits for a human on a hold label and skips a draft", () => {
+  for (const label of ["do-not-merge", "needs-human"]) {
+    assert.equal(skipReason("pr-unblock", "address-feedback", { labels: [label] }), "awaiting-human");
+  }
+  assert.equal(skipReason("pr-unblock", "address-feedback", { draft: true }), "not-applicable");
+});
+
+test("live config: publish-feedback runs the reply script after address-feedback, granted publish-artifact only", () => {
+  const slot = selected("pr-unblock", "publish-feedback");
+  assert.equal(slot.applies, true);
+  // It reads the replies the model wrote.
+  assert.equal(slot["reads-untrusted"], true);
+  assert.equal(slot.script, ".github/scripts/pr-unblock/publish-feedback.mjs");
+  assert.deepEqual(slot.needs, ["address-feedback"]);
+  assert.deepEqual(
+    resolveGrant(FILES, { lane: "pr-unblock", activity: "publish-feedback", configPath: CONFIG_PATH }),
+    { effect: "publish-artifact", grant: { contents: "read", "pull-requests": "write", issues: "write" } },
+  );
+});
+
+test("live config: report-escalation follows all three pr-unblock activities", () => {
+  assert.deepEqual(selected("pr-unblock", "report-escalation").needs, [
+    "resolve-conflicts",
+    "address-feedback",
+    "publish-feedback",
+  ]);
+});
+
+// An agent-ready label event on a read-only issue with no ratification marker. The
+// lane went live at 2026-10-14T19:21:59Z, the labeled-after time in the live config.
+const ISSUE = {
+  event: "labeled",
+  labels: ["agent-ready", "work-class: read-only"],
+  labeledAt: "2026-10-20T00:00:00Z",
+  ratified: false,
+};
+
+test("live config: resolve-issue starts for a read-only issue labeled after the go-live time", () => {
+  assert.equal(selected("work-resolve-issue", "resolve-issue", ISSUE).applies, true);
+});
+
+test("live config: resolve-issue starts nothing for an issue labeled before the go-live time", () => {
   assert.equal(
-    skipReason("work-resolve-issue", "resolve-issue", { ...after, labels: ["agent-ready", "work-class: scoped"] }),
+    skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labeledAt: "2026-10-14T19:21:58Z" }),
     "not-applicable",
   );
+});
+
+test("live config: resolve-issue starts for a mechanical issue", () => {
+  assert.equal(
+    selected("work-resolve-issue", "resolve-issue", { ...ISSUE, labels: ["agent-ready", "work-class: mechanical"] }).applies,
+    true,
+  );
+});
+
+test("live config: resolve-issue admits read-only and mechanical issues only", () => {
+  assert.equal(
+    skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels: ["agent-ready", "work-class: scoped"] }),
+    "not-applicable",
+  );
+});
+
+// Owner rule: an agent-ready issue with no work class starts only when the
+// owner ratified it with the admission marker comment (`ratified`, gathered by
+// resolve-config from comments by a listed human).
+const RATIFIED = { ...ISSUE, labels: ["agent-ready"], ratified: true };
+
+test("live config: resolve-issue starts for an owner-ratified issue with no work class", () => {
+  assert.equal(selected("work-resolve-issue", "resolve-issue", RATIFIED).applies, true);
+});
+
+test("live config: resolve-issue starts nothing for an issue with no work class and no ratification", () => {
+  assert.equal(
+    skipReason("work-resolve-issue", "resolve-issue", { ...RATIFIED, ratified: false }),
+    "not-applicable",
+  );
+});
+
+test("live config: a ratified issue still needs the agent-ready label event after the go-live time", () => {
+  assert.equal(
+    skipReason("work-resolve-issue", "resolve-issue", { ...RATIFIED, labeledAt: "2026-10-14T19:21:58Z" }),
+    "not-applicable",
+  );
+  assert.equal(
+    skipReason("work-resolve-issue", "resolve-issue", { ...RATIFIED, event: "dispatch" }),
+    "not-applicable",
+  );
+});
+
+// #7491: a held class beside an allowed one is refused, ratified or not.
+test("live config: resolve-issue refuses an issue carrying a held class beside an allowed one", () => {
+  for (const held of ["work-class: scoped", "work-class: structural", "work-class: untrusted-provenance"]) {
+    const labels = ["agent-ready", "work-class: mechanical", held];
+    assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels }), "not-applicable");
+    assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...RATIFIED, labels }), "not-applicable");
+  }
+});
+
+// The run must pass the fragment format check before it reports done.
+test("live config: resolve-issue may run the changelog fragment check", () => {
+  assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE).checks, [
+    "scripts/check-changelog-fragments.sh --check",
+  ]);
+});
+
+// Owner decision 2026-10-14: the run may read any web page.
+test("live config: resolve-issue may read any domain; no other activity reads the web", () => {
+  assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE)["web-access"], { enabled: true, domains: "any" });
+  const doc = parse(FILES.config);
+  const others = Object.entries(doc.activities).filter(([name, a]) => name !== "resolve-issue" && a["web-access"]?.enabled);
+  assert.deepEqual(others, []);
 });
 
 test("live config: resolve-issue may only write its branch; report-outcome may only write PRs and issues", () => {
@@ -134,4 +260,8 @@ test("live config: fix-docs applies to a Markdown change and waits on needs-huma
     skipReason("pr-refine", "fix-docs", { labels: ["needs-human"] }),
     "awaiting-human",
   );
+});
+
+test("live config: fix-docs does not apply to a draft PR", () => {
+  assert.equal(skipReason("pr-refine", "fix-docs", { draft: true }), "not-applicable");
 });

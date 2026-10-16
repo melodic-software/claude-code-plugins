@@ -118,6 +118,28 @@ J
   green) echo '{"total_count":2,"check_runs":[{"name":"build","status":"completed","conclusion":"success"},{"name":"lint","status":"completed","conclusion":"skipped"}]}' >"$FIX/checks.json" ;;
   failed) echo '{"total_count":2,"check_runs":[{"name":"build","status":"completed","conclusion":"failure"},{"name":"lint","status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
   pending) echo '{"total_count":1,"check_runs":[{"name":"build","status":"in_progress","conclusion":null}]}' >"$FIX/checks.json" ;;
+  # Two runs of one check on one head (#7473, azure-iac#26): the newer listed
+  # first, as the endpoint returned them there.
+  superseded-failure | superseded-cancelled)
+    local old="${3#superseded-}"
+    echo '{"total_count":2,"check_runs":[{"id":902,"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"success","started_at":"2026-10-14T16:55:30Z","completed_at":"2026-10-14T16:55:43Z"},{"id":901,"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"'"$old"'","started_at":"2026-10-14T15:29:01Z","completed_at":"2026-10-14T15:29:16Z"}]}' >"$FIX/checks.json"
+    ;;
+  regressed) echo '{"total_count":2,"check_runs":[{"id":901,"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"success","started_at":"2026-10-14T15:29:01Z","completed_at":"2026-10-14T15:29:16Z"},{"id":902,"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"failure","started_at":"2026-10-14T16:55:30Z","completed_at":"2026-10-14T16:55:43Z"}]}' >"$FIX/checks.json" ;;
+  # The newer run (higher id) failed but finished before the older success did,
+  # or carries a caller-set future completed_at on the older success.
+  regressed-early) echo '{"total_count":2,"check_runs":[{"id":901,"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"success","started_at":"2026-10-14T10:00:00Z","completed_at":"2099-01-01T00:00:00Z"},{"id":902,"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"failure","started_at":"2026-10-14T10:05:00Z","completed_at":"2026-10-14T10:10:00Z"}]}' >"$FIX/checks.json" ;;
+  # A newer run still in progress, started before the older one completed.
+  newer-pending) echo '{"total_count":2,"check_runs":[{"id":901,"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"success","started_at":"2026-10-14T10:00:00Z","completed_at":"2026-10-14T10:10:00Z"},{"id":902,"name":"ci-status","app":{"id":15368},"status":"in_progress","conclusion":null,"started_at":"2026-10-14T10:05:00Z","completed_at":null}]}' >"$FIX/checks.json" ;;
+  # An older run still in progress, then a newer run that skipped the job.
+  pending-then-skipped) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test","app":{"id":15368},"status":"in_progress","conclusion":null,"started_at":"2026-10-14T10:00:00Z","completed_at":null},{"id":902,"name":"test","app":{"id":15368},"status":"completed","conclusion":"skipped","started_at":"2026-10-14T10:20:00Z","completed_at":"2026-10-14T10:20:00Z"}]}' >"$FIX/checks.json" ;;
+  # A later event skipped the job that had failed.
+  failed-then-skipped) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test","app":{"id":15368},"status":"completed","conclusion":"failure","started_at":"2026-10-14T10:00:00Z","completed_at":"2026-10-14T10:10:00Z"},{"id":902,"name":"test","app":{"id":15368},"status":"completed","conclusion":"skipped","started_at":"2026-10-14T10:20:00Z","completed_at":"2026-10-14T10:20:00Z"}]}' >"$FIX/checks.json" ;;
+  # An older run cancelled, then a newer run that skipped the job (#7549).
+  cancelled-then-skipped) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test-bash","app":{"id":15368},"status":"completed","conclusion":"cancelled","started_at":"2026-10-16T05:22:25Z","completed_at":"2026-10-16T05:22:40Z"},{"id":902,"name":"test-bash","app":{"id":15368},"status":"completed","conclusion":"skipped","started_at":"2026-10-16T05:25:10Z","completed_at":"2026-10-16T05:25:10Z"}]}' >"$FIX/checks.json" ;;
+  # A failure, then a cancelled run, then a skipped one: the failure still counts.
+  failed-cancelled-skipped) echo '{"total_count":3,"check_runs":[{"id":900,"name":"test","app":{"id":15368},"status":"completed","conclusion":"failure","started_at":"2026-10-14T09:50:00Z","completed_at":"2026-10-14T09:55:00Z"},{"id":901,"name":"test","app":{"id":15368},"status":"completed","conclusion":"cancelled","started_at":"2026-10-14T10:00:00Z","completed_at":"2026-10-14T10:01:00Z"},{"id":902,"name":"test","app":{"id":15368},"status":"completed","conclusion":"skipped","started_at":"2026-10-14T10:20:00Z","completed_at":"2026-10-14T10:20:00Z"}]}' >"$FIX/checks.json" ;;
+  # An older success, then a newer run that was cancelled.
+  newer-cancelled) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test","app":{"id":15368},"status":"completed","conclusion":"success","started_at":"2026-10-14T10:00:00Z","completed_at":"2026-10-14T10:10:00Z"},{"id":902,"name":"test","app":{"id":15368},"status":"completed","conclusion":"cancelled","started_at":"2026-10-14T10:20:00Z","completed_at":"2026-10-14T10:21:00Z"}]}' >"$FIX/checks.json" ;;
   *) return 1 ;;
   esac
   case "$4" in
@@ -228,6 +250,36 @@ run "pending checks block an immediate merge" 'gh pr merge 42 --squash' 2
 assert_contains "names the pending checks" "$ERR" "Pending checks"
 scenario none none pending pending
 run "pending checks do not block --auto" 'gh pr merge 42 --auto --squash' 0
+# Only the newest run of a check on the head counts (#7473).
+for old in failure cancelled; do
+  scenario none none "superseded-$old" green
+  run "older $old superseded by a newer success" 'gh pr merge 42 --squash --match-head-commit abc123' 0
+  assert_eq "superseded $old -> no stderr" "" "$ERR"
+done
+scenario none none regressed green
+run "older success, newer failure" 'gh pr merge 42 --squash' 2
+assert_contains "names the regressed check" "$ERR" "Failing checks: ci-status"
+scenario none none regressed-early green
+run "newer failure that finished before the older success" 'gh pr merge 42 --squash' 2
+assert_contains "names the early-finishing failure" "$ERR" "Failing checks: ci-status"
+scenario none none newer-pending green
+run "newer pending run over an older success" 'gh pr merge 42 --squash' 2
+assert_contains "names the newer pending run" "$ERR" "Pending checks (use --auto to merge once they pass): ci-status"
+scenario none none failed-then-skipped green
+run "a later skipped run does not clear a failure" 'gh pr merge 42 --squash' 2
+assert_contains "names the skipped-over failure" "$ERR" "Failing checks: test"
+scenario none none pending-then-skipped green
+run "a newer skipped run supersedes an older pending one" 'gh pr merge 42 --squash' 0
+assert_eq "pending then skipped -> no stderr" "" "$ERR"
+scenario none none cancelled-then-skipped green
+run "a newer skipped run supersedes an older cancelled one" 'gh pr merge 42 --squash' 0
+assert_eq "cancelled then skipped -> no stderr" "" "$ERR"
+scenario none none failed-cancelled-skipped green
+run "a cancelled run between a failure and a skip does not clear the failure" 'gh pr merge 42 --squash' 2
+assert_contains "blocks naming test" "$ERR" "Failing checks: test"
+scenario none none newer-cancelled green
+run "a newest cancelled run still blocks" 'gh pr merge 42 --squash' 2
+assert_contains "names the cancelled check" "$ERR" "Failing checks: test"
 
 # --- 4. REST, GraphQL and curl merge paths -------------------------------------
 scenario unresolved none green green

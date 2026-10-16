@@ -93,7 +93,7 @@ config has chosen no Markdown style, so the hook does not run there at all
 
 We assume no ordering or locking between matching `PostToolUse` hooks. In an
 opted-in repo this hook is the single in-place rewriter for `.md`/`.mdc` by
-default; a consumer who ALSO opts `typos-format`'s write mode on accepts
+default; a consumer who adds another hook that rewrites Markdown in place accepts
 **last-writer-wins** ordering between the two on every Markdown edit. The
 residual overlap class across scoped writer hooks is tracked fleet-wide in #875.
 

@@ -285,6 +285,7 @@ UNBOUND = tuple(
 )
 PROMOTED = policy.Promotion(dict.fromkeys(policy.PROMOTABLE_CELLS, "promoted"), None)
 PROCEED = policy.KillSwitch(True, "proceed")
+REAL_ASYNC_MERGE = merge.async_merge
 ENQUEUED = {
     "attempted": True,
     "api": "merge-async",
@@ -350,6 +351,7 @@ class Unattended(unittest.TestCase):
         # The pr-merge lane's eligibility and its re-read before the enqueue.
         self.lane_eligible = policy.Eligibility(True, None, "C2")
         self.lane_recheck: str | None = None
+        self.lane_recheck_kwargs: list[dict[str, Any]] = []
 
     def _lane_evidence(self, *args: Any) -> Any:
         if self.lane_error is not None:
@@ -381,6 +383,9 @@ class Unattended(unittest.TestCase):
         self.async_merge = mock.Mock(side_effect=self._async_merge)
         self.dequeue = mock.Mock(side_effect=self._dequeue)
         self.dispatch = mock.Mock(side_effect=self._dispatch)
+        self.post_check = mock.Mock(return_value=self.verdict)
+        self.in_flight = mock.Mock(return_value=self.flight)
+        self.read_cap = mock.Mock(return_value=self.cap)
 
         def gh_json(args: list[str]) -> Any:
             if args[:2] == ["pr", "view"]:
@@ -403,6 +408,8 @@ class Unattended(unittest.TestCase):
                 }
             if args[0] == "api" and "/compare/" in args[1]:
                 return fixtures.UP_TO_DATE
+            if args[:2] == ["api", f"repos/owner/repo/pulls/{PR}"]:
+                return {"id": self.node_id}
             if args[0] == "api":
                 return self.rules
             raise AssertionError(f"unexpected gh_json call: {args}")
@@ -436,9 +443,9 @@ class Unattended(unittest.TestCase):
                 "enabled_since",
                 return_value=datetime(2026, 10, 1, tzinfo=UTC),
             ),
-            mock.patch.object(postmerge, "check", return_value=self.verdict),
-            mock.patch.object(policy, "read_rung_cap", return_value=self.cap),
-            mock.patch.object(policy, "in_flight", return_value=self.flight),
+            mock.patch.object(postmerge, "check", self.post_check),
+            mock.patch.object(policy, "read_rung_cap", self.read_cap),
+            mock.patch.object(policy, "in_flight", self.in_flight),
             mock.patch.object(policy, "read_promotion", return_value=self.promotion),
             mock.patch.object(policy, "eligibility", return_value=self.eligible),
             mock.patch.object(
@@ -447,7 +454,9 @@ class Unattended(unittest.TestCase):
             mock.patch.object(
                 policy,
                 "recheck_lane_class",
-                side_effect=lambda *a, **k: self.lane_recheck,
+                side_effect=lambda *a, **k: (
+                    self.lane_recheck_kwargs.append(k) or self.lane_recheck
+                ),
             ),
             mock.patch.object(policy, "changed_files", return_value=self.files),
             mock.patch.object(
@@ -505,6 +514,10 @@ class Unattended(unittest.TestCase):
             self.log.append("disarm")
         elif "dequeuePullRequest" in joined:
             self.log.append("dequeue-self:" + args[-1])
+        elif "enqueuePullRequest" in joined:
+            self.log.append(f"graphql-enqueue:{args[-3]}:{args[-1]}")
+            answer = async_fixtures._enqueued()
+            return subprocess.CompletedProcess(args, 0, json.dumps(answer), "")
         else:
             self.log.append("write:" + joined)
         return subprocess.CompletedProcess(args, 0, "{}", "")
@@ -537,24 +550,103 @@ class LaneMode(Unattended):
         self.opt_in_recheck = "not-lane-authored-or-opted-in"
         # D16 replaces the local promotion read: an unpromoted cell must not hold.
         self.promotion = policy.Promotion(None, "resolver-failed")
+        # The lane never reads the variables kill switch: a read would pop
+        # from an empty list and fail the test.
+        self.kill = []
+
+    def lane(self, *flags: str) -> tuple[int, dict[str, Any]]:
+        return self.run_main(
+            "--authority",
+            "pr-merge",
+            "--lane-kill-switch",
+            "proceed",
+            "--lane-rung-cap",
+            "",
+            *flags,
+        )
+
+    def test_the_lane_takes_the_rung_cap_from_the_workflow(self) -> None:
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.read_cap.assert_not_called()
+        self.assertEqual(
+            out["unattended"]["rungCap"], {"value": None, "reason": "no-cap"}
+        )
+
+    def test_a_workflow_cap_below_the_rung_refuses(self) -> None:
+        code, out = self.run_main(
+            "--authority", "pr-merge", "--lane-kill-switch", "proceed",
+            "--lane-rung-cap", "off",
+        )  # fmt: skip
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "rung-off:rungCap")
+        self.read_cap.assert_not_called()
 
     def test_the_lane_enqueues_at_the_pinned_head(self) -> None:
-        code, out = self.run_main("--authority", "pr-merge")
+        code, out = self.lane()
         self.assertEqual(code, 0, out["blockers"])
         self.assertIsNone(out["unattended"]["reason"])
         self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+        self.assertEqual(
+            out["unattended"]["enqueue"]["killSwitch"],
+            {"proceed": True, "reason": "proceed"},
+        )
+
+    def test_the_lane_enqueues_through_graphql_not_merge_async(self) -> None:
+        self._async_merge = REAL_ASYNC_MERGE  # type: ignore[method-assign]
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertTrue(out["enqueued"])
+        self.assertEqual(self.log, ["pin", f"graphql-enqueue:id=PR_self:head={HEAD}"])
+        self.assertEqual(out["merge"]["api"], "graphql")
+
+    def test_a_missing_workflow_kill_switch_stops_the_lane(self) -> None:
+        # A stop like the switch itself: no enqueue, and the identity's own
+        # queued entries leave the queue.
+        code, out = self.run_main("--authority", "pr-merge")
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "kill-switch:lane-value-missing")
+        self.assertEqual(self.log, ["dequeue:all"])
+
+    def test_a_workflow_kill_switch_other_than_proceed_refuses(self) -> None:
+        for value in ("true", "stop", "PROCEED"):
+            with self.subTest(value=value):
+                self.log = []
+                code, out = self.run_main(
+                    "--authority", "pr-merge", "--lane-kill-switch", value
+                )
+                self.assert_no_merge(code)
+                self.assertEqual(
+                    out["unattended"]["reason"], "kill-switch:lane-value-not-proceed"
+                )
+
+    def test_the_lane_judges_only_its_own_merges(self) -> None:
+        # #7481: the post-merge check and the in-flight rule skip another
+        # App's merge on main.
+        self.lane()
+        self.assertIs(self.post_check.call_args.kwargs["lane_merges_only"], True)
+        self.assertIs(self.in_flight.call_args.kwargs["lane_merges_only"], True)
 
     def test_a_class_label_gone_before_the_enqueue_refuses(self) -> None:
         self.lane_recheck = "class-label-removed"
-        code, out = self.run_main("--authority", "pr-merge")
+        code, out = self.lane()
         self.assert_no_merge(code)
         self.assertIn(
             "unattended merge refused: ineligible:class-label-removed", out["blockers"]
         )
 
+    def test_the_enqueue_recheck_keeps_the_self_logins_and_permission(self) -> None:
+        # A listed self login must not count as a human labeler at the
+        # recheck either (#7507).
+        self.lane("--self-logins", "lane-app[bot]")
+        self.assertEqual(len(self.lane_recheck_kwargs), 1)
+        kwargs = self.lane_recheck_kwargs[0]
+        self.assertEqual(kwargs.get("self_logins"), frozenset({"lane-app[bot]"}))
+        self.assertIsNotNone(kwargs.get("permission"))
+
     def test_an_ineligible_pr_is_refused(self) -> None:
         self.lane_eligible = policy.Eligibility(False, "denied-path:.github/x.yml")
-        code, out = self.run_main("--authority", "pr-merge")
+        code, out = self.lane()
         self.assert_no_merge(code)
         self.assertEqual(
             out["unattended"]["reason"], "ineligible:denied-path:.github/x.yml"
@@ -562,7 +654,7 @@ class LaneMode(Unattended):
 
     def test_report_only_reports_the_decision_and_writes_nothing(self) -> None:
         self.config = dataclasses.replace(self.config, report_only=True)
-        code, out = self.run_main("--authority", "pr-merge")
+        code, out = self.lane()
         self.assertEqual(code, 0, out["blockers"])
         self.assertEqual(out["action"], "check")
         self.assertIs(out["unattended"]["reportOnly"], True)
@@ -581,6 +673,43 @@ class LaneMode(Unattended):
             contextlib.redirect_stdout(out),
         ):
             self.assertEqual(merge.main(), 2)
+
+    def test_a_lane_kill_switch_outside_the_lane_is_a_usage_error(self) -> None:
+        # Local babysit keeps its variables read; it never takes a passed value.
+        for flags in (
+            ["--unattended", "--lane-kill-switch", "proceed"],
+            ["--unattended", "--authority", "local-babysit"]
+            + ["--lane-kill-switch", "proceed"],
+            ["--lane-kill-switch", "proceed"],
+            ["--unattended", "--lane-rung-cap", ""],
+            ["--unattended", "--authority", "local-babysit", "--lane-rung-cap", "C2"],
+        ):
+            with self.subTest(flags=flags):
+                argv = ["babysit_merge.py", f"owner/repo#{PR}"]
+                argv += ["--allowed-owners", "owner", *flags]
+                out = io.StringIO()
+                with (
+                    mock.patch.object(sys, "argv", argv),
+                    mock.patch.object(merge, "gh_capture", side_effect=AssertionError),
+                    mock.patch.object(merge, "gh_json", side_effect=AssertionError),
+                    contextlib.redirect_stdout(out),
+                ):
+                    self.assertEqual(merge.main(), 2)
+
+
+class LocalBabysitKeepsItsReads(Unattended):
+    """Without `--authority pr-merge` the kill switch is read from the
+    variables and every non-human merge is judged, as before."""
+
+    def test_the_variables_kill_switch_and_every_merge_are_read(self) -> None:
+        code, out = self.run_main()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(
+            out["unattended"]["enqueue"]["killSwitch"],
+            {"proceed": PROCEED.proceed, "reason": PROCEED.reason},
+        )
+        self.assertIs(self.post_check.call_args.kwargs["lane_merges_only"], False)
+        self.assertIs(self.in_flight.call_args.kwargs["lane_merges_only"], False)
 
 
 class AllInputsGood(Unattended):
@@ -652,50 +781,21 @@ class AllInputsGood(Unattended):
         self.assertEqual(out["unattended"]["dispatchError"], "HTTP 500")
         self.assertEqual(code, 10)
 
-    def merged_on_enqueue(self, landed_head: str) -> tuple[int, dict[str, Any]]:
-        # The queue landed the entry before async_merge stopped polling, so the
-        # enqueue itself returns `merged` with the read-back already done.
-        record = {
-            **ENQUEUED,
-            "status": "merged",
-            "verifiedMerged": True,
-            "mergedHead": landed_head,
-            "success": landed_head == HEAD,
-        }
-
-        def landed(repo: str, number: int, **kwargs: Any) -> dict[str, Any]:
-            self.log.append(f"enqueue:{kwargs['sha']}:{kwargs['merge_action']}")
-            return dict(record)
-
-        self._async_merge = landed  # type: ignore[method-assign]
+    def test_an_enqueue_is_recorded_at_the_pin_for_the_later_read_back(
+        self,
+    ) -> None:
+        # The enqueue returns before the queue lands it: the merge and its
+        # verifying dispatch come from a later run reading this record back.
+        self._async_merge = REAL_ASYNC_MERGE  # type: ignore[method-assign]
         with tempfile.TemporaryDirectory() as state:
-            return self.run_main("--state-dir", state)
-
-    def test_an_enqueue_that_returns_merged_dispatches_the_full_run(self) -> None:
-        # Codex P1 on #7335: without this the merge had no verifying dispatch.
-        code, out = self.merged_on_enqueue(HEAD)
-        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue", "dispatch"])
-        self.dispatch.assert_called_once_with("owner/repo", ref="main")
-        self.assertIs(out["merged"], True)
-        self.assertIs(out["unattended"]["dispatched"], True)
-        self.assertEqual(code, 0)
-
-    def test_a_failed_dispatch_after_a_merged_enqueue_is_reported(self) -> None:
-        # The merge is this run's own outcome, so the exit stays 0; the next
-        # `babysit-postmerge.sh --remediate` cycle dispatches the run.
-        self.dispatch_error = postmerge.PostMergeWriteError("HTTP 500")
-        code, out = self.merged_on_enqueue(HEAD)
-        self.assertIs(out["merged"], True)
-        self.assertIs(out["unattended"]["dispatched"], False)
-        self.assertEqual(out["unattended"]["dispatchError"], "HTTP 500")
-        self.assertEqual(code, 0)
-
-    def test_an_enqueue_merged_at_another_head_dispatches_nothing(self) -> None:
-        # The read-back did not hold: as on a later run, no dispatch, exit 10.
-        code, out = self.merged_on_enqueue("f" * 40)
+            code, out = self.run_main("--state-dir", state)
+            path = pathlib.Path(state) / merge.PENDING_MERGES_FILE
+            record = json.loads(path.read_text(encoding="utf-8"))["requests"][
+                f"owner/repo#{PR}"
+            ]
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual((record["queued"], record["head"]), (True, HEAD))
         self.dispatch.assert_not_called()
-        self.assertNotIn("dispatched", out["unattended"])
-        self.assertEqual(code, 10)
 
     def test_a_read_back_that_did_not_hold_dispatches_nothing(self) -> None:
         self.pr_view = fixtures._pr(state="MERGED")
@@ -1110,6 +1210,41 @@ class ReasonsComment(Unattended):
     def test_a_low_pull_request_gets_no_comment(self) -> None:
         self.run_main()
         self.assertNotIn("risk-comment:POST", self.log)
+
+
+class HeadFile(unittest.TestCase):
+    """`bind()`'s head-file reader proves a deletion, never a rename."""
+
+    def read(self, proc: Any, files: Any = ()) -> str | None:
+        with (
+            mock.patch.object(merge, "gh_capture", return_value=proc),
+            mock.patch.object(merge, "gh_json", return_value={"files": list(files)}),
+        ):
+            return merge._head_file("owner/repo", HEAD)("app.py", "b" * 40)
+
+    @staticmethod
+    def proc(code: int, out: str = "", err: str = "") -> Any:
+        return subprocess.CompletedProcess([], code, out, err)
+
+    def test_text_at_head(self) -> None:
+        self.assertEqual(self.read(self.proc(0, "x\n")), "x\n")
+
+    def test_removed_file_reads_none(self) -> None:
+        gone = self.proc(1, err="gh: Not Found (HTTP 404)")
+        removed = {"filename": "app.py", "status": "removed"}
+        self.assertIsNone(self.read(gone, [removed]))
+
+    def test_renamed_or_unproven_file_raises(self) -> None:
+        gone = self.proc(1, err="gh: Not Found (HTTP 404)")
+        renamed = {"filename": "app.py", "status": "renamed"}
+        removed = {"filename": "app.py", "status": "removed"}
+        for name, proc, files in (
+            ("renamed", gone, [renamed]),
+            ("capped", gone, [removed] + [{"filename": "f"}] * 299),
+            ("forbidden", self.proc(1, err="gh: Forbidden (HTTP 403)"), [removed]),
+        ):
+            with self.subTest(name), self.assertRaises(RuntimeError):
+                self.read(proc, files)
 
 
 class HeadPushers(unittest.TestCase):

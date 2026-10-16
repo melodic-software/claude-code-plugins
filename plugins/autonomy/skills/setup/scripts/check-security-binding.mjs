@@ -11,6 +11,7 @@
 //
 // Usage: node check-security-binding.mjs <binding.json> [--evidence <evidence.json>] [--probe-evidence-root <dir>] [--egress-hosts <host,host,...>] [--credential-roots <path,path,...>]
 // Exit 0 = valid (verdicts printed); 1 = findings; 2 = usage/environment error.
+// `--evidence -` reads the events from stdin, so a caller that computed them need not write a file.
 //
 // --egress-hosts is the configured/trusted probe-target seam: when supplied,
 // a transcript's egress host must be one of the listed hosts. Without it the
@@ -2527,7 +2528,7 @@ function resolveEffectivePromotion(binding, evidencePath) {
   let events = null;
   let evidenceUnavailable = false;
   try {
-    const parsed = JSON.parse(readFileSync(evidencePath, "utf8"));
+    const parsed = JSON.parse(readFileSync(evidencePath === "-" ? 0 : evidencePath, "utf8"));
     if (!Array.isArray(parsed)) throw new Error("evidence document must be a JSON array of events");
     events = parsed;
   } catch (error) {
