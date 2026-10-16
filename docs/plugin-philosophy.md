@@ -1111,13 +1111,13 @@ this rule instead of restating it.
    - **As of**: 2026-10-04.
    - **Recheck trigger**: that setting is renamed or removed, or the carve-out stops naming the PR's
      verify stage as its verdict.
-4. **The testing plugin's task-end judge is the precedent.** With `test_judge_enabled` on, a
-   separate model reviews the tests a session created or changed at the end of each task, so the
-   session that wrote a test never grades it.
-   - **Pointer**: the `test_judge_enabled` option of the testing plugin, documented in `/testing:setup`.
-   - **As of**: 2026-10-04.
-   - **Recheck trigger**: the option is renamed or removed, or the judge stops running in a context
-     separate from the session it judges.
+4. **The testing plugin's judge pass is the precedent.** `/testing:audit --judge` hands the tests a
+   change created or changed to a fresh-context subagent on another model class, so the session
+   that wrote a test never grades it.
+   - **Pointer**: the judge pass section of `/testing:audit`.
+   - **As of**: 2026-10-15.
+   - **Recheck trigger**: the pass is renamed or removed, or the judge stops running in a context
+     separate from the session that wrote the tests.
 5. **Deterministic gates stay exempt**, within the narrow scope stated above: a script's pass or fail
    is the verdict, so no author bias reaches it.
 

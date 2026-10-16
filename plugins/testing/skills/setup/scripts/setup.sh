@@ -10,8 +10,8 @@
 #                 lint config, or the plugin's recommended set referenced.
 #   instruction   an optional line, printed to paste into the instruction file
 #                 Claude Code loads; this script never edits CLAUDE.md or AGENTS.md
-#   hook-entry    for each consumer glob no shipped hook row matches, a
-#                 .claude/settings.json entry that runs test-scan on it
+#   hook-entry    that test-quality findings come from /testing:audit, and
+#                 each consumer glob the shipped test-weaken rows skip
 # apply writes the answer flags to the team layer in use: the whole of
 # <root>/docs/conventions/testing.yaml when it exists (its top-level run-e2e
 # keys are kept), else the body of the config block in
@@ -344,31 +344,11 @@ check() {
     printf '  If testing, read docs/conventions/testing.md (the testing conventions).\n'
 
   printf '\n== hook-entry ==\n'
-  local globs=() g
+  local globs=()
   while IFS=$'\t' read -r key val; do [[ "$key" == hook.uncovered ]] && globs+=("$val"); done <<<"$cfg"
-  if [[ ${#globs[@]} -eq 0 ]]; then
-    printf 'none: every consumer test glob is covered by a shipped test-scan hook row\n'
-  else
-    printf 'The test-scan hook skips %s. Add this PostToolUse entry to .claude/settings.json to cover them;\n' "${globs[*]}"
-    printf 'a settings hook gets no plugin variables, so it runs the highest installed version and passes --enabled;\n'
-    printf 'with no installed copy that takes --enabled it says so on stderr and exits 0.\n'
-    # Pinned to the marketplace this copy runs from, so another marketplace's
-    # plugin named testing is never picked.
-    local mkt='<marketplace>' rest="${PLUGIN#*/.claude/plugins/cache/}"
-    # The name is spliced into shell code, so only a plain name is.
-    if [[ "$rest" != "$PLUGIN" && "$rest" == */testing/* && "${rest%%/*}" =~ ^[A-Za-z0-9_.-]+$ ]]; then
-      mkt="${rest%%/*}"
-    else
-      printf 'This copy is not in the plugin cache under a plain marketplace name, so replace <marketplace> with the marketplace the testing plugin is installed from.\n'
-    fi
-    # shellcheck disable=SC2016 # the command is for the hook's shell, not this one
-    local cmd='p=$(ls -d "$HOME/.claude/plugins/cache/'"$mkt"'"/testing/*/hooks/test-scan.sh 2>/dev/null | awk -F/ '"'"'{split($(NF-2),v,".");k=sprintf("%09d%09d%09d",v[1],v[2],v[3]);if(k>m){m=k;p=$0}}END{print p}'"'"'); if [ -n "$p" ] && grep -q -e --enabled "$p"; then exec bash "$p" --enabled; fi; echo "testing: no installed test-scan.sh under ~/.claude/plugins/cache/'"$mkt"'/testing takes --enabled; this settings hook did nothing" >&2'
-    {
-      for g in "${globs[@]}"; do
-        jq -n --arg g "$g" --arg c "$cmd" '("Write", "Edit") | {type: "command", command: $c, if: "\(.)(\($g))", timeout: 10}'
-      done
-    } | jq -s '{hooks: {PostToolUse: [{matcher: "Write|Edit", hooks: .}]}}'
-  fi
+  printf 'none: test-quality findings come from /testing:audit on demand, not a per-edit hook\n'
+  ((${#globs[@]} == 0)) ||
+    printf '/testing:audit scans %s too; the test-weaken hook skips them, since no shipped row matches them.\n' "${globs[*]}"
   ((findings == 0)) || return 1
 }
 

@@ -1,7 +1,7 @@
 # shellcheck shell=bash
-# Fixtures shared by test-judge-bg.test.sh, test-judge.test.sh and
-# test-judge-start.test.sh: a throwaway repository, the option gates, a stub
-# judge behind TEST_JUDGE_CMD, and writers for the state test-scan leaves.
+# Fixtures for the judge calibration tests (metrics.test.sh): a throwaway
+# repository, the option gates, a stub judge behind TEST_JUDGE_CMD, and writers
+# for the per-file records judge-lib.sh reads.
 # No test calls a real model: a `claude` first on PATH fails loudly.
 # shellcheck disable=SC2034 # read by the sourcing test
 

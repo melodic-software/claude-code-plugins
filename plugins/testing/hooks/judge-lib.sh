@@ -1,11 +1,11 @@
 # shellcheck shell=bash
-# The task-end test judge's shared pieces, for test-judge-bg.sh (PostToolUse,
-# async), test-judge.sh (Stop) and test-judge-start.sh (SessionStart). Source
-# after scanner-run.sh, with HOOK_DIR, DATA, PKEY, SID (this session) and TPATH
-# (its transcript) set.
+# The test judge's run, ledger and validation pieces, kept for the judge
+# calibration harness (skills/audit/evals/judge-calibration/metrics.sh), which
+# no hook runs. Source after scanner-run.sh, with HOOK_DIR, DATA, PKEY, SID
+# (the run) and TPATH (a transcript path) set.
 #
-# State under $DATA, all pruned after 7 days by test-scan.sh:
-#   sessions/<pkey>/<sid>/<tool_use_id>.json  test-scan's record of each write
+# State under $DATA:
+#   sessions/<pkey>/<sid>/<tool_use_id>.json  a record of each file to judge
 #   verdicts/<pkey>/<sid>/<key-hash>.json     the ledger, written by rename
 #   verdicts/<pkey>/<sid>/blob-<blob id>      a test file as a judge run read it
 #   verdicts/<pkey>/<sid>/unusable-<t>-<pid>.txt  a run's output with no usable result

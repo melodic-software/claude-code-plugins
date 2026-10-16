@@ -15,10 +15,10 @@ skills cover it.
 | `/testing:check-visual-parity` | Model-invocable; implement's refactor mode calls it for a plan phase with a `**Parity contract:**` line. `baseline` captures PNG screenshots of the listed states before the first edit and records their sha256, OS, browser, viewport and scale in a manifest; `compare` captures them again at each green checkpoint and counts differing pixels per image with pixelmatch against `pixel_tolerance`. It captures only through a driver that writes PNG files, launches through `/testing:run-e2e`'s launch path, runs the repository's own visual suite first, and never edits or re-captures a baseline. pixelmatch and pngjs install on first use from the committed lockfile (`npm` required). |
 | `/testing:diagnose` | Failing-test diagnosis. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
 | `/testing:audit` | Can't-fail test detection: a deterministic script runs thirteen rules across JS/TS, Python, C#, Bash, PowerShell and Go, from assertion-free bodies and self-identical (recomputed-expectation) assertions to unawaited assertions, conditional assertions and Playwright retry or `test.only` configs. `--check` fails on the first two (Bash-harness findings only with `--strict`); `--strict` adds mock-only oracles and the two Playwright config rules; the other eight only report. It reports with a coverage denominator and opt-in persists findings for a review fix pass. |
-| `/testing:cleanup` | Clean up low-value tests in one folder. Reads `/testing:audit` findings, test-judge FLAG verdicts and the tests you name as flaky; a fresh-context classifier picks quarantine, rewrite, delete, merge or keep per test. It rewrites by default and deletes or merges only with a stated no-contract reason and your yes on each item. `/mutation-testing:audit --record-mutants` records the mutants the tests kill before any edit, and `--replay-mutants` blocks the batch when a kill is lost. Nothing is committed until you approve the batch. Needs the `mutation-testing` plugin set up with a `test-command`; without one, `--cannot-fail-only` deletes only tests that cannot fail, each cleared by a fresh-context skeptic and your yes. |
-| `/testing:setup` | Configure the can't-fail checks: `check` prints the resolved testing config, the test-lint rules missing per language, an optional instruction line to paste, and a settings hook entry for test globs the shipped hook skips; `apply` writes the config block of `docs/conventions/testing.md` (or `.claude/testing.yaml` when that file is the one in use). |
+| `/testing:cleanup` | Clean up low-value tests in one folder. Reads `/testing:audit` findings, its judge pass's FLAG verdicts and the tests you name as flaky; a fresh-context classifier picks quarantine, rewrite, delete, merge or keep per test. It rewrites by default and deletes or merges only with a stated no-contract reason and your yes on each item. `/mutation-testing:audit --record-mutants` records the mutants the tests kill before any edit, and `--replay-mutants` blocks the batch when a kill is lost. Nothing is committed until you approve the batch. Needs the `mutation-testing` plugin set up with a `test-command`; without one, `--cannot-fail-only` deletes only tests that cannot fail, each cleared by a fresh-context skeptic and your yes. |
+| `/testing:setup` | Configure the can't-fail checks: `check` prints the resolved testing config, the test-lint rules missing per language, an optional instruction line to paste, and the test globs the shipped `test-weaken` hook skips; `apply` writes the config block of `docs/conventions/testing.md` (or `.claude/testing.yaml` when that file is the one in use). |
 | `/testing:check` | Read-only and model-invocable. Reports whether `node` and `jq` resolve for the plugin's hooks, with the install route from `prerequisites.json` when it does not. It never installs. |
-| `testing:test-value` | Model-invoked guidance, loaded by the review and implementation agents and the `test-scan` hook: where each expected value must come from, when call-count and database checks are legitimate, and the can't-fail taxonomy keyed to `/testing:audit` rule ids. |
+| `testing:test-value` | Model-invoked guidance, loaded by the review and implementation agents and the `/testing:audit` judge pass: where each expected value must come from, when call-count and database checks are legitimate, and the can't-fail taxonomy keyed to `/testing:audit` rule ids. |
 
 | Workflow | Launched by | What it does |
 |---|---|---|
@@ -68,15 +68,10 @@ Test structure and conventions come from your own project's `CLAUDE.md` and rule
 `userConfig` options, prompted by Claude Code at enable time (all listed under Options reference
 below):
 
-- `test_guards_enabled` (default `false`) turns on two hooks. `test-scan` (PostToolUse) runs the
-  can't-fail scanner on each test file Claude writes or edits and returns the findings as
-  context. `test-weaken` (PreToolUse) tells Claude which tests, assertions or expected values an
-  edit removes, skips or changes.
-- `test_judge_enabled` (default `false`, and only effective with `test_guards_enabled`, whose scan
-  records the tests it judges) turns on the task-end test judge, described below.
-  `test_judge_model` (default `sonnet`) and `test_judge_fallback_model` (default `opus`) name the
-  judge's model class, and `test_judge_effort` (default `medium`) its effort.
-  `test_judge_session_runs` (unset: no limit) caps the judge runs one session starts.
+- `test_guards_enabled` (default `false`) turns on the `test-weaken` hook (PreToolUse), which tells
+  Claude which tests, assertions or expected values an edit removes, skips or changes. Can't-fail
+  findings are report-only, so they come from `/testing:audit` on demand, not from a per-edit hook
+  ([check placement](../../docs/conventions/check-placement/README.md)).
 - `stdin_read_timeout` (default `2` seconds) bounds how long a hook waits on its input before it
   fails open.
 
@@ -86,104 +81,15 @@ mod calls `next`, so a mod that answers a `tool.call` without calling it skips t
 A mod can also approve a call they blocked, because its `tool.check` hook runs after them
 ([approve or refuse a tool call before the user is asked](https://code.claude.com/docs/en/plugins/mods/events#approve-or-refuse-a-tool-call-before-the-user-is-asked)).
 
-### Task-end test judge
+### Judge pass
 
-A separate headless `claude -p` run asks one question of each test block the session created or
-changed: where did its expected value come from? It answers FLAG (the value restates the
-implementation), PASS or UNKNOWN, quotes its evidence, and proposes a diff for a FLAG. It never
-applies anything. A background job judges soon after a write; at the end of the task the Stop hook
-runs in the background, so the turn ends without waiting for it. It waits for any run still going,
-judges what is left (10 tests per task end, the rest at the next one), and writes a review-findings
-file (under `.work/reviews/<branch>/`). In an interactive session, when a verdict is a FLAG, or an
-UNKNOWN that started as a FLAG and failed the checks below, it wakes Claude once to show you each
-verdict and proposed diff and wait; nothing else wakes Claude. Every other UNKNOWN (no repository,
-no judge class, the judge's own UNKNOWN, a PASS that failed the checks) carries no finding.
-Otherwise there is nothing to decide: when every verdict is a PASS, Claude gets one line with the
-count on its next turn, and in the other cases, or in an unattended session, the counts and the
-file. The hook uses `asyncRewake` ([hooks reference: run hooks in the
-background](https://code.claude.com/docs/en/hooks#run-hooks-in-the-background), as of 2026-10-09;
-recheck when an `asyncRewake` hook's wake condition, timeout or output delivery changes).
-A `claude -p` or Agent SDK session ends before the async Stop judge finishes (Claude Code kills
-unfinished async hooks at print-mode teardown), so it gets no task-end verdict; CI is its gate.
-Each UNKNOWN records its reason kind and the verdict it started as. Tests left for a later task end are
-counted, never named. Tests a subagent wrote are judged at the parent's Stop with the parent's own,
-by the same rules; a file a subagent still running in the background wrote waits for a later Stop.
-A session that ended before a FLAG or UNKNOWN verdict was shown gets it named at the next session
-start. The writing agent never supplies the
-judge's prompt, model or output, and
-the judge's model class always differs from every model that wrote the tests: when the configured
-class wrote them, the fallback or the next of `opus`, `sonnet`, `haiku` is used, and when all
-three wrote them the tests are reported UNKNOWN. `haiku` is the last resort: the judge is
-uncalibrated on it, and it may favor outputs labeled as Claude's own (self-preference bias).
-`test_judge_effort` applies to Haiku 5.5 on the Anthropic API, while the `haiku` alias is Haiku 4.5
-on other providers ([model aliases](https://code.claude.com/docs/en/model-config#model-aliases),
-[effort levels](https://code.claude.com/docs/en/model-config#adjust-effort-level); as of 2026-10-10;
-recheck when Haiku 4.5 is retired or a provider maps `haiku` to 5.5).
-
-Before a verdict is shown, each quote must appear verbatim, whitespace trimmed, in the test file or
-in another file of the repository (tracked, or untracked and not ignored), since the line of code
-an expected value restates is often the best evidence; a quote found nowhere, or a FLAG whose
-diff does not apply, touches another file or changes only comments and blank lines (by the comment
-syntax of the file's language), is shown as UNKNOWN with only that reason, never its
-evidence, source or diff. Within the session, a test whose body matches one already judged PASS
-(its name taken out and runs of whitespace collapsed), in a file whose lines outside the test are
-the same, under the same judge model, effort and prompt in the same repository, gets that verdict without a new run, recorded as `reused_from`; a body judged
-FLAG in an earlier run is judged again, since its diff edits one file. Within one task end,
-identical bodies are judged once and share the verdict, a FLAG included; a shared FLAG carries no
-diff of its own, and its findings entry points at the diff proposed for the test that was judged. The judge's copy of the test file is kept under its blob id, so a quote
-the file held when the judge read it but an edit has since removed is reported as stale, not as
-made up. The repository is the git toplevel of the test file's own directory,
-whatever the hook's working directory, and the judge resolves it again from the file before it
-runs, so a test file in a linked worktree is judged in that worktree. In the findings file each judge field is kept on one line
-and cut at 500 characters, at most 20 quotes are shown, a diff is cut at 20,000 characters, and
-the diff's fence is longer than any run of backticks inside it, so judge text cannot add a heading,
-a table row or a fence. The memory root and the findings directory must resolve, symbolic links
-followed, inside the checkout, before and after they are created. The `.gitignore` is written only
-where no name exists yet, or kept when it is a regular file; a link, FIFO or anything else there is
-refused. The findings file is written to a new temporary file in the checked directory, the
-directory is checked again, and the file then takes the first free name with `mv -n`, so any name
-already taken (by a file, a link or anything else) is skipped. A check that fails sends the file
-to `findings/` in the plugin data directory. A local process that swaps a directory between those
-steps can still race them; that residual is accepted. A
-`memory_dir` with characters outside `[A-Za-z0-9._/-]` or a `..` component is ignored for `.work`.
-
-What you can tune: both hooks on or off, the judge's model classes and effort, the per-session run
-limit, the test-file globs, adapters and rule levels in the testing config, and a per-test
-`cant-fail-ok: <reason>` marker. What is fixed: the judge's one question; its one forced turn,
-taken only when there is a FLAG (or an UNKNOWN that started as one) to decide, relays verdicts for you to approve, and it never gates a stop, a commit or `--check` and never
-blocks on its own failure; it never applies a fix; and its malfunction guards (a
-$0.90 budget per started ten tests in one run, a 150 s hang bound, three judge runs at once per
-machine).
-
-What it reaches: only test blocks the session created or changed, or that gained a
-`cant-fail-ok:` marker. It judges the block's text, so a stub set up in `beforeEach` or a snapshot
-kept in a `.snap` file is outside what it sees. A bash test script with no test blocks is judged
-as one whole file, with the changed lines as a hint. A test file a Bash call changed is recorded
-and judged when Claude Code records the call's changed files (`bashEditDiffEnabled: true` in
-user, `--settings` or managed settings, or `CLAUDE_CODE_BASH_EDIT_DIFF=1`, and within the Bash
-route's limits below); no background job starts for a Bash call, so the Stop hook judges those
-tests itself. Test files written through an MCP tool are not recorded, so they are not judged. A
-test file under the system temp directory (`TMPDIR`, `TMP` or `TEMP`, and `/tmp` and `/var/tmp`
-when none is set; on Windows also its long and 8.3 short drive spellings) or in a Claude session
-scratchpad (`.../claude/<project>/<session>/scratchpad/`) is a working copy, not an authored test:
-it is not recorded, so it is not judged. A Write or Edit of such a copy is still scanned; a Bash
-call's copy is neither scanned nor recorded. A test file in no git repository is not judged: the judge's reads are scoped to the repository, so
-it is reported UNKNOWN, "no repository". The judge runs from the repository with one absolute
-`Read(//<repository>/**)` allow rule, which also covers Grep and Glob; a `\`, `*`, `?`, `[` or
-`]` in the repository's path is escaped with a backslash, so the rule's gitignore pattern names
-that one directory. A test file outside the
-repository git names for it (a `core.worktree` set elsewhere) is not judged: that is logged as a
-malfunction and the test is counted as not judged. A run in which Claude Code denied the judge a
-tool call (the result's `permission_denials`) and that gives no test a FLAG or PASS is a
-malfunction too: its UNKNOWN verdicts are dropped and those tests are counted as not judged, so
-they do not stop the task. A denial names a tool call, not a test, and one run judges every
-in-doubt test of the file, so a denied run that gives any FLAG or PASS keeps all its verdicts,
-UNKNOWN included, and the denial is only logged. A symbolic link inside the repository that points outside
-it does not widen the judge's reach: its scoped Read is checked against the link's resolved target
-and refused, and its Grep does not follow a linked directory (probe R2-P15). A
-glob added only through the consumer settings entry `/testing:setup check` prints
-(`test-scan.sh --enabled`) is recorded in the same state, so with both options on the Stop hook
-judges those tests at the task end, again with no background job ahead of it.
+`/testing:audit --judge [<base>]` asks a separate model one question of each test block the change
+added or changed: where did its expected value come from? It answers FLAG (the value restates the
+implementation), PASS or UNKNOWN, quotes its evidence, and proposes a diff for a FLAG; it never
+applies anything. The judge runs on a model class other than the one that wrote the tests, with
+`hooks/test-judge-prompt.md` as its prompt, and each quote must appear verbatim in the repository
+before a verdict is shown. `/source-control:pull-request` prep runs it when this plugin is
+installed. The calibration cases and raters are in `skills/audit/evals/judge-calibration/`.
 
 `/testing:run-e2e` reads four optional keys. `recording` (`video | gif | off`, default `off`) and
 `browser_mode` (`headed | headless`, default `headless`) live on `.claude/testing/e2e.md`.
@@ -222,7 +128,7 @@ catalog in `run-e2e/context/worst-case.md`: the project's own worst-case values,
 data formats, read as data. The action renders a target with that data, reverts what it injected
 (proven with `cmp` snapshots), and reports what breaks without editing component code.
 
-`/testing:audit` and the `test-scan` hook read the testing config through the same cascade
+`/testing:audit` and the `test-weaken` hook read the testing config through the same cascade
 (`~/.claude/testing.yaml`, the team layer, `.claude/testing.local.yaml`): adapters to turn off or
 allow, path globs to exclude or include, extra adapter globs, consumer adapters, and a level per
 rule (`off`, `warn`, `error`). `/testing:setup` documents the keys and writes the team layer.
@@ -249,44 +155,6 @@ moves. Reading the block costs the same as reading the file; the measured p50 an
 [latency probes](https://github.com/melodic-software/claude-code-plugins/blob/927a5305d238874ce006eaad6b3fa5c3cb07ebc1/docs/specs/tautological-tests/probes.md#team-layer-location-docs-block-or-claudetestingyaml-wsl2),
 and `plugins/testing/scripts/time-config.sh` reproduces them.
 
-### Test files written through Bash
-
-`test-scan` also scans test files a Bash call changed (`cat > foo.test.ts`, `sed -i`, a generator
-script), when `test_guards_enabled` is on and Claude Code records the call's changed files. It reads
-`tool_response.bashEditDiff`, a best-effort beta field that Claude Code adds to the `PostToolUse`
-payload of a Bash call:
-
-- **Precondition.** Set `bashEditDiffEnabled: true` in your user settings, in `--settings`, or in
-  managed settings (a project `.claude/settings.json` value is ignored), or set the environment
-  variable `CLAUDE_CODE_BASH_EDIT_DIFF=1`. Without one of these the field was absent in every mode
-  probed (`default`, `acceptEdits`, `auto` and `bypassPermissions`), and the hook finds nothing to
-  scan. The probe rows are in
-  [probes.md](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/tautological-tests/probes.md#basheditdiff-claude-code-21285-wsl2-2026-09-30).
-- **Scope.** A created test file reports every test block. A modified file reports only the blocks
-  its hunks touch, the same as an Edit. A file the repository ignores is skipped.
-- **Limits.** The payload carries hunks for the first five changed files only, so a modified test
-  file past the fifth is not scanned, and one call scans at most four test files. The shipped
-  adapters' globs decide what counts as a test file; a glob added through the testing config is
-  not covered on this path. `test-weaken` (PreToolUse) sees Write and Edit only: a Bash call that
-  removes assertions is not flagged. Windows Git Bash is not probed.
-- **Cost.** A Bash hook row cannot filter on the changed files, so the row has no `if` and Claude
-  Code starts its node launcher for every Bash call, whatever `test_guards_enabled` says. The
-  [hook budget](../../docs/conventions/hook-budget/README.md) is k × S, where S is one `bash -c :`
-  spawn and k the processes one fire starts. On WSL2, S was 1.0 ms (p50 of 50 samples interleaved
-  with the hook arms, at a load of about 5; Windows is not measured):
-  - Option off, the default: k = 1 (node; the option gate closes before bash starts), 22 ms, about
-    22 S.
-  - Option on, no recorded change, which is every Bash call for an opted-in user: k = 2 (node, then
-    bash), 30 ms, about 30 S.
-  - Option on, a call that changed one test file: the scan itself, 96 process creations and execs,
-    116 ms, about 115 S. It runs only for such a call, so it is not always-on.
-
-  The multiples read high because S is small on Linux: starting node costs about 22 ms against 1 ms
-  for bash. `.performance/ratchets.json` holds the first two paths as spawn-count ceilings
-  (`testing-posttooluse-bash-test-scan-option-off-spawns`, 1, and
-  `testing-posttooluse-bash-test-scan-no-diff-spawns`, 3). A ceiling counts process creations plus
-  execs, so the two-process path counts 3.
-
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -297,12 +165,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `test_guards_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED` | Scan each test file Claude writes or edits for tests that cannot fail, and ask Claude for a reason when an edit removes or skips tests or assertions. Off by default. |
-| `test_judge_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_ENABLED` | At each task's end, a separate model asks where the expected value of each test the session created or changed came from, and reports FLAG, PASS or UNKNOWN with quoted evidence and a proposed fix it never applies. Needs test_guards_enabled, whose scan records the tests it judges. Off by default. |
-| `test_judge_model` | string | `"sonnet"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL` | Model class the judge runs on: fable, opus, sonnet (default) or haiku. When a model of that class wrote the tests, the fallback or another class is used. haiku is the last resort: the judge is uncalibrated on it and may favor outputs labeled as Claude's own (self-preference bias). |
-| `test_judge_fallback_model` | string | `"opus"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL` | Model class the judge uses when the main class wrote the tests: fable, opus (default), sonnet or haiku. |
-| `test_judge_effort` | string | `"medium"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT` | Effort level for the judge; medium by default. For the levels the judge's model supports, see https://code.claude.com/docs/en/model-config#adjust-effort-level (as of 2026-10-02; recheck when the level list changes). It has no effect on a model that has no effort levels. |
-| `test_judge_session_runs` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS` | Most judge runs one session may start (one run judges one file). Unset means no limit. |
+| `test_guards_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED` | Ask Claude for a reason when an edit removes or skips tests or assertions. Off by default. |
 | `e2e_driver` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_E2E_DRIVER` | Who drives /testing:run-e2e: auto (default) picks the repo's harness when a spec covers the flow, else run or playwright; harness, run, playwright, or chrome (attended runs only). A repository's docs/conventions/testing.yaml wins. |
 | `reuse_running_instance` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_REUSE_RUNNING_INSTANCE` | true, or auto (default) when attended: /testing:run-e2e drives an app that already answers. With a Workspace environment entry, false and unattended auto start the run's own instance; without one, unattended auto reuses it with labeled evidence and false stops. docs/conventions/testing.yaml wins. |
 | `pixel_tolerance` | number<br>*min 0* | `0` | `CLAUDE_PLUGIN_OPTION_PIXEL_TOLERANCE` | Differing pixels per image /testing:check-visual-parity accepts. It can only lower the repository's pixel_tolerance in docs/conventions/testing.yaml, never raise it. 0 by default. |
