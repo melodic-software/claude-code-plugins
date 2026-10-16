@@ -5,6 +5,27 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.21.0] - 2026-10-16
+
+### Added
+
+- add be-ambitious skill
+
+  /discipline:be-ambitious takes one request and shows it beside a raised
+  version: the goal behind it (Altitude), expert methods and the rawest
+  material (Depth), more than one field and a specialist's work rather
+  than a persona (Range), plus an outside check on every raise. Crews and
+  red teams appear only as proposals, a hard target only on opt-in with an
+  abort line, and every raise ends with a scope fence. User-invoked only;
+  nothing runs until the user accepts. Drawn from Felix Rieseberg's
+  article "How to be more ambitious: a tutorial for humans with models".
+
+## [0.20.1] - 2026-10-16
+
+### Changed
+
+- Shared `prerequisites.mjs` synced: the SessionStart probe now also reports a drifted git-hook entry for a plugin that ships `git-hooks/entries.json`. This plugin ships none, so its behavior is unchanged.
+
 ## [0.20.0] - 2026-10-14
 
 ### Added

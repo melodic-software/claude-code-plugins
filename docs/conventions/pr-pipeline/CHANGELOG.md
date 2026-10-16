@@ -1,5 +1,103 @@
 # Changelog for the PR pipeline convention
 
+## 1.19.2 - 2026-10-16
+
+`work-unblock.yml` also runs hourly (`schedule`, minute 47, from main only). A scheduled run lists
+the issues closed in the last three hours (`LOOKBACK_HOURS` in `label-unblocked.mjs`; pull
+requests and issues updated but closed earlier are left out), keeps those with a trusted close,
+and applies the close path's rules to each issue they blocked, each once per run. It catches an
+issue closed by a bot sender, such as a pull request merge, which the close-triggered run skips. A
+scheduled run has no closer or re-runner to check; the kill switch and the `applies` gate still
+run first, and the token request names no issue. On both paths, every blocking issue now counts as
+done only when it was closed as completed with a trusted close, read fresh per blocker: its
+`closed_by` is a listed human (by id), or a merge in this repository closed it: the `closer` of
+the issue's last `ClosedEvent`, read with one GraphQL query, is a merged pull request or a commit
+in this repository. The REST close event carries no link to the pull request, so GraphQL is the
+read. Any other close, such as a workflow's `GITHUB_TOKEN`, does not count. A blocking pull
+request counts only once merged, and a blocker in another repository never counts. An outside
+author closing their own blocking issue therefore unblocks nothing. Both paths also refuse an
+issue whose `agent-ready` label was ever removed, so removing it by hand stops the lane and
+overlapping windows never put it back; a person adds it again to restart. The broker contract in
+`pr-run-activity.md` lists `work-unblock.yml` as a `schedule` caller. `version` stays 1.
+
+## 1.19.1 - 2026-10-16
+
+The `verify-scripts` wrapper prints `exit status: <n>` to stderr and exits with the script's
+status, and the system prompt tells the skill to run each wrapper as its own command: a chained
+`; echo "$?"` needs approval the `dontAsk` lane denies. The write file's skill-run diagnostics
+(`act-turns.json` and the step summary) gain `denied`, each command the permission mode denied,
+redacted and cut to 300 characters. `version` stays 1.
+
+## 1.19.0 - 2026-10-16
+
+A skill leaf gains `verify-scripts`: exact paths of read-only checker scripts under `scripts/`,
+`plugins/<plugin>/scripts/` or `plugins/<plugin>/skills/<skill>/scripts/`, no globs. For a skill
+with an effect other than `read`, `collect-base-activity` copies each script's base plugin (or the
+base `scripts/`) to a read-only `$RUNNER_TEMP/lane-verify`, denies `Edit` and `Write` on it, and
+allows `Bash(<copy>/bin/<name> *)`, a wrapper that runs the script from the checkout with any
+arguments except a path outside the checkout, with system, global, hook and fsmonitor git config
+switched off. A leaf with effect `read` cannot set it. This repository's `resolve-issue` lists the
+testing plugin's `cant-fail-scan.sh`. `version` stays 1.
+
+## 1.18.5 - 2026-10-16
+
+The write file gains the `ratified-app-label` input, issue mode only. `work-resolve-issue.yml`
+sets it to `agent-ready` and no longer skips the lanes App's `agent-ready` label: the trigger gate
+lets that one label from the App through only while the issue carries the owner's ratification
+marker, read from the API when the run starts by the rule resolve-issue's admission uses
+(`resolve-config/ratification.mjs`). Because the run reads the issue's title and body, a body
+edit or title change after the newest marker also stops it. Any other App label or event, a
+failed read, or no marker stops the run. The lanes token broker accepts the same labeler for an
+`issues` mint, re-checking the marker. `version` stays 1.
+
+## 1.18.4 - 2026-10-16
+
+This repository's `pr-pipeline.yaml` adds the `work-unblock` lane (stage `work`) with one
+activity, `label-unblocked` (a script, `mutate-tracker`). `work-unblock.yml` runs it when a
+listed human closes an issue: each issue the closed one blocked gets `agent-ready` when it is
+open, every blocker is closed as completed (not as not planned or duplicate), it carries none of
+`needs-owner-decision`, `status: needs-decision` or `needs-human` in any casing, it holds the
+owner's admission marker as resolve-issue reads it (the check now lives in
+`resolve-config/ratification.mjs`, shared by both), and resolve-issue's `admission` admits it
+(no `work-class:` label outside its classes; read from the config by
+`resolve-config`'s `readAdmission`). The workflow stops before the token request when the
+resolved activity does not apply (`enabled: false`). The label starts `work-resolve-issue` once
+resolve-issue accepts App-added labels (follow-up by Automation Lanes). Everything is re-read
+from the API when the run starts. A close whose sender is a bot (`sender.type` `Bot`), or whose
+closer or re-runner is not a listed human (each is checked on its own; a re-runner may be
+another listed human), is a clean skip. `version` stays 1.
+
+## 1.18.3 - 2026-10-16
+
+A verdict is bound to the commit it judged: the README no longer promises reuse by patch id or
+content fingerprint. A `pr-merge` merge needs a verdict on the commit being merged, a precondition of
+the lane's own merge rather than a required check, and a lane merge commit needs a fresh one. The
+address-feedback round cap is `loop.review-rounds` (default 2) instead of a fixed 2. This
+repository's `pr-pipeline.yaml` sets it to 3. `version` stays 1.
+
+## 1.18.1 - 2026-10-16
+
+`pr-merge.yml` no longer wakes on `workflow_run` completions of `pr-require-checks`,
+`pr-review-hosted` and `pr-review-security-hosted`, and its schedule runs every 15 minutes
+instead of hourly. Those completions arrived faster than the serialized runs finished, so the
+`pr-merge` concurrency group's queue reached GitHub's 100-run cap and further runs were rejected.
+Every run already reads every open PR, so the schedule finds what those wake-ups found.
+`version` stays 1.
+
+## 1.18.0 - 2026-10-16
+
+`applies-when` gains `admission` (`classes`, optional `ratified`), an issues lane's admission
+rule. An issue carrying a `work-class:` label outside `classes`, in any casing or spacing, is
+refused with `not-applicable`, even beside a listed class. Otherwise an exact listed class label
+admits it, or, with `ratified: true`, the owner's batch-ratification marker
+`<!-- admission: admitted when unblocked, owner batch ratification YYYY-MM-DD -->` does: a line
+in a never-edited comment by a human on the trusted-actor list, posted through no GitHub App. No
+bot ratifies, the lanes App included. An `admission` predicate reads the issue's labels when the
+run starts, and with `ratified: true` reads its comments; off an issues event, or when that read
+is refused, the run fails. resolve-config logs the id, author and creation time of the ratifying
+comment, never its text. This repository's `resolve-issue` replaces its `labels` allowlist with
+`admission: { classes: [read-only, mechanical], ratified: true }`. `version` stays 1.
+
 ## 1.17.3 - 2026-10-16
 
 This repository's `pr-pipeline.yaml` enables the address-feedback round: the `pr-unblock` lane now

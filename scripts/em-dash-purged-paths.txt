@@ -307,7 +307,6 @@ plugins/go-format/skills/*/SKILL.md
 # The README's generated options block keeps its existing marker.
 plugins/guardrails/*.md
 plugins/guardrails/skills/*/SKILL.md
-plugins/guardrails/skills/*/context/*.md
 plugins/implementation/README.md
 plugins/implementation/reference/config.md
 plugins/implementation/skills/*/SKILL.md

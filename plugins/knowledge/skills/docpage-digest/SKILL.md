@@ -185,11 +185,8 @@ path stays inside `<work-root>/digests/` before writing.
   run found every agent edit writing a source's literal `\uXXXX` escape as the decoded
   character, so do not use them for those bytes. Write those bytes with a script file run as
   `python3 <script>.py` (the script spells the backslash as `\x5c`, never as a literal escape),
-  then confirm the bytes with `od -c`. The guardrails plugin's shell write guard
-  (`block-hook-bypass.sh`) refuses inline `python3 -c` and `python3 -` writes and
-  `echo`, `printf` or `cat` redirected into a file, and allows a script file run by path. A
-  write made that way skips the content guards that run on Edit and Write, so keep the route for
-  these bytes only.
+  then confirm the bytes with `od -c`. A write made that way skips the content guards that run
+  on Edit and Write, so keep the route for these bytes only.
 - **Verbatim means verbatim:** in "Key claims (verbatim)", a truncated quote carries an ellipsis,
   joined source lines declare their join convention, and no escaping may alter characters. Verifiers diff quotes character-for-character against the source.
 - **Fence mandate:** every verbatim quote, Key claims and Prompt snippets, lives in a

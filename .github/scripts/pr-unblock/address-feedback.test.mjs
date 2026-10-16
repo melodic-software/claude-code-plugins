@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createGitHubApi, main, select } from "./address-feedback.mjs";
+import { createGitHubApi, main, maxRoundsFrom, select } from "./address-feedback.mjs";
 
 // Ids from .github/standards/trusted-actors/trusted-actors.json and the
 // GitHub users API (github-actions[bot] is 41898282).
@@ -153,7 +153,7 @@ test("a path that only starts with .github is not protected", async () => {
   assert.equal((await run(fakeApi({ files: [{ filename: ".githubrc" }] }))).decision, "proceed");
 });
 
-test("rounds are capped at two: a third round escalates feedback-round-cap with no thread file", async () => {
+test("rounds are capped at two by default: a third round escalates feedback-round-cap with no thread file", async () => {
   const markers = (n) => [
     { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },
     ...Array.from({ length: n }, (_, i) => ({ id: 10 + i, user: { id: APP }, body: `${ROUND}\nround ${i + 1}` })),
@@ -163,6 +163,26 @@ test("rounds are capped at two: a third round escalates feedback-round-cap with 
   assert.equal(capped.decision, "escalate");
   assert.equal(capped.escalationReason, "feedback-round-cap");
   assert.equal(capped.file, undefined);
+});
+
+test("a configured cap of 3 allows a third round and escalates on the fourth", async () => {
+  const markers = (n) => [
+    { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },
+    ...Array.from({ length: n }, (_, i) => ({ id: 10 + i, user: { id: APP }, body: `${ROUND}\nround ${i + 1}` })),
+  ];
+  const withCap = (n) =>
+    select({ api: fakeApi({ issueComments: markers(n) }), pr: 42, headSha: HEAD, laneBranch: "lane-commits/x", repository: "o/r", appId: APP, reviewerId: REVIEWER, maxRounds: 3 });
+  assert.equal((await withCap(2)).decision, "proceed");
+  const capped = await withCap(3);
+  assert.equal(capped.decision, "escalate");
+  assert.equal(capped.escalationReason, "feedback-round-cap");
+});
+
+test("REVIEW_ROUNDS sets the cap, an unset one falls back to 2, and a bad one throws", () => {
+  assert.equal(maxRoundsFrom("3"), 3);
+  assert.equal(maxRoundsFrom(undefined), 2);
+  assert.equal(maxRoundsFrom(""), 2);
+  assert.throws(() => maxRoundsFrom("0"), /REVIEW_ROUNDS/);
 });
 
 test("model-job check runs count rounds the reply job never recorded", async () => {

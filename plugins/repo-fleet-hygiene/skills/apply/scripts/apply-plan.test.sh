@@ -873,10 +873,11 @@ fi
 # The printed command carries a literal full-width lease, the shape the guardrails hook allows.
 HOOK="$SCRIPT_DIR/../../../../guardrails/hooks/block-dangerous-git.sh"
 if [[ -f "$HOOK" ]] && command -v jq >/dev/null 2>&1; then
+  # The attended flag turns the guard's deny into an ask (exit 0), so it is unset.
   hook_rc() {
     local cmd=$1 rc=0
     python3 -c 'import json, sys; print(json.dumps({"tool_name": "Bash", "tool_input": {"command": sys.argv[1]}, "cwd": sys.argv[2]}))' \
-      "$cmd" "$RF_REPO" | bash "$HOOK" >/dev/null 2>&1 || rc=$?
+      "$cmd" "$RF_REPO" | env -u CLAUDE_CODE_SESSION_ATTENDED bash "$HOOK" >/dev/null 2>&1 || rc=$?
     printf '%s\n' "$rc"
   }
   rf_cmd="git -C $RF_REPO push origin --delete refs/heads/feat/a --force-with-lease=refs/heads/feat/a:$RF_A"

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**Original:** upgrade production Postgres 13 to 16 this weekend.\n\n**Raised:** a 13-to-16 upgrade with a tested rollback, inside the weekend window.\n\n**Depth:** `pg_upgrade --link` on a replica first, extension compatibility check, `ANALYZE` after cutover.\n\n**Outside check:** a full rehearsal on a snapshot restored to staging, timing each step against the window.\n\n**Proposed, your call:** a red-team pass on the runbook by a reviewer who did not write it, limited to gaps that could lose data, return wrong results, or break the weekend window or rollback requirement. Style and nice-to-have items are out of scope.\n\nDeliver what was accepted, at that scope. The project's own instructions still govern. Nothing has run; reply \"accept\", \"accept without red team\", or \"original\".",
+      "why": "proposes a red team for the user to decide, scoped to correctness and requirements"
+    },
+    {
+      "answer": "Runbook for Saturday:\n\n1. Restore Friday's snapshot to staging and rehearse `pg_upgrade --link`, timing it.\n2. Check every extension has a 16-compatible version.\n3. Saturday: stop writes, take a final base backup, upgrade the primary, run `ANALYZE`.\n4. Keep the old data directory until Monday as the rollback path.\n\nBefore Saturday, want me to have a fresh agent red-team this runbook? I'd limit it to anything that could cause data loss, wrong query results, or a missed rollback window.",
+      "why": "offers a scoped adversarial review as a question to the user"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here's the upgrade runbook:\n\n1. Confirm every extension (PostGIS, pg_stat_statements) has a Postgres 16 build.\n2. Rehearse `pg_upgrade --link` on a staging copy restored from last night's snapshot.\n3. Saturday 02:00: put the app in maintenance mode, take a base backup, stop the cluster.\n4. Run `pg_upgrade --link`, start 16, run `vacuumdb --analyze-in-stages`.\n5. Smoke-test the app, then lift maintenance mode.\n\nRollback: restore the base backup onto 13.",
+      "why": "no adversarial or red-team review is proposed"
+    },
+    {
+      "answer": "**Original:** upgrade production Postgres 13 to 16 this weekend.\n\n**Raised:** a rehearsed 13-to-16 upgrade with a tested rollback.\n\n**Outside check:** a rehearsal on a restored snapshot.\n\nI've already started an adversarial review of the runbook in the background. It will flag anything it finds, including naming, documentation gaps and any nice-to-have improvements, and I'll fold the results in.\n\nDeliver what was accepted, at that scope. The project's own instructions still govern.",
+      "why": "red team started without the user's decision and left open-ended"
+    }
+  ]
+}

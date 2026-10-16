@@ -114,6 +114,20 @@
           "minItems": 1,
           "items": { "$ref": "#/$defs/work-class" }
         },
+        "admission": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["classes"],
+          "description": "Which issues an issues lane admits. An issue carrying a `work-class:` label outside `classes` is refused, even beside a listed one. Otherwise it is admitted by a listed class label or, with `ratified: true`, by the owner's ratification marker: a comment line `<!-- admission: admitted when unblocked, owner batch ratification YYYY-MM-DD -->` posted by a human on the trusted-actor list, not through a GitHub App, and never edited; no bot ratifies. Work-class labels match in any casing or spacing, and labels are read when the run starts. The check cannot tell the owner typing from a local agent posting with the owner's token: it guarantees only that no App or Actions bot can self-admit. Off an issues event `ratified` cannot be decided and fails the run.",
+          "properties": {
+            "classes": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "pattern": "^work-class: [a-z-]+$" }
+            },
+            "ratified": { "type": "boolean" }
+          }
+        },
         "labeled-after": {
           "type": "string",
           "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
@@ -184,7 +198,11 @@
         "max-turns": ["skill"],
         "prepare": ["skill"],
         "checks": ["skill"],
+        "verify-scripts": ["skill"],
         "web-access": ["skill"]
+      },
+      "dependentSchemas": {
+        "verify-scripts": { "properties": { "effect": { "not": { "const": "read" } } } }
       },
       "if": {
         "required": ["web-access"],
@@ -213,6 +231,16 @@
             "pattern": "^scripts/[A-Za-z0-9_-]+\\.sh( --[a-z][a-z-]*)*$"
           },
           "description": "Repository check scripts a skill with an effect other than read may run, each with its fixed flags. The write runner runs each from the base copy against the checkout, through a wrapper the skill can call with no arguments."
+        },
+        "verify-scripts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^(scripts|plugins/[a-z0-9-]+/(skills/[a-z0-9-]+/)?scripts)/[A-Za-z0-9_-]+\\.sh$"
+          },
+          "description": "Exact repository-relative paths of read-only checker scripts a skill with an effect other than read may run with any arguments. The write runner copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout with any arguments but a path outside it. Needs an effect other than read. List only scripts that read and report: never one that changes files, runs code from the checkout, or reaches the network."
         },
         "web-access": {
           "type": "object",

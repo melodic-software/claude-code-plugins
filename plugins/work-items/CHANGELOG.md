@@ -3,6 +3,25 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.7.0] - 2026-10-16
+
+### Changed
+
+- `/work-items:decompose` run without a spec container copies the PLAN.md Brief's Goal and Constraints into each item's Outcome section, so a session working one item keeps the why; item bodies still name no memory-slice path.
+
+## [2.6.2] - 2026-10-16
+
+### Changed
+
+- Shared `prerequisites.mjs` synced: the SessionStart probe now also reports a drifted git-hook entry for a plugin that ships `git-hooks/entries.json`. This plugin ships none, so its behavior is unchanged.
+
+## [2.6.1] - 2026-10-16
+
+### Fixed
+
+- `decompose` item bodies end with the `<!-- work-items:born-triaged -->` marker, so intake
+  automation can skip items published already triaged instead of re-triaging them (#7608).
+
 ## [2.6.0] - 2026-10-15
 
 ### Changed

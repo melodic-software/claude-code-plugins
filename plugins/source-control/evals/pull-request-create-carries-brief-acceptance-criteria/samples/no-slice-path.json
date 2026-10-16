@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Acceptance criteria\n\n- AC1: UTF-8 byte order mark.\n- AC2: RFC 4180 quoting.\n- AC3: header row with no rows.\n"
+          }
+        }
+      ],
+      "why": "distilled values, no slice path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Acceptance criteria\n\nSee .work/export-csv/PLAN.md for the criteria.\n"
+          }
+        }
+      ],
+      "why": "cites a path into the memory slice instead of the values"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Acceptance criteria\n\n- AC1: UTF-8 byte order mark.\n\nSource: `.work/export-csv/PLAN.md`\n"
+          }
+        }
+      ],
+      "why": "values plus a slice path"
+    }
+  ]
+}

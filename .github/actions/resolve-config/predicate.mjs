@@ -1,7 +1,7 @@
 // `applies-when` over the facts of one run: every listed key must match, and
 // within a key any listed value matches, except `labels-absent`, which matches
-// only when none of its labels is on the PR or issue, and `labeled-after`, one
-// time an issue's label event must come after.
+// only when none of its labels is on the PR or issue, `labeled-after`, one
+// time an issue's label event must come after, and `admission` (admits()).
 import { posix } from "node:path";
 
 export class MissingFact extends Error {
@@ -11,6 +11,21 @@ export class MissingFact extends Error {
     );
     this.name = "MissingFact";
   }
+}
+
+// Any casing or spacing of `work-class:` names a class.
+const WORK_CLASS = /^\s*work-class\s*:\s*/i;
+const normalClass = (label) => `work-class: ${label.replace(WORK_CLASS, "").trim().toLowerCase()}`;
+
+// An issue carrying a work-class label outside `classes` is refused, even
+// beside a listed one. Otherwise it is admitted by a listed class or, with
+// `ratified`, by the owner's ratification marker (the `ratified` fact).
+export function admits({ classes, ratified }, labels, facts) {
+  const allowed = new Set(classes.map(normalClass));
+  if (labels.some((label) => WORK_CLASS.test(label) && !allowed.has(normalClass(label)))) {
+    return false;
+  }
+  return classes.some((cls) => labels.includes(cls)) || (ratified === true && facts.ratified);
 }
 
 // Predicate key, the fact it reads, and whether the listed values match the
@@ -29,6 +44,7 @@ const KEYS = [
     "labels",
     (listed, labels) => !listed.some((label) => labels.includes(label)),
   ],
+  ["admission", "labels", admits],
   ["work-classes", "workClasses", any((cls, classes) => classes.includes(cls))],
   ["events", "event", any((event, current) => event === current)],
   [
@@ -90,8 +106,11 @@ export function factsFor(predicate) {
   const facts = KEYS.filter(
     ([key, fact]) => predicate?.[key] !== undefined && fact !== "event",
   ).map(([, fact]) => fact);
-  if (predicate?.["labels-absent"] !== undefined) {
+  if (predicate?.["labels-absent"] !== undefined || predicate?.admission !== undefined) {
     facts.push("freshLabels");
+  }
+  if (predicate?.admission?.ratified === true) {
+    facts.push("ratified");
   }
   return [...new Set(facts)];
 }
@@ -106,7 +125,10 @@ export function applies(predicate, facts) {
     if (facts[fact] === undefined) {
       throw new MissingFact(fact);
     }
-    if (!matches(listed, facts[fact])) {
+    if (key === "admission" && listed.ratified === true && facts.ratified === undefined) {
+      throw new MissingFact("ratified");
+    }
+    if (!matches(listed, facts[fact], facts)) {
       if (key === "paths") {
         return { applies: false, skipReason: "not-applicable-paths" };
       }

@@ -3,6 +3,22 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.0] - 2026-10-16
+
+### Added
+
+- `/source-control:pull-request create` copies the plan Brief's acceptance criteria into an `## Acceptance criteria` section of the PR body when the branch implements a plan: a caller-named `PLAN.md` or topic slug, else the slug derived from the branch, else the single `PLAN.md` in the memory directory. The section states values only, never a path into the memory directory.
+
+### Fixed
+
+- `pull-request` merge after AI review: the checks script now prints the verified head instead of merging, and the merge runs as one command with its guard (head, author, fork, draft, changed files, review checks) and literal PR number, `-R` and sha, so an auto-mode allow entry that requires that guard can match it. A guarded `--admin` form is given for repositories where the user's own instructions authorize admin merges.
+
+## [1.6.2] - 2026-10-16
+
+### Changed
+
+- Shared `prerequisites.mjs` synced: the SessionStart probe now also reports a drifted git-hook entry for a plugin that ships `git-hooks/entries.json`. This plugin ships none, so its behavior is unchanged.
+
 ## [1.6.1] - 2026-10-16
 
 ### Changed

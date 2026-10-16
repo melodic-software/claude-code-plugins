@@ -5,10 +5,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { parse } from "yaml";
 
 import { resolve, resolveGrant } from "./resolve.mjs";
+import { readAdmission } from "./resolve-config.mjs";
 
 const read = (relative) =>
   readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -156,9 +158,14 @@ test("live config: report-escalation follows all three pr-unblock activities", (
   ]);
 });
 
-// An agent-ready label event on a read-only issue. The
+// An agent-ready label event on a read-only issue with no ratification marker. The
 // lane went live at 2026-10-14T19:21:59Z, the labeled-after time in the live config.
-const ISSUE = { event: "labeled", labels: ["agent-ready", "work-class: read-only"], labeledAt: "2026-10-20T00:00:00Z" };
+const ISSUE = {
+  event: "labeled",
+  labels: ["agent-ready", "work-class: read-only"],
+  labeledAt: "2026-10-20T00:00:00Z",
+  ratified: false,
+};
 
 test("live config: resolve-issue starts for a read-only issue labeled after the go-live time", () => {
   assert.equal(selected("work-resolve-issue", "resolve-issue", ISSUE).applies, true);
@@ -185,11 +192,58 @@ test("live config: resolve-issue admits read-only and mechanical issues only", (
   );
 });
 
+// Owner rule: an agent-ready issue with no work class starts only when the
+// owner ratified it with the admission marker comment (`ratified`, gathered by
+// resolve-config from comments by a listed human).
+const RATIFIED = { ...ISSUE, labels: ["agent-ready"], ratified: true };
+
+test("live config: resolve-issue starts for an owner-ratified issue with no work class", () => {
+  assert.equal(selected("work-resolve-issue", "resolve-issue", RATIFIED).applies, true);
+});
+
+test("live config: resolve-issue starts nothing for an issue with no work class and no ratification", () => {
+  assert.equal(
+    skipReason("work-resolve-issue", "resolve-issue", { ...RATIFIED, ratified: false }),
+    "not-applicable",
+  );
+});
+
+test("live config: a ratified issue still needs the agent-ready label event after the go-live time", () => {
+  assert.equal(
+    skipReason("work-resolve-issue", "resolve-issue", { ...RATIFIED, labeledAt: "2026-10-14T19:21:58Z" }),
+    "not-applicable",
+  );
+  assert.equal(
+    skipReason("work-resolve-issue", "resolve-issue", { ...RATIFIED, event: "dispatch" }),
+    "not-applicable",
+  );
+});
+
+// #7491: a held class beside an allowed one is refused, ratified or not.
+test("live config: resolve-issue refuses an issue carrying a held class beside an allowed one", () => {
+  for (const held of ["work-class: scoped", "work-class: structural", "work-class: untrusted-provenance"]) {
+    const labels = ["agent-ready", "work-class: mechanical", held];
+    assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels }), "not-applicable");
+    assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...RATIFIED, labels }), "not-applicable");
+  }
+});
+
 // The run must pass the fragment format check before it reports done.
 test("live config: resolve-issue may run the changelog fragment check", () => {
   assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE).checks, [
     "scripts/check-changelog-fragments.sh --check",
   ]);
+});
+
+// #7597: the issue's done-when runs the can't-fail scan, a read-only checker.
+// check-skill.sh (#7598) runs each skill's test scripts, so it is not listed.
+test("live config: resolve-issue may run the can't-fail scan; no other activity lists verify-scripts", () => {
+  assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE)["verify-scripts"], [
+    "plugins/testing/skills/audit/scripts/cant-fail-scan.sh",
+  ]);
+  const doc = parse(FILES.config);
+  const others = Object.entries(doc.activities).filter(([name, a]) => name !== "resolve-issue" && a["verify-scripts"]);
+  assert.deepEqual(others, []);
 });
 
 // Owner decision 2026-10-14: the run may read any web page.
@@ -210,6 +264,20 @@ test("live config: resolve-issue may only write its branch; report-outcome may o
   assert.deepEqual(grant("report-outcome"), {
     effect: "publish-artifact",
     grant: { contents: "read", "pull-requests": "write", issues: "write" },
+  });
+});
+
+test("live config: label-unblocked may only write issues", () => {
+  assert.deepEqual(resolveGrant(FILES, { lane: "work-unblock", activity: "label-unblocked", configPath: CONFIG_PATH }), {
+    effect: "mutate-tracker",
+    grant: { contents: "read", "pull-requests": "read", issues: "write" },
+  });
+});
+
+test("live config: readAdmission returns resolve-issue's admission, which label-unblocked applies", () => {
+  assert.deepEqual(readAdmission({ basePath: fileURLToPath(new URL("../../..", import.meta.url)), activity: "resolve-issue" }), {
+    classes: ["work-class: read-only", "work-class: mechanical"],
+    ratified: true,
   });
 });
 

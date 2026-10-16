@@ -8,7 +8,7 @@
 //           review threads whose every comment is the reviewer bot's and whose
 //           review is on a head a review lane's marker confirms, then decides
 //           skip (no such thread), escalate (the PR changes .github/**, or
-//           MAX_ROUNDS rounds already ran) or proceed, writing the thread file
+//           the configured number of rounds already ran) or proceed, writing the thread file
 //           the skill's review-thread tool reads.
 //
 // Every comment body is untrusted data: it is copied into the thread file and
@@ -17,8 +17,9 @@
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-// Owner decision on #7032: at most two rounds per pull request.
-export const MAX_ROUNDS = 2;
+// The round cap is the config's `loop.review-rounds`, passed in as
+// REVIEW_ROUNDS; the resolver's default is the fallback.
+export const DEFAULT_MAX_ROUNDS = 2;
 export const ROUND_MARKER = "<!-- pr-unblock:address-feedback-round -->";
 // github-actions[bot], the author of the review lanes' reviewed-head markers.
 export const MARKER_AUTHOR_ID = 41898282;
@@ -108,7 +109,7 @@ export function keepThreads({ threads, reviewComments, reviews, heads, reviewerI
   return kept;
 }
 
-export async function select({ api, pr, headSha, laneBranch, repository, appId, reviewerId }) {
+export async function select({ api, pr, headSha, laneBranch, repository, appId, reviewerId, maxRounds = DEFAULT_MAX_ROUNDS }) {
   const [files, issueComments, reviews, reviewComments, threads] = await Promise.all([
     api.listPullFiles(pr),
     api.listIssueComments(pr),
@@ -137,7 +138,7 @@ export async function select({ api, pr, headSha, laneBranch, repository, appId, 
   const commits = await api.listPullCommits(pr);
   const checkRuns = await Promise.all(commits.map((commit) => api.listCheckRuns(commit.sha, MODEL_CHECK)));
   const rounds = Math.max(countRounds(issueComments, appId), countCheckRounds(checkRuns));
-  if (rounds >= MAX_ROUNDS) {
+  if (rounds >= maxRounds) {
     return { decision: "escalate", escalationReason: "feedback-round-cap", rounds, threads: kept };
   }
   return {
@@ -289,6 +290,10 @@ export function positive(value, name) {
   return Number(value);
 }
 
+export function maxRoundsFrom(value) {
+  return value === undefined || value === "" ? DEFAULT_MAX_ROUNDS : positive(value, "REVIEW_ROUNDS");
+}
+
 // The reviewer bot's id comes from the base's trusted-actors list, by login.
 export function reviewerIdFrom(trustedActorsPath, login = "claude[bot]") {
   const actors = JSON.parse(readFileSync(trustedActorsPath, "utf8")).actors ?? [];
@@ -323,6 +328,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       repository: env.GITHUB_REPOSITORY,
       appId,
       reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
+      maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
     });
     if (result.file) {
       writeFileSync(env.THREAD_FILE, `${JSON.stringify(result.file, null, 2)}\n`);

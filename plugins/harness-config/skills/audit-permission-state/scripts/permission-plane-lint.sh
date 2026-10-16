@@ -359,8 +359,12 @@ END {
     # no command prefixes -- `Agent` -- the colonStar explanation is simply
     # wrong. The rule does not do what it looks like either way; only one of
     # the two says why.
+    # A body that starts with `*` and holds no space has no command prefix to
+    # misread: the colon in `PowerShell(*env:*lefthook*)` is the literal `$env:`
+    # it means to match. A space brings back the prefix-then-words shape
+    # (`Bash(* git:* push)`, `Bash(*foo:* rm)`), so those still fire.
     cs = index(body, ":*")
-    mid_colon_star = (cs > 0 && cs + 1 < length(body))
+    mid_colon_star = (cs > 0 && cs + 1 < length(body) && !(substr(body, 1, 1) == "*" && body !~ /[ \t]/))
     is_param_shape = (pfx ~ /^[A-Za-z_][A-Za-z0-9_]*$/) && (value_of(body) !~ /[ \t]/)
     param_form = (kind != "allow") ? is_param_shape \
       : (is_param_shape && (tool SUBSEP pfx) in param_only)

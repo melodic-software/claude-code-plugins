@@ -29,16 +29,22 @@ This document is the fleet checklist. Per-hook notices must:
 5. **Never** widen the probe into nvm/rbenv layout guesses. That is bootstrap work
    (#2739 / #2748), not a hook-side search expansion.
 
-| Plugin | Hook | Probe order | Filesystem / repo-local route | Notice key | Check skill |
+The formatter and lint plugins below no longer carry per-edit `PostToolUse` rows. A formatter's
+`PostToolBatch` row rewrites silently and skips silently when its tool is missing; the git
+pre-commit entry is where a missing tool surfaces, under the check-placement contract: an agent
+commit fails with the install command and a `checks.skipmissing` key, a person gets a notice.
+The per-edit notice rules above apply to the hooks this table no longer lists.
+
+| Plugin | Batch row / pre-commit entry | Probe order | Filesystem / repo-local route | Missing-tool report | Check skill |
 |---|---|---|---|---|---|
-| `markdown-format` | `hooks/markdown-format.sh` | `command -v markdownlint-cli2`, then walk `node_modules/.bin` from the edited file up to `$REPO_ROOT` | `npm i -D markdownlint-cli2` | `markdown-format-markdownlint-cli2` | `/markdown-format:check`; SessionStart probe |
-| `biome-format` | `hooks/biome-format.sh` | walk `node_modules/.bin/biome` from file, then `command -v biome` | `npm i -D @biomejs/biome` | `biome-format-biome` | `/biome-format:check`; SessionStart probe |
-| `ruff-format` | `hooks/ruff-format.sh` | walk `.venv/{bin,Scripts}/ruff` from file, then `command -v ruff` | project `.venv` / `pip install ruff` | `ruff-format-ruff` | `/ruff-format:check`; SessionStart probe |
-| `bash-format` | `hooks/bash-format.sh` | `command -v shfmt`, `command -v shellcheck` | host package / release binary (no npm form) | `bash-format-shfmt`, `bash-format-shellcheck` | `/bash-format:check`; SessionStart probe |
-| `typos-format` | `hooks/typos-format.sh` | `command -v typos` | cargo / release binary | `typos-format-typos` | `/typos-format:check`; SessionStart probe |
-| `go-format` | `hooks/go-format.sh` | `command -v goimports`, `command -v go` | `go install …/goimports@latest` | `go-format-goimports` | `/go-format:check`; SessionStart probe |
-| `powershell-format` | `hooks/powershell-format.sh` | `command -v pwsh` | host PowerShell install | `powershell-format-trust-*` (trust-gate skip); a missing `pwsh` exits early | `/powershell-format:check`; SessionStart probe |
-| `actionlint` | `hooks/actionlint-check.sh` | `command -v actionlint` | release binary / `go install` | `actionlint-actionlint` | `/actionlint:check`; SessionStart probe |
+| `markdown-format` | `hooks/markdown-format.sh` / `git-hooks/markdown-check.sh` | `command -v markdownlint-cli2`, then walk `node_modules/.bin` from the file up to the repo root | `npm i -D markdownlint-cli2` | pre-commit contract | `/markdown-format:check`; SessionStart probe |
+| `biome-format` | `hooks/biome-format.sh` / `git-hooks/biome-check.sh` | `node_modules/.bin/biome` under the governing config, then `command -v biome` | `npm i -D @biomejs/biome` | pre-commit contract | `/biome-format:check`; SessionStart probe |
+| `ruff-format` | `hooks/ruff-format.sh` / `git-hooks/ruff-check.sh` | `.venv/{bin,Scripts}/ruff`, then `command -v ruff` | project `.venv` / `pip install ruff` | pre-commit contract | `/ruff-format:check`; SessionStart probe |
+| `bash-format` | `hooks/bash-format.sh` / `git-hooks/shell-check.sh` | `command -v shfmt`, `command -v shellcheck` | host package / release binary (no npm form) | pre-commit contract | `/bash-format:check`; SessionStart probe |
+| `typos-format` | none / `git-hooks/typos-check.sh` | `command -v typos` | cargo / release binary | pre-commit contract | `/typos-format:check`; SessionStart probe |
+| `go-format` | `hooks/go-format.sh` / `git-hooks/goimports-format.sh` | `command -v goimports`, `command -v go` | `go install …/goimports@latest` | pre-commit contract | `/go-format:check`; SessionStart probe |
+| `powershell-format` | none / `git-hooks/powershell-check.sh` | `command -v pwsh`, then the PSScriptAnalyzer module | host PowerShell install | pre-commit contract (pwsh and PSScriptAnalyzer) | `/powershell-format:check`; SessionStart probe |
+| `actionlint` | none / `git-hooks/actionlint-check.sh` | `command -v actionlint` | release binary / `go install` | pre-commit contract | `/actionlint:check`; SessionStart probe |
 | `eol-normalizer` | `hooks/normalize-eol.sh` | `command -v perl` (optional fast path) | pure-shell fallback when perl missing | n/a (degrades, does not skip) | n/a |
 
 Bootstrap hardening that puts fleet tools on the **harness** process PATH (or pins them as

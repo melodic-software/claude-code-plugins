@@ -468,9 +468,7 @@ scheduling surfaces vary per consumer and are the operator's choice.
   machine-specific-paths CI lane. This skill records none: identity is `origin_url`, `branch`, and
   `base_commit`.
 - **State writes go through Write or Edit.** Write the manifest and the ledger with those tools,
-  never a shell redirect or heredoc: a shell write skips the Write and Edit hook gates. Where the
-  guardrails plugin's `block-hook-bypass` hook is installed it can block such a write; its README
-  states what it catches and what it exempts.
+  never a shell redirect or heredoc: a shell write skips the Write and Edit hook gates.
 
 ## What this skill does NOT do
 

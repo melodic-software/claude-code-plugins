@@ -197,6 +197,23 @@ test("the round marker is posted once, as the first line, numbered after the App
   assert.equal(api.markers()[0][2], `${ROUND}\n${MODEL_RUN}\npr-unblock / address-feedback finished round 2 of 2 on ${NOW}.`);
 });
 
+test("the round marker names the configured cap", async () => {
+  const api = fakeApi();
+  await publish({
+    api,
+    pr: 42,
+    headSha: NOW,
+    headRef: "feature",
+    appId: APP,
+    modelRun: "5000-1",
+    maxRounds: 3,
+    reviewerId: REVIEWER,
+    readArtifact: () => ({ runText: runFor(lines(reply())), repliesText: lines(reply()) }),
+    fileExists: exists,
+  });
+  assert.match(api.markers()[0][2], /finished round 1 of 3 on/);
+});
+
 // #7545: a re-run of the reply job alone reuses the model run's artifact, so
 // it must not count that model turn as a second round.
 test("a re-run for a model run whose round the App already recorded posts no second marker", async () => {

@@ -3,6 +3,25 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0] - 2026-10-16
+
+### Added
+
+- `hooks/eol-git-add.test.sh` records why there is no pre-commit entry: `git add` applies the same `.gitattributes` to the stored bytes, so a commit never carries the wrong ending whether or not this hook ran.
+
+### Changed
+
+- The per-edit `PostToolUse` row is replaced by one `PostToolBatch` row that normalizes the line endings of every file a `Write`, `Edit` or `MultiEdit` in the batch named, once, and prints nothing. The "line endings set to LF/CRLF" message and the telemetry envelope are gone. A batch that names no file path costs only the `node` launcher.
+- A file that only a `Read` or a shell command named is never rewritten, and a file under `.githooks/` is skipped.
+- A missing `jq` now skips silently; `/eol-normalizer:check` reports it.
+
+## [0.9.14] - 2026-10-16
+
+### Changed
+
+- Shared `prerequisites.mjs` synced: the SessionStart probe now also reports a drifted git-hook entry for a plugin that ships `git-hooks/entries.json`.
+- Vendored the shared git-hook installer and check lib under `lib/git-hooks/`; nothing uses them until this plugin ships its own git-hook entries.
+
 ## [0.9.13] - 2026-10-13
 
 ### Changed

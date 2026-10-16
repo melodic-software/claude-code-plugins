@@ -144,6 +144,12 @@ config (`"assets": ["config/default-typos.toml"]`).
 | Rewrites | in place, rewritten paths on stdout; a partly staged file is left alone and fails with `<path>: partly staged; format it or stage it fully, then commit` |
 | Header | line 2: `# <plugin> <name> sha256:<hex>`, hash of the source script plus check lib and any assets (defined under Drift) |
 
+A `pre-push` check that shares the hook with another job under lefthook may get no refs: lefthook
+hands stdin to only one `use_stdin: true` job. The check lib then falls back to the current branch
+against its upstream, and checks nothing on a branch with no upstream. Pointer: lefthook's
+[`use_stdin`](https://lefthook.dev/configuration/use_stdin) page. As of 2026-10-16, lefthook 2.2.1.
+Recheck when that page drops its one-job note.
+
 ### The skip key: `checks.skipmissing`
 
 The only way to skip a check is one git config key, defined here once:
@@ -183,7 +189,7 @@ the consumer git floor moves.
 detect(repo)                  -> { manager: "lefthook"|"husky"|"plain"|"conflict", evidence[] }
 list(repo)                    -> [{ entryId, event, scope, stamp }]
 plan(repo, entries, scope)    -> { actions[], decisions[] }
-copy(repo, entry, scope)      -> "installed" | "refreshed" | "unchanged" | "blocked"   # plugin-owned files only
+copy(repo, entry, scope)      -> "installed" | "refreshed" | "unchanged" | "blocked" | "unsafe-path" | "stage-failed"   # plugin-owned files only
 decline(repo, entryId)        -> sets the git config --local key
 ```
 
@@ -198,6 +204,18 @@ value except the plain shared `.githooks`), `plan` returns only one decision,
 `{kind: "hooks-path-owned", hooksPath, dir}`, with empty `actions`. `copy --scope local` then
 writes nothing, prints `{"installed":[],"decisions":[...]}` with that decision, exits 1, and
 reports status `blocked`. The setup agent decides what to do with the other tool's hooks (D1).
+
+**`unsafe-path`.** A cloned repository's contents are untrusted. When any file `copy` would write
+for an entry, or a directory on the way to it below the work tree's top level (or below the local
+hooks directory), is a symlink, `plan` returns `{kind: "unsafe-path", entry, file}` and `copy`
+writes nothing for that entry, reports status `unsafe-path`, and exits 1. Only the exact dispatcher
+counts as the plugin's own; a hook that carries its sentinel line but differs is a `modified`
+decision, overwritten only by `copy --force`. The installer reads repository files only when they
+are regular files of at most 1 MiB, never through a final symlink; anything else reads as absent.
+
+**`stage-failed`.** A shared install stages what it writes; when `git add` fails (an ignored path,
+a locked index), `copy` reports `stage-failed` and exits 1, since the team would not receive the
+files. A plain marker counts as wired only while it names its entry's script.
 
 ### Where installed copies live
 
@@ -319,6 +337,10 @@ marketplace comes from these rows.
 | Hook | Placement | Measured | Host | Date |
 |---|---|---|---|---|
 | typos-format `pre-commit` entry (typos 1.51.1, plain dispatcher), staged sets from real `origin/main` commits | pre-commit | 1 file 0.039 s (0.038-0.040); 10 files 0.125 s (0.122-0.133); 44 files 0.508 s (0.491-0.681) | reference host (Linux, WSL2, 32 CPUs) | 2026-10-15 |
+| guardrails `commit-msg-convention` entry, one message | commit-msg | 10 ms median (9-11) | reference host (Linux, WSL2) | 2026-10-16 |
+| guardrails `pre-commit-content` entry, staged sets from real `origin/main` commits | pre-commit | 1 file 0.039 s (0.036-0.040); 10 files 0.311 s (0.298-0.337); 44 files 1.277 s (1.206-1.450), re-measured 1.302 s (1.209-1.467) once it was the only guardrails `pre-commit` entry | reference host (Linux, WSL2) | 2026-10-16 |
+| guardrails `reference-verify` entry, the 44-file `origin/main` commit (37 of its files are `.md`/`.sh`) as one pushed range | pre-push | 10.6 s median (10.1-12.5); 15.7 s on the first run in a clone, which builds the deleted-path cache | reference host (Linux, WSL2) | 2026-10-16 |
+| guardrails `reference-verify` entry at `pre-commit`, before the move, same staged sets (1 file is not `.md`/`.sh`) | pre-commit until it moved to pre-push: 44 files is over the commit budget | 1 file 0.018 s (0.017-0.019); 10 files 1.169 s (1.109-1.271), 11.0 s on the first run in a clone; 44 files 12.2 s (10.6-17.0) | reference host (Linux, WSL2) | 2026-10-16 |
 | `scripts/check-affected.sh --no-fetch` (this repository) | pre-push | 15.5 s median on a 28-file range; 0.52 s on one file | reference host (Linux, WSL2) | 2026-10-15 |
 | actionlint, per edit (`.github/workflows/*.yml`) | PostToolUse today; moving to pre-commit | 44 ms median (43-47) | reference host (Linux, WSL2) | 2026-10-15 |
 | bash-format, per edit (`.sh`, configured) | PostToolUse today | 64 ms median (62-68) | reference host (Linux, WSL2) | 2026-10-15 |
@@ -326,7 +348,7 @@ marketplace comes from these rows.
 | markdown-format, per edit (`.md`, configured) | PostToolUse today | 180 ms median (174-186) | reference host (Linux, WSL2) | 2026-10-15 |
 | powershell-format, per edit (`.ps1`, configured) | PostToolUse today | 973 ms median (918-1,026) | reference host (Linux, WSL2) | 2026-10-15 |
 | ruff-format, per edit (`.py`, configured) | PostToolUse today | 75 ms median (73-83) | reference host (Linux, WSL2) | 2026-10-15 |
-| typos-format, per edit (`.md`) | PostToolUse today; moving to pre-commit | 59 ms median (56-63) | reference host (Linux, WSL2) | 2026-10-15 |
+| typos-format, per edit (`.md`) | PostToolUse until removed; now pre-commit | 59 ms median (56-63) | reference host (Linux, WSL2) | 2026-10-15 |
 
 The per-edit rows are today's `PostToolUse` rows run from each plugin's `hooks/hooks.json` with a
 sample that needs work (hyperfine, 2 warmups, 10 runs; a 15 ms spawn baseline is included). They

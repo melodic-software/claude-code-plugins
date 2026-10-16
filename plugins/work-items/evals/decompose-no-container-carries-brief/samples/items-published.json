@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/p/tools/work-item-tracker/work-item-tracker.sh\" create-item --title \"Monthly refund query\" --body-file \"/tmp/tmp.abc123\" --type \"Feature\" --labels \"area: refunds,agent-ready\""
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/p/tools/work-item-tracker/work-item-tracker.sh\" create-item --title \"CSV download\" --body-file \"/tmp/tmp.abc123\" --type \"Feature\" --labels \"area: refunds,agent-ready\""
+          }
+        }
+      ],
+      "why": "two create-item calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "empty run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/p/tools/work-item-tracker/work-item-tracker.sh\" create-item --title \"Monthly refund query\" --body-file \"/tmp/tmp.abc123\" --type \"Feature\" --labels \"area: refunds,agent-ready\""
+          }
+        }
+      ],
+      "why": "only one item"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls .work/refund-export"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status"
+          }
+        }
+      ],
+      "why": "no publish"
+    }
+  ]
+}

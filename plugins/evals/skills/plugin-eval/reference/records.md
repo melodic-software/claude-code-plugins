@@ -40,8 +40,19 @@ re-read the page.
   subagent on Claude Code 2.1.296, Linux/WSL2, verified 2026-10-13 (#5696), with the message `this
   command runs a string through eval, which can't be verified to stay inside the worktree`. The
   user's own `!` command clause rests on the repro on Claude Code 2.1.285, Linux/WSL2, verified
-  2026-10-01. Recheck: re-run `claude plugin eval --help` from an isolated
-  worktree session.
+  2026-10-01. Upstream: anthropics/claude-code#88312, anthropics/claude-code#90377.
+- Session shapes, headless `claude -p --permission-mode auto` probes with an `echo ok` control
+  each, Claude Code 2.1.301, Linux/WSL2, 2026-10-16:
+  - Allowed: a normal session whose working directory is a `git worktree add` worktree; the same
+    session after `ExitWorktree` with `keep`.
+  - Refused, same message: `claude -p --worktree`; a session after `EnterWorktree`; a subagent
+    spawned with no `isolation` from a `--worktree` session, with an absolute target (the message
+    names the parent's worktree).
+  - Allowed in every shape: the static validator, `validate-cases.py <absolute eval dir>`.
+  - Not probed: whether `ExitWorktree` lifts isolation in a `--worktree` session.
+  - A peer isolated session also had routine Bash refused for the bare word (`grep -i eval`).
+  Recheck: re-run `claude plugin eval --help` in a `--worktree` session and in a normal session
+  started in a worktree.
 - The CLI's linked-worktree refusal (`registers more linked worktrees than can be screened`):
   observed on Claude Code 2.1.289, Linux/WSL2, 2026-10-04. Recheck: re-run on a plugin in a
   repository with many linked worktrees.

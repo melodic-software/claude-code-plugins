@@ -86,7 +86,7 @@ any run with no human to answer, STOP before any claim and report that `run` is 
      `ready`, carry the item's human-merge hold into the PR body exactly as `/work-items:work`'s
      open-the-PR step does with `${CLAUDE_PLUGIN_ROOT}/scripts/merge-hold.sh`. **Then ready
      it:** right after `create --pushed`, unless the consuming project's instructions reserve the
-     ready flip for a person, dispatch `/source-control:pull-request ready` into the item's worktree,
+     ready flip for a person, dispatch `/source-control:pull-request ready --unattended` into the item's worktree,
      at the strong tier's current alias resolved per the loop-lane convention's capability tiers,
      never this session's inherited model. `ready` resolves the PR from the branch checked out there,
      so the brief names the PR number `create --pushed` returned and the dispatched agent stops when

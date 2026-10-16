@@ -3,6 +3,18 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0] - 2026-10-16
+
+### Changed
+
+- `/verification:confirm` looks up intent on disk before asking: the PLAN.md Brief first, then the pull request body's acceptance criteria, then the linked issue, then the conversation, and the report names the source. With none and no one to ask, the verdict is `NOT VERIFIED: no intent source`. A pipeline lane, or a PLAN.md that git tracks, skips the PLAN.md rung, since the memory slice is never committed.
+
+## [0.9.1] - 2026-10-16
+
+### Changed
+
+- Shared `prerequisites.mjs` synced: the SessionStart probe now also reports a drifted git-hook entry for a plugin that ships `git-hooks/entries.json`. This plugin ships none, so its behavior is unchanged.
+
 ## [0.9.0] - 2026-10-13
 
 ### Added

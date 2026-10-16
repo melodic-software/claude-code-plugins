@@ -3,6 +3,25 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.6] - 2026-10-16
+
+### Fixed
+
+- `block-hook-bypass` block message: an agent with neither Write nor Edit whose instructions allow a write is told to write to a literal path under an exempt root, unquoted or, on PowerShell, single-quoted.
+
+## [0.51.5] - 2026-10-16
+
+### Changed
+
+- Shared `check-lib.sh` synced where this plugin carries it: it gains `checks_refuse_config_drift`, which the guardrails entries do not call; no other change to this plugin.
+
+## [0.51.4] - 2026-10-16
+
+### Changed
+
+- Shared `prerequisites.mjs` synced: the SessionStart probe now also reports a drifted git-hook entry for a plugin that ships `git-hooks/entries.json`.
+- Vendored the shared git-hook installer and check lib under `lib/git-hooks/`; nothing uses them until this plugin ships its own git-hook entries.
+
 ## [0.51.3] - 2026-10-16
 
 ### Fixed

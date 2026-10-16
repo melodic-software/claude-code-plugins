@@ -95,6 +95,7 @@ reader applies.
 | `pr-require-checks` | each verify result |
 | `pr-unblock` | a dispatch for each conflicting PR after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
+| `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran); labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue` once resolve-issue accepts App-added labels (follow-up by Automation Lanes) |
 | `post-merge-verify` | push to the default branch |
 | `post-merge-sweep-comments` | push to the default branch |
 
@@ -207,6 +208,15 @@ Each leaf declares:
   flags fixed, that a skill with an effect other than `read` may run. The write runner runs each
   from the base copy against the checkout, so no head code runs
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)).
+- `verify-scripts` (optional, `skill` only): exact repository-relative paths of read-only checker
+  scripts, each `scripts/<name>.sh`, `plugins/<plugin>/scripts/<name>.sh` or
+  `plugins/<plugin>/skills/<skill>/scripts/<name>.sh`, that a skill with an effect other than
+  `read` may run with any arguments but a path outside the checkout; a `read` leaf cannot set it.
+  The write runner runs each from a read-only base copy of its plugin (or of `scripts/`) against
+  the checkout
+  ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The arguments are the model's, so
+  list only scripts that read and report: never one that changes files, runs code from the
+  checkout or reaches the network.
 - `web-access` (optional, `skill` only, off when absent): `enabled` and `domains`, either `any` or
   a list of host names (`*.` allowed as a prefix). When on, a skill with an effect other than
   `read` may search the web, fetch those domains, and run the research skills
@@ -236,14 +246,17 @@ Each leaf declares:
   activity skips with `not-applicable-paths`: `pr-refine / fix-docs` does not run on a PR whose
   only changed Markdown is instruction surfaces or CODEOWNERS paths, such as this directory.
 - `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, `labels-absent`, work
-  classes, events, `mergeable`, `draft`, `labeled-after`). `mergeable` is `conflicting` or `clean`,
+  classes, events, `mergeable`, `draft`, `labeled-after`, `admission`). `mergeable` is `conflicting` or `clean`,
   read from the PR at the gated head SHA only; unknown mergeability never matches. `labels-absent`
   matches only when none of its labels is on the PR. `labeled-after`, a UTC time, is an issues
-  lane's go-live time: it matches only an issue labeled after it.
+  lane's go-live time: it matches only an issue labeled after it. `admission` is an issues lane's
+  admission rule: an issue carrying a `work-class:` label outside its `classes` is refused, even
+  beside a listed one; otherwise a listed class admits it, or, with `ratified: true`, the owner's
+  batch-ratification marker comment does. A lane never admits on its own judgment.
 
 An activity is idempotent: a rerun on the same commit gives the same verdict or reuses it, a
 mutating activity with nothing to change makes no commit, and each commit it makes names the
-activity in a trailer. Unchanged content (same patch id) reuses the earlier verdict.
+activity in a trailer. A verdict is bound to the commit it judged and is not reused for any other commit.
 
 When an activity needs a human, it escalates with a resume key and exits instead of blocking. An
 activity whose `labels-absent` lists `needs-human` or `do-not-merge` skips with `awaiting-human`
@@ -345,9 +358,10 @@ human. Work classes are defined in
   automatically: when the default branch fails after a lane merge, that lane's merge rights turn off
   through a repository variable that can only lower the rung, and a `needs-human` issue is filed.
   The local babysit lane falls through a demotion issue instead (below).
-- A `pr-merge` merge needs a review verdict on the final commit, or a verdict carried over by
-  content fingerprint. The local babysit lane accepts only evidence bound to the pinned head SHA
-  (below).
+- A `pr-merge` merge needs a review verdict bound to the commit being merged. This is a
+  precondition of the lane's own merge, not a required check. A lane merge commit, including one
+  where the lane resolved conflicts, needs a fresh verdict on that commit before the merge. The
+  local babysit lane accepts only evidence bound to the pinned head SHA (below).
 - `merge.stack-landing` defaults to `manual`.
 - A repository has one merge authority. The one exception is
   `.github/workflows/pr-automerge-dependabot.yml`, which merges Dependabot pull requests on its own
@@ -437,9 +451,11 @@ While `merge.report-only` is true, the workflow starts no full CI run either; it
 whether it would have.
 
 `.github/workflows/pr-merge.yml` runs the lane's `merge-pr` activity with no model and no head
-checkout. A finished `ci-status` or review run, a label, body or ready change on a PR, a manual
-dispatch and an hourly schedule each only wake it; it lists the candidates from the API and runs the
-gate on each under the lanes App token the broker mints for that file on `main`.
+checkout. A label, body or ready change on a PR, a manual dispatch and a schedule every 15 minutes
+each only wake it; it lists the candidates from the API and runs the gate on each under the lanes
+App token the broker mints for that file on `main`. A finished `ci-status` or review run is picked
+up by the next scheduled run, not by a wake-up of its own: runs are serialized, and the triggers
+must start them more slowly than they finish to stay under GitHub's cap on queued runs.
 
 ## Trust-root paths
 
@@ -509,7 +525,8 @@ here and in `pr-merge`'s `never` rule in `lane-rules.json`; the merge activity e
 
 One counter per PR, in the findings store, is shared by every lane. After `loop.review-rounds`
 full review rounds, one more high-severity-only pass runs; if it still has findings, the PR
-escalates. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
+escalates. The address-feedback activity hands a PR to a person once `loop.review-rounds` of its
+rounds have run. The default is 2; this repository sets 3. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
 escalates.
 
 ## Planning lane work

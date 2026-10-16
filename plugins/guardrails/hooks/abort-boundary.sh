@@ -68,8 +68,8 @@
 # run-guards.sh is the one documented exception to that discipline, and it is
 # an exception because it is not a hook's exit-time work: its
 # run_guards::guard_died is the DISPATCHER settling a dead guard and then
-# finishing the run the process still owes, so it forks a subshell for the
-# guards left, spawns jq to merge their documents, and ends at `builtin exit`
+# finishing the run the process still owes, so it runs the guards left in
+# another process, spawns jq to merge their documents, and ends at `builtin exit`
 # without returning. Nothing is left for the handler to decide, which is why
 # the slot may swallow control here and nowhere else. Any other consumer keeps
 # the discipline above: a chained function that RETURNS, so that
