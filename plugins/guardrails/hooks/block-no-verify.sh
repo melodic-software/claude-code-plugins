@@ -5,7 +5,10 @@
 # Catches three bypass surfaces on a real `git commit` / `git push`:
 #   1. --no-verify / -n on git commit (skips pre-commit + commit-msg hooks)
 #      and --no-verify on git push (skips pre-push hook)
-#   2. core.hooksPath assignment on git commit/push (disables all git hooks)
+#   2. core.hooksPath assignment on git commit/push (disables all git hooks),
+#      and a persistent `git config core.hooksPath <dir>` other than
+#      `.githooks`. The check-placement skip key (`-c checks.skipmissing=`)
+#      is not a bypass: a check honors it only for a tool it finds absent.
 #   3. hook-manager env-var prefix (e.g. LEFTHOOK=0 / LEFTHOOK_*=0|false,
 #      HUSKY=0) on git commit/push (disables the hook manager for one
 #      invocation). The manager set is configurable via the
@@ -222,6 +225,34 @@ alias_record() {
   ALIAS_VALUES+=("${pos[1]}")
 }
 
+# A persistent `git config core.hooksPath <dir>` (any scope, `set`, `--add`,
+# `--replace-all`, `--file`) points every later commit and push at other hooks.
+# Only `.githooks`, the directory plain shared git hooks live in, which setup
+# sets per clone, is allowed. Reading or unsetting the key writes no path.
+hookspath_write_check() {
+  local -a pos=()
+  while (($# > 0)); do
+    case "$1" in
+    --get | --get-all | --get-regexp | --get-urlmatch | --unset | --unset-all | \
+      --remove-section | --rename-section | -l | --list | -e | --edit) return 0 ;;
+    -f | --file | --blob | -t | --type | --default | --comment) shift ;;
+    -*) ;;
+    *) pos+=("$1") ;;
+    esac
+    shift
+  done
+  case "${pos[0]:-}" in
+  get | unset | list | edit | remove-section | rename-section) return 0 ;;
+  set) pos=("${pos[@]:1}") ;;
+  *) ;;
+  esac
+  ((${#pos[@]} >= 2)) || return 0
+  [[ "${pos[0],,}" == core.hookspath ]] || return 0
+  [[ "${pos[1]}" == .githooks ]] && return 0
+  block "hooksPath-config" \
+    "BLOCKED: git config core.hooksPath ${pos[1]} points every later commit and push at other hooks. Only .githooks, the shared hooks directory, is allowed. $BYPASS_FIX"
+}
+
 # $1 subcommand, $2 its index, then the segment argv. Re-checks every definition
 # of the subcommand: the inline `-c alias.NAME=VALUE` spellings
 # hook::git_invocation resolved for this segment (copied before a recheck
@@ -298,6 +329,7 @@ check_segment() {
   case "$sub" in
   commit | push) ;;
   config)
+    hookspath_write_check "${w[@]:sub_idx+1}"
     alias_record "${w[@]:sub_idx+1}"
     return 0
     ;;
