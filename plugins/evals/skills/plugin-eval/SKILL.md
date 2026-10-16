@@ -105,18 +105,17 @@ ungranted tool is removed and reported on stderr as `not granted`.
 
 ### Worktree isolation
 
-A session Claude Code isolated in a worktree (`--worktree`, `EnterWorktree`, or `isolation:
-"worktree"`), and every subagent it spawns, has a Bash guard that refuses any command containing
-the word `eval`; a normal session whose working directory is a git worktree is not isolated
-([records](reference/records.md#worktrees)). It matters only when `run` or `init` invokes the CLI.
-Never retry, wrap, reroute, or otherwise bypass it: it matches the word, so nothing clears it.
-Build the command with absolute paths: for `run`, an absolute `<target>` and `--json` path inside
-the worktree; for `init`, `claude plugin eval init --bare <name>`. Take the first route that fits:
+Under Claude Code's worktree isolation a Bash guard can refuse the CLI; which session shapes it
+covers is in [records](reference/records.md#worktrees). It matters only when `run` or `init`
+invokes the CLI. Never retry, wrap, reroute, or otherwise bypass a refusal. Build the command with
+absolute paths: for `run`, an absolute `<target>` and `--json` path inside the worktree; for
+`init`, `claude plugin eval init --bare <name>`, run from the plugin root. Take the first route
+that fits:
 
-1. Entered with `EnterWorktree`: `ExitWorktree` with `keep`, run it, then `EnterWorktree` back by
-   the worktree's path.
-2. A worktree-isolated subagent: return the exact command to the caller to run from its own
-   non-isolated session.
+1. A `run` in a session entered with `EnterWorktree`: ask the user whether to leave the worktree
+   for it. Only on a yes, `ExitWorktree` with `keep`, run it, then `EnterWorktree` back by the
+   worktree's path.
+2. A subagent: return the exact command to the caller, which takes these same routes.
 3. Otherwise print it for the user to run in a terminal outside Claude Code, or in a session
    started with plain `claude` (not `--worktree`) in the worktree.
 
