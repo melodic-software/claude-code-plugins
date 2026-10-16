@@ -24,8 +24,10 @@ records the new link, so the owner's view says to share it again.
 from __future__ import annotations
 
 import argparse
+import collections
 import contextlib
 import hashlib
+import ipaddress
 import json
 import logging
 import os
@@ -69,10 +71,13 @@ STATIC = {
     "/proto.js": ("proto.js", "text/javascript"),
 }
 PAGE_CSP = "default-src 'self'; img-src 'self' data:; frame-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+ASSET_CSP = "sandbox"
+HTML_ASSET_CSP = "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src data:; connect-src 'none'"
+SECURITY_HEADERS = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer"}
+ERROR_CODES = {400: "bad-request", 408: "body-timeout", 414: "uri-too-long", 431: "headers-too-large", 501: "not-implemented", 505: "bad-version"}
 ASSET = re.compile(r"/assets/([0-9a-f]{16}\.(png|jpg|webp|svg|html))")
 ASSET_TYPES = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp", "svg": "image/svg+xml", "html": "text/html"}
-RATE_PER_SECOND = 100.0  # requests per address on the guest listener: 20 people behind one NAT fit
-RATE_BURST = 200.0
+CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f-\x9f\\]")
 LOG_BYTES = 1024 * 1024
 LOG_KEEP = 3
 TUNNEL_POLL = 1.0  # seconds between tunnel checks
@@ -165,19 +170,27 @@ def read_json(path):
 
 
 def ensure_secrets(d):
-    """The control and owner tokens from the 0600 secrets file, making any that is missing."""
+    """The control and owner tokens from the 0600 secrets file, making any that is missing, plus
+    `ownerAt`, when the owner token was issued (the file's time for a file that does not say)."""
     path = d / SECRETS
     have = read_json(path) or {}
     out = {k: have[k] if isinstance(have.get(k), str) and len(have[k]) >= 32 else secrets.token_urlsafe(32) for k in ("control", "owner")}
+    at = have.get("ownerAt")
+    if out["owner"] != have.get("owner"):
+        at = time.time()
+    elif not isinstance(at, (int, float)) or isinstance(at, bool):
+        at = path.stat().st_mtime
+    out["ownerAt"] = at
     if out != have:
         detached.write_private(path, json.dumps(out) + "\n")
     return out
 
 
-def open_session(d, owner_token, *, defaults_file=None, initial_state=None):
+def open_session(d, owner_token, owner_at, *, defaults_file=None, initial_state=None):
     """The session in d/state.json: loaded and migrated, or created from defaults.json or from
     `initial_state` (a session file from elsewhere, run through migrate.py and validated as
-    any load is). The owner token from the secrets file becomes the owner's credential."""
+    any load is). The owner token from the secrets file, issued at `owner_at`, becomes the
+    owner's credential unless the session rotated the owner link after that."""
     path = d / STATE
     version = plugin_version()
     try:
@@ -203,7 +216,7 @@ def open_session(d, owner_token, *, defaults_file=None, initial_state=None):
             )
         else:
             s = session.Session.load(path, plugin_version=version)
-        s.reset_owner_token(owner_token)
+        s.reset_owner_token(owner_token, owner_at)
         return s
     except (migrate.MigrationError, DomainError, OSError) as exc:
         raise StartRefused(getattr(exc, "message", None) or str(exc)) from exc
@@ -231,25 +244,35 @@ def make_logger(d):
 
 
 class Bucket:
-    """A token bucket per client address."""
+    """A token bucket per client address, remembering at most `keys` addresses: the least recently
+    seen is forgotten first, which costs nothing once its bucket has refilled."""
 
-    def __init__(self, rate, burst):
-        self.rate, self.burst = rate, burst
+    def __init__(self, rate, burst, keys=session.RATE_KEYS):
+        self.rate, self.burst, self.keys = rate, burst, keys
         self.lock = threading.Lock()
-        self.tokens = {}
+        self.tokens = collections.OrderedDict()
 
     def take(self, key):
         now = time.monotonic()
         with self.lock:
-            if len(self.tokens) > 10000:
-                self.tokens = {k: v for k, v in self.tokens.items() if now - v[1] < 60}
-            level, last = self.tokens.get(key, (self.burst, now))
+            level, last = self.tokens.pop(key, (self.burst, now))
+            if len(self.tokens) >= self.keys:
+                self.tokens.popitem(last=False)
             level = min(self.burst, level + (now - last) * self.rate)
-            if level < 1:
-                self.tokens[key] = (level, now)
-                return False
-            self.tokens[key] = (level - 1, now)
-            return True
+            ok = level >= 1
+            self.tokens[key] = (level - 1 if ok else level, now)
+            return ok
+
+
+def client_key(ip):
+    """The rate and join key for an address: an IPv6 address by its /64, the block one host holds."""
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return "invalid"
+    if addr.version == 6 and addr.ipv4_mapped:
+        addr = addr.ipv4_mapped
+    return str(ipaddress.ip_network(f"{addr}/64", strict=False)) if addr.version == 6 else str(addr)
 
 
 # -- control listener -------------------------------------------------------------------------
@@ -329,15 +352,49 @@ class ControlHandler(session_bridge.LoopbackHandler):
 # -- guest listener ---------------------------------------------------------------------------
 
 
+def raw_answer(code, reason, body):
+    """A whole HTTP/1.1 answer, security headers included, for a connection no handler serves."""
+    raw = json.dumps(body).encode("utf-8")
+    head = [f"HTTP/1.1 {code} {reason}", "Content-Type: application/json; charset=utf-8", f"Content-Length: {len(raw)}", "Connection: close"]
+    head += [f"{k}: {v}" for k, v in SECURITY_HEADERS.items()]
+    return ("\r\n".join(head) + "\r\n\r\n").encode("ascii") + raw
+
+
 class GuestServer(ThreadingHTTPServer):
+    """At most session.MAX_HANDLERS connections are served at once; one more is answered 503."""
+
     daemon_threads = True
     request_queue_size = 128
     allow_reuse_address = not detached.WINDOWS  # on Windows the option lets another bind steal the port
+    BUSY = raw_answer(503, "Service Unavailable", {"error": "busy", "message": "The session is busy; try again in a moment."})
+
+    def __init__(self, *args, **kwargs):
+        self.slots = threading.BoundedSemaphore(session.MAX_HANDLERS)
+        super().__init__(*args, **kwargs)
 
     def server_bind(self):
         if detached.WINDOWS and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
         super().server_bind()
+
+    def process_request(self, request, client_address):
+        if not self.slots.acquire(blocking=False):
+            with contextlib.suppress(OSError):
+                request.settimeout(1.0)
+                request.sendall(self.BUSY)
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self.slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self.slots.release()
 
 
 class GuestHandler(BaseHTTPRequestHandler):
@@ -366,10 +423,8 @@ class GuestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype + "; charset=utf-8" if text else ctype)
         if code != 304:
             self.send_header("Content-Length", str(len(raw)))
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("X-Frame-Options", "DENY")
-        self.send_header("Referrer-Policy", "no-referrer")
+        for k, v in SECURITY_HEADERS.items():
+            self.send_header(k, v)
         self.send_header("X-Shared-Build", self.app.build)
         extra = dict(extra or {})
         if ctype == "text/html" and "Content-Security-Policy" not in extra:
@@ -380,24 +435,56 @@ class GuestHandler(BaseHTTPRequestHandler):
         if code != 304:
             with contextlib.suppress(*session_bridge.DISCONNECTS):
                 self.wfile.write(raw)
-        self.app.log.info("%s %s %d %.1fms", self.command, urlparse(self.path).path[:80], code, (time.monotonic() - self.t0) * 1000)
+        path = CONTROL_CHARS.sub(lambda m: f"\\x{ord(m.group(0)):02x}", urlparse(getattr(self, "path", "") or "").path[:80])
+        took = (time.monotonic() - getattr(self, "t0", time.monotonic())) * 1000
+        self.app.log.info("%s %s %d %.1fms", self.command or "-", path or "-", code, took)
+
+    def send_error(self, code, message=None, explain=None):
+        """http.server's own refusals (a request line too long, an unknown method): JSON, same headers."""
+        self.send(code, {"error": ERROR_CODES.get(code, "bad-request"), "message": message or self.responses.get(code, ("Refused.",))[0]})
 
     def fail(self, exc):
         return self.send(exc.http, exc.body())
 
     def address(self):
-        """The client address for limits: Cloudflare's CF-Connecting-IP only (never X-Forwarded-For)."""
+        """The client key for limits, from Cloudflare's CF-Connecting-IP only (never X-Forwarded-For)."""
         ip = (self.headers.get("CF-Connecting-IP") or "").strip()
-        return ip[:64] if ip else "local"
+        return client_key(ip[:64]) if ip else "local"
 
-    def gate(self):
-        """Host, Origin and rate checks shared by every method; an error answer, or None to go on."""
+    def refused(self):
+        """Host, Origin, body and rate checks shared by every method: True once it has answered an error."""
         self.t0 = time.monotonic()
         if not self.app.host_ok(self.headers.get("Host", ""), self.headers.get("Origin")):
-            return self.fail(DomainError(403, "bad-host", "This address does not serve the session."))
-        if not self.app.bucket.take(self.address()):
-            return self.fail(DomainError(429, "slow-down", "Too many requests; wait a moment."))
-        return None
+            error = DomainError(403, "bad-host", "This address does not serve the session.")
+        elif self.command != "POST" and (self.headers.get("Transfer-Encoding") or self.headers.get("Content-Length", "0").strip() not in ("", "0")):
+            error = DomainError(400, "bad-request", "Only a POST carries a body.")
+        elif not self.app.bucket.take(self.address()):
+            error = DomainError(429, "slow-down", "Too many requests; wait a moment.")
+        else:
+            return False
+        self.fail(error)
+        return True
+
+    def read_body(self, length):
+        """Exactly `length` body bytes, all within session.BODY_SECONDS (TimeoutError otherwise), or
+        None when the client closed first."""
+        deadline = time.monotonic() + session.BODY_SECONDS
+        chunks, left = [], length
+        try:
+            while left:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("the body did not arrive in time")
+                self.connection.settimeout(remaining)
+                chunk = self.rfile.read1(min(left, 65536))
+                if not chunk:
+                    self.close_connection = True
+                    return None
+                chunks.append(chunk)
+                left -= len(chunk)
+        finally:
+            self.connection.settimeout(self.timeout)
+        return b"".join(chunks)
 
     def identity(self):
         """The pid the request acts as, None without identity; DomainError for a stale credential."""
@@ -418,7 +505,7 @@ class GuestHandler(BaseHTTPRequestHandler):
         return pid
 
     def do_GET(self):
-        if self.gate() is not None:
+        if self.refused():
             return None
         url = urlparse(self.path)
         try:
@@ -448,7 +535,7 @@ class GuestHandler(BaseHTTPRequestHandler):
         f = self.app.dir / "assets" / aid
         if not f.is_file():
             return self.fail(DomainError(404, "not-found", "No such asset."))
-        csp = "sandbox allow-scripts" if ext == "html" else "sandbox"
+        csp = HTML_ASSET_CSP if ext == "html" else ASSET_CSP
         return self.send(200, f.read_bytes(), ASSET_TYPES[ext], {"Content-Security-Policy": csp, "Content-Disposition": "inline"})
 
     def state(self):
@@ -469,7 +556,7 @@ class GuestHandler(BaseHTTPRequestHandler):
         return self.send(200, snap, extra={"ETag": tag})
 
     def do_POST(self):
-        if self.gate() is not None:
+        if self.refused():
             return None
         path = urlparse(self.path).path
         if path not in ROUTES:
@@ -486,7 +573,13 @@ class GuestHandler(BaseHTTPRequestHandler):
         if length > cap:
             return self.fail(DomainError(413, "body-too-large", f"The body allows at most {cap} bytes.", max=cap))
         try:
-            body = json.loads(self.rfile.read(length) or b"{}")
+            raw = self.read_body(length)
+        except TimeoutError:
+            return self.fail(DomainError(408, "body-timeout", f"The body must arrive within {session.BODY_SECONDS:.0f} s."))
+        if raw is None:
+            return None
+        try:
+            body = json.loads(raw or b"{}")
         except (ValueError, RecursionError):
             return self.fail(DomainError(400, "bad-json", "The body is not JSON."))
         if not isinstance(body, dict):
@@ -503,12 +596,12 @@ class GuestHandler(BaseHTTPRequestHandler):
             app.log.error("%s failed:\n%s", path, traceback.format_exc())
             return self.fail(DomainError(500, "state-invalid", "The server could not do that; nothing was written."))
         if method == "rotate_owner_link":
-            app.owner_rotated(out["token"])
+            app.write_owner_link()
         app.changed()
         return self.send(200, {"ok": True, **out})
 
     def refuse_method(self):
-        if self.gate() is None:
+        if not self.refused():
             self.fail(DomainError(404, "not-found", "Nothing here."))
 
     do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_HEAD = refuse_method  # no CORS preflight is ever answered
@@ -522,12 +615,17 @@ class App:
 
     def __init__(self, data_dir, *, guest_port=0, control_port=0, nonce="", defaults_file=None, initial_state=None, watch_tunnel=True):
         self.dir = Path(data_dir).resolve()
+        problem = detached.data_dir_problem(self.dir)
+        if problem:
+            raise StartRefused(problem)
         self.dir.mkdir(parents=True, exist_ok=True)
+        detached.make_private_dir(self.dir / session.STAGING)
         self.log = make_logger(self.dir)
         self.secrets = ensure_secrets(self.dir)
-        self.session = open_session(self.dir, self.secrets["owner"], defaults_file=defaults_file, initial_state=initial_state)
+        self.session = open_session(self.dir, self.secrets["owner"], self.secrets["ownerAt"], defaults_file=defaults_file, initial_state=initial_state)
+        self.session.on_owner_token = self.owner_rotated
         self.build = build_hash()
-        self.bucket = Bucket(RATE_PER_SECOND, RATE_BURST)
+        self.bucket = Bucket(session.RATE_PER_SECOND, session.RATE_BURST)
         self.watch_tunnel = watch_tunnel
         self.public_url = ""
         self.tunnel_host = ""
@@ -555,10 +653,10 @@ class App:
     def write_owner_link(self):
         detached.write_private(self.dir / OWNER_LINK, f"{self.local_url}#owner={self.secrets['owner']}\n")
 
-    def owner_rotated(self, token):
-        self.secrets["owner"] = token
+    def owner_rotated(self, token, at):
+        """Called inside the rotation, before its hash commits: a crash after this keeps the new token."""
+        self.secrets.update(owner=token, ownerAt=at)
         detached.write_private(self.dir / SECRETS, json.dumps(self.secrets) + "\n")
-        self.write_owner_link()
 
     def host_ok(self, host, origin):
         if not host:

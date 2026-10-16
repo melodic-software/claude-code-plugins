@@ -5,13 +5,19 @@ with no console on Windows, breaking away from the caller's job when allowed), s
 shell, `share.py` or the server that started it. `alive` and `stop` take a pid plus a `marker`, a
 word its command line (POSIX) or executable path (Windows) must contain, so a pid the OS has since
 handed to another program is never reported alive or stopped. `locked` is an exclusive file lock
-for the few steps two processes may race on. Every OS branch of the runtime lives in this file.
+for the few steps two processes may race on. `which` finds a program on PATH but never in the
+current folder, and `data_dir_problem` says when a folder cannot keep the session's files private.
+Every OS branch of the runtime lives in this file.
 """
 
 from __future__ import annotations
 
 import contextlib
+import ntpath
 import os
+import platform
+import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -67,10 +73,76 @@ def write_private(path, text):
     raise OSError(f"could not replace {path}")
 
 
-def spawn(cmd, log=None, env=None):
-    """Start cmd detached: no stdin, stdout and stderr to `log` (truncated) or nowhere. Returns the Popen."""
+def make_private_dir(path):
+    """Create `path` (and its parents) with the folder itself 0700 where the OS has file modes."""
+    path = Path(path)
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if not WINDOWS:
+        os.chmod(path, 0o700)
+    return path
+
+
+def which(name):
+    """`name` on PATH, never from the current folder: Windows searches it first unless told not to."""
+    if not WINDOWS:
+        return shutil.which(name)
+    os.environ["NoDefaultCurrentDirectoryInExePath"] = "1"  # honoured by shutil.which from Python 3.12
+    found = shutil.which(name)
+    if found and Path(found).resolve().parent == Path.cwd().resolve():  # older Pythons still look there
+        return None
+    return found
+
+
+def _is_wsl():
+    return bool(os.environ.get("WSL_DISTRO_NAME")) or "microsoft" in platform.uname().release.lower()
+
+
+def _unescape_mount(field):
+    """A /proc/self/mounts field with its octal escapes (\\040 for a space) decoded."""
+    return re.sub(r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), field)
+
+
+def _mount_table():
+    """(mount point, file system type, options) per line of /proc/self/mounts; [] when unreadable."""
+    try:
+        lines = Path("/proc/self/mounts").read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return []
+    return [(_unescape_mount(f[1]), f[2], f[3]) for f in (line.split() for line in lines) if len(f) >= 4]
+
+
+def data_dir_problem(path):
+    """Why `path` cannot hold the session's secrets on this OS, or None. Windows has no file modes
+    here, so the folder must sit under the user profile; on WSL a DrvFs (`/mnt/<drive>`) folder
+    ignores modes unless it is mounted with `metadata`."""
+    if WINDOWS:
+        profile = os.environ.get("USERPROFILE", "")
+        where = ntpath.normcase(ntpath.realpath(str(path)))
+        home = ntpath.normcase(ntpath.realpath(profile)) if profile else ""
+        try:
+            inside = bool(home) and ntpath.commonpath([where, home]) == home
+        except ValueError:  # another drive
+            inside = False
+        if not inside:
+            return f"the data folder {path} is outside your user profile ({profile or 'USERPROFILE is not set'}); Windows keeps it private only there"
+        return None
+    if not _is_wsl():
+        return None
+    where = os.path.realpath(path)
+    mounts = [m for m in _mount_table() if where == m[0] or where.startswith(m[0].rstrip("/") + "/")]
+    if not mounts:
+        return None
+    point, fstype, options = max(mounts, key=lambda m: len(m[0]))
+    drvfs = fstype == "drvfs" or "aname=drvfs" in options
+    if drvfs and "metadata" not in re.split(r"[,;]", options):
+        return f"the data folder {path} is on a Windows drive ({point}) mounted without metadata, so its files cannot be made private; use a folder in the Linux file system"
+    return None
+
+
+def spawn(cmd, log=None, env=None, cwd=None):
+    """Start cmd detached in `cwd`: no stdin, stdout and stderr to `log` (truncated) or nowhere. Returns the Popen."""
     out = open_private(log, "wb") if log else subprocess.DEVNULL
-    kw = {"stdin": subprocess.DEVNULL, "stdout": out, "stderr": subprocess.STDOUT if log else subprocess.DEVNULL, "close_fds": True, "env": env}
+    kw = {"stdin": subprocess.DEVNULL, "stdout": out, "stderr": subprocess.STDOUT if log else subprocess.DEVNULL, "close_fds": True, "env": env, "cwd": cwd}
     try:
         if not WINDOWS:
             return subprocess.Popen(cmd, start_new_session=True, **kw)

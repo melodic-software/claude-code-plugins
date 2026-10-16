@@ -360,6 +360,34 @@ class TestJoin(SessionCase):
         out = self.s.join(None, {"name": "ann"})
         self.assertEqual(out["was"], {"pid": ann, "name": "Ann"})
 
+    def test_was_never_reveals_a_name_the_session_hides(self):
+        self.join("Ann")
+        for names in ("initials", "someone"):
+            with self.subTest(names=names):
+                self.act("update_settings", HOST, {"names": names})
+                self.s._presence.clear()
+                self.assertNotIn("was", self.s.join(None, {"name": "ann"}))
+
+    def test_rotated_addresses_cannot_pass_the_join_limit_for_one_guest_key(self):
+        self.assertGreater(session.JOINS_PER_KEY, session.JOINS_PER_WINDOW)
+        for i in range(session.JOINS_PER_KEY):
+            self.clock.tick(1)
+            self.s.join(None, {"name": f"P{i}"}, address=f"198.51.100.{i}")
+        err = self.refused("join-rate", "join", None, {"name": "One more"})
+        self.assertEqual(err.http, 429)
+        with self.assertRaises(session.DomainError):
+            self.s.join(None, {"name": "Fresh address"}, address="203.0.113.250")
+        key = self.act("rotate_guest_link", HOST, {})["guestKey"]
+        self.assertTrue(self.s.join(None, {"name": "New link", "key": key}, address="203.0.113.251")["pid"])
+
+    def test_join_records_are_forgotten_once_their_window_passes(self):
+        for i in range(50):
+            self.s.join(None, {"name": f"P{i}"}, address=f"198.51.100.{i}")
+        self.clock.tick(session.JOIN_KEY_WINDOW)
+        self.s.join(None, {"name": "Later"}, address="203.0.113.9")
+        self.assertEqual(list(self.s._joins), [("", "203.0.113.9")])
+        self.assertEqual(len(self.s._key_joins[""]), 1)
+
     def test_joiners_get_the_first_unused_color(self):
         a, b = self.people("Ann", "Bo")
         colors = [self.s.state["people"][p]["color"] for p in (HOST, a, b)]
@@ -461,6 +489,32 @@ class TestIdentity(SessionCase):
         self.assertEqual(self.s.resolve(owner_token=new), HOST)
         with self.assertRaises(session.DomainError):
             self.s.resolve(owner_token=self.owner_token)
+
+    def test_the_rotated_token_reaches_its_keeper_before_the_hash_is_written(self):
+        seen = []
+        self.s.on_owner_token = lambda token, at: seen.append((token, at, self.disk()["credentials"]["owner"]["tokenHash"]))
+        new = self.act("rotate_owner_link", HOST, {})["token"]
+        self.assertEqual(seen, [(new, self.clock.t, session.sha256(self.owner_token))])
+
+    def test_a_keeper_that_fails_leaves_the_old_token_in_force(self):
+        def fail(token, at):
+            raise OSError("disk full")
+
+        self.s.on_owner_token = fail
+        with self.assertRaises(OSError):
+            self.act("rotate_owner_link", HOST, {})
+        self.assertEqual(self.disk()["credentials"]["owner"]["tokenHash"], session.sha256(self.owner_token))
+
+    def test_reset_refuses_a_token_issued_before_the_last_rotation(self):
+        issued = self.clock.t
+        self.act("rotate_owner_link", HOST, {})
+        rotated = self.s.state["credentials"]["owner"]
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.reset_owner_token(self.owner_token, issued)
+        self.assertEqual((ctx.exception.http, ctx.exception.code), (409, "owner-token-stale"))
+        self.assertEqual(self.disk()["credentials"]["owner"], rotated)
+        self.assertTrue(self.s.reset_owner_token("tok-newer", rotated["rotatedAt"] + 1))
+        self.assertEqual(self.s.resolve(owner_token="tok-newer"), HOST)
 
     def test_rotating_the_guest_link_never_returns_the_key_to_empty(self):
         first = self.act("rotate_guest_link", HOST, {})["guestKey"]
@@ -1501,6 +1555,91 @@ class TestChatAndNotifications(SessionCase):
 # ---------------------------------------------------------------------------------------------
 
 
+class TestWriteLimits(SessionCase):
+    """Every route a person can write through is held to one write a second (Contracts, "Body caps
+    and limits"), the heartbeat to about one a second, and stored chat, notes and suggestions are
+    capped so state.json cannot grow without bound."""
+
+    def setUp(self):
+        super().setUp()
+        self.ann, self.bo = self.people("Ann", "Bo")
+        self.open_round(text_q("Q1"), text_q("Q3", purpose="gather"))
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Bo's", "view": "focus"})
+        self.act("answer", self.bo, {"qid": "Q3", "text": "Bo's idea", "view": "focus"})
+
+    def twice(self, method, first, second):
+        self.clock.tick(5)
+        getattr(self.s, method)(self.ann, first)
+        with self.assertRaises(session.DomainError) as ctx:
+            getattr(self.s, method)(self.ann, second)
+        self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
+
+    def test_every_persisting_person_route_takes_one_write_a_second(self):
+        cases = {
+            "rename": ({"name": "Ann A"}, {"name": "Ann B"}),
+            "set_color": ({"color": "c5"}, {"color": "c6"}),
+            "set_prefs": ({"set": {"sort": "new"}}, {"set": {"sort": "votes"}}),
+            "set_about_you": ({"techComfort": "ok"}, {"techComfort": "high"}),
+            "vote": ({"qid": "Q1", "card": "c:a", "on": True}, {"qid": "Q1", "card": "c:b", "on": True}),
+            "react": ({"qid": "Q3", "card": f"p:{self.bo}", "reaction": "thumbs"}, {"qid": "Q3", "card": f"p:{self.bo}", "reaction": "heart"}),
+            "go_with": ({"qid": "Q1", "card": f"p:{self.bo}"}, {"qid": "Q1", "card": f"p:{self.bo}"}),
+            "read_notifications": ({"all": True}, {"all": True}),
+        }
+        for method, (first, second) in cases.items():
+            with self.subTest(method=method):
+                rev = self.s.state["rev"]
+                self.twice(method, first, second)
+                self.assertEqual(self.s.state["rev"], rev + 1, "the refused write reached the disk")
+
+    def test_the_heartbeat_takes_about_one_a_second(self):
+        self.twice("heartbeat", {"q": "Q1"}, {"q": "Q3"})
+        self.assertEqual(self.s._presence[self.ann]["q"], "Q1")
+        self.clock.tick(session.HEARTBEAT_INTERVAL)
+        self.s.heartbeat(self.ann, {"q": "Q3"})
+        self.assertEqual(self.s._presence[self.ann]["q"], "Q3")
+
+    def test_write_records_are_dropped_once_they_can_throttle_nothing(self):
+        self.act("propose", self.ann, {"text": "One"})
+        self.clock.tick(5)
+        self.s.chat(self.bo, {"text": "Later"})
+        self.assertEqual(list(self.s._last_write), [(self.bo, "chat")])
+
+    def test_a_forgotten_person_leaves_no_write_record(self):
+        self.act("set_trust", HOST, {"pid": self.ann, "on": True})  # trusted, so never the one forgotten
+        with mock.patch.object(session, "MAX_PEOPLE", 4):
+            idle, _ = self.join("Idle")
+            self.s.rename(idle, {"name": "Idle Too"})
+            self.s.request_merge(idle, {"to": self.bo})  # a write record, but no content that keeps a person
+            self.s._presence.clear()
+            self.join("New")
+        self.assertNotIn(idle, self.s.state["people"])
+        self.assertFalse([k for k in self.s._last_write if k[0] == idle])
+
+    def test_chat_keeps_the_newest_messages(self):
+        with mock.patch.object(session, "MAX_CHAT", 3):
+            ids = [self.act("chat", self.ann, {"text": f"Message {i}"})["id"] for i in range(5)]
+        self.assertEqual([m["id"] for m in self.s.state["chat"]], ids[-3:])
+
+    def test_notes_keep_the_newest(self):
+        variants = [{"id": "v-1", "label": "A", "asset": HTML}, {"id": "v-2", "label": "B", "asset": PNG}]
+        self.send()
+        self.ack(1)
+        self.open_round({**text_q("Q4", rec=False), "purpose": "gather", "format": {"kind": "prototype", "variants": variants}})
+        anchor = {"selector": "#pay", "rect": {"x": 0, "y": 0, "w": 10, "h": 10}}
+        with mock.patch.object(session, "MAX_ANNOTATIONS", 2):
+            ids = [self.act("annotate", self.ann, {"qid": "Q4", "variant": "v-1", "text": f"Note {i}", "anchor": anchor})["id"] for i in range(4)]
+        self.assertEqual([a["id"] for a in self.s.state["annotations"]], ids[-2:])
+
+    def test_suggestions_keep_the_newest_and_drop_votes_on_the_dropped(self):
+        self.act("lock", HOST, {"qid": "Q1", "card": "c:rec"})
+        with mock.patch.object(session, "MAX_SUGGESTIONS", 2):
+            first = self.act("suggest", self.bo, {"qid": "Q1", "text": "One"})["id"]
+            self.act("vote", self.ann, {"qid": "Q1", "suggestion": first, "on": True})
+            ids = [first] + [self.act("suggest", self.bo, {"qid": "Q1", "text": f"More {i}"})["id"] for i in range(2)]
+        self.assertEqual([s["id"] for s in self.s.state["suggestions"]["Q1"]], ids[-2:])
+        self.assertEqual(self.s.state["suggestionVotes"]["Q1"], {})
+
+
 class TestRequests(SessionCase):
     def setUp(self):
         super().setUp()
@@ -1912,23 +2051,35 @@ class TestApply(SessionCase):
         self.assertEqual((meta["kind"], meta["bytes"], meta["scale"]), ("image", len(png), 2))
         self.assertEqual((self.tmp / "assets" / meta["id"]).read_bytes(), png)
 
-    def test_add_asset_reads_from_the_system_temp_folder(self):
-        with tempfile.NamedTemporaryFile("w", suffix=".svg", delete=False, encoding="utf-8") as f:
-            f.write('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
-        self.addCleanup(os.unlink, f.name)
-        meta = self.apply({"op": "add-asset", "path": f.name})["results"][0]
+    def test_add_asset_reads_from_the_staging_folder(self):
+        (self.tmp / "staging").mkdir()
+        src = self.tmp / "staging" / "diagram.svg"
+        src.write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>', encoding="utf-8")
+        meta = self.apply({"op": "add-asset", "path": str(src)})["results"][0]
         self.assertTrue(meta["id"].endswith(".svg"))
         self.assertEqual(meta["scale"], 1)
 
-    def test_add_asset_refuses_a_path_outside_the_allowed_roots(self):
-        other = Path(tempfile.mkdtemp())  # a sibling of the data folder, outside the temp root patched below
+    def test_add_asset_refuses_the_system_temp_folder_and_names_the_staging_folder(self):
+        other = Path(tempfile.mkdtemp())  # under the system temp folder, beside the data folder
         self.addCleanup(shutil.rmtree, other, ignore_errors=True)
         src = other / "shot.png"
         src.write_bytes(b"\x89PNG\r\n\x1a\n")
-        with mock.patch.object(session.tempfile, "gettempdir", return_value=str(self.tmp / "assets")):
-            err = self.refused_ops("bad-field", {"op": "add-asset", "path": str(src)})
+        err = self.refused_ops("bad-field", {"op": "add-asset", "path": str(src)})
         self.assertEqual(err.details["field"], "path")
-        self.assertIn("data folder", err.message)
+        self.assertIn(str((self.tmp / "staging").resolve()), err.message)
+
+    def test_add_asset_refuses_a_file_inside_a_hidden_folder(self):
+        (self.tmp / ".cache").mkdir()
+        src = self.tmp / ".cache" / "shot.png"
+        src.write_bytes(b"\x89PNG\r\n\x1a\nhidden")
+        self.refused_ops("bad-field", {"op": "add-asset", "path": str(src)})
+
+    def test_a_refused_apply_puts_back_the_scale_an_earlier_apply_recorded(self):
+        src = self.tmp / "shot.png"
+        src.write_bytes(b"\x89PNG\r\n\x1a\nscaled")
+        aid = self.apply({"op": "add-asset", "path": str(src), "scale": 2})["results"][0]["id"]
+        self.refused_ops("wrong-status", {"op": "add-asset", "path": str(src), "scale": 1}, {"op": "ack-round", "round": 1})
+        self.assertEqual(json.loads((self.tmp / "assets" / f".{aid}.json").read_text(encoding="utf-8"))["scale"], 2)
 
     def test_add_asset_refuses_a_file_whose_bytes_are_not_an_allowed_type(self):
         src = self.tmp / "notes.png"

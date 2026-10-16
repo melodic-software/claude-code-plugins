@@ -8,10 +8,15 @@ from running the server.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
+import socket
 import stat
+import statistics
 import sys
+import time
 import unittest
 from unittest import mock
 
@@ -24,7 +29,35 @@ import tunnel
 
 PAGE_CSP = "default-src 'self'; img-src 'self' data:; frame-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 SECURITY = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer"}
+HTML_ASSET_CSP = "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src data:; connect-src 'none'"
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
+
+
+def raw_exchange(port, data, *, wait=5.0):
+    """Send raw bytes and read until the server closes or `wait` passes: (bytes read, closed)."""
+    with socket.create_connection(("127.0.0.1", port), timeout=wait) as s:
+        s.sendall(data)
+        got, closed = b"", False
+        deadline = time.monotonic() + wait
+        while time.monotonic() < deadline:
+            s.settimeout(max(0.05, deadline - time.monotonic()))
+            try:
+                chunk = s.recv(65536)
+            except TimeoutError:
+                break
+            except ConnectionResetError:
+                closed = True
+                break
+            if not chunk:
+                closed = True
+                break
+            got += chunk
+        return got, closed
+
+
+def status_and_headers(raw):
+    head = raw.split(b"\r\n\r\n", 1)[0].decode("latin-1").split("\r\n")
+    return int(head[0].split()[1]), dict(line.split(": ", 1) for line in head[1:] if ": " in line)
 
 
 def text_q(qid):
@@ -161,6 +194,18 @@ class TestHostAndOrigin(ServerCase):
         code, _, out = self.post("/api/join", {"name": "X"}, {"Origin": "https://evil.example"})
         self.assertEqual((code, out["error"]), (403, "bad-host"))
 
+    def test_a_refused_post_does_nothing_and_answers_once(self):
+        cases = {"bad-host": ({"Host": "evil.example"}, server.Bucket(1.0, 100)), "slow-down": ({}, server.Bucket(0.0, 0))}
+        for error, (headers, bucket) in cases.items():
+            with self.subTest(error=error):
+                self.app.bucket = bucket
+                body = json.dumps({"name": f"Via {error}"}).encode()
+                head = {"Host": f"127.0.0.1:{self.port}", "Content-Type": "application/json", "Content-Length": str(len(body)), **headers}
+                req = "POST /api/join HTTP/1.1\r\n" + "".join(f"{k}: {v}\r\n" for k, v in head.items()) + "\r\n"
+                got, _ = raw_exchange(self.port, req.encode() + body)
+                self.assertEqual(got.count(b"HTTP/1.1 "), 1)
+                self.assertNotIn(f"Via {error}", [p["name"] for p in self.app.session.state["people"].values()])
+
     def test_the_tunnel_host_is_served_once_the_tunnel_record_names_it(self):
         host = "fake-0123456789ab.trycloudflare.com"
         code, _, _ = self.get("/api/state", {"Host": host})
@@ -206,7 +251,7 @@ class TestHeadersAndCaps(ServerCase):
         code, h, body = self.get("/assets/0123456789abcdef.png")
         self.assertEqual((code, h["Content-Type"], h["Content-Security-Policy"], h["Content-Disposition"], body), (200, "image/png", "sandbox", "inline", PNG))
         _, h, _ = self.get("/assets/fedcba9876543210.html")
-        self.assertEqual(h["Content-Security-Policy"], "sandbox allow-scripts")
+        self.assertEqual(h["Content-Security-Policy"], HTML_ASSET_CSP)
         self.assertNotIn("allow-same-origin", h["Content-Security-Policy"])
         code, _, _ = self.get("/assets/0123456789abcdef.exe")
         self.assertEqual(code, 404)
@@ -259,6 +304,154 @@ class TestJoinLimit(ServerCase):
         self.assertEqual((code, out["error"]), (429, "join-rate"))
         code, _, _ = self.post("/api/join", {"name": "Other"}, {"CF-Connecting-IP": "198.51.100.8"})
         self.assertEqual(code, 200)
+
+
+class TestRateKeys(ServerCase):
+    def test_ipv6_addresses_in_one_64_share_one_limit(self):
+        self.app.bucket = server.Bucket(0.0, 2)
+        same_64 = ["2001:db8:1:2::1", "2001:db8:1:2:ffff:ffff:ffff:fffe", "2001:db8:1:2:aaaa::1"]
+        codes = [self.get("/api/state", {"CF-Connecting-IP": ip})[0] for ip in same_64]
+        self.assertEqual(codes, [200, 200, 429])
+        self.assertEqual(self.get("/api/state", {"CF-Connecting-IP": "2001:db8:1:3::1"})[0], 200)
+
+    def test_one_take_stays_fast_and_the_bucket_bounded_past_20000_addresses(self):
+        # Judgment: an O(1) take costs microseconds; a scan of 10000 remembered addresses costs about
+        # a millisecond, so 0.1 ms at the 99th percentile separates the two with room for a slow host.
+        bucket = server.Bucket(session.RATE_PER_SECOND, session.RATE_BURST)
+        took = []
+        for i in range(20000):
+            t0 = time.perf_counter()
+            bucket.take(f"198.18.{i // 256}.{i % 256}")
+            took.append(time.perf_counter() - t0)
+        self.assertLess(statistics.quantiles(took, n=100)[-1], 0.0001)
+        self.assertLessEqual(len(bucket.tokens), session.RATE_KEYS)
+
+
+class TestRawRequests(ServerCase):
+    def request(self, line, *headers, body=b""):
+        head = [line, f"Host: 127.0.0.1:{self.port}", *headers]
+        return raw_exchange(self.port, ("\r\n".join(head) + "\r\n\r\n").encode("latin-1") + body)
+
+    def test_a_get_with_a_body_is_400_and_the_connection_closes(self):
+        for header in ("Content-Length: 5", "Transfer-Encoding: chunked"):
+            with self.subTest(header=header):
+                got, closed = self.request("GET /api/state HTTP/1.1", header, body=b"GET /api/state HTTP/1.1\r\n\r\n")
+                self.assertEqual(status_and_headers(got)[0], 400)
+                self.assertEqual(got.count(b"HTTP/1.1 "), 1, "the body was read as a second request")
+                self.assertTrue(closed)
+
+    def test_a_body_that_trickles_past_the_deadline_is_408(self):
+        with mock.patch.object(session, "BODY_SECONDS", 1.0):
+            t0 = time.monotonic()
+            got, closed = self.request("POST /api/join HTTP/1.1", "Content-Type: application/json", "Content-Length: 100", body=b'{"name"')
+            took = time.monotonic() - t0
+        self.assertEqual(status_and_headers(got)[0], 408)
+        self.assertTrue(closed)
+        self.assertLess(took, 4.0)
+
+    def test_http_servers_own_refusals_carry_the_security_headers(self):
+        cases = {501: "BREW /api/state HTTP/1.1", 414: "GET /" + "a" * 70000 + " HTTP/1.1"}
+        for code, line in cases.items():
+            with self.subTest(code=code):
+                got, _ = self.request(line)
+                status, headers = status_and_headers(got)
+                self.assertEqual(status, code)
+                self.assertEqual({k: headers.get(k) for k in SECURITY}, SECURITY)
+                self.assertTrue(headers["Content-Type"].startswith("application/json"))
+
+    def test_the_log_escapes_control_characters_in_the_path(self):
+        self.request("GET /nope\x1b[2J\x07 HTTP/1.1")
+        for h in self.app.log.handlers:
+            h.flush()
+        log = (self.d / "server.log").read_text(encoding="utf-8")
+        self.assertIn("/nope\\x1b[2J\\x07", log)
+        self.assertNotIn("\x1b", log)
+
+
+class TestBusy(unittest.TestCase):
+    def test_a_connection_past_the_handler_cap_is_answered_503(self):
+        d = tmpdir(self)
+        with mock.patch.object(session, "MAX_HANDLERS", 2):
+            app = server.App(d, watch_tunnel=False)
+        app.serve()
+        self.addCleanup(app.shutdown)
+        idle = [socket.create_connection(("127.0.0.1", app.guest_port), timeout=5) for _ in range(2)]
+        wait_for(lambda: app.guest.slots._value == 0, seconds=5)
+        code, headers, out = call(app.guest_port, "GET", "/api/state")
+        self.assertEqual((code, out["error"]), (503, "busy"))
+        self.assertEqual({k: headers.get(k) for k in SECURITY}, SECURITY)
+        for s in idle:
+            s.close()
+        self.assertTrue(wait_for(lambda: call(app.guest_port, "GET", "/api/state")[0] == 200, seconds=10))
+
+
+class TestOwnerRotation(unittest.TestCase):
+    def test_the_secrets_file_holds_the_new_token_before_the_hash_commits(self):
+        d = tmpdir(self)
+        app = server.App(d, watch_tunnel=False)
+        app.serve()
+        self.addCleanup(app.shutdown)
+        seen = []
+        real = app.session._commit
+
+        def commit():
+            seen.append(json.loads((d / server.SECRETS).read_text(encoding="utf-8"))["owner"])
+            real()
+
+        with mock.patch.object(app.session, "_commit", side_effect=commit):
+            code, _, out = call(app.guest_port, "POST", "/api/link/owner", {}, {"X-Owner-Token": app.secrets["owner"]})
+        self.assertEqual(code, 200)
+        self.assertEqual(seen, [out["token"]])
+
+    def test_a_restart_refuses_an_owner_token_older_than_the_last_rotation(self):
+        d = tmpdir(self)
+        app = server.App(d, watch_tunnel=False)
+        app.serve()
+        before = dict(app.secrets)
+        time.sleep(0.01)
+        code, _, _ = call(app.guest_port, "POST", "/api/link/owner", {}, {"X-Owner-Token": before["owner"]})
+        app.shutdown()
+        self.assertEqual(code, 200)
+        detached.write_private(d / server.SECRETS, json.dumps(before) + "\n")  # the file a crash before the fix left
+        with self.assertRaisesRegex(server.StartRefused, "predates"):
+            server.App(d, watch_tunnel=False)
+        self.assertNotEqual(json.loads((d / "state.json").read_text(encoding="utf-8"))["credentials"]["owner"]["tokenHash"], session.sha256(before["owner"]))
+
+
+class TestDataFolderRule(unittest.TestCase):
+    """Windows keeps the data folder private only under the user profile; WSL's DrvFs ignores file
+    modes unless mounted with metadata (Brief: runs on Windows, macOS and Linux)."""
+
+    def problem_on_windows(self, path, profile):
+        with mock.patch.object(detached, "WINDOWS", True), mock.patch.dict(os.environ, {"USERPROFILE": profile}):
+            return detached.data_dir_problem(path)
+
+    def test_windows_refuses_a_folder_outside_the_profile(self):
+        self.assertIn("outside your user profile", self.problem_on_windows(r"D:\shared\po", r"C:\Users\kim"))
+        self.assertIn("outside your user profile", self.problem_on_windows(r"C:\Users\kimberly\po", r"C:\Users\kim"))
+        self.assertIsNone(self.problem_on_windows(r"c:\users\KIM\.claude\memory\shared\po", r"C:\Users\kim"))
+
+    @unittest.skipIf(WINDOWS, "WSL paths")
+    def test_wsl_refuses_a_drvfs_folder_mounted_without_metadata(self):
+        plain = [("/", "ext4", "rw,relatime"), ("/mnt/c", "9p", "rw,noatime,dirsync,aname=drvfs;path=C:\\;uid=1000;gid=1000;symlinkroot=/mnt/,mmap,access=client")]
+        meta = [("/", "ext4", "rw,relatime"), ("/mnt/c", "9p", "rw,noatime,dirsync,aname=drvfs;path=C:\\;uid=1000;gid=1000;metadata;symlinkroot=/mnt/,mmap")]
+        cases = [(plain, "/mnt/c/Users/kim/po", True), (plain, "/home/kim/po", False), (meta, "/mnt/c/Users/kim/po", False)]
+        for mounts, path, refused in cases:
+            with self.subTest(path=path, metadata=mounts is meta):
+                with mock.patch.object(detached, "WINDOWS", False), mock.patch.object(detached, "_is_wsl", return_value=True), mock.patch.object(detached, "_mount_table", return_value=mounts):
+                    got = detached.data_dir_problem(path)
+                self.assertEqual(got is not None, refused, got)
+                if refused:
+                    self.assertIn("without metadata", got)
+
+    def test_the_server_refuses_to_start_there_and_exits_1(self):
+        d = tmpdir(self) / "po"
+        err = io.StringIO()
+        with mock.patch.object(detached, "data_dir_problem", return_value="the data folder is outside your user profile"), contextlib.redirect_stderr(err):
+            code = server.main(["--dir", str(d)])
+        self.assertEqual(code, 1)
+        self.assertIn("outside your user profile", err.getvalue())
+        self.assertFalse(d.exists())
 
 
 class TestSnapshot(ServerCase):
@@ -405,6 +598,12 @@ class TestControl(ServerCase):
 
 
 class TestStart(unittest.TestCase):
+    @unittest.skipIf(WINDOWS, "file modes are advisory on Windows")
+    def test_the_staging_folder_for_captures_is_private(self):
+        d = tmpdir(self)
+        server.App(d, watch_tunnel=False).shutdown()
+        self.assertEqual(stat.S_IMODE((d / "staging").stat().st_mode), 0o700)
+
     def test_defaults_json_settings_apply_when_the_session_is_created(self):
         d = tmpdir(self)
         (d / "defaults.json").write_text(json.dumps({"settings": {"names": "initials", "voting": False}}), encoding="utf-8")

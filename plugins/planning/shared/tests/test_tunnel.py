@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from support import FAKE, WINDOWS, tmpdir, wait_for
+from support import FAKE, FIXTURES, WINDOWS, tmpdir, wait_for
 
 import detached
 import tunnel
@@ -95,6 +95,53 @@ class TestStart(TunnelCase):
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertIsNotNone(tunnel.alive(self.d))
         self.assertEqual(tunnel.alive(self.d)["pid"], int(out.stdout.strip()))
+
+
+class Exited:
+    """A cloudflared that already exited, for reading a log it left."""
+
+    def poll(self):
+        return 1
+
+
+class TestAddress(unittest.TestCase):
+    """The address comes from the banner's boxed line, never from cloudflared's own API host, which
+    its error lines name (fixtures/cloudflared-api-error.log, written in the shape of those lines)."""
+
+    def test_an_error_line_naming_the_api_host_is_no_address(self):
+        self.assertIsNone(tunnel._wait_url(Exited(), FIXTURES / "cloudflared-api-error.log", 0.5))
+
+    def test_the_banner_line_after_an_error_line_is_the_address(self):
+        log = tmpdir(self) / "cloudflared.log"
+        banner = "2026-10-16T10:00:05Z INF |  https://calm-river-0a1b.trycloudflare.com                                  |\n"
+        log.write_text((FIXTURES / "cloudflared-api-error.log").read_text(encoding="utf-8") + banner, encoding="utf-8")
+        self.assertEqual(tunnel._wait_url(Exited(), log, 0.5), "https://calm-river-0a1b.trycloudflare.com")
+
+    def test_adopt_refuses_the_api_host(self):
+        with self.assertRaisesRegex(tunnel.TunnelDown, "not a trycloudflare.com address"):
+            tunnel.adopt(tmpdir(self), os.getpid(), "https://api.trycloudflare.com", 8765)
+
+
+class TestWindowsLookup(unittest.TestCase):
+    """On Windows the program search looks in the current folder first unless
+    NoDefaultCurrentDirectoryInExePath is set, so a planted cloudflared.exe there would run."""
+
+    def lookup(self, found):
+        seen = {}
+
+        def which(name):
+            seen["flag"] = os.environ.get("NoDefaultCurrentDirectoryInExePath")
+            return found
+
+        with mock.patch.object(detached, "WINDOWS", True), mock.patch.object(detached.shutil, "which", side_effect=which), mock.patch.dict(os.environ, {"SHARED_CLOUDFLARED": ""}):
+            return tunnel.binary(), seen["flag"]
+
+    def test_a_cloudflared_in_the_current_folder_is_refused(self):
+        self.assertEqual(self.lookup(str(Path.cwd() / "cloudflared.exe")), (None, "1"))
+
+    def test_a_cloudflared_elsewhere_on_path_is_used(self):
+        elsewhere = str(tmpdir(self) / "cloudflared.exe")
+        self.assertEqual(self.lookup(elsewhere), (elsewhere, "1"))
 
 
 class TestExit(TunnelCase):

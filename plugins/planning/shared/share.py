@@ -20,6 +20,8 @@ On Windows `python share.py ...` runs without bash.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import html
 import http.client
 import json
 import os
@@ -51,6 +53,9 @@ OPS_MAX = 1024 * 1024
 START_SECONDS = 15.0
 SYNC_SECONDS = 5.0  # how long the server may take to pick up a new tunnel record
 SERVER_MARKER = "python" if detached.WINDOWS else "server.py"
+OPEN_PAGE = ".owner-open-{}.html"  # the page --open hands the browser; it holds the owner link
+OPEN_SECONDS = 30.0  # judgment: a browser started cold has read the page well within this
+FORGET_PAGE = "import contextlib, os, sys, time\ntime.sleep(float(sys.argv[2]))\nwith contextlib.suppress(OSError):\n    os.unlink(sys.argv[1])\n"
 
 
 class Refused(Exception):
@@ -128,7 +133,7 @@ def start_server(d, guest, control, *, defaults_file=None, initial_state=None):
         cmd += ["--defaults-file", str(Path(defaults_file).resolve())]
     if initial_state:
         cmd += ["--initial-state", str(Path(initial_state).resolve())]
-    proc = detached.spawn(cmd, log=d / SERVER_ERR)
+    proc = detached.spawn(cmd, log=d / SERVER_ERR, cwd=d)
     s = bridge.wait_started(d, NAME, nonce, proc, START_SECONDS)
     if s is not None:
         detached.release(proc)
@@ -165,12 +170,28 @@ def wait_public(s, want, seconds=SYNC_SECONDS):
     return p
 
 
-def open_link(url):
-    """The owner's link in the default browser; SHARED_BROWSER names another opener (tests stub it)."""
+def open_link(d, url):
+    """Open the owner's link in the default browser without putting it on a command line: the
+    browser gets a 0600 page in the data folder that redirects to `url`, and a detached helper
+    deletes the page after OPEN_SECONDS. SHARED_BROWSER names another opener (tests stub it)."""
+    now = time.time()
+    for old in d.glob(OPEN_PAGE.format("*")):
+        with contextlib.suppress(OSError):
+            if now - old.stat().st_mtime > OPEN_SECONDS:
+                old.unlink()
+    page = d / OPEN_PAGE.format(secrets.token_hex(8))
+    script = json.dumps(url).replace("<", "\\u003c")
+    detached.write_private(
+        page,
+        '<!doctype html>\n<meta charset="utf-8">\n<meta name="referrer" content="no-referrer">\n<title>Opening the shared session</title>\n'
+        f'<script>location.replace({script})</script>\n<meta http-equiv="refresh" content="0;url={html.escape(url, quote=True)}">\n',
+    )
+    seconds = os.environ.get("SHARED_OPEN_SECONDS") or str(OPEN_SECONDS)
+    detached.release(detached.spawn([detached.interpreter(), "-c", FORGET_PAGE, str(page), seconds], cwd=d))
     opener = os.environ.get("SHARED_BROWSER")
     if opener:
-        return subprocess.run([opener, url], check=False, timeout=30, stdout=subprocess.DEVNULL).returncode == 0
-    return webbrowser.open(url)
+        return subprocess.run([opener, page.as_uri()], check=False, timeout=30, stdout=subprocess.DEVNULL).returncode == 0
+    return webbrowser.open(page.as_uri())
 
 
 def report(d, s, rec, resumed, *, opened=None):
@@ -179,7 +200,7 @@ def report(d, s, rec, resumed, *, opened=None):
     url = guest_url(rec["url"] if rec else "", st.get("guestKey"))
     before = (d / REPORTED).read_text(encoding="utf-8").strip() if (d / REPORTED).exists() else ""
     if url:
-        (d / REPORTED).write_text(url + "\n", encoding="utf-8")
+        detached.write_private(d / REPORTED, url + "\n")
     out = {
         "ok": True,
         "guestUrl": url,
@@ -197,6 +218,9 @@ def report(d, s, rec, resumed, *, opened=None):
 
 def bring_up(d, a, *, initial_state=None):
     """ensure-running: start or reuse the server and the tunnel."""
+    problem = detached.data_dir_problem(d)
+    if problem:
+        raise Refused(1, f"refused: {problem}")
     if not shutil.which("curl"):
         raise Refused(2, "missing prerequisite: curl (watch.sh needs it on PATH)")
     if not tunnel.binary():
@@ -229,7 +253,7 @@ def bring_up(d, a, *, initial_state=None):
         opened = None
         if a.open:
             link = (d / OWNER_LINK).read_text(encoding="utf-8").strip()
-            opened = open_link(link)
+            opened = open_link(d, link)
         out = report(d, s, rec, resumed, opened=opened)
     if down:
         raise Refused(3, f"no tunnel: {down}", out)

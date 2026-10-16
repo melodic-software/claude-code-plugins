@@ -7,6 +7,8 @@ and the planning amendments (the tunnel outlives a server restart; tokens never 
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
 import re
@@ -17,10 +19,12 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from support import WINDOWS, ShareCase, call, env, share, tmpdir, wait_for
 
 import detached
+import share as share_cli
 import tunnel
 
 ENSURE_KEYS = ["guestUrl", "localUrl", "ok", "ownerLinkFile", "resumed", "shareChanged", "tunnel", "watch"]
@@ -82,9 +86,19 @@ class TestEnsureRunning(Running):
         cmd = detached.describe(self.session_record()["pid"])
         self.assertIn("server.py", cmd)
         secrets_file = json.loads((self.d / ".shared-secrets.json").read_text(encoding="utf-8"))
-        for name, token in secrets_file.items():
-            self.assertNotIn(token, cmd, name)
+        for name in ("control", "owner"):
+            self.assertNotIn(secrets_file[name], cmd, name)
         self.assertNotIn(self.session_record()["token"], cmd)
+
+    @unittest.skipIf(WINDOWS, "file modes are advisory on Windows")
+    def test_the_reported_guest_link_is_private(self):
+        self.assertEqual(stat.S_IMODE((self.d / ".shared-reported").stat().st_mode), 0o600)
+
+    @unittest.skipUnless(Path("/proc/self/cwd").exists(), "needs /proc to read a process's folder")
+    def test_the_server_and_cloudflared_run_in_the_data_folder(self):
+        for name, pid in (("server", self.session_record()["pid"]), ("cloudflared", tunnel.read(self.d)["pid"])):
+            with self.subTest(name):
+                self.assertEqual(Path(os.readlink(f"/proc/{pid}/cwd")), self.d.resolve())
 
 
 class TestStopStatusUrl(Running):
@@ -160,11 +174,16 @@ class TestApply(Running):
 
 
 class TestOpen(ShareCase):
-    def test_open_hands_the_owner_link_to_the_browser_opener(self):
+    def test_open_hands_the_browser_a_private_page_and_never_the_token(self):
         stub = tmpdir(self)
-        seen = stub / "opened.txt"
+        seen = stub / "opened.json"
         script = stub / "opener.py"
-        script.write_text(f"import sys\nopen({str(seen)!r}, 'w').write(sys.argv[1])\n", encoding="utf-8")
+        script.write_text(
+            "import json, os, stat, sys, urllib.parse, urllib.request\n"
+            "page = urllib.request.url2pathname(urllib.parse.urlparse(sys.argv[1]).path)\n"
+            f"json.dump({{'argv': sys.argv[1:], 'page': page, 'mode': stat.S_IMODE(os.stat(page).st_mode), 'html': open(page, encoding='utf-8').read()}}, open({str(seen)!r}, 'w'))\n",
+            encoding="utf-8",
+        )
         if WINDOWS:
             opener = stub / "opener.cmd"
             opener.write_text(f'@"{sys.executable}" "{script}" %1\n', encoding="utf-8")
@@ -172,13 +191,30 @@ class TestOpen(ShareCase):
             opener = stub / "opener"
             opener.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{script}" "$1"\n', encoding="utf-8")
             opener.chmod(0o700)
-        code, out, err = share(self.d, "ensure-running", "--open", environ=env(SHARED_BROWSER=str(opener)))
+        code, out, err = share(self.d, "ensure-running", "--open", environ=env(SHARED_BROWSER=str(opener), SHARED_OPEN_SECONDS="1"))
         self.assertEqual(code, 0, err)
-        self.assertEqual(seen.read_text(encoding="utf-8"), (self.d / ".owner-link").read_text(encoding="utf-8").strip())
+        link = (self.d / ".owner-link").read_text(encoding="utf-8").strip()
+        token = link.split("#owner=", 1)[1]
+        got = json.loads(seen.read_text(encoding="utf-8"))
+        self.assertNotIn(token, " ".join(got["argv"]))
+        page = Path(got["page"])
+        self.assertEqual(page.parent, self.d.resolve())
+        self.assertIn(json.dumps(link), got["html"])
+        if not WINDOWS:
+            self.assertEqual(got["mode"], 0o600)
         self.assertNotIn("#owner=", json.dumps(out))
+        self.assertTrue(wait_for(lambda: not page.exists(), seconds=10), "the page outlived its delay")
 
 
 class TestCodes(ShareCase):
+    def test_a_data_folder_that_cannot_be_private_exits_1_naming_why_and_starts_nothing(self):
+        err = io.StringIO()
+        with mock.patch.object(detached, "data_dir_problem", return_value="the data folder is outside your user profile"), contextlib.redirect_stderr(err):
+            code = share_cli.main(["--dir", str(self.d), "ensure-running"])
+        self.assertEqual(code, 1)
+        self.assertIn("outside your user profile", err.getvalue())
+        self.assertFalse(self.d.exists())
+
     def test_a_missing_cloudflared_exits_2_naming_it(self):
         path = os.path.dirname(shutil.which("curl") or "")
         if not path or shutil.which("cloudflared", path=path):

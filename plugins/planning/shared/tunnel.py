@@ -23,7 +23,6 @@ import argparse
 import json
 import os
 import re
-import shutil
 import sys
 import time
 from pathlib import Path
@@ -37,7 +36,8 @@ import detached  # noqa: E402  (beside this file; sys.path is set just above)
 RECORD = ".shared-tunnel.json"
 LOG = "cloudflared.log"
 LOCK = ".shared-tunnel.lock"
-URL = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
+URL = re.compile(r"https://(?!api\.)[a-z0-9-]+\.trycloudflare\.com")  # api. is cloudflared's own endpoint, never a tunnel
+BANNER = re.compile(r"\|\s+(" + URL.pattern + r")/?\s+\|")  # the address line inside the "quick Tunnel has been created" box
 START_SECONDS = 30.0  # how long a new tunnel may take to print its address
 MISSING = "missing prerequisite: cloudflared (not on PATH; see the planning plugin's prerequisites.json)"
 
@@ -48,7 +48,7 @@ class TunnelDown(Exception):
 
 def binary():
     """The cloudflared to run: SHARED_CLOUDFLARED (a path, used by tests and the live tracer), else PATH."""
-    return os.environ.get("SHARED_CLOUDFLARED") or shutil.which("cloudflared")
+    return os.environ.get("SHARED_CLOUDFLARED") or detached.which("cloudflared")
 
 
 def _command(exe, port):
@@ -84,11 +84,11 @@ def _wait_url(proc, log, seconds):
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
         try:
-            m = URL.search(log.read_text(encoding="utf-8", errors="replace"))
+            m = BANNER.search(log.read_text(encoding="utf-8", errors="replace"))
         except OSError:
             m = None
         if m:
-            return m.group(0)
+            return m.group(1)
         if proc.poll() is not None:
             return None
         time.sleep(0.1)
@@ -102,7 +102,7 @@ def _start(data_dir, port):
     d = Path(data_dir)
     log = d / LOG
     try:
-        proc = detached.spawn(_command(exe, port), log=log)
+        proc = detached.spawn(_command(exe, port), log=log, cwd=d)
     except OSError as exc:
         raise TunnelDown(f"cloudflared did not start: {exc}") from exc
     url = _wait_url(proc, log, float(os.environ.get("SHARED_TUNNEL_SECONDS") or START_SECONDS))

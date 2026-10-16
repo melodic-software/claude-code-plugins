@@ -17,6 +17,7 @@ and shown as written, and the digest hands it to Claude framed as data by the se
 
 from __future__ import annotations
 
+import collections
 import contextlib
 import copy
 import datetime
@@ -29,7 +30,6 @@ import os
 import re
 import secrets
 import sys
-import tempfile
 import threading
 import time
 from pathlib import Path
@@ -47,6 +47,7 @@ schema = importlib.import_module("schema")
 
 HOST = "host"
 CLAUDE = object()  # the actor for ops arriving through the control listener
+STAGING = "staging"  # the data folder's subfolder (0700) where Claude saves captures for add-asset
 
 # Limits (Contracts, "Body caps and limits").
 MAX_TEXT = 2000
@@ -70,8 +71,19 @@ NOTIFY_CAP = 500
 NOTIFY_SHOWN = 100
 PRESENCE_TTL = 10.0
 WRITE_INTERVAL = 1.0
+HEARTBEAT_INTERVAL = 1.0  # judgment: the page beats every 2 s, plus one on a visibility change
 JOIN_WINDOW = 60.0
 JOINS_PER_WINDOW = 30
+JOIN_KEY_WINDOW = 600.0
+JOINS_PER_KEY = 60  # judgment: per guest key across all addresses, above JOINS_PER_WINDOW so one office NAT joins at once
+MAX_CHAT = 2000  # the newest messages kept, so chat cannot grow state.json without bound
+MAX_ANNOTATIONS = 2000  # judgment: notes kept across all prototype questions, oldest dropped first
+MAX_SUGGESTIONS = 200  # judgment: suggestions kept per question, oldest dropped first
+RATE_PER_SECOND = 100.0  # requests per address on the guest listener: 20 people behind one NAT fit
+RATE_BURST = 200.0
+RATE_KEYS = 10000  # judgment: addresses the rate limit remembers; the least recently seen is forgotten first
+BODY_SECONDS = 10.0  # judgment: a whole 32 KB body arrives well within this on a slow phone link
+MAX_HANDLERS = 64  # judgment: concurrent guest connections; 20 people and the tunnel's pool fit well under it
 VOTE_ROLLUP_WINDOW = 3600.0
 BODY_MAX = 32 * 1024
 OFFER_MAX = 96 * 1024
@@ -93,7 +105,25 @@ REQUEST_KINDS = ("ask", "research", "explore", "design", "prototype")
 USED_TYPES = ("skill", "workflow", "mcp", "cli")
 TECH_COMFORT = ("low", "ok", "high")
 NOTIFY_KINDS = ("mention", "reply", "request", "proposal", "round", "merge", "role", "queue", "ready", "votes")
-THROTTLED = ("answer", "pick", "propose", "chat", "suggest", "request", "merge-request", "annotate")
+THROTTLED = (
+    "answer",
+    "pick",
+    "propose",
+    "chat",
+    "suggest",
+    "request",
+    "merge-request",
+    "annotate",
+    "rename",
+    "color",
+    "prefs",
+    "about-you",
+    "vote",
+    "react",
+    "go-with",
+    "notifications-read",
+    "heartbeat",
+)
 SEQ_KEYS = ("P", "S", "R", "X", "M", "G", "U", "N", "A")
 
 QID = re.compile(r"Q[1-9][0-9]{0,5}")
@@ -391,21 +421,20 @@ ASSET_KINDS = {"png": "image", "jpg": "image", "webp": "image", "svg": "svg", "h
 ASSET_MAGIC = ((b"\x89PNG\r\n\x1a\n", "png"), (b"\xff\xd8\xff", "jpg"))
 
 
-def _asset_source(path, roots):
-    """An existing regular file under one of `roots`, not a dot-file; refused otherwise."""
+def _asset_source(path, root):
+    """An existing regular file under `root` with no hidden part below it; refused otherwise."""
     if not isinstance(path, str) or not os.path.isabs(path):
         raise _bad("path", "path must be an absolute path to a local file.")
     try:
         real = Path(path).resolve(strict=True)
+        base = Path(root).resolve(strict=True)
     except (OSError, RuntimeError) as exc:
         raise _bad("path", f"No file at {path}.") from exc
-    if not real.is_file() or real.name.startswith("."):
-        raise _bad("path", "path must name a regular file that is not hidden.")
-    for root in roots:
-        with contextlib.suppress(OSError):
-            if real.is_relative_to(Path(root).resolve(strict=True)):
-                return real
-    raise _bad("path", "add-asset reads files only from the session's data folder or the system temp folder.")
+    if not real.is_relative_to(base):
+        raise _bad("path", f"add-asset reads files only from the session's data folder; save captures in {base / STAGING}.")
+    if not real.is_file() or any(part.startswith(".") for part in real.relative_to(base).parts):
+        raise _bad("path", "path must name a regular file with no hidden folder or name.")
+    return real
 
 
 def _asset_type(data, wanted):
@@ -442,10 +471,12 @@ class Session:
         self._saved = json.dumps(state, ensure_ascii=False)
         self._presence = {}  # pid -> {q, typing, chatTyping, seen}; never persisted
         self._presence_rev = 0
-        self._last_write = {}  # (pid, route) -> time of the last accepted write
-        self._joins = {}  # (guest key, address) -> times of recent joins
+        self._last_write = collections.OrderedDict()  # (pid, route) -> time of the last accepted write, oldest first
+        self._joins = collections.OrderedDict()  # (guest key, address) -> times of recent joins, least recent first
+        self._key_joins = {}  # guest key -> times of recent joins from any address
         self._base_cache = None
-        self._new_files = []  # files an apply created, removed again when the apply is refused
+        self._undo = []  # (file, bytes before or None) an apply wrote, put back when the apply is refused
+        self.on_owner_token = None  # called with (token, rotatedAt) inside the rotation, before it commits
 
     # -- construction and persistence ---------------------------------------------------------
 
@@ -649,9 +680,31 @@ class Session:
         p = self.state["people"].get(pid)
         return p is not None and p["status"]["kind"] == "active"
 
-    def _throttle(self, pid, route, now):
-        if now - self._last_write.get((pid, route), float("-inf")) < WRITE_INTERVAL:
+    def _throttle(self, pid, route, now, interval=WRITE_INTERVAL):
+        if now - self._last_write.get((pid, route), float("-inf")) < interval:
             raise DomainError(429, "slow-down", "Wait a moment before sending again.")
+
+    def _wrote(self, pid, route, now):
+        """Record an accepted write, dropping records too old to throttle anything (oldest first)."""
+        key = (pid, route)
+        self._last_write.pop(key, None)
+        self._last_write[key] = now
+        keep = max(WRITE_INTERVAL, HEARTBEAT_INTERVAL)
+        while self._last_write:
+            first = next(iter(self._last_write.values()))
+            if now - first < keep:
+                break
+            self._last_write.popitem(last=False)
+
+    @contextlib.contextmanager
+    def _write_as(self, pid, route, *, check=None):
+        """One throttled write by pid on route: `check(pid)` (default `_writer`), then the 1 s limit."""
+        now = self.now()
+        with self._tx() as st:
+            (check or self._writer)(pid)
+            self._throttle(pid, route, now)
+            yield st
+        self._wrote(pid, route, now)
 
     def _present(self):
         now = self.now()
@@ -678,10 +731,14 @@ class Session:
             guest_key = st["session"]["guestKey"]
             if guest_key and not hmac.compare_digest(key.encode(), guest_key.encode()):
                 raise DomainError(403, "bad-guest-key", "This invite link is no longer valid; ask the host for the new one.")
+            self._prune_joins(now)
             window = (guest_key, address)
             recent = [t for t in self._joins.get(window, []) if now - t < JOIN_WINDOW]
             if len(recent) >= JOINS_PER_WINDOW:
                 raise DomainError(429, "join-rate", "Too many joins from here; wait a minute.")
+            by_key = [t for t in self._key_joins.get(guest_key, []) if now - t < JOIN_KEY_WINDOW]
+            if len(by_key) >= JOINS_PER_KEY:
+                raise DomainError(429, "join-rate", "Too many people joined through this link just now; wait a few minutes, or ask the host for a new link.")
             self._make_room()
             new = self.ids.token(9)
             while new in st["people"] or new == HOST:
@@ -689,7 +746,7 @@ class Session:
             secret = self.ids.token(32)
             here = self._present()
             was = None
-            if name:
+            if name and st["session"]["settings"]["names"] == "full":  # otherwise the answer would reveal a hidden name
                 was = next(
                     (
                         {"pid": p, "name": v["name"]}
@@ -709,11 +766,22 @@ class Session:
                 "status": {"kind": "active"},
             }
             st["credentials"]["secrets"][sha256(secret)] = new
+        self._joins.pop(window, None)
         self._joins[window] = recent + [now]
+        self._key_joins[guest_key] = by_key + [now]
         if device:
             self._presence[new] = {"q": "", "typing": False, "chatTyping": False, "seen": now, "device": device}
             self._presence_rev += 1
         return {"pid": new, "secret": secret, "name": final, **({"was": was} if was else {})}
+
+    def _prune_joins(self, now):
+        """Forget join records whose windows have passed, least recently joined first."""
+        while self._joins:
+            if now - next(iter(self._joins.values()))[-1] < JOIN_WINDOW:
+                break
+            self._joins.popitem(last=False)
+        for key in [k for k, times in self._key_joins.items() if now - times[-1] >= JOIN_KEY_WINDOW]:
+            self._key_joins.pop(key)
 
     def _unique_name(self, name, pid):
         taken = {v["name"].casefold() for p, v in self.state["people"].items() if p != pid}
@@ -766,6 +834,8 @@ class Session:
         for h in [h for h, p in st["credentials"]["secrets"].items() if p == pid]:
             st["credentials"]["secrets"].pop(h)
         self._presence.pop(pid, None)
+        for route in THROTTLED:
+            self._last_write.pop((pid, route), None)
 
     def heartbeat(self, pid, body):
         """POST /api/heartbeat: memory only; allowed while the session is ended."""
@@ -773,36 +843,36 @@ class Session:
         q = body.get("q") if isinstance(body.get("q"), str) else ""
         with self._lock:
             person = self._person(pid)
+            now = self.now()
+            self._throttle(pid, "heartbeat", now, HEARTBEAT_INTERVAL)
             old = self._presence.get(pid, {})
             self._presence[pid] = {
                 "q": q[:16],
                 "typing": body.get("typing") is True,
                 "chatTyping": body.get("chatTyping") is True,
-                "seen": self.now(),
+                "seen": now,
                 **({"device": old["device"]} if old.get("device") else {}),
             }
             self._presence_rev += 1
+            self._wrote(pid, "heartbeat", now)
             return {"pid": pid, "name": person["name"], "role": person["role"], "trusted": person["trusted"]}
 
     def rename(self, pid, body):
         name = _text(body, "name", limit=MAX_NAME)
-        with self._tx() as st:
-            self._writer(pid)
+        with self._write_as(pid, "rename") as st:
             st["people"][pid]["name"] = self._unique_name(name, pid)
             return {"name": st["people"][pid]["name"]}
 
     def set_color(self, pid, body):
         color = _choice(body, "color", COLORS)
-        with self._tx() as st:
-            self._writer(pid)
+        with self._write_as(pid, "color") as st:
             st["people"][pid]["color"] = color
             return {"color": color}
 
     def set_about_you(self, pid, body):
         comfort = _choice(body, "techComfort", TECH_COMFORT)
         note = _text(body, "note", limit=MAX_NOTE, optional=True)
-        with self._tx() as st:
-            self._writer(pid)
+        with self._write_as(pid, "about-you") as st:
             st["aboutYou"][pid] = {"techComfort": comfort, **({"note": note} if note else {}), "at": self.now()}
             return {"techComfort": comfort}
 
@@ -886,7 +956,7 @@ class Session:
             mid = self._next("G")
             st["mergeRequests"].append({"id": mid, "from": pid, "to": to, "at": now, "status": {"kind": "pending"}})
             self._queue_note([HOST], pid)
-        self._last_write[(pid, "merge-request")] = now
+        self._wrote(pid, "merge-request", now)
         return {"id": mid}
 
     def act_on_merge_request(self, pid, body):
@@ -1360,7 +1430,7 @@ class Session:
                         st["votes"][qid].pop(pid)
                 ref = card_ref(card)
                 self._notify_mentions(text, pid, f"in an answer on question {qid}", before=old_text, qid=qid)
-        self._last_write[(pid, "answer")] = now
+        self._wrote(pid, "answer", now)
         return {"card": ref}
 
     def pick(self, pid, body):
@@ -1408,7 +1478,7 @@ class Session:
                     cards.append(card)
                 if comment:
                     self._notify_mentions(comment, pid, f"in an answer on question {qid}", before=mine["text"] if mine else "", qid=qid)
-        self._last_write[(pid, "pick")] = now
+        self._wrote(pid, "pick", now)
         return {"pick": option or None}
 
     def vote(self, pid, body):
@@ -1417,8 +1487,7 @@ class Session:
         if _body(body).get("suggestion") is not None:
             return self._vote_suggestion(pid, body, on)
         ref = _ident(body, "card")
-        with self._tx() as st:
-            self._writer(pid)
+        with self._write_as(pid, "vote") as st:
             q = self._card_vote_question(body)
             card = self._card(q["id"], ref)
             if ref_author(ref) == pid:
@@ -1462,8 +1531,7 @@ class Session:
 
     def _vote_suggestion(self, pid, body, on):
         sid = _ident(body, "suggestion")
-        with self._tx() as st:
-            self._writer(pid)
+        with self._write_as(pid, "vote") as st:
             if not st["session"]["settings"]["voting"]:
                 raise DomainError(403, "voting-off", "Voting is off in this session.")
             q = self._question(body.get("qid"))
@@ -1484,8 +1552,7 @@ class Session:
     def go_with(self, pid, body):
         """POST /api/go-with: withdraw one's own answer and move one's vote to `card`, in one action."""
         ref = _ident(body, "card")
-        with self._tx() as st:
-            self._writer(pid)
+        with self._write_as(pid, "go-with") as st:
             q = self._card_vote_question(body)
             qid = q["id"]
             card = self._card(qid, ref)
@@ -1506,8 +1573,7 @@ class Session:
         reaction = _body(body).get("reaction")
         if reaction is not None and reaction not in REACTIONS:
             raise _bad("reaction", f"reaction must be one of {', '.join(REACTIONS)}, or null.")
-        with self._tx() as st:
-            self._writer(pid)
+        with self._write_as(pid, "react") as st:
             q = self._question(body.get("qid"))
             if q["purpose"] != "gather":
                 raise DomainError(409, "wrong-purpose", "Reactions are for gather questions; vote instead.")
@@ -1645,12 +1711,17 @@ class Session:
                 if r["status"]["kind"] == "open":
                     raise DomainError(409, "not-locked", "This question is open: answer it instead.")
             sid = self._next("S")
-            st["suggestions"].setdefault(q["id"], []).append(
-                {"id": sid, "pid": pid, "text": text, "note": note, "at": now, "status": {"kind": "open"}}
-            )
+            kept = st["suggestions"].setdefault(q["id"], [])
+            kept.append({"id": sid, "pid": pid, "text": text, "note": note, "at": now, "status": {"kind": "open"}})
+            dropped = {s["id"] for s in kept[:-MAX_SUGGESTIONS]}
+            if dropped:
+                del kept[:-MAX_SUGGESTIONS]
+                votes = st["suggestionVotes"].get(q["id"], {})
+                for voter in [v for v, s in votes.items() if s in dropped]:
+                    votes.pop(voter)
             self._notify_mentions(f"{text} {note}", pid, f"in a suggestion on question {q['id']}", qid=q["id"])
             self._queue_note(self._moderator_pids(), pid)
-        self._last_write[(pid, "suggest")] = now
+        self._wrote(pid, "suggest", now)
         return {"id": sid}
 
     def act_on_suggestion(self, pid, body):
@@ -1722,7 +1793,7 @@ class Session:
             self._throttle(pid, "propose", now)
             prop = self._new_proposal(pid, text, {"kind": "direct"})
             self._notify_mentions(text, pid, "in a proposal")
-        self._last_write[(pid, "propose")] = now
+        self._wrote(pid, "propose", now)
         return {"id": prop["id"]}
 
     def _new_proposal(self, author, text, via):
@@ -1793,8 +1864,9 @@ class Session:
                 self._notify(to["pid"], "reply", "replied to your message.", actor=pid, by=pid, body=one_line(text)[:160], msg=msg["id"])
                 skip = (to["pid"],)
             st["chat"].append(msg)
+            del st["chat"][:-MAX_CHAT]
             self._notify_mentions(text, pid, "in chat", skip=skip, msg=msg["id"])
-        self._last_write[(pid, "chat")] = now
+        self._wrote(pid, "chat", now)
         return {"id": msg["id"]}
 
     def propose_from_chat(self, pid, body):
@@ -1833,8 +1905,9 @@ class Session:
             st["annotations"].append(
                 {"id": aid, "pid": pid, "qid": q["id"], "variant": variant, "at": now, "text": text, "anchor": {"selector": anchor["selector"], "rect": rect}}
             )
+            del st["annotations"][:-MAX_ANNOTATIONS]
             self._notify_mentions(text, pid, f"in a note on question {q['id']}", qid=q["id"])
-        self._last_write[(pid, "annotate")] = now
+        self._wrote(pid, "annotate", now)
         return {"id": aid}
 
     # -- requests and results ----------------------------------------------------------------
@@ -1865,7 +1938,7 @@ class Session:
             if runner == "host":
                 self._queue_note([HOST], pid)
             self._notify_mentions(text, pid, f"in a request on question {q['id']}", qid=q["id"])
-        self._last_write[(pid, "request")] = now
+        self._wrote(pid, "request", now)
         return {"id": rid}
 
     def act_on_request(self, pid, body):
@@ -2016,8 +2089,7 @@ class Session:
         if bad:
             raise _bad("set", f"Unknown key or bad value: {', '.join(bad[:10])}.")
         now = self.now()
-        with self._tx() as st:
-            self._person(pid)
+        with self._write_as(pid, "prefs", check=self._person) as st:
             mine = st["prefs"].setdefault(pid, {})
             for k, v in patch.items():
                 if v is None:
@@ -2036,8 +2108,7 @@ class Session:
         if not everything and not (isinstance(ids, list) and ids and all(isinstance(i, str) for i in ids)):
             raise _bad("ids", "Send ids: [...] or all: true.")
         want = None if everything else set(ids[:NOTIFY_CAP])
-        with self._tx() as st:
-            self._person(pid)
+        with self._write_as(pid, "notifications-read", check=self._person) as st:
             n = 0
             for note in st["notifications"].get(pid, []):
                 if not note["read"] and (want is None or note["id"] in want):
@@ -2100,7 +2171,10 @@ class Session:
         with self._tx() as st:
             self._owner(pid)
             token = self.ids.token(32)
-            st["credentials"]["owner"] = {"tokenHash": sha256(token), "rotatedAt": self.now()}
+            at = self.now()
+            if self.on_owner_token is not None:  # the secrets file holds the token before the hash commits
+                self.on_owner_token(token, at)
+            st["credentials"]["owner"] = {"tokenHash": sha256(token), "rotatedAt": at}
             return {"token": token}
 
     # -- notifications -----------------------------------------------------------------------
@@ -2330,7 +2404,7 @@ class Session:
                 raise DomainError(400, "too-long", err, field=long.group(1), max=int(long.group(2)), **at)
             raise DomainError(400, "bad-field", err, field="ops", **at)
         with self._lock:
-            self._new_files = []
+            self._undo = []
             try:
                 with self._tx():
                     results = []
@@ -2342,9 +2416,12 @@ class Session:
                             raise
                     return {"results": results}
             except BaseException:
-                for f in self._new_files:
+                for f, before in reversed(self._undo):
                     with contextlib.suppress(OSError):
-                        f.unlink()
+                        if before is None:
+                            f.unlink()
+                        else:
+                            write_private(f, before.decode("utf-8"))
                 raise
 
     def _op_set_title(self, op):
@@ -2532,7 +2609,7 @@ class Session:
 
     def _op_add_asset(self, op):
         """Copy a local image or HTML file into assets/ under its content id; usable from the next apply."""
-        src = _asset_source(op["path"], (self.path.parent, Path(tempfile.gettempdir())))
+        src = _asset_source(op["path"], self.path.parent)
         data = src.read_bytes()
         if len(data) > ASSET_MAX:
             raise DomainError(400, "too-long", f"An asset is at most {ASSET_MAX} bytes.", field="path", max=ASSET_MAX)
@@ -2544,11 +2621,10 @@ class Session:
             tmp = dest.with_name(f".{aid}.{secrets.token_hex(4)}.tmp")
             tmp.write_bytes(data)
             replace_into(tmp, dest)
-            self._new_files.append(dest)
+            self._undo.append((dest, None))
         meta = {"id": aid, "kind": ASSET_KINDS[ext], "bytes": len(data), "at": self.now(), "scale": op.get("scale", 1)}
         meta_path = self.assets_dir / f".{aid}.json"
-        if not meta_path.exists():
-            self._new_files.append(meta_path)
+        self._undo.append((meta_path, meta_path.read_bytes() if meta_path.exists() else None))
         write_private(meta_path, json.dumps(meta) + "\n")
         return meta
 
@@ -2577,13 +2653,22 @@ class Session:
 
     # -- runtime hooks the server calls ------------------------------------------------------
 
-    def reset_owner_token(self, token):
-        """Make `token` the owner's credential (the server's 0600 secrets file is authoritative)."""
+    def reset_owner_token(self, token, issued_at):
+        """Make `token`, issued at `issued_at`, the owner's credential (the server's 0600 secrets file
+        is authoritative), refusing a token older than the last rotation recorded in the state."""
         with self._lock:
-            if hmac.compare_digest(sha256(token), self.state["credentials"]["owner"]["tokenHash"]):
+            owner = self.state["credentials"]["owner"]
+            if hmac.compare_digest(sha256(token), owner["tokenHash"]):
                 return False
+            if owner["rotatedAt"] > issued_at:
+                raise DomainError(
+                    409,
+                    "owner-token-stale",
+                    "The owner token in the secrets file predates the session's last owner-link rotation; "
+                    "delete .shared-secrets.json to issue a new owner link.",
+                )
             with self._tx() as st:
-                st["credentials"]["owner"] = {"tokenHash": sha256(token), "rotatedAt": self.now()}
+                st["credentials"]["owner"] = {"tokenHash": sha256(token), "rotatedAt": issued_at}
             return True
 
     def set_share(self, url):

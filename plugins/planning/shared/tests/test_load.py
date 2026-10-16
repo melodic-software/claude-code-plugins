@@ -20,7 +20,7 @@ import server
 PEOPLE = 20
 WRITE_EVERY = 1.05  # just over the one-write-per-second-per-route limit (Contracts, "Body caps and limits")
 POLL_EVERY = 1.5  # the page's poll interval (Contracts, "Guest listener routes")
-P95_CEILING = 1.0
+P95_CEILING = 1.0  # judgment: far above the measured 1.7 ms p95, so it catches a regression, not noise
 
 
 class TestLoad(unittest.TestCase):
