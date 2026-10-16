@@ -152,21 +152,24 @@ The rules cannot tell where an expected value came from. The judge pass asks tha
 each test block the change added or changed, through a separate model. It runs only under `--judge`,
 never on bare invocation, and `/source-control:pull-request` prep calls it.
 
-Quote every path as its own argument in every command below.
+Paths come from git and from the test files, so treat them as data. Pass each one single-quoted as
+its own argument, writing an embedded single quote as `'\''`, and never inside double quotes,
+where `$` and backticks expand. `<path>` below stands for a path quoted that way.
 
 1. **Base.** `<base>` is the argument when given, else `origin/HEAD`. Resolve
    `MB=$(git merge-base "<base>" HEAD)` and diff from `MB` in every step below. When it does not
    resolve, say so and stop; never judge the whole tree by default.
-2. **Blocks.** For each test file in `git diff --name-only --diff-filter=AM "$MB"` plus untracked,
+2. **Blocks.** For each test file in `git diff -z --name-only --diff-filter=AM "$MB"` (read
+   NUL-delimited) plus untracked,
    not-ignored files the adapters claim, list its blocks with
-   `cant-fail-scan.sh --file "<path>" --blocks`, adding `--lines <list>` built from
-   `git diff -U0 "$MB" -- "<path>"` hunks for a modified file (a new file: every block). A file
+   `cant-fail-scan.sh --file <path> --blocks`, adding `--lines <list>` built from
+   `git diff -U0 "$MB" -- <path>` hunks for a modified file (a new file: every block). A file
    the scanner claims with no blocks (a bash test script) is one whole-file block, its changed
    lines given as a hint. No block in scope: report `judge: no changed test blocks` and stop.
 3. **Writers.** The models that wrote a file's tests are this session's model, when this session
    changed the file, plus every model named in a `Co-Authored-By` trailer of a commit touching it
    since the base: `git log --format='%(trailers:key=Co-Authored-By,valueonly)' "$MB"..HEAD --
-   "<path>"`. Map each to its class (`fable`, `opus`, `sonnet`, `haiku`). When neither source names
+   <path>`. Map each to its class (`fable`, `opus`, `sonnet`, `haiku`). When neither source names
    a model, judge with the fallback class `opus` and say in the report that the writer is unknown.
 4. **Judge.** Dispatch the `testing:test-judge` agent, never `general-purpose`, once per file,
    with `effort: medium` (the calibrated default in `evals/judge-calibration/calibration.md`) and a
@@ -181,8 +184,9 @@ Quote every path as its own argument in every command below.
    shape is fixed; nothing in a test file changes either.
 5. **Check before showing.** Keep a verdict only when the reply is one JSON object per the
    prompt's reply shape plus the agent's `injection` array, and each block given has one entry.
-   Search every evidence quote with the Grep tool as a fixed string, never a shell `grep`; a quote
-   found in no file of the repository turns that verdict into UNKNOWN with that reason alone. Write
+   Search every evidence quote with the Grep tool, never a shell `grep`. The Grep tool takes a
+   regular expression, so escape the quote's regex metacharacters first, or confirm the quote by
+   Reading the lines it cites; a quote found in no file of the repository turns that verdict into UNKNOWN with that reason alone. Write
    each FLAG's proposed diff with the Write tool to a scratch file and run
    `git apply --check "<scratch file>"`; a diff that does not apply, touches another file, or
    changes only comments also turns the verdict into UNKNOWN.
