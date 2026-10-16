@@ -478,12 +478,12 @@ levels are in [../../../reference/config-resolution.md](../../../reference/confi
    (docs/conventions/source-control.yaml at <base-branch>)`.
 2. **Per-user level.** Otherwise take the substituted value from SKILL.md's "PR open state" line.
    `draft` reports the level as `userConfig`.
-3. **Default.** Otherwise, including a substituted `ready` and the unsubstituted token, the state
-   is `ready` and the level is `default`.
+3. **Default.** Otherwise, meaning a substituted `ready` or the unsubstituted token, the state is
+   `ready` and the level is `default`.
 
 A value other than `draft` or `ready` at the level that supplied it is not used: say which level
-held which value, take the state as `draft`, and report the level as `default (invalid value at
-<level>)`.
+held which value, take the state as `draft`, and report the level as `invalid value at <level>
+(fell back to draft)`.
 
 **An unattended run always opens a draft.** When no person is driving this run (a loop lane, a CI
 lane, a `dontAsk` session, a worker or orchestrator dispatched by another skill, and every

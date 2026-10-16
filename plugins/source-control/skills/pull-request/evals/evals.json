@@ -319,6 +319,7 @@
       "expectations": [
         "The repository file's draft wins over the userConfig value ready",
         "The PR is opened with --draft (or draft=true on the REST form)",
+        "create does not run the ready phase or flip the PR",
         "The report names the supplying level as the repository file, not userConfig",
         "The report says /source-control:pull-request ready is what flips the draft"
       ]
@@ -340,15 +341,16 @@
       "id": 27,
       "name": "pr-open-state-invalid-repo-value-falls-back-to-draft",
       "prompt": "/pull-request create from branch feat/618-export-csv. The repository's docs/conventions/source-control.yaml on the base branch, main, is captured in evals/fixtures/source-control-open-invalid.yaml relative to the skill directory. The userConfig option pr_open_state is set to ready. Resolve the open state and open the PR.",
-      "expected_output": "The repository level supplies published, which is neither draft nor ready, so it is not used. The skill says the repository file holds an invalid value, opens the PR as a draft, and reports the level as the default with the invalid repository value named. It does not fall through to the userConfig ready value and never opens the PR ready for review because of an unknown value.",
+      "expected_output": "The repository level supplies published, which is neither draft nor ready, so it is not used. The skill says the repository file holds an invalid value, opens the PR as a draft without running the ready phase, and reports the level as an invalid value at the repository level that fell back to draft. It does not fall through to the userConfig ready value and never opens the PR ready for review because of an unknown value.",
       "files": [
         "evals/fixtures/source-control-open-invalid.yaml"
       ],
       "expectations": [
         "The value published from the repository file is reported as invalid, naming the repository level",
         "The PR is opened with --draft (or draft=true on the REST form)",
+        "create does not run the ready phase or flip the PR",
         "The skill does NOT fall through to the userConfig value ready after rejecting the repository value",
-        "The reported level is the default, with the invalid repository value named"
+        "The reported level names the invalid repository value and the fallback to draft, not the default"
       ]
     },
     {
