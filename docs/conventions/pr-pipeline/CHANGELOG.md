@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## 1.17.1 - 2026-10-16
+
+`pr-feedback-dispatch.yml` no longer resolves the whole `pr-unblock` lane, which decided every
+slot's `applies-when` and failed on `resolve-conflicts`' `mergeable` predicate with no head SHA.
+`feedback-dispatch.mjs` finds the PR and its head first, then resolves only the `address-feedback`
+slot for them, and dispatches only when the lane, `address-feedback` and `publish-feedback` are
+enabled and `address-feedback` applies. A disabled slot no longer counts as present.
+
 ## 1.17.0 - 2026-10-15
 
 `pr-unblock.yml` takes an `activity` input (`resolve-conflicts`, the default, or

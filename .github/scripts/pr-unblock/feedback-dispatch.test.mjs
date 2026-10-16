@@ -88,17 +88,34 @@ function fakeApi({
   };
 }
 
-async function decide(api) {
+// What resolve-config writes for the pr-unblock lane with address-feedback
+// selected: the lane, every slot with its enabled flag, and the selected slot.
+const resolvedLane = ({ laneEnabled = true, slots = {}, applies = true, skipReason = null } = {}) => {
+  const enabled = { "resolve-conflicts": true, "address-feedback": true, "publish-feedback": true, "report-escalation": true, ...slots };
+  const all = Object.entries(enabled)
+    .filter(([, on]) => on !== undefined)
+    .map(([name, on]) => ({ name, enabled: on, applies: null, "skip-reason": null }));
+  const selected = all.find((slot) => slot.name === "address-feedback");
+  if (selected) Object.assign(selected, { applies, "skip-reason": skipReason });
+  return { lane: { name: "pr-unblock", enabled: laneEnabled, slots: all }, selected: selected ?? null };
+};
+
+async function decide(api, resolved = resolvedLane()) {
   const lines = [];
+  const asked = [];
   const result = await dispatchFeedback({
     api,
     repository: REPOSITORY,
     runId: RUN_ID,
     upstreamRunId: UPSTREAM_RUN_ID,
     appSenderId: APP_ID,
+    resolveSlot: async (request) => {
+      asked.push(request);
+      return resolved;
+    },
     log: (line) => lines.push(line),
   });
-  return { result, lines };
+  return { result, lines, asked };
 }
 
 const pull = (overrides) => [
@@ -125,6 +142,44 @@ test("a reviewed lanes App PR with a reviewer-bot thread dispatches address-feed
       inputs: { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID },
     },
   ]);
+});
+
+test("the address-feedback slot is resolved for the PR and the reviewed head", async () => {
+  const { asked } = await decide(fakeApi());
+  assert.deepEqual(asked, [{ number: 42, head: HEAD }]);
+});
+
+for (const [label, resolved, reason] of [
+  ["the address-feedback slot is disabled", resolvedLane({ slots: { "address-feedback": false } }), /no enabled address-feedback and publish-feedback slots/],
+  ["the publish-feedback slot is disabled", resolvedLane({ slots: { "publish-feedback": false } }), /no enabled address-feedback and publish-feedback slots/],
+  ["the lane has no publish-feedback slot", resolvedLane({ slots: { "publish-feedback": undefined } }), /no enabled address-feedback and publish-feedback slots/],
+  ["the lane is disabled", resolvedLane({ laneEnabled: false }), /no enabled address-feedback and publish-feedback slots/],
+  ["address-feedback does not apply", resolvedLane({ applies: false, skipReason: "awaiting-human" }), /does not apply \(awaiting-human\)/],
+]) {
+  test(`no dispatch when ${label}`, async () => {
+    const api = fakeApi();
+    const { result, lines } = await decide(api, resolved);
+    assert.equal(result, null);
+    assert.deepEqual(api.calls.dispatch, []);
+    assert.match(lines.at(-1), reason);
+  });
+}
+
+test("a slot that cannot be resolved fails the run", async () => {
+  await assert.rejects(
+    dispatchFeedback({
+      api: fakeApi(),
+      repository: REPOSITORY,
+      runId: RUN_ID,
+      upstreamRunId: UPSTREAM_RUN_ID,
+      appSenderId: APP_ID,
+      resolveSlot: async () => {
+        throw new Error("resolve-config could not resolve");
+      },
+      log: () => {},
+    }),
+    /could not resolve/,
+  );
 });
 
 test("the security review workflow is an upstream too", async () => {
@@ -216,7 +271,7 @@ test("main writes run-id and reads the upstream id from UPSTREAM_RUN_ID only", a
         UPSTREAM_RUN_ID,
         APP_SENDER_ID: String(APP_ID),
       },
-      { api, log: () => {} },
+      { api, resolveSlot: async () => resolvedLane(), log: () => {} },
     );
     assert.equal(code, 0);
     assert.equal(readFileSync(output, "utf8"), "run-id=38779200001\n");

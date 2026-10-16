@@ -17,19 +17,24 @@
 // - an unresolved review thread exists whose every comment is the reviewer
 //   bot's;
 // - that head has no pr-unblock / address-feedback check run yet, and no
-//   pr-unblock.yml address-feedback run for the PR is still queued or going.
-// The workflow runs it only when the pr-unblock lane's config holds the
-// address-feedback and publish-feedback slots.
+//   pr-unblock.yml address-feedback run for the PR is still queued or going;
+// - the base config's pr-unblock lane is enabled, holds enabled
+//   address-feedback and publish-feedback slots, and address-feedback applies
+//   to that PR at that head, resolved by resolve-config for that one slot.
 // The gate and the broker re-check the upstream run and the head; this script
 // only decides whether to spend a run.
 
-import { appendFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
   workflow: "pr-unblock.yml",
+  lane: "pr-unblock",
   activity: "address-feedback",
+  replyActivity: "publish-feedback",
   checkName: "pr-unblock / address-feedback",
   reviewWorkflows: Object.freeze([
     ".github/workflows/pr-review-hosted.yml",
@@ -90,6 +95,7 @@ export async function dispatchFeedback({
   runId,
   upstreamRunId,
   appSenderId,
+  resolveSlot,
   log,
   settings = DEFAULTS,
 }) {
@@ -165,6 +171,14 @@ export async function dispatchFeedback({
   );
   if (active.length > 0) {
     return skip(`#${number}: ${settings.workflow} run ${active[0].id} for ${settings.activity} is not done yet`);
+  }
+  const resolved = await resolveSlot({ number, head });
+  const enabled = (name) => resolved.lane.slots.some((slot) => slot.name === name && slot.enabled === true);
+  if (resolved.lane.enabled !== true || !enabled(settings.activity) || !enabled(settings.replyActivity)) {
+    return skip(`the ${settings.lane} lane has no enabled ${settings.activity} and ${settings.replyActivity} slots`);
+  }
+  if (resolved.selected?.applies !== true) {
+    return skip(`#${number}: ${settings.activity} does not apply (${resolved.selected?.["skip-reason"] ?? "unknown"})`);
   }
   const { workflowRunId } = await api.dispatchWorkflow({
     workflow: settings.workflow,
@@ -281,9 +295,51 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
   };
 }
 
+// The pr-unblock lane as the dispatched run resolves it: resolve-config from
+// the base checkout, deciding only the address-feedback slot, for this PR and
+// head, on a workflow_dispatch event. Naming the activity keeps another slot's
+// predicate (resolve-conflicts' mergeable) from needing facts this run lacks.
+// The workflow installs resolve-config's dependencies before this runs.
+export async function resolveFeedbackSlot({ number, head, env, github, settings = DEFAULTS }) {
+  const { main: resolveConfig } = await import(
+    new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
+  );
+  const dir = mkdtempSync(join(env.RUNNER_TEMP || tmpdir(), "feedback-slot-"));
+  try {
+    const eventPath = join(dir, "event.json");
+    const outputPath = join(dir, "resolved.json");
+    writeFileSync(eventPath, "{}");
+    const code = await resolveConfig({
+      env: {
+        LANE: settings.lane,
+        ACTIVITY: settings.activity,
+        BASE_PATH: env.BASE_PATH || ".base",
+        OUTPUT_PATH: outputPath,
+        EVENT_NAME: "workflow_dispatch",
+        EVENT_PATH: eventPath,
+        PR_NUMBER: String(number),
+        HEAD_SHA: head,
+        // Only reading: the dispatched write runner performs the prepare step.
+        PREPARE_SUPPORTED: "true",
+        GITHUB_OUTPUT: join(dir, "outputs"),
+        GITHUB_TOKEN: env.GITHUB_TOKEN,
+        GITHUB_API_URL: env.GITHUB_API_URL,
+        REPOSITORY: env.GITHUB_REPOSITORY,
+      },
+      github,
+    });
+    if (code !== 0) {
+      throw new Error(`resolve-config could not resolve the ${settings.lane} lane's ${settings.activity} slot`);
+    }
+    return JSON.parse(readFileSync(outputPath, "utf8"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 // Writes run-id, the dispatched run, as a step output; the workflow records
 // it with the upstream run id as an artifact on this run.
-export async function main(env, { api, log = (line) => console.log(line) } = {}) {
+export async function main(env, { api, github, resolveSlot, log = (line) => console.log(line) } = {}) {
   for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT", "UPSTREAM_RUN_ID", "APP_SENDER_ID"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
@@ -302,6 +358,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     runId: env.GITHUB_RUN_ID,
     upstreamRunId: env.UPSTREAM_RUN_ID,
     appSenderId: Number(env.APP_SENDER_ID),
+    resolveSlot: resolveSlot ?? (({ number, head }) => resolveFeedbackSlot({ number, head, env, github })),
     log,
   });
   if (dispatched !== null) {
