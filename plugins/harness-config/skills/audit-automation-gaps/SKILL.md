@@ -250,10 +250,15 @@ gates, not passed.
    or of recent edits and report hits over that N. Falsified when the sampled hit rate is under
    5 percent, which is the **YAGNI** threshold read against the sampled denominator. State N and
    the hit count, so the arithmetic is checkable rather than asserted.
-2. **Advisory and non-blocking.** The hook exits `0` on every path, surfaces findings as context
-   rather than rejecting the edit, and its own documentation names a commit hook or a CI lane as
-   the hard gate. Falsified by any exit path that blocks the tool call, or by documentation
-   presenting the hook itself as the gate.
+2. **Placed where the check-placement rubric puts it.** A report-only duplicate (one that only
+   prints findings) goes in a git `pre-commit` hook that blocks the commit on findings in changed
+   lines, or `pre-push` when its measured run is over the commit budget but within 60 s, never in
+   a per-edit `PostToolUse` hook; a formatter duplicate may also rewrite once per batch from
+   `PostToolBatch`, sending the model nothing. CI keeps re-running the check on the change.
+   Falsified by a per-edit hook that sends findings to the model, a Claude Code hook that blocks a
+   tool call to enforce a report-only check, or documentation presenting the local hook as a
+   replacement for the CI check. The rubric is this marketplace's house rule, not upstream
+   guidance: [check-placement](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/check-placement/README.md#the-rubric).
 3. **Fits the remaining budget, as a hard gate.** Resolve the budget through the two-rung ladder in
    [context/hook-timing.md](context/hook-timing.md), then report four things: the measurement, the
    budget row judged against, which rung supplied it, and the headroom arithmetic. Falsified when
@@ -264,7 +269,7 @@ gates, not passed.
 
 Why the carve-out is scoped this narrowly: the hooks documentation states that hooks give
 "deterministic control: certain actions always happen rather than relying on the LLM to choose to
-run them", which supports duplicating a check so it runs on every edit without exception. It states
+run them", which supports duplicating a check so it runs deterministically for every author. It states
 nothing about where a check belongs, in CI or in a hook, so no latency or placement argument may be
 offered as an upstream one. The record for both facts:
 

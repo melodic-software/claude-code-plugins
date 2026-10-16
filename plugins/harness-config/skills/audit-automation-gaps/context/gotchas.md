@@ -67,8 +67,9 @@ the verdict, not after.
 ## The candidate generator reaches a handful of the documented events
 
 The hooks documentation names 33 events. This skill's own candidate guidance names three of them:
-`context/gap-analysis.md` asks only about a `PostToolUse` formatter, and `context/hook-timing.md`
-prices `PreToolUse`, `PostToolUse` and `PermissionRequest`. Everything else, session lifecycle,
+`context/gap-analysis.md` asks about formatters and report-only checks on `PostToolBatch`,
+`PostToolUse` and git hooks, and `context/hook-timing.md` prices `PreToolUse`, `PostToolUse`,
+`PostToolBatch` and `PermissionRequest`. Everything else, session lifecycle,
 compaction, subagent and task boundaries, file and config change, model switch, elicitation, is
 absent from the questions the skill asks, so a genuine gap on one of those events cannot surface as
 a candidate at all. That is a recall ceiling in the generator, and it is invisible in the output: a
