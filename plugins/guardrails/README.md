@@ -729,7 +729,7 @@ execs (`3 git` + `2 jq`); this entry does not change that count. `ps-command.sh`
 `hooks.json` passes `--lib`, and again inside each isolation subshell whose
 guard had a file-scope `source` (the include guard is process-local, so a
 parent `source` does not spare the forks). `ps::classify_git_command` returns
-0 immediately on Bash, so those parses were tax. After: the dispatcher skips
+0 immediately on Bash, so those parses were wasted work. After: the dispatcher skips
 `--lib` when `.tool_name` is `Bash`, and each guard sources the classifier only
 inside `if [[ "$TOOL_NAME" == "PowerShell" ]]`. Neither guard's decision
 changed.

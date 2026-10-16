@@ -1386,7 +1386,7 @@ upstream-owned: resolve it from the model page at decision time, never from this
 - **Recheck trigger:** any new model on Claude Code's model page, or the effort section changes how
   a frontmatter pin ranks.
 
-We treat a lane pin as a posture, never a switch: thinking is adaptive, so a lane pinned `low` still
+We treat a lane pin as a posture, never a switch. Thinking is adaptive, so a lane pinned `low` still
 thinks where the model judges it worth the cost, and a turn with no thinking is not a pin
 misfiring. Authoring conformance follows: pin the lane, then let allocation vary per request
 instead of writing prose that tries to force it uniform (Pointer: for how the model decides when to
@@ -1664,7 +1664,7 @@ request.
 - **Recheck trigger:** the accepted `effort` value set changes on the model-config or effort page,
   or either frontmatter field list gains a token cap.
 
-Checking the value set mechanically stays deferred: a lint rule's source of truth is the harness's
+Checking the value set mechanically stays deferred, because a lint rule's source of truth is the harness's
 own accepted-value list, which this section deliberately does not restate.
 
 Session-level effort is the consumer's own setting and out of plugin scope. Plugins never set
@@ -1730,7 +1730,7 @@ A Workflow script this repository ships follows these rules;
   fan-out names `opus`. A single synthesis or judge agent may inherit.
 - **Wave caps plus one retry.** A fan-out runs in waves of `args.maxConcurrent`, with a small
   default, and retries a thrown dispatch once. A `null` result is final and is reported by name.
-- **Unattended runs stay small,** because which runs pause at a usage limit is upstream's rule
+- **Unattended runs stay small,** because upstream decides which runs pause at a usage limit
   (pointer below).
 - **Pointers, not restated limits.** Concurrency, agent caps and the size guideline are read from
   the workflows page, never copied into a script or its docs.
