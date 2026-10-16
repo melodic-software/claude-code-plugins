@@ -20,6 +20,14 @@ lib="$here/check-lib.sh"
 # shellcheck source=../../../lib/git-hooks/check-lib.sh
 . "$lib" || exit 1
 
+# The plugin's bundled typos config, passed with -c as the per-edit hook passes
+# it, so both apply the same protections: beside an installed copy (an entry
+# asset), or under config/ when run from the plugin itself.
+config="$here/default-typos.toml"
+[[ -f "$config" ]] || config="$here/../config/default-typos.toml"
+config_args=()
+[[ -f "$config" ]] && config_args=(-c "$(cd "${config%/*}" && pwd)/${config##*/}")
+
 checks_init pre-commit "$@" || exit 0
 checks_require_tool typos "cargo install typos-cli, or another method at https://github.com/crate-ci/typos#install"
 
@@ -46,13 +54,13 @@ to_contract() {
 out="$CHECKS_TMP/findings"
 : >"$out"
 if ((${#whole[@]})); then
-  typos --force-exclude --format brief --color never -- "${whole[@]}" | to_contract >>"$out"
+  typos ${config_args[@]+"${config_args[@]}"} --force-exclude --format brief --color never -- "${whole[@]}" | to_contract >>"$out"
 fi
 if ((${#partial[@]})); then
   for f in "${partial[@]}"; do
     # The index blob has no path, so ask typos first whether its excludes cover it.
-    [[ -n "$(typos --force-exclude --files -- "$f" 2>/dev/null)" ]] || continue
-    git show ":$f" 2>/dev/null | typos --format brief --color never - 2>/dev/null | to_contract |
+    [[ -n "$(typos ${config_args[@]+"${config_args[@]}"} --force-exclude --files -- "$f" 2>/dev/null)" ]] || continue
+    git show ":$f" 2>/dev/null | typos ${config_args[@]+"${config_args[@]}"} --format brief --color never - 2>/dev/null | to_contract |
       sed "s#^-:#$(printf '%s' "$f" | sed 's/[#&\\]/\\&/g'):#" >>"$out"
   done
 fi

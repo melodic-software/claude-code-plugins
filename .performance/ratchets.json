@@ -71,6 +71,13 @@
       "goal": "With test_guards_enabled at its default (false), the PostToolUse Bash row costs only the node launcher: the option gate closes before bash starts. The row has no if, so this is what every Bash call costs a user who never opted in (#5608). Measured on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
     },
     {
+      "name": "typos-format-stop-end-of-turn-option-off-spawns",
+      "command": "bash scripts/hook-census.sh typos-format Stop typos-format.sh '{\"session_id\":\"census\",\"hook_event_name\":\"Stop\",\"stop_hook_active\":false,\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 1,
+      "goal": "With typos_format_end_of_turn at its default (false), the Stop row costs only the node launcher: the --require-true gate closes before bash starts. Stop fires on every turn end, so this is what every turn costs a user who never opted in. Measured 1 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+    },
+    {
       "name": "testing-posttooluse-bash-test-scan-no-diff-spawns",
       "command": "bash scripts/hook-census.sh testing PostToolUse test-scan-bash.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"true\"},\"tool_response\":{\"stdout\":\"\",\"stderr\":\"\",\"interrupted\":false}}' --env CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",

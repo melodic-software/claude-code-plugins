@@ -128,6 +128,20 @@ err="$(git -C "$REPO" commit -q -m change 2>&1)"
 expect "git commit runs the entry and fails on the added line" "1" "$?"
 expect "the commit failure names the line" "notes.md:2: \`teh\` should be \`the\`" "$(printf '%s\n' "$err" | head -1)"
 expect "verify reports ok after the install" "ok	typos-check" "$(node "$INSTALL" verify --repo "$REPO")"
+expect "the bundled config is installed beside the copy" yes \
+  "$(cmp -s "$PLUGIN/config/default-typos.toml" "$REPO/.git/hooks/typos-format/default-typos.toml" && echo yes)"
+
+# The bundled config ignores SHA-shaped hex, as the per-edit hook does: typos
+# alone reads "1aded9f" as the misspelling "aded".
+printf 'an old teh line\nfixed in 1aded9f\n' >"$REPO/notes.md"
+git -C "$REPO" add notes.md
+expect "control: typos without the bundled config flags the SHA" 2 \
+  "$(git -C "$REPO" show :notes.md | typos --format brief - >/dev/null 2>&1; echo $?)"
+err="$(git -C "$REPO" commit -q -m sha 2>&1)"
+expect "installed copy: a SHA on an added line passes, as with the per-edit hook" "0|" "$?|$err"
+printf 'an old teh line\nfixed in 1aded9f\nagain 1aded9f\n' >"$REPO/notes.md"
+git -C "$REPO" add notes.md
+expect "plugin source: the script finds config/default-typos.toml too" "0|" "$(check "$REPO")"
 
 echo "typos-check: $PASS passed, $FAIL failed"
 ((FAIL == 0))

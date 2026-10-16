@@ -202,7 +202,9 @@ check that blocks a commit only on a typo in a line the commit adds, printed as
 `<path>:<line>: <message>`. It reaches every author, not only Claude, once
 `/typos-format:setup apply install-git-hooks [scope=local|shared]` registers it with the
 repository's hook manager (lefthook, husky or plain git hooks). Local scope stays in this clone;
-shared scope commits the copy under `.githooks/typos-format/`. `/typos-format:setup check` reports
+shared scope commits the copy under `.githooks/typos-format/`. The bundled
+`config/default-typos.toml` is copied beside it and passed with `-c`, as the per-edit hook passes
+it. `/typos-format:setup check` reports
 drift, and the SessionStart probe prints one line when the entry is missing, stale or edited.
 
 When typos is missing, an agent's commit fails with the install command; a person's commit gets a
