@@ -401,6 +401,20 @@ test("main writes the recorded ids and exits 1 when another dispatch failed", as
   assert.equal(output, "run-ids=500\n");
 });
 
+test("main records a review-dependency dispatch beside the conflict dispatches", async () => {
+  const dependabot = pr(131, {
+    mergeable: "MERGEABLE",
+    author: { login: "dependabot[bot]" },
+    headRefName: "dependabot/npm_and_yarn/x-2.0.0",
+    title: "build(deps): bump x from 1.0.0 to 2.0.0",
+    body: "",
+    labels: { nodes: [] },
+  });
+  const { code, output } = await runMain({ pages: [[pr(130), dependabot]] });
+  assert.equal(code, 0);
+  assert.equal(output, "run-ids=9130 9131\n");
+});
+
 test("main writes nothing to GITHUB_OUTPUT when no run was dispatched", async () => {
   const noPulls = await runMain({ pages: [[pr(121, { mergeable: "MERGEABLE" })]] });
   assert.deepEqual(noPulls, { code: 0, output: "" });

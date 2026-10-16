@@ -93,7 +93,7 @@ reader applies.
 | `pr-verify` | dispatch from `pr-refine` |
 | `pr-explain` | dispatch from `pr-refine`, alongside verify |
 | `pr-require-checks` | each verify result |
-| `pr-unblock` | a dispatch for each conflicting PR after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
+| `pr-unblock` | a dispatch for each conflicting PR and each unreviewed review-tier Dependabot PR after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
 | `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran); labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue` once resolve-issue accepts App-added labels (follow-up by Automation Lanes) |
 | `post-merge-verify` | push to the default branch |
@@ -128,6 +128,19 @@ id>`, which the gate and the broker read to tie the run to a review of the PR's 
 In `pr-unblock.yml`, `address-feedback` (the model job, `mutate-branch`) is followed by
 `publish-feedback` (a script job with no model, `publish-artifact`), which posts the replies the
 model job recorded ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)).
+
+`pr-unblock`'s `review-dependency` dispatches come from the same `pr-unblock-dispatch.yml` run,
+so the gate and the broker check them as they check a conflict dispatch. After the conflict
+dispatches it lists open, non-draft, same-repository Dependabot PRs into `main`, sorts each with
+`dependency-classify.mjs`, and dispatches `pr-unblock.yml` with `activity: review-dependency` for
+at most 2 `review`-tier PRs per run whose head has no `pr-unblock / review-dependency` check run
+from the GitHub Actions app (the untrusted-trigger skip aside). Their run ids join the same
+dispatched-runs record. It has no schedule: the broker accepts a dispatcher run started only by a
+push or a listed human, so a push to `main` or a hand run wakes it. In `pr-unblock.yml`,
+`review-dependency` (the model job, `mutate-branch`) is followed by `apply-dependency-verdict` (a
+script job with no model, `publish-artifact`), which acts on the verdict the model job recorded
+and never merges ([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
+[ADR 0073](../../adr/0073-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
 
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).

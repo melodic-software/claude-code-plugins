@@ -52,7 +52,10 @@ inputs:
       the skill gets neither the commit tool nor the instruction to commit.
       With `review-threads` the skill also gets the review-thread tool, a
       read-only wrapper over the base's feedback-thread.sh that reads the
-      thread file the runner wrote to $RUNNER_TEMP/lane-feedback.
+      thread file the runner wrote to $RUNNER_TEMP/lane-feedback. With
+      `dependency-review` the skill gets read access to the context file the
+      runner wrote to $RUNNER_TEMP/lane-dependency, made read-only, and must
+      end with the verdict JSON schema's structured output.
     required: false
     default: ""
   resolved-path:
@@ -128,6 +131,7 @@ runs:
         VERIFY_DIR: ${{ runner.temp }}/lane-verify
         FEEDBACK_DIR: ${{ runner.temp }}/lane-feedback
         FEEDBACK_STATE: ${{ runner.temp }}/lane-feedback-state
+        DEPENDENCY_DIR: ${{ runner.temp }}/lane-dependency
         WORKSPACE: ${{ github.workspace }}
         ISSUE_NUMBER: ${{ inputs.issue-number }}
       run: |
@@ -149,6 +153,7 @@ runs:
         [[ $MAX_TURNS =~ ^[1-9][0-9]*$ ]] || fail "max-turns must be a positive integer"
         case "$PREPARE" in
           "" | merge-base | review-threads) ;;
+          dependency-review) [ "$GATING" = advisory ] || fail "dependency-review: the activity must be advisory, since its verdict is the structured output" ;;
           *) fail "the activity's prepare mode is not a known mode" ;;
         esac
         # resolve-config already filtered these; a name outside this set
@@ -349,6 +354,17 @@ runs:
               disallowed="${disallowed:+$disallowed,}Edit(/$FEEDBACK_DIR/**),Write(/$FEEDBACK_DIR/**),Edit(/$FEEDBACK_STATE/**),Write(/$FEEDBACK_STATE/**)"
               system_prompt="$system_prompt The review-thread tool is $tool: run it by exactly this path as $tool list, $tool check-paths <path>... and $tool record <thread-id> <file>, with each disposition file in $SCRATCH. The tool posts nothing: a later job posts what you record."
             fi
+            # dependency-review: the skill reads the runner's context file,
+            # which its Edit and Write cannot reach, and returns its verdict
+            # as structured output; a later job with no model acts on it.
+            if [ "$PREPARE" = dependency-review ]; then
+              [[ $DEPENDENCY_DIR =~ ^/[A-Za-z0-9_./-]+$ ]] || fail "the dependency context directory has a name a rule cannot carry"
+              [ -f "$DEPENDENCY_DIR/dependency.json" ] || fail "dependency-review: the runner wrote no context file"
+              chmod -R a-w "$DEPENDENCY_DIR"
+              allowed="$allowed,Read(/$DEPENDENCY_DIR/**)"
+              disallowed="${disallowed:+$disallowed,}Edit(/$DEPENDENCY_DIR/**),Write(/$DEPENDENCY_DIR/**)"
+              system_prompt="$system_prompt The dependency context file is $DEPENDENCY_DIR/dependency.json. Your verdict is your structured output; a later job acts on it, and you post nothing."
+            fi
             ;;
           *) fail "the activity's effect is not a known effect" ;;
         esac
@@ -374,6 +390,11 @@ runs:
           advisory) ;;
           *) fail "the activity's gating must be gate or advisory" ;;
         esac
+        # The verdict job validates the same shape (apply-dependency-verdict.mjs).
+        if [ "$PREPARE" = dependency-review ]; then
+          schema='{"type":"object","properties":{"verdict":{"enum":["merge","fix","close","escalate"]},"reasons":{"type":"array","minItems":1,"maxItems":10,"items":{"type":"string","minLength":1,"maxLength":500}},"evidence":{"type":"array","maxItems":20,"items":{"type":"string","minLength":1,"maxLength":300}}},"required":["verdict","reasons","evidence"],"additionalProperties":false}'
+          claude_args="$claude_args --json-schema '$schema'"
+        fi
         args=$(jq -r '.selected.args // ""' "$RESOLVED")
         command_line="/$SKILL"
         for word in "${ISSUE_NUMBER:+--issue $ISSUE_NUMBER}" "$args" "${targets[@]}"; do

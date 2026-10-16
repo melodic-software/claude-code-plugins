@@ -584,6 +584,69 @@ The head re-read in step 5 applies to every `mutate-branch` activity, not only t
 pr-refine run whose PR branch moved before the mint now posts neutral `superseded-sha` without a
 model turn.
 
+### prepare: dependency-review
+
+A review of one risky Dependabot pull request is two jobs, for the reason review-threads is: the
+model job reads third-party release notes, so it holds `contents: write` and nothing that can
+post, close or enqueue. The model job is a `mutate-branch` skill leaf whose config sets
+`prepare: dependency-review` and `gating: advisory`; the verdict job is a `publish-artifact`
+script leaf with no model, called with `dependency-verdict: true`. The scripts are the base's
+`.github/scripts/pr-unblock/review-dependency.mjs` and `apply-dependency-verdict.mjs`, and both
+sort pull requests with `dependency-classify.mjs`:
+
+- `auto`: the author is `dependabot[bot]`; the title names one update (`bump <name> from <a> to
+  <b>`), or a group whose `Updates` lines at the start of a line add up to the title's count;
+  no update changes its first numeric version component; every `github_actions` update's
+  publisher is `actions`, `github` or `anthropics`; and the newest GitHub Actions `ci-status`
+  run on the head is not red (`failure`, `cancelled`, `timed_out`, `action_required`,
+  `startup_failure`; pending is not red). The pr-merge lane owns these.
+- `review`: every other Dependabot pull request, including a version the classifier cannot
+  read (a SHA). A security update is the `security` label or an advisory, GHSA or CVE id in the
+  body; it is a flag on either tier.
+
+1. After `resolve-config` and before the mint, the model job runs `review-dependency.mjs select`
+   with the job's `GITHUB_TOKEN`. A pull request whose author is not `dependabot[bot]` (by id,
+   from the base's trusted-actors list) or that sorts `auto` skips `not-applicable`.
+   `loop.dependency-review-rounds` earlier rounds escalate `dependency-round-cap` and skip
+   `awaiting-human`, nothing minted: the larger of the round markers the lanes App posted and
+   the PR commits carrying a `github-actions` `pr-unblock / review-dependency` check run that
+   ended `success` or `failure`. Otherwise it writes `$RUNNER_TEMP/lane-dependency/dependency.json`:
+   the head, title, labels, classification, each changed file with its patch (20,000 characters
+   each, 300,000 in all), and the body as data.
+2. `collect-base-activity` makes that directory read-only, grants `Read` on it, denies Edit and
+   Write there, keeps the commit tool, and passes a `--json-schema` for the verdict:
+   `verdict` (`merge`, `fix`, `close`, `escalate`), 1-10 `reasons` of at most 500 characters and
+   at most 20 `evidence` entries of at most 300. The activity's `web-access` names the release-note
+   hosts. The skill runs no head code; `ci-status` runs the tests on the pushed head.
+3. The promote step moves the PR branch only when the lane branch changes nothing under
+   `.github/` in fewer than 300 files and every commit's message carries `[dependabot skip]`, so
+   Dependabot may still rebase over the fix (pr-bump-plugin-version.yml states the convention).
+4. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
+   `github-script` step writes `run.json` (`version`, `pr`, the gated `head_sha`, the select
+   step's `security` flag, and the skill's structured output as `output`, `null` when absent or
+   unparsable) and the job uploads it as `dependency-verdict-<run attempt>`. Its
+   `dependency-round` output is then `true`, with `dependency-run-sha256` and
+   `dependency-run-attempt`.
+5. The caller runs the verdict job when `dependency-round` is `true`. `apply-dependency-verdict.mjs`:
+   - validates `run.json`: exactly that SHA-256, a regular file of at most 64 KiB, exactly the
+     runner's fields, and an `output` with exactly the schema's fields within its limits, each
+     string plain prose with no control character, code fence, HTML comment or @-mention. Any
+     failure, or a missing artifact, escalates `dependency-invalid`;
+   - re-reads the pull request: a closed one gets nothing. `merge`, `close` and `escalate` need
+     the reviewed head; a moved head skips `superseded-sha` and the next dispatcher run reviews
+     the new one. `fix` needs the PR head ahead of the reviewed head by commits the lanes App
+     authored only, else `dependency-fix-not-landed` (no commit) or `superseded-sha`;
+   - `merge`: posts the round marker, whose first line
+     `<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<run id>-<attempt> -->`
+     from the lanes App is the record a merge authority reads. It never merges or enqueues;
+   - `close`: escalates `dependency-security-close` for a security update (the model job's flag,
+     or the label or an advisory in the body read fresh); otherwise files an issue proposing the
+     `.github/dependabot.yml` `ignore` entry, closes the pull request, and posts the marker;
+   - `escalate`: escalates `dependency-escalate`;
+   - posts the round marker once per model run: a re-run that finds its own marker posts none.
+
+   The runner accepts only those four reasons, and only with `dependency-verdict`.
+
 ## The report job
 
 Runs after the run job whatever its result, with `checks: write`, `contents: read` and

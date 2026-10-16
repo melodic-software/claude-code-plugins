@@ -1,5 +1,22 @@
 # Changelog for the PR pipeline convention
 
+## 1.20.0 - 2026-10-16
+
+`pr-unblock` gains `review-dependency` and `apply-dependency-verdict`, and `prepare` gains
+`dependency-review` ([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
+[ADR 0073](../../adr/0073-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
+`pr-unblock-dispatch.yml` also dispatches `review-dependency` for at most 2 review-tier Dependabot
+pull requests per run whose head has no `pr-unblock / review-dependency` check run. The model job
+(`mutate-branch`) reads a read-only context file, the checkout and the upstream release notes as
+data, may push a fix outside `.github/` whose every commit carries `[dependabot skip]`, and returns
+a `merge`, `fix`, `close` or `escalate` verdict as structured output. The verdict job
+(`publish-artifact`, no model) validates it and posts the round marker, closes the pull request
+with an ignore-entry issue (never a security update), or escalates. Neither merges. `loop` gains
+`dependency-review-rounds` (default 2; this repository sets 2), and the write runner gains the
+`dependency-verdict`, `dependency-run-sha256` and `dependency-run-attempt` inputs and five
+escalation reasons: `dependency-round-cap`, `dependency-invalid`, `dependency-fix-not-landed`,
+`dependency-security-close` and `dependency-escalate`. `version` stays 1.
+
 ## 1.19.3 - 2026-10-16
 
 "Outputs and skips" no longer says a leaf's verdict carries over to a commit with unchanged

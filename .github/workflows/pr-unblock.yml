@@ -9,7 +9,10 @@ name: pr-unblock
 # workflow on a conflicting PR, so pr-unblock-dispatch.yml sends one dispatch
 # per conflicting PR after a push to the default branch. address-feedback:
 # pr-feedback-dispatch.yml sends one after a review lane finishes on a lanes App
-# PR with unresolved reviewer-bot threads. Both set dispatcher-run-id; a
+# PR with unresolved reviewer-bot threads. review-dependency:
+# pr-unblock-dispatch.yml also sends one per review-tier Dependabot PR (a major
+# bump, an action publisher outside the allowlist, a group holding a major, or
+# a red ci-status) whose head has no review yet. All set dispatcher-run-id; a
 # trusted human may dispatch with pr-number and activity alone. Every job
 # trusts the default branch tip, since a conflicting PR's base SHA is stale and
 # the dispatchers run from the tip.
@@ -30,7 +33,7 @@ on:
         description: What to unblock.
         required: false
         type: choice
-        options: [resolve-conflicts, address-feedback]
+        options: [resolve-conflicts, address-feedback, review-dependency]
         default: resolve-conflicts
       dispatcher-run-id:
         description: The dispatcher run that sent this dispatch; empty for a human dispatch.
@@ -129,17 +132,72 @@ jobs:
       expected-upstream-head: >-
         ${{ inputs.dispatcher-run-id != '' && needs.address-feedback.outputs.head-sha || '' }}
 
+  # review-dependency's model job holds contents: write, posts nothing, and
+  # returns its verdict as structured output that the runner uploads; it
+  # pushes a fix only outside .github/ with [dependabot skip]. Its upstream
+  # release notes are untrusted text, so it holds no pull-requests or issues
+  # write. The verdict job, with no model, holds those and acts on the
+  # verdict: the round marker, a close (never a security update) with an
+  # ignore-entry issue, or an escalation. Neither job merges.
+  review-dependency:
+    if: >-
+      inputs.pr-number != '' && inputs.activity == 'review-dependency'
+      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      lane: pr-unblock
+      activity: review-dependency
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+    secrets:
+      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+
+  apply-dependency-verdict:
+    needs: review-dependency
+    if: ${{ !cancelled() && needs.review-dependency.outputs.dependency-round == 'true' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      lane: pr-unblock
+      activity: apply-dependency-verdict
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      dependency-verdict: true
+      dependency-run-sha256: ${{ needs.review-dependency.outputs.dependency-run-sha256 }}
+      # The model job's attempt names the verdict artifact, so "Re-run failed
+      # jobs" on this job alone still downloads it.
+      dependency-run-attempt: ${{ needs.review-dependency.outputs.dependency-run-attempt }}
+
   report-escalation:
-    needs: [resolve-conflicts, address-feedback, publish-feedback]
+    needs: [resolve-conflicts, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict]
     # escalation-reason is set only by the write runner's own steps and the
-    # base's reply script. A later failure in that run (a failed verdict
-    # upload) still escalates. At most one of the three escalates: the reply
-    # job runs only after a model turn, and the model job escalates only
-    # before one.
+    # base's reply and verdict scripts. A later failure in that run (a failed
+    # verdict upload) still escalates. At most one escalates: one activity
+    # runs per dispatch, a reply or verdict job runs only after a model turn,
+    # and a model job escalates only before one.
     if: >-
       ${{ !cancelled() && (needs.resolve-conflicts.outputs.escalation-reason != ''
       || needs.address-feedback.outputs.escalation-reason != ''
-      || needs.publish-feedback.outputs.escalation-reason != '') }}
+      || needs.publish-feedback.outputs.escalation-reason != ''
+      || needs.review-dependency.outputs.escalation-reason != ''
+      || needs.apply-dependency-verdict.outputs.escalation-reason != '') }}
     permissions:
       contents: read
       pull-requests: read
@@ -156,7 +214,9 @@ jobs:
       escalation-reason: >-
         ${{ needs.resolve-conflicts.outputs.escalation-reason
         || needs.address-feedback.outputs.escalation-reason
-        || needs.publish-feedback.outputs.escalation-reason }}
+        || needs.publish-feedback.outputs.escalation-reason
+        || needs.review-dependency.outputs.escalation-reason
+        || needs.apply-dependency-verdict.outputs.escalation-reason }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       expected-upstream-head: >-
         ${{ inputs.activity == 'address-feedback' && inputs.dispatcher-run-id != ''

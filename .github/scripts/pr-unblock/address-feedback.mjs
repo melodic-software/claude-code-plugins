@@ -223,6 +223,9 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
   }
   const repo = `${apiUrl}/repos/${owner}/${name}`;
   return {
+    getPull: async (pr) => (await request(`${repo}/pulls/${pr}`)).data,
+    closePull: async (pr) => (await request(`${repo}/pulls/${pr}`, "PATCH", { state: "closed" })).data,
+    createIssue: async (fields) => (await request(`${repo}/issues`, "POST", fields)).data,
     listPullFiles: (pr) => paginate(`pulls/${pr}/files`),
     listIssueComments: (pr) => paginate(`issues/${pr}/comments`),
     listReviews: (pr) => paginate(`pulls/${pr}/reviews`),

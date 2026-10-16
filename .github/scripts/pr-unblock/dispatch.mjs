@@ -11,9 +11,13 @@
 // lowest PR number first. Labels and authors are left to the lane's own
 // config and gate. Logs carry PR numbers, SHAs and run ids only. The run ids
 // it dispatched become the step output run-ids, which the workflow records.
+// The same run then starts review-dependency for review-tier Dependabot PRs
+// (dependency-dispatch.mjs), and its run ids join the same record.
 
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+
+import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -153,7 +157,9 @@ export async function dispatchConflicting({
   return { dispatched, failed };
 }
 
-const PULL_FIELDS = "number isDraft isCrossRepository mergeable baseRefName headRefOid state";
+// The Dependabot fields feed dependency-dispatch.mjs's classification.
+const PULL_FIELDS =
+  "number isDraft isCrossRepository mergeable baseRefName headRefOid headRefName state title body author { login } labels(first: 100) { nodes { name } }";
 
 const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!, $after: String) {
   repository(owner: $owner, name: $name) {
@@ -260,19 +266,18 @@ export async function main(
       throw new Error(`${key} is not set`);
     }
   }
-  const { dispatched, failed } = await dispatchConflicting({
-    api:
-      api ??
-      createGitHubApi({
-        token: env.GITHUB_TOKEN,
-        repository: env.GITHUB_REPOSITORY,
-        apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
-        graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
-      }),
-    runId: env.GITHUB_RUN_ID,
-    sleep,
-    log,
-  });
+  const client =
+    api ??
+    createGitHubApi({
+      token: env.GITHUB_TOKEN,
+      repository: env.GITHUB_REPOSITORY,
+      apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
+      graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+    });
+  const conflicts = await dispatchConflicting({ api: client, runId: env.GITHUB_RUN_ID, sleep, log });
+  const reviews = await dispatchDependencyReviews({ api: client, runId: env.GITHUB_RUN_ID, log });
+  const dispatched = [...conflicts.dispatched, ...reviews.dispatched];
+  const failed = conflicts.failed + reviews.failed;
   if (dispatched.length > 0) {
     const ids = dispatched.map((run) => run.workflowRunId).join(" ");
     appendFileSync(env.GITHUB_OUTPUT, `run-ids=${ids}\n`);

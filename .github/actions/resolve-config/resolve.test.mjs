@@ -330,9 +330,9 @@ test("the denied config path is the one the run read", () => {
 
 // Defaults
 
-test("defaults are materialized: loop 2/3, merge off and manual, slot scope diff and enabled", () => {
+test("defaults are materialized: loop 2/3/2, merge off and manual, slot scope diff and enabled", () => {
   const resolved = run(fixture("valid.yaml"), { activity: "run-tests" });
-  assert.deepEqual(resolved.loop, { "review-rounds": 2, "no-progress": 3 });
+  assert.deepEqual(resolved.loop, { "review-rounds": 2, "no-progress": 3, "dependency-review-rounds": 2 });
   assert.equal(resolved.merge.rung, "off");
   assert.equal(resolved.merge["stack-landing"], "manual");
   assert.equal(resolved.version, 1);

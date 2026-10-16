@@ -5,6 +5,10 @@ name: pr-unblock-dispatch
 # open PRs GitHub reports as conflicting and dispatches pr-unblock.yml for
 # them (.github/scripts/pr-unblock/dispatch.mjs). A queue merge of several
 # PRs raises one push, so the listing reads main as it is now, not the push.
+# The same run dispatches review-dependency for each open Dependabot PR the
+# classifier sorts `review` whose head has no review-dependency check run yet
+# (.github/scripts/pr-unblock/dependency-dispatch.mjs). No schedule: the
+# broker accepts a dispatcher run started by a push or a listed human only.
 #
 # No model and no App token: the job's GITHUB_TOKEN can only read and start
 # workflow runs. A run started by hand, or a re-run of a push run, must come
@@ -92,7 +96,7 @@ jobs:
           echo "::error::${REASON:-untrusted-actor}: this run was not started by a listed trusted human"
           exit 1
 
-      - name: Dispatch pr-unblock for conflicting PRs
+      - name: Dispatch pr-unblock for conflicting PRs and review-tier Dependabot PRs
         id: dispatch
         if: >-
           steps.kill.outputs.proceed == 'true'
