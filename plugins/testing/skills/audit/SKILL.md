@@ -159,11 +159,11 @@ where `$` and backticks expand. `<path>` below stands for a path quoted that way
 1. **Base.** `<base>` is the argument when given, else `origin/HEAD`. Resolve
    `MB=$(git merge-base "<base>" HEAD)` and diff from `MB` in every step below. When it does not
    resolve, say so and stop; never judge the whole tree by default.
-2. **Blocks.** For each test file in `git diff -z --name-only --diff-filter=AMR "$MB"` (read
-   NUL-delimited, renamed files included) plus untracked, not-ignored files the adapters claim,
-   list its blocks with `cant-fail-scan.sh --file <path> --blocks`, adding `--lines <list>` built
-   from `git diff -U0 "$MB" -- <path>` hunks for a modified file (a new or renamed file: every
-   block). A file
+2. **Blocks.** For each test file in `git diff -z --name-status -M --diff-filter=AMR "$MB"` (read
+   NUL-delimited; a rename gives its old and new path) plus untracked, not-ignored files the
+   adapters claim, list its blocks with `cant-fail-scan.sh --file <path> --blocks`, adding
+   `--lines <list>` built from `git diff -U0 -M "$MB" -- <old path> <path>` hunks for a modified or
+   renamed file (a new file: every block; a rename with no hunks has no changed blocks). A file
    the scanner claims with no blocks (a bash test script) is one whole-file block, its changed
    lines given as a hint. No block in scope: report `judge: no changed test blocks` and stop.
 3. **Writers.** The models that wrote a file's tests are this session's model, when this session
