@@ -272,7 +272,7 @@ When all planned work is done:
 | Divergence detected (major) | Route back to the planning skill (invoke `/planning:plan review` via the Skill tool when installed) |
 | Technical question mid-implementation | Invoke `/discovery:research` via the Skill tool (when installed), otherwise disciplined multi-source research |
 | HIGH/CRITICAL change at completion | Call the `advisor` tool, rubber-duck checkpoint before review |
-| All implementation complete, tests pass | Hand off to the pre-PR sequence in its own order. The Test-stage checks the change still needs (see Next), then review, then outcome verification once the diff is final, then the PR: `/review:quality-gate`, then `/verification:confirm <PLAN.md path>` (the path when a plan exists; else self-verify against intent), then `/source-control:pull-request`. Each invoked via the Skill tool, each when its plugin is installed |
+| All implementation complete, tests pass | Hand off to the pre-PR sequence in its own order. The Test-stage checks the change still needs (see Next), then review, then outcome verification once the diff is final, then the PR: `/review:quality-gate`, then `/verification:confirm`, with the PLAN.md path as its argument when a plan exists (self-verify against intent only when the plugin is absent), then `/source-control:pull-request`. Each invoked via the Skill tool, each when its plugin is installed |
 
 ## What This Skill Does NOT Do
 

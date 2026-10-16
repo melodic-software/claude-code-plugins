@@ -19,6 +19,10 @@
       "why": "path not on the confirm line"
     },
     {
+      "answer": "Run `/verification:confirm`; the plan remains at `.work/late-fee/PLAN.md`.",
+      "why": "path on the confirm line but not its argument"
+    },
+    {
       "answer": "",
       "why": "empty reply"
     }
