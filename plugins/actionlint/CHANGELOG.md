@@ -3,6 +3,13 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.16] - 2026-10-16
+
+### Changed
+
+- Shared `prerequisites.mjs` synced: the SessionStart probe now also reports a drifted git-hook entry for a plugin that ships `git-hooks/entries.json`.
+- Vendored the shared git-hook installer and check lib under `lib/git-hooks/`; nothing uses them until this plugin ships its own git-hook entries.
+
 ## [0.12.15] - 2026-10-13
 
 ### Changed
