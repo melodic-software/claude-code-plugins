@@ -246,7 +246,7 @@ Each leaf declares:
 
 An activity is idempotent: a rerun on the same commit gives the same verdict or reuses it, a
 mutating activity with nothing to change makes no commit, and each commit it makes names the
-activity in a trailer. Unchanged content (same patch id) reuses the earlier verdict.
+activity in a trailer. A verdict is bound to the commit it judged and is not reused for any other commit.
 
 When an activity needs a human, it escalates with a resume key and exits instead of blocking. An
 activity whose `labels-absent` lists `needs-human` or `do-not-merge` skips with `awaiting-human`
@@ -348,9 +348,10 @@ human. Work classes are defined in
   automatically: when the default branch fails after a lane merge, that lane's merge rights turn off
   through a repository variable that can only lower the rung, and a `needs-human` issue is filed.
   The local babysit lane falls through a demotion issue instead (below).
-- A `pr-merge` merge needs a review verdict on the final commit, or a verdict carried over by
-  content fingerprint. The local babysit lane accepts only evidence bound to the pinned head SHA
-  (below).
+- A `pr-merge` merge needs a review verdict bound to the commit being merged. This is a
+  precondition of the lane's own merge, not a required check. A lane merge commit, including one
+  where the lane resolved conflicts, needs a fresh verdict on that commit before the merge. The
+  local babysit lane accepts only evidence bound to the pinned head SHA (below).
 - `merge.stack-landing` defaults to `manual`.
 - A repository has one merge authority. The one exception is
   `.github/workflows/pr-automerge-dependabot.yml`, which merges Dependabot pull requests on its own
@@ -512,7 +513,8 @@ here and in `pr-merge`'s `never` rule in `lane-rules.json`; the merge activity e
 
 One counter per PR, in the findings store, is shared by every lane. After `loop.review-rounds`
 full review rounds, one more high-severity-only pass runs; if it still has findings, the PR
-escalates. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
+escalates. The address-feedback activity hands a PR to a person once `loop.review-rounds` of its
+rounds have run. The default is 2; this repository sets 3. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
 escalates.
 
 ## Planning lane work
