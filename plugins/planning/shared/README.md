@@ -70,7 +70,7 @@ the refused op's index).
 | `result` | `qid`, `request?`, `kind`, `used`, `why`, `summary`, `sources`, `report` | Stores a result unpublished; the owner publishes or discards it |
 | `fail-request` | `request`, `reason` | `running` -> `failed` |
 | `add-reference`, `remove-reference` | `qid`, `reference` / `index` | |
-| `add-asset` | `path`, `as?`, `scale?` | Copies a PNG, JPEG, WebP, SVG or HTML file (by its bytes, at most 10 MB) from the data folder or the system temp folder into `assets/<16 hex>.<ext>`, named by its content; returns `{id, kind, bytes, at, scale}`. Usable from the next apply |
+| `add-asset` | `path`, `as?`, `scale?` | Copies a PNG, JPEG, WebP, SVG or HTML file (by its bytes, at most 10 MB) from the data folder, where captures go in `staging/`, into `assets/<16 hex>.<ext>`, named by its content; returns `{id, kind, bytes, at, scale}`. Usable from the next apply; a refused apply removes the files it copied and puts back any sidecar it rewrote |
 | `make-question-from` | `proposal`, `question` | |
 | `handle` | `seqs` | Marks events handled |
 
@@ -83,15 +83,17 @@ One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
 | `state.json`, `state.v<N>.json` | server | 0600 | The session (`schema/state.schema.json`); the pre-migration copy |
 | `defaults.json` | the skill | | Settings for a new session |
 | `ops.json` | Claude | | One apply; deleted when it lands |
-| `.shared-secrets.json` | server (made on first start) | 0600 | The control token and the owner token |
+| `.shared-secrets.json` | server (made on first start) | 0600 | The control token, the owner token and `ownerAt`, when the owner token was issued |
 | `.owner-link` | server | 0600 | `http://127.0.0.1:<guest port>/#owner=<token>` |
+| `.owner-open-<hex>.html` | `share.py ensure-running --open` | 0600 | A page that sends the browser to the owner link; deleted 30 s later |
+| `staging/` | server (made at every start) | 0700 | Captures Claude saves for `add-asset` |
 | `.shared-session.json`, `.shared-session.env` | session-bridge `start` | 0600 | Control port, pid, control token, nonce |
 | `.shared-ports.json` | server | 0600 | The guest and control ports, reused on every start |
 | `.shared-tunnel.json` | `tunnel.py` | 0600 | `{pid, url, port, startedAt, marker, adopted}` |
 | `cloudflared.log` | cloudflared | 0600 | Its output, where its address is read |
 | `server.log` (+ `.1`..`.3`) | server | 0600 | One line per request (method, path, status, time); rotated at 1 MB, 3 kept |
 | `.shared-server.err` | the server's stderr | 0600 | Why a start failed |
-| `.shared-reported` | `share.py` | | The guest link the last `ensure-running` printed (for `shareChanged`) |
+| `.shared-reported` | `share.py` | 0600 | The guest link the last `ensure-running` printed (for `shareChanged`) |
 | `.watch-seq`, `.watch-replay` | `watch.sh` | | |
 | `assets/<16 hex>.<ext>`, `assets/.<id>.json` | server (`add-asset`) | | The file, and its kind, size and scale |
 
@@ -110,29 +112,51 @@ build reloads itself.
   body field or a URL query; a pid in a body is ignored. Owner routes need `X-Owner-Token`
   itself. `state.json` keeps only sha256 hashes. Custom headers force a CORS preflight that is
   never answered.
-- **Requests.** JSON POSTs only (415), the 32 KB body cap checked before reading (413), a
-  per-address limit (`CF-Connecting-IP` only, never `X-Forwarded-For`), and session.py's per-route
-  write limit and join limit.
-- **Headers.** Every answer: `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`,
-  `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`. HTML adds the page policy
-  (`default-src 'self'` ... `frame-ancestors 'none'; base-uri 'none'; form-action 'none'`).
-  `/assets/*` adds `Content-Security-Policy: sandbox` (`allow-scripts` for HTML only, never
-  `allow-same-origin`) and `Content-Disposition: inline`.
+- **Requests.** JSON POSTs only (415), the 32 KB body cap checked before reading (413), and the
+  whole body within 10 s (408). A request other than a POST that carries a body
+  (`Content-Length` above 0 or any `Transfer-Encoding`) gets 400 and its connection closes. A
+  refused request (bad host, rate limit, body) answers once and runs nothing.
+- **Limits.** All are constants at the top of `session.py`:
+
+  | Limit | Value |
+  |---|---|
+  | Requests per address (`CF-Connecting-IP` only, never `X-Forwarded-For`; an IPv6 address counts by its /64) | 100 a second, bursts of 200; the 10000 most recently seen addresses are remembered |
+  | Joins | 30 a minute per address and guest key; 60 per 10 minutes per guest key across all addresses (rotating the guest link starts a new count) |
+  | Writes | 1 a second per person per route, on every route that writes (answer, pick, vote, react, go-with, rename, color, prefs, about-you, notifications/read, chat, propose, suggest, request, annotate, merge-request) |
+  | Heartbeat | 1 a second per person (429 otherwise) |
+  | Stored chat, notes, suggestions | the newest 2000 messages; 2000 notes; 200 suggestions per question, with votes on a dropped one dropped too |
+  | Connections served at once | 64; one more is answered 503 `busy` |
+- **Headers.** Every answer, http.server's own refusals (414, 501 and the like) included:
+  `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer`. HTML adds the page policy (`default-src 'self'` ...
+  `frame-ancestors 'none'; base-uri 'none'; form-action 'none'`). `/assets/*` adds
+  `Content-Disposition: inline` and `Content-Security-Policy: sandbox`; an HTML asset gets
+  `sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src
+  'unsafe-inline'; img-src 'self' data:; font-src data:; connect-src 'none'`, never
+  `allow-same-origin`.
+- **The log.** `server.log` writes the request path with control characters escaped (`\x1b`).
 - **What a visitor reads.** Without identity, `/api/state` is `{title, ended, joinNeedsKey,
   schemaVersion}` only; a removed person and an owner link from before a rotation read nothing.
   Results stay hidden from guests until the owner publishes them.
 - **Guest text is data.** Answers, chat, proposals and requests reach Claude in the digest,
   delivered with session-bridge's data note; an instruction in them is a finding, never a request.
-- **Files.** `add-asset` reads only regular, non-hidden files under the data folder or the system
-  temp folder, and only when the bytes are an allowed type.
+- **Files.** `add-asset` reads only regular files under the data folder with no hidden folder or
+  name below it, and only when the bytes are an allowed type. Claude saves captures in
+  `<data_dir>/staging/` (0700); the system temp folder is refused.
+- **Name hiding.** When the session shows initials or "someone", a join never answers `was` (the
+  earlier person with the same name), so a join cannot probe for hidden names.
+- **Owner-link rotation.** The new token reaches `.shared-secrets.json` before its hash reaches
+  `state.json`, both under the session lock. A start whose secrets file holds a token issued before
+  the session's last rotation refuses (exit 1) rather than bring the retired link back; deleting
+  `.shared-secrets.json` issues a new owner link.
 
 Where each token can be seen:
 
 | Token | Exposure paths |
 |---|---|
-| Owner token | `.shared-secrets.json` and `.owner-link` (0600); the owner's browser (the link's fragment, never sent to the server, and its history); the opener's command line for the moment `--open` hands the link to the browser; the transcript when the owner asks for `url --owner` |
+| Owner token | `.shared-secrets.json` and `.owner-link` (0600); for 30 s after `--open`, the `.owner-open-<hex>.html` page (0600) the browser is handed, whose path, not the token, is on the opener's command line; the owner's browser (the link's fragment, never sent to the server, and its history); the transcript when the owner asks for `url --owner` |
 | Guest secret | The guest's browser storage and personal link (`#me=` fragment); the `X-Session-Secret` header, which Cloudflare's edge sees because the tunnel terminates TLS there |
-| Control token | `.shared-secrets.json`, `.shared-session.json`, `.shared-session.env` (0600); the `curl` command line `watch.sh` runs (the generated session-bridge watcher puts the header on argv), visible to the same user's process list |
+| Control token | `.shared-secrets.json`, `.shared-session.json`, `.shared-session.env` (0600); the `curl` command line `watch.sh` runs (the generated session-bridge watcher puts the header on argv). A command line is readable by other local users on Linux without `hidepid` and on macOS, not only by the same user; moving that token off argv is tracked in #7693 |
 
 Neither token is on the server's command line: the server reads both from the secrets file.
 `stop` drops the control token, so the next start makes a new one; `restart` keeps it.
@@ -144,9 +168,16 @@ Windows, macOS and Linux. Process start, liveness and stop go through `detached.
 CREATE_NEW_PROCESS_GROUP` (breaking away from the caller's job when allowed), `OpenProcess` and
 `GetExitCodeProcess`, and the guest port is bound with `SO_EXCLUSIVEADDRUSE`. A recorded pid
 counts only while its command line (POSIX) or executable (Windows) names the expected program, so
-a pid the OS reused is never stopped. File modes are 0600 where the OS has them; on Windows they
-are advisory, so the data folder belongs under the user profile. `share.sh` runs under Git Bash;
-`share.py` runs directly. cloudflared install hints are in `plugins/planning/prerequisites.json`.
+a pid the OS reused is never stopped. Detached children start in the data folder.
+
+File modes are 0600 where the OS has them. Windows has none here, so `ensure-running` and the
+server refuse (exit 1) a data folder outside `%USERPROFILE%`, whose inherited access limits it to
+the user, administrators and SYSTEM; the runtime sets no access list of its own. On WSL they refuse a data folder on a DrvFs mount (`/mnt/<drive>`)
+unless it is mounted with `metadata`, since without it every file there is readable by all. On
+Windows cloudflared is looked up with `NoDefaultCurrentDirectoryInExePath=1`, and a match in the
+current folder is refused, so a `cloudflared.exe` planted there never runs. `share.sh` runs under
+Git Bash; `share.py` runs directly. cloudflared install hints are in
+`plugins/planning/prerequisites.json`.
 
 ## Load
 

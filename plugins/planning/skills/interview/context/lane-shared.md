@@ -120,7 +120,7 @@ against `<plugin-root>/shared/schema/ops.schema.json` before any lands, and all 
 | `result` | `qid`, `request`, `kind`, `used`, `why`, `summary`, `sources`, `report` | Attach a request's result |
 | `fail-request` | `request`, `reason` | A request that cannot be done |
 | `add-reference`, `remove-reference` | `qid`, `reference` / `index` | A screenshot, quoted excerpt or link on a question |
-| `add-asset` | `path`, `as`, `scale` | Copy an image or HTML file from the data dir or the system temp dir into the session; returns its id |
+| `add-asset` | `path`, `as`, `scale` | Copy an image or HTML file from the data dir (save captures in `<data_dir>/staging/`) into the session; returns its id |
 | `make-question-from` | `proposal`, `question` | The owner asked in the terminal to turn a proposal into a question |
 | `handle` | `seqs` | Mark events handled |
 
@@ -230,8 +230,9 @@ their yes.
 
 A question about something visible names its scope ([`question-shape.md`](question-shape.md)) and
 shows it as it is now: capture the view fresh at publish time at 2x with whatever capture tool this
-session has (a browser automation skill, a screenshot CLI), save it under the data dir or the system
-temp dir, `add-asset` it with `scale: 2` in one apply, then use its id in the next.
+session has (a browser automation skill, a screenshot CLI), save it in `<data_dir>/staging/` (the
+server makes it private; `add-asset` refuses the system temp dir and any hidden folder), `add-asset`
+it with `scale: 2` in one apply, then use its id in the next.
 
 ## Restart, status and several sessions
 
