@@ -259,14 +259,15 @@ t_rename_is_not_a_removal() {
   fi
 }
 
-# drop_fragments <repo> <consume> -- 30 existing plugin changelogs, a recent
-# commit adding ten-line .changes/ fragments (300 lines), then a commit
-# deleting every fragment. With consume=yes that commit also appends the
-# fragments to the changelogs, as scripts/release-plugins.sh does. The
-# changelogs pre-exist so the fragments report as deletions, not renames.
+# drop_fragments <repo> <consume> -- 31 existing plugin changelogs, a recent
+# commit adding ten-line .changes/ fragments for plugin1..30 (300 lines), then
+# a commit deleting every fragment. consume=yes also appends the fragments to
+# their own changelogs, as scripts/release-plugins.sh does; consume=other
+# edits only plugin0's changelog, which has no fragments. The changelogs
+# pre-exist so the fragments report as deletions, not renames.
 drop_fragments() {
   local repo="$1" consume="$2" i j
-  for i in $(seq 1 30); do
+  for i in $(seq 0 30); do
     mkdir -p "$repo/plugins/plugin$i" "$repo/.changes/plugin$i"
     printf '# Changelog for plugin%s\n\n## 1.0.0\n\n- First release.\n' "$i" \
       >"$repo/plugins/plugin$i/CHANGELOG.md"
@@ -286,6 +287,8 @@ drop_fragments() {
     for i in $(seq 1 30); do
       cat "$repo/.changes/plugin$i/fix-guard-0123abcd.md" >>"$repo/plugins/plugin$i/CHANGELOG.md"
     done
+  elif [[ "$consume" = other ]]; then
+    printf -- '- An unrelated plugin0 note.\n' >>"$repo/plugins/plugin0/CHANGELOG.md"
   fi
   git_test_config "$repo" rm -rq .changes >/dev/null
   git_test_config "$repo" add -A >/dev/null
@@ -305,18 +308,26 @@ t_release_consuming_fragments_is_not_a_removal() {
   fi
 }
 
-t_fragments_dropped_without_changelog_still_fire() {
+assert_fragment_drop_fires() { # <consume> <label>
   local repo sink
   mk_repo repo
-  drop_fragments "$repo" no
+  drop_fragments "$repo" "$1"
   sink="$(mktemp "$TMP/x.XXXX")"
   FINDINGS_SINK="$sink" run_canary "$repo" --commit HEAD
-  if [[ "$RC" -eq 1 ]] && grep -qE '^[0-9a-f]{40} 300$' "$sink"; then
-    ok "dropping 300 lines of recent .changes/ fragments with no CHANGELOG change fires (threshold 200)"
+  if [[ "$RC" -eq 1 ]] && grep -qxE '[0-9a-f]{40} 300' "$sink" && [[ "$(wc -l <"$sink")" -eq 1 ]]; then
+    ok "$2 (300 lines, threshold 200)"
   else
-    fail "unconsumed fragment drop must fire 300, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+    fail "$2: want one 300-line finding, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
   fi
   rm -f "$sink"
+}
+
+t_fragments_dropped_without_changelog_still_fire() {
+  assert_fragment_drop_fires no "dropping recent .changes/ fragments with no CHANGELOG change fires"
+}
+
+t_fragments_dropped_beside_another_changelog_still_fire() {
+  assert_fragment_drop_fires other "dropping recent .changes/ fragments while editing a different plugin's CHANGELOG fires"
 }
 
 # The attribution counts must not depend on the CALLER'S GIT CONFIG. They are
@@ -2382,6 +2393,7 @@ t_does_not_sum_across_culprits
 t_rename_is_not_a_removal
 t_release_consuming_fragments_is_not_a_removal
 t_fragments_dropped_without_changelog_still_fire
+t_fragments_dropped_beside_another_changelog_still_fire
 t_counts_are_immune_to_ambient_git_config
 t_rename_pin_is_load_bearing
 t_minus_diff_lock_file_is_attributed

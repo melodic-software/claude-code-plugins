@@ -870,18 +870,18 @@ scan_commit() {
   # pre-passes are not limit-gated; only the inexact pass is. This flag
   # is a behavior change, not a pin, and it is inert on attribute_file
   # (pathspec-limited, no pair can form).
-  # A commit that changes a plugins/*/CHANGELOG.md is consuming .changes/
-  # fragments into it (scripts/release-plugins.sh), not removing them, so
-  # its fragment deletions are skipped; anywhere else they still count.
-  local -a scope=()
-  local changelog_rc=0
-  git diff --quiet --no-ext-diff --no-textconv "$parent" "$sha" \
-    -- 'plugins/*/CHANGELOG.md' || changelog_rc=$?
-  case "$changelog_rc" in
-  0) ;;
-  1) scope=(-- . ':(exclude).changes/') ;;
-  *) die "git diff failed checking $sha for CHANGELOG changes (exit $changelog_rc)" ;;
-  esac
+  # A commit that changes plugins/<p>/CHANGELOG.md is consuming .changes/<p>/
+  # into it (scripts/release-plugins.sh), not removing it, so those fragment
+  # deletions are skipped; every other plugin's still count.
+  local -a scope=(-- .)
+  local p
+  run_attributing_git "$enum_list" \
+    "git diff --name-only failed enumerating CHANGELOG changes in $sha" \
+    diff --name-only --no-renames "$parent" "$sha" -- ':(glob)plugins/*/CHANGELOG.md'
+  while IFS= read -r p; do
+    p="${p#plugins/}"
+    scope+=(":(exclude,literal).changes/${p%/CHANGELOG.md}/")
+  done <"$enum_list"
   run_attributing_git "$enum_list" \
     "git diff --name-only failed enumerating $sha" \
     diff --name-only -z -M -l0 --diff-filter=MD "$parent" "$sha" "${scope[@]}"
