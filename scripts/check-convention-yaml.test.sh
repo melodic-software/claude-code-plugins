@@ -206,6 +206,34 @@ new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put docs/convent
 run_sut
 if [[ $RC -eq 0 && "$LOG" == *alpha.yaml* ]]; then ok "$label"; else fail "$label: $(state)"; fi
 
+# 10c. The source-control schema's pre_ready list, against the real validator:
+#      a list of {step, enabled} mappings passes; an unknown step, a non-boolean
+#      enabled, a missing enabled and a mapping keyed by step each fail.
+if command -v check-jsonschema >/dev/null 2>&1; then
+  schema_src="$SCRIPT_DIR/../plugins/source-control/schemas/source-control.schema.json"
+  label="a valid pre_ready list validates against the source-control schema"
+  new_repo && put plugins/source-control/schemas/source-control.schema.json "$(cat "$schema_src")" &&
+    put docs/conventions/source-control.yaml $'pre_ready:\n  - step: code-review\n    enabled: false\n  - step: verify\n    enabled: true'
+  run_sut CHECK_JSONSCHEMA_BIN=check-jsonschema
+  if [[ $RC -eq 0 ]]; then ok "$label"; else fail "$label: $(state)"; fi
+  names=('an unknown step' 'a non-boolean enabled' 'a missing enabled' 'a mapping keyed by step')
+  bodies=($'pre_ready:\n  - step: lint\n    enabled: false' $'pre_ready:\n  - step: verify\n    enabled: maybe'
+    $'pre_ready:\n  - step: verify' $'pre_ready:\n  verify:\n    enabled: false')
+  for i in "${!names[@]}"; do
+    label="pre_ready with ${names[i]} fails the source-control schema"
+    new_repo && put plugins/source-control/schemas/source-control.schema.json "$(cat "$schema_src")" &&
+      put docs/conventions/source-control.yaml "${bodies[i]}"
+    run_sut CHECK_JSONSCHEMA_BIN=check-jsonschema
+    if [[ $RC -eq 1 && "$ERR" == *"docs/conventions/source-control.yaml: does not validate against plugins/source-control/schemas/source-control.schema.json"* ]]; then
+      ok "$label"
+    else
+      fail "$label: $(state)"
+    fi
+  done
+else
+  printf 'skip: check-jsonschema not on PATH; the pre_ready schema cases did not run\n'
+fi
+
 # 11. A missing runtime parser is an environment failure.
 label="missing lib/yaml-subset.awk exits 2"
 new_repo && put docs/conventions/alpha.yaml 'mode: on' && put plugins/alpha/schemas/alpha.schema.json '{}'

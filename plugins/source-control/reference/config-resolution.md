@@ -151,8 +151,8 @@ has no H2 in
 `.claude/source-control.md`. Its team value lives in `docs/conventions/source-control.yaml` at the
 repo root, a YAML mapping validated by
 [`schemas/source-control.schema.json`](../schemas/source-control.schema.json), and its per-user
-value is the `userConfig` option of the same name. No script reads these keys: the skill that uses
-one reads the file itself.
+value is the `userConfig` option of the same name, where one exists. The skill that uses a key
+reads the file itself, through a script where the key names one below.
 
 - `pr_open_state`: the state `/source-control:pull-request create` leaves a pull request in,
   `ready` or `draft`. Create always opens a draft; with `ready` it then runs
@@ -177,6 +177,13 @@ one reads the file itself.
   `source-control.md` layer is not read. `create` reports which level supplied the value. The
   `userConfig` option declares `draft` as its default, so a substituted `draft` is reported as the
   default level: the two give the same result.
+- `pre_ready`: which pre-flip steps `/source-control:pull-request ready` runs, a list of
+  `{step, enabled}` mappings over `base-merge`, `plan-evidence`, `code-review`, `security-review`
+  and `verify`; a step the list leaves out runs. Team level only, with no `userConfig` option: a
+  person cannot switch off a repository's gates. Read at the pull request's base branch, never the
+  head, by `skills/pull-request/scripts/read-pre-ready.sh`, which runs every step when the key is
+  missing or the list cannot be trusted. Semantics and the report:
+  [ready-for-review.md](../skills/pull-request/reference/ready-for-review.md#read-which-pre-flip-steps-run).
 
 ## Review-bot triage rubric (`docs/conventions/source-control.md`)
 
