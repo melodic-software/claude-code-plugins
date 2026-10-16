@@ -42,7 +42,7 @@ on:
   # Every 15 minutes the lane looks at every candidate. This is how it sees
   # checks or reviews that finished, a review thread resolved, or a PR dropped
   # from the merge queue. It does not wake on each CI or review completion:
-  # those arrive faster than runs finish, and the waiting runs overflowed the
+  # those arrive faster than runs finish, which would overflow the
   # concurrency queue below. Its summary also lists candidates that are still
   # blocked and have not changed for over 24 hours.
   schedule:
