@@ -440,9 +440,11 @@ While `merge.report-only` is true, the workflow starts no full CI run either; it
 whether it would have.
 
 `.github/workflows/pr-merge.yml` runs the lane's `merge-pr` activity with no model and no head
-checkout. A finished `ci-status` or review run, a label, body or ready change on a PR, a manual
-dispatch and an hourly schedule each only wake it; it lists the candidates from the API and runs the
-gate on each under the lanes App token the broker mints for that file on `main`.
+checkout. A label, body or ready change on a PR, a manual dispatch and a schedule every 15 minutes
+each only wake it; it lists the candidates from the API and runs the gate on each under the lanes
+App token the broker mints for that file on `main`. A finished `ci-status` or review run does not
+wake it: those finish faster than serialized runs drain, and the waiting runs overflowed the
+concurrency group's queue, which GitHub caps at 100 and past which it rejects runs.
 
 ## Trust-root paths
 
