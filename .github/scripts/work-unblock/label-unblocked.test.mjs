@@ -1,7 +1,8 @@
 // Expected values come from issue #7599: when an issue closes, each issue it
-// blocked gets `agent-ready` only when every blocker is closed, it is open,
-// it carries no hold label, and the owner ratified it with the admission
-// marker (the resolve-issue lane's rule, #7610). Every fact is read from the
+// blocked gets `agent-ready` only when every blocker is closed as completed,
+// it is open, it carries no hold label, the owner ratified it with the
+// admission marker, and it carries no work class resolve-issue refuses (the
+// resolve-issue lane's rule, #7610). Every fact is read from the
 // API when the run starts, never from the event payload. The kill switch and
 // a close by any bot sender stop the run before any API call.
 import assert from "node:assert/strict";
@@ -11,7 +12,12 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { checkCloser, main } from "./label-unblocked.mjs";
+import { checkCloser, main as runMain } from "./label-unblocked.mjs";
+
+// resolve-issue's admission in docs/conventions/pr-pipeline.yaml; the
+// resolve-config live-config test checks the script's reader returns it.
+const ADMISSION = { classes: ["work-class: read-only", "work-class: mechanical"], ratified: true };
+const main = (args) => runMain({ admission: ADMISSION, ...args });
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TRUSTED = join(HERE, "../../actions/check-trusted-trigger/fixtures/trusted-actors.json");
@@ -22,9 +28,10 @@ const LANES_APP_ID = 337595936;
 const MARKER = "<!-- admission: admitted when unblocked, owner batch ratification 2026-10-16 -->";
 const STAMP = "2026-10-16T12:00:00Z";
 
-const issue = (number, { state = "open", labels = [], repo = REPO } = {}) => ({
+const issue = (number, { state = "open", reason = state === "closed" ? "completed" : null, labels = [], repo = REPO } = {}) => ({
   number,
   state,
+  state_reason: reason,
   labels: labels.map((name) => ({ name })),
   repository_url: `${API}/repos/${repo}`,
 });
@@ -114,6 +121,47 @@ test("an issue held by needs-owner-decision, status: needs-decision or needs-hum
     assert.equal(await main({ env: envFor(), github }), 0);
     assert.deepEqual(writes(calls), [], hold);
   }
+});
+
+test("a hold or agent-ready label in another casing still counts", async () => {
+  for (const label of ["Needs-Human", "Agent-Ready"]) {
+    const { github, calls } = oneDependent({ labels: [label] });
+    assert.equal(await main({ env: envFor(), github }), 0);
+    assert.deepEqual(writes(calls), [], label);
+  }
+});
+
+test("a blocker closed as not planned or duplicate still blocks", async () => {
+  for (const reason of ["not_planned", "duplicate"]) {
+    const { github, calls } = world({
+      blocking: [issue(20)],
+      issues: { 20: issue(20) },
+      blockedBy: { 20: [issue(10, { state: "closed", reason })] },
+      comments: { 20: [marker()] },
+    });
+    assert.equal(await main({ env: envFor(), github }), 0);
+    assert.deepEqual(writes(calls), [], reason);
+  }
+});
+
+test("a ratified issue with a work class resolve-issue does not admit stays unlabeled, even beside an admitted one", async () => {
+  for (const labels of [["work-class: feature"], ["work-class: mechanical", "Work-Class: Feature"]]) {
+    const { github, calls } = oneDependent({ labels });
+    assert.equal(await main({ env: envFor(), github }), 0);
+    assert.deepEqual(writes(calls), [], JSON.stringify(labels));
+  }
+});
+
+test("a ratified issue with an admitted work class is labeled", async () => {
+  const { github, calls } = oneDependent({ labels: ["work-class: mechanical"] });
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
+});
+
+test("an admitted work class without the marker stays unlabeled", async () => {
+  const { github, calls } = oneDependent({ labels: ["work-class: read-only"], comments: [] });
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.deepEqual(writes(calls), []);
 });
 
 test("an issue with no admission marker stays unlabeled", async () => {

@@ -4,9 +4,10 @@ name: work-unblock
 #
 # When an issue closes, each issue it was blocking may now be ready to work.
 # This workflow labels `agent-ready` each blocked issue that is open, has every
-# blocker closed, carries no hold label (needs-owner-decision,
-# status: needs-decision, needs-human), and that the owner ratified with the
-# admission marker comment the resolve-issue lane reads. That label starts
+# blocker closed as completed, carries no hold label (needs-owner-decision,
+# status: needs-decision, needs-human) and no work class resolve-issue refuses,
+# and that the owner ratified with the admission marker comment the
+# resolve-issue lane reads. That label starts
 # work-resolve-issue.yml once resolve-issue accepts App-added labels
 # (follow-up by Automation Lanes); until then it marks the issue only. The
 # rules are in
@@ -100,9 +101,15 @@ jobs:
       # token for this repository only, with the resolved grant (issues:
       # write, contents: read, pull-requests: read). The step fails red unless
       # the broker granted exactly that.
+      - name: Report a lane the config turns off
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies != 'true'
+        env:
+          REASON: ${{ steps.config.outputs.skip-reason }}
+        run: echo "::notice::label-unblocked does not apply (${REASON:-no reason}); nothing read or labeled"
+
       - name: Request the lane token
         id: lane-token
-        if: steps.config.outcome == 'success'
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
         uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
         with:
           broker-url: ${{ vars.LANES_BROKER_URL }}

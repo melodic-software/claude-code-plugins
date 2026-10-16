@@ -136,8 +136,9 @@ activities:
     inputs: [pr, head-sha]
   label-unblocked:
     # When an issue closes, labels agent-ready each issue it blocked whose
-    # blockers are all closed, that carries no hold label, and that the owner
-    # ratified with the admission marker resolve-issue reads. The label starts
+    # blockers are all closed as completed, that carries no hold label, that
+    # the owner ratified with the admission marker resolve-issue reads, and
+    # that resolve-issue's admission admits. The label starts
     # resolve-issue once resolve-issue accepts App-added labels (follow-up by
     # Automation Lanes). A script, no model. .github/workflows/work-unblock.yml
     # runs it.

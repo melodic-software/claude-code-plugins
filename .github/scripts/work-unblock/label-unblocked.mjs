@@ -2,10 +2,11 @@
 // label-unblocked.mjs: when an issue closes, labels `agent-ready` each issue
 // it blocked that is now ready for the resolve-issue lane (the label starts
 // that lane once resolve-issue accepts App-added labels, a follow-up by
-// Automation Lanes): open, every
-// blocker closed, no hold label, not already agent-ready, and ratified by the
-// owner's admission marker (the resolve-issue lane's own check). Every fact
-// is read from the API now, never from the event payload. No model.
+// Automation Lanes): open, every blocker closed as completed, no hold label,
+// not already agent-ready, ratified by the owner's admission marker, and
+// admitted by resolve-issue's own admission rule (no work class outside its
+// classes). Every fact is read from the API now, never from the event
+// payload. No model.
 //
 // Environment:
 //   GH_TOKEN               the lane App token (issues: write)
@@ -16,6 +17,8 @@
 //   KILL_SWITCH            `proceed` from the kill-switch step; anything else stops
 //   TRUSTED_ACTORS_PATH    trusted-actors.json from the default branch tip
 //   ACTOR_ID, TRIGGERING_ACTOR  who closed the issue; must be one listed human
+//   BASE_PATH              the default branch checkout (default `.base`), whose
+//                          pr-pipeline.yaml holds resolve-issue's admission
 //   GITHUB_API_URL
 import { readFileSync } from "node:fs";
 import process from "node:process";
@@ -23,6 +26,7 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
+import { admits } from "../../actions/resolve-config/predicate.mjs";
 import { findRatification } from "../../actions/resolve-config/ratification.mjs";
 
 const LABEL = "agent-ready";
@@ -45,30 +49,44 @@ export function checkCloser(env) {
 const escapeCommand =(text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
 // Why `number` is not promoted, or null when it is ready.
-async function refusal({ github, repo, number, ratifiers }) {
+async function refusal({ github, repo, number, ratifiers, admission }) {
   const base = `/repos/${repo}/issues/${number}`;
   const current = await github("GET", base);
   if (current.state !== "open") {
     return "not open";
   }
   const labels = (current.labels ?? []).map((label) => (typeof label === "string" ? label : label.name));
-  const held = labels.find((label) => HOLDS.has(label));
+  const lower = labels.map((label) => String(label).toLowerCase());
+  const held = lower.find((label) => HOLDS.has(label));
   if (held) {
     return `held by ${held}`;
   }
-  if (labels.includes(LABEL)) {
+  if (lower.includes(LABEL)) {
     return `already ${LABEL}`;
   }
+  // A blocker closed as not planned or duplicate never did the work, and its
+  // author can close it, so only a completed close counts.
   const blockers = await paginate(github, `${base}/dependencies/blocked_by`);
-  const open = blockers.filter((blocker) => blocker.state !== "closed").length;
-  if (open > 0) {
-    return `${open} blocker(s) still open`;
+  const pending = blockers.filter((blocker) => blocker.state !== "closed" || blocker.state_reason !== "completed").length;
+  if (pending > 0) {
+    return `${pending} blocker(s) not closed as completed`;
   }
   const ratifying = findRatification(await paginate(github, `${base}/comments`), ratifiers);
-  return ratifying === undefined ? "no admission marker from a listed human" : null;
+  if (ratifying === undefined) {
+    return "no admission marker from a listed human";
+  }
+  return admits(admission, labels, { ratified: true }) ? null : "a work class resolve-issue does not admit";
 }
 
-export async function main({ env = process.env, github } = {}) {
+// resolve-issue's admission, from the validated config on the default branch.
+// Imported here, not at the top: the resolver's dependencies are installed by
+// the resolve-config step that runs before this one.
+async function loadAdmission(env) {
+  const { readAdmission } = await import("../../actions/resolve-config/resolve-config.mjs");
+  return readAdmission({ basePath: env.BASE_PATH || ".base", activity: "resolve-issue" });
+}
+
+export async function main({ env = process.env, github, admission } = {}) {
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
@@ -94,6 +112,7 @@ export async function main({ env = process.env, github } = {}) {
     const repo = env.GITHUB_REPOSITORY;
     const closed = Number(event.issue.number);
     const ratifiers = loadTrustedList(env.TRUSTED_ACTORS_PATH).humans;
+    admission ??= await loadAdmission(env);
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     const blocked = await paginate(github, `/repos/${repo}/issues/${closed}/dependencies/blocking`);
     let failed = 0;
@@ -105,7 +124,7 @@ export async function main({ env = process.env, github } = {}) {
         continue;
       }
       try {
-        const reason = await refusal({ github, repo, number, ratifiers });
+        const reason = await refusal({ github, repo, number, ratifiers, admission });
         if (reason !== null) {
           console.log(`label-unblocked: #${number} not labeled: ${reason}`);
           continue;

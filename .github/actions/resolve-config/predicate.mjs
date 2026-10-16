@@ -20,7 +20,7 @@ const normalClass = (label) => `work-class: ${label.replace(WORK_CLASS, "").trim
 // An issue carrying a work-class label outside `classes` is refused, even
 // beside a listed one. Otherwise it is admitted by a listed class or, with
 // `ratified`, by the owner's ratification marker (the `ratified` fact).
-function admits({ classes, ratified }, labels, facts) {
+export function admits({ classes, ratified }, labels, facts) {
   const allowed = new Set(classes.map(normalClass));
   if (labels.some((label) => WORK_CLASS.test(label) && !allowed.has(normalClass(label)))) {
     return false;
