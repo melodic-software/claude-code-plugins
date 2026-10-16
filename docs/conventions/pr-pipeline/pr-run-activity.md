@@ -399,8 +399,9 @@ A slash command whose expansion fails ends with a `success` result and no model 
 reports success, but the skill did nothing. A skill pre-compute (`` !`...` ``) line with a command
 that matches no `allowed-tools` grant does this under `--permission-mode dontAsk`. A step after the
 skill reads the execution file and fails when `num_turns` is 0 or `modelUsage` is empty. It writes
-`subtype`, `is_error`, `num_turns`, `duration_ms`, the model names, and any `<local-command-stderr>`
-text (lane token cut out) to the step summary and to `act-turns.json` in the same artifact. The
+`subtype`, `is_error`, `num_turns`, `duration_ms`, the model names, any `<local-command-stderr>`
+text, and in the write file `denied`, each command the permission mode denied cut to 300
+characters (lane token cut out of both) to the step summary and to `act-turns.json` in the same artifact. The
 full execution file is not uploaded: it holds head text and tool output.
 
 ### Script activities
