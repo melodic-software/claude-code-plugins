@@ -80,6 +80,29 @@ on:
         required: false
         type: string
         default: ""
+      review-replies:
+        description: >-
+          For the reply script of an address-feedback round: download the
+          review-thread replies the model run uploaded in this workflow run
+          and pass them to the script as FEEDBACK_REPLIES_DIR.
+        required: false
+        type: boolean
+        default: false
+      review-run-sha256:
+        description: >-
+          With review-replies, the model run's feedback-run-sha256 output; the
+          reply script refuses a run.json with any other SHA-256.
+        required: false
+        type: string
+        default: ""
+      review-run-attempt:
+        description: >-
+          With review-replies, the model run's feedback-run-attempt output:
+          the attempt whose replies artifact to download. Empty downloads
+          nothing, which the reply script refuses as feedback-invalid.
+        required: false
+        type: string
+        default: ""
     secrets:
       claude-code-oauth-token:
         description: Claude Code OAuth token for skill activities.
@@ -87,10 +110,32 @@ on:
     outputs:
       escalation-reason:
         description: >-
-          Why a prepare: merge-base activity handed the PR to a person:
+          Why the activity handed the PR to a person: for merge-base
           protected-path-conflict, workflow-staged, repeat-cap or
-          unresolved-conflict; empty otherwise. Set only by runner steps.
+          unresolved-conflict; for review-threads, before any model turn,
+          feedback-protected-path or feedback-round-cap; for the
+          review-replies script feedback-uncertain, feedback-not-landed or
+          feedback-invalid or feedback-partial; empty otherwise. Set only by runner steps and the
+          base's reply script.
         value: ${{ jobs.run.outputs.escalation-reason }}
+      feedback-round:
+        description: >-
+          `true` once a review-threads skill ran, so the round's replies were
+          uploaded (or the run ended before they could be) and its reply job
+          must run. Set only by runner steps.
+        value: ${{ jobs.run.outputs.feedback-round }}
+      feedback-run-sha256:
+        description: >-
+          The SHA-256 of the run.json the review-threads runner step wrote;
+          the caller passes it to the reply job as review-run-sha256. Set only
+          by runner steps.
+        value: ${{ jobs.run.outputs.feedback-run-sha256 }}
+      feedback-run-attempt:
+        description: >-
+          The run attempt whose feedback-replies-<attempt> artifact holds the
+          round's replies; the caller passes it to the reply job as
+          review-run-attempt. Set only by runner steps.
+        value: ${{ jobs.run.outputs.feedback-run-attempt }}
       issue-run-started:
         description: >-
           Issue mode: `true` once the run got its lane token, so its outcome
@@ -127,7 +172,10 @@ jobs:
     # turn terms only turn a success into a failure. merge-state and a
     # pre-model escalation-reason come from the prepare step, before any
     # model turn; a post-model escalation-reason comes from post.sh after it,
-    # and a forged one can only hand the PR to a person.
+    # and a forged one can only hand the PR to a person. In review-threads
+    # mode the select step decides before any model turn; the reply job's
+    # escalation-reason comes from the base's reply script, which runs no
+    # model and no head code.
     outputs:
       base-sha: ${{ steps.trusted-base.outputs.commit }}
       head-sha: ${{ steps.gate.outputs.head-sha }}
@@ -139,7 +187,14 @@ jobs:
         || '' }}
       can-commit: ${{ steps.config.outputs.can-commit }}
       merge-state: ${{ steps.prepare.outputs.merge-state }}
-      escalation-reason: ${{ steps.prepare.outputs.escalation-reason || steps.post.outputs.escalation-reason }}
+      escalation-reason: >-
+        ${{ steps.prepare.outputs.escalation-reason || steps.post.outputs.escalation-reason
+        || steps.feedback-select.outputs.escalation-reason || steps.act-script.outputs.escalation-reason }}
+      feedback-round: >-
+        ${{ steps.config.outputs.prepare == 'review-threads'
+        && steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome != '' }}
+      feedback-run-sha256: ${{ steps.feedback-collect.outputs.run-sha256 }}
+      feedback-run-attempt: ${{ steps.feedback-collect.outcome == 'success' && github.run_attempt || '' }}
       issue-run-started: ${{ inputs.issue-number != '' && steps.lane-token.outcome == 'success' }}
       # A gate skill succeeds only on a `pass` verdict, a skill that took no
       # model turn fails, and a skill whose commits could not be moved onto
@@ -197,6 +252,8 @@ jobs:
           fi
           case $ESCALATION_REASON in
             "" | protected-path-conflict | workflow-staged | repeat-cap | unresolved-conflict) ;;
+            feedback-protected-path | feedback-round-cap | feedback-uncertain | feedback-not-landed | feedback-invalid) ;;
+            feedback-partial) ;;
             *)
               echo "::error::the escalation-reason input is not a known escalation reason"
               exit 1
@@ -278,6 +335,26 @@ jobs:
           # commit steps below).
           prepare-supported: "true"
 
+      # review-threads, before the mint and any model turn, with the job's
+      # read-only token: keeps the unresolved threads whose every comment is
+      # the reviewer bot's, on a head a review lane's marker confirms, then
+      # skips (none), escalates (a .github/** diff, or the round cap) or
+      # writes the thread file the skill's review-thread tool reads.
+      - name: Select the review threads
+        id: feedback-select
+        if: steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'review-threads'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          LANE_BRANCH: ${{ format('lane-commits/{0}/{1}/{2}-{3}', inputs.lane, inputs.activity, github.run_id, github.run_attempt) }}
+          FEEDBACK_DIR: ${{ runner.temp }}/lane-feedback
+          TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
+        run: |
+          mkdir -p "$FEEDBACK_DIR"
+          THREAD_FILE="$FEEDBACK_DIR/threads.json" node .base/.github/scripts/pr-unblock/address-feedback.mjs select
+
       # A read activity belongs in pr-run-activity-read.yml, whose run holds no
       # App key; the caller chose the wrong file.
       - name: Assert the effect is not read
@@ -293,7 +370,9 @@ jobs:
       # on the gated head. Every later step keys on proceed.
       - name: Re-read the PR head before the mint
         id: head-recheck
-        if: steps.config.outputs.applies == 'true' && steps.config.outputs.effect != 'read'
+        if: >-
+          steps.config.outputs.applies == 'true' && steps.config.outputs.effect != 'read'
+          && steps.feedback-select.outputs.proceed != 'false'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           EFFECT: ${{ steps.config.outputs.effect }}
@@ -415,6 +494,32 @@ jobs:
           else
             echo "sha256=absent" >>"$GITHUB_OUTPUT"
           fi
+
+      # review-replies: the reply script reads the model run's artifact from
+      # this workflow run, and the base's trusted-actors list for the reviewer
+      # bot's id, both before the head checkout replaces .base. A missing
+      # artifact leaves the directory empty, which the script refuses as
+      # feedback-invalid after it still records the round.
+      - name: Download the review-thread replies
+        if: >-
+          steps.head-recheck.outputs.proceed == 'true' && inputs.review-replies
+          && steps.config.outputs.kind == 'script' && inputs.review-run-attempt != ''
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          # The model job's attempt, not this one: "Re-run failed jobs" on
+          # this job alone keeps the model job's outputs from its attempt.
+          name: feedback-replies-${{ inputs.review-run-attempt }}
+          path: ${{ runner.temp }}/feedback-replies
+
+      - name: Copy the trusted actors for the reply script
+        id: reply-actors
+        if: >-
+          steps.head-recheck.outputs.proceed == 'true' && inputs.review-replies
+          && steps.config.outputs.kind == 'script'
+        env:
+          COPY: ${{ runner.temp }}/base-script/.trusted-actors.json
+        run: cp .base/.github/standards/trusted-actors/trusted-actors.json "$COPY"
 
       # prepare: merge-base runs the base's merge scripts and the base's
       # version-bump script, never the head's: copied out here, each with its
@@ -989,11 +1094,16 @@ jobs:
           MERGE_BASE: ${{ steps.config.outputs.prepare == 'merge-base' }}
           COMMIT_OUTCOME: ${{ steps.commit.outcome }}
           COMMIT_SHA: ${{ steps.commit.outputs.commit }}
+          # review-threads mode moves the PR branch only when the lane branch
+          # changes nothing but the kept threads' paths, none under .github/.
+          THREAD_FILE: >-
+            ${{ steps.config.outputs.prepare == 'review-threads'
+            && format('{0}/lane-feedback/threads.json', runner.temp) || '' }}
         with:
           github-token: ${{ steps.lane-token.outputs.token }}
           retries: 0
           script: |
-            const { HEAD_SHA, HEAD_REF, LANE_BRANCH, MERGE_BASE, COMMIT_OUTCOME, COMMIT_SHA } = process.env;
+            const { HEAD_SHA, HEAD_REF, LANE_BRANCH, MERGE_BASE, COMMIT_OUTCOME, COMMIT_SHA, THREAD_FILE } = process.env;
             const tip = async (branch) =>
               (await github.request('GET /repos/{owner}/{repo}/git/ref/{ref}', { ...context.repo, ref: `heads/${branch}` }))
                 .data.object.sha;
@@ -1006,6 +1116,17 @@ jobs:
               if (MERGE_BASE === 'true' && (COMMIT_OUTCOME !== 'success' || !COMMIT_SHA || lane !== COMMIT_SHA)) {
                 core.setFailed(`The lane branch is at ${lane}, not a merge commit the commit step made; the PR branch is not moved`);
                 return;
+              }
+              if (THREAD_FILE) {
+                const paths = new Set(JSON.parse(require('fs').readFileSync(THREAD_FILE, 'utf8')).threads.map((t) => t.path));
+                const { data } = await github.rest.repos.compareCommitsWithBasehead({ ...context.repo, basehead: `${HEAD_SHA}...${lane}` });
+                const bad = data.files.length >= 300 ? ['(300 or more files)'] : data.files
+                  .flatMap((f) => [f.filename, f.previous_filename].filter(Boolean))
+                  .filter((p) => !paths.has(p) || /^\.github(\/|$)/i.test(p));
+                if (bad.length > 0) {
+                  core.setFailed(`The lane branch changes a path no kept thread names or under .github/ (${bad.slice(0, 5).join(', ')}); the PR branch is not moved`);
+                  return;
+                }
               }
               const head = await tip(HEAD_REF);
               if (head !== HEAD_SHA) {
@@ -1027,6 +1148,63 @@ jobs:
                 .deleteRef({ ...context.repo, ref: `heads/${LANE_BRANCH}` })
                 .catch((error) => core.warning(`Could not delete ${LANE_BRANCH}: ${error.message}`));
             }
+
+      # review-threads, after any model turn, also after a failed, cancelled
+      # or timed-out skill: this job posts nothing to the PR. run.json is the
+      # runner's own record, the gated head and the threads the select step
+      # kept with the comment ids the model was shown, built from the thread
+      # file the skill could not write. replies.jsonl is the review-thread
+      # tool's file, model output, copied one byte past the reply script's
+      # size limit so an oversized file is refused there. The reply job
+      # validates both and posts. A pinned action, like the promote step,
+      # since the activity could have changed PATH.
+      - name: Collect the review-thread replies
+        id: feedback-collect
+        if: >-
+          always() && steps.config.outputs.prepare == 'review-threads'
+          && steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome != ''
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          THREAD_FILE: ${{ runner.temp }}/lane-feedback/threads.json
+          REPLIES_FILE: ${{ runner.temp }}/lane-feedback-state/replies.jsonl
+          OUT_DIR: ${{ runner.temp }}/lane-feedback-out
+        with:
+          retries: 0
+          script: |
+            const fs = require('fs');
+            const { HEAD_SHA, THREAD_FILE, REPLIES_FILE, OUT_DIR } = process.env;
+            fs.rmSync(OUT_DIR, { recursive: true, force: true });
+            fs.mkdirSync(OUT_DIR);
+            const { threads } = JSON.parse(fs.readFileSync(THREAD_FILE, 'utf8'));
+            const run = {
+              version: 1,
+              head_sha: HEAD_SHA,
+              threads: threads.map((t) => ({ id: t.id, path: t.path, comment_ids: t.comments.map((c) => c.id) })),
+            };
+            const runText = `${JSON.stringify(run)}\n`;
+            fs.writeFileSync(`${OUT_DIR}/run.json`, runText);
+            core.setOutput('run-sha256', require('crypto').createHash('sha256').update(runText).digest('hex'));
+            let replies = Buffer.alloc(0);
+            if (fs.existsSync(REPLIES_FILE) && fs.lstatSync(REPLIES_FILE).isFile()) {
+              const fd = fs.openSync(REPLIES_FILE, 'r');
+              replies = Buffer.alloc(262145);
+              replies = replies.subarray(0, fs.readSync(fd, replies, 0, replies.length, 0));
+              fs.closeSync(fd);
+            }
+            fs.writeFileSync(`${OUT_DIR}/replies.jsonl`, replies);
+            core.info(`run.json names ${run.threads.length} kept thread(s); replies.jsonl holds ${replies.length} byte(s)`);
+
+      - name: Upload the review-thread replies
+        if: always() && steps.feedback-collect.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: feedback-replies-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/lane-feedback-out/run.json
+            ${{ runner.temp }}/lane-feedback-out/replies.jsonl
+          retention-days: 7
+          if-no-files-found: error
 
       # Issue mode: the lane branch is kept only when the skill committed to
       # it, and the report-outcome run reads its name from lane.json, written
@@ -1127,6 +1305,12 @@ jobs:
           SKIP_REASON_FILE: ${{ runner.temp }}/skip-reason
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           WORK_OUTCOME_DIR: ${{ runner.temp }}/work-outcome
+          # review-replies only; empty otherwise.
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          FEEDBACK_REPLIES_DIR: ${{ inputs.review-replies && format('{0}/feedback-replies', runner.temp) || '' }}
+          TRUSTED_ACTORS: ${{ inputs.review-replies && format('{0}/base-script/.trusted-actors.json', runner.temp) || '' }}
+          RUN_SHA256: ${{ inputs.review-run-sha256 }}
+          ESCALATION_REASON_FILE: ${{ runner.temp }}/escalation-reason
         run: |
           if [ "$TRACKER_SHA256" = absent ]; then
             if [ -e "$TRACKER_CONFIG" ]; then
@@ -1147,7 +1331,7 @@ jobs:
             export GH_TOKEN="$LANE_TOKEN"
           fi
           unset LANE_TOKEN RESOLVED
-          rm -f "$SKIP_REASON_FILE"
+          rm -f "$SKIP_REASON_FILE" "$ESCALATION_REASON_FILE"
           "$RUNNER_TEMP/base-script/$(basename "$SCRIPT")"
           reason=""
           if [ -s "$SKIP_REASON_FILE" ]; then
@@ -1158,6 +1342,17 @@ jobs:
             fi
           fi
           echo "skip-reason=$reason" >>"$GITHUB_OUTPUT"
+          # Only the reply script escalates from here, with its own reasons.
+          escalation=""
+          if [ -s "$ESCALATION_REASON_FILE" ]; then
+            escalation=$(head -n 1 "$ESCALATION_REASON_FILE" | tr -d '\r')
+            case "$FEEDBACK_REPLIES_DIR:$escalation" in
+              ?*:feedback-uncertain | ?*:feedback-not-landed | ?*:feedback-invalid) ;;
+              ?*:feedback-partial) ;;
+              *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
+            esac
+          fi
+          echo "escalation-reason=$escalation" >>"$GITHUB_OUTPUT"
 
       # Written after head code ran, so the report job only cross-checks it.
       - name: Write the verdict
@@ -1174,7 +1369,8 @@ jobs:
           SKIP_REASON: >-
             ${{ steps.config.outputs.skip-reason || steps.head-recheck.outputs.skip-reason
             || steps.prepare.outputs.skip-reason || steps.post.outputs.skip-reason
-            || steps.commit.outputs.skip-reason || steps.act-script.outputs.skip-reason }}
+            || steps.commit.outputs.skip-reason || steps.act-script.outputs.skip-reason
+            || steps.feedback-select.outputs.skip-reason }}
           ACT_OUTCOME: >-
             ${{ steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'
             && ((steps.post.outputs.escalation-reason != ''
