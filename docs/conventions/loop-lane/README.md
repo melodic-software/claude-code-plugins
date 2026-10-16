@@ -1217,7 +1217,7 @@ a checklist of its own:
 | Live re-check before posting | [`pr-run-activity.md`](../pr-pipeline/pr-run-activity.md) "prepare: review-threads" |
 | Post confirmed before it is recorded | §2 "Escalation record write" (record first, marker second); §4 "Telemetry comment" (post-write read-back); for overlapping runs, the research tracked in #7672 |
 | Config re-read each run from a store the lane cannot edit | §4 "Headless-config floor"; base-SHA config in `.github/workflows/pr-run-activity-read.yml`; [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md) decision 4, with the review and intake lanes tracked in #7234; for local lanes, the research tracked in #7680 |
-| Read-only access, and a cap on each run | ADR 0049 decision 3 (short-lived, scoped tokens); the per-surface permission modes in this repository's `AGENTS.md`; for run limits per task class, the mechanism tracked in #7677 |
+| Read-only access, and a cap on each run | Not met for read-only access: CI lanes hold the write token their job needs and every tool, the gap [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md) accepts and bounds with short-lived, scoped tokens (decision 3); for run limits per task class, the mechanism tracked in #7677 |
 
 Two related items sit outside the six rules: an external heartbeat for scheduled lanes (#7673) and
 the time zone a scheduled prompt names for dates (#7679).

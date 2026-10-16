@@ -96,7 +96,9 @@ amended by ADR 0038 and its own addendum.
 A lane asks for a role, and each role is assigned to one plan. A lane that self-runs `claude -p`
 or the Agent SDK may fall back, when it reaches its subscription limit, only to that plan's own
 linked-org credits; for a CI lane that fallback waits on probe #6962. The key is present only in
-the environment of the fallback run. A lane that runs the Claude Code GitHub Action is never given
+the environment of the fallback run, and never where the model's tools can read it: the launcher
+sets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` so the Bash commands, hooks and MCP servers the run starts
+get no credential (see [What the subprocess environment scrub removes](https://code.claude.com/docs/en/env-vars#what-the-subprocess-environment-scrub-removes)). A lane that runs the Claude Code GitHub Action is never given
 a key: a key set there replaces the lane's subscription token, and the credits do not cover Action
 runs. No lane rotates across linked orgs. When the plan's subscription window and its credits are
 both spent, the work queues with an operator alert, and the operator may reassign the role by hand.
