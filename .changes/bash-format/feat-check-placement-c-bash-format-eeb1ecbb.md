@@ -5,6 +5,7 @@ bump: minor
 ### Added
 
 - A git pre-commit entry, `shell-check`, that formats the staged `.sh` and `.bash` files an `.editorconfig` section governs, re-stages them, refuses a partly staged governed script untouched, and blocks a commit only on a ShellCheck finding (warning and above) on a line the commit adds. A staged script since deleted from the work tree is checked from the index, never rewritten or recreated. `/bash-format:setup apply install-git-hooks [scope=local|shared]` registers it with lefthook, husky or plain git hooks, and `check` reports its drift.
+- The pre-commit entry refuses a commit while an `.editorconfig` or `.shellcheckrc` above a staged script has an unstaged edit or deletion, naming the file, since shfmt and ShellCheck read the work tree's copy and the commit holds the index's.
 - The opt-in `bash_format_end_of_turn` option: when a turn ends, the ShellCheck half runs over the uncommitted changes, without rewriting, and hands its findings back, at most once per turn.
 - The SessionStart probe reports a missing, stale or edited git-hook entry once per session.
 

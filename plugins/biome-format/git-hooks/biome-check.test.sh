@@ -86,6 +86,29 @@ expect "a partly staged file is refused with the contract line" "1||a.ts: partly
 expect "a refused file is left byte for byte" "$(printf 'export const a=1\nexport const b=2')" "$(cat "$REPO/a.ts")"
 expect "a refused file's index entry is left byte for byte" "export const a=1" "$(git -C "$REPO" show :a.ts)"
 
+# Biome reads its config from the work tree; the commit holds the index's.
+DRIFT='config differs between the index and the work tree; stage it or restore it, then commit'
+new_repo
+printf 'export const a=1\n' >"$REPO/a.ts"
+git -C "$REPO" add a.ts
+rm "$REPO/biome.json"
+expect "a Biome config deleted from the work tree refuses the commit, naming it" "1||biome.json: $DRIFT" "$(check "$REPO")"
+expect "the refused file is left as it was" "export const a=1" "$(cat "$REPO/a.ts")"
+
+new_repo
+mkdir -p "$REPO/pkg"
+printf '{}\n' >"$REPO/pkg/biome.jsonc"
+git -C "$REPO" add pkg/biome.jsonc
+git -C "$REPO" commit -q -m config --no-verify
+printf 'export const a=1\n' >"$REPO/pkg/a.ts"
+git -C "$REPO" add pkg/a.ts
+printf '{ "formatter": { "enabled": false } }\n' >"$REPO/pkg/biome.jsonc"
+expect "a nested Biome config edited after staging refuses the commit" "1||pkg/biome.jsonc: $DRIFT" "$(check "$REPO")"
+printf 'export const b=2\n' >"$REPO/b.ts"
+git -C "$REPO" reset -q pkg/a.ts
+git -C "$REPO" add b.ts
+expect "a drifted config above no staged file does not refuse the commit" "0|b.ts|" "$(check "$REPO")"
+
 new_repo
 printf 'export const a=1\n' >"$REPO/a.ts"
 printf 'notes\n' >"$REPO/notes.md"
@@ -118,6 +141,7 @@ expect "staged then deleted: the config's ignores still hold" "0||" "$(check "$R
 git -C "$REPO" rm -q --cached gen/g.ts
 printf '{ "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true } }\n' >"$REPO/biome.json"
 printf 'vendor/\n' >"$REPO/.gitignore"
+git -C "$REPO" add biome.json .gitignore
 mkdir -p "$REPO/vendor"
 printf 'const unusedVar = 1;\n' >"$REPO/vendor/v.ts"
 printf 'const unusedVar = 1;\n' >"$REPO/kept.ts"
@@ -266,10 +290,12 @@ git -C "$REPO" reset -q
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOBIOME" bash "$CHECK" 2>&1)"
 expect "missing biome with nothing of Biome's staged: an agent is not failed" "0|" "$?|$out"
 
-# biome only in the repo's own node_modules/.bin, and only in a nested one.
+# biome only in the repo's own node_modules/.bin, and only in a nested one. The
+# stand-in runs biome on the suite's own PATH, since an npm-installed biome is a
+# node script and the PATH the check gets holds no node.
 new_repo
 mkdir -p "$REPO/node_modules/.bin"
-printf '#!/bin/sh\nexec "%s" "$@"\n' "$REAL_BIOME" >"$REPO/node_modules/.bin/biome"
+printf '#!/bin/sh\nPATH="%s" exec "%s" "$@"\n' "$PATH" "$REAL_BIOME" >"$REPO/node_modules/.bin/biome"
 chmod +x "$REPO/node_modules/.bin/biome"
 printf 'export const a=1\n' >"$REPO/a.ts"
 git -C "$REPO" add a.ts
@@ -278,7 +304,7 @@ expect "biome found in the repo's node_modules/.bin when PATH has none" "0|a.ts"
 
 new_repo NONE
 mkdir -p "$REPO/pkg/node_modules/.bin"
-printf '#!/bin/sh\nexec "%s" "$@"\n' "$REAL_BIOME" >"$REPO/pkg/node_modules/.bin/biome"
+printf '#!/bin/sh\nPATH="%s" exec "%s" "$@"\n' "$PATH" "$REAL_BIOME" >"$REPO/pkg/node_modules/.bin/biome"
 chmod +x "$REPO/pkg/node_modules/.bin/biome"
 printf '{}\n' >"$REPO/pkg/biome.json"
 printf 'export const a=1\n' >"$REPO/pkg/a.ts"

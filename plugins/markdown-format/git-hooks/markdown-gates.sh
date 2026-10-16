@@ -156,8 +156,8 @@ md_unpinnable_js() {
     -e "[\"'][[:space:]]*\+|\+[[:space:]]*[\"']" \
     -e "[\"'][^\"']*\\\\[uxUX0-7]" \
     "$1" 2>/dev/null && return 0
-  sed -E "s/(require|import)[[:space:]]*\([[:space:]]*(\"[^\"]*\"|'[^']*')/ /g" "$1" 2>/dev/null |
-    grep -Eq "(^|[^A-Za-z0-9_\$])(require($|[^A-Za-z0-9_\$])|import[[:space:]]*\()"
+  grep -Eq "(^|[^A-Za-z0-9_\$])(require($|[^A-Za-z0-9_\$])|import[[:space:]]*\()" \
+    < <(sed -E "s/(require|import)[[:space:]]*\([[:space:]]*(\"[^\"]*\"|'[^']*')/ /g" "$1" 2>/dev/null)
 }
 
 # md_collect_modules <physical root> <config>...: add to MD_MODULES every

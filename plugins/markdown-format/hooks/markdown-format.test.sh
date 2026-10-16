@@ -108,11 +108,14 @@ else
     done
   done
   PG_ARGS=()
+  # jq on Windows ends each line with CRLF; the CR is not part of the value.
   while IFS= read -r pg_arg; do
+    pg_arg="${pg_arg%$'\r'}"
     # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
     PG_ARGS+=("${pg_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
   done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON")
   IFS=$'\t' read -r PG_NAME PG_CHECK PG_INSTALL < <(jq -r '.requires[0] | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$PLUGIN_ROOT/prerequisites.json")
+  PG_INSTALL="${PG_INSTALL%$'\r'}"
 
   # run_probe <value|__unset__> -> run the row with markdown_format_enabled set to <value> (or unset).
   run_probe() {

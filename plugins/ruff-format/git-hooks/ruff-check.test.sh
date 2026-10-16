@@ -84,6 +84,49 @@ git -C "$REPO" add a.py notes.md
 printf 'notes\nmore unstaged\n' >"$REPO/notes.md"
 expect "a partly staged file that is not Python does not refuse the commit" "0|a.py|" "$(check "$REPO")"
 
+# Ruff reads its config from the work tree; the commit holds the index's.
+DRIFT='config differs between the index and the work tree; stage it or restore it, then commit'
+new_repo NONE
+printf 'line-length = 88\n' >"$REPO/.ruff.toml"
+printf 'x=1\n' >"$REPO/a.py"
+git -C "$REPO" add .ruff.toml a.py
+rm "$REPO/.ruff.toml"
+expect "a Ruff config staged then deleted refuses the commit, naming it" "1||.ruff.toml: $DRIFT" "$(check "$REPO")"
+expect "the refused file is left as it was" "x=1" "$(cat "$REPO/a.py")"
+
+new_repo
+printf 'x=1\n' >"$REPO/a.py"
+git -C "$REPO" add a.py
+printf 'line-length = 100\n' >"$REPO/ruff.toml"
+expect "a Ruff config edited after staging refuses the commit" "1||ruff.toml: $DRIFT" "$(check "$REPO")"
+
+new_repo NONE
+mkdir -p "$REPO/pkg"
+printf '[tool.ruff]\n' >"$REPO/pkg/pyproject.toml"
+git -C "$REPO" add pkg/pyproject.toml
+printf 'x=1\n' >"$REPO/pkg/a.py"
+git -C "$REPO" add pkg/a.py
+printf '[project]\nname = "t"\n' >"$REPO/pkg/pyproject.toml"
+expect "a pyproject.toml whose staged copy holds [tool.ruff] counts as Ruff config" "1||pkg/pyproject.toml: $DRIFT" "$(check "$REPO")"
+
+new_repo
+printf '[project]\nname = "t"\n' >"$REPO/pyproject.toml"
+git -C "$REPO" add pyproject.toml
+printf '[project]\nname = "u"\n' >"$REPO/pyproject.toml"
+printf 'x=1\n' >"$REPO/a.py"
+git -C "$REPO" add a.py
+expect "a drifted pyproject.toml with no [tool.ruff] on either side does not refuse" "0|a.py|" "$(check "$REPO")"
+
+new_repo
+mkdir -p "$REPO/other"
+printf 'line-length = 88\n' >"$REPO/other/ruff.toml"
+git -C "$REPO" add other/ruff.toml
+printf 'line-length = 99\n' >"$REPO/other/ruff.toml"
+printf 'x=1\n' >"$REPO/a.py"
+git -C "$REPO" add a.py
+expect "a drifted config above no staged file does not refuse the commit" "0|a.py|" "$(check "$REPO")"
+expect "--worktree is not refused by a drifted config" "0" "$(cd "$REPO" && bash "$CHECK" --worktree >/dev/null 2>&1; echo $?)"
+
 new_repo
 printf 'seed = 1\n\nprint(undefined_name)\n' >"$REPO/seed.py"
 git -C "$REPO" add seed.py

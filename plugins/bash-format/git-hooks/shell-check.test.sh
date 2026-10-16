@@ -8,7 +8,7 @@
 # and the plugin's own vendored installer wires the entry so `git commit` runs it.
 # Expected values are the tools' documented output: a tab-indented body formats to
 # the two spaces indent_size = 2 asks for; SC2154 is "<var> is referenced but not
-# assigned"; shfmt spaces the operator in the subscript [a-b] (mvdan/sh issue 956).
+# assigned"; shfmt spaces the operator in an array subscript, [a-b] to [a - b].
 # test-scope: plugins/bash-format/git-hooks/entries.json plugins/bash-format/lib/git-hooks/check-lib.sh plugins/bash-format/lib/git-hooks/install.mjs
 # shellcheck disable=SC2016 # fixtures hold literal shell text, not expansions
 set -uo pipefail
@@ -103,6 +103,23 @@ printf '%s\necho more\n' "$TABBED" >"$REPO/a.sh"
 expect "a partly staged governed script is refused with the contract line" "1||a.sh: partly staged; format it or stage it fully, then commit" "$(check "$REPO")"
 expect "a refused script is left byte for byte" "$TABBED"$'\necho more' "$(cat "$REPO/a.sh")"
 expect "a refused script's index entry is left byte for byte" "$TABBED" "$(git -C "$REPO" show :a.sh)"
+
+# shfmt and ShellCheck read their config from the work tree; the commit holds the index's.
+DRIFT='config differs between the index and the work tree; stage it or restore it, then commit'
+new_repo
+printf '%s\n' "$TABBED" >"$REPO/a.sh"
+git -C "$REPO" add a.sh
+rm "$REPO/.editorconfig"
+expect "an .editorconfig deleted from the work tree refuses the commit, naming it" "1||.editorconfig: $DRIFT" "$(check "$REPO")"
+expect "the refused script is left as it was" "$TABBED" "$(cat "$REPO/a.sh")"
+
+new_repo
+mkdir -p "$REPO/pkg"
+printf 'disable=SC2154\n' >"$REPO/pkg/.shellcheckrc"
+printf '%s\n' "$TABBED" >"$REPO/pkg/a.sh"
+git -C "$REPO" add pkg
+printf 'disable=SC2034\n' >"$REPO/pkg/.shellcheckrc"
+expect "a nested .shellcheckrc edited after staging refuses the commit" "1||pkg/.shellcheckrc: $DRIFT" "$(check "$REPO")"
 
 new_repo
 printf '%s\n' "$TABBED" >"$REPO/a.sh"

@@ -16,3 +16,7 @@ bump: minor
 ### Removed
 
 - The per-edit syntax-error report, the rewrite disclosure, the missing-goimports notice on edit (the session-start probe still reports it), and the `SessionStart` row that reset the findings digest.
+
+### Fixed
+
+- A Go file whose block comment is followed by code on the same line, such as `/* license */ package p`, is no longer taken as generated because of a later `// Code generated ... DO NOT EDIT.` comment, matching `go/ast.IsGenerated`; it is formatted and checked like any other file.

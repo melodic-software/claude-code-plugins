@@ -71,6 +71,15 @@ printf '%s' "$CLEAN" >"$REPO/$WF/ci.yml"
 git -C "$REPO" add "$WF/ci.yml"
 expect "a clean staged workflow passes with no output" "0||" "$(check "$REPO")"
 
+# actionlint reads its config from the work tree; the commit holds the index's.
+DRIFT='config differs between the index and the work tree; stage it or restore it, then commit'
+printf 'self-hosted-runner:\n  labels: []\n' >"$REPO/.github/actionlint.yaml"
+git -C "$REPO" add .github/actionlint.yaml
+rm "$REPO/.github/actionlint.yaml"
+expect "an actionlint config staged then deleted refuses the commit, naming it" "1||.github/actionlint.yaml: $DRIFT" "$(check "$REPO")"
+git -C "$REPO" rm -q --cached .github/actionlint.yaml
+expect "with the config unstaged again the commit passes" "0||" "$(check "$REPO")"
+
 new_repo
 printf '%s' "$BAD" >"$REPO/$WF/ci.yml"
 git -C "$REPO" add "$WF/ci.yml"

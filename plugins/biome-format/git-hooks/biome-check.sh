@@ -8,7 +8,9 @@
 #                                (the opt-in end-of-turn Stop row)
 #
 # Pre-commit: a partly staged file is refused before anything is rewritten
-# (re-staging a rewrite would stage its unstaged hunks too). Then `biome check
+# (re-staging a rewrite would stage its unstaged hunks too), and so is a commit
+# whose Biome config above a staged file differs between the index and the work
+# tree, since Biome reads the work tree's copy. Then `biome check
 # --write` (safe fixes, formatting, import sorting) runs over the staged .ts,
 # .tsx, .js, .jsx, .mjs, .cjs, .mts, .cts, .json and .jsonc files, the rewritten
 # paths print on stdout and are re-staged, and the findings that remain print as
@@ -66,15 +68,21 @@ staged_gone() {
 
 # The work tree's files run where they are; a file gone from the work tree runs
 # from its staged content in a scratch mirror ("staged" below), never rewritten.
-files=()
-dirs=()
-kinds=()
+candidates=()
 while IFS= read -r -d '' f; do
   case "$f" in
   .githooks/*) continue ;;
-  *.ts | *.tsx | *.js | *.jsx | *.mjs | *.cjs | *.mts | *.cts | *.json | *.jsonc) ;;
-  *) continue ;;
+  *.ts | *.tsx | *.js | *.jsx | *.mjs | *.cjs | *.mts | *.cts | *.json | *.jsonc) candidates+=("$f") ;;
+  *) ;;
   esac
+done < <(checks_files)
+((${#candidates[@]})) || exit 0
+checks_refuse_config_drift biome.json biome.jsonc -- "${candidates[@]}" || exit 1
+
+files=()
+dirs=()
+kinds=()
+for f in "${candidates[@]}"; do
   if [[ -f "$f" && ! -L "$f" ]]; then
     kind=tree
   elif staged_gone "$f"; then
@@ -86,7 +94,7 @@ while IFS= read -r -d '' f; do
   files+=("$f")
   dirs+=("$CONFIG_DIR")
   kinds+=("$kind")
-done < <(checks_files)
+done
 ((${#files[@]})) || exit 0
 
 # local_biome <dir>: 0 when <dir> holds a local Biome install git does not

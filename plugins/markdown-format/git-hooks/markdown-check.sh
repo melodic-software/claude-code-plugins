@@ -8,7 +8,9 @@
 #                                   (the opt-in end-of-turn Stop row)
 #
 # Pre-commit: a partly staged file is refused before anything is rewritten
-# (re-staging a rewrite would stage its unstaged hunks too). Then
+# (re-staging a rewrite would stage its unstaged hunks too), and so is a commit
+# whose markdownlint config above a staged file differs between the index and
+# the work tree, since markdownlint-cli2 reads the work tree's copy. Then
 # `markdownlint-cli2 --fix` runs over the staged .md and .mdc files, the rewritten
 # paths print on stdout and are re-staged, and the findings that remain print as
 # "<path>:<line>: <message>" on stderr, exit 1, only for lines the commit adds.
@@ -69,14 +71,22 @@ staged_gone() {
   [[ "$(git ls-files -s -- ":(literal)$1" 2>/dev/null)" == 100* ]]
 }
 
-files=()
-gone=()
+candidates=()
 while IFS= read -r -d '' f; do
   case "$f" in
     .githooks/*) continue ;;
-    *.md | *.mdc) ;;
-    *) continue ;;
+    *.md | *.mdc) candidates+=("$f") ;;
+    *) ;;
   esac
+done < <(checks_files)
+((${#candidates[@]})) || exit 0
+checks_refuse_config_drift .markdownlint-cli2.jsonc .markdownlint-cli2.yaml .markdownlint-cli2.cjs \
+  .markdownlint-cli2.mjs .markdownlint.jsonc .markdownlint.json .markdownlint.yaml .markdownlint.yml \
+  .markdownlint.cjs .markdownlint.mjs -- "${candidates[@]}" || exit 1
+
+files=()
+gone=()
+for f in "${candidates[@]}"; do
   kind=tree
   if [[ ! -f "$f" || -L "$f" ]]; then
     staged_gone "$f" || continue
@@ -95,7 +105,7 @@ while IFS= read -r -d '' f; do
     *) ;;
   esac
   if [[ "$kind" == gone ]]; then gone+=("$f"); else files+=("$f"); fi
-done < <(checks_files)
+done
 ((${#files[@]} + ${#gone[@]})) || exit 0
 
 if ! command -v markdownlint-cli2 >/dev/null 2>&1; then

@@ -10,7 +10,9 @@
 # stderr and exit 1; a line the change did not add never blocks. A finding about
 # a whole workflow carries the line actionlint names for it. A partly staged
 # file, or a staged one since deleted from the work tree, is checked as staged,
-# from the index. The embedded ShellCheck and pyflakes
+# from the index. actionlint reads .github/actionlint.yaml from the work tree,
+# so a commit is refused while that file differs between the index and the work
+# tree. The embedded ShellCheck and pyflakes
 # integrations stay off (-shellcheck= -pyflakes=), as in the per-edit hook this
 # replaced: they spawn a process per run block. Files under .githooks/ are
 # installed copies and are skipped. Missing actionlint follows the
@@ -52,6 +54,7 @@ while IFS= read -r -d '' f; do
   fi
 done < <(checks_files)
 ((${#whole[@]} + ${#partial[@]})) || exit 0
+checks_refuse_config_drift actionlint.yaml actionlint.yml -- ${whole[@]+"${whole[@]}"} ${partial[@]+"${partial[@]}"} || exit 1
 
 checks_changed_lines
 

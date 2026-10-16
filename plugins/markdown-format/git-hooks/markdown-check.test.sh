@@ -93,6 +93,26 @@ expect "a partly staged file is refused with the contract line" "1||a.md: partly
 expect "a refused file is left byte for byte" "$(printf '# T\n\ntext\n\nmore unstaged')" "$(cat "$REPO/a.md")"
 expect "a refused file's index entry is left byte for byte" "# T" "$(git -C "$REPO" show :a.md | sed -n 1p)"
 
+# markdownlint-cli2 reads its config from the work tree; the commit holds the index's.
+DRIFT='config differs between the index and the work tree; stage it or restore it, then commit'
+new_repo
+printf '# T\n\ntext' >"$REPO/a.md"
+git -C "$REPO" add a.md
+rm "$REPO/.markdownlint-cli2.jsonc"
+expect "a markdownlint config deleted from the work tree refuses the commit, naming it" "1||.markdownlint-cli2.jsonc: $DRIFT" "$(check "$REPO")"
+expect "the refused file is left as it was" "$(printf '# T\n\ntext')" "$(cat "$REPO/a.md")"
+
+new_repo NONE
+mkdir -p "$REPO/docs"
+printf '{ "default": true }\n' >"$REPO/docs/.markdownlint.json"
+printf '# T\n\ntext' >"$REPO/docs/a.md"
+printf '# U\n\ntext' >"$REPO/b.md"
+git -C "$REPO" add docs b.md
+printf '{ "default": false }\n' >"$REPO/docs/.markdownlint.json"
+expect "a nested markdownlint config edited after staging refuses the commit" "1||docs/.markdownlint.json: $DRIFT" "$(check "$REPO")"
+git -C "$REPO" reset -q docs/a.md
+expect "a drifted config above no staged file does not refuse the commit" "0||" "$(check "$REPO")"
+
 new_repo
 printf '# T\n\ntext' >"$REPO/a.md"
 printf 'notes\n' >"$REPO/notes.txt"

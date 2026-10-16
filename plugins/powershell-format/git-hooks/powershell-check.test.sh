@@ -86,6 +86,21 @@ expect "a partly staged file is refused with the contract line" "1||a.ps1: partl
 expect "a refused file is left byte for byte" "$(printf 'get-childitem .\nget-date')" "$(cat "$REPO/a.ps1")"
 expect "a refused file's index entry is left byte for byte" "get-childitem ." "$(git -C "$REPO" show :a.ps1)"
 
+# The settings file is read from the work tree; the commit holds the index's.
+DRIFT='config differs between the index and the work tree; stage it or restore it, then commit'
+new_repo
+printf 'get-childitem .\n' >"$REPO/a.ps1"
+git -C "$REPO" add a.ps1
+rm "$REPO/PSScriptAnalyzerSettings.psd1"
+expect "a settings file deleted from the work tree refuses the commit, naming it" "1||PSScriptAnalyzerSettings.psd1: $DRIFT" "$(check "$REPO")"
+expect "the refused file is left as it was" "get-childitem ." "$(cat "$REPO/a.ps1")"
+
+new_repo
+printf 'get-childitem .\n' >"$REPO/a.ps1"
+git -C "$REPO" add a.ps1
+printf '@{}\n' >"$REPO/PSScriptAnalyzerSettings.psd1"
+expect "a settings file edited after staging refuses the commit" "1||PSScriptAnalyzerSettings.psd1: $DRIFT" "$(check "$REPO")"
+
 new_repo
 printf 'get-childitem .\n' >"$REPO/a.ps1"
 printf 'notes\n' >"$REPO/notes.md"

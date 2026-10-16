@@ -19,7 +19,9 @@
 # rewritten.
 #
 # The repository's own .shellcheckrc and .editorconfig govern; the plugin ships
-# none. Files under .githooks/ are installed copies and are skipped. A missing
+# none, and both are read from the work tree, so a pre-commit run is refused when
+# either one above a staged script differs between the index and the work tree.
+# Files under .githooks/ are installed copies and are skipped. A missing
 # tool follows the check-placement contract: checks.skipmissing, else fail for an
 # agent and a notice for a person; a tool that is skipped only drops its own half
 # (no shfmt: no rewrite; no shellcheck: no findings). The rule holds in every
@@ -68,6 +70,7 @@ while IFS= read -r -d '' f; do
   fi
 done < <(checks_files)
 ((${#files[@]} + ${#indexed[@]})) || exit 0
+checks_refuse_config_drift .editorconfig .shellcheckrc -- ${files[@]+"${files[@]}"} ${indexed[@]+"${indexed[@]}"} || exit 1
 
 if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#files[@]})); then
   governed=()

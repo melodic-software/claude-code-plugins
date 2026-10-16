@@ -8,7 +8,9 @@
 #                                     rewriting (the opt-in end-of-turn Stop row)
 #
 # Pre-commit: a partly staged file is refused before anything is rewritten
-# (re-staging a rewrite would stage its unstaged hunks too). Then Invoke-Formatter
+# (re-staging a rewrite would stage its unstaged hunks too), and so is a commit
+# whose PSScriptAnalyzerSettings.psd1 above a staged file differs between the
+# index and the work tree, since the work tree's copy is read. Then Invoke-Formatter
 # runs over the staged .ps1, .psm1 and .psd1 files, the rewritten paths print on
 # stdout and are re-staged, and the findings that remain print as
 # "<path>:<line>: [<severity>] <rule>: <message>" on stderr, exit 1, only for
@@ -79,13 +81,19 @@ files=()
 sets=()
 kinds=()
 SETTINGS=""
+candidates=()
 while IFS= read -r -d '' f; do
   case "$f" in
     .githooks/*) continue ;;
     *$'\n'*) continue ;;
-    *.ps1 | *.psm1 | *.psd1) ;;
-    *) continue ;;
+    *.ps1 | *.psm1 | *.psd1) candidates+=("$f") ;;
+    *) ;;
   esac
+done < <(checks_files)
+((${#candidates[@]})) || exit 0
+checks_refuse_config_drift PSScriptAnalyzerSettings.psd1 -- "${candidates[@]}" || exit 1
+
+for f in "${candidates[@]}"; do
   if [[ -f "$f" && ! -L "$f" ]]; then
     kind=tree
   elif staged_gone "$f"; then
@@ -97,7 +105,7 @@ while IFS= read -r -d '' f; do
   files+=("$f")
   sets+=("$SETTINGS")
   kinds+=("$kind")
-done < <(checks_files)
+done
 ((${#files[@]})) || exit 0
 
 checks_require_tool pwsh "see https://learn.microsoft.com/powershell/scripting/install/installing-powershell"

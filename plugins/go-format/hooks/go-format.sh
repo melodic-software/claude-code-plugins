@@ -56,28 +56,30 @@ source "$HOOK_DIR/hook-utils.sh"
 
 # generated <path>: 0 when the file's leading comment and blank-line run holds
 # the generated-code marker. The scan is a stand-in for go/ast.IsGenerated: it
-# tracks /* */ blocks, tolerates a BOM and CRLF, and stops at the first line
-# that is neither blank nor a comment.
+# tracks /* */ blocks, tolerates a BOM and CRLF, and stops at the first text
+# that is neither blank nor a comment, even when it follows a comment on the
+# same line, as `/* license */ package p` does.
 generated() {
-  local line trimmed in_block=0
+  local line rest in_block=0
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
-    line="${line#$'\xEF\xBB\xBF'}"
-    if ((in_block)); then
-      [[ "$line" == *'*/'* ]] && in_block=0
-      continue
-    fi
-    [[ -n "${line//[[:space:]]/}" ]] || continue
-    trimmed="${line#"${line%%[![:space:]]*}"}"
-    if [[ "$trimmed" == //* ]]; then
-      [[ "$line" =~ ^//\ Code\ generated\ .*\ DO\ NOT\ EDIT\.$ ]] && return 0
-      continue
-    fi
-    if [[ "$trimmed" == /\** ]]; then
-      [[ "$trimmed" == *'*/'* ]] || in_block=1
-      continue
-    fi
-    break
+    rest="${line#$'\xEF\xBB\xBF'}"
+    while :; do
+      if ((in_block)); then
+        [[ "$rest" == *'*/'* ]] || continue 2
+        rest="${rest#*\*/}"
+        in_block=0
+      fi
+      rest="${rest#"${rest%%[![:space:]]*}"}"
+      [[ -n "$rest" ]] || continue 2
+      if [[ "$rest" == //* ]]; then
+        [[ "$rest" =~ ^//\ Code\ generated\ .*\ DO\ NOT\ EDIT\.$ ]] && return 0
+        continue 2
+      fi
+      [[ "$rest" == /\** ]] || return 1
+      rest="${rest#/\*}"
+      in_block=1
+    done
   done <"$1"
   return 1
 }

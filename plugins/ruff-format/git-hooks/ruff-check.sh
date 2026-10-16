@@ -8,7 +8,9 @@
 #                               (the opt-in end-of-turn Stop row)
 #
 # Pre-commit: a partly staged file is refused before anything is rewritten
-# (re-staging a rewrite would stage its unstaged hunks too). Then `ruff check
+# (re-staging a rewrite would stage its unstaged hunks too), and so is a commit
+# whose Ruff config above a staged file differs between the index and the work
+# tree, since Ruff reads the work tree's copy. Then `ruff check
 # --fix` (safe fixes) and `ruff format` run over the staged .py and .pyi files,
 # the rewritten paths print on stdout and are re-staged, and the findings that
 # remain print as "<path>:<line>: <message>" on stderr, exit 1, only for lines
@@ -44,6 +46,17 @@ for venv_bin in ${venv_dirs[@]+"${venv_dirs[@]}"}; do
 done
 checks_require_tool ruff "pip install ruff, or another method at https://docs.astral.sh/ruff/installation/"
 
+ruff_section='^[[:space:]]*\[tool\.ruff(\]|[.])'
+
+# ruff_config <config path>: 0 unless it is a pyproject.toml with no [tool.ruff]
+# section in either the work tree or the index, which Ruff does not read.
+# shellcheck disable=SC2329  # invoked by name, as checks_refuse_config_drift's --if filter
+ruff_config() {
+  [[ "${1##*/}" == pyproject.toml ]] || return 0
+  grep -qE "$ruff_section" "$1" 2>/dev/null && return 0
+  grep -qE "$ruff_section" < <(git show ":$1" 2>/dev/null)
+}
+
 # governed <path>: 0 when a Ruff configuration sits in the path's directory or
 # above it, up to the repository root.
 governed() {
@@ -53,7 +66,7 @@ governed() {
     for name in .ruff.toml ruff.toml; do
       [[ -f "$dir/$name" ]] && return 0
     done
-    if [[ -f "$dir/pyproject.toml" ]] && grep -qE '^[[:space:]]*\[tool\.ruff(\]|[.])' "$dir/pyproject.toml" 2>/dev/null; then
+    if [[ -f "$dir/pyproject.toml" ]] && grep -qE "$ruff_section" "$dir/pyproject.toml" 2>/dev/null; then
       return 0
     fi
     [[ "$dir" == . ]] && return 1
@@ -71,21 +84,27 @@ staged_gone() {
   [[ "$(git ls-files -s -- ":(literal)$1" 2>/dev/null)" == 100* ]]
 }
 
-files=()
-gone=()
+candidates=()
 while IFS= read -r -d '' f; do
   case "$f" in
   .githooks/*) continue ;;
-  *.py | *.pyi) ;;
-  *) continue ;;
+  *.py | *.pyi) candidates+=("$f") ;;
+  *) ;;
   esac
+done < <(checks_files)
+((${#candidates[@]})) || exit 0
+checks_refuse_config_drift --if ruff_config .ruff.toml ruff.toml pyproject.toml -- "${candidates[@]}" || exit 1
+
+files=()
+gone=()
+for f in "${candidates[@]}"; do
   governed "$f" || continue
   if [[ -f "$f" && ! -L "$f" ]]; then
     files+=("$f")
   elif staged_gone "$f"; then
     gone+=("$f")
   fi
-done < <(checks_files)
+done
 ((${#files[@]} + ${#gone[@]})) || exit 0
 
 common=(--force-exclude --no-cache --quiet)
