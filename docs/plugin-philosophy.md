@@ -806,7 +806,7 @@ absence class above, documented as a prerequisite, or fixed.
 
 Anything with a runtime prerequisite (for example `jq` on `PATH`) degrades gracefully, never a hard
 crash. Absence is surfaced to both the agent and the user; a candidate channel for durable
-visibility is the hook-telemetry convention's OTel surface. No black boxes: a silently skipped
+visibility is the hook-telemetry convention's OTel surface. A silently skipped
 feature is a defect. The broader false-green class, healthy-while-dead and green-with-hidden-
 findings on health, status, advisory, and gate surfaces, is owned by the
 [liveness-assertion convention](conventions/liveness-assertion/README.md); this section's
@@ -1016,8 +1016,8 @@ measurably better than earlier ones, but not completely, and the primary sources
 the plugin-acceptance security review's deny-by-default stance on egress and trust delegation is policy, not a model-era
 workaround, and stays regardless of model generation.
 
-The complementary task-design doctrine, describe the task, guardrails, and exit criteria, give the
-model a way to verify its own work, and skip step-by-step procedure, is already this marketplace's
+The complementary task-design doctrine says to describe the task, guardrails, and exit criteria,
+to give the model a way to verify its own work, and to skip step-by-step procedure. It is already this marketplace's
 encoded practice: the `verification`, `planning` (goal conditions), `tdd`, and `testing` plugins are
 its implementation, and need no new mechanism on its account.
 
@@ -1033,8 +1033,8 @@ Two further axes are settled elsewhere, and neither is implied by the rubric abo
 A context that produced work is structurally the weakest place to judge that work, because the reasoning
 that made a mistake plausible is still active and a self-check inherits the bias. A fresh-context (non-fork)
 subagent, generic or named, removes it: it starts in its own fresh context window, blind to the
-reasoning under review. A fork does not: it inherits the parent session's full conversation history, so
-it carries the same bias forward. Upstream recommends fresh-context review as well as describing
+reasoning under review. A fork does not, because it inherits the parent session's full conversation history and
+carries the same bias forward. Upstream recommends fresh-context review as well as describing
 the mechanism, and this section is the authoring-time form of that guidance, applied where an
 invoker cannot be relied on to remember it.
 

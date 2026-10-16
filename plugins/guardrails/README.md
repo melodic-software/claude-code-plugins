@@ -923,7 +923,7 @@ reaches the change. The other two rows do reproduce: the second pass put PostToo
 is still 52.6 spawn-equivalents against the fleet target of 8. Three things account
 for nearly all of it, and none is a guardrails guard:
 
-- **Telemetry, remaining sink dispatch only on the string-field guards.**
+- **Telemetry still costs a sink dispatch, but only on the string-field guards.**
   `HOOK_TELEMETRY_SINK` is opt-in. The seven always-on Bash guards that emit
   `{tool,subject,form}` now build that object with `hook::json_str_object_to`
   (0 jq; byte-identical to `jq -nc --arg …` on this host). The envelope was

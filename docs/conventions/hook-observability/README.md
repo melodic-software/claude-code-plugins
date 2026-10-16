@@ -27,7 +27,7 @@ A static field on a `hooks.json` **handler object**, sibling of `type`/`command`
 }
 ```
 
-It labels the spinner while the hook runs. **A hook script never emits this: it is configuration,
+It labels the spinner while the hook runs. **A hook script never emits this, because it is configuration,
 not a runtime output field.** Pointer: for the field, see
 <https://code.claude.com/docs/en/hooks#common-fields>. As of: 2026-10-01. Recheck trigger: that
 table moves the field or a runtime output field takes the name. **Rollout status: near-complete.** As of
