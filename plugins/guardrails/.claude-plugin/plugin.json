@@ -117,7 +117,7 @@
     "git_hooks_notice_enabled": {
       "type": "boolean",
       "title": "Git-hooks notice",
-      "description": "At session start, names /guardrails:setup apply install-git-hooks once when this clone lacks a guardrails git-hook entry or holds a drifted one; a declined entry stays quiet. On by default.",
+      "description": "At session start, names /guardrails:setup apply install-git-hooks once when this clone lacks a guardrails git-hook entry or holds a drifted one; a declined entry stays quiet. Turning it off also silences the session-start notice that jq is missing. On by default.",
       "default": true
     },
     "workflow_resilience_check_enabled": {
