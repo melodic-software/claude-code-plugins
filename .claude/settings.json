@@ -34,18 +34,6 @@
     "HOOK_TELEMETRY_SINK": ".claude/hooks/hook-telemetry-sink.sh"
   },
   "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "if": "Bash(git push *)",
-            "command": "if git -C \"$CLAUDE_PROJECT_DIR\" diff --quiet \"$(git -C \"$CLAUDE_PROJECT_DIR\" merge-base HEAD refs/remotes/origin/main 2>/dev/null)\" -- .claude/hooks/check-affected-pre-push.sh lib/hook-utils.sh 2>/dev/null; then bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-affected-pre-push.sh\"; fi"
-          }
-        ]
-      }
-    ],
     "SessionStart": [
       {
         "matcher": "startup|resume",
@@ -69,6 +57,7 @@
     "evals@melodic-software": true,
     "explainer-video@melodic-software": false,
     "gaming@melodic-software": false,
+    "guardrails@melodic-software": true,
     "harness-config@melodic-software": true,
     "harness-ops@melodic-software": true,
     "instruction-placement@melodic-software": true,

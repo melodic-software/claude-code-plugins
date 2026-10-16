@@ -1,0 +1,10 @@
+# Git hooks for this repository (https://lefthook.dev/configuration/). Install once per clone:
+# `lefthook install`. Placement rules: docs/conventions/check-placement/README.md.
+pre-push:
+  jobs:
+    # Lefthook gives stdin to at most one job per hook, and plugin pre-push entries read the
+    # pushed refs from it, so this job does not take stdin: check-affected diffs HEAD against
+    # its own base. Exit 2 means it could not read the changed set, not a finding, so only
+    # exit 1 blocks the push; CI checks the pushed commit either way.
+    - name: check-affected
+      run: bash scripts/check-affected.sh || test $? -ne 1
