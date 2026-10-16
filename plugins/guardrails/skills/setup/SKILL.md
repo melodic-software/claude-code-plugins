@@ -124,6 +124,40 @@ invoked with `apply install-pre-commit-content`: the personal-lane contract, the
 refuse-rather-than-surprise preflight, the install and verify steps, and the known
 interactions to state in the report.
 
+## `apply install-read-deny [local|shared] [user] [remove]` (opt-in, explicit argument only)
+
+Native `Read()` deny rules keep credential files out of the Read tool and out of the file
+commands Claude Code recognizes in Bash (`cat`, `head`, `tail`, `sed`, redirects).
+`block-credential-read` covers what no deny rule reaches: an interpreter that opens the file
+itself (`python3 -c "open('.env')"`). Pointer: "Read and Edit" in
+<https://code.claude.com/docs/en/permissions>. As of: 2026-10-15. Recheck trigger: that
+section changes which tools or Bash commands a `Read` deny rule reaches, or its pattern syntax.
+
+This is the one `apply` action that changes settings, and only this way: the skill prints the
+rules, then you add them to the chosen file with your edit tools. No script writes settings.
+Never runs from bare `apply`.
+
+1. **Scope.** `local` (the default, and the answer when none is given or the run is
+   unattended) is `.claude/settings.local.json` at the repository root; `shared` is the
+   committed `.claude/settings.json`, which the team reviews in a PR. Ask once in an attended
+   run when neither argument is given.
+2. **Print the rules** for that file, as a `permissions.deny` list:
+   `Read(.env)`, `Read(.env.*)`, `Read(!.env.example)`, `Read(!.env.sample)`,
+   `Read(!.env.template)`. A bare filename matches at any depth; each `!` rule carves its
+   template out of the rule before it, so it must follow `Read(.env.*)` in the same list.
+3. **User settings only with consent.** With the `user` argument, also print `Read(~/.ssh/**)`
+   and `Read(~/.aws/**)` for the user settings file, state that they apply in every project
+   and stop Claude's file tools reading any file under those directories, and add them only
+   after the user says yes in this session. No `user` argument, or no yes: leave user settings
+   alone.
+4. **Apply.** Add each printed rule that the file's `permissions.deny` does not already hold,
+   keeping every existing entry and its order. Create the file or the keys when absent. A
+   rerun adds nothing and reports each rule as already present.
+5. **Remove.** With `remove`, delete exactly the rules step 2 (and step 3, for `user`) prints
+   from that file, and nothing else. Every rule stays removable this way.
+6. **Report** the file, each rule added, already present or removed, and that
+   `block-credential-read` still covers interpreter reads.
+
 ## What this skill does NOT do
 
 - Exercise a guard. Any matching tool call does that end-to-end.

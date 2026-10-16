@@ -61,12 +61,12 @@ run "gh auth token by absolute path" '/usr/bin/gh auth token' 2
 run "gh auth token in a backtick substitution" 'TOKEN=`gh auth token`' 2
 run "git credential fill in a backtick substitution" 'x=`git credential fill`' 2
 run "printenv in a backtick substitution" 'x=`printenv GH_TOKEN`' 2
-run "cat .netrc in a backtick substitution" 'x=`cat ~/.netrc`' 2
+run "python read of .netrc in a backtick substitution" "x=\`python3 -c 'print(open(\".netrc\").read())'\`" 2
 
 # --- 2b. leading NAME=value assignments do not hide the command (blocked) -----
 run "assignment before gh auth token" 'TERM=xterm gh auth token' 2
 run "assignment before git credential fill" 'X=1 git credential fill' 2
-run "assignment before cat .netrc" 'FOO=1 cat ~/.netrc' 2
+run "assignment before a python read of .netrc" "FOO=1 python3 -c 'print(open(\".netrc\").read())'" 2
 run "assignment before echo of a token" 'Y=1 echo $GH_TOKEN' 2
 run "two assignments, one quoted, before printenv" 'A=1 B="x y" printenv GH_TOKEN' 2
 run "assignment after a semicolon" 'echo hi; X=1 gh auth token' 2
@@ -100,20 +100,25 @@ run_ps 'PowerShell: Get-Item env: with a wildcard' 'Get-Item env:*TOKEN*' 2
 run_ps 'PowerShell: lower-case variable name' 'Write-Output $env:gh_token' 2
 
 # --- 5. Reading a credential file (blocked) -----------------------------------
-run "cat .git-credentials" 'cat ~/.git-credentials' 2
-run "cat .netrc" 'cat ~/.netrc' 2
-run "cat _netrc" 'cat ~/_netrc' 2
-run "cat .env" 'cat .env' 2
-run "cat .env.local" 'cat .env.local' 2
-run "cat .env.production" 'cat apps/web/.env.production' 2
-run "cat with a flag" 'cat -n .env' 2
-run "cat quoted path" 'cat "$HOME/.netrc"' 2
-run "cat several files" 'cat README.md .env' 2
-run "cat .env then a template" 'cat .env .env.example' 2
-run "cat by redirect" 'cat < .env' 2
-run "cat piped on" 'cat .env | grep KEY' 2
-run "cat .credentials.json" 'cat ~/.claude/.credentials.json' 2
-run "cat .docker/config.json" 'cat ~/.docker/config.json' 2
+# An interpreter that opens the file itself: native Read() deny rules do not
+# reach it.
+run "python -c open .env" "python3 -c \"print(open('.env').read())\"" 2
+run "python -c open .env.local" "python -c \"print(open('.env.local').read())\"" 2
+run "python -c read of an ssh private key" "python3 -c 'import os; print(open(os.path.expanduser(\"~/.ssh/id_rsa\")).read())'" 2
+run "python -c read of an ed25519 key" "python3 -c \"print(open('/home/u/.ssh/id_ed25519').read())\"" 2
+run "node -e readFileSync .env" "node -e \"console.log(require('fs').readFileSync('.env','utf8'))\"" 2
+run "ruby -e File.read .netrc" "ruby -e 'puts File.read(\".netrc\")'" 2
+run "perl -e open .git-credentials" "perl -e 'open(F, \"<\", \"\$ENV{HOME}/.git-credentials\"); print <F>'" 2
+run "php -r file_get_contents .env" "php -r 'echo file_get_contents(\".env\");'" 2
+run "python heredoc reading ~/.aws/credentials" "python3 - <<'EOF'
+from pathlib import Path
+print(Path('~/.aws/credentials').expanduser().read_text())
+EOF" 2
+run "python heredoc reading .docker/config.json" "cd /tmp && python3 <<EOF
+import json
+print(json.load(open('/home/u/.docker/config.json')))
+EOF" 2
+run "python with dotenv" "python3 -c 'from dotenv import dotenv_values; print(dotenv_values(\".env\"))'" 2
 run "jq . .credentials.json" 'jq . ~/.claude/.credentials.json' 2
 run "jq . .docker/config.json" 'jq . ~/.docker/config.json' 2
 run "jq a field of .credentials.json" "jq -r '.claudeAiOauth.accessToken' \"\$HOME/.claude/.credentials.json\"" 2
@@ -127,11 +132,36 @@ run_ps "PowerShell: Get-Content .credentials.json" 'Get-Content $HOME\.claude\.c
 run_ps "PowerShell: gc -Raw of .netrc" 'gc -Raw $HOME\.netrc' 2
 run_ps "PowerShell: type .git-credentials" 'type $HOME\.git-credentials' 2
 run_ps "PowerShell: Get-Content -Path .env.local" 'Get-Content -Path .env.local' 2
-run_ps "PowerShell: cat .env" 'cat .env' 2
+run_ps "PowerShell: Get-Content ~/.aws/credentials" 'Get-Content ~/.aws/credentials' 2
+run_ps "PowerShell: Get-Content an ssh key" 'Get-Content $HOME\.ssh\id_rsa' 2
+
+# --- 5b. Left to native Read() deny rules, or no read at all (allowed) -----------
+# Claude Code applies a Read() deny rule to cat, head, tail, sed and redirects
+# of the denied file; /guardrails:setup prints the rules.
+run "cat .env" 'cat .env' 0
+run "cat .netrc" 'cat ~/.netrc' 0
+run "cat .docker/config.json" 'cat ~/.docker/config.json' 0
+run "cat by redirect" 'cat < .env' 0
+# Writing a fake credential file in a test is not a read: this once blocked.
+run "cat > .netrc from a heredoc" "cat > /tmp/x/.netrc <<EOF
+machine a login b password c
+EOF" 0
+run "python editing a test that writes a .netrc" "python3 - <<'EOF'
+s=open('t.sh').read()
+s+='printf x >\"\$HOME/.netrc\"'
+EOF" 0
+run "python with no file read" 'python3 -c "print(1)" && grep KEY README.md' 0
+run "python heredoc, then a grep naming .env" "python3 - <<'EOF'
+print(1)
+EOF
+grep -n open .env.md" 0
+run "python read of an ssh public key" "python3 -c \"print(open('/home/u/.ssh/id_ed25519.pub').read())\"" 0
+run "python reading a template" "python3 -c \"print(open('.env.example').read())\"" 0
 
 # --- 6. A shell word makes quoted text live -----------------------------------
 run "bash -c gh auth token" "bash -c 'gh auth token'" 2
-run "sh -c cat .netrc" 'sh -c "cat ~/.netrc"' 2
+run "sh -c printenv" 'sh -c "printenv GH_TOKEN"' 2
+run "sudo bash -c gh auth token" "sudo bash -c 'gh auth token'" 2
 run_ps "PowerShell: pwsh -Command reading .env" 'pwsh -Command "Get-Content .env"' 2
 run_ps "PowerShell: bash -c inside" "bash -c 'printenv GH_TOKEN'" 2
 
@@ -185,6 +215,10 @@ run "echo of a command as prose" 'echo "run gh auth token to see it"' 0
 run "issue body naming .netrc" 'gh issue create --title "never cat .netrc" --body-file b.md' 0
 run "issue body naming printenv" 'gh issue comment 1 --body "do not printenv GH_TOKEN"' 0
 run "commit message naming a credential file read" 'git commit -m "docs: never cat .env"' 0
+# A shell word inside an argument runs nothing: these two once blocked, the
+# first as `cat .env` beside `bash`, the second as `gh auth token` beside it.
+run "grep pattern naming bash and .env" 'grep -n -i -E "do not apply to bash|cat \.env|Read\(\./\.env" docs/permissions.md' 0
+run "printf of a quoted bash -c line" "printf '%s\n' 'bash -c \"gh auth token\"' > cases.txt" 0
 run_ps "PowerShell: commit message naming gh auth token" 'git commit -m "block gh auth token"' 0
 run_ps "PowerShell: Select-String for the shape" "Select-String -Pattern 'git credential fill' docs.md" 0
 
@@ -217,16 +251,16 @@ run "allow list is exact per family: gh-auth-token does not open credential-fill
 run "allow credential-fill" 'git credential fill' 0 "$allow=credential-fill"
 run "allow env-echo, echo" 'echo $GH_TOKEN' 0 "$allow=env-echo"
 run "allow env-echo, printenv" 'printenv GH_TOKEN' 0 "$allow=env-echo"
-run "allow credential-file-read" 'cat .env' 0 "$allow=credential-file-read"
+run "allow credential-file-read" "python3 -c \"print(open('.env').read())\"" 0 "$allow=credential-file-read"
 run "allow list with several tokens, first" 'gh auth token' 0 "$allow=gh-auth-token,env-echo"
 run "allow list with several tokens, second" 'echo $GH_TOKEN' 0 "$allow=gh-auth-token,env-echo"
-run "allow list keeps the other families blocked" 'cat .netrc' 2 "$allow=gh-auth-token,env-echo"
+run "allow list keeps the other families blocked" 'jq . ~/.docker/config.json' 2 "$allow=gh-auth-token,env-echo"
 run "allow list does not match a substring of a token" 'gh auth token' 2 "$allow=gh-auth-token-x"
 run_ps "allow list applies to PowerShell" 'Get-Content .env' 0 "$allow=credential-file-read"
 # A command that trips two families needs both allowed.
 run "one allowed family does not excuse another in the same command" \
-  'gh auth token; cat .netrc' 2 "$allow=gh-auth-token"
-run "both families allowed" 'gh auth token; cat .netrc' 0 "$allow=gh-auth-token,credential-file-read"
+  'gh auth token; jq . ~/.docker/config.json' 2 "$allow=gh-auth-token"
+run "both families allowed" 'gh auth token; jq . ~/.docker/config.json' 0 "$allow=gh-auth-token,credential-file-read"
 
 # --- 10. Inputs -----------------------------------------------------------------
 rc=0

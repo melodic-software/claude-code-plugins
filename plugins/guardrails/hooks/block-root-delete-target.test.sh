@@ -32,6 +32,10 @@ trap 'rm -rf "$TEST_TMPDIR" "$RDT_AB"' EXIT
 
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
+# An interactive session exports CLAUDE_CODE_SESSION_ATTENDED=1, which turns a
+# refusal into an ask (refuse.sh). Every case below asserts the deny unless it
+# sets the flag itself.
+unset CLAUDE_CODE_SESSION_ATTENDED
 
 # --- 1. MUST FIRE: the operand normalizes to a filesystem root ----------------
 # The measured gap this guard closes. `rm -rf "\\"` passed all eight guards of
@@ -2163,6 +2167,61 @@ expect "a stdin body that is not JSON fails closed" 2 --payload 'not json'
 rc=0
 bash "$HOOK" <<<'{"tool_name":"Bash","tool_input":{}}' >/dev/null 2>&1 || rc=$?
 assert_exit "payload with no command is a skip" 0 "$rc"
+
+# --- 5b. A variable the command sets to a literal first ------------------------
+# `X=build && rm -rf "$X"` deletes `build`, so it is judged as `build`. This
+# once blocked as a bare variable.
+expect_both 'X=build && rm -rf "$X" allowed' 0 "${RDT_CWD[@]}" --command 'X=build && rm -rf "$X"'
+expect_both 'X=build; rm -rf "$X/" allowed' 0 "${RDT_CWD[@]}" --command 'X=build; rm -rf "$X/"'
+expect_both 'X="build" && rm -rf "${X}" allowed' 0 "${RDT_CWD[@]}" --command 'X="build" && rm -rf "${X}"'
+expect_both 'two literals, then rm -rf "$A" "$B" allowed' 0 "${RDT_CWD[@]}" \
+  --command "A=build B='dist' && rm -rf \"\$A\" \"\$B/x\""
+expect_both 'a literal on its own line, then the delete, allowed' 0 "${RDT_CWD[@]}" \
+  --command $'X=build\nrm -rf "$X"'
+# Every arm still reads the literal, and only that exact shape is read.
+expect_both 'X=/ && rm -rf "$X" blocks (root)' 2 "${RDT_CWD[@]}" --command 'X=/ && rm -rf "$X"'
+expect_both 'X=/etc && rm -rf "$X" blocks (outside the tree)' 2 "${RDT_CWD[@]}" --command 'X=/etc && rm -rf "$X"'
+expect_both 'X=build | rm -rf "$X" blocks (another shell)' 2 "${RDT_CWD[@]}" --command 'X=build | rm -rf "$X"'
+expect_both 'X=build & rm -rf "$X" blocks (another shell)' 2 "${RDT_CWD[@]}" --command 'X=build & rm -rf "$X"'
+expect_both 'X=build || rm -rf "$X" blocks' 2 "${RDT_CWD[@]}" --command 'X=build || rm -rf "$X"'
+expect_both 'a segment between the literal and the delete blocks' 2 "${RDT_CWD[@]}" \
+  --command 'X=build && X=$(pwd) && rm -rf "$X"'
+expect_both 'X=$(pwd) && rm -rf "$X" blocks' 2 "${RDT_CWD[@]}" --command 'X=$(pwd) && rm -rf "$X"'
+expect_both 'X=~ && rm -rf "$X" blocks (tilde expands)' 2 "${RDT_CWD[@]}" --command 'X=~ && rm -rf "$X"'
+expect_both 'X=build rm -rf "$X" blocks (prefix assignment expands too late)' 2 "${RDT_CWD[@]}" \
+  --command 'X=build rm -rf "$X"'
+expect_both 'X=build && bash -c rm -rf "$X" blocks (a child shell does not inherit X)' 2 "${RDT_CWD[@]}" \
+  --command "X=build && bash -c 'rm -rf \"\$X\"'"
+expect_both 'X=build && rm -rf "$Y" blocks (a different variable)' 2 "${RDT_CWD[@]}" --command 'X=build && rm -rf "$Y"'
+expect_both 'X=build && rm -rf "$XY" blocks (a longer name)' 2 "${RDT_CWD[@]}" --command 'X=build && rm -rf "$XY"'
+expect_both 'a non-literal word beside the literal blocks' 2 "${RDT_CWD[@]}" \
+  --command 'X=build Y=$(pwd) && rm -rf "$X"'
+
+# --- 5c. An attended session asks instead of denying (refuse.sh) ---------------
+expect "attended: rm -rf / exits 0 to ask" 0 --command 'rm -rf /' -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_eq "attended: the decision is ask" ask \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+assert_contains "attended: the reason names the root" \
+  "$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")" \
+  "BLOCKED: recursive delete of a filesystem root (normalizes to '/')."
+expect "attended: a bare variable asks" 0 --command 'rm -rf "$X"' -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_eq "attended: bare variable decision is ask" ask \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+expect "attended: a target outside the tree asks" 0 "${RDT_CWD[@]}" --command 'rm -rf /etc/x' -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_eq "attended: outside-tree decision is ask" ask \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+expect "attended=0: rm -rf / denies" 2 --command 'rm -rf /' -- CLAUDE_CODE_SESSION_ATTENDED=0
+assert_eq "attended=0: no document" "" "$GUARD_OUT"
+expect "attended unset: rm -rf / denies" 2 --command 'rm -rf /'
+# A command the guard cannot finish reading names nothing a person could judge.
+expect "attended: a command over the length cap still denies" 2 \
+  --command "rm -rf $(printf 'x%.0s' {1..16400})" -- CLAUDE_CODE_SESSION_ATTENDED=1
+expect "attended, dispatched: rm -rf / still denies" 2 --via dispatched \
+  --command 'rm -rf /' -- CLAUDE_CODE_SESSION_ATTENDED=1
+
+# --- 5d. Guards stay on in auto mode -------------------------------------------
+expect_both "auto mode: rm -rf / still blocks" 2 \
+  --payload '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"},"permission_mode":"auto"}'
 
 # --- 6. Kill switch ----------------------------------------------------------
 expect "kill switch disables the guard" 0 --command 'rm -rf /' \

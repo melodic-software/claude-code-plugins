@@ -20,12 +20,25 @@
 #                         CREDENTIAL, in any case.
 #                         Also `jq env` and `jq '$ENV'`, which print every
 #                         variable; `jq -n '$ENV.HOME'` prints one and passes.
-#   credential-file-read  `cat` (PowerShell `Get-Content`, `gc`, `type`) of
-#                         `.git-credentials`, `.netrc`, `_netrc`, `.env`, `.env.*`,
-#                         `.credentials.json` or `.docker/config.json`; `jq` of
-#                         the two JSON files (a `.env` jq filter is not a path).
+#   credential-file-read  a read of `.git-credentials`, `.netrc`, `_netrc`, `.env`,
+#                         `.env.*`, `.credentials.json`, `.docker/config.json`,
+#                         `~/.ssh/id_*` (not `.pub`) or `~/.aws/credentials` by:
+#                           - an interpreter's inline code or heredoc
+#                             (`python3 -c "open('.env')"`, `node -e`, `ruby -e`,
+#                             `perl -e`, `php -r`), see interpreter_reads;
+#                           - `jq` of the two JSON files (a `.env` jq filter is
+#                             not a path);
+#                           - PowerShell `Get-Content`, `gc`, `type`.
 #                         `.env.example`, `.env.sample` and `.env.template` carry no
 #                         secret and are not matched.
+#                         `cat`, `head`, `tail`, `sed` and redirects of these files
+#                         are left to native `Read()` deny rules, which reach those
+#                         Bash commands and the Read tool but not an interpreter
+#                         that opens the file itself; /guardrails:setup prints the
+#                         rules. Pointer: "Read and Edit" in
+#                         https://code.claude.com/docs/en/permissions. As of:
+#                         2026-10-15. Recheck trigger: that section changes which
+#                         Bash commands a Read deny rule reaches.
 #
 # ALLOWED, because they answer presence without printing a value: `gh auth status`,
 # `test -n "$GH_TOKEN"`, `[ -f ~/.netrc ]`, `printenv PATH`, `echo $HOME`,
@@ -35,14 +48,17 @@
 # the string, or after ; & | ( ` { or a newline, past any leading NAME=value
 # assignments. So `git commit -m "block gh auth
 # token"` and `grep 'git credential fill' docs.md` pass. The exception is a command
-# string that also names a shell word (bash, sh, dash, zsh, ksh, pwsh, powershell,
-# eval): quoted text can be handed to that shell and run, so any occurrence matches
-# (`bash -c 'gh auth token'`).
+# that runs a shell word (bash, sh, dash, zsh, ksh, pwsh, powershell, eval) at
+# command position, after any launcher such as sudo or env: quoted text can be
+# handed to that shell and run, so any occurrence matches
+# (`bash -c 'gh auth token'`). A shell word inside an argument runs nothing
+# (`grep -E "bash rule|\.env" doc.md` passes).
 #
 # KNOWN GAPS (a deny rule is only partial; the parent contract says so too):
-#   - readers other than the ones above: `python -c` and `node -e` opening a
-#     credential file, `less`, `head`, `tail`, `sed`, `grep` and `bat` on one,
-#     `.npmrc` and `.pypirc` auth lines, cloud CLI credential stores, SSH and GPG keys
+#   - readers other than the ones above, where no native Read() deny rule is set:
+#     `cat`, `less`, `head`, `tail`, `sed`, `grep` and `bat`; PowerShell's `cat`
+#     alias; an interpreter running a script file; `.npmrc` and `.pypirc` auth
+#     lines, cloud CLI credential stores other than ~/.aws, GPG keys
 #   - a bare `printenv`, `env` or `set`, which dumps every variable
 #   - a variable whose name does not look like a token
 #   - a shape assembled through expansion or `eval "$var"`, a wrapper such as `sudo`
@@ -54,7 +70,7 @@
 #     (`curl -H "Authorization: Bearer $(gh auth token)" ...`, `gh auth token | wc -c`)
 #   - `echo '$GITHUB_TOKEN'` (single quotes print the name), and a variable whose
 #     name merely contains one of the words (`GH_TOKEN_FILE`)
-#   - prose that quotes a shape beside a shell word in the same command string
+#   - prose that quotes a shape in a command that also runs a shell (`bash -c`)
 #   - a shape spelled in a heredoc body
 #
 # Escape: the `block_credential_read_enabled` userConfig option (true/false; any
@@ -129,7 +145,7 @@ SUBJECT="${COMMAND,,}"
 
 # Cheap pre-filter: every shape below names one of these words, so a command
 # that names none leaves without paying for the matcher.
-[[ "$SUBJECT" =~ credential|token|secret|password|passwd|api_?key|access_key|private_key|printenv|_netrc|\.netrc|docker|env ]] || exit 0
+[[ "$SUBJECT" =~ credential|token|secret|password|passwd|api_?key|access_key|private_key|printenv|_netrc|\.netrc|docker|env|\.ssh ]] || exit 0
 
 # Is a family token in the block_credential_read_allow userConfig comma list?
 allowed() {
@@ -163,12 +179,18 @@ match_shapes() {
   # A path whose last part is a credential file.
   local dir="([^[:space:];&|${sq}${dq}]*[/\\\\])?"
   local jsonfile="(\\.credentials\\.json|\\.docker[/\\\\]config\\.json)"
-  local credfile="${dir}(\\.git-credentials|\\.netrc|_netrc|\\.env(\\.[a-z0-9_.-]+)?|${jsonfile})"
+  local keyfile="(\\.ssh[/\\\\]id_[a-z0-9_]+|\\.aws[/\\\\]credentials)"
+  local credfile="${dir}(\\.git-credentials|\\.netrc|_netrc|\\.env(\\.[a-z0-9_.-]+)?|${jsonfile}|${keyfile})"
+  # A launcher that runs the next word as the command.
+  local launch="((sudo|doas|env|exec|command|nohup|nice|time|xargs|timeout)(${sp}+-[^[:space:]]*|${sp}+[0-9][^[:space:]]*)*${sp}+)*"
 
-  # A command string that names a shell may hand quoted text to it, so a shape
-  # matches anywhere. `stmt` is `lead` without `(`: a bare PowerShell `$env:X`
+  # A command string that RUNS a shell may hand quoted text to it, so a shape
+  # matches anywhere. The shell word must sit where a command starts: one that
+  # only appears inside an argument (`grep -E "bash rule|cat \.env" doc.md`)
+  # runs nothing. `stmt` is `lead` without `(`: a bare PowerShell `$env:X`
   # after `(` is a condition, not output.
-  if [[ "$s" =~ (^|[^[:alnum:]_.-])(bash|sh|dash|zsh|ksh|pwsh|powershell|eval)(\.exe)?[${sq}${dq}]?${sp} ]]; then
+  local re_shell="(^|[;&|(\`{${nl}])${sp}*${assign}${launch}${pre}(bash|sh|dash|zsh|ksh|pwsh|powershell|eval)(\\.exe)?[${sq}${dq}]?${sp}"
+  if [[ "$s" =~ $re_shell ]]; then
     lead='(^|[^[:alnum:]_.-])'
     stmt='(^|[^[:alnum:]_.(-])'
   else
@@ -203,7 +225,7 @@ match_shapes() {
   local re_echo="${lead}${pre}(echo|printf|write-output|write-host)(\\.exe)?${sp}+${arg}*\\\$\\{?(env:)?${tokvar}"
   local re_psvar="${stmt}\\\$\\{?env:${tokvar}"
   local re_psenv="${lead}${pre}(get-childitem|get-item|gci|gi|dir|ls)${sp}+(${arg}*${sp})?[${sq}${dq}]?env:[/\\\\]?${tokvar}"
-  local re_file="${lead}${pre}(cat|get-content|gc|type)(\\.exe)?${sp}+(${arg}*${sp})?[${sq}${dq}]?${credfile}${end}"
+  local re_file="${lead}${pre}(get-content|gc|type)(\\.exe)?${sp}+(${arg}*${sp})?[${sq}${dq}]?${credfile}${end}"
   local re_jqfile="${lead}${pre}jq(\\.exe)?${sp}+(${arg}*${sp})?[${sq}${dq}]?${dir}${jsonfile}${end}"
   local re_jqenv="${lead}${pre}jq(\\.exe)?${sp}+(${arg}*${sp})?[${sq}${dq}]?(env|\\\$jq_env_builtin)${end}"
 
@@ -228,10 +250,39 @@ match_shapes() {
       "test -n \"\$NAME\" && echo set"
   fi
 
-  if ! allowed credential-file-read && [[ "$s" =~ $re_file || "$sj" =~ $re_jqfile ]]; then
-    block credential-file-read "a credential file: .git-credentials, .netrc, .env, .credentials.json, .docker/config.json" \
+  if ! allowed credential-file-read && { [[ "$s" =~ $re_file || "$sj" =~ $re_jqfile ]] || interpreter_reads "$s" "$lead" "$pre"; }; then
+    block credential-file-read "a credential file: .git-credentials, .netrc, .env, .credentials.json, .docker/config.json, ~/.ssh/id_*, ~/.aws/credentials" \
       "test -f <path> && echo present (PowerShell: Test-Path <path>)"
   fi
+}
+
+# interpreter_reads <subject> <lead> <pre>: true when an interpreter's code
+# (python, node, ruby, perl, php and kin) reads a credential file. The code is
+# the rest of the interpreter's line plus the body of a heredoc that line opens
+# (`python3 - <<'EOF'`). A line of it reads the file when it holds a read verb
+# (open, read, dotenv, file_get_contents, slurp, cat, source) and the file name,
+# in either order: naming the file alone (a test that writes a fake .netrc) is
+# not a read. A script file the interpreter runs is not opened here.
+interpreter_reads() {
+  local s="$1" lead="$2" pre="$3" sp='[[:space:]]' nl=$'\n' sq="'" dq='"'
+  local re_int="${lead}${pre}(python[0-9.]*|py|node|nodejs|deno|bun|ruby|perl|php)(\\.exe)?(${sp}|\$)"
+  local path="(^|[^a-z0-9_])(\\.git-credentials|\\.netrc|_netrc|\\.env(\\.[a-z0-9_-]+)?|\\.credentials\\.json|\\.docker[/\\\\]config\\.json|\\.ssh[/\\\\]id_[a-z0-9_]+|\\.aws[/\\\\]credentials)([^a-z0-9_.-]|\$)"
+  local verb='(open|read|dotenv|file_get_contents|slurp|cat|source)'
+  local re_read="${verb}[^${nl}]*${path}|${path}[^${nl}]*${verb}"
+  local re_hd="<<-?${sp}*[${sq}${dq}]?([a-z0-9_]+)"
+  local rest line code
+  while [[ "$s" =~ $re_int ]]; do
+    rest="${s#*"${BASH_REMATCH[0]}"}"
+    line="${rest%%"$nl"*}"
+    code="$line"
+    if [[ "$line" =~ $re_hd && "$rest" == *"$nl"* ]]; then
+      code+="$nl${rest#*"$nl"}"
+      code="${code%%"$nl${BASH_REMATCH[1]}$nl"*}"
+    fi
+    [[ "$code" =~ $re_read ]] && return 0
+    s="$rest"
+  done
+  return 1
 }
 
 match_shapes

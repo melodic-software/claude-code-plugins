@@ -63,7 +63,10 @@
 # resolved at plugin-enable time, so an inline env prefix on the command line
 # (`FOO=bar git push -f`) cannot alter this guard's behavior.
 #
-# BLOCKING: exits 2 on any detected form not in the allow-list.
+# BLOCKING: on a detected form not in the allow-list, asks the user when the
+# session is attended and exits 2 otherwise (hook::refuse, refuse.sh). A command
+# it cannot read (too long, unparsable, an alias chain past its budget) is
+# denied either way.
 
 set -uo pipefail
 
@@ -94,6 +97,8 @@ source "$_HOOK_SELF/abort-boundary.sh"
 guard::abort_boundary block-dangerous-git PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
+# shellcheck source=refuse.sh
+source "$_HOOK_SELF/refuse.sh" || exit 70 # not a chosen status: the boundary reports it
 
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry (the block
@@ -210,14 +215,13 @@ allowed() {
 }
 
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-# block <form> <reason> <fix>: one deny line ending in the user's allow-list
-# lever for <form>.
+# block <form> <reason> <fix>: one refusal line ending in the user's allow-list
+# lever for <form>, asked of the user in an attended session (refuse.sh).
 block() {
   local form="$1"
   allowed "$form" && return 0
-  echo "$2 $3; or the user adds $form to block_dangerous_git_allow." >&2
   emit_tel "blocked" "$form"
-  exit 2
+  hook::refuse "$2 $3; or the user adds $form to block_dangerous_git_allow."
 }
 
 # The four verdicts each scan below reaches from TWO shapes: before and after the

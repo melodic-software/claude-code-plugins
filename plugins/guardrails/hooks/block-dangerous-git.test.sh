@@ -16,6 +16,10 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
 GUARD_UNDER_TEST="$HOOK"
+# An interactive session exports CLAUDE_CODE_SESSION_ATTENDED=1, which turns a
+# refusal into an ask (refuse.sh). Every case below asserts the deny unless it
+# sets the flag itself.
+unset CLAUDE_CODE_SESSION_ATTENDED
 
 # A lease expectation is judged against the hash width of the repository the
 # push would run in, so every case that carries one needs a KNOWN working
@@ -2407,5 +2411,49 @@ expect_both "dispatched parity: git reset --hard blocks" 2 \
 expect_both "dispatched parity: PowerShell git push --force blocks" 2 \
   --tool PowerShell --lib lib/powershell/ps-command.sh \
   --command "git push --force" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1"
+
+# --- An attended session asks instead of denying (refuse.sh) ------------------
+# Only CLAUDE_CODE_SESSION_ATTENDED exactly 1 asks: an interactive session reads
+# 1, `claude -p` and `claude --bg` read 0, and a CI lane sets nothing.
+expect "attended: git reset --hard exits 0 to ask" 0 \
+  --command "git reset --hard" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_eq "attended: the decision is ask" ask \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+assert_eq "attended: the event is PreToolUse" PreToolUse \
+  "$(jq -r '.hookSpecificOutput.hookEventName // empty' <<<"$GUARD_OUT")"
+assert_contains "attended: the reason names the form and the lever" \
+  "$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")" \
+  "git reset --hard discards uncommitted work. Commit or stash first (git stash push -u), or use git reset --keep; or the user adds reset-hard to block_dangerous_git_allow."
+assert_eq "attended: nothing on stderr" "" "$GUARD_ERR"
+for _att in 0 "" true yes 01 " 1" "1 "; do
+  expect "attended=[$_att]: git reset --hard denies" 2 \
+    --command "git reset --hard" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- "CLAUDE_CODE_SESSION_ATTENDED=$_att"
+  assert_eq "attended=[$_att]: no document" "" "$GUARD_OUT"
+done
+expect "attended unset: git reset --hard denies" 2 \
+  --command "git reset --hard" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1"
+expect "attended: a push --force asks too" 0 \
+  --command "git push --force origin main" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_eq "attended: push --force decision is ask" ask \
+  "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+expect "attended: an allow-listed form neither asks nor denies" 0 \
+  --command "git reset --hard" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- \
+  CLAUDE_CODE_SESSION_ATTENDED=1 CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=reset-hard
+assert_eq "attended: allow-listed form emits no document" "" "$GUARD_OUT"
+expect "attended: a benign command emits no document" 0 \
+  --command "git status" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- CLAUDE_CODE_SESSION_ATTENDED=1
+assert_eq "attended: benign command stays silent" "" "$GUARD_OUT"
+# A command the guard cannot read names nothing a person could judge.
+expect "attended: a command over the length cap still denies" 2 \
+  --command "git status $(printf 'x%.0s' {1..16400})" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- CLAUDE_CODE_SESSION_ATTENDED=1
+# Under the dispatcher a merged document keeps no decision, so an ask beside
+# another guard's document would be lost: it denies there.
+expect "attended, dispatched: git reset --hard still denies" 2 --via dispatched \
+  --command "git reset --hard" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- CLAUDE_CODE_SESSION_ATTENDED=1
+
+# --- Guards stay on in auto mode -----------------------------------------------
+AUTO_PAYLOAD=$(MSYS_NO_PATHCONV=1 jq -n --arg d "$REPO_SHA1" \
+  '{tool_name:"Bash",tool_input:{command:"git reset --hard"},cwd:$d,permission_mode:"auto"}')
+expect_both "auto mode: git reset --hard still blocks" 2 --payload "$AUTO_PAYLOAD" --chdir "$REPO_SHA1"
 
 report
