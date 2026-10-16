@@ -1,0 +1,26 @@
+# Git hooks for this repository (https://lefthook.dev/configuration/). Install once per clone:
+# `lefthook install`; until then the .claude/settings.json pre-push row runs the same check on a
+# Claude Code session's pushes and says to install. Placement rules:
+# docs/conventions/check-placement/README.md.
+pre-push:
+  jobs:
+    # Runs .claude/hooks/check-affected-pre-push.sh as committed at the merge-base with
+    # origin/main, never the pushed branch's copy, and that script runs the merge-base copy of any
+    # check tooling the branch changes, so a contributor branch checked out to review or fix
+    # cannot run its own check code. This file itself is read from the checked-out branch, as
+    # lefthook and husky always read their config, so a branch that edits lefthook.yml still
+    # controls this job: read a branch's lefthook.yml diff before pushing from it.
+    # Lefthook gives stdin to at most one job per hook, so this job judges HEAD rather than the
+    # pushed refs. Exit 1 is a failing check and blocks the push; anything else passes, and CI
+    # checks the pushed commit either way.
+    - name: check-affected
+      run: |
+        if ! mb="$(git merge-base HEAD refs/remotes/origin/main 2>/dev/null)"; then
+          echo "check-affected pre-push: skipped, no origin/main merge-base to take the check from; CI checks it." >&2
+          exit 0
+        fi
+        tmp="$(mktemp -d)" || exit 0
+        trap 'rm -rf "$tmp"' EXIT
+        git archive "$mb" -- .claude/hooks/check-affected-pre-push.sh lib/hook-utils.sh 2>/dev/null | tar -x -C "$tmp" 2>/dev/null
+        [ -f "$tmp/.claude/hooks/check-affected-pre-push.sh" ] || exit 0
+        bash "$tmp/.claude/hooks/check-affected-pre-push.sh" --git-hook </dev/null
