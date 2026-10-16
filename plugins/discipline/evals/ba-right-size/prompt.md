@@ -1,5 +1,5 @@
 ---
-description: "Regression guard: a request already the right size (one rename). The reply says it is the right size and stops instead of inflating it. Both arms are expected to keep scope bounded; paired with ba-hard-goal, which a person judged hard."
+description: "Regression guard: a request already the right size (one rename). The reply says it is the right size and stops instead of inflating it. Both arms are expected to keep scope bounded; paired with the hard-goal case, which a person judged hard."
 tags: [discipline, be-ambitious, outcome, regression-guard]
 runs: 3
 max_turns: 30

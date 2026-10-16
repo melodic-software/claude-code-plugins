@@ -403,7 +403,7 @@ an abort line. Every raised version ends with a scope fence, and nothing runs
 until you accept; a request already the right size gets a one-line "no
 change". It carries no `discipline-batch` tier.
 
-Its `ba-*` eval cases list Write, Edit and Bash so the no-plugin arm can act
+Its eval cases in `evals/` list Write, Edit and Bash so the no-plugin arm can act
 on the request. Run them with `--allow-tools Write,Edit,Bash`; without the
 grant those tools are removed and the cases' "executes nothing" graders pass
 whatever the model does.
