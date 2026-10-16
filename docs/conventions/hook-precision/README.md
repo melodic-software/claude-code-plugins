@@ -126,8 +126,6 @@ runs every `*.test.sh` on any hooks change.
 
 Existing adopters conform by carrying the rule their over-fire needed:
 
-- `block-hook-bypass` strips quoted literal spans before its executable-token scan, so a command that only
-  *mentions* `echo` / `>` inside an argument stays quiet (rule 2).
 - `cli-flag-verify` buffers stdin through `hook::buffer_stdin` instead of reading `fd0` directly (rule 3).
 - `block-noncanonical-commit` gates on the canonical `-F -` marker alone, dropping the `--trailer`
   conjunct its advisory predecessor required (rule 4).
@@ -158,12 +156,10 @@ The helpers live in `lib/hook-utils.sh`. The six hooks that use the snapshot and
 carry `rewrite-guard.sh`. `actionlint` and `markdown-format` do not, because they never
 call `hook::rewrite_guard_begin`.
 
-The gitignore signal is kept separate from the two disposable-root lists the fleet already has:
-guardrails' `block_hook_bypass_scratch_roots` and hook-utils' temp-root helpers. They answer different
-questions. The first is an operator allowlist on a security guard, empty by default. The second marks
-the host temp tree for project membership. `.gitignore` is the repository's own statement of what is out
-of scope. Merging any two would let a formatter-scope setting widen a security exemption, so each stays
-its own list.
+The gitignore signal is kept separate from hook-utils' temp-root helpers, which mark the host temp tree
+for project membership, and from any operator allowlist on a security guard. `.gitignore` is the
+repository's own statement of what is out of scope. Merging them would let a formatter-scope setting
+widen a security exemption, so each stays its own list.
 
 The shared harness and a worked exemplar that co-locates both MUST-fire and MUST-stay-quiet cases:
 

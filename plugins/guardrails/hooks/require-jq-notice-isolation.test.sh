@@ -14,9 +14,9 @@
 # LOOKUP of jq fails, PATH is untouched.
 # test-scope: plugins/guardrails/hooks/*.sh plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/prerequisites.json
 set -uo pipefail
-# block-credential-read and block-hook-bypass ship off (plugin.json default
-# false); these cases exercise them, so turn them on.
-export CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED=true CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED=true
+# block-credential-read ships off (plugin.json default
+# false); these cases exercise it, so turn it on.
+export CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED=true
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_TMPDIR="$(mktemp -d)"
@@ -71,7 +71,7 @@ run_hidden() {
 
 BASH_PAYLOAD='{"session_id":"latch-s1","tool_name":"Bash","tool_input":{"command":"git status"}}'
 DATA="$TEST_TMPDIR/data-shared"
-out=$(run_hidden "$DATA" block-hook-bypass.sh "$BASH_PAYLOAD")
+out=$(run_hidden "$DATA" block-convention-violation.sh "$BASH_PAYLOAD")
 assert_contains "first guard: the user is told" "$(jq -r '.systemMessage // empty' <<<"$out")" \
   "$PLUGIN_NAME: jq not on the hook PATH"
 assert_contains "first guard: the model is told" \
@@ -83,7 +83,7 @@ assert_silent "second guard in the same session and agent: stays quiet" "$out"
 DATA2="$TEST_TMPDIR/data-probed"
 mkdir -p "$DATA2/skip-notices"
 : >"$DATA2/skip-notices/${PLUGIN_NAME}-jq.latch-s1.user"
-out=$(run_hidden "$DATA2" block-hook-bypass.sh "$BASH_PAYLOAD")
+out=$(run_hidden "$DATA2" block-convention-violation.sh "$BASH_PAYLOAD")
 assert_eq "after the probe: no second user notice" "" "$(jq -r '.systemMessage // empty' <<<"$out")"
 assert_contains "after the probe: the model is still told once" \
   "$(jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$out")" "$PLUGIN_NAME: jq not on the hook PATH"

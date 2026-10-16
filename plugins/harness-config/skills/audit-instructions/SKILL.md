@@ -311,15 +311,8 @@ rows to `lane-runs.sh plan --run-dir <run-dir>`: dispatch only the `rerun` lanes
 touches, and a changed partition re-runs them all. With no prior run, `--resume` says so and starts
 a new one.
 
-A lane that persists its report to disk writes it with the Write tool, which the `guardrails`
-plugin's `block-hook-bypass` guard exempts by design, never through a shell redirect whose target is
-carried in a variable or through inline Python, which that guard blocks because it cannot resolve
-the target. A redirect to a literal absolute path under the host temp tree is exempt only when
-`CLAUDE_PROJECT_DIR` names a project root not itself under a temp tree, so in a temp-rooted checkout
-(a CI clone, a test fixture) the Write tool is the only route. Pointer:
-`plugins/guardrails/hooks/block-hook-bypass.sh` (`_bbh_temp_default_applies` and the scope note in
-`block_bypass`) and `plugins/guardrails/README.md`. Recheck trigger: the guardrails plugin changes
-that guard's exemption set or its block message.
+A lane that persists its report to disk writes it with the Write tool, never through a shell
+redirect or inline Python: a shell write skips the Write and Edit content guards.
 
 ## Phase B2: Cross-surface conflict pass
 

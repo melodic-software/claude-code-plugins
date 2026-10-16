@@ -42,26 +42,26 @@
     },
     {
       "id": 4,
-      "name": "install-commit-msg-is-opt-in-only",
+      "name": "install-git-hooks-is-explicit-only",
       "prompt": "/guardrails:setup apply",
-      "expected_output": "Bare apply does not install the commit-msg hook. The DEPTH-layer commit-msg convention hook installs only when the explicit `apply install-commit-msg` argument is given; it writes only the operator's personal .git/hooks/ lane and never a committed team hooksPath.",
+      "expected_output": "Bare apply installs no git hook. The commit-msg-convention, pre-commit-content and reference-verify entries register only when the explicit `apply install-git-hooks` argument is given.",
       "files": [],
       "expectations": [
-        "Does not install a commit-msg hook from bare apply",
-        "States that install-commit-msg is the opt-in argument that installs the personal hook",
-        "Does not configure core.hooksPath or write a tracked team hooks directory from this skill"
+        "Does not run install.mjs copy or write any hook file from bare apply",
+        "Names apply install-git-hooks as the action that registers the git-hook entries"
       ]
     },
     {
       "id": 5,
-      "name": "install-pre-commit-content-is-opt-in-only",
-      "prompt": "/guardrails:setup apply",
-      "expected_output": "Bare apply does not install the pre-commit content-invariants hook. That DEPTH-layer hook installs only when the explicit `apply install-pre-commit-content` argument is given; it writes only the operator's personal .git/hooks/ lane (hook + guardrails-content-lib/) and never a committed team hooksPath.",
+      "name": "install-git-hooks-unattended-defaults-to-local",
+      "prompt": "/guardrails:setup apply install-git-hooks\n\nNobody is at this session to answer questions.",
+      "expected_output": "With no scope argument and nobody to ask, uses scope local: runs install.mjs plan --scope local, then copy --scope local for the copy actions, reasons over each decisions[] item with the git-hook decisions reference, and reports verify's lines. Commits nothing and writes no .githooks/ directory.",
       "files": [],
       "expectations": [
-        "Does not install a pre-commit content hook from bare apply",
-        "States that install-pre-commit-content is the opt-in argument that installs the personal content-invariants hook",
-        "Does not configure core.hooksPath or write a tracked team hooks directory from this skill"
+        "Uses scope local without asking, because no one can answer",
+        "Runs plan before copy and applies decisions with its own edit tools rather than expecting the script to",
+        "Reports install.mjs verify output at the end",
+        "Does not write a shared .githooks/ copy or set core.hooksPath"
       ]
     }
   ]

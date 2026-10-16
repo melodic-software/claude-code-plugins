@@ -323,6 +323,9 @@ marketplace comes from these rows.
 | Hook | Placement | Measured | Host | Date |
 |---|---|---|---|---|
 | typos-format `pre-commit` entry (typos 1.51.1, plain dispatcher), staged sets from real `origin/main` commits | pre-commit | 1 file 0.039 s (0.038-0.040); 10 files 0.125 s (0.122-0.133); 44 files 0.508 s (0.491-0.681) | reference host (Linux, WSL2, 32 CPUs) | 2026-10-15 |
+| guardrails `commit-msg-convention` entry, one message | commit-msg | 10 ms median (9-11) | reference host (Linux, WSL2) | 2026-10-16 |
+| guardrails `pre-commit-content` entry, staged sets from real `origin/main` commits | pre-commit | 1 file 0.039 s (0.036-0.040); 10 files 0.311 s (0.298-0.337); 44 files 1.277 s (1.206-1.450) | reference host (Linux, WSL2) | 2026-10-16 |
+| guardrails `reference-verify` entry, same staged sets (1 file is not `.md`/`.sh`; 37 of the 44 are) | pre-commit | 1 file 0.018 s (0.017-0.019); 10 files 1.169 s (1.109-1.271), 11.0 s on the first run in a clone, which builds the deleted-path cache; 44 files 12.2 s (10.6-17.0) | reference host (Linux, WSL2) | 2026-10-16 |
 | `scripts/check-affected.sh --no-fetch` (this repository) | pre-push | 15.5 s median on a 28-file range; 0.52 s on one file | reference host (Linux, WSL2) | 2026-10-15 |
 | actionlint, per edit (`.github/workflows/*.yml`) | PostToolUse today; moving to pre-commit | 44 ms median (43-47) | reference host (Linux, WSL2) | 2026-10-15 |
 | bash-format, per edit (`.sh`, configured) | PostToolUse today | 64 ms median (62-68) | reference host (Linux, WSL2) | 2026-10-15 |

@@ -1,6 +1,6 @@
 {
   "name": "guardrails",
-  "description": "Eighteen toggleable guards. Blocks: secret writes, machine paths, git hook bypass, force-push, reset --hard, merges with open review, drive-root /tmp writes, exported MSYS_NO_PATHCONV, recursive deletes of roots or outside the tree, shell-expanded commit -m, off-convention commit or PR titles; off by default, Bash file-write workarounds and credential reads. Warns on: invented CLI flags, unresolved /plugin:skill refs, removed repo paths, Workflow fan-out, direct gh pr create.",
+  "description": "Thirteen toggleable guards. Blocks: secret writes, machine paths, git hook bypass, force-push, reset --hard, merges with open review, drive-root /tmp writes, exported MSYS_NO_PATHCONV, recursive deletes of roots or outside the tree, shell-expanded commit -m, off-convention commit or PR titles; off by default, credential reads. Warns on: Workflow fan-out, direct gh pr create. Git hooks check commit subjects, secrets and paths, CLI flags, skill refs and removed paths.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -72,24 +72,6 @@
       "description": "Blocks a pull-request merge (gh pr merge, REST, GraphQL or an MCP merge tool) while the PR has unresolved review threads, a changes-requested review, or failing checks. Fails open, visibly, when the PR state cannot be read. On by default.",
       "default": true
     },
-    "block_hook_bypass_enabled": {
-      "type": "boolean",
-      "title": "Block-hook-bypass guard",
-      "description": "Blocks Bash file-write workarounds that circumvent Write and Edit hook gates. Off by default: its measured precision is below the bar.",
-      "default": false
-    },
-    "block_hook_bypass_scratch_roots": {
-      "type": "string",
-      "title": "Block-hook-bypass scratch roots",
-      "description": "Comma-separated absolute directories block-hook-bypass exempts as scratch or temp write targets (e.g. /tmp/scratch,/d/jobtmp/session). Empty by default; it adds to the shipped temp-tree and plugin-data roots. Matching, quoting and symlink rules are in the README's Option details.",
-      "default": ""
-    },
-    "bash_file_change_check_enabled": {
-      "type": "boolean",
-      "title": "Bash file-change check",
-      "description": "After a Bash or PowerShell command, runs the Write and Edit secret and hardcoded-path guards on each repository file the command changed, and reports what they find. On by default.",
-      "default": true
-    },
     "block_windows_drive_tmp_enabled": {
       "type": "boolean",
       "title": "Block-Windows-drive-tmp guard",
@@ -130,36 +112,6 @@
       "type": "boolean",
       "title": "Block-convention-violation guard",
       "description": "Blocks a commit subject or gh pr create --title that violates the team-tracked convention pattern in .claude/source-control.md. On by default; with no tracked pattern nothing is enforced. Same exemptions as block-noncanonical-commit.",
-      "default": true
-    },
-    "cli_flag_verify_enabled": {
-      "type": "boolean",
-      "title": "CLI-flag-verify guard",
-      "description": "Advises on hallucinated CLI flags written to files; never blocks. On by default.",
-      "default": true
-    },
-    "cli_flag_verify_bins": {
-      "type": "string",
-      "title": "CLI-flag-verify scanned binaries",
-      "description": "Comma-separated binaries cli-flag-verify scans. Empty, the default, uses the built-in set.",
-      "default": ""
-    },
-    "cli_flag_verify_skip_bins": {
-      "type": "string",
-      "title": "CLI-flag-verify skipped binaries",
-      "description": "Comma-separated binaries cli-flag-verify must never scan. Empty by default.",
-      "default": ""
-    },
-    "skill_reference_verify_enabled": {
-      "type": "boolean",
-      "title": "Skill-reference-verify guard",
-      "description": "Advises when markdown cites a /plugin:skill reference this repo owns but cannot resolve; never blocks. On by default.",
-      "default": true
-    },
-    "stale_path_verify_enabled": {
-      "type": "boolean",
-      "title": "Stale-path-verify guard",
-      "description": "Advises when markdown cites a repo-relative path this repo's own history shows was removed and that is gone from the working tree; never blocks. On by default.",
       "default": true
     },
     "workflow_resilience_check_enabled": {

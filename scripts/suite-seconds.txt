@@ -213,12 +213,14 @@ plugins/firecrawl/skills/update/scripts/update.test.sh 1
 plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.test.sh 1
 plugins/github/github.test.sh 1
 plugins/go-format/hooks/go-format.test.sh 1
+plugins/guardrails/git-hooks/commit-msg-convention.test.sh 1
+plugins/guardrails/git-hooks/pre-commit-content.test.sh 1
+plugins/guardrails/git-hooks/reference-verify.test.sh 2
 plugins/guardrails/hooks/abort-boundary.test.sh 1
 plugins/guardrails/hooks/block-convention-violation.test.sh 5
 plugins/guardrails/hooks/block-credential-read.test.sh 3
 plugins/guardrails/hooks/block-dangerous-git.test.sh 20
 plugins/guardrails/hooks/block-exported-msys-pathconv.test.sh 1
-plugins/guardrails/hooks/block-hook-bypass.test.sh 28
 plugins/guardrails/hooks/block-no-verify.test.sh 13
 plugins/guardrails/hooks/block-noncanonical-commit.test.sh 9
 plugins/guardrails/hooks/block-root-delete-target.test.sh 158
@@ -236,8 +238,6 @@ plugins/guardrails/hooks/secret-pattern-detection.test.sh 22
 plugins/guardrails/hooks/skill-reference-verify.test.sh 5
 plugins/guardrails/hooks/stale-path-verify.test.sh 4
 plugins/guardrails/hooks/workflow-resilience-check.test.sh 1
-plugins/guardrails/lib/git-hooks/commit-msg-convention.test.sh 1
-plugins/guardrails/lib/git-hooks/pre-commit-content-invariants.test.sh 1
 plugins/harness-config/lib/check-retirements.test.sh 2
 plugins/harness-config/lib/managed-scope.test.sh 1
 plugins/harness-config/lib/permission-patterns.test.sh 1

@@ -370,14 +370,14 @@ done
 if [[ -x "$SHIM/dirname" && -x "$SHIM/sed" && -x "$SHIM/jq" ]]; then
   : >"$SPAWN_LOG"
   PATH="$SHIM:$PATH" bash "$DISPATCH" --lib lib/powershell/ps-command.sh \
-    block-no-verify.sh block-dangerous-git.sh block-hook-bypass.sh \
+    block-no-verify.sh block-dangerous-git.sh \
     flag-commit-pr-skill-bypass.sh block-noncanonical-commit.sh \
     block-convention-violation.sh block-windows-drive-tmp.sh \
     block-exported-msys-pathconv.sh <<<"$PAYLOAD" >/dev/null
   assert_eq "benign Bash dispatcher spends no jq, dirname or sed" "" "$(cat "$SPAWN_LOG")"
 fi
 DISPATCH_XTRACE=$(PS4='+PID=$BASHPID ' bash -x "$DISPATCH" --lib lib/powershell/ps-command.sh \
-  block-no-verify.sh block-dangerous-git.sh block-hook-bypass.sh \
+  block-no-verify.sh block-dangerous-git.sh \
   flag-commit-pr-skill-bypass.sh block-noncanonical-commit.sh \
   block-convention-violation.sh block-windows-drive-tmp.sh \
   block-exported-msys-pathconv.sh <<<"$PAYLOAD" 2>&1 >/dev/null) || true
@@ -443,7 +443,7 @@ assert_absent "dispatcher does not copy the library's jq_fields (the lib names i
   "$DISPATCH_SRC" 'declare -f'
 assert_absent "dispatcher sources no guard in a command substitution" \
   "$DISPATCH_SRC" '$(source'
-for g in block-no-verify block-dangerous-git block-hook-bypass \
+for g in block-no-verify block-dangerous-git \
   flag-commit-pr-skill-bypass block-noncanonical-commit \
   block-convention-violation block-windows-drive-tmp block-exported-msys-pathconv \
   secret-pattern-detection hardcoded-path-check \
@@ -512,7 +512,7 @@ else
   # plugin name), so the first guard of the call tells the user and the model
   # once and the next guard says nothing: one document, nothing dropped.
   NOJQ_CMD=$(jq -c '. + {session_id: "nojq-s1"}' <<<"$(command_json 'cat > foo.txt && git commit -m x')")
-  run_nojq "$NOJQ_CMD" block-hook-bypass.sh block-noncanonical-commit.sh
+  run_nojq "$NOJQ_CMD" block-convention-violation.sh block-noncanonical-commit.sh
   assert_exit "no jq, real guards: the advisory notices exit 0" 0 "$RC"
   assert_eq "no jq, real guards: exactly one JSON document on stdout" \
     "1" "$(grep -c '^{' <<<"$OUT")"
@@ -521,11 +521,11 @@ else
   assert_absent "no jq, real guards: the second guard's notice is not produced" \
     "$ERR" "run-guards: dropped"
   # A later call in the same session says nothing: the latch holds.
-  run_nojq "$NOJQ_CMD" block-hook-bypass.sh block-noncanonical-commit.sh
+  run_nojq "$NOJQ_CMD" block-convention-violation.sh block-noncanonical-commit.sh
   assert_silent "no jq, real guards: a later call in the session stays quiet" "$OUT$ERR"
   # A guard that denies on a missing prerequisite still denies, and its reason
   # reaches stderr with no dropped document beside it.
-  run_nojq "$(jq -c '.session_id = "nojq-s2"' <<<"$NOJQ_CMD")" block-hook-bypass.sh block-no-verify.sh
+  run_nojq "$(jq -c '.session_id = "nojq-s2"' <<<"$NOJQ_CMD")" block-convention-violation.sh block-no-verify.sh
   assert_exit "no jq, real guards: a fail-closed guard still wins the exit code" 2 "$RC"
   assert_contains "no jq, real guards: the fail-closed reason reaches stderr" \
     "$ERR" "BLOCKED: jq is not on PATH, so guardrails denies every Bash and PowerShell call, and every file write on Windows."
@@ -737,41 +737,29 @@ done
 
 # --- hooks.json wires every guard through the dispatcher by file name ---------
 for g in secret-pattern-detection hardcoded-path-check block-no-verify block-dangerous-git \
-  block-hook-bypass flag-commit-pr-skill-bypass block-noncanonical-commit \
+  flag-commit-pr-skill-bypass block-noncanonical-commit \
   block-convention-violation block-windows-drive-tmp block-exported-msys-pathconv \
-  block-root-delete-target cli-flag-verify skill-reference-verify stale-path-verify; do
+  block-root-delete-target; do
   n=$(jq -r --arg g "$g.sh" '[.hooks[][] | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end | select(contains("run-guards.sh") and contains(" " + $g))] | length' "$HOOKS_JSON")
   if ((n > 0)); then ok "hooks.json dispatches $g"; else bad "hooks.json does not dispatch $g"; fi
   if [[ -f "$HOOK_DIR/$g.sh" ]]; then ok "$g.sh exists on disk"; else bad "$g.sh missing on disk"; fi
 done
 
-# --- PostToolUse rows carry an `if` per extension the verifiers accept --------
-# Claude Code evaluates a handler's `if` before spawning it, so a Write to a file
-# no verifier would scan spawns nothing. That saving holds only while the set of
-# `if` extensions in hooks.json equals the set the three verifiers' own
-# `case "$FILE"` gates accept: an extension added to a gate without an `if` row
-# is a verifier that silently never fires on it, and an `if` row with no gate
-# is a spawn that always early-exits. Both directions are pinned here, against
-# the scripts' source rather than a second hand-kept list.
-post_rows=$(jq -c '[.hooks.PostToolUse[] | select(.matcher == "Write|Edit") | .hooks[]]' "$HOOKS_JSON")
-post_n=$(jq 'length' <<<"$post_rows")
-if ((post_n > 1)); then ok "PostToolUse Write|Edit carries one row per gated extension ($post_n)"; else bad "PostToolUse Write|Edit carries $post_n row(s); expected one per gated extension"; fi
-ungated=$(jq -r '[.[] | select(has("if") | not)] | length' <<<"$post_rows")
-assert_eq "every PostToolUse Write|Edit row carries an if predicate" 0 "$ungated"
-distinct_cmds=$(jq -r '[.[] | [.command, ((.args // []) | join(" ")), .timeout, .statusMessage]] | unique | length' <<<"$post_rows")
-assert_eq "every PostToolUse row runs the same dispatcher line, timeout and statusMessage" 1 "$distinct_cmds"
+# --- the reference-verify git hook reads every extension the verifiers do -----
+# The three verifiers run at commit time through git-hooks/reference-verify.sh,
+# which hands over only the extensions its own `case "$f"` lists. That list must
+# equal the union of the verifiers' `case "$FILE"` gates: an extension a gate
+# accepts and the list omits is a verifier that silently never runs on it. Both
+# sides are read from the scripts' source rather than a second hand-kept list.
 gate_exts_of() { # $1 verifier name -> its case-gate extensions, one per line
   sed -n '/^case "\$FILE" in/,/^esac/p' "$HOOK_DIR/$1.sh" | grep -v '^[[:space:]]*#' | grep -oE '\*\.[a-z0-9]+' | sed 's/^\*\.//' | sort -u
 }
-if_exts=$(jq -r '.[] | .if | capture("^Edit\\(\\*\\.(?<e>[a-z0-9]+)\\)$") | .e' <<<"$post_rows" | sort -u | tr '\n' ' ')
+git_hook_exts=$(sed -n '/^  case "\$f" in/,/^  esac/p' "$HOOK_DIR/../git-hooks/reference-verify.sh" |
+  grep -oE '\*\.[a-z0-9]+' | sed 's/^\*\.//' | sort -u | tr '\n' ' ')
 gate_exts=$(for v in cli-flag-verify skill-reference-verify stale-path-verify; do gate_exts_of "$v"; done | sort -u | tr '\n' ' ')
-assert_eq "if extensions equal the union of the verifiers' case gates" "$gate_exts" "$if_exts"
-for v in cli-flag-verify skill-reference-verify stale-path-verify; do
-  v_exts=$(gate_exts_of "$v" | tr '\n' ' ')
-  for e in $v_exts; do
-    if [[ " $if_exts " == *" $e "* ]]; then ok "$v gate *.$e has an if row"; else bad "$v gate *.$e has no if row"; fi
-  done
-done
+assert_eq "reference-verify.sh extensions equal the union of the verifiers' case gates" "$gate_exts" "$git_hook_exts"
+assert_eq "no PostToolUse row is left for the verifiers" 0 \
+  "$(jq '[.hooks.PostToolUse // [] | .[] | .hooks[]] | length' "$HOOKS_JSON")"
 
 # --- the dispatcher and the guards declare ONE contract ----------------------
 # hooks/guard-requires.sh is where a guard states what it CONSUMES: the payload

@@ -286,7 +286,7 @@ if ((JQ_HIDING_WORKS)); then
   checked_advisory=0
   for advisory in "${FAIL_OPEN[@]}"; do
     case "$advisory" in
-    block-hook-bypass.sh | block-noncanonical-commit.sh | block-convention-violation.sh) ;;
+    block-noncanonical-commit.sh | block-convention-violation.sh) ;;
     *) continue ;;
     esac
     checked_advisory=$((checked_advisory + 1))

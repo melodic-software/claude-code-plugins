@@ -377,15 +377,8 @@ Fleet audits check, per wired producer hook:
   today: `context-guard`'s operator menu, the site that did, now comes from its mod as a transcript
   line (`$.ui.log`) and a toast (`$.ui.toast`), with a notice row only on surfaces other than the
   terminal, none of which reaches Claude, so it is no `systemMessage`.
-  One site is admitted by owner-approved
-  exception (#4679): `guardrails`' `block-hook-bypass.sh` operator-lever notice. That notice lists
-  switches only the operator may flip (condition 1); stderr separately carries the verdict and the
-  agent's remedy, names an operator option only as the operator's to set, and never says the
-  operator has seen anything (condition 2 and the delivery rule). It fires once per session,
-  which limits repetition but is not a state transition,
-  so it does not satisfy condition 3 and is admitted by the exception. Every other call site is
-  a prerequisite skip or a content-mutation notice, so a second one is a signal to re-read the three
-  conditions rather than to follow the precedent.
+  Every call site is a prerequisite skip or a content-mutation notice, so a new kind is a signal
+  to re-read the three conditions.
 - Every path on which the hook rewrote file content names what it changed on the user channel,
   bounded by a per-run cap with the remainder reported as a count. Not mechanically gated, but
   reviewed per hook. The adopting reference was typos-format's per-edit write mode, removed when

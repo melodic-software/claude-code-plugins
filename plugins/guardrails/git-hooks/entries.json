@@ -1,0 +1,41 @@
+{
+  "entries": [
+    {
+      "name": "commit-msg-convention",
+      "event": "commit-msg",
+      "script": "commit-msg-convention.sh",
+      "tools": [],
+      "rewrites": false,
+      "assets": ["hooks/resolve-convention-pattern.sh"]
+    },
+    {
+      "name": "pre-commit-content",
+      "event": "pre-commit",
+      "script": "pre-commit-content.sh",
+      "tools": [],
+      "rewrites": false,
+      "assets": [
+        "lib/secret-detection/secret-patterns.sh",
+        "lib/path-detection/hardcoded-path-patterns.sh",
+        "lib/path-detection/machine-path-patterns.sh"
+      ]
+    },
+    {
+      "name": "reference-verify",
+      "event": "pre-commit",
+      "script": "reference-verify.sh",
+      "tools": ["jq"],
+      "rewrites": false,
+      "assets": [
+        "hooks/run-guards.sh",
+        "hooks/abort-boundary.sh",
+        "hooks/hook-utils.sh",
+        "hooks/cli-flag-verify.sh",
+        "hooks/skill-reference-verify.sh",
+        "hooks/stale-path-verify.sh",
+        "lib/verification/verify-cli-flag.sh",
+        "lib/verification/cli-flag-cache.sh"
+      ]
+    }
+  ]
+}

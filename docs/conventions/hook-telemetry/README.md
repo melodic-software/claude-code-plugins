@@ -232,7 +232,6 @@ where the formatter every writer calls lives:
 | `guardrails` plugin | `cli-flag-verify` | `data/cli-flag-verify.schema.json` |
 | `guardrails` plugin | `stale-path-verify` | `data/stale-path-verify.schema.json` |
 | `guardrails` plugin | `block-no-verify` | `data/block-no-verify.schema.json` |
-| `guardrails` plugin | `block-hook-bypass` | `data/block-hook-bypass.schema.json` |
 | `guardrails` plugin | `block-dangerous-git` | `data/block-dangerous-git.schema.json` |
 | `guardrails` plugin | `block-noncanonical-commit` | `data/block-noncanonical-commit.schema.json` |
 | `guardrails` plugin | `flag-commit-pr-skill-bypass` | `data/flag-commit-pr-skill-bypass.schema.json` |

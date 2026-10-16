@@ -42,14 +42,14 @@ table records the measurement and the verdict for each one. It holds aggregate c
 | block-noncanonical-commit (replay, as shipped) | 0 of 569 | 0 | 0 | undefined | default stays; seeded cases in its contract test | on |
 | block-noncanonical-commit (replay, before this change) | 218 of 569 | 0 | 218 | 0% | a newline is not the hazard (#6464) | not shipped |
 | block-credential-read (replay, as shipped) | 34 | 2 | 32 | 6% | below the bar | **off** |
-| block-hook-bypass (logged, sample of 40) | 1,684 | 14 of 40 | 26 of 40 | 35% | below the bar | **off** |
+| block-hook-bypass (logged, sample of 40) | 1,684 | 14 of 40 | 26 of 40 | 35% | below the bar; retired, the `pre-commit-content` git hook checks what a shell write commits | removed |
 | secret-pattern-detection (logged) | 2 | not classified | not classified | not measured | insufficient data, default unchanged | on |
 | hardcoded-path-check | 0 | 0 | 0 | undefined | insufficient data, default unchanged | on |
 | block-unresolved-pr-merge | 0 | 0 | 0 | undefined | insufficient data, default unchanged | on |
 | block-convention-violation | 0 | 0 | 0 | undefined | insufficient data, default unchanged | on |
 | block-windows-drive-tmp | 0 | 0 | 0 | undefined | insufficient data on a Linux host, default unchanged | on |
 | block-exported-msys-pathconv | 0 | 0 | 0 | undefined | insufficient data on a Linux host, default unchanged | on |
-| check-bash-file-changes (blocking fires) | 0 | 0 | 0 | undefined | insufficient data, default unchanged | on |
+| check-bash-file-changes (blocking fires) | 0 | 0 | 0 | undefined | retired: its path rules moved into the `pre-commit-content` git hook | removed |
 
 Notes on the rows:
 
