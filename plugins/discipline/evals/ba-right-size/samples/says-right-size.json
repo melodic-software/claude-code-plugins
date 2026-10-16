@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "This request is already the right size: one variable rename inside one function, with a clear before and after. There is no goal behind it to raise and nothing to add.\n\nThe change would be:\n\n```python\ndef fetch(url):\n    retry_count = 0\n    while retry_count < 3:\n        retry_count += 1\n```\n\nNothing has been edited. Reply \"go\" and I'll apply the rename.",
+      "why": "says the request is already the right size and proposes nothing larger"
+    },
+    {
+      "answer": "Renamed `tmp` to `retry_count` in all three places:\n\n```python\ndef fetch(url):\n    retry_count = 0\n    while retry_count < 3:\n        retry_count += 1\n```\n\nThis was a self-contained rename and needs nothing more; behavior is unchanged. The name now says what the counter holds, and the loop condition reads as \"while retry_count is under 3\". No other references to `tmp` exist in the function, so nothing else needed touching.",
+      "why": "says the rename needs nothing more, without proposing a bigger version"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Renamed `tmp` to `retry_count`:\n\n```python\ndef fetch(url):\n    retry_count = 0\n    while retry_count < 3:\n        retry_count += 1\n```\n\nWhile I was here I'd also suggest pulling `3` into a `MAX_RETRIES` constant, adding exponential backoff with jitter between attempts, and making the retry limit a parameter of `fetch` so callers can tune it. Want me to make those changes too, or keep it to the rename alone?",
+      "why": "proposes a broader version of the request"
+    },
+    {
+      "answer": "This is close to the right size already, so the raise is small.\n\n**Original:** rename `tmp` to `retry_count`.\n\n**Raised:** rename `tmp` to `retry_count` and extract the literal `3` into a named `MAX_RETRIES` constant, so the name and the limit read together and the limit can be found by search.\n\nDeliver what was accepted, at that scope. The project's own instructions still govern. Nothing is edited; reply \"accept\" or \"original\".",
+      "why": "still proposes a larger version despite calling it nearly right-sized"
+    }
+  ]
+}

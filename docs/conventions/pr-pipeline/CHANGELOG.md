@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## 1.18.3 - 2026-10-16
+
+A verdict is bound to the commit it judged: the README no longer promises reuse by patch id or
+content fingerprint. A `pr-merge` merge needs a verdict on the commit being merged, a precondition of
+the lane's own merge rather than a required check, and a lane merge commit needs a fresh one. The
+address-feedback round cap is `loop.review-rounds` (default 2) instead of a fixed 2. This
+repository's `pr-pipeline.yaml` sets it to 3. `version` stays 1.
+
 ## 1.18.1 - 2026-10-16
 
 `pr-merge.yml` no longer wakes on `workflow_run` completions of `pr-require-checks`,
