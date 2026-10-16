@@ -31,10 +31,10 @@ while (($#)); do
   --skip | --reason)
     (($# >= 2)) || die 2 "$1 needs a value"
     if [[ "$1" == --skip ]]; then
-      ((!has_skip)) || die 2 "--skip is given twice"
+      ((! has_skip)) || die 2 "--skip is given twice"
       skip="$2" has_skip=1
     else
-      ((!has_reason)) || die 2 "--reason is given twice"
+      ((! has_reason)) || die 2 "--reason is given twice"
       reason="$2" has_reason=1
     fi
     shift
@@ -44,8 +44,11 @@ while (($#)); do
   shift
 done
 
-((has_skip)) || { ((!has_reason)) || die 2 "--reason needs --skip"; exit 0; }
-((!unattended)) || die 3 "--skip needs a person present; an unattended run runs every step"
+((has_skip)) || {
+  ((! has_reason)) || die 2 "--reason needs --skip"
+  exit 0
+}
+((! unattended)) || die 3 "--skip needs a person present; an unattended run runs every step"
 ((has_reason)) || die 2 "--skip needs --reason"
 reason="${reason//[[:cntrl:]]/ }"
 [[ "$reason" =~ [^[:space:]] ]] || die 2 "--reason is empty"

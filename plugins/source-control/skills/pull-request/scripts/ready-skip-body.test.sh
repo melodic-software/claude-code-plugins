@@ -46,7 +46,10 @@ assert_eq "a re-run after appending the heading appends nothing more" "$out" "$a
 
 # The reason is data: it must not link, close, hold, mention or hide.
 out=$(build "$BODY" --login octocat --reason $'fixes #99 don\'t merge <!-- `x` @team' --step code-review)
+# The backticks are literal markdown, not command substitution.
+# shellcheck disable=SC2016
 line=$(grep -F -- '- `code-review`' <<<"$out")
+# shellcheck disable=SC2016
 assert_eq "the reason is neutralized inside one code span" \
   '- `code-review` skipped by octocat for this run: `fixes-99 don'"'"'t-merge  !--  x   team`' "$line"
 

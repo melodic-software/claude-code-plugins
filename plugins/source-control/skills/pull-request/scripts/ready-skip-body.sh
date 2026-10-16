@@ -30,11 +30,13 @@ while (($#)); do
   case "$1" in
   --login | --reason | --step)
     (($# >= 2)) || die "$1 needs a value"
-    case "$1" in
-    --login) login="$2" ;;
-    --reason) reason="$2" has_reason=1 ;;
-    --step) steps+=("$2") ;;
-    esac
+    if [[ "$1" == --login ]]; then
+      login="$2"
+    elif [[ "$1" == --reason ]]; then
+      reason="$2" has_reason=1
+    else
+      steps+=("$2")
+    fi
     shift
     ;;
   *) die "unexpected argument $(printf '%q' "$1")" ;;
@@ -88,12 +90,12 @@ heading='^##[[:space:]]+Verification[[:space:]]*$'
 placed=0
 for line in ${out[@]+"${out[@]}"}; do
   printf '%s\n' "$line"
-  if ((!placed)) && [[ "$line" =~ $heading ]]; then
+  if ((! placed)) && [[ "$line" =~ $heading ]]; then
     ((${#block[@]})) && printf '%s\n' "${block[@]}"
     placed=1
   fi
 done
-if ((!placed && ${#block[@]})); then
+if ((! placed && ${#block[@]})); then
   ((${#out[@]})) && [[ -n "${out[${#out[@]} - 1]}" ]] && echo
   printf '%s\n' "## Verification" "${block[@]}"
 fi
