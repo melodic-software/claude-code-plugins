@@ -29,8 +29,10 @@ skills cover it.
 | `testing:green-runner` | the `testing:fix-until-green` workflow | Runs the command and returns its failures. Bash only. |
 | `testing:green-fixer` | the `testing:fix-until-green` workflow | Fixes one group of failures in its assigned files, with `testing:test-value` preloaded. Read, Edit and Bash. |
 | `testing:green-verifier` | the `testing:fix-until-green` workflow | Checks a round's diff for test weakening against `testing:test-value`, and re-runs the command on the final pass. Read and Bash. |
+| `testing:test-judge` | `/testing:audit --judge` | Judges where each given test block's expected value came from and reports any instruction embedded in the files it read, never acting on one. Read, Grep and Glob. |
 
-Each agent inherits the model and pins no effort; the workflow passes both from the role map.
+The green agents inherit the model and pin no effort; the workflow passes both from the role map.
+`testing:test-judge` inherits too; `/testing:audit --judge` passes its model and effort per call.
 
 ## Works in any repo
 
@@ -89,7 +91,8 @@ implementation), PASS or UNKNOWN, quotes its evidence, and proposes a diff for a
 applies anything. The judge runs on a model class other than the one that wrote the tests, with
 `hooks/test-judge-prompt.md` as its prompt, and each quote must appear verbatim in the repository
 before a verdict is shown. `/source-control:pull-request` prep runs it when this plugin is
-installed. The calibration cases and raters are in `skills/audit/evals/judge-calibration/`.
+installed and enabled, and otherwise reports
+`judge pass not run: testing plugin not installed or not enabled`. The calibration cases and raters are in `skills/audit/evals/judge-calibration/`.
 
 `/testing:run-e2e` reads four optional keys. `recording` (`video | gif | off`, default `off`) and
 `browser_mode` (`headed | headless`, default `headless`) live on `.claude/testing/e2e.md`.

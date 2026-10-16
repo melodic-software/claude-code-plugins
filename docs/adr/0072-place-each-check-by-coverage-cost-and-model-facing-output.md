@@ -115,4 +115,4 @@ run, local-to-shared migration, which install command to run, and acting on drif
   with the rubric's placement.
 
 Recheck when a Claude Code release changes `PostToolBatch`, the "hook modified <file>" note, `if`
-matching, or hook `ask` handling in auto mode, or when the typos-format pilot's verdict lands.
+matching, or hook `ask` handling in auto mode.

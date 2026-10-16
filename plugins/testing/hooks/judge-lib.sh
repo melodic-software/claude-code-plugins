@@ -446,8 +446,8 @@ judge::busy() {
 }
 
 # judge::reserve_run: reserve one judge run for the session and set RUNRES to
-# its marker, or fail when the optional test_judge_session_runs limit is
-# reached. Under a limit the marker is runs/<pkey>/<sid>/<n>, the first free
+# its marker, or fail when the optional CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS
+# limit is reached (a test seam; metrics.sh unsets it). Under a limit the marker is runs/<pkey>/<sid>/<n>, the first free
 # n from 1 to the limit, created exclusively, so jobs that reach the check
 # together cannot all take the last run. A reservation is kept when the
 # judge starts and released (judge::release_run) when it does not; a job

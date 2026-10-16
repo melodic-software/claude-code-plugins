@@ -6,6 +6,10 @@ the git-hook registration contract every check plugin's setup follows, and the d
 each placement is measured against. The decision and the alternatives it rejected are in
 [ADR 0072](../../adr/0072-place-each-check-by-coverage-cost-and-model-facing-output.md).
 
+Status: the rubric applies now. The registration contract is specified here and implemented by the
+rollout of the check plugins' git-hook entries; until a plugin's entry ships, its setup has no
+`install-git-hooks` action.
+
 Related conventions: [hook-budget](../hook-budget/README.md) owns spawn counts for Claude Code
 hooks and the CI ratchets that enforce them; [hook-precision](../hook-precision/README.md) owns
 what a hook fires on and the stay-quiet test discipline. This doc owns where a check runs and how
@@ -22,8 +26,8 @@ and what reaches the model.
    sessions alike. A Claude Code hook sees only Claude Code's own tool calls.
 3. **Which git hook, by measured duration:** within the commit budget, `pre-commit`; over the
    commit budget but within 60 s, `pre-push`; beyond 60 s, CI only.
-4. **Report-only findings never reach the model per edit.** No shipped hook sends a report-only
-   check's findings to the model on a per-edit `PostToolUse` event. A per-edit report fires on
+4. **Report-only findings never reach the model per edit.** A shipped hook must not send a
+   report-only check's findings to the model on a per-edit `PostToolUse` event. A per-edit report fires on
    in-between states the model is about to change anyway, and it can pull an open-ended task
    toward unrelated fixes.
 5. **Measured cost and model-facing output both decide placement.** A cheap check that prints
@@ -94,9 +98,10 @@ runs `verify`. Setup:
 - is idempotent: a rerun with nothing changed reports `unchanged` and writes nothing;
 - migrates local to shared on request, as an agent decision (D1).
 
-The installer is the vendored `lib/git-hooks/install.mjs` (canonical in `lib/`, copied into each
-check plugin per ADR 0019); the check helpers are the vendored `lib/git-hooks/check-lib.sh`. The
-check lib also provides the partly-staged refusal helper: every rewriting check calls it before it
+The rollout ships the installer as the vendored `lib/git-hooks/install.mjs` (canonical in `lib/`,
+copied into each check plugin per ADR 0019) and the check helpers as the vendored
+`lib/git-hooks/check-lib.sh`; this section is the contract they implement. The check lib also
+provides the partly-staged refusal helper: every rewriting check calls it before it
 rewrites, so a file with unstaged changes fails with the Rewrites message below and is left alone.
 
 ### Entry manifest
@@ -163,7 +168,8 @@ is missing, so a lane or cloud setup script can provision it before an unattende
 **The skip and the human missing-tool pass rely on CI re-running the check.** A consumer
 repository without a CI job that runs the same tool on the change should not skip, and should not
 rely on the human pass. Setup's agent notes, per entry, when no CI workflow in the consumer
-repository runs that entry's tool.
+repository runs that entry's tool. Agent detection reads only `CLAUDECODE` and `AI_AGENT`, so an
+agent that clears them gets the human pass; CI re-running the check is the backstop.
 
 That a hook sees a `git -c` value is measured (git 2.53.0, lefthook 2.2.1, husky 9.1.7, 2026-10-15)
 but not documented: [git-config](https://git-scm.com/docs/git-config) documents only
@@ -296,8 +302,8 @@ marketplace comes from these rows.
 
 | Budget | Value | Basis |
 |---|---|---|
-| Per-batch formatter (`PostToolBatch`) | 1 s median per fire | judgment from the measured spread; revisit after the typos-format pilot |
-| Commit (`pre-commit` set) | set from one staged-file run of every shipped `pre-commit` entry together on the same 44-file set, measured when the rollout PR (C) lands | until then the per-entry rows below stand |
+| Per-batch formatter (`PostToolBatch`) | 1 s median per fire | judgment from the measured spread; revisit after the rollout's per-batch measurements |
+| Commit (`pre-commit` set) | set from one staged-file run of every shipped `pre-commit` entry together on the same 44-file set, measured when the rollout of the remaining check plugins lands | until then the per-entry rows below stand |
 | Push (`pre-push`) | 60 s | judgment from the measured spread; beyond it, CI only |
 
 ### Measured rows

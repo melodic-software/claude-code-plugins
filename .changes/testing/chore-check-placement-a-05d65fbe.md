@@ -4,7 +4,7 @@ bump: minor
 
 ### Added
 
-- `/testing:audit --judge [<base>]`: an opt-in pass that hands each test block the change added or changed to a fresh-context subagent on another model class, which reports FLAG, PASS or UNKNOWN for where its expected value came from, with checked quotes and a proposed diff it never applies. `--persist-findings` also writes its verdicts for `/testing:cleanup`.
+- `/testing:audit --judge [<base>]`: an opt-in pass that hands each test block the change added or changed to the new `testing:test-judge` agent (Read, Grep and Glob only) on another model class, which reports FLAG, PASS or UNKNOWN for where its expected value came from, with checked quotes and a proposed diff it never applies. `--persist-findings` also writes its verdicts for `/testing:cleanup`.
 
 ### Changed
 
