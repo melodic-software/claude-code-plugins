@@ -20,7 +20,7 @@ before proposing it, and executes it behind a human gate.
 | `/instruction-placement:delta` | Read-only movement report | Re-runs the audit and reports only what changed since last time, above a noise budget, suppressing every finding the operator already declined |
 | `/instruction-placement:migrate` | Per-repository human-gated move | Plans and carries out a repository's move to `AGENTS.md` as the content home, with a `CLAUDE.md` shim while one is needed |
 
-`realign` and `migrate` are the two mutating surfaces; both gate every change on the operator.
+`realign` and `migrate` are the two mutating skills; both gate every change on the operator.
 
 Run `setup` first on a new repository. It catches the one failure the other gates cannot see, an
 index Claude Code never loads. Then `audit`. Nothing changes until you accept a specific finding in
@@ -193,7 +193,7 @@ The dividing line: those audits ask whether a piece of content is *good*, *neede
 This plugin asks only where it should **live**, and owns the one capability none of them has, the
 validated move, including glob derivation and the index that keeps the result reachable.
 
-These routes are **operative, not decorative**. When a candidate raises one of these questions, the
+When a candidate raises one of these questions, the
 audit invokes the named skill via the Skill tool if its plugin is installed, and otherwise keeps the
 observation in the report as an unjudged note. A routed candidate is reported as routed, never
 silently dropped, and never re-classified as a placement finding just because the sibling was
@@ -240,7 +240,7 @@ reads it from.
 
 ### How to set these
 
-Three supported routes, in the order most people want them:
+Three supported routes:
 
 1. **Interactively.** Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure instruction-placement@<marketplace>`.

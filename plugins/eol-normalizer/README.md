@@ -23,11 +23,11 @@ imposes no rules of its own.
   too. The hook mirrors gitattributes semantics. Explicit `text` is trusted,
   `-text` skips, and `text=auto` content-sniffs (NUL scan of the first 8000
   bytes, git's own detection window), so binary files are never rewritten.
-- **Unspecified → no-op.** A path with no `eol=` attribute is left untouched.
+- **Unspecified is a no-op.** A path with no `eol=` attribute is left untouched.
   There is no hardcoded extension list. Resolution is entirely
   `.gitattributes`-driven, so narrow rules (a single `eol=lf` path) correctly
   win over broad ones (`*.txt eol=crlf`).
-- **Gitignored → no-op.** A file the repository gitignores and does not track is
+- **Gitignored is a no-op.** A file the repository gitignores and does not track is
   left alone, since a rewrite of an ignored file has no git checkout to undo it.
   A tracked file matching an ignore pattern stays in scope. Any failure to decide
   (git absent, no repo, `check-ignore` error) acts as before. Set
@@ -131,7 +131,7 @@ reads it from.
 
 ### How to set these
 
-Three supported routes, in the order most people want them:
+Three supported routes:
 
 1. **Interactively.** Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure eol-normalizer@<marketplace>`.

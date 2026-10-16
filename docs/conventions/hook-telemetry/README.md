@@ -21,7 +21,7 @@ of whatever `HOOK_TELEMETRY_SINK` names; the sink interprets it. This lets sinks
 (medley maps the envelope into its own event store) and lets a plugin ship telemetry that simply no-ops
 where no sink is configured.
 
-- **`HOOK_TELEMETRY_SINK` unset → no-op.** The hook behaves exactly as it did before telemetry: same stdout,
+- **`HOOK_TELEMETRY_SINK` unset is a no-op.** The hook behaves exactly as it did before telemetry: same stdout,
   same exit code. Telemetry is purely additive.
 - **Fire-and-forget.** The producer dispatches the sink in the background and returns immediately; it never
   waits on, nor fails because of, the sink.
@@ -191,7 +191,7 @@ pretty-printed form. A sink must parse the document as JSON, never by line or by
 - ignores unknown keys and treats an unrecognized `status` as a catch-all (see Forward compatibility);
 - never crashes and never writes to stdout, since it runs fire-and-forget, exec'd as a single command per event.
 
-That is the whole consumer contract: any number of independently-written sinks can subscribe to the same
+That is the whole consumer contract. Any number of independently-written sinks can subscribe to the same
 producers without coordinating with them or each other.
 
 **Sink routing by session (reference sink, harness-ops 0.42.11).** Since contract 1.1 every producer
