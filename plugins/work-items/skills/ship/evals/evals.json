@@ -140,7 +140,7 @@
     {
       "id": 11,
       "name": "ship-run-leaves-a-superseded-pr-in-draft-when-ready-refuses",
-      "prompt": "/work-items:ship run #360. The container body carries `**Execution shape:** per-item PRs`. create --pushed opened draft PR 906 for item #362, and the run dispatched /source-control:pull-request ready for PR 906, which refused: item #362, the issue the PR closes, is already closed, so the PR is superseded.",
+      "prompt": "/work-items:ship run #360. The container body carries `**Execution shape:** per-item PRs`. create --pushed opened draft PR 906 for item #362, and the run dispatched /source-control:pull-request ready --unattended for PR 906, which refused: item #362, the issue the PR closes, is already closed, so the PR is superseded.",
       "expected_output": "PR 906 stays a draft. The run carries ready's refusal reason (item #362 already closed, so the PR is superseded) into its report row for #362, does not reopen the item or flip the PR another way, and does not merge it.",
       "files": [],
       "expectations": [
