@@ -183,7 +183,7 @@ the consumer git floor moves.
 detect(repo)                  -> { manager: "lefthook"|"husky"|"plain"|"conflict", evidence[] }
 list(repo)                    -> [{ entryId, event, scope, stamp }]
 plan(repo, entries, scope)    -> { actions[], decisions[] }
-copy(repo, entry, scope)      -> "installed" | "refreshed" | "unchanged" | "blocked"   # plugin-owned files only
+copy(repo, entry, scope)      -> "installed" | "refreshed" | "unchanged" | "blocked" | "unsafe-path"   # plugin-owned files only
 decline(repo, entryId)        -> sets the git config --local key
 ```
 
@@ -198,6 +198,14 @@ value except the plain shared `.githooks`), `plan` returns only one decision,
 `{kind: "hooks-path-owned", hooksPath, dir}`, with empty `actions`. `copy --scope local` then
 writes nothing, prints `{"installed":[],"decisions":[...]}` with that decision, exits 1, and
 reports status `blocked`. The setup agent decides what to do with the other tool's hooks (D1).
+
+**`unsafe-path`.** A cloned repository's contents are untrusted. When any file `copy` would write
+for an entry, or a directory on the way to it below the work tree's top level (or below the local
+hooks directory), is a symlink, `plan` returns `{kind: "unsafe-path", entry, file}` and `copy`
+writes nothing for that entry, reports status `unsafe-path`, and exits 1. Only the exact dispatcher
+counts as the plugin's own; a hook that carries its sentinel line but differs is a `modified`
+decision, overwritten only by `copy --force`. The installer reads repository files only when they
+are regular files of at most 1 MiB, never through a final symlink; anything else reads as absent.
 
 ### Where installed copies live
 

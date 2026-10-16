@@ -14,7 +14,8 @@ owns.
 | `foreign-hook` | Read the existing hook. If it should keep running, move it to `chainAs` (the dispatcher runs it first) and rerun `copy`; otherwise ask. |
 | `exclude` | Append `line` to `file` (the clone's `info/exclude`). |
 | `gitattributes` | Add `line` to `.gitattributes`, so the shared copies keep LF endings. |
-| `modified` | Show how the copy differs from the plugin's script; overwrite with `copy --force` only on the user's yes. |
+| `modified` | `file` is a locally edited copy, or a hook at the dispatcher's path that carries its sentinel line but is not the dispatcher. Show how it differs from the plugin's version; overwrite with `copy --force` only on the user's yes. |
+| `unsafe-path` | `file` is a symlink on the way to a file `copy` writes, so a write could land outside the repository; `copy` reports `unsafe-path` and writes nothing for that entry. Show the user where the link points and ask them to remove it; never write through it. |
 | `migrate` | After the shared entry verifies `ok`, remove the listed local copies, their `<event>.d/` markers and any `lefthook-local` job, on the user's yes. |
 | `declined` | This clone declined the entry. In an attended run ask whether to install it (an install clears the decline); unattended, leave it. |
 | `missing-tool` | Report `install` as the way to get the tool; never install it yourself. |
