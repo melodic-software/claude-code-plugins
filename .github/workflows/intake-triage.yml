@@ -17,7 +17,44 @@ permissions: {}
 # cancellation lives on the job, as in pr-review-security-hosted.yml.
 
 jobs:
+  # Skips intake for an issue /work-items:decompose published already
+  # triaged; see .github/actions/check-born-triaged. A failed gate leaves
+  # skip empty, so intake runs.
+  born-triaged:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out the default branch for the trusted-actor list
+      issues: read # read the issue's current body, type and labels
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: .base
+          persist-credentials: false
+          sparse-checkout: |
+            .github/actions/check-born-triaged
+            .github/standards/trusted-actors
+            .node-version
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check whether the issue was born triaged
+        id: check
+        uses: ./.base/.github/actions/check-born-triaged # zizmor: ignore[self-repository]
+        with:
+          lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+
   intake-triage:
+    needs: born-triaged
+    if: ${{ !cancelled() && needs.born-triaged.outputs.skip != 'true' }}
     permissions:
       contents: read # check out the default branch so the lane can read AGENTS.md
       issues: write  # apply labels and post the triage comment
