@@ -227,7 +227,7 @@ msg_count_to() {
 # and `set -u` must not abort the allow path.
 # shellcheck disable=SC2329,SC2016  # reached via the parse callback chain; literal `$` patterns
 msg_value_interpolates() {
-  local v="$1" esc d body re_hd hd rest n_all n_safe n_all_q
+  local v="$1" esc d body re_hd hd rest pre close depth i n_all n_safe n_all_q
   if [[ -n "${PS_HERESTRING_PLACEHOLDER+x}" && "$v" == "$PS_HERESTRING_PLACEHOLDER" ]]; then
     [[ "$RAW_COMMAND" == *'@"'* ]]
     return
@@ -236,7 +236,8 @@ msg_value_interpolates() {
   # value no longer shows them; read the message option's double-quoted span in
   # the command as written.
   if [[ "$TOOL_NAME" == "PowerShell" ]]; then
-    local re_ps='(^|[[:space:]])-(-m[a-z]*|[a-z]*m)(=|[[:space:]]+)?@?"[^"]*[$`]'
+    # `""` inside the quotes is an escaped quote, not the closing one.
+    local re_ps='(^|[[:space:]])-(-m[a-z]*|[a-z]*m)(=|[[:space:]]+)?@?"([^"]|"")*[$`]'
     [[ "$RAW_COMMAND" =~ $re_ps ]]
     return
   fi
@@ -267,8 +268,9 @@ msg_value_interpolates() {
   [[ "$v" =~ ^\$(\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*)$ ]] && return 1
   # `$(cat <<'EOF' ... EOF)`: a quoted heredoc expands nothing. Read from the
   # command as written, because the tokenizer ends a `"$(...)"` word at the
-  # first `"` inside it. The body runs to the delimiter line, and nothing may
-  # follow that line but the `)`.
+  # first `"` inside it. The body runs to the delimiter line, nothing may
+  # follow that line but the `)`, and the word ends there: inside double
+  # quotes, the closing `"` comes right after it.
   re_hd=$'^\\$\\(cat[[:space:]]+<<-?[[:space:]]*[\'"]([A-Za-z_][A-Za-z0-9_]*)[\'"][[:space:]]*\n'
   if [[ "$v" =~ $re_hd ]]; then
     d="${BASH_REMATCH[1]}"
@@ -277,19 +279,34 @@ msg_value_interpolates() {
     [[ "$rest" == *"$hd"* ]] || return 0
     # Every such heredoc in the command must close and end its substitution.
     while [[ "$rest" == *"$hd"* ]]; do
+      pre="${rest%%"$hd"*}"
+      close='^[[:space:]]*\)([[:space:];&|)]|$)'
+      [[ "$pre" == *\" ]] && close='^[[:space:]]*\)"([[:space:];&|)]|$)'
       body=$'\n'"${rest#*"$hd"}"
       [[ "$body" == *$'\n'"$d"$'\n'* ]] || return 0
       body="${body#*$'\n'"$d"$'\n'}"
-      [[ "$body" =~ ^[[:space:]]*\) ]] || return 0
+      [[ "$body" =~ $close ]] || return 0
       rest="$body"
     done
     return 1
   fi
   [[ "$v" == '$(cat'* ]] && return 0
   # Any other value that IS one command substitution (`-m "$(printf '...')"`,
-  # `-m "$(git log -1 --format=%B)"`) is meant to run.
-  [[ "$v" == '$('* ]] && return 1
-  return 0
+  # `-m "$(git log -1 --format=%B)"`) is meant to run: its `(` closes on the
+  # value's last character, so nothing outside it (`$(true) $HOME`) expands.
+  [[ "$v" == '$('*')' ]] || return 0
+  depth=0
+  for ((i = 1; i < ${#v} - 1; i++)); do
+    case "${v:i:1}" in
+    '(') depth=$((depth + 1)) ;;
+    ')')
+      depth=$((depth - 1))
+      ((depth > 0)) || return 0
+      ;;
+    *) ;;
+    esac
+  done
+  ((depth != 1))
 }
 
 # Value of an explicit `--git-dir` (attached `--git-dir=v` or separated

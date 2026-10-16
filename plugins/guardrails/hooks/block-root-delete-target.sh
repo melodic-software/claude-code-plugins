@@ -2783,26 +2783,58 @@ rdt_strip_tail_to() {
 # read, and anything else stays a bare variable:
 #   - the assignment is a statement of its own (NAME=value words and nothing
 #     else) at the top level, and EVERY spelling of `NAME=` in the command
-#     opens a statement (after its start, `;` or a newline) that ends in `;`,
-#     `&&`, a newline or the end (rdt_lit_bindable, on the raw text, since the
-#     tokenizer does not report separators);
+#     opens a statement in this shell (rdt_lit_opens: at its start, or after
+#     a `;` or a newline that ends the one before, outside any `( )`, `$( )`,
+#     group or compound command) that ends in `;`, `&&`, a newline or the end
+#     (rdt_lit_bindable, on the raw text, since the tokenizer does not report
+#     separators);
 #   - the delete is the very next top-level segment, read at the top level: not
 #     a later one, not through a launcher or child shell, not in a substitution;
 #   - each value is plain characters (no glob, `~`, space or quote);
 #   - the command holds nothing that can set a variable out of sight
 #     (RDT_LIT_FORBID_RE): `declare`, `typeset`, `local`, `trap`, `printf`,
 #     `read`, `mapfile`, `readarray`, `eval`, `source`, `.`, a function
-#     definition, `${!` or `<<<`, in any position;
+#     definition, `${!`, `<<<` or `IFS`, in any position;
 #   - the delete segment does not itself assign NAME (`X=y rm -rf "$X"`);
 #   - the operand is the variable alone or followed by `/...`.
 RDT_LIT_CH='[A-Za-z0-9_.@%+,:/-]'
-RDT_LIT_FORBID_RE='(^|[^A-Za-z0-9_])(declare|typeset|local|trap|printf|read|mapfile|readarray|eval|source|function)([^A-Za-z0-9_]|$)|(^|[;&|({[:space:]])\.([[:space:]]|$)|\(\)|\$\{!|<<<'
+RDT_LIT_FORBID_RE='(^|[^A-Za-z0-9_])(declare|typeset|local|trap|printf|read|mapfile|readarray|eval|source|function|IFS)([^A-Za-z0-9_]|$)|(^|[;&|({[:space:]])\.([[:space:]]|$)|\(\)|\$\{!|<<<'
 RDT_LIT_FORBID=0
 [[ "$COMMAND" =~ $RDT_LIT_FORBID_RE ]] && RDT_LIT_FORBID=1
 declare -A RDT_LIT=()
 declare -A RDT_LIT_OK=()
 rdt_top_seg=0
 RDT_LIT_AT=-1
+
+# rdt_lit_opens <text>: the raw text before an assignment, blanks trimmed, ends
+# a statement in this shell: an unescaped `;` outside a comment, or a newline
+# whose line (past blank and comment lines) does not go on through `|`, `&&`,
+# `||` or `\`. Text holding `(`, a backtick, a `{` group or a compound keyword
+# may put the assignment in a subshell or a branch, so it never opens one.
+# shellcheck disable=SC2329  # invoked from rdt_lit_bindable, itself a parser callback
+rdt_lit_opens() {
+  local pre="$1" line code
+  local re_kw='(^|[^A-Za-z0-9_])(if|then|else|elif|do|while|until|case|select)([^A-Za-z0-9_]|$)'
+  local re_brace='(^|[^$])\{' re_hash='(^|[[:blank:]])#'
+  [[ "$pre" == *[\(\`]* || "$pre" =~ $re_brace || "$pre" =~ $re_kw ]] && return 1
+  if [[ "$pre" == *\; ]]; then
+    line="${pre##*$'\n'}"
+    [[ "$pre" != *\\\; && ! "$line" =~ $re_hash ]]
+    return
+  fi
+  [[ "$pre" == *$'\n' ]] || return 1
+  pre="${pre%$'\n'}"
+  while :; do
+    line="${pre##*$'\n'}"
+    code="$line"
+    [[ "$line" =~ $re_hash ]] && code="${line%%"${BASH_REMATCH[0]}"*}"
+    line="${line%"${line##*[![:blank:]]}"}"
+    code="${code%"${code##*[![:blank:]]}"}"
+    [[ "$line" == *[\|\&\\] || "$code" == *[\|\&\\] ]] && return 1
+    [[ -n "$code" || "$pre" != *$'\n'* ]] && return 0
+    pre="${pre%$'\n'*}"
+  done
+}
 
 # rdt_lit_bindable <name>: every `NAME=` / `NAME+=` in the command opens a
 # statement. Answered once per name.
@@ -2820,9 +2852,10 @@ rdt_lit_bindable() {
       rest="${rest#*"$m"}"
       # It opens a statement, and the statement ends in `;`, `&&`, a newline or
       # the end: a pipe, `&` or `||` runs it in another shell, or not first.
-      [[ -z "$pre" || "$pre" == *[\;$'\n'] ]] || continue
+      [[ -z "$pre" ]] || rdt_lit_opens "$pre" || continue
       stmt="${rest%%[;&|$'\n']*}"
       sep="${rest:${#stmt}:2}"
+      [[ "$stmt" == *\\ ]] && continue
       [[ -z "$sep" || "$sep" == [\;$'\n']* || "$sep" == '&&' ]] && nlead=$((nlead + 1))
     done
     RDT_LIT_OK[$n]=0

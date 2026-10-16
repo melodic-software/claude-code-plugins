@@ -61,12 +61,12 @@ Notes on the rows:
 - **block-root-delete-target.** Of the 129 false positives, 121 delete a variable the same
   command set (from `mktemp`, a loop, another variable, or a literal statements before the
   delete), and 8 are root-shaped text inside a heredoc body the guard reads as commands. A
-  literal is honored only when its statement sits right before the delete and nothing in the
-  command can set a variable out of sight: a broader reading let a verified `declare -n`,
-  `trap`, `printf -v` or `eval` reassignment delete `/etc`. The guard stays on because it
-  stops irreversible deletes and its noise is that one deliberate, identified cause. The
-  about 15 not judgeable fires target a directory inside a working directory that no longer
-  exists. "About" marks a count extrapolated from a sample of 25 of the 73 outside-tree fires.
+  literal is honored only when its statement sits right before the delete in the same shell
+  and nothing in the command can set a variable out of sight: a broader reading let a verified
+  `declare -n`, `trap`, `printf -v` or `eval` reassignment delete `/etc`. The guard stays on
+  because it stops irreversible deletes and its noise has two identified causes: a variable
+  the command set, and a heredoc body read as commands. The about 15 not judgeable fires
+  target a directory inside a working directory that no longer exists. "About" marks a count extrapolated from a sample of 25 of the 73 outside-tree fires.
 - **block-credential-read.** 23 of its fires are `gh auth token` inside a substitution whose
   output never reaches the transcript (`TOKEN=$(gh auth token)`), and most of the rest are
   credential words in a heredoc body or a presence check sent to `/dev/null`. The two true

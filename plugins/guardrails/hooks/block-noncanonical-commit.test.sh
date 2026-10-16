@@ -70,6 +70,12 @@ run "git commit -m \"\$(printf '...')\" (allowed)" \
   "git commit -m \"\$(printf 'fix: x\\n\\nbody \`y\`')\"" 0
 run "quoted-heredoc substitution whose body holds double quotes (allowed)" \
   "git commit -m \"\$(cat <<'EOF'${NL}fix: say \"quoted\" words${NL}EOF${NL})\"" 0
+# Only a value that is ONE substitution, ending where it does, is exempt.
+run "a substitution followed by \$HOME in the quotes (blocked)" "git commit -m \"\$(true) \$HOME\"" 2
+run "a quoted-heredoc substitution followed by \$HOME in the quotes (blocked)" \
+  "git commit -m \"\$(cat <<'EOF'${NL}feat${NL}EOF${NL}) \$HOME\"" 2
+run "a quoted-heredoc substitution, then && another command (allowed)" \
+  "git commit -m \"\$(cat <<'EOF'${NL}feat: x${NL}EOF${NL})\" && git status" 0
 run "wsl git commit -m multi-line (blocked)" "wsl git commit -m \"feat: x \$body\"" 2
 run "wsl git commit -m single-line (allowed)" "wsl git commit -m 'feat: x'" 0
 run "git commit -am multi-line (bundled cluster, blocked)" "git commit -am \"feat: x \$body\"" 2
@@ -1383,6 +1389,12 @@ run_pwsh "PS: unbalanced here-string hiding a -m commit (deferred — classifier
   "$PS_UNPARSABLE_HERESTRING" 0
 run_pwsh "PS: expandable here-string -m value carrying a subexpression (blocked: read as written)" \
   "$PS_UNPARSABLE_EXPANDABLE_HERESTRING" 2
+# `""` inside a double-quoted span is an escaped quote, so the span goes on.
+# shellcheck disable=SC2016  # the PowerShell `$env:` text must reach the guard literally
+run_pwsh "PS: -m with an escaped \"\" before a \$ (blocked)" \
+  'git commit -m "say ""hi"" $env:USERNAME"' 2
+run_pwsh "PS: -m with an escaped \"\" and nothing expanding (allowed)" \
+  'git commit -m "say ""hi"" there"' 0
 
 # The ONE sink trigger this guard does not defer. PowerShell reads `# @"` as
 # comment text, so the `@"` opens nothing and the lines under it are live

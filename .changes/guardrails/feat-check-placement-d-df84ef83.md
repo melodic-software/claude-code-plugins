@@ -30,13 +30,17 @@ bump: minor
 ### Fixed
 
 - `block-root-delete-target` no longer blocks `X=build && rm -rf "$X"`: a variable the
-  statement right before the delete sets to a plain literal is judged as that literal, unless
-  the command holds anything that can set a variable out of sight.
+  statement right before the delete sets to a plain literal, in the same shell, is judged as
+  that literal. An assignment after `|`, `||`, `&&` or a `\` line end, or inside `( )`, `$( )`,
+  backticks, a `{ }` group or a branch, is not, nor is any when the command holds anything that
+  can set a variable out of sight, `IFS` included.
 - An attended ask is the verdict on the whole command: any denying segment, budget or parse
   cap anywhere in it denies, and one ask names every asking segment.
 - `block-noncanonical-commit` reads the literal spelling of the `-m` argument itself, not a
   matching spelling elsewhere in the command.
 - `block-noncanonical-commit` leaves `-m "$msg"` and `-m "$(...)"` alone: a value that is one
-  variable or one command substitution is meant to expand.
+  variable or one command substitution is meant to expand. Text after the substitution inside
+  the quotes (`-m "$(true) $HOME"`, or after a quoted heredoc's `)`) still blocks, as does a
+  PowerShell `$` after an escaped `""`.
 - `block-credential-read` no longer treats a shell name inside an argument, such as a grep
   pattern, as a shell that runs the rest of the command.

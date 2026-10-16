@@ -80,7 +80,7 @@ source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundar
 
 # Strict-and-loud enable (#3130 F7). hook::check_enabled treats any value other
 # than exact "true" as off, so a typo would silently disable a blocking safety
-# control. Only true/false (unset → true) are accepted; anything else keeps the
+# control. Only true/false (unset → false) are accepted; anything else keeps the
 # guard on and tells the user once per session, after stdin is read (it names
 # the session). An exact `false` already exited above.
 _bbh_enabled="${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED:-false}"

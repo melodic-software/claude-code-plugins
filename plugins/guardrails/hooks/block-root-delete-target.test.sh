@@ -2231,6 +2231,37 @@ expect_both 'builtin eval beside the literal blocks' 2 "${RDT_CWD[@]}" \
   --command 'X=build; builtin eval ": ; X=/etc"; rm -rf "$X"'
 expect_both 'read <<< beside the literal blocks' 2 "${RDT_CWD[@]}" \
   --command 'X=build; read X <<< /etc; rm -rf "$X"'
+expect_both 'IFS beside the literal blocks (an unquoted operand splits)' 2 "${RDT_CWD[@]}" \
+  --command 'X=a/etc IFS=a && rm -rf $X'
+expect_both 'IFS set before the literal blocks' 2 "${RDT_CWD[@]}" --command 'IFS=a; X=a/etc; rm -rf $X'
+
+# An assignment that does not run first in this shell is no binding: a line
+# that goes on through ||, | or \ (past a comment), a subshell, a substitution,
+# a group or a branch. Each of these once read HOME as `build`.
+expect_both 'an assignment after a || line end blocks' 2 "${RDT_CWD[@]}" \
+  --command $'true ||\nHOME=build && rm -rf "$HOME"'
+expect_both 'an assignment after a | line end blocks' 2 "${RDT_CWD[@]}" \
+  --command $'true |\nHOME=build && rm -rf "$HOME"'
+expect_both 'an assignment after a continued line blocks' 2 "${RDT_CWD[@]}" \
+  --command $'true || \\\nHOME=build && rm -rf "$HOME"'
+expect_both 'an assignment after || and a comment blocks' 2 "${RDT_CWD[@]}" \
+  --command $'true || # c\nHOME=build && rm -rf "$HOME"'
+expect_both 'an assignment after || and a quoted # blocks' 2 "${RDT_CWD[@]}" \
+  --command $'echo "x\n#" ||\nHOME=build && rm -rf "$HOME"'
+expect_both 'an assignment inside ( ) blocks' 2 "${RDT_CWD[@]}" \
+  --command '(true; HOME=build) && rm -rf "$HOME"'
+expect_both 'an assignment inside ( ) after a quoted ) blocks' 2 "${RDT_CWD[@]}" \
+  --command 'echo ")"; (true; HOME=build) && rm -rf "$HOME"'
+expect_both 'an assignment inside $( ) blocks' 2 "${RDT_CWD[@]}" \
+  --command 'echo $(true; X=build) && rm -rf "$X"'
+expect_both 'an assignment inside backticks blocks' 2 "${RDT_CWD[@]}" \
+  --command 'echo `true; HOME=build` && rm -rf "$HOME"'
+expect_both 'an assignment continued into a pipe blocks' 2 "${RDT_CWD[@]}" \
+  --command $'HOME=build \\\n| rm -rf "$HOME"'
+expect_both 'a comment line before the literal stays allowed' 0 "${RDT_CWD[@]}" \
+  --command $'# clean the build\nX=build\nrm -rf "$X"'
+expect_both 'a plain statement line before the literal stays allowed' 0 "${RDT_CWD[@]}" \
+  --command $'true\nX=build && rm -rf "$X"'
 
 # --- 5c. An attended session asks instead of denying (refuse.sh) ---------------
 # An ask is the verdict on the WHOLE command: any segment that denies, and any
