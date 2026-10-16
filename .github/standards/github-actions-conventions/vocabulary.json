@@ -27,7 +27,12 @@
         "status": "reserved",
         "purpose": "Work one labeled issue to a draft pull request, or push it back to a human."
       },
-      { "name": "respond-mention", "status": "in-use" }
+      { "name": "respond-mention", "status": "in-use" },
+      {
+        "name": "unblock",
+        "status": "reserved",
+        "purpose": "Promote issues whose last blocker closed."
+      }
     ],
     "pr": [
       { "name": "audit-workflows", "status": "in-use" },
