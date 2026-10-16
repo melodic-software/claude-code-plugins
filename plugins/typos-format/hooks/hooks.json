@@ -1,9 +1,8 @@
 {
-  "description": "Corrects spelling in prose and code after a write or edit, and reports a missing typos at session start.",
+  "description": "Optionally checks the uncommitted changes for typos when a turn ends, and reports a missing typos or a drifted git-hook entry at session start; spelling findings otherwise arrive at commit time.",
   "hooks": {
-    "PostToolUse": [
+    "Stop": [
       {
-        "matcher": "Write|Edit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
@@ -12,10 +11,13 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "--run-if-unset-or-true",
               "TYPOS_FORMAT_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/typos-format.sh"
+              "--require-true",
+              "TYPOS_FORMAT_END_OF_TURN",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/typos-format.sh",
+              "--end-of-turn"
             ],
-            "timeout": 15,
-            "statusMessage": "Checking spelling..."
+            "timeout": 30,
+            "statusMessage": "Checking spelling in uncommitted changes..."
           }
         ]
       }
@@ -47,21 +49,6 @@
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /typos-format:check TYPOS_FORMAT_ENABLED; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /typos-format:check TYPOS_FORMAT_ENABLED",
             "timeout": 10,
             "statusMessage": "Checking that node is on PATH..."
-          }
-        ]
-      },
-      {
-        "matcher": "compact|clear",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/typos-format.sh",
-              "--reset-digests"
-            ],
-            "timeout": 10
           }
         ]
       }

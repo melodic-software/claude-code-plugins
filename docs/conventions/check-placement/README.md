@@ -183,7 +183,7 @@ the consumer git floor moves.
 detect(repo)                  -> { manager: "lefthook"|"husky"|"plain"|"conflict", evidence[] }
 list(repo)                    -> [{ entryId, event, scope, stamp }]
 plan(repo, entries, scope)    -> { actions[], decisions[] }
-copy(repo, entry, scope)      -> "installed" | "refreshed" | "unchanged" | "blocked"   # plugin-owned files only
+copy(repo, entry, scope)      -> "installed" | "refreshed" | "unchanged" | "blocked" | "unsafe-path" | "stage-failed"   # plugin-owned files only
 decline(repo, entryId)        -> sets the git config --local key
 ```
 
@@ -198,6 +198,18 @@ value except the plain shared `.githooks`), `plan` returns only one decision,
 `{kind: "hooks-path-owned", hooksPath, dir}`, with empty `actions`. `copy --scope local` then
 writes nothing, prints `{"installed":[],"decisions":[...]}` with that decision, exits 1, and
 reports status `blocked`. The setup agent decides what to do with the other tool's hooks (D1).
+
+**`unsafe-path`.** A cloned repository's contents are untrusted. When any file `copy` would write
+for an entry, or a directory on the way to it below the work tree's top level (or below the local
+hooks directory), is a symlink, `plan` returns `{kind: "unsafe-path", entry, file}` and `copy`
+writes nothing for that entry, reports status `unsafe-path`, and exits 1. Only the exact dispatcher
+counts as the plugin's own; a hook that carries its sentinel line but differs is a `modified`
+decision, overwritten only by `copy --force`. The installer reads repository files only when they
+are regular files of at most 1 MiB, never through a final symlink; anything else reads as absent.
+
+**`stage-failed`.** A shared install stages what it writes; when `git add` fails (an ignored path,
+a locked index), `copy` reports `stage-failed` and exits 1, since the team would not receive the
+files. A plain marker counts as wired only while it names its entry's script.
 
 ### Where installed copies live
 
@@ -318,7 +330,7 @@ marketplace comes from these rows.
 | markdown-format, per edit (`.md`, configured) | PostToolUse today | 180 ms median (174-186) | reference host (Linux, WSL2) | 2026-10-15 |
 | powershell-format, per edit (`.ps1`, configured) | PostToolUse today | 973 ms median (918-1,026) | reference host (Linux, WSL2) | 2026-10-15 |
 | ruff-format, per edit (`.py`, configured) | PostToolUse today | 75 ms median (73-83) | reference host (Linux, WSL2) | 2026-10-15 |
-| typos-format, per edit (`.md`) | PostToolUse today; moving to pre-commit | 59 ms median (56-63) | reference host (Linux, WSL2) | 2026-10-15 |
+| typos-format, per edit (`.md`) | PostToolUse until removed; now pre-commit | 59 ms median (56-63) | reference host (Linux, WSL2) | 2026-10-15 |
 
 The per-edit rows are today's `PostToolUse` rows run from each plugin's `hooks/hooks.json` with a
 sample that needs work (hyperfine, 2 warmups, 10 runs; a 15 ms spawn baseline is included). They

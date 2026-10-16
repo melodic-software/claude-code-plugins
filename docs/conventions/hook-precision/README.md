@@ -45,7 +45,7 @@ them turns every next over-fire into a committed regression test. A hook is prec
    Fail toward acting: git absent, no repository, or a `check-ignore` error runs the hook as before,
    because a skip that fired on an error would disable the hook invisibly. The counter-case, a developer
    who wants an ignored local script formatted, is what the opt-in is for. The shared implementation for
-   the nine hooks is `hook::gitignored_out_of_scope` in `lib/hook-utils.sh`. They skip a
+   the eight hooks is `hook::gitignored_out_of_scope` in `lib/hook-utils.sh`. They skip a
    gitignored file by default and run on it only with the `<plugin>_lint_gitignored` opt-in; that is the
    maintainer's decision on #4671.
 
@@ -132,7 +132,7 @@ Existing adopters conform by carrying the rule their over-fire needed:
 - `block-noncanonical-commit` gates on the canonical `-F -` marker alone, dropping the `--trailer`
   conjunct its advisory predecessor required (rule 4).
 
-### Rule 6 conformance: the nine format and lint hooks
+### Rule 6 conformance: the eight format and lint hooks
 
 The harness `if` filter cannot express "gitignored", so it narrows spawn cost only and
 never stands in for the gate.
@@ -151,12 +151,11 @@ per-batch ceiling.
 | `go-format` | rewriting (goimports) | shared, `go_format_lint_gitignored` | conforms (#4671) |
 | `powershell-format` | rewriting (Invoke-Formatter) and reporting (PSScriptAnalyzer) | shared, `powershell_format_lint_gitignored` | conforms (#4671); reporting moves to pre-commit |
 | `ruff-format` | rewriting and reporting (Ruff) | shared, `ruff_format_lint_gitignored` | conforms (#4671); reporting moves to pre-commit |
-| `typos-format` | reporting, and rewriting when write mode is on | shared, `typos_format_lint_gitignored` | conforms (#4671); registers with no `if` filter because typos is language-agnostic; reporting moves to pre-commit |
 | `actionlint` (`actionlint-check`) | reporting only | shared, `actionlint_lint_gitignored`; `hook::begin --no-membership`, `if`-bounded to `**/.github/workflows/*.y*ml` | conforms (#4671); lowest exposure, since it never rewrites and an ignored workflow file is rare; reporting moves to pre-commit |
 
 The helpers live in `lib/hook-utils.sh`. The six hooks that use the snapshot and disclosure guard
 (`bash-format`, `biome-format`, `eol-normalizer`, `go-format`, `powershell-format`, `ruff-format`) also
-carry `rewrite-guard.sh`. `actionlint`, `markdown-format` and `typos-format` do not, because they never
+carry `rewrite-guard.sh`. `actionlint` and `markdown-format` do not, because they never
 call `hook::rewrite_guard_begin`.
 
 The gitignore signal is kept separate from the two disposable-root lists the fleet already has:
