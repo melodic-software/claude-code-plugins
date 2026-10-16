@@ -18,7 +18,7 @@
   "userConfig": {
     "powershell_format_enabled": {
       "type": "boolean",
-      "title": "Enable powershell-format hooks",
+      "title": "Run the session hooks",
       "description": "Turns the end-of-turn check and the session-start probe on or off. The git pre-commit entry is registered by /powershell-format:setup apply install-git-hooks and is not affected.",
       "default": true
     },

@@ -287,16 +287,16 @@ md_trust() {
       printf '%s\n' "$root"
       for f in "${MD_CODE_CONFIGS[@]}"; do
         f="$(md_abs "$f")" || exit 1
-        h="$(git hash-object -- "$f")" || exit 1
+        h="$(git hash-object --no-filters -- "$f")" || exit 1
         printf 'config\t%s\t%s\n' "$f" "$h"
       done
       if ((${#MD_MODULES[@]} > 0)); then
         for f in "${MD_MODULES[@]}"; do
-          h="$(git hash-object -- "$f")" || exit 1
+          h="$(git hash-object --no-filters -- "$f")" || exit 1
           printf 'module\t%s\t%s\n' "$f" "$h"
         done
       fi
-    )" && sig="$(git hash-object --stdin <<<"$sig")" && [[ -n "$sig" ]]; then
+    )" && sig="$(git hash-object --no-filters --stdin <<<"$sig")" && [[ -n "$sig" ]]; then
       MD_TRUST_DIR="${base%/}/trust-approvals/md-$sig"
       MD_TRUST=gate
       [[ -d "$MD_TRUST_DIR" ]] && MD_TRUST=approved
