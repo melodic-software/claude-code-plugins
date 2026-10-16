@@ -1030,8 +1030,8 @@ Two further axes are settled elsewhere, and neither is implied by the rubric abo
 
 ## Fresh-eyes checkpoints
 
-A context that produced work is structurally the weakest place to judge that work: the reasoning that
-made a mistake plausible is still active, so a self-check inherits the bias. A fresh-context (non-fork)
+A context that produced work is structurally the weakest place to judge that work, because the reasoning
+that made a mistake plausible is still active and a self-check inherits the bias. A fresh-context (non-fork)
 subagent, generic or named, removes it: it starts in its own fresh context window, blind to the
 reasoning under review. A fork does not: it inherits the parent session's full conversation history, so
 it carries the same bias forward. Upstream recommends fresh-context review as well as describing
