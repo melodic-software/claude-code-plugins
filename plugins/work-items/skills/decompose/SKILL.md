@@ -137,6 +137,10 @@ Show the user the draft items, numbered. **work the frontier** (unblocked items 
 - **Estimated scope**: S / M / L, judged against the **one fresh context window** bar (split if it cannot finish in one fresh window)
 - **Frontier**: whether the item is unblocked now
 
+When the source PLAN.md has a `## Brief`, show its Goal and Constraints once above the list, as
+Step 4 would copy them: without a container every item carries them, so the user approves what
+gets published.
+
 Ask the user:
 
 - Are the vertical slices the right size? (each should fit one fresh context window; say which to split or combine)
@@ -240,12 +244,14 @@ Fill the sections this way:
 - **Goal** and **Constraints** carry the why to a session that works one item alone. Fill them
   only when no spec container was approved and the source PLAN.md has a `## Brief`: copy its
   Goal paragraph and its Constraints bullets as written, dropping any memory-slice path, since
-  that slice is never committed. With a container, omit both lines: the container body carries
+  that slice is never committed. Replace any other file path with the module or type it names, as
+  Key interfaces does, and drop or generalize a machine-specific path, hostname or
+  credential-shaped value: the item may be public. With a container, omit both lines: the container body carries
   the Brief. With no Brief (a PRD, item, or conversation source), omit them too, with no
   placeholder.
 - **Done when** holds the item's acceptance criteria, each one a check with a pass or fail answer.
 
-An item body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above, every acceptance criterion, the quoted design excerpt, and the closing born-triaged marker survive unchanged.
+An item body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above, every acceptance criterion, the copied Goal and Constraints lines, the quoted design excerpt, and the closing born-triaged marker survive unchanged.
 
 Classify per taxonomy: the **issue type** from the item's nature. `Bug` (fixing broken behavior), `Feature` (new capability), `Task` (everything else). Set through the seam's `--type` on org repos (native Issue Type), or a `type:` label on personal / non-org repos; `area:` from the affected module; the autonomous-eligible label for AFK items, the human-gated label for HITL + investigation items. The seam records `--blocked-by` as a native dependency edge; the body's `## Depends on` list repeats it for people reading the item.
 
