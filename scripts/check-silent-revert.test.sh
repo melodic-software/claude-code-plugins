@@ -276,9 +276,11 @@ t_release_consuming_fragments_is_not_a_removal() {
   done
   git_test_config "$repo" add -A >/dev/null
   git_test_config "$repo" commit -qm "chore: seed the changelogs"
+  local j
   for i in $(seq 1 30); do
-    printf 'the plugin%s fragment line %s describes a fix to the guard\n' "$i" $(seq 1 10) \
-      >"$repo/.changes/plugin$i/fix-guard-0123abcd.md"
+    for j in $(seq 1 10); do
+      printf 'the plugin%s fragment line %s describes a fix to the guard\n' "$i" "$j"
+    done >"$repo/.changes/plugin$i/fix-guard-0123abcd.md"
   done
   git_test_config "$repo" add -A >/dev/null
   git_test_config "$repo" commit -qm "fix: add the guard fragments (#98)"
@@ -288,9 +290,12 @@ t_release_consuming_fragments_is_not_a_removal() {
   git_test_config "$repo" rm -rq .changes >/dev/null
   git_test_config "$repo" add -A >/dev/null
   git_test_config "$repo" commit -qm "chore(release): release 30 plugins (#99)"
-  SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
+  [[ "$(cat "$repo"/plugins/plugin*/CHANGELOG.md | grep -c 'fragment line')" -eq 300 ]] ||
+    fail "fixture built the wrong number of fragment lines (want 300)"
+  # The shipped threshold (200), so the 300 lines would fire without the fix.
+  run_canary "$repo" --commit HEAD
   if [[ "$RC" -eq 0 ]]; then
-    ok "a release consuming 300 lines of recent .changes/ fragments is not a removal"
+    ok "a release consuming 300 lines of recent .changes/ fragments is not a removal (threshold 200)"
   else
     fail "consumed .changes/ fragments must not fire, rc=$RC: $OUT"
   fi
