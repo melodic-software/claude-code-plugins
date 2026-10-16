@@ -205,7 +205,7 @@ INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
 status="$(node "$INSTALL" copy --scope local --repo "$REPO")"
 expect "the vendored installer installs the entry" '[{"entry":"actionlint-check","status":"installed"}]' "$status"
 expect "the installed copy carries the stamp on line 2" yes \
-  "$(sed -n 2p "$REPO/.git/hooks/actionlint/actionlint-check.sh" | grep -qE '^# actionlint actionlint-check sha256:[0-9a-f]{64}$' && echo yes)"
+  "$(grep -qE '^# actionlint actionlint-check sha256:[0-9a-f]{64}$' < <(sed -n 2p "$REPO/.git/hooks/actionlint/actionlint-check.sh") && echo yes)"
 printf '%s' "$BAD" >"$REPO/$WF/ci.yml"
 git -C "$REPO" add "$WF/ci.yml"
 err="$(git -C "$REPO" commit -q -m finding 2>&1)"

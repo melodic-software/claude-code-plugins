@@ -3,7 +3,7 @@
 # staged Markdown files are rewritten and re-staged, a partly staged one is refused
 # untouched, a finding blocks only on a line the commit adds, only a file a
 # markdownlint config governs is touched, a config that can run repository code is
-# skipped, --worktree reports without rewriting, a missing markdownlint-cli2
+# skipped until the user approves its content state, --worktree reports without rewriting, a missing markdownlint-cli2
 # follows the skip-key rule, and the plugin's own vendored installer wires the
 # entry so `git commit` runs it.
 # Expected values are markdownlint's documented rules: a file must end with a single
@@ -11,7 +11,7 @@
 # is MD033/no-inline-html and has no fix.
 # test-scope: plugins/markdown-format/git-hooks/entries.json plugins/markdown-format/git-hooks/markdown-gates.sh plugins/markdown-format/lib/git-hooks/check-lib.sh plugins/markdown-format/lib/git-hooks/install.mjs
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT CLAUDE_PLUGIN_DATA
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK="$HERE/markdown-check.sh"
@@ -75,8 +75,14 @@ new_repo
 printf '# T\n\ntext' >"$REPO/a.md"
 git -C "$REPO" add a.md
 expect "a staged file with no final newline is rewritten, listed on stdout, and exits 0" "0|a.md|" "$(check "$REPO")"
-expect "the rewrite is in the work tree" "${FIXED}x" "$(cat "$REPO/a.md"; printf x)"
-expect "the rewrite is re-staged: the index holds the fixed bytes" "${FIXED}x" "$(git -C "$REPO" show :a.md; printf x)"
+expect "the rewrite is in the work tree" "${FIXED}x" "$(
+  cat "$REPO/a.md"
+  printf x
+)"
+expect "the rewrite is re-staged: the index holds the fixed bytes" "${FIXED}x" "$(
+  git -C "$REPO" show :a.md
+  printf x
+)"
 expect "re-staged: no unstaged change remains" "" "$(git -C "$REPO" diff --name-only)"
 
 new_repo
@@ -142,25 +148,68 @@ git -C "$REPO" add .markdownlint-cli2.jsonc gen/g.md
 expect "a file the markdownlint config ignores is left alone" "0||" "$(check "$REPO")"
 expect "an ignored file keeps its bytes" "$(printf '# T\n\ntext')" "$(cat "$REPO/gen/g.md")"
 
-NOTICE='markdown-format: skipped 1 file(s): their markdownlint config can run repository code.'
+# A config that can run repository code: skipped until the user approves its
+# exact content state, as powershell-format gates CustomRulePath.
+GATE_LEAD='markdown-format trust gate: markdownlint-cli2 skipped for files under'
+DATA="$WORK/plugin-data"
 new_repo NONE
-printf 'module.exports = { config: { default: true } };\n' >"$REPO/.markdownlint-cli2.cjs"
+printf 'module.exports = {};\n' >"$REPO/helper.cjs"
+printf 'const h = require("./helper.cjs");\nmodule.exports = { config: { default: true, MD013: false } };\n' >"$REPO/.markdownlint-cli2.cjs"
+git -C "$REPO" add -A
+git -C "$REPO" commit -q -m config --no-verify
 printf '# T\n\ntext' >"$REPO/a.md"
 git -C "$REPO" add a.md
-expect "an executable config is never run: skipped with a notice" "0||$NOTICE" "$(check "$REPO")"
-expect "a skipped file keeps its bytes" "$(printf '# T\n\ntext')" "$(cat "$REPO/a.md")"
+out="$(cd "$REPO" && CLAUDE_PLUGIN_DATA="$DATA" CLAUDECODE=1 bash "$CHECK" 2>&1)"
+expect "unapproved executable config, agent commit: exit 0" "0" "$?"
+expect "an agent is told the verdict and never the approval command" \
+  "$GATE_LEAD .markdownlint-cli2.cjs; it can run repository code and is not approved. Approval is the user's." "$out"
+expect "an unapproved config never runs: the file keeps its bytes" "$(printf '# T\n\ntext')" "$(cat "$REPO/a.md")"
+out="$(cd "$REPO" && CLAUDE_PLUGIN_DATA="$DATA" bash "$CHECK" 2>&1)"
+marker="$(printf '%s' "$out" | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+expect "a person's notice carries an approval marker under the approval store" yes \
+  "$([[ -n "$marker" && "$marker" == "$DATA"/trust-approvals/md-* ]] && echo yes)"
+mkdir -p "$marker"
+out="$(cd "$REPO" && CLAUDE_PLUGIN_DATA="$DATA" bash "$CHECK" 2>"$WORK/stderr")"
+expect "an approved state is linted and rewritten" "0|a.md|" "$?|$out|$(cat "$WORK/stderr")"
+expect "the approved rewrite landed" "${FIXED}x" "$(
+  cat "$REPO/a.md"
+  printf x
+)"
+printf '// unreviewed revision\n' >>"$REPO/helper.cjs"
+printf '# T\n\ntext' >"$REPO/b.md"
+git -C "$REPO" add b.md
+(cd "$REPO" && CLAUDE_PLUGIN_DATA="$DATA" CLAUDECODE=1 bash "$CHECK" >/dev/null 2>&1)
+expect "a changed module the config requires revokes the approval" "$(printf '# T\n\ntext')" "$(cat "$REPO/b.md")"
+(cd "$REPO" && bash "$CHECK" >"$WORK/stdout" 2>"$WORK/stderr")
+marker="$(sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p" "$WORK/stderr")"
+expect "outside a session the approval store is the git directory" yes \
+  "$([[ "$marker" == "$REPO"/.git/markdown-format/trust-approvals/md-* ]] && echo yes)"
 
 new_repo NONE
 printf '{ "config": { "default": true }, "customRules": ["./rule.cjs"] }\n' >"$REPO/.markdownlint-cli2.jsonc"
 printf '# T\n\ntext' >"$REPO/a.md"
 git -C "$REPO" add a.md
-expect "a config naming customRules is skipped" "0||$NOTICE" "$(check "$REPO")"
+expect "a config naming customRules is gated" \
+  "0||$GATE_LEAD .markdownlint-cli2.jsonc; it can run repository code and is not approved. Approval is the user's." \
+  "$(
+    cd "$REPO" && CLAUDECODE=1 bash "$CHECK" 2>"$WORK/stderr"
+    printf '%s||%s' "$?" "$(cat "$WORK/stderr")"
+  )"
 
 new_repo NONE
 printf '{ "config": { "default": true }, "ignores": ["a\\\\.md"] }\n' >"$REPO/.markdownlint-cli2.jsonc"
 printf '# T\n\ntext' >"$REPO/a.md"
 git -C "$REPO" add a.md
-expect "a config with a backslash inside a quoted string is skipped" "0||$NOTICE" "$(check "$REPO")"
+expect "a config with a backslash inside a quoted string is unverifiable, with no approval route" \
+  "0||$GATE_LEAD .markdownlint-cli2.jsonc; it cannot be verified free of repository code, so lint stays off." "$(check "$REPO")"
+
+new_repo NONE
+printf 'const path = require("path");\nmodule.exports = { config: { default: true } };\n' >"$REPO/.markdownlint-cli2.cjs"
+printf '# T\n\ntext' >"$REPO/a.md"
+git -C "$REPO" add a.md
+expect "a config that builds paths is unpinnable, with no approval route" \
+  "0||$GATE_LEAD .markdownlint-cli2.cjs; it names code through an expression no approval can pin, so lint stays off." "$(check "$REPO")"
+expect "an unpinnable config never runs: the file keeps its bytes" "$(printf '# T\n\ntext')" "$(cat "$REPO/a.md")"
 
 new_repo NONE
 printf '{ "default": true }\n' >"$REPO/.markdownlint.json"
@@ -249,7 +298,10 @@ printf '# T\n\ntext' >"$REPO/a.md"
 git -C "$REPO" add a.md
 git -C "$REPO" commit -q -m format >/dev/null 2>&1
 expect "git commit runs the entry and succeeds" "0" "$?"
-expect "the commit holds the fixed bytes" "${FIXED}x" "$(git -C "$REPO" show HEAD:a.md; printf x)"
+expect "the commit holds the fixed bytes" "${FIXED}x" "$(
+  git -C "$REPO" show HEAD:a.md
+  printf x
+)"
 expect "the work tree matches the commit" "" "$(git -C "$REPO" status --porcelain)"
 printf '# T\n\n<b>x</b>\n' >"$REPO/a.md"
 git -C "$REPO" add a.md

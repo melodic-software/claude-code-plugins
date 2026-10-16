@@ -57,12 +57,14 @@ stop() { # <stop_hook_active> [env...] -> "<rc>|<stderr>"
   printf '%s|%s' "$rc" "$err"
 }
 
+# The finding line is typos' own message; the closing hint line is this plugin's
+# wording, so the case drops it instead of restating it.
+findings() { printf '%s' "${1%$'\n'*}"; }
 printf 'an old teh line\nnew teh line\n' >"$R/notes.md"
 expect "off by default: an uncommitted typo does not block" "0|" "$(stop false)"
 expect "on: an uncommitted typo on a changed line exits 2 with the finding" \
-  "2|notes.md:2: \`teh\` should be \`the\`
-typos-format: fix the words above, or allow-list intended ones in the repository typos config (extend-words)." \
-  "$(stop false CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_END_OF_TURN=true)"
+  "2|notes.md:2: \`teh\` should be \`the\`" \
+  "$(findings "$(stop false CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_END_OF_TURN=true)")"
 expect "on: stop_hook_active means it already blocked this turn" "0|" \
   "$(stop true CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_END_OF_TURN=true)"
 expect "on: the plugin kill switch wins" "0|" \

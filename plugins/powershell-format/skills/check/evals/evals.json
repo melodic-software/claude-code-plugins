@@ -5,7 +5,7 @@
       "id": 1,
       "name": "hook-notice-runs-the-read-only-check",
       "prompt": "A hook just said powershell-format found no pwsh. Is PowerShell installed here?",
-      "expected_output": "Reads the setup skill's check section, runs only that check, and reports its PASS/FAIL/INFO table for pwsh, the PSScriptAnalyzer module, jq and node. Installs nothing and stops.",
+      "expected_output": "Reads the setup skill's check section, runs only that check, and reports its PASS/FAIL/INFO table for pwsh, the PSScriptAnalyzer module and node. Installs nothing and stops.",
       "files": [],
       "expectations": [
         "Follows only the `check` section of /powershell-format:setup and reports its PASS/FAIL/INFO table",
@@ -30,7 +30,7 @@
       "id": 3,
       "name": "passing-check-has-no-successor",
       "prompt": "/powershell-format:check",
-      "expected_output": "When pwsh, the module, jq and node resolve, reports PASS and stops without suggesting setup apply.",
+      "expected_output": "When pwsh, the module and node resolve, reports PASS and stops without suggesting setup apply.",
       "files": [],
       "expectations": [
         "Reports the PASS/FAIL/INFO table from the check section",
@@ -55,10 +55,10 @@
       "id": 5,
       "name": "check-runs-its-own-probes-including-node",
       "prompt": "/powershell-format:check\n\nnode is not on PATH here, though pwsh is installed.",
-      "expected_output": "Runs the jq, node and pwsh probes via Bash, since setup's pre-computed rows are not rendered when this skill reads the file, and reports a Node.js FAIL with the reason.",
+      "expected_output": "Runs the node and pwsh probes via Bash and reports a Node.js FAIL with the reason.",
       "files": [],
       "expectations": [
-        "Runs the jq, node and pwsh probes via Bash instead of expecting pre-computed rows",
+        "Runs the node and pwsh probes via Bash, and neither probes nor requires jq",
         "Reports the missing node as FAIL because every hook launch goes through node hooks/exec-bash.mjs",
         "Installs nothing and stops after the table"
       ]

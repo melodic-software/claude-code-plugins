@@ -7,7 +7,7 @@
 # off: the node launcher only.
 # test-scope: plugins/biome-format/hooks/hooks.json plugins/biome-format/git-hooks/biome-check.sh plugins/biome-format/.claude-plugin/plugin.json
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE BIOME_CONFIG_PATH CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_END_OF_TURN CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE BIOME_CONFIG_PATH CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_END_OF_TURN CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN="$(cd "$HOOK_DIR/.." && pwd)"
@@ -59,12 +59,14 @@ stop() { # <stop_hook_active> [env...] -> "<rc>|<stderr>"
   printf '%s|%s' "$rc" "$err"
 }
 
-FINDING='a.ts:2: lint/correctness/noUnusedVariables: This variable unusedVar is unused.
-biome-format: fix the findings above, or adjust the repository Biome config.'
+# The finding lines are the tool's own documented messages; the closing hint
+# line is this plugin's wording, so the case drops it instead of restating it.
+findings() { printf '%s' "${1%$'\n'*}"; }
+FINDING='a.ts:2: lint/correctness/noUnusedVariables: This variable unusedVar is unused.'
 printf 'export const seed = 1;\nconst unusedVar = 1;\n' >"$R/a.ts"
 expect "off by default: an uncommitted finding does not block" "0|" "$(stop false)"
 expect "on: an uncommitted finding on a changed line exits 2 with the finding" "2|$FINDING" \
-  "$(stop false CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_END_OF_TURN=true)"
+  "$(findings "$(stop false CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_END_OF_TURN=true)")"
 expect "on: nothing is rewritten" "$(printf 'export const seed = 1;\nconst unusedVar = 1;')" "$(cat "$R/a.ts")"
 expect "on: stop_hook_active means it already blocked this turn" "0|" \
   "$(stop true CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_END_OF_TURN=true)"

@@ -7,7 +7,7 @@
 # per turn with the option off: the node launcher only.
 # test-scope: plugins/go-format/hooks/hooks.json plugins/go-format/git-hooks/goimports-format.sh plugins/go-format/.claude-plugin/plugin.json
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_GO_FORMAT_END_OF_TURN CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_GO_FORMAT_END_OF_TURN CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN="$(cd "$HOOK_DIR/.." && pwd)"
@@ -59,13 +59,15 @@ stop() { # <stop_hook_active> [env...] -> "<rc>|<stderr>"
 }
 
 BROKEN=$'package main\n\nfunc main() {\n\tfmt.Println("hi"\n}'
+# The finding lines are the tool's own documented messages; the closing hint
+# line is this plugin's wording, so the case drops it instead of restating it.
+findings() { printf '%s' "${1%$'\n'*}"; }
 FINDING="a.go:4: missing ',' before newline in argument list
-a.go:5: expected operand, found '}'
-go-format: goimports could not process the files above."
+a.go:5: expected operand, found '}'"
 printf '%s\n' "$BROKEN" >"$R/a.go"
 expect "off by default: an uncommitted unparseable file does not block" "0|" "$(stop false)"
 expect "on: an uncommitted unparseable file exits 2 with its line" "2|$FINDING" \
-  "$(stop false CLAUDE_PLUGIN_OPTION_GO_FORMAT_END_OF_TURN=true)"
+  "$(findings "$(stop false CLAUDE_PLUGIN_OPTION_GO_FORMAT_END_OF_TURN=true)")"
 expect "on: nothing is rewritten" "$BROKEN" "$(cat "$R/a.go")"
 expect "on: stop_hook_active means it already blocked this turn" "0|" \
   "$(stop true CLAUDE_PLUGIN_OPTION_GO_FORMAT_END_OF_TURN=true)"

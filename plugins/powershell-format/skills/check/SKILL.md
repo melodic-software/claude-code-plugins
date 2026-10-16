@@ -1,10 +1,10 @@
 ---
-description: "Read-only check that pwsh, the PSScriptAnalyzer module, jq and node resolve for the powershell-format hooks and git pre-commit entry. Use when a hook notice says pwsh, jq or node is missing, or before assuming PowerShell formatting ran. Does not install."
+description: "Read-only check that pwsh, the PSScriptAnalyzer module and node resolve for the powershell-format hooks and git pre-commit entry. Use when a hook notice says pwsh or node is missing, or before assuming PowerShell formatting ran. Does not install."
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
-  summary: Report whether pwsh, PSScriptAnalyzer, jq and node are installed. Never installs.
+  summary: Report whether pwsh, PSScriptAnalyzer and node are installed. Never installs.
 ---
 
 ## Purpose
@@ -17,7 +17,7 @@ The read-only check is its own skill so the model can invoke it while `setup` st
 
 ## Check
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only its `check` section. Setup's pre-computed rows are not rendered when this skill reads the file, so run every probe (jq, node, pwsh) via Bash. PSScriptAnalyzer is a PowerShell module, not a `PATH` binary, so the `SessionStart` probe cannot see it: probe it with `pwsh -NoProfile -NonInteractive -Command 'if (Get-Module -ListAvailable -Name PSScriptAnalyzer) { "present" } else { "absent" }'`, and only when `pwsh` resolved. Report the PASS/FAIL/INFO table and the install route from `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` for a missing `pwsh`. Stop.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only its `check` section. Run every probe (node, pwsh) via Bash. PSScriptAnalyzer is a PowerShell module, not a `PATH` binary, so the `SessionStart` probe cannot see it: probe it with `pwsh -NoProfile -NonInteractive -Command 'if (Get-Module -ListAvailable -Name PSScriptAnalyzer) { "present" } else { "absent" }'`, and only when `pwsh` resolved. Report the PASS/FAIL/INFO table and the install route from `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` for a missing `pwsh`. Stop.
 
 ## Next
 

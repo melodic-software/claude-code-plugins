@@ -10,7 +10,7 @@
 # does not list is drift, and the block `render-index.sh write` produces is not.
 # test-scope: plugins/instruction-placement/git-hooks/entries.json plugins/instruction-placement/scripts/render-index.sh plugins/instruction-placement/scripts/lib/discover.sh plugins/instruction-placement/lib/git-hooks/check-lib.sh plugins/instruction-placement/lib/git-hooks/install.mjs
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE CLAUDECODE AI_AGENT
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK="$HERE/index-check.sh"
@@ -79,9 +79,9 @@ git -C "$REPO" add .claude/rules/csharp.md
 got="$(check "$REPO")"
 expect "a staged rule the index does not list fails" 1 "$(rc_of "$got")"
 expect "the failure names the index file and line" yes \
-  "$(err_of "$got" | grep -qF 'AGENTS.md:1: the rules index no longer matches .claude/rules/.' && echo yes)"
+  "$(grep -qF 'AGENTS.md:1: the rules index no longer matches .claude/rules/.' < <(err_of "$got") && echo yes)"
 expect "the failure carries the regenerate command for this repository" yes \
-  "$(err_of "$got" | grep -qF "write --file \"$REPO/AGENTS.md\" --root \"$REPO\"" && echo yes)"
+  "$(grep -qF "write --file \"$REPO/AGENTS.md\" --root \"$REPO\"" < <(err_of "$got") && echo yes)"
 
 bash "$RENDER" write --file "$REPO/AGENTS.md" --root "$REPO" >/dev/null
 git -C "$REPO" add AGENTS.md
@@ -131,7 +131,7 @@ INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
 status="$(node "$INSTALL" copy --scope local --repo "$REPO")"
 expect "the vendored installer installs the entry" '[{"entry":"index-check","status":"installed"}]' "$status"
 expect "the installed copy carries the stamp on line 2" yes \
-  "$(sed -n 2p "$REPO/.git/hooks/instruction-placement/index-check.sh" | grep -qE '^# instruction-placement index-check sha256:[0-9a-f]{64}$' && echo yes)"
+  "$(grep -qE '^# instruction-placement index-check sha256:[0-9a-f]{64}$' < <(sed -n 2p "$REPO/.git/hooks/instruction-placement/index-check.sh") && echo yes)"
 expect "the renderer and its helper sit beside the installed copy" yes \
   "$([[ -f "$REPO/.git/hooks/instruction-placement/render-index.sh" && -f "$REPO/.git/hooks/instruction-placement/discover.sh" ]] && echo yes)"
 add_rule "$REPO"
@@ -140,7 +140,7 @@ err="$(git -C "$REPO" commit -q -m rule 2>&1)"
 expect "git commit fails on a stale index" "1" "$?"
 expect "the commit failure names the index file" "AGENTS.md:1:" "$(printf '%s\n' "$err" | head -1 | cut -c1-12)"
 expect "the regenerate command in the failure points at the installed renderer" yes \
-  "$(printf '%s\n' "$err" | grep -qF "bash \"$REPO/.git/hooks/instruction-placement/render-index.sh\" write" && echo yes)"
+  "$(grep -qF "bash \"$REPO/.git/hooks/instruction-placement/render-index.sh\" write" < <(printf '%s\n' "$err") && echo yes)"
 cmd="$(printf '%s\n' "$err" | sed -n 's/^.*Regenerate it: \(bash .*\), then stage.*$/\1/p' | head -1)"
 (cd "$REPO" && eval "$cmd" >/dev/null 2>&1)
 git -C "$REPO" add AGENTS.md

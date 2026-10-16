@@ -1,7 +1,7 @@
 {
   "name": "go-format",
   "version": "0.5.13",
-  "description": "Auto-fix Go formatting and import management on edit via goimports. Runs unconditionally (no consumer-config gate), skipping generated files.",
+  "description": "Auto-format Go and manage imports with goimports once per batch of tool calls and at git pre-commit, skipping generated files, with no consumer-config gate.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"

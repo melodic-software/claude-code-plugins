@@ -58,7 +58,7 @@ expect "hooks.json: the end-of-turn option is declared, default false" "boolean 
 
 # --- SessionStart probe: bound to prerequisites.json, honors the kill switch ---
 # The Stop script stays quiet without pwsh, so the SessionStart row is the only
-# reporter. The manifest declares pwsh and jq (PSScriptAnalyzer is a
+# reporter. The manifest declares pwsh and node, never jq, which nothing runs (PSScriptAnalyzer is a
 # module, not a PATH binary, so /powershell-format:check reports it instead), and
 # the probe's notice must state each tool's name, check and install, verbatim.
 # The probe runs the hooks.json row as the harness spawns it: `node` with the
@@ -70,10 +70,10 @@ expect "hooks.json: the end-of-turn option is declared, default false" "boolean 
 HOOKS_JSON="$HOOK_DIR/hooks.json"
 PLUGIN_ROOT="${HOOK_DIR%/*}"
 MANIFEST="$PLUGIN_ROOT/prerequisites.json"
-if jq -e '(.requires | map(.id)) == ["pwsh", "jq", "node"]' "$MANIFEST" >/dev/null 2>&1; then
-  ok "manifest: declares exactly pwsh, jq and node"
+if jq -e '(.requires | map(.id)) == ["pwsh", "node"]' "$MANIFEST" >/dev/null 2>&1; then
+  ok "manifest: declares exactly pwsh and node"
 else
-  fail "manifest: expected tools pwsh, jq and node: $(cat "$MANIFEST" 2>&1)"
+  fail "manifest: expected tools pwsh and node: $(cat "$MANIFEST" 2>&1)"
 fi
 IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.requires[0] | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST")
 if jq -e --arg checker '${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs' --arg root '${CLAUDE_PLUGIN_ROOT}' \

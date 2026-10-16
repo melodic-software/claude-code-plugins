@@ -1,7 +1,7 @@
 {
   "name": "biome-format",
   "version": "0.8.14",
-  "description": "Auto-format and lint JS/TS/JSX/JSON on edit via Biome, only when a biome.json governs the repo, using the consuming repo's own Biome config.",
+  "description": "Rewrites JavaScript, TypeScript, JSX and JSON with Biome once per batch of tool calls and at git pre-commit, only when a biome.json governs the file, using the consuming repo's own Biome config.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"

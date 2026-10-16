@@ -35,7 +35,7 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 IFS= read -r -d '' INPUT || :
 
 [[ "$INPUT" == *'"Write"'* || "$INPUT" == *'Edit"'* ]] || exit 0
-command -v jq >/dev/null 2>&1 || exit 0
+command -v jq >/dev/null 2>&1 || exit 0  # silent-skip-ok: the SessionStart prerequisites probe reports a missing jq; this hook is silent by design
 PATHS=$(jq -r '.tool_calls[]? | select(.tool_name == "Write" or .tool_name == "Edit" or .tool_name == "MultiEdit") | .tool_input.file_path? | strings' <<<"$INPUT" 2>/dev/null) || exit 0
 [[ -n "$PATHS" ]] || exit 0
 

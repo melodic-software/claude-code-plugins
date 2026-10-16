@@ -48,7 +48,7 @@ if [[ "${1:-}" == --end-of-turn ]]; then
 fi
 
 [[ "$INPUT" =~ \.(ts|tsx|js|jsx|mjs|cjs|mts|cts|json|jsonc)\" ]] || exit 0
-command -v jq >/dev/null 2>&1 || exit 0
+command -v jq >/dev/null 2>&1 || exit 0  # silent-skip-ok: the SessionStart prerequisites probe reports a missing jq; the batch row never speaks to the model
 PATHS=$(jq -r '.tool_calls[]? | select(.tool_name == "Write" or .tool_name == "Edit" or .tool_name == "MultiEdit") | .tool_input.file_path? | strings | select(test("\\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|json|jsonc)$"))' <<<"$INPUT" 2>/dev/null) || exit 0
 [[ -n "$PATHS" ]] || exit 0
 

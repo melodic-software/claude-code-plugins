@@ -16,8 +16,10 @@
 # one node process. A file that Read named is never rewritten.
 #
 # Opt-in: a file is rewritten only when a markdownlint config governs it and the
-# config cannot run repository code (git-hooks/markdown-gates.sh holds both
-# tests, shared with the pre-commit entry). A repository without a config has
+# config either cannot run repository code or runs it in a state the user
+# approved (git-hooks/markdown-gates.sh holds both tests, shared with the
+# pre-commit entry; an unapproved state is skipped silently here, and the
+# pre-commit entry reports it). A repository without a config has
 # chosen no Markdown style, so it is left untouched. markdownlint-cli2 comes from
 # PATH or the repo's own node_modules/.bin, never downloaded. Files under
 # .githooks/ are installed copies and are skipped, as are gitignored files
@@ -72,7 +74,14 @@ while IFS= read -r path; do
   pdir="$(cd "$dir" 2>/dev/null && pwd -P)" || continue
   proot="$(cd "$root" 2>/dev/null && pwd -P)" || continue
   md_config_state "$pdir/${file##*/}" "$proot"
-  [[ "$MD_STATE" == plain ]] || continue
+  case "$MD_STATE" in
+    plain) ;;
+    code)
+      md_trust "$proot"
+      [[ "$MD_TRUST" == approved ]] || continue
+      ;;
+    *) continue ;;
+  esac
   hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED:-false}" "$file" && continue
   ROOTS+=("$proot")
   FILES+=(":$file")

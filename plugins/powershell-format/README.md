@@ -85,8 +85,6 @@ run stays skipped. A settings file without
   As of: 2026-10-11. Recheck trigger: that section or [System requirements](https://code.claude.com/docs/en/setup#system-requirements) changes which
   install needs Node at runtime.
   [Install Node.js](https://nodejs.org/en/download).
-- **jq** on `PATH`. Declared in `prerequisites.json`; the `SessionStart` probe reports it.
-  [Install jq](https://jqlang.org/download/).
 - **PowerShell 7+** (`pwsh`) on `PATH`
   ([install](https://learn.microsoft.com/powershell/scripting/install/installing-powershell)). The
   plugin probes `pwsh` only; legacy Windows PowerShell 5.1 (`powershell.exe`) is not used. If absent,

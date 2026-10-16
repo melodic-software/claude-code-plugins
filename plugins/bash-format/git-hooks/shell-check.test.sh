@@ -12,7 +12,7 @@
 # test-scope: plugins/bash-format/git-hooks/entries.json plugins/bash-format/lib/git-hooks/check-lib.sh plugins/bash-format/lib/git-hooks/install.mjs
 # shellcheck disable=SC2016 # fixtures hold literal shell text, not expansions
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE CLAUDECODE AI_AGENT
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK="$HERE/shell-check.sh"
@@ -262,7 +262,7 @@ INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
 status="$(node "$INSTALL" copy --scope local --repo "$REPO")"
 expect "the vendored installer installs the entry" '[{"entry":"shell-check","status":"installed"}]' "$status"
 expect "the installed copy carries the stamp on line 2" yes \
-  "$(sed -n 2p "$REPO/.git/hooks/bash-format/shell-check.sh" | grep -qE '^# bash-format shell-check sha256:[0-9a-f]{64}$' && echo yes)"
+  "$(grep -qE '^# bash-format shell-check sha256:[0-9a-f]{64}$' < <(sed -n 2p "$REPO/.git/hooks/bash-format/shell-check.sh") && echo yes)"
 expect "the shared rewrite helper is installed beside the script" yes \
   "$([[ -f "$REPO/.git/hooks/bash-format/shfmt-rewrite.sh" ]] && echo yes)"
 printf '%s\n' "$TABBED" >"$REPO/a.sh"

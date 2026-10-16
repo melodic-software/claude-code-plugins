@@ -11,10 +11,10 @@ bump: minor
 ### Changed
 
 - The per-edit `PostToolUse` rows are replaced by one `PostToolBatch` row that rewrites every `.md` and `.mdc` file a batch wrote, once, and prints nothing. markdownlint findings no longer reach Claude on each edit; the pre-commit entry reports them.
-- A markdownlint config that can run repository code (a `.cjs` or `.mjs` config, or one naming `customRules`, `markdownItPlugins` or `outputFormatters`) is now never run, by the batch row or the pre-commit entry. The approval marker under `trust-approvals` no longer applies.
+- A markdownlint config that can run repository code (a `.cjs` or `.mjs` config, or one naming `customRules`, `markdownItPlugins` or `outputFormatters`) still runs only after the user approves its content state, now for the batch row and the pre-commit entry alike. The approval marker lives under `CLAUDE_PLUGIN_DATA` in a session and under the repository's git directory (`markdown-format/trust-approvals`) outside one, as powershell-format's does; markers are renamed with an `md-` prefix, so an approval made before this release must be made again. A person's commit names the marker to create; an agent commit never gets the command.
 - The batch row rewrites only a file inside a git working tree (or `CLAUDE_PROJECT_DIR`). A file under `.githooks/` and a file that only a `Read` named are never rewritten.
 
 ### Removed
 
-- The per-edit findings report, the missing-markdownlint and trust-gate notices on edit (the session-start probe still reports a missing `markdownlint-cli2`), the telemetry envelope, and the `SessionStart` row that reset the findings digest.
+- The per-edit findings report, the missing-markdownlint and trust-gate notices on edit (the pre-commit entry reports the trust gate) (the session-start probe still reports a missing `markdownlint-cli2`), the telemetry envelope, and the `SessionStart` row that reset the findings digest.
 - The `markdown_format_max_findings` option, which capped the per-edit report that no longer exists.

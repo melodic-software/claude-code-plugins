@@ -83,11 +83,12 @@ Report the probes informationally and note that re-enabling restores the FAIL se
    prerequisite. The `SessionStart` probe does not check for a config, so it can still report
    a missing `markdownlint-cli2` in a repository that never opted in. Search the whole tree
    (skip `node_modules`), report the root config the cascade discovers, list nested configs
-   with their directory scope, and report as INFO, inactive, every config the gates'
-   `md_runs_code` flags (a `.cjs` or `.mjs` config, or one naming `customRules`,
+   with their directory scope, and report as INFO, gated, every config the gates'
+   `md_classify` flags (a `.cjs` or `.mjs` config, or one naming `customRules`,
    `markdownItPlugins` or `outputFormatters`, or holding a backslash in a quoted string): the
-   plugin never runs markdownlint-cli2 under it, so the files it governs are neither
-   rewritten nor checked. For a path no config governs, report the plugin as **INFO,
+   plugin runs markdownlint-cli2 under it only after the user approves that config state
+   (README "Trust model"), so until then the files it governs are neither rewritten nor
+   checked. Never create the approval marker yourself: approval is the user's. For a path no config governs, report the plugin as **INFO,
    inactive, not PASS**: nothing is broken, the repository simply never opted in, and that is
    the whole reason formatting is not happening. Name the remediation in the same line rather
    than leaving the reader to infer it. Never report markdownlint's own default rules as the

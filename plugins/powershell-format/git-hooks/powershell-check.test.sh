@@ -12,7 +12,7 @@
 # test-scope: plugins/powershell-format/git-hooks/entries.json plugins/powershell-format/git-hooks/powershell-check.ps1 plugins/powershell-format/lib/git-hooks/check-lib.sh plugins/powershell-format/lib/git-hooks/install.mjs
 # shellcheck disable=SC2016  # literal PowerShell variable syntax: single quotes are intentional
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE CLAUDECODE AI_AGENT CLAUDE_PLUGIN_DATA
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT CLAUDE_PLUGIN_DATA
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK="$HERE/powershell-check.sh"
@@ -246,7 +246,7 @@ INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
 status="$(node "$INSTALL" copy --scope local --repo "$REPO")"
 expect "the vendored installer installs the entry" '[{"entry":"powershell-check","status":"installed"}]' "$status"
 expect "the installed copy carries the stamp on line 2" yes \
-  "$(sed -n 2p "$REPO/.git/hooks/powershell-format/powershell-check.sh" | grep -qE '^# powershell-format powershell-check sha256:[0-9a-f]{64}$' && echo yes)"
+  "$(grep -qE '^# powershell-format powershell-check sha256:[0-9a-f]{64}$' < <(sed -n 2p "$REPO/.git/hooks/powershell-format/powershell-check.sh") && echo yes)"
 expect "the PowerShell asset is installed beside the script" yes \
   "$([[ -f "$REPO/.git/hooks/powershell-format/powershell-check.ps1" ]] && echo yes)"
 printf 'get-childitem .\n' >"$REPO/a.ps1"

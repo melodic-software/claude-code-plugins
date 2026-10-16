@@ -14,7 +14,8 @@
 # "<path>:<line>: <message>" on stderr, exit 1, only for lines the commit adds.
 #
 # Only a file a markdownlint config governs is touched (see markdown-gates.sh),
-# and a config that can run repository code is skipped with a notice. Files under
+# and one a config that can run repository code governs only once the user has
+# approved that config state; until then it is skipped with a notice. Files under
 # .githooks/ are installed copies and are skipped. markdownlint-cli2 comes from
 # PATH, else the repo's own node_modules/.bin. Missing markdownlint-cli2 follows
 # the check-placement contract: checks.skipmissing, else fail for an agent and a
@@ -33,29 +34,55 @@ lib="$here/check-lib.sh"
 
 checks_init pre-commit "$@" || exit 0
 
+# trust_notice: say why the files under the last judged config set were skipped,
+# once per config set. Approval is the user's: an agent commit gets the verdict,
+# never the command that grants it.
+notices=$'\n'
+trust_notice() {
+  local configs="" c msg
+  for c in "${MD_CODE_CONFIGS[@]}"; do
+    c="${c#./}"
+    configs+="${configs:+, }$c"
+  done
+  case "$notices" in *$'\n'"$configs"$'\n'*) return 0 ;; *) ;; esac
+  notices+="$configs"$'\n'
+  msg="markdown-format trust gate: markdownlint-cli2 skipped for files under $configs;"
+  case "$MD_TRUST" in
+    gate)
+      msg="$msg it can run repository code and is not approved. Approval is the user's."
+      if ! checks_is_agent; then
+        msg="$msg Review that config and every module it references, then run: mkdir -p '$MD_TRUST_DIR' (any change to them revokes the approval)."
+      fi
+      ;;
+    unverifiable) msg="$msg it cannot be verified free of repository code, so lint stays off." ;;
+    unpinnable) msg="$msg it names code through an expression no approval can pin, so lint stays off." ;;
+    *) msg="$msg it can run repository code and there is no approval store, so lint stays off." ;;
+  esac
+  printf '%s\n' "$msg" >&2
+}
+
 files=()
-code_configs=0
 while IFS= read -r -d '' f; do
   case "$f" in
-  .githooks/*) continue ;;
-  *.md | *.mdc) ;;
-  *) continue ;;
+    .githooks/*) continue ;;
+    *.md | *.mdc) ;;
+    *) continue ;;
   esac
   [[ -f "$f" && ! -L "$f" ]] || continue
   md_config_state "$f" .
   case "$MD_STATE" in
-  none) continue ;;
-  code)
-    code_configs=$((code_configs + 1))
-    continue
-    ;;
-  *) ;;
+    none) continue ;;
+    code)
+      md_trust .
+      if [[ "$MD_TRUST" != approved ]]; then
+        [[ "$CHECKS_MODE" == worktree ]] || trust_notice
+        continue
+      fi
+      ;;
+    *) ;;
   esac
   files+=("$f")
 done < <(checks_files)
-if ((code_configs)) && [[ "$CHECKS_MODE" != worktree ]]; then
-  printf 'markdown-format: skipped %d file(s): their markdownlint config can run repository code.\n' "$code_configs" >&2
-fi
 ((${#files[@]})) || exit 0
 
 if ! command -v markdownlint-cli2 >/dev/null 2>&1; then

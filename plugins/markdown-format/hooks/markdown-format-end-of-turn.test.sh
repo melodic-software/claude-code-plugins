@@ -67,12 +67,14 @@ stop() { # <stop_hook_active> [env...] -> "<rc>|<stderr>"
   printf '%s|%s' "$rc" "$err"
 }
 
-FINDING='a.md:3: MD033/no-inline-html Inline HTML [Element: b]
-markdown-format: fix the findings above, or adjust the repository markdownlint config.'
+# The finding lines are the tool's own documented messages; the closing hint
+# line is this plugin's wording, so the case drops it instead of restating it.
+findings() { printf '%s' "${1%$'\n'*}"; }
+FINDING='a.md:3: MD033/no-inline-html Inline HTML [Element: b]'
 printf '# Seed\n\n<b>x</b>\n' >"$R/a.md"
 expect "off by default: an uncommitted finding does not block" "0|" "$(stop false)"
 expect "on: an uncommitted finding on a changed line exits 2 with the finding" "2|$FINDING" \
-  "$(stop false CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN=true)"
+  "$(findings "$(stop false CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN=true)")"
 expect "on: nothing is rewritten" "$(printf '# Seed\n\n<b>x</b>')" "$(cat "$R/a.md")"
 expect "on: stop_hook_active means it already blocked this turn" "0|" \
   "$(stop true CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN=true)"

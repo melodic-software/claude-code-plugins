@@ -10,7 +10,7 @@
 # unsafe fix that `--write` leaves alone, and imports sort by source.
 # test-scope: plugins/biome-format/git-hooks/entries.json plugins/biome-format/lib/git-hooks/check-lib.sh plugins/biome-format/lib/git-hooks/install.mjs
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE CLAUDECODE AI_AGENT BIOME_CONFIG_PATH
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT BIOME_CONFIG_PATH
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK="$HERE/biome-check.sh"

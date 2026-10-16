@@ -3,12 +3,12 @@
   "evals": [
     {
       "id": 1,
-      "name": "jq-and-node-are-the-fail-class",
+      "name": "node-is-the-fail-class",
       "prompt": "/powershell-format:setup check",
-      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, pwsh, the PSScriptAnalyzer module, the PSScriptAnalyzerSettings.psd1 opt-in, the powershell_format_enabled toggle, and hook registration — with jq and Node.js the only FAIL-class prerequisites and everything else classified INFO rather than FAIL.",
+      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, node, pwsh, the PSScriptAnalyzer module, the PSScriptAnalyzerSettings.psd1 opt-in, the powershell_format_enabled toggle, and hook registration — with Node.js the only FAIL-class prerequisite and everything else classified INFO rather than FAIL.",
       "files": [],
       "expectations": [
-        "Reports missing jq as FAIL and names jq and node as the only FAIL-class prerequisites in this plugin",
+        "Names node as the only FAIL-class prerequisite in this plugin and does not probe or require jq",
         "Probes node via Bash and reports it FAIL when absent, because every hook handler launches through `node hooks/exec-bash.mjs`; on Windows treats a version-manager shim whose path holds a process id (fnm_multishells) as ephemeral and FAIL, reporting the persisted Machine/User PATH resolution separately",
         "Reports an absent pwsh as INFO, never FAIL, and states the hook probes pwsh only — never legacy powershell.exe",
         "Chains the PSScriptAnalyzer module probe behind the pwsh probe so it never errors on a pwsh-less box",
@@ -19,11 +19,11 @@
       "id": 2,
       "name": "no-settings-file-is-the-opt-out-not-a-defect",
       "prompt": "/powershell-format:setup check\n\nWe have no PSScriptAnalyzerSettings.psd1 and nothing is being formatted. Is the plugin broken?",
-      "expected_output": "Answers no: the hook runs only when a PSScriptAnalyzerSettings.psd1 governs the edited file (walking up from the file to the repo root, bounded by CLAUDE_PROJECT_DIR when set, stopping at the closest one), so absence is the opt-out and is by design, not a defect — reported as INFO.",
+      "expected_output": "Answers no: the pre-commit entry touches only a file a PSScriptAnalyzerSettings.psd1 governs (walking up from the file to the repo root, stopping at the closest one), so absence is the opt-out and is by design, not a defect — reported as INFO.",
       "files": [],
       "expectations": [
         "Classifies the absent settings file as INFO (the opt-out, by design), never FAIL, and states the plugin is not broken",
-        "Describes the resolution the hook actually performs: walking up from the file to the repo root, bounded by CLAUDE_PROJECT_DIR when set, stopping at the closest settings file",
+        "Describes the resolution the entry actually performs: walking up from the file to the repo root, stopping at the closest settings file",
         "Does not offer to repair the state and does not write the settings file",
         "Classifies an absent pwsh or module as INFO consistently, rather than calling either a FAIL-class prerequisite"
       ]
@@ -37,7 +37,7 @@
       "expectations": [
         "Names CustomRulePath as the mechanism that makes the settings file executed-adjacent — repository-supplied rule modules load and run during analysis",
         "States that the hook gates such a settings state on an explicit per-content trust approval, and that any settings change revokes it",
-        "Names the trust-approval marker location under CLAUDE_PLUGIN_DATA rather than describing the gate vaguely",
+        "Names the trust-approval marker location (under CLAUDE_PLUGIN_DATA in a session, else under the repository git directory in powershell-format/trust-approvals) rather than describing the gate vaguely",
         "States that the settings file carries the same trust as build or CI configuration"
       ]
     },

@@ -11,7 +11,7 @@
 # of the fixture's broken call, counted by hand.
 # test-scope: plugins/go-format/git-hooks/entries.json plugins/go-format/lib/git-hooks/check-lib.sh plugins/go-format/lib/git-hooks/install.mjs
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE CLAUDECODE AI_AGENT
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK="$HERE/goimports-format.sh"

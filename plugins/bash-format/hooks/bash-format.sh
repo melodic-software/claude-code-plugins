@@ -43,8 +43,8 @@ if [[ "${1:-}" == --end-of-turn ]]; then
 fi
 
 [[ "$INPUT" == *'sh"'* ]] || exit 0
-command -v jq >/dev/null 2>&1 || exit 0
-command -v shfmt >/dev/null 2>&1 || exit 0
+command -v jq >/dev/null 2>&1 || exit 0  # silent-skip-ok: the SessionStart prerequisites probe reports a missing jq; the batch row never speaks to the model
+command -v shfmt >/dev/null 2>&1 || exit 0  # silent-skip-ok: the SessionStart prerequisites probe reports a missing shfmt; pre-commit fails an agent commit on it
 PATHS=$(jq -r '.tool_calls[]? | select(.tool_name == "Write" or .tool_name == "Edit" or .tool_name == "MultiEdit") | .tool_input.file_path? | strings | select(test("\\.(sh|bash)$"))' <<<"$INPUT" 2>/dev/null) || exit 0
 [[ -n "$PATHS" ]] || exit 0
 

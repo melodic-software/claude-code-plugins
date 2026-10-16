@@ -18,4 +18,5 @@ bump: minor
 ### Removed
 
 - The per-edit findings report, the rewrite disclosure, the trust-gate notice on edit, and the `SessionStart` row that reset the findings digest.
+- `jq` as a prerequisite: nothing the plugin runs uses it any more, so the session-start probe and `/powershell-format:check` no longer report it.
 - The `powershell_format_lint_gitignored` option: nothing runs on edit, and the pre-commit entry only sees tracked and untracked-but-not-ignored files.

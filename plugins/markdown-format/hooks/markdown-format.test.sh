@@ -7,7 +7,7 @@
 # batch, and never anything a Read named; it prints nothing (no finding, no
 # disclosure reaches the model) and exits 0; a markdownlint config must govern the
 # file (present -> run, absent -> leave bytes untouched) and must not be able to
-# run repository code; the config's ignores, .githooks/, gitignored files and the
+# run repository code unless the user approved its state; the config's ignores, .githooks/, gitignored files and the
 # kill switch are honored; a batch with no Markdown edit costs only the launcher.
 #
 # Self-contained: builds throwaway git repos with runtime-generated fixtures. The
@@ -230,7 +230,10 @@ mkdir -p "$REPO/docs"
 printf '%s' "$NO_NL" >"$REPO/docs/fmt.md"
 OUT=$(run_edit "$REPO/docs/fmt.md")
 RC=$?
-expect "Edit of a subdirectory file: fixed" "${FIXED}x" "$(cat "$REPO/docs/fmt.md"; printf x)"
+expect "Edit of a subdirectory file: fixed" "${FIXED}x" "$(
+  cat "$REPO/docs/fmt.md"
+  printf x
+)"
 expect "a rewrite prints nothing to the model or the user, exit 0" "0|" "$RC|$OUT"
 
 printf '# T\n\ntext\n' >"$REPO/clean.md"
@@ -246,7 +249,10 @@ expect "the finding's file is not rewritten" "$(printf '# T\n\n<b>x</b>')" "$(ca
 # A .mdc file is Markdown too.
 printf '%s' "$NO_NL" >"$REPO/rule.mdc"
 run_edit "$REPO/rule.mdc" >/dev/null
-expect "an Edit of a .mdc file is fixed" "${FIXED}x" "$(cat "$REPO/rule.mdc"; printf x)"
+expect "an Edit of a .mdc file is fixed" "${FIXED}x" "$(
+  cat "$REPO/rule.mdc"
+  printf x
+)"
 
 # --- The batch -----------------------------------------------------------------
 # One call, several files, all rewritten; a Read, a non-Markdown file and a
@@ -264,8 +270,14 @@ BATCH="$(jq -n --arg d "$REPO" '{session_id: "s", hook_event_name: "PostToolBatc
   {tool_name: "Bash", tool_input: {command: "ls b3.md"}, tool_use_id: "6", tool_response: "b3.md"}]}')"
 OUT=$(fire "$BATCH")
 expect "a mixed batch prints nothing" "0|" "$?|$OUT"
-expect "batch: a Write'd .md is rewritten" "${FIXED}x" "$(cat "$REPO/b1.md"; printf x)"
-expect "batch: an Edit'd .mdc is rewritten" "${FIXED}x" "$(cat "$REPO/b2.mdc"; printf x)"
+expect "batch: a Write'd .md is rewritten" "${FIXED}x" "$(
+  cat "$REPO/b1.md"
+  printf x
+)"
+expect "batch: an Edit'd .mdc is rewritten" "${FIXED}x" "$(
+  cat "$REPO/b2.mdc"
+  printf x
+)"
 expect "batch: a Read'd .md is never rewritten" "$NO_NL" "$(cat "$REPO/b3.md")"
 expect "batch: a non-Markdown file is untouched" "q" "$(cat "$REPO/notes.txt")"
 
@@ -273,11 +285,17 @@ expect "batch: a non-Markdown file is untouched" "q" "$(cat "$REPO/notes.txt")"
 printf '# T\n\n<b>x</b>\n' >"$REPO/bad.md"
 printf '%s' "$NO_NL" >"$REPO/good.md"
 fire "$(payload Edit "$REPO/bad.md" "$REPO/good.md")" >/dev/null
-expect "a file with a finding does not stop another file in the batch" "${FIXED}x" "$(cat "$REPO/good.md"; printf x)"
+expect "a file with a finding does not stop another file in the batch" "${FIXED}x" "$(
+  cat "$REPO/good.md"
+  printf x
+)"
 
 printf '%s' "$NO_NL" >"$REPO/multi.md"
 fire "$(payload MultiEdit "$REPO/multi.md")" >/dev/null
-expect "a MultiEdit'd file is rewritten" "${FIXED}x" "$(cat "$REPO/multi.md"; printf x)"
+expect "a MultiEdit'd file is rewritten" "${FIXED}x" "$(
+  cat "$REPO/multi.md"
+  printf x
+)"
 
 # --- Skips ----------------------------------------------------------------------
 # .githooks/ holds installed copies of check scripts, never rewritten here.
@@ -302,7 +320,10 @@ printf '{ "default": true }\n' >"$REPO_NE/docs/.markdownlint.json"
 printf '%s' "$NO_NL" >"$REPO_NE/docs/deep/n.md"
 printf '%s' "$NO_NL" >"$REPO_NE/top.md"
 fire "$(payload Edit "$REPO_NE/docs/deep/n.md" "$REPO_NE/top.md")" >/dev/null
-expect "a nested config governs a file below it" "${FIXED}x" "$(cat "$REPO_NE/docs/deep/n.md"; printf x)"
+expect "a nested config governs a file below it" "${FIXED}x" "$(
+  cat "$REPO_NE/docs/deep/n.md"
+  printf x
+)"
 expect "a file outside the nested config is untouched" "$NO_NL" "$(cat "$REPO_NE/top.md")"
 
 # A config that can run repository code is never run, and nothing says so.
@@ -310,15 +331,36 @@ for cfg_case in "cjs" "customRules" "backslash"; do
   REPO_CODE="$WORK/code-$cfg_case"
   new_md_repo "$REPO_CODE" NO_CONFIG
   case "$cfg_case" in
-  cjs) printf 'module.exports = { config: { default: true } };\n' >"$REPO_CODE/.markdownlint-cli2.cjs" ;;
-  customRules) printf '{ "config": { "default": true }, "customRules": ["./rule.cjs"] }\n' >"$REPO_CODE/.markdownlint-cli2.jsonc" ;;
-  backslash) printf '{ "config": { "default": true }, "ignores": ["a\\\\.md"] }\n' >"$REPO_CODE/.markdownlint-cli2.jsonc" ;;
-  *) ;;
+    cjs) printf 'module.exports = { config: { default: true } };\n' >"$REPO_CODE/.markdownlint-cli2.cjs" ;;
+    customRules) printf '{ "config": { "default": true }, "customRules": ["./rule.cjs"] }\n' >"$REPO_CODE/.markdownlint-cli2.jsonc" ;;
+    backslash) printf '{ "config": { "default": true }, "ignores": ["a\\\\.md"] }\n' >"$REPO_CODE/.markdownlint-cli2.jsonc" ;;
+    *) ;;
   esac
   printf '%s' "$NO_NL" >"$REPO_CODE/a.md"
   OUT=$(run_edit "$REPO_CODE/a.md")
   expect "code-capable config ($cfg_case): silent and the file untouched" "0|$NO_NL" "$?|$OUT$(cat "$REPO_CODE/a.md")"
 done
+
+# Once the user approves that config state, through the marker the pre-commit
+# entry names to a person, the batch row rewrites under it: both read one store.
+DATA="$WORK/plugin-data"
+REPO_OK="$WORK/code-approved"
+new_md_repo "$REPO_OK" NO_CONFIG
+printf 'module.exports = { config: { default: true, MD013: false } };\n' >"$REPO_OK/.markdownlint-cli2.cjs"
+printf '%s' "$NO_NL" >"$REPO_OK/a.md"
+git -C "$REPO_OK" add a.md
+MARKER="$(cd "$REPO_OK" && env -u CLAUDECODE -u AI_AGENT CLAUDE_PLUGIN_DATA="$DATA" bash "$PLUGIN_ROOT/git-hooks/markdown-check.sh" 2>&1 >/dev/null |
+  sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+expect "the pre-commit entry names an approval marker in the session store" yes \
+  "$([[ "$MARKER" == "$DATA"/trust-approvals/md-* ]] && echo yes)"
+OUT=$(fire "$(payload Edit "$REPO_OK/a.md")" CLAUDE_PLUGIN_DATA="$DATA")
+expect "unapproved: silent and the file untouched" "0|$NO_NL" "$?|$OUT$(cat "$REPO_OK/a.md")"
+mkdir -p "$MARKER"
+OUT=$(fire "$(payload Edit "$REPO_OK/a.md")" CLAUDE_PLUGIN_DATA="$DATA")
+expect "approved: the batch row rewrites, silently" "0|${FIXED}x" "$?|$OUT$(
+  cat "$REPO_OK/a.md"
+  printf x
+)"
 
 # The kill switch.
 printf '%s' "$NO_NL" >"$REPO/kill.md"
@@ -339,7 +381,10 @@ printf '#!/bin/sh\nexec "%s" "$@"\n' "$REAL_MD" >"$REPO_LB/node_modules/.bin/mar
 chmod +x "$REPO_LB/node_modules/.bin/markdownlint-cli2"
 printf '%s' "$NO_NL" >"$REPO_LB/docs/l.md"
 fire "$(payload Edit "$REPO_LB/docs/l.md")" PATH="$FAKEBIN" >/dev/null
-expect "repo-local shim: resolved and the file fixed" "${FIXED}x" "$(cat "$REPO_LB/docs/l.md"; printf x)"
+expect "repo-local shim: resolved and the file fixed" "${FIXED}x" "$(
+  cat "$REPO_LB/docs/l.md"
+  printf x
+)"
 
 # markdownlint-cli2 absent: the file is skipped silently; the SessionStart probe reports the gap.
 REPO_NR="$WORK/no-md"
@@ -369,7 +414,10 @@ printf '%s' "$NO_NL" >"$REPO_IGN/.work/scratch.md"
 run_edit "$REPO_IGN/.work/scratch.md" >/dev/null
 expect "gitignored: file not rewritten" "$NO_NL" "$(cat "$REPO_IGN/.work/scratch.md")"
 fire "$(payload Edit "$REPO_IGN/.work/scratch.md")" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED=true >/dev/null
-expect "gitignored + markdown_format_lint_gitignored=true: file fixed" "${FIXED}x" "$(cat "$REPO_IGN/.work/scratch.md"; printf x)"
+expect "gitignored + markdown_format_lint_gitignored=true: file fixed" "${FIXED}x" "$(
+  cat "$REPO_IGN/.work/scratch.md"
+  printf x
+)"
 
 # A markdown file outside every git working tree is left alone, config or not.
 OUTSIDE="$WORK/outside-tree"
@@ -386,7 +434,10 @@ if ln -s "$WORK/symlink-real" "$WORK/symlink-link" 2>/dev/null; then
   mkdir -p "$REPO_SL/pkg"
   printf '%s' "$NO_NL" >"$REPO_SL/pkg/mod.md"
   run_edit "$WORK/symlink-link/pkg/mod.md" >/dev/null
-  expect "symlinked root: the file is rewritten" "${FIXED}x" "$(cat "$REPO_SL/pkg/mod.md"; printf x)"
+  expect "symlinked root: the file is rewritten" "${FIXED}x" "$(
+    cat "$REPO_SL/pkg/mod.md"
+    printf x
+  )"
 else
   echo "SKIP: symlinks unavailable on this filesystem -- symlinked-root case skipped"
 fi
