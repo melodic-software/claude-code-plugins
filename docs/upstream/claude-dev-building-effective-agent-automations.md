@@ -42,9 +42,10 @@ issue that carries the work, or a note that no docs page covers the topic, with 
 correlate. `none` marks an in-repo decision with no upstream section. Shared for every row:
 
 - **As of**: 2026-10-16
-- **Recheck trigger**: the post changes; a pointed-to section is renamed or removed, or a docs page
-  starts covering a topic whose pointer is the post (move the pointer there); or a cited issue
-  closes, then replace its row's pointer with the shipped mechanism.
+- **Recheck trigger**: a re-read of the post finds a row no longer matching it; a pointed-to
+  section is renamed or removed, or a docs page starts covering a topic whose pointer is the post
+  (move the pointer there); or a cited issue closes, then replace its row's pointer with the
+  shipped mechanism.
 
 ## Decisions
 

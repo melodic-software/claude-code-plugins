@@ -1213,7 +1213,7 @@ a checklist of its own:
 | Rule | Mechanism that meets it |
 |---|---|
 | Bookmark per source | `/harness-ops:morning-brief`'s per-repo bookmark ("What each section reports"); for ai-briefing, the mechanism tracked in #7678; for state a cloud routine keeps between runs, the probe tracked in #7674 |
-| Failed read reported as unreadable | `/harness-ops:morning-brief` "Degraded sections"; §4 "Telemetry comment" (`UNREPORTED`); for ai-briefing and a headless lane's MCP load check, the mechanism tracked in #7678 |
+| Failed read reported as unreadable | `/harness-ops:morning-brief` "Degraded sections"; for ai-briefing and a headless lane's MCP load check, the mechanism tracked in #7678 |
 | Live re-check before posting | [`pr-run-activity.md`](../pr-pipeline/pr-run-activity.md) "prepare: review-threads" |
 | Post confirmed before it is recorded | §2 "Escalation record write" (record first, marker second); §4 "Telemetry comment" (post-write read-back); for overlapping runs, the research tracked in #7672 |
 | Config re-read each run from a store the lane cannot edit | §4 "Headless-config floor"; base-SHA config in `.github/workflows/pr-run-activity-read.yml`; [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md) decision 4, with the review and intake lanes tracked in #7234; for local lanes, the research tracked in #7680 |
