@@ -453,8 +453,10 @@ The message names the exact missing heading(s) and the resolved config source (Â
 
 - **Save point:** commits pushed to the feature branch, with no PR. Pushing is how work is saved;
   a PR is never opened only to save it.
-- **Draft:** a PR a person asked to see early, or a multi-session container: a PR later sessions
-  will keep adding to before it is complete.
+- **Draft:** a PR a person asked to see early, or a multi-session container (a PR later sessions
+  will keep adding to before it is complete); both carry a `Draft:` body line that holds them
+  against unattended flips. A PR also stays a draft while it waits for `ready`: under the `draft`
+  open state, or after an unattended run.
 - **Ready:** complete and through the local gates, which `/source-control:pull-request ready`
   runs before it flips the PR ([ready-for-review.md](ready-for-review.md)). Ready is what starts
   the test lanes, the AI reviews and code-owner review requests.

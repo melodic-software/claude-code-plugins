@@ -221,7 +221,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("never directly to the merge gate", paragraph)
         self.assertIn("In autopilot, that worker assesses", paragraph)
         self.assertIn(
-            "a completed draft is marked ready with `/source-control:pull-request ready`",
+            "a completed draft is marked ready with `/source-control:pull-request ready --unattended`",
             paragraph,
         )
         self.assertIn("a genuinely in-progress draft stays draft", paragraph)
@@ -468,7 +468,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("`mutation_policy.branch_write_allowed`", autopilot)
         self.assertIn("`needs_worker` delta", autopilot)
         self.assertIn(
-            "mark it ready for review (`/source-control:pull-request ready`", drafts
+            "mark it ready for review (`/source-control:pull-request ready --unattended`", drafts
         )
         self.assertIn("leave it draft and report why", drafts)
 
