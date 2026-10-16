@@ -10,8 +10,9 @@
 ## Context
 
 The `/planning:interview` shared session serves one page to several people from the owner's
-machine. Guests on other networks reach it through a Cloudflare quick tunnel, which forwards one
-public address to one local port. The owner's Claude session must also reach the same server: it
+machine. Guests on other networks reach it through a Cloudflare quick tunnel, which this design
+points at one local address, as the docs' command does (`cloudflared tunnel --url <address>`). The
+owner's Claude session must also reach the same server: it
 reads the round people send (`/api/wait`), writes the next round and results (`/api/ops`) and holds
 the watcher lease. Those control routes come from `lib/session-bridge`, whose `LoopbackHandler`
 assumes a loopback-only caller holding one per-run token. Four other plugins carry generated copies
@@ -55,3 +56,7 @@ Whatever the tunnel targets is on the public internet. A guest is anyone with th
 - `lib/session-bridge` stays unchanged, so its copies stay in sync without a version bump.
 - Replacing the tunnel provider (a stable link, a hosted transport) replaces `tunnel.py`; the
   two-listener boundary holds for any provider that forwards one address to one port.
+
+Upstream: [Cloudflare quick tunnels: Create a Quick Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/#create-a-quick-tunnel)
+shows the command taking one `--url` and says anyone with the resulting URL can reach the local
+service. As of 2026-10-16. Recheck when that section changes.

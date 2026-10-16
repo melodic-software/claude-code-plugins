@@ -125,8 +125,10 @@ against `<plugin-root>/shared/schema/ops.schema.json` before any lands, and all 
 | `handle` | `seqs` | Mark events handled |
 
 Each question follows [`question-shape.md`](question-shape.md) plus `purpose`, `format`,
-`answerScope` and `references`. Ids are the ledger's next `Q<N>`, one counter for the whole topic,
-shared by every session on it. A round holds at most 8 questions; the rest go to a later round. An
+`answerScope` and `references`. Ids are `Q<N>`, one counter for the whole topic, shared by every
+session on it. Pick each new id as the larger of the interview ledger's next free `Q<N>` and the
+highest `Q<N>` already in the session plus one, because the session can hold ids that moderators
+created. A round holds at most 8 questions; the rest go to a later round. An
 asset id exists only after its `apply`, so add assets in one apply and the round that uses them in
 the next.
 
@@ -136,8 +138,9 @@ frontier now; hold only the questions that pending async work can change.
 ## The wake
 
 The watcher exits with one JSON line: `{"seq", "timedOut", "events", "note", "dataDir", "next"}`.
-The wake notification carries only the task's output-file path and exit status. On exit 0, Read the
-output file and take the last line that starts with `{`. With `timedOut` true and no events, re-arm
+What the wake notification carries is recorded in [`surface.md`](surface.md) "Wake payload:
+verification record" (pointer, as-of 2026-10-11, recheck trigger there). Read the task's output file
+for the JSON: on exit 0, take the last line that starts with `{`. With `timedOut` true and no events, re-arm
 the `watch` command. Otherwise handle the events in `seq` order, write `ops.json`, and run the
 watcher's `next` line as one background Bash call: it applies `ops.json` and re-arms. With nothing
 to write, re-arm `watch` alone.
@@ -217,7 +220,7 @@ session right now, and say why in `why`:
 - `design`, `prototype`: a design pass, or a throwaway variant to react to.
 
 Record what ran in `used` (`{name, type}`, `type` one of `skill`, `workflow`, `mcp`, `cli`). The
-page names actions, never tools; the result card says what was used. A result waits in the owner's
+page names actions, never skills or tools; the result card says what was used. A result waits in the owner's
 queue until the owner publishes it, so tell the owner in one line that it is ready to review. Work
 stays read-only and inside the question's scope; anything that would write, push, spend or reach
 outside the repository and the data dir is reported to the owner in the terminal and runs only on
