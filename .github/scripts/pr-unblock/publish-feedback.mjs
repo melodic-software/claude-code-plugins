@@ -13,8 +13,11 @@
 //      but the kept threads' and none under .github/.
 //   3. Re-reads each thread and skips one that is resolved, moved, or has a
 //      comment the model job did not see; posts the templated reply on its
-//      root comment and resolves it only when it is VALID.
-//   4. Always posts the round marker, as the lanes App.
+//      root comment and resolves it only when it is VALID. The PR head is
+//      re-read before each post and each resolve: once it is not the head
+//      this job gated, nothing more is posted or resolved.
+//   4. Posts the round marker, as the lanes App, once per model run: a
+//      re-run of this job finds the marker naming that run and posts none.
 //   5. Escalates feedback-invalid, feedback-incomplete (a kept thread has no
 //      disposition), feedback-not-landed, feedback-partial (posting stopped
 //      after a reply), feedback-uncertain (an UNCERTAIN or VALID-defer reply)
@@ -24,6 +27,8 @@
 //   GH_TOKEN              the lane token (pull-requests: write, contents: read)
 //   GITHUB_REPOSITORY     owner/repo
 //   PR_NUMBER, HEAD_SHA   the gated pull request and its current head
+//   HEAD_REF              the PR branch, re-read for HEAD_SHA before each post
+//   GITHUB_RUN_ID, MODEL_RUN_ATTEMPT  the model run the round marker names
 //   APP_SENDER_ID         the lanes App bot's user id, the round marker author
 //   TRUSTED_ACTORS        the base's trusted-actors.json, for the reviewer bot
 //   FEEDBACK_REPLIES_DIR  the downloaded artifact: run.json and replies.jsonl
@@ -41,6 +46,7 @@ import {
   createGitHubApi,
   currentThreads,
   isProtectedPath,
+  isRoundMarker,
   MAX_ROUNDS,
   need,
   positive,
@@ -194,13 +200,14 @@ async function fixesLanded({ api, run, headSha, replies }) {
 }
 
 // Resolves a VALID thread only while it holds exactly the model's view plus
-// this reply, so a comment posted meanwhile is not resolved unread. One retry
-// covers a transient read or resolve failure; false means it changed.
-async function resolveAfterReply(api, id, expected) {
+// this reply, so a comment posted meanwhile is not resolved unread, and only
+// while the PR head is still the gated one. One retry covers a transient read
+// or resolve failure; false means the thread or the head changed.
+async function resolveAfterReply(api, id, expected, headMoved) {
   for (let attempt = 1; ; attempt += 1) {
     try {
       const after = await api.readThread(id);
-      if (!sameIds(after.commentIds, expected)) {
+      if (!sameIds(after.commentIds, expected) || (await headMoved())) {
         return false;
       }
       // A resolve that took effect before its answer was lost.
@@ -222,8 +229,12 @@ async function resolveAfterReply(api, id, expected) {
   }
 }
 
+// The line after the round marker naming the model run whose replies this job
+// posts; a re-run of this job alone reuses that run's artifact.
+export const modelRunLine = (modelRun) => `<!-- pr-unblock:address-feedback-model-run ${modelRun} -->`;
+
 export async function publish(args) {
-  const { api, pr, headSha, appId, log = () => {} } = args;
+  const { api, pr, headSha, appId, modelRun, log = () => {} } = args;
   let result = null;
   let failure = null;
   try {
@@ -234,12 +245,20 @@ export async function publish(args) {
   // The round counts whatever happened above, so the cap holds. A marker
   // that cannot be posted still leaves the replies' outcome to a person.
   try {
-    const rounds = countRounds(await api.listIssueComments(pr), appId) + 1;
-    await api.createIssueComment(
-      pr,
-      [ROUND_MARKER, `pr-unblock / address-feedback finished round ${rounds} of ${MAX_ROUNDS} on ${headSha}.`].join("\n"),
-    );
-    log(`recorded round ${rounds}${result?.escalationReason ? `; escalating ${result.escalationReason}` : ""}`);
+    const comments = await api.listIssueComments(pr);
+    // With no model run named, the marker is always posted: counting a round
+    // twice hands the PR to a person sooner; skipping one would not.
+    const runLine = modelRun ? modelRunLine(modelRun) : null;
+    if (runLine && comments.some((comment) => isRoundMarker(comment, appId) && String(comment.body).split("\n").includes(runLine))) {
+      log(`the round of model run ${modelRun} is already recorded`);
+    } else {
+      const rounds = countRounds(comments, appId) + 1;
+      await api.createIssueComment(
+        pr,
+        [ROUND_MARKER, ...(runLine ? [runLine] : []), `pr-unblock / address-feedback finished round ${rounds} of ${MAX_ROUNDS} on ${headSha}.`].join("\n"),
+      );
+      log(`recorded round ${rounds}${result?.escalationReason ? `; escalating ${result.escalationReason}` : ""}`);
+    }
   } catch (error) {
     log(`could not record the round: ${String(error?.message ?? error).slice(0, 300)}`);
     if (result !== null && result.escalationReason === "") {
@@ -252,8 +271,10 @@ export async function publish(args) {
   return result;
 }
 
-async function postReplies({ api, pr, headSha, reviewerId, readArtifact, fileExists, log }) {
+async function postReplies({ api, pr, headSha, headRef, reviewerId, readArtifact, fileExists, log }) {
   let escalationReason = "";
+  // fixesLanded judged the range up to headSha; a push after it is unjudged.
+  const headMoved = async () => (await api.readBranch(headRef)) !== headSha;
   {
     let run;
     let replies;
@@ -308,13 +329,18 @@ async function postReplies({ api, pr, headSha, reviewerId, readArtifact, fileExi
           log(`skipped ${reply.thread}: it changed since the model job read it`);
           continue;
         }
+        if (await headMoved()) {
+          log(`stopped at ${reply.thread}: the PR head is no longer ${headSha}`);
+          escalationReason = posted.length === 0 ? "feedback-not-landed" : "feedback-partial";
+          break;
+        }
         const answer = await api.replyToComment(pr, ids[0], renderReply(reply));
         if (answer?.in_reply_to_id !== ids[0]) {
           throw new Error(`the reply on ${reply.thread} did not land on its thread`);
         }
         posted.push({ thread: reply.thread, disposition: reply.disposition });
-        if (reply.disposition === "VALID" && !(await resolveAfterReply(api, reply.thread, [...ids, answer.id]))) {
-          log(`replied on ${reply.thread} but left it open: it changed while the reply was posted`);
+        if (reply.disposition === "VALID" && !(await resolveAfterReply(api, reply.thread, [...ids, answer.id], headMoved))) {
+          log(`replied on ${reply.thread} but left it open: it or the PR head changed while the reply was posted`);
           escalationReason = "feedback-partial";
           continue;
         }
@@ -341,6 +367,8 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     "GITHUB_REPOSITORY",
     "PR_NUMBER",
     "HEAD_SHA",
+    "HEAD_REF",
+    "GITHUB_RUN_ID",
     "APP_SENDER_ID",
     "TRUSTED_ACTORS",
     "FEEDBACK_REPLIES_DIR",
@@ -353,6 +381,14 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   if (!SHA.test(env.HEAD_SHA)) {
     throw new Error("HEAD_SHA is not a commit id");
   }
+  // An empty attempt is a model run that uploaded no replies: it names no
+  // run, so its marker is always posted.
+  const attempt = env.MODEL_RUN_ATTEMPT ?? "";
+  if (attempt !== "" && !/^[1-9][0-9]{0,4}$/.test(attempt)) {
+    throw new Error("MODEL_RUN_ATTEMPT is not a run attempt");
+  }
+  const runId = positive(env.GITHUB_RUN_ID, "GITHUB_RUN_ID");
+  const modelRun = attempt ? `${runId}-${attempt}` : null;
   const dir = env.FEEDBACK_REPLIES_DIR;
   const read = (name) => {
     const path = join(dir, name);
@@ -385,7 +421,9 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       }),
     pr,
     headSha: env.HEAD_SHA,
+    headRef: env.HEAD_REF,
     appId,
+    modelRun,
     reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
     readArtifact: () => ({ runText: readRun(), repliesText: read("replies.jsonl") }),
     fileExists: (path) => existsSync(join(env.GITHUB_WORKSPACE, path)),

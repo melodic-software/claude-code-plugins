@@ -342,7 +342,12 @@ to the PR branch would overwrite a push made during the run. After the skill, a 
 `github-script` step fast-forwards the PR branch to the lane branch only while the PR branch is
 still at the gated SHA, and deletes the lane branch either way. When the PR branch has moved, the
 lane's commits are dropped and the activity fails; the push that moved it starts its own
-`synchronize` run, which gates the new head and redoes the activity. A raw `git push` from the
+`synchronize` run, which gates the new head and redoes the activity. Right before the move it
+re-reads the PR's labels and draft flag with the job's `GITHUB_TOKEN`, then reads the PR branch's
+tip last: `do-not-merge`, the base's human-gated role label, a label in the activity's
+`labels-absent` list (both read from the base before the head checkout) or a draft drops the lane's
+commits and skips `awaiting-human`, and a read that fails or a second page of labels moves nothing
+and fails the step. A raw `git push` from the
 skill skips this check. Why a skill activity loads nothing from
 the PR head:
 [ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md).
@@ -435,8 +440,8 @@ the base's copies from step 8, each checked against its recorded SHA-256 before 
    Data API: it fails unless the lane branch is still at the gated head, uploads only the blobs
    `tree-entries.sh` flags (logging `created <k> blobs`), builds the tree on the gated head's tree
    and fails unless it hashes to `post.sh`'s tree, re-reads the PR's labels with the job's
-   `GITHUB_TOKEN` and stops uncommitted (`awaiting-human`) when `do-not-merge` or the base's
-   human-gated role label is on the PR, then creates the commit
+   `GITHUB_TOKEN` and stops uncommitted (`awaiting-human`) when `do-not-merge`, the base's
+   human-gated role label or a `labels-absent` label is on the PR, then creates the commit
    `Merge <default branch> into <head ref>` with trailer
    `Lane-Activity: pr-unblock/resolve-conflicts`, parents `[gated head, trusted base]` and no
    author, committer or signature, so GitHub signs it as the App, and moves the lane branch to it.
@@ -448,7 +453,8 @@ The merge scripts, `tree-entries.sh` and the commit step's `git` run with workfl
 stopped (`::stop-commands::<random>`), since git's output can name head files, and with
 `GIT_NO_REPLACE_OBJECTS=1`; the commit step runs `/usr/bin/git` and `/usr/bin/bash` under an
 allowlisted environment. The kill switch (step 3) stops new runs only; a run already past it
-stops for a hold only at the commit step's label re-read.
+stops for a hold only at the commit step's label re-read and the promote step's label and draft
+re-read.
 
 The run's `escalation-reason` output is prepare's or `post.sh`'s reason, one of
 `protected-path-conflict`, `workflow-staged`, `repeat-cap` or `unresolved-conflict`; a caller
@@ -463,6 +469,7 @@ its check:
 | Clean merge, no model turn, committed, promoted | success | none | empty | success |
 | Clean merge, `post.sh` exits non-zero | failure | none | empty | failure |
 | Hold label added during the run, found before the commit | success | `awaiting-human` | empty | neutral |
+| Hold label or draft set during the run, found before the promote | success | `awaiting-human` | empty | neutral |
 | Model left a conflict | success | `awaiting-human` | `unresolved-conflict` | neutral |
 | Model staged a `.github/workflows/` change | success | `awaiting-human` | `workflow-staged` | neutral |
 | Resolved, committed, promoted | success | none | empty | success |
@@ -531,6 +538,10 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
      its own thread's path. Otherwise it posts no reply and escalates `feedback-not-landed`;
    - re-reads every kept thread and, right before posting, the thread itself, and skips one that
      is resolved, on another PR, or whose comments are not exactly the ones the model job read;
+   - re-reads `git/ref heads/<head ref>` right before each post and each resolve, since the
+     compare above judged the branch only up to the head this job gated: once the PR branch is
+     anywhere else it posts and resolves nothing more, escalating `feedback-not-landed` when no
+     reply had posted and `feedback-partial` otherwise;
    - posts the reply on the thread's root comment in the fixed template (disposition label,
      backticked evidence, `Fix: <sha>` for `VALID`, the note in a `text` fence longer than any
      backtick run in it) and resolves the thread only for `VALID`, and only when a re-read after
@@ -538,7 +549,11 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
      resolve). Once a reply posts, the thread is no longer the bot's alone and no later round
      selects it, so a post, read or resolve failure stops the posting, and that or a `VALID`
      thread left open escalates `feedback-partial`, as does a round marker that cannot be posted;
-   - posts the round marker as the lanes App whatever happened above, and escalates
+   - posts the round marker as the lanes App whatever happened above, once per model run: its
+     second line names the workflow run and `review-run-attempt`, and a re-run of the reply job
+     alone finds a lanes App marker with that line and posts none, so one model turn counts one
+     round. A model run that uploaded no replies names none, and its marker is always posted. It
+     escalates
      `feedback-uncertain` for an `UNCERTAIN` or `VALID-defer` reply, or `feedback-disputed` when an
      `INCORRECT` evidence reply was posted: that thread stays open for a person to decide.
 
