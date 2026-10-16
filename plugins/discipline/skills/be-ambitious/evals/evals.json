@@ -1,0 +1,79 @@
+{
+  "skill_name": "be-ambitious",
+  "evals": [
+    {
+      "id": 1,
+      "name": "nostalgic-personal-site",
+      "prompt": "/discipline:be-ambitious Make me a personal website with a nostalgic late-90s feel.",
+      "expected_output": "Shows the original request beside a raised version and names which of Altitude, Depth and Range it applied. The raised version states the goal behind the site and one purpose line, carries the deeper-version pass (expert additions, raw material, named methods, an outside check), turns nouns into verbs, offers a reduced version when assets or tools are missing, and ends with the scope fence. Nothing is built until the user accepts.",
+      "files": [],
+      "expectations": [
+        "Shows the original request and the raised version side by side",
+        "Names which of Altitude, Depth and Range the raise applied",
+        "States the goal behind the request and one purpose line",
+        "Screens fit (creative work is a weaker fit, not excluded) and asks whether a precedent shows the bigger goal is reachable",
+        "Carries the deeper-version pass: what a top expert would add, the rawest material, the methods and tools named concretely, and what outside the model shows it is right",
+        "Names concrete methods and one check outside the model, executable first",
+        "States no hard or unreasonable target, since the user did not opt into one",
+        "Shows any pointer to another skill as bare /plugin:skill text and invokes no other skill",
+        "Offers a reduced version when tools or data are missing instead of refusing",
+        "Ends with 'deliver what was accepted, at that scope' and 'the project's own instructions still govern'",
+        "Creates no file and runs no command before the user accepts"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "threejs-game-with-friends",
+      "prompt": "/discipline:be-ambitious Build a three.js browser game I can play with my friends.",
+      "expected_output": "Raises the request across Altitude, Depth and Range: the goal behind playing with friends, concrete game and networking methods, an outside check such as a play session, at least one field beyond graphics programming, and the tooling-surprise question. A specialist crew, if any, is only a proposal handed to /planning:plan.",
+      "files": [],
+      "expectations": [
+        "Draws on at least one field beyond the request's own and asks for that specialist's work, not a persona",
+        "Shows a visible nouns-to-verbs step",
+        "Carries the line 'What tool from another field would change what's possible here?'",
+        "Proposes any specialist crew only as a hand-off to /planning:plan, never spawning one",
+        "When the raised request leaves several open decisions, names /planning:interview as the next step",
+        "Treats the user's acceptance reply as the go-ahead and asks for no second confirmation",
+        "Executes nothing until the user accepts"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "crash-fix-to-crash-free",
+      "prompt": "/discipline:be-ambitious Fix the crash in the CSV importer when a row is empty.",
+      "expected_output": "Raises the single crash fix toward an importer that does not crash on malformed input, with concrete methods (for example property-based or fuzz tests over malformed rows) and an executable outside check, pointing at /discipline:scrutinize-dont-coast for the fresh-context review rather than restating it.",
+      "files": [],
+      "expectations": [
+        "Raises past the single reported crash to the goal behind it",
+        "Names an executable outside check before a fresh-context reviewer",
+        "Points at /discipline:scrutinize-dont-coast rather than restating it",
+        "Ends with the scope fence lines"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "already-right-size",
+      "prompt": "/discipline:be-ambitious Rename the variable tmp to retry_count in the fetch function.",
+      "expected_output": "Says the request is already the right size and stops, without proposing a bigger version.",
+      "files": [],
+      "expectations": [
+        "Says the request is already the right size",
+        "Proposes no raised version",
+        "Makes no edit"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "hard-goal-opt-in",
+      "prompt": "/discipline:be-ambitious Get our test suite from 4 minutes down to under 10 seconds. I know that's unreasonable; I'm opting in, push hard for it.",
+      "expected_output": "Because the user opted in, the raised version keeps the hard target, says the specification outranks the target, and carries the abort line: if the target is infeasible, stop and report the shortfall; never edit tests, criteria or the target.",
+      "files": [],
+      "expectations": [
+        "Keeps the hard target only because the user opted in",
+        "States that the specification outranks the target",
+        "Carries the abort line: if the target is infeasible, stop and report; never edit tests, criteria or the target",
+        "Ends with the scope fence lines"
+      ]
+    }
+  ]
+}
