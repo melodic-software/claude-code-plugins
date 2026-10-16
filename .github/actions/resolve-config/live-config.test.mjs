@@ -192,7 +192,7 @@ test("live config: resolve-issue admits read-only and mechanical issues only", (
 
 // Owner rule: an agent-ready issue with no work class starts only when the
 // owner ratified it with the admission marker comment (`ratified`, gathered by
-// resolve-config from comments by a listed human or the lanes App).
+// resolve-config from comments by a listed human).
 const RATIFIED = { ...ISSUE, labels: ["agent-ready"], ratified: true };
 
 test("live config: resolve-issue starts for an owner-ratified issue with no work class", () => {

@@ -77,8 +77,8 @@ issue in the payload (a `labels-absent` predicate reads `GET /issues/{n}` instea
 `labeled-after` compares its time with the issue's `updated_at`. An `admission` predicate with
 `ratified: true` reads `GET /issues/{n}/comments` for the owner's ratification marker, a line
 `<!-- admission: admitted when unblocked, owner batch ratification YYYY-MM-DD -->` in a comment
-whose author is a human on the base's trusted-actor list or the `lanes-app-id` bot, posted through
-no other GitHub App. A `labeled-after` predicate, or an `admission` predicate with `ratified: true`,
+whose author is a human on the base's trusted-actor list, posted through no GitHub App. A lane
+never admits work on its own, so no bot ratifies. A `labeled-after` predicate, or an `admission` predicate with `ratified: true`,
 off an `issues` event cannot be decided and fails the step.
 
 ## Output

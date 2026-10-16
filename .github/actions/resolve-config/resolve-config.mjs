@@ -64,7 +64,7 @@ function readJsonUnderBase(basePath, relative) {
 
 async function gatherFacts(
   needed,
-  { eventName, event, prNumber, headSha, repository, github, sleep, loadRatifiers, lanesAppId },
+  { eventName, event, prNumber, headSha, repository, github, sleep, loadRatifiers },
 ) {
   const facts = { event: pipelineEvent(eventName, event) };
   let pull;
@@ -116,8 +116,8 @@ async function gatherFacts(
         (comment) =>
           RATIFICATION_MARKER.test(comment.body ?? "") &&
           ratifiers.has(comment.user?.id) &&
-          // Through another GitHub App, the text is that App's, not the owner's.
-          (comment.performed_via_github_app == null || comment.user?.id === lanesAppId),
+          // Through a GitHub App, the text is that App's, not the owner's.
+          comment.performed_via_github_app == null,
       );
     }
     if (needed.includes("labeledAt") && typeof issue.updated_at === "string") {
@@ -229,18 +229,16 @@ export async function resolveFromBase({ env, github, sleep = wait, event, absent
   if (absentAsNull && !laneHasActivity(files, request)) {
     return null;
   }
-  const lanesAppId = /^[1-9][0-9]*$/.test(env.LANES_APP_ID ?? "") ? Number(env.LANES_APP_ID) : undefined;
-  // Who may ratify an issue's admission: the listed humans and the lanes App.
+  // Who may ratify an issue's admission: the listed humans only. A lane never
+  // admits work on its own.
   const loadRatifiers = () => {
     if (readUnderBase(basePath, TRUSTED_ACTORS_PATH) === undefined) {
       throw new Error(`no trusted-actor list at ${TRUSTED_ACTORS_PATH} under base-path`);
     }
-    const { humans } = loadTrustedList(join(basePath, TRUSTED_ACTORS_PATH));
-    return lanesAppId === undefined ? humans : new Set([...humans, lanesAppId]);
+    return loadTrustedList(join(basePath, TRUSTED_ACTORS_PATH)).humans;
   };
   const facts = await gatherFacts(neededFacts(files, request), {
     loadRatifiers,
-    lanesAppId,
     eventName: env.EVENT_NAME,
     event: event ?? JSON.parse(readFileSync(env.EVENT_PATH, "utf8")),
     prNumber: env.PR_NUMBER,

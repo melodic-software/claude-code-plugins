@@ -100,7 +100,7 @@ activities:
       # is labeled "work-class: read-only" or "work-class: mechanical", or when
       # the owner ratified it with the admission marker comment
       # (`<!-- admission: admitted when unblocked, owner batch ratification
-      # YYYY-MM-DD -->`, by a listed human or the lanes App). An issue with
+      # YYYY-MM-DD -->`, by a human on the trusted-actor list). An issue with
       # any other work class starts nothing, even beside an admitted one.
       admission:
         classes: ["work-class: read-only", "work-class: mechanical"]

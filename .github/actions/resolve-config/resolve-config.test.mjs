@@ -671,10 +671,9 @@ const LANES_APP = { id: 337595936, login: "melodic-automation-lanes[bot]" };
 
 // An agent-ready issue with no work class under an admission predicate that
 // takes ratification, its comments served by the fake API.
-function ratifiedIssue(comments, lanesAppId = String(LANES_APP.id)) {
+function ratifiedIssue(comments) {
   const { env, base } = workspace();
   place(base, ".github/standards/trusted-actors/trusted-actors.json", join(HERE, "../check-trusted-trigger/fixtures/trusted-actors.json"));
-  env.LANES_APP_ID = lanesAppId;
   issueEvent(env, { number: 7, labels: [{ name: "agent-ready" }], updated_at: "2026-10-20T00:00:00Z" });
   withPredicate(env, { events: ["labeled"], admission: { classes: ["work-class: read-only"], ratified: true } });
   const { github, calls } = fakeGitHub({
@@ -693,24 +692,25 @@ test("an issue the owner ratified with the admission marker is admitted with no 
   assert.deepEqual(calls, ["GET /repos/melodic-software/claude-code-plugins/issues/7/comments?per_page=100&page=1"]);
 });
 
-test("the lanes App's admission marker admits an issue too", async () => {
-  const { env, github } = ratifiedIssue([comment(LANES_APP)]);
+// D33: a lane never admits work on its own, so the lanes App cannot ratify.
+test("an admission marker authored by the lanes App does not admit", async () => {
+  const { env, github } = ratifiedIssue([comment(LANES_APP, MARKER, { slug: "melodic-automation-lanes" })]);
   assert.equal(await main({ env, github }), 0);
-  assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "true");
+  const outputs = readOutputs(env.GITHUB_OUTPUT);
+  assert.equal(outputs.applies, "false");
+  assert.equal(outputs["skip-reason"], "not-applicable");
 });
 
-test("an admission marker from anyone but the owner or the lanes App admits nothing", async () => {
+test("an admission marker from anyone but a listed human admits nothing", async () => {
   const cases = [
-    [comment({ id: 1234, login: "someone-else" })],
-    // Listed, but a bot that is not the lanes App.
-    [comment({ id: 209825114, login: "claude[bot]" })],
-    // The owner's account, through another GitHub App.
-    [comment(OWNER, MARKER, { slug: "some-app" })],
-    // The lanes App when the run names no lanes App id.
-    [comment(LANES_APP), ""],
+    comment({ id: 1234, login: "someone-else" }),
+    // A listed bot.
+    comment({ id: 209825114, login: "claude[bot]" }),
+    // The owner's account, through a GitHub App.
+    comment(OWNER, MARKER, { slug: "some-app" }),
   ];
-  for (const [marker, lanesAppId] of cases) {
-    const { env, github } = ratifiedIssue([marker], lanesAppId);
+  for (const marker of cases) {
+    const { env, github } = ratifiedIssue([marker]);
     assert.equal(await main({ env, github }), 0);
     const outputs = readOutputs(env.GITHUB_OUTPUT);
     assert.equal(outputs.applies, "false", JSON.stringify(marker));
