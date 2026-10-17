@@ -68,7 +68,8 @@ async function readIssueEdits(github, repository, number) {
 async function readAdmittedAt(github, repository, number, label, senderId, lanesAppId) {
   const events = (await paginate(github, `/repos/${repository}/issues/${number}/events`))
     .filter((event) => (event?.event === "labeled" || event?.event === "unlabeled") && event.label?.name === label)
-    .sort((a, b) => timeOf(a.created_at) - timeOf(b.created_at));
+    // Times are whole seconds; the event id breaks a tie in the order GitHub recorded them.
+    .sort((a, b) => timeOf(a.created_at) - timeOf(b.created_at) || Number(a.id) - Number(b.id));
   let index = events.findLastIndex((event) => event.event === "labeled" && event.actor?.id === senderId);
   while (index > 0 && events[index].actor?.id === lanesAppId && events[index - 1].event === "unlabeled" && events[index - 1].actor?.id === lanesAppId) {
     index = events.slice(0, index - 1).findLastIndex((event) => event.event === "labeled");
