@@ -139,6 +139,30 @@ failing. Committable suggestion fences
 (GitHub `suggestion` code blocks) only when the suggestion alone fully fixes the
 anchored finding.
 
+## Converge across rounds
+
+A pull request this lane reviews more than once must converge, not draw a fresh set of findings
+every push. Before hunting, read what this lane already posted on the PR (its review bodies and
+summary comments, `gh pr view <n> --json reviews,comments`) and count its earlier rounds. Seat-run
+mode applies the same rules to the findings already in the conversation.
+
+- **First round reviews the whole PR; later rounds review only the new diff.** After the first
+  round, hunt only in the changes since the head this lane last reviewed. When the wrapper narrows
+  the scope to those files, keep to it.
+- **No repeats.** Never post a finding this lane already posted, open or resolved, unless the new
+  diff changed the code it names. Refer to the earlier finding instead.
+- **Flag the class, not one instance.** When a finding is one case of a repeatable flaw (the same
+  unvalidated input, the same missing authorization check), name the class once, list every
+  instance in the diff, and say where else it can occur.
+- **Cap: three rounds, then escalate.** From the fourth round on, post no new SUGGESTION findings.
+  A new CRITICAL or IMPORTANT finding is still reported, never held by the cap: say in the summary
+  that the cap is reached and that the open security findings need a person to decide.
+
+Pointer: the convergence practice these rules follow is read at
+[Solving code review at Anthropic: how we make the reviewer better](https://claude.dev/blog/solving-code-review-at-anthropic/#how-we-make-the-reviewer-better),
+its "Review has to converge" paragraph. As of: 2026-10-17. Recheck trigger: that paragraph changes
+its round cap or its re-review scope.
+
 ## Adversarial validation
 
 When fanning out hunters, validate each surviving candidate with a separate
