@@ -503,32 +503,34 @@ runs the seam `reclaim` verb over assigned items (CONTRACT.md "Lease protocol").
 
 ## API budget
 
-Every `gh` call by every agent and session under one user shares that user's hourly budget: 5,000
-REST requests and 5,000 GraphQL points. `gh` never retries or backs off. Every unattended loop
-(work-loop, triage and attend-queue lanes) follows this cadence:
+Every `gh` call by every agent and session under one user shares that user's hourly REST and
+GraphQL budgets, and `gh` never retries or backs off. Every unattended loop (work-loop, triage and
+attend-queue lanes) follows this cadence:
 
 - **Which bucket.** GraphQL: `gh issue` (every subcommand), `gh pr view`, `gh pr list`,
-  `gh pr checks` (`--watch` re-queries every 10 s), `gh pr create`, `edit`, `ready` and `merge`,
-  `gh api graphql`. REST: `gh run`, `gh api <path>`.
+  `gh pr checks`, `gh pr create`, `edit`, `ready` and `merge`, `gh api graphql`. REST: `gh run`,
+  `gh api <path>`.
 - **Waiting.** One watcher per PR or run, in the background, polling at 60 s or longer:
-  `gh run watch <id> --exit-status -i 60` (the default is every 3 s), or REST reads of
-  `repos/<owner>/<repo>/pulls/<n>` and `commits/<sha>/check-runs`. Never loop `gh pr view` or
-  `gh issue view`, and never run `gh pr checks --watch`.
+  `gh run watch <id> --exit-status -i 60`, or REST reads of `repos/<owner>/<repo>/pulls/<n>` and
+  `commits/<sha>/check-runs`. Never loop `gh pr view` or `gh issue view`, and never run
+  `gh pr checks --watch`.
 - **GraphQL-only fields** (`isInMergeQueue`, `statusCheckRollup`): read once, at the point you
   decide.
 - **Writes** (label, comment, close, create, assign): one at a time, at least 1 s apart, never in
-  a retry loop. Secondary limits cap content-creating requests at 80 a minute and 500 an hour, and
-  all requests at 100 concurrent.
+  a retry loop. `gh_write` in `common.sh` waits 1 s before each write, so a verb that writes more
+  than once keeps the spacing.
 - **Rate-limit errors** (seam exit 8 when a verb hits one). Stop at the first one; never retry in
-  a loop or probe for recovery. Wait until `x-ratelimit-reset`, or `retry-after` when a secondary
-  limit sends it, else at least one minute, then back off exponentially and give up after a few
-  tries. `gh api rate_limit` does not show secondary limits and can count against them.
+  a loop or probe for recovery. Exit 8 carries no response headers, so read the primary resets
+  once: `gh api rate_limit --jq '.resources | .core, .graphql | "\(.remaining) \(.reset)"'`. When a
+  bucket shows 0 remaining, wait until its reset (epoch seconds); otherwise the limit was a secondary one
+  (that endpoint does not show them), so wait at least one minute, then back off exponentially and
+  give up after a few tries.
 
 Pointer: [best practices for using the REST API](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api),
 [REST rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api),
 [GraphQL rate limits](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api).
-As-of: 2026-10-17. Recheck trigger: either rate-limits page changes a figure, or a `gh` release
-changes the `run watch` or `pr checks --watch` interval or adds retries.
+As-of: 2026-10-17. Recheck trigger: either rate-limits page changes how limits or resets are
+reported, or a `gh` release changes the `run watch` or `pr checks --watch` interval or adds retries.
 
 ## Gotchas
 

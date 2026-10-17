@@ -108,8 +108,12 @@ wit_help_if_requested() {
   fi
 }
 
-# gh_write <gh-args…> — write op through the bot wrapper when available.
+# gh_write <gh-args…> — write op through the bot wrapper when available. Waits
+# WIT_WRITE_SPACING_S (default 1) first, so a verb's consecutive writes stay at
+# least that far apart (README "API budget"); callers run it in $(), so no
+# state survives between calls to skip the first wait.
 gh_write() {
+  sleep "${WIT_WRITE_SPACING_S:-1}"
   if [[ -f "$WIT_GH_BOT" ]]; then
     bash "$WIT_GH_BOT" "$@"
   else
