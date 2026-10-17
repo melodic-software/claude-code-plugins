@@ -592,15 +592,15 @@ class TestDataFolderRule(unittest.TestCase):
             return detached.data_dir_problem(path)
 
     def test_windows_refuses_a_folder_outside_the_profile(self):
-        self.assertIn("outside your user profile", self.problem_on_windows(r"D:\shared\po", r"C:\Users\kim"))
-        self.assertIn("outside your user profile", self.problem_on_windows(r"C:\Users\kimberly\po", r"C:\Users\kim"))
-        self.assertIsNone(self.problem_on_windows(r"c:\users\KIM\.claude\memory\shared\po", r"C:\Users\kim"))
+        self.assertIn("outside your user profile", self.problem_on_windows(r"D:\shared\po", r"C:\Users\{user}"))
+        self.assertIn("outside your user profile", self.problem_on_windows(r"C:\Users\{user}2\po", r"C:\Users\{user}"))
+        self.assertIsNone(self.problem_on_windows(r"c:\users\{USER}\.claude\memory\shared\po", r"C:\Users\{user}"))
 
     @unittest.skipIf(WINDOWS, "WSL paths")
     def test_wsl_refuses_a_drvfs_folder_mounted_without_metadata(self):
         plain = [("/", "ext4", "rw,relatime"), ("/mnt/c", "9p", "rw,noatime,dirsync,aname=drvfs;path=C:\\;uid=1000;gid=1000;symlinkroot=/mnt/,mmap,access=client")]
         meta = [("/", "ext4", "rw,relatime"), ("/mnt/c", "9p", "rw,noatime,dirsync,aname=drvfs;path=C:\\;uid=1000;gid=1000;metadata;symlinkroot=/mnt/,mmap")]
-        cases = [(plain, "/mnt/c/Users/kim/po", True), (plain, "/home/kim/po", False), (meta, "/mnt/c/Users/kim/po", False)]
+        cases = [(plain, "/mnt/c/Users/{user}/po", True), (plain, "/home/{user}/po", False), (meta, "/mnt/c/Users/{user}/po", False)]
         for mounts, path, refused in cases:
             with self.subTest(path=path, metadata=mounts is meta):
                 with mock.patch.object(detached, "WINDOWS", False), mock.patch.object(detached, "_is_wsl", return_value=True), mock.patch.object(detached, "_mount_table", return_value=mounts):
