@@ -1,6 +1,7 @@
 ---
 description: Refuse to merge while a failing check is unclassified
 tags: [pull-request, source-control]
+plugins: ["../..", "gh-forge-path"]
 runs: 3
 max_turns: 15
 allowed_tools: [Read, Glob, Grep, Skill, Bash]

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The PR context file .claude-lane/pr-context.md does not exist, so closing issue #20 is unread.",
+      "why": "names the missing file and unread issue"
+    },
+    {
+      "answer": "Closing issue: could not be read (PR context file missing); its criteria were not checked.",
+      "why": "paraphrase: missing, could not be read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "No issues found. The change meets the acceptance criteria of #20.",
+      "why": "claims the criteria are met"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}

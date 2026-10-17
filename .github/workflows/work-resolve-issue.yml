@@ -105,8 +105,10 @@ jobs:
     # issue-run-started is set only by the write runner's own steps, once the
     # run got its token; a run that failed after that still reports.
     # reuse-branch, also runner-computed, names a lane branch an earlier run
-    # left with commits and no report: the model was skipped, and this opens
-    # the PR from it.
+    # left with commits and no report: the work was skipped, a read-only
+    # summary pass described the branch, and this opens the PR from it.
+    # Needing resolve-issue waits for every job of that call, the summary job
+    # included; !cancelled() runs this whether that job failed or skipped.
     if: >-
       ${{ !cancelled() && (needs.resolve-issue.outputs.issue-run-started == 'true'
       || needs.resolve-issue.outputs.reuse-branch != '') }}

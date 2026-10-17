@@ -3,7 +3,7 @@
  * Exclusive row claims for `.work/<watch-epic>/claims/<n>.json` (canonical epic dir: derive-video-slug.js).
  *
  * Usage:
- *   node watch/queue-claim.js claim <row> [--video-id <id>] [--epic-dir <path>]
+ *   node watch/queue-claim.js claim <row> [--video-id <id>] [--claimed-by <id>] [--epic-dir <path>]
  *   node watch/queue-claim.js release <row> [--epic-dir <path>]
  *   node watch/queue-claim.js list [--epic-dir <path>]
  *   node watch/queue-claim.js stale-check [--epic-dir <path>] [--max-age-days 7]
@@ -158,20 +158,125 @@ export function listClaims(epicDir) {
 
 /**
  * @param {string} epicDir
+ * @returns {string}
+ */
+export function queueFilePath(epicDir) {
+  return path.join(epicDir, "QUEUE.md");
+}
+
+/**
+ * Split a markdown table line into trimmed cells, honoring `\|` escapes.
+ * @param {string} line
+ * @returns {string[]}
+ */
+function splitTableRow(line) {
+  const cells = [];
+  let current = "";
+  const body = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+  for (let i = 0; i < body.length; i++) {
+    if (body[i] === "\\" && body[i + 1] === "|") {
+      current += "\\|";
+      i++;
+    } else if (body[i] === "|") {
+      cells.push(current.trim());
+      current = "";
+    } else {
+      current += body[i];
+    }
+  }
+  cells.push(current.trim());
+  return cells;
+}
+
+/**
+ * Parse `QUEUE.md` into `{ row, status }` entries; `null` when the file is absent.
+ * @param {string} epicDir
+ * @returns {{ lines: string[], statusIndex: number, entries: { row: number, status: string, lineIndex: number }[] } | null}
+ */
+function readQueueTable(epicDir) {
+  const filePath = queueFilePath(epicDir);
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+  const lines = fs.readFileSync(filePath, "utf8").split("\n");
+  let statusIndex = -1;
+  const entries = [];
+  for (const [lineIndex, line] of lines.entries()) {
+    if (!line.trim().startsWith("|")) {
+      continue;
+    }
+    const cells = splitTableRow(line);
+    if (statusIndex === -1) {
+      if (cells[0] === "#") {
+        statusIndex = cells.indexOf("status");
+      }
+      continue;
+    }
+    if (!/^\d+$/.test(cells[0] ?? "")) {
+      continue;
+    }
+    entries.push({ row: Number(cells[0]), status: cells[statusIndex] ?? "", lineIndex });
+  }
+  return { lines, statusIndex, entries };
+}
+
+/**
+ * @param {string} epicDir
+ * @returns {{ row: number, status: string }[] | null}
+ */
+export function readQueueRows(epicDir) {
+  const table = readQueueTable(epicDir);
+  return table ? table.entries.map(({ row, status }) => ({ row, status })) : null;
+}
+
+/**
+ * Set a `QUEUE.md` row's status when it currently equals `from`.
+ * @param {string} epicDir
+ * @param {number} row
+ * @param {string} from
+ * @param {string} to
+ * @returns {boolean} true when the row was rewritten
+ */
+export function setRowStatus(epicDir, row, from, to) {
+  const table = readQueueTable(epicDir);
+  const entry = table?.entries.find((e) => e.row === row);
+  if (!(table && entry) || entry.status !== from) {
+    return false;
+  }
+  const cells = splitTableRow(table.lines[entry.lineIndex]);
+  cells[table.statusIndex] = to;
+  table.lines[entry.lineIndex] = `| ${cells.join(" | ")} |`;
+  fs.writeFileSync(queueFilePath(epicDir), table.lines.join("\n"), "utf8");
+  return true;
+}
+
+/**
+ * Release stale claim stubs and reset their `in_progress` rows to `pending`.
+ * `orphaned` lists `in_progress` rows with no claim stub (a run that crashed
+ * before writing one); they are reported, not changed, since no age is known.
+ * @param {string} epicDir
  * @param {number} [maxAgeDays]
- * @returns {{ released: number[], rows: number[] }}
+ * @returns {{ released: number[], rows: number[], reset: number[], orphaned: number[] }}
  */
 export function reclaimStaleClaims(epicDir, maxAgeDays = DEFAULT_STALE_DAYS) {
   const released = [];
+  const reset = [];
   for (const claim of listClaims(epicDir)) {
     if (!isStaleClaim(claim, maxAgeDays)) {
       continue;
     }
     if (releaseRow(epicDir, claim.row)) {
       released.push(claim.row);
+      if (setRowStatus(epicDir, claim.row, "in_progress", "pending")) {
+        reset.push(claim.row);
+      }
     }
   }
-  return { released, rows: released };
+  const claimed = new Set(listClaims(epicDir).map((c) => c.row));
+  const orphaned = (readQueueRows(epicDir) ?? [])
+    .filter((e) => e.status === "in_progress" && !claimed.has(e.row))
+    .map((e) => e.row);
+  return { released, rows: released, reset, orphaned };
 }
 
 /**
@@ -190,6 +295,8 @@ function main(argv) {
   let maxAgeDays = DEFAULT_STALE_DAYS;
   /** First `--video-id` wins; a repeated flag is ignored. */
   let videoId = null;
+  /** Caller-supplied holder name; the default names this short-lived child process. */
+  let claimedBy;
   const rows = [];
 
   for (let i = 1; i < args.length; i++) {
@@ -205,6 +312,10 @@ function main(argv) {
     if (arg === "--video-id" && args[i + 1]) {
       const value = args[++i];
       if (videoId === null) videoId = value;
+      continue;
+    }
+    if (arg === "--claimed-by" && args[i + 1]) {
+      claimedBy = args[++i];
       continue;
     }
     rows.push(arg);
@@ -235,8 +346,12 @@ function main(argv) {
   }
 
   if (command === "claim") {
+    if (!readQueueRows(epicDir)?.some((e) => e.row === row)) {
+      writeStderr(`Row ${row} is not in ${queueFilePath(epicDir)}`);
+      process.exit(1);
+    }
     try {
-      const claim = claimRow(epicDir, row, { videoId });
+      const claim = claimRow(epicDir, row, { videoId, claimedBy });
       writeStdout(JSON.stringify({ ok: true, claim }, null, 2));
     } catch (err) {
       if (/** @type {Error} */ (err).name === "ClaimExistsError") {

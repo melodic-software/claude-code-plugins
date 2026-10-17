@@ -14,6 +14,7 @@ import os
 import sys
 import unittest
 
+sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from gate_harness import KEEP, GateTestCase, gate_path, write  # noqa: E402
 
