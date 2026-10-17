@@ -148,7 +148,8 @@ follows this cadence:
   `repos/<owner>/<repo>/pulls/<n>` and `commits/<sha>/check-runs`. Never loop `gh pr view` and
   never run `gh pr checks --watch`. 60 s is a floor per watcher, not a budget: with several
   watchers, poll every 2 s × watchers × requests per poll or slower, which keeps them near a third
-  of the hourly REST budget (ten pull-request monitors at about seven requests a poll: 140 s).
+  of the hourly REST budget (ten pull-request monitors at about seven requests a poll: 140 s,
+  set as the monitor's `INTERVAL`).
 - **GraphQL-only fields** (`isInMergeQueue`, `statusCheckRollup`): read once, at the point you
   decide.
 - **Writes.** One at a time, at least 1 s apart, never in a retry loop. Secondary limits cap

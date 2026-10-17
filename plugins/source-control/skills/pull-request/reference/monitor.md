@@ -102,9 +102,11 @@ We pass the background-command maximum on every fallback poll and treat the stop
 
    The poll script, passed inline in the `command` parameter, is the REST poll in the provider
    reference ([GitHub](../../../reference/providers/github/pull-request/monitor.md#poll-checks-over-rest)).
-   Set `PR_NUMBER=<N>` at its top; it resolves `OWNER` and `REPO` itself. Its contract:
+   Set `PR_NUMBER=<N>` at its top, and `INTERVAL` above its default 60 when other watchers run,
+   per the [API budget](../../../reference/providers/github/README.md#api-budget); it resolves
+   `OWNER` and `REPO` itself. Its contract:
 
-   - Polls every 60 seconds and exits 0 with `PR #<N> <state> — watch complete` once the PR is
+   - Polls every `INTERVAL` seconds and exits 0 with `PR #<N> <state> — watch complete` once the PR is
      merged or closed.
    - Exits 2 with a `RATE-LIMITED` line on a rate-limit error. Re-arm only after the wait the
      [API budget](../../../reference/providers/github/README.md#api-budget) sets.

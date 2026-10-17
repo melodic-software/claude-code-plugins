@@ -29,6 +29,7 @@ placeholder the pull-request skill resolves.
 
 ```bash
 PR_NUMBER=<N>
+INTERVAL=60  # raise with several watchers (../README.md#api-budget)
 OWNER=$(gh repo view --json owner -q .owner.login)
 REPO=$(gh repo view --json name -q .name)
 prev_checks=""
@@ -124,7 +125,7 @@ while true; do
   : >"$err"
   poll=$((poll + 1))
 
-  sleep 60
+  sleep "$INTERVAL"
 done
 ```
 
