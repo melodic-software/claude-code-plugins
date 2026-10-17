@@ -192,7 +192,12 @@
           "additionalProperties": false,
           "properties": {"tokenHash": {"type": "string"}, "rotatedAt": {"$ref": "#/$defs/ts"}}
         },
-        "secrets": {"type": "object", "additionalProperties": {"$ref": "#/$defs/pid"}}
+        "secrets": {"type": "object", "additionalProperties": {"$ref": "#/$defs/pid"}},
+        "watchers": {
+          "type": "object",
+          "description": "sha256 of a person's watcher key -> pid: what their own Claude uses on /api/mine/requests, nowhere else. Absent in states written before it.",
+          "additionalProperties": {"$ref": "#/$defs/pid"}
+        }
       }
     },
     "round": {

@@ -1954,14 +1954,49 @@ class TestSelfRunner(SessionCase):
         self.act("claim_my_request", self.ann, {"id": self.rid})
         self.assertEqual(self.events(), [])
 
-    def test_only_the_requesters_own_secret_posts_its_result_which_shows_at_once(self):
+    def answer_mine(self, pid, rid, summary="The address step."):
+        self.act("claim_my_request", pid, {"id": rid})
+        return self.act("post_my_result", pid, {"id": rid, "summary": summary, "sources": [], "report": "", "used": [], "why": ""})["id"]
+
+    def test_only_the_requesters_own_secret_posts_its_result_which_waits_for_the_owner(self):
+        # Owner's decision (PLAN.md Decisions, h2): results wait for the owner's Publish, a guest's own Claude's too.
         self.act("claim_my_request", self.ann, {"id": self.rid})
         body = {"id": self.rid, "summary": "The address step.", "sources": [], "report": "", "used": [{"name": "claude", "type": "cli"}], "why": "Own Claude."}
         self.refused("no-such-request", "post_my_result", self.bo, body, http=404)
-        self.act("post_my_result", self.ann, body)
+        xid = self.act("post_my_result", self.ann, body)["id"]
         res = self.s.state["results"]["Q1"][0]
-        self.assertEqual((res["published"], res["by"]), (True, {"kind": "guest-claude", "pid": self.ann}))
+        self.assertEqual((res["published"], res["by"]), (False, {"kind": "guest-claude", "pid": self.ann}))
+        self.assertNotIn("Q1", self.s.snapshot(self.bo)["results"])
+        self.assertEqual([r["summary"] for r in self.s.snapshot(self.ann)["results"]["Q1"]], ["The address step."])
+        self.assertEqual([r["published"] for r in self.s.snapshot(HOST)["results"]["Q1"]], [False])
+        self.assertEqual(len(self.notes(HOST, "queue")), 1)
+        self.act("act_on_request", HOST, {"action": "publish", "id": xid})
         self.assertEqual(self.s.snapshot(self.bo)["results"]["Q1"][0]["summary"], "The address step.")
+        self.assertEqual([n["title"] for n in self.notes(self.ann, "request")], ["Your request on question Q1 is done."])
+
+    def test_the_owner_can_discard_a_guest_claude_result_after_publishing_it_but_not_a_host_one(self):
+        xid = self.answer_mine(self.ann, self.rid)
+        self.act("act_on_request", HOST, {"action": "publish", "id": xid})
+        self.act("act_on_request", HOST, {"action": "discard", "id": xid})
+        self.assertEqual((self.s.snapshot(self.bo)["results"], self.s.state["results"]), ({}, {}))
+        host_req = self.act("request", self.bo, {"qid": "Q1", "kind": "ask", "text": "Host one"})["id"]
+        self.act("act_on_request", HOST, {"action": "run", "ids": [host_req]})
+        self.apply({"op": "result", "qid": "Q1", "request": host_req, "kind": "ask", "used": [], "why": "", "summary": "Host says.", "sources": [], "report": ""})
+        self.act("act_on_request", HOST, {"action": "publish", "id": host_req})
+        self.refused("wrong-status", "act_on_request", HOST, {"action": "discard", "id": host_req}, http=409)
+
+    def test_a_removed_persons_guest_claude_results_leave_every_snapshot_and_the_digest(self):
+        xid = self.answer_mine(self.ann, self.rid)
+        self.act("act_on_request", HOST, {"action": "publish", "id": xid})
+        self.act("set_removed", HOST, {"pid": self.ann, "on": True})
+        self.assertNotIn("Q1", self.s.snapshot(self.bo)["results"])
+        self.assertNotIn("Q1", self.s.snapshot(HOST)["results"])
+        self.assertEqual(self.s.summary()["queue"]["results"], 0)
+        self.send()
+        (sent,) = self.events("round-sent")
+        self.assertEqual(sent["digest"]["results"], [])
+        self.act("set_removed", HOST, {"pid": self.ann, "on": False})
+        self.assertEqual([r["id"] for r in self.s.snapshot(self.bo)["results"]["Q1"]], [xid])
 
     def test_my_requests_lists_only_ones_own_self_requests(self):
         self.act("request", self.bo, {"qid": "Q1", "kind": "ask", "text": "Bo's own", "runner": "self"})
@@ -2014,9 +2049,11 @@ class TestSelfRunner(SessionCase):
             self.s.fail_my_request(self.ann, {"id": self.rid, "reason": "Not needed."})
         self.assertEqual(ctx.exception.code, "slow-down")
 
-    def test_a_self_result_reaches_the_digest_marked_as_a_guests_own_claude(self):
-        self.act("claim_my_request", self.ann, {"id": self.rid})
-        self.act("post_my_result", self.ann, {"id": self.rid, "summary": "The address step.", "sources": [], "report": "", "used": [], "why": ""})
+    def test_a_self_result_reaches_the_digest_marked_as_a_guests_own_claude_once_published(self):
+        xid = self.answer_mine(self.ann, self.rid)
+        unshared = self.act("request", self.ann, {"qid": "Q1", "kind": "ask", "text": "Not shared", "runner": "self"})["id"]
+        self.answer_mine(self.ann, unshared, "Never published.")
+        self.act("act_on_request", HOST, {"action": "publish", "id": xid})
         host_req = self.act("request", self.bo, {"qid": "Q1", "kind": "research", "text": "Prices?"})["id"]
         self.act("act_on_request", HOST, {"action": "run", "ids": [host_req]})
         self.apply({"op": "result", "qid": "Q1", "request": host_req, "kind": "research", "used": [], "why": "Web.", "summary": "Two shops.", "sources": [], "report": ""})
@@ -2024,9 +2061,112 @@ class TestSelfRunner(SessionCase):
         self.send()
         (sent,) = self.events("round-sent")
         self.assertEqual(
-            [(r["summary"], r.get("from")) for r in sent["digest"]["results"]],
-            [("The address step.", "guest-claude"), ("Two shops.", None)],
+            [(r["summary"], r.get("from"), r.get("by")) for r in sent["digest"]["results"]],
+            [("The address step.", "guest-claude", None), ("Two shops.", None, None)],
         )
+
+    def test_with_digest_names_a_guest_claude_result_names_its_guest(self):
+        self.act("update_settings", HOST, {"digestNames": True})
+        self.act("act_on_request", HOST, {"action": "publish", "id": self.answer_mine(self.ann, self.rid)})
+        self.send()
+        (sent,) = self.events("round-sent")
+        self.assertEqual([(r["from"], r["by"]) for r in sent["digest"]["results"]], [("guest-claude", "Ann")])
+
+
+class TestSelfRunnerLimits(SessionCase):
+    """Fix 1 of the Phase 8 security review: a guest's own Claude cannot grow state or the digest without bound.
+    Expected values: the review's bounds (running counts toward MAX_PENDING_REQUESTS; per person per question and per
+    round; a session-wide cap refused like MAX_ANNOTATIONS) and the constants session.py states as judgment."""
+
+    def setUp(self):
+        super().setUp()
+        self.ann, self.bo = self.people("Ann", "Bo")
+        self.open_round(text_q("Q1"), text_q("Q2"), text_q("Q3"))
+
+    def mine(self, pid, qid="Q1", text="Ask"):
+        return self.act("request", pid, {"qid": qid, "kind": "ask", "text": text, "runner": "self"})["id"]
+
+    def post(self, pid, rid, summary="S."):
+        return self.s.post_my_result(pid, {"id": rid, "summary": summary, "sources": [], "report": "", "used": [], "why": ""})
+
+    def answered(self, pid, qid, summary="S."):
+        rid = self.mine(pid, qid)
+        self.act("claim_my_request", pid, {"id": rid})
+        self.clock.tick()
+        return self.post(pid, rid, summary)["id"]
+
+    def test_running_self_requests_count_toward_the_pending_cap(self):
+        for _ in range(session.MAX_PENDING_REQUESTS):
+            self.act("claim_my_request", self.ann, {"id": self.mine(self.ann)})
+        self.refused("too-many-pending", "request", self.ann, {"qid": "Q1", "kind": "ask", "text": "One more", "runner": "self"}, http=429)
+
+    def test_one_person_posts_at_most_five_results_on_one_question(self):
+        for _ in range(5):
+            self.answered(self.ann, "Q1")
+        rid = self.mine(self.ann, "Q1")
+        self.act("claim_my_request", self.ann, {"id": rid})
+        self.clock.tick()
+        with self.assertRaises(session.DomainError) as ctx:
+            self.post(self.ann, rid)
+        self.assertEqual((ctx.exception.code, ctx.exception.http), ("results-full", 409))
+        self.answered(self.bo, "Q1")  # another person's own count
+        self.answered(self.ann, "Q2")  # another question
+
+    def test_one_person_posts_at_most_ten_results_in_one_round(self):
+        for qid in ("Q1", "Q2"):
+            for _ in range(5):
+                self.answered(self.ann, qid)
+        rid = self.mine(self.ann, "Q3")
+        self.act("claim_my_request", self.ann, {"id": rid})
+        self.clock.tick()
+        with self.assertRaises(session.DomainError) as ctx:
+            self.post(self.ann, rid)
+        self.assertEqual(ctx.exception.code, "results-full")
+
+    def test_at_the_session_cap_a_guest_result_is_refused_and_none_is_dropped(self):
+        with mock.patch.object(session, "MAX_RESULTS", 2):
+            first, second = self.answered(self.ann, "Q1"), self.answered(self.bo, "Q1")
+            rid = self.mine(self.ann, "Q2")
+            self.act("claim_my_request", self.ann, {"id": rid})
+            self.clock.tick()
+            with self.assertRaises(session.DomainError) as ctx:
+                self.post(self.ann, rid)
+            self.assertEqual((ctx.exception.code, ctx.exception.http), ("results-full", 409))
+        self.assertEqual([r["id"] for r in self.s.state["results"]["Q1"]], [first, second])
+
+    def shown(self, *summaries):
+        """Published results in order, one per summary, alternating the host's Claude (for Bo) and Ann's own Claude."""
+        for i, summary in enumerate(summaries):
+            if i % 2:
+                xid = self.answered(self.ann, "Q1", summary)
+            else:
+                rid = self.act("request", self.bo, {"qid": "Q1", "kind": "ask", "text": "Host"})["id"]
+                self.act("act_on_request", HOST, {"action": "run", "ids": [rid]})
+                self.apply({"op": "result", "qid": "Q1", "request": rid, "kind": "ask", "used": [], "why": "", "summary": summary, "sources": [], "report": ""})
+                xid = rid
+            self.act("act_on_request", HOST, {"action": "publish", "id": xid})
+
+    def test_the_digest_lists_at_most_its_count_and_says_how_many_more(self):
+        with mock.patch.object(session, "MAX_DIGEST_RESULTS", 3):
+            self.shown("A.", "B.", "C.", "D.", "E.")
+            self.send()
+        (sent,) = self.events("round-sent")
+        self.assertEqual([r["summary"] for r in sent["digest"]["results"]], ["A.", "B.", "C."])
+        self.assertEqual(sent["digest"]["resultsMore"], "2 more on the page")
+
+    def test_the_digest_stops_at_its_character_budget(self):
+        with mock.patch.object(session, "MAX_DIGEST_CHARS", 10):
+            self.shown("1234", "5678", "90", "x")  # 4 + 4 + 2 = 10 fit; the next would pass the budget
+            self.send()
+        (sent,) = self.events("round-sent")
+        self.assertEqual([r["summary"] for r in sent["digest"]["results"]], ["1234", "5678", "90"])
+        self.assertEqual(sent["digest"]["resultsMore"], "1 more on the page")
+
+    def test_a_digest_within_both_budgets_says_nothing_more(self):
+        self.shown("A.", "B.")
+        self.send()
+        (sent,) = self.events("round-sent")
+        self.assertNotIn("resultsMore", sent["digest"])
 
 
 # ---------------------------------------------------------------------------------------------
@@ -3725,6 +3865,74 @@ class TestStateFrom08ff888(StateFixtureCase):
         self.assertIsNone(session.document_error(json.loads(s.path.read_text(encoding="utf-8"))))
         reloaded = session.Session.load(s.path, validate_writes=True)
         self.assertEqual([r["status"]["kind"] for r in reloaded.state["requests"]], ["pending", "done", "done"])
+
+
+class TestStateFrom740e8da(StateFixtureCase):
+    """state-written-740e8da.json was written by 740e8da's own session.py: Ann (tok0002x9) and Dee (tok0006x9) each had
+    a self request answered by their own Claude and shown at once (X1 "The address step.", X2 "Dee's Claude says
+    shipping."), Bo (tok0004x9) has self request R3 running and R4 pending, round 1 is sent, and then the owner removed
+    Dee. It loads unchanged: Ann's shown result stays shown, Dee's leaves every view, and new writes take the fixes."""
+
+    def test_a_state_740e8da_wrote_loads_unchanged_and_takes_the_review_fixes(self):
+        s = self.load("state-written-740e8da.json")
+        ann, bo = "tok0002x9", "tok0004x9"
+        self.assertEqual([r["summary"] for r in s.snapshot(bo)["results"]["Q1"]], ["The address step."])
+        self.assertEqual([r["id"] for r in s.snapshot(HOST)["results"]["Q1"]], ["X1"])
+        s.clock.tick()
+        out = s.post_my_result(bo, {"id": "R3", "summary": "Bo's Claude says two days.", "sources": [], "report": "", "used": [], "why": ""})
+        self.assertEqual([r["id"] for r in s.snapshot(ann)["results"]["Q1"]], ["X1"])
+        self.assertEqual([r["id"] for r in s.snapshot(bo)["results"]["Q1"]], ["X1", out["id"]])
+        s.clock.tick()
+        self.assertEqual(s.issue_watcher(bo, {})["token"][:3], "tok")
+        self.assertIsNone(session.document_error(json.loads(s.path.read_text(encoding="utf-8"))))
+        reloaded = session.Session.load(s.path, validate_writes=True)
+        self.assertEqual([r["published"] for r in reloaded.state["results"]["Q1"]], [True, True, False])
+
+
+class TestWatcherKey(SessionCase):
+    """Fix 3 of the Phase 8 security review: a watcher key per person, random, stored hashed, revocable, that answers
+    only for its person's own self requests. Expected values: the review's requirements and the sha256 storage every
+    other credential in state.json uses."""
+
+    def setUp(self):
+        super().setUp()
+        (self.ann, self.ann_secret), (self.bo, _) = self.join("Ann"), self.join("Bo")
+
+    def test_a_watcher_key_is_stored_hashed_and_resolves_only_as_a_watcher(self):
+        token = self.act("issue_watcher", self.ann, {})["token"]
+        self.assertNotEqual(token, self.ann_secret)
+        self.assertNotIn(token, self.path.read_text(encoding="utf-8"))
+        self.assertEqual(self.disk()["credentials"]["watchers"], {session.sha256(token): self.ann})
+        self.assertEqual(self.s.resolve(watcher=token), self.ann)
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.resolve(secret=token)
+        self.assertEqual(ctx.exception.http, 401)
+        self.assertTrue(self.s.snapshot(self.ann)["me"]["watcher"])
+        self.assertFalse(self.s.snapshot(self.bo)["me"]["watcher"])
+
+    def test_a_new_key_replaces_the_old_and_revoke_ends_it(self):
+        old = self.act("issue_watcher", self.ann, {})["token"]
+        new = self.act("issue_watcher", self.ann, {})["token"]
+        with self.assertRaises(session.DomainError):
+            self.s.resolve(watcher=old)
+        self.assertEqual(self.s.resolve(watcher=new), self.ann)
+        self.act("revoke_watcher", self.ann, {})
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.resolve(watcher=new)
+        self.assertEqual(ctx.exception.http, 401)
+        self.assertEqual(self.disk()["credentials"]["watchers"], {})
+
+    def test_removing_or_merging_a_person_ends_their_watcher_key(self):
+        token = self.act("issue_watcher", self.ann, {})["token"]
+        self.act("set_removed", HOST, {"pid": self.ann, "on": True})
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.resolve(watcher=token)
+        self.assertEqual(ctx.exception.http, 403)
+        self.act("set_removed", HOST, {"pid": self.ann, "on": False})
+        self.act("merge_people", HOST, {"from": self.ann, "to": self.bo})
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.resolve(watcher=token)
+        self.assertEqual(ctx.exception.http, 401)
 
 
 if __name__ == "__main__":

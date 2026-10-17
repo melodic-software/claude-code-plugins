@@ -1197,6 +1197,9 @@ class TestConnectYourClaude(ServerCase):
         self.assertEqual(json.loads((self.d / "state.json").read_text(encoding="utf-8"))["log"]["events"], [])
         owner = self.get("/api/state", self.owner)[2]
         self.assertEqual((owner["requests"], owner["requestCounts"]), ([], {"open": 0, "byQ": {}}))
+        self.assertNotIn("Q1", self.get("/api/state", self.bo)[2]["results"])  # waits for the owner's Publish
+        (res,) = self.get("/api/state", self.ann)[2]["results"]["Q1"]
+        self.assertEqual(self.post("/api/request/act", {"action": "publish", "id": res["id"]}, self.owner)[0], 200)
         (res,) = self.get("/api/state", self.bo)[2]["results"]["Q1"]
         self.assertEqual((res["summary"], res["by"]["kind"]), ("The address step.", "guest-claude"))
 
@@ -1221,6 +1224,69 @@ class TestConnectYourClaude(ServerCase):
         self.assertEqual(self.post("/api/mine/requests/claim", {"id": self.rid}, self.ann)[0], 200)
         code, _, out = self.post("/api/mine/requests/claim", {"id": self.rid}, self.ann)
         self.assertEqual((code, out["error"]), (429, "slow-down"))
+
+
+class TestWatcherKey(ServerCase):
+    """Fix 3 of the Phase 8 security review: what a guest pastes into their own Claude is a watcher key, not their
+    session secret. It works on GET /api/mine/requests and the three POST /api/mine/requests/* routes only, for its own
+    person's requests, until revoked; every other route answers 401 to it. Expected values: the review's requirements."""
+
+    def setUp(self):
+        super().setUp()
+        self.open_round("Q1")
+        _, self.ann = self.join("Ann")
+        _, self.bo = self.join("Bo")
+        code, _, out = self.post("/api/request", {"qid": "Q1", "kind": "ask", "text": "Which step drops most?", "runner": "self"}, self.ann)
+        self.assertEqual(code, 200, out)
+        self.rid = out["id"]
+        code, _, out = self.post("/api/watcher", {}, self.ann)
+        self.assertEqual(code, 200, out)
+        self.key = {"X-Watcher-Key": out["token"]}
+        self.token = out["token"]
+
+    def test_the_watcher_key_reads_and_answers_its_own_persons_self_requests(self):
+        code, _, out = self.get("/api/mine/requests?status=pending", self.key)
+        self.assertEqual((code, [r["id"] for r in out["requests"]]), (200, [self.rid]))
+        self.assertEqual(self.post("/api/mine/requests/claim", {"id": self.rid}, self.key)[0], 200)
+        body = {"id": self.rid, "summary": "The address step.", "sources": [], "report": "", "used": [], "why": ""}
+        self.assertEqual(self.post("/api/mine/requests/result", body, self.key)[0], 200)
+        self.assertNotIn(self.token, (self.d / "state.json").read_text(encoding="utf-8"))
+        self.assertTrue(self.get("/api/state", self.ann)[2]["me"]["watcher"])
+
+    def test_the_watcher_key_is_refused_on_every_other_route(self):
+        for headers in (self.key, {"X-Session-Secret": self.token}):
+            with self.subTest(path="/api/state", header=next(iter(headers))):
+                self.assertEqual(self.get("/api/state", headers)[0], 401)
+            for path, body in (
+                ("/api/notifications/read", {}),
+                ("/api/chat", {"text": "hi"}),
+                ("/api/answer", {"qid": "Q1", "text": "Mine"}),
+                ("/api/vote", {"qid": "Q1", "ref": "x"}),
+                ("/api/request", {"qid": "Q1", "kind": "ask", "text": "More", "runner": "self"}),
+                ("/api/heartbeat", {}),
+                ("/api/watcher", {}),
+                ("/api/watcher/revoke", {}),
+                ("/api/rename", {"name": "Eve"}),
+            ):
+                with self.subTest(path=path, header=next(iter(headers))):
+                    self.assertEqual(self.post(path, body, headers)[0], 401)
+        self.assertEqual(self.get("/api/mine/requests", self.key)[0], 200)  # still good after all of that
+
+    def test_revoke_ends_the_watcher_key(self):
+        self.assertEqual(self.post("/api/watcher/revoke", {}, self.ann)[0], 200)
+        self.assertEqual(self.get("/api/mine/requests", self.key)[0], 401)
+        self.assertEqual(self.post("/api/mine/requests/claim", {"id": self.rid}, self.key)[0], 401)
+        self.assertFalse(self.get("/api/state", self.ann)[2]["me"]["watcher"])
+
+    def test_another_persons_watcher_key_cannot_touch_these_requests(self):
+        code, _, out = self.post("/api/watcher", {}, self.bo)
+        bo_key = {"X-Watcher-Key": out["token"]}
+        self.assertEqual(self.get("/api/mine/requests", bo_key)[2]["requests"], [])
+        body = {"id": self.rid, "summary": "Bo's answer.", "sources": [], "report": "", "used": [], "why": ""}
+        for path, b in (("claim", {"id": self.rid}), ("result", body), ("fail", {"id": self.rid, "reason": "Mine now."})):
+            with self.subTest(path=path):
+                code, _, out = self.post(f"/api/mine/requests/{path}", b, bo_key)
+                self.assertEqual((code, out["error"]), (404, "no-such-request"))
 
 
 if __name__ == "__main__":

@@ -66,7 +66,12 @@ MAX_REFERENCES = 8
 MAX_ROUND = 8
 MAX_CITES = 5
 MAX_MENTIONS = 10
-MAX_PENDING_REQUESTS = 10
+MAX_PENDING_REQUESTS = 10  # waiting, or running on the requester's own Claude
+MAX_MY_RESULTS = 5  # judgment: results one person's own Claude posts on one question
+MAX_MY_ROUND_RESULTS = 10  # judgment: results one person's own Claude posts across one round's questions
+MAX_RESULTS = 500  # judgment: results across the session; at the cap a guest's own Claude's is refused, none dropped
+MAX_DIGEST_RESULTS = 30  # judgment: results one digest lists; the rest are counted as "N more on the page"
+MAX_DIGEST_CHARS = 30000  # judgment: summary characters one digest lists, seven summaries at their longest
 MAX_OPEN_UPLOADS = 10
 MAX_RUN_IDS = 100
 NOTIFY_CAP = 500
@@ -725,10 +730,17 @@ class Session:
 
     # -- identity -----------------------------------------------------------------------------
 
-    def resolve(self, *, secret=None, owner_token=None):
-        """The pid a request acts as, from its X-Owner-Token or X-Session-Secret header value."""
+    def resolve(self, *, secret=None, owner_token=None, watcher=None):
+        """The pid a request acts as, from its X-Owner-Token, X-Session-Secret or X-Watcher-Key header value. A watcher
+        key is only ever resolved alone; server.py takes it on the /api/mine/requests routes and nowhere else."""
         with self._lock:
             creds = self.state["credentials"]
+            if watcher:
+                pid = creds.get("watchers", {}).get(sha256(watcher))
+                if not pid:
+                    raise DomainError(401, "unknown-session", "This watcher key is no longer valid. Copy a new one from the session page.")
+                self._person(pid)
+                return pid
             if owner_token:
                 if hmac.compare_digest(sha256(owner_token), creds["owner"]["tokenHash"]):
                     return HOST
@@ -977,6 +989,7 @@ class Session:
             key.pop(pid, None)
         for h in [h for h, p in st["credentials"]["secrets"].items() if p == pid]:
             st["credentials"]["secrets"].pop(h)
+        self._drop_watcher(pid)
         self._presence.pop(pid, None)
         for key in [k for k in self._last_write if k[0] == pid]:
             self._last_write.pop(key)
@@ -1293,6 +1306,7 @@ class Session:
         for h, p in list(st["credentials"]["secrets"].items()):
             if p == src:
                 st["credentials"]["secrets"][h] = dst
+        self._drop_watcher(src)  # a watcher key never gains another person's requests
         st["people"].pop(src)
         self._presence.pop(src, None)
         self._presence_rev += 1
@@ -1795,7 +1809,7 @@ class Session:
             cards = self._cards(qid)
             mine = next((c for c in cards if c["kind"] == "person" and c["pid"] == pid and c.get("device") == device), None)
             if cites is not None:
-                published = {r["id"] for r in st["results"].get(qid, []) if r["published"]}
+                published = {r["id"] for r in st["results"].get(qid, []) if self._result_shown(r)}
                 if any(c not in published for c in cites):
                     raise _bad("cites", "cites must name results shown on this question.")
             if not text:
@@ -2555,7 +2569,7 @@ class Session:
             self._writer(pid)
             self._throttle(pid, "request", now)
             q = self._question(body.get("qid"))
-            pending = sum(1 for r in st["requests"] if r["pid"] == pid and r["status"]["kind"] == "pending")
+            pending = sum(1 for r in st["requests"] if r["pid"] == pid and (r["status"]["kind"] == "pending" or (r["runner"] == "self" and r["status"]["kind"] == "running")))
             if pending >= MAX_PENDING_REQUESTS:
                 raise DomainError(429, "too-many-pending", f"You have {MAX_PENDING_REQUESTS} requests waiting already.")
             rid = self._next("R")
@@ -2615,6 +2629,14 @@ class Session:
             r["status"] = {"kind": "running", "since": self.now(), "eventSeq": ev["seq"]}
         return st
 
+    def _from_active(self, res):
+        """A result is the host's, or its guest is still in: a removed guest's own Claude's results leave every view."""
+        return res["by"]["kind"] != "guest-claude" or self._active(res["by"]["pid"])
+
+    def _result_shown(self, res):
+        """Everyone sees it: published, and not from a removed guest's own Claude."""
+        return res["published"] and self._from_active(res)
+
     def _find_result(self, rid):
         for lst in self.state["results"].values():
             for res in lst:
@@ -2624,7 +2646,8 @@ class Session:
 
     def _act_on_result(self, pid, rid, action):
         res = self._find_result(rid)
-        if res["published"]:
+        # A guest's own Claude's result the owner already shared can still be taken down; the host's own cannot.
+        if res["published"] and not (action == "discard" and res["by"]["kind"] == "guest-claude"):
             raise DomainError(409, "wrong-status", "This result is already shown.", status="published")
         req = next((r for r in self.state["requests"] if r["id"] == res["request"]), None)
         if action == "publish":
@@ -2685,12 +2708,23 @@ class Session:
             return {"id": r["id"], "status": "running"}
 
     def post_my_result(self, pid, body):
-        """POST /api/mine/requests/result: the requester's own Claude answers; shown at once."""
-        with self._write_as(pid, "mine-result"):
+        """POST /api/mine/requests/result: the requester's own Claude answers. Like every result it waits for the
+        owner's Publish; until then only the requester and the owner see it."""
+        with self._write_as(pid, "mine-result") as st:
             r = self._request(_ident(body, "id"), runner="self", owner_pid=pid)
             if r["status"]["kind"] != "running":
                 raise DomainError(409, "wrong-status", f"Request {r['id']} is {r['status']['kind']}.", status=r["status"]["kind"])
-            res = self._new_result(r["qid"], r, body, {"kind": "guest-claude", "pid": pid}, True)
+            rnd = self._question(r["qid"])["round"]
+            in_round = {q["id"] for q in st["questions"] if q["round"] == rnd}
+            mine = [x for qid, lst in st["results"].items() if qid in in_round for x in lst if x["by"].get("pid") == pid]
+            if sum(1 for x in mine if x["qid"] == r["qid"]) >= MAX_MY_RESULTS:
+                raise DomainError(409, "results-full", f"Your Claude can post at most {MAX_MY_RESULTS} answers on one question.", max=MAX_MY_RESULTS)
+            if len(mine) >= MAX_MY_ROUND_RESULTS:
+                raise DomainError(409, "results-full", f"Your Claude can post at most {MAX_MY_ROUND_RESULTS} answers in one round.", max=MAX_MY_ROUND_RESULTS)
+            if sum(len(lst) for lst in st["results"].values()) >= MAX_RESULTS:
+                raise DomainError(409, "results-full", f"This session holds at most {MAX_RESULTS} results.", max=MAX_RESULTS)
+            res = self._new_result(r["qid"], r, body, {"kind": "guest-claude", "pid": pid}, False)
+            self._queue_note([HOST], pid)
             return {"id": res["id"]}
 
     def fail_my_request(self, pid, body):
@@ -2701,6 +2735,25 @@ class Session:
                 raise DomainError(409, "wrong-status", f"Request {r['id']} is {r['status']['kind']}.", status=r["status"]["kind"])
             r["status"] = {"kind": "failed", "at": self.now(), "reason": reason, "cancelled": False}
             return {"id": r["id"], "status": "failed"}
+
+    def issue_watcher(self, pid, body):
+        """POST /api/watcher: a new watcher key for one's own Claude, replacing any earlier one. Only its hash is kept."""
+        with self._write_as(pid, "watcher") as st:
+            self._drop_watcher(pid)
+            token = self.ids.token(32)
+            st["credentials"].setdefault("watchers", {})[sha256(token)] = pid
+            return {"token": token}
+
+    def revoke_watcher(self, pid, body):
+        """POST /api/watcher/revoke: one's watcher key stops working."""
+        with self._write_as(pid, "watcher-revoke"):
+            self._drop_watcher(pid)
+            return {"watcher": False}
+
+    def _drop_watcher(self, pid):
+        watchers = self.state["credentials"].get("watchers", {})
+        for h in [h for h, p in watchers.items() if p == pid]:
+            watchers.pop(h)
 
     # -- settings, prefs, notifications, session ---------------------------------------------
 
@@ -2928,12 +2981,14 @@ class Session:
                 if f["why"]["kind"] == "suggested":
                     item["suggestion"] = f["why"]["suggestion"]
                 review.append(item)
-        results = [
-            {"qid": r["qid"], "id": r["id"], "kind": r["kind"], "summary": r["summary"], **({"from": "guest-claude"} if r["by"]["kind"] == "guest-claude" else {})}
-            for lst in st["results"].values()
-            for r in lst
-            if r["published"] and r["at"] > prev
-        ]
+        results, more, chars = [], 0, 0
+        for r in (r for lst in st["results"].values() for r in lst if self._result_shown(r) and r["at"] > prev):
+            chars += len(r["summary"])
+            if len(results) >= MAX_DIGEST_RESULTS or chars > MAX_DIGEST_CHARS:
+                more += 1
+                continue
+            guest = r["by"]["kind"] == "guest-claude"
+            results.append({"qid": r["qid"], "id": r["id"], "kind": r["kind"], "summary": r["summary"], **({"from": "guest-claude", **by(r["by"]["pid"])} if guest else {})})
         proposals = [{"id": p["id"], "text": p["text"], **by(p["pid"])} for p in st["proposals"] if p["status"]["kind"] == "new" and self._active(p["pid"])]
         notes = [
             {"qid": a["qid"], "variant": a["variant"], "text": a["text"], "element": _element(a["anchor"]["selector"]), **by(a["pid"])}
@@ -2947,6 +3002,7 @@ class Session:
             "late": late,
             "needsReview": review,
             "results": results,
+            **({"resultsMore": f"{more} more on the page"} if more else {}),
             "proposals": proposals,
             "annotations": notes,
             "people": self._digest_people(n),
@@ -3457,7 +3513,7 @@ class Session:
                 "people": {"joined": len(active), "here": len(self._present() - {HOST})},
                 "queue": {
                     "requests": sum(1 for r in st["requests"] if r["runner"] == "host" and r["status"]["kind"] == "pending" and self._active(r["pid"])),
-                    "results": sum(1 for lst in st["results"].values() for r in lst if not r["published"]),
+                    "results": sum(1 for lst in st["results"].values() for r in lst if not r["published"] and self._from_active(r)),
                     "uploads": sum(1 for u in st["uploads"] if u["status"]["kind"] == "offered"),
                     "merges": sum(1 for m in st["mergeRequests"] if m["status"]["kind"] == "pending"),
                     "joins": sum(1 for p in st["people"].values() if p["status"]["kind"] == "waiting"),
@@ -3505,7 +3561,7 @@ class Session:
             "locks": st["locks"],
             "suggestions": suggestions,
             "disagreements": {q: [d for d in lst if d["pid"] in active] for q, lst in st.get("disagreements", {}).items()},
-            "results": {q: [r for r in lst if r["published"]] for q, lst in st["results"].items()},
+            "results": {q: shown for q, lst in st["results"].items() if (shown := [r for r in lst if self._result_shown(r)])},
             "chat": [self._public_chat(m, active) for m in st["chat"] if m["pid"] in active],
             "annotations": [a for a in st["annotations"] if a["pid"] in active],
             "people": [
@@ -3615,13 +3671,18 @@ class Session:
             visible = [p for p in st["proposals"] if self._active(p["pid"]) and (moderator or p["pid"] == pid)]
             snap["proposals"] = copy.deepcopy(visible)
             snap["myRequests"] = copy.deepcopy([r for r in st["requests"] if r["pid"] == pid])
+            snap["me"]["watcher"] = pid in st["credentials"].get("watchers", {}).values()
+            for qid, lst in st["results"].items():  # my own Claude's answers waiting for the owner's Share
+                held = {r["id"] for r in lst if not r["published"] and r["by"].get("pid") == pid}
+                if held and not owner:
+                    snap["results"] = {**snap["results"], qid: copy.deepcopy([r for r in lst if self._result_shown(r) or r["id"] in held])}
             snap["myMergeRequests"] = copy.deepcopy([m for m in st["mergeRequests"] if m["from"] == pid])
             if moderator:
                 snap["guestKey"] = st["session"]["guestKey"]
                 snap["behind"] = self._behind()
             if owner:
                 snap["requests"] = copy.deepcopy([r for r in st["requests"] if r["runner"] == "host"])
-                snap["results"] = copy.deepcopy(st["results"])
+                snap["results"] = {q: copy.deepcopy(kept) for q, lst in st["results"].items() if (kept := [r for r in lst if self._from_active(r)])}
                 snap["mergeRequests"] = copy.deepcopy([m for m in st["mergeRequests"] if m["status"]["kind"] == "pending"])
                 snap["aboutYou"] = copy.deepcopy(st["aboutYou"])
                 snap["removed"] = [

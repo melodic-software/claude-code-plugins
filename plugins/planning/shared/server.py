@@ -176,8 +176,13 @@ ROUTES = {
     "/api/mine/requests/claim": ("person", "claim_my_request"),
     "/api/mine/requests/result": ("person", "post_my_result"),
     "/api/mine/requests/fail": ("person", "fail_my_request"),
+    "/api/watcher": ("person", "issue_watcher"),
+    "/api/watcher/revoke": ("person", "revoke_watcher"),
 }
 GET_ROUTES = {"/api/mine/requests": ("person", "my_requests"), "/api/card/history": ("owner", "card_history")}
+# The only routes a watcher key (X-Watcher-Key) works on: a guest's own Claude reads and answers their own self
+# requests. Anywhere else the header answers 401, so the key never acts as the person's session secret.
+WATCHER_ROUTES = {"/api/mine/requests", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail"}
 BODY_CAPS = {}  # path -> bytes, where a route allows more than session.BODY_MAX
 
 
@@ -586,12 +591,21 @@ class GuestHandler(BaseHTTPRequestHandler):
         return b"".join(chunks)
 
     def identity(self):
-        """The pid the request acts as, None without identity; DomainError for a stale credential."""
+        """The pid the request acts as, None without identity; DomainError for a stale credential. do_GET and do_POST
+        have already refused a watcher key off WATCHER_ROUTES."""
         owner = self.headers.get("X-Owner-Token")
         secret = self.headers.get("X-Session-Secret")
+        watcher = self.headers.get("X-Watcher-Key")
+        if watcher is not None:
+            return self.app.session.resolve(watcher=watcher)
         if not owner and not secret:
             return None
         return self.app.session.resolve(secret=secret, owner_token=owner)
+
+    def watcher_misplaced(self):
+        """A watcher key on any other route, or beside another credential: answered 401 before anything else runs."""
+        h = self.headers
+        return h.get("X-Watcher-Key") is not None and (urlparse(self.path).path not in WATCHER_ROUTES or bool(h.get("X-Owner-Token") or h.get("X-Session-Secret")))
 
     def authorize(self, auth):
         if auth == "public":
@@ -608,6 +622,8 @@ class GuestHandler(BaseHTTPRequestHandler):
             return None
         url = urlparse(self.path)
         try:
+            if self.watcher_misplaced():
+                raise DomainError(401, "unknown-session", "A watcher key works only on /api/mine/requests.")
             if url.path in STATIC:
                 return self.static(*STATIC[url.path])
             m = ASSET.fullmatch(url.path)
@@ -664,6 +680,8 @@ class GuestHandler(BaseHTTPRequestHandler):
         if self.refused():
             return None
         path = urlparse(self.path).path
+        if self.watcher_misplaced():
+            return self.fail(DomainError(401, "unknown-session", "A watcher key works only on /api/mine/requests."))
         if path not in ROUTES:
             return self.fail(DomainError(404, "not-found", "Nothing here."))
         if not self.headers.get("Content-Type", "").lower().startswith("application/json"):

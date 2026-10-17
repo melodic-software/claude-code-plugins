@@ -3,7 +3,8 @@
 // 768x1024, 1024x768, 1440x900 and 2560x1440, dark and light, in a guest's Focus on a choice question and on a text
 // question, Compare, Tree, the chat open, and the owner's Host view; the same at 200% zoom (720x450 and 640x400 CSS px
 // at device scale 2). On a 390x844 phone with touch, in Focus: every visible control's hit area is at least 44x44 CSS
-// px and no visible element sticks out past the viewport. At 390x844 and 1440x900 the answer composer starts within
+// px and no visible element sticks out past the viewport, nor with Ask Claude open and "Run it on my own Claude" on,
+// where nothing in the panel scrolls sideways either. At 390x844 and 1440x900 the answer composer starts within
 // 24 px below the question block (question text, options, and the hint and note lines around them). A new guest's
 // first view shows the goal, the host's ask and "Start here: question 1" in view (triage 3); the ten person colors
 // meet WCAG 2.2 AA in both themes (C40); editing a saved answer on a phone is a full-height sheet (triage 18).
@@ -135,6 +136,18 @@ const overflowing = page => page.evaluate(tol => {
   return out;
 }, TOL);
 
+/** Visible scroll containers in `root` (itself included) that scroll sideways: content wider than the box, which
+ *  `overflowing` cannot see because the box itself clips it inside the viewport. */
+const sideScroll = (page, root) => page.evaluate(([tol, root]) => {
+  const out = [], top = document.querySelector(root);
+  for (const el of top ? [top, ...top.querySelectorAll("*")] : []) {
+    const cs = getComputedStyle(el);
+    if (!/auto|scroll/.test(cs.overflowX) || el.closest("[hidden], dialog:not([open])") || el.clientWidth <= 1) continue;
+    if (el.scrollWidth > el.clientWidth + tol) out.push(`${el.tagName.toLowerCase()}.${[...el.classList].join(".")} content ${el.scrollWidth} in ${el.clientWidth}`);
+  }
+  return top ? out : [`no ${root}`];
+}, [TOL, root]);
+
 /** Bottom of the question block (text, options, hint) and top of the composer, in viewport px. */
 const composerGap = page => page.evaluate(() => {
   const vis = el => el && el.getClientRects().length && getComputedStyle(el).visibility !== "hidden" && !el.closest("[hidden]");
@@ -189,6 +202,17 @@ async function main() {
     ok(`390x844 phone, Focus: every visible control's hit area is at least ${MIN_HIT}x${MIN_HIT} CSS px`, small.length === 0, `${small.length}: ${small.join("; ")}`);
     const over = await overflowing(pia);
     ok("390x844 phone, Focus: no visible element sticks out past the viewport", over.length === 0, `${over.length}: ${over.slice(0, 12).join("; ")}`);
+
+    // ---------- the phone, Ask Claude with "Run it on my own Claude" on: nothing scrolls sideways ----------
+    await pia.evaluate(() => document.querySelector(".vf-asktop").click());
+    const asked = await until(pia, () => !!document.querySelector(".vf-drawer:not([hidden]) .vf-apform"));
+    await pia.click(".vf-apself");
+    const connected = await until(pia, () => !document.querySelector(".vf-apconnect").hidden);
+    await pia.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => null))));
+    const side = [...(await sideScroll(pia, ".vf-drawer:not([hidden])")), ...(await overflowing(pia))];
+    ok("390x844 phone, Ask Claude with \"Run it on my own Claude\" on: no horizontal scroll and nothing past the viewport", asked && connected && side.length === 0,
+      `${asked} ${connected} ${side.length}: ${side.slice(0, 8).join("; ")}`);
+    await pia.keyboard.press("Escape");
 
     // ---------- the composer directly under the question ----------
     for (const [page, label] of [[pia, "390x844"], [await (async () => { const d = await rec.open(A.localUrl, { context: { viewport: { width: 1440, height: 900 } } }); await joinAs(d, "Dee"); return d; })(), "1440x900"]]) {

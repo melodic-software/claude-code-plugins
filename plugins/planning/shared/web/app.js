@@ -1543,13 +1543,14 @@
     const apcCode = E("a", "vf-btn vf-btn-ghost vf-btn-sm vf-apc-code", "Open in Claude Code");
     const apcDesk = E("a", "vf-btn vf-btn-ghost vf-btn-sm vf-apc-desk", "Open in Claude Desktop (Code)");
     const apcCopyW = btn("vf-btn vf-btn-ghost vf-btn-sm vf-apc-copyw", "Copy watch prompt");
-    const apcKey = btn("vf-btn vf-btn-ghost vf-btn-sm vf-apc-key", "Copy my key");
-    apcLinks.append(apcCode, apcDesk, apcCopyW, apcKey);
+    const apcKey = btn("vf-btn vf-btn-ghost vf-btn-sm vf-apc-key", "Copy watcher key");
+    const apcRevoke = btn("vf-btn vf-btn-ghost vf-btn-sm vf-apc-revoke", "Revoke watcher key");
+    apcLinks.append(apcCode, apcDesk, apcCopyW, apcKey, apcRevoke);
     apConnect.append(apcHead,
-      E("p", "vf-pop-note", "Your own Claude, on your own plan, runs these requests. The host and the host's Claude never see them; each answer shows on its question for everyone, marked as from your Claude."),
-      E("p", "vf-pop-note", "Let Claude Code answer them as they come: open it with the prompt filled in, read it, and press Enter. It asks for your key."),
+      E("p", "vf-pop-note", "Your own Claude, on your own plan, runs these requests; the host's Claude never sees them. The host reviews each answer before anyone else sees it, marked as from your Claude."),
+      E("p", "vf-pop-note", "Let Claude Code answer them as they come: open it with the prompt filled in, read it, and press Enter. It asks for your watcher key."),
       apcLinks,
-      E("p", "vf-meta", "Your key signs you in. Paste it only into your own Claude, when it asks. Or run one request at a time: copy its prompt below and paste the answer back."));
+      E("p", "vf-meta", "A watcher key only reads and answers your own requests. Copying one replaces the last; revoke it when you are done. Or run one request at a time: copy its prompt below and paste the answer back."));
     const apScroll = E("div", "vf-pscroll vf-apscroll");
     const apReqHead = E("h3", "vf-pop-sub", "Your requests");
     const apReqs = E("ul", "vf-plist vf-apreqs"); apReqs.setAttribute("role", "list");
@@ -2021,8 +2022,11 @@
       try { await navigator.clipboard.writeText(text); flash(done); }
       catch { openReader(title, "Select it and copy it.", text, from); }
     }
-    apcCopyW.onclick = () => copyOut(Connect.watcherPrompt(sessionBase()), "Watch prompt copied. Paste it into Claude Code; it asks for your key.", "Watch prompt", apcCopyW);
-    apcKey.onclick = () => copyOut(Core.watcherKey(), "Key copied. Paste it only into your own Claude.", "Your key", apcKey);
+    apcCopyW.onclick = () => copyOut(Connect.watcherPrompt(sessionBase()), "Watch prompt copied. Paste it into Claude Code; it asks for your watcher key.", "Watch prompt", apcCopyW);
+    // A fresh watcher key per copy: it only reads and answers my own requests, and my session secret stays on this page.
+    apcKey.onclick = () => Core.newWatcherKey()
+      .then(key => copyOut(key, "Watcher key copied. It replaces any earlier one; paste it only into your own Claude.", "Your watcher key", apcKey)).catch(fail);
+    apcRevoke.onclick = () => Core.revokeWatcher().then(() => flash("Watcher key revoked. Your Claude can no longer read your requests.")).catch(fail);
     let selfSeq = 0;
     /** Copy prompt, Open in Claude Desktop, Paste answer and Cancel for one of my own self requests. */
     function makeSelfActs() {
@@ -2038,7 +2042,7 @@
       const post = E("button", "vf-btn vf-btn-primary vf-btn-sm", "Post answer"); post.type = "submit";
       const notNow = btn("vf-btn vf-btn-ghost vf-btn-sm", "Not now");
       const frow = E("div", "vf-acts"); frow.append(post, notNow);
-      form.append(lab, ta, E("p", "vf-meta", "Sources on the last lines, as \"Title - https://...\", show as links. Everyone sees the answer."), frow);
+      form.append(lab, ta, E("p", "vf-meta", "Sources on the last lines, as \"Title - https://...\", show as links. Only you and the host see the answer until the host shares it."), frow);
       box.append(row, form);
       const prompt = () => Connect.requestPrompt({ qid: box._q.id, question: box._q.text, kind: box._r.kind, text: box._r.text });
       copyP.onclick = () => copyOut(prompt(), "Prompt copied. Paste it into your Claude, then paste its answer back here.", "Prompt for your Claude", copyP);
@@ -2054,7 +2058,7 @@
         post.disabled = true;
         (r.status === "pending" ? Core.myClaim(r.id) : Promise.resolve())
           .then(() => Core.myResult(r.id, { summary, sources, report: "", used: [], why: "Pasted back from my own Claude." }))
-          .then(() => { ta.value = ""; form.hidden = true; flash("Posted. Everyone sees it on the question, marked as from your Claude."); })
+          .then(() => { ta.value = ""; form.hidden = true; flash("Posted. Only you and the host see this until the host shares it."); })
           .catch(fail).finally(() => { post.disabled = false; });
       };
       box._k = { chat, form };
@@ -3886,15 +3890,19 @@
       const share = E("div", "vf-acts vf-res-share");
       const shareNote = E("span", "vf-meta", "Only you see this until you share it.");
       const discard = btn("vf-btn vf-btn-ghost vf-btn-sm", "Discard"), publish = btn("vf-btn vf-btn-primary vf-btn-sm", "Share with everyone");
-      share.append(shareNote, E("span", "vf-spacer"), discard, publish);
+      // A guest's own Claude's answer the owner shared can still come down; the host's own Claude's cannot.
+      const takeDown = btn("vf-btn vf-btn-ghost vf-btn-sm vf-res-takedown", "Take down");
+      share.append(shareNote, E("span", "vf-spacer"), discard, publish, takeDown);
       publish.onclick = () => Core.requestAct(li._x.id, "publish").then(() => flash("Shared. Everyone sees it on the question.")).catch(fail);
       discard.onclick = guarded({ title: "Discard this result?", ok: "Discard", body: "Nobody else sees it, and the person who asked hears it was not shared." },
         () => Core.requestAct(li._x.id, "discard").then(() => flash("Discarded.")).catch(fail));
+      takeDown.onclick = guarded({ title: "Take this answer down?", ok: "Take down", body: "Nobody sees it any more, and the person whose Claude wrote it hears it was not shared." },
+        () => Core.requestAct(li._x.id, "discard").then(() => flash("Taken down.")).catch(fail));
       bodyR.append(share, ask, sum, srcs, full, citedBy);
       li.append(head, bodyR);
       head.onclick = () => { const id = li._x.id; ui.resClosed.has(id) ? ui.resClosed.delete(id) : ui.resClosed.add(id); render(); };
       full.onclick = () => openReader(`${KIND_LABEL[li._x.kind] || "Research"} report`, `${li._x.skill}, ${li._q.id}: ${li._q.text}`, li._x.report, full);
-      li._k = { head, ttl, via, tm, bodyR, ask, sum, srcs, full, citedBy, share };
+      li._k = { head, ttl, via, tm, bodyR, ask, sum, srcs, full, citedBy, share, shareNote, discard, publish, takeDown };
       return li;
     }
     function fillRes(li, x, q) {
@@ -3907,8 +3915,16 @@
       li.classList.toggle("vf-res-own", !!x.own);
       k.via.textContent = `via ${x.skill}`;
       k.via.title = x.why || ""; // C37: why Claude routed it there
-      k.share.hidden = x.published !== false || !Core.me.isOwner;
-      li.classList.toggle("vf-res-draft", x.published === false);
+      // Every result waits for the owner's Share (PLAN.md Decisions, h2), a guest's own Claude's too: until then only
+      // the owner and, for their own Claude's answer, the requester see it.
+      const draft = x.published === false, owner = Core.me.isOwner, mine = x.own && isMe(x.byCid);
+      k.share.hidden = !(owner ? draft || x.own : draft && mine);
+      k.shareNote.textContent = !owner ? "Only you and the host see this until the host shares it."
+        : !draft ? `From ${disp(x.by || "someone")}'s own Claude. Everyone sees it.`
+        : x.own ? `Only you and ${disp(x.by || "the person who asked")} see this until you share it.` : "Only you see this until you share it.";
+      k.discard.hidden = k.publish.hidden = !(owner && draft);
+      k.takeDown.hidden = !(owner && !draft && x.own);
+      li.classList.toggle("vf-res-draft", draft);
       k.tm.textContent = ago(x.ts);
       k.head.setAttribute("aria-expanded", String(open));
       k.bodyR.hidden = !open;
@@ -4581,14 +4597,14 @@
       apSelf.hidden = Core.me.isOwner || mode === "propose";
       apSelf.setAttribute("aria-checked", String(!!ui.askSelf));
       apNote.textContent = mode === "propose" ? "It goes to Proposed. Claude places it when the round is sent, or says why not."
-        : own ? "Only you see this request. Your own Claude runs it; its answer shows on the question for everyone, marked as from your Claude."
+        : own ? "Only you see this request. Your own Claude runs it; the host reviews its answer before anyone else sees it."
         : "The host runs it; the result lands on the question's Claude thread. Your request text shows there for everyone.";
       const selfOpen = (S.myRequests || []).some(r => r.runner === "self" && (r.status === "pending" || r.status === "running"));
       apConnect.hidden = Core.me.isOwner || !(own || selfOpen);
       if (!apConnect.hidden) {
         const wp = Connect.watcherPrompt(sessionBase());
         for (const [a, kind] of [[apcCode, "code"], [apcDesk, "desktopCode"]]) { const href = Connect.link(kind, wp); a.hidden = !href; if (href) a.href = href; }
-        apcKey.hidden = !Core.watcherKey();
+        apcRevoke.hidden = !S.me?.watcher;
       }
       apSend.textContent = mode === "propose" ? "Propose" : "Send request";
       const ro = (!!S.ended && !Core.me.isOwner) || !!S.youRemoved;

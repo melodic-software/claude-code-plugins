@@ -192,7 +192,8 @@
       view.research[qid] = lst.map(x => {
         const r = x.request ? reqText.get(x.request) : null, by = x.by?.kind === "guest-claude" ? x.by.pid : r?.pid;
         return { id: x.id, kind: x.kind, summary: x.summary, sources: x.sources || [], report: x.report || "", ts: x.at, requestId: x.request || "",
-          skill: (x.used || []).map(u => u.name).join(", ") || "Claude", why: x.why || "", published: x.published !== false,
+          // A guest's own Claude names its own tools in `used`; the label never repeats them.
+          skill: x.by?.kind === "guest-claude" ? "their own Claude" : (x.used || []).map(u => u.name).join(", ") || "Claude", why: x.why || "", published: x.published !== false,
           own: x.by?.kind === "guest-claude", // the requester's own Claude answered it (Connect your Claude), not the host's
           ...(r ? { ask: r.text } : {}), ...(by ? { byCid: by, by: nameOf(by) } : {}) };
       });
@@ -396,8 +397,10 @@
     myClaim: id => act("/api/mine/requests/claim", { id }),
     myResult: (id, body) => act("/api/mine/requests/result", { id, ...body }),
     myFail: (id, reason) => act("/api/mine/requests/fail", { id, reason }),
-    /** My personal key, for my own Claude to watch my requests with; empty for the owner, whose token stays here. */
-    watcherKey: () => (ownerToken ? "" : secret),
+    /** A new watcher key for my own Claude (it replaces any earlier one); it reads and answers my own requests and
+     *  nothing else. My session secret never leaves this page. Resolves to the key. */
+    newWatcherKey: () => act("/api/watcher", {}).then(j => j.token),
+    revokeWatcher: () => act("/api/watcher/revoke", {}),
     later: (id, reason) => act("/api/proposal/act", { id, action: "later", reason }),
     /** Owner: edit | decline | fail | rerun one request, publish | discard a result; runRequests runs the given ids still pending. */
     requestAct: (id, action, text) => act("/api/request/act", { id, action, ...(text != null ? { text } : {}) }),

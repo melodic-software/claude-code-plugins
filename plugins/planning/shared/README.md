@@ -222,23 +222,46 @@ for a free-form selector an earlier build took.
 A guest can run a request on their own Claude instead of the host's (R2-12; Brief C18-C20): in
 Ask Claude, "Run it on my own Claude" sends `POST /api/request` with `runner: "self"`. Such a
 request never enters the owner's queue, never makes an event or a notification (a mention in it
-tells nobody), and is read, claimed, answered or failed only with its requester's own secret
-through `GET /api/mine/requests[?status=]` and `POST /api/mine/requests/{claim,result,fail}`
-(another person gets 404 `no-such-request`; one write a second per route). Its result is shown at
-once, to everyone, marked `by: guest-claude` ("Answer from Ann's own Claude"), and reaches the
-round's digest with `from: "guest-claude"`. Nobody else ever sees the request text.
+tells nobody), and is read, claimed, answered or failed only by its requester, with their secret
+or their watcher key, through `GET /api/mine/requests[?status=]` and
+`POST /api/mine/requests/{claim,result,fail}` (another person gets 404 `no-such-request`; one
+write a second per route). Its result, marked `by: guest-claude`, waits for the owner's Share
+like every result: until then only the requester ("Only you and the host see this until the
+host shares it") and the owner see it. The owner can also take a shared one down (`discard`);
+a removed guest's results leave every view and the digest. Shared, it shows as "Answer from
+Ann's own Claude", via "their own Claude" whatever tools it names in `used`, and reaches the
+round's digest with `from: "guest-claude"` (and `by` when `digestNames` is on). Nobody else
+ever sees the request text.
+
+Bounds (session.py, judgment): running self requests count toward `MAX_PENDING_REQUESTS`; one
+person's own Claude posts at most `MAX_MY_RESULTS` results on a question and
+`MAX_MY_ROUND_RESULTS` in a round, and at `MAX_RESULTS` across the session a new one is refused
+(409 `results-full`), never one dropped. A digest lists at most `MAX_DIGEST_RESULTS` results and
+`MAX_DIGEST_CHARS` summary characters; the rest are counted in `resultsMore` ("N more on the
+page").
+
+The **watcher key** is what a guest pastes into their own Claude, never their session secret:
+`POST /api/watcher` issues a random one (replacing any earlier one; `state.json` keeps its sha256
+under `credentials.watchers`), `POST /api/watcher/revoke` ends it, and the snapshot's
+`me.watcher` says whether one exists. Sent as `X-Watcher-Key`, it works only on the four
+`/api/mine/requests` routes, for its person's own requests; every other route answers it 401,
+as it does a key sent as `X-Session-Secret`. Removing a person stops it; merging drops it.
 
 `web/connect.js` builds everything surface-specific; the server knows only `runner: self`:
 
 - **Watcher** (Claude Code, or Claude Desktop's Code tab): a prompt that polls the guest's pending
   requests at the address they opened the page on, claims each, and posts the answer. It holds no
-  secret; Claude asks for the key, which the guest copies with "Copy my key".
+  key; Claude asks for the watcher key, which the guest copies with "Copy watcher key" and ends
+  with "Revoke watcher key".
 - **One request** (any Claude, including Desktop chat and claude.ai on the web): "Copy prompt" (or
   "Open in Claude Desktop"), then "Paste answer"; trailing `Title - https://...` lines become
   sources.
 - Both prompts frame the session's text as data with the untrusted-content spine
-  (`docs/conventions/untrusted-content/README.md` in the marketplace repository) and quote it
-  between `--- SESSION DATA ---` markers that the quoted text cannot close.
+  (`docs/conventions/untrusted-content/README.md` in the marketplace repository). The one-request
+  prompt quotes it between `--- SESSION DATA <marker> ---` lines whose random marker is new per
+  prompt and named in the framing line; the quoted text is NFKC-normalized with format
+  characters dropped, and anything shaped like a SESSION DATA marker (dashes, spacing,
+  underscores or look-alike letters aside) becomes `[marker removed]`.
 - Links use only `claude-cli://open?q=`, `claude://code/new?q=` and `claude://claude.ai/new?q=`,
   the prompt through `encodeURIComponent`. A link longer than its surface's limit is not offered;
   copying still works. Each prefills the prompt and sends nothing until the guest presses Enter.
@@ -340,6 +363,7 @@ Where each token can be seen:
 |---|---|
 | Owner token | `.shared-secrets.json` and `.owner-link` (0600); for an imported session, `state.v0.json` (0600) and the prototype's own state file; for 30 s after `--open`, the `.owner-open-<hex>.html` page (0600) the browser is handed, whose path, not the token, is on the opener's command line; the owner's browser (the link's fragment, never sent to the server, and its history; the tab's `sessionStorage` once a page took it out of the address bar); the transcript when the owner asks for `url --owner` |
 | Guest secret | The guest's browser storage and personal link (`#me=` fragment); for an imported session, `state.v0.json` (0600); the `X-Session-Secret` header, which Cloudflare's edge sees because the tunnel terminates TLS there |
+| Watcher key | The guest's clipboard and their own Claude's context, where they paste it; the `X-Watcher-Key` header, which Cloudflare's edge sees. It reads and answers only that guest's own self requests |
 | Control token | `.shared-secrets.json`, `.shared-session.json`, `.shared-session.env` (0600); the `curl` command line `watch.sh` runs (the generated session-bridge watcher puts the header on argv). A command line is readable by other local users on Linux without `hidepid` and on macOS, not only by the same user; moving that token off argv is tracked in #7693 |
 
 Neither token is on the server's command line: the server reads both from the secrets file.
@@ -391,8 +415,11 @@ bash plugins/planning/shared/tests/align.test.sh
 
 `ui_connect.js` checks Connect your Claude for a desktop guest and a 390x844 phone guest: the
 watcher and Desktop chat links and their decoded prompts, Copy prompt, Paste answer, the answer
-marked as the guest's own Claude, a watcher's round trip with the guest's key, and that the owner
-and another guest never see the request and another key cannot answer it.
+marked as the guest's own Claude and held for the owner's Share, a watcher's round trip with a
+watcher key and its revoke, the owner taking a shared answer down, that the owner and another
+guest never see the request and another key cannot answer it, and that on the phone every Connect
+control lies inside the viewport. Before the browsers it checks the one-request prompt's data
+block against look-alike end markers.
 
 `ui_proto.js` checks the prototype page on a desktop and a 390x844 phone in separate browser
 contexts: the preview tile and its link, the variant switcher, Annotate, a note pinned to an
@@ -400,7 +427,8 @@ element of an html variant and to a spot of a picture, the notes in the Claude t
 digest, the variant's sandbox, and a forged pin message being ignored.
 
 `ui_layout.js` checks no page scroll at five sizes and 200% zoom in both themes, 44 px phone
-targets, the answer box right under the question, a guest's first view (goal, the host's ask,
+targets, no sideways scroll in Ask Claude on a phone with "Run it on my own Claude" on, the
+answer box right under the question, a guest's first view (goal, the host's ask,
 "Start here: question 1"), the ten person colors against WCAG 2.2 AA, and the phone edit sheet.
 `ui_keyboard.js` checks focus traps, Escape, focus return, announcements and the first-visit tour
 (the `tour` pref). `ui_inputs.js` types 2000 characters and pastes a 300-character word into each

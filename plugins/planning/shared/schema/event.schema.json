@@ -212,10 +212,12 @@
               "id": {"type": "string"},
               "kind": {"type": "string"},
               "summary": {"type": "string", "maxLength": 4000},
-              "from": {"type": "string", "enum": ["guest-claude"], "description": "A guest's own Claude wrote it (runner: self), not this session; absent when this session did."}
+              "from": {"type": "string", "enum": ["guest-claude"], "description": "A guest's own Claude wrote it (runner: self), not this session; absent when this session did."},
+              "by": {"$ref": "#/$defs/by", "description": "With from: guest-claude and digestNames on, the guest whose Claude wrote it."}
             }
           }
         },
+        "resultsMore": {"type": "string", "description": "\"N more on the page\": results past the digest's count or character budget. Absent when every one is listed."},
         "proposals": {
           "type": "array",
           "items": {

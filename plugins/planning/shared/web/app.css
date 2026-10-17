@@ -432,6 +432,7 @@
 /* a result only the owner sees until they share it */
 .app .vf-res-share { align-items: center; margin-block-end: 8px; }
 .app .vf-res-share[hidden] { display: none; }
+.app .vf-res-share > .vf-meta { white-space: normal; min-inline-size: 0; flex: 1 1 12em; }
 .app .vf-res-draft { border-inline-start: 2px dashed var(--brass); }
 
 /* composer */
@@ -1509,12 +1510,14 @@
 .app .vf-apscroll > .vf-pop-sub { margin-block-start: 8px; }
 /* Connect your Claude (R2-12) */
 .app .vf-apself { padding-inline: 0; }
-.app .vf-apconnect { display: grid; gap: 6px; padding-block-end: 10px; border-block-end: 1px solid var(--line); }
+.app .vf-apconnect { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding-block-end: 10px; border-block-end: 1px solid var(--line); }
+/* .vf-meta is one line elsewhere; these are sentences, and one unwrapped line made the Ask panel 912 px wide on a phone */
 .app .vf-apconnect .vf-pop-note, .app .vf-apconnect .vf-meta { margin: 0; }
+.app :is(.vf-apconnect, .vf-selfform) .vf-meta { white-space: normal; }
 .app .vf-apc-links { margin: 0; }
-.app .vf-selfacts { display: grid; gap: 6px; }
+.app .vf-selfacts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .app .vf-selfacts .vf-acts { margin: 0; }
-.app .vf-selfform { display: grid; gap: 6px; }
+.app .vf-selfform { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .app .vf-selfform .vf-meta { margin: 0; }
 .app .vf-res-own { border-inline-start: 2px solid var(--accent); }
 @media (prefers-reduced-motion: no-preference) {
