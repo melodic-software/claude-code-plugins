@@ -11,7 +11,8 @@
 // an iOS keyboard of 300 to 600 px at 390x844 and 260 to 430 px at 375x667, Ask Claude shows the label, the field's
 // first 3 lines and Send request (or Propose) uncovered above it, Ask with the sheet at its top, and it scrolls down
 // to "Your requests"; at 320, 375, 390 and 430 px wide the page never scrolls sideways, in the default
-// view, with the chat open, or in Ask Claude with the keyboard up.
+// view, with the chat open, or in Ask Claude with the keyboard up, and at 320 nothing in Ask Claude is clipped sideways.
+// Pinch-zoomed to 1.5, 2 and 3, the page still reads an iOS keyboard as one, and the zoom alone as none.
 //   node plugins/planning/shared/tests/ui_layout.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the layout requirements of the polish plan (the sizes, the 1 px tolerance, 44x44 CSS px
@@ -34,10 +35,19 @@ const q = (id, text, format) => ({ id, text, alternatives: [], dependsOn: [], pu
 // and scroll only once the pan stops (https://bugs.webkit.org/show_bug.cgi?id=218465); a resize handler can read
 // offsetTop 0 that reads right a moment later (https://bugs.webkit.org/show_bug.cgi?id=237851), which `stale` makes
 // the last event; `pan` sets the pan outright. KB (336 px, by judgment from an iPhone 13 with the suggestion bar) is the
-// default keyboard height.
+// default keyboard height. `scale` pinch-zooms the page first, as WebKit reports it: visualViewport.scale is the zoom,
+// its width and height shrink by it (the keyboard's screen height too), and so do innerWidth and innerHeight, which
+// WebKit keeps on the visual viewport (https://bugs.webkit.org/show_bug.cgi?id=174362); closing undoes the zoom.
 const KB = 336;
-const keyboard = (page, up, { kb = KB, stale = false, pan: setPan = null } = {}) => page.evaluate(async ([up, kb, stale, setPan]) => {
-  const vv = window.visualViewport, ih = innerHeight, h0 = vv.height, top0 = vv.offsetTop, h1 = up ? ih - kb : ih;
+const keyboard = (page, up, { kb = KB, stale = false, pan: setPan = null, scale = 1 } = {}) => page.evaluate(async ([up, kb, stale, setPan, scale]) => {
+  const vv = window.visualViewport, lift = (o, k, v) => Object.defineProperty(o, k, { configurable: true, get: () => v });
+  if (window.vvZoomed) { for (const [k, d] of Object.entries(window.vvZoomed)) Object.defineProperty(window, k, d); delete window.vvZoomed; delete vv.width; delete vv.scale; }
+  if (up && scale !== 1) {
+    window.vvZoomed = Object.fromEntries(["innerWidth", "innerHeight"].map(k => [k, Object.getOwnPropertyDescriptor(window, k) || Object.getOwnPropertyDescriptor(Window.prototype, k)]));
+    for (const [k, v] of [["innerWidth", innerWidth / scale], ["innerHeight", innerHeight / scale]]) lift(window, k, v);
+    lift(vv, "width", innerWidth); lift(vv, "scale", scale);
+  }
+  const ih = innerHeight, h0 = vv.height, top0 = vv.offsetTop, h1 = up ? ih - kb / scale : ih;
   const set = (h, top) => { for (const [k, v] of [["height", h], ["offsetTop", top]]) Object.defineProperty(vv, k, { configurable: true, get: () => v }); };
   let pan = 0;
   const f = document.activeElement;
@@ -58,7 +68,7 @@ const keyboard = (page, up, { kb = KB, stale = false, pan: setPan = null } = {})
   await new Promise(r => setTimeout(r, 100));
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   return pan;
-}, [up, kb, stale, setPan]);
+}, [up, kb, stale, setPan, scale]);
 /** What a person sees of the focused sheet's field: the label, the field's first 3 lines and its primary button must
  *  each be the topmost element at their sample points, inside the visual viewport, and the button's whole box inside
  *  it. Resolves to the problems found. */
@@ -353,9 +363,41 @@ async function main() {
       await until(p, () => !!document.querySelector(".vf-drawer:not([hidden])")); await settle(p);
       await p.locator("#vf-ap-ta").tap(); await keyboard(p, true);
       bad.push(...(await side(".vf-drawer")).map(x => `Ask Claude, keyboard up: ${x}`));
-      ok(`${w}x844: no horizontal overflow in the default view, with the chat open, or in Ask Claude with the keyboard up`, bad.length === 0, bad.join("; "));
+      // .vf-apscroll hides its sideways overflow, so `sideScroll` passes it over: compare its widths outright, with
+      // "Run it on my own Claude" on too, since that panel is the widest thing in it.
+      const clip = async when => { const e = await p.evaluate(() => { const a = document.querySelector(".vf-apscroll"); return [a.scrollWidth, a.clientWidth]; }); if (e[0] > e[1] + TOL) bad.push(`Ask Claude${when}: .vf-apscroll content ${e[0]} clipped in ${e[1]}`); };
+      if (w === 320) {
+        await clip(", keyboard up");
+        await keyboard(p, false); await p.click(".vf-apself");
+        await until(p, () => !document.querySelector(".vf-apconnect").hidden); await settle(p);
+        await clip(" with \"Run it on my own Claude\" on");
+      }
+      ok(`${w}x844: no horizontal overflow in the default view, with the chat open, or in Ask Claude with the keyboard up${w === 320 ? ", nothing in Ask Claude clipped sideways" : ""}`, bad.length === 0, bad.join("; "));
       await p.context().close();
     }
+
+    // ---------- dogfood: a pinch-zoomed phone still knows its keyboard is up, and a zoom alone is no keyboard ----------
+    // Expected: --kb is the keyboard's screen height the helper models (KB, 1 px for rounding); a zoom with no keyboard
+    // leaves --kb 0 and no data-kb.
+    const zp = await rec.open(A.localUrl, { context: PHONE });
+    await joinAs(zp, "Zoe");
+    await zp.evaluate(() => document.querySelector(".vf-fab").click());
+    await until(zp, () => !document.querySelector(".vf-chat").hidden); await settle(zp);
+    await zp.locator(".vf-minput").tap();
+    const kbNow = () => zp.evaluate(() => ({ kb: parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--kb")), flagged: "kb" in document.documentElement.dataset }));
+    const zoomed = [];
+    for (const scale of [1.5, 2, 3]) {
+      await keyboard(zp, true, { scale });
+      const up = await kbNow();
+      if (!up.flagged || Math.abs(up.kb - KB) > 1) zoomed.push(`zoom ${scale}, keyboard ${KB}: --kb ${up.kb}, data-kb ${up.flagged ? "set" : "unset"}`);
+      await keyboard(zp, false);
+      await keyboard(zp, true, { scale, kb: 0 });
+      const none = await kbNow();
+      if (none.flagged || none.kb !== 0) zoomed.push(`zoom ${scale}, no keyboard: --kb ${none.kb}, data-kb ${none.flagged ? "set" : "unset"}`);
+      await keyboard(zp, false);
+    }
+    ok(`390x844 pinch-zoomed to 1.5, 2 and 3: a ${KB} px keyboard reads as ${KB} px, the zoom alone as none`, zoomed.length === 0, zoomed.join("; "));
+    await zp.context().close();
 
     // ---------- the composer directly under the question ----------
     for (const [page, label] of [[pia, "390x844"], [await (async () => { const d = await rec.open(A.localUrl, { context: { viewport: { width: 1440, height: 900 } } }); await joinAs(d, "Dee"); return d; })(), "1440x900"]]) {

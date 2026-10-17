@@ -883,12 +883,15 @@
   // from the bottom instead of covering the focused field, and the page never pans. --kb is the keyboard's height:
   // what it takes from the layout viewport, whose innerHeight a keyboard leaves alone while it shrinks the visual
   // viewport (https://developer.mozilla.org/en-US/docs/Web/API/VisualViewport). The pan iOS adds to reveal the field
-  // moves offsetTop, not the height, so it never counts against the keyboard; times scale, so a pinch-zoom is not one.
+  // moves offsetTop, not the height, so it never counts against the keyboard. Pinch-zoomed, WebKit shrinks innerWidth
+  // and innerHeight with the visual viewport (https://bugs.webkit.org/show_bug.cgi?id=174362) where Chromium keeps
+  // them, but in both the full height for the visual viewport's width is vv.width * innerHeight / innerWidth; what the
+  // keyboard takes of it, times scale, is its height on screen, and a zoom alone takes nothing.
   // Fires "core-viewport" on window once the app is refitted.
   const vv = window.visualViewport, docEl = document.documentElement;
   function fitViewport() {
-    if (!vv) return;
-    const kb = Math.max(0, Math.round(window.innerHeight - vv.height * vv.scale));
+    if (!vv || !window.innerWidth) return;
+    const kb = Math.max(0, Math.round(vv.scale * (vv.width * window.innerHeight / window.innerWidth - vv.height)));
     docEl.style.setProperty("--vv-top", vv.offsetTop + "px");
     docEl.style.setProperty("--vv-h", vv.height + "px");
     docEl.style.setProperty("--kb", kb + "px");
