@@ -50,7 +50,8 @@ if ! declare -F read_list::into >/dev/null 2>&1; then
   . "${BASH_SOURCE[0]%/*}/read-list.sh"
 fi
 
-CF_LIST="scripts/fragment-plugins.txt"
+# A caller running another checkout's code may point CF_LIST at its own copy.
+CF_LIST="${CF_LIST:-scripts/fragment-plugins.txt}"
 CF_RELEASE_BRANCH="release/plugins"
 CF_SECTIONS="Added Changed Deprecated Removed Fixed Security"
 CF_EM_DASH_LIST="scripts/em-dash-purged-paths.txt"
