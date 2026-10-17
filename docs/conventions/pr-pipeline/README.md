@@ -566,6 +566,12 @@ other artifact with such a name is ignored. At the pull request's vetted head:
   model's spec text holds only what such accounts wrote;
 - no counted verdict refuses (`verify:missing`).
 
+The trusted-spec rule trusts an account, not a person. An agent session that uses an owner's `gh`
+login posts as that owner, so until agent sessions have their own GitHub identity, an issue or an
+admission marker from a trusted account counts as the owner's authority, including when an agent
+acting as that account wrote it. Unattended merge stays off (`merge.report-only: true`) until that
+identity exists (#7709 item 10).
+
 `verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and `verify:untrusted-spec` need a
 human, who clears them
 by merging in person: the verdict is not a check run and stays out of `ci-status` and the required
