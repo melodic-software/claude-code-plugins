@@ -1833,18 +1833,23 @@ class Session:
 
     def set_purpose(self, pid, body):
         """POST /api/question/purpose: the owner overrides the purpose Claude inferred."""
-        purpose = _choice(body, "purpose", PURPOSES)
-        with self._tx() as st:
+        _choice(body, "purpose", PURPOSES)
+        with self._tx():
             self._owner(pid)
-            q = self._question(body.get("qid"))
-            if purpose == "poll" and q["format"]["kind"] == "text":
-                raise _bad("purpose", "A poll needs options; this is a text question.")
-            if purpose == "gather" and q["id"] in st["locks"]:
-                raise DomainError(409, "locked", "Unlock the question before making it a gather question.")
-            if (purpose == "poll") != (q["purpose"] == "poll") and q["id"] in st["locks"]:
-                raise DomainError(409, "locked", "Unlock the question before making it a poll or no longer a poll.")
-            q["purpose"] = purpose
-            return {"purpose": purpose}
+            return {"purpose": self._set_purpose(body)["purpose"]}
+
+    def _set_purpose(self, body):
+        """The one purpose change behind the owner route and Claude's set-purpose op."""
+        purpose = _choice(body, "purpose", PURPOSES)
+        q = self._question(body.get("qid"))
+        if purpose == "poll" and q["format"]["kind"] == "text":
+            raise _bad("purpose", "A poll needs options; this is a text question.")
+        if purpose == "gather" and q["id"] in self.state["locks"]:
+            raise DomainError(409, "locked", "Unlock the question before making it a gather question.")
+        if (purpose == "poll") != (q["purpose"] == "poll") and q["id"] in self.state["locks"]:
+            raise DomainError(409, "locked", "Unlock the question before making it a poll or no longer a poll.")
+        q["purpose"] = purpose
+        return {"qid": q["id"], "purpose": purpose}
 
     def edit_reference(self, pid, body):
         """POST /api/question/reference: `{qid, reference}` adds one, `{qid, remove: i}` removes one."""
@@ -3982,6 +3987,9 @@ class Session:
 
     def _op_remove_reference(self, op):
         return self._edit_reference({"qid": op["qid"], "remove": op["index"]})
+
+    def _op_set_purpose(self, op):
+        return self._set_purpose(op)
 
     def _op_add_asset(self, op):
         """Copy a local image or HTML file into assets/ under its content id; usable from the next apply."""

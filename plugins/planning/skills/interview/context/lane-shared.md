@@ -128,6 +128,7 @@ against `<plugin-root>/shared/schema/ops.schema.json` before any lands, and all 
 | `result` | `qid`, `request`, `kind`, `used`, `why`, `summary`, `sources`, `report` | Attach a request's result |
 | `fail-request` | `request`, `reason` | A request that cannot be done |
 | `add-reference`, `remove-reference` | `qid`, `reference` / `index` | A screenshot, diagram, quoted excerpt or link on a question |
+| `set-purpose` | `qid`, `purpose` | Correct a question's purpose (`decide`, `gather`, `poll`) that no longer fits it |
 | `add-asset` | `path`, `as`, `scale` | Copy an image or HTML file from the data dir (save captures in `<data_dir>/staging/`) into the session; returns its id |
 | `make-question-from` | `proposal`, `question` | The owner asked in the terminal to turn a proposal into a question |
 | `handle` | `seqs` | Mark events handled |

@@ -2575,6 +2575,32 @@ class TestApply(SessionCase):
         self.apply({"op": "remove-reference", "qid": "Q1", "index": 0})
         self.assertEqual(self.question("Q1")["references"], [])
 
+    def test_set_purpose_op_changes_the_purpose_and_names_it(self):
+        self.open_round(text_q("Q1"), choice_q("Q2", purpose="decide"))
+        out = self.apply({"op": "set-purpose", "qid": "Q1", "purpose": "gather"}, {"op": "set-purpose", "qid": "Q2", "purpose": "poll"})
+        self.assertEqual(out["results"], [{"qid": "Q1", "purpose": "gather"}, {"qid": "Q2", "purpose": "poll"}])
+        self.assertEqual((self.question("Q1")["purpose"], self.question("Q2")["purpose"]), ("gather", "poll"))
+
+    def test_set_purpose_op_refuses_gather_on_a_locked_question_like_the_owner_route(self):
+        self.open_round(text_q("Q1"))
+        self.act("lock", HOST, {"qid": "Q1", "card": "c:rec"})
+        before = copy_state(self.s)
+        err = self.refused_ops("locked", {"op": "set-title", "title": "Changed"}, {"op": "set-purpose", "qid": "Q1", "purpose": "gather"})
+        self.assertEqual((err.http, err.details["op"]), (409, 1))
+        self.assertEqual(self.s.state, before)
+        self.refused("locked", "set_purpose", HOST, {"qid": "Q1", "purpose": "gather"}, http=409)
+
+    def test_set_purpose_op_refuses_poll_on_a_text_question_like_the_owner_route(self):
+        self.open_round(text_q("Q1"))
+        err = self.refused_ops("bad-field", {"op": "set-purpose", "qid": "Q1", "purpose": "poll"})
+        self.assertEqual(err.details["field"], "purpose")
+        self.assertEqual(self.question("Q1")["purpose"], "decide")
+        self.assertEqual(self.refused("bad-field", "set_purpose", HOST, {"qid": "Q1", "purpose": "poll"}).details["field"], "purpose")
+
+    def test_the_ops_schema_takes_set_purpose_only_with_a_known_purpose(self):
+        self.assertIsNone(session.ops_error({"ops": [{"op": "set-purpose", "qid": "Q1", "purpose": "poll"}]}))
+        self.assertIsNotNone(session.ops_error({"ops": [{"op": "set-purpose", "qid": "Q1", "purpose": "vote"}]}))
+
     def test_the_phase_one_ops_samples_parse(self):
         for name in ("ops-open-round.json", "ops-result.json", "ops-handle.json"):
             self.assertIsNone(session.ops_error(json.loads((FIXTURES / name).read_text(encoding="utf-8"))), name)
