@@ -128,6 +128,28 @@
       "files": [
         "evals/fixtures/x-status-goldens.json"
       ]
+    },
+    {
+      "id": 11,
+      "name": "library-dir-reaches-pipeline",
+      "prompt": "With the Configured options table in SKILL.md showing library_dir as my-library, run /knowledge:video-digest transcript https://www.youtube.com/watch?v=7zZy1QTvokM",
+      "expected_output": "Reads the rendered library_dir value from SKILL.md's Configured options table, passes it as a leading --work-root flag on the run.mjs invocation, and writes the slice under that work root.",
+      "expectations": [
+        "Takes library_dir from the Configured options table in SKILL.md, not from a ${user_config.*} token in a spoke",
+        "Passes --work-root \"${CLAUDE_PROJECT_DIR}/my-library\" as a leading flag on run.mjs, after --data-dir",
+        "Writes .work/<watch-epic>/<video-slug>/transcript.txt under the my-library work root, not the repo root"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "watch-stops-without-node-deps",
+      "prompt": "The pre-computed context shows 'video-extraction deps: MISSING' and setup-deps.mjs fails. Run /knowledge:video-digest watch https://www.youtube.com/watch?v=7zZy1QTvokM",
+      "expected_output": "Stops at the Bootstrap prerequisites gate, reports setup-deps.mjs's failure text, and writes no slice artifacts.",
+      "expectations": [
+        "Stops at the Bootstrap prerequisites gate and reports setup-deps.mjs's failure text",
+        "Does not hand-run yt-dlp, ffmpeg or ImageMagick in place of the node pipeline",
+        "Writes no slice artifacts (no .work/<watch-epic>/<video-slug>/ files)"
+      ]
     }
   ]
 }

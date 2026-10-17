@@ -80,7 +80,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.fill("#note", "scratch"); await page.click("[data-clear]");
     ok("Clear empties the note and disables itself", (await page.inputValue("#note")) === "" && await page.$eval("[data-clear]", b => b.disabled));
     await page.request.get(base + "api/wait?after=0&timeout=2", {headers: {"X-Interview-Token": await token()}}); await page.waitForTimeout(900);
-    ok("the Claude line reads Claude is working on", /^Claude is working on Q\d/.test(await text("#claudeLine")), await text("#claudeLine"));
+    ok("the working line reads Claude is working on", /^Claude is working on Q\d/.test(await text("#workLine")), await text("#workLine"));
     ok("an unanswered ask shows the Waiting for Claude's reply chip on Q4", /Waiting for Claude's reply/.test(await text('.qbtn[data-q="Q4"]')), await text('.qbtn[data-q="Q4"]'));
     await pick("Q4"); await arm("a"); await tap("[data-save]", 300);
     const nb = (await events()).length;
@@ -128,6 +128,35 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("Q3's rail row reads Pending research with its own color", /Pending research: the retry benchmark/.test(await text(q3 + " .chip.s-wait")) && await page.$eval(q3, el => el.classList.contains("st-wait")), await text(q3));
     ok("the header counts 1 pending research and Q3 not answered", (await text("#pendBtn")) === "1 pending research" && (await text("#meterText")) === "2 of 5 answered", (await text("#pendBtn")) + " / " + await text("#meterText"));
     ok("the Claude line shows the status with its age", /^Researching the retry benchmark for Q3/.test(await text("#claudeLine")) && await page.$eval("#claudeLine .age", el => el.getAttribute("aria-hidden") === "true" && /ago|just now/.test(el.textContent)), await text("#claudeLine"));
+    // A second tab whose state carries a status and two delivered, unhandled asks; with no EventSource it polls /api/state, which the route answers.
+    const kept = await page.evaluate(() => JSON.stringify(localStorage)), tab = await page.context().newPage(), tabErrors = [];
+    tab.on("pageerror", e => tabErrors.push(String(e)));
+    const t0 = Date.now(), iso = ms => new Date(t0 + ms).toISOString();
+    let status = {text: "Checking the cache key", at: iso(-120000)}; // before both asks
+    await tab.addInitScript(() => { window.EventSource = undefined; });
+    await tab.route(base + "api/state", async route => {
+      const res = await route.fetch(), s = await res.json(), ev = s.responses.events || [], n = Math.max(0, ...ev.map(e => e.seq));
+      s.responses.events = [...ev, {seq: n + 1, id: "Q99", kind: "ask", text: "Which shell?", at: iso(-60000), deliveredAt: iso(-50000)},
+        {seq: n + 2, id: "Q1", kind: "ask", text: "Which branch?", at: iso(-30000), deliveredAt: iso(-20000)}];
+      if (status) s.questions.status = status; else delete s.questions.status;
+      await route.fulfill({response: res, json: s});
+    });
+    const head = () => tab.evaluate(() => { const w = document.getElementById("workLine"), c = document.getElementById("claudeLine"); return {work: w.hidden ? null : w.textContent, live: w.getAttribute("aria-live"), apart: !c.contains(w), line: c.hidden ? null : document.getElementById("clText").textContent, age: document.getElementById("clAge").textContent, old: c.classList.contains("old")}; });
+    const lineIs = t => tab.waitForFunction(t => document.getElementById("clText").textContent === t, t, {timeout: 8000}).then(() => true).catch(() => false);
+    await tab.goto(base); await lineIs(status.text);
+    const h1 = await head();
+    ok("with a status and two unhandled events the header shows the status with its age and, in its own polite live region, Claude is working on Q99, Q1", h1.line === "Checking the cache key" && h1.age === "2 min ago" && h1.work === "Claude is working on Q99, Q1" && h1.live === "polite" && h1.apart, JSON.stringify(h1));
+    ok("a status set before the newest unhandled event is dimmed", h1.old, JSON.stringify(h1));
+    status = {text: "Checked the cache key", at: iso(0)}; // after both asks
+    const h2 = await lineIs(status.text) ? await head() : {};
+    ok("a status set after the newest unhandled event is not dimmed", h2.line === "Checked the cache key" && h2.old === false && h2.work === "Claude is working on Q99, Q1", JSON.stringify(h2));
+    status = null;
+    await tab.waitForFunction(() => document.getElementById("claudeLine").hidden || document.getElementById("clText").textContent !== "Checked the cache key", null, {timeout: 8000}).catch(() => {});
+    const h3 = await head();
+    ok("clearing the status leaves the working line unchanged", h3.line !== "Checked the cache key" && h3.work === "Claude is working on Q99, Q1", JSON.stringify(h3));
+    await tab.close();
+    await page.evaluate(s => { localStorage.clear(); for (const [k, v] of Object.entries(JSON.parse(s))) localStorage.setItem(k, v); }, kept);
+    ok("the second tab raised no page errors", tabErrors.length === 0, tabErrors.join(" | "));
     ok("a held question's commitments leave the to-confirm count", (await text("#assumeCount")) === "3 to confirm", await text("#assumeCount"));
     const f0 = await page.$eval("#filter", el => el.value);
     await page.selectOption("#filter", "open"); await page.waitForTimeout(200);

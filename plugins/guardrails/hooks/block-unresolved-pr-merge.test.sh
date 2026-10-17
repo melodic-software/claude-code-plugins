@@ -140,6 +140,22 @@ J
   failed-cancelled-skipped) echo '{"total_count":3,"check_runs":[{"id":900,"name":"test","app":{"id":15368},"status":"completed","conclusion":"failure","started_at":"2026-10-14T09:50:00Z","completed_at":"2026-10-14T09:55:00Z"},{"id":901,"name":"test","app":{"id":15368},"status":"completed","conclusion":"cancelled","started_at":"2026-10-14T10:00:00Z","completed_at":"2026-10-14T10:01:00Z"},{"id":902,"name":"test","app":{"id":15368},"status":"completed","conclusion":"skipped","started_at":"2026-10-14T10:20:00Z","completed_at":"2026-10-14T10:20:00Z"}]}' >"$FIX/checks.json" ;;
   # An older success, then a newer run that was cancelled.
   newer-cancelled) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test","app":{"id":15368},"status":"completed","conclusion":"success","started_at":"2026-10-14T10:00:00Z","completed_at":"2026-10-14T10:10:00Z"},{"id":902,"name":"test","app":{"id":15368},"status":"completed","conclusion":"cancelled","started_at":"2026-10-14T10:20:00Z","completed_at":"2026-10-14T10:21:00Z"}]}' >"$FIX/checks.json" ;;
+  # Matrix jobs cancelled before expanding (bare names), then the newer run's legs.
+  matrix-cancelled-then-legs) echo '{"total_count":4,"check_runs":[{"id":901,"name":"test-bash","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":902,"name":"test-python","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":903,"name":"test-bash (0)","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"success"},{"id":904,"name":"test-python (0)","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
+  matrix-cancelled-then-leg-fails) echo '{"total_count":3,"check_runs":[{"id":901,"name":"test-bash","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":903,"name":"test-bash (0)","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"success"},{"id":904,"name":"test-bash (1)","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"failure"}]}' >"$FIX/checks.json" ;;
+  # Runs that must not clear a cancelled bare run.
+  matrix-leg-older) echo '{"total_count":2,"check_runs":[{"id":903,"name":"test-bash (0)","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"success"},{"id":905,"name":"test-bash","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"cancelled"}]}' >"$FIX/checks.json" ;;
+  matrix-leg-other-app) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test-bash","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":903,"name":"test-bash (0)","app":{"id":999},"check_suite":{"id":2},"status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
+  matrix-leg-cancelled) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test-bash","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":903,"name":"test-bash (0)","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"cancelled"}]}' >"$FIX/checks.json" ;;
+  matrix-other-name) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test-bash","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":903,"name":"test-bash-node","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
+  # The pr-merge lane's own `merge` job pending on the head, alone or beside a
+  # real pending check, and a `merge` check from another app.
+  merge-lane-pending) echo '{"total_count":2,"check_runs":[{"id":901,"name":"build","app":{"id":15368,"slug":"github-actions"},"status":"completed","conclusion":"success"},{"id":902,"name":"merge","app":{"id":15368,"slug":"github-actions"},"status":"pending","conclusion":null}]}' >"$FIX/checks.json" ;;
+  merge-lane-and-build-pending) echo '{"total_count":2,"check_runs":[{"id":901,"name":"build","app":{"id":15368,"slug":"github-actions"},"status":"in_progress","conclusion":null},{"id":902,"name":"merge","app":{"id":15368,"slug":"github-actions"},"status":"pending","conclusion":null}]}' >"$FIX/checks.json" ;;
+  merge-other-app-pending) echo '{"total_count":1,"check_runs":[{"id":902,"name":"merge","app":{"id":999,"slug":"other-ci"},"status":"pending","conclusion":null}]}' >"$FIX/checks.json" ;;
+  matrix-failed-then-leg) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"failure"},{"id":903,"name":"test (0)","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
+  matrix-leg-skipped) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":903,"name":"test (0)","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"skipped"}]}' >"$FIX/checks.json" ;;
+  matrix-same-suite-sibling) echo '{"total_count":2,"check_runs":[{"id":901,"name":"build","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":902,"name":"build (arm64)","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
   *) return 1 ;;
   esac
   case "$4" in
@@ -280,6 +296,46 @@ assert_contains "blocks naming test" "$ERR" "Failing checks: test"
 scenario none none newer-cancelled green
 run "a newest cancelled run still blocks" 'gh pr merge 42 --squash' 2
 assert_contains "names the cancelled check" "$ERR" "Failing checks: test"
+scenario none none matrix-cancelled-then-legs green
+run "a cancelled matrix job is superseded by its newer legs" 'gh pr merge 42 --squash' 0
+assert_eq "matrix cancelled then legs -> no stderr" "" "$ERR"
+scenario none none matrix-cancelled-then-leg-fails green
+run "a failing leg still blocks after its cancelled matrix job" 'gh pr merge 42 --squash' 2
+assert_eq "names only the failing leg" "Failing checks: test-bash (1)" "$(grep 'Failing checks:' <<<"$ERR")"
+scenario none none matrix-leg-older green
+run "a leg older than the cancelled run does not clear it" 'gh pr merge 42 --squash' 2
+assert_eq "older leg -> names the bare run" "Failing checks: test-bash" "$(grep 'Failing checks:' <<<"$ERR")"
+scenario none none matrix-leg-other-app green
+run "a leg from another app does not clear a cancelled run" 'gh pr merge 42 --squash' 2
+assert_eq "other-app leg -> names the bare run" "Failing checks: test-bash" "$(grep 'Failing checks:' <<<"$ERR")"
+scenario none none matrix-leg-cancelled green
+run "a cancelled leg still blocks" 'gh pr merge 42 --squash' 2
+assert_contains "cancelled leg -> names the leg" "$ERR" "test-bash (0)"
+scenario none none matrix-other-name green
+run "a newer run not named <name> (...) does not clear a cancelled run" 'gh pr merge 42 --squash' 2
+assert_eq "other name -> names the bare run" "Failing checks: test-bash" "$(grep 'Failing checks:' <<<"$ERR")"
+scenario none none matrix-failed-then-leg green
+run "a newer leg does not clear a failed bare run" 'gh pr merge 42 --squash' 2
+assert_eq "failed bare run -> names it" "Failing checks: test" "$(grep 'Failing checks:' <<<"$ERR")"
+scenario none none matrix-leg-skipped green
+run "a skipped leg does not clear a cancelled bare run" 'gh pr merge 42 --squash' 2
+assert_eq "skipped leg -> names the bare run" "Failing checks: test" "$(grep 'Failing checks:' <<<"$ERR")"
+scenario none none matrix-same-suite-sibling green
+run "a same-suite sibling does not clear a cancelled run" 'gh pr merge 42 --squash' 2
+assert_eq "same-suite sibling -> names the bare run" "Failing checks: build" "$(grep 'Failing checks:' <<<"$ERR")"
+# The pr-merge lane's `merge` job is the merger, not a gate on the PR.
+scenario none none merge-lane-pending green
+run "the merge lane's own pending check does not block" 'gh pr merge 42 --squash' 0
+assert_eq "merge lane pending -> no stderr" "" "$ERR"
+scenario none none merge-lane-and-build-pending green
+run "another pending check beside the merge lane still blocks" 'gh pr merge 42 --squash' 2
+assert_eq "names only the other pending check" "Pending checks (use --auto to merge once they pass): build" "$(grep 'Pending checks' <<<"$ERR")"
+scenario none none merge-other-app-pending green
+run "a merge check from another app still blocks" 'gh pr merge 42 --squash' 2
+assert_contains "names the other app's merge check" "$ERR" "Pending checks (use --auto to merge once they pass): merge"
+scenario none none merge-lane-pending green
+run "an empty ignore list judges the merge lane's check" 'gh pr merge 42 --squash' 2 CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS=
+assert_contains "empty ignore list -> names merge" "$ERR" "Pending checks (use --auto to merge once they pass): merge"
 
 # --- 4. REST, GraphQL and curl merge paths -------------------------------------
 scenario unresolved none green green

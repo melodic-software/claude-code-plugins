@@ -1625,6 +1625,36 @@ class UnattendedCheckOnly(MainHarness):
             self.assess.call_args.kwargs["self_logins"], frozenset({"lane-app[bot]"})
         )
 
+    def test_the_postmerge_result_is_read_once_and_handed_to_the_policy(self) -> None:
+        lane = ("--unattended", "--authority", "pr-merge")
+        shared = mock.sentinel.shared
+        with mock.patch.object(
+            merge.postmerge, "read_shared", return_value=shared
+        ) as read:
+            self._main(*lane, "--postmerge-result", "/tmp/post-merge.json")
+        read.assert_called_once_with("/tmp/post-merge.json")
+        self.assertIs(self.assess.call_args.kwargs["shared"], shared)
+
+    def test_an_unreadable_postmerge_result_is_read_fresh_and_reported(self) -> None:
+        lane = ("--unattended", "--authority", "pr-merge")
+        with mock.patch.object(merge.postmerge, "read_shared", return_value=None):
+            self._main(*lane, "--postmerge-result", "/tmp/post-merge.json")
+        self.assertIsNone(self.assess.call_args.kwargs["shared"])
+        unattended = self.evaluate.call_args.kwargs["unattended"]
+        self.assertEqual(unattended.details["postMergeShared"], "unused:unreadable")
+
+    def test_without_a_postmerge_result_the_policy_reads_its_own(self) -> None:
+        self._main("--unattended", "--authority", "pr-merge")
+        self.assertIsNone(self.assess.call_args.kwargs["shared"])
+        unattended = self.evaluate.call_args.kwargs["unattended"]
+        self.assertNotIn("postMergeShared", unattended.details or {})
+
+    def test_a_postmerge_result_outside_the_lane_is_refused(self) -> None:
+        code, out = self._main("--unattended", "--postmerge-result", "/tmp/x.json")
+        self.assertEqual(code, 2)
+        self.assertIn("--postmerge-result", out["error"])
+        self.assess.assert_not_called()
+
     def test_without_the_flag_evaluate_gets_no_policy(self) -> None:
         self._main()
         self.assertIsNone(self.evaluate.call_args.kwargs.get("unattended"))

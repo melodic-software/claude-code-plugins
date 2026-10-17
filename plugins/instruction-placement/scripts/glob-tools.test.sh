@@ -353,6 +353,46 @@ run rules --root "$fx_repo" >/dev/null 2>&1
 assert_eq "a zero-match glob inside an eval fixture does not fail the gate" "0" "$?"
 
 # --------------------------------------------------------------------------
+# Frontmatter readability: unparsable YAML makes Claude Code load the rule unscoped
+# --------------------------------------------------------------------------
+fm_rule() { # <repo> <name> <printf-format>
+  mkdir -p "$1/.claude/rules"
+  # shellcheck disable=SC2059
+  printf -- "$3" >"$1/.claude/rules/$2.md"
+}
+fm_repo="$(fixture_repo "src/a.ts")"
+fm_rule "$fm_repo" alias '---\npaths: **/*.ts\n---\n\n# A\n'
+fm_rule "$fm_repo" listalias '---\npaths:\n  - **/*.ts\n---\n\n# B\n'
+fm_rule "$fm_repo" colon '---\ndescription: Use when: editing\npaths:\n  - "src/**/*.ts"\n---\n\n# C\n'
+fm_rule "$fm_repo" tab '---\npaths:\n\t- "src/**/*.ts"\n---\n\n# D\n'
+fm_rule "$fm_repo" reserved '---\ndescription: @owner rules\npaths:\n  - "src/**/*.ts"\n---\n\n# E\n'
+fm_rule "$fm_repo" trailcolon '---\ndescription: Use when:\npaths:\n  - "src/**/*.ts"\n---\n\n# F\n'
+# A `#` inside a closed quoted value is text, not a comment, so the screen keeps reading.
+fm_rule "$fm_repo" hashquote '---\ndescription: "Rules for #tags"\npaths: **/*.ts\n---\n\n# G\n'
+commit_all "$fm_repo" fm
+out="$(run rules --root "$fm_repo")"
+fm_count="$(printf '%s\n' "$out" | awk -F'\t' '$1=="FRONTMATTER" && $5=="unparsable"' | grep -c . || true)"
+assert_eq "each unparsable frontmatter is reported" "7" "$fm_count"
+assert_contains "the unquoted glob is named as an alias" "$out" "YAML alias"
+assert_contains "a glob after a quoted value holding # is still screened" "$out" \
+  "$(printf 'FRONTMATTER\t.claude/rules/hashquote.md\t3\t')"
+run rules --root "$fm_repo" >/dev/null 2>&1
+assert_eq "unparsable frontmatter fails the gate" "1" "$?"
+
+ok_repo="$(fixture_repo "src/a.ts")"
+fm_rule "$ok_repo" quoted '---\npaths: ["src/*.{ts,tsx}"]\n---\n\n# A\n'
+fm_rule "$ok_repo" listed '---\ndescription: Use when editing  # why: scope\npaths:\n  - "src/**/*.ts"\n---\n\n# B\n'
+fm_rule "$ok_repo" block '---\ndescription: >\n  Use when: editing\n  more: text\npaths:\n  - src/**/*.ts\n---\n\n# C\n'
+fm_rule "$ok_repo" multiline '---\ndescription: "Applies to TypeScript.\n  Example: *.ts files"\nmeta: {\n  a: x, b: y\n}\nnote: &n |\n  See: this: text\ntags: [\n\t"x"\n]\npaths:\n  - src/**/*.ts\n---\n\n# D\n'
+fm_rule "$ok_repo" none '#No frontmatter: a colon: here and **/*.ts\n'
+commit_all "$ok_repo" ok
+out="$(run rules --root "$ok_repo")"
+assert_eq "readable frontmatter raises no row" "0" \
+  "$(printf '%s\n' "$out" | awk -F'\t' '$1=="FRONTMATTER"' | grep -c . || true)"
+run rules --root "$ok_repo" >/dev/null 2>&1
+assert_eq "readable frontmatter passes the gate" "0" "$?"
+
+# --------------------------------------------------------------------------
 # Determinism and safety
 # --------------------------------------------------------------------------
 a="$(run rules --root "$rules_repo")"

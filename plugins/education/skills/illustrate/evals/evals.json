@@ -5,11 +5,11 @@
       "id": 1,
       "name": "concept-grounds-then-builds-record-and-page",
       "prompt": "/education:illustrate how does optimistic locking work",
-      "expected_output": "Grounds the general concept by fetching a primary source rather than drawing from memory, writes one JSON model of small diagrams at one idea each, and runs the checked-in build-explainer.mjs builder with both --record and --page under the plugin data directory, so the markdown record and its interactive page view come from the same model. It delivers the page and names the record's path.",
+      "expected_output": "Grounds the general concept by fetching a primary source rather than drawing from memory, writes one JSON model of small diagrams at one idea each, and runs the checked-in build-explainer.mjs builder with --out-dir under the plugin data directory, which derives both the record and the page from the model's slug, so the markdown record and its interactive page view come from the same model. It delivers the page and names the record's path.",
       "files": [],
       "expectations": [
         "Grounds first by fetching a primary source for the concept, rather than drawing from memory",
-        "Runs the checked-in builder with both --record and --page, passing one JSON model by --model from a file it wrote",
+        "Runs the checked-in builder with --out-dir, passing one JSON model (carrying its slug) by --model from a file it wrote, so the command holds no model-chosen text",
         "Never hand-writes HTML or pastes fetched text into markup",
         "Writes the record and the page outside the consuming repository, in different folders"
       ]
@@ -43,10 +43,10 @@
       "id": 4,
       "name": "markdown-format-writes-the-record-only",
       "prompt": "/education:illustrate how a write-ahead log works markdown",
-      "expected_output": "Grounds the concept from a primary source, then runs the builder with --record and without --page, so only the markdown record is written. It delivers the record (its path, or its text on the terminal rung) and does not build or publish a page.",
+      "expected_output": "Grounds the concept from a primary source, then runs the builder with --out-dir and --format markdown, so only the markdown record is written. It delivers the record (its path, or its text on the terminal rung) and does not build or publish a page.",
       "files": [],
       "expectations": [
-        "Runs the builder with --record and without --page",
+        "Runs the builder with --out-dir and --format markdown",
         "Delivers the markdown record and does not build or publish an HTML page"
       ]
     },

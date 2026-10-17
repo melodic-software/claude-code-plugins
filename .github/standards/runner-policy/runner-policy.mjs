@@ -1388,15 +1388,22 @@ function malformedJobIds(workflow) {
 // direction to err for a security gate.
 const NEEDS_REFERENCE = /\bneeds\b/i;
 
-function containsNeedsReference(value) {
+// A needs-derived `strategy.matrix` changes only how many jobs run and what
+// their `matrix` context holds. It reaches the routing boundary only when
+// another routing field reads that context: `matrix` directly, or `strategy`,
+// whose job-total and job-index derive from the matrix. Matched as a bare
+// word in any letter case, for the same reasons as NEEDS_REFERENCE.
+const MATRIX_CONTEXT_REFERENCE = /\b(?:matrix|strategy)\b/i;
+
+function containsReference(value, pattern) {
   if (typeof value === "string") {
-    return NEEDS_REFERENCE.test(value);
+    return pattern.test(value);
   }
   if (Array.isArray(value)) {
-    return value.some(containsNeedsReference);
+    return value.some((item) => containsReference(item, pattern));
   }
   if (isMapping(value)) {
-    return Object.values(value).some(containsNeedsReference);
+    return Object.values(value).some((item) => containsReference(item, pattern));
   }
   return false;
 }
@@ -1421,11 +1428,33 @@ function dynamicRoutingReferenceJobIds(workflow) {
       if (!isMapping(job)) {
         return false;
       }
-      return DYNAMIC_ROUTING_FIELDS.some(
-        (field) => Object.hasOwn(job, field) && containsNeedsReference(job[field]),
-      );
+      return DYNAMIC_ROUTING_FIELDS.some((field) => fieldRoutesThroughNeeds(job, field));
     })
     .sort((left, right) => left.localeCompare(right));
+}
+
+function fieldRoutesThroughNeeds(job, field) {
+  if (!Object.hasOwn(job, field)) {
+    return false;
+  }
+  if (field !== "strategy" || !isMapping(job.strategy)) {
+    return containsReference(job[field], NEEDS_REFERENCE);
+  }
+  const { matrix, ...rest } = job.strategy;
+  if (containsReference(rest, NEEDS_REFERENCE)) {
+    return true;
+  }
+  return (
+    containsReference(matrix, NEEDS_REFERENCE) &&
+    // Job-level env can read matrix, and defaults, container and services
+    // can read env, so a matrix value can route through it.
+    [...DYNAMIC_ROUTING_FIELDS, "env"].some(
+      (other) =>
+        other !== "strategy" &&
+        Object.hasOwn(job, other) &&
+        containsReference(job[other], MATRIX_CONTEXT_REFERENCE),
+    )
+  );
 }
 
 // Two `uses:` shapes resolve from the same commit as the reusable workflow
