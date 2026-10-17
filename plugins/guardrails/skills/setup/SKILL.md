@@ -168,8 +168,11 @@ with your own edit tools. Never runs from bare `apply`.
 When the user does not want an entry in this clone, run
 `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry <name>`; the
 session-start drift line then stays silent until `verify` runs by hand, and `--undo` reverses
-it. Declining records the choice and does not stop an installed copy: when `list` shows the
-entry installed, also remove its registration with your edit tools (the
+it. Add `--global` (with or without `--undo`) to decline the entry in every clone;
+`git config --global checks.git-hooks.declined true` declines every entry of every plugin, and an
+entry's own key set to `false` in a clone opts that entry back in. Declining records the choice and
+does not stop an installed copy: when `list` shows the entry installed, also remove its
+registration with your edit tools (the
 `<event>.d/guardrails.<name>` marker for plain hooks, the `guardrails-<name>` job in the lefthook
 config, its line in `.husky/<event>`) and the copy under `guardrails/`, on the user's yes; a shared
 registration is a committed change the team reviews. This is the way out the `reference-verify`

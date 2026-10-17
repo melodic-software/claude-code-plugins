@@ -274,15 +274,66 @@ for change in edit add remove mode; do
   run_post
   check "workflow-staged: a model $change of a workflow escalates" 0/workflow-staged "$RC/$(reason)"
 done
-# A workflow edit that came from the base is in the snapshot and passes.
+# A workflow change merged in from the base differs from the PR head, which
+# the lane token cannot push: it escalates on a conflicted and a clean merge.
 conflict a.txt 'one\n' 'pr\n' 'main\n'
 side main "$WF" 'on: push\n'
 prepare
 put a.txt 'resolved\n'
 tg add a.txt
+run_post
+check 'workflow-staged: a base-side workflow change in a conflicted merge escalates' 0/workflow-staged "$RC/$(reason)"
+check 'workflow-staged: and prints no tree' '' "$(tree)"
+new_repo
+put "$WF" 'on: push\n'
+commit 'add workflow'
+tg checkout -q -b pr
+side pr a.txt 'pr\n'
+side main "$WF" 'on: pull_request\n'
+prepare
+check 'workflow-staged: prepared clean' clean "$STATE"
+run_post
+check 'workflow-staged: a base-side workflow change in a clean merge escalates' 0/workflow-staged "$RC/$(reason)"
+# A workflow the merge leaves as the PR head has it passes, unstaged edits aside.
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+side pr "$WF" 'on: push\n'
+prepare
+put a.txt 'resolved\n'
+tg add a.txt
 put "$WF" 'unstaged worktree edit\n'
 run_post
-check 'workflow-staged: a base-side workflow change and an unstaged edit pass' 0/ "$RC/$(reason)"
+check 'workflow-staged: a head-side workflow and an unstaged edit pass' 0/ "$RC/$(reason)"
+# Paths git would quote (non-ASCII here) are compared like any other.
+for name in ci.yml é.yml; do
+  for change in none remove mode; do
+    new_repo
+    put ".github/workflows/$name" 'on: push\n'
+    put a.txt 'one\n'
+    commit "add $name"
+    tg checkout -q -b pr
+    side pr a.txt 'pr\n'
+    side main a.txt 'main\n'
+    case $change in
+      none) want=0/ ;;
+      remove)
+        tg rm -q ".github/workflows/$name"
+        want=0/workflow-staged
+        ;;
+      mode)
+        chmod +x "$R/.github/workflows/$name"
+        tg update-index --chmod=+x ".github/workflows/$name"
+        want=0/workflow-staged
+        ;;
+      *) exit 2 ;;
+    esac
+    commit "main $change $name"
+    prepare
+    put a.txt 'resolved\n'
+    tg add a.txt
+    run_post
+    check "workflow-staged: base-side $change of $name" "$want" "$RC/$(reason)"
+  done
+done
 
 echo '# sensitive-reset'
 # The base edits CLAUDE.md, the PR edits .claude/settings.json, and a.txt
