@@ -615,6 +615,7 @@ jobs:
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           LABEL_SENDER_ID: ${{ format('{0}', github.event.sender.id) }}
           LABEL_NAME: ${{ github.event.label.name }}
+          LABEL_EVENT_AT: ${{ github.event.issue.updated_at }}
         run: node .base/.github/scripts/work-resolve-issue/write-issue.mjs
 
       # A script reads the base's work-item tracker config (report-escalation's

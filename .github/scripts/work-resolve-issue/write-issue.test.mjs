@@ -97,7 +97,8 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-async function run(github, { sender = String(OWNER.id) } = {}) {
+// `eventAt` is the payload's issue update time; by default after every label event.
+async function run(github, { sender = String(OWNER.id), eventAt = "2026-10-30T00:00:00Z" } = {}) {
   const file = path.join(dir, "issue.json");
   const logged = [];
   const code = await main({
@@ -109,6 +110,7 @@ async function run(github, { sender = String(OWNER.id) } = {}) {
       LANES_APP_ID: String(LANES_BOT.id),
       LABEL_SENDER_ID: sender,
       LABEL_NAME: "agent-ready",
+      LABEL_EVENT_AT: eventAt,
     },
     github,
     log: (line) => logged.push(line),
@@ -284,6 +286,23 @@ test("the App's restart anchors at the label it restarted, so an edit before the
 test("a change in the same second as the label counts as after it", async () => {
   const { code } = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-13T12:00:00Z" }, events: [labeled(OWNER, 13)] }));
   assert.equal(code, 1);
+});
+
+// Codex P1 on #7780: a run still going when the same person removes and re-adds
+// the label keeps its own admission, so it never adopts the newer text.
+test("a run anchors at the label event that started it, never a later one", async () => {
+  const events = [labeled(OWNER, 13), unlabeled(OWNER, 20), labeled(OWNER, 20)];
+  const edited = { lastEditedAt: "2026-10-15T00:00:00Z" };
+  const old = await run(fakeGitHub({ comments: [], issueEdits: edited, events }), { eventAt: "2026-10-13T12:00:00Z" });
+  assert.equal(old.code, 1);
+  const queued = await run(fakeGitHub({ comments: [], issueEdits: edited, events }), { eventAt: "2026-10-20T12:00:00Z" });
+  assert.equal(queued.code, 0);
+});
+
+test("a missing payload update time writes no file", async () => {
+  const { code, issue } = await run(fakeGitHub({ comments: [] }), { eventAt: "" });
+  assert.equal(code, 1);
+  assert.equal(issue, null);
 });
 
 test("no label event from the account that applied it, or a failed events read, writes no file", async () => {

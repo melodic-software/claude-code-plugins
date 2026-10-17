@@ -209,6 +209,13 @@ test("live config: resolve-issue starts nothing for an issue carrying a hold lab
   }
 });
 
+// Codex P1 on #7780: the label alone admits, so its removal while a run waits
+// stops the run; the labels are read when the run starts.
+test("live config: resolve-issue starts nothing once agent-ready is gone from the issue", () => {
+  assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels: [] }), "not-applicable");
+  assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels: ["bug"] }), "not-applicable");
+});
+
 test("live config: resolve-issue still needs the agent-ready label event after the go-live time", () => {
   assert.equal(
     skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labeledAt: "2026-10-14T19:21:58Z" }),

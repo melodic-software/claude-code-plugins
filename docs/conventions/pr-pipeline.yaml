@@ -158,6 +158,8 @@ activities:
       # No `work-class:` label admits or refuses it. A person decides an
       # issue carrying one of these labels, so it starts nothing.
       labels-absent: [needs-human, needs-owner-decision, "status: needs-decision"]
+      # Read now, so removing agent-ready while a run waits stops it.
+      labels: [agent-ready]
       # Only issues labeled agent-ready after this time start a run; an issue
       # labeled earlier starts nothing.
       labeled-after: "2026-10-14T19:21:59Z"

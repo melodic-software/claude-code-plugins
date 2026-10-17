@@ -23,6 +23,7 @@
 //   LANES_APP_ID          the lanes App bot's user id
 //   LABEL_SENDER_ID       the account that applied the label
 //   LABEL_NAME            the label whose event started the run
+//   LABEL_EVENT_AT        the issue's updated_at in that event's payload
 //   GITHUB_API_URL
 import { rmSync, writeFileSync } from "node:fs";
 import process from "node:process";
@@ -61,16 +62,20 @@ async function readIssueEdits(github, repository, number) {
   return [issue.lastEditedAt, ...(issue.timelineItems?.nodes ?? []).map((node) => node?.createdAt)];
 }
 
-// When `senderId` last added `label` to the issue: that account admitted the
-// text as it stood then. Another account's later label event never moves it.
+// When `senderId` added `label` in the event that started this run (its newest
+// such event no later than `eventAt`, the issue's update time in the payload):
+// that account admitted the text as it stood then. A later label event, by
+// any account, never moves it, so a run never adopts a newer admission.
 // The lanes App's remove-and-re-add after a limit stop (work-unblock's
 // restart) admits nothing new, so it anchors at the label it restarted.
-async function readAdmittedAt(github, repository, number, label, senderId, lanesAppId) {
+async function readAdmittedAt(github, repository, number, label, senderId, lanesAppId, eventAt) {
   const events = (await paginate(github, `/repos/${repository}/issues/${number}/events`))
     .filter((event) => (event?.event === "labeled" || event?.event === "unlabeled") && event.label?.name === label)
     // Times are whole seconds; the event id breaks a tie in the order GitHub recorded them.
     .sort((a, b) => timeOf(a.created_at) - timeOf(b.created_at) || Number(a.id) - Number(b.id));
-  let index = events.findLastIndex((event) => event.event === "labeled" && event.actor?.id === senderId);
+  let index = events.findLastIndex(
+    (event) => event.event === "labeled" && event.actor?.id === senderId && timeOf(event.created_at) <= eventAt,
+  );
   while (index > 0 && events[index].actor?.id === lanesAppId && events[index - 1].event === "unlabeled" && events[index - 1].actor?.id === lanesAppId) {
     index = events.slice(0, index - 1).findLastIndex((event) => event.event === "labeled");
   }
@@ -97,6 +102,10 @@ export async function main({ env = process.env, github, log = console.log } = {}
     if (!env.LABEL_NAME) {
       throw new Error("LABEL_NAME is empty");
     }
+    const eventAt = timeOf(env.LABEL_EVENT_AT);
+    if (!Number.isFinite(eventAt)) {
+      throw new Error("LABEL_EVENT_AT is not a time");
+    }
     const lanesAppId = Number(env.LANES_APP_ID);
     const { ids, humans } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
     const client = github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
@@ -112,7 +121,7 @@ export async function main({ env = process.env, github, log = console.log } = {}
     dropped["after-admission"] = 0;
     dropped["over-cap"] = 0;
 
-    const frozenAt = await readAdmittedAt(client, repository, env.ISSUE_NUMBER, env.LABEL_NAME, Number(env.LABEL_SENDER_ID), lanesAppId);
+    const frozenAt = await readAdmittedAt(client, repository, env.ISSUE_NUMBER, env.LABEL_NAME, Number(env.LABEL_SENDER_ID), lanesAppId, eventAt);
     // Timestamps are whole seconds, so a change in the label's own second counts as after it.
     // NaN compares false, so an unparseable time is a change.
     const edits = await readIssueEdits(client, repository, env.ISSUE_NUMBER);
