@@ -29,7 +29,10 @@ import tunnel
 
 PAGE_CSP = "default-src 'self'; img-src 'self' data:; frame-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 SECURITY = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer"}
-HTML_ASSET_CSP = "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src data:; connect-src 'none'"
+HTML_ASSET_CSP = (
+    "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src data:; "
+    "connect-src 'none'; frame-ancestors 'self'"
+)
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
 
 
@@ -280,8 +283,6 @@ class TestHeadersAndCaps(ServerCase):
             with self.subTest(path=path):
                 code, _, out = self.post(path, {})
                 self.assertEqual((code, out["error"]), (404, "not-found"))
-        code, _, _ = self.get("/proto/Q1")
-        self.assertEqual(code, 404)
 
     def test_domain_errors_keep_their_code_and_status(self):
         _, guest = self.join("Ann")
@@ -1100,6 +1101,68 @@ class TestModerationRoutes(ServerCase):
         self.assertEqual(self.state(self.bo)["intro"], "Why you're here.")
         code, _, anon = self.get("/api/state")
         self.assertEqual(sorted(anon), ["ended", "joinNeedsKey", "schemaVersion", "title"])
+
+
+class TestPrototypePage(ServerCase):
+    """Phase 7 (Q98): GET /proto/<qid> serves the prototype page for a prototype question only; an html variant stays
+    a sandboxed asset (scripts, no same origin) that only the session's own pages may frame; POST /api/annotate is a
+    person route under the JSON, body-cap and write-rate rules."""
+
+    VARIANT_HTML = b"<!doctype html><html><body><main><button>Pay now</button></main></body></html>"
+
+    def setUp(self):
+        super().setUp()
+        (self.d / "v1.html").write_bytes(self.VARIANT_HTML)
+        (self.d / "v2.png").write_bytes(PNG)
+        code, _, out = self.ops({"op": "add-asset", "path": str(self.d / "v1.html")}, {"op": "add-asset", "path": str(self.d / "v2.png")})
+        self.assertEqual(code, 200, out)
+        self.html, self.png = (r["id"] for r in out["results"])
+        proto = {**text_q("Q1"), "format": {"kind": "prototype", "variants": [{"id": "v-1", "label": "One page", "asset": self.html}, {"id": "v-2", "label": "Two steps", "asset": self.png}]}}
+        code, _, out = self.ops({"op": "open-round", "questions": [proto, text_q("Q2")]})
+        self.assertEqual(code, 200, out)
+        _, self.guest = self.join("Ann")
+
+    def test_the_page_is_served_for_a_prototype_question_only(self):
+        code, h, body = self.get("/proto/Q1")
+        self.assertEqual((code, h["Content-Type"], h["Content-Security-Policy"], h["X-Frame-Options"]), (200, "text/html; charset=utf-8", PAGE_CSP, "DENY"))
+        self.assertIn(b'<script src="/proto.js"></script>', body)
+        for path in ("/proto/Q2", "/proto/Q9", "/proto/Q1/", "/proto/q1", "/proto/Q1x", "/proto/"):
+            with self.subTest(path=path):
+                self.assertEqual(self.get(path)[0], 404)
+        code, h, _ = self.get("/proto.js")
+        self.assertEqual((code, h["Content-Type"]), (200, "text/javascript; charset=utf-8"))
+
+    def test_an_html_variant_is_sandboxed_and_framable_by_the_session_only(self):
+        code, h, body = self.get(f"/assets/{self.html}")
+        self.assertEqual((code, h["Content-Security-Policy"], h["X-Frame-Options"], body), (200, HTML_ASSET_CSP, "SAMEORIGIN", self.VARIANT_HTML))
+        self.assertNotIn("allow-same-origin", h["Content-Security-Policy"])
+        code, h, _ = self.get(f"/assets/{self.png}?pin=1")
+        self.assertEqual((code, h["Content-Security-Policy"], h["X-Frame-Options"]), (200, "sandbox", "DENY"))
+
+    def test_pin_1_appends_the_pin_helper_as_the_one_inline_script(self):
+        _, h, body = self.get(f"/assets/{self.html}?pin=1")
+        self.assertEqual(h["Content-Security-Policy"], HTML_ASSET_CSP)
+        self.assertTrue(body.startswith(self.VARIANT_HTML))
+        helper = (server.WEB / "proto-pin.js").read_bytes()
+        self.assertEqual(body[len(self.VARIANT_HTML):], b"\n<script>" + helper + b"</script>\n")
+        self.assertEqual(self.get(f"/assets/{self.png}?pin=1")[2], PNG)
+
+    def test_annotate_is_a_person_route_under_the_json_cap_and_rate_rules(self):
+        note = {"qid": "Q1", "variant": "v-1", "text": "Hard to find", "anchor": {"selector": "html > body:nth-of-type(1)", "rect": {"x": 0, "y": 0, "w": 50, "h": 10}}}
+        code, _, out = self.post("/api/annotate", note)
+        self.assertEqual((code, out["error"]), (401, "unknown-session"))
+        code, _, out = self.post("/api/annotate", note, self.guest)
+        self.assertEqual((code, out["ok"], out["id"]), (200, True, "A1"))
+        code, _, out = self.post("/api/annotate", {**note, "text": "Again"}, self.guest)
+        self.assertEqual((code, out["error"]), (429, "slow-down"))
+        code, _, out = self.post("/api/annotate", {**note, "text": "x" * (33 * 1024)}, self.guest)
+        self.assertEqual((code, out["error"], out["max"]), (413, "body-too-large", 32 * 1024))
+        code, _, out = call(self.port, "POST", "/api/annotate", raw=json.dumps(note).encode(), headers={**self.guest, "Content-Type": "text/plain"})
+        self.assertEqual((code, out["error"]), (415, "json-required"))
+        code, _, out = self.post("/api/annotate", {**note, "anchor": {"selector": "body.x", "rect": note["anchor"]["rect"]}}, self.guest)
+        self.assertEqual((code, out["error"], out["field"]), (400, "bad-field", "anchor.selector"))
+        notes = self.get("/api/state", self.guest)[2]["annotations"]
+        self.assertEqual([(a["id"], a["text"]) for a in notes], [("A1", "Hard to find")])
 
 
 if __name__ == "__main__":

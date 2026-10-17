@@ -33,7 +33,7 @@
     questions: [], answers: {}, ideas: [], presence: [], locks: {}, disagreements: {}, suggestions: {}, chat: [], leaders: [], trusted: [],
     round: { current: 1, status: "open" }, rounds: [], title: "", people: {}, research: {}, requestCounts: { open: 0, byQ: {} }, requests: [],
     myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], cleared: [], guestKey: "", shareChanged: false, shareUrl: "",
-    goal: "", intro: "", uploads: [], myUploads: [], files: {}, mergeRequests: [], myMergeRequests: [], me: null, joinNeedsKey: false,
+    goal: "", intro: "", annotations: [], uploads: [], myUploads: [], files: {}, mergeRequests: [], myMergeRequests: [], me: null, joinNeedsKey: false,
     settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true },
   };
 
@@ -90,7 +90,7 @@
       const f = q.format || { kind: "text" }, flag = (q.needsReview || []).at(-1);
       const { format: _, ...rest } = q, out = { ...rest, purpose: q.purpose || "decide" };
       if (f.kind === "choice") { out.format = "choice"; out.options = f.options; }
-      // TODO(Phase 7, Q98): prototype questions open their own page; until then their variants pick like options.
+      // Q98: a prototype's variants pick like options here; the question links its own page (/proto/<qid>) to try them.
       else if (f.kind === "prototype") { out.format = "choice"; out.options = f.variants.map(v => ({ id: v.id, label: v.label })); out.variants = f.variants; }
       else if (f.kind === "confirm") { out.format = "confirm"; out.image = f.image; out.rect = f.rect; out.options = [{ id: "opt-yes", label: "Yes" }, { id: "opt-no", label: "No" }]; }
       else if (f.kind === "multi" || f.kind === "rank") { out.format = f.kind; out.options = f.options.map(o => ({ ...o, id: optIn(o.id) })); }
@@ -168,6 +168,9 @@
     view.chat = (s.chat || []).map(m => ({ id: m.id, cid: m.pid, name: nameOf(m.pid), text: m.text, ts: m.at,
       ...(m.replyTo ? { replyTo: { id: m.replyTo.id, cid: m.replyTo.pid, name: nameOf(m.replyTo.pid), text: m.replyTo.excerpt } } : {}),
       ...(m.proposed ? { forwarded: m.proposed } : {}), reactions: m.reactions || {} }));
+    // Q98: notes pinned on prototype variants, oldest first.
+    view.annotations = (s.annotations || []).map(a => ({ id: a.id, cid: a.pid, name: nameOf(a.pid), qid: a.qid, variant: a.variant, text: a.text, ts: a.at,
+      selector: a.anchor?.selector || "", rect: a.anchor?.rect || null }));
     view.joinRequests = (s.joinRequests || []).map(j => ({ pid: j.pid, name: j.name, ts: j.at, n: j.n, device: j.device || "", browser: j.browser || "" }));
     // Answers their authors cleared after the owner hid or edited them (owner only); Core.cardHistory reads one.
     view.cleared = Object.entries(s.cleared || {}).flatMap(([qid, lst]) => lst.map(t => ({ qid, ref: t.ref, cid: t.pid, name: nameOf(t.pid), ts: t.clearedAt, hidden: t.hidden })));
@@ -402,6 +405,15 @@
     personalLink: () => {
       const base = `${(Core.state.shareUrl || location.origin).replace(/\/$/, "")}/`;
       return ownerToken ? `${base}#owner=${ownerToken}` : secret ? `${base}#me=${secret}` : "";
+    },
+    /** Q98: a note pinned to an element of one prototype variant. anchor is {selector, rect} from the pin helper. */
+    annotate: (qid, variant, anchor, text) => act("/api/annotate", { qid, variant, anchor, text }),
+    /** A page of this session in this tab's identity: the owner's link carries the owner token in the fragment, as
+     *  the owner link does; a guest's secret stays in this browser's storage. `params` go in the fragment too. */
+    pageLink: (path, params = {}) => {
+      const h = new URLSearchParams(params);
+      if (ownerToken) h.set("owner", ownerToken);
+      return path + (h.toString() ? "#" + h : "");
     },
     /** The guest link to share: the tunnel base, plus the join key once the owner made a new guest link. */
     guestLink: () => `${(Core.state.shareUrl || location.origin).replace(/\/$/, "")}/${Core.state.guestKey ? "#join=" + Core.state.guestKey : ""}`,

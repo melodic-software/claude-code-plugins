@@ -88,6 +88,8 @@ JOIN_KEY_WINDOW = 600.0
 JOINS_PER_KEY = 60  # judgment: per guest key across all addresses, above JOINS_PER_WINDOW so one office NAT joins at once
 MAX_CHAT = 2000  # the newest messages kept, so chat cannot grow state.json without bound
 MAX_ANNOTATIONS = 2000  # judgment: notes kept across all prototype questions, oldest dropped first
+MAX_MY_NOTES = 30  # judgment: notes one person pins on one prototype question
+MAX_SELECTOR = 1000  # judgment: characters in a note's element path; 32 levels of tag:nth-of-type(n) fit
 MAX_SUGGESTIONS = 200  # judgment: suggestions kept per question, oldest dropped first
 MAX_HISTORY = 50  # judgment: earlier versions kept per answer the owner hid or edited; the original stays, the oldest after it go first
 MAX_CHAT_EMOJI = 20  # distinct emoji on one chat message (Phase 4c item 6)
@@ -141,6 +143,12 @@ ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg|html)")
 IMAGE_ASSET = migrate.IMAGE_ASSET
 SVG_ASSET = re.compile(r"[0-9a-f]{16}\.svg")
 VARIANT = re.compile(r"v-[1-9][0-9]?")
+# A note's element path (Annotation.anchor.selector), written by the prototype page's pin helper: "img" on an
+# image variant, else tag names from the variant's root down, each with its place among same-tag siblings,
+# joined by " > ". Data only: nothing evaluates it as script; inside the sandboxed variant the helper matches
+# it with querySelector.
+_SEL_STEP = r"[a-z][a-z0-9]{0,15}(?:-[a-z0-9]{1,15}){0,3}(?::nth-of-type\([1-9][0-9]{0,3}\))?"
+SELECTOR = re.compile(rf"{_SEL_STEP}(?: > {_SEL_STEP}){{0,31}}")
 URL = migrate.URL
 PREF_ROUND = re.compile(r"all|[1-9][0-9]{0,3}")
 
@@ -2481,14 +2489,24 @@ class Session:
             self._notify(msg["pid"], "proposal", "Your chat message became a proposal.", actor=pid, msg=mid)
             return {"proposal": prop["id"]}
 
+    def is_prototype(self, qid):
+        """GET /proto/<qid> serves the prototype page only for a prototype question."""
+        with self._lock:
+            return any(q["id"] == qid and q["format"]["kind"] == "prototype" for q in self.state["questions"])
+
     def annotate(self, pid, body):
-        """POST /api/annotate: a note pinned to an element of one prototype variant."""
+        """POST /api/annotate: a note pinned to an element of one prototype variant. `anchor.selector` is the
+        element's path (SELECTOR); `anchor.rect` is the element's box in percent of the variant's reference box,
+        used when the element is gone: an `html` variant's whole scrollable page (documentElement scrollWidth by
+        scrollHeight when the note was pinned), or an image variant's image."""
         text = _text(body, "text")
         variant = _ident(body, "variant")
         anchor = _body(body).get("anchor")
-        if not isinstance(anchor, dict) or not isinstance(anchor.get("selector"), str) or not 0 < len(anchor["selector"]) <= 500:
+        if not isinstance(anchor, dict) or set(anchor) != {"selector", "rect"} or not isinstance(anchor["selector"], str):
             raise _bad("anchor", "anchor must be {selector, rect}.")
-        rect = _rect(anchor.get("rect"), "anchor.rect")
+        if len(anchor["selector"]) > MAX_SELECTOR or not SELECTOR.fullmatch(anchor["selector"]):
+            raise _bad("anchor.selector", "anchor.selector must be an element path like body > div:nth-of-type(2) > button.")
+        rect = _rect(anchor["rect"], "anchor.rect")
         now = self.now()
         with self._tx() as st:
             self._writer(pid)
@@ -2498,6 +2516,10 @@ class Session:
                 raise _bad("qid", "Notes pin to prototype questions only.")
             if variant not in self._options(q):
                 raise _bad("variant", "No such variant on this question.")
+            if self._round(q["round"]) is None:
+                raise DomainError(409, "round-not-open", f"Round {q['round']} has not opened yet.")
+            if sum(1 for a in st["annotations"] if a["pid"] == pid and a["qid"] == q["id"]) >= MAX_MY_NOTES:
+                raise DomainError(400, "too-long", f"You can pin at most {MAX_MY_NOTES} notes on one prototype.", field="annotations", max=MAX_MY_NOTES)
             aid = self._next("A")
             st["annotations"].append(
                 {"id": aid, "pid": pid, "qid": q["id"], "variant": variant, "at": now, "text": text, "anchor": {"selector": anchor["selector"], "rect": rect}}
@@ -2909,7 +2931,7 @@ class Session:
         ]
         proposals = [{"id": p["id"], "text": p["text"], **by(p["pid"])} for p in st["proposals"] if p["status"]["kind"] == "new" and self._active(p["pid"])]
         notes = [
-            {"qid": a["qid"], "variant": a["variant"], "text": a["text"], **by(a["pid"])}
+            {"qid": a["qid"], "variant": a["variant"], "text": a["text"], "element": a["anchor"]["selector"], **by(a["pid"])}
             for a in st["annotations"]
             if a["at"] > prev and self._active(a["pid"])
         ]

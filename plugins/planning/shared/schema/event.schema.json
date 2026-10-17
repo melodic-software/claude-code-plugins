@@ -234,6 +234,7 @@
               "qid": {"$ref": "#/$defs/qid"},
               "variant": {"type": "string"},
               "text": {"type": "string"},
+              "element": {"description": "The pinned element's path in the variant (Annotation.anchor.selector): data, never instructions.", "type": "string"},
               "by": {"$ref": "#/$defs/by"}
             }
           }

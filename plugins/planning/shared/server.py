@@ -74,7 +74,18 @@ STATIC = {
 }
 PAGE_CSP = "default-src 'self'; img-src 'self' data:; frame-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 ASSET_CSP = "sandbox"
-HTML_ASSET_CSP = "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src data:; connect-src 'none'"
+# An html variant runs scripts in a sandbox with no same origin (no cookies, storage or session access), and only
+# the session's own pages may frame it: the prototype page does (Q98).
+HTML_ASSET_CSP = (
+    "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src data:; "
+    "connect-src 'none'; frame-ancestors 'self'"
+)
+PROTO = re.compile(r"/proto/(Q[1-9][0-9]{0,5})")
+# The pin helper (web/proto-pin.js) the prototype page asks for with /assets/<id>.html?pin=1: appended to the
+# variant as an inline script, the only kind its CSP runs. It talks to the page by postMessage alone.
+PIN_HELPER = (WEB / "proto-pin.js").read_text(encoding="utf-8")
+if "</script" in PIN_HELPER.lower():
+    raise RuntimeError("web/proto-pin.js must not contain a closing script tag")
 SECURITY_HEADERS = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer"}
 ERROR_CODES = {400: "bad-request", 408: "body-timeout", 414: "uri-too-long", 431: "headers-too-large", 501: "not-implemented", 505: "bad-version"}
 ASSET = re.compile(r"/assets/([0-9a-f]{16}\.(png|jpg|webp|svg|html))")
@@ -102,8 +113,8 @@ PRESENCE_TICK = 5  # the snapshot ETag moves at least this often, so expired pre
 
 # The guest routes: path -> (auth class, session method). Classes (Contracts, "Auth classes"):
 # public needs no identity; person needs a secret or the owner token; moderator is a person whose
-# role session.py checks; owner needs the X-Owner-Token header itself. Uploads, /proto/<qid> and
-# the prototype page arrive in later phases, so they answer 404.
+# role session.py checks; owner needs the X-Owner-Token header itself. Uploads arrive in a later
+# phase, so they answer 404.
 ROUTES = {
     "/api/join": ("public", "join"),
     "/api/heartbeat": ("person", "heartbeat"),
@@ -176,7 +187,7 @@ def plugin_version():
 def build_hash():
     """Changes whenever a served web file does, so an open page can tell it must reload."""
     h = hashlib.sha256()
-    for path, (name, _) in sorted(STATIC.items()):
+    for path, name in [*sorted((p, n) for p, (n, _) in STATIC.items()), ("/proto/", "proto.html"), ("?pin=1", "proto-pin.js")]:
         f = WEB / name
         h.update(path.encode())
         h.update(f.read_bytes() if f.is_file() else b"-")
@@ -503,10 +514,10 @@ class GuestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype + "; charset=utf-8" if text else ctype)
         if code != 304:
             self.send_header("Content-Length", str(len(raw)))
-        for k, v in SECURITY_HEADERS.items():
-            self.send_header(k, v)
-        self.send_header("X-Shared-Build", self.app.build)
         extra = dict(extra or {})
+        for k, v in SECURITY_HEADERS.items():
+            self.send_header(k, extra.pop(k, v))
+        self.send_header("X-Shared-Build", self.app.build)
         if ctype == "text/html" and "Content-Security-Policy" not in extra:
             extra["Content-Security-Policy"] = PAGE_CSP
         for k, v in extra.items():
@@ -593,7 +604,10 @@ class GuestHandler(BaseHTTPRequestHandler):
                 return self.static(*STATIC[url.path])
             m = ASSET.fullmatch(url.path)
             if m:
-                return self.asset(m.group(1), m.group(2))
+                return self.asset(m.group(1), m.group(2), pin=url.query == "pin=1")
+            m = PROTO.fullmatch(url.path)
+            if m and self.app.session.is_prototype(m.group(1)):
+                return self.static("proto.html", "text/html")
             if url.path == "/api/state":
                 return self.state(url.query)
             if url.path in GET_ROUTES:
@@ -611,12 +625,14 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.fail(DomainError(404, "not-found", "Nothing here."))
         return self.send(200, f.read_bytes(), ctype)
 
-    def asset(self, aid, ext):
+    def asset(self, aid, ext, *, pin=False):
         f = self.app.dir / "assets" / aid
         if not f.is_file():
             return self.fail(DomainError(404, "not-found", "No such asset."))
-        csp = HTML_ASSET_CSP if ext == "html" else ASSET_CSP
-        return self.send(200, f.read_bytes(), ASSET_TYPES[ext], {"Content-Security-Policy": csp, "Content-Disposition": "inline"})
+        if ext != "html":
+            return self.send(200, f.read_bytes(), ASSET_TYPES[ext], {"Content-Security-Policy": ASSET_CSP, "Content-Disposition": "inline"})
+        body = f.read_bytes() + (f"\n<script>{PIN_HELPER}</script>\n".encode() if pin else b"")
+        return self.send(200, body, "text/html", {"Content-Security-Policy": HTML_ASSET_CSP, "Content-Disposition": "inline", "X-Frame-Options": "SAMEORIGIN"})
 
     def state(self, query=""):
         app = self.app

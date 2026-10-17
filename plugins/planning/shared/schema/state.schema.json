@@ -908,6 +908,7 @@
           "type": "object",
           "required": ["selector", "rect"],
           "additionalProperties": false,
+          "description": "selector: the pinned element's path, tag names from the variant's root joined by ' > ', each may carry :nth-of-type(n), or 'img' on an image variant; writes refuse any other shape, and a file written before that rule loads as it is. rect: the element's box in percent of the variant's reference box (an html variant's whole scrollable page when pinned, an image variant's image), used when the element is gone.",
           "properties": {"selector": {"type": "string"}, "rect": {"$ref": "#/$defs/rect"}}
         }
       }

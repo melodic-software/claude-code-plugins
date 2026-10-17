@@ -19,8 +19,8 @@ and the session-bridge watcher. Python 3 standard library only.
 | `session_bridge.py`, `watch.sh`, `wake.sh` | Generated copies of `lib/session-bridge/` (`scripts/sync-shared-copies.sh`); edit the canonical, never these |
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
-| `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/core.css`, `/app.css`, `/proto.js`). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when `schemaVersion` or the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `align.test.sh` (with `align.js`), `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/core.css`, `/app.css`, `/proto.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when `schemaVersion` or the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_proto.js`, `align.test.sh` (with `align.js`), `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -185,6 +185,28 @@ rolled-up notification.
 There is no device or address blocking (C35): Remove stops a person's secret, and Approve new joins
 or a new guest link stops a removed person rejoining under a new name.
 
+## Prototype page
+
+A `prototype` question shows a preview tile and an "Open prototype" link to `GET /proto/<qid>`
+(`web/proto.html`, `proto.js`; 404 for any other question). The page switches between the
+variants, picks one, and with Annotate on pins a note to a part of a variant:
+`POST /api/annotate {qid, variant, anchor: {selector, rect}, text}` (any person, once the
+question's round has opened; 30 notes per person per question). Notes show on the page, in the
+question's Claude thread, and in the round's digest as `{qid, variant, text, element}`.
+
+- **Anchor.** `selector` is the element's path from the variant's root, such as
+  `html > body:nth-of-type(1) > main:nth-of-type(1)` (tag names only, each below the root with
+  `:nth-of-type(n)`, at most 32 levels and 1000 characters), or
+  `img` on a picture variant; anything else is refused (400 `bad-field`, `anchor.selector`).
+  `rect` is the element's box in percent of the variant's reference box: an html variant's whole
+  scrollable page when the note was pinned, a picture variant's image. It places the pin when the
+  path no longer finds the element.
+- **Sandbox.** An html variant is framed from `/assets/<id>.html?pin=1` with `sandbox="allow-scripts"`
+  and the asset's own CSP sandbox, never `allow-same-origin`, so it reaches no cookie, storage or
+  session route. `?pin=1` appends `web/proto-pin.js` as an inline script; it answers the page by
+  `postMessage` with an element's path, box and up to 60 characters of its label, and
+  `proto.js` checks every message (its source frame, the selector and the rect) before use.
+
 ## Data contract
 
 One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
@@ -244,8 +266,9 @@ build reloads itself.
   `frame-ancestors 'none'; base-uri 'none'; form-action 'none'`). `/assets/*` adds
   `Content-Disposition: inline` and `Content-Security-Policy: sandbox`; an HTML asset gets
   `sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src
-  'unsafe-inline'; img-src 'self' data:; font-src data:; connect-src 'none'`, never
-  `allow-same-origin`.
+  'unsafe-inline'; img-src 'self' data:; font-src data:; connect-src 'none'; frame-ancestors
+  'self'`, never `allow-same-origin`, and `X-Frame-Options: SAMEORIGIN` in place of `DENY`, so the
+  prototype page can frame it and no other site can.
 - **The log.** `server.log` writes the request path, and a failure's traceback on one line, with
   control characters escaped (`\x1b`, `\x0a`).
 - **What a visitor reads.** Without identity, `/api/state` is `{title, ended, joinNeedsKey,
@@ -316,8 +339,14 @@ node plugins/planning/shared/tests/ui_inputs.js
 node plugins/planning/shared/tests/ui_chat.js
 node plugins/planning/shared/tests/ui_moderation.js
 node plugins/planning/shared/tests/ui_acceptance.js
+node plugins/planning/shared/tests/ui_proto.js
 bash plugins/planning/shared/tests/align.test.sh
 ```
+
+`ui_proto.js` checks the prototype page on a desktop and a 390x844 phone in separate browser
+contexts: the preview tile and its link, the variant switcher, Annotate, a note pinned to an
+element of an html variant and to a spot of a picture, the notes in the Claude thread and the
+digest, the variant's sandbox, and a forged pin message being ignored.
 
 `ui_layout.js` checks no page scroll at five sizes and 200% zoom in both themes, 44 px phone
 targets, the answer box right under the question, a guest's first view (goal, the host's ask,

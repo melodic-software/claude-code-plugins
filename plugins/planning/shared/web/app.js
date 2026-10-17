@@ -924,7 +924,14 @@
     const fmtRes = E("section", "vf-fmtres"); fmtRes.setAttribute("aria-label", "Results");
     const fmtResHead = E("h3", "vf-fmtres-h"), fmtResSum = E("p", "vf-fmtres-sum"), fmtResList = E("ol", "vf-fmtres-list");
     fmtRes.append(fmtResHead, fmtResSum, fmtResList);
-    fmtBox.append(fmtHint, optGrid, multiList, scaleBox, rankList, confirmFig, cfRow, otherBox, fmtActs, fmtNote, fmtRes);
+    // Q98: a prototype question shows a preview tile and opens its own page, where the variants run and take notes.
+    const protoBox = E("section", "vf-proto"); protoBox.setAttribute("aria-label", "Prototype");
+    const protoTile = E("div", "vf-proto-tile"), protoInfo = E("div", "vf-proto-info");
+    const protoMeta = E("p", "vf-proto-meta"), protoOpen = E("a", "vf-btn vf-btn-primary vf-btn-sm vf-proto-open", "Open prototype");
+    protoOpen.target = "_blank"; protoOpen.rel = "noopener noreferrer";
+    protoInfo.append(protoMeta, protoOpen);
+    protoBox.append(protoTile, protoInfo);
+    fmtBox.append(fmtHint, protoBox, optGrid, multiList, scaleBox, rankList, confirmFig, cfRow, otherBox, fmtActs, fmtNote, fmtRes);
     // Q77: Answers | Claude (N). Side by side from 1200px; tabs below that.
     const split = E("div", "vf-split");
     const splitTabs = E("div", "vf-seg vf-splittabs"); splitTabs.setAttribute("role", "tablist"); splitTabs.setAttribute("aria-label", "Answers or Claude");
@@ -3763,7 +3770,28 @@
       for (const r of S.myRequests || []) if (r.qid === q.id && !reqs.has(r.id)) reqs.set(r.id, { ...r, cid: Core.me.cid, name: Core.me.name });
       const answered = new Set(res.map(i => i.x.requestId).filter(Boolean));
       const rq = [...reqs.values()].filter(r => !answered.has(r.id)).map(r => ({ t: "req", id: "r:" + r.id, ts: r.ts, r }));
-      return [...rq, ...res].sort((a, b) => a.ts - b.ts);
+      const notes = (S.annotations || []).filter(a => a.qid === q.id).map(a => ({ t: "note", id: "a:" + a.id, ts: a.ts, a }));
+      return [...rq, ...res, ...notes].sort((a, b) => a.ts - b.ts);
+    }
+    /** Q98: a note someone pinned on a variant of this prototype, with a link to it on the prototype's page. */
+    function makeThNote() {
+      const li = E("li", "vf-thnote");
+      const head = E("div", "vf-thnote-head"), text = E("p", "vf-thnote-text"), go = E("a", "vf-thnote-go", "Show it on the prototype");
+      go.target = "_blank"; go.rel = "noopener noreferrer";
+      li.append(head, text, go);
+      li._k = { head, text, go };
+      return li;
+    }
+    function fillThNote(li, a, q) {
+      const k = li._k, v = (q.variants || []).find(x => x.id === a.variant), who = isMe(a.cid) ? "You" : disp(a.name);
+      const hk = [a.cid, a.name, v?.label, a.ts].join("|");
+      if (k.head._k !== hk) {
+        k.head._k = hk;
+        k.head.replaceChildren(E("span", "vf-chip vf-chip-quiet", "Note"), av(a.cid, a.name, 16), E("span", null, `${who} on ${v ? v.label : "a variant"}`), E("span", "vf-card-time", ago(a.ts)));
+      }
+      k.text.textContent = a.text;
+      k.go.href = Core.pageLink(`/proto/${q.id}`, { v: a.variant, n: a.id });
+      k.go.setAttribute("aria-label", `Show ${who === "You" ? "your" : `${who}'s`} note on the prototype, in a new tab`);
     }
     function makeRes() {
       const li = E("li", "vf-res");
@@ -3885,7 +3913,8 @@
     function renderThread(S, q) {
       const items = threadItems(S, q);
       if (thList._q !== q.id) { resetList(thList); thList._q = q.id; }
-      sync(thList, items, i => i.id, i => (i.t === "res" ? makeRes() : makeThReq()), (li, i) => (i.t === "res" ? fillRes(li, i.x, q) : fillThReq(li, i.r, q)));
+      sync(thList, items, i => i.id, i => (i.t === "res" ? makeRes() : i.t === "note" ? makeThNote() : makeThReq()),
+        (li, i) => (i.t === "res" ? fillRes(li, i.x, q) : i.t === "note" ? fillThNote(li, i.a, q) : fillThReq(li, i.r, q)));
       thEmpty.hidden = items.length > 0;
       const mineOpen = (S.myRequests || []).filter(r => r.qid === q.id && (r.status === "pending" || r.status === "running")).length;
       const others = Math.max(0, (S.requestCounts?.byQ?.[q.id] || 0) - (Core.me.isOwner ? (S.requests || []).filter(r => r.qid === q.id && (r.status === "pending" || r.status === "running")).length : mineOpen));
@@ -3947,6 +3976,23 @@
       citeChips.hidden = !citeChips.children.length;
     }
 
+    /** Q98: the preview tile (the first picture variant, else a plain tile) and the link to the prototype's own page. */
+    function renderProtoTile(q) {
+      protoBox.hidden = q.formatKind !== "prototype";
+      if (protoBox.hidden) return;
+      const vs = q.variants || [], pic = vs.find(v => !/\.html$/.test(v.asset));
+      const key = `${q.id}|${pic?.asset || ""}`;
+      if (protoTile._key !== key) {
+        protoTile._key = key;
+        if (pic) { const im = E("img"); im.alt = ""; im.loading = "lazy"; im.src = assetUrl(pic.asset); protoTile.replaceChildren(im); }
+        else protoTile.replaceChildren(E("span", null, "Interactive prototype"));
+      }
+      const n = (Core.state.annotations || []).filter(a => a.qid === q.id).length;
+      protoMeta.textContent = `${vs.length} variants: ${vs.map(v => v.label).join(", ")}. ${n ? `${n} note${n === 1 ? "" : "s"} pinned so far.` : "Try them and pin notes on any part."}`;
+      protoOpen.href = Core.pageLink(`/proto/${q.id}`);
+      protoOpen.setAttribute("aria-label", `Open prototype for ${q.id} in a new tab`);
+    }
+
     // ---------- choice and confirm questions (Q76) ----------
     function renderFormat(S, q) {
       const show = isChoice(q);
@@ -3961,6 +4007,7 @@
       optGrid.hidden = fmt !== "choice"; confirmFig.hidden = cfRow.hidden = fmt !== "confirm";
       multiList.hidden = fmt !== "multi"; scaleBox.hidden = fmt !== "scale"; rankList.hidden = fmt !== "rank";
       fmtActs.hidden = true;
+      renderProtoTile(q);
       renderOther(q, rec, ro);
       renderResults(q, hideResults);
       if (isFormat(q)) return renderPicks(q, rec, ro, hideResults);

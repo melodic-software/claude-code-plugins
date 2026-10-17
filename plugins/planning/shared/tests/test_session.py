@@ -1020,7 +1020,7 @@ class TestQuestionBehavior(SessionCase):
         self.open_round({**text_q("Q1", rec=False), "purpose": "gather", "format": {"kind": "prototype", "variants": variants}})
         for raw in ('{"x": NaN, "y": 0, "w": 10, "h": 10}', '{"x": 0, "y": 0, "w": Infinity, "h": 10}', '{"x": 600, "y": 700, "w": 120, "h": 40}'):
             rect = json.loads(raw)
-            anchor = {"selector": "#pay", "rect": rect}
+            anchor = {"selector": "html > body:nth-of-type(1) > button:nth-of-type(1)", "rect": rect}
             self.refused("bad-field", "annotate", self.ann, {"qid": "Q1", "variant": "v-1", "text": "Here", "anchor": anchor}, http=400)
             ref = {"kind": "image", "asset": PNG, "rect": rect}
             self.refused("bad-field", "edit_reference", HOST, {"qid": "Q1", "reference": ref}, http=400)
@@ -1716,7 +1716,7 @@ class TestWriteLimits(SessionCase):
         self.send()
         self.ack(1)
         self.open_round({**text_q("Q4", rec=False), "purpose": "gather", "format": {"kind": "prototype", "variants": variants}})
-        anchor = {"selector": "#pay", "rect": {"x": 0, "y": 0, "w": 10, "h": 10}}
+        anchor = {"selector": "html > body:nth-of-type(1)", "rect": {"x": 0, "y": 0, "w": 10, "h": 10}}
         with mock.patch.object(session, "MAX_ANNOTATIONS", 2):
             ids = [self.act("annotate", self.ann, {"qid": "Q4", "variant": "v-1", "text": f"Note {i}", "anchor": anchor})["id"] for i in range(4)]
         self.assertEqual([a["id"] for a in self.s.state["annotations"]], ids[-2:])
@@ -3201,6 +3201,118 @@ class TestMultiBacking(FormatCase):
         self.assertEqual(self.s.state["backs"], {"Q1": {self.cy: [f"p:{self.ann}", f"p:{self.bo}"]}})
 
 
+# ---------------------------------------------------------------------------------------------
+# Phase 7 (Q98): notes pinned to an element of a prototype variant
+# ---------------------------------------------------------------------------------------------
+
+
+class TestAnnotations(SessionCase):
+    """Annotation (Contracts): {qid, variant, anchor: {selector, rect}, text} on a prototype question; the selector is
+    an element path the pin helper writes, never script; a person pins a bounded number of notes per question."""
+
+    BUTTON = "html > body:nth-of-type(1) > main:nth-of-type(1) > button:nth-of-type(2)"
+    AREA = {"x": 10, "y": 40, "w": 30, "h": 5}
+
+    def setUp(self):
+        super().setUp()
+        self.ann, self.bo = self.people("Ann", "Bo")
+        self.variants = [{"id": "v-1", "label": "One page", "asset": HTML}, {"id": "v-2", "label": "Two steps", "asset": PNG}]
+        self.open_round({**text_q("Q1", rec=False), "purpose": "decide", "format": {"kind": "prototype", "variants": self.variants}}, text_q("Q2"))
+
+    def note(self, pid, text="The total is hard to find.", *, qid="Q1", variant="v-1", selector=BUTTON, rect=AREA):
+        return self.act("annotate", pid, {"qid": qid, "variant": variant, "text": text, "anchor": {"selector": selector, "rect": rect}})
+
+    def test_a_note_is_stored_with_its_anchor_and_reaches_claude_with_the_round(self):
+        aid = self.note(self.ann)["id"]
+        self.assertEqual(aid, "A1")
+        (a,) = self.disk()["annotations"]
+        self.assertEqual((a["pid"], a["qid"], a["variant"], a["text"]), (self.ann, "Q1", "v-1", "The total is hard to find."))
+        self.assertEqual(a["anchor"], {"selector": self.BUTTON, "rect": self.AREA})
+        self.assertEqual(self.s.snapshot(self.bo)["annotations"][0]["anchor"]["selector"], self.BUTTON)
+        self.send()
+        (ev,) = self.events("round-sent")
+        self.assertEqual(ev["digest"]["annotations"], [{"qid": "Q1", "variant": "v-1", "text": "The total is hard to find.", "element": self.BUTTON}])
+
+    def test_the_image_and_whole_page_anchors_and_a_32_level_path_are_taken(self):
+        deep = " > ".join(["html"] + ["div:nth-of-type(1)"] * 31)
+        for variant, selector in (("v-2", "img"), ("v-1", "html"), ("v-1", "html > body:nth-of-type(1) > pay-button:nth-of-type(3)"), ("v-1", deep)):
+            with self.subTest(selector=selector[:40]):
+                self.clock.tick()
+                self.note(self.ann, selector=selector, variant=variant)
+        self.assertEqual(len(self.s.state["annotations"]), 4)
+
+    def test_a_selector_that_is_not_an_element_path_is_refused(self):
+        too_deep = " > ".join(["html"] + ["div:nth-of-type(1)"] * 32)
+        bad = [
+            "#pay", "button.primary", "a[href^=javascript]", "body >div", "body:nth-of-type(0)", "body:nth-child(1)",
+            "<img src=x onerror=alert(1)>", "javascript:alert(1)", "", " html", "HTML", "svg > foreignObject", too_deep, "a" * 1001,
+        ]
+        for selector in bad:
+            with self.subTest(selector=selector[:40]):
+                err = self.refused("bad-field", "annotate", self.ann, {"qid": "Q1", "variant": "v-1", "text": "x", "anchor": {"selector": selector, "rect": self.AREA}}, http=400)
+                self.assertEqual(err.details["field"], "anchor.selector")
+        self.assertEqual(self.s.state["annotations"], [])
+
+    def test_an_anchor_holds_exactly_selector_and_rect(self):
+        for anchor in ({"selector": self.BUTTON}, {"rect": self.AREA}, {"selector": self.BUTTON, "rect": self.AREA, "script": "x"}, [self.BUTTON], "html"):
+            with self.subTest(anchor=anchor):
+                err = self.refused("bad-field", "annotate", self.ann, {"qid": "Q1", "variant": "v-1", "text": "x", "anchor": anchor}, http=400)
+                self.assertEqual(err.details["field"], "anchor")
+
+    def test_note_text_is_capped_at_2000_characters(self):
+        err = self.refused("too-long", "annotate", self.ann, {"qid": "Q1", "variant": "v-1", "text": "n" * 2001, "anchor": {"selector": "html", "rect": self.AREA}}, http=400)
+        self.assertEqual(err.details["max"], 2000)
+        self.note(self.ann, "n" * 2000)
+
+    def test_one_person_pins_a_bounded_number_of_notes_per_question(self):
+        with mock.patch.object(session, "MAX_MY_NOTES", 3):
+            for i in range(3):
+                self.note(self.ann, f"Note {i}")
+            err = self.refused("too-long", "annotate", self.ann, {"qid": "Q1", "variant": "v-2", "text": "One more", "anchor": {"selector": "img", "rect": self.AREA}}, http=400)
+            self.assertEqual((err.details["field"], err.details["max"]), ("annotations", 3))
+            self.note(self.bo, "Bo's first")  # the cap is per person
+        self.assertEqual([a["pid"] for a in self.s.state["annotations"]], [self.ann] * 3 + [self.bo])
+
+    def test_the_route_wants_a_prototype_question_and_one_of_its_variants(self):
+        self.refused("bad-field", "annotate", self.ann, {"qid": "Q2", "variant": "v-1", "text": "x", "anchor": {"selector": "html", "rect": self.AREA}})
+        self.refused("bad-field", "annotate", self.ann, {"qid": "Q1", "variant": "v-3", "text": "x", "anchor": {"selector": "html", "rect": self.AREA}})
+        self.refused("no-such-question", "annotate", self.ann, {"qid": "Q9", "variant": "v-1", "text": "x", "anchor": {"selector": "html", "rect": self.AREA}})
+
+    def test_a_note_waits_for_its_question_s_round_to_open(self):
+        prop = self.act("propose", self.bo, {"text": "Try a one-tap checkout"})["id"]
+        self.act("lock", HOST, {"qid": "Q2", "card": "c:rec"})
+        self.send()
+        self.ack(1)
+        later = {**text_q("Q4", rec=False), "format": {"kind": "prototype", "variants": self.variants}}
+        self.open_round(text_q("Q3"), placements=[{"proposal": prop, "as": "later-round", "after": ["Q3"], "question": later}])
+        self.assertEqual(self.question("Q4")["round"], 3)
+        self.refused("round-not-open", "annotate", self.ann, {"qid": "Q4", "variant": "v-1", "text": "x", "anchor": {"selector": "html", "rect": self.AREA}}, http=409)
+
+    def test_a_second_note_within_a_second_is_slowed(self):
+        self.note(self.ann)
+        self.clock.t += 0.5
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.annotate(self.ann, {"qid": "Q1", "variant": "v-1", "text": "Again", "anchor": {"selector": "html", "rect": self.AREA}})
+        self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
+
+    def test_is_prototype_names_only_prototype_questions(self):
+        self.assertEqual([self.s.is_prototype(q) for q in ("Q1", "Q2", "Q9")], [True, False, False])
+
+
+class TestImageReferenceRect(SessionCase):
+    """An image reference's rect (Reference, Contracts) is kept through open-round, the file and a reload. A verifier
+    reported it gone after an open-round on 6579f21; this pins the round trip through each write path."""
+
+    def test_an_image_reference_keeps_its_rect_through_open_round_disk_and_reload(self):
+        ref = {"kind": "image", "asset": PNG, "rect": {"x": 10, "y": 20, "w": 30, "h": 40}, "caption": "Current step"}
+        self.open_round({**text_q("Q1"), "references": [ref]})
+        self.apply({"op": "add-reference", "qid": "Q1", "reference": {**ref, "rect": {"x": 1, "y": 2, "w": 3, "h": 4}}})
+        expected = [ref, {**ref, "rect": {"x": 1, "y": 2, "w": 3, "h": 4}}]
+        self.assertEqual(self.disk()["questions"][0]["references"], expected)
+        self.assertEqual(session.Session.load(self.path).state["questions"][0]["references"], expected)
+        self.assertEqual(self.s.snapshot(HOST)["questions"][0]["references"], expected)
+
+
 class StateFixtureCase(unittest.TestCase):
     def load(self, name):
         tmp = Path(tempfile.mkdtemp())
@@ -3469,6 +3581,28 @@ class TestStateFrom6579f21(StateFixtureCase):
         self.assertIsNone(session.document_error(json.loads(s.path.read_text(encoding="utf-8"))))
         reloaded = session.Session.load(s.path, validate_writes=True)
         self.assertEqual(next(q for q in reloaded.state["questions"] if q["id"] == "Q1")["format"]["rect"], self.PIXEL)
+
+
+class TestStateFrom3f9006c(StateFixtureCase):
+    """state-written-3f9006c.json was written by 3f9006c's own session.py, which took any selector up to 500
+    characters: its note A1 is pinned at "#pay". It loads unchanged, its note still shows, and new notes follow
+    the element-path rule."""
+
+    def test_a_state_3f9006c_wrote_loads_unchanged_and_takes_new_notes(self):
+        s = self.load("state-written-3f9006c.json")
+        ann = next(p for p, v in s.state["people"].items() if v["name"] == "Ann")
+        self.assertEqual(s.snapshot(ann)["annotations"][0]["anchor"], {"selector": "#pay", "rect": {"x": 5, "y": 60, "w": 40, "h": 8}})
+        q2 = next(q for q in s.state["questions"] if q["id"] == "Q2")
+        self.assertEqual(q2["references"][0]["rect"], {"x": 10, "y": 20, "w": 30, "h": 40})
+        self.assertTrue(s.is_prototype("Q1"))
+        body = {"qid": "Q1", "variant": "v-2", "text": "Step two hides the total.", "anchor": {"selector": "img", "rect": {"x": 1, "y": 1, "w": 5, "h": 5}}}
+        self.assertEqual(s.annotate(ann, body)["id"], "A2")
+        with self.assertRaises(session.DomainError) as ctx:
+            s.annotate(ann, {**body, "anchor": {"selector": "#pay", "rect": {"x": 1, "y": 1, "w": 5, "h": 5}}})
+        self.assertEqual(ctx.exception.details["field"], "anchor.selector")
+        self.assertIsNone(session.document_error(json.loads(s.path.read_text(encoding="utf-8"))))
+        reloaded = session.Session.load(s.path, validate_writes=True)
+        self.assertEqual([a["anchor"]["selector"] for a in reloaded.state["annotations"]], ["#pay", "img"])
 
 
 if __name__ == "__main__":
