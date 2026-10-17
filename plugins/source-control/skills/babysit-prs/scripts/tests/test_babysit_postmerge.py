@@ -131,6 +131,24 @@ def schedule_run(
     return run(**fields)
 
 
+def failed_job(job_id: int, name: str, *failed_steps: str) -> dict[str, Any]:
+    """A failed job of the jobs API, its named steps failed."""
+    steps = [{"name": "Set up job", "conclusion": "success"}]
+    steps += [{"name": step, "conclusion": "failure"} for step in failed_steps]
+    return {"id": job_id, "name": name, "conclusion": "failure", "steps": steps}
+
+
+def failure_annotation(title: str = "") -> dict[str, Any]:
+    """A check-run annotation; the aggregator titles one per failed gate."""
+    return {
+        "annotation_level": "failure",
+        "title": title,
+        "message": "Process completed with exit code 1."
+        if not title
+        else "Hygiene check finished with outcome: failure.",
+    }
+
+
 def completed(
     stdout: Any = None, *, returncode: int = 0, stderr: str = ""
 ) -> subprocess.CompletedProcess[str]:
@@ -169,6 +187,10 @@ class FakeGh:
         # Artifacts by name, and single workflow runs by id (GET .../runs/<id>).
         self.artifacts: dict[str, list[dict[str, Any]]] = {}
         self.run_records: dict[int, dict[str, Any]] = {}
+        # Jobs by (run id, attempt); unset, an attempt failed one test job.
+        self.jobs: dict[tuple[int, int], list[dict[str, Any]]] = {}
+        # Check-run annotations by job id, or the HTTP status the read fails with.
+        self.annotations: dict[int, list[dict[str, Any]] | int] = {}
 
     def add_runs(self, workflow: str, event: str, *runs: dict[str, Any]) -> None:
         self.runs.setdefault((workflow, event), []).extend(runs)
@@ -202,14 +224,26 @@ class FakeGh:
         if "/actions/workflows/" in endpoint and "/runs?" in endpoint:
             workflow = endpoint.split("/actions/workflows/")[1].split("/")[0]
             event = endpoint.split("event=")[1].split("&")[0]
-            return completed(
-                [
-                    {
-                        "total_count": 0,
-                        "workflow_runs": self.runs.get((workflow, event), []),
-                    }
-                ]
+            page = {
+                "total_count": 0,
+                "workflow_runs": self.runs.get((workflow, event), []),
+            }
+            return completed([page] if "--slurp" in args else page)
+        if endpoint.split("?")[0].endswith("/jobs"):
+            run_id = int(endpoint.split("/actions/runs/")[1].split("/")[0])
+            attempt = int(endpoint.split("/attempts/")[1].split("/")[0])
+            jobs = self.jobs.get(
+                (run_id, attempt),
+                [failed_job(run_id * 10 + attempt, "test-bash", "Run the bash tests")],
             )
+            return completed([{"total_count": len(jobs), "jobs": jobs}])
+        if "/check-runs/" in endpoint:
+            value = self.annotations.get(
+                int(endpoint.split("/check-runs/")[1].split("/")[0]), []
+            )
+            if isinstance(value, int):
+                return completed(returncode=1, stderr=f"gh: Error (HTTP {value})")
+            return completed(value)
         if "/attempts/" in endpoint:
             run_id = int(endpoint.split("/actions/runs/")[1].split("/")[0])
             attempt = int(endpoint.rsplit("/", 1)[1])
@@ -234,7 +268,11 @@ class FakeGh:
             artifacts = self.artifacts.get(name, [])
             return completed({"total_count": len(artifacts), "artifacts": artifacts})
         if endpoint.split("/actions/runs/")[-1].isdigit():
-            record = self.run_records.get(int(endpoint.rsplit("/", 1)[1]))
+            run_id = int(endpoint.rsplit("/", 1)[1])
+            record = self.run_records.get(run_id) or next(
+                (r for runs in self.runs.values() for r in runs if r["id"] == run_id),
+                None,
+            )
             if record is None:
                 return completed(returncode=1, stderr="gh: Not Found (HTTP 404)")
             return completed(record)
@@ -744,6 +782,275 @@ class Attribution(CheckCase):
         )
         self.gh.attempts[(11, 1)] = dispatch_run(11, conclusion="failure")
         self.assertEqual([f.signal for f in self.check().failures], ["dispatch"])
+
+
+class Baseline(CheckCase):
+    """The owner's rule (#7767): a red full run counts against a merge only for
+    a check that was not failing on the newest completed run of the same event
+    before the merge; with no such run it counts, as before. The gitleaks gate
+    scans every branch on these events, so it counts against no merge. The
+    job and annotation shapes are those of pr-require-checks run 39049428637."""
+
+    BEFORE = "2026-10-12T09:30:00Z"
+    SIGHTING = f"{RUN_URL}/31/attempts/2"
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+
+    def red_after_merge(self, *jobs: dict[str, Any]) -> None:
+        """Schedule run 31 after the merge, red again on the wrapper's re-run."""
+        after = "2026-10-12T10:30:00Z"
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "schedule",
+            schedule_run(
+                31, run_attempt=2, triggering_actor=by(IDENTITY), created_at=after
+            ),
+        )
+        self.gh.attempts[(31, 1)] = schedule_run(31, created_at=after)
+        if jobs:
+            self.gh.jobs[(31, 2)] = list(jobs)
+
+    def before_merge(self, conclusion: str, *jobs: dict[str, Any]) -> None:
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "schedule",
+            schedule_run(30, conclusion, head_sha=HEAD_SHA, created_at=self.BEFORE),
+        )
+        if jobs:
+            self.gh.jobs[(30, 1)] = list(jobs)
+
+    def test_a_check_already_red_before_the_merge_is_not_charged_to_it(self) -> None:
+        self.before_merge("failure", failed_job(301, "test-bash", "Run the bash tests"))
+        self.red_after_merge(failed_job(312, "test-bash", "Run the bash tests"))
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(verdict.unattributed, (self.SIGHTING,))
+        self.assertEqual(verdict.report()["unattributed"], [self.SIGHTING])
+
+    def test_a_check_green_before_the_merge_is_charged_to_it(self) -> None:
+        self.before_merge("success")
+        self.red_after_merge(failed_job(312, "test-bash", "Run the bash tests"))
+        verdict = self.check()
+        self.assertEqual(
+            [(f.signal, f.merge.number, f.run_url) for f in verdict.failures],
+            [("schedule", 7001, self.SIGHTING)],
+        )
+        self.assertIn("newly failing: test-bash", verdict.failures[0].detail)
+
+    def test_with_no_run_before_the_merge_a_red_check_is_charged(self) -> None:
+        self.red_after_merge(failed_job(312, "test-bash", "Run the bash tests"))
+        self.assertEqual(
+            [(f.signal, f.merge.number) for f in self.check().failures],
+            [("schedule", 7001)],
+        )
+
+    def test_another_check_red_before_the_merge_does_not_excuse_this_one(self) -> None:
+        self.before_merge("failure", failed_job(301, "lint-shell", "ShellCheck"))
+        self.red_after_merge(failed_job(312, "test-bash", "Run the bash tests"))
+        self.assertEqual([f.signal for f in self.check().failures], ["schedule"])
+
+    def test_a_dispatch_run_compares_with_dispatch_runs_not_schedule_runs(self) -> None:
+        self.before_merge("failure", failed_job(301, "test-bash", "Run the bash tests"))
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(11, "failure", run_attempt=2),
+        )
+        self.gh.attempts[(11, 1)] = dispatch_run(11, "failure")
+        self.assertEqual([f.signal for f in self.check().failures], ["dispatch"])
+
+    def gitleaks_red(self, job_id: int, *more: dict[str, Any]) -> list[dict[str, Any]]:
+        """lint-repo red through its aggregator step, and the ci-status job
+        it turns red; the aggregator titles each failed gate."""
+        self.gh.annotations[job_id] = [
+            failure_annotation(),
+            failure_annotation("gitleaks failed"),
+            *more,
+        ]
+        return [
+            failed_job(job_id, "lint-repo", "Aggregate hygiene results"),
+            failed_job(job_id + 1, "ci-status", "Aggregate lane results"),
+        ]
+
+    def test_a_gitleaks_only_failure_is_charged_to_no_merge(self) -> None:
+        self.red_after_merge(*self.gitleaks_red(312))
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(verdict.unattributed, (self.SIGHTING,))
+
+    def test_a_new_gate_beside_a_gitleaks_failure_is_charged(self) -> None:
+        self.before_merge("failure", *self.gitleaks_red(301))
+        self.red_after_merge(
+            *self.gitleaks_red(312, failure_annotation("markdown failed"))
+        )
+        verdict = self.check()
+        self.assertEqual([f.signal for f in verdict.failures], ["schedule"])
+        self.assertIn(
+            "newly failing: lint-repo: markdown failed", verdict.failures[0].detail
+        )
+
+    def test_a_lint_repo_step_outside_the_aggregator_is_still_charged(self) -> None:
+        jobs = self.gitleaks_red(312)
+        jobs[0] = failed_job(
+            312,
+            "lint-repo",
+            "Aggregate hygiene results",
+            "Test hygiene result aggregation",
+        )
+        self.red_after_merge(*jobs)
+        self.assertEqual([f.signal for f in self.check().failures], ["schedule"])
+
+    def test_unreadable_annotations_excuse_nothing(self) -> None:
+        jobs = self.gitleaks_red(312)
+        self.gh.annotations[312] = 403
+        self.red_after_merge(*jobs)
+        self.assertEqual([f.signal for f in self.check().failures], ["schedule"])
+
+    def test_a_dispatch_run_red_only_on_pre_existing_checks_verifies(self) -> None:
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(10, "failure", head_sha=HEAD_SHA, created_at=self.BEFORE),
+            dispatch_run(11, "failure", run_attempt=2),
+        )
+        self.gh.attempts[(11, 1)] = dispatch_run(11, "failure")
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertTrue(verdict.merges[0].verified)
+
+
+class AlertRerun(CheckCase):
+    """post-merge-demotion-alert.yml re-runs a red full run once under
+    GITHUB_TOKEN, so attempt 2's triggering actor is github-actions[bot]. That
+    one re-run is judged like the wrapper's; a re-run of a run the bot itself
+    started, like a person's, still cannot clear attempt 1."""
+
+    BOT = by("github-actions[bot]")
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+
+    def rerun_by_bot(self, conclusion: str, first_actor: dict[str, Any]) -> None:
+        after = "2026-10-12T10:30:00Z"
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "schedule",
+            schedule_run(
+                31,
+                conclusion,
+                run_attempt=2,
+                triggering_actor=self.BOT,
+                created_at=after,
+            ),
+        )
+        self.gh.attempts[(31, 1)] = schedule_run(
+            31, triggering_actor=first_actor, created_at=after
+        )
+
+    def test_a_passing_alert_rerun_is_a_flake(self) -> None:
+        self.rerun_by_bot("success", by("maintainer"))
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(verdict.flakes, (f"{RUN_URL}/31",))
+
+    def test_a_failing_alert_rerun_goes_through_the_baseline(self) -> None:
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "schedule",
+            schedule_run(30, head_sha=HEAD_SHA, created_at="2026-10-12T09:30:00Z"),
+        )
+        self.rerun_by_bot("failure", by("maintainer"))
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(verdict.unattributed, (f"{RUN_URL}/31/attempts/2",))
+
+    def test_a_failing_alert_rerun_with_a_green_baseline_demotes(self) -> None:
+        self.rerun_by_bot("failure", by("maintainer"))
+        verdict = self.check()
+        self.assertEqual(
+            [(f.signal, f.run_url) for f in verdict.failures],
+            [("schedule", f"{RUN_URL}/31/attempts/2")],
+        )
+
+    def test_a_bot_rerun_of_a_run_the_bot_started_does_not_clear_it(self) -> None:
+        self.rerun_by_bot("success", self.BOT)
+        verdict = self.check()
+        self.assertEqual([f.signal for f in verdict.failures], ["schedule"])
+        self.assertEqual(verdict.flakes, ())
+
+    def test_the_wrapper_starts_no_rerun_once_attempt_2_exists(self) -> None:
+        self.rerun_by_bot("success", by("maintainer"))
+        verdict = pm.PostMergeVerdict(
+            True, reruns=(pm.Rerun(31, f"{RUN_URL}/31", "schedule"),)
+        )
+        self.assertEqual(pm.attribute(REPO, verdict), [])
+        self.assertEqual(self.gh.writes(), [])
+
+
+class NoFailedJobs(CheckCase):
+    """A red full run with no failed job (a workflow file that no longer
+    loads) is a check of its own: charged, unless the run before the merge
+    was red the same way."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        after = "2026-10-12T10:30:00Z"
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "schedule",
+            schedule_run(
+                31,
+                "startup_failure",
+                run_attempt=2,
+                triggering_actor=by(IDENTITY),
+                created_at=after,
+            ),
+        )
+        self.gh.attempts[(31, 1)] = schedule_run(
+            31, "startup_failure", created_at=after
+        )
+        self.gh.jobs[(31, 2)] = []
+
+    def test_a_red_run_with_no_failed_job_is_charged(self) -> None:
+        verdict = self.check()
+        self.assertEqual([f.signal for f in verdict.failures], ["schedule"])
+        self.assertIn(
+            "newly failing: pr-require-checks.yml: no failed jobs",
+            verdict.failures[0].detail,
+        )
+
+    def test_the_same_red_before_the_merge_excuses_it(self) -> None:
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "schedule",
+            schedule_run(
+                30,
+                "startup_failure",
+                head_sha=HEAD_SHA,
+                created_at="2026-10-12T09:30:00Z",
+            ),
+        )
+        self.gh.jobs[(30, 1)] = []
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(verdict.unattributed, (f"{RUN_URL}/31/attempts/2",))
+
+    def test_a_dispatch_run_with_no_failed_job_does_not_verify(self) -> None:
+        self.gh.runs[("pr-require-checks.yml", "schedule")] = []
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(11, "failure", run_attempt=2),
+        )
+        self.gh.attempts[(11, 1)] = dispatch_run(11, "failure")
+        self.gh.jobs[(11, 2)] = []
+        verdict = self.check()
+        self.assertFalse(verdict.merges[0].verified)
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
 
 
 class DispatchCoverage(CheckCase):
