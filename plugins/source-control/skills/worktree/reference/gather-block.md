@@ -49,8 +49,8 @@ pre-compute block. A worker brief that sends a subagent into an isolated session
 instead of restating the shapes.
 
 **Accepted.** One plain command per call, with a literal absolute path and no `$` expansion other
-than a bare `$HOME`, which the guard accepts per the observation in
-`plugins/session-flow/reference/gather.md` ("Why these are gathered at run time"). Give
+than a bare `$HOME`, which the guard accepts per the observation
+`/session-flow:handoff` records for its run-time gather. Give
 each git read its own call. Read a file with the Read tool rather than `sed`, `cat` or `head` over
 a path held in a variable.
 
@@ -71,7 +71,7 @@ fix or have set `F` in the same compound command. No probe from an isolated sess
 two. Keep `$` other than a bare `$HOME` out of worker commands until one does.
 
 **Basis.** The two upstream sections linked in the table, both read 2026-10-17, and, for the bare
-`$HOME` exception, the observation recorded in `plugins/session-flow/reference/gather.md` (as of
+`$HOME` exception, the observation `/session-flow:handoff` records for its run-time gather (as of
 2026-10-11, citing melodic-software/claude-code-plugins#1687). **Recheck trigger.** Either section
 changes the expansions it names or the scope of the check, a release note changes how
 worktree-isolated agents treat `$`-expansion, or a probe from an isolated session runs
