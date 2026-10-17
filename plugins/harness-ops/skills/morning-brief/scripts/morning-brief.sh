@@ -1394,8 +1394,10 @@ print_stranded() {
 # and the cap come from the record's `turns=` and `max-turns=` fields, else from
 # the SDK result's num_turns or the action's "after N turns, exceeding the
 # configured maximum of M" annotation. A restart is a run of a lane on an item
-# whose previous run of that lane was a limit stop; an item is the head commit
-# for a pull_request or workflow_run run, else the run title.
+# whose previous run of that lane was a limit stop. An item is the head commit
+# for a pull_request or workflow_run run. Any other run carries no head or
+# issue number, so its item is the event and the `#N` that ends its title
+# (pr-unblock's run-name, work-resolve-issue's), else its whole title.
 # shellcheck disable=SC2016  # $runs, $ann, $lanes and $since are jq variables bound by --slurpfile/--argjson
 LANES_JQ='
   def num(re): [match(re; "i") | .captures[0].string | tonumber] | first;
@@ -1419,7 +1421,11 @@ LANES_JQ='
           failed: (.conclusion | IN("failure", "timed_out", "startup_failure")),
           turns: (if $t != null then ($t | turns_of) else null end),
           cap: (if $t != null then ($t | cap_of) else null end),
-          key: (if ((.event // "") | startswith("pull_request")) or .event == "workflow_run" then .head_sha else .display_title end)
+          head: (((.event // "") | startswith("pull_request")) or .event == "workflow_run"),
+          number: ([(.display_title // "") | capture(" #(?<n>[0-9]+)$") | .n] | first)
+        }
+      | . + {
+          key: (if .head then "head \(.head_sha)" elif .number then "\(.event) #\(.number)" else "title \(.display_title)" end)
         }
       | . + {class: (if .failed | not then null
                      elif .conclusion != "failure" then "other"
@@ -1431,7 +1437,7 @@ LANES_JQ='
   | ($r | group_by(.key) | map(sort_by(.created_at))) as $items
   | ([ $items[] | . as $g | range(1; length) | select($g[. - 1].class == "rate-limit") ] | length) as $restarts
   | [ $items[] | select((map(select(.class == "rate-limit")) | length) >= 3)
-      | {n: (map(select(.class == "rate-limit")) | length), title: .[0].display_title, sha: (.[0].head_sha // "")[0:7], key: .[0].key} ] as $repeat
+      | {n: (map(select(.class == "rate-limit")) | length), title: .[0].display_title, sha: (.[0].head_sha // "")[0:7], head: .[0].head} ] as $repeat
   | ($r | map(.turns | numbers) | sort) as $ts
   | ($r | sort_by(.created_at) | map(.cap | numbers) | last) as $cap
   | (if ($ts | length) > 0 then $ts[((($ts | length) * 0.9) | ceil) - 1] else null end) as $p90
@@ -1443,7 +1449,7 @@ LANES_JQ='
      elif $maxturns > 0 then "    turns: none recorded  CHECK: \($maxturns) max-turns failure(s); raise the cap or inspect the runs"
      else empty end),
     ($r | map(select(.class == "max-turns" or ((.cap // $cap) as $c | .turns | hot($c)))) | sort_by(.created_at) | reverse | .[:5][] | "      \(.html_url)"),
-    ($repeat[] | "    \(.n) limit stops on one head: \(.title)\(if .sha != "" and .key == .sha then " @ \(.sha)" else "" end)")
+    ($repeat[] | "    \(.n) limit stops on one \(if .head then "head" else "item" end): \(.title)\(if .head and .sha != "" then " @ \(.sha)" else "" end)")
 '
 
 LANES_PARTIAL=0

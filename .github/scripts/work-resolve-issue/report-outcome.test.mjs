@@ -585,6 +585,31 @@ test("main posts the limited marker once per run", async () => {
   });
 });
 
+test("a late rerun finds its marker past the first page of the whole history", async () => {
+  await withDir({ "lane.json": LIMITED_LANE }, async (dir) => {
+    const marker = "<!-- work-resolve-issue outcome=limited resets=2026-10-17T18:00:00Z run=123 -->";
+    const filler = Array.from({ length: 100 }, () => ({ user: { login: "someone" }, body: "hi" }));
+    const calls = [];
+    const fetch = async (url, init = {}) => {
+      const method = init.method ?? "GET";
+      calls.push({ method, url });
+      const { pathname, searchParams } = new URL(url);
+      const ok = (body) => ({ ok: true, status: 200, json: async () => body });
+      if (method !== "GET") {
+        return { ok: true, status: 201, json: async () => ({}) };
+      }
+      if (pathname.endsWith("/comments")) {
+        return ok(searchParams.get("page") === "1" ? filler : [{ user: { login: "melodic-automation-lanes[bot]" }, body: marker }]);
+      }
+      return ok(ISSUE[2]);
+    };
+    // Two days after the stop: a since-bounded read would miss the marker.
+    assert.equal(await main({ env: env(dir), fetch, now: LIMIT_NOW + 2 * 86_400_000 }), 0);
+    assert.ok(!calls.some((call) => call.method === "POST"));
+    assert.ok(!calls.some((call) => call.url.includes("since=")));
+  });
+});
+
 test("main does not take another account's copy of the marker as its own", async () => {
   await withDir({ "lane.json": LIMITED_LANE }, async (dir) => {
     const marker = "<!-- work-resolve-issue outcome=limited resets=2026-10-17T18:00:00Z run=123 -->";

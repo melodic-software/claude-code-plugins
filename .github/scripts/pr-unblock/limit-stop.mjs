@@ -14,7 +14,8 @@
 // When a limit stop names no `resets=` time, it is taken to reset this long
 // after the run ended: the shortest plan limit is a five-hour session window
 // (https://support.claude.com/en/articles/11145838).
-// TODO(C6): read limits.fallback-reset from pr-pipeline.yaml once that leaf exists.
+// Hard-coded until pr-pipeline.yaml has a limits.fallback-reset leaf:
+// https://github.com/melodic-software/claude-code-plugins/issues/7764
 export const FALLBACK_RESET_MS = 5 * 3_600_000;
 const HOUR_MS = 3_600_000;
 // Limit stops on one head after which the dispatchers stop re-dispatching it

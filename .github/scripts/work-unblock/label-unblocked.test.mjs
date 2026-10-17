@@ -12,7 +12,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { checkCloser, main as runMain } from "./label-unblocked.mjs";
+import { checkCloser, escalationComment, main as runMain } from "./label-unblocked.mjs";
 
 // resolve-issue's admission in docs/conventions/pr-pipeline.yaml; the
 // resolve-config live-config test checks the script's reader returns it.
@@ -824,9 +824,22 @@ test("a third limit stop since a person added agent-ready adds needs-human with 
   const third = stopped({ comments: [marker(), ...stops] });
   assert.equal(await sweep({ github: third.github }), 0);
   const written = writes(third.calls);
-  assert.deepEqual(written.slice(0, 1), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
   assert.equal(written.length, 2);
-  assert.ok(written[1].startsWith(`POST /repos/${REPO}/issues/30/comments `), written[1]);
+  assert.ok(written[0].startsWith(`POST /repos/${REPO}/issues/30/comments `), written[0]);
+  assert.ok(written[0].includes("<!-- work-unblock escalated -->"), written[0]);
+  assert.deepEqual(written.slice(1), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
+  // The comment went out but the label did not: the next sweep adds only the
+  // label. The App's explanation from before a person's re-add does not count.
+  const explanation = (at) => ({ id: 40, body: escalationComment(3), user: LANES_BOT, created_at: at });
+  const retry = stopped({ comments: [marker(), ...stops, explanation("2026-10-16T06:30:00Z")] });
+  assert.equal(await sweep({ github: retry.github }), 0);
+  assert.deepEqual(writes(retry.calls), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
+  const stale = stopped({
+    comments: [marker(), explanation("2026-10-15T23:00:00Z"), ...stops],
+    events: [added("2026-10-15T22:00:00Z", OWNER), added("2026-10-15T23:30:00Z", OWNER)],
+  });
+  assert.equal(await sweep({ github: stale.github }), 0);
+  assert.equal(writes(stale.calls).length, 2);
   // A person adding agent-ready after the first stop starts the count again.
   const reset = stopped({ comments: [marker(), ...stops], events: [added("2026-10-16T00:00:00Z"), added("2026-10-16T01:00:00Z", OWNER)] });
   assert.equal(await sweep({ github: reset.github }), 0);
