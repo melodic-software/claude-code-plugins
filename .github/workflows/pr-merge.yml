@@ -287,9 +287,6 @@ jobs:
           SCRIPT: ${{ steps.config.outputs.script }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           RUNG_CAP: ${{ vars.CLAUDE_LANES_MERGE_RUNG_CAP }}
-          # Ids that never ratify a lane PR's closing issue, as at the issue
-          # lane's start check (check-trusted-trigger's denied-actor-ids).
-          BABYSIT_DENIED_ACTOR_IDS: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
         run: |
           set -euo pipefail
           # The script and its flags come from the merge-pr activity on main.

@@ -3,13 +3,22 @@ description: >
   Read the repository's pr-pipeline.yaml from the base-SHA checkout only,
   validate it against the convention schema, apply the lane rules and the
   vocabulary, and resolve one lane (and optionally one activity) with every
-  default applied. Writes ResolvedConfig to output-path and the selected
-  activity's outputs. Any rejection fails the step and writes no file.
+  default applied, or with model-route only that run's model profile. Writes
+  ResolvedConfig to output-path and the selected activity's outputs. Any
+  rejection fails the step and writes no file.
 
 inputs:
   lane:
-    description: The lane to resolve, the lane workflow's file stem.
-    required: true
+    description: The lane to resolve, the lane workflow's file stem. Empty only with model-route.
+    required: false
+    default: ""
+  model-route:
+    description: >
+      A run that is no lane activity (verify-pr, for pr-verify.yml): resolve
+      only its model profile, for the profile, claude-args, settings-json and
+      max-turns outputs. Set it or lane, not both.
+    required: false
+    default: ""
   activity:
     description: The activity to select from the lane's slots; empty selects none.
     required: false
@@ -82,11 +91,22 @@ outputs:
   script:
     description: The script path, empty for a skill.
     value: ${{ steps.resolve.outputs.script }}
-  model:
-    description: The activity's model; empty means the runner's default.
-    value: ${{ steps.resolve.outputs.model }}
+  profile:
+    description: The models profile a skill activity or model-route resolves to; empty for a script.
+    value: ${{ steps.resolve.outputs.profile }}
+  claude-args:
+    description: >
+      The profile's Claude Code arguments: `--model <alias>` unless the model
+      is `default`, `--max-turns <n>`, and `--effort <level>` when the profile
+      sets one. Empty for a script.
+    value: ${{ steps.resolve.outputs.claude-args }}
+  settings-json:
+    description: >
+      The profile's settings JSON, `{"env":{"CLAUDE_CODE_SUBAGENT_MODEL":"<alias>"}}`,
+      or empty when its subagent-model is inherit, and for a script.
+    value: ${{ steps.resolve.outputs.settings-json }}
   max-turns:
-    description: The activity's turn budget; empty means the runner's default.
+    description: The profile's turn budget; empty for a script.
     value: ${{ steps.resolve.outputs.max-turns }}
   reads-untrusted:
     description: "`true` when the activity reads untrusted text."
@@ -122,6 +142,7 @@ runs:
       env:
         LANE: ${{ inputs.lane }}
         ACTIVITY: ${{ inputs.activity }}
+        MODEL_ROUTE: ${{ inputs.model-route }}
         BASE_PATH: ${{ inputs.base-path }}
         CONFIG_PATH: ${{ inputs.config-path }}
         OUTPUT_PATH: ${{ inputs.output-path }}

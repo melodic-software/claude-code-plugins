@@ -8,11 +8,10 @@ name: work-resolve-issue
 #
 # resolve-issue runs /work-items:work on the issue and commits to a new branch,
 # or stops and says why. report-outcome then opens a ready PR from that branch,
-# or comments on the issue and labels it needs-human. Which issues are admitted
-# (their work class or the owner's ratification marker, and the go-live time)
-# is in docs/conventions/pr-pipeline.yaml.
-# The kill switch, the labeler check (a listed human, or the lanes App on an
-# issue the owner ratified) and the token broker run inside
+# or comments on the issue and labels it needs-human. The agent-ready label
+# alone admits the issue; the hold labels and the go-live time are in
+# docs/conventions/pr-pipeline.yaml. The kill switch, the labeler check (a
+# listed human, or the lanes App) and the token broker run inside
 # pr-run-activity-write.yml.
 
 # The morning brief's Lanes section groups runs by the issue number that ends
@@ -34,9 +33,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # The lanes App's agent-ready label reaches the trigger gate, which starts
-  # the run only while the owner's ratification marker is on the issue; the
-  # App's other labels never start a run.
+  # The lanes App's agent-ready label (work-unblock's) starts a run like a
+  # listed human's; the App's other labels never start one. No step of this
+  # lane adds agent-ready, so a run cannot start another.
   resolve-issue:
     if: github.event.label.name == 'agent-ready'
     permissions:
@@ -50,7 +49,7 @@ jobs:
       activity: resolve-issue
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
-      ratified-app-label: agent-ready
+      app-label: agent-ready
       timeout-minutes: 50
     secrets:
       claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
@@ -61,7 +60,9 @@ jobs:
   # GITHUB_TOKEN, and it runs only scripts from the default branch tip.
   report-statuses:
     needs: [resolve-issue, report-outcome]
-    if: ${{ !cancelled() && needs.resolve-issue.outputs.issue-run-started == 'true' }}
+    if: >-
+      ${{ !cancelled() && (needs.resolve-issue.outputs.issue-run-started == 'true'
+      || needs.resolve-issue.outputs.reuse-branch != '') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -94,6 +95,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           WORK_OUTCOME_DIR: ${{ runner.temp }}/work-outcome
+          REUSE_BRANCH: ${{ needs.resolve-issue.outputs.reuse-branch }}
           RESOLVE_RESULT: ${{ needs.resolve-issue.result }}
           REPORT_RESULT: ${{ needs.report-outcome.result }}
         run: node .base/.github/scripts/work-resolve-issue/post-statuses.mjs
@@ -102,7 +104,12 @@ jobs:
     needs: resolve-issue
     # issue-run-started is set only by the write runner's own steps, once the
     # run got its token; a run that failed after that still reports.
-    if: ${{ !cancelled() && needs.resolve-issue.outputs.issue-run-started == 'true' }}
+    # reuse-branch, also runner-computed, names a lane branch an earlier run
+    # left with commits and no report: the model was skipped, and this opens
+    # the PR from it.
+    if: >-
+      ${{ !cancelled() && (needs.resolve-issue.outputs.issue-run-started == 'true'
+      || needs.resolve-issue.outputs.reuse-branch != '') }}
     permissions:
       contents: read
       pull-requests: read
@@ -114,4 +121,5 @@ jobs:
       activity: report-outcome
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
-      ratified-app-label: agent-ready
+      app-label: agent-ready
+      reuse-branch: ${{ needs.resolve-issue.outputs.reuse-branch }}

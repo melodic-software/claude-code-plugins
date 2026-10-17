@@ -155,6 +155,16 @@ jobs:
             '{pr: $pr, head_sha: $head, base_sha: $base}' >"$DATA/pr.json"
           echo "diff: $(wc -l <"$DATA/diff.patch") lines"
 
+      # The judgment's model, turns and effort: the verify-pr route of the
+      # base config's models block.
+      - name: Resolve the verifier's model
+        id: models
+        if: steps.agree.outcome == 'success'
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          model-route: verify-pr
+          output-path: ${{ runner.temp }}/pr-verify-models.json
+
       - name: Build the prompt and arguments
         id: prompt
         if: steps.agree.outcome == 'success'
@@ -162,11 +172,6 @@ jobs:
           DATA: ${{ runner.temp }}/pr-verify-data
         run: |
           [[ $DATA =~ ^/[A-Za-z0-9_./-]+$ ]] || { echo "::error::the data directory has a name a rule cannot carry"; exit 1; }
-          model=$(yq '.merge."verifier-model" // ""' .base/docs/conventions/pr-pipeline.yaml)
-          if [ -n "$model" ] && ! [[ $model =~ ^[A-Za-z0-9][]A-Za-z0-9._[-]*$ ]]; then
-            echo "::error::merge.verifier-model is malformed"
-            exit 1
-          fi
           prompt=$(<.base/.github/scripts/pr-verify/prompt.md)
           prompt=${prompt//DIFF_FILE/$DATA/diff.patch}
           prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
@@ -180,10 +185,7 @@ jobs:
           # :213 at the pinned SHA); the denials below hold if that changes.
           denied="Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent"
           denied="$denied,mcp__github,mcp__github_comment,mcp__github_file_ops,mcp__github_ci,mcp__github_inline_comment"
-          args="--max-turns 60 --allowedTools \"Read(/$DATA/**)\" --disallowedTools \"$denied\" --json-schema '$schema'"
-          if [ -n "$model" ]; then
-            args="$args --model $model"
-          fi
+          args="--allowedTools \"Read(/$DATA/**)\" --disallowedTools \"$denied\" --json-schema '$schema'"
           delimiter="prompt_$(openssl rand -hex 16)"
           {
             echo "claude-args=$args"
@@ -217,9 +219,11 @@ jobs:
           github_token: ${{ github.token }}
           allowed_bots: melodic-automation-lanes[bot]
           prompt: ${{ steps.prompt.outputs.prompt }}
+          settings: ${{ steps.models.outputs.settings-json }}
           claude_args: >-
             --setting-sources user
             --permission-mode dontAsk
+            ${{ steps.models.outputs.claude-args }}
             ${{ steps.prompt.outputs.claude-args }}
 
       # The structured output is untrusted model text: read through env and
