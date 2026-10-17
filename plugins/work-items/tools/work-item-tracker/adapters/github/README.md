@@ -517,8 +517,8 @@ attend-queue lanes) follows this cadence:
 - **GraphQL-only fields** (`isInMergeQueue`, `statusCheckRollup`): read once, at the point you
   decide.
 - **Writes** (label, comment, close, create, assign): one at a time, at least 1 s apart, never in
-  a retry loop. `gh_write` in `common.sh` waits 1 s before each write, so a verb that writes more
-  than once keeps the spacing.
+  a retry loop. `wit_write_pause` in `common.sh` waits 1 s before every adapter write, so a verb
+  that writes more than once keeps the spacing.
 - **Rate-limit errors** (seam exit 8 when a verb hits one). Stop at the first one; never retry in
   a loop or probe for recovery. Exit 8 carries no response headers, so read the primary resets
   once: `gh api rate_limit --jq '.resources | .core, .graphql | "\(.remaining) \(.reset)"'`. When a

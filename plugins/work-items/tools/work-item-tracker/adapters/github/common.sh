@@ -108,12 +108,17 @@ wit_help_if_requested() {
   fi
 }
 
-# gh_write <gh-args…> — write op through the bot wrapper when available. Waits
-# WIT_WRITE_SPACING_S (default 1) first, so a verb's consecutive writes stay at
-# least that far apart (README "API budget"); callers run it in $(), so no
-# state survives between calls to skip the first wait.
-gh_write() {
+# wit_write_pause — wait WIT_WRITE_SPACING_S (default 1) before a write, so a
+# verb's consecutive writes stay at least that far apart (README "API budget").
+# Every write path calls it; callers run writes in $(), so no state survives
+# between calls to skip the first wait.
+wit_write_pause() {
   sleep "${WIT_WRITE_SPACING_S:-1}"
+}
+
+# gh_write <gh-args…> — write op through the bot wrapper when available.
+gh_write() {
+  wit_write_pause
   if [[ -f "$WIT_GH_BOT" ]]; then
     bash "$WIT_GH_BOT" "$@"
   else
@@ -187,6 +192,7 @@ wit_read_assignees() {
 # depend on the assignment having landed MUST verify with wit_read_assignees.
 wit_add_assignee() {
   local writer="$1"
+  [[ "$writer" == "write" ]] || wit_write_pause # session-identity write skips gh_write
   wit_run_gh "$writer" api --method POST "repos/$2/$3/issues/$4/assignees" \
     -f "assignees[]=$5" --jq '[.assignees[].login]'
 }
@@ -194,6 +200,7 @@ wit_add_assignee() {
 # wit_remove_assignee <writer> <owner> <repo> <number> <login>
 wit_remove_assignee() {
   local writer="$1"
+  [[ "$writer" == "write" ]] || wit_write_pause # session-identity write skips gh_write
   wit_run_gh "$writer" api --method DELETE "repos/$2/$3/issues/$4/assignees" \
     -f "assignees[]=$5" --jq '[.assignees[].login]'
 }
@@ -201,6 +208,7 @@ wit_remove_assignee() {
 # wit_try_remove_assignee <owner> <repo> <number> <login> — best-effort rollback
 # on the session identity; never fails the caller.
 wit_try_remove_assignee() {
+  wit_write_pause
   gh api --method DELETE "repos/$1/$2/issues/$3/assignees" \
     -f "assignees[]=$4" >/dev/null 2>&1 || true
 }
