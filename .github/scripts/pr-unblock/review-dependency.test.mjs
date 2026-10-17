@@ -11,9 +11,14 @@ const OTHER = "b".repeat(40);
 const APP = 337595936;
 const DEPENDABOT = 49699333;
 
-function fakeApi({ pull = {}, comments = [], ciRuns = [], files = [], modelRuns = {}, commit = null } = {}) {
+const dependabotCommit = (sha, message = "bump") => ({
+  sha,
+  commit: { message, author: { name: "dependabot[bot]", email: "49699333+dependabot[bot]@users.noreply.github.com" } },
+});
+
+function fakeApi({ pull = {}, comments = [], ciRuns = [], files = [], modelRuns = {}, commits = null, commitFiles = {} } = {}) {
   return {
-    getCommit: async () => commit ?? { sha: HEAD, author: { login: "dependabot[bot]" }, commit: { message: "bump", verification: { verified: true } } },
+    getCommit: async (sha) => ({ sha, files: (commitFiles[sha] ?? []).map((filename) => ({ filename })) }),
     getPull: async () => ({
       number: 7,
       user: { id: DEPENDABOT, login: "dependabot[bot]" },
@@ -21,11 +26,12 @@ function fakeApi({ pull = {}, comments = [], ciRuns = [], files = [], modelRuns 
       title: "build(deps): bump x from 1.4.0 to 2.0.0",
       body: "Bumps x from 1.4.0 to 2.0.0.",
       labels: [{ name: "dependencies" }],
+      changed_files: files.length,
       ...pull,
     }),
     listIssueComments: async () => comments,
     listPullFiles: async () => files,
-    listPullCommits: async () => Object.keys(modelRuns).map((sha) => ({ sha })),
+    listPullCommits: async () => commits ?? Object.keys(modelRuns).map((sha) => dependabotCommit(sha)),
     listCheckRuns: async (sha, name) => (name === "ci-status" ? ciRuns : (modelRuns[sha] ?? [])),
   };
 }
@@ -111,17 +117,18 @@ test("select reviews a red ci-status even on a patch bump", async () => {
   assert.deepEqual(result.file.classification.reasons, ["ci-status-red"]);
 });
 
-test("readConfig tells a missing or unparsable file from a config with no entries, and warns", () => {
+test("readConfig is null for a missing file and for one with no entry, each with its own warning", () => {
   const dir = mkdtempSync(join(tmpdir(), "dependabot-config-"));
   const warnings = [];
   const log = (line) => warnings.push(line);
   assert.equal(readConfig(join(dir, "absent.yml"), log), null);
-  writeFileSync(join(dir, "junk.yml"), "not: a dependabot config\n");
-  assert.equal(readConfig(join(dir, "junk.yml"), log), null);
   writeFileSync(join(dir, "empty.yml"), "version: 2\nupdates: []\n");
-  assert.deepEqual(readConfig(join(dir, "empty.yml"), log), []);
+  assert.equal(readConfig(join(dir, "empty.yml"), log), null, "as the pr-merge lane's parse_config");
+  writeFileSync(join(dir, "ok.yml"), "version: 2\nupdates:\n  - package-ecosystem: npm\n    directory: /\n");
+  assert.deepEqual(readConfig(join(dir, "ok.yml"), log), [["npm", "/"]]);
   assert.equal(warnings.length, 2);
-  assert.ok(warnings.every((line) => line.startsWith("::warning::")));
+  assert.match(warnings[0], /^::warning::cannot read the Dependabot config .*ENOENT/);
+  assert.match(warnings[1], /^::warning::the Dependabot config .* has no updates entry that reads/);
 });
 
 test("select reports an unreadable config as its own reason and output", async () => {
@@ -148,7 +155,7 @@ test("select applies the content rule from the base's dependabot.yml", async () 
   assert.deepEqual(odd.file.classification.reasons, ["dependabot-content:dist/x.js"]);
 });
 
-test("select reads the verified commit's metadata, and ignores an unverified one", async () => {
+test("select reads the metadata in Dependabot's commits, and not in another author's", async () => {
   const message = [
     "bump x",
     "---",
@@ -158,14 +165,34 @@ test("select reads the verified commit's metadata, and ignores an unverified one
     "  update-type: version-update:semver-patch",
     "...",
   ].join("\n");
-  const commit = (verified) => ({ sha: HEAD, author: { login: "dependabot[bot]" }, commit: { message, verification: { verified } } });
-  const args = { pr: 7, headSha: HEAD, appId: APP, dependabotId: DEPENDABOT, config: [] };
+  const args = { pr: 7, headSha: HEAD, appId: APP, dependabotId: DEPENDABOT, config: [["npm", "/"]] };
   const pull = { title: "bump x from 1.4.0 to 1.4.1" };
-  const disagree = await select({ api: fakeApi({ pull, commit: commit(true) }), ...args });
+  const disagree = await select({ api: fakeApi({ pull, commits: [dependabotCommit(HEAD, message)] }), ...args });
   assert.equal(disagree.decision, "proceed");
-  assert.deepEqual(disagree.file.classification.reasons, ["metadata-disagrees"]);
-  const unverified = await select({ api: fakeApi({ pull, commit: commit(false) }), ...args });
-  assert.equal(unverified.decision, "skip");
+  assert.deepEqual(disagree.file.classification.reasons, ["sources-disagree"]);
+  const other = { sha: HEAD, commit: { message, author: { name: "someone", email: "someone@example.test" } } };
+  const ignored = await select({ api: fakeApi({ pull, commits: [other] }), ...args });
+  assert.equal(ignored.decision, "skip", "another author's commit touched nothing, so its paths and metadata add nothing");
+});
+
+test("select counts a version-bump commit's paths as checked", async () => {
+  const bump = {
+    sha: OTHER,
+    commit: {
+      message: "chore: bump [dependabot skip]",
+      author: { name: "github-actions[bot]", email: "41898282+github-actions[bot]@users.noreply.github.com" },
+    },
+  };
+  const files = [{ filename: "package-lock.json" }, { filename: "plugins/x/CHANGELOG.md" }];
+  const result = await select({
+    api: fakeApi({ pull: { title: "bump x from 1.4.0 to 1.4.1" }, files, commits: [dependabotCommit(HEAD), bump], commitFiles: { [OTHER]: ["plugins/x/CHANGELOG.md"] } }),
+    pr: 7,
+    headSha: HEAD,
+    appId: APP,
+    dependabotId: DEPENDABOT,
+    config: [["npm", "/"]],
+  });
+  assert.equal(result.decision, "skip");
 });
 
 test("select escalates once the round cap is reached, counting markers or model check runs", async () => {

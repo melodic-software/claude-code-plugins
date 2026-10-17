@@ -17,14 +17,23 @@ function pr(number, overrides = {}) {
     title: "build(deps): bump x from 1.0.0 to 2.0.0",
     body: "",
     labels: { nodes: [{ name: "dependencies" }] },
+    changedFiles: 0,
     ...overrides,
   };
 }
 
-function fakeApi({ nodes = [], checks = new Map(), ci = new Map(), files = new Map() } = {}) {
+const DEPENDABOT_COMMIT_AUTHOR = { name: "dependabot[bot]", email: "49699333+dependabot[bot]@users.noreply.github.com" };
+
+function fakeApi({ nodes = [], checks = new Map(), ci = new Map(), files = new Map(), commits = new Map() } = {}) {
   const calls = { dispatch: [], checks: [] };
   return {
     calls,
+    async listPullCommits(number) {
+      return commits.get(number) ?? [{ sha: "d".repeat(40), commit: { message: "bump", author: DEPENDABOT_COMMIT_AUTHOR } }];
+    },
+    async getCommit(sha) {
+      return { sha, files: [] };
+    },
     async listPullFiles(number) {
       return files.get(number) ?? [];
     },
@@ -97,20 +106,20 @@ test("skips a head that already has a review-dependency check run, except an unt
   assert.ok(api.calls.checks.some((call) => call.checkName === CHECK && call.appId === 15368));
 });
 
-test("a verified head commit whose metadata disagrees with the title is review", async () => {
+test("Dependabot commit metadata that disagrees with the title is review; another author's is not read", async () => {
   const message = "bump\n---\nupdated-dependencies:\n- dependency-name: other\n  update-type: version-update:semver-patch\n...\n";
-  const node = (number, isValid) => {
-    const base = pr(number, { title: "bump x from 1.0.0 to 1.0.1" });
-    const commit = { oid: base.headRefOid, message, author: { email: "49699333+dependabot[bot]@users.noreply.github.com" }, signature: { isValid } };
-    return { ...base, commits: { nodes: [{ commit }] } };
-  };
-  const { dispatched } = await run(fakeApi({ nodes: [node(30, true), node(31, false)] }));
+  const nodes = [pr(30, { title: "bump x from 1.0.0 to 1.0.1" }), pr(31, { title: "bump x from 1.0.0 to 1.0.1" })];
+  const commits = new Map([
+    [30, [{ sha: "a".repeat(40), commit: { message, author: DEPENDABOT_COMMIT_AUTHOR } }]],
+    [31, [{ sha: "b".repeat(40), commit: { message, author: { name: "someone", email: "someone@example.test" } } }]],
+  ]);
+  const { dispatched } = await run(fakeApi({ nodes, commits }));
   assert.deepEqual(dispatched.map((d) => d.number), [30]);
 });
 
 test("a patch bump whose files the content rule does not cover is review", async () => {
   const config = [["npm", "/"]];
-  const nodes = [pr(40, { title: "bump x from 1.0.0 to 1.0.1" }), pr(41, { title: "bump x from 1.0.0 to 1.0.1" })];
+  const nodes = [pr(40, { title: "bump x from 1.0.0 to 1.0.1", changedFiles: 1 }), pr(41, { title: "bump x from 1.0.0 to 1.0.1", changedFiles: 2 })];
   const files = new Map([
     [40, [{ filename: "package-lock.json" }]],
     [41, [{ filename: "package-lock.json" }, { filename: "dist/bundle.js" }]],

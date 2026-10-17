@@ -52,6 +52,12 @@ function fakeApi({
         pageInfo: { hasNextPage: index + 1 < pages.length, endCursor: String(index + 1) },
       };
     },
+    async listPullCommits() {
+      return [];
+    },
+    async getCommit(sha) {
+      return { sha, files: [] };
+    },
     async listPullFiles() {
       return [];
     },
@@ -412,6 +418,7 @@ test("main records a review-dependency dispatch beside the conflict dispatches",
     title: "build(deps): bump x from 1.0.0 to 2.0.0",
     body: "",
     labels: { nodes: [] },
+    changedFiles: 0,
   });
   const { code, output } = await runMain({ pages: [[pr(130), dependabot]] });
   assert.equal(code, 0);

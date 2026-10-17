@@ -591,30 +591,17 @@ model job reads third-party release notes, so it holds `contents: write` and not
 post, close or enqueue. The model job is a `mutate-branch` skill leaf whose config sets
 `prepare: dependency-review` and `gating: advisory`; the verdict job is a `publish-artifact`
 script leaf with no model, called with `dependency-verdict: true`. The scripts are the base's
-`.github/scripts/pr-unblock/review-dependency.mjs` and `apply-dependency-verdict.mjs`, and both
-sort pull requests with `dependency-classify.mjs`:
-
-- `auto`: the author is `dependabot[bot]`; the updates are read from the `updated-dependencies`
-  metadata in the head commit's message when Dependabot authored that commit and GitHub verified
-  it, and from the title (`bump <name> from <a> to <b>`) or a group's `Updates` lines at the
-  start of a line, which must add up to the title's count; when both the metadata and the title
-  are readable they agree on every name and version; no update is major, meaning it changes the
-  first numeric version component, or for a 0.x version the second, or the metadata names it
-  `semver-major`; every changed path (both sides of a rename) is a manifest or lockfile of an
-  ecosystem and directory the base's `.github/dependabot.yml` lists, or a workflow or action
-  file a `github-actions` entry covers whose diff changes only `uses:` lines (otherwise the
-  reason is `dependabot-content:<path>`, the pr-merge lane's content rule). A `directories`
-  glob follows Dependabot's documented globbing (the options reference's `directories` note
-  and the `/lib-*` and `**/*` examples): `*` and `?` match within one path segment, `**/`
-  matches zero or more whole segments, and the rest is literal. A base `dependabot.yml` that
-  cannot be read, or has no top-level `updates:` key, is the reason
-  `dependabot-config-unreadable`, logged as a warning; an `updates:` key with no entries covers
-  no path. Every `github_actions` update's publisher is `actions`, `github` or `anthropics`; and
-  the newest GitHub Actions `ci-status` run on the head is not red (`failure`, `cancelled`, `timed_out`, `action_required`,
-  `startup_failure`; pending is not red). The pr-merge lane owns these.
-- `review`: every other Dependabot pull request, including a version the classifier cannot
-  read (a SHA) and metadata that disagrees with the title. A security update is the `security` label or an advisory, GHSA or CVE id in the
-  body; it is a flag on either tier.
+`.github/scripts/pr-unblock/review-dependency.mjs` and `apply-dependency-verdict.mjs`. Both this
+lane's dispatcher and select step sort pull requests with `dependency-classify.mjs`, a port of
+the pr-merge lane's `babysit_dependabot.py` and its content step, so the tiers, the content rule
+and the `directories` globs are the ones
+[README, "Dependabot pull requests"](README.md#dependabot-pull-requests) states. They read the
+same inputs: the pull request, its REST commits and files with patches, each non-Dependabot
+commit's files, and the base's `.github/dependabot.yml`. The content step's refusals in the
+pr-merge lane (a commit whose files cannot be read whole, a fix commit touching `.github/`)
+are review reasons here. A base `dependabot.yml` that cannot be read, or holds no entry that
+reads, is `dependabot-config-unreadable`, with a warning naming which. A security update is the
+`security` label or an advisory, GHSA or CVE id in the body; it is a flag on either tier.
 
 1. After `resolve-config` and before the mint, the model job runs `review-dependency.mjs select`
    with the job's `GITHUB_TOKEN`. A pull request whose author is not `dependabot[bot]` (by id,

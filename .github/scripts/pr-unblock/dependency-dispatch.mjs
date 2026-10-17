@@ -6,8 +6,7 @@
 // run was reviewed; the model job's own selection decides the round cap.
 // Logs carry PR numbers, SHAs and run ids only.
 
-import { classify } from "./dependency-classify.mjs";
-import { ciStatusOf } from "./review-dependency.mjs";
+import { ciStatusOf, classifyPull, commitFilesReader } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -20,17 +19,6 @@ export const DEFAULTS = Object.freeze({
 });
 
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
-// Dependabot's commit author address: GraphQL gives a bot's commit no user.
-const DEPENDABOT_EMAIL = "49699333+dependabot[bot]@users.noreply.github.com";
-
-// The head commit's message, only when Dependabot authored it and GitHub
-// verified its signature.
-export function verifiedHeadMessage(node) {
-  const commit = node.commits?.nodes?.[0]?.commit;
-  return commit?.oid === node.headRefOid && commit.author?.email === DEPENDABOT_EMAIL && commit.signature?.isValid === true
-    ? String(commit.message ?? "")
-    : "";
-}
 
 const handles = (run) =>
   !(run.status === "completed" && run.conclusion === "neutral" && String(run.output?.title ?? "").startsWith("Skipped: untrusted-trigger"));
@@ -71,17 +59,24 @@ export async function dispatchDependencyReviews({
     let existing;
     try {
       const ci = await api.listCheckRuns({ sha: node.headRefOid, checkName: "ci-status", appId });
-      tier = classify({
-        author: node.author.login,
-        headRef: node.headRefName,
-        title: node.title ?? "",
-        body: node.body ?? "",
-        labels: (node.labels?.nodes ?? []).map((label) => label.name),
-        ciStatus: ciStatusOf(ci),
-        commitMessage: verifiedHeadMessage(node),
-        files: await api.listPullFiles(node.number),
-        config,
-      }).tier;
+      // The same reads the model job's select step classifies from.
+      tier = (
+        await classifyPull({
+          pull: {
+            user: { login: node.author.login },
+            head: { ref: node.headRefName },
+            title: node.title,
+            body: node.body,
+            labels: node.labels?.nodes ?? [],
+            changed_files: node.changedFiles,
+          },
+          ciStatus: ciStatusOf(ci),
+          commits: await api.listPullCommits(node.number),
+          files: await api.listPullFiles(node.number),
+          config,
+          readCommitFiles: commitFilesReader(api),
+        })
+      ).tier;
       if (tier !== "review") {
         continue;
       }

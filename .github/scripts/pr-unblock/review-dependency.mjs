@@ -17,7 +17,7 @@ import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { createGitHubApi, need, positive, SHA } from "./address-feedback.mjs";
-import { classify, DEPENDABOT_LOGIN, parseConfig } from "./dependency-classify.mjs";
+import { classify, COMMIT_FILES_LIMIT, DEPENDABOT_LOGIN, isDependabotCommit, parseConfig } from "./dependency-classify.mjs";
 
 export const DEFAULT_MAX_ROUNDS = 2;
 export const MODEL_CHECK = "pr-unblock / review-dependency";
@@ -70,15 +70,34 @@ export function ciStatusOf(checkRuns) {
   return newest?.status === "completed" ? String(newest.conclusion) : "pending";
 }
 
-// The head commit's message, only when Dependabot authored it and GitHub
-// verified its signature; the classifier reads its updated-dependencies block.
-export function verifiedMessage(commit, sha) {
-  return commit?.sha === sha && commit.author?.login === DEPENDABOT_LOGIN && commit.commit?.verification?.verified === true
-    ? String(commit.commit.message ?? "")
-    : "";
+// A commit's changed paths, or null when unreadable or at the listing limit,
+// as the pr-merge lane's _commit_files reads them.
+export function commitFilesReader(api) {
+  const cache = new Map();
+  return async (sha) => {
+    if (!cache.has(sha)) {
+      let paths = null;
+      try {
+        const listing = (await api.getCommit(sha)).files;
+        paths = Array.isArray(listing) && listing.length < COMMIT_FILES_LIMIT ? listing.map((f) => String(f.filename ?? "")) : null;
+      } catch {
+        paths = null;
+      }
+      cache.set(sha, paths);
+    }
+    return cache.get(sha);
+  };
 }
 
-export function classifyPull(pull, ciStatus, commitMessage = "", { files, config = null } = {}) {
+// The classifier's input from REST reads: the pull request, its commits and
+// files, the files of each non-Dependabot commit, and the base config.
+export async function classifyPull({ pull, ciStatus, commits, files, config, readCommitFiles }) {
+  const touched = new Map();
+  for (const item of commits) {
+    if (!isDependabotCommit(item)) {
+      touched.set(String(item.sha ?? ""), await readCommitFiles(String(item.sha ?? "")));
+    }
+  }
   return classify({
     author: pull.user?.login,
     headRef: pull.head?.ref,
@@ -86,9 +105,11 @@ export function classifyPull(pull, ciStatus, commitMessage = "", { files, config
     body: pull.body ?? "",
     labels: (pull.labels ?? []).map((label) => (typeof label === "string" ? label : label.name)),
     ciStatus,
-    commitMessage,
+    commits,
     files,
     config,
+    changedFiles: pull.changed_files,
+    commitFiles: (sha) => touched.get(sha) ?? null,
   });
 }
 
@@ -115,17 +136,19 @@ export async function select({ api, pr, headSha, appId, dependabotId, config = n
     return { decision: "skip", skipReason: "not-applicable" };
   }
   const files = await api.listPullFiles(pr);
-  const classification = classifyPull(
+  const commits = await api.listPullCommits(pr);
+  const classification = await classifyPull({
     pull,
-    ciStatusOf(await api.listCheckRuns(headSha, "ci-status")),
-    verifiedMessage(await api.getCommit(headSha), headSha),
-    { files, config },
-  );
+    ciStatus: ciStatusOf(await api.listCheckRuns(headSha, "ci-status")),
+    commits,
+    files,
+    config,
+    readCommitFiles: commitFilesReader(api),
+  });
   if (classification.tier !== "review") {
     return { decision: "skip", skipReason: "not-applicable", classification };
   }
   const comments = await api.listIssueComments(pr);
-  const commits = await api.listPullCommits(pr);
   const checkRuns = await Promise.all(commits.map((commit) => api.listCheckRuns(commit.sha, MODEL_CHECK)));
   const done = Math.max(countRounds(comments, appId), countCheckRounds(checkRuns));
   if (done >= maxRounds) {
@@ -161,10 +184,11 @@ export function dependabotIdFrom(trustedActorsPath) {
   return positive(actor?.id, `the ${DEPENDABOT_LOGIN} id in ${trustedActorsPath}`);
 }
 
-// The base's .github/dependabot.yml as [ecosystem, directory] pairs, [] for
-// a config with no entries. A file it cannot read or parse is null, which the
-// classifier reports as dependabot-config-unreadable (review tier, and no
-// merge verdict), and is logged as a warning so the cause is visible.
+// The base's .github/dependabot.yml as [ecosystem, directory] pairs. A file
+// it cannot read, or one with no entry that reads, is null, which the
+// classifier reports as dependabot-config-unreadable as the pr-merge lane
+// does (review tier, and no merge verdict); each case logs its own warning so
+// the cause is visible.
 export function readConfig(path, log = (line) => console.log(line)) {
   let text;
   try {
@@ -175,7 +199,7 @@ export function readConfig(path, log = (line) => console.log(line)) {
   }
   const pairs = parseConfig(text);
   if (pairs === null) {
-    log(`::warning::the Dependabot config ${path} has no top-level updates: key; every Dependabot PR is review tier until it parses`);
+    log(`::warning::the Dependabot config ${path} has no updates entry that reads; every Dependabot PR is review tier until one does`);
   }
   return pairs;
 }

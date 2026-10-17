@@ -1,78 +1,115 @@
-// Sorts an open Dependabot pull request into a review tier, with no model:
+// Sorts an open Dependabot pull request into a review tier, with no model, by
+// the rules the pr-merge lane applies: a line-for-line port of
+// plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py
+// (`classify`, `parse_metadata`, `parse_title`, `is_major`, `parse_config`,
+// `glob_regex`, `content_refusal`) and its caller's content step
+// (`_dependabot_content` in babysit_merge_policy.py). Contract:
+// docs/conventions/pr-pipeline/README.md, "Dependabot pull requests".
 //
-//   auto    every update is a patch or minor bump, a github_actions bump comes
-//           from an allowlisted publisher, and ci-status is not red. The
-//           pr-merge lane merges these.
-//   review  anything else: a major bump, a publisher outside the allowlist, a
-//           group holding a major, a red ci-status, or a title or version this
-//           cannot read. The pr-unblock lane's review-dependency activity
-//           reviews these.
+//   auto    every update is non-major (the first numeric version component
+//           does not change, and below 1.0 the second does not either), every
+//           github_actions update comes from an allowlisted publisher,
+//           ci-status is not red, and the diff is only what Dependabot
+//           manages. The pr-merge lane merges these.
+//   review  anything else, including anything this cannot read. The
+//           pr-unblock lane's review-dependency activity reviews these.
 //
-// A major bump changes the first numeric version component, or for a 0.x
-// version the second. It reads only what Dependabot wrote: the
-// `updated-dependencies` metadata in the head commit's message when that
-// commit is Dependabot's and verified, the title, the head branch and, for a
-// group, the body's `Updates` lines at the start of a line (release notes are
-// quoted, so they never start one). A group whose lines do not add up to its
-// title's count, or metadata that disagrees with the title, is review, so
-// text in the body can only make a PR stricter.
-// The same rules hold wherever a lane sorts Dependabot PRs; the contract is in
-// docs/conventions/pr-pipeline/pr-run-activity.md, "prepare: dependency-review".
+// The updates come from the `updated-dependencies` metadata in Dependabot's
+// commits when there is any, and from the title (`bump <name> from <a> to
+// <b>`) or a group's body `Updates` lines at the start of a line otherwise
+// (release notes are quoted, so they never start one); when both read they
+// must name the same dependencies and agree on which are major.
 
 export const DEPENDABOT_LOGIN = "dependabot[bot]";
-// The publishers pr-automerge-dependabot.yml and the dependabot.yml
-// vendor-actions group allow.
+export const DEPENDABOT_AUTHOR = Object.freeze(["dependabot[bot]", "49699333+dependabot[bot]@users.noreply.github.com"]);
+export const ACTIONS_AUTHOR = Object.freeze(["github-actions[bot]", "41898282+github-actions[bot]@users.noreply.github.com"]);
 export const ACTIONS_PUBLISHERS = Object.freeze(["actions", "github", "anthropics"]);
 const RED = new Set(["failure", "cancelled", "timed_out", "action_required", "startup_failure"]);
 
+const PREFIX = /^[a-z]+(\([^)]*\))?!?:\s*/i;
 const SINGLE = /\bbump (\S+) from (\S+) to (\S+?)(?:\s+in\s.*)?$/i;
 const GROUP = /\bbump the \S+ group\b.*\bwith (\d+) updates?\s*$/i;
 const UPDATE_LINE = /^Updates `([^`\s]+)` from (\S+) to (\S+?)\.?$/gm;
-const VERSION = /^v?(\d+)(\.\d+)*([-+.][0-9A-Za-z.+-]*)?$/;
+const VERSION = /^v?(\d+)(?:\.(\d+))?(?:\.\d+)*(?:[-+.][0-9A-Za-z.+-]*)?$/;
+const ECOSYSTEM = /^dependabot\/([^/]+)\//;
+const ENTRY = /^-\s+dependency-name:\s*(\S+)\s*$/;
+const FIELD = /^\s+(dependency-version|update-type):\s*(\S+)\s*$/;
 
-const parts = (version) => String(version).replace(/^v/, "").split(/[-+]/)[0].split(".").map(Number);
+function versionParts(version) {
+  const found = VERSION.exec(String(version));
+  if (!found) {
+    return null;
+  }
+  return [Number(found[1]), found[2] === undefined ? null : Number(found[2])];
+}
 
-// true when the first numeric component changed, or for a 0.x version the
-// second, false when it did not, null when either side is not a version (a
-// SHA, a branch name).
+// true when the first numeric version component changed or, below 1.0, the
+// second did; null when either side is not a version (a SHA, a branch).
 export function isMajor(from, to) {
-  if (!VERSION.test(String(from)) || !VERSION.test(String(to))) {
+  const a = versionParts(from);
+  const b = versionParts(to);
+  if (a === null || b === null) {
     return null;
   }
-  const [a, b] = [parts(from), parts(to)];
-  return a[0] !== b[0] || (a[0] === 0 && (a[1] ?? 0) !== (b[1] ?? 0));
+  return a[0] !== b[0] || (a[0] === 0 && a[1] !== b[1]);
 }
 
-// The `updated-dependencies` YAML block Dependabot writes into its commit
-// message: name, version and semver update type per dependency, or null when
-// the message holds no such block.
+// The `updated-dependencies` entries of one commit message as
+// [{ name, major }], or null when it has none. A semver-minor update to a 0.x
+// version is major.
 export function parseMetadata(message) {
-  const block = /^updated-dependencies:\s*$([\s\S]*?)^\.\.\.\s*$/m.exec(String(message ?? ""));
-  if (!block) {
+  const lines = String(message ?? "").replace(/\r\n/g, "\n").split("\n");
+  const start = lines.findIndex((line) => line.trim() === "updated-dependencies:");
+  if (start < 0) {
     return null;
   }
-  const rows = [];
-  for (const line of block[1].split("\n")) {
-    const field = /^(- )?\s*(dependency-name|dependency-version|update-type):\s*(\S+)\s*$/.exec(line);
-    if (!field) {
-      continue;
+  const entries = [];
+  for (const line of lines.slice(start + 1)) {
+    if (["...", "---"].includes(line.trim()) || (line && !/^[- ]/.test(line))) {
+      break;
     }
-    if (field[1]) {
-      rows.push({});
+    const entry = ENTRY.exec(line);
+    const field = FIELD.exec(line);
+    if (entry) {
+      entries.push({ name: entry[1] });
+    } else if (field && entries.length > 0) {
+      entries.at(-1)[field[1]] = field[2];
     }
-    const row = rows.at(-1);
-    if (!row) {
-      return null;
-    }
-    if (field[2] === "dependency-name") row.name = field[3];
-    if (field[2] === "dependency-version") row.to = field[3];
-    if (field[2] === "update-type") row.type = /^version-update:semver-(major|minor|patch)$/.exec(field[3])?.[1] ?? "unknown";
   }
-  return rows.length > 0 && rows.every((row) => row.name) ? rows : null;
+  return entries.map((entry) => {
+    const kind = String(entry["update-type"] ?? "").replace(/^version-update:/, "");
+    const version = versionParts(entry["dependency-version"] ?? "");
+    let major = null;
+    if (kind === "semver-major") {
+      major = true;
+    } else if (kind === "semver-patch") {
+      major = false;
+    } else if (kind === "semver-minor" && version !== null) {
+      major = version[0] === 0;
+    }
+    return { name: entry.name, major };
+  });
 }
 
-// The content rule, the same as the pr-merge lane's (babysit_dependabot.py,
-// content_refusal): every changed path is a manifest or lock file of an
+// The updates the title names, or a group's body `Updates` lines when they add
+// up to its count; null when neither reads.
+export function parseTitle(title, body) {
+  const subject = String(title ?? "").replace(PREFIX, "");
+  const group = GROUP.exec(subject);
+  if (group) {
+    const found = [...String(body ?? "").matchAll(UPDATE_LINE)].map((m) => ({ name: m[1], major: isMajor(m[2], m[3]) }));
+    return found.length === Number(group[1]) ? found : null;
+  }
+  const single = SINGLE.exec(subject);
+  return single ? [{ name: single[1], major: isMajor(single[2], single[3]) }] : null;
+}
+
+const signed = (item) => [item?.commit?.author?.name, item?.commit?.author?.email];
+const isAuthor = (item, author) => signed(item)[0] === author[0] && signed(item)[1] === author[1];
+export const isDependabotCommit = (item) => isAuthor(item, DEPENDABOT_AUTHOR);
+export const isActionsCommit = (item) => isAuthor(item, ACTIONS_AUTHOR);
+
+// The content rule: every changed path is a manifest or lock file of an
 // ecosystem and directory .github/dependabot.yml lists at the base, or a
 // workflow or action file a github-actions entry covers whose diff changes
 // only `uses:` lines.
@@ -87,10 +124,13 @@ const CONFIG_ENTRY = /^\s*-\s+package-ecosystem:\s*["']?([A-Za-z0-9_-]+)/;
 const CONFIG_DIR = /^\s+directory:\s*["']?([^"'#\s]+)/;
 const CONFIG_DIRS = /^\s+directories:\s*$/;
 const CONFIG_ITEM = /^\s+-\s+["']?([^"'#\s]+)/;
+// A commit's file listing at this length may be cut short (the pr-merge
+// lane's COMMIT_FILES_LIMIT).
+export const COMMIT_FILES_LIMIT = 300;
 
-// [ecosystem, directory] per `updates` entry of a dependabot.yml, one pair
-// per directory: [] for an `updates:` key with no entry, null when the text
-// has no top-level `updates:` key (not a dependabot.yml it can read).
+// [ecosystem, directory] for each directory of each `updates` entry of a
+// dependabot.yml (`directory` or each `directories` item); null when no entry
+// reads.
 export function parseConfig(text) {
   const pairs = [];
   let ecosystem = null;
@@ -113,10 +153,11 @@ export function parseConfig(text) {
       inDirs = false;
     }
   }
-  return /^updates:\s*(\[\s*\])?\s*(#.*)?$/m.test(String(text ?? "").replace(/\r\n/g, "\n")) ? pairs : null;
+  return pairs.length > 0 ? pairs : null;
 }
 
 const dirname = (path) => (path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "");
+
 // A `directories` glob (docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference,
 // "directories or directory", and the "Defining multiple locations for
 // manifest files" examples `/lib-*` and the globstar `**/*`, "all
@@ -168,14 +209,17 @@ export function usesOnly(patch) {
 }
 
 // `dependabot-content:<path>` for the first changed path (either side of a
-// rename, sorted per file) the rule does not cover, else null. `files` is the
-// REST pull-request files listing with patches; `config` is parseConfig's
-// result, where null covers nothing.
-export function contentReason(files, config) {
+// rename, sorted per file) the rule does not cover and `extra` (the paths the
+// version-bump and lanes App fix commits touched) does not hold, else null.
+// `files` is the REST pull-request files listing with patches.
+export function contentReason(files, config, extra = new Set()) {
   const pairs = config ?? [];
   for (const file of files) {
     const paths = [...new Set([file.filename, file.previous_filename].filter(Boolean).map(String))].sort();
     for (const path of paths) {
+      if (extra.has(path)) {
+        continue;
+      }
       const name = path.slice(path.lastIndexOf("/") + 1);
       const manifest = pairs.some(([eco, folder]) => MANIFESTS[eco]?.test(name) && inDirectory(path, folder));
       if (!manifest && !(actionsFile(path, pairs) && usesOnly(file.patch))) {
@@ -186,22 +230,39 @@ export function contentReason(files, config) {
   return null;
 }
 
-const bare = (version) => String(version ?? "").replace(/^v/, "");
-
-function agrees(updates, metadata) {
-  const byName = new Map(metadata.map((row) => [row.name, row]));
-  return (
-    updates.length === metadata.length &&
-    updates.every((update) => byName.has(update.name) && (byName.get(update.name).to === undefined || bare(byName.get(update.name).to) === bare(update.to)))
-  );
-}
-
-// From metadata alone, with no `from` version: a 0.x minor is major too.
-function isMajorFromType(update) {
-  if (update.type === "major") return true;
-  if (update.type === "minor") return parts(update.to)[0] === 0;
-  if (update.type === "patch") return false;
-  return null;
+// The content step, as the pr-merge lane's _dependabot_content: the paths
+// every non-Dependabot commit touched count as checked, a non-version-bump
+// commit (a lanes App fix) touching .github/ or a commit whose files cannot be
+// read whole is a reason (the pr-merge lane refuses those), an unreadable
+// config is dependabot-config-unreadable, and a files listing shorter than
+// the PR's changed-file count is dependabot-content:files-incomplete.
+// `commitFiles(sha)` returns a commit's paths, or null when unreadable.
+export function contentStep({ commits = [], commitFiles = () => null, files, config, changedFiles }) {
+  const extra = new Set();
+  for (const item of commits) {
+    if (isDependabotCommit(item)) {
+      continue;
+    }
+    const sha = String(item?.sha ?? "");
+    const touched = commitFiles(sha);
+    if (!Array.isArray(touched)) {
+      return `dependabot-commit-files-unreadable:${sha.slice(0, 12)}`;
+    }
+    if (!isActionsCommit(item)) {
+      const gated = touched.find((p) => p === ".github" || p.startsWith(".github/"));
+      if (gated) {
+        return `dependabot-fix-content:${gated}`;
+      }
+    }
+    for (const path of touched) extra.add(path);
+  }
+  if (config === null || config === undefined) {
+    return "dependabot-config-unreadable";
+  }
+  if (!Number.isInteger(changedFiles) || changedFiles !== files.length) {
+    return "dependabot-content:files-incomplete";
+  }
+  return contentReason(files, config, extra);
 }
 
 export function isSecurityUpdate({ labels = [], body = "" }) {
@@ -211,70 +272,56 @@ export function isSecurityUpdate({ labels = [], body = "" }) {
   );
 }
 
-function parseUpdates(title, body) {
-  const subject = String(title).replace(/^[a-z]+(\([^)]*\))?!?:\s*/i, "");
-  const group = GROUP.exec(subject);
-  if (group) {
-    const updates = [...String(body).matchAll(UPDATE_LINE)].map((match) => ({
-      name: match[1],
-      from: match[2],
-      to: match[3],
-    }));
-    return updates.length === Number(group[1]) ? { updates } : { updates, problem: "unparsed-group" };
-  }
-  const single = SINGLE.exec(subject);
-  if (!single) {
-    return { updates: [], problem: "unparsed-title" };
-  }
-  return { updates: [{ name: single[1], from: single[2], to: single[3] }] };
-}
-
-// pr: { author, headRef, title, body, labels, ciStatus, commitMessage },
-// where ciStatus is the newest ci-status check run's conclusion, or pending
-// or empty, and commitMessage is the head commit's message, passed only when
-// Dependabot authored it and GitHub verified its signature. With `files` (the
-// REST files listing, patches included) and `config` (parseConfig of the
-// base's .github/dependabot.yml), the content rule applies too.
-// Returns null for a pull request Dependabot did not open.
+// pr: { author, headRef, title, body, labels, ciStatus, commits }, where
+// ciStatus is the newest ci-status check run's conclusion (pending or empty
+// while none completed) and commits is the REST pull-request commits listing.
+// With `files` (the REST files listing, patches included), `config`
+// (parseConfig of the base's .github/dependabot.yml), `changedFiles` and
+// `commitFiles`, the content step applies too. Returns null for a pull
+// request Dependabot did not open.
 export function classify(pr) {
   if (pr.author !== DEPENDABOT_LOGIN) {
     return null;
   }
-  const ecosystem = /^dependabot\/([^/]+)\//.exec(String(pr.headRef))?.[1] ?? "";
-  const metadata = parseMetadata(pr.commitMessage);
-  let { updates, problem } = parseUpdates(pr.title, pr.body);
-  if (metadata && problem) {
-    updates = metadata.map((row) => ({ name: row.name, from: null, to: row.to ?? null, type: row.type ?? "unknown" }));
-    problem = undefined;
-  } else if (metadata && !agrees(updates, metadata)) {
-    problem = "metadata-disagrees";
-  } else if (metadata) {
-    const types = new Map(metadata.map((row) => [row.name, row.type ?? "unknown"]));
-    updates = updates.map((update) => ({ ...update, type: types.get(update.name) }));
-  }
-  const reasons = problem ? [problem] : [];
-  if (!problem) {
-    for (const update of updates) {
-      const computed = update.from === null ? isMajorFromType(update) : isMajor(update.from, update.to);
-      const major = computed === null ? null : computed || update.type === "major";
-      if (major === null) {
-        reasons.push(`unparsed-version:${update.name}`);
-      } else if (major) {
-        reasons.push(`major:${update.name}`);
-      }
-      if (ecosystem === "github_actions" && !ACTIONS_PUBLISHERS.includes(update.name.split("/")[0])) {
-        reasons.push(`publisher:${update.name}`);
+  const ecosystem = ECOSYSTEM.exec(String(pr.headRef ?? ""))?.[1] ?? "";
+  let metadata = null;
+  for (const item of pr.commits ?? []) {
+    if (isDependabotCommit(item)) {
+      const entries = parseMetadata(String(item.commit?.message ?? ""));
+      if (entries !== null) {
+        metadata = [...(metadata ?? []), ...entries];
       }
     }
   }
-  if (Array.isArray(pr.files)) {
-    // A config that could not be read or parsed is its own reason: it keeps
-    // the PR in review, and the verdict job never posts a merge on it.
-    const content = Array.isArray(pr.config) ? contentReason(pr.files, pr.config) : "dependabot-config-unreadable";
-    if (content) reasons.push(content);
+  const titled = parseTitle(pr.title, pr.body);
+  const reasons = [];
+  let updates = metadata?.length ? metadata : titled;
+  if (!updates?.length) {
+    reasons.push("unparsed-updates");
+    updates = [];
+  } else if (metadata?.length && titled?.length) {
+    const byName = new Map(titled.map((u) => [u.name, u.major]));
+    const names = new Set(metadata.map((u) => u.name));
+    if (names.size !== byName.size || [...names].some((name) => !byName.has(name)) || metadata.some((u) => byName.get(u.name) !== u.major)) {
+      reasons.push("sources-disagree");
+    }
+  }
+  for (const update of updates) {
+    if (update.major === null) {
+      reasons.push(`unparsed-version:${update.name}`);
+    } else if (update.major) {
+      reasons.push(`major:${update.name}`);
+    }
+    if (ecosystem === "github_actions" && !ACTIONS_PUBLISHERS.includes(update.name.split("/")[0])) {
+      reasons.push(`publisher:${update.name}`);
+    }
   }
   if (RED.has(pr.ciStatus)) {
     reasons.push("ci-status-red");
+  }
+  if (Array.isArray(pr.files)) {
+    const content = contentStep(pr);
+    if (content) reasons.push(content);
   }
   return {
     tier: reasons.length === 0 ? "auto" : "review",
