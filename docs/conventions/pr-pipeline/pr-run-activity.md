@@ -614,7 +614,9 @@ commit's files, and the base's `.github/dependabot.yml`. The content step's refu
 pr-merge lane (a commit whose files cannot be read whole, a fix commit touching `.github/`)
 are review reasons here. A base `dependabot.yml` that cannot be read, or holds no entry that
 reads, is `dependabot-config-unreadable`, with a warning naming which. A security update is the
-`security` label or an advisory, GHSA or CVE id in the body; it is a flag on either tier.
+`security` label or an advisory, GHSA or CVE id in the body; it is a flag on either tier. Both
+also apply the [registry provenance](README.md#registry-provenance) gate, and the select step
+warns of a [classifier gap](README.md#classifier-gaps).
 
 1. After `resolve-config` and before the mint, the model job runs `review-dependency.mjs select`
    with the job's `GITHUB_TOKEN`. A pull request whose author is not `dependabot[bot]` (by id,
@@ -637,7 +639,8 @@ reads, is `dependabot-config-unreadable`, with a warning naming which. A securit
    discarded with the lane branch.
 4. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
    `github-script` step writes `run.json` (`version`, `pr`, the gated `head_sha`, the select
-   step's `security` and `config_unreadable` flags, and the skill's structured output as `output`, `null` when absent or
+   step's `security` and `config_unreadable` flags, its `controls` (the matched review-only
+   entries' `control` strings), and the skill's structured output as `output`, `null` when absent or
    unparsable) and the job uploads it as `dependency-verdict-<run attempt>`. Its
    `dependency-round` output is then `true`, with `dependency-run-sha256` and
    `dependency-run-attempt`.
@@ -657,7 +660,10 @@ reads, is `dependabot-config-unreadable`, with a warning naming which. A securit
      `<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<run id>-<attempt> -->`
      from the lanes App is the record the pr-merge lane merges a review-tier pull request on,
      at the current head and through its own gate. With `config_unreadable` it posts no merge
-     marker and escalates `dependency-config-unreadable`. This job never merges or enqueues;
+     marker and escalates `dependency-config-unreadable`; without each of `controls` quoted in
+     `evidence` it escalates `dependency-control-uncited`
+     ([README, "Review-only dependencies"](README.md#review-only-dependencies)). This job never
+     merges or enqueues;
    - `close`: escalates `dependency-security-close` for a security update (the model job's flag,
      or the label or an advisory in the body read fresh); otherwise finds the lanes App issue whose first line is
      `<!-- pr-unblock:dependency-ignore pr=<n> head=<sha> -->` or files it, proposing the
@@ -667,7 +673,7 @@ reads, is `dependabot-config-unreadable`, with a warning naming which. A securit
    - posts the round marker once per model run, named `none` when the model run uploaded no
      verdict: a re-run that finds its own marker posts none.
 
-   The runner accepts only those five reasons, and only with `dependency-verdict`.
+   The runner accepts only those six reasons, and only with `dependency-verdict`.
 
 ## The report job
 

@@ -54,7 +54,7 @@ function fakeApi({ nodes = [], checks = new Map(), ci = new Map(), files = new M
   };
 }
 
-const run = (api, extra = {}) => dispatchDependencyReviews({ api, runId: "55", log: () => {}, config: [], ...extra });
+const run = (api, extra = {}) => dispatchDependencyReviews({ api, runId: "55", log: () => {}, config: [], provenance: async () => [], ...extra });
 
 test("dispatches review-dependency for a review-tier Dependabot PR", async () => {
   const api = fakeApi({ nodes: [pr(4)] });
@@ -80,6 +80,12 @@ test("leaves auto-tier bumps, other authors, drafts and forks alone", async () =
   });
   const { dispatched } = await run(api);
   assert.deepEqual(dispatched, []);
+});
+
+test("a minor bump whose registry provenance changed is dispatched for review", async () => {
+  const api = fakeApi({ nodes: [pr(1, { title: "bump x from 1.0.0 to 1.1.0" })] });
+  await run(api, { provenance: async () => ["provenance-changed:x"] });
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["1"]);
 });
 
 test("a red ci-status makes a patch bump review", async () => {

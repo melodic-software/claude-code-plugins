@@ -482,7 +482,8 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   group's body `Updates` lines otherwise; when both read, they must name the same dependencies and
   agree on which are major.
 - **Tier `review`.** Anything else, including anything unreadable (a SHA version, an unparsed
-  title), and every update to a [review-only dependency](#review-only-dependencies). The pr-unblock lane's review activity reviews it, and the pr-merge lane merges it only
+  title), every update to a [review-only dependency](#review-only-dependencies), and an npm or
+  pip update whose [registry provenance](#registry-provenance) changed. The pr-unblock lane's review activity reviews it, and the pr-merge lane merges it only
   when the newest round marker the lanes App posted on it
   (`<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<id>-<attempt> -->`)
   names the current head with `verdict=merge`. A marker from any other author is ignored.
@@ -555,6 +556,49 @@ Dependabot policy's `autoMerge.reviewOnly` (melodic-software/standards
   what it checked: the release's provenance (who published it and how), maintainer or publisher
   changes since the previous version, new or changed install scripts, and dependencies the
   release adds that its changelog does not explain. Anything it cannot check is `escalate`.
+- **Citation check.** The verdict job checks that by script: a `merge` verdict whose `evidence`
+  does not hold each matched entry's `control` string verbatim (as a substring of one entry)
+  posts no merge marker and escalates `dependency-control-uncited`.
+
+#### Registry provenance
+
+A stolen publish token can ship a non-major release from outside the project's CI, which tier
+`auto` would merge on a green `ci-status`. Both lanes therefore compare who published each npm or
+pip update (`dependabot/npm_and_yarn/...` and `dependabot/pip/...` branches; `github_actions`
+updates are covered by the publisher allowlist), with no model, and only for a pull request every
+other rule left tier `auto`:
+
+- **Identity.** npm: when the version's packument entry (`GET https://registry.npmjs.org/<name>`,
+  a scoped name as `@scope%2Fname`) has `dist.attestations.url`, the SLSA provenance from
+  `GET https://registry.npmjs.org/-/npm/v1/attestations/<name>@<version>` names the identity:
+  `predicate.buildDefinition.externalParameters.workflow` `repository` and `path` (SLSA v0.2:
+  `predicate.invocation.configSource` `uri` without its `@<ref>`, and `entryPoint`), compared
+  without `https://github.com/` and in any case. The ref is never part of it, so a release from a
+  new tag is the same identity. With no attestation, `_npmUser.trustedPublisher` `id` and
+  `oidcConfigId` (any `oidc:` prefix stripped) are the identity. pip: the version's files in
+  `GET https://pypi.org/simple/<name>/` (`Accept: application/vnd.pypi.simple.v1+json`); the
+  first by name with a `provenance` URL is read with
+  `Accept: application/vnd.pypi.integrity.v1+json`, and the first attestation bundle's
+  `publisher` `kind`, `repository` (any case) and `workflow` are the identity. A version with
+  neither has none.
+- **Rule.** The previous identity is the newest stable version (npm `x.y.z`; pip digits and dots
+  with an optional `.postN`, not yanked) published before the new one that has an identity. With
+  one, a new version with no identity is `provenance-missing:<name>` and one with a different
+  identity `provenance-changed:<name>`; either makes the tier `review`. With none, the gate adds
+  nothing: a package that never published provenance keeps the cooldown and the other rules.
+- **Fail closed.** A registry read that fails, takes over 10 seconds or does not parse, a new
+  version the registry does not list, an update with no version, or more than 20 registry reads
+  for one pull request is `provenance-unreadable:<name>`, tier `review`.
+
+The review activity then judges the release as it judges any review-tier pull request.
+
+#### Classifier gaps
+
+A pull request whose every reason is a read failure (`unparsed-updates`, `sources-disagree`,
+`dependabot-config-unreadable`, `dependabot-policy-unreadable`, `provenance-unreadable:<name>`)
+is review tier because the classifier could not read it, not because it is risky. The
+review-dependency select step writes a `::warning::classifier gap` naming those reasons, so a
+parse bug shows in the run log instead of quietly spending AI reviews; fix the classifier.
 
 ### Verifier verdict
 
