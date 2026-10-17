@@ -37,7 +37,7 @@ jobs:
       contents: read # check out main
       pull-requests: read # list open PRs and their mergeable state
       checks: read # skip a PR whose head already has a pr-unblock check run
-      actions: write # dispatch pr-unblock.yml
+      actions: write # list and dispatch pr-unblock.yml runs
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
