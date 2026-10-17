@@ -217,6 +217,41 @@ export async function buildTrustedContext({ github, repository, prNumber, ids })
   };
 }
 
+// An issue's comments, oldest first, kept under the same author and edit rules
+// as a PR's. Used by the issue lane, which gives the model the issue body
+// as untrusted data and only these comments beside it.
+export async function selectTrustedIssueComments({ github, repository, issueNumber, ids }) {
+  const trusted = createTrustCheck(github, ids);
+  const dropped = { "issue-comment": 0, "edited-by-untrusted": 0 };
+  const authored = [];
+  for (const comment of await paginate(github, `/repos/${repository}/issues/${issueNumber}/comments`)) {
+    if (await trusted(comment)) {
+      authored.push(comment);
+    } else {
+      dropped["issue-comment"] += 1;
+    }
+  }
+  const editedByListed = await readEditors(
+    github,
+    ids,
+    authored.map((comment) => comment.node_id),
+  );
+  const comments = [];
+  for (const comment of authored) {
+    if (!editedByListed(comment.node_id)) {
+      dropped["edited-by-untrusted"] += 1;
+      continue;
+    }
+    comments.push({
+      author_login: comment.user.login,
+      created_at: comment.created_at ?? "",
+      url: comment.html_url,
+      body: comment.body ?? "",
+    });
+  }
+  return { comments, dropped };
+}
+
 // Returns a predicate over node ids: true when the node was never edited or
 // its last editor is listed. A node missing from the answer, or an edit with
 // no resolvable editor, is false. GraphQL errors raise.

@@ -147,7 +147,8 @@ activities:
       domains: any
     effect: mutate-branch
     gating: advisory
-    # Reads the issue's title and body, which anyone can write.
+    # Reads the issue's title and body, which anyone can write, and its
+    # comments by listed authors.
     reads-untrusted: true
     inputs: [issue]
     applies-when:

@@ -166,7 +166,12 @@ answer without stopping the pass to ask which item is in front of them.
   installed; otherwise ask the focused questions inline, one at a time, most load-bearing first, the
   same fallback shape triage's interview step uses). **Write the answer back as an issue comment** on
   the item, the decision lives on the tracker, never only in the session, replying in the thread of
-  the escalation comment where the provider supports it.
+  the escalation comment where the provider supports it. **Then update the item body** so it
+  stands alone: where it still shows the question open (a `Readiness: needs-decision` line, a list
+  of fix options, an open-question section), state the chosen option there, one line linking the
+  comment, and mark each option it ruled out as not chosen. A lane that reads the body sees the decision too.
+  Edit the body before the operator ratifies the item's admission: the issue lane starts no run
+  on an issue whose body changed after the newest ratification marker.
 - **`[ratify]` rows for `kind=ratify-c3`**. Restate the brief above, then present the classification and the intended
   dispatch from the marker comment and the consequence of ratifying versus declining. On operator
   ratification, record it as a reply comment and flip the item per the rule below; on decline, leave
