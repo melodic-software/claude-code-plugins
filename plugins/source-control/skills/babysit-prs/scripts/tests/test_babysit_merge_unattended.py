@@ -356,6 +356,7 @@ class Unattended(unittest.TestCase):
         # The pull request's REST author, and the Dependabot class's reads:
         # the assessment's, then the re-read before the enqueue.
         self.pr_user = {"login": IDENTITY, "type": "Bot"}
+        self.pr_labels: list[dict[str, Any]] = []
         self.dependabot_reads: list[policy.Eligibility] = []
 
     def _dependabot_eligibility(self, *args: Any, **kwargs: Any) -> Any:
@@ -391,6 +392,7 @@ class Unattended(unittest.TestCase):
             "base": {"ref": "main", "sha": BASE},
             "head": {"ref": "feat", "sha": self.scored_head},
             "user": self.pr_user,
+            "labels": self.pr_labels,
         }
         kills = list(self.kill)
         self.capture = mock.Mock(side_effect=self._capture)

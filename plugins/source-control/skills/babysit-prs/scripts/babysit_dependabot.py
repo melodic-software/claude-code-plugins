@@ -12,7 +12,11 @@ pull requests"):
   `github_actions` update (head branch `dependabot/github_actions/...`) comes
   from the `actions`, `github` or `anthropics` publisher; and the newest
   `ci-status` run on the head is not red.
-- `review`: anything else, including anything this cannot read.
+- `review`: anything else, including anything this cannot read, every
+  update to a dependency the standards Dependabot policy lists under
+  `autoMerge.reviewOnly` (`review_only`), and an npm or pip update whose
+  registry provenance changed (`provenance_reasons`, which reads the registry
+  through the `get` its caller passes).
 
 The updates come from the `updated-dependencies` metadata in Dependabot's
 verified commit message when it is there, and from the title (`bump <name>
@@ -41,11 +45,15 @@ those other commits touched; the caller makes such a pull request tier
 
 from __future__ import annotations
 
+import base64
+import json
 import posixpath
 import re
 from collections.abc import Callable, Collection, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
+from urllib.parse import quote
 
 from babysit_util import json_object
 
@@ -69,6 +77,13 @@ RED = frozenset(
     {"failure", "cancelled", "timed_out", "action_required", "startup_failure"}
 )
 MARKER_PREFIX = "<!-- pr-unblock:review-dependency-round "
+# The standards-synced Dependabot policy, read at the base.
+POLICY_PATH = ".github/standards/dependabot-policy/policy.json"
+POLICY_UNREADABLE = "dependabot-policy-unreadable"
+# The head branch's ecosystem segment in `dependabot.yml` spelling; any other
+# segment is the same in both.
+BRANCH_ECOSYSTEMS = {"npm_and_yarn": "npm", "github_actions": "github-actions"}
+_REVIEW_ONLY_KEYS = ("repository", "ecosystem", "directory", "dependency", "control")
 
 _PREFIX = re.compile(r"^[a-z]+(\([^)]*\))?!?:\s*", re.I)
 _SINGLE = re.compile(r"\bbump (\S+) from (\S+) to (\S+?)(?:\s+in\s.*)?$", re.I)
@@ -111,6 +126,8 @@ PUSH_TYPES = frozenset({"push", "force_push", "branch_creation"})
 class Update:
     name: str
     major: bool | None  # None when unreadable
+    # The new version, for the provenance gate; None when unread.
+    version: str | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True)
@@ -137,7 +154,10 @@ class Classification:
             "reasons": list(self.reasons),
             "ecosystem": self.ecosystem,
             "approved": self.approved,
-            "updates": [{"name": u.name, "major": u.major} for u in self.updates],
+            "updates": [
+                {"name": u.name, "major": u.major, "version": u.version}
+                for u in self.updates
+            ],
         }
 
 
@@ -191,7 +211,7 @@ def parse_metadata(message: str) -> list[Update] | None:
             major = False
         elif kind == "semver-minor" and version is not None:
             major = version[0] == 0
-        updates.append(Update(entry["name"], major))
+        updates.append(Update(entry["name"], major, entry.get("dependency-version")))
     return updates
 
 
@@ -201,12 +221,18 @@ def parse_title(title: str, body: str) -> list[Update] | None:
     subject = _PREFIX.sub("", str(title), count=1)
     if group := _GROUP.search(subject):
         found = [
-            Update(m.group(1), is_major(m.group(2), m.group(3)))
+            Update(m.group(1), is_major(m.group(2), m.group(3)), m.group(3))
             for m in _UPDATE_LINE.finditer(str(body))
         ]
         return found if len(found) == int(group.group(1)) else None
     if single := _SINGLE.search(subject):
-        return [Update(single.group(1), is_major(single.group(2), single.group(3)))]
+        return [
+            Update(
+                single.group(1),
+                is_major(single.group(2), single.group(3)),
+                single.group(3),
+            )
+        ]
     return None
 
 
@@ -257,6 +283,303 @@ def classify(
     return Classification(
         AUTO if not reasons else REVIEW, tuple(reasons), tuple(updates), ecosystem
     )
+
+
+def review_only(
+    policy: Any,
+    repository: str,
+    head_ref: str,
+    updates: Sequence[Update],
+    paths: Collection[str] | None,
+) -> tuple[str, ...]:
+    """`review-only:<dependency>` for each `autoMerge.reviewOnly` entry of the
+    parsed Dependabot policy that names this repository (any case), the head
+    branch's ecosystem (`BRANCH_ECOSYSTEMS`), one of `updates`, and a changed
+    path the entry covers (`_entry_covers`; any path when `paths` is None), in
+    entry order; `dependabot-policy-unreadable` when the policy is None, has
+    no `reviewOnly` list, or holds an entry missing a string field."""
+    auto = policy.get("autoMerge") if isinstance(policy, dict) else None
+    entries = auto.get("reviewOnly") if isinstance(auto, dict) else None
+    if not isinstance(entries, list) or not all(
+        isinstance(e, dict)
+        and all(isinstance(e.get(k), str) for k in _REVIEW_ONLY_KEYS)
+        for e in entries
+    ):
+        return (POLICY_UNREADABLE,)
+    found = _ECOSYSTEM.match(str(head_ref))
+    segment = found.group(1) if found else ""
+    ecosystem = BRANCH_ECOSYSTEMS.get(segment, segment)
+    names = {u.name for u in updates}
+    reasons: list[str] = []
+    for entry in entries:
+        reason = f"review-only:{entry['dependency']}"
+        if (
+            entry["repository"].casefold() == repository.casefold()
+            and entry["ecosystem"] == ecosystem
+            and entry["dependency"] in names
+            and (paths is None or any(_entry_covers(entry, p) for p in paths))
+            and reason not in reasons
+        ):
+            reasons.append(reason)
+    return tuple(reasons)
+
+
+def _entry_covers(entry: dict[str, str], path: str) -> bool:
+    """Whether a review-only entry covers a changed path: the path sits in the
+    entry's directory (glob-aware), or the entry is `github-actions` and the
+    path is a workflow or action file it covers, as the content rule reads
+    them."""
+    ecosystem, directory = entry["ecosystem"], entry["directory"]
+    return _directory(path, directory) or (
+        ecosystem == "github-actions" and _actions_file(path, [(ecosystem, directory)])
+    )
+
+
+# The provenance gate, the same rule as the pr-unblock lane's
+# `provenanceReasons` (`.github/scripts/pr-unblock/dependency-classify.mjs`):
+# each npm or pip update's publisher identity against the newest earlier
+# stable version that has one. Rule: docs/conventions/pr-pipeline/README.md,
+# "Registry provenance".
+PROVENANCE_TIMEOUT = 10  # seconds per registry read
+PROVENANCE_CALL_CAP = 20  # registry reads per pull request
+_PROVENANCE_ECOSYSTEMS = {"npm_and_yarn": "npm", "pip": "pip"}
+NPM_REGISTRY = "https://registry.npmjs.org"
+PYPI = "https://pypi.org"
+SIMPLE_JSON = "application/vnd.pypi.simple.v1+json"
+INTEGRITY_JSON = "application/vnd.pypi.integrity.v1+json"
+_SLSA = re.compile(r"^https://slsa\.dev/provenance/v")
+_NPM_STABLE = re.compile(r"^\d+\.\d+\.\d+$")
+_PIP_STABLE = re.compile(r"^\d+(\.\d+)*(\.post\d+)?$")
+_WHEEL = re.compile(r"^[^-]+-([^-]+)-.+\.whl$")
+_SDIST = re.compile(r"^.+-([^-]+)\.(tar\.gz|zip)$")
+# `fetch(url, accept)` returns the registry's parsed JSON, or raises.
+Fetch = Callable[[str, str], Any]
+
+
+class _Unreadable(Exception):
+    pass
+
+
+def _repo_name(url: Any) -> str:
+    text = re.sub(r"^git\+", "", str(url))
+    text = re.sub(r"^https://github\.com/", "", text, flags=re.I)
+    return text.removesuffix(".git").lower()
+
+
+def _npm_path(name: str) -> str:
+    if name.startswith("@"):
+        return "@" + quote(name[1:], safe="")
+    return quote(name, safe="")
+
+
+def _when(text: Any) -> float | None:
+    try:
+        return datetime.fromisoformat(str(text)).timestamp()
+    except ValueError:
+        return None
+
+
+def _changed(name: str, before: str, now: str | None) -> str | None:
+    if now is None:
+        return f"provenance-missing:{name}"
+    return None if now == before else f"provenance-changed:{name}"
+
+
+def _npm_identity(name: str, version: str, manifest: Any, get: Fetch) -> str | None:
+    """One npm version's identity: the SLSA provenance's workflow repository
+    and path (never the ref), else the trusted publisher's `oidcConfigId`
+    without any `oidc:` prefix, else None."""
+    entry = json_object(manifest)
+    attestations = json_object(json_object(entry.get("dist")).get("attestations"))
+    if attestations.get("url"):
+        body = json_object(
+            get(
+                f"{NPM_REGISTRY}/-/npm/v1/attestations/"
+                f"{_npm_path(name)}@{quote(version, safe='')}",
+                "application/json",
+            )
+        )
+        listed = body.get("attestations")
+        slsa = next(
+            (
+                item
+                for item in map(json_object, listed if isinstance(listed, list) else [])
+                if _SLSA.match(str(item.get("predicateType")))
+            ),
+            {},
+        )
+        payload = json_object(json_object(slsa.get("bundle")).get("dsseEnvelope")).get(
+            "payload"
+        )
+        if not isinstance(payload, str):
+            raise _Unreadable("no SLSA provenance")
+        predicate = json_object(
+            json_object(json.loads(base64.b64decode(payload))).get("predicate")
+        )
+        workflow = json_object(
+            json_object(
+                json_object(predicate.get("buildDefinition")).get("externalParameters")
+            ).get("workflow")
+        )
+        repository, path = workflow.get("repository"), workflow.get("path")
+        if isinstance(repository, str) and isinstance(path, str):
+            return f"workflow:{_repo_name(repository)}:{path}"
+        # SLSA v0.2, which npm wrote before v1: the ref follows the last `@`.
+        source = json_object(
+            json_object(predicate.get("invocation")).get("configSource")
+        )
+        uri, entry_point = source.get("uri"), source.get("entryPoint")
+        if isinstance(uri, str) and isinstance(entry_point, str):
+            return f"workflow:{_repo_name(re.sub(r'@[^@]*$', '', uri))}:{entry_point}"
+        raise _Unreadable("no workflow in the provenance")
+    trusted = json_object(json_object(entry.get("_npmUser")).get("trustedPublisher"))
+    oidc = trusted.get("oidcConfigId")
+    if not isinstance(oidc, str):
+        return None
+    return f"trusted-publisher:{trusted.get('id') or ''}:{oidc.removeprefix('oidc:')}"
+
+
+def _npm_reason(update: Update, get: Fetch) -> str | None:
+    version = str(update.version)
+    doc = json_object(
+        get(f"{NPM_REGISTRY}/{_npm_path(update.name)}", "application/json")
+    )
+    versions, time = json_object(doc.get("versions")), json_object(doc.get("time"))
+    at = _when(time.get(version))
+    if version not in versions or at is None:
+        raise _Unreadable("the new version is not in the packument")
+    now = _npm_identity(update.name, version, versions[version], get)
+    stamped = {v: _when(time.get(v)) for v in versions if _NPM_STABLE.match(v)}
+    earlier = sorted(
+        (v for v, t in stamped.items() if t is not None and t < at),
+        key=lambda v: -(stamped[v] or 0.0),
+    )
+    for v in earlier:
+        before = _npm_identity(update.name, v, versions[v], get)
+        if before is not None:
+            return _changed(update.name, before, now)
+    return None
+
+
+def _pip_version(filename: str) -> str | None:
+    """A distribution file's version: a wheel's second `-` field, an sdist's
+    text after its last `-`."""
+    found = _WHEEL.match(filename) or _SDIST.match(filename)
+    return found.group(1).lower() if found else None
+
+
+def _pip_identity(provenance: list[tuple[str, str]], get: Fetch) -> str | None:
+    """One PyPI version's identity: the PEP 740 publisher kind, repository and
+    workflow of its first file (by name) with provenance, else None."""
+    if not provenance:
+        return None
+    url = sorted(provenance)[0][1]
+    if not url.startswith(f"{PYPI}/integrity/"):
+        raise _Unreadable("a provenance URL off PyPI")
+    bundles = json_object(get(url, INTEGRITY_JSON)).get("attestation_bundles")
+    first = json_object(bundles[0]) if isinstance(bundles, list) and bundles else {}
+    publisher = json_object(first.get("publisher"))
+    kind, repository, workflow = (
+        publisher.get(k) for k in ("kind", "repository", "workflow")
+    )
+    if not all(isinstance(v, str) for v in (kind, repository, workflow)):
+        raise _Unreadable("no publisher in the provenance")
+    return f"{kind}:{str(repository).lower()}:{workflow}"
+
+
+def _pip_reason(update: Update, get: Fetch) -> str | None:
+    name = re.sub(r"[-_.]+", "-", update.name.lower())
+    files = json_object(get(f"{PYPI}/simple/{name}/", SIMPLE_JSON)).get("files")
+    if not isinstance(files, list):
+        raise _Unreadable("no files in the simple index")
+    by_version: dict[str, tuple[float | None, list[tuple[str, str]]]] = {}
+    for item in map(json_object, files):
+        filename = str(item.get("filename") or "")
+        v = _pip_version(filename)
+        if v is None or item.get("yanked"):
+            continue
+        at, provenance = by_version.get(v, (float("inf"), []))
+        when = _when(item.get("upload-time"))
+        at = None if at is None or when is None else min(at, when)
+        if isinstance(item.get("provenance"), str):
+            provenance.append((filename, item["provenance"]))
+        by_version[v] = (at, provenance)
+    current = by_version.get(str(update.version).lower())
+    if current is None or current[0] is None:
+        raise _Unreadable("the new version is not in the simple index")
+    at = current[0]
+    now = _pip_identity(current[1], get)
+    earlier = sorted(
+        (
+            (t, provenance)
+            for v, (t, provenance) in by_version.items()
+            if _PIP_STABLE.match(v) and t is not None and t < at
+        ),
+        key=lambda row: -row[0],
+    )
+    for _, provenance in earlier:
+        before = _pip_identity(provenance, get)
+        if before is not None:
+            return _changed(update.name, before, now)
+    return None
+
+
+def provenance_reasons(
+    updates: Sequence[Update],
+    segment: str,
+    get: Fetch,
+    cap: int = PROVENANCE_CALL_CAP,
+) -> tuple[str, ...]:
+    """`provenance-changed:<pkg>`, `provenance-missing:<pkg>` or
+    `provenance-unreadable:<pkg>` for each update on an `npm_and_yarn` or
+    `pip` branch (`segment`, the head branch's ecosystem), in update order.
+    `get(url, accept)` reads the registry and raises on any failure; past
+    `cap` reads in all, the rest are unreadable."""
+    ecosystem = _PROVENANCE_ECOSYSTEMS.get(segment)
+    if ecosystem is None:
+        return ()
+    reason = _npm_reason if ecosystem == "npm" else _pip_reason
+    calls = 0
+
+    def counted(url: str, accept: str) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls > cap:
+            raise _Unreadable("past the call cap")
+        return get(url, accept)
+
+    reasons: list[str] = []
+    for update in updates:
+        try:
+            if not update.version:
+                raise _Unreadable("no version")
+            found = reason(update, counted)
+        except Exception:  # any failure to read is fail-closed, never a pass
+            found = f"provenance-unreadable:{update.name}"
+        if found:
+            reasons.append(found)
+    return tuple(reasons)
+
+
+# The reasons a pull request goes to review only because the classifier could
+# not read something: a parse gap, not a risk.
+CLASSIFIER_GAPS = frozenset(
+    {
+        "unparsed-updates",
+        "sources-disagree",
+        "dependabot-config-unreadable",
+        POLICY_UNREADABLE,
+    }
+)
+
+
+def classifier_gaps(reasons: Sequence[str]) -> tuple[str, ...]:
+    """`reasons` when every one is a classifier gap (`CLASSIFIER_GAPS` or
+    `provenance-unreadable:<pkg>`), else empty."""
+    gap = all(
+        r in CLASSIFIER_GAPS or r.startswith("provenance-unreadable:") for r in reasons
+    )
+    return tuple(reasons) if reasons and gap else ()
 
 
 def merge_verdict(

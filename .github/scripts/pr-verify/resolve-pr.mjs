@@ -7,7 +7,8 @@
 //   this repository;
 // - exactly one open PR into main has that run's head SHA as its current head
 //   and its head in this repository;
-// - the PR is not a draft and not a dependency manager's;
+// - the PR is not a draft and not a dependency manager's (a Bot account with
+//   one of DEPENDENCY_MANAGERS' logins);
 // - under merge.verify-authors `lane` (the default) the lanes App opened it:
 //   a Bot account whose login is merge.agent-identity, compared as the
 //   pr-merge lane does (babysit_merge_policy._lane_authored); under `any`
@@ -17,6 +18,8 @@
 //   pr-merge lane's reader would count (countedBy, the same checks as
 //   babysit_verify_evidence.py). A run still going or one that uploaded
 //   nothing does not stop a new judgment.
+// The babysit-prs test test_verify_rules_sync.py runs this file to keep
+// DEPENDENCY_MANAGERS, isDependencyManager and countedBy in step with the gate.
 // It also writes the PR's closing issues with their authors and last body
 // editors to SPEC_FILE, and the spec text trusted humans wrote to
 // SPEC_TEXT_FILE (linkedIssues).
@@ -31,7 +34,7 @@ import { createGitHub, loadTrustedList } from "../../actions/check-trusted-trigg
 export const UPSTREAM_PATH = ".github/workflows/pr-require-checks.yml";
 export const VERIFY_PATH = ".github/workflows/pr-verify.yml";
 // babysit_classify.DEPENDENCY_MANAGER_LOGINS: the pr-merge lane refuses these
-// authors' pull requests before reading a verdict.
+// Bot accounts' pull requests before reading a verdict.
 export const DEPENDENCY_MANAGERS = Object.freeze(["dependabot", "dependabot-preview", "renovate", "renovate-bot"]);
 
 const SHA = /^[0-9a-f]{40}$/;
@@ -61,8 +64,10 @@ const actorFields = (actor, role) => ({
   [`${role}_type`]: typeof actor?.__typename === "string" ? actor.__typename : null,
 });
 
-export const isDependencyManager = (login) =>
-  DEPENDENCY_MANAGERS.includes(String(login ?? "").toLowerCase().replace(/^app\//, "").replace(/\[bot\]$/, ""));
+// A Bot account with a dependency manager's login; a User named like one is not.
+export const isDependencyManager = (user) =>
+  user?.type === "Bot" &&
+  DEPENDENCY_MANAGERS.includes(String(user.login ?? "").toLowerCase().replace(/^app\//, "").replace(/\[bot\]$/, ""));
 
 // babysit_merge_policy._login_key: REST spells an App `app[bot]`, GraphQL `app`.
 const loginKey = (login) => String(login ?? "").trim().toLowerCase().replace(/\[bot\]$/, "");
@@ -215,7 +220,7 @@ export async function resolvePull({ github, repository, upstreamRunId, humans, b
   if (pull.draft !== false) {
     return skip("draft");
   }
-  if (isDependencyManager(pull.user?.login)) {
+  if (isDependencyManager(pull.user)) {
     return skip("dependency-manager");
   }
   if (verifyAuthors !== "lane" && verifyAuthors !== "any") {
