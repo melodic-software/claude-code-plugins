@@ -40,7 +40,8 @@ Contract enforced here (encoded as code, not convention):
   trunk and every open layer below it runs the same gate, since the async
   merge lands them together. Without it a stack layer is held as before.
 - A PR authored by a dependency manager (Dependabot/Renovate-class) is held --
-  never merged -- unless `--allow-dependency` is passed.
+  never merged -- unless `--allow-dependency` is passed, or the pr-merge lane
+  (`--authority pr-merge`) reads it as a mergeable Dependabot pull request.
 - A PR on an unprotected base (zero required reviews AND zero required contexts)
   is held unless `--allow-unprotected` is passed: on such a base `CLEAN` proves
   nothing. A configured self login is exempt only when that base is the
@@ -99,6 +100,12 @@ Contract enforced here (encoded as code, not convention):
   the rung cap is the workflow's `--lane-rung-cap` (empty is no cap),
   only merges the identity enqueued are judged after the fact, and while
   `merge.report-only` is true `--merge` runs as a check that writes nothing.
+  A Dependabot pull request there is its own class (`babysit_dependabot`):
+  tier `auto` (every update non-major), or tier `review` with the review
+  activity's `verdict=merge` marker at the head, on verified Dependabot
+  commits and a green `ci-status` is eligible as C2 with no closing issue, no
+  denied-path rule and no diff score, and `merge.dependabot.mode` (not
+  `merge.report-only`) decides whether it writes.
 
 Readiness is gated on GitHub's own `mergeStateStatus == CLEAN` (which integrates
 required checks, approvals, conversation resolution, and up-to-date where the
@@ -130,6 +137,7 @@ import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
 import babysit_review_evidence as review_evidence
 import babysit_risk
+import babysit_verify_evidence as verify_evidence
 import babysit_repo_config as repo_policy
 from babysit_state import resolve_state_dir, state_lock, write_state
 from babysit_checks import check_identity_key, classify_checks
@@ -2795,11 +2803,15 @@ def _head_file(repo: str, head: str) -> Callable[[str, str], str | None]:
                 gh_json(["api", f"repos/{repo}/compare/{original}...{head}"])
             ).get("files")
             # The comparison lists at most 300 files; a full page may hide one.
-            if not is_json_array(files) or len(files) >= 300 or not any(
-                is_json_object(item)
-                and item.get("filename") == path
-                and item.get("status") == "removed"
-                for item in files
+            if (
+                not is_json_array(files)
+                or len(files) >= 300
+                or not any(
+                    is_json_object(item)
+                    and item.get("filename") == path
+                    and item.get("status") == "removed"
+                    for item in files
+                )
             ):
                 raise RuntimeError(f"head-file-unproven:{path}")
             text = None
@@ -2822,6 +2834,15 @@ def score_unattended(
     eligible = inputs.get("eligibility")
     if not policy.enabled or eligible is None or not eligible.eligible:
         return policy
+    if eligible.dependabot is not None:
+        # The Dependabot class is not scored: `ci-status` is its gate, and a
+        # workflow pin bump sits on a HIGH path by definition.
+        details = {
+            **(policy.details or {}),
+            "headSha": json_object(inputs["pr"].get("head")).get("sha"),
+            "risk": {"score": None, "reason": "not-scored:dependabot"},
+        }
+        return replace(policy, details=details)
     pr, config = inputs["pr"], inputs["config"]
     comments: list[dict[str, Any]] | None = None
     try:
@@ -2877,6 +2898,19 @@ def score_unattended(
     reason = policy.reason or (
         None if risk.score is babysit_risk.Risk.LOW else f"risk:{risk.score.name}"
     )
+    # The pr-merge lane also needs a passing verifier verdict at the head; a
+    # refusal makes this pull request's own queued entry leave too.
+    if (
+        inputs.get("authority") == merge_policy.PR_MERGE
+        and config.require_verifier_verdict
+    ):
+        reader = verify_evidence.Reader(repo, str(inputs["branch"]))
+        verdict = reader.evidence(number, str(details["headSha"]), pr)
+        details["verify"] = verdict.report()
+        inputs["verify_reader"] = reader
+        if verdict.refusal:
+            inputs["own_refusal"] = inputs.get("own_refusal") or verdict.refusal
+        reason = reason or verdict.refusal
     return replace(policy, reason=reason, details=details, inputs=inputs)
 
 
@@ -2999,6 +3033,15 @@ def upsert_risk_comment(
     return outcome
 
 
+def _queued_verify_hold(verifier: verify_evidence.Reader, number: int) -> str | None:
+    """One queued entry's verifier hold. An unexpected error refuses that
+    entry, so it leaves the queue and the sweep goes on to the next."""
+    try:
+        return verifier.queued_hold(number)
+    except Exception:  # noqa: BLE001 -- any crash refuses this entry alone
+        return verify_evidence.UNREADABLE
+
+
 def unattended_writes(
     repo: str, number: int, policy: merge_policy.UnattendedPolicy
 ) -> dict[str, Any]:
@@ -3023,6 +3066,16 @@ def unattended_writes(
             numbers = None
         else:
             queued, _ = postmerge.identity_queue(repo, branch, identity)
+            # In the pr-merge lane a queued entry also leaves without a
+            # passing verifier verdict at its head now.
+            config = inputs.get("config")
+            verifier = inputs.get("verify_reader") or (
+                verify_evidence.Reader(repo, branch)
+                if inputs.get("authority") == merge_policy.PR_MERGE
+                and config is not None
+                and config.require_verifier_verdict
+                else None
+            )
             report["holds"] = {
                 n: hold
                 for n in queued
@@ -3033,6 +3086,11 @@ def unattended_writes(
                         identity,
                         self_logins=inputs.get("self_logins") or frozenset(),
                         permission=inputs.get("permission"),
+                    )
+                    or (
+                        _queued_verify_hold(verifier, n)
+                        if verifier is not None and n != number
+                        else None
                     )
                 )
             }
@@ -3177,7 +3235,14 @@ def unattended_enqueue(
     # The opt-in (the pr-merge lane's class label), like the kill switch, is
     # read again here: a removal (or a removal and a non-human re-add) since
     # the eligibility read refuses.
-    if inputs.get("authority") == merge_policy.PR_MERGE:
+    eligible = inputs.get("eligibility")
+    if getattr(eligible, "dependabot", None) is not None:
+        # The Dependabot class is read again whole: a human blocking comment
+        # or a `ci-status` rerun since the first read refuses.
+        opt_in = merge_policy.dependabot_eligibility(
+            repo, number, pr=inputs["pr"], agent_identity=identity
+        ).reason
+    elif inputs.get("authority") == merge_policy.PR_MERGE:
         opt_in = merge_policy.recheck_lane_class(
             repo,
             number,
@@ -3452,8 +3517,10 @@ def main() -> int:
             "with --unattended, the merge authority this run is (default "
             "local-babysit); merge.authority at the base must name it. "
             "pr-merge is the CI lane: a CI-labeled C2 pull request off the "
-            "denied paths, no promotion read, and nothing written while "
-            "merge.report-only is true"
+            "denied paths, or a mergeable Dependabot pull request on a green "
+            "ci-status, no promotion read, and nothing written while "
+            "merge.report-only (merge.dependabot.mode short of enforce, for "
+            "Dependabot) holds"
         ),
     )
     parser.add_argument(
@@ -3634,8 +3701,8 @@ def main() -> int:
             return _refuse(
                 "--unattended refuses "
                 + ", ".join(widening)
-                + ": an unattended merge never merges a dependency-manager PR, "
-                "arms auto-merge, merges an unpinned head, lands a stack or "
+                + ": an unattended merge never merges a dependency-manager PR "
+                "outside the pr-merge lane's Dependabot class, arms auto-merge, merges an unpinned head, lands a stack or "
                 "merges onto an unprotected base",
                 2,
             )
@@ -3767,6 +3834,13 @@ def main() -> int:
         except (RuntimeError, OSError) as exc:
             return _refuse(f"pending merge record unreadable: {exc}", 2)
 
+    # The pr-merge lane's mergeable Dependabot pull request is the one
+    # dependency-manager PR an unattended run may merge.
+    lane_dependabot = getattr(
+        ((unattended.inputs or {}) if unattended else {}).get("eligibility"),
+        "dependabot",
+        None,
+    )
     try:
         result = evaluate(
             repo,
@@ -3774,7 +3848,12 @@ def main() -> int:
             args.expected_head,
             allowed,
             self_logins,
-            args.allow_dependency,
+            args.allow_dependency
+            or (
+                args.unattended
+                and lane_dependabot is not None
+                and lane_dependabot.mergeable
+            ),
             args.allow_unprotected,
             tier,
             extra_dependency_manager_logins=extra_dependency_manager_logins,

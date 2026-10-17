@@ -20,7 +20,6 @@ test-windows-secrets plugins/guardrails/hooks/secret-pattern-detection.test.sh
 test-windows-secrets plugins/guardrails/hooks/coverage-manifest.test.sh
 test-windows-secrets plugins/harness-ops/skills/audit-skill-visibility/scripts/audit_skill_visibility.test.sh
 test-windows-secrets plugins/disk-hygiene/skills/clean/scripts/test_hygiene.py
-test-windows-guards plugins/guardrails/hooks/block-hook-bypass.test.sh
 test-windows-guards plugins/guardrails/hooks/hardcoded-path-check.test.sh
 test-windows-hooks plugins/markdown-format/hooks/markdown-format.test.sh
 test-windows-hooks .claude/hooks/cloud-bootstrap-plugins.test.sh

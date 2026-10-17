@@ -89,7 +89,8 @@ site either reads it or is a documented narrowing/extension of it:
   An unknown class name in the token file is a hard error.
 
 Agent content, schema files, and a fleet-wide bare organization name are **not gated**. That is a
-deliberate narrowing of enforcement to the classes above, not an accident a green build absolves.
+deliberate narrowing of enforcement to the classes above, so a green build does not mean these
+were checked.
 The independent `portability-lint` job stages a related publisher-token class in
 `scripts/skill-portability-tokens.txt`; if that class activates it must consume or align with
 `org-agnosticism-tokens.txt` rather than invent a third set. CI enforces that alignment via
@@ -450,7 +451,7 @@ compatibility shim for builds below its declared version floor (pointers:
 
 `version` lives in `plugin.json` only, never in a marketplace entry. The platform resolves
 plugin.json first, but a marketplace-entry copy is dead metadata that silently becomes live if the
-manifest field is ever removed. One home, no shadow.
+manifest field is ever removed.
 
 For project configuration, use neutral repository-relative paths anchored at
 `${CLAUDE_PROJECT_DIR}`. Validate configured paths at the boundary, reject absolute paths and traversal
@@ -525,7 +526,7 @@ default preserving zero-config behavior and no illegal value to get wrong, inclu
 out-of-set values are documented as falling back to that default. A manifest is trivial when all its
 options are, however many it holds: count is not the test and neither is declared `type`.
 
-The line follows from what the native prompt is: a collector, not a verifier. It stores what the
+The line follows from the native prompt being a collector, not a verifier. It stores what the
 consumer typed; it never confirms the path exists, the token authenticates, or two options agree. A
 `setup` skill's `check` is the only surface that can, which is why a non-trivial option requires one.
 A trivial option requires none: every legal value is valid by construction and the default already
@@ -556,8 +557,8 @@ rest of the shape is house doctrine, and says so: upstream documents native *ini
 surfaces (below) but takes no position on a consumer-facing `setup` skill, so the `check`/`apply`
 split and the criteria above rest on the reasoning given here rather than on upstream backing. This
 is a normative target: setup skills that predate this contract are nonconforming until brought into
-conformance, and the fleet conformance audit tracks the gap rather than the doctrine pretending it
-is closed. Setup must be:
+conformance, and the fleet conformance audit tracks the gap rather than treating it as
+closed. Setup must be:
 
 - idempotent and safe to rerun;
 - transparent about what it inferred, changed, skipped, or could not verify;
@@ -735,7 +736,7 @@ write and stays locally informative; the shape does not follow the name.
 | Consumer-repo dependency | the write adds one named tool to the consumer's own repo through the repo's package manager, so the manifest or lockfile records it | `install-ruff` (dev-dependency add through the repo's Python manager, for example `uv add --dev ruff`, into an environment the repo already has), `install-biome` (`@biomejs/biome` dev dependency: `pnpm add -D`, `yarn add -D`, `bun add -d` or `npm install --save-dev`), `install-lint` (`markdownlint-cli2` dev dependency, same managers) |
 | Machine-global CLI | the write installs the one CLI the plugin exists to drive, into the machine's global package prefix | `install-cli`: context7 `npm install -g ctx7@latest`, playwright `npm install -g @playwright/cli` |
 | Plugin-owned dependencies | the write provisions the plugin's own runtime: node dependencies under `${CLAUDE_PLUGIN_DATA}` plus a Playwright Chromium build, and touches nothing in the consumer's repo or the global npm prefix; where the browser and any OS packages land is stated per subaction | `install-deps` (knowledge: `setup-deps.mjs` for video-digest and course-digest, node dependencies plus Chromium, the browser in `${CLAUDE_PLUGIN_DATA}/ms-playwright` unless `PLAYWRIGHT_BROWSERS_PATH` is set), `install-build-deps` (ai-briefing: `npm ci` in a staged `runtime/build` under the data dir, then `npx playwright install --only-shell chromium`, which on Linux is `npx playwright install --with-deps --only-shell chromium`; the skill sets no `PLAYWRIGHT_BROWSERS_PATH`, so the browser goes to Playwright's default per-user cache, and `--with-deps` installs OS packages machine-wide), `install-model` (speech: `assets.py fetch` downloads the Kokoro model, tokenizer and English voices pinned in `kokoro-assets.json` into `${CLAUDE_PLUGIN_DATA}/models/`, each kept only when its sha256 matches) |
-| Hook file | the write copies a named hook script into the operator's personal `.git/hooks/` | `install-commit-msg` (`hooks/commit-msg` and `hooks/guardrails-resolve-convention.sh`), `install-pre-commit-content` (`hooks/pre-commit` and `hooks/guardrails-content-lib/`) |
+| Hook file | the write copies the plugin's git-hook entry scripts into the clone's hooks directory (local) or a committed `.githooks/<plugin>/` (shared), through the check-placement convention's installer | `install-git-hooks` (typos-format, guardrails: `lib/git-hooks/install.mjs` copies each `git-hooks/entries.json` entry, its check lib and assets) |
 
 A new install subaction fits one of those four by what it writes. It does not invent a fifth, and it
 does not rename a sibling to match. Names are not one grammar: `install-cli` and `install-lint` each
@@ -773,8 +774,8 @@ current refusals. They stay; they are not defects against a missing subaction.
   `plugins/ai-briefing/skills/setup/SKILL.md` (`install-build-deps`: the Linux `--with-deps`
   branch and the absence of `PLAYWRIGHT_BROWSERS_PATH`),
   `plugins/speech/skills/setup/SKILL.md` (`install-model`),
-  `plugins/guardrails/skills/setup/context/install-commit-msg.md` and
-  `plugins/guardrails/skills/setup/context/install-pre-commit-content.md` (hook files). The
+  `plugins/typos-format/skills/setup/SKILL.md` and `plugins/guardrails/skills/setup/SKILL.md`
+  (`install-git-hooks`, hook files). The
   refusals: `plugins/go-format/skills/setup/SKILL.md` and
   `plugins/typos-format/skills/setup/SKILL.md`. Tokens such as `install-hint` and
   `install-browser` are not setup subactions.
@@ -806,7 +807,7 @@ absence class above, documented as a prerequisite, or fixed.
 
 Anything with a runtime prerequisite (for example `jq` on `PATH`) degrades gracefully, never a hard
 crash. Absence is surfaced to both the agent and the user; a candidate channel for durable
-visibility is the hook-telemetry convention's OTel surface. No black boxes: a silently skipped
+visibility is the hook-telemetry convention's OTel surface. A silently skipped
 feature is a defect. The broader false-green class, healthy-while-dead and green-with-hidden-
 findings on health, status, advisory, and gate surfaces, is owned by the
 [liveness-assertion convention](conventions/liveness-assertion/README.md); this section's
@@ -1016,8 +1017,8 @@ measurably better than earlier ones, but not completely, and the primary sources
 the plugin-acceptance security review's deny-by-default stance on egress and trust delegation is policy, not a model-era
 workaround, and stays regardless of model generation.
 
-The complementary task-design doctrine, describe the task, guardrails, and exit criteria, give the
-model a way to verify its own work, and skip step-by-step procedure, is already this marketplace's
+The complementary task-design doctrine says to describe the task, guardrails, and exit criteria,
+to give the model a way to verify its own work, and to skip step-by-step procedure. It is already this marketplace's
 encoded practice: the `verification`, `planning` (goal conditions), `tdd`, and `testing` plugins are
 its implementation, and need no new mechanism on its account.
 
@@ -1033,8 +1034,8 @@ Two further axes are settled elsewhere, and neither is implied by the rubric abo
 A context that produced work is structurally the weakest place to judge that work, because the reasoning
 that made a mistake plausible is still active and a self-check inherits the bias. A fresh-context (non-fork)
 subagent, generic or named, removes it: it starts in its own fresh context window, blind to the
-reasoning under review. A fork does not: it inherits the parent session's full conversation history, so
-it carries the same bias forward. Upstream recommends fresh-context review as well as describing
+reasoning under review. A fork does not, because it inherits the parent session's full conversation history and
+carries the same bias forward. Upstream recommends fresh-context review as well as describing
 the mechanism, and this section is the authoring-time form of that guidance, applied where an
 invoker cannot be relied on to remember it.
 
@@ -1074,8 +1075,8 @@ never the advisor's command flags, which drift against the surface their owner e
 
 What does not need it: deterministic gates (a script's pass/fail cannot be biased by context, so prefer
 one wherever the judgment is mechanical), and judgment over external input the context did not produce
-(triage of another author's issue or PR). Delegation cost is real; the rule gives unbiased judgment
-exactly where bias is structural, and nothing elsewhere.
+(triage of another author's issue or PR). Delegation cost is real; the rule buys unbiased judgment
+only where bias is structural.
 
 The deterministic-gate exemption is narrow: it reaches the mechanical judgment itself, where the gate's
 pass/fail *is* the verdict, and not a subjective self-review that merely runs ahead of a gate. A build/test/lint
@@ -1386,7 +1387,7 @@ upstream-owned: resolve it from the model page at decision time, never from this
 - **Recheck trigger:** any new model on Claude Code's model page, or the effort section changes how
   a frontmatter pin ranks.
 
-We treat a lane pin as a posture, never a switch: thinking is adaptive, so a lane pinned `low` still
+We treat a lane pin as a posture, never a switch. Thinking is adaptive, so a lane pinned `low` still
 thinks where the model judges it worth the cost, and a turn with no thinking is not a pin
 misfiring. Authoring conformance follows: pin the lane, then let allocation vary per request
 instead of writing prose that tries to force it uniform (Pointer: for how the model decides when to
@@ -1666,7 +1667,7 @@ request.
 - **Recheck trigger:** the accepted `effort` value set changes on the model-config or effort page,
   or either frontmatter field list gains a token cap.
 
-Checking the value set mechanically stays deferred: a lint rule's source of truth is the harness's
+Checking the value set mechanically stays deferred, because a lint rule's source of truth is the harness's
 own accepted-value list, which this section deliberately does not restate.
 
 Session-level effort is the consumer's own setting and out of plugin scope. Plugins never set
@@ -1732,7 +1733,7 @@ A Workflow script this repository ships follows these rules;
   fan-out names `opus`. A single synthesis or judge agent may inherit.
 - **Wave caps plus one retry.** A fan-out runs in waves of `args.maxConcurrent`, with a small
   default, and retries a thrown dispatch once. A `null` result is final and is reported by name.
-- **Unattended runs stay small,** because which runs pause at a usage limit is upstream's rule
+- **Unattended runs stay small,** because upstream decides which runs pause at a usage limit
   (pointer below).
 - **Pointers, not restated limits.** Concurrency, agent caps and the size guideline are read from
   the workflows page, never copied into a script or its docs.

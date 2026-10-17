@@ -3,6 +3,113 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.52.0] - 2026-10-16
+
+### Added
+
+- A SessionStart notice names `/guardrails:setup apply install-git-hooks` once per session when this clone lacks a guardrails git-hook entry or holds a drifted one. A declined entry stays quiet, and the `git_hooks_notice_enabled` option (on by default) turns it off.
+
+- Three git-hook entries in `git-hooks/entries.json`, registered with
+  `/guardrails:setup apply install-git-hooks [scope=local|shared]` through the shared installer
+  (lefthook, husky or plain hooks; local to this clone or committed under `.githooks/guardrails/`):
+  `commit-msg-convention` checks the subject against the team-tracked `subject_pattern`,
+  `pre-commit-content` checks secrets and machine-specific paths on the lines a commit adds, and
+  `reference-verify` runs cli-flag-verify, skill-reference-verify and stale-path-verify on the
+  lines the pushed commits add, as a `pre-push` entry because it costs about 10 s on a 44-file
+  change. Each fails the commit or push on a finding and is declined per clone through
+  `/guardrails:setup`, which also removes an installed entry's registration. A cli-flag
+  finding's failure names that way out, since such a finding is unverified, not proven wrong.
+- `block-no-verify` refuses a persistent `git config core.hooksPath <dir>` in any scope unless
+  `<dir>` is exactly `.githooks`, and allows the check-placement skip key
+  `git -c checks.skipmissing=<tool>`.
+
+- `/guardrails:setup apply install-read-deny [local|shared] [user] [remove]` prints the
+  `Read()` deny rules for `.env` files (and, with `user` and your yes, `~/.ssh/**` and
+  `~/.aws/**`) and adds or removes them in the settings file you choose.
+- `block-dangerous-git` and `block-root-delete-target` ask instead of deny when a person is
+  at the session (`CLAUDE_CODE_SESSION_ATTENDED` exactly `1`) and the guard read what would
+  run, through the new `hooks/refuse.sh`. A command a guard cannot read is still denied.
+- `run-guards.sh` keeps a permission decision when it merges several guards' output: deny
+  over ask, the asking guards' reasons joined, and any guard's exit 2 still denies the call.
+
+### Changed
+
+- cli-flag-verify, skill-reference-verify and stale-path-verify no longer report after every
+  Write or Edit; they run at push time in the `reference-verify` git hook. Their
+  `cli_flag_verify_enabled`, `skill_reference_verify_enabled`, `stale_path_verify_enabled`,
+  `cli_flag_verify_bins` and `cli_flag_verify_skip_bins` options are gone: decline the entry
+  to turn it off, and set `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS` or
+  `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS` in the pushing environment to change the
+  scanned binaries.
+
+- `block-credential-read` is now off by default: measured on local session logs, 6% of its
+  refusals were right, below the ADR 0003 bar. Turn it back on with its
+  `block_credential_read_enabled` option. The per-guard figures are in
+  `docs/conventions/hook-precision/guard-precision.md`; `block-hook-bypass` is removed (see
+  Removed).
+- `block-noncanonical-commit` now blocks a `git commit -m` message holding a `$` or a backtick
+  the shell expands (double quotes or none in Bash, double quotes or `@"` in PowerShell), and no
+  longer blocks a message only because it spans several lines.
+- `block-credential-read` covers interpreter reads (`python3 -c`, `node -e`, `ruby -e`,
+  `perl -e`, `php -r`, and a heredoc fed to one) of credential files, now including
+  `~/.ssh/id_*` and `~/.aws/credentials`. `cat` of those files is left to native `Read()` deny
+  rules.
+
+### Removed
+
+- `block-hook-bypass` and its `block_hook_bypass_enabled` and `block_hook_bypass_scratch_roots`
+  options. A file a shell command writes is checked when it is committed, by the
+  `pre-commit-content` git hook.
+- `check-bash-file-changes` and its `bash_file_change_check_enabled` option; its path rules
+  are in the `pre-commit-content` git hook.
+- `/guardrails:setup apply install-commit-msg` and `apply install-pre-commit-content`, replaced
+  by `apply install-git-hooks`. A hook either one installed is reported as a foreign hook the
+  setup agent replaces, and `retirements.yaml` records the four files they wrote under
+  `.git/hooks/` (`guardrails-r001` to `guardrails-r004`): `/guardrails:setup check` reports them
+  and `apply` offers the gated cleanup.
+
+### Fixed
+
+- `lib/check-retirements.sh` finds and cleans a `.git/` leftover, such as a retired git hook,
+  when run from a linked worktree: such a path resolves under `git rev-parse --git-common-dir`.
+  `/guardrails:setup` step 8 now reports the retired hooks from a linked worktree too.
+- The `commit-msg-convention` git hook checks a `git commit -m "#123 fix"` subject: with no
+  editor, git keeps lines that start with the comment character, so the hook does too
+  (`commit.cleanup` is honored).
+
+- The guardrails dispatcher no longer lets a crash become an allow. A guard's `exit` ran the next
+  guard on top of its own frames, so an attended `git reset --hard` followed by an over-budget git
+  alias chain ran two alias walks on one stack. On Git Bash's 2 MB stack bash died, and the hook
+  read as exit 0 with no output. Past 64 frames the rest of the chain now runs in a fresh process,
+  and a rest of the chain that reports no verdict denies the call (it was exit 1, which Claude Code
+  does not treat as a block). Once a guard has blocked, an abort in the dispatcher's own merge
+  denies too; it used to exit 0 with a notice.
+
+- The pre-push range reader treats an all-zero object id of any width as zero, so in a SHA-256 repository a new branch is checked from its merge-base and a deletion is skipped instead of the hook checking nothing.
+
+- `block-root-delete-target` no longer blocks `X=build && rm -rf "$X"`: when the whole
+  command is exactly `NAME=LITERAL`, one `&&`, `;` or newline, then an `rm` whose only
+  expansions are `"$NAME"` or `"$NAME/..."` (a plain suffix inside the double quotes), the
+  variable is judged as that literal. An unquoted `$NAME` binds nothing, since an inherited
+  IFS can split it. Any other command, including a comment, a second statement, a
+  braced `${NAME}` or a name the shell sets itself, still blocks the variable.
+- An attended ask is the verdict on the whole command: any denying segment, budget or parse
+  cap anywhere in it denies, and one ask names every asking segment.
+- `block-noncanonical-commit` reads the literal spelling of the `-m` argument itself, not a
+  matching spelling elsewhere in the command.
+- `block-noncanonical-commit` leaves `-m "$msg"` and `-m "$(...)"` alone: a value that is one
+  variable or one command substitution is meant to expand. Text after the substitution inside
+  the quotes (`-m "$(true) $HOME"`, or after a quoted heredoc's `)`) still blocks, as does a
+  PowerShell `$` after an escaped `""`.
+- `block-credential-read` no longer treats a shell name inside an argument, such as a grep
+  pattern, as a shell that runs the rest of the command.
+
+## [0.51.6] - 2026-10-16
+
+### Fixed
+
+- `block-hook-bypass` block message: an agent with neither Write nor Edit whose instructions allow a write is told to write to a literal path under an exempt root, unquoted or, on PowerShell, single-quoted.
+
 ## [0.51.5] - 2026-10-16
 
 ### Changed

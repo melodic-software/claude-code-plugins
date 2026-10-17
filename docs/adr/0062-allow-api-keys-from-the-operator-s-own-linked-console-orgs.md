@@ -1,6 +1,6 @@
 # Allow API keys from the operator's own linked Console orgs
 
-- Status: accepted
+- Status: accepted; amended 2026-10-16 (decision 3, see the amendment below)
 - Date: 2026-10-11
 - Amends: [ADR 0037](0037-seat-mandatory-reviews-on-the-operator-session-and-retire-the-oauth-lanes.md),
   its premise that the operator cannot use API keys
@@ -64,6 +64,10 @@ amended by ADR 0038 and its own addendum.
   (#6959): subscriptions stay one account per workload.
 - **A capped paid balance behind the credits.** Rejected (#6966): it only moves the stall a short
   way and adds a moving part.
+- **Rotate through linked orgs (original decision 3).** Replaced by the amendment: spreading one
+  lane's work across several orgs' credits is not something the credits article or the terms
+  explicitly permit, and this repository treats what the terms do not address as unsettled, not as
+  permission.
 
 ## Consequences
 
@@ -76,11 +80,32 @@ amended by ADR 0038 and its own addendum.
 - A linked org's key is a new long-lived credential. Where it is stored and which jobs may read it
   is decided with the mechanisms (decision 5), under the CI lane hardening of
   [ADR 0049](0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md).
-- Once every linked org's credits and a lane's subscription are spent, that lane waits. That is the
-  intended end state of full use, not a fault.
+- Once every linked org's credits (see the amendment) and a lane's subscription are spent, that
+  lane waits. That is the intended end state of full use, not a fault.
 
 ## Revisit triggers
 
-- Probe #6962 reports → record whether a self-written `claude -p` CI step draws credits.
+- When probe #6962 reports, record whether a self-written `claude -p` CI step draws credits.
 - The credits article changes coverage, expiry, or the one-org link → re-derive decisions 2 and 3.
 - The operator adds a paid backstop or automatic subscription rotation → amend decisions 3 and 4.
+- Probe #6962 reports, or observed billing differs from what the amendment assumes → re-derive the
+  amendment.
+
+## Amendment (2026-10-16): each lane's role uses one plan
+
+A lane asks for a role, and each role is assigned to one plan. A lane that self-runs `claude -p`
+or the Agent SDK may fall back, when it reaches its subscription limit, only to that plan's own
+linked-org credits; for a CI lane that fallback waits on probe #6962. The key is present only in
+the environment of the fallback run, and never where the model's tools can read it: the launcher
+sets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` so the Bash commands, hooks and MCP servers the run starts
+get no credential (see [What the subprocess environment scrub removes](https://code.claude.com/docs/en/env-vars#what-the-subprocess-environment-scrub-removes)). A lane that runs the Claude Code GitHub Action is never given
+a key: a key set there replaces the lane's subscription token, and the credits do not cover Action
+runs. No lane rotates across linked orgs. When the plan's subscription window and its credits are
+both spent, the work queues with an operator alert, and the operator may reassign the role by hand.
+
+Where decision 3 says a lane rotates through the linked orgs, read this amendment. Decisions 1, 2,
+4 and 5 stand, and decision 5 keeps the mechanisms on the capacity map (#6958).
+
+Every lane today runs claude-code-action, so none has a credit fallback: each queues and alerts at
+its limit until it is rebuilt on its own `claude -p` step (#6967). How such a lane saves its
+progress when a limit stops it is an open operator decision, carried on #7677.

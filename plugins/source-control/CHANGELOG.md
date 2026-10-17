@@ -3,6 +3,43 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.10.0] - 2026-10-17
+
+### Added
+
+- The unattended merge gate's pr-merge lane (`--authority pr-merge`) merges Dependabot pull requests as their own class, on a green `ci-status` with verified Dependabot commits and no closing issue, denied-path rule or diff score. Tier `auto` (every update non-major, counting a 0.x minor change as major; Actions publishers `actions`, `github` or `anthropics` only; `ci-status` not red) merges directly; tier `review` merges only on the lanes App's `verdict=merge` review-dependency round marker at the current head, and may then carry the App's `[dependabot skip]` fix commits. Every push to the head branch must be Dependabot's (or the version-bump or fix commit's own pusher's), or the PR is refused; a changed path beyond the manifests and lock files `.github/dependabot.yml` covers and `uses:`-only action repins makes the PR tier `review` (`dependabot-content:<path>`). `merge.dependabot.mode` (`off`, `report`, `enforce`) switches it apart from `merge.report-only`. The local babysit paths still hold every dependency-manager PR.
+
+- The pr-merge lane (`babysit_merge.py --unattended --authority pr-merge`) reads the pr-verify verdict when `merge.require-verifier-verdict` is true, from artifacts `pr-verify-<pr>-<head-sha>-<verdict>` authenticated by their run (`.github/workflows/pr-verify.yml`, event `workflow_run`, on main, this repository, head on main). A FAIL counts whatever its run concluded and under any pull request number: at the head it refuses `verify:fail`, at another head of the pull request (number, commit or head branch) `verify:earlier-fail`. A PASS counts only from a successful run, only while the pull request's closing issues are the ones it recorded and none was edited after its run started (`verify:spec-changed` otherwise), and only when every linked issue it records was written, and last edited if ever, by a trusted human other than the author (`verify:untrusted-spec` otherwise). A crash judging one queued entry refuses that entry and the sweep goes on. The artifact listing, run records and download run under `BABYSIT_VERIFY_GH_TOKEN` when it is set (pr-merge.yml passes the job's `GITHUB_TOKEN` with `actions: read`); `gh_capture` takes `env_overrides` for that. A pull request older than 80 days refuses `verify:too-old`, any failed read `verify:unreadable`, and no verdict `verify:missing`. Queued entries are dequeued on the same rules at their live head; a dependency manager's pull request, which the lane decides in its Dependabot class, needs no verdict, and its queued entry is not held for one.
+
+- `/source-control:pull-request dependency --ci`, the pr-unblock lane's unattended review of one risky Dependabot update (a major bump, an action publisher outside the allowlist, a group holding a major, or a red `ci-status`). It reads the runner's context file, the checkout and the upstream release notes as data, may push a scoped fix outside `.github/` with `[dependabot skip]`, and returns a `merge`, `fix`, `close` or `escalate` verdict as structured output for a job with no model to act on. See `reference/dependency-ci.md`.
+
+## [1.9.0] - 2026-10-17
+
+### Added
+
+- `/source-control:pull-request ready --skip <step>[,<step>...] --reason "<text>"` lets a person who is present skip pre-flip steps for one run. It is refused under `--unattended`, never re-enables a step `pre_ready` disabled, and leaves the hold checks, the push and the flip in place. Each skipped step is reported as `skipped by <login> for this run: <reason>` and the same lines go into one PR conversation comment, marked with the head it flipped; `ready` never edits the PR body.
+
+## [1.8.0] - 2026-10-16
+
+### Added
+
+- A request level for `pr_open_state`: an invocation that asks for a draft, or names the PR a multi-session container, wins over every configured level and writes a `Draft:` line into the PR body. `/source-control:babysit-prs` never flips a draft carrying that line, in any tier, and `ready --unattended` (passed by every lane, loop and dispatched caller) refuses to flip it, through `check-ready-holds.sh --unattended` (exit 3); a person running `ready` may still flip it.
+
+- A `pre_ready` list in `docs/conventions/source-control.yaml` turns off any of the five pre-flip steps of `/source-control:pull-request ready` (`base-merge`, `plan-evidence`, `code-review`, `security-review`, `verify`) with `enabled: false`. It is read at the pull request's own base branch in its base repository, never the head, through `scripts/read-pre-ready.sh`, and honored only when that base is the repository's default branch: on a stacked or other base, which the PR's author may have pushed unreviewed, every step runs. A missing file (a 404) or key runs every step. A failed base read, input holding a NUL byte, an unparsable list, or a list the schema would reject (an unknown or repeated step, an extra key, an `enabled` other than unquoted `true` or `false`) also runs every step, and the report says why. The schema allows each step at most once. The hold checks, the push and the flip always run. With `base-merge` disabled, local commits are still pushed before the reviews, so the reviews and the verify gate cover the same commit. `ready` now reports one line per step: ran and passed, ran and failed, skipped with the built-in condition, or disabled by `pre_ready` at the base branch.
+
+### Changed
+
+- `/source-control:pull-request` stacks reference: re-stamped against the stacked pull requests GA docs, merge-queue text replaced by a live docs pointer, and a when-to-stack rule added.
+
+- `/source-control:pull-request create` always opens the PR as a draft. When `pr_open_state` resolves to `ready` (a repository or user opts in; the default stays `draft`), it then runs `ready` on the new PR, so a PR reaches ready only through `ready`'s base merge, reviews and verify gate; a gate that stops leaves it a draft and the report says why. Unattended runs, `--pushed` included, still leave a draft. `create` reference §2.4.3 states what a save point, a draft and a ready PR each mean.
+
+### Fixed
+
+- `lib/check-retirements.sh` finds and cleans a `.git/` leftover, such as a retired git hook,
+  when run from a linked worktree: such a path resolves under `git rev-parse --git-common-dir`.
+
+- Never update a dependency-manager PR branch before merging (ask the manager to rebase instead), and skip the update on a merge-queue base; the branch-refresh helper refuses a dependency-manager PR.
+
 ## [1.7.0] - 2026-10-16
 
 ### Added

@@ -1,0 +1,6 @@
+# Eval fixture: a repository's docs/conventions/source-control.yaml whose pre_ready list names an unknown step.
+pre_ready:
+  - step: lint
+    enabled: false
+  - step: code-review
+    enabled: false

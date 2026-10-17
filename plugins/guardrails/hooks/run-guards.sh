@@ -66,6 +66,10 @@
 #     second hard error in a dying shell would end the process with no result.
 #     That subshell reports its documents and status back on its stdout; a
 #     further hard error there costs one more subshell, never the result.
+#   * Running the next guard from inside `exit` keeps the exiting guard's
+#     frames on the stack. Past RUN_GUARDS_MAX_DEPTH frames the rest of the
+#     chain runs in a fresh dispatcher process instead, which reports back the
+#     same way. A rest that reports no status denies the call.
 #   * Guards share one process, so a guard's functions and globals remain
 #     defined while the later guards run, and a guard that exits from inside a
 #     function leaves that function's locals visible to them. Every guard
@@ -142,7 +146,9 @@
 #     unprimed payload is measured by its own length, which no command inside
 #     it can exceed.
 #   * stdout: one emitter passes through verbatim. Several are merged into one
-#     document (contexts joined by a blank line) because a hook process gets
+#     document (contexts joined by a blank line; a `permissionDecision` kept,
+#     deny over ask, with the reasons of the guards that chose it joined; an
+#     exit 2 from any guard still denies the call) because a hook process gets
 #     one JSON document on stdout; as separate hooks each document was
 #     delivered on its own. Pointer:
 #     https://code.claude.com/docs/en/hooks#json-output. As of: 2026-10-11.
@@ -201,18 +207,32 @@ esac
 RUN_GUARDS_START=${EPOCHREALTIME:-}
 GUARDS=()
 LIBS=()
+# The options as given, for a fresh process that runs the rest of the chain
+# (run_guards::run_rest).
+RUN_GUARDS_OPTS=()
 RUN_GUARDS_MAX_SUBST=0
 RUN_GUARDS_MAX_CMD=0
+RUN_GUARDS_REPORT=0
 while (($#)); do
   case "$1" in
   --max-substitutions)
     [[ "${2-}" =~ ^[1-9][0-9]*$ ]] || exit 70 # not a chosen status: the boundary reports it
     RUN_GUARDS_MAX_SUBST=$2
+    RUN_GUARDS_OPTS+=("$1" "$2")
     shift 2
     ;;
   --max-command-len)
     [[ "${2-}" =~ ^[1-9][0-9]*$ ]] || exit 70 # not a chosen status: the boundary reports it
     RUN_GUARDS_MAX_CMD=$2
+    RUN_GUARDS_OPTS+=("$1" "$2")
+    shift 2
+    ;;
+  --report)
+    # Internal: this process runs the rest of a parent's chain. Report the
+    # documents and status on stdout (run_guards::finish) and say nothing the
+    # parent already said (guard::say_once).
+    RUN_GUARDS_REPORT=1
+    _GUARD_SAID="${2-}"
     shift 2
     ;;
   --lib)
@@ -223,6 +243,7 @@ while (($#)); do
     # was a pure tax on the common path. The include guard still makes every
     # later `source` a no-op, so the parse is paid once per PowerShell fire.
     LIBS+=("$2")
+    RUN_GUARDS_OPTS+=("$1" "$2")
     shift 2
     ;;
   *)
@@ -859,16 +880,29 @@ run_guards::record() {
   fi
 }
 
+# The call depth past which the rest of the chain does not run on this stack.
+# A guard's `exit` runs the next guard from inside its own call, so the frames
+# below a guard that exits deep (the alias walk exits about 140 frames down)
+# stay under every guard after it. Git Bash's main thread has a 2 MB stack, and
+# a second alias walk on top of the first overflowed it: bash died of an access
+# violation that its parent read as exit 0 with no output, an allow. A normal
+# chain of eleven guards reaches about 45 frames; past this bound the rest runs
+# in a fresh process, whose stack starts empty, as each guard's did when it ran
+# alone.
+RUN_GUARDS_MAX_DEPTH=64
+
 # run_guards::guard_done <rc>: record the guard that just ended and run the
 # rest. Never returns.
 run_guards::guard_done() {
   run_guards::record "$1"
   ((RUN_GUARDS_OVERLONG && RC == 2)) && run_guards::finish
-  if ((RUN_GUARDS_DYING)); then
-    run_guards::run_rest_in_subshell "$((RUN_GUARDS_CUR + 1))"
+  local __rg_next=$((RUN_GUARDS_CUR + 1))
+  ((__rg_next < ${#GUARDS[@]})) || run_guards::finish
+  if ((RUN_GUARDS_DYING || ${#FUNCNAME[@]} > RUN_GUARDS_MAX_DEPTH)); then
+    run_guards::run_rest "$__rg_next"
     run_guards::finish
   fi
-  run_guards::run_from "$((RUN_GUARDS_CUR + 1))"
+  run_guards::run_from "$__rg_next"
 }
 
 # run_guards::run_from <index>: run the guards from <index> on, then finish.
@@ -903,23 +937,40 @@ run_guards::run_from() {
   run_guards::finish
 }
 
-# The remaining guards, from inside a dying shell's EXIT trap: one subshell,
-# same chain, its collected documents and status reported on its stdout as
+# run_guards::run_rest <index>: the guards from <index> on, run in another
+# process, from inside a dying shell's EXIT trap or past RUN_GUARDS_MAX_DEPTH.
+# Its collected documents and status come back on its stdout as
 # <doc>RS ... RS<doc>RS RC=<n>. RS (0x1e) cannot occur inside a document (JSON
-# escapes every control byte). Inside the subshell the chain is its own
-# process, so RUN_GUARDS_PID moves with it and a further hard error there
-# costs one more subshell from its own trap, never the result.
-run_guards::run_rest_in_subshell() {
+# escapes every control byte).
+#
+# Past the depth bound it is a fresh dispatcher fed the same payload, so the
+# guards run on an empty stack. That needs a payload the fresh process reads
+# back the same: read whole (stdin rc 0), and primed, so it carried no NUL that
+# the shell variable dropped. Any other payload past the bound is denied:
+# carrying on here is how the stack ran out. A dying shell within the bound
+# forks a subshell of the same chain, as before; RUN_GUARDS_PID moves with it,
+# and a further hard error there costs one more subshell from its own trap.
+#
+# No status reported back means the rest of the chain died unseen, and on Git
+# Bash a crash reads as exit 0, so its verdict is unknown: the call is denied.
+run_guards::run_rest() {
   local __rg_rest="" __rg_doc
-  # shellcheck disable=SC2030  # the subshell's own OUTS and RC come back on its stdout
-  __rg_rest=$(
-    RUN_GUARDS_PID=$BASHPID
-    RUN_GUARDS_DYING=0
-    RUN_GUARDS_REPORT=1
-    OUTS=()
-    RC=0
-    run_guards::run_from "$1"
-  )
+  if ((${#FUNCNAME[@]} > RUN_GUARDS_MAX_DEPTH)); then
+    if ((RUN_GUARDS_STDIN_RC == 0 && RUN_GUARDS_PRIMED)); then
+      __rg_rest=$("$BASH" "$HOOK_DIR/run-guards.sh" --report "$_GUARD_SAID" \
+        ${RUN_GUARDS_OPTS[@]+"${RUN_GUARDS_OPTS[@]}"} "${GUARDS[@]:$1}" <<<"$RUN_GUARDS_INPUT")
+    fi
+  else
+    # shellcheck disable=SC2030  # the subshell's own OUTS and RC come back on its stdout
+    __rg_rest=$(
+      RUN_GUARDS_PID=$BASHPID
+      RUN_GUARDS_DYING=0
+      RUN_GUARDS_REPORT=1
+      OUTS=()
+      RC=0
+      run_guards::run_from "$1"
+    )
+  fi
   while [[ "$__rg_rest" == *$'\x1e'* ]]; do
     __rg_doc=${__rg_rest%%$'\x1e'*}
     __rg_rest=${__rg_rest#*$'\x1e'}
@@ -934,11 +985,10 @@ run_guards::run_rest_in_subshell() {
       RC=$__rg_doc
     fi
   else
-    echo "run-guards: the guards after a hard error reported no status; their verdict is lost" >&2
-    ((RC < 1)) && RC=1
+    echo "BLOCKED: guardrails could not finish checking this call: the guards after ${GUARDS[$1 - 1]##*/} reported no verdict. Split the command into simpler steps." >&2
+    RC=2
   fi
 }
-RUN_GUARDS_REPORT=0
 
 # Several documents and no way to merge them: a hook process may emit exactly
 # ONE JSON document, so pick one. A blocking decision must not be lost, so a
@@ -972,6 +1022,7 @@ run_guards::emit_one() {
 run_guards::finish() {
   RUN_GUARDS_CUR=-1
   _GAB_CONTINUE=""
+  # shellcheck disable=SC2031  # each process reads its own: the fork in run_guards::run_rest sets the subshell's
   if ((RUN_GUARDS_REPORT)); then
     local __rg_doc
     for __rg_doc in ${OUTS[@]+"${OUTS[@]}"}; do
@@ -981,8 +1032,20 @@ run_guards::finish() {
     builtin exit 0
   fi
   # The dispatcher's own boundary again, for the merge below: the last guard's
-  # boundary is what the trap holds at this point.
-  guard::abort_boundary run-guards "$_GAB_EVENT" open 0 2
+  # boundary is what the trap holds at this point. Once a guard has blocked,
+  # an abort in the merge must not turn the block into an allow.
+  local __rg_posture=open
+  ((RC == 2)) && __rg_posture=closed
+  guard::abort_boundary run-guards "$_GAB_EVENT" "$__rg_posture" 0 2
+  # A guard that exited 2 denies the call, so an ask another guard emitted is
+  # dropped rather than shown beside the deny.
+  if ((RC == 2 && ${#OUTS[@]})); then
+    local __rg_keep=() __rg_d __rg_re_ask='"permissionDecision"[[:space:]]*:[[:space:]]*"ask"'
+    for __rg_d in "${OUTS[@]}"; do
+      [[ "$__rg_d" =~ $__rg_re_ask ]] || __rg_keep+=("$__rg_d")
+    done
+    OUTS=(${__rg_keep[@]+"${__rg_keep[@]}"})
+  fi
   if ((${#OUTS[@]} == 1)); then
     printf '%s\n' "${OUTS[0]}"
   elif ((${#OUTS[@]} > 1)); then
@@ -990,13 +1053,22 @@ run_guards::finish() {
       run_guards::emit_one "without jq"
     else
       local merged
+      # A permission decision survives the merge: deny over ask, and the
+      # reasons of every guard that chose the winning decision are joined.
       merged=$(printf '%s\n' "${OUTS[@]}" | jq -cs '
-        { hookSpecificOutput: {
-            hookEventName: (map(.hookSpecificOutput.hookEventName // empty) | .[0] // ""),
-            additionalContext: (map(.hookSpecificOutput.additionalContext // empty) | join("\n\n")) },
-          systemMessage: (map(.systemMessage // empty) | join("\n\n")) }
+        (map(.hookSpecificOutput.permissionDecision // empty)) as $d
+        | (if any($d[]; . == "deny") then "deny" elif any($d[]; . == "ask") then "ask" else "" end) as $dec
+        | { hookSpecificOutput: ({
+              hookEventName: (map(.hookSpecificOutput.hookEventName // empty) | .[0] // ""),
+              additionalContext: (map(.hookSpecificOutput.additionalContext // empty) | join("\n\n")) }
+            + (if $dec == "" then {} else {
+                permissionDecision: $dec,
+                permissionDecisionReason: (map(select(.hookSpecificOutput.permissionDecision == $dec)
+                  | .hookSpecificOutput.permissionDecisionReason // empty) | join("\n\n")) } end)),
+            systemMessage: (map(.systemMessage // empty) | join("\n\n")) }
         | if .systemMessage == "" then del(.systemMessage) else . end
-        | if .hookSpecificOutput.additionalContext == "" then del(.hookSpecificOutput) else . end
+        | if .hookSpecificOutput.additionalContext == "" then del(.hookSpecificOutput.additionalContext) else . end
+        | if (.hookSpecificOutput | keys) == ["hookEventName"] then del(.hookSpecificOutput) else . end
         | if . == {} then empty else . end' 2>/dev/null)
       # The Windows jq build writes CRLF; a raw CR never belongs in a JSON document.
       merged="${merged//$'\r'/}"

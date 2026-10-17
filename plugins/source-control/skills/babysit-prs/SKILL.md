@@ -111,7 +111,7 @@ Autonomy is decomposed per action, not per run. Irreversibility governs the gate
 | Dispatch a dedicated conflict worker (`git merge`, never rebase; it resolves locally and never pushes, the orchestrator re-verifies and pushes, [reference/orchestration.md](reference/orchestration.md)) | no, report (simple mechanical conflicts met while freshening a branch are still handled inline per [reference/loop.md](reference/loop.md)) | mechanical/textual conflicts only, escalate genuine ambiguity | mechanical/textual conflicts only, escalate genuine ambiguity |
 | Resolve review threads | no, report | **pre-push-outdated bot threads only** | any thread **it has addressed**, bot, AI-review, or human |
 | Merge a PR | no. Report readiness | only when the gate proves 100% ready | only when the gate proves 100% ready |
-| Mark a completed draft ready (`/source-control:pull-request ready`) | no, report | no, report | yes, via its worker's completeness assessment |
+| Mark a completed draft ready (`/source-control:pull-request ready --unattended`) | no, report | no, report | yes, via its worker's completeness assessment |
 | Refresh a stale (behind-base) branch, post a review trigger | orchestrator-only | orchestrator-only | orchestrator-only |
 | `CHANGES_REQUESTED`, security/P1, posture, design, dependency acceptance | escalate | escalate | attempt with research; escalate only when it cannot confidently and safely resolve |
 
@@ -143,8 +143,8 @@ works harder to reach that state but never forces past it. A blocked action esca
 never routed around. Advisory-only fix attempts are bounded per PR (the fix-round cap in
 [reference/orchestration.md](reference/orchestration.md)); blocking defects are never capped.
 **Dependency hold-merge:** a dependency-manager-authored PR (Dependabot/Renovate-class) is
-never merged autonomously in ANY tier, the merge gate refuses it absent `--allow-dependency`,
-which is passed only on an explicit user instruction to merge that specific PR.
+never merged autonomously by this skill in ANY tier (a pr-merge lane with its Dependabot class on owns those merges);
+the merge gate refuses it absent `--allow-dependency`, passed only on an explicit user instruction to merge that specific PR.
 
 **Do-not-merge hold:** a PR whose body says "do not merge" (or "don't merge"), or has a line
 starting `Hold:`, is held in ANY tier: the merge gate reads the live body and reports a blocker, and a PR carrying a `do-not-merge`
@@ -156,11 +156,11 @@ hyphenated label name in a body is not a hold.
 draft skip. Safe: evaluate and report draft status, never flip a draft ready. Worker and
 autopilot: zero-blocker drafts always route through a worker (see Fan out). The ready flip
 happens only in autopilot, only for a draft its worker assesses complete, and it runs
-`/source-control:pull-request ready` rather than a bare draft flip: that step merges the base
+`/source-control:pull-request ready --unattended` rather than a bare draft flip: that step merges the base
 branch and runs the security review and the verify gate before it flips, which a bare flip does
-not. A PR that `/source-control:pull-request create` opened ready for review, because the
-repository or its author set `pr_open_state: ready`, is handled as any non-draft PR; no tier turns
-it back into a draft.
+not. A PR that `/source-control:pull-request create` took through `ready`, because its
+`pr_open_state` resolved to `ready`, is handled as any non-draft PR; no tier turns it back into a
+draft.
 
 ## Autopilot
 
@@ -261,11 +261,11 @@ snapshot and assessment, never an unattended unpinned override.
 
 **Zero-blocker drafts are the exception:** always route them through a worker, never directly
 to the merge gate. In autopilot, that worker assesses whether the draft is complete: a
-completed draft is marked ready with `/source-control:pull-request ready` and continues through
+completed draft is marked ready with `/source-control:pull-request ready --unattended` and continues through
 the normal guarded path; a genuinely in-progress draft stays draft and is reported and escalated with the reason.
 A draft cannot merge until it is marked ready (provider reference "Draft stage"). Completeness of the diff is not the
 only hold reason: an explicit unchecked human-only item named in the PR's own body holds the
-draft too, even when the content is finished and green. See the worker contract in
+draft too, even when the content is finished and green, as does a body line starting `Draft:` (create's mark of a requested or multi-session draft): no tier flips it. See the worker contract in
 [reference/orchestration.md](reference/orchestration.md).
 
 Each per-PR worker owns its local lifecycle end to end: acquire that PR's worker lease and its

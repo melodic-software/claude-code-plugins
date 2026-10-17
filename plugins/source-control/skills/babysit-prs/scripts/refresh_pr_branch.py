@@ -6,13 +6,17 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+import babysit_repo_config as repo_policy
+from babysit_classify import is_dependency_author
 from babysit_delta import compute_branch_freshness, head_repository_scope
 from babysit_feedback import fetch_current_human_stop, human_stop_blocks_automation
 from babysit_gh import (
+    base_requires_merge_queue,
     find_open_prs_for_head_ref,
     gh_json,
     run_gh,
@@ -49,11 +53,23 @@ def allowed_owners_from_policy(policy: dict[str, Any]) -> frozenset[str]:
 
 
 def validate_current_candidate(
-    repo: str, number: int, expected_head_sha: str, allowed_owners: frozenset[str]
+    repo: str,
+    number: int,
+    expected_head_sha: str,
+    allowed_owners: frozenset[str],
+    fallback: Mapping[str, str | None] | None = None,
 ) -> dict[str, Any]:
     current = view_pr(repo, number)
     if str(current.get("state") or "").upper() != "OPEN":
         raise RuntimeError("PR is no longer open")
+    # The same repository policy the merge gate resolves; an unreadable one raises.
+    extra = repo_policy.resolve(repo, fallback or {}).extra_dependency_manager_logins
+    author = str(json_object(current.get("author")).get("login") or "")
+    if is_dependency_author(author, extra):
+        raise RuntimeError(
+            f"PR is authored by dependency manager {author}; refusing branch refresh "
+            "(an extra commit stops its own rebases: ask it to rebase instead)"
+        )
     current_policy = head_repository_scope(current, allowed_owners)
     if (
         not current_policy["head_metadata_complete"]
@@ -66,6 +82,14 @@ def validate_current_candidate(
         raise RuntimeError("PR has a merge conflict; refusing branch refresh")
     if compute_branch_freshness(current)["state"] != "behind":
         raise RuntimeError("PR is no longer behind its base branch")
+    # Read live even when GitHub reports BEHIND; an unreadable answer (None) refuses.
+    if (
+        base_requires_merge_queue(repo, str(current.get("baseRefName") or ""))
+        is not False
+    ):
+        raise RuntimeError(
+            "base uses a merge queue or its rules are unreadable; refusing branch refresh"
+        )
     if human_stop_blocks_automation(fetch_current_human_stop(repo, number, current)):
         raise RuntimeError("human review stop is active; refusing branch refresh")
     matching_prs = find_open_prs_for_head_ref(current)
@@ -115,6 +139,7 @@ def run_locked(
     if not uniqueness.get("checked") or not uniqueness.get("unique"):
         raise RuntimeError("snapshot does not prove that the head branch is unique")
     allowed_owners = allowed_owners_from_policy(snapshot_policy)
+    fallback = repo_policy.fallback_from_args(args)
 
     prior = json_object(pr_state.get("branch_refresh"))
     ledger = cast(dict[str, Any], state.setdefault("mutation_ledger", {}))
@@ -126,7 +151,9 @@ def run_locked(
     if prior.get("requested_source_sha") == expected_head_sha:
         raise RuntimeError("a refresh was already requested for this source SHA")
 
-    validate_current_candidate(repo, number, expected_head_sha, allowed_owners)
+    validate_current_candidate(
+        repo, number, expected_head_sha, allowed_owners, fallback
+    )
 
     result: dict[str, object] = {
         "key": key,
@@ -151,7 +178,9 @@ def run_locked(
     write_state(state_path, state)
 
     try:
-        validate_current_candidate(repo, number, expected_head_sha, allowed_owners)
+        validate_current_candidate(
+            repo, number, expected_head_sha, allowed_owners, fallback
+        )
         require_worker_lease(args, state_dir, repo, number, renew=True)
         disarm_auto_merge(repo, number)
         response = gh_json(

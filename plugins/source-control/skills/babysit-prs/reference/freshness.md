@@ -101,7 +101,8 @@ protection.
 Only the orchestrator may refresh a branch:
 
 1. Hold the PR's worker lease, require a unique head repository/branch across the open watched
-   queue, require no human-review stop, and take the snapshot's head SHA as
+   queue, require no human-review stop and a PR not authored by a dependency manager (the helper
+   refuses one; ask the manager to rebase instead), and take the snapshot's head SHA as
    `<expected-head-sha>`.
 2. Run the guarded helper, which uses GitHub's default merge update and `expected_head_sha`
    optimistic locking:

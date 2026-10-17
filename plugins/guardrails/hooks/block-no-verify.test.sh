@@ -927,4 +927,52 @@ expect_both "dispatched parity: PS Invoke-Command reset-hard without token" 2 \
   --tool PowerShell --lib lib/powershell/ps-command.sh \
   --command "Invoke-Command -ScriptBlock { git reset --hard }"
 
+# --- The check-placement skip key ---------------------------------------------
+# `git -c checks.skipmissing=<tool>` is the one sanctioned skip: a git-hook check
+# honors it only for a tool it finds absent, so it is allowed on commit and push,
+# in any case. Beside it, a core.hooksPath override still blocks.
+expect_both "checks.skipmissing on commit (allowed)" 0 \
+  --command "git -c checks.skipmissing=typos commit -m test"
+expect_both "checks.skipmissing list on push (allowed)" 0 \
+  --command "git -c checks.skipmissing=typos,ruff push"
+expect_both "CHECKS.SkipMissing spelled in another case (allowed)" 0 \
+  --command "git -c CHECKS.SkipMissing=typos commit -m test"
+expect_both "checks.skipmissing beside core.hooksPath (blocked)" 2 \
+  --command "git -c checks.skipmissing=typos -c core.hooksPath=/dev/null commit -m test"
+expect_both "checks.skipmissing beside --no-verify (blocked)" 2 \
+  --command "git -c checks.skipmissing=typos commit --no-verify -m test"
+
+# --- A persistent core.hooksPath --------------------------------------------
+# `git config core.hooksPath <dir>` points every later commit and push at other
+# hooks. Only `.githooks`, the directory plain shared hooks live in (setup runs
+# exactly that command per clone), is allowed; reading or unsetting the key is.
+expect_both "git config core.hooksPath /tmp/x (blocked)" 2 \
+  --command "git config core.hooksPath /tmp/x"
+expect_both "git config core.hooksPath .githooks (allowed)" 0 \
+  --command "git config core.hooksPath .githooks"
+expect_both "git config --local core.hookspath /dev/null (blocked)" 2 \
+  --command "git config --local core.hookspath /dev/null"
+expect_both "git config --global core.hooksPath ~/hooks (blocked)" 2 \
+  --command "git config --global core.hooksPath ~/hooks"
+expect_both "git config set core.hooksPath x (blocked)" 2 \
+  --command "git config set core.hooksPath x"
+expect_both "git config --replace-all core.hooksPath x (blocked)" 2 \
+  --command "git config --replace-all core.hooksPath x"
+expect_both "git -C repo config core.hooksPath .git/hooks-off (blocked)" 2 \
+  --command "git -C repo config core.hooksPath .git/hooks-off"
+expect_both "git config core.hooksPath ./.githooks (blocked: not exactly .githooks)" 2 \
+  --command "git config core.hooksPath ./.githooks"
+expect_both "git config --file .gitconfig core.hooksPath x (blocked)" 2 \
+  --command "git config --file .gitconfig core.hooksPath x"
+expect_both "cd repo && git config core.hooksPath x (compound, blocked)" 2 \
+  --command "cd repo && git config core.hooksPath x"
+expect_both "git config --get core.hooksPath (read, allowed)" 0 \
+  --command "git config --get core.hooksPath"
+expect_both "git config core.hooksPath (read, allowed)" 0 \
+  --command "git config core.hooksPath"
+expect_both "git config --unset core.hooksPath (allowed)" 0 \
+  --command "git config --unset core.hooksPath"
+expect_both "git config user.name core.hooksPath (another key, allowed)" 0 \
+  --command "git config user.name core.hooksPath"
+
 report

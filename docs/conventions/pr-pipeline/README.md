@@ -93,9 +93,9 @@ reader applies.
 | `pr-verify` | dispatch from `pr-refine` |
 | `pr-explain` | dispatch from `pr-refine`, alongside verify |
 | `pr-require-checks` | each verify result |
-| `pr-unblock` | a dispatch for each conflicting PR after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
+| `pr-unblock` | a dispatch for each conflicting PR and each unreviewed review-tier Dependabot PR after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
-| `work-unblock` | an issue closing, by a listed human; labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue` once resolve-issue accepts App-added labels (follow-up by Automation Lanes) |
+| `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran); labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue` once resolve-issue accepts App-added labels (follow-up by Automation Lanes) |
 | `post-merge-verify` | push to the default branch |
 | `post-merge-sweep-comments` | push to the default branch |
 
@@ -128,6 +128,20 @@ id>`, which the gate and the broker read to tie the run to a review of the PR's 
 In `pr-unblock.yml`, `address-feedback` (the model job, `mutate-branch`) is followed by
 `publish-feedback` (a script job with no model, `publish-artifact`), which posts the replies the
 model job recorded ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)).
+
+`pr-unblock`'s `review-dependency` dispatches come from the same `pr-unblock-dispatch.yml` run,
+so the gate and the broker check them as they check a conflict dispatch. After the conflict
+dispatches it lists open, non-draft, same-repository Dependabot PRs into `main`, sorts each with
+`dependency-classify.mjs`, and dispatches `pr-unblock.yml` with `activity: review-dependency` for
+at most 2 `review`-tier PRs per run whose head has no `pr-unblock / review-dependency` check run
+from the GitHub Actions app (the untrusted-trigger skip aside). Their run ids join the same
+dispatched-runs record. It has no schedule: the broker accepts a dispatcher run started only by a
+push or a listed human, so a push to `main` or a hand run wakes it. In `pr-unblock.yml`,
+`review-dependency` (the model job, `mutate-branch`) is followed by `apply-dependency-verdict` (a
+script job with no model, `publish-artifact`), which acts on the verdict the model job recorded
+and never merges; the pr-merge lane merges on its `verdict=merge` marker at the current head
+([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
+[ADR 0074](../../adr/0074-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
 
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
@@ -208,15 +222,15 @@ Each leaf declares:
   flags fixed, that a skill with an effect other than `read` may run. The write runner runs each
   from the base copy against the checkout, so no head code runs
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)).
-- `verify-scripts` (optional, `skill` only): exact repository-relative paths of read-only checker
-  scripts, each `scripts/<name>.sh`, `plugins/<plugin>/scripts/<name>.sh` or
+- `verify-scripts` (optional, `skill` only): exact repository-relative paths of scripts, each `scripts/<name>.sh`, `plugins/<plugin>/scripts/<name>.sh` or
   `plugins/<plugin>/skills/<skill>/scripts/<name>.sh`, that a skill with an effect other than
   `read` may run with any arguments but a path outside the checkout; a `read` leaf cannot set it.
   The write runner runs each from a read-only base copy of its plugin (or of `scripts/`) against
   the checkout
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The arguments are the model's, so
-  list only scripts that read and report: never one that changes files, runs code from the
-  checkout or reaches the network.
+  a script that changes files, runs code from the checkout or reaches the network hands the run
+  that power: list one only when it limits itself, as `scripts/run-test-file.sh` (one test file
+  inside the checkout) and `scripts/git-mv-rm.sh` (`git mv` and `git rm` inside the checkout) do.
 - `web-access` (optional, `skill` only, off when absent): `enabled` and `domains`, either `any` or
   a list of host names (`*.` allowed as a prefix). When on, a skill with an effect other than
   `read` may search the web, fetch those domains, and run the research skills
@@ -318,7 +332,8 @@ Each leaf reports:
 
 - A verdict: `pass`, `fail`, `neutral` or `skipped`.
 - Findings in the detector-findings shape ([`detector-findings`](../detector-findings/README.md)),
-  keyed by commit fingerprint so a verdict carries over when content is unchanged.
+  for the commit the leaf judged. A new commit gets a new verdict, even when its content is
+  unchanged.
 - An artifact bundle per [`record-bundle`](../record-bundle/README.md).
 - A check run named `<lane> / <leaf>`, for example `pr-refine / simplify`; a composite gets none.
 
@@ -363,9 +378,9 @@ human. Work classes are defined in
   where the lane resolved conflicts, needs a fresh verdict on that commit before the merge. The
   local babysit lane accepts only evidence bound to the pinned head SHA (below).
 - `merge.stack-landing` defaults to `manual`.
-- A repository has one merge authority. The one exception is
-  `.github/workflows/pr-automerge-dependabot.yml`, which merges Dependabot pull requests on its own
-  rules whatever `merge.authority` says.
+- A repository has one merge authority, Dependabot pull requests included: the pr-merge lane
+  merges tier `auto` ones, and tier `review` ones once the pr-unblock lane's review activity
+  leaves a merge verdict ([Dependabot pull requests](#dependabot-pull-requests), below).
 
 ### The local babysit lane
 
@@ -412,8 +427,8 @@ that fails counts as a refusal.
   the wrapper disarms it.
 - **One merge in flight.** The wrapper refuses while the identity has an entry in the merge queue,
   or while an earlier unattended merge has not passed its post-merge check.
-- **Dependabot.** A dependency-manager author is never eligible for an unattended merge. Those pull
-  requests stay with `pr-automerge-dependabot.yml`.
+- **Dependabot.** A dependency-manager author is never eligible for a local unattended merge. The
+  pr-merge lane owns Dependabot pull requests (below).
 
 A human here is a GitHub user, not the agent identity and not an automation login, with write or
 admin permission on the repository.
@@ -447,8 +462,67 @@ except six:
 - **Post-merge check and one merge in flight.** Only merges the agent identity enqueued count. A
   merge by a person or by another App, such as a release pull request, is not the lane's.
 
-While `merge.report-only` is true, the workflow starts no full CI run either; its summary says
-whether it would have.
+While `merge.report-only` is true and `merge.dependabot.mode` is not `enforce`, the workflow starts
+no full CI run either; its summary says whether it would have.
+
+### Dependabot pull requests
+
+No Dependabot pull request waits on a human
+([ADR 0073](../../adr/0073-merge-dependabot-pull-requests-in-the-pr-merge-lane.md)). The pr-merge
+lane is the one merge authority for both tiers. It lists Dependabot's open pull requests beside
+its own and judges each as its own class, in place of the eligibility above. Both lanes sort by
+the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-unblock):
+
+- **Tier `auto`.** Every update is non-major: the first numeric version component does not change,
+  and below 1.0 the second does not either. Every update on a `dependabot/github_actions/...`
+  branch comes from the `actions`, `github` or `anthropics` publisher. The newest `ci-status` run
+  on the head is not red (`failure`, `cancelled`, `timed_out`, `action_required`,
+  `startup_failure`). The updates come from the `updated-dependencies` metadata in Dependabot's
+  verified commit when it is there, and from the title (`bump <name> from <a> to <b>`) or a
+  group's body `Updates` lines otherwise; when both read, they must name the same dependencies and
+  agree on which are major.
+- **Tier `review`.** Anything else, including anything unreadable (a SHA version, an unparsed
+  title). The pr-unblock lane's review activity reviews it, and the pr-merge lane merges it only
+  when the newest round marker the lanes App posted on it
+  (`<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<id>-<attempt> -->`)
+  names the current head with `verdict=merge`. A marker from any other author is ignored.
+- **Commits.** Every commit is a GitHub-verified Dependabot commit, or the repository's
+  `[dependabot skip]` version-bump commit (authored by `github-actions[bot]`, verified, touching
+  only a plugin's `plugin.json` or `CHANGELOG.md`). On a reviewed pull request the lanes App's
+  verified `[dependabot skip]` fix commits count too. A commit's author is text whoever creates it
+  chooses, so two more checks bind the pull request to Dependabot:
+  - **Pushes.** The repository activity API for the head branch, read back to Dependabot's newest
+    branch creation or force push, shows every push by `dependabot[bot]`, or by
+    `github-actions[bot]` (or, after a review, the lanes App) pushing its own commit, and the
+    newest push is the head.
+  - **Content.** Every changed path, either side of a rename, is a manifest or lock file of an
+    ecosystem and directory `.github/dependabot.yml` lists at the base (npm `package.json`,
+    `package-lock.json` and the like; pip `requirements*.txt`/`.in`, `pyproject.toml`, `uv.lock`
+    and the like), or a workflow or action file of a `github-actions` entry whose diff changes only
+    `uses:` lines (`/` covers `.github/workflows/` and the action files under `.github/actions/`).
+    A directory holding `*` or `?` is a glob, read the same way in both lanes: `*` and `?` stay
+    inside one path segment, `**/` is zero or more whole segments (so `**/*` covers the root and
+    every layer below), any other `**` crosses segments, and everything else is literal. A path the version-bump or lanes App fix
+    commit touched counts as checked; a fix commit may not touch `.github/`, and one whose file
+    list cannot be read whole refuses. Anything else (a rebuilt bundle, a manifest outside a listed
+    directory) makes the pull request tier `review` with the reason `dependabot-content:<path>`,
+    so the AI review judges it; it is never left for a person. A failed push check, by contrast,
+    always refuses, verdict or not.
+- **Gate.** Either tier merges only once `ci-status` succeeded on its head, through the same gate
+  as the lane's own: mergeable, no `do-not-merge` label, no body hold, no blocking comment from a
+  human with write access, the rung (C2) and its cap, the kill switches, the post-merge check and
+  one merge in flight. No closing issue, denied-path rule or diff risk score applies: `ci-status`
+  (and, for tier `review`, the review verdict) is the gate, and a workflow pin bump touches
+  `.github/**` by definition.
+- **Switch.** `merge.dependabot.mode` decides it, not `merge.report-only`: `enforce` merges,
+  `report` reports and writes nothing, and `off` (the default) refuses every Dependabot pull
+  request and leaves them unlisted.
+
+The class is `babysit_dependabot.py` beside the wrapper. Auto-merge armed with `GITHUB_TOKEN` is not used: GitHub's
+[`GITHUB_TOKEN` page](https://docs.github.com/en/actions/concepts/security/github_token) says
+"events triggered by the `GITHUB_TOKEN` will not create a new workflow run" (`workflow_dispatch`,
+`repository_dispatch` and some `pull_request` events excepted, not `merge_group`), so the queue
+entry such an arm makes never gets its `ci-status` run and never lands (#6717, #7512).
 
 `.github/workflows/pr-merge.yml` runs the lane's `merge-pr` activity with no model and no head
 checkout. A label, body or ready change on a PR, a manual dispatch and a schedule every 15 minutes
@@ -456,6 +530,74 @@ each only wake it; it lists the candidates from the API and runs the gate on eac
 App token the broker mints for that file on `main`. A finished `ci-status` or review run is picked
 up by the next scheduled run, not by a wake-up of its own: runs are serialized, and the triggers
 must start them more slowly than they finish to stay under GitHub's cap on queued runs.
+
+### Verifier verdict
+
+`.github/workflows/pr-verify.yml` runs on main after each successful `pr-require-checks` run of a
+same-repository, non-draft pull request into main. It never runs the pull request's code: a model
+(`merge.verifier-model`) reads the diff, the trusted pull request text and its linked issues as
+data, and judges whether the diff delivers the issue's intent correctly and safely. The run
+uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON
+(`pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
+account type, `verdict`, `summary`, `notes`, `run_id`). The head SHA is the one `pr-require-checks`
+ran on, never the pull request's live head. A model error or an output that fails the schema
+uploads nothing. A head that already has a counted verdict from a completed run (a `fail` under any
+pull request number) is not judged again. Runs share one concurrency group per pull request and
+head and never cancel a running judgment.
+
+`merge.verify-authors` decides whose pull requests are judged. Under `lane`, the default, only one
+the lanes App opened is: a `Bot` account whose login is `merge.agent-identity`, compared as the
+pr-merge lane decides lane authorship. Any other author's is skipped before the model runs, with
+the reason `author-not-lane` and the step summary line `skipped: author not the lanes App`, since
+only lane-authored pull requests reach the pr-merge lane. `any` judges every author's. Any other
+value judges none (`verify-authors-invalid`).
+
+With `merge.require-verifier-verdict: true` the pr-merge lane reads the artifacts through their
+run records, since only steps of a run can upload its artifacts. A run is of verifier origin when
+it is `pr-verify.yml`, event `workflow_run`, on main, in this repository with a head on main. A
+`fail` counts from any such run, whatever its conclusion, because the upload comes before the
+run's later steps; a `pass` or `pass-notes` counts only from one that completed with success. Any
+other artifact with such a name is ignored. At the pull request's vetted head:
+
+- created more than 80 days ago refuses (`verify:too-old`): artifacts last at most 90 days in this
+  repository (the retention maximum and its setting), so an older verdict may be gone;
+- a counted `fail` at the head, under any pull request number, refuses (`verify:fail`);
+- a counted `fail` at another head of the pull request (its number, one of its commits, or a
+  verdict recording its head branch) refuses (`verify:earlier-fail`);
+- a `fail` artifact tied to it (its number or one of its commits) whose run cannot be read, an
+  untied `fail` whose run is readable and of verifier origin but whose verdict record cannot be
+  downloaded, or any other failed read, refuses (`verify:unreadable`). An untied `fail` whose run
+  cannot be read is ignored. One unreadable record of an untied `fail` therefore blocks every pull
+  request until it can be read, expires or is deleted;
+- a counted `pass` or `pass-notes` for this pull request refuses (`verify:spec-changed`) unless the
+  pull request's closing issues in this repository now are the ones its verdict recorded, none
+  was edited after the verdict's run started, and each issue's spec comments (written, and last
+  edited if ever, by a `User` on the trusted-actor list's humans other than the pull request's
+  author) are the ones it recorded by id and update time, none added, edited or deleted; a partial
+  comment read refuses `verify:unreadable`. It then allows the merge only when every linked
+  issue it records was written, and its body last edited if ever, by a `User` on the trusted-actor
+  list's humans other than the pull request's author (otherwise `verify:untrusted-spec`). The
+  model's spec text holds only what such accounts wrote;
+- no counted verdict refuses (`verify:missing`).
+
+The trusted-spec rule trusts an account, not a person. An agent session that uses an owner's `gh`
+login posts as that owner, so until agent sessions have their own GitHub identity, an issue or an
+admission marker from a trusted account counts as the owner's authority, including when an agent
+acting as that account wrote it. Unattended merge stays off (`merge.report-only: true`) until that
+identity exists.
+
+`verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and `verify:untrusted-spec` need a
+human, who clears them
+by merging in person: the verdict is not a check run and stays out of `ci-status` and the required
+checks (github-iac ADR 0011), so a human merge needs `ci-status` alone. A queued entry without an
+allowing verdict at its live head leaves the queue. A dependency manager's pull request needs no
+verdict: the lane decides it in its Dependabot class before the verdict is read, or refuses it, and
+its queued entry is not held for one. The gate lists every repository artifact once per
+candidate run, since pr-merge.yml runs the gate once per candidate. The lane token holds no Actions
+permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
+`BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
+records and the download alone, and every other call keeps the lane token. That job checks out only
+main and runs no pull request code.
 
 ## Trust-root paths
 

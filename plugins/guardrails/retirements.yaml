@@ -1,0 +1,42 @@
+# Retired consumer-facing conventions for the guardrails plugin.
+# Contract: docs/conventions/retired-conventions/README.md (append-only; ids never reused).
+# Evaluated by lib/check-retirements.sh in setup `check`; cleanup is operator-gated in `apply`.
+# The paths are the hooks the retired `apply install-commit-msg` and
+# `apply install-pre-commit-content` actions wrote into a clone's .git/hooks/.
+---
+id: guardrails-r001
+retired: 2026-10-16
+plugin_version: 0.52.0
+kind: file
+path: .git/hooks/commit-msg
+content_match: 'guardrails-commit-msg-convention'
+action: migrate
+successor: "the commit-msg check is now the `commit-msg-convention` git-hook entry; with the operator confirming, clean this hook and `guardrails-r002`, move `.git/hooks/commit-msg.pre-guardrails` back to `.git/hooks/commit-msg` when it exists (the user's own hook the old install chained), then run `/guardrails:setup apply install-git-hooks`, which chains or keeps that hook through its foreign-hook decision"
+note: "hook from the retired install-commit-msg action; the commit-msg-convention git-hook entry replaces it"
+---
+id: guardrails-r002
+retired: 2026-10-16
+plugin_version: 0.52.0
+kind: file
+path: .git/hooks/guardrails-resolve-convention.sh
+content_match: 'pr_title_pattern'
+action: delete
+note: "resolver copy the retired install-commit-msg hook ran; nothing reads it once that hook is gone"
+---
+id: guardrails-r003
+retired: 2026-10-16
+plugin_version: 0.52.0
+kind: file
+path: .git/hooks/pre-commit
+content_match: 'guardrails-pre-commit-content-invariants'
+action: migrate
+successor: "the content check is now the `pre-commit-content` git-hook entry; with the operator confirming, clean this hook and `guardrails-r004`, move `.git/hooks/pre-commit.pre-guardrails` back to `.git/hooks/pre-commit` when it exists (the user's own hook the old install chained), then run `/guardrails:setup apply install-git-hooks`, which chains or keeps that hook through its foreign-hook decision"
+note: "hook from the retired install-pre-commit-content action; the pre-commit-content git-hook entry replaces it"
+---
+id: guardrails-r004
+retired: 2026-10-16
+plugin_version: 0.52.0
+kind: dir
+path: .git/hooks/guardrails-content-lib
+action: delete
+note: "pattern libraries the retired install-pre-commit-content hook ran; nothing reads them once that hook is gone"

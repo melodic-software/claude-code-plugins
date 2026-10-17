@@ -19,8 +19,8 @@
 # directory can be made for the scan's per-file streams (removed on exit), or
 # when prose extraction fails.
 #
-# Prose extraction: fenced code blocks, inline code spans, and ignore-marked
-# lines and blocks are removed before any rule runs; exempted candidates are
+# Prose extraction: fenced code blocks, inline code spans, generated regions,
+# and ignore-marked lines and blocks are removed before any rule runs; exempted candidates are
 # counted as declined per rule, never silently dropped.
 #
 # Unicode: matching uses LC_ALL=C byte sequences and POSIX ERE only, so
@@ -462,6 +462,11 @@ fi
 # at the start of a new block element (heading, list item, table row), so a stray
 # unmatched quote can blank out at most the rest of its own paragraph.
 #
+# Generated regions: a standalone `<!-- BEGIN GENERATED: ... -->` line through
+# the next standalone `<!-- END GENERATED: ... -->` line belongs to the script
+# the marker names, which would overwrite any edit, so no rule scans it. A
+# region left open is reported on stderr, as an unclosed fence is.
+#
 # Fences per CommonMark: openers may be indented up to three spaces past their
 # container (counted by hand, because mawk has no {n,m} intervals), and a fence
 # closes only on its OWN character, so ~~~ inside a backtick fence stays content.
@@ -508,6 +513,10 @@ EXTRACT_AWK='
       stopped = 1
       return 1
     }
+    if (gen_line) {
+      if ($0 ~ /^[[:space:]]*<!-- END GENERATED:[^>]*-->[[:space:]]*$/) gen_line = 0
+      return 0
+    }
     ind = 0
     while (substr($0, ind + 1, 1) == " ") ind++
     rest = substr($0, ind + 1)
@@ -539,6 +548,7 @@ EXTRACT_AWK='
       if (fence_char(rest) == fence && ind <= fence_ind + 3) fence = ""
       return 0
     }
+    if ($0 ~ /^[[:space:]]*<!-- BEGIN GENERATED:[^>]*-->[[:space:]]*$/) { gen_line = ln; return 0 }
     if ($0 ~ /^[[:space:]]*<!-- ai-slop-ignore-start(:[^>]*)? -->[[:space:]]*$/) { ignored = 1; return 0 }
     if ($0 ~ /^[[:space:]]*<!-- ai-slop-ignore-end(:[^>]*)? -->[[:space:]]*$/) { ignored = 0; return 0 }
     if (ignored) { D[++n_decl] = out_row(ln, stripped($0)); return 0 }
@@ -604,7 +614,7 @@ EXTRACT_AWK='
     return m
   }
   function scan_file(k, f,   r, nw, ndw) {
-    fence = ""; fence_ind = 0; fence_line = 0; ignored = 0; stopped = 0
+    fence = ""; fence_ind = 0; fence_line = 0; gen_line = 0; ignored = 0; stopped = 0
     ln = 0; np = 0; n_decl = 0; had_nul = 0
     split("", P); split("", D); split("", W); split("", DW)
     while ((r = (getline < f)) > 0) {
@@ -615,6 +625,9 @@ EXTRACT_AWK='
     close(f)
     if (fence != "" && !stopped) {
       printf "detect.sh: %s: code fence opened at line %d is never closed; the rest of the file was read as code\n", f, fence_line > "/dev/stderr"
+    }
+    if (gen_line && !stopped) {
+      printf "detect.sh: %s: generated region opened at line %d is never closed; the rest of the file was skipped\n", f, gen_line > "/dev/stderr"
     }
     if (stopped) { print k "\tmarker"; return }
     if (had_nul) printf "detect.sh: %s: NUL bytes dropped from the scanned text\n", f > "/dev/stderr"

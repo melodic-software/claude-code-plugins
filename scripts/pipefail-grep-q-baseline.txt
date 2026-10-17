@@ -34,7 +34,7 @@ plugins/docs-naming/skills/setup/scripts/setup-check.sh
 plugins/education/skills/teach/scripts/splice-assets.test.sh
 plugins/guardrails/hooks/abort-boundary.test.sh
 plugins/guardrails/hooks/cli-flag-verify.test.sh
-plugins/guardrails/lib/git-hooks/commit-msg-convention.sh
+plugins/guardrails/lib/check-retirements.sh
 plugins/guardrails/lib/verification/verify-cli-flag.sh
 plugins/harness-config/lib/check-retirements.sh
 plugins/harness-config/lib/permission-patterns.test.sh

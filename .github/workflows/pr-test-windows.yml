@@ -133,7 +133,7 @@ jobs:
   #
   # GUARDRAILS (#4527). The guardrails suites whose guards branch on OSTYPE,
   # cygpath or MSYS run here too: block-windows-drive-tmp, hardcoded-path-check,
-  # block-hook-bypass, secret-pattern-detection, run-guards and
+  # secret-pattern-detection, run-guards and
   # coverage-manifest. coverage-manifest has no OSTYPE branch, but the native
   # `jq.exe` on a Windows host writes CRLF after every line, so its family and
   # README lookups miss there and only a Windows run exercises that. The
@@ -159,7 +159,7 @@ jobs:
   #             pipefail grep 12, drive-root litter 2, emit helper 1     = 198
   #   secrets   secret-pattern-detection 176, GuardTests 18,
   #             skill-visibility 3, coverage-manifest 2                  = 199
-  #   guards    block-hook-bypass 138, hardcoded-path-check 63           = 201
+  #   guards    hardcoded-path-check 63                                  =  63
   #   hooks     markdown-format 114, cloud-bootstrap 69, PyYAML +
   #             exec-form probe 9, exec-bash launcher 5, resolver 1      = 198
   #   lib       block-windows-drive-tmp 85, hook-utils 84, DLSS 5 22,
@@ -328,9 +328,6 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
-      - name: Test block-hook-bypass on Windows
-        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/block-hook-bypass.test.sh')
-        run: bash plugins/guardrails/hooks/block-hook-bypass.test.sh
       - name: Test hardcoded-path-check on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/hardcoded-path-check.test.sh')
         run: bash plugins/guardrails/hooks/hardcoded-path-check.test.sh

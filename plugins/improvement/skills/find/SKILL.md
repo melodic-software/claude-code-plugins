@@ -228,7 +228,7 @@ aside for. It re-implements none of them.
 | Skip when the ask is | Owned by | Why not here |
 |---|---|---|
 | Single-lens architecture depth (shallow modules, Design-It-Twice) | `architecture:improve` | That lens is consulted as a scan input; going deep on architecture alone is its job |
-| Doing one improvement now ("improve this", "fix one thing") | `improvement:improve` | This skill ranks and never edits; `improve` picks one gap and ships it as a draft PR |
+| Doing one improvement now ("improve this", "fix one thing") | `improvement:improve` | This skill ranks and never edits; `improve` picks one gap and ships it as one PR |
 | Applying small safe code edits | `code-tidying:tidy` | This skill never edits; tidying mutates by contract |
 | Verifying docs/config/code drift claims | `codebase-health:audit` | Claim verification, not improvement discovery |
 | Reviewing a diff before merge | `review:fanout` | Diff-scoped and reactive; this skill scans existing state proactively |

@@ -1,5 +1,119 @@
 # Changelog for the PR pipeline convention
 
+## 1.24.0 - 2026-10-17
+
+`resolve-issue` lists two more `verify-scripts`, each wrapped by the same generator as the
+can't-fail scan: `scripts/run-test-file.sh` runs one test file inside the checkout by name
+(`test_*.py` under pytest, `*.test.sh` under bash, `*.test.mjs` under `node --test`, without
+`GH_TOKEN` or `GITHUB_TOKEN`), and `scripts/git-mv-rm.sh` runs `git mv` or `git rm` inside the
+checkout, recording an untracked path as intent-to-add first. Both refuse an absolute path, a `..`
+segment, a leading `-` or `:` and a path that resolves outside the checkout (`scripts/lib/checkout-path.sh`).
+`git-mv-rm.sh` sets `GIT_LITERAL_PATHSPECS=1`, so git reads no glob or pathspec magic, and
+`run-test-file.sh` takes only `[A-Za-z0-9._/-]` names after `--`, so pytest reads no node id.
+A write skill that commits also gets `mcp__github_file_ops__delete_files`, and the system prompt
+tells it to delete each committed path it renamed or removed. When the stage grants the test-file
+runner, the write runner sets up Python and installs the base's hash-pinned CI requirements before
+the head checkout. `verify-scripts` may now list a script that changes files or runs checkout code
+when the script limits itself. `version` stays 1.
+
+## 1.23.0 - 2026-10-17
+
+`merge.verify-authors` (`lane`, `any`; absent is `lane`) is a new optional key. Under `lane`
+`.github/workflows/pr-verify.yml` judges only pull requests the lanes App opened (a `Bot` account
+whose login is `merge.agent-identity`, compared as the pr-merge lane compares it) and skips any
+other author's before the model runs, with the reason `author-not-lane`; `any` judges every
+author's, and any other value judges none ("Verifier verdict"). `version` stays 1.
+
+## 1.22.0 - 2026-10-17
+
+`pr-unblock` gains `review-dependency` and `apply-dependency-verdict`, and `prepare` gains
+`dependency-review` ([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
+[ADR 0074](../../adr/0074-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
+`pr-unblock-dispatch.yml` also dispatches `review-dependency` for at most 2 review-tier Dependabot
+pull requests per run whose head has no `pr-unblock / review-dependency` check run. The model job
+(`mutate-branch`) reads a read-only context file, the checkout and the upstream release notes as
+data, may push a fix outside `.github/` whose every commit carries `[dependabot skip]`, and returns
+a `merge`, `fix`, `close` or `escalate` verdict as structured output. The verdict job
+(`publish-artifact`, no model) validates it and posts the round marker, closes the pull request
+with an ignore-entry issue (never a security update), or escalates. Neither merges: the pr-merge
+lane merges a review-tier pull request on the `verdict=merge` marker at the current head (1.20.0,
+[ADR 0073](../../adr/0073-merge-dependabot-pull-requests-in-the-pr-merge-lane.md)). The
+dispatcher sorts with the same tier and content rules as the pr-merge lane, and a base
+`dependabot.yml` it cannot read is the reason `dependabot-config-unreadable`. `loop` gains
+`dependency-review-rounds` (default 2; this repository sets 2), and the write runner gains the
+`dependency-verdict`, `dependency-run-sha256` and `dependency-run-attempt` inputs and six
+escalation reasons: `dependency-round-cap`, `dependency-invalid`, `dependency-fix-not-landed`,
+`dependency-security-close`, `dependency-escalate` and `dependency-config-unreadable`. `version`
+stays 1.
+
+## 1.21.0 - 2026-10-17
+
+`merge.require-verifier-verdict` and `merge.verifier-model` are new optional keys.
+`.github/workflows/pr-verify.yml` judges each pull request head that passes `pr-require-checks`
+and uploads a `pr-verify-<pr>-<head-sha>-<verdict>` artifact; with the first key true the pr-merge
+lane refuses a merge, and dequeues a queued entry, without an allowing verdict at the head: a
+counted `fail` under any pull request number or at an earlier head blocks, a pass needs every
+linked issue written and last edited by a trusted human other than the author and unchanged since
+the judgment, and a pull request older than 80 days goes to a human ("Verifier verdict" under
+"Merge authority"). pr-merge.yml grants its job `actions: read` for the verdict reads. `version`
+stays 1.
+
+## 1.20.0 - 2026-10-16
+
+`merge.dependabot.mode` (`off`, `report`, `enforce`; absent is `off`) adds the pr-merge lane's
+Dependabot class (ADR 0073), and the pr-merge lane becomes the one merge authority for every
+Dependabot pull request. The lane lists them unless the mode is `off`. Tier `auto` (every update
+non-major, where major is a first-component change or, below 1.0, a second-component change;
+Actions publishers `actions`, `github` or `anthropics` only; `ci-status` not red; read from the
+verified commit metadata, else the title or body `Updates` lines, which must agree when both read)
+merges on a green `ci-status`. Tier `review` merges only when the newest pr-unblock round marker
+the lanes App authored names the current head with `verdict=merge`, and then also on a green
+`ci-status`. Every commit must be a verified Dependabot commit, the `[dependabot skip]`
+version-bump commit, or, after a review, the lanes App's `[dependabot skip]` fix; every push to
+the head branch must be Dependabot's (or that commit's own pusher's), per the repository activity
+API; and every changed path a manifest or lock file `.github/dependabot.yml` covers or a
+`uses:`-only workflow or action repin; any other path makes the tier `review` with the reason
+`dependabot-content:<path>`, while a failed push check always refuses. Both go through
+the lane's gate as C2 with no closing issue, denied-path rule or diff risk score. The mode, not
+`merge.report-only`, decides whether a Dependabot pull request writes, and the workflow starts the
+post-merge full run when either can merge. `.github/workflows/pr-automerge-dependabot.yml` is
+removed, and "Merge authority" no longer names it as an exception to the single authority.
+`version` stays 1.
+
+## 1.19.3 - 2026-10-16
+
+"Outputs and skips" no longer says a leaf's verdict carries over to a commit with unchanged
+content. A verdict and its findings belong to the commit the leaf judged, as "Activities" already
+states, and a new commit gets a new verdict. `version` stays 1.
+
+## 1.19.2 - 2026-10-16
+
+`work-unblock.yml` also runs hourly (`schedule`, minute 47, from main only). A scheduled run lists
+the issues closed in the last three hours (`LOOKBACK_HOURS` in `label-unblocked.mjs`; pull
+requests and issues updated but closed earlier are left out), keeps those with a trusted close,
+and applies the close path's rules to each issue they blocked, each once per run. It catches an
+issue closed by a bot sender, such as a pull request merge, which the close-triggered run skips. A
+scheduled run has no closer or re-runner to check; the kill switch and the `applies` gate still
+run first, and the token request names no issue. On both paths, every blocking issue now counts as
+done only when it was closed as completed with a trusted close, read fresh per blocker: its
+`closed_by` is a listed human (by id), or a merge in this repository closed it: the `closer` of
+the issue's last `ClosedEvent`, read with one GraphQL query, is a merged pull request or a commit
+in this repository. The REST close event carries no link to the pull request, so GraphQL is the
+read. Any other close, such as a workflow's `GITHUB_TOKEN`, does not count. A blocking pull
+request counts only once merged, and a blocker in another repository never counts. An outside
+author closing their own blocking issue therefore unblocks nothing. Both paths also refuse an
+issue whose `agent-ready` label was ever removed, so removing it by hand stops the lane and
+overlapping windows never put it back; a person adds it again to restart. The broker contract in
+`pr-run-activity.md` lists `work-unblock.yml` as a `schedule` caller. `version` stays 1.
+
+## 1.19.1 - 2026-10-16
+
+The `verify-scripts` wrapper prints `exit status: <n>` to stderr and exits with the script's
+status, and the system prompt tells the skill to run each wrapper as its own command: a chained
+`; echo "$?"` needs approval the `dontAsk` lane denies. The write file's skill-run diagnostics
+(`act-turns.json` and the step summary) gain `denied`, each command the permission mode denied,
+redacted and cut to 300 characters. `version` stays 1.
+
 ## 1.19.0 - 2026-10-16
 
 A skill leaf gains `verify-scripts`: exact paths of read-only checker scripts under `scripts/`,

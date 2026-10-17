@@ -1,6 +1,6 @@
 {
   "name": "guardrails",
-  "description": "Fifteen toggleable guards. Blocks: secret writes, machine-specific paths, git hook bypass, force-push and reset --hard, Bash file-write workarounds, Windows drive-root /tmp writes, exported MSYS path-conversion overrides, recursive deletes of roots or paths outside the session tree, multi-line git commit -m, commit subjects or PR titles that break the declared convention. Warns on: invented CLI flags, unresolved /plugin:skill refs, removed repo paths, Workflow fan-out, direct gh pr create.",
+  "description": "Thirteen toggleable guards. Blocks: secret writes, machine paths, git hook bypass, force-push, reset --hard, merges with open review, drive-root /tmp writes, exported MSYS_NO_PATHCONV, recursive deletes of roots or outside the tree, shell-expanded commit -m, off-convention commit or PR titles; off by default, credential reads. Warns on: Workflow fan-out, direct gh pr create. Git hooks check commit subjects, secrets and paths, CLI flags, skill refs and removed paths.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -57,8 +57,8 @@
     "block_credential_read_enabled": {
       "type": "boolean",
       "title": "Block-credential-read guard",
-      "description": "Blocks a Bash or PowerShell command whose output is a credential: git credential fill and credential-helper get, gh auth token, echo or printenv of a token-shaped variable, and cat of .git-credentials, .netrc or .env. On by default.",
-      "default": true
+      "description": "Blocks a command whose output is a credential: git credential fill, gh auth token, a token-shaped variable echoed, and an interpreter (python -c, node -e) reading .env, .netrc, ~/.ssh/id_* or ~/.aws/credentials. cat is left to Read() deny rules. Off by default: precision below the bar.",
+      "default": false
     },
     "block_credential_read_allow": {
       "type": "string",
@@ -70,24 +70,6 @@
       "type": "boolean",
       "title": "Block-unresolved-PR-merge guard",
       "description": "Blocks a pull-request merge (gh pr merge, REST, GraphQL or an MCP merge tool) while the PR has unresolved review threads, a changes-requested review, or failing checks. Fails open, visibly, when the PR state cannot be read. On by default.",
-      "default": true
-    },
-    "block_hook_bypass_enabled": {
-      "type": "boolean",
-      "title": "Block-hook-bypass guard",
-      "description": "Blocks Bash file-write workarounds that circumvent Write and Edit hook gates. On by default.",
-      "default": true
-    },
-    "block_hook_bypass_scratch_roots": {
-      "type": "string",
-      "title": "Block-hook-bypass scratch roots",
-      "description": "Comma-separated absolute directories block-hook-bypass exempts as scratch or temp write targets (e.g. /tmp/scratch,/d/jobtmp/session). Empty by default; it adds to the shipped temp-tree and plugin-data roots. Matching, quoting and symlink rules are in the README's Option details.",
-      "default": ""
-    },
-    "bash_file_change_check_enabled": {
-      "type": "boolean",
-      "title": "Bash file-change check",
-      "description": "After a Bash or PowerShell command, runs the Write and Edit secret and hardcoded-path guards on each repository file the command changed, and reports what they find. On by default.",
       "default": true
     },
     "block_windows_drive_tmp_enabled": {
@@ -117,13 +99,13 @@
     "block_noncanonical_commit_enabled": {
       "type": "boolean",
       "title": "Block-noncanonical-commit guard",
-      "description": "Blocks git commit -m when the message contains a newline (pipe it via -F - instead); a single-line -m passes. On by default. Exempt: --amend, -C/-c, --fixup/--squash, -F <path>, and an in-progress merge or rebase.",
+      "description": "Blocks git commit -m when the message holds a $ or a backtick the shell would expand (single-quote it, or pipe it via -F -); a plain message passes, multi-line included. On by default. Exempt: --amend, -C/-c, --fixup/--squash, -F <path>, and an in-progress merge or rebase.",
       "default": true
     },
     "block_noncanonical_commit_allow": {
       "type": "string",
       "title": "Block-noncanonical-commit allow-list",
-      "description": "Comma-separated form tokens block-noncanonical-commit permits. The only token today is message-flag, which permits -m even when the message contains a newline. Empty, the default, permits none.",
+      "description": "Comma-separated form tokens block-noncanonical-commit permits. The only token today is message-flag, which permits a -m message the shell would expand. Empty, the default, permits none.",
       "default": ""
     },
     "block_convention_gate_enabled": {
@@ -132,34 +114,10 @@
       "description": "Blocks a commit subject or gh pr create --title that violates the team-tracked convention pattern in .claude/source-control.md. On by default; with no tracked pattern nothing is enforced. Same exemptions as block-noncanonical-commit.",
       "default": true
     },
-    "cli_flag_verify_enabled": {
+    "git_hooks_notice_enabled": {
       "type": "boolean",
-      "title": "CLI-flag-verify guard",
-      "description": "Advises on hallucinated CLI flags written to files; never blocks. On by default.",
-      "default": true
-    },
-    "cli_flag_verify_bins": {
-      "type": "string",
-      "title": "CLI-flag-verify scanned binaries",
-      "description": "Comma-separated binaries cli-flag-verify scans. Empty, the default, uses the built-in set.",
-      "default": ""
-    },
-    "cli_flag_verify_skip_bins": {
-      "type": "string",
-      "title": "CLI-flag-verify skipped binaries",
-      "description": "Comma-separated binaries cli-flag-verify must never scan. Empty by default.",
-      "default": ""
-    },
-    "skill_reference_verify_enabled": {
-      "type": "boolean",
-      "title": "Skill-reference-verify guard",
-      "description": "Advises when markdown cites a /plugin:skill reference this repo owns but cannot resolve; never blocks. On by default.",
-      "default": true
-    },
-    "stale_path_verify_enabled": {
-      "type": "boolean",
-      "title": "Stale-path-verify guard",
-      "description": "Advises when markdown cites a repo-relative path this repo's own history shows was removed and that is gone from the working tree; never blocks. On by default.",
+      "title": "Git-hooks notice",
+      "description": "At session start, names /guardrails:setup apply install-git-hooks once when this clone lacks a guardrails git-hook entry or holds a drifted one; a declined entry stays quiet. Turning it off also silences the session-start notice that jq is missing. On by default.",
       "default": true
     },
     "workflow_resilience_check_enabled": {
@@ -182,5 +140,5 @@
       "min": 1
     }
   },
-  "version": "0.51.5"
+  "version": "0.52.0"
 }

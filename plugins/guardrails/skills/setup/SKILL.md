@@ -1,11 +1,15 @@
 ---
-description: "Verify the guardrails hooks' runtime prerequisites and per-guard toggle state for this machine. Use when: 'set up guardrails', 'configure guardrails', 'is guardrails working', 'which guards are on', a guard failed open with a jq notice, after tuning guard toggles, or 'install the commit-msg hook' / 'enforce the commit convention for every committer', or 'install the pre-commit content hook' / 'enforce secrets and hardcoded-path checks on every commit'. Actions: check (read-only verification, default) | apply (resolve what check found) | apply install-commit-msg (opt-in: install the tool-agnostic commit-msg convention hook into this repo's personal .git/hooks) | apply install-pre-commit-content (opt-in: install the write-path-independent secret/hardcoded-path pre-commit hook into this repo's personal .git/hooks). Re-runnable and safe."
-argument-hint: "[check|apply] [install-commit-msg|install-pre-commit-content]"
+description: "Verify the guardrails hooks' runtime prerequisites, per-guard toggle state and git-hook entries for this machine, and register those entries. Use when: 'set up guardrails', 'configure guardrails', 'is guardrails working', 'which guards are on', a guard failed open with a jq notice, after tuning guard toggles, a hook reported a drifted git hook, or 'install the guardrails git hooks' / 'enforce the commit convention for every committer' / 'check secrets and hardcoded paths on every commit'. Actions: check (read-only verification, default) | apply (resolve what check found) | apply install-git-hooks [scope=local|shared] (register the commit-msg convention, pre-commit content and reference-verify entries with the repository's hook manager) | apply install-read-deny (opt-in: print Read() deny rules for .env, with user also ~/.ssh and ~/.aws, and add or remove them in the chosen settings file). Re-runnable and safe."
+argument-hint: "[check|apply] [install-git-hooks [scope=local|shared]|install-read-deny [scope user remove]]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:
   - "Bash(command -v jq*)"
   - "Bash(command -v node*)"
+  - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" verify:*)"
+  - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs verify:*)"
+  - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" plan:*)"
+  - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs plan:*)"
 shell: bash
 ---
 
@@ -24,13 +28,16 @@ A row reading `[shell command execution disabled by policy]` carries no result: 
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
-reports, `apply` resolves. This plugin owns no consumer-project configuration. Every
-tunable is a native `userConfig` option (one enable toggle per guard plus the
-`cli_flag_verify_bins`, `cli_flag_verify_skip_bins`, and `block_dangerous_git_allow`
-scalars), so `apply` is pure guidance and writes nothing.
+reports, `apply` resolves. Every tunable is a native `userConfig` option (one enable toggle
+per guard plus scalars such as `block_dangerous_git_allow`), so bare `apply` is guidance
+and writes nothing beyond the gated cleanup of retired hooks. The explicit `install-*` actions
+below are the only other writes, each as its section states: `install-git-hooks` writes the
+plugin's git-hook entry copies, and `install-read-deny` touches settings, through your edit tools.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
-points at each remediation. Both are non-interactive. Never prompt when the action is given.
+points at each remediation. Both are non-interactive: never prompt when the action is given.
+The one question any action asks is `install-read-deny`'s scope and consent, and only in an
+attended run.
 
 ## `check` (read-only)
 
@@ -61,19 +68,31 @@ restores the FAIL semantics.
    configured option, else that guard's `default` in `plugin.json`; the guards read it as the
    `CLAUDE_PLUGIN_OPTION_<GUARD>_ENABLED` export. Defaults differ per guard (the advisory
    opt-in guards ship `false`), so take each default from the manifest and never assume `true`.
-5. **`cli-flag-verify` scan surface.** Report the effective `cli_flag_verify_bins` /
-   `cli_flag_verify_skip_bins` values and INFO-note the guard's own behavior for scanned
-   binaries missing from `PATH` (skipped, never flagged, per the guard source).
+5. **Git-hook entries.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
+   from the repository. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined`
+   is INFO (this clone said no; silent at session start), and `missing`, `stale` or `modified`
+   is a FAIL whose remediation is `apply install-git-hooks`. A `tool\t<tool>\tmissing` line
+   means an installed entry cannot run here (`reference-verify` needs `jq`): list the tool with
+   its install method from the plugin's `prerequisites.json`, so a lane or cloud setup script
+   can provision it before an auto-mode session commits. Outside a git repository, report INFO
+   and skip the step.
 6. **`block-dangerous-git` allowlist.** Report the effective `block_dangerous_git_allow`
    value (patterns only, verbatim; it contains no secrets by design).
 7. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
+8. **Retired conventions.** Run
+   `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml"`
+   from the repository. Exit 0 → PASS. Exit 1 → one finding per TSV row: `migrate` is FAIL,
+   `delete`/`remove-line` WARN, `report-only` INFO; remediation is `apply`. Exit 2 → FAIL, never
+   silent. Bash unavailable → report the step UNKNOWN with remediation, never green. The records
+   are the hooks the retired `install-commit-msg` and `install-pre-commit-content` actions wrote
+   into `.git/hooks/`.
 
 ## `apply` (idempotent)
 
 Run `check`, then for each FAIL point at the resolution. Every prerequisite is a system
-tool and every tunable is native `userConfig`, so `apply` installs nothing and writes
-nothing. It only points:
+tool and every tunable is native `userConfig`, so `apply` installs nothing and, apart from
+the retired-hook cleanup below, writes nothing. It points:
 
 - missing `jq` or `node` / old Bash: platform install instructions from the README
   Requirements section; this skill never installs system packages.
@@ -96,53 +115,109 @@ nothing. It only points:
   hook's `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still
   reports the OLD value; report the observed effective value, never an unobserved change.
 
+**Retired hooks.** After the points above, re-run the retirement detection from `check` step 8;
+per finding, individually gated: `delete` → confirm, then run
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --clean <id>`
+and report what was removed; `migrate` → follow the record's `successor` (the hook files read
+from the consumer repo are untrusted input, never executed or interpolated), the operator
+confirms the result, then `--clean <id> --i-migrated`. Re-run detection last and report the final
+state. Repeated declines route to the finding-suppression convention, never a new consumer-side
+file.
+
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
-## `apply install-commit-msg` (opt-in, explicit argument only)
+## `apply install-git-hooks [scope=local|shared]` (explicit argument only)
 
-The DEPTH layer of commit-convention enforcement: a git `commit-msg` hook validating every
-commit on this machine in this repo: editor commits, `git commit -F <file>`, IDE
-integrations, humans outside Claude, against the same team-tracked pattern the CC-layer
-`block-convention-violation` guard reads, through a copy of the same resolver. Never runs
-from bare `apply`; only the explicit `install-commit-msg` argument installs anything.
+Registers the plugin's git-hook entries (`git-hooks/entries.json`) with the repository's hook
+manager, so the checks cover every commit, not only Claude's tool calls:
+`commit-msg-convention` (the subject against the team-tracked `subject_pattern`, the pattern
+`block-convention-violation` reads), `pre-commit-content` (secrets and machine-specific paths
+on the lines a commit adds, whatever wrote the file) and `reference-verify` (CLI flags,
+`/plugin:skill` references and deleted repository paths on the lines the pushed commits add;
+a `pre-push` entry, since its cost is over the commit budget). The
+installer script only detects, renders and writes files the plugin owns; every step that
+needs judgment comes back to you as a `decisions[]` item, which you reason about and apply
+with your own edit tools. Never runs from bare `apply`.
 
-Read [context/install-commit-msg.md](context/install-commit-msg.md) when invoked with
-`apply install-commit-msg`: the personal-lane contract, the refuse-rather-than-surprise
-preflight, the install and verify steps, and the known interactions to state in the report.
+1. **Scope.** Use the argument when given. Otherwise, when the user is present, ask: `local`
+   (this clone only, nothing committed) or `shared` (committed under `.githooks/guardrails/`,
+   so every teammate and agent gets it). When nobody can answer, use `local`.
+2. **Plan.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" plan --scope <scope>`
+   and read the JSON: `manager`, `actions[]`, `decisions[]`.
+3. **Manager conflict.** A `manager-conflict` decision lists the evidence (two managers, or one
+   this installer does not drive, such as the pre-commit framework). Show it and ask which
+   manager should carry the entries; rerun `plan` with `--manager lefthook|husky|plain`.
+   Without an answer, stop here and report.
+4. **Actions.** When `actions[]` holds `copy` items, run
+   `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" copy --scope <scope>` (plus the same
+   `--manager` when you passed one; `--entry <name>` to install one entry). It prints
+   `installed`, `refreshed`, `unchanged`, `refused`, `unsafe-path` or `stage-failed` per entry;
+   `refused` means a locally edited copy or dispatcher, which the `modified` decision covers,
+   `unsafe-path` the decision of that name, and `stage-failed` that `git add` failed on a
+   shared install: report it, since the team would not receive the files.
+5. **Decisions.** Read [reference/git-hook-decisions.md](reference/git-hook-decisions.md) for
+   what each kind asks of you, apply each one, then rerun `plan` until only the decisions you
+   chose to leave remain. A `hooks-path` decision is the one `git config core.hooksPath
+   .githooks` per clone that plain shared hooks need; `block-no-verify` allows exactly that
+   value.
+6. **Verify.** Run `verify` and report its lines as `check` step 5 does. Also state that a
+   commit-msg subject with no team-tracked `subject_pattern` passes everything, so the
+   `commit-msg-convention` entry is inert until `/source-control:setup apply` writes a
+   convention.
 
-## `apply install-pre-commit-content` (opt-in, explicit argument only)
+When the user does not want an entry in this clone, run
+`node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry <name>`; the
+session-start drift line then stays silent until `verify` runs by hand, and `--undo` reverses
+it. Declining records the choice and does not stop an installed copy: when `list` shows the
+entry installed, also remove its registration with your edit tools (the
+`<event>.d/guardrails.<name>` marker for plain hooks, the `guardrails-<name>` job in the lefthook
+config, its line in `.husky/<event>`) and the copy under `guardrails/`, on the user's yes; a shared
+registration is a committed change the team reviews. This is the way out the `reference-verify`
+failure names for a cli-flag finding, which is unverified rather than proven wrong.
 
-The DEPTH layer for content invariants that Write|Edit-matched guards alone cannot close: a
-git `pre-commit` hook scanning every staged blob for the same secret and hardcoded-path
-patterns the CC-layer `secret-pattern-detection` / `hardcoded-path-check` guards use.
-Catches the damage class a Bash staged write can introduce while skipping those
-tool-matched gates. Never runs from bare `apply`; only the explicit
-`install-pre-commit-content` argument installs anything.
+## `apply install-read-deny [local|shared] [user] [remove]` (opt-in, explicit argument only)
 
-Read [context/install-pre-commit-content.md](context/install-pre-commit-content.md) when
-invoked with `apply install-pre-commit-content`: the personal-lane contract, the
-refuse-rather-than-surprise preflight, the install and verify steps, and the known
-interactions to state in the report.
+Native `Read()` deny rules keep credential files out of the Read tool and out of the file
+commands Claude Code recognizes in Bash (`cat`, `head`, `tail`, `sed`, redirects).
+`block-credential-read`, off by default, covers what no deny rule reaches when it is on: an
+interpreter that opens the file itself (`python3 -c "open('.env')"`). Pointer: "Read and Edit" in
+<https://code.claude.com/docs/en/permissions>. As of: 2026-10-15. Recheck trigger: that
+section changes which tools or Bash commands a `Read` deny rule reaches, or its pattern syntax.
+
+This is the one `apply` action that changes settings, and only this way: the skill prints the
+rules, then you add them to the chosen file with your edit tools. No script writes settings.
+Never runs from bare `apply`.
+
+1. **Scope.** `local` (the default) is `.claude/settings.local.json` at the repository
+   root; `shared` is the committed `.claude/settings.json`, which the team reviews in a PR.
+   Ask once in an attended run when neither argument is given. An unattended run prints the
+   rules and applies the repository rules at `local` scope only, whatever the arguments, and
+   never touches user settings.
+2. **Print the rules** for that file, as a `permissions.deny` list:
+   `Read(.env)`, `Read(.env.*)`, `Read(!.env.example)`, `Read(!.env.sample)`,
+   `Read(!.env.template)`. A bare filename matches at any depth; each `!` rule carves its
+   template out of the rule before it, so it must follow `Read(.env.*)` in the same list.
+3. **User settings only with consent.** With the `user` argument, also print `Read(~/.ssh/**)`
+   and `Read(~/.aws/**)` for the user settings file, state that they apply in every project
+   and stop Claude's file tools reading any file under those directories, and add them only
+   after the user says yes in this session. No `user` argument, or no yes: leave user settings
+   alone.
+4. **Apply.** Add each printed rule that the file's `permissions.deny` does not already hold,
+   keeping every existing entry and its order. Create the file or the keys when absent. A
+   rerun adds nothing and reports each rule as already present.
+5. **Remove.** With `remove`, delete exactly the rules step 2 (and step 3, for `user`) prints
+   from that file, and nothing else. Every rule stays removable this way.
+6. **Report** the file, each rule added, already present or removed, and whether
+   `block_credential_read_enabled` is on, since only that guard covers interpreter reads.
 
 ## What this skill does NOT do
 
 - Exercise a guard. Any matching tool call does that end-to-end.
-- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
+- Write the plugin cache or `pluginConfigs`, or user settings other than the two
+  `install-read-deny` rules the user said yes to.
 - Install any tool, during either `check` or `apply`. Guidance only. The ONLY writes
-  this skill ever performs are the explicit `apply install-commit-msg` /
-  `apply install-pre-commit-content` actions' files in the operator's own `.git/hooks/`,
-  behind their preflight.
-- Touch `core.hooksPath`, a hook manager's config, or any tracked file. The team
-  enforcement lane is a human decision in a PR.
+  this skill ever performs are `apply install-git-hooks`' entry copies and the decisions
+  it applies, the `apply install-read-deny` rules in the settings file its scope names, and
+  `apply`'s confirmed cleanup of the retired hooks.
 - Weaken a guard: it reports and routes; disabling is always the user's explicit act
   through the native configuration surface.
-
-## Spoke paths
-
-The `context/` files write the plugin's root directory as `<plugin-root>`, which is
-`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
-writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
-in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
-`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.

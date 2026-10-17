@@ -12,6 +12,7 @@
 .github/actions/request-lane-token
 .github/actions/select-trusted-text
 .github/scripts/pr-unblock
+.github/scripts/pr-verify
 .github/scripts/work-unblock
 .github/scripts/work-resolve-issue
 plugins/knowledge/vendor/repo-analysis

@@ -55,7 +55,7 @@ source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundar
 
 # Bundled pattern lib — resolved under the plugin root (CC sets
 # CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback keeps the contract tests working
-# when it is unset). Shared with lib/git-hooks/pre-commit-content-invariants.sh
+# when it is unset). Shared with git-hooks/pre-commit-content.sh
 # so Write|Edit and the write-path-independent pre-commit layer cannot drift.
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_HOOK_SELF/.." && pwd)}"
 # shellcheck source=../lib/secret-detection/secret-patterns.sh

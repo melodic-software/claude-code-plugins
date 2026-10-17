@@ -15,7 +15,10 @@
 #                       | feedback-round-cap | feedback-uncertain
 #                       | feedback-not-landed | feedback-invalid
 #                       | feedback-partial | feedback-incomplete
-#                       | feedback-disputed
+#                       | feedback-disputed | dependency-round-cap
+#                       | dependency-invalid | dependency-fix-not-landed
+#                       | dependency-security-close | dependency-escalate
+#                       | dependency-config-unreadable
 #   TRACKER_CONFIG      base .work-item-tracker.json
 #                       (default .base/.work-item-tracker.json)
 #   LANES_BOT_LOGIN     the lanes App bot login, the only author whose marker
@@ -51,10 +54,19 @@ case ${ESCALATION_REASON:-} in
   feedback-partial) why='posting the review replies stopped partway, or a fixed thread could not be resolved, so a person finishes them' ;;
   feedback-incomplete) why='the lane did not record a disposition for every review thread it kept, so none was posted' ;;
   feedback-disputed) why='the lane replied with evidence that a review finding is incorrect; a person decides and resolves that thread' ;;
+  dependency-round-cap) why='the lane has reviewed this dependency update as many rounds as its cap allows' ;;
+  dependency-invalid) why='the dependency review verdict did not pass validation, so the lane acted on none of it' ;;
+  dependency-fix-not-landed) why='the dependency review chose a fix, but no fix commit reached the branch' ;;
+  dependency-security-close) why='the dependency review would close a security update, which the lane never closes' ;;
+  dependency-escalate) why='the dependency review found a risk the lane does not decide alone' ;;
+  dependency-config-unreadable) why='the lane could not read the base .github/dependabot.yml, so it does not mark this dependency update for merge' ;;
   *) die "unknown escalation reason [${ESCALATION_REASON:-}]" ;;
 esac
-activity=resolve-conflicts
-[[ $ESCALATION_REASON != feedback-* ]] || activity=address-feedback
+case $ESCALATION_REASON in
+  feedback-*) activity=address-feedback ;;
+  dependency-*) activity=review-dependency ;;
+  *) activity=resolve-conflicts ;;
+esac
 [[ ${PR_NUMBER:-} =~ ^[1-9][0-9]*$ ]] || die "PR_NUMBER is not a pull request number"
 [[ ${HEAD_SHA:-} =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]] || die "HEAD_SHA is not a commit id"
 [[ ${GITHUB_REPOSITORY:-} =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "GITHUB_REPOSITORY is not owner/repo"
