@@ -230,6 +230,8 @@ def cross_field_errors(doc):
     errors, seen, per_round = [], set(), {}
     if HOST in doc["credentials"]["secrets"].values():
         errors.append("A session secret names the owner; only the owner link may.")
+    if any(m["status"]["kind"] == "pending" and HOST in (m["from"], m["to"]) for m in doc["mergeRequests"]):
+        errors.append("A pending merge request names the owner; the owner cannot be merged.")
     errors += [f"{where} is not a link or asset name a write route takes." for where in _bad_links_and_assets(doc)]
     for q in doc["questions"]:
         later = [d for d in q["dependsOn"] if d not in seen]
@@ -647,6 +649,8 @@ class Session:
             err = document_error(st)
             if err:
                 raise DomainError(500, "state-invalid", f"Nothing was written: {err}")
+        elif HOST in st["credentials"]["secrets"].values():
+            raise DomainError(500, "state-invalid", "Nothing was written: a session secret would name the owner.")
         write_private(self.path, text + "\n")
         self._saved = text
 
@@ -1001,7 +1005,7 @@ class Session:
                 raise DomainError(404, "not-found", "No such merge request.")
             if m["status"]["kind"] != "pending":
                 raise DomainError(409, "wrong-status", "This merge request was already answered.", status=m["status"]["kind"])
-            if action == "decline":
+            if action == "decline" or HOST in (m["from"], m["to"]):
                 m["status"] = {"kind": "declined", "at": now, "why": "host"}
             elif not (self._active(m["from"]) and self._active(m["to"])):
                 m["status"] = {"kind": "declined", "at": now, "why": "gone"}
@@ -1012,6 +1016,8 @@ class Session:
             return {"status": m["status"]["kind"]}
 
     def _merge(self, src, dst):
+        if HOST in (src, dst):
+            raise _bad("from", "The owner cannot be merged.")
         st = self.state
         moved = {}  # (qid, old ref) -> new ref
 

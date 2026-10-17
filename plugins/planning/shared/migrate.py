@@ -550,7 +550,7 @@ class _V0:
         merges = []
         for m in _list(src.get("mergeRequests")):
             m = _dict(m)
-            if m.get("from") not in self.people or m.get("to") not in self.people or not isinstance(m.get("id"), str):
+            if m.get("from") not in self.people or m.get("to") not in self.people or HOST in (m.get("from"), m.get("to")) or not isinstance(m.get("id"), str):
                 self.drop("mergeRequests")
                 continue
             at = _ts(m.get("ts"), now)

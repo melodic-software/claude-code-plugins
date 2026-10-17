@@ -272,6 +272,17 @@ class TestFromPrototype(unittest.TestCase):
         for collection, n in counts.items():
             self.assertIn(f"import: {n} {collection} records named no known question or person, or had no id; dropped", notes)
 
+    def test_a_merge_request_naming_the_host_is_dropped_and_counted(self):
+        def change(d):
+            d["mergeRequests"] += [
+                {"id": "G8", "from": BO, "to": "host", "ts": 1.0, "status": "pending"},
+                {"id": "G7", "from": "host", "to": BO, "ts": 1.0, "status": "pending"},
+            ]
+
+        doc, notes = self.notes_for(change)
+        self.assertFalse([m for m in doc["mergeRequests"] if "host" in (m["from"], m["to"])])
+        self.assertIn("import: 2 mergeRequests records named no known question or person, or had no id; dropped", notes)
+
     def test_links_and_asset_names_a_write_route_refuses_are_dropped_and_noted(self):
         def change(d):
             q1, q2 = d["questions"][0], d["questions"][1]
@@ -413,6 +424,13 @@ class TestLoadRefuses(unittest.TestCase):
             doc["credentials"]["secrets"][hashlib.sha256(HOST_SECRET.encode()).hexdigest()] = "host"
 
         self.assertIn("names the owner", self.load(change))
+
+    def test_a_state_with_a_pending_merge_request_naming_the_owner_is_refused(self):
+        def change(doc):
+            pid = next(p for p in doc["people"] if p != "host")
+            doc["mergeRequests"].append({"id": "G99", "from": pid, "to": "host", "at": 1.0, "status": {"kind": "pending"}})
+
+        self.assertIn("merge request names the owner", self.load(change))
 
     def test_a_state_with_a_link_that_is_not_http_is_refused(self):
         def change(doc):

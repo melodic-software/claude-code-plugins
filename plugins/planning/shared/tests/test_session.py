@@ -646,6 +646,27 @@ class TestMerge(SessionCase):
         self.assertNotIn(self.old, self.s.state["people"])
         self.assertEqual([n["kind"] for n in self.notes(self.ann, "merge")], ["merge"])
 
+    def test_approving_an_imported_merge_request_that_names_the_owner_declines_it(self):
+        for src, dst in ((self.old, HOST), (HOST, self.old)):
+            mid = self.s._next("G")
+            self.s.state["mergeRequests"].append({"id": mid, "from": src, "to": dst, "at": 1.0, "status": {"kind": "pending"}})
+            self.assertEqual(self.act("act_on_merge_request", HOST, {"id": mid, "action": "approve"})["status"], "declined")
+        self.assertIn(HOST, self.s.state["people"])
+        self.assertNotIn(HOST, self.s.state["credentials"]["secrets"].values())
+        self.assertEqual(self.s.resolve(secret=self.old_secret), self.old)
+
+    def test_merge_itself_refuses_the_owner_on_either_side(self):
+        for src, dst in ((self.old, HOST), (HOST, self.old)):
+            with self.assertRaises(session.DomainError):
+                self.s._merge(src, dst)
+
+    def test_a_write_that_would_map_a_secret_to_the_owner_is_not_saved(self):
+        self.s.validate_writes = False
+        self.s.state["credentials"]["secrets"]["f" * 64] = HOST
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s._commit()
+        self.assertEqual(ctx.exception.code, "state-invalid")
+
     def test_a_merge_request_whose_person_is_gone_is_declined_as_gone(self):
         mid = self.act("request_merge", self.old, {"to": self.ann})["id"]
         self.act("set_removed", HOST, {"pid": self.ann, "on": True})
