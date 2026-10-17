@@ -4326,6 +4326,172 @@ class TestUploadRecovery(UploadCase):
         self.assertEqual((self.tmp / self.upload(a)["status"]["stored"]).read_bytes(), PDF)
 
 
+def zip_of(*entries):
+    """A zip built here: (name, bytes, zipfile compression) per entry, in order."""
+    import io
+    import zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        for name, data, how in entries:
+            z.writestr(zipfile.ZipInfo(name, (2025, 1, 1, 0, 0, 0)), data, compress_type=how)
+    return buf.getvalue()
+
+
+PNG_HEAD = b"\x89PNG\r\n\x1a\n"
+
+
+class TestUploadHardening(UploadCase):
+    """The Phase 9 security review: bounded previews, a removed guest's files ended, archives checked from their
+    central directory, Mark of the Web, display names without format characters, every read piece throttled, and
+    only server-made names in a state that loads. Bounds are the ones session.py states: 1,000,000 preview characters
+    per session, 256,000 per person; 1 GiB unpacked and 100 to 1 per entry past 1 MiB for an archive."""
+
+    def test_previews_cannot_grow_the_state_past_a_bound(self):
+        big = "data:image/png;base64," + __import__("base64").b64encode(PNG_HEAD + bytes(47_960)).decode()
+        self.assertLessEqual(len(big), 64_000)
+        everyone = [self.ann, self.bo, *self.people("Cy", "Di", "Ed", "Fay")]
+        for pid in everyone:
+            for i in range(10):
+                self.offer(pid, name=f"p{i}.png", data=PNG_HEAD + bytes(10), thumb=big)
+        ups = self.disk()["uploads"]
+        self.assertEqual(len(ups), 60)  # every offer went through; past the bound an offer keeps no preview
+        self.assertLessEqual(sum(len(u.get("thumb", "")) for u in ups), 1_000_000)
+        for pid in everyone:
+            self.assertLessEqual(sum(len(u.get("thumb", "")) for u in ups if u["pid"] == pid), 256_000)
+        self.assertLess(self.path.stat().st_size, 1_200_000)  # the previews plus 60 small records and the rest
+        self.assertLess(len(json.dumps(self.s.snapshot(HOST))), 1_200_000)
+
+    def test_a_preview_goes_when_the_file_is_sent_or_fails(self):
+        small = "data:image/png;base64," + __import__("base64").b64encode(PNG_HEAD + bytes(8)).decode()
+        pic = PNG_HEAD + bytes(300)
+        sent = self.offer(self.ann, name="a.png", data=pic, thumb=small)["id"]
+        self.act("act_on_upload", HOST, {"id": sent, "action": "accept"})
+        self.send_all(self.ann, sent, pic)
+        fake = b"MZ" + bytes(20)
+        bad = self.offer(self.ann, name="b.png", data=fake, thumb=small)["id"]
+        self.act("act_on_upload", HOST, {"id": bad, "action": "accept"})
+        with self.assertRaises(session.DomainError):
+            self.chunk(self.ann, bad, 0, fake)
+        self.assertEqual([(self.upload(u)["status"]["kind"], "thumb" in self.upload(u)) for u in (sent, bad)], [("done", False), ("failed", False)])
+
+    def test_removing_a_guest_ends_their_live_uploads_and_frees_their_space(self):
+        offered = self.offer(self.ann)["id"]
+        sending = self.offered_and_accepted(self.ann, name="b.pdf")
+        self.chunk(self.ann, sending, 0)
+        self.act("answer", self.ann, {"qid": "Q1", "text": "See it.", "view": "focus", "attachments": [sending]})
+        done = self.offered_and_accepted(self.ann, name="c.pdf")
+        self.send_all(self.ann, done)
+        self.assertEqual(len(self.pending()), 1)
+        self.act("set_removed", HOST, {"pid": self.ann, "on": True})
+        for uid in (offered, sending):
+            self.assertEqual(self.upload(uid)["status"], {"kind": "declined", "at": self.clock.t, "why": "removed"})
+        self.assertEqual(self.upload(done)["status"]["kind"], "done")
+        self.assertEqual(self.pending(), [])
+        self.assertNotIn("attachments", next(c for c in self.s.state["cards"]["Q1"] if c.get("pid") == self.ann))
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_a_restart_ends_the_uploads_of_a_guest_an_earlier_build_removed(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.chunk(self.ann, uid, 0)
+        doc = self.disk()
+        doc["people"][self.ann]["status"] = {"kind": "removed", "at": self.clock.t, "by": HOST}  # what b5ed34f wrote
+        self.path.write_text(json.dumps(doc), encoding="utf-8")
+        self.s = session.Session.load(self.path, clock=self.clock, ids=self.ids, validate_writes=True)
+        self.s.recover_uploads()
+        self.assertEqual((self.upload(uid)["status"]["kind"], self.upload(uid)["status"].get("why")), ("declined", "removed"))
+        self.assertEqual(self.pending(), [])
+
+    def send_file(self, pid, name, data):
+        uid = self.offered_and_accepted(pid, name=name, data=data)
+        try:
+            self.send_all(pid, uid, data)
+        except session.DomainError as exc:
+            return uid, exc
+        return uid, None
+
+    def test_an_archive_kind_must_be_that_kind_from_its_central_directory(self):
+        import zipfile
+        stored, deflated = zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED
+        docx = zip_of(("[Content_Types].xml", b"<Types/>", deflated), ("word/document.xml", b"<w:document/>", deflated))
+        odt = zip_of(("mimetype", b"application/vnd.oasis.opendocument.text", stored), ("content.xml", b"<office/>", deflated))
+        cases = {
+            "report.docx": (docx, "done"),
+            "renamed.docx": (zip_of(("notes.txt", b"just a zip", deflated)), "failed"),
+            "notes.odt": (odt, "done"),
+            "squeezed.odt": (zip_of(("mimetype", b"application/vnd.oasis.opendocument.text", deflated), ("content.xml", b"<office/>", deflated)), "failed"),
+            "wrongkind.odt": (zip_of(("mimetype", b"application/vnd.oasis.opendocument.spreadsheet", stored)), "failed"),
+            "slip.docx": (zip_of(("[Content_Types].xml", b"<Types/>", deflated), ("../../evil.txt", b"x", deflated)), "failed"),
+            "rooted.docx": (zip_of(("[Content_Types].xml", b"<Types/>", deflated), ("/etc/evil.txt", b"x", deflated)), "failed"),
+            "bomb.docx": (zip_of(("[Content_Types].xml", b"<Types/>", deflated), ("word/media/zeros.bin", bytes(2 * 1024 * 1024), deflated)), "failed"),
+        }
+        self.assertLess(len(cases["bomb.docx"][0]), 8 * 1024)  # tiny on the wire, 2 MiB unpacked: over 100 to 1
+        for name, (data, want) in cases.items():
+            with self.subTest(name=name):
+                uid, exc = self.send_file(HOST, name, data)
+                self.assertEqual(self.upload(uid)["status"]["kind"], want)
+                if want == "failed":
+                    self.assertEqual((exc.http, exc.code), (415, "file-type"))
+        accepted = self.tmp / "uploads" / "accepted"
+        self.assertEqual(sorted(p.suffix for p in accepted.iterdir()), [".docx", ".odt"])
+        self.assertEqual(self.pending(), [])
+
+    def test_a_received_file_carries_the_mark_of_the_web_on_windows_only(self):
+        for windows in (True, False):
+            with self.subTest(windows=windows):
+                f = self.tmp / f"got-{windows}.pdf"
+                f.write_bytes(b"%PDF-")
+                with mock.patch.object(session, "_WINDOWS", windows):
+                    session._mark_from_internet(f)
+                zone = Path(f"{f}:Zone.Identifier")
+                if windows:
+                    self.assertEqual(zone.read_bytes(), b"[ZoneTransfer]\r\nZoneId=3\r\n")
+                else:
+                    self.assertFalse(zone.exists())
+
+    def test_a_display_name_drops_format_private_and_unassigned_characters(self):
+        uid = self.offer(self.ann, name="inv‮oice​\U000e0001͸.pdf")["id"]
+        self.assertEqual(self.upload(uid)["file"], "invoice.pdf")
+
+    def test_a_damaged_piece_counts_against_the_piece_throttle(self):
+        uid = self.offered_and_accepted(self.ann)
+        bad = piece_meta(uid, 0, 4, PDF[:SMALL])
+        bad["sha256"] = "0" * 64
+        with mock.patch.object(session, "CHUNK_INTERVAL", 5.0):
+            self.refused("hash-mismatch", "upload_chunk", self.ann, bad, PDF[:SMALL])
+            self.refused("slow-down", "upload_chunk", self.ann, piece_meta(uid, 0, 4, PDF[:SMALL]), PDF[:SMALL])
+
+    def test_a_state_with_an_upload_name_the_server_never_makes_does_not_load(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.send_all(self.ann, uid)
+        self.assertIsNone(session.document_error(self.disk()))
+        edits = {
+            "id": lambda u: u.update(id="U1-zz"),
+            "ext": lambda u: u.update(ext="../x"),
+            "stored outside": lambda u: u["status"].update(stored="uploads/accepted/../../state.json"),
+            "stored elsewhere": lambda u: u["status"].update(stored=f"assets/20250101-{uid}.pdf"),
+        }
+        for what, edit in edits.items():
+            with self.subTest(what=what):
+                doc = self.disk()
+                edit(doc["uploads"][0])
+                self.assertIsNotNone(session.document_error(doc))
+
+
+class TestStateFromB5ed34f(StateFixtureCase):
+    """state-written-b5ed34f.json was written by b5ed34f's own session.py: Ann (tok0002x9) offered shot.png with a
+    preview, sent funnel.pdf (U2, done, on her Q1 answer) and withdrew one; Bo (tok0004x9) is sending plan.pdf (U3,
+    one piece in), has notes.txt accepted (U4) and one declined; one failed; the owner's brief.md is accepted. It
+    loads unchanged, and every record in it stays valid under the hardened rules."""
+
+    def test_a_state_b5ed34f_wrote_loads_unchanged_and_its_uploads_stay_valid(self):
+        s = self.load("state-written-b5ed34f.json")
+        self.assertIsNone(session.document_error(s.state))
+        self.assertEqual([u["status"]["kind"] for u in s.state["uploads"]], ["offered", "done", "uploading", "accepted", "declined", "withdrawn", "failed", "accepted"])
+        self.assertEqual(s.snapshot("tok0004x9")["files"]["U2-00000007"]["status"], "done")
+        s.clock.tick()
+        self.assertEqual(s.act_on_upload(HOST, {"id": "U1-00000006", "action": "accept"})["status"], "accepted")
+
+
 class TestStateFromE27acc5(StateFixtureCase):
     """state-written-e27acc5.json was written by e27acc5's own session.py (uploads off, no upload ever): Ann
     (tok0002x9) answered Q1, Bo (tok0004x9) picked Google Pay on Q2 with a comment and answered Q1. It loads unchanged;

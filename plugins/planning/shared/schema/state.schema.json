@@ -882,7 +882,7 @@
               "type": "object",
               "required": ["kind", "at"],
               "additionalProperties": false,
-              "properties": {"kind": {"enum": ["declined"]}, "at": {"$ref": "#/$defs/ts"}}
+              "properties": {"kind": {"enum": ["declined"]}, "at": {"$ref": "#/$defs/ts"}, "why": {"enum": ["removed"]}}
             },
             {
               "type": "object",

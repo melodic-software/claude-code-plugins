@@ -145,6 +145,11 @@ async function main() {
     ok("the picker lists her accepted file to attach", await pick.isVisible());
     await pick.click();
     ok("it shows as a chip on her answer, not sent yet", await until(ann, () => [...document.querySelectorAll(".vf-attdraft .vf-ref")].some(li => li.textContent.includes("funnel.pdf"))));
+    const chip = await ann.evaluate(() => {
+      const d = [...document.querySelectorAll(".vf-attdraft .vf-ref")].find(li => li.textContent.includes("funnel.pdf"))?.querySelector(".vf-ref-dom");
+      return d && { text: d.textContent, fits: d.scrollWidth <= d.clientWidth + 1 };
+    });
+    ok("on the phone the chip's status reads in full, not cut off", !!chip && /Received by the host/.test(chip.text) && chip.fits, JSON.stringify(chip));
     await ann.evaluate(() => document.querySelector("form.vf-composer").requestSubmit());
     ok("sent with the pick, the card carries the upload", await until(ann, id => window.Core.snapshot().cards.Q1?.some(c => c.kind === "person" && c.pick === "opt-1"
       && (c.attachments || []).includes(id)), uid));
@@ -159,6 +164,8 @@ async function main() {
     await until(bo, () => (window.Core.snapshot().myUploads || []).some(u => u.file === "notes.txt"));
     const nid = (await mine(bo, "notes.txt"))?.id;
     ok("the desktop guest's offer is held in his browser", (await idbKeys(bo) || []).includes(nid));
+    ok("the owner's queue shows the server's extension beside the name", await until(owner, () => [...document.querySelectorAll(".vf-queue .vf-uprow .vf-upname")]
+      .some(n => /^notes\.txt · TXT · /.test(n.textContent))));
     await hostRow("notes.txt").locator("button", { hasText: "Decline" }).click();
     await owner.locator("dialog[open] button", { hasText: "Decline file" }).click();
     ok("declined, his row shows \"Not accepted\"", await until(bo, () => [...document.querySelectorAll(".vf-upstrip .vf-uprow")].some(r => r.textContent.includes("notes.txt") && /Not accepted/.test(r.textContent))));

@@ -1952,6 +1952,7 @@
 .app .vf-bubble .vf-attlist > .vf-ref { inline-size: 176px; }
 .app .vf-attdraft { margin-block: 0 8px; }
 .app .vf-ref-file { display: grid; gap: 2px; padding: 10px 12px; align-content: center; min-block-size: 64px; min-width: 0; }
+.app .vf-ref-file .vf-ref-dom { white-space: normal; overflow-wrap: anywhere; }
 .app .vf-ref:has(.vf-ref-x) .vf-ref-file { padding-inline-end: 40px; }
 .app .vf-ref-file .vf-ref-lt > .vf-i { color: var(--muted); }
 .app .vf-ref-file[data-stat="done"] .vf-ref-dom { color: var(--ok); }

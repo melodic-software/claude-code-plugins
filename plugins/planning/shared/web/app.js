@@ -2884,7 +2884,8 @@
       const k = li._k, host = k.host, mine = isMe(u.cid);
       li._u = u;
       const bytes = Math.max(u.bytes || 0, mine ? up.sent[u.id] || 0 : 0), pct = u.size ? Math.floor((bytes / u.size) * 100) : 0;
-      k.name.textContent = `${u.file} · ${sizeTxt(u.size)}`;
+      // the host decides on the server's extension, not on a name that may hide one
+      k.name.textContent = `${u.file} · ${host ? (u.ext ? u.ext.toUpperCase() : "no extension") + " · " : ""}${sizeTxt(u.size)}`;
       if (host && u.thumb) { if (k.thumbImg.src !== u.thumb) k.thumbImg.src = u.thumb; k.thumb.hidden = false; k.ico.hidden = true; k.thumb.setAttribute("aria-label", `View larger: ${u.file}`); }
       else { k.thumb.hidden = true; k.ico.hidden = false; }
       const q = u.qid && qById(u.qid);

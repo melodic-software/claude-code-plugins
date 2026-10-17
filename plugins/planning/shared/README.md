@@ -291,28 +291,40 @@ the list, left out it is kept). While Uploads is off no upload control shows.
    accepts. The owner's own offer is accepted at once.
 2. The owner accepts or declines in the Host queue (`POST /api/upload/act`); the uploader can
    withdraw. Declined or withdrawn, the browser deletes its copy and shows "Not accepted" or
-   "Withdrawn", and whatever arrived is deleted.
+   "Withdrawn", and whatever arrived is deleted. Removing a person declines each of their files
+   not yet received (`why: removed`) the same way.
 3. Accepted, the browser sends the file in order as raw pieces (`POST /api/upload/chunk`,
    `application/octet-stream`, 8 MiB each, below the quick tunnel's 100 MB request limit) with
    `X-Upload-Id`, `X-Chunk-Index`, `X-Chunk-Total`, `X-Chunk-Sha256`, and `X-File-Sha256` on the
    last. A piece the server has is answered `{received}` unread; one past the next is 409
    `chunk-gap` with `received`, so a reload or a dropped connection resumes from there.
-4. The last piece makes the file `done` under `uploads/accepted/` and writes `upload-received`
-   (`upload`, `file`, `stored` relative to the data folder, `qid`) for Claude.
+4. The last piece makes the file `done` under `uploads/accepted/` (on Windows marked as from the
+   internet, `Zone.Identifier` with `ZoneId=3`) and writes `upload-received` (`upload`, `file`,
+   `stored` relative to the data folder, `qid`) for Claude.
 
-Limits: 10 open files per person, 100 MB per guest in all, 5 GB per session (declined, withdrawn
-and failed files do not count). Guests send pictures, PDF, text, CSV, RTF and Office files; the
-owner and trusted guests any kind. The first piece must start as its kind does (PNG, JPEG, GIF,
-WebP, PDF, RTF, OLE and ZIP magic numbers; UTF-8 without NUL for text) or the upload fails and its
-bytes are deleted; a damaged piece (its sha256) is refused and sent again; a whole file whose
-sha256 differs fails and is deleted.
+Limits: 10 open files per person; 100 MB per guest, counted over every file of theirs not
+declined, withdrawn or failed, received ones included, so it is a total, not a per-file size; 5 GB
+per session on the same count. Previews keep at most 256,000 characters per person and 1,000,000 per
+session; past that an offer keeps none. Every piece read counts against the one-a-second throttle,
+damaged or not. Guests send pictures, PDF, text, CSV, RTF and Office files; the owner and trusted
+guests any kind. The first piece must start as its kind does (PNG, JPEG, GIF, WebP, PDF, RTF, OLE
+and ZIP magic numbers; UTF-8 without NUL for text) or the upload fails and its bytes are deleted; a
+damaged piece (its sha256) is refused and sent again; a whole file whose sha256 differs fails and
+is deleted. An Office Open XML, OpenDocument or zip file is read from its central directory once it
+is whole: OOXML must hold `[Content_Types].xml`, OpenDocument must start with a stored `mimetype`
+naming its kind, no entry name may be absolute or hold `..`, it may unpack to 1 GiB at most, and no
+entry over 1 MiB may pack tighter than 100 to 1; otherwise it fails and is deleted. A display name
+loses control, format (bidi), private-use and unassigned characters, and the owner's queue shows
+the server's extension beside it.
 
 Nothing uploaded is served back: the files sit in the private data folder, named by the server
 (`uploads/pending/<32 hex>`, then `uploads/accepted/<yyyymmdd>-<upload id>.<ext>`); the person's
 file name is display text only. The snapshot never carries a path: `myUploads` (one's own),
 `uploads` (the owner's, with a picture's preview) and `files` (name, kind, size and status of the
-files shown answers carry). Each start deletes pending files no upload names and cuts a partial
-file back to the pieces its record counts.
+files shown answers carry). Each start deletes pending files no upload names, declines files still
+on their way from someone no longer in the session, and cuts a partial file back to the pieces its
+record counts. A state whose upload id, extension or received name is not one the server makes
+does not load.
 
 ## Data contract
 
