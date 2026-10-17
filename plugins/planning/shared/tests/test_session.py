@@ -738,6 +738,14 @@ class TestRounds(SessionCase):
         (ev,) = self.events("round-cancelled")
         self.assertEqual(ev["sentSeq"], self.events("round-sent")[0]["seq"])
 
+    def test_guests_see_a_cancelled_round_open_and_writable_again(self):
+        self.open_round(text_q("Q1"))
+        self.send()
+        self.refused("round-sent", "answer", self.bo, {"qid": "Q1", "text": "Late", "view": "focus"})
+        self.act("cancel_round", HOST, {})
+        self.assertEqual(self.s.snapshot(self.bo)["round"]["status"], "open")
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Now", "view": "focus"})
+
     def test_cancel_is_refused_once_claude_is_working(self):
         self.open_round(text_q("Q1"))
         self.send()
@@ -1414,6 +1422,14 @@ class TestProposals(SessionCase):
         self.assertEqual((sug["pid"], sug["fromProposal"], sug["note"]), (self.bo, p[2], "Narrow laptops"))
         self.assertEqual([n["kind"] for n in self.notes(self.bo, "proposal")], ["proposal"] * 6)
 
+    def test_the_author_sees_not_placed_with_the_reason(self):
+        p = self.to_working_round()
+        placements = [{"proposal": x, "as": "later", "reason": "Later"} for x in p[1:]]
+        self.open_round(text_q("Q3"), placements=[{"proposal": p[0], "as": "not-placed", "reason": "Not about checkout"}, *placements])
+        mine = next(x for x in self.s.snapshot(self.bo)["proposals"] if x["id"] == p[0])
+        self.assertEqual(mine["status"], {"kind": "not-placed", "reason": "Not about checkout"})
+        self.assertIn("Not about checkout", [n.get("body") for n in self.notes(self.bo, "proposal")])
+
     def test_a_suggestion_placement_needs_a_locked_target_and_flags_dependents(self):
         self.open_round(text_q("Q1"), text_q("Q2", depends=["Q1"]))
         prop = self.propose(self.bo, "Collapse it")
@@ -1560,6 +1576,19 @@ class TestChatAndNotifications(SessionCase):
         self.clock.tick(3601)
         self.act("vote", HOST, {"qid": "Q1", "card": f"p:{self.ann}", "on": True})
         self.assertEqual(len(self.notes(self.ann, "votes")), 2)
+
+    def test_answers_locks_edits_and_plain_chat_ring_no_bell(self):
+        # The bell's kinds are a closed list (mentions, replies, requests, proposals, rounds, merges, roles,
+        # queue items, votes); writing, editing or locking an answer and chat with no mention are none of them.
+        self.open_round(text_q("Q1"))
+        before = {pid: self.notes(pid) for pid in (HOST, self.ann, self.bo, self.cy)}
+        self.act("answer", self.ann, {"qid": "Q1", "text": "Mine", "view": "focus"})
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Other", "view": "focus"})
+        self.act("answer", self.ann, {"qid": "Q1", "text": "Mine, edited", "view": "focus"})
+        self.act("chat", self.bo, {"text": "Nice work everyone"})
+        self.act("lock", HOST, {"qid": "Q1", "card": f"p:{self.ann}"})
+        for pid, had in before.items():
+            self.assertEqual(self.notes(pid), had, pid)
 
     def test_a_muted_kind_is_not_notified(self):
         self.act("set_prefs", self.ann, {"set": {"mute": ["reply"]}})
@@ -1810,10 +1839,14 @@ class TestRequests(SessionCase):
     def test_fail_cancels_a_running_request_and_tells_claude_and_the_requester(self):
         rid = self.ask(self.ann)
         self.act("act_on_request", HOST, {"action": "run", "ids": [rid]})
+        heard = len(self.notes(self.ann, "request"))
         self.act("act_on_request", HOST, {"action": "fail", "id": rid})
         st = self.s.state["requests"][0]["status"]
         self.assertEqual((st["kind"], st["cancelled"]), ("failed", True))
         self.assertEqual([e["request"] for e in self.events("request-cancelled")], [rid])
+        (mine,) = self.s.snapshot(self.ann)["myRequests"]
+        self.assertEqual(mine["status"]["kind"], "failed")
+        self.assertEqual(len(self.notes(self.ann, "request")), heard + 1)
 
     def test_rerun_runs_a_failed_request_again(self):
         rid = self.ask(self.ann)

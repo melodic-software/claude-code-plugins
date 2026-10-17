@@ -315,6 +315,7 @@ node plugins/planning/shared/tests/ui_keyboard.js
 node plugins/planning/shared/tests/ui_inputs.js
 node plugins/planning/shared/tests/ui_chat.js
 node plugins/planning/shared/tests/ui_moderation.js
+node plugins/planning/shared/tests/ui_acceptance.js
 bash plugins/planning/shared/tests/align.test.sh
 ```
 
@@ -327,7 +328,10 @@ input surface on iPhone and Pixel profiles at keyboard-open heights and on a des
 checks the host's unread badge, a frozen tab catching up, and the new-messages pill.
 `ui_moderation.js` checks the intro before question 1 and from the header, a phone's first screen
 with the intro folded, Hide and Edit with the owner-only history, chat reactions, the owner's
-per-person view, and Approve new joins.
+per-person view, and Approve new joins. `ui_acceptance.js` checks the Brief acceptance criteria no other
+suite drives in a browser: the join note and a refused join, Claude's take, the round states and toasts, Follow,
+Reconnecting, the new guest link, the ended session, the Host view per role, the phone header and height, and
+the views sharing data.
 `align.test.sh` (about 3 minutes) is the C41 pixel pass over 47 views; `ALIGN_VIEWS` and
 `ALIGN_SIZES` narrow it.
 

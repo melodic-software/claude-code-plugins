@@ -632,6 +632,15 @@ class TestSnapshot(ServerCase):
         self.assertNotIn("credentials", out)
         self.assertNotIn("log", out)
 
+    def test_a_second_device_with_the_personal_secret_is_the_same_person_with_the_same_prefs(self):
+        pid, laptop = self.join("Ann", ip="203.0.113.5")
+        code, _, out = self.post("/api/prefs", {"set": {"theme": "dark", "claudeTake": "always"}}, {**laptop, "CF-Connecting-IP": "203.0.113.5"})
+        self.assertEqual(code, 200, out)
+        code, _, out = self.get("/api/state?since=0", {**laptop, "CF-Connecting-IP": "198.51.100.7"})
+        self.assertEqual(code, 200, out)
+        self.assertEqual(out["me"]["pid"], pid)
+        self.assertEqual(out["me"]["prefs"], {"theme": "dark", "claudeTake": "always"})
+
     def test_the_build_hash_follows_the_web_files(self):
         before = server.build_hash()
         with mock.patch.object(server, "WEB", self.d):

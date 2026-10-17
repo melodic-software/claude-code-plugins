@@ -29,6 +29,11 @@
     const unsent = (() => { try { const v = JSON.parse(sessionStorage.getItem(UNSENT) || "null"); sessionStorage.removeItem(UNSENT); return v; } catch { return null; } })();
     if (unsent) { Object.assign(ui.drafts, unsent.drafts || {}); ui.restoreCur = unsent.cur || ""; }
     const smooth = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
+    /** Ring an element briefly; the class comes off again so a reduced-motion ring (no animation) never lingers. */
+    const ring = el => {
+      el.classList.remove("vf-hl"); void el.offsetWidth; el.classList.add("vf-hl");
+      clearTimeout(el._hlT); el._hlT = setTimeout(() => el.classList.remove("vf-hl"), 1200);
+    };
     const roundOf = q => q.round || 1;
     const curRound = () => Core.state.round || { current: 1, status: "open" };
     /** Goal, explore requests, citations and Later: always on (the prototype gated them for an older server). */
@@ -482,16 +487,23 @@
     toast.append(toastTxt, toastAct);
     // A second, visually hidden polite region for content that arrives (new answers), never the answer list itself.
     const srLive = E("div", "vf-sr"); srLive.setAttribute("aria-live", "polite");
-    let toastT = 0, clearT = 0;
+    let toastT = 0, clearT = 0, toastPaint = 0;
+    const toastQ = [];
     function flash(msg, action) {
+      // A second message in the same pass (a new round and a placed proposal) waits its turn instead of
+      // overwriting the first before it paints.
+      if (toastPaint) { toastQ.push([msg, action]); return; }
       clearTimeout(toastT); clearTimeout(clearT);
       toastTxt.textContent = ""; toastAct.hidden = true;
-      requestAnimationFrame(() => {
+      toastPaint = requestAnimationFrame(() => {
+        toastPaint = 0;
         toastTxt.textContent = msg;
-        if (action) { toastAct.textContent = action.label; toastAct.onclick = () => { hideToast(); action.run(); }; toastAct.hidden = false; }
+        toastAct.hidden = !action;
+        if (action) { toastAct.textContent = action.label; toastAct.onclick = () => { hideToast(); action.run(); }; }
         placeToast();
-        toast.classList.add("vf-on");      });
-      toastT = setTimeout(hideToast, action ? 9000 : 3200);
+        toast.classList.add("vf-on");
+      });
+      toastT = setTimeout(() => (toastQ.length ? flash(...toastQ.shift()) : hideToast()), action ? 9000 : 3200);
     }
     /** Centred on the centre pane (the part the chat leaves uncovered; the whole page when the pane is hidden),
      *  12px above whatever is docked at the bottom under it: tab bar, chat button, panel or the phone edit sheet. */
@@ -1767,12 +1779,12 @@
         lbChoose.setAttribute("aria-label", mine ? `Your choice: ${it.title}` : `${label}: ${it.title}`);
         lbChoose.disabled = ro;
         lbUndo.hidden = !mine || ro;
-        voters = votes; picks = chose(votes.length);
+        if (!resultsWait(q)) { voters = votes; picks = chose(votes.length); }
       } else if (LB.kind === "confirm") {
         const n = id => optCard(q.id, id)?.votes?.length || 0;
         for (const [b, id] of [[lbYes, "opt-yes"], [lbNo, "opt-no"]]) { b.setAttribute("aria-pressed", String(rec?.pick === id)); b.disabled = ro; }
         lbUndo.hidden = !rec?.pick || ro;
-        picks = `Yes ${n("opt-yes")}, No ${n("opt-no")}`;
+        if (!resultsWait(q)) picks = `Yes ${n("opt-yes")}, No ${n("opt-no")}`;
       }
       const vk = (st().showNames ? voters.filter(Boolean) : []).join(",");
       if (LB.vKey !== vk) { LB.vKey = vk; avStack(lbVoters, (vk ? vk.split(",") : []).map(c => ({ cid: c, name: nameOf(c) })), 4, 20); }
@@ -2076,7 +2088,7 @@
       if (!n.read) Core.readNotifications([n.id]).catch(() => {});
       if (n.msg && st().chat) {
         setChat(true);
-        requestAnimationFrame(() => { const li = mList._map?.get(n.msg); if (li) { li.scrollIntoView({ block: "center", behavior: smooth() }); li.classList.remove("vf-hl"); void li.offsetWidth; li.classList.add("vf-hl"); } });
+        requestAnimationFrame(() => { const li = mList._map?.get(n.msg); if (li) { li.scrollIntoView({ block: "center", behavior: smooth() }); ring(li); } });
         return;
       }
       if (n.qid && qById(n.qid)) return focusQuestion(n.qid);
@@ -3875,7 +3887,7 @@
       requestAnimationFrame(() => {
         const li = thList._map?.get("x:" + xid); if (!li) return;
         li.scrollIntoView({ block: "nearest", behavior: smooth() });
-        li.classList.remove("vf-hl"); void li.offsetWidth; li.classList.add("vf-hl");
+        ring(li);
         li._k.head.focus({ preventScroll: true });
       });
     }
@@ -3886,7 +3898,7 @@
       requestAnimationFrame(() => {
         const li = aList._map?.get(cid); if (!li) return;
         li.scrollIntoView({ block: "nearest", behavior: smooth() });
-        li.classList.remove("vf-hl"); void li.offsetWidth; li.classList.add("vf-hl");
+        ring(li);
         li.focus({ preventScroll: true });
       });
     }
@@ -5308,7 +5320,7 @@
           const bubble = E("div", "vf-bubble"); const btext = clampBox();
           // a reply quotes the message it answers; tapping the quote goes to it
           const quote = btn("vf-mquote"); const qName = E("span", "vf-mquote-n"), qTxt = E("span", "vf-mquote-t"); quote.append(qName, qTxt);
-          quote.onclick = () => { const to = mList._map?.get(li._m?.replyTo?.id); if (to) { to.scrollIntoView({ block: "center", behavior: smooth() }); to.classList.remove("vf-hl"); void to.offsetWidth; to.classList.add("vf-hl"); } };
+          quote.onclick = () => { const to = mList._map?.get(li._m?.replyTo?.id); if (to) { to.scrollIntoView({ block: "center", behavior: smooth() }); ring(to); } };
           const batt = attRowEl();
           bubble.append(btext, batt);
           const tools2 = E("div", "vf-msg-tools");

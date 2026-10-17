@@ -1732,9 +1732,9 @@
 .app .vf-mquote-n { font-weight: 650; }
 .app .vf-mquote-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.85; }
 @media (prefers-reduced-motion: no-preference) {
-  .app .vf-hl .vf-bubble { animation: vf-hl 900ms var(--ease-out) both; }
+  .app .vf-hl .vf-bubble { animation: vf-hl-bubble 900ms var(--ease-out) both; }
 }
-@keyframes vf-hl { from { box-shadow: 0 0 0 3px var(--accent); } to { box-shadow: 0 0 0 3px transparent; } }
+@keyframes vf-hl-bubble { from { box-shadow: 0 0 0 3px var(--accent); } to { box-shadow: 0 0 0 3px transparent; } }
 
 /* ---------- Q84: references ---------- */
 .app .vf-refs { display: grid; gap: 8px; margin-block: 14px 2px; }

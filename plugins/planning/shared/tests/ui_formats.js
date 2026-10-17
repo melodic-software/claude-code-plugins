@@ -267,6 +267,17 @@ async function main() {
     const shown = sel => `[...document.querySelectorAll("${sel}")].filter(e => e.offsetParent)`;
     ok("a confirm question shows no Something else… option or own-option box", await until(gus, new Function(`return !document.querySelector(".vf-fmt").hidden
       && ${shown(".vf-opt-other, .vf-check-other, .vf-rank-own")}.length === 0 && !/Something else…/.test(document.querySelector(".vf-fmt").innerText) && !document.getElementById("vf-other").offsetParent`)));
+    // Answer first (the session default) hides others' picks until you pick, in the picture viewer as on the card.
+    await owner.evaluate(() => window.Core.pick("Q7", "opt-yes"));
+    await until(gus, () => window.Core.snapshot()?.cards?.Q7?.some(c => c.votes?.length));
+    await gus.locator(".vf-confirm-fig .vf-imgbtn").click();
+    await until(gus, () => !document.querySelector(".vf-lb").hidden);
+    ok("answer first: the picture viewer shows no Yes/No counts before the guest picks",
+      await gus.evaluate(() => { const p = document.querySelector(".vf-lb-picks"); return p.hidden && !/Yes \d/.test(document.querySelector(".vf-lb").innerText); }));
+    await gus.locator(".vf-lb .vf-lb-yn", { hasText: "No" }).click();
+    ok("after picking, the picture viewer shows the counts (owner Yes, guest No)",
+      await until(gus, () => document.querySelector(".vf-lb-picks")?.textContent === "Yes 1, No 1"));
+    await gus.keyboard.press("Escape");
     await go(gus, "Q8", "Which checkout layout?");
     ok("a prototype question shows its variants and no Something else…", await until(gus, new Function(`return ${shown(".vf-opts .vf-opt")}.length === 2
       && ${shown(".vf-opt-other")}.length === 0 && !/Something else…/.test(document.querySelector(".vf-fmt").innerText)`)));
