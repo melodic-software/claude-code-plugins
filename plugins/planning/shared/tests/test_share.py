@@ -21,7 +21,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from support import FAKE, WINDOWS, ShareCase, call, env, share, tmpdir, wait_for
+from support import WINDOWS, ShareCase, call, env, outside_cloudflared, share, tmpdir, wait_for
 
 import detached
 import share as share_cli
@@ -346,13 +346,7 @@ class TestImport(ShareCase):
 
     def outside_cloudflared(self, port):
         """A fake cloudflared to `port` that share.py did not start, as the prototype's is."""
-        cmd = [sys.executable, FAKE] if FAKE.endswith(".py") else [FAKE]
-        log = self.root / f"outside-{port}.log"
-        proc = detached.spawn([*cmd, "tunnel", "--no-autoupdate", "--url", f"http://127.0.0.1:{port}"], log=log, env=env(FAKE_CF_ARGS=str(self.args)))
-        self.addCleanup(lambda: (proc.kill(), proc.wait()))
-        url = wait_for(lambda: (m := tunnel.URL.search(log.read_text(encoding="utf-8"))) and m.group(0))
-        self.assertTrue(url)
-        return proc, url
+        return outside_cloudflared(self, f"http://127.0.0.1:{port}", self.root / f"outside-{port}.log", environ=env(FAKE_CF_ARGS=str(self.args)))
 
     def ensure(self, *extra, port=None, pid=None, url=None, source=PROTO):
         args = ["ensure-running", "--import", str(source), "--guest-port", str(port or self.port), "--adopt-tunnel", str(pid or self.cf.pid), url or self.url]
@@ -426,7 +420,6 @@ class TestImport(ShareCase):
         self.assertIn("no cloudflared", err)
         self.assert_nothing_started()
 
-    @unittest.skipIf(WINDOWS, "the command line that names the port is read on POSIX only")
     def test_a_cloudflared_to_another_port_is_refused_with_exit_1(self):
         code, _, err = self.ensure(port=free_port())
         self.assertEqual(code, 1)
@@ -442,6 +435,24 @@ class TestImport(ShareCase):
         self.assertIn("already exists", err)
         self.assertEqual((self.d / "state.json").read_bytes(), before)
         self.assertEqual(tunnel.read(self.d)["pid"], self.cf.pid)
+
+    def test_stop_leaves_the_adopted_cloudflared_running_and_says_so(self):
+        code, _, err = self.ensure()
+        self.assertEqual(code, 0, err)
+        code, out, err = share(self.d, "stop")
+        self.assertEqual(code, 0, err)
+        self.assertNotIn("tunnel", out["stopped"])
+        self.assertIn(f"pid {self.cf.pid}) keeps running", err)
+        self.assertIsNone(self.cf.poll())
+        self.assertIsNone(tunnel.read(self.d))
+
+    def test_a_server_start_that_fails_another_way_forgets_the_adopted_tunnel_and_leaves_it_running(self):
+        a = share_cli.parser().parse_args(["--dir", str(self.d), "ensure-running", "--import", str(PROTO), "--guest-port", str(self.port), "--adopt-tunnel", str(self.cf.pid), self.url])
+        with mock.patch.dict(os.environ, env(FAKE_CF_ARGS=str(self.args))), mock.patch.object(share_cli, "start_server", side_effect=TimeoutError("the server lock timed out")):
+            with self.assertRaises(TimeoutError):
+                share_cli.bring_up(self.d, a)
+        self.assertIsNone(tunnel.read(self.d))
+        self.assertIsNone(self.cf.poll())
 
     def test_a_state_file_that_does_not_migrate_is_refused_and_the_tunnel_left_running(self):
         bad = self.root / "not-a-session.json"

@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from support import FAKE, FIXTURES, WINDOWS, tmpdir, wait_for
+from support import FAKE, FIXTURES, WINDOWS, outside_cloudflared, tmpdir
 
 import detached
 import tunnel
@@ -41,14 +41,9 @@ class TunnelCase(unittest.TestCase):
     def runs(self):
         return self.args.read_text(encoding="utf-8").splitlines() if self.args.exists() else []
 
-    def fake_process(self):
+    def fake_process(self, url_arg="http://localhost:8765", *extra, named=True):
         """A fake cloudflared started outside tunnel.py, as a running session's would be."""
-        cmd = [sys.executable, FAKE] if FAKE.endswith(".py") else [FAKE]
-        log = self.d / "outside.log"
-        proc = detached.spawn([*cmd, "tunnel", "--no-autoupdate", "--url", "http://localhost:8765"], log=log)
-        self.addCleanup(lambda: (proc.kill(), proc.wait()))
-        url = wait_for(lambda: (m := tunnel.URL.search(log.read_text(encoding="utf-8"))) and m.group(0))
-        return proc, url
+        return outside_cloudflared(self, url_arg, tmpdir(self) / "outside.log", *extra, named=named)
 
 
 class TestStart(TunnelCase):
@@ -127,6 +122,37 @@ class TestAddress(unittest.TestCase):
             tunnel.adopt(tmpdir(self), os.getpid(), "https://api.trycloudflare.com", 8765)
 
 
+class TestProgramName(unittest.TestCase):
+    """The program the OS reports for a pid is the file it runs, whatever its arguments say."""
+
+    def test_a_program_named_cloudflared_is_reported_by_that_name_with_its_arguments(self):
+        d = tmpdir(self)
+        proc, _ = outside_cloudflared(self, "http://127.0.0.1:4321", d / "cf.log")
+        self.assertEqual(detached.exe_name(proc.pid).lower(), tunnel.EXE)
+        self.assertEqual(detached.command_line(proc.pid)[-4:], ["tunnel", "--no-autoupdate", "--url", "http://127.0.0.1:4321"])
+
+    def test_a_script_that_names_cloudflared_is_reported_as_its_interpreter(self):
+        d = tmpdir(self)
+        proc, _ = outside_cloudflared(self, "http://127.0.0.1:4321", d / "cf.log", named=False)
+        self.assertNotIn("cloudflared", detached.exe_name(proc.pid).lower())
+
+    def test_a_pid_that_does_not_run_has_no_program_name(self):
+        proc = subprocess.Popen([sys.executable, "-c", ""])
+        proc.wait()
+        self.assertIsNone(detached.exe_name(proc.pid))
+
+
+class TestUrlArgument(unittest.TestCase):
+    def test_the_one_url_value_is_read_in_each_spelling(self):
+        for args in (["tunnel", "--url", "http://127.0.0.1:1"], ["tunnel", "--url=http://127.0.0.1:1"], ["tunnel", "-url", "http://127.0.0.1:1"]):
+            self.assertEqual(tunnel._url_arg(args), "http://127.0.0.1:1", args)
+
+    def test_no_url_or_two_is_none(self):
+        self.assertIsNone(tunnel._url_arg(["tunnel", "--metrics", "localhost:1"]))
+        self.assertIsNone(tunnel._url_arg(["tunnel", "--url", "http://127.0.0.1:1", "--url", "http://127.0.0.1:2"]))
+        self.assertIsNone(tunnel._url_arg(["tunnel", "--url"]))
+
+
 class TestWindowsLookup(unittest.TestCase):
     """On Windows the program search looks in the current folder first unless
     NoDefaultCurrentDirectoryInExePath is set, so a planted cloudflared.exe there would run."""
@@ -195,6 +221,53 @@ class TestAdopt(TunnelCase):
         with self.assertRaisesRegex(tunnel.TunnelDown, "no cloudflared"):
             tunnel.adopt(self.d, os.getpid(), "https://fake-000000000000.trycloudflare.com", 8765)
         self.assertIsNone(tunnel.read(self.d))
+
+    def test_adopt_refuses_a_program_that_has_cloudflared_only_in_its_arguments(self):
+        proc, url = self.fake_process(named=False)  # bash (python on Windows) running fake-cloudflared
+        self.assertIn("cloudflared", " ".join(detached.command_line(proc.pid)))
+        with self.assertRaisesRegex(tunnel.TunnelDown, "no cloudflared runs as pid"):
+            tunnel.adopt(self.d, proc.pid, url, 8765)
+        self.assertIsNone(tunnel.read(self.d))
+
+    def test_adopt_refuses_a_metrics_address_that_names_the_port(self):
+        proc, url = self.fake_process("http://127.0.0.1:9", "--metrics", "localhost:8765")
+        with self.assertRaisesRegex(tunnel.TunnelDown, "does not point at port 8765"):
+            tunnel.adopt(self.d, proc.pid, url, 8765)
+        self.assertIsNone(tunnel.read(self.d))
+
+    def test_adopt_refuses_a_url_to_another_host(self):
+        proc, url = self.fake_process("http://192.0.2.1:8765")
+        with self.assertRaisesRegex(tunnel.TunnelDown, "does not point at port 8765"):
+            tunnel.adopt(self.d, proc.pid, url, 8765)
+
+    def test_adopt_refuses_when_the_command_line_cannot_be_read(self):
+        proc, url = self.fake_process()
+        with mock.patch.object(detached, "command_line", return_value=None), self.assertRaisesRegex(tunnel.TunnelDown, "cannot be read"):
+            tunnel.adopt(self.d, proc.pid, url, 8765)
+        self.assertIsNone(tunnel.read(self.d))
+
+    def test_stop_leaves_an_adopted_cloudflared_running_and_drops_the_record(self):
+        proc, url = self.fake_process()
+        tunnel.adopt(self.d, proc.pid, url, 8765)
+        self.assertFalse(tunnel.stop(self.d))
+        self.assertIsNone(tunnel.read(self.d))
+        self.assertIsNone(proc.poll())
+
+    def test_a_tunnel_to_another_port_forgets_an_adopted_one_without_stopping_it(self):
+        proc, url = self.fake_process()
+        tunnel.adopt(self.d, proc.pid, url, 8765)
+        new = tunnel.ensure(self.d, 4321)
+        self.assertFalse(new["adopted"])
+        self.assertIsNone(proc.poll())
+
+    def test_the_restarted_tunnel_of_an_adopted_one_that_exited_is_stopped_normally(self):
+        proc, url = self.fake_process()
+        tunnel.adopt(self.d, proc.pid, url, 8765)
+        proc.kill()
+        proc.wait()
+        new = tunnel.ensure(self.d, 8765)
+        self.assertTrue(tunnel.stop(self.d))
+        self.assertFalse(detached.alive(new["pid"], new["marker"]))
 
     def test_adopt_refuses_an_address_that_is_not_a_quick_tunnel(self):
         proc, _ = self.fake_process()

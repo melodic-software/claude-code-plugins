@@ -34,7 +34,7 @@ Every command prints one JSON line on stdout and diagnostics on stderr. On Windo
 | Command | Args | Output |
 |---|---|---|
 | `ensure-running` | `[--open] [--defaults-file F] [--guest-port N] [--import STATE] [--adopt-tunnel PID URL]` | `{ok, guestUrl, localUrl, ownerLinkFile, shareChanged, resumed, tunnel, watch}`: starts or reuses the server and the tunnel. A new session's `state.json` comes from `defaults.json` (`{"settings": {...}}`, state.schema field names). `--guest-port` applies only when the session is created; later starts reuse the recorded ports. `--import` and `--adopt-tunnel`: see [Moving the prototype's session](#moving-the-prototypes-session) |
-| `stop` | `[--keep-tunnel]` | `{ok, stopped}`: ends the armed watcher, the server and cloudflared; keeps the ports and the state. `--keep-tunnel` keeps the guest link for the next start |
+| `stop` | `[--keep-tunnel]` | `{ok, stopped}`: ends the armed watcher, the server and cloudflared (an adopted cloudflared keeps running; see [Moving the prototype's session](#moving-the-prototypes-session)); keeps the ports and the state. `--keep-tunnel` keeps the guest link for the next start |
 | `restart` | | Stops and starts the server only, on the same ports, with the same control token: the tunnel, the guest link, the state and an armed watcher all survive. Open pages see the new build and reload |
 | `status` | | `{ok, running, tunnel, guestUrl, round, people, queue, unhandled, lease}` |
 | `url` | `[--owner]` | `{guestUrl}`, or `{ownerUrl}` (a credential, printed only on request) |
@@ -72,9 +72,14 @@ one already. The flags may instead be `defaults.json` keys, `import`, `guestPort
   person), the owner token as its hash; questions, options, answers, picks, votes, Claude's cards,
   locks, suggestions, chat, ideas (as proposals), requests, research (as published results),
   merge requests, prefs, notifications, settings, title, goal, guest key and share URL carry over.
-  Each field with no counterpart is named in `server.log`, never its value. Uploads do not carry
-  over yet. A round the prototype had sent to Claude opens again. The original stays beside it as
-  `state.v0.json`.
+  Each field with no counterpart, link that is not http(s), or asset name that is not an image
+  file name is dropped and named in `server.log`, never its value; records naming no known
+  question or person are counted per collection. A guest secret the prototype mapped to the host
+  (a join with the owner token, or a guest merged into the host) is dropped: only the owner link
+  carries owner identity, so that browser joins again. Uploads do not carry over yet. A round the
+  prototype had sent to Claude opens again. The original stays beside it as `state.v0.json`.
+  Once the import works, delete the prototype's own state file or `chmod 600` it: it holds every
+  guest secret and the owner token in plain text.
 - **Owner link.** The prototype's owner token stays the owner's credential, so its owner link keeps
   working; one shorter than 16 characters, or kept only on the prototype's command line, is
   replaced (`url --owner` prints the new link).
@@ -82,7 +87,13 @@ one already. The flags may instead be `defaults.json` keys, `import`, `guestPort
   file.
 - **Tunnel.** The running cloudflared is recorded as the session's tunnel and nothing is started,
   so the guest link stays the same; it is then watched like the server's own. `--adopt-tunnel`
-  needs `--guest-port`, the port that cloudflared points at.
+  needs `--guest-port`, the port that cloudflared points at, and refuses (exit 1) a pid whose
+  program file is not `cloudflared` (`cloudflared.exe` on Windows) or whose one `--url` is not
+  `http://127.0.0.1:<port>` or `http://localhost:<port>`, or cannot be read. The session never
+  signals an adopted cloudflared: `share.sh stop` drops its record and leaves it running, so the
+  prototype can take the same link back; end it yourself (`kill <pid>`, or `Stop-Process -Id <pid>`
+  on Windows) to close the link. If it exits, the server starts a cloudflared of its own (a new
+  link), which `stop` ends like any other.
 - **Open prototype pages.** In an imported session a poll of `GET /api/state` that carries an
   identity header and no query string is a prototype page still open from before: it gets
   `{schemaVersion, rev, outdated: true, title: "This page was updated: reload"}`, which the old

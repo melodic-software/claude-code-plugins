@@ -54,7 +54,8 @@
     "fixture-guest-secret-ann-not-a-real-secret-000": "pidAnn001",
     "fixture-guest-secret-bo-not-a-real-secret-0000": "pidBo0002",
     "fixture-guest-secret-cy-not-a-real-secret-0000": "pidCy0003",
-    "fixture-guest-secret-gone-not-a-real-secret-00": "pidGone999"
+    "fixture-guest-secret-gone-not-a-real-secret-00": "pidGone999",
+    "fixture-host-session-secret-not-a-real-one-000": "host"
   },
   "settings": {"voting": true, "signoff": false, "chat": true, "follow": true, "showNames": false, "digestNames": true, "uploads": false,
                "hideClaude": false, "theme": {"mode": "dark", "accent": "violet"}, "legacyToggle": true},

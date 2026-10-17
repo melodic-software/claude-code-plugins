@@ -128,9 +128,9 @@ SEQ_KEYS = ("P", "S", "R", "X", "M", "G", "U", "N", "A")
 
 QID = re.compile(r"Q[1-9][0-9]{0,5}")
 ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg|html)")
-IMAGE_ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg)")
+IMAGE_ASSET = migrate.IMAGE_ASSET
 VARIANT = re.compile(r"v-[1-9][0-9]?")
-URL = re.compile(r"https?://\S+", re.IGNORECASE)
+URL = migrate.URL
 PREF_ROUND = re.compile(r"all|[1-9][0-9]{0,3}")
 
 DEFAULT_SETTINGS = {
@@ -224,8 +224,13 @@ def ops_error(doc):
 
 def cross_field_errors(doc):
     """The session rules the schema cannot express, each broken one as a sentence: dependsOn names
-    only earlier questions, no two review flags share because and why, a round holds at most 8."""
+    only earlier questions, no two review flags share because and why, a round holds at most 8, no
+    session secret names the owner (only the owner link does), and every link and asset name is
+    one a write route takes (the schema's url and assetId patterns, which schema.py does not check)."""
     errors, seen, per_round = [], set(), {}
+    if HOST in doc["credentials"]["secrets"].values():
+        errors.append("A session secret names the owner; only the owner link may.")
+    errors += [f"{where} is not a link or asset name a write route takes." for where in _bad_links_and_assets(doc)]
     for q in doc["questions"]:
         later = [d for d in q["dependsOn"] if d not in seen]
         if later:
@@ -237,6 +242,29 @@ def cross_field_errors(doc):
         per_round[q["round"]] = per_round.get(q["round"], 0) + 1
     errors += [f"Round {n} holds {k} questions; the most is {MAX_ROUND}." for n, k in sorted(per_round.items()) if k > MAX_ROUND]
     return errors
+
+
+def _bad_links_and_assets(doc):
+    """Where the document holds a link that is not http(s) or an asset name write routes refuse."""
+    bad = []
+    share = doc["session"]["share"]["url"]
+    if share and not URL.fullmatch(share):
+        bad.append("session.share.url")
+    for q in doc["questions"]:
+        fmt, at = q["format"], f"questions[{q['id']}]"
+        checks = [(IMAGE_ASSET, o["image"], f"{at}.format.options.image") for o in fmt.get("options", []) if "image" in o]
+        checks += [(ASSET, v["asset"], f"{at}.format.variants.asset") for v in fmt.get("variants", [])]
+        if fmt["kind"] == "confirm":
+            checks.append((IMAGE_ASSET, fmt["image"], f"{at}.format.image"))
+        for r in q["references"]:
+            if r["kind"] == "image":
+                checks.append((IMAGE_ASSET, r["asset"], f"{at}.references.asset"))
+            elif "url" in r:
+                checks.append((URL, r["url"], f"{at}.references.url"))
+        bad += [where for pattern, v, where in checks if not pattern.fullmatch(v)]
+    for qid, results in doc["results"].items():
+        bad += [f"results[{qid}].sources.url" for r in results for s in r["sources"] if not URL.fullmatch(s["url"])]
+    return list(dict.fromkeys(bad))
 
 
 def document_error(doc):

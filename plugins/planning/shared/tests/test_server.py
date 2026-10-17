@@ -492,6 +492,33 @@ class TestOwnerRotation(unittest.TestCase):
         self.assertEqual(code, 401)
         self.assertIn("clock was rolled back", log)
 
+    def test_a_start_that_dies_between_the_clamp_and_the_secrets_write_leaves_no_usable_stale_token(self):
+        d = tmpdir(self)
+        server.App(d, watch_tunnel=False).shutdown()
+        now = time.time()
+        state = json.loads((d / "state.json").read_text(encoding="utf-8"))
+        state["credentials"]["owner"]["rotatedAt"] = now + 1000
+        detached.write_private(d / "state.json", json.dumps(state) + "\n")
+        old = "a-token-from-before-the-rollback-0000000000000"
+        held = json.loads((d / server.SECRETS).read_text(encoding="utf-8"))
+        detached.write_private(d / server.SECRETS, json.dumps({**held, "owner": old, "ownerAt": now + 500}) + "\n")
+        write = detached.write_private
+
+        def crash_at_the_secrets_file(path, text):
+            if os.path.basename(path) == server.SECRETS:
+                raise SystemExit("the server died here")
+            return write(path, text)
+
+        with mock.patch.object(server.detached, "write_private", crash_at_the_secrets_file), self.assertRaises(SystemExit):
+            server.App(d, watch_tunnel=False)
+        self.assertLessEqual(json.loads((d / "state.json").read_text(encoding="utf-8"))["credentials"]["owner"]["rotatedAt"], time.time())  # the clamp landed
+        app, owner, log = self.start(d)
+        self.assertNotEqual(app.secrets["owner"], old)
+        self.assertEqual(owner["tokenHash"], session.sha256(app.secrets["owner"]))
+        app.serve()
+        code, _, _ = call(app.guest_port, "GET", "/api/state", headers={"X-Owner-Token": old})
+        self.assertEqual(code, 401)
+
     def test_after_a_clock_rollback_the_current_token_keeps_the_owner_link(self):
         d = tmpdir(self)
         first = server.App(d, watch_tunnel=False)
@@ -786,12 +813,13 @@ class TestOldPages(unittest.TestCase):
             self.assertEqual(out, {"schemaVersion": 1, "rev": self.app.session.state["rev"], "outdated": True, "title": "This page was updated: reload"})
 
     def test_the_payload_overrides_no_default_of_the_old_script_with_another_type(self):
+        """fixtures/old-page-defaults.json is DEFAULTS from the prototype page's script
+        (.work/shared-interview-proto/web/core.js), which spreads each poll's answer over it."""
         defaults = json.loads((FIXTURES / "old-page-defaults.json").read_text(encoding="utf-8"))["defaults"]
         _, _, out = self.poll("/api/state", {"X-Session-Secret": self.SECRET})
-        for k, v in out.items():
-            if k in defaults:
-                self.assertIs(type(v), type(defaults[k]), k)
-        self.assertNotIn("settings", out)  # the old script spreads it over its own; absent keeps them
+        self.assertEqual({k: type(v) for k, v in out.items()}, {"schemaVersion": int, "rev": int, "outdated": bool, "title": str})
+        self.assertIs(type(defaults["title"]), str)  # the one key the old script also has keeps its type
+        self.assertEqual(set(out) & set(defaults), {"title"})  # settings among them: absent keeps the script's own
 
     def test_a_poll_with_a_query_string_gets_the_full_snapshot(self):
         code, _, out = self.poll("/api/state?since=0", {"X-Session-Secret": self.SECRET})

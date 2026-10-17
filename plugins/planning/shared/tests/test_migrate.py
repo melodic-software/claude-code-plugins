@@ -25,6 +25,7 @@ if str(SHARED.parent / "surface") not in sys.path:
 import migrate  # noqa: E402  (sys.path is set just above)
 import schema  # noqa: E402  (sys.path is set just above)
 import server  # noqa: E402  (sys.path is set just above)
+import session  # noqa: E402  (sys.path is set just above)
 
 STATE = schema.load("state", SHARED / "schema")
 
@@ -96,6 +97,7 @@ SECRET = {
     BO: "fixture-guest-secret-bo-not-a-real-secret-0000",
     CY: "fixture-guest-secret-cy-not-a-real-secret-0000",
 }
+HOST_SECRET = "fixture-host-session-secret-not-a-real-one-000"  # the fixture's secret the prototype mapped to "host"
 OWNER_TOKEN = "fixture-owner-token-0001"
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
 
@@ -229,6 +231,80 @@ class TestFromPrototype(unittest.TestCase):
         for value in ("made-up field", "MadeUpBrowser", "example.org/offline", '"up"', OWNER_TOKEN, *SECRET.values()):
             self.assertNotIn(value, text)
 
+    def test_a_secret_the_prototype_mapped_to_the_host_is_dropped_and_counted(self):
+        self.assertNotIn(hashlib.sha256(HOST_SECRET.encode()).hexdigest(), self.doc["credentials"]["secrets"])
+        self.assertNotIn("host", self.doc["credentials"]["secrets"].values())
+        self.assertIn("import: 1 session secrets held by the host were dropped; the owner link carries owner identity", self.notes)
+
+    def test_a_secret_naming_no_person_is_counted(self):
+        self.assertIn("import: 1 session secrets name no person; dropped", self.notes)
+
+    def notes_for(self, change):
+        doc = json.loads(self.raw)
+        change(doc)
+        notes = []
+        out = migrate.migrate(doc, notes, NOW)
+        self.assertIsNone(session.document_error(out))
+        return out, notes
+
+    def test_fields_the_prototype_kept_that_have_no_counterpart_are_noted(self):
+        _, notes = self.notes_for(lambda d: d["round"].update(sentAt=2600.0, ackAt=2610.0))
+        for name in ("research.ask", "research.askedAt", "research.by", "research.byCid", "questions.byHost", "round.sentAt", "round.ackAt"):
+            self.assertIn(f"import: {name} has no counterpart in schemaVersion 1; dropped", notes)
+
+    def test_records_naming_no_known_question_or_person_are_counted_per_collection(self):
+        def change(d):
+            d["answers"]["Q9"] = {ANN: {"name": "Ann Example", "text": "x", "ts": 1.0, "votes": []}}
+            d["answers"]["Q1"][""] = {"name": "Nobody", "text": "x", "ts": 1.0, "votes": []}
+            d["suggestions"]["Q9"] = [{"id": "S9", "cid": ANN, "text": "x", "ts": 1.0, "status": "open"}]
+            d["suggestions"]["Q1"].append({"id": "S8", "text": "no author", "ts": 1.0, "status": "open"})
+            d["locks"]["Q9"] = {"by": "Hana Host", "text": "x", "ts": 1.0}
+            d["chat"].append({"id": "M9", "text": "no author", "ts": 1.0})
+            d["ideas"].append({"id": "I9", "text": "no author", "ts": 1.0, "status": "new"})
+            d["research"]["Q9"] = [{"id": "X9", "summary": "x", "ts": 1.0}]
+            d["requests"].append({"id": "R9", "qid": "Q9", "cid": ANN, "text": "x", "ts": 1.0, "status": "pending"})
+            d["mergeRequests"].append({"id": "G9", "from": "pidNobody", "to": ANN, "ts": 1.0, "status": "pending"})
+            d["prefs"]["pidNobody"] = {"sort": {"value": "votes", "ts": 1.0}}
+            d["notifications"]["pidNobody"] = [{"id": "N9", "kind": "reply", "title": "x", "ts": 1.0}]
+
+        _, notes = self.notes_for(change)
+        counts = {"answers": 2, "suggestions": 2, "locks": 1, "chat": 1, "ideas": 1, "research": 1, "requests": 1, "mergeRequests": 1, "prefs": 1, "notifications": 1}
+        for collection, n in counts.items():
+            self.assertIn(f"import: {n} {collection} records named no known question or person, or had no id; dropped", notes)
+
+    def test_links_and_asset_names_a_write_route_refuses_are_dropped_and_noted(self):
+        def change(d):
+            q1, q2 = d["questions"][0], d["questions"][1]
+            q1["references"] += [
+                {"kind": "link", "url": "javascript:alert(1)", "title": "Bad link"},
+                {"kind": "quote", "text": "Quoted", "source": "Someone", "url": "file:///etc/passwd"},
+                {"kind": "image", "asset": "../../outside.png"},
+            ]
+            q2["options"][0]["image"] = "../outside.png"
+            d["questions"].append({"id": "Q5", "text": "Is this right?", "round": 2, "format": "confirm", "image": "outside.svg", "rect": {"x": 0, "y": 0, "w": 1, "h": 1}})
+            d["research"]["Q1"][0]["sources"].append({"title": "Bad source", "url": "ftp://example.org/x"})
+            d["shareUrl"] = "javascript:void(0)"
+
+        out, notes = self.notes_for(change)
+        q = {x["id"]: x for x in out["questions"]}
+        self.assertEqual(q["Q1"]["references"], [{"kind": "image", "asset": "0123456789abcdef.png", "caption": "Today's layout"}, {"kind": "quote", "text": "Quoted", "source": "Someone"}])
+        self.assertEqual(q["Q2"]["format"]["options"][0], {"id": "opt-1", "label": "Tabs"})
+        self.assertEqual(q["Q5"]["format"], {"kind": "text"})
+        self.assertEqual(out["results"]["Q1"][0]["sources"], [{"title": "A made-up study", "url": "https://example.org/study"}])
+        self.assertEqual(out["session"]["share"], {"url": ""})
+        for field, what in (
+            ("questions.references.url", "an http(s) link"),
+            ("questions.references.asset", "an image asset name"),
+            ("questions.options.image", "an image asset name"),
+            ("questions.image", "an image asset name"),
+            ("research.sources.url", "an http(s) link"),
+            ("shareUrl", "an http(s) link"),
+        ):
+            self.assertIn(f"import: {field} is not {what}; dropped", notes)
+        text = "\n".join(notes)
+        for value in ("javascript", "passwd", "outside", "ftp:"):
+            self.assertNotIn(value, text)
+
     def test_the_input_is_left_as_it_was(self):
         doc = json.loads(self.raw)
         migrate.migrate(doc, None, NOW)
@@ -284,6 +360,11 @@ class TestImportedSession(unittest.TestCase):
         self.app = self.start()
         self.assertEqual(self.get_state({"X-Owner-Token": OWNER_TOKEN})[2]["me"]["role"], "owner")
 
+    def test_a_secret_the_prototype_mapped_to_the_host_does_not_resolve(self):
+        code, _, out = self.get_state({"X-Session-Secret": HOST_SECRET})
+        self.assertEqual((code, out["error"]), (401, "unknown-session"))
+        self.assertIn("1 session secrets held by the host were dropped", self.log_text())
+
     def test_a_removed_persons_secret_reads_nothing(self):
         code, _, out = self.get_state({"X-Session-Secret": SECRET[CY]})
         self.assertEqual((code, out["error"]), (403, "removed"))
@@ -303,7 +384,7 @@ class TestImportedSession(unittest.TestCase):
         log = self.log_text()
         for name in ("state.legacyWidget", "settings.legacyToggle", "questions.legacyHint", "answers.att", "prefs.legacyPref"):
             self.assertIn(name, log)
-        for value in ("made-up field", "MadeUpBrowser", OWNER_TOKEN, *SECRET.values()):
+        for value in ("made-up field", "MadeUpBrowser", OWNER_TOKEN, HOST_SECRET, *SECRET.values()):
             self.assertNotIn(value, log)
 
     def test_a_second_start_with_the_import_keeps_the_session_it_made(self):
@@ -312,6 +393,43 @@ class TestImportedSession(unittest.TestCase):
         self.app = self.start(initial_state=self.state_file)
         cards = self.get_state({"X-Session-Secret": SECRET[BO]})[2]["cards"]["Q4"]
         self.assertEqual([c["text"] for c in cards if c["kind"] == "person"], ["Changed my mind"])
+
+
+class TestLoadRefuses(unittest.TestCase):
+    """Every load runs the cross-field rules, so no path brings back what the import drops."""
+
+    def load(self, change):
+        doc = json.loads((FIXTURES / "state-v1.json").read_text(encoding="utf-8"))
+        change(doc)
+        path = tmpdir(self) / "state.json"
+        path.write_text(json.dumps(doc), encoding="utf-8")
+        with self.assertRaises(session.DomainError) as ctx:
+            session.Session.load(path)
+        self.assertEqual(ctx.exception.code, "state-invalid")
+        return ctx.exception.message
+
+    def test_a_state_whose_session_secret_names_the_owner_is_refused(self):
+        def change(doc):
+            doc["credentials"]["secrets"][hashlib.sha256(HOST_SECRET.encode()).hexdigest()] = "host"
+
+        self.assertIn("names the owner", self.load(change))
+
+    def test_a_state_with_a_link_that_is_not_http_is_refused(self):
+        def change(doc):
+            next(q for q in doc["questions"] if q["id"] == "Q2")["references"][0]["url"] = "javascript:alert(1)"
+
+        self.assertIn("questions[Q2].references.url", self.load(change))
+
+    def test_a_state_with_an_asset_name_outside_the_assets_folder_is_refused(self):
+        def change(doc):
+            next(q for q in doc["questions"] if q["id"] == "Q1")["references"][0]["asset"] = "../../outside.png"
+
+        self.assertIn("questions[Q1].references.asset", self.load(change))
+
+    def test_the_v1_fixture_loads(self):
+        path = tmpdir(self) / "state.json"
+        shutil.copy(FIXTURES / "state-v1.json", path)
+        self.assertEqual(session.Session.load(path).state["schemaVersion"], 1)
 
 
 if __name__ == "__main__":

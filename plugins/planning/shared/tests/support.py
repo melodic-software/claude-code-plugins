@@ -6,6 +6,7 @@ from __future__ import annotations
 import http.client
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -19,6 +20,8 @@ SHARED = HERE.parent
 FIXTURES = HERE / "fixtures"
 if str(SHARED) not in sys.path:
     sys.path.insert(0, str(SHARED))
+
+import detached  # noqa: E402  (sys.path is set just above)
 
 WINDOWS = os.name == "nt"
 # The bash fake on POSIX; on Windows a spawned .sh needs bash, so the Python fake stands in.
@@ -66,6 +69,35 @@ def wait_for(predicate, seconds=10.0, step=0.1):
             return got
         time.sleep(step)
     return predicate()
+
+
+def outside_cloudflared(case, url_arg, log, *extra, named=True, environ=None):
+    """(Popen, its trycloudflare.com address): a fake cloudflared started outside tunnel.py, as the
+    prototype's is, run as `tunnel --no-autoupdate --url <url_arg> <extra...>`. With `named`, the
+    program the OS reports for it is a file named cloudflared (cloudflared.exe on Windows), which
+    adopt requires: on POSIX a copy of bash running fake-cloudflared.sh, on Windows a copy of the
+    base Python, with its DLLs, running fake_cloudflared.py. Without, it runs FAKE as is (bash or
+    python, with "cloudflared" only in its arguments). Skips when the copy cannot run here."""
+    args = ["tunnel", "--no-autoupdate", "--url", url_arg, *extra]
+    environ = dict(environ or os.environ)
+    if not named:
+        cmd = [sys.executable, FAKE] if FAKE.endswith(".py") else [FAKE]
+    elif WINDOWS:
+        base = Path(detached.interpreter())
+        where = tmpdir(case)
+        for dll in base.parent.glob("*.dll"):
+            shutil.copy2(dll, where / dll.name)
+        cmd = [str(shutil.copy2(base, where / "cloudflared.exe")), FAKE]
+        environ["PYTHONHOME"] = sys.base_prefix
+    else:
+        cmd = [str(shutil.copy2(os.path.realpath(shutil.which("bash")), tmpdir(case) / "cloudflared")), FAKE]
+    proc =detached.spawn([*cmd, *args], log=log, env=environ)
+    case.addCleanup(lambda: (proc.kill(), proc.wait()))
+    url = wait_for(lambda: (m := re.search(r"https://fake-[0-9a-f]{12}\.trycloudflare\.com", log.read_text(encoding="utf-8", errors="replace"))) and m.group(0))
+    if not url and named:
+        case.skipTest(f"a program named cloudflared could not run here: {log.read_text(encoding='utf-8', errors='replace')[-300:]}")
+    case.assertTrue(url)
+    return proc, url
 
 
 def env(**extra):

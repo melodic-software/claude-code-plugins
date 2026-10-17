@@ -8,6 +8,7 @@ Version 0 is the prototype's state file (`.work/shared-interview-proto/server.py
 schemaVersion: a file without one is version 0 only when it has the prototype's top-level keys.
 """
 
+import collections
 import hashlib
 import re
 import secrets
@@ -29,6 +30,9 @@ THEME = {"mode": ("system", "light", "dark"), "accent": ("teal", "indigo", "viol
 FLAGS = ("voting", "signoff", "chat", "follow", "digestNames", "uploads")
 NOTIFY_CAP = 500
 MIN_OWNER_TOKEN = 16  # the prototype's owner token is token_urlsafe(12): 16 characters, 96 bits
+MAX_URL = 2000
+URL = re.compile(r"https?://\S+", re.IGNORECASE)  # a link, as every v1 write route takes one
+IMAGE_ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg)")  # an image asset's file name
 
 
 class MigrationError(ValueError):
@@ -84,7 +88,7 @@ def prototype_assets(doc):
         out.add(q.get("image"))
         out.update(o.get("image") for o in q.get("options") or [] if isinstance(o, dict))
         out.update(r.get("asset") for r in q.get("references") or [] if isinstance(r, dict))
-    return sorted(a for a in out if isinstance(a, str) and re.fullmatch(r"[0-9a-f]{16}\.(png|jpg|webp|svg)", a))
+    return sorted(a for a in out if isinstance(a, str) and IMAGE_ASSET.fullmatch(a))
 
 
 # -- 0 -> 1: the prototype's state ------------------------------------------------------------
@@ -122,6 +126,24 @@ class _V0:
         self.src, self.ctx, self.now = doc, ctx, ctx.now
         self.people = {}
         self.names = {}  # case-folded name -> pid
+        self.dropped = collections.Counter()  # collection -> records naming no known question or person, or with no id
+
+    def drop(self, collection, n=1):
+        self.dropped[collection] += n
+
+    def link(self, v, field):
+        """v as a v1 link (http or https), else None with a note naming the field."""
+        if isinstance(v, str) and len(v) <= MAX_URL and URL.fullmatch(v.strip()):
+            return v.strip()
+        self.ctx.note(f"import: {field} is not an http(s) link; dropped")
+        return None
+
+    def image(self, v, field):
+        """v as an image asset's file name, else None with a note naming the field."""
+        if isinstance(v, str) and IMAGE_ASSET.fullmatch(v):
+            return v
+        self.ctx.note(f"import: {field} is not an image asset name; dropped")
+        return None
 
     def unmapped(self, where, rec, used):
         for k in sorted(set(_dict(rec)) - set(used)):
@@ -196,11 +218,13 @@ class _V0:
             return f"o:{key}"
         return f"p:{key}" if isinstance(key, str) and key else None
 
-    @staticmethod
-    def _reference(r):
+    def _reference(self, r):
+        """The v1 reference; None when its kind has no counterpart, False when its link or asset fails."""
         r = _dict(r)
         kind = r.get("kind")
         if kind == "image" and isinstance(r.get("asset"), str):
+            if not self.image(r["asset"], "questions.references.asset"):
+                return False
             out = {"kind": "image", "asset": r["asset"]}
             if isinstance(r.get("rect"), dict):
                 out["rect"] = {k: float(r["rect"].get(k, 0)) for k in ("x", "y", "w", "h")}
@@ -208,9 +232,11 @@ class _V0:
                 out["caption"] = r["caption"][:2000]
             return out
         if kind == "quote" and isinstance(r.get("text"), str) and isinstance(r.get("source"), str):
-            return {"kind": "quote", "text": r["text"][:2000], "source": r["source"], **({"url": r["url"]} if isinstance(r.get("url"), str) else {})}
+            url = self.link(r["url"], "questions.references.url") if "url" in r else None
+            return {"kind": "quote", "text": r["text"][:2000], "source": r["source"], **({"url": url} if url else {})}
         if kind == "link" and isinstance(r.get("url"), str):
-            return {"kind": "link", "url": r["url"], **({"title": r["title"]} if isinstance(r.get("title"), str) else {})}
+            url = self.link(r["url"], "questions.references.url")
+            return {"kind": "link", "url": url, **({"title": r["title"]} if isinstance(r.get("title"), str) else {})} if url else False
         return None
 
     def question(self, raw, answers, known, ideas):
@@ -235,11 +261,11 @@ class _V0:
         q["purpose"] = "decide"
         options = [o for o in _list(raw.get("options")) if isinstance(o, dict)]
         if fmt_kind == "choice" and 2 <= len(options) <= 4:
-            q["format"] = {
-                "kind": "choice",
-                "options": [{"id": o.get("id"), "label": _str(o.get("label"), 2000), **({"image": o["image"]} if isinstance(o.get("image"), str) else {})} for o in options],
-            }
-        elif fmt_kind == "confirm" and isinstance(raw.get("image"), str) and isinstance(raw.get("rect"), dict):
+            q["format"] = {"kind": "choice", "options": []}
+            for o in options:
+                image = self.image(o["image"], "questions.options.image") if "image" in o else None
+                q["format"]["options"].append({"id": o.get("id"), "label": _str(o.get("label"), 2000), **({"image": image} if image else {})})
+        elif fmt_kind == "confirm" and "image" in raw and self.image(raw["image"], "questions.image") and isinstance(raw.get("rect"), dict):
             q["format"] = {"kind": "confirm", "image": raw["image"], "rect": {k: float(raw["rect"].get(k, 0)) for k in ("x", "y", "w", "h")}}
         else:
             if fmt_kind != "text":
@@ -249,7 +275,7 @@ class _V0:
         refs = [self._reference(r) for r in _list(raw.get("references"))]
         if any(r is None for r in refs):
             self.ctx.note("import: questions.references holds an attachment kind with no counterpart; dropped")
-        q["references"] = [r for r in refs if r is not None][:8]
+        q["references"] = [r for r in refs if r][:8]
         if isinstance(raw.get("proposal"), str) and raw["proposal"] in ideas:
             q["origin"] = {"kind": "proposal", "proposal": ideas[raw["proposal"]]}
         elif "addedBy" in raw or "from" in raw:
@@ -274,7 +300,7 @@ class _V0:
                 else {"kind": "lock-changed"}
             )
             q["needsReview"] = [{"because": flag["because"], "at": _ts(flag.get("ts"), self.now), "why": why}]
-        used = ("id", "text", "round", "dependsOn", "format", "options", "image", "rect", "references", "proposal", "from", "addedBy", "byHost", "lockedText", "needsReview")
+        used = ("id", "text", "round", "dependsOn", "format", "options", "image", "rect", "references", "proposal", "from", "addedBy", "lockedText", "needsReview")
         self.unmapped("questions", raw, used)
         return q
 
@@ -297,6 +323,7 @@ class _V0:
         for cid, a in people:
             pid = self.person(cid, a.get("name"), a.get("ts"))
             if pid is None:
+                self.drop("answers")
                 continue
             view = _dict(a.get("ctx")).get("view")
             card = {"kind": "person", "pid": pid, "text": _str(a.get("text"), 2000), "at": _ts(a.get("ts"), self.now)}
@@ -336,6 +363,7 @@ class _V0:
         src, now = self.src, self.now
         self.load_people()
         raw_ideas = [i for i in _list(src.get("ideas")) if isinstance(i, dict) and isinstance(i.get("id"), str)]
+        self.drop("ideas", len(_list(src.get("ideas"))) - len(raw_ideas))
         ideas, taken = {}, set()
         for i in raw_ideas:
             n = _num(i["id"])
@@ -352,8 +380,7 @@ class _V0:
             if q:
                 questions.append(q)
                 known.add(q["id"])
-        if set(answers) - known:
-            self.ctx.note("import: answers to a question that does not exist were dropped")
+        self.drop("answers", sum(len(_dict(answers[qid])) for qid in set(answers) - known))
         cards, votes = {}, {}
         for q in questions:
             cards[q["id"]], v = self.cards(q, _dict(answers.get(q["id"])))
@@ -363,12 +390,14 @@ class _V0:
         suggestions, suggestion_votes, max_s = {}, {}, 0
         for qid, lst in _dict(src.get("suggestions")).items():
             if qid not in known:
+                self.drop("suggestions", len(_list(lst)))
                 continue
             out, by = [], {}
             for s in _list(lst):
                 s = _dict(s)
-                pid = self.person(s.get("cid"), s.get("name"), s.get("ts"))
-                if pid is None or not isinstance(s.get("id"), str):
+                pid = self.person(s.get("cid"), s.get("name"), s.get("ts")) if isinstance(s.get("id"), str) else None
+                if pid is None:
+                    self.drop("suggestions")
                     continue
                 at = _ts(s.get("ts"), now)
                 kind = s.get("status")
@@ -390,6 +419,7 @@ class _V0:
         for qid, lk in _dict(src.get("locks")).items():
             lk = _dict(lk)
             if qid not in known or not isinstance(lk.get("text"), str):
+                self.drop("locks")
                 continue
             text = lk["text"][:2000]
             q = next(q for q in questions if q["id"] == qid)
@@ -408,8 +438,9 @@ class _V0:
         chat, forwarded = [], {}
         for m in _list(src.get("chat")):
             m = _dict(m)
-            pid = self.person(m.get("cid"), m.get("name"), m.get("ts"))
-            if pid is None or not isinstance(m.get("id"), str):
+            pid = self.person(m.get("cid"), m.get("name"), m.get("ts")) if isinstance(m.get("id"), str) else None
+            if pid is None:
+                self.drop("chat")
                 continue
             rec = {"id": m["id"], "pid": pid, "text": _str(m.get("text"), 2000), "at": _ts(m.get("ts"), now)}
             reply = _dict(m.get("replyTo"))
@@ -425,6 +456,7 @@ class _V0:
         for i in raw_ideas:
             pid = self.person(i.get("cid"), i.get("name"), i.get("ts"))
             if pid is None:
+                self.drop("ideas")
                 continue
             qid, reason, kind = i.get("qid"), _str(i.get("reason"), 400), i.get("status")
             if kind in ("question", "placed", "promoted") and qid in known:
@@ -448,14 +480,17 @@ class _V0:
         results, done_by = {}, {}
         for qid, lst in _dict(src.get("research")).items():
             if qid not in known:
+                self.drop("research", len(_list(lst)))
                 continue
             out = []
             for r in _list(lst):
                 r = _dict(r)
                 if not isinstance(r.get("id"), str):
+                    self.drop("research")
                     continue
                 kind = r.get("kind") if r.get("kind") in REQUEST_KINDS else "research"
-                sources = [{"title": _str(s.get("title"), 200), "url": s["url"]} for s in _list(r.get("sources")) if isinstance(s, dict) and isinstance(s.get("url"), str)][:30]
+                links = [(s, self.link(s.get("url"), "research.sources.url")) for s in _list(r.get("sources")) if isinstance(s, dict)]
+                sources = [{"title": _str(s.get("title"), 200), "url": url} for s, url in links if url][:30]
                 request = r.get("requestId") if isinstance(r.get("requestId"), str) and r.get("requestId") else None
                 out.append(
                     {
@@ -475,14 +510,15 @@ class _V0:
                 )
                 if request:
                     done_by[request] = out[-1]
-                self.unmapped("research", r, ("id", "requestId", "kind", "skill", "summary", "sources", "report", "ts", "by", "byCid", "askedAt", "ask"))
+                self.unmapped("research", r, ("id", "requestId", "kind", "skill", "summary", "sources", "report", "ts"))
             results[qid] = out
 
         requests = []
         for r in _list(src.get("requests")):
             r = _dict(r)
-            pid = self.person(r.get("cid"), r.get("name"), r.get("ts"))
-            if pid is None or not isinstance(r.get("id"), str) or r.get("qid") not in known:
+            pid = self.person(r.get("cid"), r.get("name"), r.get("ts")) if isinstance(r.get("id"), str) and r.get("qid") in known else None
+            if pid is None:
+                self.drop("requests")
                 continue
             kind = r.get("status")
             if kind == "running":
@@ -515,6 +551,7 @@ class _V0:
         for m in _list(src.get("mergeRequests")):
             m = _dict(m)
             if m.get("from") not in self.people or m.get("to") not in self.people or not isinstance(m.get("id"), str):
+                self.drop("mergeRequests")
                 continue
             at = _ts(m.get("ts"), now)
             kind = m.get("status")
@@ -527,6 +564,7 @@ class _V0:
         prefs = {}
         for pid, mine in _dict(src.get("prefs")).items():
             if pid not in self.people:
+                self.drop("prefs")
                 continue
             out = {}
             for k, v in _dict(mine).items():
@@ -540,11 +578,13 @@ class _V0:
         notifications, max_n = {}, 0
         for pid, lst in _dict(src.get("notifications")).items():
             if pid not in self.people:
+                self.drop("notifications", len(_list(lst)))
                 continue
             out = []
             for n in _list(lst)[-NOTIFY_CAP:]:
                 n = _dict(n)
                 if n.get("kind") not in NOTIFY_KINDS or not isinstance(n.get("id"), str):
+                    self.drop("notifications")
                     continue
                 rec = {"id": n["id"], "kind": n["kind"], "title": _str(n.get("title"), 400), "at": _ts(n.get("ts"), now), "read": bool(n.get("read"))}
                 if n.get("byCid") in self.people:
@@ -562,10 +602,20 @@ class _V0:
                 self.unmapped("notifications", n, ("id", "kind", "title", "ts", "read", "by", "byCid", "body", "msg", "qid", "key", "n", "since"))
             notifications[pid] = out
 
-        secrets_out = {}
+        # A secret the prototype mapped to the host (a join with the owner token, or a guest merged
+        # into the host) would give that browser owner powers through the guest listener.
+        secrets_out, held, orphans = {}, 0, 0
         for secret, pid in _dict(src.get("secrets")).items():
-            if isinstance(secret, str) and secret and pid in self.people:
+            if pid == HOST:
+                held += 1
+            elif isinstance(secret, str) and secret and pid in self.people:
                 secrets_out[_sha256(secret)] = pid
+            else:
+                orphans += 1
+        if held:
+            self.ctx.note(f"import: {held} session secrets held by the host were dropped; the owner link carries owner identity")
+        if orphans:
+            self.ctx.note(f"import: {orphans} session secrets name no person; dropped")
         token = src.get("ownerToken") if isinstance(src.get("ownerToken"), str) and src.get("ownerToken") else secrets.token_urlsafe(32)
 
         settings_in = _dict(src.get("settings"))
@@ -599,6 +649,10 @@ class _V0:
         )  # fmt: skip
         self.unmapped("state", src, known_top)
         created = min([p["joinedAt"] for p in self.people.values()], default=now)
+        share = (self.link(src["shareUrl"], "shareUrl") or "").rstrip("/") if src.get("shareUrl") else ""
+        for collection, n in sorted(self.dropped.items()):
+            if n:
+                self.ctx.note(f"import: {n} {collection} records named no known question or person, or had no id; dropped")
         return {
             "pluginVersion": "",
             "writtenBy": "",
@@ -608,7 +662,7 @@ class _V0:
                 "goal": _str(src.get("goal"), 200),
                 "createdAt": created,
                 "phase": {"kind": "ended", "at": _ts(ended.get("ts"), now)} if ended else {"kind": "live"},
-                "share": {"url": _str(src.get("shareUrl"), 2000).rstrip("/")},
+                "share": {"url": share},
                 "guestKey": _str(src.get("guestKey"), 200),
                 "settings": settings,
                 "seq": seq,
@@ -661,7 +715,7 @@ class _V0:
         elif ready:
             status["ready"] = {"by": self.by_name(ready.get("by")), "at": _ts(ready.get("ts"), self.now)}
         out.append({"n": n, "openedAt": opened.get(n, self.now), "status": status})
-        self.unmapped("round", cur, ("current", "status", "ready", "sentAt", "ackAt"))
+        self.unmapped("round", cur, ("current", "status", "ready"))
         return out
 
 

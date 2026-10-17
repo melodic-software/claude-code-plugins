@@ -4,7 +4,8 @@
 with no console on Windows, breaking away from the caller's job when allowed), so it survives the
 shell, `share.py` or the server that started it. `alive` and `stop` take a pid plus a `marker`, a
 word its command line (POSIX) or executable path (Windows) must contain, so a pid the OS has since
-handed to another program is never reported alive or stopped. `locked` is an exclusive file lock
+handed to another program is never reported alive or stopped; `exe_name` and `command_line` read
+the program file a pid runs and its arguments. `locked` is an exclusive file lock
 for the few steps two processes may race on. `which` finds a program on PATH but never in the
 current folder, and `data_dir_problem` says when a folder cannot keep the session's files private.
 Every OS branch of the runtime lives in this file.
@@ -188,6 +189,51 @@ def describe(pid):
     except (OSError, subprocess.SubprocessError):
         return None
     return out.stdout.strip() or None
+
+
+def exe_name(pid):
+    """The file name of the program pid runs, as the OS reports it, or None when pid is not running
+    or that cannot be read: /proc/<pid>/exe on Linux, `ps -o comm=` elsewhere on POSIX, the image
+    path on Windows. Unlike a command line, the process cannot set it."""
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 1 or not _running(pid):
+        return None
+    if WINDOWS:
+        seen = describe(pid)
+        return ntpath.basename(seen) if seen else None
+    try:
+        return os.path.basename(os.readlink(f"/proc/{pid}/exe")).removesuffix(" (deleted)")
+    except OSError:
+        if Path("/proc/self/exe").exists():
+            return None  # Linux, and the link cannot be read (another user's process)
+    try:
+        out = subprocess.run(["ps", "-o", "comm=", "-p", str(pid)], capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return os.path.basename(out.stdout.strip()) or None
+
+
+def command_line(pid):
+    """pid's arguments as a list, or None when they cannot be read: /proc/<pid>/cmdline on Linux,
+    `ps -ww -o args=` elsewhere on POSIX (split on spaces), and on Windows the CommandLine the
+    Win32_Process CIM class reports (split on spaces outside double quotes)."""
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 1:
+        return None
+    if WINDOWS:
+        query = f"(Get-CimInstance Win32_Process -Filter 'ProcessId={pid}').CommandLine"
+        cmd = ["powershell", "-NoProfile", "-NonInteractive", "-Command", query]
+    else:
+        try:
+            raw = (Path("/proc") / str(pid) / "cmdline").read_bytes()
+            return raw.decode("utf-8", "replace").split("\0")[:-1] or None
+        except OSError:
+            pass
+        cmd = ["ps", "-ww", "-o", "args=", "-p", str(pid)]
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    args = [a or b for a, b in re.findall(r'"([^"]*)"|(\S+)', out.stdout.strip())]
+    return args or None
 
 
 def _running(pid):

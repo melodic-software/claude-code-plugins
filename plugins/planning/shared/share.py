@@ -26,7 +26,6 @@ import html
 import http.client
 import json
 import os
-import re
 import secrets
 import shlex
 import shutil
@@ -246,11 +245,9 @@ def creation(d, a, resumed):
         raise Refused(1, "--adopt-tunnel needs --guest-port, the port that cloudflared points at")
     if not tunnel.URL.fullmatch(url):
         raise Refused(1, f"--adopt-tunnel: {url} is not a trycloudflare.com address")
-    if not detached.alive(pid, "cloudflared"):
-        raise Refused(1, f"--adopt-tunnel: no cloudflared runs as pid {pid}")
-    seen = "" if detached.WINDOWS else detached.describe(pid) or ""
-    if "--url" in seen and not re.search(rf"(127\.0\.0\.1|localhost):{port}(/|\s|$)", seen):
-        raise Refused(1, f"--adopt-tunnel: cloudflared pid {pid} does not point at port {port}")
+    why = tunnel.adoptable(pid, port)
+    if why:
+        raise Refused(1, f"--adopt-tunnel: {why}")
     return imp, port, (pid, url)
 
 
@@ -288,7 +285,7 @@ def bring_up(d, a):
                     raise Refused(1, f"--adopt-tunnel: {exc}") from exc
             try:
                 s = start_server(d, guest, control, defaults_file=a.defaults_file, initial_state=initial_state)
-            except Refused:
+            except BaseException:
                 if adopt:  # forget the adopted tunnel, never stop it: it still serves whoever ran it
                     (d / tunnel.RECORD).unlink(missing_ok=True)
                 raise
@@ -331,8 +328,11 @@ def cmd_stop(d, a):
         if "control" in keep:  # a stopped session's next start gets a new control token
             keep.pop("control")
             detached.write_private(d / SECRETS, json.dumps(keep) + "\n")
+        adopted = (tunnel.read(d) or {}).get("adopted") and tunnel.alive(d)
         if not a.keep_tunnel and tunnel.stop(d):
             stopped.append("tunnel")
+        if adopted and not a.keep_tunnel:
+            print(f"the adopted cloudflared (pid {adopted['pid']}) keeps running; end that process yourself to close its link", file=sys.stderr)
     return {"ok": True, "stopped": stopped}
 
 

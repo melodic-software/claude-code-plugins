@@ -25,6 +25,7 @@ import os
 import re
 import sys
 import time
+import urllib.parse
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -39,6 +40,7 @@ LOCK = ".shared-tunnel.lock"
 URL = re.compile(r"https://(?!api\.)[a-z0-9-]+\.trycloudflare\.com")  # api. is cloudflared's own endpoint, never a tunnel
 BANNER = re.compile(r"\|\s+(" + URL.pattern + r")/?\s+\|")  # the address line inside the "quick Tunnel has been created" box
 START_SECONDS = 30.0  # how long a new tunnel may take to print its address
+EXE = "cloudflared.exe" if detached.WINDOWS else "cloudflared"  # the program file an adopted pid must run
 MISSING = "missing prerequisite: cloudflared (not on PATH; see the planning plugin's prerequisites.json)"
 
 
@@ -128,16 +130,48 @@ def ensure(data_dir, port):
         if rec and rec.get("port") == port:
             return rec
         if rec:
-            detached.stop(rec["pid"], rec.get("marker") or "cloudflared")
+            _end(rec)
         return _start(d, port)
+
+
+def _url_arg(args):
+    """The value of cloudflared's one `--url` (or `-url`, with or without `=`), else None."""
+    found = []
+    for i, a in enumerate(args):
+        flag, eq, value = a.partition("=")
+        if flag in ("--url", "-url"):
+            found.append(value if eq else (args[i + 1] if i + 1 < len(args) else None))
+    return found[0] if len(found) == 1 else None
+
+
+def adoptable(pid, port):
+    """Why pid cannot be adopted as the tunnel to `port`, or None: it must run the cloudflared
+    executable (by the file name the OS reports, which a process cannot set, unlike its command
+    line), and its one `--url` must be http://127.0.0.1:<port> or http://localhost:<port>. A pid
+    whose command line cannot be read is refused on every OS."""
+    name = detached.exe_name(pid)
+    if name is None or (name.lower() != EXE if detached.WINDOWS else name != EXE):
+        return f"no cloudflared runs as pid {pid}" + (f" (its program is {name})" if name else "")
+    args = detached.command_line(pid)
+    if args is None:
+        return f"the command line of cloudflared pid {pid} cannot be read, so the port it points at is unknown"
+    try:
+        target = urllib.parse.urlsplit(_url_arg(args) or "")
+        to = (target.scheme, target.hostname, target.port)
+    except ValueError:
+        to = None
+    if to not in (("http", "127.0.0.1", port), ("http", "localhost", port)):
+        return f"cloudflared pid {pid} does not point at port {port} on this machine (its --url must be http://127.0.0.1:{port})"
+    return None
 
 
 def adopt(data_dir, pid, url, port):
     """Record a cloudflared already running as pid with address url, starting nothing."""
     if not URL.fullmatch(url.rstrip("/")):
         raise TunnelDown(f"{url} is not a trycloudflare.com address")
-    if not detached.alive(pid, "cloudflared"):
-        raise TunnelDown(f"no cloudflared runs as pid {pid}")
+    why = adoptable(pid, port)
+    if why:
+        raise TunnelDown(why)
     d = Path(data_dir)
     with detached.locked(d / LOCK):
         rec = {"pid": pid, "url": url.rstrip("/"), "port": port, "startedAt": time.time(), "marker": "cloudflared", "adopted": True}
@@ -145,12 +179,18 @@ def adopt(data_dir, pid, url, port):
         return rec
 
 
+def _end(rec):
+    """Stop the recorded cloudflared, unless it was adopted: that one is never signalled, so the
+    prototype it came from can take its link back. True when one was stopped."""
+    return not rec.get("adopted") and detached.stop(rec["pid"], rec.get("marker") or "cloudflared")
+
+
 def stop(data_dir):
-    """Stop the recorded cloudflared and drop the record; True when one was running."""
+    """Stop the recorded cloudflared (an adopted one keeps running) and drop the record; True when one was stopped."""
     d = Path(data_dir)
     with detached.locked(d / LOCK):
         rec = read(d)
-        stopped = bool(rec) and detached.stop(rec["pid"], rec.get("marker") or "cloudflared")
+        stopped = bool(rec) and _end(rec)
         (d / RECORD).unlink(missing_ok=True)
         return stopped
 

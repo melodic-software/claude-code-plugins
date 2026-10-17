@@ -55,8 +55,8 @@
     "qid": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/questionId"},
     "text": {"type": "string", "maxLength": 2000},
     "note": {"type": "string", "maxLength": 200},
-    "url": {"type": "string"},
-    "assetId": {"type": "string"},
+    "url": {"type": "string", "maxLength": 2000, "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://\\S+$"},
+    "assetId": {"type": "string", "pattern": "^[0-9a-f]{16}\\.(png|jpg|webp|svg)$"},
     "cardRef": {"type": "string"},
     "reaction": {"enum": ["thumbs", "heart", "idea"]},
     "rect": {
@@ -88,7 +88,7 @@
           "type": "object",
           "required": ["url"],
           "additionalProperties": false,
-          "properties": {"url": {"$ref": "#/$defs/url"}, "changedAt": {"$ref": "#/$defs/ts"}}
+          "properties": {"url": {"anyOf": [{"enum": [""]}, {"$ref": "#/$defs/url"}]}, "changedAt": {"$ref": "#/$defs/ts"}}
         },
         "guestKey": {"type": "string"},
         "settings": {"$ref": "#/$defs/settings"},
@@ -244,7 +244,7 @@
       "type": "object",
       "required": ["id", "label", "asset"],
       "additionalProperties": false,
-      "properties": {"id": {"type": "string"}, "label": {"$ref": "#/$defs/text"}, "asset": {"$ref": "#/$defs/assetId"}}
+      "properties": {"id": {"type": "string"}, "label": {"$ref": "#/$defs/text"}, "asset": {"type": "string", "pattern": "^[0-9a-f]{16}\\.(png|jpg|webp|svg|html)$"}}
     },
     "format": {
       "oneOf": [

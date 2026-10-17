@@ -203,15 +203,17 @@ def settle_owner_token(d, s, creds, log):
     """Set a rotation time ahead of the clock to now, date an undated owner token, and write the
     secrets file. A token the file held that is not the session's current one may predate a
     rotation (a restored backup), so it is replaced by a fresh one when its issue time cannot be
-    trusted: it has none, or the clock was rolled back (the rotation time was ahead of it), which
-    makes a dated token's time as doubtful as the rotation's."""
+    trusted: it has none, the clock was rolled back (the rotation time was ahead of it), which
+    makes a dated token's time as doubtful as the rotation's, or its issue time is ahead of the
+    clock, which a start that died between the clamp's write and this file's leaves behind."""
     ahead = s.clamp_owner_rotation()
     if ahead is not None:
         log.warning("the owner-link rotation time %.0f was ahead of the clock; set it to now", ahead)
     held = (read_json(d / SECRETS) or {}).get("owner") == creds["owner"]
-    if held and (creds["ownerAt"] is None or ahead is not None) and not s.is_owner_token(creds["owner"]):
+    future = creds["ownerAt"] is not None and creds["ownerAt"] > time.time()
+    if held and (creds["ownerAt"] is None or ahead is not None or future) and not s.is_owner_token(creds["owner"]):
         creds["owner"], creds["ownerAt"] = secrets.token_urlsafe(32), None
-        why = "the clock was rolled back" if ahead is not None else "it had no issue time"
+        why = "the clock was rolled back" if ahead is not None or future else "it had no issue time"
         log.warning("the secrets file's owner token is not the current one and %s; issued a fresh owner link", why)
     if creds["ownerAt"] is None:
         creds["ownerAt"] = time.time()
