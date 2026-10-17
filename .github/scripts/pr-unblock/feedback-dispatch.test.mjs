@@ -284,6 +284,31 @@ test("a limit-stopped check on the head blocks a dispatch only until its reset",
   }
 });
 
+// The restart keys on the current threads and head, never on an earlier run's
+// branch: once the reviewer-bot threads are resolved there is nothing to redo,
+// and a head that moved past the stopped run's review is not dispatched for it.
+test("a reset limit stop does not dispatch once no reviewer-bot thread is open, or once the head moved", async () => {
+  const stopped = failedRun("lane=pr-unblock activity=address-feedback class=rate-limit resets=2026-10-17T11:00:00Z");
+  for (const [label, options] of [
+    ["threads resolved", { threads: [thread([CLAUDE], true)] }],
+    ["head moved", { pulls: pull({ head: { sha: OLD_HEAD, repo: { full_name: REPOSITORY } } }) }],
+  ]) {
+    const api = fakeApi({ checkRuns: [stopped], ...options });
+    const result = await dispatchFeedback({
+      api,
+      repository: REPOSITORY,
+      runId: RUN_ID,
+      upstreamRunId: UPSTREAM_RUN_ID,
+      appSenderId: APP_ID,
+      resolveSlot: async () => resolvedLane(),
+      log: () => {},
+      now: Date.parse("2026-10-17T12:00:00Z"),
+    });
+    assert.equal(result, null, label);
+    assert.deepEqual(api.calls.dispatch, [], label);
+  }
+});
+
 test("a failed check on the head that is not a limit stop blocks a dispatch", async () => {
   for (const line of ["lane=pr-unblock activity=address-feedback class=other", null]) {
     const api = fakeApi({ checkRuns: [failedRun(line, "2026-10-01T00:00:00Z")] });
