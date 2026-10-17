@@ -85,6 +85,7 @@ For every check run with `bucket == "fail"`, listed from the PR's checks ([GitHu
 - [ ] Each failure has been **investigated**: logs read via the monitor §3.1 tiered fetch chain (bundled `fetch-annotations.sh` → `fetch-failed-logs.sh` full untruncated ZIP; the CLI's failed-log view only as a last-resort eyeball, since it truncates at the CLI display layer; [GitHub](../../../reference/providers/github/pull-request/readiness.md#gate-2-list-failing-checks))
 - [ ] Each failure is **classified**: real failure (fix required) OR informational (document why safe to proceed)
 - [ ] Informational failures explicitly documented in monitoring report with exact error message
+- [ ] A review lane that failed on a usage or rate limit is never informational: it reviewed nothing, so it is ABSENT and Gate 5's lane-substitution item applies to it
 - [ ] **No unclassified failures**: every `FAILURE` state must have an explicit disposition
 
 ### Gate 3: Security scans evaluated
@@ -160,7 +161,7 @@ Only when ALL gates pass, present:
 **Reviewers:** [each discovered reviewer: responded, no-findings signal, or not yet responded at the bound with its missing artifacts named]
 **Review lanes:** [each lane on the checks roster: productive, or ABSENT with what was run locally in its place]
 **Failures classified:**
-- `review`: FAILURE, usage limit (informational, safe to proceed)
+- `review`: FAILURE, usage limit (no review happened: the lane is ABSENT on `Review lanes:`, with its local substitute named there)
 - [any other failures with classification]
 
 **All readiness gates passed. Recommend merge.**
