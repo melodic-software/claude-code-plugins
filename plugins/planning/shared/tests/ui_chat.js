@@ -17,9 +17,10 @@ const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_ha
 // (WKWebViewIOS.mm _zoomToFocusRect): that pan is visualViewport.offsetTop. visualViewport fires resize along the way
 // and scroll only once the pan stops (https://bugs.webkit.org/show_bug.cgi?id=218465); a resize handler can read
 // offsetTop 0 that reads right a moment later (https://bugs.webkit.org/show_bug.cgi?id=237851), which `stale` makes
-// the last event. KB (336 px, by judgment from an iPhone 13 with the suggestion bar) is the default keyboard height.
+// the last event; `pan` sets the pan outright. KB (336 px, by judgment from an iPhone 13 with the suggestion bar) is the
+// default keyboard height.
 const KB = 336;
-const keyboard = (page, up, { kb = KB, stale = false } = {}) => page.evaluate(async ([up, kb, stale]) => {
+const keyboard = (page, up, { kb = KB, stale = false, pan: setPan = null } = {}) => page.evaluate(async ([up, kb, stale, setPan]) => {
   const vv = window.visualViewport, ih = innerHeight, h0 = vv.height, top0 = vv.offsetTop, h1 = up ? ih - kb : ih;
   const set = (h, top) => { for (const [k, v] of [["height", h], ["offsetTop", top]]) Object.defineProperty(vv, k, { configurable: true, get: () => v }); };
   let pan = 0;
@@ -29,6 +30,7 @@ const keyboard = (page, up, { kb = KB, stale = false } = {}) => page.evaluate(as
     pan = space > 0 ? r.top - space : Math.min(Math.max(top0, r.top - h1 / 2), r.top);
     pan = Math.min(Math.max(0, pan), document.documentElement.scrollHeight - h1);
   }
+  if (up && setPan !== null) pan = setPan;
   for (let i = 1; i <= 5; i++) {
     set(h0 + (h1 - h0) * i / 5, i === 1 ? top0 : top0 + (pan - top0) * i / 5);
     vv.dispatchEvent(new Event("resize"));
@@ -40,7 +42,7 @@ const keyboard = (page, up, { kb = KB, stale = false } = {}) => page.evaluate(as
   await new Promise(r => setTimeout(r, 100));
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   return pan;
-}, [up, kb, stale]);
+}, [up, kb, stale, setPan]);
 
 async function main() {
   const pw = loadPlaywright();
@@ -170,6 +172,58 @@ async function main() {
     await keyboard(kia, false);
     ok("390x844: closing the keyboard keeps the newest message in view", await newest("Arrived while scrolled up"), await where());
     await kia.context().close();
+
+    // ---------- dogfood: the chat scrolls by touch with an iOS keyboard, and the composer sits on the keyboard ----------
+    // iPhones with a home indicator have a 34 px bottom safe area (Apple's Human Interface Guidelines, Layout); the
+    // check sets it where Chromium can, so the sheet's bottom padding counts.
+    for (let i = 0; i < 10; i++) await gus.evaluate(x => window.Core.chat(x), `Later ${i} ${"to give the chat more to scroll ".repeat(2)}`);
+    const chatPhone = async (w, h, name) => {
+      const p = await rec.open(A.localUrl, { context: { viewport: { width: w, height: h }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 } });
+      const c = await p.context().newCDPSession(p);
+      await c.send("Emulation.setSafeAreaInsetsOverride", { insets: { bottom: 34 } }).catch(() => null);
+      await joinAs(p, name);
+      await p.evaluate(() => { document.querySelector(".vf-fab").click(); });
+      await until(p, () => document.querySelectorAll(".vf-mlist .vf-msg").length >= 30 && [...document.querySelectorAll(".vf-mlist .vf-msg")].pop().textContent.includes("Later 9"), null, 5000);
+      await p.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => null))));
+      return [p, c];
+    };
+    const [sia, scdp] = await chatPhone(390, 844, "Sia");
+    const stuck = [];
+    for (const [kbUp, pan] of [[false, 0], [true, 0], [true, 40]]) {
+      const what = kbUp ? `keyboard up, pan ${pan}` : "keyboard down";
+      if (kbUp) { await sia.locator(".vf-minput").tap(); await keyboard(sia, true, { pan }); }
+      await sia.evaluate(() => { const sc = document.querySelector(".vf-mscroll"); sc.scrollTop = sc.scrollHeight; });
+      await sia.waitForTimeout(200);
+      const [x, y, st0] = await sia.evaluate(() => { const sc = document.querySelector(".vf-mscroll"), r = sc.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2, sc.scrollTop]; });
+      await scdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: y - 150 }] });
+      for (let i = 1; i <= 15; i++) { await scdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y - 150 + i * 20 }] }); await sia.waitForTimeout(16); }
+      await scdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await sia.waitForTimeout(800); // the fling after the drag comes to rest
+      const st1 = await sia.evaluate(() => document.querySelector(".vf-mscroll").scrollTop);
+      // iOS keeps firing visualViewport scroll and resize while a page is touched; the list must stay where it was put.
+      await sia.evaluate(async () => { for (let i = 0; i < 10; i++) { visualViewport.dispatchEvent(new Event("scroll")); visualViewport.dispatchEvent(new Event("resize")); await new Promise(r => setTimeout(r, 100)); } });
+      const [st2, page] = await sia.evaluate(() => [document.querySelector(".vf-mscroll").scrollTop, document.scrollingElement.scrollTop + document.scrollingElement.scrollLeft]);
+      if (!(st1 < st0 - 100)) stuck.push(`${what}: a 300 px drag moved the list from ${st0.toFixed(0)} to ${st1.toFixed(0)}`);
+      else if (Math.abs(st2 - st1) > 2) stuck.push(`${what}: the list went back from ${st1.toFixed(0)} to ${st2.toFixed(0)} within 1 s`);
+      if (page) stuck.push(`${what}: the page scrolled ${page} px`);
+      if (kbUp) await keyboard(sia, false);
+    }
+    ok("390x844, 30+ messages: a touch drag scrolls the chat up and it stays for 1 s, keyboard down and up (pan 0 and 40 px), the page never scrolls", stuck.length === 0, stuck.join("; "));
+    await sia.context().close();
+    for (const [w, h] of [[390, 844], [375, 667]]) {
+      const [cp] = await chatPhone(w, h, `Cp ${w}`);
+      const gaps = [];
+      for (const kb of [300, 350, 400, 450]) {
+        await cp.locator(".vf-minput").tap();
+        await keyboard(cp, true, { kb });
+        const g = await cp.evaluate(() => { const f = document.querySelector(".vf-mform").getBoundingClientRect(), vv = visualViewport; return [f.bottom, vv.offsetTop + vv.height, f.top]; });
+        if (Math.abs(g[0] - g[1]) > 2 || g[2] < 0) gaps.push(`keyboard ${kb}: composer bottom ${g[0].toFixed(0)}, keyboard top ${g[1].toFixed(0)}`);
+        await keyboard(cp, false);
+        await cp.evaluate(() => document.activeElement?.blur());
+      }
+      ok(`${w}x${h}, keyboard 300 to 450 px: the chat composer's bottom edge sits within 2 px of the keyboard's top`, gaps.length === 0, gaps.join("; "));
+      await cp.context().close();
+    }
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     ok("no page error", rec.errors.filter(m => !/Failed to load resource/.test(m)).length === 0, rec.errors.slice(0, 3).join(" | "));

@@ -1907,6 +1907,8 @@
   .app[data-kb] { --tabs-h: 0px; }
   .app[data-kb] .vf-tabs, .app[data-kb] .vf-fab:not([aria-expanded="true"]) { display: none; }
   .app[data-kb] .vf-chat { block-size: calc(100% - 8px); border-radius: var(--r-lg) var(--r-lg) 0 0; }
+  /* the keyboard covers the home indicator, so a sheet sits right on the keyboard without the bottom safe-area inset */
+  .app[data-kb] :is(.vf-chat, .vf-drawer, .vf-pop.vf-panel, .vf-bellpop[data-place="sheet"]) { padding-block-end: 0; }
   .app[data-kb] :is(.vf-drawer, .vf-pop.vf-panel, .vf-bellpop[data-place="sheet"]) { max-block-size: calc(100% - 8px); }
   /* the Ask Claude sheet takes all the room above the keyboard, and its Send or Propose row stays at the sheet's
      bottom edge while the form is in view */

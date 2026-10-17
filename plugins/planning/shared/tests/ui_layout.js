@@ -33,9 +33,10 @@ const q = (id, text, format) => ({ id, text, alternatives: [], dependsOn: [], pu
 // (WKWebViewIOS.mm _zoomToFocusRect): that pan is visualViewport.offsetTop. visualViewport fires resize along the way
 // and scroll only once the pan stops (https://bugs.webkit.org/show_bug.cgi?id=218465); a resize handler can read
 // offsetTop 0 that reads right a moment later (https://bugs.webkit.org/show_bug.cgi?id=237851), which `stale` makes
-// the last event. KB (336 px, by judgment from an iPhone 13 with the suggestion bar) is the default keyboard height.
+// the last event; `pan` sets the pan outright. KB (336 px, by judgment from an iPhone 13 with the suggestion bar) is the
+// default keyboard height.
 const KB = 336;
-const keyboard = (page, up, { kb = KB, stale = false } = {}) => page.evaluate(async ([up, kb, stale]) => {
+const keyboard = (page, up, { kb = KB, stale = false, pan: setPan = null } = {}) => page.evaluate(async ([up, kb, stale, setPan]) => {
   const vv = window.visualViewport, ih = innerHeight, h0 = vv.height, top0 = vv.offsetTop, h1 = up ? ih - kb : ih;
   const set = (h, top) => { for (const [k, v] of [["height", h], ["offsetTop", top]]) Object.defineProperty(vv, k, { configurable: true, get: () => v }); };
   let pan = 0;
@@ -45,6 +46,7 @@ const keyboard = (page, up, { kb = KB, stale = false } = {}) => page.evaluate(as
     pan = space > 0 ? r.top - space : Math.min(Math.max(top0, r.top - h1 / 2), r.top);
     pan = Math.min(Math.max(0, pan), document.documentElement.scrollHeight - h1);
   }
+  if (up && setPan !== null) pan = setPan;
   for (let i = 1; i <= 5; i++) {
     set(h0 + (h1 - h0) * i / 5, i === 1 ? top0 : top0 + (pan - top0) * i / 5);
     vv.dispatchEvent(new Event("resize"));
@@ -56,7 +58,7 @@ const keyboard = (page, up, { kb = KB, stale = false } = {}) => page.evaluate(as
   await new Promise(r => setTimeout(r, 100));
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   return pan;
-}, [up, kb, stale]);
+}, [up, kb, stale, setPan]);
 /** What a person sees of the focused sheet's field: the label, the field's first 3 lines and its primary button must
  *  each be the topmost element at their sample points, inside the visual viewport, and the button's whole box inside
  *  it. Resolves to the problems found. */
