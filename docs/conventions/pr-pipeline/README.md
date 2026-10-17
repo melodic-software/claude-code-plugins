@@ -777,10 +777,9 @@ The paths `.github/CODEOWNERS` lists with no owner are the eight synced data fil
 vocabulary, pyright and runner-policy data files) and the three synced hosted caller workflows
 (`pr-check-managed-files-hosted.yml`, `pr-review-hosted.yml`, `pr-review-security-hosted.yml`).
 The required `check-managed-files` job in `ci-status` fails any hand edit or deletion of them.
-`pr-merge` never merges a PR that
-touches a trust-root path, whatever its rung, and leaves it for a human. That refusal is recorded
-here and in `pr-merge`'s `never` rule in `lane-rules.json`; the merge activity enforces it when
-`pr-merge` is built.
+`pr-merge` refuses a PR that touches a path `merge.diff-check.denied-paths` lists and leaves it
+for a human. This repository lists none, so a lane PR touching a trust-root path merges on a
+passing verdict like any other (see the switches above).
 
 ## Loop caps
 

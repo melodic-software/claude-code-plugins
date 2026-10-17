@@ -119,7 +119,6 @@ class RiskResult:
     reasons: tuple[Reason, ...]  # sorted by severity desc, then code
 
 
-MAX_FILES = 8  # RiskInput.max_changed_files's default
 
 HIGH_FLOOR: tuple[str, ...] = (
     ".github/**",
