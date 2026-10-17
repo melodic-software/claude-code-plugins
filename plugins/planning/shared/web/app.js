@@ -3401,22 +3401,25 @@
         if (ui.mergeFrom === pid) {
           const box = E("div", "vf-merge");
           if (ui.mergeTo) {
-            const toName = nameOf(ui.mergeTo);
+            // Into the owner: a second identity of the owner's own (another device) folds into the owner.
+            const toMe = isMe(ui.mergeTo), toName = toMe ? "me (owner)" : disp(nameOf(ui.mergeTo)), toWhom = toMe ? "you" : toName;
             const row = E("div", "vf-crow");
             const cancel = k(btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel"), "mc");
-            const go = k(btn("vf-btn vf-btn-primary vf-btn-sm", `Merge into ${disp(toName)}`), "mg");
+            const go = k(btn("vf-btn vf-btn-primary vf-btn-sm", `Merge into ${toName}`), "mg");
+            const moves = `${disp(name)}'s answers, votes, chat and suggestions move to ${toWhom}, and ${disp(name)} goes away. This cannot be undone.`;
             cancel.onclick = () => { ui.mergeTo = ""; fillPcard(); };
-            go.onclick = guarded({ title: `Merge ${disp(name)} into ${disp(toName)}?`, ok: "Merge", body: `${disp(name)}'s answers, votes, chat and suggestions move to ${disp(toName)}, and ${disp(name)} goes away. This cannot be undone.` },
-              () => { go.disabled = true; Core.merge(pid, ui.mergeTo).then(() => { flash(`Merged ${disp(name)} into ${disp(toName)}.`); closePop(); }).catch(fail); });
+            // The server's own sentence: a refused merge says why (the owner is never merged away, for one).
+            go.onclick = guarded({ title: `Merge ${disp(name)} into ${toName}?`, ok: "Merge", body: moves },
+              () => { go.disabled = true; Core.merge(pid, ui.mergeTo).then(() => { flash(`Merged ${disp(name)} into ${toName}.`); closePop(); }).catch(e => { go.disabled = false; flash(`Not merged: ${e?.message || Core.errorText(e)}`); }); });
             row.append(cancel, go);
-            box.append(E("p", "vf-pop-note", `${disp(name)}'s answers, votes, chat and suggestions move to ${disp(toName)}, and ${disp(name)} goes away. This cannot be undone.`), row);
+            box.append(E("p", "vf-pop-note", moves), row);
           } else {
-            const others = Object.entries(S.people || {}).filter(([p]) => p !== pid).sort((a, b) => a[1].name.localeCompare(b[1].name));
+            const others = Object.entries(S.people || {}).filter(([p]) => p !== pid).sort((a, b) => isMe(b[0]) - isMe(a[0]) || a[1].name.localeCompare(b[1].name));
             const ul = E("ul", "vf-merge-list"); ul.setAttribute("aria-label", `Merge ${disp(name)} into`);
             for (const [p, v] of others) {
               const b = k(btn("vf-merge-item"), "m:" + p);
               const a = Core.avatar(p, v.name, 20);
-              b.append(a, E("span", null, disp(v.name) + (isMe(p) ? " (you)" : "")), E("span", "vf-card-time", ago(v.ts)));
+              b.append(a, E("span", null, isMe(p) ? "Me (owner)" : disp(v.name)), E("span", "vf-card-time", ago(v.ts)));
               b.onclick = () => { ui.mergeTo = p; fillPcard(); };
               const li = E("li"); li.append(b); ul.append(li);
             }
