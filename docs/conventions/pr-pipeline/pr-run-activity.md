@@ -480,7 +480,8 @@ the base's copies from step 8, each checked against its recorded SHA-256 before 
    prepare's hashes. It restores `.git/config` and `.git/info/attributes`, repairs the paths
    claude-code-action reset, and escalates `unresolved-conflict` (an unmerged entry, or conflict
    markers in a staged resolution) or `workflow-staged` (a `.github/workflows/` index entry changed
-   since the snapshot); otherwise it writes the index as a tree.
+   since the snapshot, or differs from the gated head, as a workflow change merged in from the base
+   does: the lane token cannot push one); otherwise it writes the index as a tree.
 4. With no escalation reason and a tree, a pinned `github-script` step commits through the Git
    Data API: it fails unless the lane branch is still at the gated head, uploads only the blobs
    `tree-entries.sh` flags (logging `created <k> blobs`), builds the tree on the gated head's tree
@@ -516,7 +517,7 @@ its check:
 | Hold label added during the run, found before the commit | success | `awaiting-human` | empty | neutral |
 | Hold label or draft set during the run, found before the promote | success | `awaiting-human` | empty | neutral |
 | Model left a conflict | success | `awaiting-human` | `unresolved-conflict` | neutral |
-| Model staged a `.github/workflows/` change | success | `awaiting-human` | `workflow-staged` | neutral |
+| Model staged, or the merge brought in, a `.github/workflows/` change | success | `awaiting-human` | `workflow-staged` | neutral |
 | Resolved, committed, promoted | success | none | empty | success |
 | Commit step fails or lane branch moved | failure | none | empty | failure |
 | PR branch moved during run (promote) | failure | none | empty | failure |

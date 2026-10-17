@@ -23,7 +23,9 @@
 #                         it) holds a conflict-marker sequence;
 #    workflow-staged      an index entry under .github/workflows/ was added,
 #                         removed, or changed in mode or blob since the
-#                         snapshot.
+#                         snapshot, or differs from the gated head's tree (a
+#                         workflow change merged in from the base: the lane
+#                         token cannot push one).
 #
 # 4. With no reason, write the validated index as a tree; tree-entries.sh
 #    takes that tree, so nothing staged after this check reaches the commit.
@@ -168,6 +170,9 @@ filter_workflows() {
 filter_workflows "$out/index-snapshot" >"$tmp/workflows-before"
 filter_workflows "$tmp/index" >"$tmp/workflows-after"
 cmp -s "$tmp/workflows-before" "$tmp/workflows-after" || reason workflow-staged
+g ls-tree -r -z --full-tree --format='%(objectmode) %(objectname) 0%x09%(path)' "$head" -- .github/workflows >"$tmp/head-tree"
+filter_workflows "$tmp/head-tree" >"$tmp/workflows-head"
+cmp -s "$tmp/workflows-head" "$tmp/workflows-after" || reason workflow-staged
 
 tree=$(g write-tree)
 printf 'escalation-reason=\ntree=%s\n' "$tree"
