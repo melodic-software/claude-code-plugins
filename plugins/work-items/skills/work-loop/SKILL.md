@@ -446,7 +446,9 @@ apply the manifest default:
 **Clean** = the item's pipeline verdict passed and its PR opened without gate failures.
 **Dirty** = a failed verdict or gate, an escalation off the item mid-execution, or a seam exit 8
 (provider unavailable / secondary forge limits). Exit 8 is backoff-and-retry, counted dirty per
-the convention. The streak counter and cap persist in durable state.
+the convention: the cycle makes no further provider call, and the next try waits for the reset
+the provider's API budget names ([`tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
+"Gotchas"), never a retry loop. The streak counter and cap persist in durable state.
 
 **Composed budget:** total in-flight subagents ≤ item cap × the per-item dispatch wave cap owned
 by `/implementation:implement-dispatch`, that skill's resolved cap (`--wave-cap` argument, then
