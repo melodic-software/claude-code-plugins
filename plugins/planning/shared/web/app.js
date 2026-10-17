@@ -1385,7 +1385,8 @@
     const mmAsk = lbtn("vf-menu-item vf-menu-plain", "sparkle", "Ask Claude about this");
     const mmCopy = lbtn("vf-menu-item vf-menu-plain", "copy", "Copy");
     const mmReply = lbtn("vf-menu-item vf-menu-plain", "reply", "Reply");
-    for (const b of [mmReply, mmPropose, mmAsk, mmCopy]) { b.setAttribute("role", "menuitem"); msgMenu.append(b); }
+    const mmReact = btn("vf-menu-item vf-menu-plain"); mmReact.append(E("span", "vf-mm-face", "🙂"), E("span", null, "React"));
+    for (const b of [mmReply, mmReact, mmPropose, mmAsk, mmCopy]) { b.setAttribute("role", "menuitem"); msgMenu.append(b); }
 
     // ---------- Q82: notifications ----------
     const NOTE_KINDS = [["mention", "Mentions of me", "at"], ["reply", "Replies to my messages", "reply"], ["request", "My requests to Claude", "sparkle"],
@@ -2099,14 +2100,16 @@
       for (const b of reactPop.querySelectorAll(".vf-rp-e")) b.setAttribute("aria-pressed", String((m.reactions?.[b.dataset.e] || []).includes(Core.me.cid)));
       openPop(reactPop, anchor);
     }
+    const cantReact = () => (!!Core.state.ended && !Core.me.isOwner) || !!Core.state.youRemoved;
     /** A message's reaction chips: emoji, count and who (as Show names allows); a tap adds or takes back mine. */
     function fillReactChips(k, m) {
       const entries = Object.entries(m.reactions || {});
       const sig = JSON.stringify(entries) + Core.me.cid + st().showNames;
-      k.reactAdd.hidden = (!!Core.state.ended && !Core.me.isOwner) || !!Core.state.youRemoved;
-      if (k.reactChips._sig === sig) return;
-      k.reactChips._sig = sig;
-      k.reactChips.replaceChildren(...entries.map(([e, pids]) => {
+      k.reactAdd.hidden = cantReact();
+      k.reactRow.hidden = !entries.length;
+      if (k.reactRow._sig === sig) return;
+      k.reactRow._sig = sig;
+      k.reactRow.replaceChildren(...entries.map(([e, pids]) => {
         const mine = pids.includes(Core.me.cid), b = btn("vf-mreact");
         b.append(E("span", "vf-mreact-e", e), E("span", "vf-mreact-n", String(pids.length)));
         const who = pids.map(p => (isMe(p) ? "you" : p ? disp(nameOf(p)) : "someone"));
@@ -2123,8 +2126,10 @@
       if (!m) return;
       ui.msgMenu = m;
       mmPropose.hidden = !!m.forwarded || (!!Core.state.ended && !Core.me.isOwner) || !!Core.state.youRemoved;
+      mmReact.hidden = cantReact();
       openPop(msgMenu, anchor);
     }
+    mmReact.onclick = () => { const m = ui.msgMenu, at = msgMenu._anchor; closePop(); if (m && at) openReactPop(m, at); };
     mmPropose.onclick = () => {
       const m = ui.msgMenu; closePop(); if (!m) return;
       (Core.canModerate() ? Core.forward(m.id) : Core.idea(m.text))
@@ -5522,17 +5527,16 @@
           bubble.addEventListener("contextmenu", e => { if (pressT === -1) { e.preventDefault(); pressT = 0; } });
           const done = E("span", "vf-fwd-done"); done.append(icon("check"), E("span", null, "Proposed"));
           tools2.append(done);
-          const bubRow = E("div", "vf-bubrow"); bubRow.append(bubble, more);
-          // Phase 4c: emoji reactions under the bubble; + opens the quick row and More.
-          const reactRow = E("div", "vf-mreacts"); reactRow.setAttribute("role", "group"); reactRow.setAttribute("aria-label", "Reactions");
-          const reactChips = E("span", "vf-mreact-chips");
+          // Emoji reactions: chips under the bubble only when there are some. Add sits beside ⋯ (hover or focus on a
+          // fine pointer); on touch it is React in the long-press menu.
           const reactAdd = btn("vf-mreact-add"); reactAdd.append(E("span", "vf-mreact-plus", "+"), E("span", "vf-mreact-face", "🙂"));
           reactAdd.setAttribute("aria-haspopup", "dialog"); reactAdd.setAttribute("aria-label", "Add a reaction"); reactAdd.title = "Add a reaction";
           reactAdd.onclick = () => (ui.pop === reactPop && ui.reactMsg?.id === li._m?.id ? closePop() : openReactPop(li._m, reactAdd));
-          reactRow.append(reactChips, reactAdd);
+          const bubRow = E("div", "vf-bubrow"); bubRow.append(bubble, reactAdd, more);
+          const reactRow = E("div", "vf-mreacts"); reactRow.setAttribute("role", "group"); reactRow.setAttribute("aria-label", "Reactions");
           col.append(meta, quote, bubRow, reactRow, tools2);
           li.append(E("span", "vf-msg-av"), col);
-          li._k = { meta, btext, batt, tools2, done, more, quote, qName, qTxt, reactChips, reactAdd };
+          li._k = { meta, btext, batt, tools2, done, more, quote, qName, qTxt, reactRow, reactAdd };
           return li;
         }, (li, m) => {
           const i = msgs.indexOf(m), prev = msgs[i - 1], k = li._k;
