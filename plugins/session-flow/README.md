@@ -603,7 +603,7 @@ reads it from.
 
 ### How to set these
 
-Three supported routes, in the order most people want them:
+Three supported routes:
 
 1. **Interactively.** Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure session-flow@<marketplace>`.
