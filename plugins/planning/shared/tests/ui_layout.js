@@ -7,7 +7,10 @@
 // where nothing in the panel scrolls sideways either. At 390x844 and 1440x900 the answer composer starts within
 // 24 px below the question block (question text, options, and the hint and note lines around them). A new guest's
 // first view shows the goal, the host's ask and "Start here: question 1" in view (triage 3); the ten person colors
-// meet WCAG 2.2 AA in both themes (C40); editing a saved answer on a phone is a full-height sheet (triage 18).
+// meet WCAG 2.2 AA in both themes (C40); editing a saved answer on a phone is a full-height sheet (triage 18). With
+// the phone keyboard up, Ask Claude keeps its field and Send request (or Propose) inside the visual viewport and
+// scrolls down to "Your requests"; at 320, 375, 390 and 430 px wide the page never scrolls sideways, in the default
+// view, with the chat open, or in Ask Claude with the keyboard up.
 //   node plugins/planning/shared/tests/ui_layout.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the layout requirements of the polish plan (the sizes, the 1 px tolerance, 44x44 CSS px
@@ -22,6 +25,17 @@ const TOL = 1, MIN_HIT = 44, COMPOSER_GAP = 24;
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 };
 const CHOICE = "Which default payment method?", TEXT = "Where should the order summary sit?", GOAL = "Pick the checkout we launch with.";
 const q = (id, text, format) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format });
+// An iPhone keyboard (336 px, 844 less the 508 px left above it, by judgment from an iPhone 13 with the suggestion bar)
+// shrinks visualViewport and leaves the layout viewport alone, so this stands in for it the same way: visualViewport's
+// height drops by KB and it fires resize. Shrinking the whole Chromium viewport instead would shrink innerHeight too.
+const KB = 336;
+const keyboard = (page, up) => page.evaluate(([up, kb]) => {
+  const vv = window.visualViewport;
+  if (up) Object.defineProperty(vv, "height", { configurable: true, get: () => innerHeight - kb }); else delete vv.height;
+  vv.dispatchEvent(new Event("resize"));
+  return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+}, [up, KB]);
+const settle = page => page.evaluate(() => Promise.all(document.getAnimations().filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished.catch(() => null))));
 
 /** Opens one view; resolves to "" or the reason it could not. Phone layouts use the tab bar, wider ones the view switch. */
 async function show(page, view) {
@@ -213,6 +227,60 @@ async function main() {
     ok("390x844 phone, Ask Claude with \"Run it on my own Claude\" on: no horizontal scroll and nothing past the viewport", asked && connected && side.length === 0,
       `${asked} ${connected} ${side.length}: ${side.slice(0, 8).join("; ")}`);
     await pia.keyboard.press("Escape");
+
+    // ---------- dogfood: the Ask Claude sheet with the phone keyboard up ----------
+    const ria = await rec.open(A.localUrl, { context: PHONE });
+    await joinAs(ria, "Ria");
+    for (const t of ["Which providers charge the least?", "Compare saved-card adoption", "What do returning customers pick?"]) await ria.evaluate(x => window.Core.request("Q1", "ask", x), t);
+    await ria.evaluate(() => document.querySelector(".vf-asktop").click());
+    await until(ria, () => document.querySelectorAll(".vf-drawer:not([hidden]) .vf-apreqs > li").length === 3);
+    await settle(ria);
+    await ria.locator("#vf-ap-ta").tap();
+    await keyboard(ria, true);
+    const inVV = (field, send) => ria.evaluate(([f, b]) => {
+      const vv = visualViewport, top = vv.offsetTop, bottom = vv.offsetTop + vv.height, out = [];
+      for (const [what, sel] of [["field", f], ["button", b]]) {
+        const el = document.querySelector(sel), r = el?.getBoundingClientRect();
+        if (!r?.height) out.push(`no ${what} ${sel}`);
+        else if (r.top < top - 0.5 || r.bottom > bottom + 0.5 || r.left < -0.5 || r.right > innerWidth + 0.5) out.push(`${what} ${el.textContent.trim() || sel} at ${r.top.toFixed(0)}..${r.bottom.toFixed(0)}, visual viewport ${top}..${bottom}`);
+      }
+      return out;
+    }, [field, send]);
+    for (const [mode, label] of [["Ask", "Send request"], ["Propose question", "Propose"]]) {
+      if (mode !== "Ask") { await ria.locator(".vf-apmodes .vf-seg-btn", { hasText: mode }).tap(); await ria.locator("#vf-ap-ta").focus(); }
+      await until(ria, l => document.querySelector(".vf-apform .vf-btn-primary")?.textContent === l, label, 3000);
+      const bad = await inVV("#vf-ap-ta", ".vf-apform .vf-btn-primary");
+      ok(`390x844, keyboard up, Ask Claude in ${mode}: the field and ${label} are both inside the visual viewport`, bad.length === 0, bad.join("; "));
+      if (process.env.KBD_SHOTS && mode === "Ask") await ria.screenshot({ path: require("node:path").join(process.env.KBD_SHOTS, "sheet-390x844-keyboard.png"), clip: { x: 0, y: 0, width: 390, height: 844 - KB } });
+    }
+    const reqs = await ria.evaluate(() => {
+      const sc = document.querySelector(".vf-apscroll"), head = [...sc.querySelectorAll(".vf-pop-sub")].find(h => h.textContent === "Your requests");
+      sc.scrollTop += head.getBoundingClientRect().top - sc.getBoundingClientRect().top;
+      const vv = visualViewport, S = sc.getBoundingClientRect(), h = head.getBoundingClientRect(), li = sc.querySelector(".vf-apreqs > li").getBoundingClientRect();
+      return { scrolled: sc.scrollTop > 0, shown: h.top >= S.top - 0.5 && li.bottom <= Math.min(S.bottom, vv.offsetTop + vv.height) + 0.5, sideways: sc.scrollWidth > sc.clientWidth + 1 || sc.scrollLeft !== 0 };
+    });
+    ok("390x844, keyboard up: the Ask Claude sheet scrolls down to \"Your requests\" and its first request, never sideways", reqs.scrolled && reqs.shown && !reqs.sideways, JSON.stringify(reqs));
+    await ria.context().close();
+
+    // ---------- dogfood: nothing scrolls the page sideways at 320 to 430 px, keyboard or not ----------
+    for (const w of [320, 375, 390, 430]) {
+      const p = await rec.open(A.localUrl, { context: { ...PHONE, viewport: { width: w, height: 844 } } });
+      await joinAs(p, `Wid ${w}`);
+      await settle(p);
+      const side = async where => { const e = await p.evaluate(() => [document.scrollingElement.scrollWidth, document.scrollingElement.clientWidth]); return [...(e[0] > e[1] ? [`page ${e[0]} > ${e[1]}`] : []), ...(where ? await sideScroll(p, where) : [])]; };
+      const bad = (await side()).map(x => `default: ${x}`);
+      await p.evaluate(() => document.querySelector(".vf-fab").click());
+      await until(p, () => !document.querySelector(".vf-chat").hidden); await settle(p);
+      await p.locator(".vf-minput").tap(); await keyboard(p, true);
+      bad.push(...(await side(".vf-chat")).map(x => `chat: ${x}`));
+      await keyboard(p, false); await p.keyboard.press("Escape");
+      await p.evaluate(() => document.querySelector(".vf-asktop").click());
+      await until(p, () => !!document.querySelector(".vf-drawer:not([hidden])")); await settle(p);
+      await p.locator("#vf-ap-ta").tap(); await keyboard(p, true);
+      bad.push(...(await side(".vf-drawer")).map(x => `Ask Claude, keyboard up: ${x}`));
+      ok(`${w}x844: no horizontal overflow in the default view, with the chat open, or in Ask Claude with the keyboard up`, bad.length === 0, bad.join("; "));
+      await p.context().close();
+    }
 
     // ---------- the composer directly under the question ----------
     for (const [page, label] of [[pia, "390x844"], [await (async () => { const d = await rec.open(A.localUrl, { context: { viewport: { width: 1440, height: 900 } } }); await joinAs(d, "Dee"); return d; })(), "1440x900"]]) {
