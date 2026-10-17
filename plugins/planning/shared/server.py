@@ -116,6 +116,7 @@ ROUTES = {
     "/api/pick": ("person", "pick"),
     "/api/vote": ("person", "vote"),
     "/api/react": ("person", "react"),
+    "/api/disagree": ("person", "disagree"),
     "/api/go-with": ("person", "go_with"),
     "/api/lock": ("moderator", "lock"),
     "/api/unlock": ("moderator", "unlock"),

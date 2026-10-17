@@ -85,10 +85,25 @@ owner may override one question from the Host view.
 | `gather` | many answers are wanted and all stand | answers and reactions; Claude summarizes from the digest |
 | `poll` | a quick pick among fixed options | one pick each; results show after picking; the owner closes it |
 
-Infer `format` the same way: `text` (free answers), `choice` (two to four options, images allowed),
-`confirm` ("Did you mean this?" on a screenshot with a marked area) or `prototype` (two to six
-variants on their own page). A `choice`, `confirm` or `prototype` question carries no
-`recommendation`: its options are the cards.
+Infer `format` the same way:
+
+| `format` | When |
+|---|---|
+| `text` | free answers |
+| `choice` | exactly one of two to four options (images allowed) |
+| `multi` | any that apply, of two to eight options |
+| `scale` | how much or how often: `1` to a `max` of 3 to 10, with `labels` for both ends (and `mid` if useful) |
+| `rank` | an order of priority among three to six options |
+| `confirm` | "Did you mean this?" on a screenshot with a marked area |
+| `prototype` | two to six variants on their own page |
+
+Only `text` carries a `recommendation`; elsewhere the options are the cards. Never write a
+"Something else" or "Other" option: the server adds one to `choice`, `multi` and `rank`, and
+`scale` and `confirm` take a comment.
+
+A diagram or chart goes in `references` as `{kind: "diagram", asset, alt, caption?}`: an SVG
+added with `add-asset`, drawn with whatever this session has or by hand. `alt` is required and
+says what the picture shows in words.
 
 ## Schema version
 

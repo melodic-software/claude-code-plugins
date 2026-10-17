@@ -29,6 +29,7 @@ import math
 import os
 import re
 import secrets
+import statistics
 import sys
 import threading
 import time
@@ -69,7 +70,12 @@ MAX_OPEN_UPLOADS = 10
 MAX_RUN_IDS = 100
 NOTIFY_CAP = 500
 NOTIFY_SHOWN = 100
-PRESENCE_TTL = 10.0
+# Presence (amendment "Presence", 2026-10-16; values are judgment). Offline after OFFLINE_AFTER with
+# no heartbeat, which outlasts hidden tabs whose timers browsers throttle to about once a minute.
+# Away when hidden, after IDLE_AFTER visible with no input, or by the person's own snooze.
+OFFLINE_AFTER = 90.0
+IDLE_AFTER = 300.0
+TYPING_TTL = 5.0
 WRITE_INTERVAL = 1.0
 HEARTBEAT_INTERVAL = 1.0  # judgment: the page beats every 2 s, plus one on a visibility change
 JOIN_WINDOW = 60.0
@@ -96,11 +102,15 @@ ASSET_MAX = 10 * 1024 * 1024
 COLORS = tuple(f"c{i}" for i in range(1, 11))
 ROLES = ("owner", "leader", "guest")
 PURPOSES = ("decide", "gather", "poll")
-FORMATS = ("text", "choice", "confirm", "prototype")
+FORMATS = ("text", "choice", "multi", "scale", "rank", "confirm", "prototype")
+# Options Claude writes per format (amendment "Reactions and formats"); the server adds Something else.
+OPTION_COUNTS = {"choice": (2, 4), "multi": (2, 8), "rank": (3, 6)}
+OTHER_OPTION = migrate.OTHER_OPTION
+OTHER = OTHER_OPTION["id"]
 VIEWS = ("focus", "compare", "tree", "host", "prototype")
 DEVICES = ("phone", "tablet", "computer")
 BROWSERS = ("chrome", "safari", "firefox", "edge", "samsung", "in-app", "other")
-REACTIONS = ("thumbs", "heart", "idea")
+REACTIONS = ("thumbs", "down", "heart", "idea")
 REQUEST_KINDS = ("ask", "research", "explore", "design", "prototype")
 USED_TYPES = ("skill", "workflow", "mcp", "cli")
 TECH_COMFORT = ("low", "ok", "high")
@@ -120,6 +130,7 @@ THROTTLED = (
     "about-you",
     "vote",
     "react",
+    "disagree",
     "go-with",
     "notifications-read",
     "heartbeat",
@@ -129,6 +140,7 @@ SEQ_KEYS = ("P", "S", "R", "X", "M", "G", "U", "N", "A")
 QID = re.compile(r"Q[1-9][0-9]{0,5}")
 ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg|html)")
 IMAGE_ASSET = migrate.IMAGE_ASSET
+SVG_ASSET = re.compile(r"[0-9a-f]{16}\.svg")
 VARIANT = re.compile(r"v-[1-9][0-9]?")
 URL = migrate.URL
 PREF_ROUND = re.compile(r"all|[1-9][0-9]{0,3}")
@@ -222,9 +234,16 @@ def ops_error(doc):
     return schema.first_error(doc, schema.load("ops", SCHEMA_DIR))
 
 
+def wire_error(body, shape):
+    """The first error in an in-memory wire body (`heartbeat`, `presence` in wire.schema.json), or None."""
+    wire = schema.load("wire", SCHEMA_DIR)
+    return schema.first_error(body, wire["$defs"][shape], "$", wire)
+
+
 def cross_field_errors(doc):
     """The session rules the schema cannot express, each broken one as a sentence: dependsOn names
-    only earlier questions, no two review flags share because and why, a round holds at most 8, no
+    only earlier questions, no two review flags share because and why, a round holds at most 8, a
+    question holds at most one Something else option, the one with id `other` and `other: true`, no
     session secret names the owner (only the owner link does), and every link and asset name is
     one a write route takes (the schema's url and assetId patterns, which schema.py does not check)."""
     errors, seen, per_round = [], set(), {}
@@ -240,6 +259,9 @@ def cross_field_errors(doc):
         flags = [(f["because"], json.dumps(f["why"], sort_keys=True)) for f in q["needsReview"]]
         if len(set(flags)) != len(flags):
             errors.append(f"{q['id']} holds two review flags with the same because and why.")
+        others = [o for o in q["format"].get("options", []) if o.get("other") or o["id"] == OTHER]
+        if len(others) > 1 or any(not (o.get("other") and o["id"] == OTHER) for o in others):
+            errors.append(f"{q['id']} holds more than one Something else option, or one without both its id and its flag.")
         seen.add(q["id"])
         per_round[q["round"]] = per_round.get(q["round"], 0) + 1
     errors += [f"Round {n} holds {k} questions; the most is {MAX_ROUND}." for n, k in sorted(per_round.items()) if k > MAX_ROUND]
@@ -261,6 +283,8 @@ def _bad_links_and_assets(doc):
         for r in q["references"]:
             if r["kind"] == "image":
                 checks.append((IMAGE_ASSET, r["asset"], f"{at}.references.asset"))
+            elif r["kind"] == "diagram":
+                checks.append((SVG_ASSET, r["asset"], f"{at}.references.asset"))
             elif "url" in r:
                 checks.append((URL, r["url"], f"{at}.references.url"))
         bad += [where for pattern, v, where in checks if not pattern.fullmatch(v)]
@@ -584,6 +608,7 @@ class Session:
             "notifications": {},
             "mergeRequests": [],
             "aboutYou": {},
+            "disagreements": {},
             "log": {"seq": 0, "events": [], "handled": []},
         }
         s = cls(path, state, clock=clock, ids=ids, validate_writes=validate_writes, assets_dir=assets_dir, plugin_version=plugin_version)
@@ -742,7 +767,20 @@ class Session:
 
     def _present(self):
         now = self.now()
-        return {p for p, v in self._presence.items() if now - v["seen"] < PRESENCE_TTL and self._active(p)}
+        return {p for p, v in self._presence.items() if now - v["seen"] < OFFLINE_AFTER and self._active(p)}
+
+    @staticmethod
+    def _away_since(v, now):
+        """When a present person went Away, or None while active: visible, input within IDLE_AFTER, no snooze."""
+        since = []
+        if v.get("awayAt") is not None:
+            since.append(v["awayAt"])
+        if not v.get("visible", True):
+            since.append(v.get("hiddenAt", v["seen"]))
+        input_at = v.get("inputAt", v["seen"])
+        if now - input_at >= IDLE_AFTER:
+            since.append(input_at + IDLE_AFTER)
+        return min(since) if since else None
 
     # -- people ------------------------------------------------------------------------------
 
@@ -849,6 +887,7 @@ class Session:
             return True
         records = [*st["proposals"], *st["chat"], *st["requests"], *st["annotations"], *st["uploads"]]
         records += [s for lst in st["suggestions"].values() for s in lst]
+        records += [d for lst in st.get("disagreements", {}).values() for d in lst]
         return any(r["pid"] == pid for r in records)
 
     def _make_room(self):
@@ -873,21 +912,40 @@ class Session:
             self._last_write.pop((pid, route), None)
 
     def heartbeat(self, pid, body):
-        """POST /api/heartbeat: memory only; allowed while the session is ended."""
+        """POST /api/heartbeat (wire.schema.json `heartbeat`): memory only; allowed while the session
+        is ended. A beat that changes `visible` or `away` is taken at once, inside the one-a-second
+        limit, since the page sends one the moment its visibility changes."""
         body = _body(body)
-        q = body.get("q") if isinstance(body.get("q"), str) else ""
+        err = wire_error(body, "heartbeat")
+        if err:
+            m = re.match(r"\$\.(\w+)", err)
+            raise _bad(m.group(1) if m else "body", err)
+        if not math.isfinite(body.get("lastInput", 0)):  # json.loads takes Infinity and NaN
+            raise _bad("lastInput", "lastInput must be a finite number of seconds.")
+        visible = body.get("visible", True)
+        away = body.get("away") is True
         with self._lock:
             person = self._person(pid)
             now = self.now()
-            self._throttle(pid, "heartbeat", now, HEARTBEAT_INTERVAL)
-            old = self._presence.get(pid, {})
-            self._presence[pid] = {
-                "q": q[:16],
+            old = self._presence.get(pid)
+            changed = old is not None and (old.get("visible", True) != visible or (old.get("awayAt") is not None) != away)
+            if not changed:
+                self._throttle(pid, "heartbeat", now, HEARTBEAT_INTERVAL)
+            old = old or {}
+            beat = {
+                "q": (body.get("q") or "")[:16],
                 "typing": body.get("typing") is True,
                 "chatTyping": body.get("chatTyping") is True,
                 "seen": now,
+                "visible": visible,
+                "inputAt": now - body.get("lastInput", 0),
                 **({"device": old["device"]} if old.get("device") else {}),
             }
+            if not visible:
+                beat["hiddenAt"] = old.get("hiddenAt", now) if not old.get("visible", True) else now
+            if away:
+                beat["awayAt"] = old.get("awayAt", now)
+            self._presence[pid] = beat
             self._presence_rev += 1
             self._wrote(pid, "heartbeat", now)
             return {"pid": pid, "name": person["name"], "role": person["role"], "trusted": person["trusted"]}
@@ -1057,6 +1115,15 @@ class Session:
                         continue
                     into.setdefault(swap(voter), reaction)
             st["reactions"][qid] = {r: {v: x for v, x in by.items() if not own(v, r)} for r, by in fixed.items()}
+        for qid, lst in st.get("disagreements", {}).items():
+            kept = {}
+            for d in sorted(lst, key=lambda d: d["pid"] == src):  # the kept person's own reason wins
+                d = {**d, "pid": swap(d["pid"]), "card": moved.get((qid, d["card"]), d["card"])}
+                if not own(d["pid"], d["card"]):
+                    kept.setdefault((d["pid"], d["card"]), d)
+            lst[:] = sorted(kept.values(), key=lambda d: d["at"])
+        for qid in [q for q, lst in st.get("disagreements", {}).items() if not lst]:
+            st["disagreements"].pop(qid)
         for qid, lk in st["locks"].items():
             lk["by"] = swap(lk["by"])
             src_kind = lk["source"]["kind"]
@@ -1212,16 +1279,20 @@ class Session:
             raise DomainError(409, "round-sent", "This round went to Claude, so it is read-only; suggest a change instead.")
         return {"round": q["round"]} if kind == "closed" else None
 
-    def _asset(self, v, field, *, image=False):
-        pattern = IMAGE_ASSET if image else ASSET
+    def _asset(self, v, field, *, image=False, pattern=None):
+        pattern = pattern or (IMAGE_ASSET if image else ASSET)
         if not isinstance(v, str) or not pattern.fullmatch(v) or not (self.assets_dir / v).is_file():
             raise _bad(field, f"{field} must name an asset added earlier with add-asset.")
         return v
 
     def _reference(self, r, field):
-        kind = _choice(r, "kind", ("image", "quote", "link")) if isinstance(r, dict) else None
+        kind = _choice(r, "kind", ("image", "quote", "link", "diagram")) if isinstance(r, dict) else None
         if kind is None:
-            raise _bad(field, f"{field} must be an image, quote or link reference.")
+            raise _bad(field, f"{field} must be an image, quote, link or diagram reference.")
+        if kind == "diagram":
+            out = {"kind": "diagram", "asset": self._asset(r.get("asset"), f"{field}.asset", pattern=SVG_ASSET), "alt": _text(r, "alt")}
+            caption = _text(r, "caption", optional=True)
+            return {**out, **({"caption": caption} if caption else {})}
         if kind == "image":
             out = {"kind": "image", "asset": self._asset(r.get("asset"), f"{field}.asset", image=True)}
             if r.get("rect") is not None:
@@ -1296,8 +1367,13 @@ class Session:
         kind = fmt["kind"]
         if kind == "text":
             return {"kind": "text"}
-        if kind == "choice":
+        if kind in OPTION_COUNTS:
             ids = [o["id"] for o in fmt["options"]]
+            if any(o["id"] == OTHER or "other" in o for o in fmt["options"]):
+                raise _bad(f"{field}.options", "The server adds the Something else option itself; leave it out.")
+            least, most = OPTION_COUNTS[kind]
+            if not least <= len(ids) <= most:
+                raise _bad(f"{field}.options", f"A {kind} question takes {least} to {most} options.")
             if len(set(ids)) != len(ids):
                 raise _bad(f"{field}.options", "Each option needs its own id.")
             options = []
@@ -1306,7 +1382,11 @@ class Session:
                 if o.get("image") is not None:
                     opt["image"] = self._asset(o["image"], f"{field}.options[{i}].image", image=True)
                 options.append(opt)
-            return {"kind": "choice", "options": options}
+            return {"kind": kind, "options": [*options, dict(OTHER_OPTION)]}
+        if kind == "scale":
+            labels = {k: _text(fmt["labels"], k, limit=80) for k in ("min", "max")}
+            mid = _text(fmt["labels"], "mid", limit=80, optional=True)
+            return {"kind": "scale", "min": 1, "max": fmt["max"], "labels": {**labels, **({"mid": mid} if mid else {})}}
         if kind == "confirm":
             return {"kind": "confirm", "image": self._asset(fmt["image"], f"{field}.image", image=True), "rect": _rect(fmt["rect"], f"{field}.rect")}
         variants = []
@@ -1319,15 +1399,30 @@ class Session:
         return {"kind": "prototype", "variants": variants}
 
     def _options(self, q):
-        """Option id -> label for the cards a non-text question offers."""
+        """Option id -> label for the option cards a non-text question offers; Something else has no
+        card, since each person who picks it writes their own (`_has_other`)."""
         fmt = q["format"]
-        if fmt["kind"] == "choice":
-            return {o["id"]: o["label"] for o in fmt["options"]}
+        if fmt["kind"] in OPTION_COUNTS:
+            return {o["id"]: o["label"] for o in fmt["options"] if not o.get("other")}
+        if fmt["kind"] == "scale":
+            labels = fmt["labels"]
+            mid = (fmt["min"] + fmt["max"]) // 2 if (fmt["min"] + fmt["max"]) % 2 == 0 and "mid" in labels else None
+            named = {fmt["min"]: labels["min"], fmt["max"]: labels["max"], **({mid: labels["mid"]} if mid else {})}
+            return {str(v): f"{v} ({named[v]})" if v in named else str(v) for v in range(fmt["min"], fmt["max"] + 1)}
         if fmt["kind"] == "confirm":
             return {"yes": "Yes", "no": "No"}
         if fmt["kind"] == "prototype":
             return {v["id"]: v["label"] for v in fmt["variants"]}
         return {}
+
+    @staticmethod
+    def _has_other(q):
+        return any(o.get("other") for o in q["format"].get("options", []))
+
+    @staticmethod
+    def _is_other(card):
+        """Whether a person card holds that person's own Something else option."""
+        return card["kind"] == "person" and OTHER in (card.get("pick"), *card.get("picks", ()), *card.get("order", ()))
 
     def _add_question(self, q):
         st = self.state
@@ -1400,6 +1495,11 @@ class Session:
         for voter in [v for v, r in votes.items() if r == ref]:
             votes.pop(voter)
         self.state["reactions"].get(qid, {}).pop(ref, None)
+        by_q = self.state.get("disagreements", {})
+        if qid in by_q:
+            by_q[qid] = [d for d in by_q[qid] if d["card"] != ref]
+            if not by_q[qid]:
+                by_q.pop(qid)
 
     def _device_for(self, q, body):
         device = _choice(body, "device", DEVICES, optional=True)
@@ -1429,6 +1529,8 @@ class Session:
             q = self._question(body.get("qid"))
             if q["purpose"] == "poll":
                 raise DomainError(409, "wrong-purpose", "A poll takes a pick, not a written answer.")
+            if q["format"]["kind"] in ("multi", "scale", "rank"):
+                raise DomainError(400, "bad-action", "This question takes a pick; a comment goes with the pick.")
             late = self._answerable(q)
             device = self._device_for(q, body)
             qid = q["id"]
@@ -1459,23 +1561,25 @@ class Session:
                     card["late"] = late
                 if mine:
                     cards[cards.index(mine)] = card
+                    if self._is_other(mine):
+                        self._unback(qid, card_ref(card))
                 else:
                     cards.append(card)
                 if q["format"]["kind"] != "text":
-                    vote = st["votes"].get(qid, {}).get(pid)
-                    if vote and vote.startswith("o:"):
-                        st["votes"][qid].pop(pid)
+                    st["votes"].get(qid, {}).pop(pid, None)  # off a text question the vote is the pick
                 ref = card_ref(card)
                 self._notify_mentions(text, pid, f"in an answer on question {qid}", before=old_text, qid=qid)
         self._wrote(pid, "answer", now)
         return {"card": ref}
 
     def pick(self, pid, body):
-        """POST /api/pick: on choice, confirm and prototype questions the pick is the vote."""
-        option = _body(body).get("option")
-        if not isinstance(option, str):
-            raise _bad("option", "option must name one of the question's options.")
+        """POST /api/pick: the person's pick, in the field the format takes (`_parse_pick`), with an
+        optional `comment`. On choice, confirm and prototype questions the pick is the vote. Picking
+        Something else needs `other`, the person's own option, which becomes their card's text and
+        a card others can back (`vote`); scale and confirm questions take a comment instead."""
+        body = _body(body)
         comment = _text(body, "comment", empty_ok=True)
+        other = _text(body, "other", optional=True)
         view = _choice(body, "view", VIEWS)
         info = _device_info(body.get("deviceInfo"))
         now = self.now()
@@ -1483,27 +1587,38 @@ class Session:
             self._writer(pid)
             self._throttle(pid, "pick", now)
             q = self._question(body.get("qid"))
-            options = self._options(q)
-            if option and option not in options:
-                raise DomainError(400, "no-such-option", "No such option on this question.")
+            key, fields = self._parse_pick(q, body)
+            chose_other = self._is_other({"kind": "person", **fields})
+            if chose_other and not other:
+                raise DomainError(400, "empty", "Something else needs your own option, in other.", field="other")
+            if other and not chose_other:
+                raise _bad("other", "other goes only with picking Something else.")
+            if other and comment:
+                raise _bad("comment", "Your own option is your card's text; send it in other, without a comment.")
             late = self._answerable(q)
             device = self._device_for(q, body)
             qid = q["id"]
             cards = self._cards(qid)
             mine = next((c for c in cards if c["kind"] == "person" and c["pid"] == pid and c.get("device") == device), None)
-            votes = st["votes"].setdefault(qid, {})
-            if option:
-                votes[pid] = f"o:{option}"
-            elif votes.get(pid, "").startswith("o:"):
-                votes.pop(pid)
-            if not option and not comment:
+            was_other = mine is not None and self._is_other(mine)
+            if key == "pick":
+                votes = st["votes"].setdefault(qid, {})
+                if fields and not chose_other:
+                    votes[pid] = f"o:{fields['pick']}"
+                elif q["format"]["kind"] != "text" or votes.get(pid, "").startswith("o:"):
+                    votes.pop(pid, None)  # off a text question every vote is the pick
+            text = other or comment
+            if not fields and not text:
                 if mine:
                     self._drop_card(qid, mine)
             else:
-                card = {"kind": "person", "pid": pid, **({"device": device} if device else {}), "text": comment, "at": now}
-                if option:
-                    card["pick"] = option
+                card = {"kind": "person", "pid": pid, **({"device": device} if device else {}), "text": text, "at": now, **fields}
                 card["cites"] = mine["cites"] if mine else []
+                backers = len(self._votes_on(qid, card_ref(card))) if was_other else 0
+                if was_other and chose_other and mine.get("editedAfterVotes"):
+                    card["editedAfterVotes"] = mine["editedAfterVotes"]
+                if backers and chose_other and mine["text"] != text:
+                    card["editedAfterVotes"] = backers
                 if info or (mine and mine.get("deviceInfo")):
                     card["deviceInfo"] = info or mine["deviceInfo"]
                 card["view"] = view
@@ -1513,10 +1628,54 @@ class Session:
                     cards[cards.index(mine)] = card
                 else:
                     cards.append(card)
-                if comment:
-                    self._notify_mentions(comment, pid, f"in an answer on question {qid}", before=mine["text"] if mine else "", qid=qid)
+                if was_other and not chose_other:
+                    self._unback(qid, card_ref(card))
+                if text:
+                    self._notify_mentions(text, pid, f"in an answer on question {qid}", before=mine["text"] if mine else "", qid=qid)
         self._wrote(pid, "pick", now)
-        return {"pick": option or None}
+        return {key: fields.get(key)}
+
+    def _parse_pick(self, q, body):
+        """(the field the format takes, the card fields it sets: {} for no pick). choice, confirm and
+        prototype take `option` ("" for none); multi takes `options`, a subset of at least one; scale
+        takes `value`, a whole number in its range; rank takes `order`, every option once (Something
+        else may join it). Something else is `other` where the question has one."""
+        kind = q["format"]["kind"]
+        known = set(self._options(q)) | ({OTHER} if self._has_other(q) else set())
+        if kind == "scale":
+            v = body.get("value")
+            fmt = q["format"]
+            if v is not None and not (_is_int(v) and fmt["min"] <= v <= fmt["max"]):
+                raise _bad("value", f"value must be a whole number from {fmt['min']} to {fmt['max']}.")
+            return "value", ({} if v is None else {"value": v})
+        if kind in ("multi", "rank"):
+            key = "options" if kind == "multi" else "order"
+            ids = body.get(key)
+            if ids is None or ids == []:
+                return ("picks" if kind == "multi" else "order"), {}
+            if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
+                raise _bad(key, f"{key} must list option ids.")
+            if len(set(ids)) != len(ids):
+                raise _bad(key, f"{key} names an option twice.")
+            if any(i not in known for i in ids):
+                raise DomainError(400, "no-such-option", "No such option on this question.")
+            if kind == "multi":
+                return "picks", {"picks": [i for i in [*self._options(q), OTHER] if i in ids]}
+            if {i for i in ids if i != OTHER} != set(self._options(q)):
+                raise _bad("order", "A rank needs a full order: every option once.")
+            return "order", {"order": list(ids)}
+        option = body.get("option")
+        if not isinstance(option, str):
+            raise _bad("option", "option must name one of the question's options.")
+        if option and option not in known:
+            raise DomainError(400, "no-such-option", "No such option on this question.")
+        return "pick", ({"pick": option} if option else {})
+
+    def _unback(self, qid, ref):
+        """Drop every vote for a card that no longer holds its author's Something else option."""
+        votes = self.state["votes"].get(qid, {})
+        for voter in [v for v, r in votes.items() if r == ref]:
+            votes.pop(voter)
 
     def vote(self, pid, body):
         """POST /api/vote: `{qid, card, on}` votes for an answer card, `{qid, suggestion, on}` for a suggestion."""
@@ -1525,31 +1684,39 @@ class Session:
             return self._vote_suggestion(pid, body, on)
         ref = _ident(body, "card")
         with self._write_as(pid, "vote") as st:
-            q = self._card_vote_question(body)
-            card = self._card(q["id"], ref)
+            q, card = self._card_vote_question(body, ref, backing=True)
             if ref_author(ref) == pid:
                 raise DomainError(400, "cannot-vote-own", "You cannot vote for your own answer.")
-            votes = st["votes"].setdefault(q["id"], {})
+            qid = q["id"]
+            votes = st["votes"].setdefault(qid, {})
             moved = False
             if on:
                 moved = votes.get(pid) not in (None, ref)
+                if q["format"]["kind"] == "choice":  # one pick: backing someone's own option moves it
+                    for mine in [c for c in st["cards"][qid] if c["kind"] == "person" and c["pid"] == pid]:
+                        if self._is_other(mine) or not mine["text"]:
+                            self._drop_card(qid, mine)
+                        else:
+                            mine.pop("pick", None)
                 if votes.get(pid) != ref:
                     votes[pid] = ref
-                    self._notify_vote(q["id"], card, pid)
+                    self._notify_vote(qid, card, pid)
             elif votes.get(pid) == ref:
                 votes.pop(pid)
             return {"moved": moved}
 
-    def _card_vote_question(self, body):
+    def _card_vote_question(self, body, ref, *, backing=False):
+        """(question, card) for a vote on an answer card. Off a text question only `backing` a
+        person's own Something else option is a vote; picking an option is the vote there."""
         if not self.state["session"]["settings"]["voting"]:
             raise DomainError(403, "voting-off", "Voting is off in this session.")
         q = self._question(body.get("qid"))
         if q["purpose"] == "gather":
             raise DomainError(409, "wrong-purpose", "This question gathers answers: react instead of voting.")
-        if q["format"]["kind"] != "text":
+        if q["format"]["kind"] != "text" and not (backing and self._is_other(self._card(q["id"], ref))):
             raise DomainError(400, "bad-action", "On this question picking an option is the vote.")
         self._answerable(q)
-        return q
+        return q, self._card(q["id"], ref)
 
     def _notify_vote(self, qid, card, actor):
         if card["kind"] != "person":
@@ -1590,9 +1757,8 @@ class Session:
         """POST /api/go-with: withdraw one's own answer and move one's vote to `card`, in one action."""
         ref = _ident(body, "card")
         with self._write_as(pid, "go-with") as st:
-            q = self._card_vote_question(body)
+            q, card = self._card_vote_question(body, ref)
             qid = q["id"]
-            card = self._card(qid, ref)
             if ref_author(ref) == pid:
                 raise DomainError(400, "cannot-vote-own", "That is your own answer.")
             for mine in [c for c in st["cards"][qid] if c["kind"] == "person" and c["pid"] == pid]:
@@ -1605,7 +1771,8 @@ class Session:
             return {"moved": moved}
 
     def react(self, pid, body):
-        """POST /api/react: thumbs, heart or idea on an answer of a gather question; null clears."""
+        """POST /api/react: thumbs, down, heart or idea on an answer of a gather question; null clears.
+        Decide questions take Disagree instead (`disagree`)."""
         ref = _ident(body, "card")
         reaction = _body(body).get("reaction")
         if reaction is not None and reaction not in REACTIONS:
@@ -1630,16 +1797,81 @@ class Session:
                 st["reactions"].pop(q["id"])
             return {"reaction": reaction}
 
+    def disagree(self, pid, body):
+        """POST /api/disagree: `{qid, card, reason}` records why the person disagrees with one answer
+        of a decide question (one per person per answer; a new reason replaces theirs), `on: false`
+        takes it back. The reason is 1..200 characters. Vote counts never change; the owner can
+        still Lock this one."""
+        ref = _ident(body, "card")
+        on = _bool(body, "on", default=True)
+        reason = _text(body, "reason", limit=MAX_NOTE) if on else None
+        with self._write_as(pid, "disagree") as st:
+            q = self._question(body.get("qid"))
+            if q["purpose"] != "decide":
+                raise DomainError(409, "wrong-purpose", "Disagree is for decide questions; react or pick instead.")
+            self._answerable(q)
+            self._card(q["id"], ref)
+            if ref_author(ref) == pid:
+                raise DomainError(400, "cannot-vote-own", "You cannot disagree with your own answer.")
+            by_q = st.setdefault("disagreements", {})
+            kept = [d for d in by_q.get(q["id"], []) if not (d["pid"] == pid and d["card"] == ref)]
+            if on:
+                kept.append({"pid": pid, "card": ref, "reason": reason, "at": self.now()})
+            if kept:
+                by_q[q["id"]] = kept
+            else:
+                by_q.pop(q["id"], None)
+            return {"disagree": on}
+
     # -- locks and suggestions ---------------------------------------------------------------
 
     def _tally(self, qid):
-        """Card ref -> vote count, counting active voters on cards that still exist."""
-        refs = [card_ref(c) for c in self.state["cards"].get(qid, []) if c["kind"] != "person" or self._active(c["pid"])]
-        tally = dict.fromkeys(refs, 0)
+        """Card ref -> support, from active people on cards that still exist: votes; a person's own
+        Something else option counts its author; multi counts each option a person picked, scale
+        each value, rank Borda points (n options: first n-1, last 0). A rank tallies its option
+        cards only, since Borda points and votes do not compare."""
+        kind = self._question(qid)["format"]["kind"]
+        cards = [c for c in self.state["cards"].get(qid, []) if c["kind"] != "person" or self._active(c["pid"])]
+        tally = dict.fromkeys(map(card_ref, cards), 0)
         for voter, ref in self.state["votes"].get(qid, {}).items():
             if ref in tally and self._active(voter):
                 tally[ref] += 1
+        for c in cards:
+            if c["kind"] != "person":
+                continue
+            if self._is_other(c):
+                tally[card_ref(c)] += 1
+            if kind == "multi":
+                points = {o: 1 for o in c.get("picks", ())}
+            elif kind == "scale":
+                points = {str(c["value"]): 1} if "value" in c else {}
+            elif kind == "rank":
+                ranked = [o for o in c.get("order", ()) if o != OTHER]
+                points = {o: len(ranked) - 1 - i for i, o in enumerate(ranked)}
+            else:
+                points = {}
+            for o, n in points.items():
+                if f"o:{o}" in tally:
+                    tally[f"o:{o}"] += n
+        if kind == "rank":
+            tally = {r: n for r, n in tally.items() if r.startswith("o:")}
         return tally
+
+    def _backs(self, q, pid, ref):
+        """Whether pid supports card `ref` (for sign-off): wrote it, voted for it, picked it (multi),
+        chose its value (scale) or ranked it first (rank)."""
+        if ref_author(ref) == pid or self.state["votes"].get(q["id"], {}).get(pid) == ref:
+            return True
+        if not ref.startswith("o:"):
+            return False
+        o, kind = ref[2:], q["format"]["kind"]
+        for c in self.state["cards"].get(q["id"], []):
+            if c["kind"] != "person" or c["pid"] != pid:
+                continue
+            ranked = [x for x in c.get("order", ()) if x != OTHER]
+            if (kind == "multi" and o in c.get("picks", ())) or (kind == "scale" and str(c.get("value")) == o) or (kind == "rank" and ranked[:1] == [o]):
+                return True
+        return False
 
     def _card_text(self, q, ref):
         card = self._card(q["id"], ref)
@@ -1698,8 +1930,7 @@ class Session:
                 target = tied[0]
             if st["session"]["settings"]["signoff"] and not (pid == HOST and ref is not None):
                 here = self._present()
-                votes = st["votes"].get(qid, {})
-                agree = {p for p in here if ref_author(target) == p or votes.get(p) == target}
+                agree = {p for p in here if self._backs(q, p, target)}
                 if agree != here:
                     raise DomainError(409, "not-agreed", "Not everyone here agrees yet.", agree=len(agree), total=len(here))
             text = self._card_text(q, target)
@@ -2304,13 +2535,17 @@ class Session:
             if q["round"] != n:
                 continue
             entry = {"id": q["id"], "text": q["text"], **({"scope": q["scope"]} if q.get("scope") else {})}
-            entry.update(purpose=q["purpose"], format=q["format"]["kind"], outcome=self._outcome(q, by))
+            entry.update(purpose=q["purpose"], format=q["format"]["kind"])
+            disagreements = self._digest_disagreements(q, by)
+            if disagreements:
+                entry["disagreements"] = disagreements
+            entry["outcome"] = self._outcome(q, by)
             questions.append(entry)
         late = []
         for q in st["questions"]:
             for c in st["cards"].get(q["id"], []):
                 if c["kind"] == "person" and c.get("late") and c["at"] > prev and self._active(c["pid"]):
-                    late.append({"id": q["id"], "round": c["late"]["round"], "text": c["text"] or self._options(q).get(c.get("pick"), ""), **by(c["pid"])})
+                    late.append({"id": q["id"], "round": c["late"]["round"], "text": self._said(q, c), **by(c["pid"])})
         review = []
         for q in st["questions"]:
             newest = {}
@@ -2354,6 +2589,32 @@ class Session:
             ]
         return digest
 
+    def _said(self, q, c):
+        """One line for what a person card says: its text, else its pick, picks, value or order."""
+        labels = {**self._options(q), OTHER: OTHER_OPTION["label"]}
+        if c["text"]:
+            return c["text"]
+        if "picks" in c:
+            return ", ".join(labels[o] for o in c["picks"])
+        if "order" in c:
+            return " > ".join(labels[o] for o in c["order"])
+        if "value" in c:
+            return labels[str(c["value"])]
+        return labels.get(c.get("pick"), "")
+
+    def _digest_disagreements(self, q, by):
+        """Who disagreed with which answer of q and why, while that answer and its disagreer remain."""
+        out = []
+        for d in self.state.get("disagreements", {}).get(q["id"], []):
+            if not self._active(d["pid"]):
+                continue
+            try:
+                text = self._card_text(q, d["card"])
+            except DomainError:
+                continue
+            out.append({"text": text, "reason": d["reason"], **by(d["pid"])})
+        return out
+
     def _digest_people(self, n):
         st = self.state
         qids = {q["id"] for q in st["questions"] if q["round"] == n}
@@ -2376,9 +2637,13 @@ class Session:
         st = self.state
         qid = q["id"]
         lk = st["locks"].get(qid)
+        if q["format"]["kind"] in ("multi", "scale", "rank") and not (lk and q["purpose"] != "poll"):
+            return self._format_outcome(q, by, closed=lk is not None)
         if q["purpose"] == "poll":
             tally = self._tally(qid)
             counts = [{"option": label, "votes": tally.get(f"o:{o}", 0)} for o, label in self._options(q).items()]
+            for c in self._own_options(q):
+                counts.append({"option": c["text"], "votes": tally[card_ref(c)], "other": True, **by(c["pid"])})
             return {"kind": "poll", "closed": lk is not None, "counts": counts}
         if lk:
             src = lk["source"]
@@ -2421,12 +2686,54 @@ class Session:
                 source = "claude-rec" if c["key"] == "rec" else "claude-alt"
             else:
                 source = "option"
-            ranked.append(((-tally[ref], ref != "c:rec", c.get("at", 0.0), i), {"text": self._card_text(q, ref), "votes": tally[ref], "source": source, **(by(c["pid"]) if c["kind"] == "person" else {})}))
+            entry = {"text": self._card_text(q, ref), "votes": tally[ref], "source": source}
+            if self._is_other(c):
+                entry["other"] = True
+            ranked.append(((-tally[ref], ref != "c:rec", c.get("at", 0.0), i), {**entry, **(by(c["pid"]) if c["kind"] == "person" else {})}))
         if not ranked:
             return {"kind": "unanswered"}
         ranked.sort(key=lambda pair: pair[0])
         keep = 3 if q["format"]["kind"] == "text" else 6
         return {"kind": "open", "top": [entry for _, entry in ranked[:keep]]}
+
+    def _own_options(self, q):
+        """Active people's own Something else options on q, as their cards."""
+        return [c for c in self.state["cards"].get(q["id"], []) if self._is_other(c) and self._active(c["pid"])]
+
+    def _format_outcome(self, q, by, *, closed):
+        """The digest outcome of a multi, scale or rank question: counts per option (multi), counts
+        per value with the mean and median (scale), Borda totals and the full orders given (rank);
+        each with people's own options, their backers (author included), and the comments."""
+        qid, fmt = q["id"], q["format"]
+        cards = [c for c in self.state["cards"].get(qid, []) if c["kind"] == "person" and self._active(c["pid"])]
+        labels = self._options(q)
+        others = [{"text": c["text"], "backers": len(self._votes_on(qid, card_ref(c))) + 1, **by(c["pid"])} for c in self._own_options(q)]
+        comments = [{"text": c["text"], **by(c["pid"])} for c in cards if c["text"] and not self._is_other(c)]
+        if fmt["kind"] == "multi":
+            picked = [c["picks"] for c in cards if c.get("picks")]
+            counts = [{"option": label, "picks": sum(1 for p in picked if o in p)} for o, label in labels.items()]
+            out = {"kind": "multi", "closed": closed, "people": len(picked), "counts": counts, "others": others, "comments": comments}
+        elif fmt["kind"] == "scale":
+            values = sorted(c["value"] for c in cards if "value" in c)
+            out = {"kind": "scale", "closed": closed, "people": len(values), "min": fmt["min"], "max": fmt["max"], "labels": dict(fmt["labels"])}
+            out["counts"] = [{"value": v, "people": values.count(v)} for v in range(fmt["min"], fmt["max"] + 1)]
+            out["mean"] = round(statistics.fmean(values), 2) if values else None
+            out["median"] = statistics.median(values) if values else None
+            out["comments"] = comments
+        else:
+            ballots = [tuple(o for o in c["order"] if o != OTHER) for c in cards if c.get("order")]
+            points = dict.fromkeys(labels, 0)
+            for b in ballots:
+                for i, o in enumerate(b):
+                    points[o] += len(b) - 1 - i
+            ids = list(labels)
+            borda = [{"option": labels[o], "points": points[o]} for o in sorted(ids, key=lambda o: (-points[o], ids.index(o)))]
+            given = collections.Counter(ballots)
+            orders = [{"order": [labels[o] for o in b], "people": n} for b, n in sorted(given.items(), key=lambda kv: (-kv[1], [ids.index(o) for o in kv[0]]))]
+            out = {"kind": "rank", "closed": closed, "people": len(ballots), "borda": borda, "orders": orders, "others": others, "comments": comments}
+        if not out["people"] and not others and not comments:
+            return {"kind": "unanswered"}
+        return out
 
     # -- ops ---------------------------------------------------------------------------------
 
@@ -2836,6 +3143,7 @@ class Session:
             "cards": cards,
             "locks": st["locks"],
             "suggestions": suggestions,
+            "disagreements": {q: [d for d in lst if d["pid"] in active] for q, lst in st.get("disagreements", {}).items()},
             "results": {q: [r for r in lst if r["published"]] for q, lst in st["results"].items()},
             "chat": [m for m in st["chat"] if m["pid"] in active],
             "annotations": [a for a in st["annotations"] if a["pid"] in active],
@@ -2872,11 +3180,11 @@ class Session:
                 snap["people"] = [{**p, "name": initials(p["name"]) if mode == "initials" else "Someone"} for p in base["people"]]
                 snap["cards"] = {q: [{**c, "votes": [v if v == pid else "" for v in c["votes"]]} for c in lst] for q, lst in base["cards"].items()}
                 snap["suggestions"] = {q: [{**s, "votes": [v if v == pid else "" for v in s["votes"]]} for s in lst] for q, lst in base["suggestions"].items()}
+                snap["disagreements"] = {q: [{**d, "pid": d["pid"] if d["pid"] == pid else ""} for d in lst] for q, lst in base["disagreements"].items()}
             now = self.now()
             snap["serverTime"] = now
-            snap["presence"] = [
-                {"pid": p, "q": v["q"], "typing": v["typing"], "chatTyping": v["chatTyping"]} for p, v in self._presence.items() if p in self._present()
-            ]
+            here = self._present()
+            snap["presence"] = [self._presence_entry(p, v, now) for p, v in self._presence.items() if p in here]
             notes = st["notifications"].get(pid, [])
             snap["me"] = {
                 "pid": pid,
@@ -2912,6 +3220,13 @@ class Session:
                     for qid, lst in st["cards"].items()
                 }
             return snap
+
+    def _presence_entry(self, pid, v, now):
+        """One wire.schema.json `presence` entry; typing flags last TYPING_TTL after the beat that set them."""
+        fresh = now - v["seen"] < TYPING_TTL
+        since = self._away_since(v, now)
+        entry = {"pid": pid, "q": v["q"], "typing": v["typing"] and fresh, "chatTyping": v["chatTyping"] and fresh}
+        return {**entry, "state": "active"} if since is None else {**entry, "state": "away", "since": since}
 
     def _behind(self):
         """Moderators only: per active guest, how many open questions of the current round they have not touched."""

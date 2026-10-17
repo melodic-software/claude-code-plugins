@@ -33,6 +33,7 @@ MIN_OWNER_TOKEN = 16  # the prototype's owner token is token_urlsafe(12): 16 cha
 MAX_URL = 2000
 URL = re.compile(r"https?://\S+", re.IGNORECASE)  # a link, as every v1 write route takes one
 IMAGE_ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg)")  # an image asset's file name
+OTHER_OPTION = {"id": "other", "label": "Something else…", "other": True}  # the server adds it to every choice question
 
 
 class MigrationError(ValueError):
@@ -265,6 +266,7 @@ class _V0:
             for o in options:
                 image = self.image(o["image"], "questions.options.image") if "image" in o else None
                 q["format"]["options"].append({"id": o.get("id"), "label": _str(o.get("label"), 2000), **({"image": image} if image else {})})
+            q["format"]["options"].append(dict(OTHER_OPTION))
         elif fmt_kind == "confirm" and "image" in raw and self.image(raw["image"], "questions.image") and isinstance(raw.get("rect"), dict):
             q["format"] = {"kind": "confirm", "image": raw["image"], "rect": {k: float(raw["rect"].get(k, 0)) for k in ("x", "y", "w", "h")}}
         else:
@@ -313,7 +315,7 @@ class _V0:
                 cards.append({"kind": "claude", "key": a["key"], "at": _ts(_dict(by.get(key)).get("ts"), self.now)})
         fmt = q["format"]
         if fmt["kind"] == "choice":
-            cards += [{"kind": "option", "option": o["id"]} for o in fmt["options"]]
+            cards += [{"kind": "option", "option": o["id"]} for o in fmt["options"] if not o.get("other")]
         elif fmt["kind"] == "confirm":
             cards += [{"kind": "option", "option": "yes"}, {"kind": "option", "option": "no"}]
         people = sorted(

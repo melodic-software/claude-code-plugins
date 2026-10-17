@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state",
   "title": "Shared interview session file",
-  "description": "state.json of one shared interview session. Sum types are objects tagged by a one-value `kind` enum. Maps keyed by person id (`pid`), question id (`Q<N>`) or card ref are objects. Times (`at`, `Ts`) are float epoch seconds from the server clock. Rules that compare fields (dependsOn names earlier ids, one review flag per because and why, at most 8 questions per round, one vote per person) are checked by session.py, not here.",
+  "description": "state.json of one shared interview session. Sum types are objects tagged by a one-value `kind` enum. Maps keyed by person id (`pid`), question id (`Q<N>`) or card ref are objects. Times (`at`, `Ts`) are float epoch seconds from the server clock. Rules that compare fields (dependsOn names earlier ids, one review flag per because and why, at most 8 questions per round, one vote per person, at most one `other` option per question, how many options each format takes from Claude) are checked by session.py, not here. `disagreements` is optional: a file written before it existed has none.",
   "type": "object",
   "required": [
     "schemaVersion", "pluginVersion", "writtenBy", "rev", "session", "people", "credentials", "rounds",
@@ -46,6 +46,7 @@
     },
     "mergeRequests": {"type": "array", "items": {"$ref": "#/$defs/mergeRequest"}},
     "aboutYou": {"type": "object", "additionalProperties": {"$ref": "#/$defs/aboutYou"}},
+    "disagreements": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/disagreement"}}},
     "log": {"$ref": "#/$defs/eventLog"}
   },
   "$defs": {
@@ -58,7 +59,8 @@
     "url": {"type": "string", "maxLength": 2000, "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://\\S+$"},
     "assetId": {"type": "string", "pattern": "^[0-9a-f]{16}\\.(png|jpg|webp|svg)$"},
     "cardRef": {"type": "string"},
-    "reaction": {"enum": ["thumbs", "heart", "idea"]},
+    "svgAssetId": {"type": "string", "pattern": "^[0-9a-f]{16}\\.svg$"},
+    "reaction": {"enum": ["thumbs", "down", "heart", "idea"]},
     "rect": {
       "type": "object",
       "required": ["x", "y", "w", "h"],
@@ -231,13 +233,15 @@
     "purpose": {"enum": ["decide", "gather", "poll"]},
     "answerScope": {"enum": ["person", "device"]},
     "option": {
+      "description": "`other: true` marks the built-in Something else option (id `other`) the server adds to choice, multi and rank questions; Claude never writes it.",
       "type": "object",
       "required": ["id", "label"],
       "additionalProperties": false,
       "properties": {
-        "id": {"enum": ["opt-1", "opt-2", "opt-3", "opt-4"]},
+        "id": {"enum": ["opt-1", "opt-2", "opt-3", "opt-4", "opt-5", "opt-6", "opt-7", "opt-8", "other"]},
         "label": {"$ref": "#/$defs/text"},
-        "image": {"$ref": "#/$defs/assetId"}
+        "image": {"$ref": "#/$defs/assetId"},
+        "other": {"enum": [true]}
       }
     },
     "variant": {
@@ -255,7 +259,41 @@
           "additionalProperties": false,
           "properties": {
             "kind": {"enum": ["choice"]},
-            "options": {"type": "array", "minItems": 2, "maxItems": 4, "items": {"$ref": "#/$defs/option"}}
+            "options": {"type": "array", "minItems": 2, "maxItems": 5, "items": {"$ref": "#/$defs/option"}}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "options"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["multi"]},
+            "options": {"type": "array", "minItems": 2, "maxItems": 9, "items": {"$ref": "#/$defs/option"}}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "min", "max", "labels"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["scale"]},
+            "min": {"enum": [1]},
+            "max": {"type": "integer", "minimum": 3, "maximum": 10},
+            "labels": {
+              "type": "object",
+              "required": ["min", "max"],
+              "additionalProperties": false,
+              "properties": {"min": {"$ref": "#/$defs/scaleLabel"}, "max": {"$ref": "#/$defs/scaleLabel"}, "mid": {"$ref": "#/$defs/scaleLabel"}}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "options"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["rank"]},
+            "options": {"type": "array", "minItems": 3, "maxItems": 7, "items": {"$ref": "#/$defs/option"}}
           }
         },
         {
@@ -304,9 +342,21 @@
           "required": ["kind", "url"],
           "additionalProperties": false,
           "properties": {"kind": {"enum": ["link"]}, "url": {"$ref": "#/$defs/url"}, "title": {"type": "string"}}
+        },
+        {
+          "type": "object",
+          "required": ["kind", "asset", "alt"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["diagram"]},
+            "asset": {"$ref": "#/$defs/svgAssetId"},
+            "alt": {"$ref": "#/$defs/text"},
+            "caption": {"$ref": "#/$defs/text"}
+          }
         }
       ]
     },
+    "scaleLabel": {"type": "string", "maxLength": 80},
     "references": {"type": "array", "maxItems": 8, "items": {"$ref": "#/$defs/reference"}},
     "origin": {
       "oneOf": [
@@ -422,6 +472,9 @@
             "text": {"$ref": "#/$defs/text"},
             "at": {"$ref": "#/$defs/ts"},
             "pick": {"type": "string"},
+            "picks": {"type": "array", "minItems": 1, "maxItems": 9, "items": {"type": "string"}},
+            "value": {"type": "integer", "minimum": 1, "maximum": 10},
+            "order": {"type": "array", "minItems": 3, "maxItems": 7, "items": {"type": "string"}},
             "cites": {"type": "array", "items": {"type": "string"}},
             "editedAfterVotes": {"type": "integer", "minimum": 0},
             "deviceInfo": {"$ref": "#/$defs/deviceInfo"},
@@ -447,6 +500,12 @@
           "properties": {"kind": {"enum": ["option"]}, "option": {"type": "string"}}
         }
       ]
+    },
+    "disagreement": {
+      "type": "object",
+      "required": ["pid", "card", "reason", "at"],
+      "additionalProperties": false,
+      "properties": {"pid": {"$ref": "#/$defs/pid"}, "card": {"$ref": "#/$defs/cardRef"}, "reason": {"$ref": "#/$defs/note"}, "at": {"$ref": "#/$defs/ts"}}
     },
     "lock": {
       "type": "object",

@@ -119,7 +119,7 @@ against `<plugin-root>/shared/schema/ops.schema.json` before any lands, and all 
 | `ack-round` | `round` | Tell the page Claude has the round |
 | `result` | `qid`, `request`, `kind`, `used`, `why`, `summary`, `sources`, `report` | Attach a request's result |
 | `fail-request` | `request`, `reason` | A request that cannot be done |
-| `add-reference`, `remove-reference` | `qid`, `reference` / `index` | A screenshot, quoted excerpt or link on a question |
+| `add-reference`, `remove-reference` | `qid`, `reference` / `index` | A screenshot, diagram, quoted excerpt or link on a question |
 | `add-asset` | `path`, `as`, `scale` | Copy an image or HTML file from the data dir (save captures in `<data_dir>/staging/`) into the session; returns its id |
 | `make-question-from` | `proposal`, `question` | The owner asked in the terminal to turn a proposal into a question |
 | `handle` | `seqs` | Mark events handled |
@@ -184,9 +184,14 @@ same register rows and tools as any round, in the same wake:
 |---|---|
 | `locked` | `answered`; the locked text as the resolution, led by `free-text:` when a person wrote it (`source: person`, `edited` or `suggestion`) |
 | `poll`, closed | `answered` with the winning option and the counts |
-| `gathered` | `answered` with a summary of the answers and their reactions, led by `free-text:` |
+| `gathered` | `answered` with a summary of the answers and their reactions (agreement and disagreement per answer), led by `free-text:` |
+| `multi`, `scale`, `rank` | as `poll` when `closed`, else as `open`; the resolution carries the picks per option, the mean and median, or the Borda totals |
 | `open` | stays `open`; note the top answers in the resolution and carry it to the next round |
 | `unanswered` | stays `open`; carry it to the next round |
+
+An entry in `others` or a `top` answer marked `other` is a person's own option: quote it with
+`free-text:` and weigh it with its backers. Each `disagreements` entry goes in the resolution
+beside the answer it names; it changes no count.
 
 A `needsReview` entry means an answer later questions rest on changed: recompute the frontier as for
 a reshaping answer and re-ask what it invalidates. `late` answers count with this round. The digest
@@ -232,7 +237,9 @@ A question about something visible names its scope ([`question-shape.md`](questi
 shows it as it is now: capture the view fresh at publish time at 2x with whatever capture tool this
 session has (a browser automation skill, a screenshot CLI), save it in `<data_dir>/staging/` (the
 server makes it private; `add-asset` refuses the system temp dir and any hidden folder), `add-asset`
-it with `scale: 2` in one apply, then use its id in the next.
+it with `scale: 2` in one apply, then use its id in the next. A diagram or chart is an SVG saved
+the same way and shown as a `diagram` reference with its `alt` text
+([`question-shape.md`](question-shape.md)); the page loads no chart library.
 
 ## Restart, status and several sessions
 

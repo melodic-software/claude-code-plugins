@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://melodic-software.github.io/claude-code-plugins/planning/shared/wire",
+  "title": "Shared interview session wire shapes kept only in memory",
+  "description": "Presence never reaches state.json. `heartbeat` is the POST /api/heartbeat body: `visible` is the Page Visibility state, `lastInput` the seconds since the person's last key, pointer or touch, and `away` is true while the person's own Away (the snooze) lasts; the page drops it on their next input. `presence` is one entry of the snapshot's `presence` list: `active`, or `away` with `since`, the server time the person went away. Someone with no heartbeat for 90 s is offline and absent from the list.",
+  "$defs": {
+    "heartbeat": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "q": {"type": ["string", "null"], "maxLength": 100},
+        "typing": {"type": "boolean"},
+        "chatTyping": {"type": "boolean"},
+        "visible": {"type": "boolean"},
+        "lastInput": {"type": "number", "minimum": 0},
+        "away": {"type": "boolean"}
+      }
+    },
+    "presence": {
+      "type": "object",
+      "required": ["pid", "q", "typing", "chatTyping", "state"],
+      "additionalProperties": false,
+      "properties": {
+        "pid": {"type": "string"},
+        "q": {"type": "string"},
+        "typing": {"type": "boolean"},
+        "chatTyping": {"type": "boolean"},
+        "state": {"enum": ["active", "away"]},
+        "since": {"type": "number"}
+      }
+    }
+  }
+}
