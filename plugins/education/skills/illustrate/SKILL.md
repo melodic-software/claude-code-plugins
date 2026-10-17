@@ -85,19 +85,20 @@ installed, say the STE register is unavailable and write in the plain register.
 
 ## Step 3. Build the record and the page
 
-Pick a short slug from lowercase letters, digits and hyphens only, since it lands in the command
-below. Write the model with the Write tool to `${CLAUDE_PLUGIN_DATA}/illustrate/models/<slug>.json`,
-then pass that path:
+Add a `slug` to the model: a short name of lowercase letters, digits and hyphens only. Write the
+model with the Write tool to `${CLAUDE_PLUGIN_DATA}/illustrate/model.json`, then run the fixed
+command. The builder checks the slug (exit 2 when it is not `^[a-z0-9-]+$`) and derives the record
+path `records/<slug>.md` and the page path `views/<slug>.html` under the output directory itself:
 
 ```bash
 "${CLAUDE_SKILL_DIR}/scripts/build-explainer.mjs" \
-  --record "${CLAUDE_PLUGIN_DATA}/illustrate/records/<slug>.md" \
-  --page "${CLAUDE_PLUGIN_DATA}/illustrate/views/<slug>.html" \
-  --model "${CLAUDE_PLUGIN_DATA}/illustrate/models/<slug>.json"
+  --out-dir "${CLAUDE_PLUGIN_DATA}/illustrate" \
+  --model "${CLAUDE_PLUGIN_DATA}/illustrate/model.json"
 ```
 
-The model goes in a file, not inline, so no topic text becomes part of a shell command. Omit
-`--page` for the `markdown` format. The builder fills the checked-in template
+The model goes in a file and the paths come from the builder, so no topic text or model-chosen
+name becomes part of a shell command. Add `--format markdown` for the `markdown` format, which
+writes the record alone. The builder fills the checked-in template
 (`templates/explainer.html`) with the model as escaped JSON data, so the page is safe whatever the
 topic's source. Do not hand-write the HTML, do not pre-escape values, and do not add script. When
 the user dislikes the look, say the look is fixed rather than hand-writing a replacement page.
