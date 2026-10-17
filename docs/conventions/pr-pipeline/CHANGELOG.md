@@ -1,5 +1,12 @@
 # Changelog for the PR pipeline convention
 
+## 2.5.0 - 2026-10-17
+
+A daily `maintenance` producer, the lane sweep ([README.md, The lane sweep](README.md#the-lane-sweep)):
+a collect script, one read-only model leg per unit, and a file script that checks every quoted line
+against main, de-duplicates by fingerprint, and files at most 5 `needs-triage` issues with the job's
+own token. It labels nothing `agent-ready`. `version` stays 2.
+
 ## 2.4.0 - 2026-10-17
 
 `models.routes` and `resolve-config`'s `model-route` take a fifth run route, `summarize-reuse`

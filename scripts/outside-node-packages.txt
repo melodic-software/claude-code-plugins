@@ -11,6 +11,7 @@
 .github/actions/report-check-run
 .github/actions/request-lane-token
 .github/actions/select-trusted-text
+.github/scripts/maintenance-audit-lane-runs
 .github/scripts/pr-unblock
 .github/scripts/pr-verify
 .github/scripts/work-unblock

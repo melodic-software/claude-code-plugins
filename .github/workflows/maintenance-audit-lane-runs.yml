@@ -1,0 +1,300 @@
+name: maintenance-audit-lane-runs
+
+# The lane sweep: once a day, audits the last 24 hours of this repository's
+# lane runs and open pull requests and files what it finds as issues labeled
+# needs-triage. It never labels an issue agent-ready, so nothing it files
+# starts work. docs/conventions/pr-pipeline/README.md, "The lane sweep", has
+# the rules.
+#
+# Three jobs:
+# - collect: a script with the job's read-only token writes one data file per
+#   unit of model work (at most 8) within a budget of 350 REST calls.
+# - judge: one model leg per unit. Read permissions only; it reads its unit
+#   file and the main checkout with Read, Grep and Glob, has no shell, and
+#   returns structured findings. CI logs and titles reach it as data.
+# - file: a script with no model checks every quoted line against main,
+#   de-duplicates by fingerprint against issues earlier sweeps filed, and files
+#   at most 5 issues, within 50 calls. It writes with the job's own token, so
+#   its issues come from github-actions[bot] and start no workflow.
+#
+# How to stop it: set the organization or repository lanes kill-switch
+# variable to anything but "false"; every job checks it first.
+#
+# 06:33 UTC sits clear of the other scheduled runs here.
+
+on:
+  schedule:
+    - cron: "33 6 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: maintenance-audit-lane-runs
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  collect:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read # list runs, jobs and job logs
+      checks: read # read annotations and check runs
+      contents: read # check out main
+      issues: read # list open issues for coverage
+      pull-requests: read # list open pull requests
+    outputs:
+      units: ${{ steps.collect.outputs.units }}
+    steps:
+      - name: Check out the run's main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or filed"
+
+      - name: Collect the units
+        id: collect
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          OUT_DIR: ${{ runner.temp }}/lane-sweep
+          CALL_BUDGET: "350"
+          WINDOW_HOURS: "24"
+        run: node .base/.github/scripts/maintenance-audit-lane-runs/collect.mjs
+
+      - name: Upload the units
+        if: steps.collect.outcome == 'success' && steps.collect.outputs.units != '[]'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lane-sweep-units
+          path: ${{ runner.temp }}/lane-sweep
+          if-no-files-found: error
+          retention-days: 7
+
+  judge:
+    needs: collect
+    if: needs.collect.outputs.units != '' && needs.collect.outputs.units != '[]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      actions: read # download the units artifact
+      contents: read # check out main
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        unit: ${{ fromJson(needs.collect.outputs.units) }}
+    steps:
+      - name: Check out the run's main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Check the unit id
+        id: unit
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          UNIT: ${{ matrix.unit }}
+        run: |
+          [[ $UNIT =~ ^[acd][1-8]$ ]] || { echo "::error::unit id '$UNIT' is not a collector id"; exit 1; }
+
+      - name: Download the units
+        if: steps.unit.outcome == 'success'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: lane-sweep-units
+          path: ${{ github.workspace }}/.lane-sweep-data
+
+      # The sweep's model, effort and turns: the triage profile, through the
+      # triage-issue run route of the main config's models block.
+      - name: Resolve the model
+        id: models
+        if: steps.unit.outcome == 'success'
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          model-route: triage-issue
+          output-path: ${{ runner.temp }}/lane-sweep-models.json
+
+      - name: Build the prompt and arguments
+        id: prompt
+        if: steps.models.outcome == 'success'
+        env:
+          DATA: ${{ github.workspace }}/.lane-sweep-data
+          BASE: ${{ github.workspace }}/.base
+          UNIT: ${{ matrix.unit }}
+          SETTINGS_JSON: ${{ steps.models.outputs.settings-json }}
+        run: |
+          [[ $DATA =~ ^/[A-Za-z0-9_./-]+$ && $BASE =~ ^/[A-Za-z0-9_./-]+$ && $RUNNER_TEMP =~ ^/[A-Za-z0-9_./-]+$ ]] || { echo "::error::a data path has a name a rule cannot carry"; exit 1; }
+          [ -z "$SETTINGS_JSON" ] || { echo "::error::the triage profile sets subagent-model, which this lane does not support"; exit 1; }
+          prompt=$(<.base/.github/scripts/maintenance-audit-lane-runs/prompt.md)
+          prompt=${prompt//UNIT_FILE/$DATA/units/$UNIT.json}
+          prompt=${prompt//OPEN_ITEMS_FILE/$DATA/open-items.json}
+          prompt=${prompt//BASE_DIR/$BASE}
+          claim='{"type":"object","properties":{"path":{"type":"string"},"line":{"type":"integer"},"quote":{"type":"string"}},"required":["path","line","quote"],"additionalProperties":false}'
+          finding='{"type":"object","properties":{"slice":{"enum":["A","C","D"]},"title":{"type":"string"},"problem":{"type":"string"},"root_cause":{"type":"string"},"proposed_fix":{"type":"string"},"workflow":{"type":"string"},"job":{"type":"string"},"signature":{"type":"string"},"evidence":{"type":"array","items":'"$claim"'},"covered_by":{"type":["integer","null"]}},"required":["slice","title","problem","root_cause","proposed_fix","workflow","job","signature","evidence","covered_by"],"additionalProperties":false}'
+          schema='{"type":"object","properties":{"findings":{"type":"array","items":'"$finding"'}},"required":["findings"],"additionalProperties":false}'
+          # A rule path starting `//` is absolute. The data and the checkout
+          # sit in the working directory, where Grep and Glob need no allow
+          # rule; a bare Grep or Glob allow would reach every path. Read
+          # denials, which Grep and Glob also take, keep the process
+          # environment, the home directory's dot files (the workspace is
+          # under home, so not all of it) and the runner's temp files out
+          # (code.claude.com/docs/en/permissions, "Read and Edit").
+          denied="Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent"
+          denied="$denied,mcp__github,mcp__github_comment,mcp__github_file_ops,mcp__github_ci,mcp__github_inline_comment"
+          denied="$denied,Read(//proc/**),Read(//sys/**),Read(~/.*),Read(~/.*/**),Read(/$RUNNER_TEMP/**)"
+          args="--allowedTools \"Read(/$DATA/**),Read(/$BASE/**)\" --disallowedTools \"$denied\" --json-schema '$schema'"
+          delimiter="prompt_$(openssl rand -hex 16)"
+          {
+            echo "claude-args=$args"
+            echo "prompt<<$delimiter"
+            printf '%s\n' "$prompt"
+            echo "$delimiter"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Isolate the runner
+        if: steps.prompt.outcome == 'success'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: true
+
+      - name: Judge the unit
+        id: judge
+        if: steps.prompt.outcome == 'success'
+        uses: anthropics/claude-code-action@a26b07d8c778b0c43f64618e5fd29fd0f8af72e8 # v1.0.250
+        env:
+          # Strips the OAuth token and other credentials from any subprocess
+          # (as in pr-verify.yml).
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          claude_code_oauth_token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: ${{ steps.prompt.outputs.prompt }}
+          claude_args: >-
+            --setting-sources user
+            --permission-mode dontAsk
+            ${{ steps.models.outputs.claude-args }}
+            ${{ steps.prompt.outputs.claude-args }}
+
+      # The structured output is untrusted model text: read through env and
+      # checked by the script, never interpolated into a command.
+      - name: Write the findings
+        id: findings
+        if: steps.judge.outcome == 'success'
+        env:
+          STRUCTURED_OUTPUT: ${{ steps.judge.outputs.structured_output }}
+          UNIT_ID: ${{ matrix.unit }}
+          FINDINGS_PATH: ${{ runner.temp }}/lane-sweep-findings/findings.json
+        run: node .base/.github/scripts/maintenance-audit-lane-runs/write-findings.mjs
+
+      - name: Upload the findings
+        if: steps.findings.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: findings-${{ matrix.unit }}
+          path: ${{ runner.temp }}/lane-sweep-findings/findings.json
+          if-no-files-found: error
+          retention-days: 7
+
+  file:
+    needs: [collect, judge]
+    # A failed leg loses its own findings only.
+    if: ${{ !cancelled() && needs.collect.result == 'success' && needs.collect.outputs.units != '[]' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read # download the findings artifacts
+      contents: read # check out main for the claim check
+      issues: write # file issues and comment on earlier ones
+    steps:
+      - name: Check out the run's main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Download the units
+        if: steps.kill.outputs.proceed == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: lane-sweep-units
+          path: ${{ runner.temp }}/lane-sweep
+
+      - name: Download the findings
+        id: download
+        if: steps.kill.outputs.proceed == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: findings-*
+          path: ${{ runner.temp }}/lane-sweep-findings
+
+      - name: File the findings
+        if: steps.download.outcome == 'success'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          BASE_DIR: .base
+          FINDINGS_DIR: ${{ runner.temp }}/lane-sweep-findings
+          OPEN_ITEMS_PATH: ${{ runner.temp }}/lane-sweep/open-items.json
+          CALL_BUDGET: "50"
+        run: |
+          mkdir -p "$FINDINGS_DIR"
+          node .base/.github/scripts/maintenance-audit-lane-runs/file-findings.mjs
