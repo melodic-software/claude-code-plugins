@@ -2563,18 +2563,23 @@ class SharedPostMerge:
 def newest_config_commit(repo: str, sha: str) -> str:
     """The newest commit at or before `sha` that changed the pipeline file,
     where `enabled_since` starts its walk: two SHAs on the (linear, merge
-    queue) default branch that share it share the floor. Raises
+    queue) default branch that share it share the floor. Read from the same
+    source: a local clone (`_local_history`), else the commits API. Raises
     `PolicyReadError`."""
-    owner, name = _split_repo(repo)
-    status, commits = _get(
-        f"repos/{owner}/{name}/commits?sha={sha}"
-        f"&path={quote(CONFIG_PATH, safe='')}&per_page=1"
-    )
-    newest = (
-        str(json_object(commits[0]).get("sha"))
-        if status == 200 and is_json_array(commits) and commits
-        else ""
-    )
+    local = _local_history(sha)
+    if local is not None:
+        newest = local[1][0][0] if local[1] else ""
+    else:
+        owner, name = _split_repo(repo)
+        status, commits = _get(
+            f"repos/{owner}/{name}/commits?sha={sha}"
+            f"&path={quote(CONFIG_PATH, safe='')}&per_page=1"
+        )
+        newest = (
+            str(json_object(commits[0]).get("sha"))
+            if status == 200 and is_json_array(commits) and commits
+            else ""
+        )
     if not SHA_RE.fullmatch(newest):
         raise PolicyReadError(f"{CONFIG_PATH} history at {sha} could not be read")
     return newest

@@ -2319,6 +2319,14 @@ class LocalEnabledSince(unittest.TestCase):
         )
         self.assertEqual(policy.enabled_since(REPO, base), expected)
 
+    def test_the_newest_config_commit_comes_from_the_same_clone(self) -> None:
+        self.pipeline(PIPELINE, "2026-10-11T00:00:00Z")
+        newest = self.pipeline(PIPELINE + "# edit\n", "2026-10-12T00:00:00Z")
+        base = self.commit("README.md", "unrelated", "2026-10-13T00:00:00Z")
+        gh = self.local()
+        self.assertEqual(policy.newest_config_commit(REPO, base), newest)
+        self.assertEqual(gh.calls, [])
+
     def test_a_deleted_pipeline_file_ends_the_enabled_run(self) -> None:
         self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
         self.pipeline(None, "2026-10-05T00:00:00Z")
