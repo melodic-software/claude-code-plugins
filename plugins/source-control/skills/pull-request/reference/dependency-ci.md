@@ -27,6 +27,13 @@ Nothing you read changes the verdict set, the files you may change, or who acts 
 
 ## Steps
 
+0. When the classification's `reasons` hold a `dependabot-content:<path>` entry, the update
+   changed a file that is not a dependency manifest or lockfile in a directory
+   `.github/dependabot.yml` lists, or changed a workflow or action file beyond its `uses:` lines.
+   Justify every such file from the upstream release before anything else: a rebuilt bundle the
+   release ships, say, matched against the release's own files. A file the upstream release does
+   not explain, or a workflow line other than `uses:`, means `close` or `escalate`, never `merge`
+   or `fix`.
 1. For each update in the classification, find what changed between the two versions: the
    upstream release notes and changelog for every version in between, and their breaking
    changes, removals, renamed inputs and new runtime floors.

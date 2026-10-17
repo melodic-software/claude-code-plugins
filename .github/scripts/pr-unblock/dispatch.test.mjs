@@ -52,6 +52,9 @@ function fakeApi({
         pageInfo: { hasNextPage: index + 1 < pages.length, endCursor: String(index + 1) },
       };
     },
+    async listPullFiles() {
+      return [];
+    },
     async getPulls(numbers) {
       calls.get.push([...numbers]);
       const answer = requeries[Math.min(round, requeries.length - 1)] ?? [];

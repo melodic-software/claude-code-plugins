@@ -71,6 +71,95 @@ export function parseMetadata(message) {
   return rows.length > 0 && rows.every((row) => row.name) ? rows : null;
 }
 
+// The content rule, the same as the pr-merge lane's (babysit_dependabot.py,
+// content_refusal): every changed path is a manifest or lock file of an
+// ecosystem and directory .github/dependabot.yml lists at the base, or a
+// workflow or action file a github-actions entry covers whose diff changes
+// only `uses:` lines.
+export const MANIFESTS = Object.freeze({
+  npm: /^(package\.json|package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml)$/,
+  pip: /^(requirements[^/]*\.(txt|in)|pyproject\.toml|uv\.lock|setup\.cfg|setup\.py|Pipfile|Pipfile\.lock|poetry\.lock|pdm\.lock)$/,
+});
+const WORKFLOW = /^\.github\/workflows\/[^/]+\.ya?ml$/;
+const ACTION = /^(.+\/)?action\.ya?ml$/;
+const USES_LINE = /^[+-]\s*(-\s+)?uses:\s*[^\s#]+(\s+#.*)?\s*$/;
+const CONFIG_ENTRY = /^\s*-\s+package-ecosystem:\s*["']?([A-Za-z0-9_-]+)/;
+const CONFIG_DIR = /^\s+directory:\s*["']?([^"'#\s]+)/;
+const CONFIG_DIRS = /^\s+directories:\s*$/;
+const CONFIG_ITEM = /^\s+-\s+["']?([^"'#\s]+)/;
+
+// [ecosystem, directory] per `updates` entry of a dependabot.yml, one pair
+// per directory; null when no entry reads.
+export function parseConfig(text) {
+  const pairs = [];
+  let ecosystem = null;
+  let inDirs = false;
+  for (const line of String(text ?? "").replace(/\r\n/g, "\n").split("\n")) {
+    const entry = CONFIG_ENTRY.exec(line);
+    const dir = CONFIG_DIR.exec(line);
+    const item = CONFIG_ITEM.exec(line);
+    if (entry) {
+      ecosystem = entry[1];
+      inDirs = false;
+    } else if (ecosystem && dir) {
+      pairs.push([ecosystem, dir[1]]);
+      inDirs = false;
+    } else if (ecosystem && CONFIG_DIRS.test(line)) {
+      inDirs = true;
+    } else if (inDirs && item) {
+      pairs.push([ecosystem, item[1]]);
+    } else if (line.trim() && !line.trimStart().startsWith("#")) {
+      inDirs = false;
+    }
+  }
+  return pairs.length > 0 ? pairs : null;
+}
+
+const dirname = (path) => (path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "");
+const glob = (pattern) => new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\?]/g, "\\$&").replace(/\*/g, ".*")}$`);
+
+function inDirectory(path, directory) {
+  const want = directory.replace(/^\/+|\/+$/g, "");
+  return want.includes("*") ? glob(want).test(dirname(path)) : dirname(path) === want;
+}
+
+function actionsFile(path, config) {
+  return config.some(([eco, folder]) => {
+    if (eco !== "github-actions") return false;
+    if (folder.replace(/^\/+|\/+$/g, "") === "") {
+      return WORKFLOW.test(path) || (path.startsWith(".github/actions/") && ACTION.test(path));
+    }
+    return ACTION.test(path) && inDirectory(path, folder);
+  });
+}
+
+// Whether a unified diff changes only `uses:` lines (an action repin).
+export function usesOnly(patch) {
+  const changed = String(patch ?? "")
+    .split("\n")
+    .filter((line) => /^[+-]/.test(line) && !/^(\+\+\+|---)/.test(line));
+  return changed.length > 0 && changed.every((line) => USES_LINE.test(line));
+}
+
+// `dependabot-content:<path>` for the first changed path (either side of a
+// rename, sorted per file) the rule does not cover, else null. `files` is the
+// REST pull-request files listing with patches; `config` is parseConfig's
+// result, where null covers nothing.
+export function contentReason(files, config) {
+  const pairs = config ?? [];
+  for (const file of files) {
+    const paths = [...new Set([file.filename, file.previous_filename].filter(Boolean).map(String))].sort();
+    for (const path of paths) {
+      const name = path.slice(path.lastIndexOf("/") + 1);
+      const manifest = pairs.some(([eco, folder]) => MANIFESTS[eco]?.test(name) && inDirectory(path, folder));
+      if (!manifest && !(actionsFile(path, pairs) && usesOnly(file.patch))) {
+        return `dependabot-content:${path}`;
+      }
+    }
+  }
+  return null;
+}
+
 const bare = (version) => String(version ?? "").replace(/^v/, "");
 
 function agrees(updates, metadata) {
@@ -117,7 +206,9 @@ function parseUpdates(title, body) {
 // pr: { author, headRef, title, body, labels, ciStatus, commitMessage },
 // where ciStatus is the newest ci-status check run's conclusion, or pending
 // or empty, and commitMessage is the head commit's message, passed only when
-// Dependabot authored it and GitHub verified its signature.
+// Dependabot authored it and GitHub verified its signature. With `files` (the
+// REST files listing, patches included) and `config` (parseConfig of the
+// base's .github/dependabot.yml), the content rule applies too.
 // Returns null for a pull request Dependabot did not open.
 export function classify(pr) {
   if (pr.author !== DEPENDABOT_LOGIN) {
@@ -149,6 +240,10 @@ export function classify(pr) {
         reasons.push(`publisher:${update.name}`);
       }
     }
+  }
+  if (Array.isArray(pr.files)) {
+    const content = contentReason(pr.files, pr.config ?? null);
+    if (content) reasons.push(content);
   }
   if (RED.has(pr.ciStatus)) {
     reasons.push("ci-status-red");

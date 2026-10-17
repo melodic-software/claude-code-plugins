@@ -459,6 +459,8 @@ jobs:
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           DEPENDENCY_DIR: ${{ runner.temp }}/lane-dependency
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
+          # The content rule's ecosystems and directories, read from the base.
+          DEPENDABOT_CONFIG: .base/.github/dependabot.yml
           RESOLVED: ${{ runner.temp }}/resolved-config.json
         run: |
           mkdir -p "$DEPENDENCY_DIR"

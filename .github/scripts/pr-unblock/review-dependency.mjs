@@ -17,7 +17,7 @@ import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { createGitHubApi, need, positive, SHA } from "./address-feedback.mjs";
-import { classify, DEPENDABOT_LOGIN } from "./dependency-classify.mjs";
+import { classify, DEPENDABOT_LOGIN, parseConfig } from "./dependency-classify.mjs";
 
 export const DEFAULT_MAX_ROUNDS = 2;
 export const MODEL_CHECK = "pr-unblock / review-dependency";
@@ -78,7 +78,7 @@ export function verifiedMessage(commit, sha) {
     : "";
 }
 
-export function classifyPull(pull, ciStatus, commitMessage = "") {
+export function classifyPull(pull, ciStatus, commitMessage = "", { files, config = null } = {}) {
   return classify({
     author: pull.user?.login,
     headRef: pull.head?.ref,
@@ -87,6 +87,8 @@ export function classifyPull(pull, ciStatus, commitMessage = "") {
     labels: (pull.labels ?? []).map((label) => (typeof label === "string" ? label : label.name)),
     ciStatus,
     commitMessage,
+    files,
+    config,
   });
 }
 
@@ -107,15 +109,17 @@ function capPatches(files) {
   });
 }
 
-export async function select({ api, pr, headSha, appId, dependabotId, repository = "", maxRounds = DEFAULT_MAX_ROUNDS }) {
+export async function select({ api, pr, headSha, appId, dependabotId, config = null, repository = "", maxRounds = DEFAULT_MAX_ROUNDS }) {
   const pull = await api.getPull(pr);
   if (pull.user?.id !== dependabotId || pull.user?.login !== DEPENDABOT_LOGIN) {
     return { decision: "skip", skipReason: "not-applicable" };
   }
+  const files = await api.listPullFiles(pr);
   const classification = classifyPull(
     pull,
     ciStatusOf(await api.listCheckRuns(headSha, "ci-status")),
     verifiedMessage(await api.getCommit(headSha), headSha),
+    { files, config },
   );
   if (classification.tier !== "review") {
     return { decision: "skip", skipReason: "not-applicable", classification };
@@ -127,7 +131,7 @@ export async function select({ api, pr, headSha, appId, dependabotId, repository
   if (done >= maxRounds) {
     return { decision: "escalate", escalationReason: "dependency-round-cap", rounds: done, classification };
   }
-  const files = await api.listPullFiles(pr);
+
   return {
     decision: "proceed",
     rounds: done,
@@ -157,6 +161,16 @@ export function dependabotIdFrom(trustedActorsPath) {
   return positive(actor?.id, `the ${DEPENDABOT_LOGIN} id in ${trustedActorsPath}`);
 }
 
+// The base's .github/dependabot.yml as [ecosystem, directory] pairs; null
+// (which covers no path, so every PR is review) when it cannot be read.
+export function readConfig(path) {
+  try {
+    return path ? parseConfig(readFileSync(path, "utf8")) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function maxRoundsFrom(value) {
   return value === undefined || value === "" ? DEFAULT_MAX_ROUNDS : positive(value, "DEPENDENCY_REVIEW_ROUNDS");
 }
@@ -165,7 +179,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
   if (argv[0] !== "select") {
     throw new Error("usage: review-dependency.mjs select");
   }
-  need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "HEAD_SHA", "APP_SENDER_ID", "TRUSTED_ACTORS", "DEPENDENCY_FILE"]);
+  need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "HEAD_SHA", "APP_SENDER_ID", "TRUSTED_ACTORS", "DEPENDENCY_FILE", "DEPENDABOT_CONFIG"]);
   const pr = positive(env.PR_NUMBER, "PR_NUMBER");
   if (!SHA.test(env.HEAD_SHA)) {
     throw new Error("HEAD_SHA is not a commit id");
@@ -186,6 +200,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     dependabotId: dependabotIdFrom(env.TRUSTED_ACTORS),
     repository: env.GITHUB_REPOSITORY,
     maxRounds: maxRoundsFrom(env.DEPENDENCY_REVIEW_ROUNDS),
+    config: readConfig(env.DEPENDABOT_CONFIG),
   });
   if (result.file) {
     writeFileSync(env.DEPENDENCY_FILE, `${JSON.stringify(result.file, null, 2)}\n`);

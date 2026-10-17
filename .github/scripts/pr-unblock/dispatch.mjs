@@ -18,6 +18,7 @@ import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
+import { readConfig } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -224,6 +225,20 @@ export function createGitHubApi({
       );
       return Object.values(data.repository).filter((node) => node?.state === "OPEN");
     },
+    // The files listing with patches, for the Dependabot content rule.
+    async listPullFiles(number) {
+      const rows = [];
+      let url = `${apiUrl}/repos/${owner}/${name}/pulls/${Number(number)}/files?per_page=100`;
+      while (url) {
+        const response = await fetch(url, { headers });
+        if (!response.ok) {
+          throw new Error(`GET ${url} returned ${response.status}`);
+        }
+        rows.push(...(await response.json()));
+        url = /<([^>]+)>;\s*rel="next"/.exec(response.headers.get("link") ?? "")?.[1] ?? "";
+      }
+      return rows;
+    },
     async listCheckRuns({ sha, checkName, appId }) {
       const query = new URLSearchParams({
         check_name: checkName,
@@ -275,7 +290,12 @@ export async function main(
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
     });
   const conflicts = await dispatchConflicting({ api: client, runId: env.GITHUB_RUN_ID, sleep, log });
-  const reviews = await dispatchDependencyReviews({ api: client, runId: env.GITHUB_RUN_ID, log });
+  const reviews = await dispatchDependencyReviews({
+    api: client,
+    runId: env.GITHUB_RUN_ID,
+    log,
+    config: readConfig(env.DEPENDABOT_CONFIG ?? ".base/.github/dependabot.yml"),
+  });
   const dispatched = [...conflicts.dispatched, ...reviews.dispatched];
   const failed = conflicts.failed + reviews.failed;
   if (dispatched.length > 0) {

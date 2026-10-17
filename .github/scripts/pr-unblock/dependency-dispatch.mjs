@@ -57,6 +57,7 @@ export async function dispatchDependencyReviews({
   checkName = DEFAULTS.checkName,
   appId = DEFAULTS.appId,
   maxDispatch = DEFAULTS.maxDispatch,
+  config = null,
 }) {
   const candidates = (await listAll(api, base))
     .filter((node) => node.isDraft === false && node.isCrossRepository === false && node.baseRefName === base)
@@ -78,6 +79,8 @@ export async function dispatchDependencyReviews({
         labels: (node.labels?.nodes ?? []).map((label) => label.name),
         ciStatus: ciStatusOf(ci),
         commitMessage: verifiedHeadMessage(node),
+        files: await api.listPullFiles(node.number),
+        config,
       }).tier;
       if (tier !== "review") {
         continue;

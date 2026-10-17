@@ -600,8 +600,12 @@ sort pull requests with `dependency-classify.mjs`:
   start of a line, which must add up to the title's count; when both the metadata and the title
   are readable they agree on every name and version; no update is major, meaning it changes the
   first numeric version component, or for a 0.x version the second, or the metadata names it
-  `semver-major`; every `github_actions` update's
-  publisher is `actions`, `github` or `anthropics`; and the newest GitHub Actions `ci-status`
+  `semver-major`; every changed path (both sides of a rename) is a manifest or lockfile of an
+  ecosystem and directory the base's `.github/dependabot.yml` lists, or a workflow or action
+  file a `github-actions` entry covers whose diff changes only `uses:` lines (otherwise the
+  reason is `dependabot-content:<path>`, the pr-merge lane's content rule); every
+  `github_actions` update's publisher is `actions`, `github` or `anthropics`; and the newest
+  GitHub Actions `ci-status`
   run on the head is not red (`failure`, `cancelled`, `timed_out`, `action_required`,
   `startup_failure`; pending is not red). The pr-merge lane owns these.
 - `review`: every other Dependabot pull request, including a version the classifier cannot

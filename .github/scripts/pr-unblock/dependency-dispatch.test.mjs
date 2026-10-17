@@ -21,10 +21,13 @@ function pr(number, overrides = {}) {
   };
 }
 
-function fakeApi({ nodes = [], checks = new Map(), ci = new Map() } = {}) {
+function fakeApi({ nodes = [], checks = new Map(), ci = new Map(), files = new Map() } = {}) {
   const calls = { dispatch: [], checks: [] };
   return {
     calls,
+    async listPullFiles(number) {
+      return files.get(number) ?? [];
+    },
     async listOpenPulls() {
       return { nodes, pageInfo: { hasNextPage: false, endCursor: null } };
     },
@@ -103,6 +106,17 @@ test("a verified head commit whose metadata disagrees with the title is review",
   };
   const { dispatched } = await run(fakeApi({ nodes: [node(30, true), node(31, false)] }));
   assert.deepEqual(dispatched.map((d) => d.number), [30]);
+});
+
+test("a patch bump whose files the content rule does not cover is review", async () => {
+  const config = [["npm", "/"]];
+  const nodes = [pr(40, { title: "bump x from 1.0.0 to 1.0.1" }), pr(41, { title: "bump x from 1.0.0 to 1.0.1" })];
+  const files = new Map([
+    [40, [{ filename: "package-lock.json" }]],
+    [41, [{ filename: "package-lock.json" }, { filename: "dist/bundle.js" }]],
+  ]);
+  const { dispatched } = await run(fakeApi({ nodes, files }), { config });
+  assert.deepEqual(dispatched.map((d) => d.number), [41]);
 });
 
 test("dispatches at most the cap, lowest number first", async () => {

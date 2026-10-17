@@ -82,6 +82,7 @@ test("select proceeds on a major bump and writes the context file", async () => 
     headSha: HEAD,
     appId: APP,
     dependabotId: DEPENDABOT,
+    config: [["npm", "/"]],
     repository: "o/r",
   });
   assert.equal(result.decision, "proceed");
@@ -105,6 +106,17 @@ test("select reviews a red ci-status even on a patch bump", async () => {
   });
   assert.equal(result.decision, "proceed");
   assert.deepEqual(result.file.classification.reasons, ["ci-status-red"]);
+});
+
+test("select applies the content rule from the base's dependabot.yml", async () => {
+  const config = [["npm", "/"]];
+  const args = { pr: 7, headSha: HEAD, appId: APP, dependabotId: DEPENDABOT, config };
+  const pull = { title: "bump x from 1.4.0 to 1.4.1" };
+  const clean = await select({ api: fakeApi({ pull, files: [{ filename: "package-lock.json", patch: "" }] }), ...args });
+  assert.equal(clean.decision, "skip");
+  const odd = await select({ api: fakeApi({ pull, files: [{ filename: "package-lock.json" }, { filename: "dist/x.js" }] }), ...args });
+  assert.equal(odd.decision, "proceed");
+  assert.deepEqual(odd.file.classification.reasons, ["dependabot-content:dist/x.js"]);
 });
 
 test("select reads the verified commit's metadata, and ignores an unverified one", async () => {
@@ -174,6 +186,7 @@ test("main writes the outputs and the file, and the security flag", async () => 
     TRUSTED_ACTORS: actors,
     DEPENDENCY_FILE: join(dir, "dependency.json"),
     DEPENDENCY_REVIEW_ROUNDS: "2",
+    DEPENDABOT_CONFIG: join(dir, "dependabot.yml"),
   };
   await main(["select"], env, { api: fakeApi({ pull: { labels: [{ name: "security" }] } }), log: () => {} });
   const out = readFileSync(env.GITHUB_OUTPUT, "utf8");
