@@ -11,6 +11,7 @@ import {
   isStaleClaim,
   listClaims,
   readClaimFile,
+  readQueueRows,
   reclaimStaleClaims,
   releaseRow,
 } from "./queue-claim.js";
@@ -114,5 +115,67 @@ describe("reclaimStaleClaims", () => {
     expect(result.released).toEqual([2]);
     expect(fs.existsSync(claimFilePath(epicDir, 1))).toBe(true);
     expect(fs.existsSync(stalePath)).toBe(false);
+  });
+});
+
+describe("reclaimStaleClaims queue state", () => {
+  const queue = [
+    "# Queue",
+    "",
+    "| # | URL | video-id | title | channel | slug | status | notes |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    "| 1 | https://example.com/a | AAA | A \\| B | Chan | a | in_progress | |",
+    "| 2 | https://example.com/b | BBB | B | Chan | b | in_progress | |",
+    "| 3 | https://example.com/c | CCC | C | Chan | c | complete | |",
+    "",
+  ].join("\n");
+
+  function writeStale(epicDir, row) {
+    const filePath = claimFilePath(epicDir, row);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(
+      filePath,
+      JSON.stringify({
+        row,
+        videoId: null,
+        claimedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+        claimedBy: "stale",
+      }),
+      "utf8",
+    );
+  }
+
+  it("resets a stale row to pending and reports stub-less in_progress rows", () => {
+    const epicDir = makeEpicDir();
+    fs.writeFileSync(path.join(epicDir, "QUEUE.md"), queue, "utf8");
+    writeStale(epicDir, 1);
+
+    const result = reclaimStaleClaims(epicDir, 7);
+
+    expect(result.released).toEqual([1]);
+    expect(result.reset).toEqual([1]);
+    expect(result.orphaned).toEqual([2]);
+    expect(readQueueRows(epicDir)).toEqual([
+      { row: 1, status: "pending" },
+      { row: 2, status: "in_progress" },
+      { row: 3, status: "complete" },
+    ]);
+    expect(fs.readFileSync(path.join(epicDir, "QUEUE.md"), "utf8")).toContain("A \\| B");
+  });
+
+  it("does not reset a row that is no longer in_progress", () => {
+    const epicDir = makeEpicDir();
+    fs.writeFileSync(path.join(epicDir, "QUEUE.md"), queue, "utf8");
+    writeStale(epicDir, 3);
+
+    const result = reclaimStaleClaims(epicDir, 7);
+
+    expect(result.released).toEqual([3]);
+    expect(result.reset).toEqual([]);
+    expect(readQueueRows(epicDir)?.[2]).toEqual({ row: 3, status: "complete" });
+  });
+
+  it("returns null rows when QUEUE.md is absent", () => {
+    expect(readQueueRows(makeEpicDir())).toBeNull();
   });
 });

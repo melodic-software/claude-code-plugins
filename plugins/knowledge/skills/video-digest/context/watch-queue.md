@@ -102,7 +102,11 @@ If `claims/<n>.json` exists and `claimedAt` is older than **7 days**, skill may:
 node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/queue-claim.js stale-check
 ```
 
-Then reset row `#n` from `in_progress` → `pending` and delete the stub (abandoned run).
+`stale-check` owns the whole reclaim: for each stale stub it deletes the stub and resets row `#n` from `in_progress` → `pending` in `QUEUE.md` (output keys `released` and `reset`). The agent does not repeat either step.
+
+The output also lists `orphaned`: `in_progress` rows with no stub (a run crashed before writing one). Their age is unknown, so `stale-check` leaves them; the agent decides per row whether to reset it to `pending`.
+
+`claim` exits `1` when row `<n>` is not in `QUEUE.md`. Pass `--claimed-by <name>` to record the session holding the claim; the default names the short-lived CLI process (`<host>-pid<n>`).
 
 ## Queue row lifecycle
 
