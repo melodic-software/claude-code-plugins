@@ -887,7 +887,8 @@ offer to persist the answer; the headless path never waits on one.
 
 **Provider backoff (seam exit 8).** A tracker-seam exit 8, meaning the provider is unavailable or
 secondary forge limits are hit under one credential, is handled as backoff-and-retry and counted as a **dirty** signal for
-the adaptive cap.
+the adaptive cap: the cycle makes no further provider call, and the next try waits until the
+provider's reset (`x-ratelimit-reset`, or `retry-after` when sent), never a retry loop.
 
 **Snapshot drain exit.** The drain-exit condition is evaluated against a snapshot taken at cycle
 start; new automated intake arriving mid-cycle is **reported, never chased**, so an item-producing

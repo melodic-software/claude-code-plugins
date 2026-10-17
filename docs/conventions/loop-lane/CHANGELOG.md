@@ -5,6 +5,15 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [12.1.1] - 2026-10-17
+
+Patch. Clarifies an existing rule; no topology, escalation-contract, capability-tier or §4
+invariant changed.
+
+- **Provider backoff (seam exit 8).** The cycle makes no further provider call, and the next try
+  waits until the provider's reset (`x-ratelimit-reset`, or `retry-after` when sent), never a retry
+  loop, matching `/work-items:work-loop`.
+
 ## [12.1.0] - 2026-10-16
 
 Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.
