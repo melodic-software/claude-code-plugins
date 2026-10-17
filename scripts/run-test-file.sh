@@ -3,8 +3,13 @@
 #
 #   scripts/run-test-file.sh <test file>
 #
-# test_*.py runs under python3 -m pytest, *.test.sh under bash and *.test.mjs
-# under node --test. The path must name a test file inside the checkout (the
+# test_*.py runs under python3 -m pytest, *.test.sh under bash, *.test.mjs
+# under node --test, and a *.test.js or *.test.ts file that imports vitest
+# under its package's locked vitest (npx --no-install vitest run, from the
+# nearest directory holding a package.json, within the checkout), after
+# npm ci --ignore-scripts there when it has a package-lock.json and no
+# node_modules. The path
+# must name a test file inside the checkout (the
 # current directory; scripts/lib/checkout-path.sh). The test runs without
 # GH_TOKEN or GITHUB_TOKEN. The name may hold only letters, digits, `.`, `_`,
 # `-` and `/`, so no runner reads it as a pytest node id or parameter. Exits 2
@@ -25,5 +30,23 @@ case ${1##*/} in
   test_*.py) PYTHONDONTWRITEBYTECODE=1 exec python3 -m pytest -q -p no:cacheprovider -- "$1" ;;
   *.test.sh) exec bash -- "$1" ;;
   *.test.mjs) exec node --test -- "$1" ;;
-  *) checkout_path::refuse "'$1' is not a test_*.py, *.test.sh or *.test.mjs file" ;;
+  *.test.js | *.test.ts)
+    grep -Eq "from ['\"]vitest['\"]" -- "$1" || checkout_path::refuse "'$1' does not import vitest"
+    here=$(pwd -P)
+    file=$(realpath -- "$1")
+    dir=${file%/*}
+    until [[ -f $dir/package.json ]]; do
+      [[ $dir != "$here" ]] || checkout_path::refuse "'$1' has no package.json inside the checkout"
+      dir=${dir%/*}
+    done
+    cd -- "$dir" || exit 2
+    # A lane checkout installs no plugin package, so install its lockfile
+    # once, with no install scripts, as scripts/setup-env.sh does at the root.
+    if [[ ! -d node_modules && -f package-lock.json ]]; then
+      npm ci --ignore-scripts --no-audit --no-fund >&2 || exit
+    fi
+    # An absolute path, so vitest cannot read the filter as an option.
+    exec npx --no-install vitest run "$file"
+    ;;
+  *) checkout_path::refuse "'$1' is not a test_*.py, *.test.sh, *.test.mjs or vitest *.test.js/*.test.ts file" ;;
 esac

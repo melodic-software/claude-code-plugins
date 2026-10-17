@@ -287,6 +287,22 @@ test("the lane tools get wrapper rules, and the commit grant gains delete_files"
   assert.ok(!allowed.some((rule) => /^Bash\((python3|bash|node|git)[ )]/.test(rule)), allowed.join(" | "));
 });
 
+test("the prompt names run-test-file as the way to run a test and says compound cd commands are refused", () => {
+  const { status, args, verifyDir } = withLaneTools();
+  assert.equal(status, 0);
+  assert.ok(
+    args.includes(`Run a test file only through ${path.join(verifyDir, "bin", "run-test-file")} <test file>`),
+    args,
+  );
+  assert.match(args, /a compound command such as cd <dir>; <command> is refused/);
+});
+
+test("without run-test-file in the list the prompt names no test entry", () => {
+  const { status, args } = withVerify([VERIFY]);
+  assert.equal(status, 0);
+  assert.ok(!args.includes("Run a test file"), args);
+});
+
 test("run-test-file runs an in-checkout test file by its runner and prints the exit status", () => {
   const { status, run, dir } = withLaneTools();
   assert.equal(status, 0);
@@ -422,6 +438,84 @@ test("run-test-file refuses a pytest node id or a name a runner could read as mo
     const result = run("run-test-file", [file], { PATH: `${shim}:${process.env.PATH}` });
     assert.equal(result.status, 2, file);
     assert.equal(result.stdout, "", `${file} ran`);
+  }
+});
+
+// A *.test.js or *.test.ts file that imports vitest runs with its package's
+// locked vitest (`npx --no-install vitest run` from the nearest package.json).
+// The stand-in installed there prints where it ran and fails a file that says
+// BROKEN, so a pass, a failure and the directory are the stand-in's, not the
+// script's.
+function withVitestPackage(staged) {
+  const pkg = path.join(staged.workspace, "plugin");
+  const vitest = path.join(pkg, "node_modules", "vitest");
+  mkdirSync(path.join(pkg, "src"), { recursive: true });
+  mkdirSync(vitest, { recursive: true });
+  mkdirSync(path.join(pkg, "node_modules", ".bin"));
+  writeFileSync(path.join(pkg, "package.json"), JSON.stringify({ name: "p", devDependencies: { vitest: "1.0.0" } }));
+  writeFileSync(path.join(vitest, "package.json"), JSON.stringify({ name: "vitest", version: "1.0.0", bin: { vitest: "vitest.mjs" } }));
+  writeFileSync(
+    path.join(vitest, "vitest.mjs"),
+    '#!/usr/bin/env node\nimport { readFileSync } from "node:fs";\n' +
+      'console.log(`vitest cwd=${process.cwd()} args=${process.argv.slice(2).join(" ")}`);\n' +
+      'process.exit(readFileSync(process.argv.at(-1), "utf8").includes("BROKEN") ? 1 : 0);\n',
+    { mode: 0o755 },
+  );
+  spawnSync("ln", ["-s", "../vitest/vitest.mjs", path.join(pkg, "node_modules", ".bin", "vitest")]);
+  const imports = 'import { test } from "vitest";\n';
+  writeFileSync(path.join(pkg, "src", "pass.test.ts"), `${imports}test("a", () => {});\n`);
+  writeFileSync(path.join(pkg, "src", "broken.test.js"), `${imports}// BROKEN\n`);
+  writeFileSync(path.join(pkg, "src", "plain.test.js"), 'import { test } from "node:test";\n');
+  writeFileSync(path.join(staged.workspace, "tests", "orphan.test.ts"), imports);
+  writeFileSync(path.join(staged.dir, "outside.test.ts"), imports);
+  return pkg;
+}
+
+test("run-test-file runs a vitest file with its package's vitest from the package directory", () => {
+  const staged = withLaneTools();
+  assert.equal(staged.status, 0);
+  const pkg = withVitestPackage(staged);
+  const pass = staged.run("run-test-file", ["plugin/src/pass.test.ts"]);
+  assert.equal(pass.status, 0, pass.stderr);
+  assert.equal(pass.stdout, `vitest cwd=${pkg} args=run ${path.join(pkg, "src", "pass.test.ts")}\n`);
+  assert.match(pass.stderr, /exit status: 0\n$/);
+  const broken = staged.run("run-test-file", ["plugin/src/broken.test.js"]);
+  assert.equal(broken.status, 1);
+  assert.match(broken.stderr, /exit status: 1\n$/);
+});
+
+// A lane checkout has no node_modules in a plugin package, so run-test-file
+// installs the package's lockfile (npm ci --ignore-scripts) once, first. The
+// stand-in vitest is a local file: dependency, so the install needs no network.
+test("run-test-file installs a package's locked dependencies once when node_modules is missing", () => {
+  const staged = withLaneTools();
+  assert.equal(staged.status, 0);
+  withVitestPackage(staged);
+  const pkg = path.join(staged.workspace, "fresh");
+  mkdirSync(path.join(pkg, "src"), { recursive: true });
+  writeFileSync(path.join(pkg, "package.json"), JSON.stringify({ name: "fresh", devDependencies: { vitest: "file:../plugin/node_modules/vitest" } }));
+  const lock = spawnSync("npm", ["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: pkg, encoding: "utf8" });
+  assert.equal(lock.status, 0, lock.stderr);
+  assert.throws(() => statSync(path.join(pkg, "node_modules")), "the fixture starts with no node_modules");
+  writeFileSync(path.join(pkg, "src", "pass.test.ts"), 'import { test } from "vitest";\ntest("a", () => {});\n');
+  const first = staged.run("run-test-file", ["fresh/src/pass.test.ts"]);
+  assert.equal(first.status, 0, first.stderr);
+  assert.equal(first.stdout, `vitest cwd=${pkg} args=run ${path.join(pkg, "src", "pass.test.ts")}\n`);
+  const installed = statSync(path.join(pkg, "node_modules", ".package-lock.json")).mtimeMs;
+  const second = staged.run("run-test-file", ["fresh/src/pass.test.ts"]);
+  assert.equal(second.status, 0, second.stderr);
+  assert.equal(statSync(path.join(pkg, "node_modules", ".package-lock.json")).mtimeMs, installed, "a present node_modules is not reinstalled");
+});
+
+test("run-test-file refuses a vitest file outside the checkout, one without a package and one that does not import vitest", () => {
+  const staged = withLaneTools();
+  assert.equal(staged.status, 0);
+  withVitestPackage(staged);
+  for (const file of [path.join(staged.dir, "outside.test.ts"), "../outside.test.ts", "tests/orphan.test.ts", "plugin/src/plain.test.js"]) {
+    const result = staged.run("run-test-file", [file]);
+    assert.equal(result.status, 2, file);
+    assert.equal(result.stdout, "", `${file} ran`);
+    assert.match(result.stderr, /refused/, file);
   }
 });
 
