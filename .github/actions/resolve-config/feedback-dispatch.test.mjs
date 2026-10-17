@@ -20,7 +20,7 @@ const APP_ID = 337595936;
 const CLAUDE = { databaseId: 209825114 };
 const ACTIONS_BOT = { id: 41898282 };
 
-const config = (addressFeedbackSlot) => `version: 1
+const config = (addressFeedbackSlot) => `version: 2
 activities:
   resolve-conflicts:
     skill: source-control:resolve-conflicts

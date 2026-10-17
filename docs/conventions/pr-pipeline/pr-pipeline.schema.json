@@ -9,7 +9,7 @@
   "properties": {
     "$schema": { "type": "string" },
     "version": {
-      "const": 1,
+      "const": 2,
       "description": "Contract major version. CHANGELOG.md beside this schema records each version."
     },
     "extends": {
@@ -54,7 +54,8 @@
         }
       }
     },
-    "merge": { "$ref": "#/$defs/merge" }
+    "merge": { "$ref": "#/$defs/merge" },
+    "models": { "$ref": "#/$defs/models" }
   },
   "$defs": {
     "name": {
@@ -199,8 +200,6 @@
       "required": ["effect", "gating", "reads-untrusted"],
       "oneOf": [{ "required": ["skill"] }, { "required": ["script"] }],
       "dependentRequired": {
-        "model": ["skill"],
-        "max-turns": ["skill"],
         "prepare": ["skill"],
         "checks": ["skill"],
         "verify-scripts": ["skill"],
@@ -272,16 +271,6 @@
           "if": { "properties": { "enabled": { "const": true } } },
           "then": { "required": ["domains"] },
           "description": "Whether a skill with an effect other than read may read the web, off when absent. On, the write runner allows WebSearch, WebFetch to the listed domains (`any`: every domain), and the research skills, and the listed domains also open to the skill's sandboxed shell commands. On needs reads-untrusted: true and an effect other than read."
-        },
-        "model": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._\\[\\]-]*$",
-          "description": "Model for a skill activity, passed as --model. Unset: the runner's default applies."
-        },
-        "max-turns": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Turn budget for a skill activity, passed as --max-turns. Unset: the runner's default applies."
         },
         "script": {
           "type": "string",
@@ -357,6 +346,55 @@
         "slots": { "type": "array", "items": { "$ref": "#/$defs/slot" } }
       }
     },
+    "models": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profiles", "default-profile"],
+      "description": "The model, effort and turn budget of every model run, as named profiles and a route from each run to one. A skill activity's route is its activity name; pr-verify.yml's is verify-pr. A run with no route takes default-profile. Absent: every run takes the built-in standard profile, model default with 75 turns (README.md, Models).",
+      "properties": {
+        "profiles": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "$ref": "#/$defs/profile" }
+        },
+        "default-profile": {
+          "$ref": "#/$defs/name",
+          "description": "The profile of every run no route names. Must be a key of profiles."
+        },
+        "routes": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "$ref": "#/$defs/name" },
+          "description": "Run -> profile. A key is a skill activity or verify-pr; a value is a key of profiles. The config reader rejects any other key or value."
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "max-turns"],
+      "properties": {
+        "model": {
+          "enum": ["default", "best", "fable", "opus", "sonnet"],
+          "description": "A model alias, never a full model ID, passed as --model. default passes no --model, so the account's default model runs."
+        },
+        "effort": {
+          "enum": ["low", "medium", "high", "xhigh", "max"],
+          "description": "Passed as --effort. Absent: no --effort, so the model's default effort applies."
+        },
+        "subagent-model": {
+          "enum": ["inherit", "best", "fable", "opus", "sonnet"],
+          "default": "inherit",
+          "description": "The model subagents run on when neither the spawn nor the agent definition names one, set as CLAUDE_CODE_SUBAGENT_MODEL through the run's settings. inherit sets nothing."
+        },
+        "max-turns": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Turn budget, passed as --max-turns."
+        }
+      }
+    },
     "merge": {
       "type": "object",
       "additionalProperties": false,
@@ -421,11 +459,6 @@
           "type": "boolean",
           "default": false,
           "description": "true: the pr-merge lane refuses a pull request, and dequeues a queued one, without a passing pr-verify verdict at its head (README.md, Verifier verdict). It is the lane's merge criterion, so an enabled pr-merge lane (agent-identity set) at a rung above off must set it true; the gate refuses `verifier-verdict-not-required` otherwise."
-        },
-        "verifier-model": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._\\[\\]-]*$",
-          "description": "The model pr-verify.yml judges each head with. Absent: the action's default model (README.md, Verifier verdict)."
         },
         "verify-authors": {
           "enum": ["lane", "any"],
