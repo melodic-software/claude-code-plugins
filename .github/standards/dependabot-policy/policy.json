@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "scheduleInterval": "weekly",
+  "cooldownMinimumDays": 3,
+  "maxOpenPullRequests": 5,
+  "requireGroups": true,
+  "autoMerge": {
+    "ecosystems": ["github-actions"],
+    "publishers": {
+      "actions/*": {
+        "tier": "auto",
+        "reviewed": "2026-10-08",
+        "basis": "GitHub publishes the Actions platform every repository already runs on, so a non-major release adds no new trust."
+      },
+      "github/*": {
+        "tier": "auto",
+        "reviewed": "2026-10-08",
+        "basis": "GitHub owns the platform these actions run on; its codeql-action publishes immutable releases."
+      },
+      "anthropics/*": {
+        "tier": "auto",
+        "reviewed": "2026-10-08",
+        "basis": "Anthropic publishes the review agents every repository trusts; claude-code-action also pulls oven-sh/setup-bun (SHA-pinned) and installs bun packages and the Claude Code CLI at runtime, so this tier trusts those transitively."
+      }
+    },
+    "reviewOnly": [
+      {
+        "repository": "melodic-software/standards",
+        "ecosystem": "npm",
+        "directory": "/distribution",
+        "dependency": "yaml",
+        "reviewed": "2026-10-16",
+        "basis": "The sync engine parses every manifest with yaml inside the credentialed sync job, so a parser change reaches every consumer.",
+        "control": "distribution/THREAT-MODEL.md#npm-supply-chain-production-engine"
+      },
+      {
+        "repository": "melodic-software/claude-code-plugins",
+        "ecosystem": "npm",
+        "directory": "/",
+        "dependency": "@anthropic-ai/claude-code",
+        "reviewed": "2026-10-17",
+        "basis": "The only root package with an install script; .github/workflows/eval-browser-dispatch.yml:153 installs the root lockfile and :251 runs its claude CLI with the AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN secret in the step env (:203), and .github/dependabot.yml:65-66 exempts it from the cooldown, so a hijacked release reaches that secret the day it publishes.",
+        "control": "docs/conventions/pr-pipeline/README.md#review-only-dependencies"
+      },
+      {
+        "repository": "melodic-software/claude-code-plugins",
+        "ecosystem": "npm",
+        "directory": "/",
+        "dependency": "@playwright/cli",
+        "reviewed": "2026-10-17",
+        "basis": ".github/workflows/eval-browser-dispatch.yml:153 installs the root lockfile in the job that holds AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN (:203); :163 runs the playwright it pulls in, :189 runs playwright-cli, and :45 makes Bash(playwright-cli *) the eval's default tool, so it runs beside the claude process holding that secret.",
+        "control": "docs/conventions/pr-pipeline/README.md#review-only-dependencies"
+      }
+    ],
+    "excludeSemverMajor": true,
+    "requiredCheck": "ci-status"
+  }
+}
