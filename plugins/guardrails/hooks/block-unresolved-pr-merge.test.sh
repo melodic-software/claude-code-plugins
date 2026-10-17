@@ -153,6 +153,8 @@ J
   merge-lane-pending) echo '{"total_count":2,"check_runs":[{"id":901,"name":"build","app":{"id":15368,"slug":"github-actions"},"status":"completed","conclusion":"success"},{"id":902,"name":"merge","app":{"id":15368,"slug":"github-actions"},"status":"pending","conclusion":null}]}' >"$FIX/checks.json" ;;
   merge-lane-and-build-pending) echo '{"total_count":2,"check_runs":[{"id":901,"name":"build","app":{"id":15368,"slug":"github-actions"},"status":"in_progress","conclusion":null},{"id":902,"name":"merge","app":{"id":15368,"slug":"github-actions"},"status":"pending","conclusion":null}]}' >"$FIX/checks.json" ;;
   merge-other-app-pending) echo '{"total_count":1,"check_runs":[{"id":902,"name":"merge","app":{"id":999,"slug":"other-ci"},"status":"pending","conclusion":null}]}' >"$FIX/checks.json" ;;
+  matrix-failed-then-leg) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"failure"},{"id":903,"name":"test (0)","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
+  matrix-leg-skipped) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":903,"name":"test (0)","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"skipped"}]}' >"$FIX/checks.json" ;;
   matrix-same-suite-sibling) echo '{"total_count":2,"check_runs":[{"id":901,"name":"build","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":902,"name":"build (arm64)","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
   *) return 1 ;;
   esac
@@ -312,6 +314,12 @@ assert_contains "cancelled leg -> names the leg" "$ERR" "test-bash (0)"
 scenario none none matrix-other-name green
 run "a newer run not named <name> (...) does not clear a cancelled run" 'gh pr merge 42 --squash' 2
 assert_eq "other name -> names the bare run" "Failing checks: test-bash" "$(grep 'Failing checks:' <<<"$ERR")"
+scenario none none matrix-failed-then-leg green
+run "a newer leg does not clear a failed bare run" 'gh pr merge 42 --squash' 2
+assert_eq "failed bare run -> names it" "Failing checks: test" "$(grep 'Failing checks:' <<<"$ERR")"
+scenario none none matrix-leg-skipped green
+run "a skipped leg does not clear a cancelled bare run" 'gh pr merge 42 --squash' 2
+assert_eq "skipped leg -> names the bare run" "Failing checks: test" "$(grep 'Failing checks:' <<<"$ERR")"
 scenario none none matrix-same-suite-sibling green
 run "a same-suite sibling does not clear a cancelled run" 'gh pr merge 42 --squash' 2
 assert_eq "same-suite sibling -> names the bare run" "Failing checks: build" "$(grep 'Failing checks:' <<<"$ERR")"
