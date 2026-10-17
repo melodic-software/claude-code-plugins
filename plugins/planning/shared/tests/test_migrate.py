@@ -170,6 +170,15 @@ class TestFromPrototype(unittest.TestCase):
         self.assertIsNone(schema.first_error(doc, STATE))
         self.assertEqual(session.cross_field_errors(doc), [])
 
+    def test_a_lock_on_a_confirm_question_becomes_a_closed_poll(self):
+        raw = json.loads(self.raw)
+        raw["questions"].append({"id": "Q5", "text": "Is this the pay button?", "format": "confirm", "image": "0123456789abcdef.png", "rect": {"x": 1, "y": 2, "w": 3, "h": 4}})
+        raw["answers"]["Q5"] = {"opt-yes": {"option": True, "votes": [ANN]}}
+        raw["locks"]["Q5"] = {"by": "Hana Host", "answerCid": "opt-yes", "text": "Yes", "ts": 2900.0}
+        doc = migrate.migrate(raw, [], NOW)
+        self.assertEqual(doc["locks"]["Q5"], {"at": 2900.0, "by": "host", "source": {"kind": "poll"}})
+        self.assertIsNone(schema.first_error(doc, STATE))
+
     def test_a_choice_question_decides(self):
         self.assertEqual(self.q("Q2")["purpose"], "decide")
 

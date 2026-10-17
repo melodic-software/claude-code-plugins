@@ -436,7 +436,9 @@ class _V0:
             ref = self._ref(lk.get("answerCid"), q)
             ref = ref if ref in {self._card_ref(c) for c in cards[qid]} else None
             used = next((s for s in suggestions.get(qid, []) if s["status"]["kind"] == "used" and s["text"] == text and f"p:{s['pid']}" == ref), None)
-            if lk.get("edited") or (ref is None and used is None):
+            if q["purpose"] == "poll":  # a poll closes as a whole; no single answer is locked
+                source = {"kind": "poll"}
+            elif lk.get("edited") or (ref is None and used is None):
                 source = {"kind": "edited", "text": text, "from": ref}
             elif used:
                 source = {"kind": "suggestion", "suggestion": used["id"], "text": text}
