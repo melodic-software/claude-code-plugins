@@ -48,7 +48,8 @@ for each arm states it, with the rule below, so no verifier invents its own. Eac
 severity, `high`, `medium` or `low`: `high` is a fabricated claim, a claim contradicting its
 source, or a source section left unrepresented; `medium` is a fidelity or anchor defect that
 misleads a reader without changing what the source says; `low` is anything cosmetic or
-presentational. The verdict header names one verdict, set by the highest open finding:
+presentational. The verdict header names one verdict: `PASS`, `PASS-WITH-FINDINGS` and `FAIL`
+are set by the highest open finding; `BLOCKED` is set independently of any finding, below:
 
 | Verdict | Set when |
 | --- | --- |
