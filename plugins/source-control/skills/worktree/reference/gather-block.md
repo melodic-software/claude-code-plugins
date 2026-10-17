@@ -49,7 +49,8 @@ pre-compute block. A worker brief that sends a subagent into an isolated session
 instead of restating the shapes.
 
 **Accepted.** One plain command per call, with a literal absolute path and no `$` expansion other
-than a bare `$HOME`, which a probe has shown the guard accepts. Give
+than a bare `$HOME`, which the guard accepts per the observation in
+`plugins/session-flow/reference/gather.md` ("Why these are gathered at run time"). Give
 each git read its own call. Read a file with the Read tool rather than `sed`, `cat` or `head` over
 a path held in a variable.
 
@@ -67,7 +68,11 @@ in #5673 appears in this repository's hooks.
 that never touches git. The #5673 report of a 2026-09-30 refusal of `sed -n ... $F`, with `F` a scratchpad file,
 may contradict it; the report names no Claude Code release or full command, so it could predate the
 fix or have set `F` in the same compound command. No probe from an isolated session on the current release has reconciled the
-two. Keep `$` out of worker commands until one does.
+two. Keep `$` other than a bare `$HOME` out of worker commands until one does.
 
-**Basis.** The two upstream sections linked in the table, both read 2026-10-17. **Recheck trigger.** Either section changes the expansions it names or the scope of the
-check, or a probe from an isolated session runs `sed -n 1,5p` on a `$F` scratchpad path.
+**Basis.** The two upstream sections linked in the table, both read 2026-10-17, and, for the bare
+`$HOME` exception, the observation recorded in `plugins/session-flow/reference/gather.md` (as of
+2026-10-11, citing melodic-software/claude-code-plugins#1687). **Recheck trigger.** Either section
+changes the expansions it names or the scope of the check, a release note changes how
+worktree-isolated agents treat `$`-expansion, or a probe from an isolated session runs
+`sed -n 1,5p` on a `$F` scratchpad path.
