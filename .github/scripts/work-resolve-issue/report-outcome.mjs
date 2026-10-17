@@ -440,7 +440,7 @@ export function readBranch(dir, issueNumber) {
 //          repository closes the issue and the lanes App or a listed human
 //          opened it (anyone can write `Closes #N`, so an outsider's PR
 //          would let anyone stop the lane);
-//   reuse  the newest lane branch with commits ahead of the default branch,
+//   reuse  the first lane branch, newest first, with commits ahead of the default branch,
 //          no lanes-App PR in any state (a closed one was rejected or
 //          merged) and no lanes-App outcome marker for its run (that report
 //          already handed the work on, so the model runs again);
@@ -524,6 +524,9 @@ async function paginate(github, path, maxPages = 50) {
   const separator = path.includes("?") ? "&" : "?";
   for (let page = 1; page <= maxPages; page += 1) {
     const batch = await github("GET", `${path}${separator}per_page=100&page=${page}`);
+    if (!Array.isArray(batch)) {
+      throw new Error(`${path} answered something other than a list`);
+    }
     items.push(...batch);
     if (batch.length < 100) {
       return items;
@@ -532,18 +535,40 @@ async function paginate(github, path, maxPages = 50) {
   throw new Error(`${path} has more than ${maxPages} pages`);
 }
 
-const CLOSING_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+const CLOSING_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
   repository(owner: $owner, name: $name) {
     issue(number: $number) {
-      closedByPullRequestsReferences(first: 100, includeClosedPrs: false) {
+      closedByPullRequestsReferences(first: 100, after: $after, includeClosedPrs: false) {
         nodes { number author { __typename login ... on User { databaseId } } repository { nameWithOwner } }
+        pageInfo { hasNextPage endCursor }
       }
     }
   }
 }`;
 
+// Every open PR that closes the issue, across pages, so no number of other
+// PRs can push a trusted one out of reach.
+async function closingPulls(github, { owner, name, number }, maxPages = 50) {
+  const nodes = [];
+  let after = null;
+  for (let page = 1; page <= maxPages; page += 1) {
+    const answer = await github("POST", "/graphql", { query: CLOSING_QUERY, variables: { owner, name, number, after } });
+    const refs = answer?.data?.repository?.issue?.closedByPullRequestsReferences;
+    if (answer?.errors?.length || !Array.isArray(refs?.nodes)) {
+      throw new Error("the issue's closing pull requests could not be read");
+    }
+    nodes.push(...refs.nodes);
+    if (refs.pageInfo?.hasNextPage !== true) {
+      return nodes;
+    }
+    after = refs.pageInfo.endCursor;
+  }
+  throw new Error(`the issue has more than ${maxPages} pages of closing pull requests`);
+}
+
 // --find-prior: reads the facts findPrior decides on and writes its step
-// outputs. Any failed read fails the step, so the mint never follows it.
+// outputs. Any failed read, or an answer of the wrong shape, fails the step,
+// so the mint never follows it.
 export async function findPriorMain({ env = process.env, fetch = globalThis.fetch } = {}) {
   try {
     if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "")) {
@@ -562,14 +587,14 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
       .filter((comment) => comment.user?.login === bot)
       .map((comment) => ({ ...parseOutcomeMarker(comment.body), at: Date.parse(comment.created_at) }))
       .filter((marker) => marker.outcome !== undefined);
-    const answer = await github("POST", "/graphql", { query: CLOSING_QUERY, variables: { owner, name, number: issueNumber } });
-    const closing = answer?.data?.repository?.issue?.closedByPullRequestsReferences?.nodes;
-    if (answer?.errors?.length || !Array.isArray(closing)) {
-      throw new Error("the issue's closing pull requests could not be read");
-    }
+    const closing = await closingPulls(github, { owner, name, number: issueNumber });
     const shape = laneBranch(issueNumber);
     // The trailing `-` keeps issue 1 from matching issue 12's branches.
-    const refs = (await github("GET", `${repo}/git/matching-refs/heads/work-resolve-issue/issue-${issueNumber}-`))
+    const matching = await github("GET", `${repo}/git/matching-refs/heads/work-resolve-issue/issue-${issueNumber}-`);
+    if (!Array.isArray(matching)) {
+      throw new Error("the issue's lane branches could not be read");
+    }
+    const refs = matching
       .map((ref) => ({ name: String(ref.ref ?? "").replace(/^refs\/heads\//, ""), sha: ref.object?.sha }))
       .filter((ref) => shape.test(ref.name));
     const base = refs.length ? (await github("GET", repo)).default_branch : "";
@@ -577,10 +602,13 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
     const branches = [];
     for (const ref of refs) {
       const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(ref.name)}`);
-      const pulls = await github("GET", `${repo}/pulls?state=all&head=${encodeURIComponent(`${owner}:${ref.name}`)}`);
+      if (!Number.isSafeInteger(comparison?.ahead_by) || comparison.ahead_by < 0) {
+        throw new Error(`the commits ${ref.name} holds ahead of ${base} could not be read`);
+      }
+      const pulls = await paginate(github, `${repo}/pulls?state=all&head=${encodeURIComponent(`${owner}:${ref.name}`)}`);
       // Only a marker naming no run needs the tip's time.
       const tipAt = legacy ? Date.parse((await github("GET", `${repo}/git/commits/${ref.sha}`))?.committer?.date) : Number.NaN;
-      branches.push({ name: ref.name, aheadBy: Number(comparison.ahead_by) || 0, tipAt, pulls: Array.isArray(pulls) ? pulls : [] });
+      branches.push({ name: ref.name, aheadBy: comparison.ahead_by, tipAt, pulls });
     }
     const prior = findPrior({ issueNumber, repo: env.GITHUB_REPOSITORY, bot, humans, branches, closing, markers });
     const outputs =

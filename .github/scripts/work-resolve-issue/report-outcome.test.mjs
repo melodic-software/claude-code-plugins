@@ -695,8 +695,8 @@ test("main does not take another account's copy of the marker as its own", async
 // Idempotency per issue, before the resolve-issue mint. Expected values come
 // from the owner's decisions: stop on an open lanes-App PR from a lane branch,
 // or an open closing PR by the lanes App or a listed human (never an
-// outsider's); reuse only the newest lane branch ahead of main with no
-// lanes-App PR in any state and no outcome marker for its run; else run.
+// outsider's); reuse the first lane branch, newest first, ahead of main with
+// no lanes-App PR in any state and no outcome marker for its run; else run.
 const BOT = "melodic-automation-lanes[bot]";
 const OWNER_ID = 153232337;
 const HUMANS = new Set([OWNER_ID]);
@@ -799,17 +799,31 @@ const TRUSTED_LIST = JSON.stringify({
 const graphql = (nodes) => ({ data: { repository: { issue: { closedByPullRequestsReferences: { nodes } } } } });
 const refOf = (name) => ({ ref: `refs/heads/${name}`, object: { sha: "a".repeat(40) } });
 
-async function runPrior({ comments = [], nodes = [], refs = [], pulls = [], aheadBy = 2 }) {
+// `graphqlPages`, when given, answers the closing-PR query by its `after`
+// cursor: page i is served for cursor `c<i>` (page 0 for none).
+async function runPrior({ comments = [], nodes = [], refs = [], pulls = [], comparison = { ahead_by: 2 }, graphqlPages }) {
   return withAsyncDir({ "trusted.json": TRUSTED_LIST, output: "" }, async (dir) => {
-    const { fetch, calls } = fakeFetch([
+    const fake = fakeFetch([
       ["GET", /\/issues\/77\/comments$/, 200, comments],
       ["POST", /^\/graphql$/, 200, graphql(nodes)],
       ["GET", /\/git\/matching-refs\/heads\/work-resolve-issue\/issue-77-$/, 200, refs],
       ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
-      ["GET", /\/compare\//, 200, { ahead_by: aheadBy }],
+      ["GET", /\/compare\//, 200, comparison],
       ["GET", /\/pulls$/, 200, pulls],
       ["GET", /\/git\/commits\//, 200, { committer: { date: "2026-10-16T10:00:00Z" } }],
     ]);
+    const { calls } = fake;
+    const fetch = async (url, init = {}) => {
+      if (graphqlPages && new URL(url).pathname === "/graphql") {
+        const { after } = JSON.parse(init.body).variables;
+        calls.push({ method: "POST", path: "/graphql", body: JSON.parse(init.body) });
+        const index = after ? Number(after.slice(1)) : 0;
+        const pageInfo = { hasNextPage: index + 1 < graphqlPages.length, endCursor: `c${index + 1}` };
+        const body = { data: { repository: { issue: { closedByPullRequestsReferences: { nodes: graphqlPages[index], pageInfo } } } } };
+        return { ok: true, status: 200, json: async () => body };
+      }
+      return fake.fetch(url, init);
+    };
     const code = await findPriorMain({
       env: {
         ISSUE_NUMBER: "77",
@@ -879,6 +893,30 @@ test("--find-prior fails and writes no output when a read fails, so the mint nev
     assert.equal(code, 1);
     assert.equal(readFileSync(join(dir, "output"), "utf8"), "");
   });
+});
+
+test("--find-prior reads every page of closing PRs, so outsiders' PRs cannot hide a trusted one", async () => {
+  const outsiders = Array.from({ length: 100 }, (_, i) => ({ ...closer("User", `stranger${i}`, 1000 + i), number: 600 + i }));
+  const { code, calls, output } = await runPrior({ graphqlPages: [outsiders, [closer("User", "kyle-sexton", OWNER_ID)]] });
+  assert.equal(code, 0);
+  assert.deepEqual(calls.filter((c) => c.path === "/graphql").map((c) => c.body.variables.after), [null, "c1"]);
+  assert.equal(output, "proceed=false\nskip-reason=not-applicable\nreuse-branch=\n");
+});
+
+test("--find-prior fails on a pull request listing that is not a list", async () => {
+  for (const pulls of [{ message: "odd" }, "x"]) {
+    const { code, output } = await runPrior({ refs: [refOf(lane(400))], pulls });
+    assert.equal(code, 1, JSON.stringify(pulls));
+    assert.equal(output, "");
+  }
+});
+
+test("--find-prior fails on a comparison with no whole-number ahead_by", async () => {
+  for (const comparison of [{}, { ahead_by: "3" }, { ahead_by: null }, { ahead_by: 1.5 }]) {
+    const { code, output } = await runPrior({ refs: [refOf(lane(400))], comparison });
+    assert.equal(code, 1, JSON.stringify(comparison));
+    assert.equal(output, "");
+  }
 });
 
 // Hand-back markers name the run, so a later --find-prior matches the branch

@@ -954,11 +954,13 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
   `not-applicable`, with no lane token, no model and no comment, when a lanes-App PR from a lane branch
   is open, or when an open PR in this repository closes the issue and the lanes App or a listed
   human (`trusted-actors.json`) opened it; anyone's other closing PR is ignored. It also skips
-  `not-applicable` and sets the `reuse-branch` output when the newest lane branch with commits
-  ahead has no lanes-App PR in any state (a closed one was rejected or merged) and no lanes-App
-  outcome marker for its run: the work was made and its report never posted. A branch whose run
-  posted a hand-back or limited marker is not reused, so those runs restart the model as before.
-  Any failed read fails the step, so nothing is minted.
+  `not-applicable` and sets the `reuse-branch` output to the first lane branch, newest run and
+  attempt first, that has commits ahead, no lanes-App PR in any state (a closed one was rejected
+  or merged) and no lanes-App outcome marker for its run: the work was made and its report never
+  posted. Branches that fail any of these are passed over, not stopped at, so an older unreported
+  branch is reused even when a newer branch's run was handed back or limit-stopped. A branch whose
+  own run posted a hand-back or limited marker is never reused. Any failed read, or an answer of
+  the wrong shape, fails the step, so nothing is minted.
 - Before the skill, the runner writes the issue's number, title, body and labels to `issue.json`
   in the skill's scratch directory, with only the comments `select-trusted-text`'s author and edit
   rules keep (`write-issue.mjs`), oldest first, so a listed maintainer's recorded decision reaches
