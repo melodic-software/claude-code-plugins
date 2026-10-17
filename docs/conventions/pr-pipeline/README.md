@@ -591,7 +591,12 @@ acting as that account wrote it. Unattended merge stays off (`merge.report-only:
 identity exists.
 
 `verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and `verify:untrusted-spec` need a
-human, who clears them
+human. While `merge.report-only` is false the lane escalates such a refusal on the pull request
+([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it adds the tracker's human-gated
+role label (`needs-human` unless `.work-item-tracker.json` maps it) when absent, and keeps one
+`<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, rewritten only
+when either changes, so a rerun writes nothing. While it is true the refusal is only reported. The
+lane token's `issues: write` and `pull-requests: write` cover both writes. A human clears them
 by merging in person: the verdict is not a check run and stays out of `ci-status` and the required
 checks (github-iac ADR 0011), so a human merge needs `ci-status` alone. A queued entry without an
 allowing verdict at its live head leaves the queue. A dependency manager's pull request (a `Bot`

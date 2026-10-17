@@ -33,6 +33,7 @@ from unittest import mock
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import babysit_merge as merge
 import babysit_merge_policy as policy
 import babysit_postmerge as postmerge
 import babysit_verify_evidence as ve
@@ -910,9 +911,92 @@ class LaneRequiresAVerdict(unattended.Unattended):
         patcher = mock.patch.object(ve.Reader, "evidence", side_effect=self._evidence)
         patcher.start()
         self.addCleanup(patcher.stop)
+        # The tracker's human-gated role label (`.work-item-tracker.json`).
+        self.role_label = mock.Mock(return_value="needs-human")
+        patcher = mock.patch.object(postmerge, "_role_label", self.role_label)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _evidence(self, number: int, head: str, pr: Any = None) -> ve.Evidence:
         return self.read(number, head)
+
+    def escalation_writes(self) -> list[list[str]]:
+        return [
+            c.args[0]
+            for c in self.capture.call_args_list
+            if any("/labels" in a or merge.VERIFY_ESCALATION_MARKER in a for a in c.args[0])
+        ]
+
+    def test_a_needs_human_refusal_labels_the_pr_and_comments_once(self) -> None:
+        for refusal in ve.NEEDS_HUMAN:
+            with self.subTest(refusal):
+                self.verdicts[unattended.PR] = evidence(refusal)
+                code, out = self.lane()
+                self.assert_no_merge(code)
+                label, comment = self.escalation_writes()
+                self.assertEqual(
+                    label[-4:],
+                    ["POST", f"repos/owner/repo/issues/{unattended.PR}/labels"]
+                    + ["-f", "labels[]=needs-human"],
+                )
+                self.assertIn("POST", comment)
+                body = comment[-1].removeprefix("body=")
+                self.assertTrue(body.startswith(merge.VERIFY_ESCALATION_MARKER + "\n"))
+                self.assertIn(f"`{refusal}`", body)
+                self.assertIn(unattended.HEAD, body)
+                self.assertEqual(
+                    out["unattended"]["writes"]["escalation"],
+                    {"label": "added", "comment": "created"},
+                )
+
+    def test_the_label_is_the_trackers_human_gated_role(self) -> None:
+        self.role_label.return_value = "status: needs-decision"
+        self.verdicts[unattended.PR] = evidence("verify:too-old")
+        self.lane()
+        self.assertIn("labels[]=status: needs-decision", self.escalation_writes()[0])
+
+    def test_another_label_does_not_stand_in_for_the_role_label(self) -> None:
+        self.verdicts[unattended.PR] = evidence("verify:earlier-fail")
+        self.pr_labels = [{"name": "enhancement"}]
+        _, out = self.lane()
+        self.assertEqual(out["unattended"]["writes"]["escalation"]["label"], "added")
+
+    def test_a_rerun_writes_no_second_label_or_comment(self) -> None:
+        self.verdicts[unattended.PR] = evidence("verify:spec-changed")
+        self.pr_labels = [{"name": "needs-human"}]
+        self.comments = [
+            {
+                "id": 90,
+                "user": {"login": unattended.IDENTITY, "type": "Bot"},
+                "created_at": "2026-10-12T10:00:00Z",
+                "body": merge.verify_escalation_body(
+                    "verify:spec-changed", unattended.HEAD
+                ),
+            }
+        ]
+        _, out = self.lane()
+        self.assertEqual(self.escalation_writes(), [])
+        self.assertEqual(
+            out["unattended"]["writes"]["escalation"],
+            {"label": "present", "comment": "unchanged"},
+        )
+
+    def test_report_only_reports_a_needs_human_refusal_and_writes_nothing(self) -> None:
+        self.config = dataclasses.replace(self.config, report_only=True)
+        self.verdicts[unattended.PR] = evidence("verify:untrusted-spec")
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertIs(out["unattended"]["verify"]["needsHuman"], True)
+        self.capture.assert_not_called()
+        self.assertNotIn("writes", out["unattended"])
+
+    def test_a_refusal_that_needs_no_human_is_not_escalated(self) -> None:
+        for refusal in ("verify:fail", "verify:missing", "verify:unreadable"):
+            with self.subTest(refusal):
+                self.verdicts[unattended.PR] = evidence(refusal)
+                _, out = self.lane()
+                self.assertEqual(self.escalation_writes(), [])
+                self.assertNotIn("escalation", out["unattended"]["writes"])
 
     def test_a_pass_at_the_head_enqueues(self) -> None:
         code, out = self.lane()
