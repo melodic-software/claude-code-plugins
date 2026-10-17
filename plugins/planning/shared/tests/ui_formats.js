@@ -339,12 +339,11 @@ async function main() {
     ok("poll, as the owner: Close poll shows and no Lock this one shows on any option or answer card",
       await until(bOwner, () => [...document.querySelectorAll("button")].some(b => b.offsetParent && b.textContent.trim() === "Close poll")) && (await pollLocks()) === 0,
       `${await pollLocks()} Lock this one visible`);
-    // Nia moves her pick to Standard so the poll has a clear top pick (a tie is not broken by one pick).
-    await nia.evaluate(() => window.Core.pick("Q4", "opt-1"));
-    await until(bOwner, () => window.Core.snapshot()?.cards?.Q4?.find(c => c.ref === "o:opt-1")?.votes?.length === 2);
+    // Standard 1 (the owner), Nia's own option 1: a tie, and a poll still closes as a tally with no winner.
     await closePoll.click();
-    ok("poll, as the owner: Close poll closes it on the top pick, and Unlock reopens it",
-      await until(bOwner, () => window.Core.snapshot()?.locks?.Q4?.source?.card === "o:opt-1" && [...document.querySelectorAll("button")].some(b => b.offsetParent && b.textContent.trim() === "Unlock")));
+    ok("poll, as the owner: Close poll closes a tied poll as a tally (no card), and Unlock shows",
+      await until(bOwner, () => JSON.stringify(window.Core.snapshot()?.locks?.Q4?.source) === '{"kind":"poll"}' && [...document.querySelectorAll("button")].some(b => b.offsetParent && b.textContent.trim() === "Unlock")),
+      JSON.stringify((await snap(bOwner))?.locks?.Q4));
     await bOwner.close();
     // A state.json the 6579f21 build wrote can hold a pixel-sized rect (it took any number); it loads as it is and
     // the page clamps the mark into the picture.

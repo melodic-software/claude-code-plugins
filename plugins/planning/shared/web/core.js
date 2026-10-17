@@ -172,8 +172,8 @@
       const src = lk.source || {}, sug = src.kind === "suggestion" ? (s.suggestions?.[qid] || []).find(x => x.id === src.suggestion) : null;
       const ref = src.kind === "card" ? src.card : src.kind === "edited" && /^[pco]:/.test(src.from || "") ? src.from : sug ? "p:" + sug.pid : "";
       const kind = ref.split(":")[0];
-      view.locks[qid] = { text: src.text, answerCid: authorCid(qid, ref), by: nameOf(lk.by), ts: lk.at, edited: src.kind === "edited", hostEdited: !!src.editedBy,
-        name: kind === "c" ? "Claude" : kind === "o" ? "Option" : kind === "p" ? nameOf(ref.split(":")[1]) : "" };
+      view.locks[qid] = { text: src.text || "", answerCid: authorCid(qid, ref), by: nameOf(lk.by), ts: lk.at, edited: src.kind === "edited", hostEdited: !!src.editedBy,
+        name: kind === "c" ? "Claude" : kind === "o" ? "Option" : kind === "p" ? nameOf(ref.split(":")[1]) : "", poll: src.kind === "poll" };
     }
     for (const [qid, lst] of Object.entries(s.suggestions || {})) {
       view.suggestions[qid] = lst.map(x => ({ id: x.id, cid: x.pid, name: nameOf(x.pid), text: x.text, note: x.note || "", ts: x.at, status: x.status.kind, votes: x.votes || [] }));

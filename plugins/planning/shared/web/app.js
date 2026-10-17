@@ -1919,7 +1919,7 @@
     }
     function lockTopAnswer() {
       Core.lock(ui.cur).catch(e => {
-        if (e?.error !== "tie" || qById(ui.cur)?.purpose === "poll") return fail(e); // a tied poll is not broken by one pick
+        if (e?.error !== "tie") return fail(e);
         const by = Object.fromEntries(Core.answersFor(ui.cur).map(a => [a.cid, a]));
         tieList.replaceChildren(...e.tied.filter(c => by[c]).map(c => {
           const a = by[c], li = E("li", "vf-tieitem");
@@ -3817,8 +3817,8 @@
           const aUl = E("ul", "vf-tree-ul"), aLi = E("li", "vf-tn");
           const aNode = node("button", "vf-tnode vf-tleaf " + (lk ? "vf-tlocked" : "vf-topen"), "a:" + q.id);
           const n2 = peopleAnswers(q.id).filter(a => !a.claude).length;
-          const from = lk ? (lk.name === "Claude" ? "from Claude" : lk.name === "Option" ? "the group's pick" : `from ${disp(lk.name)}`) : "";
-          if (lk) aNode.append(E("span", "vf-ttxt", lk.text), E("span", "vf-meta", from));
+          const from = lk ? (lk.poll ? "counts final" : lk.name === "Claude" ? "from Claude" : lk.name === "Option" ? "the group's pick" : `from ${disp(lk.name)}`) : "";
+          if (lk) aNode.append(E("span", "vf-ttxt", lk.poll ? "Poll closed" : lk.text), E("span", "vf-meta", from));
           else aNode.append(E("span", "vf-ttxt", notOpenYet(q) ? "Not open yet" : "Open"), E("span", "vf-meta", n2 ? `${n2} answer${n2 > 1 ? "s" : ""}` : "no answers yet"));
           aNode.onclick = () => focusQuestion(q.id);
           aLi.append(aNode); aUl.append(aLi); qLi.append(aUl);
@@ -5312,13 +5312,16 @@
         if (lk) {
           lockBy.textContent = `by ${disp(lk.by)}, ${ago(lk.ts)}${lk.edited ? ", edited" : ""}`;
           const lname = lk.name === "Claude" && String(lk.answerCid).startsWith("claude") ? "Claude" : disp(lk.name);
-          fillClamp(lockText, "l:" + q.id, lk.text, `Locked answer`, `${q.id}: ${q.text}`);
-          const lkey = lk.answerCid + "|" + lname + "|" + lk.hostEdited;
+          // A closed poll chose no answer: it names no author and has no locked text to edit.
+          fillClamp(lockText, "l:" + q.id, lk.poll ? "The poll is closed. The counts are final." : lk.text, lk.poll ? "Closed poll" : `Locked answer`, `${q.id}: ${q.text}`);
+          const lkey = lk.poll ? "poll" : lk.answerCid + "|" + lname + "|" + lk.hostEdited;
           if (lockFrom._k !== lkey) {
             lockFrom._k = lkey;
-            lockFrom.replaceChildren(lname === "Claude" ? claudeAv(18) : av(lk.answerCid, lk.name, 18, true), E("span", null, `Answer from ${lname}${lk.hostEdited ? ", edited by the host" : ""}`));
+            lockFrom.replaceChildren(...(lk.poll ? [] : [lname === "Claude" ? claudeAv(18) : av(lk.answerCid, lk.name, 18, true), E("span", null, `Answer from ${lname}${lk.hostEdited ? ", edited by the host" : ""}`)]));
           }
-          unlockBtn.hidden = editBtn.hidden = !mod;
+          lockFrom.hidden = !!lk.poll;
+          unlockBtn.hidden = !mod;
+          editBtn.hidden = !mod || !!lk.poll;
           if (!mod) editForm.hidden = true;
           const sugs = openSugs(q.id).sort((a, b) => b.votes.length - a.votes.length || a.ts - b.ts);
           sugTitle.textContent = sugs.length ? `Suggestions (${sugs.length})` : "Suggestions";
@@ -5361,7 +5364,8 @@
             k.vote.setAttribute("aria-pressed", String(li._mine));
             k.vote.disabled = isMe(x.cid);
             k.vote.title = isMe(x.cid) ? "Your suggestion" : "Vote for this suggestion";
-            k.use.hidden = k.edit.hidden = k.dismiss.hidden = !mod;
+            k.use.hidden = k.edit.hidden = !mod || !!lk.poll; // a closed poll's counts are never replaced
+            k.dismiss.hidden = !mod;
           });
           sList.hidden = sugs.length === 0;
           sugHead.hidden = mod && sugs.length === 0;
@@ -5407,16 +5411,18 @@
         aEmpty.textContent = waitingC.length ? "Pick one to see what others said." : isChoice(q) ? "No comments yet." : "No answers yet. Yours can be the first.";
         const lockable = Core.answersFor(q.id).filter(a => !waitingC.includes(a));
         // Gather answers stand (no lock); only the owner closes a poll (Q97).
-        lockBtn.hidden = !mod || !!lk || !lockable.length || q.purpose === "gather" || (q.purpose === "poll" && !me.isOwner);
-        lockBtn.textContent = q.purpose === "poll" ? "Close poll" : isChoice(q) ? "Lock top pick" : "Lock top answer";
+        // A poll closes as a tally: always open to the owner, ties and no votes included, with no winner chosen.
+        const poll = q.purpose === "poll";
+        lockBtn.hidden = !mod || !!lk || (!lockable.length && !poll) || q.purpose === "gather" || (poll && !me.isOwner);
+        lockBtn.textContent = poll ? "Close poll" : isChoice(q) ? "Lock top pick" : "Lock top answer";
         const topA = byVotes(lockable)[0];
         const anyVotes = lockable.some(a => votesOf(a) > 0);
         const agreeN = topA ? agreeing(topA) : 0;
         const blocked = s.signoff && topA && agreeN < here.length;
-        lockBtn.setAttribute("aria-disabled", String(!anyVotes || !!blocked));
-        lockBtn.title = !anyVotes ? (q.purpose === "poll" ? "No answer has a vote yet." : "No answer has a vote yet. Vote first, or use Lock this one on a card to pick one yourself.")
+        lockBtn.setAttribute("aria-disabled", String(!poll && (!anyVotes || !!blocked)));
+        lockBtn.title = poll ? "Freeze the counts; no answer is chosen" : !anyVotes ? "No answer has a vote yet. Vote first, or use Lock this one on a card to pick one yourself."
           : blocked ? "Everyone here has to vote for it first" : "Freeze the most voted answer";
-        agreeTxt.textContent = s.signoff && !lk && topA ? `${agreeN} of ${here.length} agree` : "";
+        agreeTxt.textContent = s.signoff && !lk && topA && !poll ? `${agreeN} of ${here.length} agree` : "";
         agreeTxt.classList.toggle("vf-agree-all", !!topA && agreeN === here.length);
       } else {
         qPos.textContent = qFrom.textContent = ""; qSug.hidden = qDeps.hidden = qHost.hidden = closedBox.hidden = qPurpose.hidden = purposeSel.w.hidden = true; qText.textContent = "No questions yet";

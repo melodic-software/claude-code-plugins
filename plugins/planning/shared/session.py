@@ -304,7 +304,7 @@ def cross_field_errors(doc):
     """The session rules the schema cannot express, each broken one as a sentence: dependsOn names
     only earlier questions, no two review flags share because and why, a round holds at most 8, a
     question holds at most one Something else option, the one with id `other` and `other: true`, no
-    session secret names the owner (only the owner link does), and every link and asset name is
+    session secret names the owner (only the owner link does), only a poll holds a closed-poll lock, and every link and asset name is
     one a write route takes (the schema's url and assetId patterns, which schema.py does not check)."""
     errors, seen, per_round = [], set(), {}
     if HOST in doc["credentials"]["secrets"].values():
@@ -322,6 +322,9 @@ def cross_field_errors(doc):
         others = [o for o in q["format"].get("options", []) if o.get("other") or o["id"] == OTHER]
         if len(others) > 1 or any(not (o.get("other") and o["id"] == OTHER) for o in others):
             errors.append(f"{q['id']} holds more than one Something else option, or one without both its id and its flag.")
+        lock = doc["locks"].get(q["id"])
+        if lock and lock["source"]["kind"] == "poll" and q["purpose"] != "poll":
+            errors.append(f"{q['id']} holds a closed-poll lock but is not a poll.")
         seen.add(q["id"])
         per_round[q["round"]] = per_round.get(q["round"], 0) + 1
     errors += [f"Round {n} holds {k} questions; the most is {MAX_ROUND}." for n, k in sorted(per_round.items()) if k > MAX_ROUND]
@@ -1838,6 +1841,8 @@ class Session:
                 raise _bad("purpose", "A poll needs options; this is a text question.")
             if purpose == "gather" and q["id"] in st["locks"]:
                 raise DomainError(409, "locked", "Unlock the question before making it a gather question.")
+            if (purpose == "poll") != (q["purpose"] == "poll") and q["id"] in st["locks"]:
+                raise DomainError(409, "locked", "Unlock the question before making it a poll or no longer a poll.")
             q["purpose"] = purpose
             return {"purpose": purpose}
 
@@ -2498,7 +2503,8 @@ class Session:
         return []
 
     def lock(self, pid, body):
-        """POST /api/lock: no `card` is Lock top answer; with `card` it is Lock this one."""
+        """POST /api/lock: no `card` is Lock top answer; with `card` it is Lock this one. A poll
+        takes no `card`: Close poll freezes its counts and chooses no answer, tied or empty."""
         ref = _ident(body, "card", optional=True)
         now = self.now()
         with self._tx() as st:
@@ -2509,24 +2515,25 @@ class Session:
                 raise DomainError(403, "owner-only", "Only the owner closes a poll.")
             if q["purpose"] == "gather":
                 raise DomainError(409, "wrong-purpose", "A gather question is not locked; its answers stand.")
-            poll = q["purpose"] == "poll"
-            if poll and ref is not None:
-                raise DomainError(409, "wrong-purpose", "A poll closes as a whole; no single answer is locked.")
+            if q["purpose"] == "poll":
+                if ref is not None:
+                    raise DomainError(409, "wrong-purpose", "A poll closes as a whole; no single answer is locked.")
+                self._answerable(q)
+                st["locks"][qid] = {"at": now, "by": pid, "source": {"kind": "poll"}}
+                return {"closed": True, "flagged": []}
             self._answerable(q)
             tally = self._tally(qid)
             most = max(tally.values(), default=0)
             if ref is not None:
                 self._card(qid, ref)
             if most == 0 and not (pid == HOST and ref is not None):
-                hint = "" if poll else "; the owner's Lock this one still works"
-                raise DomainError(409, "no-votes", f"No answer has a vote yet{hint}.")
+                raise DomainError(409, "no-votes", "No answer has a vote yet; the owner's Lock this one still works.")
             if ref is not None:
                 target = ref
             else:
                 tied = [r for r, n in tally.items() if n == most]
                 if len(tied) > 1:
-                    pick = "a vote breaks the tie" if poll else "the owner picks one"
-                    raise DomainError(409, "tie", f"Answers are tied; {pick}.", tied=tied)
+                    raise DomainError(409, "tie", "Answers are tied; the owner picks one.", tied=tied)
                 target = tied[0]
             if st["session"]["settings"]["signoff"] and not (pid == HOST and ref is not None):
                 here = self._present()
@@ -2609,6 +2616,8 @@ class Session:
             if action == "use":
                 if q["id"] not in st["locks"]:
                     raise DomainError(409, "not-locked", "Lock the question before using a suggestion.")
+                if q["purpose"] == "poll":
+                    raise DomainError(409, "wrong-purpose", "A closed poll keeps its counts; no answer replaces them.")
                 st["locks"][q["id"]] = {"at": now, "by": pid, "source": {"kind": "suggestion", "suggestion": sid, "text": s["text"]}}
                 s["status"] = {"kind": "used", "at": now}
                 flagged = self._lock_changed(q, s["text"])
@@ -2626,6 +2635,8 @@ class Session:
             q = self._question(body.get("qid"))
             if q["id"] not in st["locks"]:
                 raise DomainError(409, "not-locked", "This question is not locked.")
+            if q["purpose"] == "poll":
+                raise DomainError(409, "wrong-purpose", "A closed poll keeps its counts; it has no locked text to edit.")
             used = None
             if source is not None:
                 if source.startswith(("p:", "c:", "o:")):
@@ -3565,7 +3576,7 @@ class Session:
                 newest[f["because"]] = f
             for because, f in newest.items():
                 lk = st["locks"].get(because)
-                now_ = {"kind": "locked", "text": lk["source"]["text"]} if lk else {"kind": "unlocked"}
+                now_ = {"kind": "locked", "text": lk["source"].get("text", "")} if lk else {"kind": "unlocked"}  # a closed poll has no text
                 item = {"id": q["id"], "because": because, "now": now_}
                 if f["why"]["kind"] == "suggested":
                     item["suggestion"] = f["why"]["suggestion"]

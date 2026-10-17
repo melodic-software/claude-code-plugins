@@ -1004,7 +1004,7 @@ class TestQuestionBehavior(SessionCase):
         self.refused("wrong-purpose", "answer", self.bo, {"qid": "Q1", "text": "Free text", "view": "focus"})
         self.refused("owner-only", "lock", self.ann, {"qid": "Q1"}, http=403)
         self.act("lock", HOST, {"qid": "Q1"})
-        self.assertEqual(self.s.state["locks"]["Q1"]["source"]["text"], "Saved method")
+        self.assertEqual(self.s.state["locks"]["Q1"]["source"], {"kind": "poll"})
 
     def test_a_poll_refuses_locking_one_answer_but_the_owner_closes_and_reopens_it(self):
         self.open_round(choice_q("Q1"))
@@ -1013,9 +1013,50 @@ class TestQuestionBehavior(SessionCase):
         self.refused("wrong-purpose", "lock", HOST, {"qid": "Q1", "card": "o:opt-1"}, http=409)
         self.assertNotIn("Q1", self.s.state["locks"])
         self.act("lock", HOST, {"qid": "Q1"})
-        self.assertEqual(self.s.state["locks"]["Q1"]["source"]["text"], "Card")
+        self.assertEqual(self.s.state["locks"]["Q1"]["source"], {"kind": "poll"})
         self.act("unlock", HOST, {"qid": "Q1"})
         self.assertNotIn("Q1", self.s.state["locks"])
+
+    def poll_outcome(self, qid):
+        self.send()
+        digest = self.events("round-sent")[-1]["digest"]
+        return next(q for q in digest["questions"] if q["id"] == qid)["outcome"]
+
+    def test_the_owner_closes_a_tied_poll_as_a_tally_with_no_winner(self):
+        self.open_round(choice_q("Q1"))
+        self.act("pick", self.ann, {"qid": "Q1", "option": "opt-1", "view": "focus"})
+        self.act("pick", self.bo, {"qid": "Q1", "option": "opt-2", "view": "focus"})
+        self.act("lock", HOST, {"qid": "Q1"})
+        self.assertEqual(self.s.state["locks"]["Q1"]["source"], {"kind": "poll"})
+        # By hand: Ann Card, Bo Saved method, nobody None.
+        counts = [{"option": "Card", "votes": 1}, {"option": "Saved method", "votes": 1}, {"option": "None", "votes": 0}]
+        self.assertEqual(self.poll_outcome("Q1"), {"kind": "poll", "closed": True, "counts": counts})
+
+    def test_the_owner_closes_a_poll_nobody_picked_in(self):
+        self.open_round(choice_q("Q1"))
+        self.act("lock", HOST, {"qid": "Q1"})
+        self.assertEqual(self.s.state["locks"]["Q1"]["source"], {"kind": "poll"})
+        counts = [{"option": "Card", "votes": 0}, {"option": "Saved method", "votes": 0}, {"option": "None", "votes": 0}]
+        self.assertEqual(self.poll_outcome("Q1"), {"kind": "poll", "closed": True, "counts": counts})
+
+    def test_a_closed_poll_keeps_its_tally_lock(self):
+        self.open_round(choice_q("Q1"))
+        self.act("lock", HOST, {"qid": "Q1"})
+        self.refused("wrong-purpose", "edit_lock", HOST, {"qid": "Q1", "text": "Card"}, http=409)
+        self.refused("locked", "set_purpose", HOST, {"qid": "Q1", "purpose": "decide"}, http=409)
+        self.assertEqual(self.s.state["locks"]["Q1"]["source"], {"kind": "poll"})
+
+    def test_a_decide_question_cannot_take_a_poll_lock_or_become_a_poll_while_locked(self):
+        self.open_round(choice_q("Q1", purpose="decide"))
+        self.act("pick", self.ann, {"qid": "Q1", "option": "opt-1", "view": "focus"})
+        self.act("lock", HOST, {"qid": "Q1"})
+        self.assertEqual(self.s.state["locks"]["Q1"]["source"]["card"], "o:opt-1")
+        self.refused("locked", "set_purpose", HOST, {"qid": "Q1", "purpose": "poll"}, http=409)
+        doc = json.loads(json.dumps(self.s.state))
+        doc["locks"]["Q1"]["source"] = {"kind": "poll"}
+        self.assertIsNotNone(session.document_error(doc))
+        next(q for q in doc["questions"] if q["id"] == "Q1")["purpose"] = "poll"
+        self.assertIsNone(session.document_error(doc))
 
     def test_owner_adds_and_removes_references(self):
         self.open_round(text_q("Q1"))
@@ -2743,8 +2784,8 @@ class TestFormatPicks(FormatCase):
     def test_scale_options_are_its_values_with_the_end_and_middle_labels(self):
         cards = [c["option"] for c in self.s.state["cards"]["Q2"]]
         self.assertEqual(cards, ["1", "2", "3", "4", "5"])
-        self.pick(self.ann, "Q2", value=3)
-        self.act("lock", HOST, {"qid": "Q2"})  # Q2 is a poll: it closes as a whole
+        self.act("set_purpose", HOST, {"qid": "Q2", "purpose": "decide"})  # a poll locks no single value
+        self.act("lock", HOST, {"qid": "Q2", "card": "o:3"})
         self.assertEqual(self.s.state["locks"]["Q2"]["source"]["text"], "3 (Sometimes)")
 
 

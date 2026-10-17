@@ -609,6 +609,13 @@
               "required": ["kind", "text", "from"],
               "additionalProperties": false,
               "properties": {"kind": {"enum": ["edited"]}, "text": {"$ref": "#/$defs/text"}, "from": {"type": ["string", "null"]}}
+            },
+            {
+              "description": "A closed poll: the counts are frozen and no answer is chosen. Only a poll question holds it.",
+              "type": "object",
+              "required": ["kind"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["poll"]}}
             }
           ]
         }
