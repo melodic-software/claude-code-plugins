@@ -86,17 +86,15 @@ installed, say the STE register is unavailable and write in the plain register.
 ## Step 3. Build the record and the page
 
 Add a `slug` to the model: a short name of lowercase letters, digits and hyphens only. Write the
-model with the Write tool to `${CLAUDE_PLUGIN_DATA}/illustrate/model.json`, then run the fixed
-command. The file persists between runs: when it exists, Read it before you write it. Run the
-build straight after the write, so another session that shares the data directory cannot replace
-the model in between. The builder checks the slug (exit 2 when it is not `^[a-z0-9-]+$`) and
-derives the record path `records/<slug>.md` and the page path `views/<slug>.html` under the output
-directory itself:
+model with the Write tool to `${CLAUDE_PLUGIN_DATA}/illustrate/models/${CLAUDE_SESSION_ID}.json`,
+one file per session, then run the fixed command. The builder checks the slug (exit 2 when it is
+not `^[a-z0-9-]+$`) and derives the record path `records/<slug>.md` and the page path
+`views/<slug>.html` under the output directory itself:
 
 ```bash
 "${CLAUDE_SKILL_DIR}/scripts/build-explainer.mjs" \
   --out-dir "${CLAUDE_PLUGIN_DATA}/illustrate" \
-  --model "${CLAUDE_PLUGIN_DATA}/illustrate/model.json"
+  --model "${CLAUDE_PLUGIN_DATA}/illustrate/models/${CLAUDE_SESSION_ID}.json"
 ```
 
 The model goes in a file and the paths come from the builder, so no topic text or model-chosen

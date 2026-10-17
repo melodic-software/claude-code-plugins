@@ -527,7 +527,9 @@ check(
   "the skill routes the page through the builder",
   skill.includes("build-explainer.mjs") && skill.includes("Do not hand-write the HTML"),
 );
-check("the skill's build command carries no model-chosen slug", !/<slug>/.test(skill.match(/```bash\n([\s\S]*?)```/)?.[1] ?? "<slug>") && skill.includes("--out-dir")); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+const buildCommand = skill.match(/```bash\n([\s\S]*?)```/)?.[1] ?? "<slug>"; // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+check("the skill's build command carries no model-chosen slug", !/<slug>/.test(buildCommand) && skill.includes("--out-dir"));
+check("the skill's build command reads a per-session model file", /--model "[^"]*\$\{CLAUDE_SESSION_ID\}[^"]*"/.test(buildCommand), buildCommand); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 check("the skill states the short-label rule", skill.includes("Labels are capped at 40 characters"));
 const kindRows = ["flow", "stack", "hub", "timeline", "compare", "before-after"].filter((kind) => skill.includes(`| \`${kind}\` |`));
 check("the skill documents every kind the builder accepts", kindRows.length === 6, kindRows.join(","));
