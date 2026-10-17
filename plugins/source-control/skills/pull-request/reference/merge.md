@@ -28,7 +28,12 @@ Re-check all check runs for any state changes, then re-check for new comments si
    that `headRefOid` as `HEAD_SHA` here: it is the head every later step in this phase pins to, so
    a push after this point holds the merge instead of riding along. If
    `behind_by > 0`, update the branch (merge-forward, or the forge's update-branch) and re-run
-   readiness; do **not** squash-merge a behind head. Under a non-strict ruleset, GitHub can
+   readiness; do **not** squash-merge a behind head. Two exceptions
+   ([GitHub](../../../reference/providers/github/pull-request/merge.md#behind-branch-exceptions)):
+   when the base uses a merge queue, skip the update and enqueue; and when a dependency manager (Dependabot, Renovate) authored the PR,
+   never push or merge into its branch: ask the manager to rebase it, then re-run readiness on the
+   head it pushes. That request is a comment on a PR the session did not open, so the
+   consuming repo's stop rules for such comments apply. Under a non-strict ruleset, GitHub can
    still report `CLEAN` while the head is behind, and a stale-base squash can silently revert
    recently-landed fixes (the tests travel with the reverted code, so CI stays green). `CLEAN` also
    says nothing about which base CI tested: GitHub regenerates the test merge commit only on a
@@ -105,11 +110,15 @@ melodic-software, the base branch's live rules require `ci-status`, every check 
 head was read (the count matches the reported total) and both AI review lanes, matched by the exact
 names above, completed with success, and the PR reads `CLEAN` at the pinned head (it polls while
 the merge state reads `UNKNOWN`, as in 4.2). Only then does it
-merge, pinned to that head with `--match-head-commit`.
+print the pinned head. The merge itself is a separate single command, in the guarded shape that
+section gives: the checks and the merge in one command, with the PR number, repository and full
+head sha written literally and pinned with `--match-head-commit`. A failed guard is a hold; a merge
+the permission layer refuses in that shape waits for the user, never a retry in another shape.
 
 Behind a merge queue (claude-code-plugins) the queue sets the strategy, so pass no strategy flag.
-Never pass `--auto`,
-`--admin`, `--merge`/`-m` or `--rebase`/`-r`. Confirm queue entry per
+Never pass `--auto`, `--merge`/`-m` or `--rebase`/`-r`, and never `--admin` except in that
+section's guarded admin form where the user's own instructions authorize an admin merge for the
+repository. Confirm queue entry per
 [4.2.2](#422-confirm-queue-entry), then poll the PR's state and merge-queue membership every 30
 seconds until it reads `MERGED` or leaves the queue unmerged (run the loop in the background or under
 a monitor; [GitHub](../../../reference/providers/github/pull-request/merge.md#poll-the-merge-queue)).

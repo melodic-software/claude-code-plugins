@@ -5,6 +5,24 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.14.10] - 2026-10-16
+
+### Changed
+
+- Skill text no longer cites the guardrails `block-hook-bypass` guard, which guardrails retired:
+  a shell write still skips the Write and Edit content guards, so the Write tool stays the route.
+
+### Fixed
+
+- `lib/check-retirements.sh` finds and cleans a `.git/` leftover, such as a retired git hook,
+  when run from a linked worktree: such a path resolves under `git rev-parse --git-common-dir`.
+
+## [1.14.9] - 2026-10-16
+
+### Fixed
+
+- `audit-permission-state` lint: `C6-colonStar` no longer fires on a rule body that starts with `*`, such as `PowerShell(*env:*lefthook*)`, where there is no command prefix and the colon is the literal the rule means to match.
+
 ## [1.14.8] - 2026-10-16
 
 ### Changed

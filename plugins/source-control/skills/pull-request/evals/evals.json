@@ -283,27 +283,28 @@
     },
     {
       "id": 23,
-      "name": "pr-open-state-userconfig-only-opens-ready",
+      "name": "pr-open-state-userconfig-ready-opens-draft-then-flips",
       "prompt": "/pull-request create from branch feat/618-export-csv. The repository has no source-control.yaml under docs/conventions. The source-control userConfig option pr_open_state is set to ready, so SKILL.md's PR open state line substitutes to ready. The user is driving this session and answering prompts. Resolve the open state and open the PR.",
-      "expected_output": "With no repository file, the per-user level supplies the value: pr_open_state resolves to ready from userConfig. gh pr create runs without --draft (a REST fallback sends draft=false), and the report names the open state and the userConfig level.",
+      "expected_output": "With no repository file, the per-user level supplies the value: pr_open_state resolves to ready from userConfig. gh pr create runs with --draft (a REST fallback sends draft=true), then create runs Phase 2.5 (/source-control:pull-request ready) on the new PR, which flips it after its gates. The report names the open state, the userConfig level, and whether the flip happened.",
       "files": [],
       "expectations": [
         "pr_open_state resolves to ready because the userConfig value is ready and no repository file sets the key",
-        "The PR is opened without --draft (or with draft=false on the REST form)",
+        "The PR is opened with --draft (or draft=true on the REST form), never opened ready for review directly",
+        "create then runs the ready phase on the new PR",
         "The report names the open state as ready and the supplying level as userConfig"
       ]
     },
     {
       "id": 24,
-      "name": "pr-open-state-repo-file-only-opens-ready",
-      "prompt": "/pull-request create from branch feat/618-export-csv. The repository's docs/conventions/source-control.yaml on the base branch, main, is captured in evals/fixtures/source-control-open-ready.yaml relative to the skill directory. The userConfig option pr_open_state is not set by the user, so it substitutes to its declared default, draft. The user is driving this session and answering prompts. Resolve the open state and open the PR.",
-      "expected_output": "The repository file sets pr_open_state: ready, which wins over the per-user default. The PR opens ready for review (no --draft), and the report names the repository level (docs/conventions/source-control.yaml).",
+      "name": "pr-open-state-repo-file-ready-opens-draft-then-flips",
+      "prompt": "/pull-request create from branch feat/618-export-csv. The repository's docs/conventions/source-control.yaml on the base branch, main, is captured in evals/fixtures/source-control-open-ready.yaml relative to the skill directory. The userConfig option pr_open_state is set to draft. The user is driving this session and answering prompts. Resolve the open state and open the PR.",
+      "expected_output": "The repository file sets pr_open_state: ready, which wins over the per-user draft. The PR opens with --draft and create then runs Phase 2.5 (/source-control:pull-request ready) on it, which flips it after its gates; the report names the repository level (docs/conventions/source-control.yaml).",
       "files": [
         "evals/fixtures/source-control-open-ready.yaml"
       ],
       "expectations": [
         "pr_open_state resolves to ready from the repository file docs/conventions/source-control.yaml",
-        "The PR is opened without --draft (or with draft=false on the REST form)",
+        "The PR is opened with --draft (or draft=true on the REST form), and create then runs the ready phase to flip it",
         "The report names the supplying level as the repository file, not userConfig or the default"
       ]
     },
@@ -318,6 +319,7 @@
       "expectations": [
         "The repository file's draft wins over the userConfig value ready",
         "The PR is opened with --draft (or draft=true on the REST form)",
+        "create does not run the ready phase or flip the PR",
         "The report names the supplying level as the repository file, not userConfig",
         "The report says /source-control:pull-request ready is what flips the draft"
       ]
@@ -325,28 +327,30 @@
     {
       "id": 26,
       "name": "pr-open-state-unset-defaults-to-draft",
-      "prompt": "/pull-request create from branch feat/618-export-csv. The repository has no source-control.yaml under docs/conventions, and the userConfig option pr_open_state is not set by the user, so SKILL.md's PR open state line substitutes to its declared default, draft. Resolve the open state and open the PR.",
-      "expected_output": "Neither level sets a value other than the default, so pr_open_state resolves to draft and the reported level is the default. The PR opens with --draft and the report says /source-control:pull-request ready is what flips it.",
+      "prompt": "/pull-request create from branch feat/618-export-csv. The repository has no source-control.yaml under docs/conventions, and the userConfig option pr_open_state is not set by the user, so SKILL.md's PR open state line substitutes to its declared default, draft. The user is driving this session, answering prompts, and has not asked for a draft. Resolve the open state and open the PR.",
+      "expected_output": "Neither level sets a value other than the default, so pr_open_state resolves to draft and the reported level is the default. The PR opens with --draft, create does not run the ready phase, and the report says /source-control:pull-request ready is what flips it.",
       "files": [],
       "expectations": [
         "pr_open_state resolves to draft",
         "The report names the supplying level as the default",
-        "The PR is opened with --draft (or draft=true on the REST form)"
+        "The PR is opened with --draft (or draft=true on the REST form)",
+        "create does not run the ready phase or flip the PR"
       ]
     },
     {
       "id": 27,
       "name": "pr-open-state-invalid-repo-value-falls-back-to-draft",
       "prompt": "/pull-request create from branch feat/618-export-csv. The repository's docs/conventions/source-control.yaml on the base branch, main, is captured in evals/fixtures/source-control-open-invalid.yaml relative to the skill directory. The userConfig option pr_open_state is set to ready. Resolve the open state and open the PR.",
-      "expected_output": "The repository level supplies published, which is neither draft nor ready, so it is not used. The skill says the repository file holds an invalid value, opens the PR as a draft, and reports the level as the default with the invalid repository value named. It does not fall through to the userConfig ready value and never opens the PR ready for review because of an unknown value.",
+      "expected_output": "The repository level supplies published, which is neither draft nor ready, so it is not used. The skill says the repository file holds an invalid value, opens the PR as a draft without running the ready phase, and reports the level as an invalid value at the repository level that fell back to draft. It does not fall through to the userConfig ready value and never opens the PR ready for review because of an unknown value.",
       "files": [
         "evals/fixtures/source-control-open-invalid.yaml"
       ],
       "expectations": [
         "The value published from the repository file is reported as invalid, naming the repository level",
         "The PR is opened with --draft (or draft=true on the REST form)",
+        "create does not run the ready phase or flip the PR",
         "The skill does NOT fall through to the userConfig value ready after rejecting the repository value",
-        "The reported level is the default, with the invalid repository value named"
+        "The reported level names the invalid repository value and the fallback to draft, not the default"
       ]
     },
     {
@@ -530,12 +534,12 @@
       "name": "pr-open-state-head-branch-value-ignored",
       "narration": true,
       "prompt": "/pull-request create from branch feat/702-cache-ttl. The user is driving this session and answering prompts. On the base branch, main, docs/conventions/source-control.yaml does not exist (the contents API returns 404). The branch being opened adds that file with pr_open_state: ready in one of its commits. The userConfig option pr_open_state is not set by the user, so it substitutes to its declared default, draft. Resolve the open state and open the PR.",
-      "expected_output": "The repository level is read at the base branch, main, where the file is absent, so it is unset; the copy the branch adds is never read, because the branch under review must not choose its own open state. With the per-user level at its default, pr_open_state resolves to draft. The PR opens with --draft and the report names the default level.",
+      "expected_output": "The repository level is read at the base branch, main, where the file is absent, so it is unset; the copy the branch adds is never read, because the branch under review must not choose its own open state. With the per-user level at its default, pr_open_state resolves to draft. The PR opens with --draft, create does not run the ready phase, and the report names the default level.",
       "files": [],
       "expectations": [
         "Reads docs/conventions/source-control.yaml at the base branch (for example the contents API with ref=main), not from the working tree or the head branch",
         "Does not use the pr_open_state: ready that the branch's own commit adds",
-        "The PR is opened with --draft (or draft=true on the REST form)",
+        "pr_open_state resolves to draft and create does not run the ready phase",
         "The report names the supplying level as the default"
       ]
     },
@@ -602,6 +606,89 @@
         "The pull request is left in draft and never flipped",
         "The report names #600 as already closed",
         "The pull request is not closed and the issue is not reopened"
+      ]
+    },
+    {
+      "id": 47,
+      "name": "create-carries-brief-acceptance-criteria",
+      "prompt": "Open a draft PR for this branch. The unit tests pass. Skip prep; there's no related issue.",
+      "expected_output": "The repository's feature branch is one commit ahead of main and its name does not match any topic slug. The gitignored memory directory holds one approved PLAN.md whose Brief lists three acceptance criteria for a CSV export: a UTF-8 byte order mark, RFC 4180 quoting of cells holding a comma, quote or line break, and a header row even with no rows, the last citing an absolute local fixture path. The prompt never mentions the plan. Body assembly finds the single PLAN.md and writes an Acceptance criteria section listing the three criteria as values, with no path into the memory directory and the local path generalized, then opens the PR as a draft.",
+      "files": [],
+      "expectations": [
+        "It reads the single PLAN.md in the memory directory without being told about it",
+        "The PR body written to a file has a section headed Acceptance criteria listing all three of the Brief's criteria",
+        "The body states the criteria as values and cites no path into the memory directory",
+        "The body does not copy the criterion's absolute local path"
+      ]
+    },
+    {
+      "id": 48,
+      "name": "pr-open-state-request-for-draft-wins",
+      "prompt": "/pull-request create from branch feat/618-export-csv. Open it as a draft: I want the team to see the export shape early, and I'll keep adding to it over the next few sessions. The repository's docs/conventions/source-control.yaml on the base branch, main, is captured in evals/fixtures/source-control-open-ready.yaml relative to the skill directory. The user is driving this session and answering prompts. Resolve the open state and open the PR.",
+      "expected_output": "The request for a draft wins over the repository's ready: pr_open_state resolves to draft at the request level. The PR opens with --draft, create does not run the ready phase, and the report names the request level and says /source-control:pull-request ready is what flips the draft later.",
+      "files": ["evals/fixtures/source-control-open-ready.yaml"],
+      "expectations": [
+        "pr_open_state resolves to draft because the user asked for a draft, even though the repository file sets ready",
+        "The PR is opened with --draft (or draft=true on the REST form)",
+        "create does not run the ready phase or flip the PR",
+        "The PR body carries a line starting `Draft:` naming the reason (an early look or a multi-session container)",
+        "The report names the supplying level as the request"
+      ]
+    },
+    {
+      "id": 49,
+      "name": "ready-skips-a-step-pre-ready-disables-at-base",
+      "prompt": "/pull-request ready. PR 702 is an open draft on branch fix/702-retry-backoff, a code change (not docs-only), with no hold. The repository's docs/conventions/source-control.yaml on the base branch, main, is captured in evals/fixtures/source-control-pre-ready-security-off.yaml relative to the skill directory. The PR's own head branch edits that file to also set code-review to enabled: false. Flip it to ready for review and report.",
+      "expected_output": "The skill reads pre_ready at the base branch, main, never from the head branch, so only security-review is disabled: the head's edit turning off code-review is not used. It merges the base, runs the code review and the verify gate, skips the security review, then runs the hold check again and flips. The report gives one line per step in order, with security-review reported as disabled by pre_ready at main, never as passed, and code-review and verify reported as ran with their results.",
+      "files": [
+        "evals/fixtures/source-control-pre-ready-security-off.yaml"
+      ],
+      "expectations": [
+        "pre_ready is read from the base branch (main), not from the working tree or the head branch, and the head's code-review: false is not applied",
+        "The security review does not run, and the code review and the verify gate do run",
+        "The hold checks, the push when one is needed, and the flip still run",
+        "The report has one line per step in run order, and the security-review line says disabled by pre_ready at main",
+        "The security review is never reported as passed or clean"
+      ]
+    },
+    {
+      "id": 50,
+      "name": "ready-runs-every-step-when-pre-ready-names-an-unknown-step",
+      "prompt": "/pull-request ready. PR 715 is an open draft on branch feat/715-csv-import, a code change, with no hold. The repository's docs/conventions/source-control.yaml on the base branch, main, is captured in evals/fixtures/source-control-pre-ready-unknown-step.yaml relative to the skill directory. Flip it to ready for review and report.",
+      "expected_output": "The list names an unknown step, lint, so the reader fails closed: every pre-flip step runs, the code review included, even though the list sets code-review to false. The report says the step list failed closed and why (unknown step lint), and reports every step as ran or skipped by a built-in condition, none as disabled.",
+      "files": [
+        "evals/fixtures/source-control-pre-ready-unknown-step.yaml"
+      ],
+      "expectations": [
+        "Every pre-flip step runs, including the code review the list tried to turn off",
+        "The report says pre_ready failed closed and names the unknown step lint as the reason",
+        "No step is reported as disabled by pre_ready"
+      ]
+    },
+    {
+      "id": 51,
+      "name": "ready-skips-code-review-for-one-run-with-a-reason",
+      "prompt": "/pull-request ready --skip code-review --reason \"review model is rate-limited until tomorrow\". I am here at the keyboard. PR 731 is an open draft on branch feat/731-export-retry, a code change (not docs-only), with no hold, and the base branch main has no pre_ready list. Flip it to ready for review and report.",
+      "expected_output": "A person is present, code-review is a known step and the reason is not empty, so the code review does not run. The hold check, the base merge, the security review and the verify gate run, then the hold check again and the flip. The code-review report line says skipped by the acting gh login for this run, with the reason, and the same line is posted in one PR conversation comment that starts with a ready-skip marker naming the head, after the hold re-check and right before the flip. The PR body is not edited. The code review is never reported as passed.",
+      "files": [],
+      "expectations": [
+        "The code review does not run, and the base merge, the security review and the verify gate do run",
+        "The hold checks, the push when one is needed, and the flip still run",
+        "The code-review report line says skipped by <login> for this run with the reason review model is rate-limited until tomorrow",
+        "The same skipped line is posted in one PR conversation comment, after the hold re-check and before the flip, and the PR body is not edited",
+        "The code review is never reported as passed or clean"
+      ]
+    },
+    {
+      "id": 52,
+      "name": "ready-refuses-skip-under-unattended",
+      "prompt": "/pull-request ready 744 --unattended --skip security-review,verify --reason \"usage exhausted\". This runs from the work loop lane with no person present. PR 744 is an open draft on branch fix/744-null-guard, a code change, with no hold. Flip it to ready for review and report.",
+      "expected_output": "--skip is a person's consent for one run and this run is unattended, so the override is refused before any step and nothing is skipped. The report says --skip was refused because no person is present, and marks no step as skipped by the override.",
+      "files": [],
+      "expectations": [
+        "The run refuses --skip because it is unattended",
+        "No step is reported as skipped by the override",
+        "The PR is not flipped to ready with the security review or the verify gate left out"
       ]
     }
   ]

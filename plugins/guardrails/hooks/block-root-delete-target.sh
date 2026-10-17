@@ -278,8 +278,10 @@
 #     right trade here: this guard's threat model is an agent making the
 #     mistake #92593 records, not one deliberately obfuscating a command word.
 #
-# BLOCKING: exits 2 on a recursive delete of a root, of an empty or
-# bare-variable operand, or of a target outside the allowed roots.
+# BLOCKING: on a recursive delete of a root, of an empty or
+# bare-variable operand, or of a target outside the allowed roots, asks the
+# user when the session is attended and exits 2 otherwise (hook::refuse,
+# refuse.sh). A command it cannot finish reading is denied either way.
 
 set -uo pipefail
 
@@ -303,6 +305,8 @@ source "$_HOOK_SELF/abort-boundary.sh"
 guard::abort_boundary block-root-delete-target PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
+# shellcheck source=refuse.sh
+source "$_HOOK_SELF/refuse.sh" || exit 70 # not a chosen status: the boundary reports it
 
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry. Referencing
@@ -424,135 +428,153 @@ rdt_emit_tel() {
   hook::emit_telemetry "block-root-delete-target" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-# rdt_block <form> [target]: refuse, say why, and exit 2. The target is echoed
+# rdt_block <form> [target]: refuse and say why (hook::refuse, or exit 2). The target is echoed
 # back as the guard NORMALIZED it, so the operator can see which word was read
 # as a root rather than guessing.
 rdt_block() {
-  local form="$1" target="${2:-}"
+  local form="$1" target="${2:-}" msg
   case "$form" in
   no-preserve-root)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       'BLOCKED: this is a recursive delete carrying --no-preserve-root.' \
-      'Fix: drop --no-preserve-root and name the directory to remove explicitly, under the working tree.' >&2
+      'Fix: drop --no-preserve-root and name the directory to remove explicitly, under the working tree.'
     ;;
   too-long)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       'BLOCKED: the command is too long to parse, so a recursive delete inside it cannot be ruled out.' \
-      'Fix: split it into shorter commands, or write it to a script and run that.' >&2
+      'Fix: split it into shorter commands, or write it to a script and run that.'
     ;;
   nesting-too-deep)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       "BLOCKED: substitution nesting deeper than $MAX_SUBST_DEPTH." \
-      'Fix: flatten the command substitutions, or assign the inner results to variables in separate commands.' >&2
+      'Fix: flatten the command substitutions, or assign the inner results to variables in separate commands.'
     ;;
   eval-too-long)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       'BLOCKED: eval and substitution text exceeds MAX_COMMAND_LEN in total.' \
-      'Fix: drop the nested evals, or run the inner command on its own.' >&2
+      'Fix: drop the nested evals, or run the inner command on its own.'
     ;;
   too-many-readings)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       'BLOCKED: too many launcher readings to judge every one; flatten the command.' \
-      'Fix: drop the repeated launchers, or run the inner command on its own.' >&2
+      'Fix: drop the repeated launchers, or run the inner command on its own.'
     ;;
   nesting-too-deep-launcher)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       "BLOCKED: launcher or eval nesting deeper than $MAX_SEGMENT_DEPTH; flatten the command." \
-      'Fix: drop the repeated launchers, or run the inner command on its own.' >&2
+      'Fix: drop the repeated launchers, or run the inner command on its own.'
     ;;
   too-many-abbreviations)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       'BLOCKED: too many command segments with abbreviated launcher options to judge every reading; spell the options in full.' \
-      'Fix: spell the launcher options in full (flock --wait 5), or split the command into shorter ones.' >&2
+      'Fix: spell the launcher options in full (flock --wait 5), or split the command into shorter ones.'
     ;;
   bodies-too-long)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       'BLOCKED: substitution bodies exceed MAX_COMMAND_LEN in total.' \
-      'Fix: flatten the command substitutions, or assign the inner results to variables in separate commands.' >&2
+      'Fix: flatten the command substitutions, or assign the inner results to variables in separate commands.'
     ;;
   empty-operand)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       'BLOCKED: this recursive delete has an empty operand ("").' \
-      'Fix: name the directory to remove explicitly, or drop the empty word.' >&2
+      'Fix: name the directory to remove explicitly, or drop the empty word.'
     ;;
   pipeline-target)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       'BLOCKED: this recursive delete takes its target from the pipeline or a grouping, which this guard cannot name.' \
-      'Fix: name the directory to remove as a -Path or -LiteralPath operand, written out literally.' >&2
+      'Fix: name the directory to remove as a -Path or -LiteralPath operand, written out literally.'
     ;;
   bare-variable)
     # Single-quoted on purpose: the text shows a literal ${NAME:?}.
     # shellcheck disable=SC2016
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       "BLOCKED: this recursive delete targets a bare variable ('$target'), whose value is not known until it runs." \
-      'Fix: write the path out literally, or use "${NAME:?}/sub" so an unset or empty value aborts the command before rm runs.' >&2
+      'Fix: write the path out literally, or use "${NAME:?}/sub" so an unset or empty value aborts the command before rm runs.'
     ;;
   outside-tree)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       "BLOCKED: recursive delete of $target, outside the working tree, the temp directories, the session scratchpad and the roots in block_root_delete_target_allowed_roots." \
       'Fix: delete only strictly under one of those (put scratch work in the session scratchpad), and do not retry the delete with another tool (find -delete, rmtree, git clean).' \
-      'Otherwise the user runs it, or lists its root in block_root_delete_target_allowed_roots (only the user can).' >&2
+      'Otherwise the user runs it, or lists its root in block_root_delete_target_allowed_roots (only the user can).'
     ;;
   too-many-origins)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       "BLOCKED: too many directory changes to judge every place this delete may run from (more than $MAX_ORIGINS)." \
-      'Fix: cd once to an absolute directory, or run the delete as its own command.' >&2
+      'Fix: cd once to an absolute directory, or run the delete as its own command.'
     ;;
   too-many-targets)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       "BLOCKED: too many recursive delete targets to judge (more than $MAX_TARGETS directory-and-target pairs)." \
-      'Fix: delete a parent directory, or split the delete into shorter commands.' >&2
+      'Fix: delete a parent directory, or split the delete into shorter commands.'
     ;;
   too-many-glob-entries)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       "BLOCKED: a glob in this recursive delete reads more than $MAX_GLOB directory entries, files included." \
-      'Fix: narrow the glob to the names you mean, or delete the parent directory whole.' >&2
+      'Fix: narrow the glob to the names you mean, or delete the parent directory whole.'
     ;;
   operand-too-long)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       "BLOCKED: this recursive delete names $target." \
-      'Fix: check how the command was built; name the directory to remove directly.' >&2
+      'Fix: check how the command was built; name the directory to remove directly.'
     ;;
   too-slow)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       "BLOCKED: judging where this recursive delete lands ran out of time (a bound of $RDT_DEADLINE seconds for the judgment, $RDT_DEADLINE_ABS for the whole hook)." \
-      'Fix: delete fewer targets per command, or cd once to an absolute directory first.' >&2
+      'Fix: delete fewer targets per command, or cd once to an absolute directory first.'
     ;;
   unplaceable)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       "BLOCKED: recursive delete of $target, which cannot be judged (another user's home, a newline, \`..\` after a glob, or a cd CDPATH may redirect)." \
-      'Fix: write the target as an absolute or working-tree-relative path.' >&2
+      'Fix: write the target as an absolute or working-tree-relative path.'
     ;;
   brace)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       "BLOCKED: this recursive delete has a brace expansion ($target) that cannot be judged alternative by alternative." \
-      'Fix: write each target out as its own operand.' >&2
+      'Fix: write each target out as its own operand.'
+    ;;
+  brace-too-large)
+    printf -v msg '%s\n' \
+      "BLOCKED: this recursive delete has a brace expansion ($target) too large to expand in time." \
+      'Fix: write each target out as its own operand.'
     ;;
   nul-field)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       "BLOCKED: this recursive delete cannot be judged, because the hook payload's $target carries a NUL byte." \
-      'Fix: reissue the tool call; if it repeats, report the malformed payload.' >&2
+      'Fix: reissue the tool call; if it repeats, report the malformed payload.'
     ;;
   control-bytes)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       "BLOCKED: recursive delete of $target, whose \$ signs cannot be read as literal or expanded because the command carries every control byte the guard could mark them with." \
-      'Fix: remove the control characters from the command.' >&2
+      'Fix: remove the control characters from the command.'
     ;;
   judge-error)
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       'BLOCKED: judging where this recursive delete lands failed unexpectedly.' \
-      'Fix: simplify the command, or run the delete on its own.' >&2
+      'Fix: simplify the command, or run the delete on its own.'
     ;;
   *)
     # Single-quoted on purpose: the Fix line must show a literal $HOME to the
     # agent rather than expanding it in the hook process.
     # shellcheck disable=SC2016
-    printf '%s\n' \
+    printf -v msg '%s\n' \
       "BLOCKED: recursive delete of a filesystem root (normalizes to '$target')." \
-      'Fix: name the directory to remove, relative to the working tree. $HOME and ~ are matched as written, not expanded.' >&2
+      'Fix: name the directory to remove, relative to the working tree. $HOME and ~ are matched as written, not expanded.'
     ;;
   esac
   rdt_emit_tel "blocked" "$form"
+  case "$form" in
+  # The guard read the delete and names what it would remove: the user can
+  # judge that, so an attended session asks (refuse.sh).
+  no-preserve-root | empty-operand | pipeline-target | bare-variable | outside-tree | unplaceable | brace | root-operand)
+    # Attended, the reason is recorded and the reading goes on (refuse.sh).
+    hook::refuse "${msg%$'\n'}"
+    return 0
+    ;;
+  *) ;;
+  esac
+  # The guard could not finish reading the command (a budget, a deadline, a
+  # malformed payload): nothing names what would run, so it denies either way.
+  printf '%s' "$msg" >&2
   exit 2
 }
 
@@ -2728,10 +2750,13 @@ rdt_check_segment() {
       # Bounded before the walk: a word of thousands of braces makes the
       # expander's scan quadratic.
       x="${w//[^\{]/}"
-      ((${#w} > MAX_BRACE_WORD || ${#x} > MAX_BRACE_OPEN)) && rdt_block "brace" "of ${#w} bytes with ${#x} braces"
+      ((${#w} > MAX_BRACE_WORD || ${#x} > MAX_BRACE_OPEN)) && rdt_block "brace-too-large" "of ${#w} bytes with ${#x} braces"
       rc=0
       rdt_brace_expand "$w" || rc=$?
-      ((rc == 0)) || rdt_block "brace" "'$w'"
+      if ((rc != 0)); then
+        rdt_block "brace" "'$w'"
+        continue
+      fi
       if ((${#RDT_BX[@]} != 1)) || [[ "${RDT_BX[0]}" != "$w" ]]; then
         ((q == 1)) && rdt_block "brace" "'$w'"
         bx=(${RDT_BX[@]+"${RDT_BX[@]}"})
@@ -2755,12 +2780,60 @@ rdt_strip_tail_to() {
   rdt_strip_nameless_to "$1" "$2" 1
 }
 
+# --- A variable the command itself sets to a literal --------------------------
+#
+# `X=build && rm -rf "$X"` deletes `build`, so its operand is judged as `build`
+# through every arm below (`X=/ && rm -rf "$X"` is still a root). The binding
+# is read only when the WHOLE command, blanks trimmed, is exactly
+#   NAME=LITERAL SEP rm WORD...
+# with SEP one `&&`, `;` or newline; LITERAL plain characters (RDT_LIT_CH),
+# bare or wholly quoted, not led by `-`; each WORD plain characters, or `"$NAME"`
+# or `"$NAME/..."` with a plain suffix inside the quotes. An unquoted `$NAME`
+# binds nothing: an inherited IFS can split it. No character that could run, redirect,
+# regroup, glob, escape or quote anything else fits that shape. NAME is no name
+# the shell gives a meaning (RDT_LIT_SPECIAL_RE), and the command holds no word
+# that can set a variable (RDT_LIT_FORBID_RE). Anything else binds nothing.
+RDT_LIT_CH='[A-Za-z0-9_.@%+,:/-]'
+RDT_LIT_FORBID_RE='(^|[^A-Za-z0-9_])(declare|typeset|local|readonly|export|set|shopt|setopt|alias|trap|printf|read|mapfile|readarray|eval|source|function|IFS)([^A-Za-z0-9_]|$)|(^|[;&|({[:space:]])\.([[:space:]]|$)|\(\)|\$\{!|<<<'
+RDT_LIT_SPECIAL_RE='^(_.*|.*PATH|.*path|BASH.*|ZSH.*|zsh.*|LC_.*|COMP.*|READLINE.*|HIST.*|hist.*|PROMPT.*|prompt|R?PS[0-9]|dis_.*|IFS|HOME|PWD|OLDPWD|ENV|SHELL|SHELLOPTS|SHLVL|POSIXLY_CORRECT|GLOBIGNORE|EXECIGNORE|FIGNORE|fignore|TMPDIR|TMPPREFIX|DIRSTACK|dirstack|FUNCNAME|FUNCNEST|GROUPS|UID|EUID|GID|EGID|PPID|RANDOM|SRANDOM|SECONDS|LINENO|EPOCHSECONDS|EPOCHREALTIME|epochtime|OPTARG|OPTIND|REPLY|reply|MAPFILE|mapfile|PIPESTATUS|pipestatus|status|argv|ARGC|ARGV0|ERRNO|errnos|signals|options|parameters|commands|functions|aliases|builtins|modules|history|historywords|jobstates|jobtexts|jobdirs|nameddirs|userdirs|funcstack|funcfiletrace|funcsourcetrace|functrace|match|mbegin|mend|MATCH|MBEGIN|MEND|psvar|watch|sysparams|langinfo|terminfo|termcap|widgets|keymaps|patchars|reswords|USERNAME|LOGNAME|TTY|HOST|HOSTNAME|NULLCMD|READNULLCMD|TRY_BLOCK_ERROR|TRY_BLOCK_INTERRUPT|WORDCHARS|ZDOTDIR|LANG|TERM|TMOUT)$'
+RDT_LIT_NAME=""
+RDT_LIT_VAL=""
+rdt_lit_shape() {
+  local c="$COMMAND" ch="$RDT_LIT_CH" lit n v w re
+  lit="(${ch}+|'${ch}+'|\"${ch}+\")"
+  v='\$[A-Za-z_][A-Za-z0-9_]*'
+  w="(${ch}+|\"${v}(/${ch}*)?\")"
+  re="^([A-Za-z_][A-Za-z0-9_]*)=${lit}[[:blank:]]*(&&|;|"$'\n'")[[:blank:]]*rm([[:blank:]]+${w})+\$"
+  c="${c#"${c%%[![:space:]]*}"}"
+  c="${c%"${c##*[![:space:]]}"}"
+  [[ "$TOOL_NAME" != "PowerShell" && ! "$c" =~ $RDT_LIT_FORBID_RE && "$c" =~ $re ]] || return 0
+  n="${BASH_REMATCH[1]}"
+  lit="${BASH_REMATCH[2]}"
+  [[ "$n" =~ $RDT_LIT_SPECIAL_RE ]] && return 0
+  # Every `$` in the delete is NAME itself, never a longer name.
+  w="${c#*=} "
+  for v in / '"' ' ' $'\t'; do w="${w//"\$$n$v"/}"; done
+  [[ "$w" == *\$* ]] && return 0
+  [[ "$lit" == [\'\"]* ]] && lit="${lit:1:${#lit}-2}"
+  # A value rm would read as an option is not a path.
+  [[ "$lit" == -* ]] && return 0
+  RDT_LIT_NAME="$n"
+  RDT_LIT_VAL="$lit"
+}
+rdt_lit_shape
+
 # rdt_check_operand <text> <provenance>: one operand through the root and
 # bare-variable arms, then recorded BY VALUE for the outside-tree judgment at
 # the end, with the directory-change state as it stands here.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_check_operand() {
   local w="$1" norm raw
+  if [[ -n "$RDT_LIT_NAME" ]] && ((rdt_depth == 1 && rdt_in_subst == 0)); then
+    case "$w" in
+    "\$$RDT_LIT_NAME" | "\$$RDT_LIT_NAME"/*) w="$RDT_LIT_VAL${w#"\$$RDT_LIT_NAME"}" ;;
+    *) ;;
+    esac
+  fi
   rdt_normalize_to norm "$w"
   if rdt_is_root "$norm"; then
     rdt_block "root-operand" "$norm"
@@ -3824,12 +3897,29 @@ fi
 # unset variable under `set -u`, say) ends the subshell with a status other
 # than 0 or 2, and that status is refused here. Run in place, the same error
 # would end the hook with 1, which the fail-open abort boundary passes.
+# Status 3 means the judgment finished with attended asks recorded, which the
+# subshell hands up on stdout, one per RS (0x1e) field, to join this shell's.
 if ((${#RDT_P_TEXT[@]})); then
   rdt_judge_rc=0
-  (rdt_judge_pending) || rdt_judge_rc=$?
+  rdt_judge_ask=$(
+    HOOK_REFUSE_PENDING=()
+    rdt_judge_pending || exit
+    ((${#HOOK_REFUSE_PENDING[@]})) || exit 0
+    printf '%s\x1e' "${HOOK_REFUSE_PENDING[@]}"
+    exit 3
+  ) || rdt_judge_rc=$?
   ((rdt_judge_rc == 2)) && exit 2
+  if ((rdt_judge_rc == 3)) && [[ -n "$rdt_judge_ask" ]]; then
+    while [[ "$rdt_judge_ask" == *$'\x1e'* ]]; do
+      hook::refuse "${rdt_judge_ask%%$'\x1e'*}"
+      rdt_judge_ask="${rdt_judge_ask#*$'\x1e'}"
+    done
+    rdt_judge_rc=0
+  fi
   ((rdt_judge_rc == 0)) || rdt_block "judge-error"
 fi
 
+# The whole command was read and nothing in it denies: ask, if any segment asked.
+hook::refuse_flush
 rdt_emit_tel "ok" ""
 exit 0

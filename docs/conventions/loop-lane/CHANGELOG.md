@@ -5,6 +5,16 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [12.1.0] - 2026-10-16
+
+Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.
+
+- **Scheduled reader (§8).** A new section maps each of the six rules the "Building effective
+  agent automations" post gives for a scheduled reader to the repository mechanism that meets it,
+  or to the issue that adds it (#7672, #7674, #7677, #7678, #7680, and #7234 for the review and
+  intake lanes). It adds no checklist; the decisions live in
+  `docs/upstream/claude-dev-building-effective-agent-automations.md`.
+
 ## [12.0.0] - 2026-10-12
 
 Major. A topology change (§1): where a repository names `merge.agent-identity`, a lane not acting

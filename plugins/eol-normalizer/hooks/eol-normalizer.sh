@@ -1,148 +1,63 @@
 #!/usr/bin/env bash
-# PostToolUse hook: normalize a written file's working-tree line endings to its
-# .gitattributes `eol=` value (symmetric, git check-attr-driven).
-# Triggered on Write|Edit of any file in the consuming repo.
+# PostToolBatch hook: normalize the line endings of the files a batch of tool
+# calls wrote to each file's .gitattributes `eol=` value (symmetric, driven by
+# `git check-attr`).
 #
-# ADVISORY / NON-BLOCKING: always exits 0. The normalization is best-effort;
-# the consuming repo's commit hook / CI (editorconfig, git renormalize) remains
-# the authoritative gate.
+# Rewrites only: it prints nothing and always exits 0, so no message reaches the
+# model or the user. There is no pre-commit entry. `git add` applies the same
+# attributes to the bytes it stores (a CRLF file under `eol=lf` and an LF file
+# under `eol=crlf` are both indexed as LF), so a commit never carries the wrong
+# ending; what this hook fixes is the working tree, where a CRLF shell script
+# fails to run and an `eol=crlf` file reads as drifted until it is rewritten.
 #
-# CROSS-PLATFORM: both arms (CRLF->LF and LF->CRLF) run on every OS — the hook
-# compensates for tool writes that bypass git's checkout smudge, and such
-# writes happen on any platform.
+# PostToolBatch has no matcher, so the row fires on every batch. The launcher
+# skips the script unless the payload mentions "file_path", and the script then
+# returns at once unless a Write, Edit or MultiEdit is in the batch, so a batch
+# that only ran Bash costs one node process and one that only Read a file costs
+# that plus one bash. A file that Read named is never rewritten.
 #
-# Uses the consuming repo's own .gitattributes — it ships no policy of its own.
+# No glob list: the row's tool filter is the only filter, because which files
+# carry line endings the repository governs is the consuming repository's
+# .gitattributes to say. Resolution is `git check-attr`, anchored at the file's
+# own directory, so it is correct for clones, linked worktrees and bare-hub
+# clones, and does not depend on the hook's working directory.
+#
+# Files under .githooks/ are installed copies and are skipped, as are gitignored
+# files unless eol_normalizer_lint_gitignored is true (the check costs a git
+# process, so it runs only for a file that has something to rewrite).
 
 set -uo pipefail
 
-# The hook's own directory is derived with parameter expansion rather than
-# `dirname`, and resolved ONCE for all three sources. On the Windows Git Bash
-# host this hook is tuned for, an exec costs about a spawn and a command
-# substitution costs half of one, and this hook runs on every Write and Edit.
-# `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape BASH_SOURCE takes;
-# the fallback covers the one shape it does not, a bare filename with no
-# separator, where the strip is a no-op and dirname answers `.`.
+[[ "${CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED:-true}" == "true" ]] || exit 0
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
-# Kill switch before any source. The hooks.json row asks exec-bash.mjs to apply
-# the same switch before it spawns bash; a direct invocation reads this line.
-# scripts/check-killswitch-hoist.sh pins it to hook::is_enabled.
-[[ "${CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED:-true}" == "true" ]] || exit 0
+
+IFS= read -r -d '' INPUT || :
+
+[[ "$INPUT" == *'"Write"'* || "$INPUT" == *'Edit"'* ]] || exit 0
+command -v jq >/dev/null 2>&1 || exit 0  # silent-skip-ok: the SessionStart prerequisites probe reports a missing jq; this hook is silent by design
+PATHS=$(jq -r '.tool_calls[]? | select(.tool_name == "Write" or .tool_name == "Edit" or .tool_name == "MultiEdit") | .tool_input.file_path? | strings' <<<"$INPUT" 2>/dev/null) || exit 0
+[[ -n "$PATHS" ]] || exit 0
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
-# shellcheck source=rewrite-guard.sh
-source "$HOOK_DIR/rewrite-guard.sh"
-
-# Emit this run's telemetry envelope: $1 status, $2 action taken.
-# Two guards: the high-res start stamp (empty on bash before 5.0, where
-# telemetry is skipped so the hook still normalizes rather than aborting) and
-# the sink opt-in. The data payload costs a jq subprocess, so it is built here
-# after both guards — never on the unwired path. This hook's matcher is every
-# file write, so that is the hottest path in the fleet.
-emit_tel() {
-  [[ -n "$start" ]] || return 0
-  hook::telemetry_enabled || return 0
-  local data=""
-  hook::data_json_to data "$TOOL" "$FILE_REL" "${HOOK_REWRITE_CHANGED:-}" action str "$2"
-  hook::emit_telemetry "eol-normalizer" "PostToolUse" "$1" "$start" "$data" "$REPO_ROOT"
-}
-
-# The bundled EOL library (normalize_eol_file).
-# Sourced from the plugin's own hooks dir so it is self-contained on install.
 # shellcheck source=normalize-eol.sh
 source "$HOOK_DIR/normalize-eol.sh"
 
-# The whole prologue: the start stamp, the buffered payload, the jq gate, the
-# parsed path with its basename and directory, and the repo root that anchors
-# `git check-attr` (file-anchored, so it is correct for clones, linked
-# worktrees and bare-hub clones, and CWD-independent — the hook process CWD is
-# not guaranteed to be the repo root). TOOL and FILE_REL follow behind the sink
-# opt-in. Exits 0 itself on every path this hook has nothing to do on.
-#
-# No glob list: this hook's matcher IS its filter — every written file in the
-# consuming repo carries line endings the repo's .gitattributes governs.
-#
-# The root's one other reader is `git -C <root> check-attr -- <file>`, and for
-# an ABSOLUTE <file> any directory inside the same repository gives the same
-# answer: git finds the repository from that directory and matches the path
-# against the work tree. So without a telemetry sink (the root's only other
-# consumer) the file's own directory stands in, and the separate
-# `git rev-parse --show-toplevel` process is not run. A relative path still
-# resolves against the directory git starts in, so it keeps the real root.
-# shellcheck disable=SC2329  # invoked by hook::begin through --repo-root
-eol_root_to() {
-  if [[ "$2" == /* ]] && ! hook::telemetry_enabled; then
-    printf -v "$1" '%s' "$2"
-    return 0
-  fi
-  hook::repo_root_to "$1" "$2"
-}
-hook::begin --repo-root eol_root_to eol-normalizer PostToolUse
-
-# Content-mutation disclosure (#1596): line-ending normalization is a structural
-# rewrite the user did not request; name what changed on the user channel and
-# stay silent on skip/no-op paths. Snapshot lifecycle lives in the shared
-# rewrite-guard lib (#3409); the taken message doubles as the changed/unchanged
-# verdict the hook status needs.
-#
-# The library's decision is taken FIRST, and the rewrite runs only when that
-# decision says the file has work to do. That ordering is what lets the
-# disclosure snapshot be skipped entirely on the overwhelmingly common path, an
-# already-LF file in a repository whose .gitattributes says `eol=lf`, where the
-# old code paid for a mktemp, a cp, a rewrite that changed no bytes, a cmp and an
-# rm to conclude nothing had happened. When no rewrite is attempted the guard is
-# never armed, so hook::rewrite_take_disclosure below finds no snapshot and
-# yields an empty message, which is exactly what the byte-identical comparison
-# yielded before.
-#
-# ACTION keeps its old meaning and its old value: it names the arm that APPLIES
-# to this file, not whether bytes moved. An already-LF file under `eol=lf` still
-# reports `lf`, and the emptiness of HOOK_REWRITE_MESSAGE is still the only thing
-# that decides the telemetry status.
-#
-# ONE DELIBERATE DEVIATION, and it is not a content or message difference: a file
-# that needs no rewrite is no longer opened for writing, so its mtime is no
-# longer touched by this hook. Nothing this hook reports changes.
-#
-# A file the repository gitignores is left alone unless
-# eol_normalizer_lint_gitignored is set, and ACTION reads `gitignored`. The
-# check costs a git process, so it runs only on the arm that would rewrite,
-# never on the common already-canonical path.
-EOL_PLAN=$(normalize_eol_plan "$REPO_ROOT" "$FILE")
-ACTION="${EOL_PLAN%% *}"
-if [[ "${EOL_PLAN##* }" == 1 ]]; then
-  if hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_LINT_GITIGNORED:-false}" "$FILE"; then
-    ACTION="gitignored"
-  else
-    hook::rewrite_guard_begin "$FILE"
-    normalize_eol_apply "$ACTION" "$FILE"
-  fi
-fi
-# `basename` is a builtin strip for the reason given at the source line above:
-# this runs on every Write and Edit, and FILE names an existing regular file, so
-# there is no trailing slash for basename to handle differently.
-case "$ACTION" in
-lf) EOL_MSG="eol-normalizer: line endings in ${FILE##*/} set to LF." ;;
-crlf) EOL_MSG="eol-normalizer: line endings in ${FILE##*/} set to CRLF." ;;
-*) EOL_MSG="" ;;
-esac
-hook::rewrite_take_disclosure "$FILE" "$EOL_MSG"
-
-# status "ok" when the file was actually normalized (lf/crlf); "skipped" when the
-# attr was unspecified, the path is -text or gitignored, content sniffed binary,
-# or idempotent.
-# The message is non-empty only when the take found changed bytes, and EOL_MSG
-# above is non-empty only for the lf and crlf arms, so its emptiness is the whole
-# verdict.
-if [[ -n "$HOOK_REWRITE_MESSAGE" ]]; then
-  status="ok"
-else
-  status="skipped"
-fi
-
-emit_tel "$status" "$ACTION"
-
-[[ -n "$HOOK_REWRITE_MESSAGE" ]] && hook::emit_system_message "$HOOK_REWRITE_MESSAGE"
-
+seen=$'\n'
+while IFS= read -r path; do
+  path="${path%$'\r'}"
+  [[ -n "$path" && "$seen" != *$'\n'"$path"$'\n'* ]] || continue
+  seen+="$path"$'\n'
+  escaped=""
+  hook::json_escape_to escaped "$path"
+  # Existence, symlink and project membership, as for a single-file hook.
+  hook::read_file_path_to file "{\"tool_input\":{\"file_path\":\"$escaped\"}}" || continue
+  [[ "$file" == */.githooks/* ]] && continue
+  hook::dirname_to dir "$file"
+  plan=$(normalize_eol_plan "$dir" "$file")
+  [[ "${plan##* }" == 1 ]] || continue
+  hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_LINT_GITIGNORED:-false}" "$file" && continue
+  normalize_eol_apply "${plan%% *}" "$file"
+done <<<"$PATHS"
 exit 0

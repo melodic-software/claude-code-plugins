@@ -1,165 +1,142 @@
 # bash-format
 
-A Claude Code plugin that lints and formats shell scripts the moment you edit
-them. On every `Write` or `Edit` of a `.sh` or `.bash` file it runs
-[ShellCheck](https://www.shellcheck.net/) and (opt-in)
-[shfmt](https://github.com/mvdan/sh), surfacing findings back to Claude as
-advisory context.
+A Claude Code plugin that formats shell scripts with [shfmt](https://github.com/mvdan/sh) and
+checks them with [ShellCheck](https://www.shellcheck.net/) in two places: shfmt once per batch of
+tool calls in a Claude Code session, and shfmt plus ShellCheck again at git pre-commit for every
+author. ShellCheck findings are reported by the pre-commit entry, on the lines the commit adds; they
+no longer reach Claude on each edit.
 
-It uses **your repository's own configuration**, `.shellcheckrc` for linting
-and `.editorconfig` for formatting. It ships no rules of its own.
+It uses **your repository's own configuration**, `.shellcheckrc` for linting and `.editorconfig`
+for formatting. It ships no rules of its own.
 
 ## Behavior
 
-- **Spawned only for shell files.** The hook is registered with the `if` filters
-  `Edit(*.sh)` and `Edit(*.bash)`, so a Write/Edit of any other file never starts a
-  hook process for it; the extension check inside the script is unchanged.
-  - **Pointer**: when deciding whether an `if` row keeps a handler from spawning, fetch
-    [hooks: Common fields](https://code.claude.com/docs/en/hooks#common-fields) live.
-    **As of**: 2026-10-11. **Recheck trigger**: that section changes when an `if` rule
-    keeps a handler from running, or which events evaluate it.
-- **Lint on edit (always).** ShellCheck (`warning` severity and above) runs on
-  every edit. It is non-mutating; it only reports.
-- **Format on edit (opt-in).** `shfmt` runs **only when an `.editorconfig`
-  section names shell files**: a shell glob such as `[*.sh]`, `[*.bash]`, or
-  `[*.{sh,bash}]` (including path-prefixed forms like `[**/*.sh]`), found by
-  walking up from the file to the repository root. A bare `[*]` catch-all is
-  **not** an opt-in: most repos only set line-ending / charset properties there,
-  and treating that as a format gate would rewrite shell files to shfmt's
-  built-in defaults. A repo whose `.editorconfig` only configures other
-  languages (or has none) likewise leaves shell files untouched. Path-only
-  sections like `[scripts/**]` are also excluded; use an explicit shell glob.
-  It runs with no parser/printer flags, so your `.editorconfig` is authoritative,
-  and with `--apply-ignore` so an `ignore = true` section (e.g. for generated or
-  vendored scripts) is honored even on a single edited file.
-- **Pre-existing drift is left alone.** shfmt runs only when the file was already
-  shfmt-clean under your `.editorconfig` before the edit: the hook checks the
-  pre-edit bytes (the Write/Edit `tool_response.originalFile`) with
-  `shfmt -d --filename`. A file that drifted from your style, for example
-  flush-left `case` arms written before `switch_case_indent = true` was added,
-  keeps its existing layout, so a small edit stays a small diff. A new file is
-  formatted. The check costs one `jq` and one `shfmt` on an edit to an existing
-  file under the opt-in.
-- **A rewrite that would change an array subscript is put back.** shfmt parses an
-  unquoted subscript as arithmetic and spaces it, because it cannot know the
-  array is associative, so `${m[a-b]}` would become the different key
-  `${m[a - b]}` (see the Caveats section of the
+- **One format run per batch, silent.** A `PostToolBatch` row runs after the tool calls of a turn
+  step resolve. It takes the `.sh` and `.bash` files that `Write`, `Edit` or `MultiEdit` calls in
+  the batch named, and runs shfmt once over each. It prints nothing and exits `0`: no finding and no
+  notice goes to Claude or the user. A file that `Read` named is never rewritten.
+  - The row has no matcher or `if` (neither applies to `PostToolBatch`). Its launcher skips the
+    script unless the payload holds a string ending in `sh` (which both extensions do), so a batch
+    without a shell file costs one `node` process.
+  - **Pointer**: when deciding what filters a `PostToolBatch` row, fetch
+    [hooks: PostToolBatch](https://code.claude.com/docs/en/hooks#posttoolbatch) live.
+    **As of**: 2026-10-15. **Recheck trigger**: that section adds a matcher or an `if` for the
+    event, or changes the `tool_calls` fields.
+- **Format is opt-in.** shfmt runs **only when an `.editorconfig` section names shell files**: a
+  shell glob such as `[*.sh]`, `[*.bash]`, or `[*.{sh,bash}]` (including path-prefixed forms like
+  `[**/*.sh]`), found by walking up from the file to the repository root. A bare `[*]` catch-all is
+  **not** an opt-in: most repos only set line-ending / charset properties there, and treating that
+  as a format gate would rewrite shell files to shfmt's built-in defaults. A repo whose
+  `.editorconfig` only configures other languages (or has none) likewise leaves shell files
+  untouched. Path-only sections like `[scripts/**]` are also excluded; use an explicit shell glob.
+  shfmt runs with no parser/printer flags, so your `.editorconfig` is authoritative, and with
+  `--apply-ignore` so an `ignore = true` section (e.g. for generated or vendored scripts) is
+  honored even on a single named file.
+- **Pre-existing drift is rewritten whole.** The batch payload carries no pre-edit bytes, so a file
+  that already drifted from your style is formatted in full, as the pre-commit entry would.
+- **A rewrite that would change an array subscript is put back.** shfmt parses an unquoted
+  subscript as arithmetic and spaces it, because it cannot know the array is associative, so
+  `${m[a-b]}` would become the different key `${m[a - b]}` (see the Caveats section of the
   [mvdan/sh README](https://github.com/mvdan/sh#caveats) and
-  [mvdan/sh#956](https://github.com/mvdan/sh/issues/956); checked 2026-10-04 against
-  shfmt v3.14.1; recheck when a shfmt release changes how it reads subscripts). When
-  shfmt rewrites the file, the hook compares every subscript's source text before
-  and after, including the blanks inside the brackets, since `${m[ key ]}` is a
-  different key from the `${m[key]}` shfmt prints. If any differs, the hook
-  restores the file byte for byte and names each changed subscript and its line in
-  one notice to Claude. Quote the key (`${m["a-b"]}`) if the array is associative; if it is
-  indexed, write it as shfmt prints it, which depends on the release: v3.13.0
-  printed `${a[i+1]}` where the releases around it print `${a[i + 1]}` (reverted in
-  v3.13.1, per the [mvdan/sh changelog](https://github.com/mvdan/sh/blob/master/CHANGELOG.md)).
-  To keep a file's keys unquoted, give it an `ignore = true` section in
-  `.editorconfig`; the hook passes `--apply-ignore` (shfmt 3.8+), so shfmt leaves
-  the file alone. The hook reads the syntax tree with `--to-json`, or with
-  `-tojson` on a shfmt older than 3.8, since 3.4 and 3.5 have no `--to-json`. When
-  the tree cannot be read, the rewrite is put back and the notice says so, because
-  an unchecked rewrite may have changed a key. A file shfmt leaves unchanged reads
-  no tree and costs no extra process.
-- **Advisory, never blocking.** The hook always exits `0`. Findings are reported
-  via `additionalContext`; they never reject the edit. Make a commit hook or CI
-  your hard gate. A finding set is reported once per file: an unchanged set on a
-  re-edit sends nothing, and it is sent again after a clean run or after the
-  context is compacted or cleared.
-- **Config from the consumer.** ShellCheck discovers `.shellcheckrc` by walking
-  up from the file's directory; shfmt reads `.editorconfig` the same way. No
-  working-directory assumptions. The tools are anchored to the edited file.
-- **Gitignored files are skipped by default.** A file the repository gitignores is not
-  linted or rewritten, silently (no notice), since a rewrite of an ignored file has no git
-  checkout to undo it. Set `bash_format_lint_gitignored` to `true` to act on them too. A
-  tracked file that matches an ignore pattern stays in scope, and when git cannot decide
-  (absent, no repository, an error) the hook acts as before.
-- **Scope: files inside the current project, when `CLAUDE_PROJECT_DIR` is set.**
-  With `CLAUDE_PROJECT_DIR` set, the hook acts only on shell files under it
-  (symlink-resolved): a `.sh`/`.bash` file written *outside* the project, e.g. to
-  a temp or scratchpad directory, is silently skipped (no lint, no format, no
-  notice), deliberate defense-in-depth scoping inherited from the shared hook
-  library. The OS temp tree (`TMPDIR`/`TMP`/`TEMP` and the POSIX defaults) is
-  outside the project even when it sits *under* `CLAUDE_PROJECT_DIR`, the shape a
-  home-directory project dir takes, where Claude Code's own session scratchpad
-  would otherwise prefix-match as project content. The one exception is a project
-  root that itself lives under temp (a fixture checkout built with `mktemp -d`),
-  whose files are project content. Membership recognizes Windows 8.3 short-name
-  spellings (`KYLESE~1`) of in-project paths, a per-volume concern: only volumes
-  with 8.3 generation enabled produce such paths. If `CLAUDE_PROJECT_DIR` is **unset** (e.g. some
-  headless `-p` sessions), the membership check is skipped and any existing edited
-  file is processed. Either way, to lint a file the hook skipped, run `shellcheck`
-  on it directly.
+  [mvdan/sh#956](https://github.com/mvdan/sh/issues/956); checked 2026-10-04 against shfmt
+  v3.14.1; recheck when a shfmt release changes how it reads subscripts). When shfmt rewrites the
+  file, both passes compare every subscript's source text before and after, including the blanks
+  inside the brackets, since `${m[ key ]}` is a different key from the `${m[key]}` shfmt prints. If
+  any differs, the file is restored byte for byte. The pre-commit entry names each changed
+  subscript and its line on stderr; the batch row stays silent. Quote the key (`${m["a-b"]}`) if
+  the array is associative; if it is indexed, write it as shfmt prints it, which depends on the
+  release: v3.13.0 printed `${a[i+1]}` where the releases around it print `${a[i + 1]}` (reverted
+  in v3.13.1, per the [mvdan/sh changelog](https://github.com/mvdan/sh/blob/master/CHANGELOG.md)).
+  To keep a file's keys unquoted, give it an `ignore = true` section in `.editorconfig`. The tree is
+  read with `--to-json`, or with `-tojson` on a shfmt older than 3.8, since 3.4 and 3.5 have no
+  `--to-json`. When the tree cannot be read, the rewrite is put back, because an unchecked rewrite
+  may have changed a key. A file shfmt leaves unchanged reads no tree and costs no extra process.
+- **Config from the consumer.** ShellCheck discovers `.shellcheckrc` by walking up from the file's
+  directory; shfmt reads `.editorconfig` the same way. Files under `.githooks/` (installed copies)
+  are skipped.
+- **Gitignored files are skipped by default in the session.** The batch row does not rewrite a file
+  the repository gitignores, silently, since a rewrite of an ignored file has no git checkout to
+  undo it. Set `bash_format_lint_gitignored` to `true` to act on them too. A tracked file that
+  matches an ignore pattern stays in scope, and when git cannot decide (absent, no repository, an
+  error) the hook acts as before.
+- **Scope: files inside the current project, when `CLAUDE_PROJECT_DIR` is set.** With
+  `CLAUDE_PROJECT_DIR` set, the batch row acts only on shell files under it (symlink-resolved): a
+  `.sh`/`.bash` file written *outside* the project, e.g. to a temp or scratchpad directory, is
+  silently skipped, deliberate defense-in-depth scoping inherited from the shared hook library. The
+  OS temp tree (`TMPDIR`/`TMP`/`TEMP` and the POSIX defaults) is outside the project even when it
+  sits *under* `CLAUDE_PROJECT_DIR`, the shape a home-directory project dir takes, where Claude
+  Code's own session scratchpad would otherwise prefix-match as project content. The one exception
+  is a project root that itself lives under temp (a fixture checkout built with `mktemp -d`), whose
+  files are project content. Membership recognizes Windows 8.3 short-name spellings
+  (`KYLESE~1`) of in-project paths, a per-volume concern: only volumes with 8.3 generation enabled
+  produce such paths. If `CLAUDE_PROJECT_DIR` is **unset** (e.g. some headless `-p` sessions), the
+  membership check is skipped and any existing edited file is processed.
+
+## Git pre-commit entry
+
+The plugin ships one git-hook entry, `shell-check` (`git-hooks/entries.json`), which rewrites. At
+commit it refuses a partly staged shell script that an `.editorconfig` section governs, untouched;
+runs shfmt over the staged `.sh` and `.bash` files that section governs and re-stages what
+changed; then runs ShellCheck (`warning` severity and above) over the staged shell files and blocks
+the commit only on a finding on a line the commit adds, printed as `<path>:<line>: <message>`. A
+script no section governs is never rewritten but is still checked. It reaches every author, not only
+Claude, once `/bash-format:setup apply install-git-hooks [scope=local|shared]` registers it with
+the repository's hook manager (lefthook, husky or plain git hooks). Local scope stays in this
+clone; shared scope commits the copy under `.githooks/bash-format/`. `/bash-format:setup check`
+reports drift, and the SessionStart probe prints one line when the entry is missing, stale or
+edited.
+
+When a tool is missing, an agent's commit fails with the install route; a person's commit gets a
+one-line notice and goes through. A skipped or missing tool drops only its own half (no shfmt: no
+rewrite; no ShellCheck: no findings). `git -c checks.skipmissing=shellcheck commit ...` skips the
+check while the tool is absent. The placement rules are the check-placement convention in the
+marketplace repository.
+
+An opt-in Stop row (`bash_format_end_of_turn`) runs the ShellCheck half over the uncommitted changes
+at the end of a turn, without rewriting, and hands findings back to Claude once per turn.
 
 ## Requirements
 
-Each missing-tool notice appears once per session and agent; the `shellcheck` and `shfmt` notices carry
-the install route on your copy only.
-
-- **Bash.** The hook is a Bash script. On native Windows, install
-  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
-  Claude Code can run it under Git Bash.
-- **Node.js** on `PATH`. Every hook row runs through `node hooks/exec-bash.mjs`, so
-  without `node` the hook does not launch and shell edits are neither linted nor formatted.
-  We do not assume a Claude Code install brings Node. Pointer: when deciding whether it does,
-  fetch [setup: Install with npm](https://code.claude.com/docs/en/setup#install-with-npm) live.
-  As of: 2026-10-11. Recheck trigger: that section or [System requirements](https://code.claude.com/docs/en/setup#system-requirements) changes which
-  install needs Node at runtime. Unlike the tool
-  notices below, a missing `node` shows no notice from this plugin. Check it with
+- **Bash.** The hook scripts are Bash scripts, and run on Bash 3.2+. On native Windows, install
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so Claude Code can
+  run them under Git Bash.
+- **Node.js** on `PATH`. Every hook row runs through `node hooks/exec-bash.mjs`, so without `node`
+  the hook does not launch and shell edits are not formatted. We do not assume a Claude Code
+  install brings Node. Pointer: when deciding whether it does, fetch
+  [setup: Install with npm](https://code.claude.com/docs/en/setup#install-with-npm) live.
+  As of: 2026-10-11. Recheck trigger: that section or
+  [System requirements](https://code.claude.com/docs/en/setup#system-requirements) changes which
+  install needs Node at runtime. A missing `node` shows no notice from this plugin. Check it with
   `/bash-format:setup check`. [Install Node.js](https://nodejs.org/en/download).
-- **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible notice. [Install jq](https://jqlang.org/download/).
-- **ShellCheck** on `PATH` for the lint pass. Absent: the lint pass skips with
-  a visible notice.
-- **shfmt** on `PATH` for the format pass (and an `.editorconfig` in your repo
-  to opt in). Absent while the repo opts in: the format pass skips with a
-  visible notice. Without the `.editorconfig` opt-in the
-  format pass stays quiet. The repo chose not to format.
+- **jq** on `PATH`. Reads the file paths from the `PostToolBatch` payload and the syntax tree for
+  the subscript guard. Absent: the batch row does nothing, the pre-commit entry skips its rewrite,
+  and the SessionStart probe reports it. [Install jq](https://jqlang.org/download/).
+- **ShellCheck** on `PATH` for the pre-commit findings.
+- **shfmt** on `PATH` for formatting (and an `.editorconfig` section naming shell files in your
+  repo to opt in). Without the opt-in, shfmt is never needed. The repo chose not to format.
 
 A SessionStart probe reports a missing `shfmt` or `shellcheck` once per session, from
-`prerequisites.json`, and the PostToolUse notices name the same install route. The probe and the
-PostToolUse notice for a tool share one latch: the probe's notice is yours, and Claude hears at the
-hook's first skip. Run `/bash-format:check` to see which
-binaries resolve; it is read-only and installs nothing.
-
-Each pass is independent: when a tool is absent its pass is skipped (visibly)
-and the other still runs.
-
-The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
-(Bash 5.0+); on older bash the telemetry envelope is skipped while linting and
-formatting still run.
+`prerequisites.json`, and a drifted git-hook entry. Run `/bash-format:check` to see which binaries
+resolve; it is read-only and installs nothing.
 
 ### Hook budget accounting
 
 Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
-this hook is always-on for every `Write` and `Edit` of a `.sh` or `.bash` file (every handler in
-`hooks/hooks.json` carries one of the two `if` rows, which keep every other extension from
-spawning it, and the suite pins the whole handler set to the script's own extension set), so its
-cost on a clean shell file is the figure that counts. Measured on Linux x86_64 under bash 5.2 in
-a container with `HOOK_TELEMETRY_SINK` and `CLAUDE_PROJECT_DIR` unset, twelve interleaved trials
-against an interleaved `bash -c :` floor S of about 4 ms, with a kernel census from
-`strace -f -e trace=clone,clone3,fork,vfork,execve` (2026-09-07, 0.7.44):
+the `PostToolBatch` row is always-on: the event has no matcher, so it fires on every batch of every
+session. Its launcher flag `--skip-unless-stdin-contains 'sh"'` closes before bash starts when the
+payload holds no string ending in `sh`. Measured on WSL2 Ubuntu (bash 5.3.9, shfmt v3.14.1,
+node 24) on 2026-10-15, with the row launched as `hooks.json` registers it, ten fires per case;
+spawns are from `scripts/hook-census.sh`:
 
-| Event | Fires | Wall | Spawn-equivalents | Kernel census |
-| --- | --- | --- | --- | --- |
-| PostToolUse `Write`, clean `.sh`, no `.editorconfig` shell section | 1 | 45 ms | 10.5 | 14 process creations, 6 execs: `shellcheck`, two `git rev-parse` (the working-tree probe and the root resolver), `jq`, `realpath`, the hook's own `bash` |
-| PostToolUse `Write`, clean `.sh`, `.editorconfig` `[*.sh]` present | 1 | 55 ms | 14.1 | 31 to 32 process creations (the tools' own threads vary), 12 execs: the row above plus two `shfmt` and the disclosure snapshot's `mktemp`, `cp`, `cmp`, `rm` |
-| PostToolUse `Write`, `.sh` that shfmt rewrites, `.editorconfig` `[*.sh]` present | 1 | about 7.5 ms more than the same rewrite on 0.10.3 (see below) | about 11 more, at that run's S of 0.7 ms | the census of a rewrite on 0.10.3 plus two `shfmt` and two `jq`: the subscript guard reads the syntax tree before and after |
-| PostToolUse `Write`, any other extension | 0 | none | 0 | no process; the `if` rows drop the handler before a spawn |
+| Batch | Median wall | Min-max | Spawns |
+| --- | --- | --- | --- |
+| No shell file in the payload | 0.068 s | 0.060-0.087 s | 1 (the `node` launcher) |
+| A `Read` of a `.sh` file, nothing to rewrite | 0.065 s | 0.058-0.086 s | 6 |
+| One `Edit` of a `.sh` file that needs a rewrite | 0.098 s | 0.089-0.122 s | 23 |
 
-At a 4 ms floor the spawn-equivalent column mostly measures the tools' own run time rather
-than spawns, so the census column is the number that transfers to the Windows 11 Git Bash
-reference host the convention calls binding; that host's figure for this plugin has not been
-taken. The residual is ShellCheck and shfmt themselves plus the shared library's payload reader
-(`jq`), working-tree probe and root resolver (`git` twice, `realpath`) and the disclosure
-snapshot.
-
-The rewrite row comes from a separate run (2026-10-04, 0.10.4, Linux x86_64, bash 5.2, shfmt
-v3.12.0): 41 interleaved trials of the 0.10.3 and 0.10.4 hooks on the same fixture, repeated
-three times, with medians 7.0 to 7.9 ms apart. The census is
-`strace -f -e trace=execve`. A clean file measured the same on both versions, so the two
-clean-file rows stand.
+The ceiling for a per-batch formatter row is 1 s median per fire. Fences:
+`.performance/ratchets.json` holds the no-shell-file row at 1 spawn, and the Stop row with
+`bash_format_end_of_turn` off (its default) at 1 spawn.
 
 ## Install
 
@@ -176,14 +153,15 @@ The linting and formatting rules come from the `.shellcheckrc` and
 `.editorconfig` already in your repository, which the plugin reads automatically.
 To change the rules, edit those files.
 
-Two `userConfig` options tune the hook itself:
+Three `userConfig` options tune the hooks themselves:
 
 | Option | Default | Effect |
 |--------|---------|--------|
-| `bash_format_enabled` | `true` | Toggle for the bash-format hook; set `false` for a clean no-op. |
-| `bash_format_lint_gitignored` | `false` | Set `true` to lint and format files the repository gitignores; by default the hook skips them. |
+| `bash_format_enabled` | `true` | Kill switch. Set `false` for a clean no-op. |
+| `bash_format_lint_gitignored` | `false` | Set `true` to format files the repository gitignores; by default the batch row skips them. |
+| `bash_format_end_of_turn` | `false` | Set `true` to run the pre-commit ShellCheck pass over the uncommitted changes when a turn ends; findings go back to Claude once per turn so they are fixed before it stops. Nothing is rewritten. |
 
-Set it interactively with `/plugin configure bash-format@<marketplace>`, or headless on the
+Set them interactively with `/plugin configure bash-format@<marketplace>`, or headless on the
 install command:
 
 ```shell
@@ -200,8 +178,9 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `bash_format_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED` | Lint and format shell scripts on edit via ShellCheck + shfmt |
+| `bash_format_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED` | After each batch of tool calls, run shfmt over the shell scripts it wrote, where the repository's .editorconfig opts in |
 | `bash_format_lint_gitignored` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_BASH_FORMAT_LINT_GITIGNORED` | By default the hook leaves a file the repository gitignores alone: it is not rewritten or linted, since a rewrite of an ignored file has no git checkout to undo it. Set true to act on gitignored files too. A tracked file that matches an ignore pattern is always in scope. |
+| `bash_format_end_of_turn` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_BASH_FORMAT_END_OF_TURN` | At the end of each turn, run the pre-commit ShellCheck pass over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Nothing is rewritten. Off by default. |
 
 ### How to set these
 

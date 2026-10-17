@@ -3,6 +3,43 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.9.0] - 2026-10-17
+
+### Added
+
+- `/source-control:pull-request ready --skip <step>[,<step>...] --reason "<text>"` lets a person who is present skip pre-flip steps for one run. It is refused under `--unattended`, never re-enables a step `pre_ready` disabled, and leaves the hold checks, the push and the flip in place. Each skipped step is reported as `skipped by <login> for this run: <reason>` and the same lines go into one PR conversation comment, marked with the head it flipped; `ready` never edits the PR body.
+
+## [1.8.0] - 2026-10-16
+
+### Added
+
+- A request level for `pr_open_state`: an invocation that asks for a draft, or names the PR a multi-session container, wins over every configured level and writes a `Draft:` line into the PR body. `/source-control:babysit-prs` never flips a draft carrying that line, in any tier, and `ready --unattended` (passed by every lane, loop and dispatched caller) refuses to flip it, through `check-ready-holds.sh --unattended` (exit 3); a person running `ready` may still flip it.
+
+- A `pre_ready` list in `docs/conventions/source-control.yaml` turns off any of the five pre-flip steps of `/source-control:pull-request ready` (`base-merge`, `plan-evidence`, `code-review`, `security-review`, `verify`) with `enabled: false`. It is read at the pull request's own base branch in its base repository, never the head, through `scripts/read-pre-ready.sh`, and honored only when that base is the repository's default branch: on a stacked or other base, which the PR's author may have pushed unreviewed, every step runs. A missing file (a 404) or key runs every step. A failed base read, input holding a NUL byte, an unparsable list, or a list the schema would reject (an unknown or repeated step, an extra key, an `enabled` other than unquoted `true` or `false`) also runs every step, and the report says why. The schema allows each step at most once. The hold checks, the push and the flip always run. With `base-merge` disabled, local commits are still pushed before the reviews, so the reviews and the verify gate cover the same commit. `ready` now reports one line per step: ran and passed, ran and failed, skipped with the built-in condition, or disabled by `pre_ready` at the base branch.
+
+### Changed
+
+- `/source-control:pull-request` stacks reference: re-stamped against the stacked pull requests GA docs, merge-queue text replaced by a live docs pointer, and a when-to-stack rule added.
+
+- `/source-control:pull-request create` always opens the PR as a draft. When `pr_open_state` resolves to `ready` (a repository or user opts in; the default stays `draft`), it then runs `ready` on the new PR, so a PR reaches ready only through `ready`'s base merge, reviews and verify gate; a gate that stops leaves it a draft and the report says why. Unattended runs, `--pushed` included, still leave a draft. `create` reference §2.4.3 states what a save point, a draft and a ready PR each mean.
+
+### Fixed
+
+- `lib/check-retirements.sh` finds and cleans a `.git/` leftover, such as a retired git hook,
+  when run from a linked worktree: such a path resolves under `git rev-parse --git-common-dir`.
+
+- Never update a dependency-manager PR branch before merging (ask the manager to rebase instead), and skip the update on a merge-queue base; the branch-refresh helper refuses a dependency-manager PR.
+
+## [1.7.0] - 2026-10-16
+
+### Added
+
+- `/source-control:pull-request create` copies the plan Brief's acceptance criteria into an `## Acceptance criteria` section of the PR body when the branch implements a plan: a caller-named `PLAN.md` or topic slug, else the slug derived from the branch, else the single `PLAN.md` in the memory directory. The section states values only, never a path into the memory directory.
+
+### Fixed
+
+- `pull-request` merge after AI review: the checks script now prints the verified head instead of merging, and the merge runs as one command with its guard (head, author, fork, draft, changed files, review checks) and literal PR number, `-R` and sha, so an auto-mode allow entry that requires that guard can match it. A guarded `--admin` form is given for repositories where the user's own instructions authorize admin merges.
+
 ## [1.6.2] - 2026-10-16
 
 ### Changed

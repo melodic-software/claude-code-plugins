@@ -3,6 +3,22 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.7.1] - 2026-10-16
+
+### Changed
+
+- `/work-items:work` and `/work-items:ship run` dispatch `/source-control:pull-request ready --unattended`, so `ready` never flips a draft a person asked for (a `Draft:` body line) from a lane or orchestrated run.
+
+### Fixed
+
+- The `/work-items:work` and `/work-items:ship` evals describe the refused-ready cases as `ready --unattended`, matching the dispatch the skills make.
+
+## [2.7.0] - 2026-10-16
+
+### Changed
+
+- `/work-items:decompose` run without a spec container copies the PLAN.md Brief's Goal and Constraints into each item's Outcome section, so a session working one item keeps the why; item bodies still name no memory-slice path.
+
 ## [2.6.2] - 2026-10-16
 
 ### Changed

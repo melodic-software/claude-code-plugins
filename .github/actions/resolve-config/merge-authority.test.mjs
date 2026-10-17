@@ -163,3 +163,20 @@ test("resolveMerge does not carry authority or agent-identity into the output", 
     VALID_MERGE,
   );
 });
+
+test("merge.dependabot.mode takes off, report or enforce", () => {
+  for (const mode of ["off", "report", "enforce"]) {
+    assert.doesNotThrow(() => run(withMerge({ dependabot: { mode } })), mode);
+  }
+});
+
+test("any other merge.dependabot.mode or key fails the schema", () => {
+  rejectedFor(
+    withMerge({ dependabot: { mode: "on" } }),
+    /must be equal to one of the allowed values/,
+  );
+  rejectedFor(
+    withMerge({ dependabot: { mode: "enforce", majors: true } }),
+    /must NOT have additional properties/,
+  );
+});

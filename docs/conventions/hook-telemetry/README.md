@@ -21,7 +21,7 @@ of whatever `HOOK_TELEMETRY_SINK` names; the sink interprets it. This lets sinks
 (medley maps the envelope into its own event store) and lets a plugin ship telemetry that simply no-ops
 where no sink is configured.
 
-- **`HOOK_TELEMETRY_SINK` unset → no-op.** The hook behaves exactly as it did before telemetry: same stdout,
+- **`HOOK_TELEMETRY_SINK` unset is a no-op.** The hook behaves exactly as it did before telemetry: same stdout,
   same exit code. Telemetry is purely additive.
 - **Fire-and-forget.** The producer dispatches the sink in the background and returns immediately; it never
   waits on, nor fails because of, the sink.
@@ -52,7 +52,7 @@ Every event, from every hook, carries these seven fields. All are required and a
 |-------|------|---------|
 | `schema_version` | string (SemVer) | Version of this envelope contract. |
 | `timestamp` | string (RFC 3339, UTC) | Instant the hook finished. True UTC: the `Z` is not a local-time lie. |
-| `hook` | string | Producer hook id, e.g. `markdown-format`. **Not** CC's `hook_name` (event:matcher). Keys data-schema discovery. |
+| `hook` | string | Producer hook id, e.g. `desktop-notification`. **Not** CC's `hook_name` (event:matcher). Keys data-schema discovery. |
 | `hook_event` | string | The triggering event: `PostToolUse`, `SessionStart`, `ConfigChange`, `WorktreeCreate`, …, or for a mod its event, such as `tool.call`. A **free string**, not an enum, because the event vocabulary grows and custom events exist. |
 | `status` | string | Universal execution outcome (documented value set, not a closed enum). See below. |
 | `duration_ms` | integer (≥ 0) | **This hook's** runtime in milliseconds. Not CC's aggregate `total_duration_ms`. |
@@ -115,8 +115,8 @@ findings are `data.findings`, because "found issues" is specific to formatters a
 ## Per-hook data
 
 `data` carries everything not universal to all hooks. Its shape per producer is published at
-`data/<hook>.schema.json`, **discovered by the envelope's `hook` value**. For `hook: "markdown-format"`,
-read `data/markdown-format.schema.json` (`tool`, `file`, `findings`).
+`data/<hook>.schema.json`, **discovered by the envelope's `hook` value**. For `hook: "desktop-notification"`,
+read `data/desktop-notification.schema.json` (`channels`, `notification_type`).
 
 - **`data` is always present**, an object, possibly `{}`.
 - **Generic sinks ignore `data`** and consume only the common envelope.
@@ -169,10 +169,9 @@ above are held by review and the deprecation cycle. A suite carries no transcrib
 ## Adoption (adopt-by-copy)
 
 The emit function is **co-located in each plugin's `hooks/hook-utils.sh`**, because plugins are runtime-isolated
-under `${CLAUDE_PLUGIN_ROOT}`, so there is no shared library to import. The first implementer
-(`markdown-format`) carries its own copy. **The moment a second hook needs to emit, extract a canonical
-copy and add a drift-check in the same change**: copy once, then consolidate, so the two copies never drift
-unwatched. This mirrors the standards-repo "adopt by copy" pattern.
+under `${CLAUDE_PLUGIN_ROOT}`, so there is no shared library to import. Each copy is generated from the
+canonical `lib/hook-utils.sh`, and `scripts/sync-shared-copies.sh --check` fails on drift. This mirrors the
+standards-repo "adopt by copy" pattern.
 
 A mod emits from its own hooks module instead, in TypeScript: context-guard's
 `hooks/register.tsx` builds the same envelope, resolves `HOOK_TELEMETRY_SINK` by the rules above
@@ -192,7 +191,7 @@ pretty-printed form. A sink must parse the document as JSON, never by line or by
 - ignores unknown keys and treats an unrecognized `status` as a catch-all (see Forward compatibility);
 - never crashes and never writes to stdout, since it runs fire-and-forget, exec'd as a single command per event.
 
-That is the whole consumer contract: any number of independently-written sinks can subscribe to the same
+That is the whole consumer contract. Any number of independently-written sinks can subscribe to the same
 producers without coordinating with them or each other.
 
 **Sink routing by session (reference sink, harness-ops 0.42.11).** Since contract 1.1 every producer
@@ -218,21 +217,12 @@ where the formatter every writer calls lives:
 
 | Producer | `hook` value | Data schema |
 |----------|--------------|-------------|
-| `markdown-format` plugin | `markdown-format` | `data/markdown-format.schema.json` |
-| `ruff-format` plugin | `ruff-format` | `data/ruff-format.schema.json` |
-| `go-format` plugin | `go-format` | `data/go-format.schema.json` |
-| `bash-format` plugin | `bash-format` | `data/bash-format.schema.json` |
-| `biome-format` plugin | `biome-format` | `data/biome-format.schema.json` |
-| `powershell-format` plugin | `powershell-format` | `data/powershell-format.schema.json` |
-| `eol-normalizer` plugin | `eol-normalizer` | `data/eol-normalizer.schema.json` |
-| `actionlint` plugin | `actionlint-check` | `data/actionlint-check.schema.json` |
 | `desktop-notification` plugin | `desktop-notification` | `data/desktop-notification.schema.json` |
 | `guardrails` plugin | `secret-pattern-detection` | `data/secret-pattern-detection.schema.json` |
 | `guardrails` plugin | `hardcoded-path-check` | `data/hardcoded-path-check.schema.json` |
 | `guardrails` plugin | `cli-flag-verify` | `data/cli-flag-verify.schema.json` |
 | `guardrails` plugin | `stale-path-verify` | `data/stale-path-verify.schema.json` |
 | `guardrails` plugin | `block-no-verify` | `data/block-no-verify.schema.json` |
-| `guardrails` plugin | `block-hook-bypass` | `data/block-hook-bypass.schema.json` |
 | `guardrails` plugin | `block-dangerous-git` | `data/block-dangerous-git.schema.json` |
 | `guardrails` plugin | `block-noncanonical-commit` | `data/block-noncanonical-commit.schema.json` |
 | `guardrails` plugin | `flag-commit-pr-skill-bypass` | `data/flag-commit-pr-skill-bypass.schema.json` |

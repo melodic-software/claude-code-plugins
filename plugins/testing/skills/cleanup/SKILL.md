@@ -197,7 +197,7 @@ review, do not re-apply` (or `kept: <reason>`). Quarantined tests have no rule a
 and the user's choice for it (re-enabled, escalated, renewed to a date, or undecided).
 
 Show the batch and wait for the user's approval. Then commit the batch's files only (named paths,
-never `git add -A`) and delete `before.tsv` and `after.tsv`. Push and the draft pull request go
+never `git add -A`) and delete `before.tsv` and `after.tsv`. Push and the pull request go
 through `/source-control:pull-request` when that plugin is enabled, otherwise leave them to the
 user. Unattended runs stop before the commit.
 
@@ -261,7 +261,7 @@ unused-code check, so ask the user to build and lint the test project before app
 
 ## Next
 
-- Open the batch's draft pull request with `pr-body.md` as its body: /source-control:pull-request create
+- Open the batch's pull request with `pr-body.md` as its body: /source-control:pull-request create
 - A deletion left an export, global or wrapper with no production caller: /code-tidying:audit-dead-code
 
 ## Gotchas

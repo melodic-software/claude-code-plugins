@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "I can't tell yet what a better version of this would be aiming at, so before raising anything, a few questions:\n\n1. Who reads the newsletter, and what should they do or know after reading an issue?\n2. What do you want help with: writing an issue, growing subscribers, design, or the sending tool?\n3. Is there a current issue or draft I should look at?\n4. What would make the next issue count as a success for you?\n\nAnswer whichever apply and I'll come back with the original and a raised version side by side.",
+      "why": "asks one batch of questions including goal and audience, no work produced"
+    },
+    {
+      "answer": "Happy to help. \"Help with my newsletter\" could mean several different jobs, so a couple of questions first so I aim this right: who's the audience for the newsletter, and what would you like help with, for example writing the next issue, growing the list, or picking a platform? Once I know both, I will suggest where to start and what to tackle first.",
+      "why": "two questions together, one about the audience, and no work yet"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here's a starting framework for your newsletter:\n\n**Structure for each issue**\n1. A one-line hook in the subject.\n2. A short personal opener.\n3. One main story or lesson, 300 to 500 words.\n4. Three curated links with a sentence each.\n5. A single call to action.\n\n**Cadence:** weekly, same day and time.\n\n**Growth:** add a signup form to your site, offer a free resource for subscribing, and ask readers to forward it.\n\n**Tools:** Buttondown or Substack for sending, with open-rate tracking.",
+      "why": "produces the work without asking anything"
+    },
+    {
+      "answer": "Sure, I can help with that, and I am glad to dig in. One quick thing first: which platform are you sending it from, Substack, Mailchimp, Buttondown or something else? Each one handles templates, scheduling and subscriber imports differently, so once I know which tool you're on I can tailor the help to how that tool works and point you at the right settings and menus.",
+      "why": "asks only one narrow question unrelated to the goal or audience"
+    }
+  ]
+}

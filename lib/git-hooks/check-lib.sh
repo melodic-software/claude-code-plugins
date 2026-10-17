@@ -21,6 +21,10 @@
 #   checks_refuse_partly_staged
 #                              a rewriting check calls this first: prints the
 #                              contract line per partly staged path, returns 1
+#   checks_refuse_config_drift [--if <fn>] <name>... -- <path>...
+#                              pre-commit: prints the contract line per config
+#                              governing a <path> whose work tree differs from
+#                              the index, returns 1
 #   checks_require_tool <tool> <install>
 #                              returns 0 when the tool is on PATH, else exits
 #                              the script with the contract's missing-tool rule
@@ -117,14 +121,15 @@ checks_remote_head() {
 # no stdin at all (a hook manager that kept it from this script), the current
 # branch against its upstream is the range.
 checks_push_ranges() {
-  local remote="${CHECKS_ARGS%% *}" zero=0000000000000000000000000000000000000000
+  # An all-zero id of any width: 40 hex digits under SHA-1, 64 under SHA-256.
+  local remote="${CHECKS_ARGS%% *}" zero='^0+$'
   local lref lsha rsha head base seen=0
   [[ -n "$remote" ]] || remote=origin
   while read -r lref lsha _ rsha; do
     [[ -n "$lsha" ]] || continue
     seen=1
-    [[ "$lsha" == "$zero" ]] && continue
-    if [[ "$rsha" != "$zero" ]]; then
+    [[ "$lsha" =~ $zero ]] && continue
+    if ! [[ "$rsha" =~ $zero ]]; then
       printf '%s %s\n' "$rsha" "$lsha"
       continue
     fi
@@ -229,4 +234,40 @@ checks_partly_staged() {
     [[ "$f" == "$1" ]] && return 0
   done <"$CHECKS_TMP/unstaged"
   return 1
+}
+
+# checks_refuse_config_drift [--if <fn>] <name>... -- <path>...: pre-commit
+# only. A check reads its config from the work tree but the commit holds the
+# index, so each config file called <name> in a <path>'s directory or above it
+# that the index holds and the work tree changes or deletes gets the contract
+# line on stderr; returns 1 when any did. An untracked config is not drift: it
+# is the repository's config being set up. With --if, a drifted file counts only
+# when <fn> <file> returns 0.
+checks_refuse_config_drift() {
+  [[ "$CHECKS_MODE" == pre-commit ]] || return 0
+  local filter=""
+  if [[ "${1:-}" == --if ]]; then
+    filter="$2"
+    shift 2
+  fi
+  local -a specs=()
+  while [[ $# -gt 0 && "$1" != -- ]]; do
+    specs+=(":(glob)**/$1")
+    shift
+  done
+  shift
+  local c dir f refused=0
+  while IFS= read -r -d '' c; do
+    [[ -z "$filter" ]] || "$filter" "$c" || continue
+    dir="${c%/*}"
+    [[ "$dir" == "$c" ]] && dir=.
+    for f in "$@"; do
+      if [[ "$dir" == . || "$f" == "$dir"/* ]]; then
+        printf '%s: config differs between the index and the work tree; stage it or restore it, then commit\n' "$c" >&2
+        refused=1
+        break
+      fi
+    done
+  done < <(git diff --name-only --no-color -z -- "${specs[@]}" 2>/dev/null)
+  return "$refused"
 }

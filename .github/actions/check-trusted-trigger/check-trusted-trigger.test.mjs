@@ -86,6 +86,7 @@ async function gate({
   runId,
   dispatchedWorkflow,
   requireKind,
+  ratifiedAppLabel,
   sleep = fakeSleep(),
 }) {
   const outputPath = writeJson("output", "");
@@ -113,6 +114,7 @@ async function gate({
       ...(runId === undefined ? {} : { GITHUB_RUN_ID: runId }),
       ...(dispatchedWorkflow === undefined ? {} : { DISPATCHED_WORKFLOW: dispatchedWorkflow }),
       ...(requireKind === undefined ? {} : { REQUIRE_KIND: requireKind }),
+      ...(ratifiedAppLabel === undefined ? {} : { RATIFIED_APP_LABEL: ratifiedAppLabel }),
     },
     github,
     sleep,
@@ -1015,6 +1017,183 @@ test("require-kind: a value other than empty or human stops with no-pr", async (
   assert.deepEqual(outputs, STOPPED("no-pr"));
 });
 
+// ratified-app-label: the lanes App may apply that one label in issue mode when
+// the issue carries the owner's unedited ratification marker.
+const LANES_APP = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
+const MARKER = "<!-- admission: admitted when unblocked, owner batch ratification 2026-10-16 -->";
+const commentsRoute = `GET /repos/${REPOSITORY}/issues/7/comments?per_page=100&page=1`;
+const ownerComment = (overrides = {}) => ({
+  id: 501,
+  body: `Ratified.\n${MARKER}`,
+  user: KYLE,
+  performed_via_github_app: null,
+  created_at: "2026-10-16T14:27:12Z",
+  updated_at: "2026-10-16T14:27:12Z",
+  ...overrides,
+});
+
+const graphqlRoute = "POST /graphql";
+const edits = ({ lastEditedAt = null, renamedAt } = {}) => ({
+  data: {
+    repository: {
+      issue: {
+        lastEditedAt,
+        timelineItems: { nodes: renamedAt === undefined ? [] : [{ createdAt: renamedAt }] },
+      },
+    },
+  },
+});
+
+function appLabel({
+  label = "agent-ready",
+  action = "labeled",
+  sender = LANES_APP,
+  comments = [ownerComment()],
+  issueEdits = edits(),
+  eventName = "issues",
+  ...rest
+} = {}) {
+  const github = fakeGitHub({ [commentsRoute]: comments, [graphqlRoute]: issueEdits });
+  return gate({
+    eventName,
+    event: { action, label: { name: label }, issue: { number: 7 }, sender, repository: { full_name: REPOSITORY } },
+    github,
+    requirePr: "false",
+    requireKind: "human",
+    deniedActorIds: "337595936",
+    lanesAppId: "337595936",
+    ratifiedAppLabel: "agent-ready",
+    triggeringActor: "melodic-automation-lanes[bot]",
+    ...rest,
+  }).then((outputs) => ({ outputs, calls: github.calls }));
+}
+
+test("ratified-app-label: the App's agent-ready label on an issue with the owner's marker proceeds", async () => {
+  const { outputs, calls } = await appLabel();
+  assert.deepEqual(outputs, ACTORS_OK);
+  assert.deepEqual(calls, [commentsRoute, graphqlRoute]);
+});
+
+test("ratified-app-label: a body edit before the marker proceeds", async () => {
+  const { outputs } = await appLabel({ issueEdits: edits({ lastEditedAt: "2026-10-16T14:00:00Z", renamedAt: "2026-10-16T13:00:00Z" }) });
+  assert.deepEqual(outputs, ACTORS_OK);
+});
+
+test("ratified-app-label: a body edit after the marker stops with untrusted-actor", async () => {
+  const { outputs } = await appLabel({ issueEdits: edits({ lastEditedAt: "2026-10-16T15:00:00Z" }) });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
+test("ratified-app-label: a title change after the marker stops with untrusted-actor", async () => {
+  const { outputs } = await appLabel({ issueEdits: edits({ renamedAt: "2026-10-16T15:00:00Z" }) });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
+test("ratified-app-label: a later marker re-ratifies an edit made after the first", async () => {
+  const later = ownerComment({ id: 502, created_at: "2026-10-16T16:00:00Z", updated_at: "2026-10-16T16:00:00Z" });
+  const { outputs } = await appLabel({
+    comments: [ownerComment(), later],
+    issueEdits: edits({ lastEditedAt: "2026-10-16T15:00:00Z" }),
+  });
+  assert.deepEqual(outputs, ACTORS_OK);
+});
+
+test("ratified-app-label: a failed edit-history read stops with untrusted-actor", async () => {
+  const { outputs } = await appLabel({ issueEdits: new GitHubError(502, graphqlRoute) });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
+test("ratified-app-label: an edit history with no issue stops with untrusted-actor", async () => {
+  const { outputs } = await appLabel({ issueEdits: { data: { repository: { issue: null } } } });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
+test("ratified-app-label: a marker from a denied human stops with untrusted-actor", async () => {
+  const { outputs } = await appLabel({ deniedActorIds: "337595936 153232337", triggeringActor: "melodic-automation-lanes[bot]" });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
+test("ratified-app-label: a listed human re-running the App's run proceeds", async () => {
+  const { outputs } = await appLabel({ triggeringActor: "kyle-sexton" });
+  assert.deepEqual(outputs, ACTORS_OK);
+});
+
+test("ratified-app-label: an issue with no marker stops with untrusted-actor", async () => {
+  const { outputs } = await appLabel({ comments: [ownerComment({ body: "Looks good." })] });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
+test("ratified-app-label: an edited marker comment stops with untrusted-actor", async () => {
+  const { outputs } = await appLabel({ comments: [ownerComment({ updated_at: "2026-10-16T15:00:00Z" })] });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
+test("ratified-app-label: a marker the App authored stops with untrusted-actor", async () => {
+  const { outputs } = await appLabel({ comments: [ownerComment({ user: LANES_APP })] });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
+test("ratified-app-label: a marker posted through a GitHub App stops with untrusted-actor", async () => {
+  const { outputs } = await appLabel({ comments: [ownerComment({ performed_via_github_app: { id: 1 } })] });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
+test("ratified-app-label: a marker from a listed bot stops with untrusted-actor", async () => {
+  const { outputs } = await appLabel({ comments: [ownerComment({ user: LISTED_BOT })] });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
+test("ratified-app-label: a failed comments read stops with untrusted-actor", async () => {
+  const { outputs } = await appLabel({ comments: new GitHubError(500, commentsRoute) });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
+test("ratified-app-label: the App applying any other label stops with bot-actor and reads nothing", async () => {
+  const { outputs, calls } = await appLabel({ label: "needs-human" });
+  assert.deepEqual(outputs, STOPPED("bot-actor"));
+  assert.deepEqual(calls, []);
+});
+
+test("ratified-app-label: an App issues event other than labeled stops with bot-actor", async () => {
+  const { outputs, calls } = await appLabel({ action: "unlabeled" });
+  assert.deepEqual(outputs, STOPPED("bot-actor"));
+  assert.deepEqual(calls, []);
+});
+
+test("ratified-app-label: unset, the App's agent-ready label still stops with bot-actor", async () => {
+  const { outputs, calls } = await appLabel({ ratifiedAppLabel: "" });
+  assert.deepEqual(outputs, STOPPED("bot-actor"));
+  assert.deepEqual(calls, []);
+});
+
+test("ratified-app-label: an unlisted re-runner of the App's run stops with untrusted-rerunner", async () => {
+  const { outputs } = await appLabel({ triggeringActor: "stranger" });
+  assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
+});
+
+test("ratified-app-label: a listed bot re-runner of the App's run stops with untrusted-rerunner", async () => {
+  const { outputs } = await appLabel({ triggeringActor: "claude[bot]" });
+  assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
+});
+
+test("ratified-app-label: another listed bot applying agent-ready still stops with untrusted-actor", async () => {
+  const { outputs, calls } = await appLabel({ sender: LISTED_BOT, triggeringActor: "claude[bot]" });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+  assert.deepEqual(calls, []);
+});
+
+test("ratified-app-label: a human's agent-ready label proceeds as before, with no comments read", async () => {
+  const { outputs, calls } = await appLabel({ sender: KYLE, triggeringActor: "kyle-sexton" });
+  assert.deepEqual(outputs, ACTORS_OK);
+  assert.deepEqual(calls, []);
+});
+
+test("ratified-app-label: outside issues, the App sender still stops with bot-actor", async () => {
+  const { outputs, calls } = await appLabel({ eventName: "workflow_dispatch" });
+  assert.deepEqual(outputs, STOPPED("bot-actor"));
+  assert.deepEqual(calls, []);
+});
+
 test("require-pr: a value other than true or false stops with no-pr, even for a valid PR", async () => {
   const github = fakeGitHub({ [pullRoute]: fixture("api-pull-42.json") });
   assert.deepEqual(
@@ -1297,7 +1476,7 @@ test("createGitHub raises on a GraphQL response that carries errors", async () =
 
 // A dispatcher started by workflow_run when a review lane finished on the PR
 // (pr-feedback-dispatch.yml). Its run record reports the default branch and its
-// tip, as pr-merge.yml's workflow_run runs do (run 38779143370 after review run
+// tip, as pr-merge.yml's workflow_run runs did (run 38779143370 after review run
 // 38779135732 on release/plugins).
 
 const RUN_DISPATCHER_WORKFLOW = ".github/workflows/pr-feedback-dispatch.yml";

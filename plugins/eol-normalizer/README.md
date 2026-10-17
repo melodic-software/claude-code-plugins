@@ -1,10 +1,11 @@
 # eol-normalizer
 
-A Claude Code plugin that normalizes a file's working-tree line endings the
-moment you edit it. On every `Write` or `Edit` it resolves the file's
-`.gitattributes` `eol=` value via
-[`git check-attr`](https://git-scm.com/docs/git-check-attr) and rewrites the
-file's line endings to match. Symmetric CRLF↔LF, idempotent, best-effort.
+A Claude Code plugin that normalizes the working-tree line endings of the files
+Claude writes. Once per batch of tool calls, for each file a `Write`, `Edit` or
+`MultiEdit` in the batch named, it resolves the file's `.gitattributes` `eol=`
+value via [`git check-attr`](https://git-scm.com/docs/git-check-attr) and
+rewrites the file's line endings to match. Symmetric CRLF↔LF, idempotent,
+best-effort, and silent: nothing it does reaches the model.
 
 It uses **your repository's own `.gitattributes`**. It ships no policy and
 imposes no rules of its own.
@@ -22,18 +23,26 @@ imposes no rules of its own.
   too. The hook mirrors gitattributes semantics. Explicit `text` is trusted,
   `-text` skips, and `text=auto` content-sniffs (NUL scan of the first 8000
   bytes, git's own detection window), so binary files are never rewritten.
-- **Unspecified → no-op.** A path with no `eol=` attribute is left untouched.
+- **Unspecified is a no-op.** A path with no `eol=` attribute is left untouched.
   There is no hardcoded extension list. Resolution is entirely
   `.gitattributes`-driven, so narrow rules (a single `eol=lf` path) correctly
   win over broad ones (`*.txt eol=crlf`).
-- **Gitignored → no-op.** A file the repository gitignores and does not track is
+- **Gitignored is a no-op.** A file the repository gitignores and does not track is
   left alone, since a rewrite of an ignored file has no git checkout to undo it.
   A tracked file matching an ignore pattern stays in scope. Any failure to decide
   (git absent, no repo, `check-ignore` error) acts as before. Set
   `eol_normalizer_lint_gitignored=true` to act on ignored files (see the Options
   reference).
-- **Advisory, never blocking.** The hook always exits `0`. Make a commit hook or
-  CI (`git add --renormalize`, an EditorConfig check) your hard gate.
+- **Reads are never rewritten.** A file that only a `Read` or a shell command
+  named is left alone, and a file under `.githooks/` (an installed copy) is skipped.
+- **Advisory, never blocking, silent.** The hook always exits `0` and prints
+  nothing. It has no pre-commit entry because `git add` applies the same
+  `.gitattributes` to the bytes it stores: a CRLF file under `eol=lf` and an LF
+  file under `eol=crlf` are both committed as LF, whether or not this hook ran
+  (`hooks/eol-git-add.test.sh` pins it). The working tree is what this hook
+  fixes: a CRLF shell script fails to run before it is ever staged. For a repository
+  whose files were committed with the wrong endings, `git add --renormalize` and
+  an EditorConfig check in CI remain the gates.
 
 ## Requirements
 
@@ -46,8 +55,8 @@ imposes no rules of its own.
 - **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
-- **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible notice, once per session and agent. [Install jq](https://jqlang.org/download/).
+- **jq** on `PATH`. Parses the hook payload. Absent: the hook exits silently and
+  normalizes nothing; `/eol-normalizer:check` reports it. [Install jq](https://jqlang.org/download/).
 - **git** on `PATH`. The attribute resolution (`git check-attr`) and repo-root
   detection depend on it. Without a git repository the hook is a quiet no-op
   (nothing to normalize against, not a missing prerequisite).
@@ -55,37 +64,30 @@ imposes no rules of its own.
 Rewriting uses `perl` when present, falling back to `tr`/`awk` otherwise, so no
 extra tooling is required.
 
-The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
-(Bash 5.0+); on older bash the telemetry envelope is skipped while normalization
-still runs.
+The hook itself runs on Bash 3.2+.
 
 ### Hook budget accounting
 
 Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
-this hook is always-on for every `Write` and `Edit`, so its cost on the path where there is
-nothing to rewrite is the figure that counts. Measured on Windows 11 under Git Bash, twelve
-interleaved trials against an interleaved `bash -c :` floor (2026-09-02):
+the `PostToolBatch` row is always-on: the event has no matcher, so it fires on every batch of every
+session. Its launcher flag `--skip-unless-stdin-contains file_path` closes before bash starts when no
+tool call in the batch names a file path. The flag takes one text and the row must cover `Write`,
+`Edit` and `MultiEdit`, so `file_path` is the narrowest text that covers all three; the script then
+returns at once, before it starts `jq` or `git`, unless the batch holds one of them. The row has no
+`if` and no extension filter, and that is deliberate (#3411): which files it normalizes is decided by
+the consuming repository's `.gitattributes` through `git check-attr eol text`, not by file type, so
+the set a filter would have to reproduce is every file. Measured on WSL2 Ubuntu (bash 5.3.9, node 24,
+jq 1.8.2) on 2026-10-15, with the row launched as `hooks.json` registers it, ten fires per case,
+repository `.gitattributes` saying `eol=lf`; spawns are from `scripts/hook-census.sh`:
 
-| Event | Fires | Spawn-equivalents | What changed |
+| Batch | Median wall | Min-max | Spawns |
 | --- | --- | --- | --- |
-| PostToolUse `Write`, already-normalized `.md` | 1 | 41.0 before, 21.5 after (0.6.28) | sixteen of twenty-seven processes gone: one `git check-attr` for both attributes, `dirname` and `basename` as parameter expansions, the NUL sniff as one `read`, and no temp file, `cp`, `cmp` or `rm` for a file that needs no rewrite |
+| A `Bash` call only (no file path) | 0.047 s | 0.044-0.054 s | 1 (the `node` launcher) |
+| A `Read` of a governed file | 0.051 s | 0.045-0.058 s | 3 |
+| One `Edit` of a CRLF file that needs a rewrite | 0.078 s | 0.068-0.094 s | 16 |
 
-The residual is the shared library's payload reader and telemetry emitter, cut in 0.6.29 by the
-vendored `hook-utils.sh` (one batched `realpath`, no jq on the envelope). 0.6.41 drops leftover
-`$(hook::repo_root)` / `$(hook::repo_relative_path)` capture subshells around those helpers'
-`_to` forms; the git check-attr probe is unchanged.
-
-`hooks/hooks.json` carries no `if` row, and that is deliberate (#3411). The sibling formatters
-filter by extension at the manifest so a Write of any other file spawns nothing, but this hook
-has no extension filter of its own: which files it normalizes is decided by the consuming
-repository's `.gitattributes` through `git check-attr eol text`, not by file type, so the set a
-declarative filter would have to reproduce is every file, and a file-type row would silently
-stop normalizing whatever it left out. What the manifest cannot filter the script keeps cheap:
-a file that already carries its `eol=` ending is decided by the plan step before any snapshot,
-so the kernel census (`strace -f -e trace=clone,clone3,fork,vfork,execve`, Linux x86_64,
-`HOOK_TELEMETRY_SINK` and `CLAUDE_PROJECT_DIR` unset, 2026-09-07, 0.6.42) on such a `Write` is
-13 process creations and 6 execs (`git` three times: the working-tree probe, the root resolver
-and `check-attr`; `jq`, `realpath`, the hook's own `bash`) with no `mktemp` or `cp`.
+The ceiling for a per-batch formatter row is 1 s median per fire. Fences:
+`.performance/ratchets.json` holds the no-file-path batch at 1 spawn and the Read-only batch at 3.
 
 ## Install
 
@@ -185,68 +187,6 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
-
-## Hook cost accounting
-
-This plugin's PostToolUse hook matches every `Write` and `Edit`, so its cost is
-paid on every file the agent touches and it owes the marketplace's
-[hook budget](../../docs/conventions/hook-budget/README.md) an honest figure.
-
-**Method.** `EPOCHREALTIME` wall-clock around a direct hook invocation, 12
-interleaved trials, each preceded by a `bash -c :` spawn-floor run so the
-reported ratio absorbs machine load. The payload is a `PostToolUse` `Write`
-naming a scratch file inside a repository whose `.gitattributes` says `eol=lf`,
-already LF, so the hook has nothing to rewrite. That benign path is the one that
-runs on nearly every edit. Windows 11 + Git Bash, 2026-09-02.
-
-**Counting.** Both process columns come from a `bash -x` trace of that same
-invocation. An exec is a command in command position whose word resolves to a
-file rather than a builtin, function, alias or keyword. A fork is an increase in
-the trace's subshell-nesting depth, one per command substitution or subshell; it
-undercounts, because pipeline elements fork without changing the depth. Forks
-are reported beside execs because they are not free on this host: a command
-substitution measures about half the cost of a spawn, so twenty-seven of them
-are a large share of the run rather than a rounding error.
-
-**Host condition.** The measuring host's `bash -c :` floor was **82 ms** for the
-before run and **77 ms** for the after run, against the convention's reference
-host of **≈ 80 ms**. Absolute milliseconds from a loaded host are not
-comparable; the spawn-equivalent ratio is the figure that holds.
-
-| Benign `Write`, n=12 interleaved | spawn-equivalents | @ 80 ms reference host | exec'd processes | forks |
-| --- | --- | --- | --- | --- |
-| Before (0.6.26) | 41.0 | ≈ 3,280 ms | 27 | 32 |
-| After (0.6.28) | 21.5 | ≈ 1,720 ms | 11 | 27 |
-
-**A benign edit costs about half what it did: ≈ 21.5 spawn-equivalents,
-≈ 1,720 ms of reference-host work.** The cut is process count, not algorithm.
-Sixteen of the twenty-seven processes were doing work a shell builtin does: two
-`git check-attr` calls became one, four `dirname` and one `basename` became
-parameter expansions, two `tr` pipelines became a substitution, the NUL sniff's
-`head`-`tr`-`wc` became one `read`, and the rewrite itself plus the `mktemp`,
-`cp`, `cmp` and `rm` that disclosed it are no longer reached for a file that is
-already in the target shape.
-
-**Residual, and why it stays.** Eight to ten of the eleven remaining processes
-belong to the shared `hooks/hook-utils.sh`: payload validation, the `file_path`
-read and its project-membership scoping, and the repository-root lookup. That
-file is a registered byte-identical cross-plugin cluster, so changing it is a
-nine-plugin change and not this plugin's to make. Of what is left, one `git` is
-the repository root and one is the merged `check-attr`. A repository configured
-`eol=crlf` sees no cut on the files that arm touches: proving an LF-to-CRLF pass
-is unnecessary means finding a newline not preceded by a carriage return, which
-the chunked builtin probe cannot answer across chunk boundaries.
-
-**One deliberate deviation.** A file this hook finds nothing to rewrite in is no
-longer opened for writing, so the hook no longer touches its mtime. No content
-and no reported message changes.
-
-**The hook row is exec form.** `hooks/hooks.json` runs `node hooks/exec-bash.mjs`, and the
-launcher reads `eol_normalizer_enabled` itself. A disabled hook costs one node process and never
-starts bash. An enabled edit costs that node process plus the bash it spawns for the script. The
-figures above were measured before the launcher, so they exclude the node process. The convention's
-[Exec-form fleet sweep](../../docs/conventions/hook-budget/README.md#exec-form-fleet-sweep)
-records why every hook row takes this form.
 
 ## License
 

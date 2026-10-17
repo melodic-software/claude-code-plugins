@@ -151,30 +151,40 @@ has no H2 in
 `.claude/source-control.md`. Its team value lives in `docs/conventions/source-control.yaml` at the
 repo root, a YAML mapping validated by
 [`schemas/source-control.schema.json`](../schemas/source-control.schema.json), and its per-user
-value is the `userConfig` option of the same name. No script reads these keys: the skill that uses
-one reads the file itself.
+value is the `userConfig` option of the same name, where one exists. The skill that uses a key
+reads the file itself, through a script where the key names one below.
 
-- `pr_open_state`: the state `/source-control:pull-request create` opens a pull request in, `draft`
-  or `ready`. `draft` opens a draft, and `/source-control:pull-request ready` later merges the base,
-  runs the security review and the verify gate, and flips it. `ready` opens the PR for review at
-  once, so those checks run before the flip only if someone runs `prep` first. Resolution, lowest
-  first, where a later level wins:
-  1. the default, `draft`;
+- `pr_open_state`: the state `/source-control:pull-request create` leaves a pull request in,
+  `ready` or `draft`. Create always opens a draft; with `ready` it then runs
+  `/source-control:pull-request ready`, which merges the base, runs the reviews and the verify
+  gate, and flips it, while `draft` leaves that flip for later. The state meanings are in
+  [create.md](../skills/pull-request/reference/create.md#243-create-pr) §2.4.3. Resolution, lowest first, where a later level wins:
+  1. the default, `draft` (a repository opts into `ready`);
   2. the `pr_open_state` `userConfig` value (the per-user level);
-  3. `pr_open_state` in `docs/conventions/source-control.yaml` (the repository level).
+  3. `pr_open_state` in `docs/conventions/source-control.yaml` (the repository level);
+  4. an invocation that asks for a draft or names the PR a multi-session container (the request
+     level).
 
   The repository level is read at the pull request's base branch, never from the working tree or
   the head branch, with the same `contents?ref=<base-branch>` read the
   [review-bot triage rubric](#review-bot-triage-rubric-docsconventionssource-controlmd) uses: a
-  branch must not choose to skip the draft for itself. It is not applicable at the home directory
+  branch must not choose its own state. It is not applicable at the home directory
   or outside a git working tree. An unattended run (a loop lane, a CI lane, a `dontAsk` session, a
-  dispatched worker or orchestrator, any `--pushed` run) opens a draft whatever the value
+  dispatched worker or orchestrator, any `--pushed` run) leaves a draft whatever the value
   resolves to, and reports that a `ready` was set and not used. A value other than
   `draft` or `ready` at either level is reported, naming the level, and resolves to `draft`: an
-  unknown value never opens a PR ready for review. A `pr_open_state` H2 in any
+  unknown value never flips a PR ready for review. A `pr_open_state` H2 in any
   `source-control.md` layer is not read. `create` reports which level supplied the value. The
   `userConfig` option declares `draft` as its default, so a substituted `draft` is reported as the
   default level: the two give the same result.
+- `pre_ready`: which pre-flip steps `/source-control:pull-request ready` runs, a list of
+  `{step, enabled}` mappings over `base-merge`, `plan-evidence`, `code-review`, `security-review`
+  and `verify`; a step the list leaves out runs. Team level only, with no `userConfig` option: a
+  person cannot switch off a repository's gates. Read at the pull request's base branch, never the
+  head, by `skills/pull-request/scripts/read-pre-ready.sh`, and honored only when that base is
+  the base repository's default branch. The reader runs every step when the key is missing, the
+  base is another branch, or the list cannot be trusted. Semantics and the report:
+  [ready-for-review.md](../skills/pull-request/reference/ready-for-review.md#read-which-pre-flip-steps-run).
 
 ## Review-bot triage rubric (`docs/conventions/source-control.md`)
 

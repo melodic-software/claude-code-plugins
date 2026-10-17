@@ -4,6 +4,13 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.23.2] - 2026-10-16
+
+### Changed
+
+- Skill text no longer cites the guardrails `block-hook-bypass` guard, which guardrails retired:
+  a shell write still skips the Write and Edit content guards, so the Write tool stays the route.
+
 ## [0.23.1] - 2026-10-16
 
 ### Changed

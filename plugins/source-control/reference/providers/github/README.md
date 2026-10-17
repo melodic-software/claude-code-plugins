@@ -53,7 +53,7 @@ entry and pass it to every later `gh` call in that phase.
 | Check out the PR head | `gh pr checkout <N>`, or `gh pr checkout <N> --detach` when the branch is locked in another worktree. It is fork-safe: a fork's head branch is not fetchable from `origin` by name |
 | Merge the base into the head | `gh pr update-branch <N>` (pull-request `ready-for-review.md`) |
 | Flip a draft ready | `gh pr ready <N>`, run only inside `/source-control:pull-request ready`, never bare |
-| Merge pinned to the reviewed head | `gh pr merge <N> --squash --match-head-commit <sha>`, never `--admin` or `--auto` (pull-request `merge.md` §4.2.1 owns the merge-queue form; its commands are in [pull-request/merge.md](pull-request/merge.md#merge-after-ai-review)). A babysit lane merges only through its merge-gate wrapper (babysit-prs `safety.md`) |
+| Merge pinned to the reviewed head | `gh pr merge <N> -R <owner>/<repo> --squash --match-head-commit <sha>` in one command behind its `gh pr view ... --jq '<guard>' \| grep -qx true` guard, never `--auto`, and `--admin` only in the guarded admin form (pull-request `merge.md` §4.2.1 owns the merge-queue form; its commands are in [pull-request/merge.md](pull-request/merge.md#merge-after-ai-review)). A babysit lane merges only through its merge-gate wrapper (babysit-prs `safety.md`) |
 | Open a tracking issue | `gh issue create` |
 
 ## Checks and CI logs

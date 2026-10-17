@@ -1,45 +1,43 @@
 # powershell-format
 
-A Claude Code plugin that formats and lints PowerShell the moment you edit it. On
-every `Write` or `Edit` of a `.ps1`, `.psm1`, or `.psd1` file it runs
+A Claude Code plugin that formats and lints PowerShell at git pre-commit. On every commit
+that stages a `.ps1`, `.psm1`, or `.psd1` file it runs
 [PSScriptAnalyzer](https://learn.microsoft.com/powershell/utility-modules/psscriptanalyzer/overview)'s
-`Invoke-Formatter` (formatting in place) and `Invoke-ScriptAnalyzer` (linting),
-then surfaces any residual findings back to Claude as advisory context.
+`Invoke-Formatter` (formatting in place, then re-staging the result) and
+`Invoke-ScriptAnalyzer` (linting), and blocks the commit only on a finding on a line the
+commit adds. It covers every author, human or agent, once the entry is installed with
+`/powershell-format:setup apply install-git-hooks`.
 
 It uses **your repository's own analyzer settings**. It ships no rules of its own
 and runs only when your repo has opted into a `PSScriptAnalyzerSettings.psd1`.
 
 ## Behavior
 
-- **Spawned only for PowerShell files.** The hook is registered with the `if` filters
-  `Edit(*.ps1)`, `Edit(*.psm1)` and `Edit(*.psd1)`, so a Write/Edit of any other file
-  never starts a hook process for it; the extension check inside the script is unchanged.
-  - **Pointer**: when deciding whether an `if` row keeps a handler from spawning, fetch
-    [hooks: Common fields](https://code.claude.com/docs/en/hooks#common-fields) live.
-    **As of**: 2026-10-11. **Recheck trigger**: that section changes when an `if` rule
-    keeps a handler from running, or which events evaluate it.
-- **Opt-in on a settings file.** PSScriptAnalyzer runs **only when a
-  `PSScriptAnalyzerSettings.psd1` governs the edited file**, found by walking up
-  from the file to the repository root and stopping at the closest one. Unlike
-  some formatters, PSScriptAnalyzer does not auto-discover its settings.
-  `Invoke-Formatter` and `Invoke-ScriptAnalyzer` take an explicit settings path,
-  so the hook both gates on that file and passes it through. A repo without a
-  settings file is left untouched rather than formatted and linted with
-  PSScriptAnalyzer's built-in defaults, so the plugin never imposes a style you
-  did not choose. A settings file that declares `CustomRulePath` is additionally
-  gated on explicit approval. See [Trust model](#trust-model).
-- **Format on edit.** `Invoke-Formatter` applies your settings' formatting rules
-  (indentation, alias expansion, brace placement, and so on) in place.
-- **Findings are advisory.** Semantic diagnostics your settings enable (for
-  example `PSAvoidGlobalVars`) are *reported* but never auto-applied.
-- **Advisory, never blocking.** The hook always exits `0`. Findings are reported
-  via `additionalContext`; they never reject the edit. Make a commit hook or CI
-  your hard gate. A finding set is reported once per file: an unchanged set on a
-  re-edit sends nothing, and it is sent again after a clean run or after the
-  context is compacted or cleared.
-- **Graceful degrade.** If PowerShell (`pwsh`) is not installed, or the
-  PSScriptAnalyzer module is not available, the hook is a clean silent no-op.
-  No error spam. `pwsh` is resolved from `PATH` and is never downloaded.
+- **Pre-commit entry `powershell-check`.** The staged PowerShell files are rewritten with
+  `Invoke-Formatter` and re-staged; the rewritten paths print on stdout. A file that is
+  partly staged is refused untouched (`<path>: partly staged; format it or stage it fully,
+  then commit`), because re-staging a rewrite would stage its unstaged hunks too. Findings
+  print as `<path>:<line>: [<severity>] <rule>: <message>` on stderr and block the commit
+  only when the line is one the commit adds.
+- **No per-edit hook.** Nothing runs when Claude edits a PowerShell file. A rewrite costs
+  more than the 1 s per-batch ceiling (see [Hook budget](#hook-budget-accounting)), and a
+  finding reported per edit costs the model attention without helping it finish. Findings
+  arrive at commit time instead.
+- **Opt-in end-of-turn check.** With `powershell_format_end_of_turn` on, a Stop row runs the
+  same check over the uncommitted changes, without rewriting, and hands the findings back
+  once per turn. Off by default.
+- **Opt-in on a settings file.** PSScriptAnalyzer runs **only on a file a
+  `PSScriptAnalyzerSettings.psd1` governs**, found by walking up from the file to the
+  repository root and stopping at the closest one. Unlike some formatters,
+  PSScriptAnalyzer does not auto-discover its settings, so the entry passes the file
+  through. A repo without a settings file is left untouched rather than formatted and
+  linted with PSScriptAnalyzer's built-in defaults. A settings file that declares
+  `CustomRulePath` is additionally gated on explicit approval. See [Trust model](#trust-model).
+- **Installed copies are skipped.** A file under `.githooks/` is never rewritten.
+- **Missing tools.** A missing `pwsh` or PSScriptAnalyzer module fails an agent's commit with
+  the install command and a one-line skip key (`git -c checks.skipmissing=pwsh commit ...`,
+  or `PSScriptAnalyzer`); a person's commit gets a one-line notice and proceeds. `pwsh` is
+  resolved from `PATH` and is never downloaded.
 
 ## Trust model
 
@@ -47,16 +45,16 @@ The opt-in `PSScriptAnalyzerSettings.psd1` is **executed-adjacent configuration*
 not inert data. A settings file may declare a
 [`CustomRulePath`](https://learn.microsoft.com/powershell/utility-modules/psscriptanalyzer/using-scriptanalyzer#custom-rules)
 pointing at PowerShell rule modules, and PSScriptAnalyzer **loads and runs** those
-modules' exported functions during analysis. The hook therefore never runs the
+modules' exported functions during analysis. The entry therefore never runs the
 analyzer under such a settings file without an explicit approval: it skips the
-format/lint run and reports a visible trust-gate notice, once per session and agent. Your
-copy names the settings file and the approval marker to create; Claude's copy
-says the run was skipped and that approval is yours, without the command that
-grants it. To approve, review the settings file and every rule module it
+run and prints a trust-gate notice. A person's notice names the settings file and the approval marker to
+create; an agent commit's notice says the run was skipped and that approval is
+yours, without the command that grants it. To approve, review the settings file and every rule module it
 references. Treat them with the same trust you give your build and CI
 configuration, then create the marker directory using the exact `mkdir -p`
-command your notice carries. The marker lives under
-`${CLAUDE_PLUGIN_DATA}/trust-approvals` and is content-addressed over the
+command your notice carries. The marker lives under the repository's git common
+directory, in `powershell-format/trust-approvals`, so one approval covers the end-of-turn
+row, an agent's commit and your own. The marker is content-addressed over the
 repository, the settings file, every file reachable under each declared
 `CustomRulePath` entry (recursively for directories), and every repository
 file those files reference by string literal (transitively, bounded), so a
@@ -67,71 +65,56 @@ Detection uses PowerShell's restricted data-file parser, not a textual
 scan. A settings file that parser cannot read is treated as code-loading
 and stays gated. A `CustomRulePath` entry that does not resolve to
 hashable content leaves the state unverifiable with no approval route.
-When `CLAUDE_PLUGIN_DATA` is unavailable the gate fails closed and the
+When no approval store can be found the gate fails closed and the
 run stays skipped. A settings file without
-`CustomRulePath` is declarative rule configuration and runs immediately. The
-hook only reads a settings file at or below your project root (bounded by
-`CLAUDE_PROJECT_DIR` when set), so it never picks up one from an ancestor
-directory outside the project.
+`CustomRulePath` is declarative rule configuration and runs immediately.
 
 ## Requirements
 
-- **Bash.** The hook is a Bash script. On native Windows, install
+- **Bash.** The check scripts run under Bash 3.2+. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
-  Claude Code can run it under Git Bash.
+  Claude Code and git hooks can run them under Git Bash.
 - **Node.js** on `PATH`. Every handler in `hooks/hooks.json` runs through
-  `node hooks/exec-bash.mjs`, which starts the Bash script. We do not assume a Claude Code
-  install brings Node, so without `node` the hooks do not launch and nothing is formatted,
-  with no notice. Pointer: when deciding whether an install brings Node, fetch
+  `node hooks/exec-bash.mjs`, which starts the Bash script, and `/powershell-format:setup`
+  runs the git-hook installer with it. We do not assume a Claude Code
+  install brings Node, so without `node` the hooks do not launch and say nothing.
+  Pointer: when deciding whether an install brings Node, fetch
   [setup: Install with npm](https://code.claude.com/docs/en/setup#install-with-npm) live.
   As of: 2026-10-11. Recheck trigger: that section or [System requirements](https://code.claude.com/docs/en/setup#system-requirements) changes which
   install needs Node at runtime.
   [Install Node.js](https://nodejs.org/en/download).
-- **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible notice, once per session and agent. [Install jq](https://jqlang.org/download/).
 - **PowerShell 7+** (`pwsh`) on `PATH`
   ([install](https://learn.microsoft.com/powershell/scripting/install/installing-powershell)). The
-  hook probes `pwsh` only; legacy Windows PowerShell 5.1 (`powershell.exe`) is not used. If absent,
-  the edit hook stays quiet, and a SessionStart probe reports the missing `pwsh` once per session,
+  plugin probes `pwsh` only; legacy Windows PowerShell 5.1 (`powershell.exe`) is not used. If absent,
+  a SessionStart probe reports the missing `pwsh` once per session,
   from `prerequisites.json`, naming `/powershell-format:check`. The probe runs wherever the plugin
   is enabled and `powershell_format_enabled` is not false. `/powershell-format:check` is read-only
   and installs nothing.
 - The **PSScriptAnalyzer** module installed
-  (`Install-Module PSScriptAnalyzer`). If absent, the hook stays quiet, with no
-  probe notice.
+  (`Install-Module PSScriptAnalyzer`).
 - A **`PSScriptAnalyzerSettings.psd1`** in your repo. That file is the opt-in.
-
-The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
-(Bash 5.0+); on older bash the telemetry envelope is skipped while formatting and
-linting still run.
 
 ### Hook budget accounting
 
 Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
-this hook is always-on for every `Write` and `Edit` of a `.ps1`, `.psm1` or `.psd1` file (every
-handler in `hooks/hooks.json` carries one of the three `if` rows, which keep every other
-extension from spawning it, and the suite pins the whole handler set to the script's own
-extension set), so its cost on a clean PowerShell file is the figure that counts. Measured on
-Linux x86_64 under bash 5.2 in a container with `HOOK_TELEMETRY_SINK` and `CLAUDE_PROJECT_DIR`
-unset, twelve interleaved trials against an interleaved `bash -c :` floor S of about 4 ms, with
-a kernel census from `strace -f -e trace=clone,clone3,fork,vfork,execve` (2026-09-07, 0.7.45):
+the plugin's always-on hook is the Stop row. With `powershell_format_end_of_turn` at its
+default (false) the `--require-true` gate closes inside the `node` launcher, so a turn end
+costs one process (`.performance/ratchets.json` holds that at 1 spawn).
 
-| Event | Fires | Wall | Spawn-equivalents | Kernel census |
-| --- | --- | --- | --- | --- |
-| PostToolUse `Write`, clean `.ps1`, no `PSScriptAnalyzerSettings.psd1` (opt-in absent) | 1 | 39 ms | 9.3 | 15 process creations, 7 execs: three `realpath`, two `git rev-parse` (the working-tree probe and the root resolver), `jq`, the hook's own `bash` |
-| PostToolUse `Write`, clean `.ps1`, settings file present | 1 | 893 ms | 220 | 47 process creations, 12 execs: the row above plus one `pwsh` and the disclosure snapshot's `mktemp`, `cp`, `cmp`, `rm` |
-| PostToolUse `Write`, any other extension | 0 | none | 0 | no process; the `if` rows drop the handler before a spawn |
+There is no `PostToolBatch` row. A row that rewrites the PowerShell a batch wrote has to start
+`pwsh` and load PSScriptAnalyzer, and the measured cost is over the 1 s per-batch ceiling.
+Measured on WSL2 Ubuntu (Linux 6.18) with bash 5.3.9, pwsh 7.6.6, PSScriptAnalyzer 1.25.0 and
+`node` 24, ten fires each of the row as a prototype launched through `exec-bash.mjs`:
 
-The opted-in row is one `pwsh` start-up plus PSScriptAnalyzer's module load, so at a 4 ms
-floor the spawn-equivalent column measures that run time rather than spawns; the census column
-is the number that transfers to the Windows 11 Git Bash reference host the convention calls
-binding, and that host's figure for this plugin has not been taken. The residual is `pwsh` and
-PSScriptAnalyzer themselves plus the shared library's payload reader (`jq`), working-tree probe
-and root resolver (`git` twice, `realpath`) and the disclosure snapshot.
+| Batch | Median wall | Min-max |
+| --- | --- | --- |
+| No `.ps1` in the payload | 0.039 s | 0.035-0.041 s |
+| A `Read` of a `.ps1` file, nothing to rewrite | 0.052 s | 0.048-0.058 s |
+| One `Edit` of a `.ps1` file that needs a rewrite | 1.03-1.13 s (three runs) | 0.82-1.38 s |
 
-The figures above were taken on 0.7.45 (2026-09-07), before the `node` launcher. Each fire now
-adds one `node` process ahead of the hook's `bash`, and the census has not been re-run for that
-path.
+The pre-commit entry over the same single file, rewrite included, measured 0.80 s median
+(0.71-0.90 s) with `pwsh` as the only slow part; this host is not the Windows reference host
+the convention names, so re-measure there.
 
 ## Install
 
@@ -145,14 +128,15 @@ Then verify prerequisites with `/powershell-format:setup check`.
 ## Configuration
 
 The formatting and linting rules come from the
-`PSScriptAnalyzerSettings.psd1` already in your repository, which the hook reads
+`PSScriptAnalyzerSettings.psd1` already in your repository, which the entry reads
 automatically. To change the rules, edit that file.
 
-One behavior knob is exposed as a native `userConfig` option:
+Two behavior knobs are exposed as native `userConfig` options:
 
 | Option | Default | Effect |
 |--------|---------|--------|
-| `powershell_format_enabled` | `true` | Toggle for the powershell-format hook; set `false` for a clean no-op. |
+| `powershell_format_enabled` | `true` | Toggle for the end-of-turn check and the session-start probe; set `false` for a clean no-op. |
+| `powershell_format_end_of_turn` | `false` | Check the uncommitted changes when a turn ends. |
 
 Set it interactively with `/plugin configure powershell-format@<marketplace>`, or headless
 on the install command:
@@ -171,8 +155,8 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `powershell_format_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED` | Format and lint PowerShell on edit via PSScriptAnalyzer |
-| `powershell_format_lint_gitignored` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_LINT_GITIGNORED` | By default the hook leaves a file the repository gitignores alone: it is not rewritten or analyzed, since a rewrite of an ignored file has no git checkout to undo it. Set true to act on gitignored files too. A tracked file that matches an ignore pattern is always in scope. |
+| `powershell_format_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED` | Turns the end-of-turn check and the session-start probe on or off. The git pre-commit entry is registered by /powershell-format:setup apply install-git-hooks and is not affected. |
+| `powershell_format_end_of_turn` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_END_OF_TURN` | At the end of each turn, run the pre-commit PSScriptAnalyzer check over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Nothing is rewritten. Off by default. |
 
 ### How to set these
 

@@ -98,6 +98,19 @@
         "Holds the mandatory approval gate on regenerated items and publishes them via create-item with --parent and native --blocked-by edges",
         "Would treat post-ship wrongness as a new spec (new container or topic), never a patch to a closed container"
       ]
+    },
+    {
+      "id": 8,
+      "name": "no-container-items-carry-brief-goal-and-constraints",
+      "prompt": "/work-items:decompose — the topic is refund-export and its PLAN.md is approved. Publish your breakdown as plain items with no spec container; I approve it in advance.",
+      "expected_output": "Reads the topic's PLAN.md, whose Brief states a Goal (finance staff reconcile refunds against the bank statement each month) and two Constraints (the nightly ledger job stays untouched; the export reads only from the reporting replica) that appear in neither plan phase. Publishes one item per phase with no spec container. Because no container carries the Brief, each item body's Outcome section carries the Brief's Goal and Constraints as copied text, so a session that works one item alone still knows why it exists and what it must not touch. No item body names a .work/ path or links the PLAN.md file.",
+      "files": [],
+      "expectations": [
+        "Publishes plain items with no spec container",
+        "Every published item body carries the Brief's Goal as text",
+        "Every published item body carries both of the Brief's Constraints as text",
+        "No item body names a .work/ path or links the PLAN.md file"
+      ]
     }
   ]
 }

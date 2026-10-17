@@ -1,0 +1,12 @@
+{
+  "entries": [
+    {
+      "name": "powershell-check",
+      "event": "pre-commit",
+      "script": "powershell-check.sh",
+      "tools": ["pwsh"],
+      "rewrites": true,
+      "assets": ["git-hooks/powershell-check.ps1"]
+    }
+  ]
+}

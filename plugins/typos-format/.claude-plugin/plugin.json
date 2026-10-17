@@ -1,6 +1,6 @@
 {
   "name": "typos-format",
-  "version": "0.10.0",
+  "version": "0.10.2",
   "description": "Spell-check at commit time via typos-cli: a git pre-commit entry that blocks only on typos in the lines a commit adds, with an opt-in end-of-turn check, honoring the consuming repo's own typos configuration.",
   "author": {
     "name": "Melodic Software",

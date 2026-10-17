@@ -5,10 +5,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { parse } from "yaml";
 
 import { resolve, resolveGrant } from "./resolve.mjs";
+import { readAdmission } from "./resolve-config.mjs";
 
 const read = (relative) =>
   readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -233,6 +235,17 @@ test("live config: resolve-issue may run the changelog fragment check", () => {
   ]);
 });
 
+// #7597: the issue's done-when runs the can't-fail scan, a read-only checker.
+// check-skill.sh (#7598) runs each skill's test scripts, so it is not listed.
+test("live config: resolve-issue may run the can't-fail scan; no other activity lists verify-scripts", () => {
+  assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE)["verify-scripts"], [
+    "plugins/testing/skills/audit/scripts/cant-fail-scan.sh",
+  ]);
+  const doc = parse(FILES.config);
+  const others = Object.entries(doc.activities).filter(([name, a]) => name !== "resolve-issue" && a["verify-scripts"]);
+  assert.deepEqual(others, []);
+});
+
 // Owner decision 2026-10-14: the run may read any web page.
 test("live config: resolve-issue may read any domain; no other activity reads the web", () => {
   assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE)["web-access"], { enabled: true, domains: "any" });
@@ -251,6 +264,20 @@ test("live config: resolve-issue may only write its branch; report-outcome may o
   assert.deepEqual(grant("report-outcome"), {
     effect: "publish-artifact",
     grant: { contents: "read", "pull-requests": "write", issues: "write" },
+  });
+});
+
+test("live config: label-unblocked may only write issues", () => {
+  assert.deepEqual(resolveGrant(FILES, { lane: "work-unblock", activity: "label-unblocked", configPath: CONFIG_PATH }), {
+    effect: "mutate-tracker",
+    grant: { contents: "read", "pull-requests": "read", issues: "write" },
+  });
+});
+
+test("live config: readAdmission returns resolve-issue's admission, which label-unblocked applies", () => {
+  assert.deepEqual(readAdmission({ basePath: fileURLToPath(new URL("../../..", import.meta.url)), activity: "resolve-issue" }), {
+    classes: ["work-class: read-only", "work-class: mechanical"],
+    ratified: true,
   });
 });
 

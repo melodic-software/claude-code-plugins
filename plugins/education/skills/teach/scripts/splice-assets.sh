@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # splice-assets.sh: splice the workspace assets library into one HTML lesson, in place.
 #
-# A shipped script because an inline write-then-`mv` recipe is a staged move the guardrails
-# bypass guard refuses. The build itself is the sibling `splice-assets.awk`.
+# A shipped script, so the splice is one tested command rather than an inline write-then-`mv`
+# recipe. The build itself is the sibling `splice-assets.awk`.
 #
 # Marker contract:
 #   A line containing `/* SPLICE:STYLE */` is replaced by the content of `<assets-dir>/lesson.css`.

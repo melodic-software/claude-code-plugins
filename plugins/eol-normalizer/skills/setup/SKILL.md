@@ -52,20 +52,18 @@ When the plugin's toggle is disabled, every prerequisite absence except `node` d
 FAIL to INFO. The hook exits through its enabled-gate before probing anything, so a deliberately
 disabled plugin is not broken. Report those probes informationally and note that re-enabling
 restores the FAIL semantics. A missing `node` stays FAIL whatever the toggle says: the hook row
-launches `node` before `exec-bash.mjs` can evaluate the gate, so every Write/Edit still tries an
+launches `node` before `exec-bash.mjs` can evaluate the gate, so every tool-call batch still tries an
 unavailable command until `node` is installed or the plugin registration is disabled.
 
-1. **Bash version.** Check against the hook's documented floor (README Requirements),
-   noting any features the hook degrades without (for example telemetry's `EPOCHREALTIME`,
-   Bash 5.0+).
+1. **Bash version.** Check against the hook's documented floor (README Requirements).
 2. **`node`.** The pre-computed `node` row. FAIL if absent: every hook row runs through
    `node hooks/exec-bash.mjs`, so the hook never launches and emits no notice. This probe is the
    only visibility, and it runs through the Bash tool, so it works without the launcher.
-3. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
-   once per session and agent notice instead of normalizing.
-4. **`git`.** `command -v git`. FAIL if absent: unlike jq, the hook emits NO visible notice
-   when git is missing. `git check-attr` and repo-root resolution silently fail and the
-   hook no-ops, so this probe is the only visibility. Distinguish the two non-failure cases
+3. **`jq`.** The pre-computed `jq` row. FAIL if absent: the batch hook reads the files a batch
+   wrote with jq, so without it the hook exits silently and normalizes nothing. This probe is the
+   only visibility.
+4. **`git`.** `command -v git`. FAIL if absent: `git check-attr` silently fails and the
+   hook no-ops without any notice, so this probe is the only visibility. Distinguish the two non-failure cases
    the hook treats differently. Git present but the path is not inside a git repository →
    INFO, not applicable: nothing to normalize against, per the README. Git present
    inside a repo but no `eol=` rule governs any path → INFO, inert by design, the opt-in

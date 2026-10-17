@@ -12,27 +12,9 @@
           "actionlint"
         ]
       },
-      "degrade": "Without actionlint, the hook cannot lint edited GitHub Actions workflows.",
+      "degrade": "Without actionlint, the git pre-commit entry and the end-of-turn check cannot lint GitHub Actions workflows.",
       "install": {
         "docs": "https://github.com/rhysd/actionlint/blob/main/docs/install.md"
-      },
-      "check": "/actionlint:check"
-    },
-    {
-      "id": "jq",
-      "kind": "cli",
-      "need": "required",
-      "for": [
-        "hook:actionlint-check.sh"
-      ],
-      "detect": {
-        "any": [
-          "jq"
-        ]
-      },
-      "degrade": "Without jq, the actionlint hooks skip their work.",
-      "install": {
-        "docs": "https://jqlang.org/download/"
       },
       "check": "/actionlint:check"
     },

@@ -3,6 +3,24 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.1] - 2026-10-16
+
+### Fixed
+
+- The pre-push range reader treats an all-zero object id of any width as zero, so in a SHA-256 repository a new branch is checked from its merge-base and a deletion is skipped instead of the hook checking nothing.
+
+## [0.24.0] - 2026-10-16
+
+### Added
+
+- A git pre-commit entry, `index-check`, that fails a commit touching a `.claude/rules/` file or the index file when the generated rules index no longer matches, and prints the regenerate command. A repository with no index block is never failed. `/instruction-placement:setup apply install-git-hooks [scope=local|shared]` registers it with lefthook, husky or plain git hooks, and `check` reports its drift.
+- The SessionStart probe reports a missing, stale or edited git-hook entry once per session.
+
+### Changed
+
+- **Breaking:** the per-edit `index-drift` PostToolUse hook and its `index_drift_hook_enabled` option are removed. The model is no longer told about index drift after each rules edit; the pre-commit entry and `/instruction-placement:check` in CI report it instead. Decline the entry per clone with `setup`.
+- `render-index.sh` finds `discover.sh` beside itself when run from an installed git-hook copy.
+
 ## [0.23.1] - 2026-10-16
 
 ### Changed

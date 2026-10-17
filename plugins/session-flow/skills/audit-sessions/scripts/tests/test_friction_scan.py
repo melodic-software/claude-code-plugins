@@ -202,3 +202,24 @@ def test_block_redacts_tool_agent_source_and_reason_type_and_keeps_plain_values(
         "kind": "denied", "side": "sub", "tool": "<email>", "agent": "<email>", "source": "<email>", "reason_type": "<email>",
     }
     assert {k: plain[k] for k in ("tool", "source", "reason_type")} == {"tool": "Bash", "source": "config", "reason_type": "rule"}
+
+
+@pytest.mark.parametrize(
+    ("decision", "kinds"),
+    [
+        ({"decision": "accept", "source": "user_temporary"}, ["prompt-approved"]),
+        ({"decision": "accept", "source": "user_permanent", "reasonType": "rule"}, []),
+    ],
+)
+def test_an_allow_rule_match_is_not_an_approved_prompt(decision, kinds):
+    scan = friction_scan.FrictionScan("/w/repo")
+    scan.start_file("sub", "a")
+    scan.add({"type": "assistant", "message": {"content": [
+        {"type": "tool_use", "id": "t1", "name": "WebFetch", "input": {"url": "https://example.com/docs"}}
+    ]}})
+    scan.add({
+        "type": "user",
+        "permissionDecision": decision,
+        "message": {"content": [{"type": "tool_result", "tool_use_id": "t1", "content": "ok"}]},
+    })
+    assert [event["kind"] for event in scan.events] == kinds

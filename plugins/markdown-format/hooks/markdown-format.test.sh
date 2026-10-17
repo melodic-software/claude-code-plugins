@@ -1,37 +1,36 @@
 #!/usr/bin/env bash
-# Black-box contract test for markdown-format.sh (the markdown-format plugin hook).
+# Black-box contract test for the markdown-format PostToolBatch row, launched exactly
+# as hooks.json registers it (node exec-bash.mjs with the row's args).
 #
-# Proves WIRING, not baseline parity: that the hook fires on *.md/*.mdc, skips
-# otherwise, runs markdownlint-cli2 --fix from the linted file's repo root
-# (config discovery is CWD-anchored), preserves --fix bytes, and surfaces
-# residual findings via additionalContext with no repo-specific policy prose.
+# Proves WIRING: one PostToolBatch row and no PostToolUse row; the row rewrites
+# the .md and .mdc files a Write, Edit or MultiEdit in the batch named, once per
+# batch, and never anything a Read named; it prints nothing (no finding, no
+# disclosure reaches the model) and exits 0; a markdownlint config must govern the
+# file (present -> run, absent -> leave bytes untouched) and must not be able to
+# run repository code unless the user approved its state; the config's ignores, .githooks/, gitignored files and the
+# kill switch are honored; a batch with no Markdown edit costs only the launcher.
 #
-# Self-contained: builds a throwaway git repo with its own markdownlint config
-# and runtime-generated fixtures (CRLF preserved via printf, never committed —
-# a committed CRLF fixture would be LF-normalized by .gitattributes). The hook
-# is invoked as a subprocess from an UNRELATED cwd so the `cd repo-root` config
-# discovery is genuinely exercised (running from the repo root would false-pass
-# a hook that skips the cd).
-# test-scope: plugins/markdown-format/.claude-plugin/plugin.json plugins/markdown-format/hooks/hooks.json plugins/markdown-format/prerequisites.json
+# Self-contained: builds throwaway git repos with runtime-generated fixtures. The
+# row is run from an UNRELATED cwd so any reliance on the caller's working
+# directory would surface.
+#
+# Requires a real markdownlint-cli2: on PATH, else the repository's locked install.
+# Without one the behavioral assertions cannot run, so the suite skips.
+# test-scope: plugins/markdown-format/.claude-plugin/plugin.json plugins/markdown-format/hooks/hooks.json plugins/markdown-format/prerequisites.json plugins/markdown-format/git-hooks/markdown-gates.sh
 
 set -uo pipefail
 
-# Fixture isolation. An inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository. An inherited
-# CLAUDE_PLUGIN_DATA (another plugin's) would receive this suite's finding
-# digests and latch hook::notice_once across cases. A case that needs a data
-# dir sets its own.
+# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
+# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PLUGIN_DATA
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOOK="$HOOK_DIR/markdown-format.sh"
-# Claude Code sets the plugin root for every hook; the missing-tool notice reads
-# prerequisites.json from it.
-export CLAUDE_PLUGIN_ROOT="${HOOK_DIR%/*}"
+PLUGIN_ROOT="${HOOK_DIR%/*}"
+HOOKS_JSON="$HOOK_DIR/hooks.json"
+REPO_ROOT="$(cd "$PLUGIN_ROOT/../.." && pwd)"
 
 PASS=0
 FAIL=0
-SKIPPED=0
 fail() {
   echo "FAIL: $*" >&2
   FAIL=$((FAIL + 1))
@@ -40,3008 +39,436 @@ ok() {
   echo "ok: $*"
   PASS=$((PASS + 1))
 }
-# A case whose PATH-shape this host cannot pin is neither a pass nor a failure.
-# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
-skip() {
-  SKIPPED=$((SKIPPED + 1))
-  printf 'SKIP (host: %s): %s\n' "$2" "$1"
-}
-# Git Bash / MSYS cygpath rewrites a POSIX mktemp path to a mixed Windows
-# spelling. PATH-probed cases pin the POSIX fixture spelling in the hook
-# output; when the host rewrites, those pins have no subject.
-host_cygpath_rewrites_posix_path() {
-  command -v cygpath >/dev/null 2>&1 || return 1
-  local p mixed
-  p="$(mktemp -d)"
-  mixed="$(cygpath -m "$p" 2>/dev/null || true)"
-  rm -rf "$p"
-  [[ -n "$mixed" && "$mixed" != "$p" ]]
+expect() { # <label> <want> <got>
+  if [[ "$2" == "$3" ]]; then ok "$1"; else fail "$1: want [$2] got [$3]"; fi
 }
 
-WORK="$(mktemp -d)"
-UNRELATED="$(mktemp -d)"
-cleanup() { rm -rf "$WORK" "$UNRELATED"; }
-trap cleanup EXIT
-
-# ctx_of <hook-stdout> -> the additionalContext channel, empty when the key is
-# absent or the document does not parse.
-ctx_of() {
-  printf '%s' "$1" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null
-}
-
-# Keep the success-path contract test independent of tools installed on the
-# runner. markdownlint-cli2's documented CLI contract is an executable invoked
-# as `markdownlint-cli2 --fix <file>`: it applies fixable changes, exits 0 when
-# clean, and exits non-zero with remaining findings. This narrow local double
-# implements exactly the behavior exercised by the fixtures below (MD004,
-# MD024, and MD047); it never resolves packages or accesses the network.
-TEST_BIN="$WORK/test-bin"
-mkdir -p "$TEST_BIN"
-cat >"$TEST_BIN/markdownlint-cli2" <<'STUB'
-#!/usr/bin/env bash
-set -uo pipefail
-
-[[ "${1:-}" == "--fix" && $# -eq 2 ]] || exit 2
-file="$2"
-
-# MD004 fix: the consumer fixture requires dash list markers.
-if grep -q '^\* ' "$file"; then
-  sed -i 's/^\* /- /' "$file" # portability-ok: pre-existing markdownlint-cli2 stub fixture, unsuffixed sed -i predates #1527's mktemp -p scope; tracked in #1540
-fi
-
-# MD047 fix: add a final newline while preserving an existing CRLF style.
-if [[ -s "$file" && "$(tail -c 1 "$file" | od -An -tx1 | tr -d ' \n')" != "0a" ]]; then
-  if od -An -tx1 "$file" | grep -Eq '(^|[[:space:]])0d([[:space:]]|$)'; then
-    printf '\r\n' >>"$file"
+# --- The node_modules walk is bound to prerequisites.json -----------------------
+# The shim path is not composed from the manifest, so this case is the binding:
+# the manifest lists markdownlint-cli2, jq and node, and the gates state
+# markdownlint-cli2's local_bin verbatim.
+MANIFEST="$PLUGIN_ROOT/prerequisites.json"
+if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
+  if jq -e '(.requires | map(.id)) == ["markdownlint-cli2", "jq", "node"] and .requires[0].detect.local_bin == ["node_modules/.bin/markdownlint-cli2"]' "$MANIFEST" >/dev/null 2>&1; then
+    ok "manifest: declares exactly markdownlint-cli2 (at node_modules/.bin/markdownlint-cli2), jq and node"
   else
-    printf '\n' >>"$file"
+    fail "manifest: expected tools markdownlint-cli2, jq and node with local_bin node_modules/.bin/markdownlint-cli2: $(cat "$MANIFEST")"
   fi
-fi
-
-# MD024 residual: report the second occurrence of a duplicate ATX heading in
-# markdownlint-cli2's default violation-line shape, its [Context: "..."] included.
-duplicate_line="$({
-  awk '
-    {
-      sub(/\r$/, "")
-      # One hash plus five optional ones rather than `#{1,6}`: mawk 1.3.3
-      # implements no ERE intervals and matches the braces literally, so this
-      # duplicate-heading probe would stop recognizing headings and the assertion
-      # would pass vacuously. Same ATX bound (1-6 hashes), no interval.
-      if ($0 ~ /^##?#?#?#?#?[[:space:]]+/) {
-        heading = $0
-        sub(/^##?#?#?#?#?[[:space:]]+/, "", heading)
-        if (seen[heading]++) { print NR "\t" heading; exit }
-      }
-    }
-  ' "$file"
-} || true)"
-if [[ -n "$duplicate_line" ]]; then
-  printf '%s:%s:1 error MD024/no-duplicate-heading Multiple headings with the same content [Context: "%s"]\n' \
-    "$file" "${duplicate_line%%$'\t'*}" "${duplicate_line#*$'\t'}"
-  exit 1
-fi
-
-exit 0
-STUB
-chmod +x "$TEST_BIN/markdownlint-cli2"
-PATH="$TEST_BIN:$PATH"
-export PATH
-
-# shellcheck source=hook-test-sink.sh
-source "$HOOK_DIR/hook-test-sink.sh"
-
-# epoch_delta_ms <start> <end> → whole milliseconds between two $EPOCHREALTIME
-# reads. Splits on either '.' or ',' (locale decimal separator) and forces
-# base-10 on the fractional part so a leading-zero microsecond field is not read
-# as octal.
-epoch_delta_ms() {
-  local start="$1" end="$2" ss sf es ef
-  ss="${start%[.,]*}" sf="${start#*[.,]}"
-  es="${end%[.,]*}" ef="${end#*[.,]}"
-  echo $(((es * 1000000 + 10#$ef - ss * 1000000 - 10#$sf) / 1000))
-}
-
-# --- Build the throwaway consumer repo --------------------------------------
-REPO="$WORK/consumer"
-mkdir -p "$REPO"
-git -C "$REPO" init -q
-git -C "$REPO" config user.email t@t.t
-git -C "$REPO" config user.name t
-
-# Consumer's own markdownlint config — the cascade the hook must discover by
-# cd-ing to the repo root. MD004 dash makes `*` markers a fixable violation;
-# MD024 siblings_only makes a duplicate sibling heading an unfixable residual.
-cat >"$REPO/.markdownlint-cli2.jsonc" <<'JSONC'
-{
-  "config": {
-    "MD004": { "style": "dash" },
-    "MD024": { "siblings_only": true },
-    "MD013": false
-  }
-}
-JSONC
-
-# Invoke the hook as a subprocess from an unrelated cwd, with the payload fields
-# a case needs and caller-supplied env (NAME=VALUE, or -u NAME before any
-# assignment). CLAUDE_PROJECT_DIR is unset FIRST so read_file_path's
-# project-membership guard is disabled by default (it is not part of the
-# fire-gate contract); a case that needs the guard passes its own value, which
-# env applies after the unset.
-#
-#   run_hook_env <file> [env...]                payload: file_path only
-#   run_hook_tool <tool> <file> [env...]        payload: + tool_name
-#   run_hook_session <session> <file> [env...]  payload: + session_id, for a
-#       case that reads a once-per-session notice a shared session would dedupe
-run_hook_env() {
-  local file_path="$1" payload
-  shift
-  # A here-string, never a pipe: the kill switch exits before reading stdin, and
-  # a printf still writing then fails on the closed pipe, which pipefail reports.
-  printf -v payload '{"tool_input":{"file_path":"%s"}}' "$file_path"
-  (cd "$UNRELATED" && env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK" <<<"$payload")
-}
-
-run_hook_tool() {
-  local tool="$1" file_path="$2"
-  shift 2
-  (cd "$UNRELATED" &&
-    printf '{"tool_input":{"file_path":"%s"},"tool_name":"%s"}' "$file_path" "$tool" |
-    env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK")
-}
-
-run_hook_session() {
-  local session_id="$1" file_path="$2"
-  shift 2
-  (cd "$UNRELATED" &&
-    printf '{"session_id":"%s","tool_input":{"file_path":"%s"}}' "$session_id" "$file_path" |
-    env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK")
-}
-
-# The plain enabled-hook invocation, which most cases want.
-run_hook() {
-  run_hook_env "$1" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true
-}
-
-# --- Fixture A: fixable only (Path A) — clean after fix, no additionalContext -
-# CRLF, no final newline. Only issue is the missing final newline (MD047);
-# after --fix the file is clean → empty stdout.
-FA="$REPO/fixtureA.md"
-printf '# Title A\r\n\r\nSome text\r\n\r\n- item one\r\n- item two' >"$FA"
-
-OUT_A="$(run_hook "$FA")"
-RC_A=$?
-
-if [[ $RC_A -eq 0 ]]; then ok "fixtureA exit 0"; else fail "fixtureA exit $RC_A"; fi
-if [[ -z "$OUT_A" ]]; then ok "fixtureA empty stdout (clean after fix)"; else fail "fixtureA stdout not empty: $OUT_A"; fi
-# --fix added a final newline; CRLF preserved.
-EXPECT_A="$(printf '# Title A\r\n\r\nSome text\r\n\r\n- item one\r\n- item two\r\n')"
-TAIL_A="$(tail -c 2 "$FA" | od -An -tx1 | tr -d ' \n')"
-if [[ "$(cat "$FA")" == "$EXPECT_A" && "$TAIL_A" == "0d0a" ]]; then
-  ok "fixtureA --fix added final newline, CRLF preserved"
+  MF_LOCAL="$(jq -r '.requires[0].detect.local_bin[0]' "$MANIFEST")"
+  if [[ -n "$MF_LOCAL" ]] && grep -qF -- "${MF_LOCAL#node_modules/}" "$PLUGIN_ROOT/git-hooks/markdown-gates.sh"; then
+    ok "manifest binding: the gates state the manifest's local_bin (${MF_LOCAL#node_modules/})"
+  else
+    fail "manifest binding: the gates do not state the manifest's local_bin (needle='$MF_LOCAL')"
+  fi
 else
-  fail "fixtureA bytes wrong: $(od -c "$FA" | tail -3)"
+  fail "manifest binding needs jq and $MANIFEST"
 fi
 
-# --- Fixture B: fixable + unfixable (Path B) — fix applied + residual finding -
-# `* star item` (MD004 dash, fixable) + duplicate sibling `## Section` (MD024,
-# unfixable). --fix converts `*`→`-`; MD024 residual surfaces via context.
-FB="$REPO/fixtureB.md"
-printf '# Doc B\n\n## Section\n\ntext\n\n## Section\n\n* star item\n' >"$FB"
-
-OUT_B="$(run_hook "$FB")"
-RC_B=$?
-
-if [[ $RC_B -eq 0 ]]; then ok "fixtureB exit 0"; else fail "fixtureB exit $RC_B"; fi
-# Fixable MD004 applied: marker is now a dash.
-if grep -q '^- star item$' "$FB" && ! grep -q '^\* star item$' "$FB"; then
-  ok "fixtureB --fix applied MD004 dash"
-else
-  fail "fixtureB MD004 not fixed: $(cat "$FB")"
-fi
-# additionalContext carries the MD024 finding line (substring identity).
-CTX_B=""
-if [[ -n "$OUT_B" ]] && printf '%s' "$OUT_B" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null 2>&1; then
-  CTX_B="$(printf '%s' "$OUT_B" | jq -r '.hookSpecificOutput.additionalContext')"
-  # A Windows jq writes text-mode stdout, so `jq -r` ends each line with CRLF.
-  CTX_B="${CTX_B//$'\r'/}"
-  ok "fixtureB emitted hookSpecificOutput.additionalContext"
-else
-  fail "fixtureB no additionalContext JSON: $OUT_B"
-fi
-if [[ "$CTX_B" == "markdown-format: fixtureB.md has 1 finding(s) (MD024 x1):"$'\n'"  7:1 error MD024/"* ]]; then
-  ok "fixtureB ctx has the line-7 finding, its path in the heading only"
-else
-  fail "fixtureB ctx missing :7: $CTX_B"
-fi
-if printf '%s' "$CTX_B" | grep -q 'MD024'; then
-  ok "fixtureB ctx names MD024"
-else
-  fail "fixtureB ctx missing MD024: $CTX_B"
-fi
-# Genericized wrapper: the repo-specific policy tail must be gone.
-if printf '%s' "$CTX_B" | grep -qi 'commit/CI will block'; then
-  fail "fixtureB ctx still has repo-specific policy tail"
-else
-  ok "fixtureB ctx dropped repo-specific policy tail"
-fi
-
-# A [Context: "..."] quoting a finding-shaped string does not move the path cut.
-FQ="$REPO/fixtureQ.md"
-printf '# Doc Q\n\n## see x.md:1:2 MD001/heading-increment\n\ntext\n\n## see x.md:1:2 MD001/heading-increment\n' >"$FQ"
-CTX_Q="$(run_hook "$FQ" | jq -r '.hookSpecificOutput.additionalContext // empty')"
-CTX_Q="${CTX_Q//$'\r'/}"
-if grep -qE '^  7(:[0-9]+)? (error )?MD024/' <<<"$CTX_Q"; then
-  ok "fixtureQ finding keeps its own line number when the context quotes a finding"
-else
-  fail "fixtureQ finding line cut at the quoted context: $CTX_Q"
-fi
-
-# --- Fire gate: non-.md extension skips -------------------------------------
-SKIP="$REPO/skip.other"
-printf 'whatever\n' >"$SKIP"
-OUT_S="$(run_hook "$SKIP")"
-RC_S=$?
-if [[ $RC_S -eq 0 && -z "$OUT_S" ]]; then
-  ok "non-md extension skipped"
-else
-  fail "non-md not skipped (rc=$RC_S out=$OUT_S)"
-fi
-
-# --- hooks.json: do not launch on non-Markdown Writes (#2867) ---------------
-# The script's extension skip is defense in depth. The reported failure was a
-# .txt Write that never reached that skip: Claude Code launched the handler
-# (matcher Write|Edit, no if) and recorded hook_non_blocking_error with empty
-# stderr — official semantics for a canceled / non-zero hook with no output.
-# Registration must refuse that launch. Official hooks + permissions (fetched
-# 2026-08-21): if is exactly one permission rule; Edit(path) covers Write;
-# Write(path) is never consulted. The row is exec form: command is node, and
-# exec-bash.mjs finds Git Bash. Bare bash is not a legal exec-form command.
-HOOKS_JSON="$HOOK_DIR/hooks.json"
+# --- hooks.json: one PostToolBatch row, an opt-in Stop row, no PostToolUse ----
+# The batch row takes no matcher and no `if`: the hooks reference says neither
+# applies to the event, so its launcher flag is the only filter. The script reads
+# the paths itself.
 if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
-  HANDLERS="$(jq -c '
-    [.hooks.PostToolUse[]? | select(.matcher == "Write|Edit") | .hooks[]?]
-  ' "$HOOKS_JSON")"
-  HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
-  IF_VALUES="$(jq -r '[.[].if] | sort | join(" ")' <<<"$HANDLERS")"
-  WRITE_IF="$(jq '[.[] | select(.if | startswith("Write("))] | length' <<<"$HANDLERS")"
-  NODE_OK="$(jq --arg script '${CLAUDE_PLUGIN_ROOT}/hooks/markdown-format.sh' --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' '
-    [.[] | select(
-      .command == "node" and
-      ((.args // [])[0] == $launcher) and
-      ((.args // []) | index($script))
-    )] | length
-  ' <<<"$HANDLERS")"
-  if [[ "$HANDLER_COUNT" == "2" &&
-    "$IF_VALUES" == "Edit(*.md) Edit(*.mdc)" &&
-    "$WRITE_IF" == "0" &&
-    "$NODE_OK" == "2" ]]; then
-    ok "hooks.json launches only for Edit(*.md) and Edit(*.mdc), through node and exec-bash.mjs"
-  else
-    fail "hooks.json launch gate: count=$HANDLER_COUNT if='$IF_VALUES' write_if=$WRITE_IF node_ok=$NODE_OK"
-  fi
-else
-  fail "hooks.json launch-gate assertions need jq and $HOOKS_JSON"
-fi
-
-# --- Fire gate: non-existent .md skips --------------------------------------
-OUT_M="$(run_hook "$REPO/does-not-exist.md")"
-RC_M=$?
-if [[ $RC_M -eq 0 && -z "$OUT_M" ]]; then
-  ok "missing .md skipped"
-else
-  fail "missing .md not skipped (rc=$RC_M out=$OUT_M)"
-fi
-
-# --- Opt-in gate: repo with NO markdownlint config -> no run at all ----------
-# Pins #1809's single-writer decision: without a config the repo has chosen no
-# Markdown style, so the hook must impose neither --fix rewrites nor
-# default-rule findings. The fixture carries issues the stub WOULD fix (MD004
-# star marker, MD047 missing final newline), so an unmodified file proves the
-# gate, not a clean run.
-REPO_NOCFG="$WORK/no-config"
-mkdir -p "$REPO_NOCFG"
-git -C "$REPO_NOCFG" init -q
-NOCFG_FIXTURE="$REPO_NOCFG/doc.md"
-printf '# Doc\n\n* star item' >"$NOCFG_FIXTURE"
-NOCFG_BEFORE="$(cat "$NOCFG_FIXTURE")"
-OUT_NOCFG="$(run_hook "$NOCFG_FIXTURE")"
-RC_NOCFG=$?
-if [[ $RC_NOCFG -eq 0 && -z "$OUT_NOCFG" ]]; then
-  ok "no markdownlint config -> exit 0, no output (opt-in gate)"
-else
-  fail "no markdownlint config -> hook ran anyway (rc=$RC_NOCFG out=$OUT_NOCFG)"
-fi
-if [[ "$(cat "$NOCFG_FIXTURE")" == "$NOCFG_BEFORE" ]]; then
-  ok "no markdownlint config -> file left byte-identical (no imposed style)"
-else
-  fail "no markdownlint config -> file was rewritten: $(cat "$NOCFG_FIXTURE")"
-fi
-
-# --- Opt-in gate: config NESTED below the repo root still opts in ------------
-# The gate walks from the edited file's directory up to the repo root, the same
-# span markdownlint-cli2's own discovery covers for this file — a config in the
-# file's subtree must open the gate even when the root carries none.
-mkdir -p "$REPO_NOCFG/docs"
-cat >"$REPO_NOCFG/docs/.markdownlint.json" <<'JSON'
-{ "MD004": { "style": "dash" } }
-JSON
-NESTED_FIXTURE="$REPO_NOCFG/docs/nested.md"
-printf '# Nested\n\n* nested item\n' >"$NESTED_FIXTURE"
-run_hook "$NESTED_FIXTURE" >/dev/null
-RC_NESTED=$?
-if [[ $RC_NESTED -eq 0 ]] && grep -q '^- nested item$' "$NESTED_FIXTURE"; then
-  ok "nested markdownlint config (no root config) -> gate opens, --fix applied"
-else
-  fail "nested config did not open the gate (rc=$RC_NESTED): $(cat "$NESTED_FIXTURE")"
-fi
-
-# --- Git-tree scoping: CLAUDE_PROJECT_DIR unset, file outside any git tree ----
-# Regression for out-of-tree scratchpad-lint noise: with CLAUDE_PROJECT_DIR
-# unset (run_hook already unsets it), a .md written outside any git working tree
-# (a lane's temp comment-body) is skipped entirely — no --fix applied, no
-# findings. A temp dir that happens to sit inside a git tree on this host would
-# pass vacuously, so assert the fixture is genuinely out-of-tree first. The
-# in-tree counterpart (unset dir, file inside a git tree still linted) is
-# covered by every fixture above: they all live in $REPO, a git working tree.
-OUTOFTREE="$(mktemp -d)"
-if git -C "$OUTOFTREE" rev-parse --show-toplevel >/dev/null 2>&1; then
-  ok "out-of-tree scratchpad case SKIPPED (temp dir sits inside a git tree on this host)"
-else
-  SCRATCH="$OUTOFTREE/comment-body.md"
-  # A fixable issue (MD004 star marker + MD047 missing final newline) the hook
-  # WOULD apply if it ran — so an unmodified file proves the skip.
-  printf '# Comment\n\n* bullet' >"$SCRATCH"
-  SCRATCH_BEFORE="$(cat "$SCRATCH")"
-  OUT_SCRATCH="$(run_hook "$SCRATCH")"
-  RC_SCRATCH=$?
-  if [[ $RC_SCRATCH -eq 0 && -z "$OUT_SCRATCH" ]]; then
-    ok "out-of-tree scratchpad .md skipped (exit 0, no findings)"
-  else
-    fail "out-of-tree scratchpad .md not skipped (rc=$RC_SCRATCH out=$OUT_SCRATCH)"
-  fi
-  if [[ "$(cat "$SCRATCH")" == "$SCRATCH_BEFORE" ]]; then
-    ok "out-of-tree scratchpad .md left unmodified (no --fix)"
-  else
-    fail "out-of-tree scratchpad .md was modified: $(cat "$SCRATCH")"
-  fi
-
-  # Inherited repository overrides must not decide membership. GIT_DIR and
-  # GIT_WORK_TREE override Git's discovery outright, so `git -C <out-of-tree
-  # dir>` answers with the overridden repository — the same out-of-tree file
-  # would be admitted and linted under that repository's rules. The fixture
-  # carries an unfixable MD024 so a hook that DID run is visible in stdout.
-  SCRATCH_GITDIR="$OUTOFTREE/comment-body-gitdir.md"
-  printf '# Comment\n\n## Section\n\ntext\n\n## Section\n\n* bullet\n' >"$SCRATCH_GITDIR"
-  OUT_GITDIR="$(run_hook_env "$SCRATCH_GITDIR" GIT_DIR="$REPO/.git" GIT_WORK_TREE="$REPO" \
-    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-  RC_GITDIR=$?
-  if [[ $RC_GITDIR -eq 0 && -z "$OUT_GITDIR" ]]; then
-    ok "inherited GIT_DIR/GIT_WORK_TREE does not admit an out-of-tree .md"
-  else
-    fail "inherited GIT_DIR/GIT_WORK_TREE admitted an out-of-tree .md (rc=$RC_GITDIR out=$OUT_GITDIR)"
-  fi
-  if grep -q '^\* bullet$' "$SCRATCH_GITDIR"; then
-    ok "out-of-tree .md unmodified under inherited GIT_DIR (no --fix)"
-  else
-    fail "out-of-tree .md was fixed under inherited GIT_DIR: $(cat "$SCRATCH_GITDIR")"
-  fi
-
-  # Symlink escape: an IN-repository path whose target is the out-of-tree file.
-  # The lexical parent ($REPO) is a git tree, so a lexical membership test would
-  # admit it and --fix would rewrite the external target under repo rules. The
-  # guard must decide on the physical path, as hook::read_file_path does.
-  # Skipped where the host cannot create real symlinks (Git Bash without
-  # winsymlinks copies the file instead).
-  LINK="$REPO/escaping-link.md"
-  if ln -s "$SCRATCH" "$LINK" 2>/dev/null && [[ -L "$LINK" ]]; then
-    LINK_BEFORE="$(cat "$SCRATCH")"
-    OUT_LINK="$(run_hook "$LINK")"
-    RC_LINK=$?
-    if [[ $RC_LINK -eq 0 && -z "$OUT_LINK" ]]; then
-      ok "in-repo symlink to out-of-tree .md skipped (exit 0, no findings)"
-    else
-      fail "in-repo symlink to out-of-tree .md not skipped (rc=$RC_LINK out=$OUT_LINK)"
-    fi
-    if [[ "$(cat "$SCRATCH")" == "$LINK_BEFORE" ]]; then
-      ok "symlink target left unmodified (no --fix on the external file)"
-    else
-      fail "symlink target was modified: $(cat "$SCRATCH")"
-    fi
-    # Same escape with BOTH canonicalizers neutered, so hook::physical_path
-    # degrades to the unchanged lexical path — whose parent ($REPO) IS a git
-    # tree. A physical-path test alone would admit the link there and hand the
-    # external target to --fix, so the guard must fail closed on an unresolved
-    # symlink instead.
-    #
-    # The fixture carries a duplicate sibling heading (MD024, unfixable under
-    # this repo's config) so a hook that DID run emits additionalContext: the
-    # skip is proven by silence, not by an unchanged file. File content alone
-    # would be a vacuous witness — the stub's `sed -i` replaces the link with a
-    # regular file instead of writing through it, leaving the target intact
-    # even when --fix ran.
-    NO_CANON_ENV="$WORK/no-canonicalizer.bashenv"
-    cat >"$NO_CANON_ENV" <<'EOF'
-realpath() { return 1; }
-readlink() { return 1; }
-EOF
-    run_hook_no_canon() {
-      run_hook_env "$1" BASH_ENV="$NO_CANON_ENV" \
-        CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true
-    }
-    SCRATCH_NC="$OUTOFTREE/comment-body-nocanon.md"
-    printf '# Comment\n\n## Section\n\ntext\n\n## Section\n\n* bullet\n' >"$SCRATCH_NC"
-    LINK_NC="$REPO/escaping-link-nocanon.md"
-    ln -s "$SCRATCH_NC" "$LINK_NC"
-    OUT_NOCANON="$(run_hook_no_canon "$LINK_NC")"
-    RC_NOCANON=$?
-    if [[ $RC_NOCANON -eq 0 && -z "$OUT_NOCANON" ]]; then
-      ok "symlink escape fails closed when canonicalization is unavailable"
-    else
-      fail "symlink escape not skipped without canonicalizer (rc=$RC_NOCANON out=$OUT_NOCANON)"
-    fi
-    if [[ -L "$LINK_NC" ]]; then
-      ok "escaping symlink untouched without canonicalizer (still a symlink)"
-    else
-      fail "escaping symlink was rewritten by --fix without canonicalizer"
-    fi
-
-    # Control: the neutered canonicalizers must not disable the hook wholesale,
-    # or the silence above would prove nothing. The SAME fixture body in a
-    # REGULAR in-repository file still lints and still reports MD024.
-    NOCANON_REGULAR="$REPO/fixtureNoCanon.md"
-    printf '# Comment\n\n## Section\n\ntext\n\n## Section\n\n* bullet\n' >"$NOCANON_REGULAR"
-    OUT_NOCANON_REG="$(run_hook_no_canon "$NOCANON_REGULAR")"
-    RC_NOCANON_REG=$?
-    if [[ $RC_NOCANON_REG -eq 0 ]] &&
-      printf '%s' "$OUT_NOCANON_REG" | jq -e '.hookSpecificOutput.additionalContext | test("MD024")' >/dev/null 2>&1; then
-      ok "regular in-repo .md still linted without canonicalizer (control)"
-    else
-      fail "control failed: regular in-repo .md not linted without canonicalizer (rc=$RC_NOCANON_REG out=$OUT_NOCANON_REG)"
-    fi
-    rm -f "$LINK_NC"
-  else
-    ok "symlink-escape case SKIPPED (host cannot create real symlinks)"
-  fi
-  rm -f "$LINK"
-fi
-rm -rf "$OUTOFTREE"
-
-# --- Git-tree scoping: git ABSENT must not read as "out of tree" -------------
-# Regression for the review finding stranded on #1030, the PR that added the
-# membership scope above. `in_git_working_tree` fails identically for the two
-# cases it must distinguish: a file outside every working tree, and a host
-# where git is not installed at all. Reading the second as the first skipped
-# EVERY Markdown edit on such a host — silently, repo-wide, with jq and
-# markdownlint-cli2 present and a config in place, and although git is not a
-# documented prerequisite of this hook (README "Requirements" lists Bash, jq
-# and markdownlint-cli2; the setup skill checks those). The skip is now gated
-# on git being available, so an undecidable verdict lints — the direction the
-# gitignore scope further down already documents for the same input.
-#
-# Absence is simulated in-process rather than by rebuilding PATH: on Git Bash —
-# the platform this hook most needs to keep working on — every coreutils binary is an
-# MSYS binary that will not start once copied away from its DLL directory, so a
-# sanitized bin directory is not portable here. The BASH_ENV shim is the same
-# technique the markdownlint-cli2 PATH-hiding case below uses, and it is exact
-# for this predicate: `command -v git` fails, and a direct `git` call exits 127
-# on stderr, which is what bash does for a command that is not on PATH.
-NO_GIT_ENV="$WORK/no-git.bashenv"
-cat >"$NO_GIT_ENV" <<'EOF'
-command() {
-  if [[ "${1:-}" == "-v" && "${2:-}" == "git" ]]; then
-    return 1
-  fi
-  builtin command "$@"
-}
-git() {
-  printf 'bash: git: command not found\n' >&2
-  return 127
-}
-EOF
-
-run_hook_no_git() {
-  run_hook_env "$1" BASH_ENV="$NO_GIT_ENV" \
-    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true
-}
-
-# Asserted on file BYTES, not stdout: without git the finding-digest and
-# telemetry paths go quiet on their own, and this fixture is clean after --fix,
-# so an empty stdout is what BOTH a working run and a skipped run produce.
-NOGIT_FIXTURE="$REPO/fixtureNoGit.md"
-printf '# No Git\n\n* star item\n' >"$NOGIT_FIXTURE"
-OUT_NOGIT="$(run_hook_no_git "$NOGIT_FIXTURE")"
-RC_NOGIT=$?
-if [[ $RC_NOGIT -eq 0 ]]; then
-  ok "git absent: hook exits 0"
-else
-  fail "git absent: hook exit $RC_NOGIT (out=$OUT_NOGIT)"
-fi
-if grep -q '^\* star item$' "$NOGIT_FIXTURE"; then
-  ok "git absent + CLAUDE_PROJECT_DIR unset: in-repo .md skipped (fail closed without git)"
-else
-  fail "git absent: in-repo .md was linted despite no git and no project dir: $(cat "$NOGIT_FIXTURE")"
-fi
-
-# Control for the assertion above: the shim must not be what decides the
-# outcome by itself. The SAME shim with CLAUDE_PROJECT_DIR SET bypasses the
-# membership scope entirely, so linting here proves the remainder of the hook
-# is already git-independent and leaves the scope as the only variable between
-# the two runs.
-NOGIT_CONTROL="$REPO/fixtureNoGitControl.md"
-printf '# No Git Control\n\n* star item\n' >"$NOGIT_CONTROL"
-OUT_NOGIT_CTL="$(run_hook_env "$NOGIT_CONTROL" BASH_ENV="$NO_GIT_ENV" CLAUDE_PROJECT_DIR="$REPO" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-RC_NOGIT_CTL=$?
-if [[ $RC_NOGIT_CTL -eq 0 ]] && grep -q '^- star item$' "$NOGIT_CONTROL"; then
-  ok "control: git absent with CLAUDE_PROJECT_DIR set still lints (hook is otherwise git-independent)"
-else
-  fail "control failed: the git-absence shim disabled the hook independently of the membership scope (rc=$RC_NOGIT_CTL out=$OUT_NOGIT_CTL)"
-fi
-
-# The control above sits BESIDE the root markdownlint config, which hides a
-# second, independent git dependency: config discovery walks UP from the file
-# and stops at hook::repo_root, and without git that root is the file's own
-# directory. A file one directory down therefore never reaches the root config
-# and is skipped — the ordinary docs layout, and the case the membership fix is
-# otherwise meant to restore. Nesting the fixture is the whole assertion; a
-# root-level twin passes either way and proves nothing about it.
-mkdir -p "$REPO/docs"
-NOGIT_NESTED="$REPO/docs/fixtureNoGitNested.md"
-printf '# No Git Nested\n\n* star item\n' >"$NOGIT_NESTED"
-OUT_NOGIT_NEST="$(run_hook_env "$NOGIT_NESTED" BASH_ENV="$NO_GIT_ENV" CLAUDE_PROJECT_DIR="$REPO" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-RC_NOGIT_NEST=$?
-if [[ $RC_NOGIT_NEST -eq 0 ]] && grep -q '^- star item$' "$NOGIT_NESTED"; then
-  ok "git absent: a NESTED .md still reaches the root markdownlint config"
-else
-  fail "git absent: nested .md skipped — config discovery never left its own directory (rc=$RC_NOGIT_NEST out=$OUT_NOGIT_NEST)"
-fi
-
-# The same nesting with CLAUDE_PROJECT_DIR UNSET. Without git, read_file_path fails
-# closed (#1091) — the hook cannot establish membership, so config discovery never
-# runs and the file stays unmodified.
-NOGIT_NESTED_UNSET="$REPO/docs/fixtureNoGitNestedUnanchored.md"
-printf '# No Git Nested Unanchored\n\n* star item\n' >"$NOGIT_NESTED_UNSET"
-OUT_NOGIT_NEST_U="$(run_hook_no_git "$NOGIT_NESTED_UNSET")"
-RC_NOGIT_NEST_U=$?
-if [[ $RC_NOGIT_NEST_U -eq 0 ]] && grep -q '^\* star item$' "$NOGIT_NESTED_UNSET"; then
-  ok "git absent + CLAUDE_PROJECT_DIR unset: nested .md skipped (fail closed without git)"
-else
-  fail "git absent + unset: nested .md was linted despite no membership anchor (rc=$RC_NOGIT_NEST_U out=$OUT_NOGIT_NEST_U)"
-fi
-
-# The last resort, and the only case where CLAUDE_PROJECT_DIR decides the root:
-# a project that is no working tree at all — an unpacked archive, a vendored
-# copy — where the filesystem walk finds no `.git` to stop at. Every other
-# fixture here lives in a real git tree, so nothing else can reach this branch.
-# The fixture is deliberately NOT under $REPO for that reason.
-NOVCS="$WORK/no-vcs-project"
-mkdir -p "$NOVCS/docs"
-cat >"$NOVCS/.markdownlint.json" <<'JSON'
-{ "MD004": { "style": "dash" } }
-JSON
-NOVCS_FIXTURE="$NOVCS/docs/archived.md"
-printf '# Archived\n\n* star item\n' >"$NOVCS_FIXTURE"
-OUT_NOVCS="$(run_hook_env "$NOVCS_FIXTURE" BASH_ENV="$NO_GIT_ENV" CLAUDE_PROJECT_DIR="$NOVCS" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-RC_NOVCS=$?
-if [[ $RC_NOVCS -eq 0 ]] && grep -q '^- star item$' "$NOVCS_FIXTURE"; then
-  ok "no working tree anywhere: CLAUDE_PROJECT_DIR is the root of last resort"
-else
-  fail "no working tree: nested .md skipped despite CLAUDE_PROJECT_DIR (rc=$RC_NOVCS out=$OUT_NOVCS)"
-fi
-
-# The same last resort when the project dir is the user's HOME (#4246): a
-# session started in home has no working tree, and a personal home-level
-# markdownlint config must not opt in every .md below it. The reproduction ran
-# with git present, so git stays on PATH here. A config below home is still a
-# project's opt-in, so the control lints.
-FAKE_HOME="$WORK/fake-home"
-mkdir -p "$FAKE_HOME/.audit-scratch/deep/dir" "$FAKE_HOME/notes/sub"
-cat >"$FAKE_HOME/.markdownlint-cli2.jsonc" <<'JSON'
-{ "config": { "MD004": { "style": "dash" } } }
-JSON
-HOME_FIXTURE="$FAKE_HOME/.audit-scratch/deep/dir/note.md"
-printf '# Note\n\n* star item\n' >"$HOME_FIXTURE"
-OUT_HOMECFG="$(run_hook_env "$HOME_FIXTURE" HOME="$FAKE_HOME" CLAUDE_PROJECT_DIR="$FAKE_HOME" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-RC_HOMECFG=$?
-if [[ $RC_HOMECFG -eq 0 && -z "$OUT_HOMECFG" ]] && grep -q '^\* star item$' "$HOME_FIXTURE"; then
-  ok "project dir is HOME, no working tree: a home-level config does not open the gate"
-else
-  fail "home-level config opened the gate for a file in no repository (rc=$RC_HOMECFG out=$OUT_HOMECFG): $(cat "$HOME_FIXTURE")"
-fi
-
-HOME_ROOT_FIXTURE="$FAKE_HOME/top.md"
-printf '# Top\n\n* star item\n' >"$HOME_ROOT_FIXTURE"
-OUT_HOMETOP="$(run_hook_env "$HOME_ROOT_FIXTURE" HOME="$FAKE_HOME" CLAUDE_PROJECT_DIR="$FAKE_HOME" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-RC_HOMETOP=$?
-if [[ $RC_HOMETOP -eq 0 ]] && grep -q '^\* star item$' "$HOME_ROOT_FIXTURE"; then
-  ok "project dir is HOME: a .md beside the home-level config is not opted in either"
-else
-  fail "home-level config opened the gate for a .md directly in home (rc=$RC_HOMETOP out=$OUT_HOMETOP)"
-fi
-
-cat >"$FAKE_HOME/notes/.markdownlint.json" <<'JSON'
-{ "MD004": { "style": "dash" } }
-JSON
-HOME_PROJECT_FIXTURE="$FAKE_HOME/notes/sub/kept.md"
-printf '# Kept\n\n* star item\n' >"$HOME_PROJECT_FIXTURE"
-OUT_HOMEPROJ="$(run_hook_env "$HOME_PROJECT_FIXTURE" HOME="$FAKE_HOME" CLAUDE_PROJECT_DIR="$FAKE_HOME" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-RC_HOMEPROJ=$?
-if [[ $RC_HOMEPROJ -eq 0 ]] && grep -q '^- star item$' "$HOME_PROJECT_FIXTURE"; then
-  ok "control: under a HOME project dir, a config below home still opts its subtree in"
-else
-  fail "control: a config below home no longer opens the gate (rc=$RC_HOMEPROJ out=$OUT_HOMEPROJ)"
-fi
-
-# make_symlink <target> <link> → 0 only if a REAL symlink now exists at <link>.
-# Plain `ln -s` under Git Bash's default MSYS settings COPIES the file, which is
-# why the escape cases earlier in this file skip on Windows. nativestrict asks
-# for a real NTFS symlink and succeeds wherever the host allows it (Developer
-# Mode, or the create-symlink privilege), so the escape shapes below are
-# exercised on hosts the bare-`ln -s` probe writes off.
-make_symlink() {
-  MSYS=winsymlinks:nativestrict ln -s "$1" "$2" 2>/dev/null ||
-    ln -s "$1" "$2" 2>/dev/null
-  [[ -L "$2" ]]
-}
-
-# Escaping symlink with git ABSENT. The escape cases earlier run with git
-# present, where in_git_working_tree decides containment on the physical path
-# and skips. Without git that question could not be asked at all, so containment
-# went unchecked — and resolving the root from the filesystem is precisely what
-# makes discovery SUCCEED here, opening the repository's own config for a file
-# whose bytes live outside the tree. Both nestings are covered: nested (reachable
-# only once the root walk exists) and root-level (reachable before it too).
-#
-# ASSERTED ON LINK SURVIVAL, not on the target's bytes, and the difference is
-# the whole discriminating power of these two cases. The stub linter at the top
-# of this file rewrites with `sed -i`, which renames a temp over the path and so
-# REPLACES a symlink with a regular file while leaving the target untouched —
-# verified on this host. Real markdownlint-cli2 is a Node process whose
-# fs.writeFile follows the link and rewrites the target instead. So under this
-# stub an unchanged target proves nothing (it is unchanged either way), while a
-# surviving symlink proves the hook never ran --fix on it at all.
-NOGIT_OUTSIDE="$WORK/outside-nogit"
-mkdir -p "$NOGIT_OUTSIDE"
-
-for _case in nested root; do
-  case "$_case" in
-  nested) _link="$REPO/docs/escapeNoGitNested.md" ;;
-  root) _link="$REPO/escapeNoGitRoot.md" ;;
-  # Unreachable from the loop above, and present because CI runs ShellCheck with
-  # no severity floor, so SC2249 (info) fails the lane. Exiting rather than
-  # falling through: a silently unhandled case here would report a PASS for a
-  # symlink case that never ran.
-  *)
-    echo "unhandled escape case: $_case" >&2
-    exit 1
-    ;;
-  esac
-  _ext="$NOGIT_OUTSIDE/external-$_case.md"
-  printf '# External\n\n* star item\n' >"$_ext"
-  if make_symlink "$_ext" "$_link"; then
-    _ext_before="$(cat "$_ext")"
-    OUT_ESC="$(run_hook_no_git "$_link")"
-    RC_ESC=$?
-    if [[ $RC_ESC -eq 0 && -L "$_link" && "$(cat "$_ext")" == "$_ext_before" ]]; then
-      ok "git absent: a $_case escaping symlink is skipped, not handed to --fix"
-    else
-      fail "git absent: --fix reached a $_case symlink's out-of-tree target (rc=$RC_ESC link-intact=$([[ -L "$_link" ]] && echo yes || echo no) out=$OUT_ESC)"
-    fi
-    rm -f "$_link"
-  else
-    ok "git absent $_case symlink-escape case SKIPPED (host cannot create real symlinks)"
-  fi
-done
-
-# Fail-closed case for the three skips above: with git absent and
-# CLAUDE_PROJECT_DIR unset, even a symlink whose target resolves INSIDE the
-# repository must be skipped. `hook::read_file_path` never falls back to
-# unscoped admission (the #1091 regression this case pins); link survival plus
-# an unfixed target proves --fix never ran. (When CLAUDE_PROJECT_DIR is set,
-# the project-dir branch still admits in-repo paths without git — covered
-# separately below.)
-NOGIT_INSIDE_TARGET="$REPO/docs/insideNoGitTarget.md"
-NOGIT_INSIDE_LINK="$REPO/docs/insideNoGitLink.md"
-printf '# Inside\n\n* inside item\n' >"$NOGIT_INSIDE_TARGET"
-if make_symlink "$NOGIT_INSIDE_TARGET" "$NOGIT_INSIDE_LINK"; then
-  OUT_INSIDE="$(run_hook_no_git "$NOGIT_INSIDE_LINK")"
-  RC_INSIDE=$?
-  if [[ $RC_INSIDE -eq 0 && -L "$NOGIT_INSIDE_LINK" ]] &&
-    grep -q '^\* inside item$' "$NOGIT_INSIDE_TARGET"; then
-    ok "git absent + CLAUDE_PROJECT_DIR unset: in-repo symlink skipped (fail closed without git)"
-  else
-    fail "git absent: in-repo symlinked .md was linted despite no git (rc=$RC_INSIDE link-intact=$([[ -L "$NOGIT_INSIDE_LINK" ]] && echo yes || echo no) out=$OUT_INSIDE)"
-  fi
-  rm -f "$NOGIT_INSIDE_LINK"
-else
-  ok "git absent in-repo symlink fail-closed case SKIPPED (host cannot create real symlinks)"
-fi
-
-# The scope must still fire when git CAN answer — that half is the out-of-tree
-# case above, which runs with git present and asserts the skip.
-#
-# But the REPO_ROOT override is a different branch from that scope, and its
-# ordinary case — `CLAUDE_PROJECT_DIR` set AND git present, i.e. nearly every
-# real Markdown edit — was exercised by nothing: every other case in this file
-# either runs `-u CLAUDE_PROJECT_DIR` or runs under the git-absence shim. The
-# two cases below cover it from both sides, because "it still lints" alone
-# cannot tell a correctly-inert override from one that fired and happened not
-# to change the outcome.
-# Reaching that branch at all takes care, and a first attempt at these cases
-# failed to. The guard is `"$REPO_ROOT" == "$(dirname "$FILE")"`, so a NESTED
-# fixture can never satisfy it when git resolves a toplevel: dirname is
-# `<repo>/docs` while REPO_ROOT is `<repo>`. Both fixtures must therefore sit
-# DIRECTLY at the root of their directory, or the whole `if` short-circuits and
-# the case tests nothing while passing.
-#
-# The outer config also has to FORCE a rewrite. An empty `{}` leaves MD004 on
-# "consistent", which has nothing to flag on a single-item list — so a wrongly
-# widened walk would produce bytes identical to a correctly skipped one, and the
-# negative case could not fail. It pins MD004 to "dash" so a wrong walk is
-# observable as `* star item` becoming `- star item`.
-OUTER="$WORK/outer-config-root"
-mkdir -p "$OUTER"
-printf '{ "config": { "MD004": { "style": "dash" } } }\n' >"$OUTER/.markdownlint-cli2.jsonc"
-
-# POSITIVE — the override must FIRE and be load-bearing. git is present and
-# working, but the file's own directory is NOT a repository, so hook::repo_root
-# falls back to the hint, the guard matches, the probe fails, and
-# CLAUDE_PROJECT_DIR becomes the walk's terminator. Without the override the
-# walk starts and ends in that same directory, finds no config, and skips — so
-# this case discriminates on the override alone.
-NONREPO_ROOTED="$OUTER/plain/fixtureOverrideFires.md"
-mkdir -p "$OUTER/plain"
-printf '# Override Fires\n\n* star item\n' >"$NONREPO_ROOTED"
-OUT_FIRES="$(run_hook_env "$NONREPO_ROOTED" CLAUDE_PROJECT_DIR="$OUTER" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-RC_FIRES=$?
-if [[ $RC_FIRES -eq 0 ]] && grep -q '^- star item$' "$NONREPO_ROOTED"; then
-  ok "git present, dir is no repo: the override fires and CLAUDE_PROJECT_DIR terminates the walk"
-else
-  fail "git present, dir is no repo: the override did not fire — config above was never reached (rc=$RC_FIRES out=$OUT_FIRES)"
-fi
-
-# The NEGATIVE twin — the override must stay INERT when git CAN resolve a
-# toplevel. Three obvious instruments cannot express it, and the fourth can;
-# the failures are recorded because each one looks workable until tried:
-#
-#   1. Lint output cannot see it. Force the override to fire on a file at a real
-#      repository root (replace the probe with `false`) and the file is STILL
-#      not rewritten — markdownlint-cli2 does its own config discovery and does
-#      not cross the repository boundary, so widening the hook's gate changes no
-#      observable byte.
-#   2. Telemetry's `data.file` is derived from REPO_ROOT, but the forced-override
-#      run emits an EMPTY value rather than a relative-to-outer path — and empty
-#      is also what a sink that never populated looks like.
-#   3. Exit status is 0 either way.
-#
-# The fourth works because it reads REPO_ROOT DIRECTLY rather than inferring it
-# from an effect: the hook resolves a repo-local linter at
-# "$REPO_ROOT/node_modules/.bin/markdownlint-cli2", so a distinguishable shim
-# planted at BOTH candidate roots names the root the hook actually computed.
-#
-# Two mechanics this depends on, both of which silently defeat it if missed:
-# the PATH copy of markdownlint-cli2 wins over the repo-local one, so it has to
-# be hidden from `command -v` (see the next paragraph for how, and for why NOT
-# by editing PATH); and the shim must write a MARKER FILE, because the hook
-# captures stdout and stderr into a variable, so anything it prints is
-# swallowed.
-#
-# The assertion is positive — the marker must read INNER. A wrongly-firing
-# override yields OUTER or no marker at all, and both fail it. Measured against
-# a hook whose probe was forced to `false`: correct reads INNER, forced reads no
-# marker. Discriminating in the direction that matters.
-# `PATH` is left ALONE. An earlier draft stripped every directory containing a
-# `markdownlint-cli2`, which also removes whatever else lives beside it — `git`,
-# which `hook::repo_root` needs, or the coreutils `resolve_repo_markdownlint`
-# calls. On such a layout the hook's git probe would fail as command-not-found,
-# the override would fire, the marker would read OUTER, and this case would fail
-# while the production behavior was correct. The suite already has the right
-# technique for this (`NO_MDLINT_ENV` further down): a `BASH_ENV` `command()`
-# override that hides the binary from `command -v` without touching `PATH`. A
-# self-contained one is used here rather than that shared shim, because that one
-# also stubs `npx`, and a miss should surface as "no shim ran" rather than be
-# absorbed by an npx marker.
-NEG_ENV="$WORK/override-inert.bashenv"
-cat >"$NEG_ENV" <<'NEGEOF'
-command() {
-  if [[ "${1:-}" == "-v" && "${2:-}" == "markdownlint-cli2" ]]; then
-    return 1
-  fi
-  builtin command "$@"
-}
-NEGEOF
-NEG_OUTER="$WORK/override-inert"
-mkdir -p "$NEG_OUTER/inner"
-printf '{ "config": { "MD004": { "style": "dash" } } }\n' >"$NEG_OUTER/.markdownlint-cli2.jsonc"
-printf '{ "config": { "MD004": { "style": "dash" } } }\n' >"$NEG_OUTER/inner/.markdownlint-cli2.jsonc"
-git init -q "$NEG_OUTER/inner" 2>/dev/null
-NEG_MARK="$WORK/override-inert.marker"
-for _md_root_spec in "$NEG_OUTER:OUTER" "$NEG_OUTER/inner:INNER"; do
-  _md_root="${_md_root_spec%:*}"
-  _md_label="${_md_root_spec##*:}"
-  mkdir -p "$_md_root/node_modules/.bin"
-  printf '#!/usr/bin/env bash\nprintf "%%s" "%s" > "%s"\nexit 0\n' \
-    "$_md_label" "$NEG_MARK" >"$_md_root/node_modules/.bin/markdownlint-cli2"
-  chmod +x "$_md_root/node_modules/.bin/markdownlint-cli2"
-done
-rm -f "$NEG_MARK"
-printf '# Override Inert\n\n* star item\n' >"$NEG_OUTER/inner/f.md"
-run_hook_env "$NEG_OUTER/inner/f.md" BASH_ENV="$NEG_ENV" CLAUDE_PROJECT_DIR="$NEG_OUTER" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true >/dev/null 2>&1
-NEG_SAW="$(cat "$NEG_MARK" 2>/dev/null || echo '<no shim ran>')"
-if [[ "$NEG_SAW" == "INNER" ]]; then
-  ok "git present: the override stays inert — the hook resolved REPO_ROOT to the git toplevel"
-else
-  fail "git present: REPO_ROOT was not the git toplevel — shim that ran reported '$NEG_SAW' (want INNER)"
-fi
-
-# --- Repository-local markdownlint: use contained npm/Git Bash shim ---------
-# Hide the PATH copy, then provide the extensionless POSIX shim npm installs
-# beside its Windows .cmd launcher. The hook must execute it directly from the
-# consuming repository, with no package runner or network fallback.
-NO_MDLINT_ENV="$WORK/no-markdownlint.bashenv"
-NPX_MARKER="$WORK/npx-was-invoked"
-cat >"$NO_MDLINT_ENV" <<EOF
-command() {
-  if [[ "\${1:-}" == "-v" && "\${2:-}" == "markdownlint-cli2" ]]; then
-    return 1
-  fi
-  if [[ "\${1:-}" == "-v" && "\${2:-}" == "npx" ]]; then
-    printf '%s\\n' "$WORK/npx"
-    return 0
-  fi
-  builtin command "\$@"
-}
-npx() {
-  : >"$NPX_MARKER"
-  return 99
-}
-EOF
-
-LOCAL_BIN_DIR="$REPO/node_modules/.bin"
-LOCAL_MDLINT="$LOCAL_BIN_DIR/markdownlint-cli2"
-mkdir -p "$LOCAL_BIN_DIR"
-cp "$TEST_BIN/markdownlint-cli2" "$LOCAL_MDLINT"
-chmod +x "$LOCAL_MDLINT"
-LOCAL_FIXTURE="$REPO/fixtureLocal.md"
-printf '# Local\n\n* local item\n' >"$LOCAL_FIXTURE"
-OUT_LOCAL="$(run_hook_env "$LOCAL_FIXTURE" BASH_ENV="$NO_MDLINT_ENV" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-RC_LOCAL=$?
-if [[ $RC_LOCAL -eq 0 && -z "$OUT_LOCAL" ]]; then
-  ok "repo-local markdownlint shim exits 0 with no advisory"
-else
-  fail "repo-local markdownlint shim failed (rc=$RC_LOCAL out=$OUT_LOCAL)"
-fi
-if grep -q '^- local item$' "$LOCAL_FIXTURE"; then
-  ok "repo-local markdownlint shim applied --fix"
-else
-  fail "repo-local markdownlint shim did not format: $(cat "$LOCAL_FIXTURE")"
-fi
-if [[ ! -e "$NPX_MARKER" ]]; then ok "repo-local markdownlint never invokes npx"; else fail "repo-local markdownlint invoked npx"; fi
-
-# npm uses a relative .bin symlink on POSIX. Prove the resolver follows that
-# normal contained shape without mistaking it for an escape. Git Bash may copy
-# the target when native symlinks are unavailable; the regular-shim case above
-# already covers that host, so this symlink-specific assertion skips there.
-rm -f "$LOCAL_MDLINT"
-LOCAL_PACKAGE_BIN="$REPO/node_modules/markdownlint-cli2/markdownlint-cli2"
-mkdir -p "$(dirname "$LOCAL_PACKAGE_BIN")"
-cp "$TEST_BIN/markdownlint-cli2" "$LOCAL_PACKAGE_BIN"
-chmod +x "$LOCAL_PACKAGE_BIN"
-ln -s ../markdownlint-cli2/markdownlint-cli2 "$LOCAL_MDLINT"
-if [[ -L "$LOCAL_MDLINT" ]]; then
-  LOCAL_SYMLINK_FIXTURE="$REPO/fixtureLocalSymlink.md"
-  printf '# Local Symlink\n\n* symlink item\n' >"$LOCAL_SYMLINK_FIXTURE"
-  OUT_LOCAL_SYMLINK="$(run_hook_env "$LOCAL_SYMLINK_FIXTURE" BASH_ENV="$NO_MDLINT_ENV" \
-    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-  RC_LOCAL_SYMLINK=$?
-  if [[ $RC_LOCAL_SYMLINK -eq 0 && -z "$OUT_LOCAL_SYMLINK" ]] &&
-    grep -q '^- symlink item$' "$LOCAL_SYMLINK_FIXTURE"; then
-    ok "contained relative POSIX .bin symlink applied --fix"
-  else
-    fail "contained relative POSIX .bin symlink failed (rc=$RC_LOCAL_SYMLINK out=$OUT_LOCAL_SYMLINK)"
-  fi
-else
-  ok "contained relative POSIX .bin symlink skipped (host lacks native symlinks)"
-fi
-
-# --- Escaping repository-local binary: reject before execution --------------
-rm -rf "$REPO/node_modules"
-ESCAPE_DIR="$WORK/outside-node-modules"
-ESCAPE_TARGET="$ESCAPE_DIR/.bin/markdownlint-cli2"
-ESCAPE_MARKER="$WORK/outside-markdownlint-was-invoked"
-mkdir -p "$ESCAPE_DIR/.bin"
-cat >"$ESCAPE_TARGET" <<EOF
-#!/usr/bin/env bash
-: >"$ESCAPE_MARKER"
-exit 0
-EOF
-chmod +x "$ESCAPE_TARGET"
-
-ESCAPE_LINK_CREATED=false
-ESCAPE_WINDOWS_JUNCTION=false
-if command -v powershell.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
-  # shellcheck disable=SC2016 # $env variables expand in PowerShell, not Bash.
-  LINK_PATH="$(cygpath -aw "$REPO/node_modules")" \
-  TARGET_PATH="$(cygpath -aw "$ESCAPE_DIR")" \
-    powershell.exe -NoLogo -NoProfile -NonInteractive -Command \
-    'New-Item -ItemType Junction -Path $env:LINK_PATH -Target $env:TARGET_PATH | Out-Null' \
-    >/dev/null 2>&1 &&
-    ESCAPE_LINK_CREATED=true &&
-    ESCAPE_WINDOWS_JUNCTION=true
-else
-  mkdir -p "$REPO/node_modules/.bin"
-  ln -s "$ESCAPE_TARGET" "$LOCAL_MDLINT" && ESCAPE_LINK_CREATED=true
-fi
-
-if [[ "$ESCAPE_LINK_CREATED" == true ]]; then
-  # Fresh CLAUDE_PLUGIN_DATA: the skip notice is once-per-session, so an
-  # inherited data dir with a prior marker would suppress it and fail the assert.
-  PD_ESCAPE="$(mktemp -d "$WORK/pd.XXXXXX")"
-  OUT_ESCAPE="$(run_hook_env "$FA" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_ESCAPE" \
-    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-  RC_ESCAPE=$?
-  if [[ $RC_ESCAPE -eq 0 ]] &&
-    printf '%s' "$OUT_ESCAPE" | jq -e '.hookSpecificOutput.additionalContext | contains("contained repository-local")' >/dev/null 2>&1; then
-    ok "escaping repo-local markdownlint emits advisory"
-  else
-    fail "escaping repo-local markdownlint was not rejected (rc=$RC_ESCAPE out=$OUT_ESCAPE)"
-  fi
-  if [[ ! -e "$ESCAPE_MARKER" ]]; then ok "escaping repo-local markdownlint was not executed"; else fail "escaping repo-local markdownlint executed"; fi
-else
-  fail "could not create repo-local escape symlink fixture"
-fi
-if [[ "$ESCAPE_WINDOWS_JUNCTION" == true ]]; then
-  # shellcheck disable=SC2016 # $env variables expand in PowerShell, not Bash.
-  LINK_PATH="$(cygpath -aw "$REPO/node_modules")" \
-    powershell.exe -NoLogo -NoProfile -NonInteractive -Command \
-    'Remove-Item -LiteralPath $env:LINK_PATH -Force' >/dev/null 2>&1
-else
-  rm -rf "$REPO/node_modules"
-fi
-
-# --- Missing markdownlint: visible advisory, never npx ----------------------
-# With neither PATH nor a contained local binary available, the hook must not
-# invoke the package runner (which could fetch from the network).
-PD_NO_MDLINT="$(mktemp -d "$WORK/pd.XXXXXX")"
-ERR_NO_MDLINT="$WORK/no-mdlint.err"
-OUT_NO_MDLINT="$(run_hook_env "$FA" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_NO_MDLINT" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true 2>"$ERR_NO_MDLINT")"
-RC_NO_MDLINT=$?
-if [[ $RC_NO_MDLINT -eq 0 ]]; then ok "missing markdownlint exits 0 (advisory)"; else fail "missing markdownlint exit $RC_NO_MDLINT"; fi
-# The model's copy names where the hook looked, the manifest's degrade text and
-# the check skill; the install route is the user's.
-if printf '%s' "$OUT_NO_MDLINT" | jq -e '.hookSpecificOutput.additionalContext == "markdown-format: markdownlint-cli2 not on the hook PATH or as a contained repository-local node_modules/.bin executable. Without markdownlint-cli2, the hook cannot format edited Markdown files. No further notice this session; /markdown-format:check diagnoses."' >/dev/null 2>&1; then
-  ok "missing markdownlint emits visible additionalContext"
-else
-  fail "missing markdownlint warning absent: $OUT_NO_MDLINT"
-fi
-# #2740: notice must not claim a session-long skip; it says the NOTICE will not
-# repeat. The probed PATH, which makes a PATH-layer miss (nvm prefix, cloud
-# harness env) diagnosable, goes to stderr, which Claude Code keeps in the
-# debug log, and to neither channel.
-if printf '%s' "$OUT_NO_MDLINT" | jq -e '
-  (.hookSpecificOutput.additionalContext | contains("No further notice this session")) and
-  ((.hookSpecificOutput.additionalContext | contains("PATH probed:")) | not) and
-  ((.systemMessage | contains("PATH probed:")) | not) and
-  ((.hookSpecificOutput.additionalContext | contains("skipped for this session")) | not)
-' >/dev/null 2>&1 && grep -q '^PATH probed: ' "$ERR_NO_MDLINT"; then
-  ok "missing markdownlint notice: notice-only latch, PATH diagnostic on stderr only"
-else
-  fail "missing markdownlint latch/PATH diagnostic wrong: $OUT_NO_MDLINT stderr: $(cat "$ERR_NO_MDLINT")"
-fi
-PD_RENEW="$(mktemp -d "$WORK/pd.XXXXXX")"
-RENEW_PAYLOAD="{\"session_id\":\"renew-seq\",\"tool_input\":{\"file_path\":\"$FA\"}}"
-renew_ok=1
-renew_out=()
-for n in 1 2 3 4 5 6 7 8; do
-  renew_out[n]="$(cd "$UNRELATED" && env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_RENEW" \
-    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK" <<<"$RENEW_PAYLOAD")"
-done
-[[ "${renew_out[1]}" == *"not on the hook PATH"* && "${renew_out[1]}" == *"/markdown-format:check"* &&
-  "${renew_out[1]}" == *"npm i -D markdownlint-cli2"* ]] || renew_ok=0
-for n in 2 3 4 5 6 7 8; do
-  [[ -z "${renew_out[n]}" ]] || renew_ok=0
-done
-if ((renew_ok)); then
-  ok "missing markdownlint: fire 1 carries the install route, fires 2-8 are silent (no renewal)"
-else
-  fail "missing markdownlint 8-fire sequence wrong: 1=[${renew_out[1]}] 2=[${renew_out[2]}] 7=[${renew_out[7]}] 8=[${renew_out[8]}]"
-fi
-# In-repo missing-tool: repo-local `npm i -D` is still the reliable route
-# (#2868), on the user's copy only.
-if printf '%s' "$OUT_NO_MDLINT" | jq -e '
-  (.systemMessage | contains("npm i -D markdownlint-cli2")) and
-  (.systemMessage | contains("is the reliable route")) and
-  ((.hookSpecificOutput.additionalContext | contains("npm i -D")) | not)
-' >/dev/null 2>&1; then
-  ok "in-repo missing markdownlint names repo-local npm i -D"
-else
-  fail "in-repo missing markdownlint lost npm i -D guidance: $OUT_NO_MDLINT"
-fi
-if [[ ! -e "$NPX_MARKER" ]]; then ok "missing markdownlint never invokes npx"; else fail "missing markdownlint invoked npx"; fi
-
-# --- Out-of-repo missing-tool notice (#2868) --------------------------------
-# A non-git project dir (CLAUDE_PROJECT_DIR set so membership admits the file)
-# has no repository for `npm i -D`. The notice must name a durable user-scope
-# directory already on the probed PATH, never the repo-local command, and must
-# not name an ephemeral version-manager prefix that happens to sit earlier
-# on PATH.
-OUTREPO="$WORK/out-of-repo-project"
-mkdir -p "$OUTREPO"
-printf '{ "config": { "MD013": false } }\n' >"$OUTREPO/.markdownlint-cli2.jsonc"
-printf '# Note\n' >"$OUTREPO/note.md"
-FAKE_HOME="$WORK/fake-home"
-mkdir -p "$FAKE_HOME/.bun/bin" "$FAKE_HOME/.local/bin" "$FAKE_HOME/bin" \
-  "$FAKE_HOME/AppData/Local/fnm_multishells/5796_x/bin"
-PD_OUTREPO="$(mktemp -d "$WORK/pd.XXXXXX")"
-OUT_OUTREPO="$(run_hook_env "$OUTREPO/note.md" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PROJECT_DIR="$OUTREPO" \
-  CLAUDE_PLUGIN_DATA="$PD_OUTREPO" HOME="$FAKE_HOME" \
-  PATH="$FAKE_HOME/AppData/Local/fnm_multishells/5796_x/bin:$FAKE_HOME/.local/bin:$FAKE_HOME/.bun/bin:$PATH" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-RC_OUTREPO=$?
-if [[ $RC_OUTREPO -eq 0 ]]; then
-  ok "out-of-repo missing markdownlint exits 0"
-else
-  fail "out-of-repo missing markdownlint exit $RC_OUTREPO"
-fi
-# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
-if host_cygpath_rewrites_posix_path; then
-  skip "out-of-repo missing markdownlint names ~/.bun/bin, not npm i -D or fnm" \
-    "cygpath rewrites the POSIX HOME/PATH spelling the notice pins"
-else
-  if printf '%s' "$OUT_OUTREPO" | jq -e --arg bun "$FAKE_HOME/.bun/bin" --arg fnm "$FAKE_HOME/AppData/Local/fnm_multishells/5796_x/bin" '
-    (.systemMessage | contains("outside a repository")) and
-    (.systemMessage | contains("would accept one at " + $bun)) and
-    (.systemMessage | contains("bun install --global markdownlint-cli2")) and
-    ((.hookSpecificOutput.additionalContext | contains("PATH probed:")) | not) and
-    ((.systemMessage | contains("npm i -D markdownlint-cli2")) | not) and
-    ((.systemMessage | contains("is the reliable route")) | not) and
-    ((.systemMessage | contains("would accept one at " + $fnm)) | not)
-  ' >/dev/null 2>&1; then
-    ok "out-of-repo missing markdownlint names ~/.bun/bin, not npm i -D or fnm"
-  else
-    fail "out-of-repo missing markdownlint remediation wrong: $OUT_OUTREPO"
-  fi
-fi
-
-# Preference: with no ~/.bun/bin on PATH, name ~/.local/bin over ~/bin.
-PD_LOCALBIN="$(mktemp -d "$WORK/pd.XXXXXX")"
-OUT_LOCALBIN="$(run_hook_env "$OUTREPO/note.md" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PROJECT_DIR="$OUTREPO" \
-  CLAUDE_PLUGIN_DATA="$PD_LOCALBIN" HOME="$FAKE_HOME" \
-  PATH="$FAKE_HOME/bin:$FAKE_HOME/.local/bin:$PATH" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
-if host_cygpath_rewrites_posix_path; then
-  skip "out-of-repo notice prefers ~/.local/bin over ~/bin" \
-    "cygpath rewrites the POSIX HOME/PATH spelling the notice pins"
-else
-  if printf '%s' "$OUT_LOCALBIN" | jq -e --arg local "$FAKE_HOME/.local/bin" --arg homebin "$FAKE_HOME/bin" '
-    (.systemMessage | contains("would accept one at " + $local)) and
-    ((.systemMessage | contains("would accept one at " + $homebin)) | not) and
-    ((.systemMessage | contains("bun install --global")) | not) and
-    ((.systemMessage | contains("npm i -D markdownlint-cli2")) | not)
-  ' >/dev/null 2>&1; then
-    ok "out-of-repo notice prefers ~/.local/bin over ~/bin"
-  else
-    fail "out-of-repo ~/.local/bin preference wrong: $OUT_LOCALBIN"
-  fi
-fi
-
-# A generic writable $HOME/… PATH entry (mise install tree, nested .bun/bin)
-# is not a named target — only ~/.bun/bin, ~/.local/bin, ~/bin qualify.
-PD_GENERIC="$(mktemp -d "$WORK/pd.XXXXXX")"
-mkdir -p "$FAKE_HOME/share/mise/installs/node/22/bin" "$FAKE_HOME/foo/.bun/bin"
-OUT_GENERIC="$(run_hook_env "$OUTREPO/note.md" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PROJECT_DIR="$OUTREPO" \
-  CLAUDE_PLUGIN_DATA="$PD_GENERIC" HOME="$FAKE_HOME" \
-  PATH="$FAKE_HOME/share/mise/installs/node/22/bin:$FAKE_HOME/foo/.bun/bin:$PATH" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-if printf '%s' "$OUT_GENERIC" | jq -e --arg mise "$FAKE_HOME/share/mise/installs/node/22/bin" --arg nested "$FAKE_HOME/foo/.bun/bin" '
-  (.systemMessage | contains("outside a repository")) and
-  ((.systemMessage | contains("would accept one at " + $mise)) | not) and
-  ((.systemMessage | contains("would accept one at " + $nested)) | not) and
-  ((.systemMessage | contains("bun install --global")) | not) and
-  ((.systemMessage | contains("npm i -D markdownlint-cli2")) | not)
-' >/dev/null 2>&1; then
-  ok "out-of-repo notice does not name a generic or nested \$HOME PATH entry"
-else
-  fail "out-of-repo generic PATH fallback leaked into notice: $OUT_GENERIC"
-fi
-
-# Non-git project with package.json: npm i -D still has a place to land.
-printf '{}\n' >"$OUTREPO/package.json"
-PD_PKGJSON="$(mktemp -d "$WORK/pd.XXXXXX")"
-OUT_PKGJSON="$(run_hook_env "$OUTREPO/note.md" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PROJECT_DIR="$OUTREPO" \
-  CLAUDE_PLUGIN_DATA="$PD_PKGJSON" HOME="$FAKE_HOME" \
-  PATH="$FAKE_HOME/.bun/bin:$PATH" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-if printf '%s' "$OUT_PKGJSON" | jq -e '
-  (.systemMessage | contains("npm i -D markdownlint-cli2")) and
-  (.systemMessage | contains("is the reliable route")) and
-  ((.systemMessage | contains("outside a repository")) | not)
-' >/dev/null 2>&1; then
-  ok "non-git project with package.json still names repo-local npm i -D"
-else
-  fail "non-git package.json lost npm i -D guidance: $OUT_PKGJSON"
-fi
-rm -f "$OUTREPO/package.json"
-
-# No durable user-scope PATH entry: do not invent a path or recommend npm i -D.
-PD_NOTARGET="$(mktemp -d "$WORK/pd.XXXXXX")"
-OUT_NOTARGET="$(run_hook_env "$OUTREPO/note.md" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PROJECT_DIR="$OUTREPO" \
-  CLAUDE_PLUGIN_DATA="$PD_NOTARGET" HOME="$FAKE_HOME" \
-  PATH="$FAKE_HOME/AppData/Local/fnm_multishells/5796_x/bin:$PATH" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-if printf '%s' "$OUT_NOTARGET" | jq -e --arg bun "$FAKE_HOME/.bun/bin" --arg fnm "$FAKE_HOME/AppData/Local/fnm_multishells/5796_x/bin" '
-  (.systemMessage | contains("outside a repository")) and
-  (.systemMessage | contains("durable user-scope directory already on this hook")) and
-  ((.systemMessage | contains("npm i -D markdownlint-cli2")) | not) and
-  ((.systemMessage | contains("would accept one at")) | not) and
-  ((.systemMessage | contains("would accept one at " + $bun)) | not) and
-  ((.systemMessage | contains("would accept one at " + $fnm)) | not)
-' >/dev/null 2>&1; then
-  ok "out-of-repo notice without a user-scope PATH target invents none"
-else
-  fail "out-of-repo no-target remediation wrong: $OUT_NOTARGET"
-fi
-
-# --- Monorepo workspace node_modules/.bin walk (#2732) ----------------------
-# Hide PATH markdownlint; plant the shim only under packages/pkg/node_modules
-# (not the repo root). The hook must walk from the edited file up to REPO_ROOT.
-WS_ENV="$WORK/ws-md.bashenv"
-WS_MARK="$WORK/ws-md.marker"
-cat >"$WS_ENV" <<'WSEOF'
-command() {
-  if [[ "${1:-}" == "-v" && "${2:-}" == "markdownlint-cli2" ]]; then
-    return 1
-  fi
-  if [[ "${1:-}" == "-v" && "${2:-}" == "npx" ]]; then
-    return 1
-  fi
-  builtin command "$@"
-}
-WSEOF
-WS_REPO="$WORK/monorepo"
-mkdir -p "$WS_REPO/packages/pkg/node_modules/.bin" "$WS_REPO/packages/pkg"
-git init -q "$WS_REPO" 2>/dev/null
-printf '{ "config": { "MD004": { "style": "dash" } } }\n' >"$WS_REPO/.markdownlint-cli2.jsonc"
-printf '#!/usr/bin/env bash\nprintf "WS" > "%s"\nexit 0\n' "$WS_MARK" \
-  >"$WS_REPO/packages/pkg/node_modules/.bin/markdownlint-cli2"
-chmod +x "$WS_REPO/packages/pkg/node_modules/.bin/markdownlint-cli2"
-printf '# Workspace File\n\n* star\n' >"$WS_REPO/packages/pkg/doc.md"
-rm -f "$WS_MARK"
-PD_WS="$(mktemp -d "$WORK/pd.XXXXXX")"
-run_hook_env "$WS_REPO/packages/pkg/doc.md" BASH_ENV="$WS_ENV" CLAUDE_PLUGIN_DATA="$PD_WS" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true >/dev/null 2>&1
-WS_SAW="$(cat "$WS_MARK" 2>/dev/null || echo '<no shim ran>')"
-if [[ "$WS_SAW" == "WS" ]]; then
-  ok "monorepo workspace node_modules/.bin markdownlint is resolved (#2732)"
-else
-  fail "monorepo workspace markdownlint not resolved — saw '$WS_SAW'"
-fi
-
-# --- Missing jq: visible advisory, no malformed parsing ---------------------
-NO_JQ_ENV="$WORK/no-jq.bashenv"
-cat >"$NO_JQ_ENV" <<'EOF'
-command() {
-  if [[ "${1:-}" == "-v" && "${2:-}" == "jq" ]]; then
-    return 1
-  fi
-  builtin command "$@"
-}
-EOF
-PD_NO_JQ="$(mktemp -d "$WORK/pd.XXXXXX")"
-OUT_NO_JQ="$(run_hook_env "$FA" BASH_ENV="$NO_JQ_ENV" CLAUDE_PLUGIN_DATA="$PD_NO_JQ" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-RC_NO_JQ=$?
-if [[ $RC_NO_JQ -eq 0 ]]; then ok "missing jq exits 0 (advisory)"; else fail "missing jq exit $RC_NO_JQ"; fi
-if printf '%s' "$OUT_NO_JQ" | jq -e '(.hookSpecificOutput.additionalContext | contains("jq not on the hook PATH")) and (.systemMessage | contains("jq not on the hook PATH"))' >/dev/null 2>&1; then
-  ok "missing jq emits visible notice on both channels"
-else
-  fail "missing jq warning absent: $OUT_NO_JQ"
-fi
-
-# --- Missing jq in a config-less repo: opt-in decided first, so NO notice ----
-# The per-edit hook's opt-in contract is "no config, no run, no notice", and a
-# prerequisite notice is still a notice: a repository that never opted into
-# Markdown formatting must not be nagged to install jq for it. (The SessionStart
-# probe is outside this contract; it reports a missing markdownlint-cli2.) The assertion
-# above pins the inverse (config present + jq absent -> notice), so the pair
-# distinguishes suppression from a hook that simply stopped warning.
-PD_NO_JQ_NOCFG="$(mktemp -d "$WORK/pd.XXXXXX")"
-OUT_NO_JQ_NOCFG="$(run_hook_env "$NOCFG_FIXTURE" BASH_ENV="$NO_JQ_ENV" CLAUDE_PLUGIN_DATA="$PD_NO_JQ_NOCFG" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-RC_NO_JQ_NOCFG=$?
-if [[ $RC_NO_JQ_NOCFG -eq 0 && -z "$OUT_NO_JQ_NOCFG" ]]; then
-  ok "missing jq in a config-less repo -> exit 0, no notice (opt-in decided first)"
-else
-  fail "missing jq in a config-less repo emitted output (rc=$RC_NO_JQ_NOCFG out=$OUT_NO_JQ_NOCFG)"
-fi
-
-# --- Missing jq AND missing git, nested file: the notice must still be owed ---
-# The opt-in pre-check resolves its own repo root, on the one path that runs
-# before jq exists. It is the same resolution as the authoritative gate's and it
-# carries the same git dependency, but no other case in this file can see it:
-# every jq-absence case above runs with git present, and every git-absence case
-# runs with jq present. Together the two shims put a nested file on that path,
-# where a root that collapses to the file's own directory reads a repository
-# that DID opt in as one that never did — and then swallows the jq notice it is
-# owed, silently. The config-less pair above pins the other direction, so the
-# assertion cannot pass by the hook simply having stopped warning.
-NO_JQ_NO_GIT_ENV="$WORK/no-jq-no-git.bashenv"
-cat >"$NO_JQ_NO_GIT_ENV" <<'EOF'
-command() {
-  if [[ "${1:-}" == "-v" && ("${2:-}" == "jq" || "${2:-}" == "git") ]]; then
-    return 1
-  fi
-  builtin command "$@"
-}
-git() {
-  printf 'bash: git: command not found\n' >&2
-  return 127
-}
-EOF
-PD_NO_JQ_NOGIT="$(mktemp -d "$WORK/pd.XXXXXX")"
-NOJQ_NESTED="$REPO/docs/fixtureNoJqNoGitNested.md"
-printf '# No Jq No Git Nested\n\n* star item\n' >"$NOJQ_NESTED"
-OUT_NO_JQ_NOGIT="$(run_hook_env "$NOJQ_NESTED" BASH_ENV="$NO_JQ_NO_GIT_ENV" CLAUDE_PLUGIN_DATA="$PD_NO_JQ_NOGIT" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-RC_NO_JQ_NOGIT=$?
-if [[ $RC_NO_JQ_NOGIT -eq 0 ]] &&
-  printf '%s' "$OUT_NO_JQ_NOGIT" | grep -q 'jq not on the hook PATH'; then
-  ok "missing jq + missing git, nested .md -> the opt-in pre-check still finds the root config and the notice is emitted"
-else
-  fail "missing jq + missing git, nested .md -> notice swallowed, the pre-check read an opted-in repo as opted-out (rc=$RC_NO_JQ_NOGIT out=$OUT_NO_JQ_NOGIT)"
-fi
-
-# --- Repository-config trust gate: risky config blocks lint until approved ---
-# Uses the official persistent plugin-data surface so separate hook processes
-# share the approval marker. A code-loading configuration must SKIP the lint
-# run — with a visible notice on both channels — until the user records an
-# explicit approval for that exact configuration-content state; any config
-# change must revoke the approval. Blocking is observed through MD047: the
-# fixture lacks a final newline, so a lint run is exactly "newline appended".
-TRUST_DATA="$WORK/plugin-data"
-ORIGINAL_CONFIG="$REPO/.markdownlint-cli2.jsonc"
-SAVED_CONFIG="$WORK/original-markdownlint-cli2.jsonc"
-mv "$ORIGINAL_CONFIG" "$SAVED_CONFIG"
-
-has_final_newline() {
-  [[ "$(tail -c 1 "$1" | od -An -tx1 | tr -d ' \n')" == "0a" ]]
-}
-
-# Every trust-gate case runs with the same plugin-data store, so separate hook
-# processes share the approval marker. The _session form is for a case that
-# reads the notice after an earlier case in this suite already emitted one.
-run_hook_trust() {
-  run_hook_env "$1" CLAUDE_PLUGIN_DATA="$TRUST_DATA" \
-    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true
-}
-
-run_hook_trust_session() {
-  run_hook_session "$1" "$2" CLAUDE_PLUGIN_DATA="$TRUST_DATA" \
-    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true
-}
-
-cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
-module.exports = {
-  config: { "MD013": false },
-  noBanner: true,
-  noProgress: true
-};
-CJS
-TRUST_FILE="$REPO/trust-cjs.md"
-printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
-
-OUT_TRUST_1="$(run_hook_trust "$TRUST_FILE")"
-RC_TRUST_1=$?
-if [[ $RC_TRUST_1 -eq 0 ]]; then ok "unapproved executable config exits 0 (advisory)"; else fail "unapproved executable config exit $RC_TRUST_1"; fi
-if printf '%s' "$OUT_TRUST_1" | jq -e '(.hookSpecificOutput.additionalContext | contains("trust gate") and contains(".markdownlint-cli2.cjs")) and (.systemMessage | contains("trust gate"))' >/dev/null 2>&1; then
-  ok "executable .cjs config emits visible trust-gate notice on both channels"
-else
-  fail "executable .cjs trust-gate notice absent: $OUT_TRUST_1"
-fi
-# The approval is the user's call: the model's copy states the verdict and never
-# carries the command that grants it.
-if printf '%s' "$OUT_TRUST_1" | jq -e '(.hookSpecificOutput.additionalContext | contains("is not approved. Approval is the user'"'"'s.") and (contains("mkdir -p") | not)) and (.systemMessage | contains("mkdir -p"))' >/dev/null 2>&1; then
-  ok "trust gate: the mkdir approval command reaches the user only"
-else
-  fail "trust gate: mkdir approval command on the model channel or missing for the user: $OUT_TRUST_1"
-fi
-if ! has_final_newline "$TRUST_FILE"; then
-  ok "unapproved executable config blocks markdownlint --fix"
-else
-  fail "unapproved executable config still ran markdownlint --fix"
-fi
-
-# Same state, same session: the notice dedupes, but the lint run stays blocked.
-OUT_TRUST_2="$(run_hook_trust "$TRUST_FILE")"
-if [[ -z "$OUT_TRUST_2" ]]; then
-  ok "unchanged unapproved state notices only once per session"
-else
-  fail "unchanged unapproved state noticed again: $OUT_TRUST_2"
-fi
-if ! has_final_newline "$TRUST_FILE"; then
-  ok "repeat edit stays blocked while unapproved"
-else
-  fail "repeat edit ran markdownlint --fix while unapproved"
-fi
-
-# The notice's approval instruction must name a marker under this plugin-data
-# store; creating that marker is the explicit opt-in that enables the lint run.
-TRUST_MARKER="$(printf '%s' "$OUT_TRUST_1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
-if [[ -n "$TRUST_MARKER" && "$TRUST_MARKER" == "$TRUST_DATA"/* ]]; then
-  ok "trust-gate notice carries an approval marker under CLAUDE_PLUGIN_DATA"
-else
-  fail "trust-gate approval marker missing or misplaced: $OUT_TRUST_1"
-fi
-mkdir -p "$TRUST_MARKER"
-OUT_TRUST_3="$(run_hook_trust "$TRUST_FILE")"
-RC_TRUST_3=$?
-if [[ $RC_TRUST_3 -eq 0 && -z "$OUT_TRUST_3" ]] && has_final_newline "$TRUST_FILE"; then
-  ok "approved configuration state lints again (fix applied, no notice)"
-else
-  fail "approved configuration state did not lint (rc=$RC_TRUST_3 out=$OUT_TRUST_3)"
-fi
-
-# A config-content change produces a new state signature: the approval is
-# revoked, and the gate blocks — and notices, despite the same session — again.
-printf '\n// unreviewed configuration revision\n' >>"$REPO/.markdownlint-cli2.cjs"
-printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
-OUT_TRUST_4="$(run_hook_trust "$TRUST_FILE")"
-if printf '%s' "$OUT_TRUST_4" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
-  ! has_final_newline "$TRUST_FILE"; then
-  ok "changed executable config state revokes approval and blocks again"
-else
-  fail "changed executable config state was not re-gated: $OUT_TRUST_4"
-fi
-
-# Declarative CLI2 configuration still loads modules when these official keys
-# are present. Empty arrays keep the fixture self-contained while proving all
-# three key names are recognized without executing third-party test modules.
-rm "$REPO/.markdownlint-cli2.cjs"
-cat >"$ORIGINAL_CONFIG" <<'JSONC'
-{
-  "config": { "MD013": false },
-  "customRules": [],
-  "markdownItPlugins": [],
-  "outputFormatters": [],
-  "noBanner": true,
-  "noProgress": true
-}
-JSONC
-OUT_TRUST_MODULES="$(run_hook_trust "$TRUST_FILE")"
-if printf '%s' "$OUT_TRUST_MODULES" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate") and contains(".markdownlint-cli2.jsonc")' >/dev/null 2>&1 &&
-  ! has_final_newline "$TRUST_FILE"; then
-  ok "module-loading config keys are gated with a visible notice"
-else
-  fail "module-loading config keys were not gated: $OUT_TRUST_MODULES"
-fi
-
-# Fail closed: with no CLAUDE_PLUGIN_DATA an approval can be neither recorded
-# nor verified, so a risky config must still skip the lint run (and notice
-# every time — the once-per-session gate fails open toward visibility when it
-# has no marker store).
-OUT_TRUST_NOSTATE="$(run_hook_env "$TRUST_FILE" -u CLAUDE_PLUGIN_DATA \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-if printf '%s' "$OUT_TRUST_NOSTATE" | jq -e '(.systemMessage | contains("trust gate")) and (.hookSpecificOutput.additionalContext | contains("so it cannot be approved; lint stays off.") and (contains("mkdir -p") | not))' >/dev/null 2>&1 &&
-  ! has_final_newline "$TRUST_FILE"; then
-  ok "risky config without a plugin-data store fails closed"
-else
-  fail "risky config without a plugin-data store did not fail closed: $OUT_TRUST_NOSTATE"
-fi
-
-# A module-loading key spelled through a JSONC string escape must not slip past
-# the textual key scan: the config is unverifiable as written, so it gates AND
-# refuses approval (no marker instruction is offered).
-cat >"$ORIGINAL_CONFIG" <<'JSONC'
-{
-  "config": { "MD013": false },
-  "custom\u0052ules": [],
-  "noBanner": true,
-  "noProgress": true
-}
-JSONC
-printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
-OUT_TRUST_ESCAPE="$(run_hook_trust "$TRUST_FILE")"
-if printf '%s' "$OUT_TRUST_ESCAPE" | jq -e '(.systemMessage | contains("trust gate") and contains("defeat textual verification")) and (.systemMessage | contains("mkdir -p") | not) and (.hookSpecificOutput.additionalContext | contains("defeats textual verification, so it cannot be approved as written; lint stays off.") and (contains("mkdir -p") | not))' >/dev/null 2>&1 &&
-  ! has_final_newline "$TRUST_FILE"; then
-  ok "escape-obfuscated module key gates and refuses approval"
-else
-  fail "escape-obfuscated module key was not gated unverifiable: $OUT_TRUST_ESCAPE"
-fi
-
-# A computed module expression (require whose argument is not a single string
-# literal) cannot be pinned by the text scan, so the state must refuse approval
-# outright rather than sign a module graph it cannot see.
-rm -f "$ORIGINAL_CONFIG"
-cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
-const path = require("path");
-module.exports = {
-  config: { "MD013": false },
-  customRules: [require(path.join(__dirname, "rules", "local.cjs"))],
-  noBanner: true,
-  noProgress: true
-};
-CJS
-printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
-OUT_TRUST_COMPUTED="$(run_hook_trust "$TRUST_FILE")"
-if printf '%s' "$OUT_TRUST_COMPUTED" | jq -e '(.systemMessage | contains("trust gate")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
-  ! has_final_newline "$TRUST_FILE"; then
-  ok "computed require expression gates and refuses approval"
-else
-  fail "computed require expression was not refused: $OUT_TRUST_COMPUTED"
-fi
-rm "$REPO/.markdownlint-cli2.cjs"
-
-# An escaped module specifier decodes to a different path than its raw text
-# (Node reads this one as ./rules.js), so it cannot be pinned: refuse approval.
-cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
-module.exports = {
-  config: { "MD013": false },
-  customRules: [require("./r\u0075les.js")],
-  noBanner: true,
-  noProgress: true
-};
-CJS
-printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
-OUT_TRUST_ESCSPEC="$(run_hook_trust "$TRUST_FILE")"
-if printf '%s' "$OUT_TRUST_ESCSPEC" | jq -e '(.systemMessage | contains("trust gate")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
-  ! has_final_newline "$TRUST_FILE"; then
-  ok "escaped module specifier gates and refuses approval"
-else
-  fail "escaped module specifier was not refused: $OUT_TRUST_ESCSPEC"
-fi
-rm "$REPO/.markdownlint-cli2.cjs"
-
-# An EXECUTABLE config that carries a module-loading key gets no approval route,
-# whatever the entry looks like: markdownlint-cli2 resolves those entries itself,
-# so the entry may be any string-producing expression and no text scan can
-# enumerate that space. Both a plain literal and an array-built path are refused
-# here — the literal case is the capability this deliberately gives up, and the
-# array case is what no per-shape pattern could have caught.
-mkdir -p "$REPO/rules"
-cat >"$REPO/rules/local.cjs" <<'CJS'
-module.exports = { names: ["local"], description: "noop", tags: [], function: () => {} };
-CJS
-for shape in literal arrayjoin; do
-  case "$shape" in
-  literal)
-    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
-module.exports = {
-  config: { "MD013": false },
-  customRules: ["./rules/local.cjs"],
-  noBanner: true,
-  noProgress: true
-};
-CJS
-    ;;
-  arrayjoin)
-    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
-module.exports = {
-  config: { "MD013": false },
-  customRules: [["./rules", "local.cjs"].join("/")],
-  noBanner: true,
-  noProgress: true
-};
-CJS
-    ;;
-  *) fail "unknown JS-config shape: $shape" ;;
-  esac
-  printf '# Executable config
-
-Clean text.' >"$TRUST_FILE"
-  OUT_JSKEY="$(run_hook_trust_session "jskey-$shape" "$TRUST_FILE")"
-  if printf '%s' "$OUT_JSKEY" | jq -e '(.systemMessage | contains("trust gate") and contains("cannot pin")) and (.systemMessage | contains("mkdir -p") | not) and (.hookSpecificOutput.additionalContext | contains("no approval can pin, so it cannot be approved as written; lint stays off.") and (contains("mkdir -p") | not))' >/dev/null 2>&1 &&
-    ! has_final_newline "$TRUST_FILE"; then
-    ok "module-loading key in an executable config ($shape) refuses approval"
-  else
-    fail "module-loading key in an executable config ($shape) was not refused: $OUT_JSKEY"
-  fi
-  rm "$REPO/.markdownlint-cli2.cjs"
-done
-
-# A declarative config can carry BOTH a literal module key AND an escaped module
-# VALUE. The escape verdict must still fire: chained as an else-branch, the key
-# match suppressed it and the collector hashed the raw escaped spelling instead
-# of the file markdownlint decodes it to and loads.
-# The escape is assembled from a backslash variable (unquoted heredoc) so the
-# fixture's intent survives authoring: the file must hold the six characters
-# backslash-u-0-0-6-1, which JSONC decodes to the letter "a".
-BS=$'\\'
-cat >"$ORIGINAL_CONFIG" <<JSONC
-{
-  "config": { "MD013": false },
-  "customRules": ["./rules/loc${BS}u0061l.cjs"],
-  "noBanner": true,
-  "noProgress": true
-}
-JSONC
-printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
-OUT_BOTH="$(run_hook_trust_session key-and-escape "$TRUST_FILE")"
-if printf '%s' "$OUT_BOTH" | jq -e '(.systemMessage | contains("trust gate") and contains("defeat textual verification")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
-  ! has_final_newline "$TRUST_FILE"; then
-  ok "literal key plus escaped module value still reaches the escape verdict"
-else
-  fail "literal key suppressed the escape verdict: $OUT_BOTH"
-fi
-rm -f "$ORIGINAL_CONFIG"
-
-# The escape verdict keys on ANY backslash inside a double-quoted scalar, not on
-# an enumerated escape list. JSON defines \/ alongside \uXXXX, and it decodes to
-# a plain "/" — so a module value spelled `.\/rules\/local.cjs` reads one way to
-# this scan and loads another to markdownlint. An enumeration that named only
-# \uXXXX let this spelling through with an approval pinned to the raw text.
-cat >"$ORIGINAL_CONFIG" <<JSONC
-{
-  "config": { "MD013": false },
-  "customRules": [".${BS}/rules${BS}/local.cjs"],
-  "noBanner": true,
-  "noProgress": true
-}
-JSONC
-printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
-OUT_SOLIDUS="$(run_hook_trust_session jsonc-solidus "$TRUST_FILE")"
-if printf '%s' "$OUT_SOLIDUS" | jq -e '.systemMessage | contains("trust gate") and contains("defeat textual verification")' >/dev/null 2>&1 &&
-  ! has_final_newline "$TRUST_FILE"; then
-  ok "JSONC \\/ escape in a module value reaches the escape verdict"
-else
-  fail "JSONC \\/ escape escaped the escape verdict: $OUT_SOLIDUS"
-fi
-rm -f "$ORIGINAL_CONFIG"
-
-# The same test applies to .yaml: an escape tier scanning only \x/\u/\U,
-# escaped line joins and !! tags would miss quoted escapes entirely. A
-# double-quoted YAML scalar decodes the same repertoire JSON does and more, so a
-# backslash anywhere inside one is the signal, whatever follows it.
-cat >"$REPO/.markdownlint-cli2.yaml" <<YAML
-config:
-  MD013: false
-customRules: [".${BS}/rules${BS}/local.cjs"]
-noBanner: true
-noProgress: true
-YAML
-printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
-OUT_YAML_ESC="$(run_hook_trust_session yaml-quoted-escape "$TRUST_FILE")"
-if printf '%s' "$OUT_YAML_ESC" | jq -e '.systemMessage | contains("trust gate") and contains("defeat textual verification")' >/dev/null 2>&1 &&
-  ! has_final_newline "$TRUST_FILE"; then
-  ok "YAML quoted escape in a module value reaches the escape verdict"
-else
-  fail "YAML quoted escape escaped the escape verdict: $OUT_YAML_ESC"
-fi
-rm -f "$REPO/.markdownlint-cli2.yaml"
-rm -rf "$REPO/rules"
-
-# The evasions a loader-proximity pattern cannot see. Each must still refuse
-# approval, and each defeats a `require`-adjacency window on its own:
-#   comment    a JS comment between the loader name and its open paren
-#   nocall     markdownlint-cli2 resolves customRules itself, so an assembled
-#              specifier needs no loader token in the file at all
-#   concat     string concatenation assembles the specifier
-#   bare       a computed specifier reached through a variable, with a comment
-#              separating it from the loader
-#   envkey     the specifier comes straight from the environment: no loader call
-#              and no path helper, so only the process.* token sees it
-#   alias      path reached through an alias and a destructured import, with no
-#              __dirname, process, template or concatenation to fall back on, so
-#              only refusing the path IMPORT sees it
-for evasion in comment nocall concat bare envkey alias; do
-  case "$evasion" in
-  comment)
-    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
-const path = require("node:path");
-module.exports = {
-  config: { "MD013": false },
-  customRules: [require/*sneak*/(path.join(__dirname, "rules", "local.cjs"))],
-  noBanner: true,
-  noProgress: true
-};
-CJS
-    ;;
-  nocall)
-    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
-const path = require("node:path");
-module.exports = {
-  config: { "MD013": false },
-  customRules: [
-    path.join(__dirname, "rules", "local.cjs")
-  ],
-  noBanner: true,
-  noProgress: true
-};
-CJS
-    ;;
-  concat)
-    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
-const dir = "./rules";
-module.exports = {
-  config: { "MD013": false },
-  customRules: [dir + "/local.cjs"],
-  noBanner: true,
-  noProgress: true
-};
-CJS
-    ;;
-  bare)
-    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
-const which = process.env.MDLINT_RULE_MODULE;
-module.exports = {
-  config: { "MD013": false },
-  customRules: [require /* pick */ (which)],
-  noBanner: true,
-  noProgress: true
-};
-CJS
-    ;;
-  envkey)
-    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
-module.exports = {
-  config: { "MD013": false },
-  customRules: [process.env.MDLINT_RULE_MODULE],
-  noBanner: true,
-  noProgress: true
-};
-CJS
-    ;;
-  alias)
-    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
-const { join, resolve } = require("path");
-const base = resolve("rules");
-module.exports = {
-  config: { "MD013": false },
-  customRules: [join(base, "local.cjs")],
-  noBanner: true,
-  noProgress: true
-};
-CJS
-    ;;
-  *) fail "unknown evasion fixture: $evasion" ;;
-  esac
-  printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
-  OUT_EVADE="$(run_hook_trust_session "evade-$evasion" "$TRUST_FILE")"
-  if printf '%s' "$OUT_EVADE" | jq -e '(.systemMessage | contains("trust gate") and contains("cannot pin")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
-    ! has_final_newline "$TRUST_FILE"; then
-    ok "unpinnable specifier ($evasion) gates and refuses approval"
-  else
-    fail "unpinnable specifier ($evasion) was not refused: $OUT_EVADE"
-  fi
-  rm "$REPO/.markdownlint-cli2.cjs"
-done
-
-# The approval signature must cover the referenced module content, not only the
-# config text: after approving a config whose customRules names a repository
-# module, changing THAT MODULE (config untouched) must revoke the approval.
-mkdir -p "$REPO/rules"
-cat >"$REPO/rules/local-rule.cjs" <<'CJS'
-module.exports = { names: ["local-rule"], description: "noop", tags: [], function: () => {} };
-CJS
-cat >"$ORIGINAL_CONFIG" <<'JSONC'
-{
-  "config": { "MD013": false },
-  "customRules": ["./rules/local-rule.cjs"],
-  "noBanner": true,
-  "noProgress": true
-}
-JSONC
-printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
-OUT_TRUST_MOD1="$(run_hook_trust "$TRUST_FILE")"
-MOD_MARKER="$(printf '%s' "$OUT_TRUST_MOD1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
-if [[ -n "$MOD_MARKER" && "$MOD_MARKER" == "$TRUST_DATA"/* ]] && ! has_final_newline "$TRUST_FILE"; then
-  ok "module-referencing config gates with an approval marker"
-else
-  fail "module-referencing config not gated with marker: $OUT_TRUST_MOD1"
-fi
-mkdir -p "$MOD_MARKER"
-OUT_TRUST_MOD2="$(run_hook_trust "$TRUST_FILE")"
-if [[ -z "$OUT_TRUST_MOD2" ]] && has_final_newline "$TRUST_FILE"; then
-  ok "approved config+module state lints"
-else
-  fail "approved config+module state did not lint: $OUT_TRUST_MOD2"
-fi
-printf '\n// unreviewed rule revision\n' >>"$REPO/rules/local-rule.cjs"
-printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
-OUT_TRUST_MOD3="$(run_hook_trust "$TRUST_FILE")"
-if printf '%s' "$OUT_TRUST_MOD3" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
-  ! has_final_newline "$TRUST_FILE"; then
-  ok "changed referenced module revokes approval and blocks again"
-else
-  fail "changed referenced module did not revoke approval: $OUT_TRUST_MOD3"
-fi
-# An EXTENSIONLESS module reference resolves through Node's CommonJS extension
-# candidates, so it must pin the same module file: approving a config that says
-# "./rules/local-rule" and then changing local-rule.cjs must revoke.
-cat >"$ORIGINAL_CONFIG" <<'JSONC'
-{
-  "config": { "MD013": false },
-  "customRules": ["./rules/local-rule"],
-  "noBanner": true,
-  "noProgress": true
-}
-JSONC
-printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
-OUT_TRUST_EXT1="$(run_hook_trust "$TRUST_FILE")"
-EXT_MARKER="$(printf '%s' "$OUT_TRUST_EXT1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
-mkdir -p "$EXT_MARKER"
-printf '\n// another unreviewed rule revision\n' >>"$REPO/rules/local-rule.cjs"
-printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
-OUT_TRUST_EXT2="$(run_hook_trust "$TRUST_FILE")"
-if [[ -n "$EXT_MARKER" ]] && printf '%s' "$OUT_TRUST_EXT2" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
-  ! has_final_newline "$TRUST_FILE"; then
-  ok "extensionless module reference is pinned; module change revokes approval"
-else
-  fail "extensionless module reference not pinned: m=$EXT_MARKER out=$OUT_TRUST_EXT2"
-fi
-rm -rf "$REPO/rules"
-
-# A YAML plain scalar carries no quotes, so the quoted-string scan never saw
-# `customRules: [./rules/local.cjs]` and the module stayed out of the signature:
-# the config-only marker approved, then changing the rule file kept it valid.
-# Approve, then change ONLY the rule module: the approval must be revoked.
-mkdir -p "$REPO/rules"
-cat >"$REPO/rules/plain.cjs" <<'CJS'
-module.exports = { names: ["plain"], description: "noop", tags: [], function: () => {} };
-CJS
-rm -f "$ORIGINAL_CONFIG"
-cat >"$REPO/.markdownlint-cli2.yaml" <<'YAML'
-config:
-  MD013: false
-customRules: [./rules/plain.cjs]
-noBanner: true
-noProgress: true
-YAML
-printf '# Executable config
-
-Clean text.' >"$TRUST_FILE"
-OUT_YAML1="$(run_hook_trust_session yaml-plain-a "$TRUST_FILE")"
-Y_MARKER="$(printf '%s' "$OUT_YAML1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
-mkdir -p "$Y_MARKER"
-printf '
-// unreviewed rule revision
-' >>"$REPO/rules/plain.cjs"
-printf '# Executable config
-
-Clean text.' >"$TRUST_FILE"
-OUT_YAML2="$(run_hook_trust_session yaml-plain-b "$TRUST_FILE")"
-if [[ -n "$Y_MARKER" ]] && printf '%s' "$OUT_YAML2" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
-  ! has_final_newline "$TRUST_FILE"; then
-  ok "unquoted YAML module path is pinned; module change revokes approval"
-else
-  fail "unquoted YAML module path not pinned: m=$Y_MARKER out=$OUT_YAML2"
-fi
-rm -f "$REPO/.markdownlint-cli2.yaml"
-rm -rf "$REPO/rules"
-
-# The same escape without needing symlink support: a `../` reference reaching a
-# file outside the repository. Runs on every host, so the branch stays covered
-# where the symlink fixture below has to skip.
-mkdir -p "$WORK/outside-repo"
-printf '%s
-' 'module.exports = { names: ["a"], description: "x", tags: [], function: () => {} };' >"$WORK/outside-repo/ext.cjs"
-cat >"$ORIGINAL_CONFIG" <<'JSONC'
-{
-  "config": { "MD013": false },
-  "customRules": ["../outside-repo/ext.cjs"],
-  "noBanner": true,
-  "noProgress": true
-}
-JSONC
-printf '# Executable config
-
-Clean text.' >"$TRUST_FILE"
-OUT_ESCAPE_REL="$(run_hook_trust_session dotdot-escape "$TRUST_FILE")"
-if printf '%s' "$OUT_ESCAPE_REL" | jq -e '(.systemMessage | contains("trust gate") and contains("cannot pin")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
-  ! has_final_newline "$TRUST_FILE"; then
-  ok "module reference escaping the repository refuses approval"
-else
-  fail "out-of-repository module reference was not refused: $OUT_ESCAPE_REL"
-fi
-rm -f "$ORIGINAL_CONFIG"
-rm -rf "$WORK/outside-repo"
-
-# A repository module symlink whose target resolves OUTSIDE the repository names
-# code no repository-content signature can cover: re-aiming the symlink at a
-# different existing external target leaves the signature identical while Node
-# follows the new one. Such a state must refuse approval rather than sign it.
-if OUTSIDE_DIR="$(mktemp -d)" &&
-  printf '%s
-' 'module.exports = { names: ["a"], description: "x", tags: [], function: () => {} };' >"$OUTSIDE_DIR/ext.cjs" &&
-  mkdir -p "$REPO/rules" &&
-  ln -s "$OUTSIDE_DIR/ext.cjs" "$REPO/rules/escaping.cjs" 2>/dev/null &&
-  [[ -L "$REPO/rules/escaping.cjs" ]]; then
-  cat >"$ORIGINAL_CONFIG" <<'JSONC'
-{
-  "config": { "MD013": false },
-  "customRules": ["./rules/escaping.cjs"],
-  "noBanner": true,
-  "noProgress": true
-}
-JSONC
-  printf '# Executable config
-
-Clean text.' >"$TRUST_FILE"
-  OUT_ESCAPE_LINK="$(run_hook_trust_session symlink-escape "$TRUST_FILE")"
-  if printf '%s' "$OUT_ESCAPE_LINK" | jq -e '(.systemMessage | contains("trust gate") and contains("cannot pin")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
-    ! has_final_newline "$TRUST_FILE"; then
-    ok "module symlink resolving outside the repository refuses approval"
-  else
-    fail "out-of-repository module symlink was not refused: $OUT_ESCAPE_LINK"
-  fi
-  rm -f "$ORIGINAL_CONFIG"
-  rm -rf "$REPO/rules" "$OUTSIDE_DIR"
-else
-  echo "SKIP: host cannot create real symlinks for the escape fixture"
-  rm -rf "$REPO/rules" "${OUTSIDE_DIR:-}"
-fi
-
-# Negative control: a declarative rule-only config is not executable and loads
-# no modules, so linting proceeds immediately with no gate noise.
-mv "$SAVED_CONFIG" "$ORIGINAL_CONFIG"
-OUT_TRUST_SAFE="$(run_hook_trust "$TRUST_FILE")"
-if [[ -z "$OUT_TRUST_SAFE" ]] && has_final_newline "$TRUST_FILE"; then
-  ok "rule-only declarative config lints with no trust gate"
-else
-  fail "rule-only declarative config gated or noisy: $OUT_TRUST_SAFE"
-fi
-
-# --- Kill switch: disabled hook is a no-op ----------------------------------
-OUT_K="$(run_hook_env "$FB" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=false)"
-RC_K=$?
-if [[ $RC_K -eq 0 && -z "$OUT_K" ]]; then
-  ok "kill switch disables hook"
-else
-  fail "kill switch failed (rc=$RC_K out=$OUT_K)"
-fi
-
-# --- SessionStart probe: the kill switch closes the launcher gate ------------
-# markdown_format_enabled=false must silence the prerequisite probe as well as
-# the format hook. The gate sits in the launcher (exec-bash.mjs
-# --run-if-unset-or-true), so the closed gate never reads the manifest.
-# shellcheck disable=SC2016 # the ${CLAUDE_PLUGIN_ROOT} placeholders are literal manifest text
-PROBE_ARGS_WANT='[["${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs","probe","${CLAUDE_PLUGIN_ROOT}","--run-if-unset-or-true","MARKDOWN_FORMAT_ENABLED"]]'
-if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
-  PROBE_ARGS_GOT="$(jq -c '[.hooks.SessionStart[]? | select(.matcher != "compact|clear") | .hooks[]? | select(.args) | .args]' "$HOOKS_JSON")"
-  if [[ "$PROBE_ARGS_GOT" == "$PROBE_ARGS_WANT" ]]; then
-    ok "hooks.json: SessionStart probe is gated by --run-if-unset-or-true MARKDOWN_FORMAT_ENABLED"
-  else
-    fail "hooks.json SessionStart args: got $PROBE_ARGS_GOT, want $PROBE_ARGS_WANT"
-  fi
-  # The SessionStart compact|clear row that resets the findings delta gate.
-  RESET_ARGS_GOT="$(jq -c '[.hooks.SessionStart[]? | select(.matcher // "" | test("compact")) | {matcher, args: [.hooks[]? | .args]}]' "$HOOKS_JSON")"
-  # shellcheck disable=SC2016 # the ${CLAUDE_PLUGIN_ROOT} placeholders are literal manifest text
-  RESET_ARGS_WANT='[{"matcher":"compact|clear","args":[["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","${CLAUDE_PLUGIN_ROOT}/hooks/markdown-format.sh","--reset-digests"]]}]'
-  if [[ "$RESET_ARGS_GOT" == "$RESET_ARGS_WANT" ]]; then
-    ok "hooks.json: one SessionStart compact|clear row runs the script with --reset-digests"
-  else
-    fail "hooks.json SessionStart reset row: got $RESET_ARGS_GOT, want $RESET_ARGS_WANT"
-  fi
-else
-  fail "hooks.json SessionStart assertions need jq and $HOOKS_JSON"
-fi
-
-# A PATH with node and the system tools but no markdownlint-cli2; env -i drops
-# any CLAUDE_PLUGIN_OPTION_* the calling session exported.
-if command -v node >/dev/null 2>&1; then
-  PROBE_BIN="$WORK/probe-bin"
-  mkdir -p "$PROBE_BIN"
+  # shellcheck disable=SC2016 # the CLAUDE_PLUGIN_ROOT placeholders are literal manifest text
+  EXPECTED_ROW='["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--run-if-unset-or-true","MARKDOWN_FORMAT_ENABLED","--skip-unless-stdin-contains",".md","${CLAUDE_PLUGIN_ROOT}/hooks/markdown-format.sh"]'
+  expect "hooks.json: no PostToolUse row" "0" "$(jq '[.hooks.PostToolUse // [] | .[]] | length' "$HOOKS_JSON")"
+  expect "hooks.json: one PostToolBatch group with one handler" "1 1" "$(jq -r '.hooks.PostToolBatch | "\(length) \(.[0].hooks | length)"' "$HOOKS_JSON")"
+  expect "hooks.json: the batch handler has no matcher, no if, and runs the script behind the .md prefilter" \
+    "node true true $EXPECTED_ROW" \
+    "$(jq -r '.hooks.PostToolBatch[0] as $g | $g.hooks[0] | "\(.command) \($g | has("matcher") | not) \(has("if") | not) \(.args | tojson)"' "$HOOKS_JSON")"
+  # shellcheck disable=SC2016
+  EXPECTED_STOP='["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--run-if-unset-or-true","MARKDOWN_FORMAT_ENABLED","--require-true","MARKDOWN_FORMAT_END_OF_TURN","${CLAUDE_PLUGIN_ROOT}/hooks/markdown-format.sh","--end-of-turn"]'
+  expect "hooks.json: the Stop row is gated on the end-of-turn option" "$EXPECTED_STOP" "$(jq -c '.hooks.Stop[0].hooks[0].args' "$HOOKS_JSON")"
+  expect "hooks.json: the end-of-turn option is declared, default false" "boolean false" \
+    "$(jq -r '.userConfig.markdown_format_end_of_turn | "\(.type) \(.default)"' "$PLUGIN_ROOT/.claude-plugin/plugin.json")"
+  expect "hooks.json: SessionStart holds only the two prerequisite probes" "2" \
+    "$(jq '[.hooks.SessionStart[].hooks[]] | length' "$HOOKS_JSON")"
+else
+  fail "hooks.json assertions need jq and $HOOKS_JSON"
+fi
+
+# --- SessionStart probe honors markdown_format_enabled -------------------------
+# Runs the hooks.json SessionStart row as the harness spawns it: `node` with the
+# row's args, ${CLAUDE_PLUGIN_ROOT} expanded, from an empty cwd, on a PATH that
+# holds the system tools and no markdownlint-cli2. The gate is
+# `--run-if-unset-or-true` in exec-bash.mjs, so a row without it prints the
+# notice for a disabled plugin. A missing node fails the suite instead of
+# skipping the cases: every hook row launches through it.
+NODE_BIN="$(command -v node 2>/dev/null)"
+if [[ -z "$NODE_BIN" ]]; then
+  fail "probe-gate: node is not on PATH, and every hook row launches through node hooks/exec-bash.mjs"
+else
+  PG_WORK="$(mktemp -d)"
+  mkdir -p "$PG_WORK/sysbin" "$PG_WORK/cwd"
   for dir in /usr/local/bin /usr/bin /bin; do
     for exe in "$dir"/*; do
       base="${exe##*/}"
-      [[ -x "$exe" && "$base" != markdownlint-cli2 && ! -e "$PROBE_BIN/$base" ]] || continue
-      MSYS=winsymlinks:nativestrict ln -s "$exe" "$PROBE_BIN/$base"
+      [[ -x "$exe" && "$base" != markdownlint-cli2 && ! -e "$PG_WORK/sysbin/$base" ]] || continue
+      MSYS=winsymlinks:nativestrict ln -s "$exe" "$PG_WORK/sysbin/$base"
     done
   done
-  ln -sf "$(command -v node)" "$PROBE_BIN/node"
-  run_probe_launcher() {
-    local data
-    data="$(mktemp -d "$WORK/pd.XXXXXX")"
-    (cd "$UNRELATED" && env -i PATH="$PROBE_BIN" CLAUDE_PLUGIN_DATA="$data" "$@" \
-      node "$HOOK_DIR/../lib/prerequisites.mjs" probe "$HOOK_DIR/.." --run-if-unset-or-true MARKDOWN_FORMAT_ENABLED \
-      <<<'{"session_id":"s1"}')
+  PG_ARGS=()
+  # jq on Windows ends each line with CRLF; the CR is not part of the value.
+  while IFS= read -r pg_arg; do
+    pg_arg="${pg_arg%$'\r'}"
+    # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
+    PG_ARGS+=("${pg_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
+  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON")
+  IFS=$'\t' read -r PG_NAME PG_CHECK PG_INSTALL < <(jq -r '.requires[0] | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$PLUGIN_ROOT/prerequisites.json")
+  PG_INSTALL="${PG_INSTALL%$'\r'}"
+
+  # run_probe <value|__unset__> -> run the row with markdown_format_enabled set to <value> (or unset).
+  run_probe() {
+    local v="$1"
+    local -a opt=(env -u CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED)
+    [[ "$v" == "__unset__" ]] || opt=(env "CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=$v")
+    (cd "$PG_WORK/cwd" && printf '{"session_id":"s1"}' |
+      "${opt[@]}" PATH="$PG_WORK/sysbin" CLAUDE_PLUGIN_DATA="$(mktemp -d "$PG_WORK/data.XXXXXX")" \
+        "$NODE_BIN" "${PG_ARGS[@]}" 2>&1)
   }
-  OUT_PROBE_OFF="$(run_probe_launcher CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=false)"
-  RC_PROBE_OFF=$?
-  if [[ $RC_PROBE_OFF -eq 0 && -z "$OUT_PROBE_OFF" ]]; then
-    ok "SessionStart probe: kill switch off -> exit 0, no notice"
+
+  OUT_PG=$(run_probe false)
+  RC_PG=$?
+  if [[ $RC_PG -eq 0 && -z "$OUT_PG" ]]; then
+    ok "probe-gate: markdown_format_enabled=false -> exit 0 and no notice"
   else
-    fail "SessionStart probe with the kill switch off (rc=$RC_PROBE_OFF out=$OUT_PROBE_OFF)"
+    fail "probe-gate: markdown_format_enabled=false should print nothing and exit 0 (rc=$RC_PG out=$OUT_PG)"
   fi
-  OUT_PROBE_ON="$(run_probe_launcher)"
-  RC_PROBE_ON=$?
-  # The SessionStart probe tells the user only; the model hears at the first skip.
-  CTX_PROBE_ON="$(printf '%s' "$OUT_PROBE_ON" | jq -r '.systemMessage // empty' 2>/dev/null)"
-  if [[ $RC_PROBE_ON -eq 0 &&
-    "$CTX_PROBE_ON" == *markdownlint-cli2* &&
-    "$CTX_PROBE_ON" == */markdown-format:check* &&
-    "$CTX_PROBE_ON" == *"npm i -D markdownlint-cli2"* ]]; then
-    ok "SessionStart probe: kill switch unset -> notice names the tool, the check skill and the install"
-  else
-    fail "SessionStart probe with the kill switch unset (rc=$RC_PROBE_ON out=$OUT_PROBE_ON)"
-  fi
-else
-  skip "SessionStart probe kill-switch run" "node not on PATH"
-fi
-
-# ============================================================================
-# Phase 2: hook telemetry tests
-# ============================================================================
-
-# --- Telemetry sink unset → hook stdout + exit identical to pre-change ------
-# Additive-safety proof: HOOK_TELEMETRY_SINK unset must produce byte-identical
-# stdout and exit code to the pre-Phase-2 baseline.
-
-# Re-run fixture A with sink unset — must still produce empty stdout, exit 0.
-printf '# Title A2\r\n\r\nSome text\r\n\r\n- item one\r\n- item two' >"$REPO/fixtureA2.md"
-OUT_A_NOSINK="$(run_hook_env "$REPO/fixtureA2.md" -u HOOK_TELEMETRY_SINK \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-RC_A_NOSINK=$?
-if [[ $RC_A_NOSINK -eq 0 ]]; then ok "telemetry/sink-unset: exit 0 (parity)"; else fail "telemetry/sink-unset: expected 0, got $RC_A_NOSINK"; fi
-if [[ -z "$OUT_A_NOSINK" ]]; then ok "telemetry/sink-unset: empty stdout (parity)"; else fail "telemetry/sink-unset: stdout not empty: $OUT_A_NOSINK"; fi
-
-# Re-run fixture B with sink unset — must still emit additionalContext, exit 0.
-printf '# Doc B2\n\n## Section\n\ntext\n\n## Section\n\n* star item\n' >"$REPO/fixtureB2.md"
-OUT_B_NOSINK="$(run_hook_tool Edit "$REPO/fixtureB2.md" -u HOOK_TELEMETRY_SINK \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-RC_B_NOSINK=$?
-if [[ $RC_B_NOSINK -eq 0 ]]; then ok "telemetry/sink-unset B: exit 0 (parity)"; else fail "telemetry/sink-unset B: expected 0, got $RC_B_NOSINK"; fi
-if printf '%s' "$OUT_B_NOSINK" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null 2>&1; then
-  ok "telemetry/sink-unset B: additionalContext present (parity)"
-else
-  fail "telemetry/sink-unset B: no additionalContext: $OUT_B_NOSINK"
-fi
-# Emit must NOT appear in hook stdout (no envelope JSON alongside additionalContext)
-if printf '%s' "$OUT_B_NOSINK" | jq -e '.schema_version' >/dev/null 2>&1; then
-  fail "telemetry/sink-unset B: envelope leaked to hook stdout"
-else
-  ok "telemetry/sink-unset B: no envelope in hook stdout"
-fi
-
-# --- Stub sink: real edit → schema-valid envelope with status ok and findings -
-TEL_FILE="$(mktemp)"
-STUB_SINK="$(make_sink "cat >\"$TEL_FILE\"")"
-
-# Fixture with unfixable finding (MD024 duplicate heading): status ok + findings populated.
-printf '# Doc T\n\n## Section\n\ntext\n\n## Section\n\nmore text\n' >"$REPO/fixtureT.md"
-# shellcheck disable=SC2034  # stdout captured for timing correctness; content checked via TEL_FILE
-_OUT_T="$(run_hook_tool Write "$REPO/fixtureT.md" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$STUB_SINK")"
-RC_T=$?
-wait_for_sink "$TEL_FILE"
-
-if [[ $RC_T -eq 0 ]]; then ok "telemetry/stub-sink: hook exit 0"; else fail "telemetry/stub-sink: hook exit $RC_T"; fi
-
-if [[ -s "$TEL_FILE" ]]; then
-  ok "telemetry/stub-sink: envelope received"
-  # Validate all 7 required common fields
-  if check_envelope "$TEL_FILE"; then ok "telemetry/envelope: matches envelope schema"; else fail "telemetry/envelope: does not match envelope schema. envelope=$(cat "$TEL_FILE")"; fi
-  # status must be "ok"
-  TEL_STATUS="$(jq -r '.status' "$TEL_FILE")"
-  if [[ "$TEL_STATUS" == "ok" ]]; then ok "telemetry/envelope: status ok"; else fail "telemetry/envelope: status expected ok, got $TEL_STATUS"; fi
-  # MD024 is not auto-fixable, so the fix pass ran and wrote nothing.
-  if [[ "$(jq -r '.data.changed' "$TEL_FILE")" == "false" ]]; then ok "telemetry/envelope: data.changed false (unfixable finding only)"; else fail "telemetry/envelope: data.changed=$(jq -c '.data.changed' "$TEL_FILE")"; fi
-  # data.findings must contain exactly the MD024 violation line (not banner noise).
-  # Schema: "Unfixable markdownlint violations remaining after --fix, one per line."
-  # Banner lines (version, Finding:, Linting:, Summary:) must be excluded.
-  TEL_FINDINGS_LEN="$(jq '.data.findings | length' "$TEL_FILE")"
-  if [[ "$TEL_FINDINGS_LEN" -eq 1 ]]; then
-    ok "telemetry/envelope: findings has exactly 1 item (violation only, no banner noise)"
-  else
-    fail "telemetry/envelope: findings expected 1 violation, got $TEL_FINDINGS_LEN: $(jq '.data.findings' "$TEL_FILE")"
-  fi
-  # The single finding must name the MD024 rule.
-  if jq -e '.data.findings[0] | test("MD024")' "$TEL_FILE" >/dev/null 2>&1; then
-    ok "telemetry/envelope: findings[0] names MD024"
-  else
-    fail "telemetry/envelope: findings[0] does not name MD024: $(jq '.data.findings[0]' "$TEL_FILE")"
-  fi
-  # data.tool must be "Write" (from the input JSON)
-  TEL_TOOL="$(jq -r '.data.tool' "$TEL_FILE")"
-  if [[ "$TEL_TOOL" == "Write" ]]; then ok "telemetry/envelope: data.tool is Write"; else fail "telemetry/envelope: data.tool expected Write, got $TEL_TOOL"; fi
-  # data.file must be repo-relative (schema: "relative to the consuming repo root").
-  # A relative path does not start with / or a Windows drive letter.
-  TEL_FILE_VAL="$(jq -r '.data.file' "$TEL_FILE")"
-  if [[ -n "$TEL_FILE_VAL" && "$TEL_FILE_VAL" != /* && "$TEL_FILE_VAL" != ?:* ]]; then
-    ok "telemetry/envelope: data.file is repo-relative ($TEL_FILE_VAL)"
-  else
-    fail "telemetry/envelope: data.file expected repo-relative, got: $TEL_FILE_VAL"
-  fi
-  # schema_version must be "1.1"
-  TEL_SV="$(jq -r '.schema_version' "$TEL_FILE")"
-  if [[ "$TEL_SV" == "1.1" ]]; then ok "telemetry/envelope: schema_version 1.1"; else fail "telemetry/envelope: schema_version expected 1.1, got $TEL_SV"; fi
-  # duration_ms must be non-negative integer
-  if jq -e '.duration_ms | type == "number" and . >= 0 and floor == .' "$TEL_FILE" >/dev/null 2>&1; then
-    ok "telemetry/envelope: duration_ms is non-negative integer"
-  else
-    fail "telemetry/envelope: duration_ms invalid: $(jq .duration_ms "$TEL_FILE")"
-  fi
-else
-  fail "telemetry/stub-sink: no envelope written to sink"
-  fail "telemetry/envelope: status (no envelope)"
-  fail "telemetry/envelope: findings (no envelope)"
-  fail "telemetry/envelope: data.tool (no envelope)"
-  fail "telemetry/envelope: data.file (no envelope)"
-  fail "telemetry/envelope: schema_version (no envelope)"
-  fail "telemetry/envelope: duration_ms (no envelope)"
-fi
-rm -f "$TEL_FILE"
-
-# --- Stub sink: clean file → status ok, findings empty array -----------------
-TEL_CLEAN="$(mktemp)"
-STUB_CLEAN="$(make_sink "cat >\"$TEL_CLEAN\"")"
-printf '# Clean Doc\n\nSome text.\n' >"$REPO/fixtureClean.md"
-# shellcheck disable=SC2034  # stdout captured for timing correctness; content checked via TEL_CLEAN
-_OUT_CLEAN="$(run_hook_tool Write "$REPO/fixtureClean.md" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$STUB_CLEAN")"
-RC_CLEAN=$?
-wait_for_sink "$TEL_CLEAN"
-
-if [[ $RC_CLEAN -eq 0 ]]; then ok "telemetry/clean: hook exit 0"; else fail "telemetry/clean: hook exit $RC_CLEAN"; fi
-if [[ -s "$TEL_CLEAN" ]]; then
-  STATUS_CLEAN="$(jq -r '.status' "$TEL_CLEAN")"
-  if [[ "$STATUS_CLEAN" == "ok" ]]; then ok "telemetry/clean: status ok"; else fail "telemetry/clean: status expected ok, got $STATUS_CLEAN"; fi
-  FINDINGS_CLEAN="$(jq '.data.findings | length' "$TEL_CLEAN")"
-  if [[ "$FINDINGS_CLEAN" -eq 0 ]]; then ok "telemetry/clean: findings empty array"; else fail "telemetry/clean: findings should be empty, got $FINDINGS_CLEAN items"; fi
-else
-  fail "telemetry/clean: no envelope written"
-  fail "telemetry/clean: status (no envelope)"
-  fail "telemetry/clean: findings empty (no envelope)"
-fi
-rm -f "$TEL_CLEAN"
-
-# --- Stub sink non-zero exit → format + hook exit 0 unaffected ---------------
-FAIL_SINK_FILE="$(mktemp)"
-# A sink that exits non-zero but still writes (to prove hook ignores sink failure)
-FAIL_SINK="$(make_sink "cat >\"$FAIL_SINK_FILE\"; exit 1")"
-printf '# Failing Sink Doc\n\nSome text.\n' >"$REPO/fixtureFailSink.md"
-# shellcheck disable=SC2034  # stdout captured for timing correctness; exit code is the assertion
-_OUT_FS="$(run_hook_tool Write "$REPO/fixtureFailSink.md" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$FAIL_SINK")"
-RC_FS=$?
-wait_for_sink "$FAIL_SINK_FILE"
-
-if [[ $RC_FS -eq 0 ]]; then ok "telemetry/fail-sink: hook exit 0 despite sink failure"; else fail "telemetry/fail-sink: hook exit $RC_FS, expected 0"; fi
-rm -f "$FAIL_SINK_FILE"
-
-# --- Slow sink (C1 fd1-leak detector): hook does not wait on it --------------
-# Invariant: the backgrounded telemetry sink must not keep fd1 open, so the
-# hook's command substitution returns as soon as the hook exits, NOT after the
-# sink finishes. A leak would make $() block until the sink closes fd1 — i.e.
-# for the sink's whole sleep.
-#
-# Measured differentially rather than against a fixed wall-clock bound. Spawn
-# overhead is machine- and load-dependent (on Windows Git Bash a single hook is
-# already ~1.5s, and parallel test suites push it higher), so any fixed
-# threshold either false-fails under load or has to be set so high the sink must
-# sleep long enough to linger past the suite's EXIT cleanup and lock its stub
-# file on Windows. A baseline run (fast sink, no sleep) captures the SAME ambient
-# overhead as the slow run under the SAME capture; subtracting it cancels the
-# overhead and isolates the leak signal. Under a leak the delta is ~SINK_SLEEP;
-# with no leak it is ~0 (± scheduling jitter).
-#
-# THRESHOLD_MS asserts the actual invariant — "did not wait for the sink" —
-# as sleep-minus-a-safety-margin, NOT half the sleep. Halving discarded margin
-# for no gain and was proven too tight empirically (#448 reopen): a clean-main
-# false-fail measured delta=3697ms against the old 3000ms/half-sleep threshold,
-# and load-generated measurements up to ~2150ms (30 concurrent suite runs on
-# Windows Git Bash) confirm noise alone can approach that old threshold.
-#
-# The threshold has TWO margins and both must clear that 2150ms worst observed
-# noise, because the detector can fail in either direction:
-#
-#   noise side  threshold - max_noise      a no-leak run must stay BELOW it
-#   leak  side  leak_signal - threshold    a leaking run must stay ABOVE it
-#
-# The leak side is the one a too-HIGH threshold breaks, and it is not covered by
-# the min-of-N baseline below: that protects against ONE unlucky baseline sample,
-# not against a load shift that inflates ALL of them and then subsides before the
-# slow run. Baselines 2s+ slower than the slow run's own overhead subtract real
-# leak signal out of the delta, so a leak whose delta lands between the threshold
-# and SINK_SLEEP passes silently. SINK_SLEEP=8s with SAFETY_MARGIN_MS=3000 puts
-# the threshold at 5000ms, roughly midway between the signal and the noise:
-# 2850ms of noise-side margin and 3000ms of leak-side margin, both above the
-# 2150ms worst case measured. Recorded measurements bracket it — a deliberately
-# reintroduced leak measured delta=8065ms (detected), while 40 runs under 30x
-# concurrent load peaked at ~1555ms with no leak (passed).
-#
-# The baseline is the MINIMUM of several fast runs, not a single sample. A lone
-# baseline that happened to be descheduled longer than the slow run would shrink
-# DELTA_MS below the threshold and let a real fd1 leak PASS — a false-NEGATIVE
-# (fail-open). Only an *inflated* baseline can mask a leak, so the minimum
-# reflects true-minimal overhead and keeps the leak signal (~SINK_SLEEP) in the
-# delta regardless of one unlucky sample. The opposite error — an inflated slow
-# sample with no leak — only re-fails a green run (fail-safe, re-runnable), so
-# just the baseline needs min-of-N; the slow run stays single (each slow sample
-# costs SINK_SLEEP).
-SINK_SLEEP=8
-SAFETY_MARGIN_MS=3000
-BASE_SAMPLES=3
-BASE_SINK="$(make_sink "cat >/dev/null")"
-SLOW_SINK="$(make_sink "cat >/dev/null; sleep $SINK_SLEEP")"
-printf '# Slow Sink Doc\n\nSome text.\n' >"$REPO/fixtureSlowSink.md"
-
-# Baseline and slow runs differ ONLY by the sink's sleep — same fixture, same
-# env — so the shared per-invocation overhead cancels in the delta.
-run_slow_sink() {
-  run_hook_tool Write "$REPO/fixtureSlowSink.md" \
-    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$1"
-}
-
-BASE_MS=""
-for ((_i = 0; _i < BASE_SAMPLES; _i++)); do
-  _TS0=$EPOCHREALTIME
-  # shellcheck disable=SC2034  # captured so $() blocks until fd1 closes (baseline overhead)
-  _OUT_BASE="$(run_slow_sink "$BASE_SINK")"
-  _TS1=$EPOCHREALTIME
-  _b=$(epoch_delta_ms "$_TS0" "$_TS1")
-  if [[ -z "$BASE_MS" || $_b -lt $BASE_MS ]]; then BASE_MS=$_b; fi
-done
-
-_TS0=$EPOCHREALTIME
-# shellcheck disable=SC2034  # captured so $() blocks until fd1 closes — proves no fd1 leak
-_OUT_SLOW="$(run_slow_sink "$SLOW_SINK")"
-RC_SLOW=$?
-_TS1=$EPOCHREALTIME
-SLOW_MS=$(epoch_delta_ms "$_TS0" "$_TS1")
-
-DELTA_MS=$((SLOW_MS - BASE_MS))
-THRESHOLD_MS=$((SINK_SLEEP * 1000 - SAFETY_MARGIN_MS))
-echo "  (C1 fd1-leak: base=${BASE_MS}ms (min of ${BASE_SAMPLES}) slow=${SLOW_MS}ms delta=${DELTA_MS}ms, threshold <${THRESHOLD_MS}ms, sink sleeps ${SINK_SLEEP}s)"
-if [[ $RC_SLOW -eq 0 ]]; then ok "telemetry/slow-sink: hook exit 0"; else fail "telemetry/slow-sink: hook exit $RC_SLOW"; fi
-if [[ $DELTA_MS -lt $THRESHOLD_MS ]]; then
-  ok "telemetry/slow-sink: hook did not wait for the sink (delta ${DELTA_MS}ms << ${SINK_SLEEP}s sleep = no fd1 leak)"
-else
-  fail "telemetry/slow-sink: delta ${DELTA_MS}ms ≈ sink's ${SINK_SLEEP}s sleep — fd1 leak blocks \$() until the sink exits"
-fi
-
-# --- Emit never leaks to hook stdout -----------------------------------------
-# hook stdout must contain ONLY the hookSpecificOutput JSON (for residual case)
-# or be empty (clean case). Never the telemetry envelope.
-TEL_LEAK="$(mktemp)"
-LEAK_SINK="$(make_sink "cat >\"$TEL_LEAK\"")"
-printf '# Leak Doc\n\n## Section\n\ntext\n\n## Section\n\nmore text\n' >"$REPO/fixtureLeakCheck.md"
-OUT_LEAK="$(run_hook_tool Write "$REPO/fixtureLeakCheck.md" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$LEAK_SINK")"
-wait_for_sink "$TEL_LEAK"
-
-# The hook stdout must NOT contain the telemetry envelope's top-level keys
-if printf '%s' "$OUT_LEAK" | jq -e '.schema_version' >/dev/null 2>&1; then
-  fail "telemetry/stdout-leak: envelope schema_version found in hook stdout"
-elif printf '%s' "$OUT_LEAK" | jq -e '.duration_ms' >/dev/null 2>&1; then
-  fail "telemetry/stdout-leak: envelope duration_ms found in hook stdout"
-else
-  ok "telemetry/stdout-leak: no envelope in hook stdout"
-fi
-# Hook stdout must still contain additionalContext (findings present for this fixture)
-if printf '%s' "$OUT_LEAK" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null 2>&1; then
-  ok "telemetry/stdout-leak: additionalContext still present when sink set"
-else
-  fail "telemetry/stdout-leak: additionalContext missing when sink set: $OUT_LEAK"
-fi
-rm -f "$TEL_LEAK"
-
-# --- Unwired producer runs zero telemetry-only subprocesses -------------------
-# The telemetry payload (tool_name jq parse, cygpath path normalization, data
-# JSON build) must be gated on sink presence. Count the hook's subprocess
-# spawns via PATH shims: a cygpath shim that logs and echoes its last argument
-# unchanged (a plausible `-lm` result on any host; the runs below also set
-# OSTYPE=msys, the Git Bash value that makes the library look for cygpath, so
-# the Windows branch is exercised even on Linux), and a jq shim that logs then
-# delegates to the real
-# jq so hook behavior is unaffected. cygpath assertions filter on the hook's
-# `-lm` flag: on Windows, npm/npx launcher shims may call `cygpath -w` on
-# their own, which is not the hook's doing.
-SHIM_DIR="$WORK/shims"
-mkdir -p "$SHIM_DIR"
-CYG_LOG="$WORK/cygpath.log"
-JQ_LOG="$WORK/jq.log"
-REAL_JQ="$(command -v jq)"
-cat >"$SHIM_DIR/cygpath" <<EOF
-#!/usr/bin/env bash
-printf '%s\n' "\$*" >>"$CYG_LOG"
-printf '%s\n' "\${!#}"
-EOF
-cat >"$SHIM_DIR/jq" <<EOF
-#!/usr/bin/env bash
-printf '%s\n' "\$*" >>"$JQ_LOG"
-exec "$REAL_JQ" "\$@"
-EOF
-chmod +x "$SHIM_DIR/cygpath" "$SHIM_DIR/jq"
-
-count_lm() { grep -c -- '-l -m' "$CYG_LOG" 2>/dev/null || true; }
-
-# Unwired (sink unset), clean fixture: no jq at all. hook::buffer_stdin
-# validates an object payload with builtins (hook::_json_object_proven) and
-# hook::read_file_path_to reads file_path with builtins. TOOL, FILE_REL and
-# data_json are all telemetry-only and must not be built.
-: >"$CYG_LOG"
-: >"$JQ_LOG"
-printf '# Gate Doc\n\nClean text.\n' >"$REPO/fixtureGate.md"
-OUT_GATE="$(run_hook_tool Write "$REPO/fixtureGate.md" -u HOOK_TELEMETRY_SINK \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true OSTYPE=msys PATH="$SHIM_DIR:$PATH")"
-RC_GATE=$?
-if [[ $RC_GATE -eq 0 && -z "$OUT_GATE" ]]; then
-  ok "telemetry-gate/unwired: exit 0, empty stdout"
-else
-  fail "telemetry-gate/unwired: rc=$RC_GATE out=$OUT_GATE"
-fi
-CYG_LM_UNWIRED="$(count_lm)"
-if [[ "$CYG_LM_UNWIRED" -eq 0 ]]; then
-  ok "telemetry-gate/unwired: zero cygpath -lm spawns"
-else
-  fail "telemetry-gate/unwired: $CYG_LM_UNWIRED cygpath -lm spawns: $(cat "$CYG_LOG")"
-fi
-JQ_UNWIRED="$(wc -l <"$JQ_LOG")"
-if [[ "$JQ_UNWIRED" -eq 0 ]]; then
-  ok "telemetry-gate/unwired: no jq spawn (payload validation and file_path are builtin)"
-else
-  fail "telemetry-gate/unwired: expected 0 jq spawns, got $JQ_UNWIRED: $(cat "$JQ_LOG")"
-fi
-
-# Wired (stub sink), same fixture shape: the payload construction must still
-# run — positive control proving the shims observe the telemetry spawns (the
-# unwired zeroes above would otherwise pass vacuously).
-: >"$CYG_LOG"
-: >"$JQ_LOG"
-TEL_GATE="$(mktemp)"
-GATE_SINK="$(make_sink "cat >\"$TEL_GATE\"")"
-printf '# Gate Doc Wired\n\nClean text.\n' >"$REPO/fixtureGateWired.md"
-# shellcheck disable=SC2034  # stdout captured for timing correctness; content checked via TEL_GATE
-_OUT_GW="$(run_hook_tool Write "$REPO/fixtureGateWired.md" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$GATE_SINK" OSTYPE=msys PATH="$SHIM_DIR:$PATH")"
-wait_for_sink "$TEL_GATE"
-CYG_LM_WIRED="$(count_lm)"
-if [[ "$CYG_LM_WIRED" -eq 2 ]]; then
-  ok "telemetry-gate/wired: 2 cygpath -lm spawns (FILE + REPO_ROOT normalization)"
-else
-  fail "telemetry-gate/wired: expected 2 cygpath -lm spawns, got $CYG_LM_WIRED: $(cat "$CYG_LOG")"
-fi
-JQ_WIRED="$(wc -l <"$JQ_LOG")"
-if [[ "$JQ_WIRED" -ge 1 ]]; then
-  ok "telemetry-gate/wired: payload jq spawns present ($JQ_WIRED total)"
-else
-  fail "telemetry-gate/wired: expected >1 jq spawns, got $JQ_WIRED: $(cat "$JQ_LOG")"
-fi
-if [[ -s "$TEL_GATE" ]] && jq -e '.data.tool == "Write"' "$TEL_GATE" >/dev/null 2>&1; then
-  ok "telemetry-gate/wired: envelope delivered with data.tool intact"
-else
-  fail "telemetry-gate/wired: envelope missing or data.tool wrong: $(cat "$TEL_GATE" 2>/dev/null)"
-fi
-rm -f "$TEL_GATE"
-
-# ============================================================================
-# Bounded emission — cap, rule histogram, delta gate, mutation disclosure
-# ============================================================================
-# The defect: the hook appended EVERY line of markdownlint's whole-file output
-# to additionalContext on every touch, with no cap, no baseline and no dedup.
-# One measured session burned roughly 95K tokens across 21 byte-identical
-# whole-file dumps, 97% of them one rule the repository intentionally violates.
-#
-# A second stub is used rather than the fixture stub above: these cases need a
-# controllable finding COUNT and the "Attempted: N fixes" line markdownlint-cli2
-# prints when it rewrites a file, neither of which the fixture stub produces.
-NOISY_BIN="$(mktemp -d "$WORK/noisybin.XXXXXX")"
-cat >"$NOISY_BIN/markdownlint-cli2" <<'NOISY'
-#!/usr/bin/env bash
-set -uo pipefail
-file="${2:-}"
-[[ -n "$file" && -f "$file" ]] || exit 2
-
-# markdownlint-cli2 is a Node process, and on Windows its stdout is
-# CRLF-terminated. STUB_CRLF reproduces that, because a stub that only ever
-# emits LF makes any "no carriage returns in the report" assertion pass whether
-# the hook strips them or not.
-emit() {
-  if [[ -n "${STUB_CRLF:-}" ]]; then
-    printf '%s\r\n' "$1"
-  else
-    printf '%s\n' "$1"
-  fi
-}
-
-# Banner lines markdownlint-cli2 always prints. None of them says anything
-# about the edited file; the hook must keep them out of the report.
-emit "markdownlint-cli2 v0.23.1 (markdownlint v0.41.1)"
-emit "Finding: $file !**/node_modules/** !**/.venv/** !**/bin/** !**/obj/**"
-emit "Linting: 1 file"
-[[ -n "${STUB_FIX_COUNT:-}" ]] && emit "Attempted: $STUB_FIX_COUNT fixes in 1 file"
-n="${STUB_FINDINGS:-0}"
-((n > 0)) || exit 0
-emit "Summary: $n issues in 1 file"
-
-# STUB_RULE_KINDS spreads the findings across that many DISTINCT rule codes.
-# The default of 2 keeps every existing case's histogram unchanged; raising it
-# past the histogram's top-five cut is the only way to reach the overflow
-# suffix, which no fixture could otherwise trigger.
-kinds="${STUB_RULE_KINDS:-2}"
-codes="MD013 MD032 MD022 MD031 MD040 MD041 MD047 MD009"
-set -- $codes
-# Fail loudly rather than expanding an out-of-range positional parameter, which
-# under `set -u` is a fatal unbound-variable abort several frames from the cause.
-if ((kinds > $#)); then
-  echo "stub: STUB_RULE_KINDS=$kinds exceeds the $# rule codes this stub knows" >&2
-  exit 2
-fi
-i=1
-while ((i <= n)); do
-  if ((kinds <= 2)); then
-    if ((i <= n - 2)); then
-      emit "$file:$i:81 error MD013/line-length Line length [Expected: 80]"
+  for v in __unset__ true; do
+    label="markdown_format_enabled=$v"
+    [[ "$v" == "__unset__" ]] && label="markdown_format_enabled unset"
+    OUT_PG=$(run_probe "$v")
+    RC_PG=$?
+    if [[ $RC_PG -eq 0 && "$OUT_PG" == *"$PG_NAME"* && "$OUT_PG" == *"$PG_CHECK"* && "$OUT_PG" == *"$PG_INSTALL"* ]]; then
+      ok "probe-gate: $label -> notice names $PG_NAME, $PG_CHECK and the install line"
     else
-      emit "$file:$i:1 error MD032/blanks-around-lists Lists should be surrounded by blank lines"
-    fi
-  else
-    idx=$((i % kinds + 1))
-    eval "code=\${$idx}"
-    emit "$file:$i:1 error $code/stub-rule Stub rule violation"
-  fi
-  i=$((i + 1))
-done
-exit 1
-NOISY
-chmod +x "$NOISY_BIN/markdownlint-cli2"
-
-NOISY_DATA="$(mktemp -d "$WORK/noisydata.XXXXXX")"
-run_noisy() {
-  local file_path="$1"
-  shift
-  (cd "$UNRELATED" && printf '{"session_id":"noisy-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
-    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true \
-      CLAUDE_PLUGIN_DATA="$NOISY_DATA" PATH="$NOISY_BIN:$PATH" "$@" bash "$HOOK")
-}
-
-FN="$REPO/noisy.md"
-printf '# Noisy\n\nbody\n' >"$FN"
-
-# --- 50 findings: capped detail, but the count and the rules always survive ---
-OUT_N=$(run_noisy "$FN" STUB_FINDINGS=50)
-CTX_N=$(ctx_of "$OUT_N")
-DETAIL_N=$(printf '%s' "$CTX_N" | grep -c 'error MD')
-if [[ "$DETAIL_N" -eq 20 ]]; then
-  ok "bounded/cap: per-finding detail capped at the 20-line default (got $DETAIL_N)"
-else
-  fail "bounded/cap: expected 20 detail lines, got $DETAIL_N"
-fi
-if printf '%s' "$CTX_N" | grep -qF 'noisy.md has 50 finding(s)'; then
-  ok "bounded/cap: the full finding count is still reported"
-else
-  fail "bounded/cap: total count missing: $CTX_N"
-fi
-if printf '%s' "$CTX_N" | grep -q 'MD013 x48' && printf '%s' "$CTX_N" | grep -q 'MD032 x2'; then
-  ok "bounded/cap: rule histogram names which rules dominate the truncated set"
-else
-  fail "bounded/cap: rule histogram missing or wrong: $CTX_N"
-fi
-if printf '%s' "$CTX_N" | grep -q 'more rule(s)'; then
-  fail "bounded/cap: claimed omitted rules when only two rules fired: $CTX_N"
-else
-  ok "bounded/cap: no omitted-rule suffix when every rule fits in the histogram"
-fi
-if printf '%s' "$CTX_N" | grep -qF '... and 30 more (cap: markdown_format_max_findings)'; then
-  ok "bounded/cap: the omitted remainder is reported as a count"
-else
-  fail "bounded/cap: remainder not reported: $CTX_N"
-fi
-if printf '%s' "$CTX_N" | grep -q 'markdownlint-cli2 v0.23.1' ||
-  printf '%s' "$CTX_N" | grep -q 'Finding:' ||
-  printf '%s' "$CTX_N" | grep -q 'Linting: 1 file'; then
-  fail "bounded/cap: banner noise leaked into the report: $CTX_N"
-else
-  ok "bounded/cap: markdownlint banner lines kept out of the report"
-fi
-
-# --- Telemetry is NOT capped: a sink is a machine, the cap protects context ---
-TELN="$(mktemp)"
-SINKN="$(make_sink "cat >\"$TELN\"")"
-run_noisy "$FN" STUB_FINDINGS=50 HOOK_TELEMETRY_SINK="$SINKN" >/dev/null
-wait_for_sink "$TELN"
-if [[ "$(jq '.data.findings | length' "$TELN" 2>/dev/null)" -eq 50 ]]; then
-  ok "bounded/telemetry: all 50 findings still reach the sink uncapped"
-else
-  fail "bounded/telemetry: expected 50, got $(jq '.data.findings | length' "$TELN" 2>/dev/null)"
-fi
-rm -f "$TELN"
-
-# --- Scale: a large payload may be LOST, but must never be FALSIFIED ---------
-# The 50-finding case above cannot see this. Windows caps a process command line
-# at 32767 characters; a findings array handed to jq as an --argjson value blows
-# that somewhere past ~300 entries (reproduced with the hooks' own jq: 300 pass,
-# 600 fail, rc=126 "argument list too long").
-#
-# There are two such call sites, and only one is this plugin's to fix.
-# build_data_json is local and now feeds jq on stdin. hook::emit_telemetry then
-# passes the FINISHED payload the same way from the shared lib/hook-utils.sh,
-# which is byte-synced into every carrying plugin — fixing it there is a
-# fleet-wide wave, tracked as #1595.
-#
-# So the assertion is the invariant that holds either way, and keeps holding
-# after #1595 lands: telemetry is documented best-effort and lossy, so a dropped
-# envelope is inside contract. An envelope that ARRIVES claiming zero findings
-# for a 600-finding file is not — that is the local fallback firing, and it
-# reports the noisiest files in the repository as clean.
-FS="$REPO/scale.md"
-printf '# Scale\n\nbody\n' >"$FS"
-TELS="$(mktemp)"
-SINKS="$(make_sink "cat >\"$TELS\"")"
-run_noisy "$FS" STUB_FINDINGS=600 HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
-wait_for_sink "$TELS" 50
-if [[ -s "$TELS" ]]; then
-  SCALE_LEN=$(jq '.data.findings | length' "$TELS" 2>/dev/null)
-  if [[ "$SCALE_LEN" == "600" ]]; then
-    ok "bounded/scale: the envelope arrived carrying all 600 findings"
-  else
-    fail "bounded/scale: an envelope arrived claiming ${SCALE_LEN:-?} findings for a 600-finding file — a payload that lies is worse than none"
-  fi
-else
-  ok "bounded/scale: oversized payload was dropped, not falsified (envelope loss is in contract; see #1595)"
-fi
-rm -f "$TELS"
-OUT_SCALE=$(run_noisy "$FS" STUB_FINDINGS=601)
-CTX_SCALE=$(ctx_of "$OUT_SCALE")
-if printf '%s' "$CTX_SCALE" | grep -qF 'has 601 finding(s)'; then
-  ok "bounded/scale: the report still states the true count at 601 findings"
-else
-  fail "bounded/scale: count wrong or missing at 601 findings: $CTX_SCALE"
-fi
-
-# --- Carriage returns: on EVERY channel, against a stub that emits them ------
-# markdownlint-cli2 is a Node process with CRLF stdout on Windows. A stub that
-# only ever emits LF makes any of this vacuous, so STUB_CRLF makes it emit the
-# real thing. The strip must also cover the telemetry findings array, not just
-# the rendered report: that array is built from the same output and goes to a
-# different consumer.
-#
-# The assertion looks for the two-character JSON escape `\r` in the RAW emitted
-# document, NOT for a real CR in a jq-decoded value. That is not fussiness: on
-# Git Bash, reading a value back through `printf | jq -r | $(…)` normalizes CRLF
-# pairs away, so a decoded-value check silently cannot see exactly the CRs this
-# is about — every CR here sits at end-of-line. Verified by revert-probe: with
-# the fix removed, the decoded-value form still passed while the raw-escape form
-# fails. Testing the bytes the hook actually emits is the only honest check.
-crlf_escaped() { case "$1" in *'\r'*) return 0 ;; *) return 1 ;; esac }
-
-FCR="$REPO/crlf.md"
-printf '# CRLF\n\nbody\n' >"$FCR"
-TELCR="$(mktemp)"
-SINKCR="$(make_sink "cat >\"$TELCR\"")"
-OUT_CR=$(run_noisy "$FCR" STUB_FINDINGS=4 STUB_FIX_COUNT=3 STUB_CRLF=1 HOOK_TELEMETRY_SINK="$SINKCR")
-wait_for_sink "$TELCR"
-CTX_RAW=$(printf '%s' "$OUT_CR" | jq -c '.hookSpecificOutput.additionalContext // ""' 2>/dev/null)
-SYS_RAW=$(printf '%s' "$OUT_CR" | jq -c '.systemMessage // ""' 2>/dev/null)
-if crlf_escaped "$CTX_RAW"; then
-  fail "bounded/crlf: carriage returns leaked into additionalContext"
-else
-  ok "bounded/crlf: additionalContext carries no carriage returns (stub emitted CRLF)"
-fi
-if crlf_escaped "$SYS_RAW"; then
-  fail "bounded/crlf: carriage returns leaked into systemMessage"
-else
-  ok "bounded/crlf: systemMessage carries no carriage returns"
-fi
-# This one is labeled because its discriminating power is PLATFORM-DEPENDENT,
-# and an assertion whose strength varies by host must say so rather than be
-# taken for uniform coverage. `findings_raw` reaches the envelope through a pipe
-# into `jq -R`. Measured on a Windows jq build: with the hook's normalization
-# removed, the two assertions above fail while this one still passes — the CRs
-# are already gone by the time jq emits, so there was nothing here to catch.
-# That is NOT established for the Linux jq this repo's CI runs, which has no
-# text/binary mode distinction and is documented not to strip a trailing CR from
-# CRLF input; there this assertion may genuinely discriminate. Kept either way:
-# on Linux it guards, on Windows it documents.
-TEL_FINDINGS_RAW=$(jq -c '.data.findings' "$TELCR" 2>/dev/null)
-if [[ -n "$TEL_FINDINGS_RAW" ]] && ! crlf_escaped "$TEL_FINDINGS_RAW"; then
-  ok "bounded/crlf: telemetry data.findings carries no carriage returns (discriminating power is platform-dependent)"
-else
-  fail "bounded/crlf: carriage returns leaked into data.findings: $TEL_FINDINGS_RAW"
-fi
-if [[ "$(jq '.data.findings | length' "$TELCR" 2>/dev/null)" -eq 4 ]]; then
-  ok "bounded/crlf: CRLF output is still parsed into the right number of findings"
-else
-  fail "bounded/crlf: CRLF parsing lost findings: $TEL_FINDINGS_RAW"
-fi
-rm -f "$TELCR"
-
-# --- The histogram overflow suffix, positively -------------------------------
-# The negative case (no suffix at two rule kinds) already exists. Nothing
-# exercised the suffix itself, because the stub could only ever emit two rule
-# codes — so the behavior in this feature's headline was unverified.
-FRULES="$REPO/manyrules.md"
-printf '# Rules\n\nbody\n' >"$FRULES"
-OUT_RK=$(run_noisy "$FRULES" STUB_FINDINGS=40 STUB_RULE_KINDS=8)
-CTX_RK=$(ctx_of "$OUT_RK")
-if printf '%s' "$CTX_RK" | grep -q '+3 more rule(s)'; then
-  ok "bounded/rules: eight rule kinds report the three the histogram omitted"
-else
-  fail "bounded/rules: overflow suffix missing or miscounted: $CTX_RK"
-fi
-if [[ "$(printf '%s' "$CTX_RK" | grep -oE 'MD[0-9]+ x[0-9]+' | wc -l)" -eq 5 ]]; then
-  ok "bounded/rules: the histogram still names exactly its top five"
-else
-  fail "bounded/rules: histogram entry count wrong: $CTX_RK"
-fi
-
-# --- The cap is configurable, and 0 means unlimited -------------------------
-# Raising the cap must bring the detail back on an OTHERWISE UNCHANGED finding
-# set: the truncation hint tells the user to raise it, so a delta gate keyed on
-# the finding set alone would make that advice impossible to act on. Run against
-# the same file and the same 50 findings the capped run above already digested.
-OUT_C=$(run_noisy "$FN" STUB_FINDINGS=50 CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS=3)
-CTX_C=$(ctx_of "$OUT_C")
-if [[ "$(printf '%s' "$CTX_C" | grep -c 'error MD')" -eq 3 ]]; then
-  ok "bounded/config: markdown_format_max_findings lowers the cap, and a cap change defeats the delta gate"
-else
-  fail "bounded/config: cap not honored: $CTX_C"
-fi
-OUT_U=$(run_noisy "$FN" STUB_FINDINGS=50 CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS=0)
-CTX_U=$(ctx_of "$OUT_U")
-if [[ "$(printf '%s' "$CTX_U" | grep -c 'error MD')" -eq 50 ]]; then
-  ok "bounded/config: 0 means unlimited"
-else
-  fail "bounded/config: 0 did not disable the cap: $(printf '%s' "$CTX_U" | grep -c 'error MD')"
-fi
-FG="$REPO/garbage.md"
-printf '# Garbage\n\nbody\n' >"$FG"
-OUT_G=$(run_noisy "$FG" STUB_FINDINGS=5 CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS="not-a-number; rm -rf /")
-CTX_G=$(ctx_of "$OUT_G")
-if [[ "$(printf '%s' "$CTX_G" | grep -c 'error MD')" -eq 5 ]]; then
-  ok "bounded/config: a non-integer value falls back to the default, never interpolated"
-else
-  fail "bounded/config: garbage value not rejected: $CTX_G"
-fi
-
-# --- Delta gate: an unchanged repeat sends nothing ---------------------------
-# The model already holds the first report, so an unchanged set on a re-edit
-# sends nothing. A changed set, a clean run in between, a SessionStart compact
-# or clear, and another agent each get the report again.
-FD="$REPO/delta.md"
-printf '# Delta\n\nbody\n' >"$FD"
-OUT_D1=$(run_noisy "$FD" STUB_FINDINGS=30)
-CTX_D1=$(ctx_of "$OUT_D1")
-OUT_D2=$(run_noisy "$FD" STUB_FINDINGS=30)
-if [[ "$(printf '%s' "$CTX_D1" | grep -c 'error MD')" -eq 20 ]]; then
-  ok "bounded/delta: first run carries the (capped) detail"
-else
-  fail "bounded/delta: first run detail missing: $CTX_D1"
-fi
-if [[ -z "$OUT_D2" ]]; then
-  ok "bounded/delta: an unchanged repeat sends nothing"
-else
-  fail "bounded/delta: unchanged repeat was sent again: $OUT_D2"
-fi
-OUT_D3=$(run_noisy "$FD" STUB_FINDINGS=31)
-CTX_D3=$(ctx_of "$OUT_D3")
-if [[ "$(printf '%s' "$CTX_D3" | grep -c 'error MD')" -eq 20 ]]; then
-  ok "bounded/delta: a changed finding set brings the detail back"
-else
-  fail "bounded/delta: changed set stayed suppressed: $CTX_D3"
-fi
-printf '{"session_id":"noisy-1","source":"compact"}' |
-  env CLAUDE_PLUGIN_DATA="$NOISY_DATA" bash "$HOOK" --reset-digests
-CTX_D4=$(ctx_of "$(run_noisy "$FD" STUB_FINDINGS=31)")
-if [[ "$CTX_D4" == *"has 31 finding(s)"* ]]; then
-  ok "bounded/delta: a SessionStart compact resets the record, so the set is sent again"
-else
-  fail "bounded/delta: after compact reset: $CTX_D4"
-fi
-run_noisy "$FD" STUB_FINDINGS=0 >/dev/null
-CTX_D5=$(ctx_of "$(run_noisy "$FD" STUB_FINDINGS=31)")
-if [[ "$CTX_D5" == *"has 31 finding(s)"* ]]; then
-  ok "bounded/delta: findings that return after a clean run are sent again"
-else
-  fail "bounded/delta: after a clean run: $CTX_D5"
-fi
-# The record is keyed per agent, not per session: a subagent that never saw the
-# report gets it in full.
-CTX_D6=$(ctx_of "$(cd "$UNRELATED" && printf '{"session_id":"noisy-1","agent_id":"sub-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$FD" |
-  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true \
-    CLAUDE_PLUGIN_DATA="$NOISY_DATA" PATH="$NOISY_BIN:$PATH" STUB_FINDINGS=31 bash "$HOOK")")
-if [[ "$(printf '%s' "$CTX_D6" | grep -c 'error MD')" -eq 20 ]]; then
-  ok "bounded/delta: a subagent is sent the detail the main agent already had"
-else
-  fail "bounded/delta: subagent got: $CTX_D6"
-fi
-
-# --- Applied fixes are disclosed on both channels ---------------------------
-FF="$REPO/fixed.md"
-printf '# Fixed\n\nbody\n' >"$FF"
-OUT_F=$(run_noisy "$FF" STUB_FIX_COUNT=7)
-CTX_F=$(ctx_of "$OUT_F")
-SYS_F=$(printf '%s' "$OUT_F" | jq -r '.systemMessage // empty' 2>/dev/null)
-# The user is told of the rewrite; Claude learns of it at its next Edit of the
-# file, as with every other formatter in this marketplace.
-if [[ -z "$CTX_F" ]]; then
-  ok "bounded/fixes: the rewrite is not restated on the agent channel"
-else
-  fail "bounded/fixes: agent-channel copy of the rewrite: $CTX_F"
-fi
-if [[ "$SYS_F" == "markdown-format: reformatted fixed.md." ]]; then
-  ok "bounded/fixes: the rewrite is disclosed on the user channel"
-else
-  fail "bounded/fixes: no user-channel disclosure: $SYS_F"
-fi
-# The same count line is the telemetry verdict: data.changed true on a run that
-# wrote fixes, false on a run that reported none (#3755).
-TEL_FIX="$(mktemp)"
-SINK_FIX="$(make_sink "cat >\"$TEL_FIX\"")"
-run_noisy "$FF" STUB_FIX_COUNT=7 HOOK_TELEMETRY_SINK="$SINK_FIX" >/dev/null
-wait_for_sink "$TEL_FIX"
-if [[ "$(jq -r '.data.changed' "$TEL_FIX" 2>/dev/null)" == "true" ]]; then
-  ok "bounded/fixes: telemetry data.changed true when fixes were written"
-else
-  fail "bounded/fixes: telemetry data.changed=$(jq -c '.data.changed' "$TEL_FIX" 2>/dev/null)"
-fi
-rm -f "$TEL_FIX"
-TEL_FIX0="$(mktemp)"
-SINK_FIX0="$(make_sink "cat >\"$TEL_FIX0\"")"
-run_noisy "$FF" STUB_FIX_COUNT=0 HOOK_TELEMETRY_SINK="$SINK_FIX0" >/dev/null
-wait_for_sink "$TEL_FIX0"
-if [[ "$(jq -r '.data.changed' "$TEL_FIX0" 2>/dev/null)" == "false" ]]; then
-  ok "bounded/fixes: telemetry data.changed false when the fix pass wrote nothing"
-else
-  fail "bounded/fixes: telemetry data.changed=$(jq -c '.data.changed' "$TEL_FIX0" 2>/dev/null)"
-fi
-rm -f "$TEL_FIX0"
-OUT_F0=$(run_noisy "$FF" STUB_FIX_COUNT=0)
-if [[ -z "$OUT_F0" ]]; then
-  ok "bounded/fixes: a run that changed nothing stays silent"
-else
-  fail "bounded/fixes: no-op run emitted output: $OUT_F0"
-fi
-
-# --- Path-scope escape: a gitignored file is neither rewritten nor reported --
-# The 0.9.0 config gate spared repositories that carry NO markdownlint config;
-# a repository that HAS one still had its gitignored scratch tier (`.work/**`)
-# rewritten and reported on every edit. These cases pin both halves of that
-# acceptance criterion, and pin them with a config present — without one the
-# older gate stops the run first and the assertion would pass for the wrong
-# reason.
-SCOPE="$WORK/scope"
-mkdir -p "$SCOPE/.work"
-git -C "$SCOPE" init -q
-git -C "$SCOPE" config user.email t@t.t
-git -C "$SCOPE" config user.name t
-# Hermetic ignore rules: a developer's global core.excludesFile must not decide
-# what this suite sees as ignored.
-git -C "$SCOPE" config core.excludesFile /dev/null
-printf '.work/\n' >"$SCOPE/.gitignore"
-cat >"$SCOPE/.markdownlint-cli2.jsonc" <<'JSONC'
-{
-  "config": {
-    "MD004": { "style": "dash" },
-    "MD024": { "siblings_only": true },
-    "MD013": false
-  }
-}
-JSONC
-
-# Same shape as fixtureB: `* star item` is a FIXABLE MD004 (the rewrite signal)
-# and the duplicate sibling `## S` an UNFIXABLE MD024 (the report signal), so a
-# single run answers both "was it rewritten" and "was it reported".
-SCOPE_BODY='# Doc
-
-## S
-
-text
-
-## S
-
-* star item
-'
-run_scope() {
-  local file_path="$1"
-  shift
-  (cd "$UNRELATED" && printf '{"session_id":"scope-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
-    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true "$@" bash "$HOOK")
-}
-
-SC_IGN="$SCOPE/.work/scratch.md"
-printf '%s' "$SCOPE_BODY" >"$SC_IGN"
-OUT_SI=$(run_scope "$SC_IGN")
-if [[ -z "$OUT_SI" ]]; then
-  ok "scope: gitignored file (config present) is not reported"
-else
-  fail "scope: gitignored file still reported: $OUT_SI"
-fi
-if grep -q '^\* star item$' "$SC_IGN"; then
-  ok "scope: gitignored file (config present) is not rewritten"
-else
-  fail "scope: gitignored file was rewritten: $(cat "$SC_IGN")"
-fi
-
-# The other side of the same gate: an ordinary repository file keeps its
-# rewrite and its report. A scope escape that swallowed everything would pass
-# the two assertions above.
-SC_TRK="$SCOPE/tracked.md"
-printf '%s' "$SCOPE_BODY" >"$SC_TRK"
-OUT_ST=$(run_scope "$SC_TRK")
-CTX_ST=$(ctx_of "$OUT_ST")
-if grep -q '^- star item$' "$SC_TRK"; then
-  ok "scope: a non-ignored file is still rewritten"
-else
-  fail "scope: non-ignored file was not rewritten: $(cat "$SC_TRK")"
-fi
-if printf '%s' "$CTX_ST" | grep -q 'MD024'; then
-  ok "scope: a non-ignored file is still reported"
-else
-  fail "scope: non-ignored file lost its report: $OUT_ST"
-fi
-
-# `git check-ignore` consults the index, so a TRACKED file that matches an
-# exclude pattern is NOT ignored — a file under version control is part of the
-# reviewable artifact whatever the patterns say. `git add -f` (no commit
-# needed) puts it in the index.
-SC_FORCED="$SCOPE/.work/tracked-scratch.md"
-printf '%s' "$SCOPE_BODY" >"$SC_FORCED"
-git -C "$SCOPE" add -f .work/tracked-scratch.md 2>/dev/null
-OUT_SF=$(run_scope "$SC_FORCED")
-if grep -q '^- star item$' "$SC_FORCED" &&
-  ctx_of "$OUT_SF" | grep -q 'MD024'; then
-  ok "scope: a tracked file under an ignored path is still linted"
-else
-  fail "scope: tracked-but-ignore-matching file was skipped: $(cat "$SC_FORCED")"
-fi
-
-# Opt-out: markdown_format_lint_gitignored=true restores the old behavior,
-# reaching the hook as the CLAUDE_PLUGIN_OPTION_<KEY> mirror.
-SC_OPT="$SCOPE/.work/optin.md"
-printf '%s' "$SCOPE_BODY" >"$SC_OPT"
-OUT_SO=$(run_scope "$SC_OPT" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED=true)
-if grep -q '^- star item$' "$SC_OPT" &&
-  ctx_of "$OUT_SO" | grep -q 'MD024'; then
-  ok "scope: markdown_format_lint_gitignored=true lints the ignored file anyway"
-else
-  fail "scope: opt-out did not restore linting: $OUT_SO"
-fi
-SC_GARB="$SCOPE/.work/garbage-opt.md"
-printf '%s' "$SCOPE_BODY" >"$SC_GARB"
-OUT_SG=$(run_scope "$SC_GARB" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED="yes; rm -rf /")
-if [[ -z "$OUT_SG" ]] && grep -q '^\* star item$' "$SC_GARB"; then
-  ok "scope: a non-boolean opt-out value falls back to the default, never interpolated"
-else
-  fail "scope: garbage opt-out value was honored: $OUT_SG"
-fi
-
-# Windows path forms: the hook hands git a REPO-RELATIVE path precisely so a
-# POSIX-mount spelling (/c/...) and a drive-letter spelling (C:/...) reach the
-# same verdict. Only meaningful where both spellings exist.
-if command -v cygpath >/dev/null 2>&1; then
-  SC_WIN="$SCOPE/.work/winform.md"
-  printf '%s' "$SCOPE_BODY" >"$SC_WIN"
-  SC_WIN_M="$(cygpath -m -- "$SC_WIN")"
-  OUT_SW=$(run_scope "$SC_WIN_M")
-  if [[ -z "$OUT_SW" ]] && grep -q '^\* star item$' "$SC_WIN"; then
-    ok "scope: drive-letter path spelling reaches the same ignored verdict"
-  else
-    fail "scope: drive-letter spelling was linted: $OUT_SW / $(cat "$SC_WIN")"
-  fi
-else
-  ok "scope: drive-letter path spelling case not applicable (no cygpath)"
-fi
-
-# A repository with NO markdownlint config and a gitignored file is untouched
-# too — but by the pre-existing config gate, which stops the run before the
-# scope check. Recorded so the pairing is complete, not as evidence for the
-# scope escape.
-NOCFG="$WORK/scope-noconfig"
-mkdir -p "$NOCFG/.work"
-git -C "$NOCFG" init -q
-git -C "$NOCFG" config core.excludesFile /dev/null
-printf '.work/\n' >"$NOCFG/.gitignore"
-NC_IGN="$NOCFG/.work/scratch.md"
-printf '%s' "$SCOPE_BODY" >"$NC_IGN"
-OUT_NC=$(run_scope "$NC_IGN")
-if [[ -z "$OUT_NC" ]] && grep -q '^\* star item$' "$NC_IGN"; then
-  ok "scope: gitignored file in a config-less repo is untouched (config gate)"
-else
-  fail "scope: config-less repo touched a gitignored file: $OUT_NC"
-fi
-
-# --- Benign path spawns no process it does not need (traced) -----------------
-# This hook fires on every Markdown Write and Edit, so the process count on the
-# path where the file is already clean IS the cost. Three assertions guard it: a
-# set of commands that must not appear anywhere in the run, a CEILING on how
-# many external processes the hook's OWN code spawns, and an allowlist naming
-# which ones they may be.
-#
-# A total over the whole run would not be portable, because the shared path
-# resolver makes a different number of realpath and cygpath calls on Windows
-# than on Linux. A total over the hook's own code IS portable, and the trace
-# separates the two: the run is traced with a PS4 carrying ${FUNCNAME[0]}, and a
-# command substitution's subshell inherits FUNCNAME, so a `$(realpath ...)`
-# inside a shared library function is attributed to that function rather than to
-# its caller. Every function in hooks/hook-utils.sh is in the `hook::` namespace
-# and nothing in this plugin's own script is, so "the frame is not hook::" is
-# exactly "this hook's own code". Every host-dependent process lands on the
-# other side of that line.
-#
-# The ceiling is an upper bound rather than an equality so a later cut does not
-# fail it; the allowlist is what catches a swap that keeps the count.
-#
-# dirname and basename became parameter expansions, including inside the two
-# directory walks whose exec count grew with the file's depth below the repo
-# root, which is why the fixture below sits two levels down rather than at the
-# root: a walk that still shelled out would show it here.
-#
-# CLAUDE_PROJECT_DIR is SET here, unlike the cases above, because Claude Code
-# always sets it and with it unset the shared path resolver takes a git-
-# membership branch that spawns a dirname of its own. The telemetry sink is
-# cleared so an inherited one does not make the envelope the thing being counted.
-trace_words() {
-  awk -v scope="$2" '
-    /^\++@/ {
-      line = $0
-      sub(/^\++@/, "", line)
-      fn = line
-      sub(/@.*/, "", fn)
-      rest = line
-      sub(/^[^@]*@ ?/, "", rest)
-      while (rest ~ /^[A-Za-z_][A-Za-z_0-9]*=/) { sub(/^[A-Za-z_][A-Za-z_0-9]*=[^ ]*[ ]*/, "", rest) }
-      split(rest, a, " ")
-      if (a[1] == "") next
-      if (scope == "own" && fn ~ /^hook::/) next
-      print a[1]
-    }' "$1"
-}
-
-# The command words the hook's own frames run as EXTERNAL processes, reported by
-# basename so a tool reached through an absolute path counts as itself. A word
-# invoked through a path is external by construction; otherwise `type -t`
-# decides, which rejects every builtin and keyword along with this plugin's own
-# shell functions, since those are not defined in this test's shell.
-own_externals() {
-  trace_words "$1" own | while read -r w; do
-    if [[ "$w" == */* || "$(type -t "$w" 2>/dev/null)" == file ]]; then
-      printf '%s\n' "${w##*/}"
-    fi
-  done | sort
-}
-
-trace_execs() {
-  trace_words "$2" all |
-    awk -v c="$1" '{ w = $0; sub(/.*\//, "", w); if (w == c) n++ } END { print n + 0 }'
-}
-
-mkdir -p "$REPO/nested/deeper"
-printf '# Clean\n\nSome text.\n\n- item one\n- item two\n' >"$REPO/nested/deeper/clean.md"
-TRACE="$WORK/benign-trace.txt"
-(
-  cd "$UNRELATED" || exit 1
-  # shellcheck disable=SC2016  # PS4 must reach the traced shell UNEXPANDED: it
-  # is that shell which expands ${FUNCNAME[0]}, once per trace line.
-  printf '{"tool_input":{"file_path":"%s"}}' "$REPO/nested/deeper/clean.md" |
-    env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$REPO" \
-      CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true \
-      PS4='+@${FUNCNAME[0]:-MAIN}@ ' \
-      bash -x "$HOOK" >/dev/null 2>"$TRACE"
-)
-for banned in dirname basename; do
-  N="$(trace_execs "$banned" "$TRACE")"
-  if [[ "$N" == "0" ]]; then
-    ok "traced benign: no $banned spawned"
-  else
-    fail "traced benign: $banned spawned $N time(s) on a clean nested file"
-  fi
-done
-
-# Four externals: markdownlint-cli2, which is the point of the hook; one git for
-# the gitignore verdict; and two greps scanning the applicable markdownlint
-# config for the keys that would let it load code. The greps are deliberate and
-# documented in the README's accounting section.
-OWN_LIST="$(own_externals "$TRACE" | tr '\n' ' ')"
-OWN_LIST="${OWN_LIST% }"
-OWN_N="$(own_externals "$TRACE" | grep -c .)"
-if [[ "$OWN_N" -le 4 ]]; then
-  ok "traced benign: the hook's own code spawns $OWN_N external(s), ceiling 4 [$OWN_LIST]"
-else
-  fail "traced benign: the hook's own code spawns $OWN_N externals, ceiling 4 [$OWN_LIST]"
-fi
-UNEXPECTED=""
-for w in $OWN_LIST; do
-  case "$w" in
-  git | grep | markdownlint-cli2 | markdownlint-cli2.cmd) ;;
-  *) UNEXPECTED="$UNEXPECTED $w" ;;
-  esac
-done
-if [[ -z "$UNEXPECTED" ]]; then
-  ok "traced benign: every external the hook's own code spawns is allowlisted (markdownlint-cli2, git, grep)"
-else
-  fail "traced benign: the hook's own code spawns unallowlisted external(s):$UNEXPECTED"
-fi
-
-# --- Root-level file: FILE_DIR is `/`, never `.` (white-box) ------------------
-# A file directly under the filesystem root (`/README.md`) cannot be created
-# without privileges on any CI host, and hook::read_file_path's `-f` test runs
-# before FILE_DIR is computed, so no black-box input reaches that block. The
-# FILE_DIR lines of hook::begin are lifted from the copy this plugin ships and
-# run here instead. The parameter-expansion strip leaves an empty string for
-# such a path, and hook::repo_root reads an empty hint as `.`, the hook process
-# CWD, where the `dirname` it replaced answered `/`. An empty extraction fails
-# loudly so a refactor that moves the block cannot pass by testing nothing.
-FILE_DIR_LINES="$(awk 'index($0, "FILE_DIR=\"${FILE%") { p = 1 } index($0, "REPO_ROOT=") { p = 0 } p' "$HOOK_DIR/hook-utils.sh")"
-if [[ -z "$FILE_DIR_LINES" ]]; then
-  fail "root-level: FILE_DIR block not found in hook-utils.sh"
-else
-  for pair in "/README.md=/" "README.md=." "/a/b.md=/a" "/a/b/c.md=/a/b"; do
-    IN="${pair%%=*}"
-    WANT="${pair#*=}"
-    # shellcheck disable=SC2034,SC2154  # the eval'd hook lines read FILE and assign FILE_DIR
-    GOT="$(
-      FILE="$IN"
-      eval "$FILE_DIR_LINES"
-      printf '%s' "$FILE_DIR"
-    )"
-    if [[ "$GOT" == "$WANT" ]]; then
-      ok "root-level: FILE_DIR of $IN is $GOT"
-    else
-      fail "root-level: FILE_DIR of $IN is '$GOT', want '$WANT'"
+      fail "probe-gate: $label should print the missing-markdownlint-cli2 notice (rc=$RC_PG out=$OUT_PG)"
     fi
   done
+  rm -rf "${PG_WORK:?}"
 fi
 
-# --- Root-level file: config discovery anchors its walk on `/` (white-box) ----
-# The same empty strip guards `start` inside markdownlint_config_discoverable,
-# which the FILE_DIR extraction above never matches. The whole function is
-# lifted from source and called on a root-level path with `cd` shadowed by a
-# function that logs each directory it is asked for: the walk's own `cd` runs
-# under `2>/dev/null`, so a marker file is the only channel that survives.
-# Guarded, the first directory is `/`; unguarded, it is the empty string, which
-# bash rejects as a null directory so the walk fails closed and a root config
-# can never opt the file in. The return code is not asserted for the root
-# call, because it depends on whether this host's `/` carries a config. The
-# control call on a file under a directory that does carry one proves the
-# lifted function and the shim work together.
-#
-# The gate delegates the walk itself to hook::walk_up_to and asks
-# markdownlint_config_here about each directory, so both are lifted alongside it
-# and the library is sourced first — the shim shadows `cd` only after that, and
-# neither the library nor the sourcing calls `cd`.
-DISC_FN="$(awk '/^markdownlint_config_discoverable\(\) \{/ { p = 1 } p { print } p && /^}/ { exit }' "$HOOK")"
-DISC_PRED="$(awk '/^markdownlint_config_here\(\) \{/ { p = 1 } p { print } p && /^}/ { exit }' "$HOOK")"
-if [[ -z "$DISC_FN" || -z "$DISC_PRED" ]]; then
-  fail "root-level walk: markdownlint_config_discoverable/markdownlint_config_here not found in $(basename "$HOOK")"
+# Resolve a real markdownlint-cli2. Skip the rest of the suite when none is available.
+REAL_MD="$(command -v markdownlint-cli2 || true)"
+[[ -n "$REAL_MD" ]] || REAL_MD="$REPO_ROOT/node_modules/.bin/markdownlint-cli2"
+if [[ ! -x "$REAL_MD" ]]; then
+  echo "SKIP: no markdownlint-cli2 (put it on PATH or run npm ci) -- remaining markdown-format hook tests skipped"
+  echo "PASS=$PASS FAIL=$FAIL"
+  exit "$((FAIL > 0 ? 1 : 0))"
+fi
+PATH="${REAL_MD%/*}:$PATH"
+export PATH
+
+WORK="$(mktemp -d)"
+UNRELATED="$(mktemp -d)"
+trap 'rm -rf "$WORK" "$UNRELATED"' EXIT
+
+# The row's args from hooks.json, with the plugin root substituted.
+mapfile -t ROW_ARGS < <(jq -r '.hooks.PostToolBatch[0].hooks[0].args[]' "$HOOKS_JSON" | sed "s#\${CLAUDE_PLUGIN_ROOT}#$PLUGIN_ROOT#g")
+
+# new_md_repo <dir> [config_body] -> init a git repo with a .markdownlint-cli2.jsonc
+# (unless config_body is the literal NO_CONFIG).
+new_md_repo() {
+  local r="$1" cfg="${2:-}"
+  mkdir -p "$r"
+  git -C "$r" init -q
+  git -C "$r" config user.email t@t.t
+  git -C "$r" config user.name t
+  if [[ "$cfg" != "NO_CONFIG" ]]; then
+    if [[ -n "$cfg" ]]; then
+      printf '%s\n' "$cfg" >"$r/.markdownlint-cli2.jsonc"
+    else
+      printf '{ "config": { "default": true, "MD013": false } }\n' >"$r/.markdownlint-cli2.jsonc"
+    fi
+  fi
+}
+
+# payload <tool> <file>...: a PostToolBatch payload with one call per file.
+payload() {
+  local tool="$1"
+  shift
+  jq -n --arg t "$tool" '{session_id: "s", hook_event_name: "PostToolBatch", tool_calls: [$ARGS.positional[] | {tool_name: $t, tool_input: {file_path: .}, tool_use_id: "toolu_x", tool_response: "ok"}]}' --args "$@"
+}
+
+# fire <payload> [env...]: the registered row, from an unrelated cwd. CLAUDE_PROJECT_DIR
+# stays unset so scoping falls to git-working-tree membership.
+fire() {
+  local p="$1"
+  shift
+  (
+    cd "$UNRELATED" || return 1
+    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true "$@" node "${ROW_ARGS[@]}" <<<"$p" 2>&1
+  )
+}
+
+# run_edit <file>: Edit one file in a batch; prints the row's whole output.
+run_edit() { fire "$(payload Edit "$1")"; }
+
+# Two documented rule outcomes drive the fixtures: markdownlint MD047 (a file ends
+# with one newline) is fixable, and MD033 (no inline HTML) is not.
+NO_NL=$'# T\n\ntext'
+FIXED=$'# T\n\ntext\n'
+
+# --- Opt-in gate OFF (no markdownlint config) -> file left untouched ----------
+REPO_NO="$WORK/no-config"
+new_md_repo "$REPO_NO" NO_CONFIG
+printf '%s' "$NO_NL" >"$REPO_NO/a.md"
+OUT=$(run_edit "$REPO_NO/a.md")
+RC=$?
+expect "no config: exit 0 and silent" "0|" "$RC|$OUT"
+expect "no config: file left untouched" "$NO_NL" "$(cat "$REPO_NO/a.md")"
+
+# A package.json property is no opt-in: markdownlint-cli2 reads it only under --config.
+REPO_PJ="$WORK/package-json"
+new_md_repo "$REPO_PJ" NO_CONFIG
+printf '{"markdownlint-cli2":{"config":{"default":true}}}\n' >"$REPO_PJ/package.json"
+printf '%s' "$NO_NL" >"$REPO_PJ/a.md"
+run_edit "$REPO_PJ/a.md" >/dev/null
+expect "a package.json property does not opt in: file left untouched" "$NO_NL" "$(cat "$REPO_PJ/a.md")"
+
+# --- Rewrites, and prints nothing --------------------------------------------
+REPO="$WORK/consumer"
+new_md_repo "$REPO"
+mkdir -p "$REPO/docs"
+printf '%s' "$NO_NL" >"$REPO/docs/fmt.md"
+OUT=$(run_edit "$REPO/docs/fmt.md")
+RC=$?
+expect "Edit of a subdirectory file: fixed" "${FIXED}x" "$(
+  cat "$REPO/docs/fmt.md"
+  printf x
+)"
+expect "a rewrite prints nothing to the model or the user, exit 0" "0|" "$RC|$OUT"
+
+printf '# T\n\ntext\n' >"$REPO/clean.md"
+OUT=$(run_edit "$REPO/clean.md")
+expect "a clean file: silent exit 0 and unchanged" "0||$(printf '# T\n\ntext')" "$?|$OUT|$(cat "$REPO/clean.md")"
+
+# Findings no longer reach the model: an unfixable MD033 is neither fixed nor reported.
+printf '# T\n\n<b>x</b>\n' >"$REPO/html.md"
+OUT=$(run_edit "$REPO/html.md")
+expect "a lint finding is not reported (no additionalContext, no systemMessage)" "0|" "$?|$OUT"
+expect "the finding's file is not rewritten" "$(printf '# T\n\n<b>x</b>')" "$(cat "$REPO/html.md")"
+
+# A .mdc file is Markdown too.
+printf '%s' "$NO_NL" >"$REPO/rule.mdc"
+run_edit "$REPO/rule.mdc" >/dev/null
+expect "an Edit of a .mdc file is fixed" "${FIXED}x" "$(
+  cat "$REPO/rule.mdc"
+  printf x
+)"
+
+# --- The batch -----------------------------------------------------------------
+# One call, several files, all rewritten; a Read, a non-Markdown file and a
+# duplicate are not.
+printf '%s' "$NO_NL" >"$REPO/b1.md"
+printf '%s' "$NO_NL" >"$REPO/b2.mdc"
+printf '%s' "$NO_NL" >"$REPO/b3.md"
+printf 'q' >"$REPO/notes.txt"
+BATCH="$(jq -n --arg d "$REPO" '{session_id: "s", hook_event_name: "PostToolBatch", tool_calls: [
+  {tool_name: "Write", tool_input: {file_path: "\($d)/b1.md"}, tool_use_id: "1", tool_response: "ok"},
+  {tool_name: "Edit", tool_input: {file_path: "\($d)/b2.mdc"}, tool_use_id: "2", tool_response: "ok"},
+  {tool_name: "Edit", tool_input: {file_path: "\($d)/b1.md"}, tool_use_id: "3", tool_response: "ok"},
+  {tool_name: "Edit", tool_input: {file_path: "\($d)/notes.txt"}, tool_use_id: "4", tool_response: "ok"},
+  {tool_name: "Read", tool_input: {file_path: "\($d)/b3.md"}, tool_use_id: "5", tool_response: "1\t# T"},
+  {tool_name: "Bash", tool_input: {command: "ls b3.md"}, tool_use_id: "6", tool_response: "b3.md"}]}')"
+OUT=$(fire "$BATCH")
+expect "a mixed batch prints nothing" "0|" "$?|$OUT"
+expect "batch: a Write'd .md is rewritten" "${FIXED}x" "$(
+  cat "$REPO/b1.md"
+  printf x
+)"
+expect "batch: an Edit'd .mdc is rewritten" "${FIXED}x" "$(
+  cat "$REPO/b2.mdc"
+  printf x
+)"
+expect "batch: a Read'd .md is never rewritten" "$NO_NL" "$(cat "$REPO/b3.md")"
+expect "batch: a non-Markdown file is untouched" "q" "$(cat "$REPO/notes.txt")"
+
+# A file with a finding does not stop its neighbors from being rewritten.
+printf '# T\n\n<b>x</b>\n' >"$REPO/bad.md"
+printf '%s' "$NO_NL" >"$REPO/good.md"
+fire "$(payload Edit "$REPO/bad.md" "$REPO/good.md")" >/dev/null
+expect "a file with a finding does not stop another file in the batch" "${FIXED}x" "$(
+  cat "$REPO/good.md"
+  printf x
+)"
+
+printf '%s' "$NO_NL" >"$REPO/multi.md"
+fire "$(payload MultiEdit "$REPO/multi.md")" >/dev/null
+expect "a MultiEdit'd file is rewritten" "${FIXED}x" "$(
+  cat "$REPO/multi.md"
+  printf x
+)"
+
+# --- Skips ----------------------------------------------------------------------
+# .githooks/ holds installed copies of check scripts, never rewritten here.
+mkdir -p "$REPO/.githooks/markdown-format"
+printf '%s' "$NO_NL" >"$REPO/.githooks/markdown-format/copy.md"
+fire "$(payload Write "$REPO/.githooks/markdown-format/copy.md")" >/dev/null
+expect "a file under .githooks/ is skipped" "$NO_NL" "$(cat "$REPO/.githooks/markdown-format/copy.md")"
+
+# The config's ignores hold for an explicitly passed path, silently.
+REPO_EX="$WORK/ignores-config"
+new_md_repo "$REPO_EX" '{ "ignores": ["gen/**"] }'
+mkdir -p "$REPO_EX/gen"
+printf '%s' "$NO_NL" >"$REPO_EX/gen/g.md"
+OUT=$(run_edit "$REPO_EX/gen/g.md")
+expect "an ignored file is left untouched and silent" "0|$NO_NL" "$?|$OUT$(cat "$REPO_EX/gen/g.md")"
+
+# A nested config opts in only its subtree.
+REPO_NE="$WORK/nested"
+new_md_repo "$REPO_NE" NO_CONFIG
+mkdir -p "$REPO_NE/docs/deep"
+printf '{ "default": true }\n' >"$REPO_NE/docs/.markdownlint.json"
+printf '%s' "$NO_NL" >"$REPO_NE/docs/deep/n.md"
+printf '%s' "$NO_NL" >"$REPO_NE/top.md"
+fire "$(payload Edit "$REPO_NE/docs/deep/n.md" "$REPO_NE/top.md")" >/dev/null
+expect "a nested config governs a file below it" "${FIXED}x" "$(
+  cat "$REPO_NE/docs/deep/n.md"
+  printf x
+)"
+expect "a file outside the nested config is untouched" "$NO_NL" "$(cat "$REPO_NE/top.md")"
+
+# A config that can run repository code is never run, and nothing says so.
+for cfg_case in "cjs" "customRules" "backslash"; do
+  REPO_CODE="$WORK/code-$cfg_case"
+  new_md_repo "$REPO_CODE" NO_CONFIG
+  case "$cfg_case" in
+    cjs) printf 'module.exports = { config: { default: true } };\n' >"$REPO_CODE/.markdownlint-cli2.cjs" ;;
+    customRules) printf '{ "config": { "default": true }, "customRules": ["./rule.cjs"] }\n' >"$REPO_CODE/.markdownlint-cli2.jsonc" ;;
+    backslash) printf '{ "config": { "default": true }, "ignores": ["a\\\\.md"] }\n' >"$REPO_CODE/.markdownlint-cli2.jsonc" ;;
+    *) ;;
+  esac
+  printf '%s' "$NO_NL" >"$REPO_CODE/a.md"
+  OUT=$(run_edit "$REPO_CODE/a.md")
+  expect "code-capable config ($cfg_case): silent and the file untouched" "0|$NO_NL" "$?|$OUT$(cat "$REPO_CODE/a.md")"
+done
+
+# Once the user approves that config state, through the marker the pre-commit
+# entry names to a person, the batch row rewrites under it: both read one store,
+# the git directory, whatever CLAUDE_PLUGIN_DATA names in either process.
+DATA="$WORK/plugin-data"
+OTHER="$WORK/other-plugin-data"
+REPO_OK="$WORK/code-approved"
+new_md_repo "$REPO_OK" NO_CONFIG
+printf 'module.exports = { config: { default: true, MD013: false } };\n' >"$REPO_OK/.markdownlint-cli2.cjs"
+printf '%s' "$NO_NL" >"$REPO_OK/a.md"
+git -C "$REPO_OK" add a.md
+MARKER="$(cd "$REPO_OK" && env -u CLAUDECODE -u AI_AGENT CLAUDE_PLUGIN_DATA="$DATA" bash "$PLUGIN_ROOT/git-hooks/markdown-check.sh" 2>&1 >/dev/null |
+  sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+expect "the pre-commit entry names an approval marker in the git directory" yes \
+  "$([[ "$MARKER" == "$REPO_OK"/.git/markdown-format/trust-approvals/md-* ]] && echo yes)"
+OUT=$(fire "$(payload Edit "$REPO_OK/a.md")" CLAUDE_PLUGIN_DATA="$OTHER")
+expect "unapproved: silent and the file untouched" "0|$NO_NL" "$?|$OUT$(cat "$REPO_OK/a.md")"
+mkdir -p "$MARKER"
+OUT=$(fire "$(payload Edit "$REPO_OK/a.md")" CLAUDE_PLUGIN_DATA="$OTHER")
+expect "approved: the batch row rewrites, silently" "0|${FIXED}x" "$?|$OUT$(
+  cat "$REPO_OK/a.md"
+  printf x
+)"
+
+# The kill switch.
+printf '%s' "$NO_NL" >"$REPO/kill.md"
+OUT=$(fire "$(payload Edit "$REPO/kill.md")" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=false)
+expect "kill switch off: silent and the file untouched" "0|$NO_NL" "$?|$OUT$(cat "$REPO/kill.md")"
+
+# A repo-local node_modules/.bin shim resolves when PATH has none.
+FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
+for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink node sh; do
+  real_t="$(command -v "$t" 2>/dev/null)" || continue
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
+  chmod +x "$FAKEBIN/$t"
+done
+REPO_LB="$WORK/local-bin"
+new_md_repo "$REPO_LB"
+mkdir -p "$REPO_LB/node_modules/.bin" "$REPO_LB/docs"
+printf '#!/bin/sh\nexec "%s" "$@"\n' "$REAL_MD" >"$REPO_LB/node_modules/.bin/markdownlint-cli2"
+chmod +x "$REPO_LB/node_modules/.bin/markdownlint-cli2"
+printf '%s' "$NO_NL" >"$REPO_LB/docs/l.md"
+fire "$(payload Edit "$REPO_LB/docs/l.md")" PATH="$FAKEBIN" >/dev/null
+expect "repo-local shim: resolved and the file fixed" "${FIXED}x" "$(
+  cat "$REPO_LB/docs/l.md"
+  printf x
+)"
+
+# markdownlint-cli2 absent: the file is skipped silently; the SessionStart probe reports the gap.
+REPO_NR="$WORK/no-md"
+new_md_repo "$REPO_NR"
+printf '%s' "$NO_NL" >"$REPO_NR/a.md"
+OUT=$(fire "$(payload Edit "$REPO_NR/a.md")" PATH="$FAKEBIN")
+expect "markdownlint-cli2 absent: silent exit 0 and the file untouched" "0|$NO_NL" "$?|$OUT$(cat "$REPO_NR/a.md")"
+
+# A shim whose symlink leaves the repository is not run.
+REPO_ES="$WORK/escaping-shim"
+new_md_repo "$REPO_ES"
+mkdir -p "$REPO_ES/node_modules/.bin" "$WORK/outside"
+printf '#!/bin/sh\nexec "%s" "$@"\n' "$REAL_MD" >"$WORK/outside/markdownlint-cli2"
+chmod +x "$WORK/outside/markdownlint-cli2"
+ln -s "$WORK/outside/markdownlint-cli2" "$REPO_ES/node_modules/.bin/markdownlint-cli2"
+printf '%s' "$NO_NL" >"$REPO_ES/a.md"
+fire "$(payload Edit "$REPO_ES/a.md")" PATH="$FAKEBIN" >/dev/null
+expect "an escaping node_modules/.bin symlink is not run" "$NO_NL" "$(cat "$REPO_ES/a.md")"
+
+# Gitignored path: neither rewritten by default, unless markdown_format_lint_gitignored is set.
+REPO_IGN="$WORK/gitignored"
+new_md_repo "$REPO_IGN"
+git -C "$REPO_IGN" config core.excludesFile /dev/null
+printf '.work/\n' >"$REPO_IGN/.gitignore"
+mkdir -p "$REPO_IGN/.work"
+printf '%s' "$NO_NL" >"$REPO_IGN/.work/scratch.md"
+run_edit "$REPO_IGN/.work/scratch.md" >/dev/null
+expect "gitignored: file not rewritten" "$NO_NL" "$(cat "$REPO_IGN/.work/scratch.md")"
+fire "$(payload Edit "$REPO_IGN/.work/scratch.md")" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED=true >/dev/null
+expect "gitignored + markdown_format_lint_gitignored=true: file fixed" "${FIXED}x" "$(
+  cat "$REPO_IGN/.work/scratch.md"
+  printf x
+)"
+
+# A markdown file outside every git working tree is left alone, config or not.
+OUTSIDE="$WORK/outside-tree"
+mkdir -p "$OUTSIDE"
+printf '{ "config": { "default": true } }\n' >"$OUTSIDE/.markdownlint-cli2.jsonc"
+printf '%s' "$NO_NL" >"$OUTSIDE/scratch.md"
+run_edit "$OUTSIDE/scratch.md" >/dev/null
+expect "outside a git working tree: file untouched" "$NO_NL" "$(cat "$OUTSIDE/scratch.md")"
+
+# Symlinked repo root: the file reached through a symlinked directory is still rewritten.
+if ln -s "$WORK/symlink-real" "$WORK/symlink-link" 2>/dev/null; then
+  REPO_SL="$WORK/symlink-real"
+  new_md_repo "$REPO_SL"
+  mkdir -p "$REPO_SL/pkg"
+  printf '%s' "$NO_NL" >"$REPO_SL/pkg/mod.md"
+  run_edit "$WORK/symlink-link/pkg/mod.md" >/dev/null
+  expect "symlinked root: the file is rewritten" "${FIXED}x" "$(
+    cat "$REPO_SL/pkg/mod.md"
+    printf x
+  )"
 else
-  WALK_DIR="$WORK/root-walk"
-  mkdir -p "$WALK_DIR"
-  : >"$WALK_DIR/.markdownlint.json"
-  CD_LOG="$WORK/root-walk-cd.log"
-  # shellcheck disable=SC2329  # invoked indirectly: the lifted walk's `cd "$start"` hits this shadow
-  cd_logging_shim() {
-    cd() {
-      printf '%s\n' "$1" >>"$CD_LOG"
-      builtin cd "$@" || return
-    }
-  }
-  : >"$CD_LOG"
-  # shellcheck source=hook-utils.sh
-  (cd "$UNRELATED" && source "$HOOK_DIR/hook-utils.sh" && eval "$DISC_PRED" &&
-    eval "$DISC_FN" && cd_logging_shim &&
-    markdownlint_config_discoverable "$WALK_DIR/README.md" "$WALK_DIR")
-  RC_CTL=$?
-  CTL_FIRST="$(head -n 1 "$CD_LOG")"
-  if [[ "$RC_CTL" -eq 0 && "$CTL_FIRST" == "$WALK_DIR" ]]; then
-    ok "root-level walk: control anchors on the file's directory and finds its config"
-  else
-    fail "root-level walk: control rc=$RC_CTL first cd='$CTL_FIRST', want rc=0 and '$WALK_DIR'"
-  fi
-  : >"$CD_LOG"
-  # shellcheck source=hook-utils.sh
-  (cd "$UNRELATED" && source "$HOOK_DIR/hook-utils.sh" && eval "$DISC_PRED" &&
-    eval "$DISC_FN" && cd_logging_shim &&
-    markdownlint_config_discoverable /README.md "$WALK_DIR") || :
-  ROOT_FIRST="$(head -n 1 "$CD_LOG")"
-  if [[ "$ROOT_FIRST" == "/" ]]; then
-    ok "root-level walk: /README.md anchors the walk on /"
-  else
-    fail "root-level walk: /README.md anchored the walk on '$ROOT_FIRST', want '/'"
-  fi
+  echo "SKIP: symlinks unavailable on this filesystem -- symlinked-root case skipped"
+fi
+
+# A file symlinked out of the repository is not followed.
+REPO_FS="$WORK/file-symlink"
+new_md_repo "$REPO_FS"
+printf '%s' "$NO_NL" >"$WORK/external.md"
+if ln -s "$WORK/external.md" "$REPO_FS/link.md" 2>/dev/null; then
+  run_edit "$REPO_FS/link.md" >/dev/null
+  expect "a symlinked .md pointing outside the repository is not rewritten" "$NO_NL" "$(cat "$WORK/external.md")"
+fi
+
+# --- Spawn budget ----------------------------------------------------------------
+# PostToolBatch has no matcher, so the row fires on every batch of every session.
+# A batch that never mentions .md costs only the node launcher.
+CENSUS="$REPO_ROOT/scripts/hook-census.sh"
+if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1; then
+  out="$(bash "$CENSUS" markdown-format PostToolBatch markdown-format.sh \
+    '{"session_id":"census","hook_event_name":"PostToolBatch","cwd":"@DIR@","tool_calls":[{"tool_name":"Read","tool_input":{"file_path":"@DIR@/main.py"},"tool_use_id":"toolu_census","tool_response":"import os"}]}' \
+    --check 'test ! -s "$HOOK_STDOUT"')"
+  expect "spawn budget: a batch with no Markdown costs only the node launcher" "spawns=1" "${out%% *}"
+else
+  echo "NOTE: strace or scripts/hook-census.sh absent; the spawn budget case did not run."
 fi
 
 echo
-echo "PASS=$PASS FAIL=$FAIL SKIPPED=$SKIPPED"
+echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

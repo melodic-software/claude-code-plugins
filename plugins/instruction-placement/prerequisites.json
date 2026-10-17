@@ -12,7 +12,7 @@
           "node"
         ]
       },
-      "degrade": "Without node, the rules-index drift hook cannot start, so index drift goes unreported.",
+      "degrade": "Without node, the rules-index git-hook entry cannot be installed or verified, and its drift goes unreported at session start.",
       "install": {
         "docs": "https://nodejs.org/en/download",
         "brew": "node",
@@ -26,8 +26,6 @@
       "kind": "cli",
       "need": "required",
       "for": [
-        "hook:hook-utils.sh",
-        "hook:index-drift.sh",
         "skill:migrate"
       ],
       "detect": {
@@ -35,7 +33,7 @@
           "jq"
         ]
       },
-      "degrade": "Without jq, the rules-index drift hook cannot read its JSON input and reports nothing, and /instruction-placement:migrate's remove-shims action refuses because it cannot read the installed plugin versions.",
+      "degrade": "Without jq, /instruction-placement:migrate's remove-shims action refuses because it cannot read the installed plugin versions.",
       "install": {
         "docs": "https://jqlang.org/download/",
         "brew": "jq",

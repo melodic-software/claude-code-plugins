@@ -10,7 +10,9 @@
 # reaches this hook; it must not spend a check run on it. Delete-only, tag-only
 # and dry-run pushes, a repository with no check-affected.sh, and a tree with no
 # origin/main stay quiet too. A branch that changes check tooling runs the
-# merge-base copy of it, never its own.
+# merge-base copy of it, never its own. Once lefthook's pre-push shim is
+# installed the hook stays quiet; the --git-hook mode lefthook.yml runs, and a
+# real push through lefthook when it is on PATH, never run a branch's own check.
 #
 # The fixture repository's scripts/check-affected.sh is a stub that records that
 # it ran and exits with $STUB_RC, so these cases test the hook, not the checks.
@@ -293,6 +295,120 @@ if [[ "$RC" == 0 && "$RAN" == 0 && ! -e "$tmp/hook-payload" ]]; then
   ok "the settings.json command does not run a hook the branch changed"
 else
   bad "the settings.json command does not run a hook the branch changed" "exit $RC ran=$RAN; stderr: $ERR"
+fi
+
+# --- lefthook ----------------------------------------------------------------
+# Once lefthook's pre-push shim is installed, git runs the check on the push
+# itself, so the Claude Code hook stays quiet; until then it runs and says to
+# install. lefthook.yml runs the merge-base copy of this hook with --git-hook.
+lh="$tmp/lh"
+mkdir -p "$lh/scripts" "$lh/.claude/hooks" "$lh/lib"
+git_init_test_repo "$lh" || exit 2
+cp "$tmp/stub" "$lh/scripts/check-affected.sh"
+cp "$hook" "$lh/.claude/hooks/"
+cp "$repo_root/lib/hook-utils.sh" "$lh/lib/"
+cp "$repo_root/lefthook.yml" "$lh/"
+git_test_config "$lh" add -A
+git_test_config "$lh" commit -q -m base
+git_test_config "$lh" update-ref refs/remotes/origin/main HEAD
+lh_hooks="$(git -C "$lh" rev-parse --path-format=absolute --git-path hooks)"
+shim=$'#!/bin/sh\ncall_lefthook()\n{\n  lefthook "$@"\n}\ncall_lefthook run "pre-push" "$@"\n'
+
+# run_claude <repo> [STUB_RC]: the Claude Code hook on a push from <repo>, the
+# session's project directory.
+run_claude() {
+  local payload
+  rm -f "$marker"
+  payload="$(jq -cn --arg d "$1" \
+    '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:$d,tool_input:{command:"git push origin x"}}')"
+  RC=0
+  ERR="$(printf '%s' "$payload" | CLAUDE_PROJECT_DIR="$1" STUB_RC="${2:-1}" bash "$hook" 2>&1 >/dev/null)" || RC=$?
+  RAN=0
+  [[ -e "$marker" ]] && RAN=1
+}
+# run_git_hook <repo> [STUB_RC]: the --git-hook mode lefthook.yml runs.
+run_git_hook() {
+  rm -f "$marker"
+  RC=0
+  ERR="$(cd "$1" && STUB_RC="${2:-1}" bash "$hook" --git-hook </dev/null 2>&1 >/dev/null)" || RC=$?
+  RAN=0
+  [[ -e "$marker" ]] && RAN=1
+}
+
+run_claude "$lh"
+expect "without lefthook's shim the Claude Code hook runs the check" 2 1
+if [[ "$ERR" == *"run lefthook install"* ]]; then
+  ok "without lefthook's shim the hook says to run lefthook install"
+else
+  bad "without lefthook's shim the hook says to run lefthook install" "$ERR"
+fi
+printf '#!/bin/sh\ngit lfs pre-push "$@"\n' >"$lh_hooks/pre-push"
+run_claude "$lh"
+expect "another tool's pre-push hook is not lefthook's" 2 1
+printf '%s' "$shim" >"$lh_hooks/pre-push"
+run_claude "$lh"
+expect "with lefthook's shim installed the Claude Code hook stays quiet" 0 0
+rm -f "$lh_hooks/pre-push"
+mkdir -p "$tmp/hookspath"
+printf '%s' "$shim" >"$tmp/hookspath/pre-push"
+git_test_config "$lh" config core.hooksPath "$tmp/hookspath"
+run_claude "$lh"
+expect "a lefthook shim under core.hooksPath counts" 0 0
+git_test_config "$lh" config --unset core.hooksPath
+
+run_git_hook "$lh"
+expect "--git-hook blocks with exit 1 when a check fails" 1 1
+if [[ "$ERR" == *"Push blocked"* && "$ERR" != *"lefthook install"* ]]; then
+  ok "--git-hook carries the summary and no install notice"
+else
+  bad "--git-hook carries the summary and no install notice" "$ERR"
+fi
+run_git_hook "$lh" 0
+expect "--git-hook passes when every check passes" 0 1
+run_git_hook "$lh" 2
+expect "--git-hook passes when the checks could not run" 0 1
+
+# A branch whose check-affected.sh and hook always pass does not get past the
+# merge-base copies.
+git_test_config "$lh" checkout -q -b bypass
+printf '#!/usr/bin/env bash\ntouch "%s"\nexit 0\n' "$tmp/bypass-ran" >"$lh/scripts/check-affected.sh"
+printf '#!/usr/bin/env bash\ntouch "%s"\nexit 0\n' "$tmp/bypass-ran" >"$lh/.claude/hooks/check-affected-pre-push.sh"
+git_test_config "$lh" commit -q -am bypass
+run_git_hook "$lh"
+if [[ "$RC" == 1 && ! -e "$tmp/bypass-ran" ]]; then
+  ok "--git-hook runs the merge-base check-affected.sh, not the branch's"
+else
+  bad "--git-hook runs the merge-base check-affected.sh, not the branch's" "exit $RC; stderr: $ERR"
+fi
+
+if command -v lefthook >/dev/null 2>&1; then
+  git init -q --bare "$tmp/remote.git"
+  git_test_config "$lh" remote add origin "$tmp/remote.git"
+  lh_install="$(cd "$lh" && lefthook install 2>&1)" || bad "lefthook install in the fixture" "$lh_install"
+  # lefthook_push <branch> [STUB_RC]: a real git push through lefthook.
+  lefthook_push() {
+    rm -f "$marker" "$tmp/bypass-ran"
+    RC=0
+    ERR="$(cd "$lh" && STUB_RC="${2:-1}" git_test_config "$lh" push -q origin "$1" 2>&1)" || RC=$?
+    RAN=0
+    [[ -e "$marker" ]] && RAN=1
+  }
+  lefthook_push bypass
+  if [[ "$RC" != 0 && "$RAN" == 1 && ! -e "$tmp/bypass-ran" && "$ERR" == *"Push blocked"* ]]; then
+    ok "lefthook blocks a branch that edits check-affected.sh and the hook to always pass"
+  else
+    bad "lefthook blocks a branch that edits check-affected.sh and the hook to always pass" "exit $RC ran=$RAN; output: $ERR"
+  fi
+  lefthook_push bypass 0
+  if [[ "$RC" == 0 && "$RAN" == 1 && ! -e "$tmp/bypass-ran" ]]; then
+    ok "lefthook lets the push through when the merge-base checks pass"
+  else
+    bad "lefthook lets the push through when the merge-base checks pass" "exit $RC ran=$RAN; output: $ERR"
+  fi
+  run_claude "$lh"
+  expect "after lefthook install the Claude Code hook stays quiet" 0 0
+else
+  ok "SKIP lefthook end-to-end cases (lefthook not installed)"
 fi
 
 test_harness::report
