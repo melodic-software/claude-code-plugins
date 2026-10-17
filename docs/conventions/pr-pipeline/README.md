@@ -550,7 +550,10 @@ the lanes App opened is: a `Bot` account whose login is `merge.agent-identity`, 
 pr-merge lane decides lane authorship. Any other author's is skipped before the model runs, with
 the reason `author-not-lane` and the step summary line `skipped: author not the lanes App`, since
 only lane-authored pull requests reach the pr-merge lane. `any` judges every author's. Any other
-value judges none (`verify-authors-invalid`).
+value judges none (`verify-authors-invalid`). The trusted-spec rule below is scoped to that: on a
+lane pull request the App is the author and a human wrote the issue, so the spec can be trusted,
+while a human author who also wrote the linked issue would read `verify:untrusted-spec`, which
+never arises because such a pull request is neither judged nor read by the pr-merge lane.
 
 With `merge.require-verifier-verdict: true` the pr-merge lane reads the artifacts through their
 run records, since only steps of a run can upload its artifacts. A run is of verifier origin when
