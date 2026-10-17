@@ -51,6 +51,14 @@ on:
         required: false
         type: string
         default: ""
+      reuse-branch:
+        description: >-
+          Issue mode, report-outcome: the lane branch the resolve-issue run
+          found an earlier run left with commits and no report, so it skipped
+          the model; its reuse-branch output. Empty otherwise.
+        required: false
+        type: string
+        default: ""
       timeout-minutes:
         description: The run job's timeout in minutes.
         required: false
@@ -198,6 +206,12 @@ on:
           must be reported even when a later step failed. Set only by runner
           steps.
         value: ${{ jobs.run.outputs.issue-run-started }}
+      reuse-branch:
+        description: >-
+          Issue mode: the lane branch an earlier run left with commits and no
+          report, which this run reused instead of running the model; empty
+          otherwise. Set only by runner steps, before the mint.
+        value: ${{ jobs.run.outputs.reuse-branch }}
 
 permissions: {}
 
@@ -258,6 +272,7 @@ jobs:
       dependency-run-sha256: ${{ steps.dependency-collect.outputs.run-sha256 }}
       dependency-run-attempt: ${{ steps.dependency-collect.outcome == 'success' && github.run_attempt || '' }}
       issue-run-started: ${{ inputs.issue-number != '' && steps.lane-token.outcome == 'success' }}
+      reuse-branch: ${{ steps.issue-prior.outputs.reuse-branch }}
       # The lane record, from steps that read the execution file after the
       # skill. A forged limit stop can only restart the lane after a reset
       # limit-stop.mjs and report-outcome clamp to at least an hour away, at
@@ -303,6 +318,7 @@ jobs:
           PR_NUMBER: ${{ inputs.pr-number }}
           DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
           TRUSTED_BASE: ${{ inputs.trusted-base }}
+          REUSE_BRANCH: ${{ inputs.reuse-branch }}
         run: |
           # Issue mode runs only on the issues event that names that issue,
           # trusting the default branch tip, with none of the PR inputs.
@@ -313,6 +329,12 @@ jobs:
               echo "::error::issue mode needs an issues event, the event's issue number, trusted-base default-tip, and no pr-number or dispatcher-run-id"
               exit 1
             fi
+          fi
+          # A reused branch is only ever this issue's lane branch.
+          if [ -n "$REUSE_BRANCH" ] && { [ -z "$ISSUE_NUMBER" ] ||
+            ! [[ $REUSE_BRANCH =~ ^work-resolve-issue/issue-${ISSUE_NUMBER}-[1-9][0-9]*-[1-9][0-9]*$ ]]; }; then
+            echo "::error::reuse-branch must be this issue's work-resolve-issue lane branch"
+            exit 1
           fi
           if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
@@ -422,6 +444,23 @@ jobs:
           # commit steps below).
           prepare-supported: "true"
 
+      # Issue mode, skill run: before the mint and any model turn, with the
+      # job's read-only token, skips the model when an earlier run already
+      # did the work: a lanes-App PR from a lane branch is open, or the lanes
+      # App or a listed human opened a PR that closes the issue (stop), or a
+      # lane branch holds commits no report handed on (reuse-branch, which
+      # report-outcome opens a PR from). Both skip not-applicable.
+      - name: Check for an earlier run's work on the issue
+        id: issue-prior
+        if: >-
+          inputs.issue-number != '' && steps.config.outputs.applies == 'true'
+          && steps.config.outputs.kind == 'skill'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+        run: node .base/.github/scripts/work-resolve-issue/report-outcome.mjs --find-prior
+
       # review-threads, before the mint and any model turn, with the job's
       # read-only token: keeps the unresolved threads whose every comment is
       # the reviewer bot's, on a head a review lane's marker confirms, then
@@ -492,6 +531,7 @@ jobs:
           steps.config.outputs.applies == 'true' && steps.config.outputs.effect != 'read'
           && steps.feedback-select.outputs.proceed != 'false'
           && steps.dependency-select.outputs.proceed != 'false'
+          && steps.issue-prior.outputs.proceed != 'false'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           EFFECT: ${{ steps.config.outputs.effect }}
@@ -1679,6 +1719,8 @@ jobs:
           SKIP_REASON_FILE: ${{ runner.temp }}/skip-reason
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           WORK_OUTCOME_DIR: ${{ runner.temp }}/work-outcome
+          # Checked against this issue's lane branch by the job's first step.
+          REUSE_BRANCH: ${{ inputs.reuse-branch }}
           # review-replies only; empty otherwise.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           FEEDBACK_REPLIES_DIR: ${{ inputs.review-replies && format('{0}/feedback-replies', runner.temp) || '' }}
@@ -1763,7 +1805,8 @@ jobs:
             || steps.commit.outputs.skip-reason || steps.promote.outputs.skip-reason
             || steps.act-script.outputs.skip-reason
             || steps.feedback-select.outputs.skip-reason
-            || steps.dependency-select.outputs.skip-reason }}
+            || steps.dependency-select.outputs.skip-reason
+            || steps.issue-prior.outputs.skip-reason }}
           ACT_OUTCOME: >-
             ${{ steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'
             && ((steps.post.outputs.escalation-reason != ''
