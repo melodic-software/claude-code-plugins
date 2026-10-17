@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { checkCloser, escalationComment, main } from "./label-unblocked.mjs";
+import { checkCloser, escalationComment, main, refireComment } from "./label-unblocked.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TRUSTED = join(HERE, "fixtures/trusted-actors.json");
@@ -64,7 +64,9 @@ const note = () => ({ id: 9, body: "Looks good.", user: OWNER, created_at: STAMP
 // `closedList` is what the sweep's closed-issue listing answers; `blockingOf`
 // gives the blocking list of closed issues other than number 10.
 // `openReady` is what the sweep's open agent-ready listing answers.
-function world({ blocking, blockingOf = {}, closedList = [], openReady = [], issues = {}, blockedBy = {}, comments = {}, events = {}, failOn } = {}) {
+// `runs` is every work-resolve-issue run; the listing answers those created in
+// the `created` range it is asked for. `blobs` maps a path to its blob SHA on main.
+function world({ blocking, blockingOf = {}, closedList = [], openReady = [], issues = {}, blockedBy = {}, comments = {}, events = {}, runs = [], blobs = {}, failOn } = {}) {
   const calls = [];
   const base = `/repos/${REPO}/issues`;
   const github = async (method, path, body) => {
@@ -78,6 +80,17 @@ function world({ blocking, blockingOf = {}, closedList = [], openReady = [], iss
     let match;
     if (route === base && method === "GET") {
       return listed(new URL(path, "https://x").searchParams.get("state") === "open" ? openReady : closedList);
+    }
+    if (route === `/repos/${REPO}/actions/workflows/work-resolve-issue.yml/runs` && method === "GET") {
+      const params = new URL(path, "https://x").searchParams;
+      assert.equal(params.get("event"), "issues");
+      const [from, to] = params.get("created").split("..").map(Date.parse);
+      const inRange = runs.filter((run) => Date.parse(run.created_at) >= from && Date.parse(run.created_at) <= to);
+      return { workflow_runs: listed(inRange) };
+    }
+    if (method === "GET" && (match = route.match(new RegExp(`^/repos/${REPO}/contents/(.+)$`))) && blobs[match[1]]) {
+      assert.equal(new URL(path, "https://x").searchParams.get("ref"), "main");
+      return { sha: blobs[match[1]] };
     }
     if (route === `${base}/10/dependencies/blocking`) {
       return listed(blocking);
@@ -765,6 +778,12 @@ test("only the App's remove-and-re-add right after a limit stop is a restart; an
   const pushback = { id: 31, body: "<!-- work-resolve-issue outcome=pushback run=8 -->\nUnclear.", user: LANES_BOT, created_at: "2026-10-16T08:00:00Z" };
   for (const [name, notes, events, expected] of [
     ["restart", [limited], [unlabeled(LANES_BOT, "2026-10-16T07:00:00Z"), added("2026-10-16T07:00:01Z")], [labeled(20)]],
+    [
+      "re-fire",
+      [{ id: 32, body: refireComment(KEY), user: LANES_BOT, created_at: "2026-10-16T06:59:59Z" }],
+      [added("2026-10-16T06:00:00Z", OWNER), unlabeled(LANES_BOT, "2026-10-16T07:00:00Z"), added("2026-10-16T07:00:01Z")],
+      [labeled(20)],
+    ],
     ["never added back", [limited], [unlabeled(LANES_BOT, "2026-10-16T07:00:00Z")], []],
     ["added back by a person", [limited], [unlabeled(LANES_BOT, "2026-10-16T07:00:00Z"), added("2026-10-16T07:00:01Z", OWNER)], []],
     ["before the stop", [limited], [unlabeled(LANES_BOT, "2026-10-16T05:00:00Z"), added("2026-10-16T05:00:01Z")], []],
@@ -860,4 +879,134 @@ test("a failed listing of closed issues writes nothing and fails the run", async
   const { github, calls } = world({ closedList: [closedAt(10, "2026-10-16T11:30:00Z")], failOn: `/repos/${REPO}/issues?` });
   assert.equal(await sweep({ github }), 1);
   assert.deepEqual(writes(calls), []);
+});
+
+// Re-fires after a failed run (issue 7816): a rerun keeps its first event's
+// workflow files, so the token broker refuses it as workflow-modified once
+// main's pr-run-activity-write.yml or work-resolve-issue.yml has changed, and
+// a run that crashed before its report leaves no marker. The sweep gives such
+// an issue a fresh event: the App removes and re-adds agent-ready, when its
+// newest agent-ready label (a listed human's or the App's) has no lanes-App
+// marker after it and the work-resolve-issue run that label started has
+// failed. It records the re-fire in a comment first, and re-fires an issue at
+// most once per version of those two files on main.
+const WRITE_SHA = "1".repeat(40);
+const CALLER_SHA = "2".repeat(40);
+const KEY = `${WRITE_SHA}-${CALLER_SHA}`;
+const BLOBS = { ".github/workflows/pr-run-activity-write.yml": WRITE_SHA, ".github/workflows/work-resolve-issue.yml": CALLER_SHA };
+const LABELED_AT = "2026-10-16T10:00:00Z";
+const laneRun = ({ number = 30, at = "2026-10-16T10:00:03Z", status = "completed", conclusion = "failure" } = {}) => ({
+  id: 5000 + number,
+  display_title: `Fix the thing #${number}`,
+  created_at: at,
+  status,
+  conclusion,
+});
+const refireNote = (key, at = "2026-10-16T09:00:00Z", user = LANES_BOT) => ({ id: 50, body: refireComment(key), user, created_at: at });
+const refired = (n, key = KEY) => [
+  `POST /repos/${REPO}/issues/${n}/comments ${JSON.stringify({ body: refireComment(key) })}`,
+  ...restarted(n),
+];
+function failedRun({ runs = [laneRun()], comments = [note()], events = [added(LABELED_AT, OWNER)], labels = [], blobs = BLOBS } = {}) {
+  const fake = world({ openReady: [ready(30, labels)], comments: { 30: comments }, events: { 30: events }, runs, blobs });
+  return { ...fake, actions: fake.github };
+}
+
+test("a failed run with no report after a listed human's agent-ready is re-fired: the record, then remove and re-add", async () => {
+  const { github, actions, calls } = failedRun();
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30));
+  assert.ok(refireComment(KEY).startsWith(`<!-- work-unblock refired ${KEY} -->`));
+});
+
+test("a run that timed out or failed to start is re-fired too", async () => {
+  for (const conclusion of ["timed_out", "startup_failure"]) {
+    const { github, actions, calls } = failedRun({ runs: [laneRun({ conclusion })] });
+    assert.equal(await sweep({ github, actions }), 0);
+    assert.deepEqual(writes(calls), refired(30), conclusion);
+  }
+});
+
+test("an issue is re-fired once per version of the lane workflow files: the App's re-added label failing again stops there", async () => {
+  // The App re-added the label at 11:00 after recording KEY; that run failed too.
+  const again = failedRun({
+    comments: [note(), refireNote(KEY, "2026-10-16T10:59:59Z")],
+    events: [
+      added(LABELED_AT, OWNER),
+      { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T11:00:00Z" },
+      added("2026-10-16T11:00:01Z"),
+    ],
+    runs: [laneRun(), laneRun({ at: "2026-10-16T11:00:04Z" })],
+  });
+  assert.equal(await sweep({ github: again.github, actions: again.actions }), 0);
+  assert.deepEqual(writes(again.calls), []);
+  // A new pr-run-activity-write.yml on main allows one more.
+  const newer = "3".repeat(40);
+  const changed = failedRun({
+    comments: [note(), refireNote(KEY, "2026-10-16T10:59:59Z")],
+    events: [added(LABELED_AT, OWNER), added("2026-10-16T11:00:01Z")],
+    runs: [laneRun({ at: "2026-10-16T11:00:04Z" })],
+    blobs: { ...BLOBS, ".github/workflows/pr-run-activity-write.yml": newer },
+  });
+  assert.equal(await sweep({ github: changed.github, actions: changed.actions }), 0);
+  assert.deepEqual(writes(changed.calls), refired(30, `${newer}-${CALLER_SHA}`));
+  // A record by anyone but the App does not count.
+  const forged = failedRun({ comments: [note(), refireNote(KEY, "2026-10-16T09:00:00Z", OWNER)] });
+  assert.equal(await sweep({ github: forged.github, actions: forged.actions }), 0);
+  assert.deepEqual(writes(forged.calls), refired(30));
+});
+
+test("a run still going, one that succeeded or was cancelled, or no run at all, is not re-fired", async () => {
+  for (const [name, runs] of [
+    ["in progress", [laneRun({ status: "in_progress", conclusion: null })]],
+    ["queued beside a failed one", [laneRun(), laneRun({ at: "2026-10-16T10:00:09Z", status: "queued", conclusion: null })]],
+    ["success", [laneRun({ conclusion: "success" })]],
+    ["cancelled", [laneRun({ conclusion: "cancelled" })]],
+    ["none", []],
+    ["another issue's", [laneRun({ number: 300 })]],
+    ["outside the label's window", [laneRun({ at: "2026-10-16T10:30:00Z" })]],
+  ]) {
+    const { github, actions, calls } = failedRun({ runs });
+    assert.equal(await sweep({ github, actions }), 0, name);
+    assert.deepEqual(writes(calls), [], name);
+  }
+});
+
+test("agent-ready added by an account that is neither a listed human nor the App is never re-fired", async () => {
+  const stranger = { id: 4242, login: "stranger" };
+  const { github, actions, calls } = failedRun({ events: [added(LABELED_AT, stranger)] });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+test("a failed run whose report posted a marker, or a held issue, is not re-fired", async () => {
+  const reported = failedRun({
+    comments: [note(), { id: 31, body: "<!-- work-resolve-issue outcome=pushback run=8 -->\nUnclear.", user: LANES_BOT, created_at: "2026-10-16T10:20:00Z" }],
+  });
+  assert.equal(await sweep({ github: reported.github, actions: reported.actions }), 0);
+  assert.deepEqual(writes(reported.calls), []);
+  const held = failedRun({ labels: ["needs-human"] });
+  assert.equal(await sweep({ github: held.github, actions: held.actions }), 0);
+  assert.deepEqual(writes(held.calls), []);
+});
+
+test("a failed record comment re-fires nothing and fails the run", async (t) => {
+  const { github: base, calls } = failedRun();
+  const github = async (method, path, body) => {
+    if (method === "POST" && path.endsWith("/issues/30/comments")) {
+      calls.push(`${method} ${path}`);
+      throw new Error("POST failed with status 502");
+    }
+    return base(method, path, body);
+  };
+  t.mock.method(console, "log", () => {});
+  assert.equal(await sweep({ github, actions: base }), 1);
+  assert.deepEqual(writes(calls), [`POST /repos/${REPO}/issues/30/comments`]);
+});
+
+test("with no Actions token the sweep reads no run and re-fires nothing", async () => {
+  const { github, calls } = failedRun();
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), []);
+  assert.ok(!calls.some((call) => call.includes("/actions/")));
 });
