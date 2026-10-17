@@ -4897,7 +4897,6 @@
         ui.restoreCur = "";
         select((back || inCur.find(q => isOpenForMe(q.id)) || inCur[0] || S.questions[0]).id); return;
       }
-      const order = S.questions.map(q => q.id);
       applyTheme();
       paintTheme();
 
@@ -5165,8 +5164,11 @@
 
       function makeQ(q) {
         const li = E("li");
-        const b = btn("vf-q");
-        const stat = E("span", "vf-qstat"); stat.append(icon("check", "vf-i vf-i-done"), icon("lock", "vf-i vf-i-lock"));
+        const b = btn("vf-q"); b.dataset.qid = q.id;
+        // The marker shows the id number (hidden from screen readers: the aria-label says it).
+        const stat = E("span", "vf-qstat"), num = E("span", "vf-qnum", q.id.slice(1)), badge = E("span", "vf-qlock");
+        stat.setAttribute("aria-hidden", "true"); stat.dataset.long = String(num.textContent.length > 2);
+        badge.append(icon("lock")); stat.append(num, badge);
         const mid = E("span", "vf-qmid"); mid.append(E("span", "vf-qtxt"), E("span", "vf-chip vf-chip-brass"), E("span", "vf-review vf-review-sm"));
         mid.lastChild.append(icon("alert"), E("span"));
         const side = E("span", "vf-qside"); side.append(E("span", "vf-avrow"), dots(), E("span", "vf-newdot"));
@@ -5192,7 +5194,7 @@
         const fresh = q.id !== ui.cur && seenTs != null && Core.answersFor(q.id).some(a => a.ts > seenTs && !isMe(a.cid));
         side.lastChild.hidden = !fresh;
         const qt = q.text.trim(), qEnd = /[.?!]$/.test(qt) ? "" : ".";
-        b.setAttribute("aria-label", `Question ${order.indexOf(q.id) + 1}: ${qt}${qEnd} ${lk ? "Locked." : done ? "You answered." : "Not answered."}${rv ? " " + rv + "." : ""}${fresh ? " New answers." : ""}${others.length ? " " + names(others) + " here." : ""}${typing ? " Someone is typing." : ""}`);
+        b.setAttribute("aria-label", `Question ${q.id.slice(1)}: ${qt}${qEnd} ${lk ? "Locked." : done ? "You answered." : "Not answered."}${rv ? " " + rv + "." : ""}${fresh ? " New answers." : ""}${others.length ? " " + names(others) + " here." : ""}${typing ? " Someone is typing." : ""}`);
       }
 
       // center bar

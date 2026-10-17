@@ -545,6 +545,29 @@ const check = (page, theme) => page.evaluate(theme => {
     const dx = (ir.left + ir.right) / 2 - (br.left + br.right) / 2, dy = (ir.top + ir.bottom) / 2 - (br.top + br.bottom) / 2;
     if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) fail("icon-center", `${name(b)}${b.getAttribute("aria-label") ? ` [${b.getAttribute("aria-label")}]` : ""} icon center off the button center by x ${dx.toFixed(2)}, y ${dy.toFixed(2)}px (button ${br.width.toFixed(1)}x${br.height.toFixed(1)}, icon ${ir.width.toFixed(1)}x${ir.height.toFixed(1)})`);
   }
+  // marker-number: each question-list marker holds its id number, whose ink centers on the marker within 0.5 px.
+  // Ink comes from drawing the number K times larger on a canvas and scanning its pixels (measureText rounds to whole
+  // px); the baseline from a zero-height inline-block probe.
+  const K = 20, cv = document.createElement("canvas"), ink = cv.getContext("2d", { willReadFrequently: true });
+  for (const b of app.querySelectorAll(".vf-q")) {
+    const m = b.querySelector(".vf-qstat");
+    if (!vis(b) || !m || !vis(m)) continue;
+    const n = m.querySelector(".vf-qnum"), t = n?.firstChild;
+    if (!t || n.textContent !== b.dataset.qid?.slice(1)) { fail("marker-number", `${name(b)} marker shows "${m.textContent}", not its id number`); continue; }
+    const cs = getComputedStyle(n), rg = document.createRange(); rg.selectNodeContents(t);
+    const probe = document.createElement("span"); probe.style.cssText = "display:inline-block;inline-size:0;block-size:0"; n.append(probe);
+    const base = probe.getBoundingClientRect().top; probe.remove();
+    const tr = rg.getClientRects()[0], size = parseFloat(cs.fontSize) * K;
+    cv.width = Math.ceil(tr.width * K + 2 * size); cv.height = 3 * size;
+    ink.font = `${cs.fontWeight} ${size}px ${cs.fontFamily}`; ink.textBaseline = "alphabetic"; ink.fillText(t.textContent, size, 2 * size);
+    const px = ink.getImageData(0, 0, cv.width, cv.height).data;
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (let y = 0; y < cv.height; y++) for (let x = 0; x < cv.width; x++) if (px[(y * cv.width + x) * 4 + 3] > 127) { x0 = Math.min(x0, x); x1 = Math.max(x1, x + 1); y0 = Math.min(y0, y); y1 = Math.max(y1, y + 1); }
+    const mr = m.getBoundingClientRect();
+    const dx = tr.left + ((x0 + x1) / 2 - size) / K - (mr.left + mr.right) / 2;
+    const dy = base + ((y0 + y1) / 2 - 2 * size) / K - (mr.top + mr.bottom) / 2;
+    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) fail("marker-number", `${name(b)} number ${t.textContent} ink off the marker center by x ${dx.toFixed(2)}, y ${dy.toFixed(2)}px`);
+  }
   // fold: with nothing focused and the question at its top, a choice or confirm question's answer controls show
   // without scrolling (confirm: every pick button; choice: the first Choose button)
   const act = document.activeElement;

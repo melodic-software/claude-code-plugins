@@ -282,6 +282,69 @@ async function main() {
     await pia.locator(".vf-sheethead button", { hasText: "Cancel" }).tap();
     ok("390x844: Cancel closes the sheet and keeps the saved answer", await until(pia, () => !document.querySelector(".vf-composer-sheet") && document.querySelector("#vf-answer").value === "Below the total."));
 
+    // ---------- question numbers inside the list markers ----------
+    // Expected values: Q1 shows 1 and Q12 shows 12 (the id, not the position, which is 3); a one-line row keeps its
+    // pre-change height, 44 px (52 px on a phone), the .vf-q min-block-size; text contrast 4.5:1 is WCAG 1.4.3 AA.
+    const N = await s.start("qnum");
+    s.apply(N.dir, [{ op: "set-title", title: "Numbers" }, { op: "open-round", questions: [
+      q("Q1", "Card or cash?", { kind: "text" }), q("Q2", "Which header?", { kind: "text" }), q("Q12", "Anything else?", { kind: "text" })] }]);
+    const nb = N.localUrl.replace(/\/$/, ""), ntok = new URL(N.ownerUrl).hash.replace(/^#owner=/, "");
+    const npost = (route, body, h) => fetch(nb + route, { method: "POST", headers: { "Content-Type": "application/json", ...h }, body: JSON.stringify(body) }).then(r => r.json());
+    const ng = await npost("/api/join", { name: "Num", device: "computer" }, {});
+    await npost("/api/answer", { qid: "Q2", text: "The slim one.", view: "focus" }, { "X-Session-Secret": ng.secret });
+    for (const [label, context] of [["1440x900", { viewport: { width: 1440, height: 900 } }], ["390x844", PHONE]]) {
+      const own = await rec.open(N.ownerUrl, { context });
+      await until(own, () => window.Core.snapshot()?.me?.role === "owner");
+      if (label === "1440x900") {
+        await npost("/api/lock", { qid: "Q2", card: `p:${ng.pid}` }, { "X-Owner-Token": ntok });
+        await own.evaluate(() => window.Core.answerCiting("Q1", "Card.", []));
+      }
+      if (label === "390x844") await own.locator(".vf-tab", { hasText: "Questions" }).click();
+      await until(own, () => document.querySelectorAll(".vf-round-cur .vf-q").length === 3 && document.querySelector(".vf-q[data-stat=locked]") && document.querySelector(".vf-q[data-stat=done]"));
+      const rows = await own.evaluate(() => [...document.querySelectorAll(".vf-round-cur .vf-q")].map(b => ({ mark: b.querySelector(".vf-qstat")?.textContent.trim() ?? null, h: +b.getBoundingClientRect().height.toFixed(2) })));
+      ok(`${label}: the list markers show the id numbers 1, 2 and 12, not positions`, rows.map(r => r.mark).join(",") === "1,2,12", JSON.stringify(rows));
+      const gst = await rec.open(N.localUrl, { context });
+      await joinAs(gst, `Num ${label}`);
+      if (label === "390x844") await gst.locator(".vf-tab", { hasText: "Questions" }).click();
+      await until(gst, () => document.querySelectorAll(".vf-round-cur .vf-q").length === 3);
+      const gm = await gst.evaluate(() => [...document.querySelectorAll(".vf-round-cur .vf-q .vf-qstat")].filter(m => m.getClientRects().length).map(m => m.textContent.trim()).join(","));
+      ok(`${label}: a guest's simple view shows the same marker numbers`, gm === "1,2,12", gm);
+      await gst.context().close();
+      const want = label === "390x844" ? 52 : 44;
+      ok(`${label}: one-line list rows keep their ${want} px height with a number in the marker`, rows.every(r => Math.abs(r.h - want) <= 0.5), JSON.stringify(rows));
+      const aria = await own.locator(".vf-round-cur .vf-q").nth(2).ariaSnapshot();
+      ok(`${label}: Q12's row is announced as Question 12, the number once`, /Question 12: Anything else\?/.test(aria) && (aria.match(/\b12\b/g) || []).length === 1, aria);
+      if (label === "1440x900") {
+        const bad = [];
+        for (const scheme of ["dark", "light"]) {
+          await own.emulateMedia({ colorScheme: scheme });
+          await until(own, t => document.getElementById("app").dataset.theme === t, scheme);
+          // the theme switch starts color transitions; measure the settled colors
+          await own.evaluate(() => Promise.all(document.getAnimations().filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished.catch(() => null))));
+          bad.push(...await own.evaluate(scheme => {
+            const cx = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+            const paint = colors => { cx.clearRect(0, 0, 1, 1); for (const c of colors) { cx.fillStyle = c; cx.fillRect(0, 0, 1, 1); } return [...cx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+            const lum = rgb => { const [r, g, b] = rgb.map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+            const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+            const app = document.getElementById("app"), was = app.dataset.accent, out = [];
+            for (const accent of ["teal", "indigo", "violet", "amber"]) {
+              app.dataset.accent = accent;
+              for (const b of document.querySelectorAll(".vf-round-cur .vf-q")) {
+                const m = b.querySelector(".vf-qstat"), layers = [];
+                for (let e = m; e; e = e.parentElement) layers.unshift(getComputedStyle(e).backgroundColor);
+                const bg = paint(["#fff", ...layers]), fg = paint([...layers, getComputedStyle(m).color]), r = ratio(fg, bg);
+                if (r < 4.5) out.push(`${scheme} ${accent} ${b.dataset.stat || "open"}: ${r.toFixed(2)}:1`);
+              }
+            }
+            if (was) app.dataset.accent = was; else delete app.dataset.accent;
+            return out;
+          }, scheme));
+        }
+        ok("1440x900: marker numbers meet 4.5:1 in dark and light, every accent, open, answered and locked", bad.length === 0, bad.join("; "));
+      }
+      await own.context().close();
+    }
+
     const csp = await rec.cspViolations();
     ok("no page broke the server's CSP", csp.length === 0, csp.slice(0, 3).join(" | "));
     ok("no page error or console error", rec.errors.length === 0, rec.errors.slice(0, 3).join(" | "));
