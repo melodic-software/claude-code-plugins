@@ -27,7 +27,7 @@ condition 1 and the actor and author parts of condition 2).
 | `dispatched-workflow` | empty | The workflow path this dispatched run must have; empty stops every dispatcher-sent run |
 | `require-pr` | `true` | `false` checks only the actors and reads no PR |
 | `require-kind` | empty | `human` narrows the actor-only checks to actors listed as `kind: human` |
-| `ratified-app-label` | empty | With `require-kind: human`, the one label the lanes App may apply to an issue, accepted only while the issue carries the owner's ratification marker |
+| `app-label` | empty | With `require-kind: human`, the one label the lanes App may apply to an issue to start the lane |
 
 ## Rules
 
@@ -114,15 +114,12 @@ condition 1 and the actor and author parts of condition 2).
   sender and the re-runner must be listed as `kind: human` (the re-runner's login is mapped to its
   listed id). Any `require-pr` value other than `true` or `false`, or `require-kind` value other
   than empty or `human`, stops with `no-pr`.
-- **Ratified App label (`ratified-app-label`).** On an `issues` event with `require-kind: human`
-  whose sender is `lanes-app-id`, the label event must be `labeled` with exactly that label, or it
-  stops with `bot-actor`. The gate then reads the issue's comments and proceeds only when one
-  holds the ratification marker (`findRatification` in `../resolve-config/ratification.mjs`: a
-  listed human's comment, never edited, not posted through an App; a denied id does not count).
-  The run reads the issue's title and body, so the gate also reads, through GraphQL, when the body
-  was last edited and the title last changed: either after the newest such comment stops. A
-  failed read or no such comment stops with `untrusted-actor`. The re-runner must be the App or a listed human, not
-  denied, or it stops with `untrusted-rerunner`. Empty keeps the App denied on every event.
+- **App label (`app-label`).** On an `issues` event with `require-kind: human` whose sender is
+  `lanes-app-id`, the label event must be `labeled` with exactly that label, or it stops with
+  `bot-actor`; the label alone admits the issue, and no comment or edit history is read. An
+  event with no issue number stops with `untrusted-actor`. The re-runner must be the App or a
+  listed human, not denied, or it stops with `untrusted-rerunner`. Empty keeps the App denied on
+  every event.
 - **`workflow_run`.** Same repository when `workflow_run.head_repository.full_name` equals the
   repository. The PR is looked up from the run's head SHA, because `pull_requests` is empty for
   more than forks: exactly one open same-repository PR whose head is still that SHA, or `no-pr`.
