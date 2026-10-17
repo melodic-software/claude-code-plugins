@@ -62,7 +62,10 @@
 # inside `$(...)`; a GraphQL mutation read from a file (`--input`), whose name
 # never appears in the command; only the first merge in one command string is
 # checked; past 100 reviews or check runs the rest are not read; more than 100
-# review threads with none unresolved in the first 100 is reported as unchecked.
+# review threads with none unresolved in the first 100 is reported as unchecked;
+# a cancelled run `<name>` is cleared by a newer `<name> (...)` run of the same
+# app in another check suite even when that run belongs to an unrelated
+# workflow, which the check-runs payload cannot tell apart from a matrix leg.
 #
 # THE CLOUD ROUTES. Basis: the HTTP 403 body GitHub GraphQL returns inside a
 # Claude Code cloud session names `GET pulls/{n}/ccr/review_threads` (an array
@@ -530,8 +533,8 @@ _bupm_changes="$BUPM_OUT"
 # supersedes a completed run with a real conclusion, so a later event that
 # skips a job cannot clear its failure; it does supersede a pending run and a
 # cancelled one, which stopped before reaching a conclusion (#7549). A
-# cancelled run is superseded by a newer run of the same app named
-# `<name> (...)`, because a matrix job cancelled before it expanded reports
+# cancelled run is superseded by a newer run of the same app, in another check
+# suite, named `<name> (...)`, because a matrix job cancelled before it expanded reports
 # under its bare name while its legs report as `<name> (<leg>)`.
 # shellcheck disable=SC2016
 _bupm_api "repos/$BUPM_REPO/commits/$_bupm_sha/check-runs?per_page=100" --jq '
@@ -542,7 +545,7 @@ _bupm_api "repos/$BUPM_REPO/commits/$_bupm_sha/check-runs?per_page=100" --jq '
       then (map(select(.status == "completed" and (.conclusion | IN("skipped","neutral","cancelled") | not))) | max_by(.id)) // $n
       else $n end
     | select(. as $c | $c.conclusion == "cancelled"
-        and any($all[]; (.app.id // 0) == ($c.app.id // 0) and .id > $c.id and (.name | startswith($c.name + " ("))) | not)] as $runs
+        and any($all[]; (.app.id // 0) == ($c.app.id // 0) and .id > $c.id and .check_suite.id != $c.check_suite.id and (.name | startswith($c.name + " ("))) | not)] as $runs
   | [$runs[] | select(.status == "completed" and (.conclusion | IN("failure","timed_out","cancelled","action_required","startup_failure","stale"))) | .name] as $f
   | [$runs[] | select(.status != "completed") | .name] as $p
   | "\($f | join(", "))\u001f\($p | join(", "))"' ||

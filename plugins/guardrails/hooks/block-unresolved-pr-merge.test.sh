@@ -141,8 +141,14 @@ J
   # An older success, then a newer run that was cancelled.
   newer-cancelled) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test","app":{"id":15368},"status":"completed","conclusion":"success","started_at":"2026-10-14T10:00:00Z","completed_at":"2026-10-14T10:10:00Z"},{"id":902,"name":"test","app":{"id":15368},"status":"completed","conclusion":"cancelled","started_at":"2026-10-14T10:20:00Z","completed_at":"2026-10-14T10:21:00Z"}]}' >"$FIX/checks.json" ;;
   # Matrix jobs cancelled before expanding (bare names), then the newer run's legs.
-  matrix-cancelled-then-legs) echo '{"total_count":4,"check_runs":[{"id":901,"name":"test-bash","app":{"id":15368},"status":"completed","conclusion":"cancelled"},{"id":902,"name":"test-python","app":{"id":15368},"status":"completed","conclusion":"cancelled"},{"id":903,"name":"test-bash (0)","app":{"id":15368},"status":"completed","conclusion":"success"},{"id":904,"name":"test-python (0)","app":{"id":15368},"status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
-  matrix-cancelled-then-leg-fails) echo '{"total_count":3,"check_runs":[{"id":901,"name":"test-bash","app":{"id":15368},"status":"completed","conclusion":"cancelled"},{"id":903,"name":"test-bash (0)","app":{"id":15368},"status":"completed","conclusion":"success"},{"id":904,"name":"test-bash (1)","app":{"id":15368},"status":"completed","conclusion":"failure"}]}' >"$FIX/checks.json" ;;
+  matrix-cancelled-then-legs) echo '{"total_count":4,"check_runs":[{"id":901,"name":"test-bash","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":902,"name":"test-python","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":903,"name":"test-bash (0)","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"success"},{"id":904,"name":"test-python (0)","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
+  matrix-cancelled-then-leg-fails) echo '{"total_count":3,"check_runs":[{"id":901,"name":"test-bash","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":903,"name":"test-bash (0)","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"success"},{"id":904,"name":"test-bash (1)","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"failure"}]}' >"$FIX/checks.json" ;;
+  # Runs that must not clear a cancelled bare run.
+  matrix-leg-older) echo '{"total_count":2,"check_runs":[{"id":903,"name":"test-bash (0)","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"success"},{"id":905,"name":"test-bash","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"cancelled"}]}' >"$FIX/checks.json" ;;
+  matrix-leg-other-app) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test-bash","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":903,"name":"test-bash (0)","app":{"id":999},"check_suite":{"id":2},"status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
+  matrix-leg-cancelled) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test-bash","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":903,"name":"test-bash (0)","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"cancelled"}]}' >"$FIX/checks.json" ;;
+  matrix-other-name) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test-bash","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":903,"name":"test-bash-node","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
+  matrix-same-suite-sibling) echo '{"total_count":2,"check_runs":[{"id":901,"name":"build","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":902,"name":"build (arm64)","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
   *) return 1 ;;
   esac
   case "$4" in
@@ -288,8 +294,22 @@ run "a cancelled matrix job is superseded by its newer legs" 'gh pr merge 42 --s
 assert_eq "matrix cancelled then legs -> no stderr" "" "$ERR"
 scenario none none matrix-cancelled-then-leg-fails green
 run "a failing leg still blocks after its cancelled matrix job" 'gh pr merge 42 --squash' 2
-assert_contains "names the failing leg" "$ERR" "Failing checks: test-bash (1)"
-assert_absent "the bare cancelled job is not listed" "$ERR" "test-bash,"
+assert_eq "names only the failing leg" "Failing checks: test-bash (1)" "$(grep 'Failing checks:' <<<"$ERR")"
+scenario none none matrix-leg-older green
+run "a leg older than the cancelled run does not clear it" 'gh pr merge 42 --squash' 2
+assert_eq "older leg -> names the bare run" "Failing checks: test-bash" "$(grep 'Failing checks:' <<<"$ERR")"
+scenario none none matrix-leg-other-app green
+run "a leg from another app does not clear a cancelled run" 'gh pr merge 42 --squash' 2
+assert_eq "other-app leg -> names the bare run" "Failing checks: test-bash" "$(grep 'Failing checks:' <<<"$ERR")"
+scenario none none matrix-leg-cancelled green
+run "a cancelled leg still blocks" 'gh pr merge 42 --squash' 2
+assert_contains "cancelled leg -> names the leg" "$ERR" "test-bash (0)"
+scenario none none matrix-other-name green
+run "a newer run not named <name> (...) does not clear a cancelled run" 'gh pr merge 42 --squash' 2
+assert_eq "other name -> names the bare run" "Failing checks: test-bash" "$(grep 'Failing checks:' <<<"$ERR")"
+scenario none none matrix-same-suite-sibling green
+run "a same-suite sibling does not clear a cancelled run" 'gh pr merge 42 --squash' 2
+assert_eq "same-suite sibling -> names the bare run" "Failing checks: build" "$(grep 'Failing checks:' <<<"$ERR")"
 
 # --- 4. REST, GraphQL and curl merge paths -------------------------------------
 scenario unresolved none green green
