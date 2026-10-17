@@ -878,7 +878,109 @@ class TheListingIsReadOncePerReader(unittest.TestCase):
             holds = [reader.queued_hold(n) for n in (PR, PR, PR)]
         self.assertEqual(holds, ["verify:unreadable"] * 3)
         listings = [c for c in fake.calls if any("actions/artifacts" in a for a in c)]
-        self.assertEqual(len(listings), 1)
+        self.assertEqual(len(listings), ve.LISTING_ATTEMPTS)
+
+
+# --- A transient listing failure is read again --------------------------------
+
+_no_sleep = mock.patch.object(ve, "_listing_sleep")
+
+
+def setUpModule() -> None:
+    _no_sleep.start()
+
+
+def tearDownModule() -> None:
+    _no_sleep.stop()
+
+
+class FlakyListing(FakeGitHub):
+    """Fails the artifact listing with each of `errors` (stderr) in turn."""
+
+    def __init__(self, errors: list[str]):
+        fake = passing()
+        super().__init__(fake.artifacts, fake.runs, fake.records)
+        self.errors = errors
+
+    def __call__(
+        self, args: list[str], **kwargs: Any
+    ) -> subprocess.CompletedProcess[str]:
+        if self.errors and any("actions/artifacts" in a for a in args):
+            self.calls.append(args)
+            return subprocess.CompletedProcess(args, 1, "", self.errors.pop(0))
+        return super().__call__(args, **kwargs)
+
+    def listings(self) -> int:
+        return sum(any("actions/artifacts" in a for a in c) for c in self.calls)
+
+
+class ATransientListingFailureIsReadAgain(unittest.TestCase):
+    TRANSIENT = (
+        "gh: Bad Gateway (HTTP 502)",
+        "gh: Service Unavailable (HTTP 503)",
+        "gh: Too Many Requests (HTTP 429)",
+        "gh: You have exceeded a secondary rate limit. (HTTP 403)",
+        "error connecting to api.github.com",
+    )
+
+    def judge(self, fake: FlakyListing) -> tuple[ve.Evidence, list[float]]:
+        with (
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            mock.patch.object(ve, "_listing_sleep") as sleep,
+        ):
+            evidence = ve.Reader(REPO, "main", now=NOW).evidence(PR, HEAD, pull())
+        return evidence, [c.args[0] for c in sleep.call_args_list]
+
+    def test_a_transient_failure_then_a_listing_reads_the_verdict(self) -> None:
+        for error in self.TRANSIENT:
+            with self.subTest(error):
+                fake = FlakyListing([error])
+                evidence, sleeps = self.judge(fake)
+                self.assertIsNone(evidence.refusal)
+                self.assertEqual(fake.listings(), 2)
+                self.assertEqual(sleeps, [2.0])
+
+    def test_a_persistent_transient_failure_refuses_after_three_reads(self) -> None:
+        fake = FlakyListing(["gh: Bad Gateway (HTTP 502)"] * 3)
+        evidence, sleeps = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertIn("HTTP 502", evidence.detail or "")
+        self.assertEqual(fake.listings(), 3)
+        self.assertEqual(sleeps, [2.0, 4.0])
+
+    def test_a_timeout_is_read_again(self) -> None:
+        fake = FlakyListing([])
+        calls = iter([RuntimeError("gh api timed out after 60s")])
+
+        def flaky(args: list[str], **kwargs: Any) -> Any:
+            if any("actions/artifacts" in a for a in args):
+                error = next(calls, None)
+                if error:
+                    fake.calls.append(args)
+                    raise error
+            return fake(args, **kwargs)
+
+        with (
+            mock.patch.object(postmerge, "gh_capture", side_effect=flaky),
+            mock.patch.object(ve, "_listing_sleep"),
+        ):
+            evidence = ve.Reader(REPO, "main", now=NOW).evidence(PR, HEAD, pull())
+        self.assertIsNone(evidence.refusal)
+        self.assertEqual(fake.listings(), 2)
+
+    def test_any_other_failure_is_not_read_again(self) -> None:
+        for error in (
+            "gh: Not Found (HTTP 404)",
+            "gh: Forbidden (HTTP 403)",
+            "gh: Bad credentials (HTTP 401)",
+            "gh: Validation Failed (HTTP 422)",
+        ):
+            with self.subTest(error):
+                fake = FlakyListing([error])
+                evidence, sleeps = self.judge(fake)
+                self.assertEqual(evidence.refusal, "verify:unreadable")
+                self.assertEqual(fake.listings(), 1)
+                self.assertEqual(sleeps, [])
 
 
 # --- The --authority pr-merge path ------------------------------------------------
