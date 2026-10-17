@@ -113,8 +113,11 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
     const dir = env.WORK_OUTCOME_DIR ?? "";
     const ran = readBranch(dir, Number(env.ISSUE_NUMBER));
     const branch = reuse || ran;
+    // On a reuse, an outcome this run cannot read counts as none, as in
+    // report-outcome: the earlier run's statuses on the branch stand.
+    const own = reuse && ran !== reuse ? null : readOutcome(join(dir, "work-outcome.json"));
     const statuses = plan({
-      outcome: reuse && ran !== reuse ? null : readOutcome(join(dir, "work-outcome.json")),
+      outcome: reuse && own?.unread ? null : own,
       branch,
       resolveResult: env.RESOLVE_RESULT,
       reportResult: env.REPORT_RESULT,

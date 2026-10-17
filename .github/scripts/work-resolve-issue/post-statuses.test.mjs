@@ -217,6 +217,19 @@ test("main reads the run's own outcome for a reused branch lane.json names", asy
   });
 });
 
+test("main posts only report-outcome on a reused branch lane.json names whose outcome cannot be read", async () => {
+  for (const files of [{}, { "work-outcome.json": "{" }, { "work-outcome.json": JSON.stringify({ exit: "finished" }) }]) {
+    await withOutcome({ ...files, "lane.json": JSON.stringify({ branch: REUSED }) }, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/git\/ref\/heads\/work-resolve-issue\/issue-77-400-1$/, 200, { object: { sha: SHA } }],
+        ["POST", new RegExp(`/statuses/${SHA}$`), 201, {}],
+      ]);
+      assert.equal(await main({ env: { ...env(dir), REUSE_BRANCH: REUSED }, fetch }), 0);
+      assert.deepEqual(byContext(calls.filter((c) => c.method === "POST").map((c) => c.body)), UNREPORTED, JSON.stringify(files));
+    });
+  }
+});
+
 test("main refuses a reuse branch that is not this issue's lane branch", async () => {
   await withOutcome({}, async (dir) => {
     const { fetch, calls } = fakeFetch([]);
