@@ -282,8 +282,23 @@
       list._primed = true;
     }
     function resetList(list) { list.replaceChildren(); list._map = null; list._primed = false; }
-    function avStack(holder, people, max, size = 20) {
-      holder.replaceChildren(...people.slice(0, max).map(p => av(p.cid, p.name, size)));
+    /** Active, away or offline, from a presence entry (none: offline), and how a label says it. */
+    const presState = h => (!h ? "offline" : h.away ? "away" : "active");
+    const presWord = h => (!h ? "offline" : h.away ? `away${awayFor(h)}` : "active");
+    /** The presence dot at an avatar's bottom-right; aria-hidden, as the state is in the label beside or on it. */
+    function presDot(a, h) {
+      a.dataset.presence = presState(h);
+      if (!a.querySelector(".vf-pres")) { const d = E("span", "vf-pres"); d.setAttribute("aria-hidden", "true"); a.append(d); }
+      return a;
+    }
+    /** Avatars in a row; `presence` true: the people are presence entries, each shown with its dot and named with its state. */
+    function avStack(holder, people, max, size = 20, presence = false) {
+      const one = p => {
+        const a = av(p.cid, p.name, size);
+        if (presence) { presDot(a, p); a.setAttribute("role", "img"); a.setAttribute("aria-label", `${disp(p.name)}, ${presWord(p)}`); }
+        return a;
+      };
+      holder.replaceChildren(...people.slice(0, max).map(one));
       if (people.length > max) holder.append(E("span", "vf-more", "+" + (people.length - max)));
     }
     const votesOf = a => a.votes?.length || 0;
@@ -3025,7 +3040,7 @@
       evShare.hidden = !mod;
       const url = Core.guestLink();
       if (evShareIn.value !== url) evShareIn.value = url;
-      avStack(evHereAv, here, 6, 24);
+      avStack(evHereAv, here, 6, 24, true);
       evHereTxt.textContent = here.length ? `${names(here)} ${here.length > 1 ? "are" : "is"} here` : owner ? "Nobody else here yet" : "";
       evHere.hidden = !here.length && !owner;
       evNext.hidden = owner;
@@ -4866,8 +4881,11 @@
       hQueue._m.textContent = `${items.length} waiting`;
       // people
       const here = new Map(S.presence.map(p => [p.cid, p])), gone = new Set(S.removed || []);
+      // You first, then Active, Away, Offline (the most recently seen first), the owner first within each, then by name.
+      const rank = p => ["active", "away", "offline"].indexOf(presState(here.get(p.pid)));
       const ppl = Object.entries(S.people || {}).map(([pid, v]) => ({ pid, ...v })).filter(p => owner || !gone.has(p.pid))
-        .sort((a, b) => (here.has(b.pid) - here.has(a.pid)) || (b.pid === S.ownerPid) - (a.pid === S.ownerPid) || a.name.localeCompare(b.name));
+        .sort((a, b) => isMe(b.pid) - isMe(a.pid) || rank(a) - rank(b) || (rank(a) === 2 && (b.seen || 0) - (a.seen || 0))
+          || (b.pid === S.ownerPid) - (a.pid === S.ownerPid) || a.name.localeCompare(b.name));
       const answeredBy = {};
       for (const lst of Object.values(S.answers)) for (const a of lst) if (!a.claude && !a.option) answeredBy[a.cid] = (answeredBy[a.cid] || 0) + 1;
       const lastCtx = {}, lastTs = {}; // each person's newest recorded context: answers and suggestions carry one
@@ -4896,6 +4914,7 @@
         li._p = p;
         const key = p.pid + "|" + p.name;
         if (k.avKey !== key) { k.avKey = key; k.avBox.replaceChildren(av(p.pid, p.name, 26, true)); }
+        presDot(k.avBox.firstChild, h).setAttribute("aria-label", `${disp(p.name)}, ${presWord(h)}, show details`);
         k.nm.textContent = disp(p.name) + (me2 ? " (you)" : "");
         k.role.textContent = isGone ? "Removed" : rl; k.role.className = `vf-role vf-role-${isGone ? "removed" : rl.toLowerCase()}`;
         const hq = h?.q && qById(h.q);
@@ -4905,7 +4924,7 @@
         k.meta.textContent = `${last}. ${na} answered${h?.typing ? ", typing" : ""}`;
         ctxBadge(k.ctxB, owner ? lastCtx[p.pid] : null);
         li.dataset.here = String(!!h);
-        li.dataset.presence = !h ? "offline" : h.away ? "away" : "active";
+        li.dataset.presence = presState(h);
         li.classList.toggle("vf-hperson-gone", isGone);
         const can = owner && !me2 && rl !== "Host";
         k.acts.hidden = !can;
@@ -5010,23 +5029,24 @@
       if (askTop.hidden && ui.pop === askPanel) closePop();
       root.dataset.live = Core.live ? "on" : "off";
       liveTxt.textContent = Core.live ? "Live" : "Reconnecting…";
-      const ppl = [...here].sort((a, b) => isMe(b.cid) - isMe(a.cid));
+      const ppl = [...here].sort((a, b) => isMe(b.cid) - isMe(a.cid) || !!a.away - !!b.away);
       sync(people, ppl.slice(0, 7), p => p.cid, p => {
         const b = btn("vf-person vf-person-act");
         b.append(av(p.cid, p.name, 26));
         return b;
       }, (b, p) => {
         const role = p.owner ? "host" : p.leader ? "leader" : "";
-        const label = `${disp(p.name)}${isMe(p.cid) ? " (you)" : ""}${role ? ", " + role : ""}${p.away ? `, away${awayFor(p)}` : ""}. Show details`;
+        const label = `${disp(p.name)}${isMe(p.cid) ? " (you)" : ""}${role ? ", " + role : ""}, ${presWord(p)}. Show details`;
         b.setAttribute("aria-label", label);
         b.dataset.role = role;
-        b.dataset.presence = p.away ? "away" : "active";
+        b.dataset.presence = presState(p);
         b.title = p.away ? `${disp(p.name)}: away${awayFor(p)}` : "";
         // data-pid on the button itself, so Enter and Space (which click the button, not the avatar) open the card
         b.dataset.pid = p.cid; b.dataset.name = p.name;
         b.classList.toggle("vf-person-me", isMe(p.cid));
         const a = b.firstChild;
         if (a.textContent !== Core.initials(p.name) || a.dataset.name !== p.name) b.replaceChildren(av(p.cid, p.name, 26));
+        presDot(b.firstChild, p);
       });
       hereCount.textContent = here.length > 7 ? `+${here.length - 7}` : `${hereN} here`;
       follow.hidden = me.isOwner || !s.follow;

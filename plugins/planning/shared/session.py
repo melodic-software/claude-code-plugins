@@ -4310,6 +4310,7 @@ class Session:
             snap["serverTime"] = now
             here = self._present()
             snap["presence"] = [self._presence_entry(p, v, now) for p, v in self._presence.items() if p in here]
+            snap["lastSeen"] = {p: self._seen(v) for p, v in self._presence.items() if p not in here and self._active(p)}
             notes = st["notifications"].get(pid, [])
             snap["me"] = {
                 "pid": pid,

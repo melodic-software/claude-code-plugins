@@ -19,6 +19,7 @@
   --brass-text: var(--brass);
   --on-brass: oklch(0.22 0.04 70);
   --ok: oklch(0.77 0.15 155);
+  --away: oklch(0.80 0.15 75); /* presence: Away (amber); never --brass, which means decided */
   --warn: oklch(0.69 0.19 25);
   --shadow-pop: 0 1px 0 oklch(1 0 none / 0.05) inset, 0 16px 40px oklch(0 0 none / 0.5);
   --r-sm: 6px;
@@ -67,6 +68,7 @@
     --brass-text: oklch(0.50 0.12 65); /* brass as text on light surfaces */
     --on-brass: oklch(0.22 0.04 70);
     --ok: oklch(0.58 0.15 155);
+    --away: oklch(0.62 0.15 65);
     --warn: oklch(0.57 0.2 25);
     --shadow-pop: 0 1px 2px oklch(0.2 0.02 250 / 0.08), 0 16px 40px oklch(0.2 0.02 250 / 0.14);
     --sb: oklch(0.25 0.02 250 / 0.18);
@@ -192,8 +194,23 @@
 .app .vf-person-act { cursor: pointer; }
 .app .vf-person .core-avatar { box-shadow: 0 0 0 2px var(--bg); }
 .app .vf-person[data-role="host"] .core-avatar { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--accent); }
-/* Away: present but hidden, idle five minutes, or snoozed by hand; shown dimmed (offline people are not shown here) */
-.app .vf-person[data-presence="away"] .core-avatar, .app .vf-hperson[data-presence="away"] .vf-hp-av { opacity: 0.45; filter: grayscale(0.6); }
+/* Presence on an avatar: a dot at its bottom-right in a ring of the surface it sits on (--ring). Active is a filled
+   --ok dot, Away (hidden, idle five minutes, or snoozed by hand) a filled --away dot with a clock hand, Offline a hollow
+   --faint ring. Names and avatars are never dimmed. */
+.app .vf-people, .app .vf-avrow { --ring: var(--bg); }
+.app .vf-hpeople { --ring: var(--pane); }
+.app .core-avatar[data-presence] { position: relative; }
+.app .vf-pres {
+  position: absolute; inset-block-end: -1px; inset-inline-end: -1px; inline-size: 10px; block-size: 10px;
+  box-sizing: border-box; border-radius: 50%; box-shadow: 0 0 0 2px var(--ring, var(--pane)); z-index: 1;
+}
+.app [data-presence="active"] > .vf-pres { background: var(--ok); }
+.app [data-presence="away"] > .vf-pres { background: var(--away); }
+.app [data-presence="away"] > .vf-pres::after {
+  content: ""; position: absolute; inset-block-start: 2px; inset-inline-start: 4px; inline-size: 3px; block-size: 3.5px;
+  box-sizing: border-box; border-inline-start: 1.5px solid var(--ring, var(--pane)); border-block-end: 1.5px solid var(--ring, var(--pane));
+}
+.app [data-presence="offline"] > .vf-pres { background: var(--ring, var(--pane)); border: 2px solid var(--faint); }
 .app .vf-person[data-role="leader"] .core-avatar { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--brass); }
 .app .vf-here { color: var(--faint); font-size: 12px; white-space: nowrap; }
 .app .vf-follow {
@@ -1588,11 +1605,7 @@
   padding: 6px 4px; border-block-end: 1px solid var(--line);
 }
 .app .vf-hperson:last-child { border-block-end: 0; }
-.app .vf-hp-av { display: inline-flex; position: relative; }
-.app .vf-hperson[data-here="true"] .vf-hp-av::after {
-  content: ""; position: absolute; inset-inline-end: -1px; inset-block-end: -1px; inline-size: 8px; block-size: 8px;
-  border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 2px var(--pane);
-}
+.app .vf-hp-av { display: inline-flex; }
 .app .vf-hp-mid { display: grid; gap: 1px; min-width: 0; }
 .app .vf-hp-namerow { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .app .vf-hp-name { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }

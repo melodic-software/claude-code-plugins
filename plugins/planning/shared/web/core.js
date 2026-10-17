@@ -81,7 +81,7 @@
   function toView(s) {
     const people = {}, nameOf = pid => (pid === "host" && !people.host ? "Host" : people[pid]?.name || "Someone");
     const roles = {};
-    for (const p of [...(s.people || []), ...(s.removed || [])]) { people[p.pid] = { name: p.name, ts: p.joinedAt, color: p.color }; roles[p.pid] = p; }
+    for (const p of [...(s.people || []), ...(s.removed || [])]) { people[p.pid] = { name: p.name, ts: p.joinedAt, color: p.color, ...(s.lastSeen?.[p.pid] ? { seen: s.lastSeen[p.pid] } : {}) }; roles[p.pid] = p; }
     const live = (s.people || []);
     const rounds = s.rounds || [], last = rounds[rounds.length - 1];
     const settings = s.settings || {};

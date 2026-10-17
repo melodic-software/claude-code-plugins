@@ -730,7 +730,7 @@ class TestSnapshotContract(unittest.TestCase):
     or renames fails here before it blanks part of the page."""
 
     TOP_ALL = {"schemaVersion", "rev", "build", "title", "goal", "ended", "serverTime", "settings", "rounds", "round", "questions", "cards", "locks"}
-    TOP_ALL |= {"suggestions", "results", "chat", "people", "presence", "requestCounts", "proposals", "myRequests", "myMergeRequests", "me"}
+    TOP_ALL |= {"suggestions", "results", "chat", "people", "presence", "lastSeen", "requestCounts", "proposals", "myRequests", "myMergeRequests", "me"}
     TOP_MODERATOR = {"share", "guestKey"}
     TOP_OWNER = {"requests", "mergeRequests", "removed", "cardDetails"}
     KEY = "Zk3yZk3yZk3y"  # the fixture's session.guestKey

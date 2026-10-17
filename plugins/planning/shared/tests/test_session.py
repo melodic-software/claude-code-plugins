@@ -3164,6 +3164,14 @@ class TestPresenceStates(SessionCase):
         self.clock.tick(1)
         self.assertIsNone(self.state_of(self.ann))
 
+    def test_an_offline_person_carries_when_they_were_last_seen_and_a_present_one_does_not(self):
+        self.beat(self.ann)
+        seen = self.clock.t
+        self.clock.tick(90)
+        self.beat(self.bo)
+        self.assertEqual(self.s.snapshot(HOST)["lastSeen"], {self.ann: seen})
+        self.assertEqual(self.s.snapshot(self.bo)["lastSeen"], {self.ann: seen})
+
     def test_presence_thresholds_away_after_5_minutes_without_input(self):
         self.beat(self.ann, lastInput=299)
         self.assertEqual(self.state_of(self.ann), {"pid": self.ann, "q": "", "typing": False, "chatTyping": False, "state": "active"})
