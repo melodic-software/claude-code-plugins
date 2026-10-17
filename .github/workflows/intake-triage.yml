@@ -19,15 +19,21 @@ permissions: {}
 jobs:
   # Skips intake for an issue /work-items:decompose published already
   # triaged; see .github/actions/check-born-triaged. A failed gate leaves
-  # skip empty, so intake runs.
+  # skip empty, so intake runs. The job also resolves the lane's model, turns
+  # and effort from the triage-issue route of the default branch's models
+  # block; when that fails, claude-args is empty and intake does not run, so
+  # it never falls back to the CLI's own model and an unbounded turn budget.
   born-triaged:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      contents: read # check out the default branch for the trusted-actor list
+      contents: read # check out the default branch for the trusted-actor list and models block
       issues: read # read the issue's current body, type and labels
     outputs:
       skip: ${{ steps.check.outputs.skip }}
+      # Empty when the profile sets a subagent model, which the reusable
+      # cannot apply; the refusal step below shows why.
+      claude-args: ${{ steps.models.outputs.settings-json == '' && steps.models.outputs.claude-args || '' }}
     steps:
       - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -36,8 +42,15 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             /.github/actions/check-born-triaged/
+            /.github/actions/check-kill-switch/
+            /.github/actions/check-trusted-trigger/
+            /.github/actions/resolve-config/
+            /.github/CODEOWNERS
+            /.github/standards/github-actions-conventions/vocabulary.json
             /.github/standards/trusted-actors/
             /.node-version
+            /docs/conventions/pr-pipeline.yaml
+            /docs/conventions/pr-pipeline/
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
@@ -45,6 +58,22 @@ jobs:
         with:
           node-version-file: .base/.node-version
           package-manager-cache: false
+
+      - name: Resolve the triage model
+        id: models
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          model-route: triage-issue
+          output-path: ${{ runner.temp }}/intake-models.json
+
+      - name: Refuse a subagent model
+        env:
+          SETTINGS_JSON: ${{ steps.models.outputs.settings-json }}
+        run: |
+          if [ -n "$SETTINGS_JSON" ]; then
+            echo "::error::the triage-issue profile sets subagent-model, which intake-triage.yml does not support"
+            exit 1
+          fi
 
       - name: Check whether the issue was born triaged
         id: check
@@ -54,15 +83,19 @@ jobs:
 
   intake-triage:
     needs: born-triaged
-    if: ${{ !cancelled() && needs.born-triaged.outputs.skip != 'true' }}
+    if: >-
+      ${{ !cancelled()
+      && needs.born-triaged.outputs.skip != 'true'
+      && needs.born-triaged.outputs.claude-args != '' }}
     permissions:
       contents: read # check out the default branch so the lane can read AGENTS.md
       issues: write  # apply labels and post the triage comment
     concurrency:
       group: intake-triage-${{ github.event.issue.number || github.run_id }}
       cancel-in-progress: false
-    uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@182aca3ad32b79fd002def94e58eb498ac49e7af # v0.42.0
+    uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@3c8a4b2aeff5871cf72d35a686692bc6f0d44815 # v0.45.0
     with:
       runner: ubuntu-24.04
+      claude-args: ${{ needs.born-triaged.outputs.claude-args }}
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

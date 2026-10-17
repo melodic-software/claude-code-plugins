@@ -661,6 +661,7 @@ def merged_register(d, text=None):
             "resolution": r["resolution"],
         }
         row = dict(page, n=r["n"], id=q["id"], short=clean(q.get("short")), page=page)
+        row["readable"] = r["display"]
         if q["id"] in old:
             status, cell, title, res = old[q["id"]]
             row.update(round=round_cell(rnd, cell, added), title=title or page["title"])
@@ -669,7 +670,7 @@ def merged_register(d, text=None):
                 and status != page["status"]
                 and not page_decided(q)
             ):
-                row.update(status=status, resolution=res)
+                row.update(status=status, resolution=res, readable=None)
         rows.append(row)
     for i in extra:
         status, cell, title, res = old[i]
@@ -730,6 +731,51 @@ def export_ledger(d, text=None):
     retired = [r for r in rows if r["status"] in ("deferred", "blocked")]
     out += [f"- {r['n']}: {r['title']}" for r in retired] or ["- none"]
     return "\n".join(out) + "\n"
+
+
+# Longest answer, in characters, a live question's recap line keeps before it is cut; the recap
+# tries each in turn until it fits the caller's cap.
+RECAP_ANSWER_STEPS = (240, 120, 60, 30)
+
+
+def clip(text, n):
+    return text if len(text) <= n else text[: max(n - 1, 0)].rstrip() + "…"
+
+
+def recap_answer(r):
+    """A row's answer as the recap shows it: its readable form, else its named-field resolution
+    read back through parse_named into readable(), else its resolution as the ledger wrote it."""
+    if r.get("readable"):
+        return r["readable"]
+    res = LEAD.sub(r"\2", r["resolution"], count=1)
+    try:
+        named = parse_named(res, "the ledger")
+    except SystemExit:
+        named = None
+    return readable(r["status"], *named) if named else clean(r["resolution"])
+
+
+def confirmation_recap(d, cap, text=None):
+    """The confirmation gate's compact recap, one `Q<N> <status>: <question> (<answer>)` line per
+    live question, with every withdrawn row collapsed into one closing line and each long answer
+    cut. The answer length steps down until the recap fits `cap` characters; (recap, fits) says
+    whether it did."""
+    rows = merged_register(d, text)[1]
+    live = [r for r in rows if r["status"] != "withdrawn"]
+    gone = [r["n"] for r in rows if r["status"] == "withdrawn"]
+    out = ""
+    for n in RECAP_ANSWER_STEPS:
+        lines = [
+            f"{r['n']} {r['status']}: {clip(r['title'], n)} "
+            f"({clip(recap_answer(r), n)})"
+            for r in live
+        ]
+        if gone:
+            lines.append(f"Withdrawn ({len(gone)}): {', '.join(gone)}")
+        out = "\n".join(lines) + "\n"
+        if len(out) <= cap:
+            return out, True
+    return out, False
 
 
 def check_ledger(text, where):

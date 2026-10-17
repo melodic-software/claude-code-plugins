@@ -44,25 +44,21 @@ on:
         required: false
         type: string
         default: ""
-      ratified-app-label:
+      app-label:
         description: >-
-          Issue mode: the one label the lanes App may apply to start the lane,
-          accepted only while the issue carries the owner's unedited
-          ratification marker, re-read by the trigger gate. Empty keeps every
-          App event stopped.
+          Issue mode: the one label the lanes App may apply to start the lane.
+          Empty keeps every App event stopped.
         required: false
         type: string
         default: ""
-      default-model:
-        description: The model when the activity sets none; empty omits --model.
+      reuse-branch:
+        description: >-
+          Issue mode, report-outcome: the lane branch the resolve-issue run
+          found an earlier run left with commits and no report, so it skipped
+          the model; its reuse-branch output. Empty otherwise.
         required: false
         type: string
         default: ""
-      default-max-turns:
-        description: The turn budget when the activity sets none.
-        required: false
-        type: number
-        default: 75
       timeout-minutes:
         description: The run job's timeout in minutes.
         required: false
@@ -210,6 +206,12 @@ on:
           must be reported even when a later step failed. Set only by runner
           steps.
         value: ${{ jobs.run.outputs.issue-run-started }}
+      reuse-branch:
+        description: >-
+          Issue mode: the lane branch an earlier run left with commits and no
+          report, which this run reused instead of running the model; empty
+          otherwise. Set only by runner steps, before the mint.
+        value: ${{ jobs.run.outputs.reuse-branch }}
 
 permissions: {}
 
@@ -270,6 +272,7 @@ jobs:
       dependency-run-sha256: ${{ steps.dependency-collect.outputs.run-sha256 }}
       dependency-run-attempt: ${{ steps.dependency-collect.outcome == 'success' && github.run_attempt || '' }}
       issue-run-started: ${{ inputs.issue-number != '' && steps.lane-token.outcome == 'success' }}
+      reuse-branch: ${{ steps.issue-prior.outputs.reuse-branch }}
       # The lane record, from steps that read the execution file after the
       # skill. A forged limit stop can only restart the lane after a reset
       # limit-stop.mjs and report-outcome clamp to at least an hour away, at
@@ -277,9 +280,9 @@ jobs:
       lane-class: ${{ steps.lane-record.outputs.failure-class }}
       lane-resets: ${{ steps.lane-record.outputs.resets-at }}
       lane-turns: ${{ steps.lane-record.outcome == 'success' && steps.act-turns.outputs.turns || '' }}
-      lane-max-turns: >-
-        ${{ steps.lane-record.outcome == 'success'
-        && (steps.config.outputs.max-turns || inputs.default-max-turns) || '' }}
+      lane-max-turns: ${{ steps.lane-record.outcome == 'success' && steps.config.outputs.max-turns || '' }}
+      lane-models: ${{ steps.lane-record.outcome == 'success' && steps.act-turns.outputs.models || '' }}
+      lane-profile: ${{ steps.lane-record.outcome == 'success' && steps.config.outputs.profile || '' }}
       # A gate skill succeeds only on a `pass` verdict, a skill that took no
       # model turn fails, and a skill whose commits could not be moved onto
       # the PR branch fails. In merge-base mode a clean merge skips the skill
@@ -315,6 +318,7 @@ jobs:
           PR_NUMBER: ${{ inputs.pr-number }}
           DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
           TRUSTED_BASE: ${{ inputs.trusted-base }}
+          REUSE_BRANCH: ${{ inputs.reuse-branch }}
         run: |
           # Issue mode runs only on the issues event that names that issue,
           # trusting the default branch tip, with none of the PR inputs.
@@ -325,6 +329,12 @@ jobs:
               echo "::error::issue mode needs an issues event, the event's issue number, trusted-base default-tip, and no pr-number or dispatcher-run-id"
               exit 1
             fi
+          fi
+          # A reused branch is only ever this issue's lane branch.
+          if [ -n "$REUSE_BRANCH" ] && { [ -z "$ISSUE_NUMBER" ] ||
+            ! [[ $REUSE_BRANCH =~ ^work-resolve-issue/issue-${ISSUE_NUMBER}-[1-9][0-9]*-[1-9][0-9]*$ ]]; }; then
+            echo "::error::reuse-branch must be this issue's work-resolve-issue lane branch"
+            exit 1
           fi
           if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
@@ -375,7 +385,7 @@ jobs:
       # The lanes App bot never starts a write activity, on any event, so one
       # write cannot chain into the next; a re-run must be started by a listed
       # account. One exception, in issue mode: the App applying the caller's
-      # ratified-app-label to an issue the owner ratified.
+      # app-label to an issue.
       - name: Check the trigger
         id: gate
         if: steps.kill.outputs.proceed == 'true'
@@ -405,7 +415,7 @@ jobs:
           # any re-runner, must be listed as a human.
           require-pr: ${{ inputs.issue-number == '' }}
           require-kind: ${{ inputs.issue-number != '' && 'human' || '' }}
-          ratified-app-label: ${{ inputs.issue-number != '' && inputs.ratified-app-label || '' }}
+          app-label: ${{ inputs.issue-number != '' && inputs.app-label || '' }}
 
       # The trusted base is the config, actions and trusted-actor source and,
       # in prepare: merge-base mode, the merge's second parent.
@@ -433,6 +443,23 @@ jobs:
           # This file performs prepare: merge-base (the prepare, post and
           # commit steps below).
           prepare-supported: "true"
+
+      # Issue mode, skill run: before the mint and any model turn, with the
+      # job's read-only token, skips the model when an earlier run already
+      # did the work: a lanes-App PR from a lane branch is open, or the lanes
+      # App or a listed human opened a PR that closes the issue (stop), or a
+      # lane branch holds commits no report handed on (reuse-branch, which
+      # report-outcome opens a PR from). Both skip not-applicable.
+      - name: Check for an earlier run's work on the issue
+        id: issue-prior
+        if: >-
+          inputs.issue-number != '' && steps.config.outputs.applies == 'true'
+          && steps.config.outputs.kind == 'skill'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+        run: node .base/.github/scripts/work-resolve-issue/report-outcome.mjs --find-prior
 
       # review-threads, before the mint and any model turn, with the job's
       # read-only token: keeps the unresolved threads whose every comment is
@@ -504,6 +531,7 @@ jobs:
           steps.config.outputs.applies == 'true' && steps.config.outputs.effect != 'read'
           && steps.feedback-select.outputs.proceed != 'false'
           && steps.dependency-select.outputs.proceed != 'false'
+          && steps.issue-prior.outputs.proceed != 'false'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           EFFECT: ${{ steps.config.outputs.effect }}
@@ -574,8 +602,6 @@ jobs:
           kind: ${{ steps.config.outputs.kind }}
           script: ${{ steps.config.outputs.script }}
           skill: ${{ steps.config.outputs.skill }}
-          model: ${{ steps.config.outputs.model || inputs.default-model }}
-          max-turns: ${{ steps.config.outputs.max-turns || inputs.default-max-turns }}
           gating: ${{ steps.config.outputs.gating }}
           effect: ${{ steps.config.outputs.effect }}
           can-commit: ${{ steps.config.outputs.can-commit }}
@@ -601,9 +627,10 @@ jobs:
       # the skill evaluates as untrusted data, plus only the comments
       # select-trusted-text's author and edit rules keep, so a listed
       # maintainer's recorded decision reaches the skill. The lanes App's own
-      # comments are left out, and on its ratified label so is any comment
-      # created or edited after the ratification marker. Runs from the base
-      # copy before the checkout below replaces it.
+      # comments are left out, and so is any comment created or edited after
+      # the label that started the run was last added; a title or body
+      # changed since fails the step. Runs from the base copy before the
+      # checkout below replaces it.
       - name: Write the issue for the skill
         if: >-
           steps.head-recheck.outputs.proceed == 'true' && inputs.issue-number != ''
@@ -615,6 +642,8 @@ jobs:
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           LABEL_SENDER_ID: ${{ format('{0}', github.event.sender.id) }}
+          LABEL_NAME: ${{ github.event.label.name }}
+          LABEL_EVENT_AT: ${{ github.event.issue.updated_at }}
         run: node .base/.github/scripts/work-resolve-issue/write-issue.mjs
 
       # A script reads the base's work-item tracker config (report-escalation's
@@ -743,6 +772,27 @@ jobs:
           install-subprocess-isolation: ${{ steps.config.outputs.kind == 'skill' }}
 
       # Issue mode checks out the trusted base, the default branch tip.
+      # The head checkout replaces .base, so the base's scripts/setup-env.sh
+      # and the files it installs from are copied out first; a base that
+      # predates the script skips the install.
+      - name: Copy the dependency setup from the base
+        id: setup-env
+        if: steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.kind == 'skill'
+        env:
+          DEST: ${{ runner.temp }}/setup-env
+        run: |
+          if [ ! -f .base/scripts/setup-env.sh ]; then
+            echo "::notice::the base has no scripts/setup-env.sh; the skill runs without its dependencies"
+            exit 0
+          fi
+          policy=.github/standards/runner-policy
+          mkdir -p "$DEST/scripts" "$DEST/$policy"
+          for file in scripts/setup-env.sh .python-version .github/requirements-ci.txt \
+            package.json package-lock.json "$policy/package.json" "$policy/package-lock.json"; do
+            cp ".base/$file" "$DEST/$file"
+          done
+          echo "ready=true" >>"$GITHUB_OUTPUT"
+
       - name: Check out the PR head
         if: steps.head-recheck.outputs.proceed == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -867,6 +917,33 @@ jobs:
             await github.rest.git.createRef({ ...context.repo, ref: `refs/heads/${LANE_BRANCH}`, sha: HEAD_SHA });
             core.setOutput('branch', LANE_BRANCH);
 
+      - name: Set up Python for the skill
+        if: >-
+          steps.setup-env.outputs.ready == 'true'
+          && (steps.config.outputs.prepare != 'merge-base' || steps.prepare.outputs.merge-state == 'conflicted')
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: ${{ runner.temp }}/setup-env/.python-version
+
+      # The install reads only the base copies, so no head code runs: pytest
+      # and the Node tools land on PATH for the base wrappers.
+      - name: Install the skill's dependencies
+        if: >-
+          steps.setup-env.outputs.ready == 'true'
+          && (steps.config.outputs.prepare != 'merge-base' || steps.prepare.outputs.merge-state == 'conflicted')
+        env:
+          SETUP_ENV_VENV: ${{ runner.temp }}/setup-env-venv
+        run: |
+          bash "$RUNNER_TEMP/setup-env/scripts/setup-env.sh" --root "$RUNNER_TEMP/setup-env"
+          # Node resolves a package from the importing file's directory, so the
+          # base-built trees are copied into the checkout, where node_modules
+          # is ignored.
+          for dir in . .github/standards/runner-policy; do
+            [ -d "$GITHUB_WORKSPACE/$dir" ] || continue
+            rm -rf "${GITHUB_WORKSPACE:?}/$dir/node_modules"
+            cp -R "$RUNNER_TEMP/setup-env/$dir/node_modules" "$GITHUB_WORKSPACE/$dir/"
+          done
+
       # In merge-base mode only a conflicted merge needs the model.
       - name: Run the skill activity
         id: act-skill
@@ -906,9 +983,13 @@ jobs:
           plugin_marketplaces: ${{ runner.temp }}/base-marketplace
           plugins: ${{ steps.stage.outputs.plugins }}
           prompt: ${{ steps.stage.outputs.prompt }}
+          # The model, turns and effort come from the base config's models
+          # profile (resolve-config), never from text the run reads.
+          settings: ${{ steps.config.outputs.settings-json }}
           claude_args: >-
             --setting-sources user
             --permission-mode dontAsk
+            ${{ steps.config.outputs.claude-args }}
             ${{ steps.stage.outputs.claude-args }}
 
       # The reply is untrusted model text: it is read with jq and printed as
@@ -1005,6 +1086,9 @@ jobs:
             if (Number.isSafeInteger(diag.num_turns) && diag.num_turns >= 0) {
               core.setOutput('turns', String(diag.num_turns));
             }
+            // The CLI's modelUsage keys, the models the run used; the report
+            // job's lane-record.mjs drops a list that fails its shape.
+            core.setOutput('models', diag.models.join(','));
             if (!(diag.num_turns > 0) || diag.models.length === 0) {
               core.setFailed(
                 'no-model-turn: the skill ended without a model turn, so it did nothing; ' +
@@ -1028,7 +1112,7 @@ jobs:
             || format('{0}/claude-execution-output.json', runner.temp) }}
           lane: ${{ inputs.lane }}
           credential: CLAUDE_CODE_OAUTH_TOKEN
-          max-turns: ${{ steps.config.outputs.max-turns || inputs.default-max-turns }}
+          max-turns: ${{ steps.config.outputs.max-turns }}
 
       - name: Upload the skill's final reply
         if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
@@ -1635,6 +1719,8 @@ jobs:
           SKIP_REASON_FILE: ${{ runner.temp }}/skip-reason
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           WORK_OUTCOME_DIR: ${{ runner.temp }}/work-outcome
+          # Checked against this issue's lane branch by the job's first step.
+          REUSE_BRANCH: ${{ inputs.reuse-branch }}
           # review-replies only; empty otherwise.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           FEEDBACK_REPLIES_DIR: ${{ inputs.review-replies && format('{0}/feedback-replies', runner.temp) || '' }}
@@ -1719,7 +1805,8 @@ jobs:
             || steps.commit.outputs.skip-reason || steps.promote.outputs.skip-reason
             || steps.act-script.outputs.skip-reason
             || steps.feedback-select.outputs.skip-reason
-            || steps.dependency-select.outputs.skip-reason }}
+            || steps.dependency-select.outputs.skip-reason
+            || steps.issue-prior.outputs.skip-reason }}
           ACT_OUTCOME: >-
             ${{ steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'
             && ((steps.post.outputs.escalation-reason != ''
@@ -1936,6 +2023,8 @@ jobs:
           lane-resets: ${{ needs.run.outputs.lane-resets }}
           lane-turns: ${{ needs.run.outputs.lane-turns }}
           lane-max-turns: ${{ needs.run.outputs.lane-max-turns }}
+          lane-models: ${{ needs.run.outputs.lane-models }}
+          lane-profile: ${{ needs.run.outputs.lane-profile }}
           verdict-path: ${{ runner.temp }}/verdict/verdict.json
           base-path: .base
           head-sha-fallback: ${{ github.event.pull_request.head.sha || github.sha }}

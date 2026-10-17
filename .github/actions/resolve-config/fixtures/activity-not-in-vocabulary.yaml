@@ -1,4 +1,4 @@
-version: 1
+version: 2
 activities:
   coverage-report:
     script: scripts/coverage-report.sh

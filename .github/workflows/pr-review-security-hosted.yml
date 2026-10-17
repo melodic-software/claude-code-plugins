@@ -1,13 +1,11 @@
 name: pr-review-security-hosted
 
-# SYNC-MANAGED FILE: DO NOT EDIT IN THE CONSUMING REPOSITORY.
-# Source of truth: melodic-software/standards,
-# components/claude-lanes-hosted/claude-security-review.yml (the
-# `claude-security-review-hosted-caller` component in
-# distribution/sync-manifest.yml).
-# Downstream edits are overwritten by the next sync PR; change the component
-# upstream, or move the component to `locally-owned` in the manifest to
-# customize.
+# Locally owned: the `claude-security-review-hosted-caller` component of
+# melodic-software/standards
+# (components/claude-lanes-hosted/claude-security-review.yml) is
+# `locally-owned` for this repository in distribution/sync-manifest.yml, so
+# this copy can add the resolve-model job below. It differs from the component
+# in that job and these comments.
 #
 # Thin caller for the org's reusable security-review lane (advisory verdict,
 # fail-closed execution check). The reusable workflow owns the action pin,
@@ -33,7 +31,7 @@ name: pr-review-security-hosted
 #
 # RUNNER PLACEMENT: hosted shape, the sibling of
 # components/claude-lanes/claude-security-review.yml, differing from it only
-# in these comments, `runner` and the workflow `name:`. It is an interim with
+# in these comments, `runner`, the resolve-model job and the workflow `name:`. It is an interim with
 # the same removal trigger as the code-review caller. See that file's header.
 
 on:
@@ -64,19 +62,79 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The review's model, turns and effort: the review-security route of the
+  # models block in docs/conventions/pr-pipeline.yaml, read from the default
+  # branch, never the PR head, so a PR cannot choose the model through its
+  # own pr-pipeline.yaml (an edit to this file still shows in its diff). When
+  # this job fails, the review still runs on the reusable's own
+  # defaults, so the security-review check keeps reporting.
+  resolve-model:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out the default branch for the models block
+    outputs:
+      claude-args: ${{ steps.models.outputs.claude-args }}
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+          # resolve-config imports the two check-* action modules.
+          sparse-checkout: |
+            /.github/actions/check-kill-switch/
+            /.github/actions/check-trusted-trigger/
+            /.github/actions/resolve-config/
+            /.github/CODEOWNERS
+            /.github/standards/github-actions-conventions/vocabulary.json
+            /.node-version
+            /docs/conventions/pr-pipeline.yaml
+            /docs/conventions/pr-pipeline/
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Resolve the review model
+        id: models
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          model-route: review-security
+          output-path: ${{ runner.temp }}/review-models.json
+
+      # The reusable takes Claude args only; a subagent model would be dropped.
+      - name: Refuse a subagent model
+        env:
+          SETTINGS_JSON: ${{ steps.models.outputs.settings-json }}
+        run: |
+          if [ -n "$SETTINGS_JSON" ]; then
+            echo "::error::the review-security profile sets subagent-model, which pr-review-security.yml does not support"
+            exit 1
+          fi
+
   pr-review-security:
+    needs: resolve-model
     # A draft is work in progress and does not spend a review; the
     # ready_for_review trigger above is what delivers one when it is ready.
-    if: github.event.pull_request.draft == false
+    if: ${{ !cancelled() && github.event.pull_request.draft == false }}
     permissions:
       contents: read         # checkout + read the diff
       pull-requests: write   # post the security review, tracking comment and
                              # the lane's reviewed-head marker comment
       id-token: write        # OIDC, mints the Claude GitHub App token (required
                              # even with an OAuth/API-key credential)
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@58a60eac76cf36ed8ef4f59460acb4a8d34d3ff7 # v0.44.0
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@3c8a4b2aeff5871cf72d35a686692bc6f0d44815 # v0.45.0
     with:
       runner: ubuntu-24.04
+      # Empty unless resolve-model succeeded, so a failed job's partial output
+      # never reaches the review.
+      model-args: ${{ needs.resolve-model.result == 'success' && needs.resolve-model.outputs.claude-args || '' }}
       # Bot senders this lane reviews, by numeric user id: the
       # automation-lanes App, so a commit it pushes to a pull request is
       # reviewed. Where the repository does not set this variable the value is

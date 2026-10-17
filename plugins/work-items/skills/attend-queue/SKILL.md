@@ -170,9 +170,9 @@ answer without stopping the pass to ask which item is in front of them.
   stands alone: where it still shows the question open (a `Readiness: needs-decision` line, a list
   of fix options, an open-question section), state the chosen option there, one line linking the
   comment, and mark each option it ruled out as not chosen. A lane that reads the body sees the decision too.
-  Edit the body before the operator ratifies the item's admission: the issue lane starts no run
-  on an issue whose body changed after the newest ratification marker, so a body edit after
-  ratification needs a fresh ratification marker before the lane can start.
+  Edit the body before `agent-ready` is added, which alone admits the item: the issue lane fails
+  a run on an issue whose title or body changed after that label was last added, so a body edit
+  after it needs `agent-ready` removed and added again before the lane can run.
 - **`[ratify]` rows for `kind=ratify-c3`**. Restate the brief above, then present the classification and the intended
   dispatch from the marker comment and the consequence of ratifying versus declining. On operator
   ratification, record it as a reply comment and flip the item per the rule below; on decline, leave

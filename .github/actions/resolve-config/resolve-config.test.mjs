@@ -15,7 +15,6 @@ import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { GitHubError } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { main } from "./resolve-config.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -191,7 +190,9 @@ test("a valid config writes ResolvedConfig and the selected activity's outputs",
     gating: "gate",
     skill: "",
     script: "scripts/run-tests.sh",
-    model: "",
+    profile: "",
+    "claude-args": "",
+    "settings-json": "",
     "max-turns": "",
     "reads-untrusted": "false",
     applies: "true",
@@ -664,158 +665,42 @@ test("on an issues event, labels-absent reads the issue's labels now", async () 
   assert.deepEqual(calls, ["GET /repos/melodic-software/claude-code-plugins/issues/7"]);
 });
 
-// The owner's batch-ratification marker, as kyle-sexton (a listed human in the
-// fixture list) posted it on #7597.
-const MARKER = "<!-- admission: admitted when unblocked, owner batch ratification 2026-10-16 -->\n";
-const OWNER = { id: 153232337, login: "kyle-sexton" };
-const LANES_APP = { id: 337595936, login: "melodic-automation-lanes[bot]" };
-
-// An agent-ready issue with no work class under an admission predicate that
-// takes ratification, its comments served by the fake API.
-// `comments` is page 1, or a function from page number to that page.
-// `labelsNow` is what GET /issues/7 answers when the run reads the labels.
-function ratifiedIssue(comments, labelsNow = ["agent-ready"]) {
-  const page = typeof comments === "function" ? comments : (number) => (number === 1 ? comments : []);
-  const { env, base } = workspace();
-  place(base, ".github/standards/trusted-actors/trusted-actors.json", join(HERE, "../check-trusted-trigger/fixtures/trusted-actors.json"));
-  issueEvent(env, { number: 7, labels: [{ name: "agent-ready" }], updated_at: "2026-10-20T00:00:00Z" });
-  withPredicate(env, { events: ["labeled"], admission: { classes: ["work-class: read-only"], ratified: true } });
-  const { github, calls } = fakeGitHub({
-    "/repos/melodic-software/claude-code-plugins/issues/7/comments": (path) =>
-      page(Number(new URL(path, "https://x").searchParams.get("page"))),
-    "/repos/melodic-software/claude-code-plugins/issues/7": () => ({
-      number: 7,
-      labels: labelsNow.map((name) => ({ name })),
+// An agent-ready issue under a class admission predicate. `labelsNow` is what
+// GET /issues/7 answers when the run reads the labels; no comment is read.
+function classIssue(labelsNow) {
+  const { env } = workspace();
+  issueEvent(env, { number: 7, labels: [{ name: "agent-ready" }, { name: "work-class: read-only" }], updated_at: "2026-10-20T00:00:00Z" });
+  withPredicate(env, { events: ["labeled"], admission: { classes: ["work-class: read-only"] } });
+  return {
+    env,
+    ...fakeGitHub({
+      "/repos/melodic-software/claude-code-plugins/issues/7": () => ({ number: 7, labels: labelsNow.map((name) => ({ name })) }),
     }),
-  });
-  return { env, github, calls };
+  };
 }
 
-test("an owner marker on the second page of comments admits the issue", async () => {
-  const chatter = Array.from({ length: 100 }, () => comment({ id: 1234, login: "someone-else" }, "+1"));
-  const { env, github, calls } = ratifiedIssue((number) => ({ 1: chatter, 2: [comment(OWNER)] })[number] ?? []);
+test("a listed class read now admits the issue, with no comment read", async () => {
+  const { env, github, calls } = classIssue(["agent-ready", "work-class: read-only"]);
   assert.equal(await main({ env, github }), 0);
   assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "true");
-  assert.ok(calls.includes("GET /repos/melodic-software/claude-code-plugins/issues/7/comments?per_page=100&page=2"));
-});
-
-test("a refused comments read fails the run red and admits nothing", async (t) => {
-  // The labels alone would admit the issue, so only the comments read, which
-  // the API refuses, can fail the run.
-  const { env, github: served } = ratifiedIssue([], ["agent-ready", "work-class: read-only"]);
-  const calls = [];
-  const forbidden = async (method, path) => {
-    calls.push(`${method} ${path}`);
-    if (path.startsWith("/repos/melodic-software/claude-code-plugins/issues/7/comments")) {
-      throw new GitHubError(403, `${method} ${path}`);
-    }
-    return served(method, path);
-  };
-  await assertFailsRed(t, env, /status 403/, forbidden);
-  assert.ok(calls.includes("GET /repos/melodic-software/claude-code-plugins/issues/7/comments?per_page=100&page=1"));
+  assert.deepEqual(calls, ["GET /repos/melodic-software/claude-code-plugins/issues/7"]);
 });
 
 test("a held class added after the label event refuses the issue", async () => {
-  const { env, github } = ratifiedIssue([comment(OWNER)], ["agent-ready", "work-class: scoped"]);
+  const { env, github } = classIssue(["agent-ready", "work-class: read-only", "work-class: scoped"]);
   assert.equal(await main({ env, github }), 0);
   const outputs = readOutputs(env.GITHUB_OUTPUT);
   assert.equal(outputs.applies, "false");
   assert.equal(outputs["skip-reason"], "not-applicable");
 });
 
-const POSTED = "2026-10-16T12:00:00Z";
-const comment = (user, body = MARKER, app = null, updated = POSTED) => ({
-  user,
-  body,
-  performed_via_github_app: app,
-  created_at: POSTED,
-  updated_at: updated,
-});
-
-// An edit changes neither the author nor the App, so an edited comment's text
-// may be another account's.
-test("an owner marker comment edited after it was posted does not admit", async () => {
-  const { env, github } = ratifiedIssue([comment(OWNER, MARKER, null, "2026-10-16T12:05:00Z")]);
-  assert.equal(await main({ env, github }), 0);
-  const outputs = readOutputs(env.GITHUB_OUTPUT);
-  assert.equal(outputs.applies, "false");
-  assert.equal(outputs["skip-reason"], "not-applicable");
-});
-
-test("an issue the owner ratified with the admission marker is admitted with no work class", async () => {
-  const { env, github, calls } = ratifiedIssue([comment(OWNER)]);
-  assert.equal(await main({ env, github }), 0);
-  assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "true");
-  assert.deepEqual(calls, [
-    "GET /repos/melodic-software/claude-code-plugins/issues/7/comments?per_page=100&page=1",
-    "GET /repos/melodic-software/claude-code-plugins/issues/7",
-  ]);
-});
-
-test("the step log names the comment that ratified the issue, never its body", async (t) => {
-  const marker = { ...comment(OWNER, `${MARKER}secret-looking text`), id: 4242 };
-  const { env, github } = ratifiedIssue([marker]);
-  const log = t.mock.method(console, "log", () => {});
-  const code = await main({ env, github });
-  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
-  log.mock.restore();
-  assert.equal(code, 0);
-  assert.ok(
-    lines.includes(`resolve-config: ratified by comment 4242 from kyle-sexton at ${POSTED}`),
-    lines.join(" | "),
-  );
-  assert.ok(lines.every((line) => !line.includes("secret-looking") && !line.includes("<!--")));
-});
-
-// D33: a lane never admits work on its own, so the lanes App cannot ratify.
-test("an admission marker authored by the lanes App does not admit", async () => {
-  const { env, github } = ratifiedIssue([comment(LANES_APP, MARKER, { slug: "melodic-automation-lanes" })]);
-  assert.equal(await main({ env, github }), 0);
-  const outputs = readOutputs(env.GITHUB_OUTPUT);
-  assert.equal(outputs.applies, "false");
-  assert.equal(outputs["skip-reason"], "not-applicable");
-});
-
-test("an admission marker from anyone but a listed human admits nothing", async () => {
-  const cases = [
-    comment({ id: 1234, login: "someone-else" }),
-    // A listed bot.
-    comment({ id: 209825114, login: "claude[bot]" }),
-    // The owner's account, through a GitHub App.
-    comment(OWNER, MARKER, { slug: "some-app" }),
-  ];
-  for (const marker of cases) {
-    const { env, github } = ratifiedIssue([marker]);
-    assert.equal(await main({ env, github }), 0);
-    const outputs = readOutputs(env.GITHUB_OUTPUT);
-    assert.equal(outputs.applies, "false", JSON.stringify(marker));
-    assert.equal(outputs["skip-reason"], "not-applicable");
+// The retired `ratified` key is no admission rule, so the schema refuses it.
+test("an admission predicate with no classes fails the schema", async (t) => {
+  for (const admission of [{ ratified: true }, { ratified: false }]) {
+    const { env } = workspace();
+    withPredicate(env, { admission });
+    await assertFailsRed(t, env, /fails the schema/);
   }
-});
-
-test("an owner comment that only quotes or misstates the marker admits nothing", async () => {
-  for (const body of [
-    `> ${MARKER}`,
-    "<!-- admission: admitted when unblocked, owner batch ratification -->",
-    "We will add `<!-- admission: admitted when unblocked, owner batch ratification 2026-10-16 -->` later.",
-  ]) {
-    const { env, github } = ratifiedIssue([comment(OWNER, body)]);
-    assert.equal(await main({ env, github }), 0);
-    assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "false", body);
-  }
-});
-
-test("an admission predicate that takes ratification fails red off an issues event", async (t) => {
-  const { env } = workspace();
-  withPredicate(env, { admission: { classes: ["work-class: read-only"], ratified: true } });
-  // The PR's labels are served, so only the ratification is left undecided.
-  await assertFailsRed(t, env, /needs ratified/, fakeGitHub(pullRoutes({ changedFiles: 0, files: [] })).github);
-});
-
-test("an admission predicate with no classes and ratified false fails the schema", async (t) => {
-  const { env } = workspace();
-  withPredicate(env, { admission: { ratified: false } });
-  await assertFailsRed(t, env, /fails the schema/);
 });
 
 test("a work-classes predicate fails red: no run supplies work classes yet", async (t) => {

@@ -1,5 +1,66 @@
 # Changelog for the PR pipeline convention
 
+## 2.3.0 - 2026-10-17
+
+`pr-run-activity.md` run job steps 11 and 12 now copy the base's `scripts/setup-env.sh` before the
+head checkout, then set up Python and run it before a skill activity, so the skill can run the
+repository's Python and Node tests. `version` stays 2.
+
+## 2.2.0 - 2026-10-17
+
+`models.routes` and `resolve-config`'s `model-route` take three more run routes: `review-code` and
+`review-security` for the code and security review lanes, and `triage-issue` for intake triage
+([README.md, Models](README.md#models)). This repository adds two profiles, `pr-review` (`sonnet`,
+effort `high`, 75 turns) for both review routes and `triage` (`sonnet`, effort `medium`, 30 turns)
+for triage. No caller resolves these routes yet, so no run changes.
+
+## 2.1.0 - 2026-10-17
+
+The issue lane admits on the `agent-ready` label alone (owner decision, 2026-10-17), whoever added
+it: a listed human, or the lanes App through work-unblock. The owner's ratification marker comment
+is retired everywhere. `admission` loses `ratified` and now requires `classes`; resolve-issue sets
+no `admission` and holds an issue labeled `needs-human`, `needs-owner-decision` or
+`status: needs-decision` through `labels-absent`. The write runner's and check-trusted-trigger's
+`ratified-app-label` input is renamed `app-label`, and the gate reads no comment or edit history
+for the App's label. `write-issue.mjs` freezes the issue for every run when the account that
+applied the label added it in the event that started the run (its newest `labeled` event no
+later than the payload's issue `updated_at`; a limit-stop restart anchors at the label it
+restarted), leaving out later comments and failing on a later title or body change.
+resolve-issue also requires `agent-ready` on the issue when the run starts (`labels`), so removing
+it stops a waiting run. label-unblocked no longer reads the marker or
+resolve-issue's admission, and the pr-merge lane no longer refuses `not-ratified`. `version`
+stays 2.
+
+## 2.0.0 - 2026-10-17
+
+A `models` block sets each model run's model, effort and turn budget as named profiles, with
+`routes` from a skill activity or `verify-pr` to a profile and a `default-profile` for the rest
+([README.md, Models](README.md#models)). It replaces an activity's `model` and `max-turns` and
+`merge.verifier-model`, which the schema now rejects; a config with no `models` block gets the
+built-in `standard` profile (model `default`, 75 turns). Model values are aliases only.
+`resolve-config` outputs `profile`, `claude-args` and `settings-json` in place of `model`, takes a
+`model-route` input for a run that is no lane activity, and rejects an undefined profile
+(`undefined-profile`) or route (`undefined-route`). The runners pass `claude-args` and
+`settings-json` to claude-code-action and drop their `default-model` and `default-max-turns`
+inputs; `collect-base-activity` drops its `model` and `max-turns` inputs; `pr-verify.yml` resolves
+`verify-pr`. The write runner's lane record gains `models` and `profile`, after `max-turns`. This
+repository's block keeps every run as it was: `standard` for each skill activity, `review` (`opus`,
+60 turns) for the verifier. `version` is now 2: the schema rejects a version 1 config.
+
+Migration from version 1:
+
+1. Set `version: 2`.
+2. For each distinct `model` and `max-turns` pair an activity sets, add a profile under
+   `models.profiles` (`{ model: <alias>, max-turns: <n> }`; `model: default` for no `--model`, an
+   alias for a full model ID) and a `models.routes` entry from the activity to it; delete the
+   activity's `model` and `max-turns`.
+3. Replace `merge.verifier-model: <alias>` with a profile (`max-turns: 60` keeps pr-verify's
+   former budget) and `models.routes.verify-pr`.
+4. Set `models.default-profile`; `{ model: default, max-turns: 75 }` keeps the runners' former
+   defaults. With no `models` block every run gets that profile.
+
+The pr-pipeline-sandbox keeps its own schema copy at version 1 and migrates when it takes this one.
+
 ## 1.27.0 - 2026-10-17
 
 `merge.diff-check` gains three optional pr-merge lane switches, each off when absent:
