@@ -593,8 +593,10 @@ checks (github-iac ADR 0011), so a human merge needs `ci-status` alone. A queued
 allowing verdict at its live head leaves the queue. A dependency manager's pull request needs no
 verdict: the lane decides it in its Dependabot class before the verdict is read, or refuses it, and
 its queued entry is not held for one. The gate lists every repository artifact once per
-candidate run, since pr-merge.yml runs the gate once per candidate. The lane token holds no Actions
-permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
+candidate run, since pr-merge.yml runs the gate once per candidate. A failed listing is kept for
+that run as well: the pull request and every queued entry refuse `verify:unreadable` without the
+listing being paged again, so a listing outage holds the whole queue rather than merging blind.
+The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
 records and the download alone, and every other call keeps the lane token. That job checks out only
 main and runs no pull request code.

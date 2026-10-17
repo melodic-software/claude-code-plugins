@@ -790,6 +790,20 @@ class TheListingIsReadOncePerReader(unittest.TestCase):
         listings = [c for c in fake.calls if any("actions/artifacts" in a for a in c)]
         self.assertEqual(len(listings), 1)
 
+    def test_a_failed_listing_refuses_every_entry_and_is_read_once(self) -> None:
+        # One outage holds the whole queue rather than merging blind.
+        fake = passing()
+        fake.fail = {"actions/artifacts"}
+        with (
+            mock.patch.object(policy, "pull_request", return_value=pull()),
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+        ):
+            reader = ve.Reader(REPO, "main", now=NOW)
+            holds = [reader.queued_hold(n) for n in (PR, PR, PR)]
+        self.assertEqual(holds, ["verify:unreadable"] * 3)
+        listings = [c for c in fake.calls if any("actions/artifacts" in a for a in c)]
+        self.assertEqual(len(listings), 1)
+
 
 # --- The --authority pr-merge path ------------------------------------------------
 

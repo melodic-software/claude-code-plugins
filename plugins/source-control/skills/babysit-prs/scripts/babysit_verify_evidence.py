@@ -40,6 +40,8 @@ from a completed, successful one. Any other artifact is ignored.
 (`verify:unreadable`). The repository's artifacts are listed once per
 `Reader`, which pr-merge.yml builds once per candidate gate run, every page,
 and filtered on the name here: the API's name filter matches whole names only.
+A failed listing is kept as well, so one outage refuses every entry of the
+run without paging again: it holds the whole queue rather than merging blind.
 """
 
 from __future__ import annotations
@@ -153,6 +155,7 @@ class Reader:
         default_factory=lambda: os.environ.get(TOKEN_ENV) or None
     )
     _artifacts: list[dict[str, Any]] | None = None
+    _listing_error: str | None = None
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
     _on_branch: dict[str, bool] = field(default_factory=dict)
@@ -160,23 +163,28 @@ class Reader:
     _humans: frozenset[int] | None = None
 
     def _listing(self) -> list[dict[str, Any]]:
+        """Every repository artifact, read once: a failed read is kept too,
+        so one outage refuses each later entry without paging again."""
+        if self._listing_error is not None:
+            raise _Unreadable(self._listing_error)
         listing = self._artifacts
         if listing is None:
-            payload = self._actions(
-                [
-                    "api",
-                    f"repos/{self.repo}/actions/artifacts?per_page=100",
-                    "--paginate",
-                    "--slurp",
-                ],
-                "repository artifacts",
-            )
             try:
+                payload = self._actions(
+                    [
+                        "api",
+                        f"repos/{self.repo}/actions/artifacts?per_page=100",
+                        "--paginate",
+                        "--slurp",
+                    ],
+                    "repository artifacts",
+                )
                 listing = flatten_paginated_items(
                     payload, "repository artifacts", items_key="artifacts"
                 )
-            except RuntimeError as exc:
-                raise _Unreadable(str(exc)) from exc
+            except (_Unreadable, RuntimeError) as exc:
+                self._listing_error = str(exc)
+                raise _Unreadable(self._listing_error) from exc
             self._artifacts = listing
         return listing
 
