@@ -119,7 +119,7 @@ const LIMIT = {
   LANE_MAX_TURNS: "30",
 };
 
-test("a lane record from env opens the summary, fills output.text and external_id, and keeps the annotation", async () => {
+test("a lane record from env opens the summary and fills output.text and external_id, with no annotation", async () => {
   const { calls } = await run({ ...LIMIT, GITHUB_RUN_ATTEMPT: "2" });
   const { body } = calls[0];
   assert.equal(body.conclusion, "failure");
@@ -137,32 +137,25 @@ test("a lane record from env opens the summary, fills output.text and external_i
     "max-turns": 30,
   });
   assert.equal(body.external_id, "pr-refine:simplify:123:2");
-  const [annotation] = body.output.annotations;
-  assert.match(annotation.message, /class=rate-limit resets=2026-10-17T15:30:00Z turns=3 max-turns=30\)/);
+  assert.equal(body.output.annotations, undefined);
 });
 
-test("the posted limit stop is the one limit-stop.mjs reads from the summary, with no annotations call", async () => {
+test("the posted limit stop is the one limit-stop.mjs reads from the summary", async () => {
   const { calls } = await run(LIMIT);
   const posted = { ...calls[0].body, id: 1, completed_at: "2026-10-17T12:00:00Z" };
   assert.equal(limitResetsAt(posted), Date.parse("2026-10-17T15:30:00Z"));
-  const listAnnotations = async () => {
-    throw new Error("annotations read for a run whose summary carries the record");
-  };
   const ids = [1, 2, 3].map((id) => ({ ...posted, id }));
   const now = Date.parse("2026-10-17T16:00:00Z");
-  assert.equal(await anyHandles(ids.slice(0, 2), { listAnnotations, now }), false);
-  assert.equal(await anyHandles(ids, { listAnnotations, now }), true);
-  assert.equal(await anyHandles(ids.slice(0, 1), { listAnnotations, now: Date.parse("2026-10-17T15:00:00Z") }), true);
+  assert.equal(anyHandles(ids.slice(0, 2), { now }), false);
+  assert.equal(anyHandles(ids, { now }), true);
+  assert.equal(anyHandles(ids.slice(0, 1), { now: Date.parse("2026-10-17T15:00:00Z") }), true);
 });
 
 test("another posted failure class is a record limit-stop.mjs reads as no limit stop", async () => {
   const { calls } = await run({ ACT_OUTCOME: "failure", LANE_CLASS: "max-turns", LANE_TURNS: "31", LANE_MAX_TURNS: "30" });
   const posted = { ...calls[0].body, id: 1, completed_at: "2026-10-17T12:00:00Z" };
   assert.equal(limitResetsAt(posted), null);
-  const listAnnotations = async () => {
-    throw new Error("annotations read for a run whose summary carries the record");
-  };
-  assert.equal(await anyHandles([posted], { listAnnotations, now: Date.parse("2026-10-20T00:00:00Z") }), true);
+  assert.equal(anyHandles([posted], { now: Date.parse("2026-10-20T00:00:00Z") }), true);
 });
 
 test("a malformed run attempt posts the record without an external_id", async () => {
