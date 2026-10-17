@@ -6,10 +6,11 @@
 // `stopped` comment and add needs-human, and only pushback removes
 // agent-ready.
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { decide, main, parseOutcomeMarker, readHoldPaths, readOutcome } from "./report-outcome.mjs";
 
@@ -699,4 +700,17 @@ test("main does not take another account's copy of the marker as its own", async
     assert.equal(await main({ env: env(dir), fetch, now: LIMIT_NOW }), 0);
     assert.equal(calls.filter((c) => c.method === "POST").length, 1);
   });
+});
+
+// collect-base-activity runs a script activity from a copy of its own
+// directory under $RUNNER_TEMP, so every import must resolve inside it.
+test("the script loads from a copy of its own directory alone", async () => {
+  const copy = mkdtempSync(join(tmpdir(), "base-script-"));
+  try {
+    cpSync(dirname(fileURLToPath(import.meta.url)), copy, { recursive: true });
+    const module = await import(pathToFileURL(join(copy, "report-outcome.mjs")).href);
+    assert.equal(typeof module.main, "function");
+  } finally {
+    rmSync(copy, { recursive: true, force: true });
+  }
 });
