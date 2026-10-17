@@ -93,10 +93,22 @@ async function main() {
     }, GATHER));
 
     // ---------- react, then take it back at once ----------
+    // Both writes must reach the server, the second taking the ❤️ off: each /api/react answer is Gus's reactions after it.
+    const reacts = [], onReact = r => {
+      if (r.request().method() === "POST" && new URL(r.url()).pathname === "/api/react") reacts.push(r.json().then(j => [r.status(), j.reactions], () => [r.status(), null]));
+    };
+    gus.on("response", onReact);
+    const revBefore = await owner.evaluate(() => window.Core.snapshot().rev);
     await gus.evaluate(t => { const b = window.__card(t).querySelector(".vf-react[data-r=heart]"); b.click(); b.click(); }, GATHER);
-    // Reactions combine (triage row 45): the 👍 from before stays, and the ❤️ taken back at once is not there.
-    const onlyThumbs = () => { const r = window.Core.snapshot().cards.Q1.find(c => c.ref === "p:host")?.reactions || {}; return r.thumbs === 1 && r.down + r.heart + r.idea === 0; };
-    ok("react then un-react at once ends with that reaction gone on the server", await server(onlyThumbs) && await owner.waitForTimeout(2500).then(() => owner.evaluate(onlyThumbs)));
+    for (let i = 0; i < 75 && reacts.length < 2; i++) await gus.waitForTimeout(200);
+    await gus.waitForTimeout(1500); // a third write, if one went out, lands here too
+    gus.off("response", onReact);
+    const answers = await Promise.all(reacts);
+    ok("react then un-react at once sends both writes, the second taking the reaction off", JSON.stringify(answers) === JSON.stringify([[200, ["thumbs", "heart"]], [200, ["thumbs"]]]), JSON.stringify(answers));
+    // Reactions combine (triage row 45): the 👍 from before stays, and the ❤️ taken back at once is not there, read from a
+    // snapshot taken after both writes (rev moved by 2).
+    const settled = rev => { const s = window.Core.snapshot(), r = s.cards.Q1.find(c => c.ref === "p:host")?.reactions || {}; return s.rev >= rev + 2 && r.thumbs === 1 && r.down + r.heart + r.idea === 0; };
+    ok("react then un-react at once ends with that reaction gone on the server", await server(settled, revBefore));
     ok("and gone on the page, the earlier one kept", await until(gus, t => [...window.__card(t).querySelectorAll(".vf-react")].map(b => b.getAttribute("aria-pressed")).join() === "true,false,false,false", GATHER));
 
     // ---------- Decide: a vote and a Disagree ----------
