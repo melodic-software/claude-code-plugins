@@ -29,6 +29,20 @@ inputs:
     description: The run job's act-outcome output (`steps.act.outcome`).
     required: false
     default: ""
+  run-failure:
+    description: >
+      The run job's run-failure output: the reason a step before the act step
+      failed with, such as request-lane-token's. Appended to a failed run
+      job's summary; empty when no such step failed.
+    required: false
+    default: ""
+  not-run-reason:
+    description: >
+      A skip reason from the caller's own workflow for an activity job that
+      did not run, with run-result `skipped`. Posts neutral with it and needs
+      no verdict. Empty for every run job's report.
+    required: false
+    default: ""
   gate-reason:
     description: >
       The run job's gate stop reason output, from its gate steps; empty when
@@ -105,6 +119,8 @@ runs:
         ACTIVITY: ${{ inputs.activity }}
         RUN_RESULT: ${{ inputs.run-result }}
         ACT_OUTCOME: ${{ inputs.act-outcome }}
+        RUN_FAILURE: ${{ inputs.run-failure }}
+        NOT_RUN_REASON: ${{ inputs.not-run-reason }}
         GATE_REASON: ${{ inputs.gate-reason }}
         HEAD_SHA: ${{ inputs.head-sha }}
         PR_HEAD_SHA: ${{ inputs.pr-head-sha }}

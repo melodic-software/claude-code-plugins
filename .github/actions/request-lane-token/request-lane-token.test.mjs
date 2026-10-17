@@ -29,7 +29,7 @@ function runScript() {
 }
 
 // curl: the broker POST (it has -w) logs its --data-binary body to $BODY_LOG,
-// writes $FAKE_RESPONSE to its -o file and prints 200; the OIDC GET prints a
+// writes $FAKE_RESPONSE to its -o file and prints $FAKE_STATUS (200 unset); the OIDC GET prints a
 // token; anything else (a revoke) prints 204.
 const FAKE_CURL = `#!/usr/bin/env bash
 cat >/dev/null
@@ -45,7 +45,7 @@ done
 if [ -n "$data" ]; then
   printf '%s' "$data" >"$BODY_LOG"
   cat "$FAKE_RESPONSE" >"$out"
-  printf 200
+  printf '%s' "\${FAKE_STATUS:-200}"
 elif [ -n "$write" ]; then
   printf 204
 else
@@ -66,7 +66,7 @@ before(() => {
 
 after(() => rmSync(root, { recursive: true, force: true }));
 
-function request(inputs) {
+function request(inputs, response) {
   const dir = mkdtempSync(path.join(root, "run-"));
   const files = Object.fromEntries(
     ["output", "summary", "response.json"].map((name) => [name, path.join(dir, name)]),
@@ -91,7 +91,7 @@ function request(inputs) {
   };
   writeFileSync(
     files["response.json"],
-    JSON.stringify({
+    JSON.stringify(response ?? {
       token: "ghs_lane",
       expires_at: "2026-10-11T13:00:00Z",
       mint_id: "5550001-1",
@@ -159,6 +159,21 @@ test("an expected upstream head without a dispatcher run id, or not a SHA, fails
     assert.match(run.stdout, /::error::the expected upstream head must be a commit SHA and ride with a dispatcher run id/);
     assert.equal(run.body, null);
   }
+});
+
+// The run job maps this output, and report-check-run appends it to a failed
+// run job's check summary.
+test("a broker denial fails red and writes its reason as the failure-reason output", () => {
+  const run = request(
+    { FAKE_STATUS: "403" },
+    { reason: "workflow-modified", detail: "the workflow file changed" },
+  );
+  assert.equal(run.status, 1);
+  assert.match(
+    run.output,
+    /^failure-reason=lane-token-denied: the broker answered 403 with reason workflow-modified: the workflow file changed$/m,
+  );
+  assert.doesNotMatch(run.output, /^token=/m);
 });
 
 test("an empty dispatcher run id leaves the body as it was", () => {

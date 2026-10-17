@@ -31,6 +31,7 @@ run, and mints nothing ([Check mode](#check-mode)).
 | `token` | The lane token, masked. Set only when every check passed |
 | `expires-at` | The expiry the broker returned |
 | `mint-id` | `<check_run_id>-<run_attempt>`, the broker's audit key for this mint |
+| `failure-reason` | The one-line reason the step failed with (`lane-token-denied: ...`); empty on a success |
 
 ## What it does
 

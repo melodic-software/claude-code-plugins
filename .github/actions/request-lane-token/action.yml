@@ -82,6 +82,11 @@ outputs:
   mint-id:
     description: The broker's `<check_run_id>-<run_attempt>` for this mint.
     value: ${{ steps.request.outputs.mint-id }}
+  failure-reason:
+    description: >
+      The one-line reason the step failed with, such as `lane-token-denied: ...`;
+      empty on a success.
+    value: ${{ steps.request.outputs.failure-reason }}
 
 runs:
   using: composite
@@ -109,6 +114,7 @@ runs:
         fail() {
           echo "::error::$1"
           printf -- '- %s\n' "$1" >>"$GITHUB_STEP_SUMMARY"
+          printf 'failure-reason=%s\n' "$1" >>"$GITHUB_OUTPUT"
           exit 1
         }
         # One printable line, at most 300 characters: broker text is data.

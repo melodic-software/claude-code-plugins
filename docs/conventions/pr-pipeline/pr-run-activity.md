@@ -245,7 +245,8 @@ A stacked PR, one whose base is not the default branch, gets a failure check fro
 it to the default branch to run its lanes.
 
 Its outputs are `base-sha`, `head-sha`, `pr-number`, `gate-reason`, `can-commit` and
-`act-outcome`, plus, in the write file, `head-ref`, `merge-state` and `escalation-reason`. Every
+`act-outcome`, plus, in the write file, `head-ref`, `merge-state`, `escalation-reason` and
+`run-failure`, the reason the lane-token step failed with, from the base's `request-lane-token`. Every
 one is computed by a runner step, never read from model text. All but `act-outcome`,
 `merge-state` and `escalation-reason` are outputs of steps that ran before any head code:
 `gate-reason` is the kill switch's reason if it stopped, else the trigger's if it stopped, else
@@ -575,7 +576,10 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    attempt in the artifact's name.
 4. The caller runs the reply job when `feedback-round` is `true`, passing `feedback-run-sha256` as
    `review-run-sha256` and `feedback-run-attempt` as `review-run-attempt` (a re-run of the reply
-   job alone runs as a later attempt but keeps the model job's outputs). Before the head checkout it downloads that artifact and copies the base's
+   job alone runs as a later attempt but keeps the model job's outputs). Otherwise, when the model
+   job gated a head, a scripted job posts the reply job's check neutral `not-applicable` on that
+   head with `report-check-run`'s `not-run-reason`, so a red one from an earlier run does not stay.
+   Before the head checkout the reply job downloads that artifact and copies the base's
    trusted-actors list. `publish-feedback.mjs` then:
    - validates the whole artifact: `run.json` with exactly that SHA-256; each file a regular file
      read only when within the size limit; `replies.jsonl` at most
@@ -744,8 +748,8 @@ apart, since it can lag the promote step's push), and posts the check with
 What it trusts:
 
 - Lane and activity from the reusable workflow's own inputs.
-- `needs.run.result`, and the run job's `act-outcome`, `can-commit`, `gate-reason`, `head-sha` and
-  `base-sha` outputs, computed by the runner. All but a gate skill's `act-outcome` come from steps
+- `needs.run.result`, and the run job's `act-outcome`, `can-commit`, `gate-reason`, `head-sha`,
+  `base-sha` and, in the write file, `run-failure` outputs, computed by the runner. All but a gate skill's `act-outcome` come from steps
   that ran before any head code; that one rests on the rule that a gate skill runs no head code.
 - Its own signed-commit result. On an unverified commit, `check-signed-commits` fails closed: the
   check is a failure, and the report job adds no label and posts no comment, because its
