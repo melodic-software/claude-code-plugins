@@ -164,8 +164,11 @@ test("a PR the lanes App did not open is not judged", async () => {
   assert.equal(await reason({ pulls: [HUMAN_PR] }), "author-not-lane");
   // A User account holding the App's login is not the App.
   assert.equal(await reason({ pulls: [pull({ user: { id: 5, login: LANE, type: "User" } })] }), "author-not-lane", "a User");
+  // Another App is a Bot account too, so only the login tells it apart.
+  assert.equal(await reason({ pulls: [pull({ user: { id: 6, login: "other-app[bot]", type: "Bot" } })] }), "author-not-lane", "another App");
   assert.equal(await reason({ pulls: [HUMAN_PR] }, { verifyAuthors: "lane" }), "author-not-lane", "lane named");
-  assert.equal(await reason({ pulls: [pull()] }, { laneIdentity: undefined }), "author-not-lane", "no identity");
+  // The workflow passes an unset identity as an empty string.
+  assert.equal(await reason({ pulls: [pull()] }, { laneIdentity: "" }), "author-not-lane", "no identity");
 });
 
 test("a PR the lanes App opened is judged, matched across login spellings", async () => {
