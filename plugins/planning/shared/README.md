@@ -13,7 +13,7 @@ and the session-bridge watcher. Python 3 standard library only.
 | `share.py` | The CLI: `ensure-running`, `stop`, `restart`, `status`, `url`, `list`, `apply`, `lease` |
 | `server.py` | One process, two 127.0.0.1 listeners: the guest listener (the page and `/api/*`) and the control listener (session-bridge). Routes, auth, caps, headers and the snapshot; no domain rules |
 | `session.py` | The domain rules over `state.json` (people, rounds, questions, votes, locks, proposals, requests, results, digest, ops) |
-| `migrate.py` | `schemaVersion` migrations, pure `dict -> dict` |
+| `migrate.py` | `schemaVersion` migrations, `(dict, ctx) -> dict`, including `0 -> 1` from the prototype's state file |
 | `tunnel.py` | cloudflared: start, address parse, reattach, adopt, exit detection, stop. The only file that names cloudflared |
 | `detached.py` | Processes that outlive their starter, and liveness and stop by pid, on Windows, macOS and Linux |
 | `session_bridge.py`, `watch.sh`, `wake.sh` | Generated copies of `lib/session-bridge/` (`scripts/sync-shared-copies.sh`); edit the canonical, never these |
@@ -33,7 +33,7 @@ Every command prints one JSON line on stdout and diagnostics on stderr. On Windo
 
 | Command | Args | Output |
 |---|---|---|
-| `ensure-running` | `[--open] [--defaults-file F] [--guest-port N]` | `{ok, guestUrl, localUrl, ownerLinkFile, shareChanged, resumed, tunnel, watch}`: starts or reuses the server and the tunnel. A new session's `state.json` comes from `defaults.json` (`{"settings": {...}}`, state.schema field names). `--guest-port` applies only when the session is created; later starts reuse the recorded ports |
+| `ensure-running` | `[--open] [--defaults-file F] [--guest-port N] [--import STATE] [--adopt-tunnel PID URL]` | `{ok, guestUrl, localUrl, ownerLinkFile, shareChanged, resumed, tunnel, watch}`: starts or reuses the server and the tunnel. A new session's `state.json` comes from `defaults.json` (`{"settings": {...}}`, state.schema field names). `--guest-port` applies only when the session is created; later starts reuse the recorded ports. `--import` and `--adopt-tunnel`: see [Moving the prototype's session](#moving-the-prototypes-session) |
 | `stop` | `[--keep-tunnel]` | `{ok, stopped}`: ends the armed watcher, the server and cloudflared; keeps the ports and the state. `--keep-tunnel` keeps the guest link for the next start |
 | `restart` | | Stops and starts the server only, on the same ports, with the same control token: the tunnel, the guest link, the state and an armed watcher all survive. Open pages see the new build and reload |
 | `status` | | `{ok, running, tunnel, guestUrl, round, people, queue, unhandled, lease}` |
@@ -43,9 +43,10 @@ Every command prints one JSON line on stdout and diagnostics on stderr. On Windo
 | `lease` | `[--release]` | `{lease}` |
 
 Exit codes: 0 done; 1 refused (bad arguments, a state file from a newer version, a failed
-migration, a `--guest-port` on an existing session); 2 a prerequisite is missing (Python 3, curl,
-cloudflared) or the server cannot start or be reached; 3 no tunnel address in time (the server
-keeps running on `localUrl`, `tunnel: "down"`).
+migration, a `--guest-port`, `--import` or `--adopt-tunnel` on an existing session, an adopted pid
+that is not a running cloudflared to the guest port); 2 a prerequisite is missing (Python 3, curl,
+cloudflared) or the server cannot start or be reached, a busy `--guest-port` included; 3 no tunnel
+address in time (the server keeps running on `localUrl`, `tunnel: "down"`).
 
 The tunnel is its own detached process and outlives server restarts. The server checks it every
 second: when cloudflared exits, the server starts a new one (backing off up to a minute while it
@@ -54,6 +55,38 @@ the owner's view shows as "New guest link, share again"; the next `ensure-runnin
 `shareChanged: true`. `python tunnel.py adopt --dir D --pid N --url U --port P` records a
 cloudflared that is already running, without starting anything; it is then watched and restarted
 like one the server started.
+
+## Moving the prototype's session
+
+```bash
+bash '<plugin-root>/shared/share.sh' --dir '<data_dir>' ensure-running \
+  --import '<prototype>/state-<port>.json' --guest-port <port> --adopt-tunnel <cloudflared pid> <tunnel URL>
+```
+
+Creates the session from the prototype's state file and refuses (exit 1) when `<data_dir>` holds
+one already. The flags may instead be `defaults.json` keys, `import`, `guestPort` and
+`adoptTunnel: {pid, url}`, which apply only when the session is created.
+
+- **State.** `migrate.py` maps the prototype's file (no `schemaVersion`) to version 1: people keep
+  their pid and name, guest secrets are stored as sha256 (a browser's secret still names the same
+  person), the owner token as its hash; questions, options, answers, picks, votes, Claude's cards,
+  locks, suggestions, chat, ideas (as proposals), requests, research (as published results),
+  merge requests, prefs, notifications, settings, title, goal, guest key and share URL carry over.
+  Each field with no counterpart is named in `server.log`, never its value. Uploads do not carry
+  over yet. A round the prototype had sent to Claude opens again. The original stays beside it as
+  `state.v0.json`.
+- **Owner link.** The prototype's owner token stays the owner's credential, so its owner link keeps
+  working; one shorter than 16 characters, or kept only on the prototype's command line, is
+  replaced (`url --owner` prints the new link).
+- **Assets.** The images its questions show are copied from the `assets/` folder beside the state
+  file.
+- **Tunnel.** The running cloudflared is recorded as the session's tunnel and nothing is started,
+  so the guest link stays the same; it is then watched like the server's own. `--adopt-tunnel`
+  needs `--guest-port`, the port that cloudflared points at.
+- **Open prototype pages.** In an imported session a poll of `GET /api/state` that carries an
+  identity header and no query string is a prototype page still open from before: it gets
+  `{schemaVersion, rev, outdated: true, title: "This page was updated: reload"}`, which the old
+  script shows as its title over an empty page. The plugin's page polls with `?since=<rev>`.
 
 ## Ops
 
@@ -80,8 +113,8 @@ One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
 
 | Path | Writer | Mode | Holds |
 |---|---|---|---|
-| `state.json`, `state.v<N>.json` | server | 0600 | The session (`schema/state.schema.json`); the pre-migration copy |
-| `defaults.json` | the skill | | Settings for a new session |
+| `state.json`, `state.v<N>.json` | server | 0600 | The session (`schema/state.schema.json`); the pre-migration copy. `state.v0.json`, the prototype's file, holds its guest secrets and owner token in plain text |
+| `defaults.json` | the skill | | Settings for a new session; `import`, `guestPort`, `adoptTunnel` for an imported one |
 | `ops.json` | Claude | | One apply; deleted when it lands |
 | `.shared-secrets.json` | server (made on first start) | 0600 | The control token, the owner token and `ownerAt`, when the owner token was issued |
 | `.owner-link` | server | 0600 | `http://127.0.0.1:<guest port>/#owner=<token>` |
@@ -135,7 +168,8 @@ build reloads itself.
   `sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src
   'unsafe-inline'; img-src 'self' data:; font-src data:; connect-src 'none'`, never
   `allow-same-origin`.
-- **The log.** `server.log` writes the request path with control characters escaped (`\x1b`).
+- **The log.** `server.log` writes the request path, and a failure's traceback on one line, with
+  control characters escaped (`\x1b`, `\x0a`).
 - **What a visitor reads.** Without identity, `/api/state` is `{title, ended, joinNeedsKey,
   schemaVersion}` only; a removed person and an owner link from before a rotation read nothing.
   Results stay hidden from guests until the owner publishes them.
@@ -151,14 +185,15 @@ build reloads itself.
   the session's last rotation refuses (exit 1) rather than bring the retired link back; deleting
   `.shared-secrets.json` issues a new owner link. A secrets file without `ownerAt` whose owner
   token is not the current one gets a fresh owner link, and a rotation time ahead of the clock is
-  set to the start time; `server.log` records both.
+  set to the start time; `server.log` records both. After such a clock rollback, a token whose
+  issue time is recorded but which is not the current one gets a fresh owner link as well.
 
 Where each token can be seen:
 
 | Token | Exposure paths |
 |---|---|
-| Owner token | `.shared-secrets.json` and `.owner-link` (0600); for 30 s after `--open`, the `.owner-open-<hex>.html` page (0600) the browser is handed, whose path, not the token, is on the opener's command line; the owner's browser (the link's fragment, never sent to the server, and its history); the transcript when the owner asks for `url --owner` |
-| Guest secret | The guest's browser storage and personal link (`#me=` fragment); the `X-Session-Secret` header, which Cloudflare's edge sees because the tunnel terminates TLS there |
+| Owner token | `.shared-secrets.json` and `.owner-link` (0600); for an imported session, `state.v0.json` (0600) and the prototype's own state file; for 30 s after `--open`, the `.owner-open-<hex>.html` page (0600) the browser is handed, whose path, not the token, is on the opener's command line; the owner's browser (the link's fragment, never sent to the server, and its history); the transcript when the owner asks for `url --owner` |
+| Guest secret | The guest's browser storage and personal link (`#me=` fragment); for an imported session, `state.v0.json` (0600); the `X-Session-Secret` header, which Cloudflare's edge sees because the tunnel terminates TLS there |
 | Control token | `.shared-secrets.json`, `.shared-session.json`, `.shared-session.env` (0600); the `curl` command line `watch.sh` runs (the generated session-bridge watcher puts the header on argv). A command line is readable by other local users on Linux without `hidepid` and on macOS, not only by the same user; moving that token off argv is tracked in #7693 |
 
 Neither token is on the server's command line: the server reads both from the secrets file.

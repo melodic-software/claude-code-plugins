@@ -405,11 +405,11 @@ plugins/planning/scripts/check-plan-outcome.test.sh 1
 plugins/planning/scripts/eval-scaffold.test.sh 1
 plugins/planning/scripts/goal-condition-length.test.sh 1
 plugins/planning/shared/tests/test_load.py 11
-plugins/planning/shared/tests/test_migrate.py 1
+plugins/planning/shared/tests/test_migrate.py 2
 plugins/planning/shared/tests/test_schema_shapes.py 1
 plugins/planning/shared/tests/test_server.py 15
 plugins/planning/shared/tests/test_session.py 2
-plugins/planning/shared/tests/test_share.py 50
+plugins/planning/shared/tests/test_share.py 56
 plugins/planning/shared/tests/test_tunnel.py 15
 plugins/planning/shared/tests/tracer-live.test.sh 1
 plugins/planning/shared/tests/tracer.test.sh 10

@@ -272,7 +272,7 @@ class TestPersistence(SessionCase):
     def test_migration_copies_the_old_file_once_then_writes_the_migrated_state(self):
         original = self.path.read_bytes()
 
-        def step(doc):
+        def step(doc, ctx):
             return {**doc, "writtenBy": "migrated"}
 
         with (
@@ -288,7 +288,7 @@ class TestPersistence(SessionCase):
     def test_a_failed_migration_leaves_the_original_file(self):
         original = self.path.read_bytes()
 
-        def step(doc):
+        def step(doc, ctx):
             raise session.migrate.MigrationError("step 1 to 2 failed")
 
         with (
@@ -517,11 +517,6 @@ class TestIdentity(SessionCase):
         self.assertEqual(self.disk()["credentials"]["owner"], rotated)
         self.assertTrue(self.s.reset_owner_token("tok-newer", rotated["rotatedAt"] + 1))
         self.assertEqual(self.s.resolve(owner_token="tok-newer"), HOST)
-
-    def test_reset_takes_any_token_when_the_state_records_no_rotation(self):
-        del self.s.state["credentials"]["owner"]["rotatedAt"]  # an imported prototype state
-        self.assertTrue(self.s.reset_owner_token("tok-imported", self.clock.t - 86400))
-        self.assertEqual(self.s.resolve(owner_token="tok-imported"), HOST)
 
     def test_rotating_the_guest_link_never_returns_the_key_to_empty(self):
         first = self.act("rotate_guest_link", HOST, {})["guestKey"]

@@ -561,8 +561,9 @@ class Session:
         return s, token
 
     @classmethod
-    def load(cls, path, *, plugin_version="", clock=time.time, ids=None, validate_writes=False, assets_dir=None):
-        """Parse state.json once, migrating an older schemaVersion (old file kept as state.v<N>.json)."""
+    def load(cls, path, *, plugin_version="", clock=time.time, ids=None, validate_writes=False, assets_dir=None, notes=None):
+        """Parse state.json once, migrating an older schemaVersion (old file kept as state.v<N>.json;
+        the prototype's file, which has none, as state.v0.json). `notes` collects migration notes."""
         path = Path(path)
         raw = path.read_text(encoding="utf-8")
         try:
@@ -571,8 +572,8 @@ class Session:
             raise DomainError(500, "state-invalid", f"{path.name} is not JSON: {exc}") from exc
         if not isinstance(doc, dict):
             raise DomainError(500, "state-invalid", f"{path.name} is not a JSON object.")
-        old = doc.get("schemaVersion")
-        doc = migrate.migrate(doc)
+        old = migrate.version_of(doc)
+        doc = migrate.migrate(doc, notes, float(clock()))
         err = document_error(doc)
         if err:
             raise DomainError(500, "state-invalid", f"{path.name}: {err}")
@@ -2662,7 +2663,7 @@ class Session:
             owner = self.state["credentials"]["owner"]
             if self.is_owner_token(token):
                 return False
-            if owner.get("rotatedAt", float("-inf")) > issued_at:
+            if owner["rotatedAt"] > issued_at:
                 raise DomainError(
                     409,
                     "owner-token-stale",
@@ -2677,15 +2678,15 @@ class Session:
         return hmac.compare_digest(sha256(token), self.state["credentials"]["owner"]["tokenHash"])
 
     def owner_rotated_at(self):
-        """When the owner link was last rotated, or None for a state that does not record it."""
-        return self.state["credentials"]["owner"].get("rotatedAt")
+        """When the owner link was last rotated (the schema requires it; an import sets it)."""
+        return self.state["credentials"]["owner"]["rotatedAt"]
 
     def clamp_owner_rotation(self):
-        """Set an owner-link rotation time ahead of the clock (a clock rollback, an imported state) to
-        now, so a token issued now is not refused; the old time when it was ahead, else None."""
+        """Set an owner-link rotation time ahead of the clock (a clock rollback) to now, so a token
+        issued now is not refused; the old time when it was ahead, else None."""
         with self._lock:
             at, now = self.owner_rotated_at(), self.now()
-            if at is None or at <= now:
+            if at <= now:
                 return None
             with self._tx() as st:
                 st["credentials"]["owner"]["rotatedAt"] = now

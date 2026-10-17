@@ -1,6 +1,7 @@
 """The shared interview session's control script: what `share.sh` runs. Python 3 stdlib.
 
   share.py --dir DATA_DIR ensure-running [--open] [--defaults-file F] [--guest-port N]
+                                         [--import STATE] [--adopt-tunnel PID URL]
   share.py --dir DATA_DIR stop [--keep-tunnel]
   share.py --dir DATA_DIR restart
   share.py --dir DATA_DIR status
@@ -25,6 +26,7 @@ import html
 import http.client
 import json
 import os
+import re
 import secrets
 import shlex
 import shutil
@@ -216,7 +218,43 @@ def report(d, s, rec, resumed, *, opened=None):
     return out
 
 
-def bring_up(d, a, *, initial_state=None):
+def creation(d, a, resumed):
+    """(import file, guest port, (pid, url) to adopt) from the command line, else from defaults.json,
+    whose keys apply only when the session is created. Refuses what cannot apply (exit 1)."""
+    if resumed:
+        if a.import_file:
+            raise Refused(1, f"a session already exists in {d}: --import only creates one")
+        if a.adopt_tunnel:
+            raise Refused(1, "--adopt-tunnel applies only when a session is created")
+        return None, a.guest_port, None
+    src = Path(a.defaults_file) if a.defaults_file else d / "defaults.json"
+    defaults = (read_json(src) or {}) if src.exists() else {}
+    imp = a.import_file or defaults.get("import")
+    port = a.guest_port if a.guest_port is not None else defaults.get("guestPort")
+    adopt = a.adopt_tunnel or ([defaults["adoptTunnel"].get("pid"), defaults["adoptTunnel"].get("url")] if isinstance(defaults.get("adoptTunnel"), dict) else None)
+    if imp is not None and (not isinstance(imp, str) or not Path(imp).is_file()):
+        raise Refused(1, f"--import: no such file: {imp}")
+    if port is not None and (isinstance(port, bool) or not isinstance(port, int) or not 0 < port < 65536):
+        raise Refused(1, f"the guest port must be a port number, got {port!r}")
+    if adopt is None:
+        return imp, port, None
+    try:
+        pid, url = int(adopt[0]), str(adopt[1]).rstrip("/")
+    except (TypeError, ValueError) as exc:
+        raise Refused(1, f"--adopt-tunnel takes a process id and a URL, got {adopt!r}") from exc
+    if port is None:
+        raise Refused(1, "--adopt-tunnel needs --guest-port, the port that cloudflared points at")
+    if not tunnel.URL.fullmatch(url):
+        raise Refused(1, f"--adopt-tunnel: {url} is not a trycloudflare.com address")
+    if not detached.alive(pid, "cloudflared"):
+        raise Refused(1, f"--adopt-tunnel: no cloudflared runs as pid {pid}")
+    seen = "" if detached.WINDOWS else detached.describe(pid) or ""
+    if "--url" in seen and not re.search(rf"(127\.0\.0\.1|localhost):{port}(/|\s|$)", seen):
+        raise Refused(1, f"--adopt-tunnel: cloudflared pid {pid} does not point at port {port}")
+    return imp, port, (pid, url)
+
+
+def bring_up(d, a):
     """ensure-running: start or reuse the server and the tunnel."""
     problem = detached.data_dir_problem(d)
     if problem:
@@ -228,19 +266,32 @@ def bring_up(d, a, *, initial_state=None):
     d.mkdir(parents=True, exist_ok=True)
     with detached.locked(d / LOCK):
         resumed = (d / "state.json").exists()
+        initial_state, wanted, adopt = creation(d, a, resumed)
         ports = read_json(d / PORTS) or {}
-        if a.guest_port is not None and resumed and ports.get("guest") not in (None, a.guest_port):
+        if wanted is not None and resumed and ports.get("guest") not in (None, wanted):
             raise Refused(1, f"this session's guest port is {ports['guest']}; --guest-port applies only when a session is created")
         s = live(d)
         if s is None:
-            guest = a.guest_port if a.guest_port is not None else ports.get("guest") or 0
-            if a.guest_port is None and guest and not bridge.port_free(guest):
+            if wanted is not None and not bridge.port_free(wanted):
+                raise Refused(2, f"port {wanted} is busy: the guest listener cannot start there")
+            guest = wanted if wanted is not None else ports.get("guest") or 0
+            if wanted is None and guest and not bridge.port_free(guest):
                 print(f"port {guest} is busy: the guest link moves to a new port", file=sys.stderr)
                 guest = 0
             control = ports.get("control") or bridge.kept_port(d, NAME) or 0
             if control and not bridge.port_free(control):
                 control = 0
-            s = start_server(d, guest, control, defaults_file=a.defaults_file, initial_state=initial_state)
+            if adopt:
+                try:
+                    tunnel.adopt(d, adopt[0], adopt[1], guest)
+                except tunnel.TunnelDown as exc:
+                    raise Refused(1, f"--adopt-tunnel: {exc}") from exc
+            try:
+                s = start_server(d, guest, control, defaults_file=a.defaults_file, initial_state=initial_state)
+            except Refused:
+                if adopt:  # forget the adopted tunnel, never stop it: it still serves whoever ran it
+                    (d / tunnel.RECORD).unlink(missing_ok=True)
+                raise
         port = (bridge.ping(s["port"]) or {}).get("guestPort")
         rec, down = None, None
         try:
@@ -418,6 +469,8 @@ def parser():
     s.add_argument("--open", action="store_true", help="open the owner's link in the default browser")
     s.add_argument("--defaults-file", help="settings for a new session: {\"settings\": {...}}")
     s.add_argument("--guest-port", type=int, help="the guest listener's port, chosen when the session is created")
+    s.add_argument("--import", dest="import_file", metavar="STATE", help="create the session from a prototype state file")
+    s.add_argument("--adopt-tunnel", nargs=2, metavar=("PID", "URL"), help="record a running cloudflared to the guest port as the tunnel")
     s.set_defaults(fn=cmd_ensure_running)
     s = sub.add_parser("stop")
     s.add_argument("--keep-tunnel", action="store_true", help="keep the tunnel and the guest link")

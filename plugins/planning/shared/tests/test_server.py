@@ -20,7 +20,7 @@ import time
 import unittest
 from unittest import mock
 
-from support import FAKE, WINDOWS, call, tmpdir, wait_for
+from support import FAKE, FIXTURES, WINDOWS, call, tmpdir, wait_for
 
 import detached
 import server
@@ -474,6 +474,35 @@ class TestOwnerRotation(unittest.TestCase):
         self.assertEqual(owner["tokenHash"], session.sha256(app.secrets["owner"]))
         self.assertIn("ahead of the clock", log)
 
+    def test_after_a_clock_rollback_a_dated_token_that_is_not_current_gets_a_fresh_link(self):
+        d = tmpdir(self)
+        server.App(d, watch_tunnel=False).shutdown()
+        now = time.time()
+        state = json.loads((d / "state.json").read_text(encoding="utf-8"))
+        state["credentials"]["owner"]["rotatedAt"] = now + 1000
+        detached.write_private(d / "state.json", json.dumps(state) + "\n")
+        old = "a-token-from-before-the-rollback-0000000000000"
+        held = json.loads((d / server.SECRETS).read_text(encoding="utf-8"))
+        detached.write_private(d / server.SECRETS, json.dumps({**held, "owner": old, "ownerAt": now + 500}) + "\n")
+        app, owner, log = self.start(d)
+        self.assertNotEqual(app.secrets["owner"], old)
+        self.assertEqual(owner["tokenHash"], session.sha256(app.secrets["owner"]))
+        app.serve()
+        code, _, _ = call(app.guest_port, "GET", "/api/state", headers={"X-Owner-Token": old})
+        self.assertEqual(code, 401)
+        self.assertIn("clock was rolled back", log)
+
+    def test_after_a_clock_rollback_the_current_token_keeps_the_owner_link(self):
+        d = tmpdir(self)
+        first = server.App(d, watch_tunnel=False)
+        token = first.secrets["owner"]
+        first.shutdown()
+        state = json.loads((d / "state.json").read_text(encoding="utf-8"))
+        state["credentials"]["owner"]["rotatedAt"] = time.time() + 1000
+        detached.write_private(d / "state.json", json.dumps(state) + "\n")
+        app, owner, _ = self.start(d)
+        self.assertEqual((app.secrets["owner"], owner["tokenHash"]), (token, session.sha256(token)))
+
 
 class TestDataFolderRule(unittest.TestCase):
     """Windows keeps the data folder private only under the user profile; WSL's DrvFs ignores file
@@ -692,7 +721,7 @@ class TestStart(unittest.TestCase):
         (src / "seed.json").write_text(json.dumps(doc), encoding="utf-8")
         calls = []
         real = session.migrate.migrate
-        with mock.patch.object(session.migrate, "migrate", side_effect=lambda x: calls.append(x) or real(x)):
+        with mock.patch.object(session.migrate, "migrate", side_effect=lambda *a: calls.append(a[0]) or real(*a)):
             app = server.App(d, watch_tunnel=False, initial_state=src / "seed.json")
         self.addCleanup(app.shutdown)
         self.assertEqual((app.session.state["session"]["title"], len(calls)), ("Imported", 1))
@@ -716,6 +745,69 @@ class TestStart(unittest.TestCase):
         self.assertEqual(names, ["server.log", "server.log.1", "server.log.2", "server.log.3"])
         if not WINDOWS:
             self.assertEqual({stat.S_IMODE((d / n).stat().st_mode) for n in names}, {0o600})
+
+
+class TestFailureLog(ServerCase):
+    def test_a_failing_route_logs_its_traceback_on_one_escaped_line(self):
+        _, guest = self.join("Ann")
+        boom = RuntimeError("boom\x1b[31m\n2026-01-01 00:00:00,000 INFO FORGED line")
+        with mock.patch.object(session.Session, "rename", side_effect=boom):
+            code, _, out = self.post("/api/rename", {"name": "Bo"}, guest)
+        self.assertEqual((code, out["error"]), (500, "state-invalid"))
+        for h in self.app.log.handlers:
+            h.flush()
+        log = (self.d / "server.log").read_text(encoding="utf-8")
+        self.assertNotIn("\x1b", log)
+        self.assertFalse([line for line in log.splitlines() if line.startswith("2026-01-01")])  # no forged line of its own
+        self.assertIn("boom\\x1b[31m\\x0a2026-01-01", log)
+
+
+class TestOldPages(unittest.TestCase):
+    """A prototype page left open across the cutover polls `GET /api/state` with no query string and
+    its identity headers (X-Session-Secret, and X-Owner-Token on the owner's tab), as its core.js
+    poll() does. In a session imported from the prototype it gets a payload its script reads."""
+
+    SECRET = "fixture-guest-secret-ann-not-a-real-secret-000"
+    OWNER = "fixture-owner-token-0001"
+
+    def setUp(self):
+        self.d = tmpdir(self)
+        self.app = server.App(self.d, watch_tunnel=False, initial_state=FIXTURES / "state-v0-prototype.json")
+        self.app.serve()
+        self.addCleanup(self.app.shutdown)
+
+    def poll(self, path, headers):
+        return call(self.app.guest_port, "GET", path, headers=headers)
+
+    def test_an_old_page_poll_gets_the_reload_banner(self):
+        for who in ({"X-Session-Secret": self.SECRET}, {"X-Owner-Token": self.OWNER}):
+            code, _, out = self.poll("/api/state", who)
+            self.assertEqual(code, 200)
+            self.assertEqual(out, {"schemaVersion": 1, "rev": self.app.session.state["rev"], "outdated": True, "title": "This page was updated: reload"})
+
+    def test_the_payload_overrides_no_default_of_the_old_script_with_another_type(self):
+        defaults = json.loads((FIXTURES / "old-page-defaults.json").read_text(encoding="utf-8"))["defaults"]
+        _, _, out = self.poll("/api/state", {"X-Session-Secret": self.SECRET})
+        for k, v in out.items():
+            if k in defaults:
+                self.assertIs(type(v), type(defaults[k]), k)
+        self.assertNotIn("settings", out)  # the old script spreads it over its own; absent keeps them
+
+    def test_a_poll_with_a_query_string_gets_the_full_snapshot(self):
+        code, _, out = self.poll("/api/state?since=0", {"X-Session-Secret": self.SECRET})
+        self.assertEqual((code, out["me"]["pid"]), (200, "pidAnn001"))
+
+    def test_a_visitor_without_identity_gets_the_anonymous_view(self):
+        _, _, out = self.poll("/api/state", {})
+        self.assertEqual(sorted(out), ["ended", "joinNeedsKey", "schemaVersion", "title"])
+
+    def test_a_session_not_imported_answers_every_poll_in_full(self):
+        d = tmpdir(self)
+        app = server.App(d, watch_tunnel=False)
+        app.serve()
+        self.addCleanup(app.shutdown)
+        code, _, out = call(app.guest_port, "GET", "/api/state", headers={"X-Owner-Token": app.secrets["owner"]})
+        self.assertEqual((code, out["me"]["role"]), (200, "owner"))
 
 
 class TestTunnelWatch(unittest.TestCase):
