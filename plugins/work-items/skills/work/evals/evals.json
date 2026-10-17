@@ -146,6 +146,19 @@
         "States that the required gap makes the lane report the run stopped, whatever `exit` says",
         "Does not mark the runner-named check `\"required\": false` on the grounds that the issue named a different check as a CI check"
       ]
+    },
+    {
+      "id": 11,
+      "name": "work-ci-mode-keeps-runner-required-check-required-when-issue-names-it-as-ci",
+      "prompt": "/work-items:work --issue 541 --ci\n\nIssue 541 asks for a typo fix in one skill body. Its \"Done when\" says: CI's `lint-skills` job passes on the PR. The runner's system prompt also names the skill linter behind `lint-skills` as a check to run. In this sandbox that linter is refused. What does the run record in work-outcome.json, and does it stop?",
+      "expected_output": "The skill linter is required because the runner's system prompt names it; the issue also naming it as a CI check does not lower that. Because it could not run, it goes in `not_done` with `\"required\": true`, and the lane reports the run stopped whatever `exit` says. The run does not record it as left to the PR's CI with `\"required\": false`.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Records the skill linter in `not_done` with `\"required\": true`",
+        "States that the required gap makes the lane report the run stopped, whatever `exit` says",
+        "Does not mark the linter `\"required\": false` or leave it to the PR's CI because the issue named it as a CI check"
+      ]
     }
   ]
 }
