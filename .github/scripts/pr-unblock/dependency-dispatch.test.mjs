@@ -54,7 +54,8 @@ function fakeApi({ nodes = [], checks = new Map(), ci = new Map(), files = new M
   };
 }
 
-const run = (api, extra = {}) => dispatchDependencyReviews({ api, runId: "55", log: () => {}, config: [], provenance: async () => [], ...extra });
+const run = (api, extra = {}) =>
+  dispatchDependencyReviews({ api, runId: "55", log: () => {}, config: [], policy: { autoMerge: { reviewOnly: [] } }, provenance: async () => [], ...extra });
 
 test("dispatches review-dependency for a review-tier Dependabot PR", async () => {
   const api = fakeApi({ nodes: [pr(4)] });
@@ -106,6 +107,7 @@ test("a review-only dependency makes a patch bump review, and an unreadable poli
   assert.equal((await run(fakeApi({ nodes: [node], files }), { ...extra, policy: policy("x") })).dispatched.length, 1);
   assert.equal((await run(fakeApi({ nodes: [node], files }), { ...extra, policy: policy("y") })).dispatched.length, 0);
   assert.equal((await run(fakeApi({ nodes: [node], files }), { ...extra, policy: null })).dispatched.length, 1);
+  assert.equal((await run(fakeApi({ nodes: [node], files }), { ...extra, policy: undefined })).dispatched.length, 1);
 });
 
 test("skips a head that already has a review-dependency check run, except an untrusted-trigger skip", async () => {

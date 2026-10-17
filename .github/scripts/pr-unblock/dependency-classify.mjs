@@ -276,13 +276,21 @@ export const POLICY_UNREADABLE = "dependabot-policy-unreadable";
 const BRANCH_ECOSYSTEMS = Object.freeze({ npm_and_yarn: "npm", github_actions: "github-actions" });
 const REVIEW_ONLY_KEYS = ["repository", "ecosystem", "directory", "dependency", "control"];
 
+// Whether a review-only entry covers a changed path: the path sits in the
+// entry's directory (glob-aware), or the entry is github-actions and the path
+// is a workflow or action file it covers, as the content rule reads them.
+function entryCovers(entry, path) {
+  return inDirectory(path, entry.directory) || (entry.ecosystem === "github-actions" && actionsFile(path, [[entry.ecosystem, entry.directory]]));
+}
+
 // As babysit_dependabot.review_only: { reasons, entries } where reasons holds
 // `review-only:<dependency>` for each autoMerge.reviewOnly entry of the parsed
 // policy that names this repository (any case), the head branch's ecosystem,
-// one of `updates`, and the directory of a changed path (any directory when
-// `paths` is null), in entry order, and entries the entries that matched;
-// reasons is [dependabot-policy-unreadable] when the policy is null, has no
-// reviewOnly list, or holds an entry missing a string field.
+// one of `updates`, and a changed path the entry covers (entryCovers; any
+// path when `paths` is null), in entry order, and entries the entries that
+// matched; reasons is [dependabot-policy-unreadable] when the policy is null
+// or undefined, has no reviewOnly list, or holds an entry missing a string
+// field.
 export function reviewOnly(policy, repository, headRef, updates, paths) {
   const entries = policy?.autoMerge?.reviewOnly;
   if (!Array.isArray(entries) || !entries.every((e) => e !== null && typeof e === "object" && REVIEW_ONLY_KEYS.every((k) => typeof e[k] === "string"))) {
@@ -291,7 +299,6 @@ export function reviewOnly(policy, repository, headRef, updates, paths) {
   const segment = ECOSYSTEM.exec(String(headRef ?? ""))?.[1] ?? "";
   const ecosystem = Object.hasOwn(BRANCH_ECOSYSTEMS, segment) ? BRANCH_ECOSYSTEMS[segment] : segment;
   const names = new Set(updates.map((u) => u.name));
-  const folders = paths === null ? null : new Set(paths.map(dirname));
   const reasons = [];
   const matched = [];
   for (const entry of entries) {
@@ -300,7 +307,7 @@ export function reviewOnly(policy, repository, headRef, updates, paths) {
       entry.repository.toLowerCase() === String(repository).toLowerCase() &&
       entry.ecosystem === ecosystem &&
       names.has(entry.dependency) &&
-      (folders === null || folders.has(entry.directory.replace(/^\/+|\/+$/g, ""))) &&
+      (paths === null || paths.some((path) => entryCovers(entry, path))) &&
       !reasons.includes(reason)
     ) {
       reasons.push(reason);
@@ -368,24 +375,20 @@ export function classify(pr) {
     const content = contentStep(pr);
     if (content) reasons.push(content);
   }
-  // With `policy` (parsed policy.json, or null when unreadable) and
-  // `repository`, the review-only step applies too, over the changed paths
-  // when the config reads and `files` is the whole listing, as the pr-merge
-  // lane reads them.
-  let listed = null;
-  if (pr.policy !== undefined) {
-    const whole = Array.isArray(pr.files) && pr.config != null && pr.changedFiles === pr.files.length;
-    const paths = whole ? pr.files.flatMap((f) => [f.filename, f.previous_filename].filter(Boolean).map(String)) : null;
-    listed = reviewOnly(pr.policy, pr.repository ?? "", pr.headRef, updates, paths);
-    reasons.push(...listed.reasons);
-  }
+  // The review-only step over `policy` (parsed policy.json; null or absent is
+  // unreadable) and `repository`, over the changed paths when the config
+  // reads and `files` is the whole listing, as the pr-merge lane reads them.
+  const whole = Array.isArray(pr.files) && pr.config != null && pr.changedFiles === pr.files.length;
+  const paths = whole ? pr.files.flatMap((f) => [f.filename, f.previous_filename].filter(Boolean).map(String)) : null;
+  const listed = reviewOnly(pr.policy ?? null, pr.repository ?? "", pr.headRef, updates, paths);
+  reasons.push(...listed.reasons);
   return {
     tier: reasons.length === 0 ? "auto" : "review",
     reasons,
     ecosystem,
     updates,
     security: isSecurityUpdate(pr),
-    ...(listed ? { reviewOnly: listed.entries } : {}),
+    reviewOnly: listed.entries,
   };
 }
 

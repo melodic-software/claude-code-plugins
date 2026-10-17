@@ -37,8 +37,11 @@ const commit = (message, { sha = "d".repeat(40), name = "dependabot[bot]", email
   commit: { message, author: { name, email } },
 });
 
+// A readable policy that lists nothing, so the review-only step adds no reason.
+const NO_POLICY = { autoMerge: { reviewOnly: [] } };
+
 const tier = (title, { body = "", ref = NPM, ci = "success", commits = [] } = {}) =>
-  classify({ author: "dependabot[bot]", headRef: ref, title, body, labels: [], ciStatus: ci, commits });
+  classify({ author: "dependabot[bot]", headRef: ref, title, body, labels: [], ciStatus: ci, commits, policy: NO_POLICY });
 
 test("a pull request another author opened is not classified", () => {
   assert.equal(classify({ author: "octocat", title: "bump x from 1.0.0 to 1.0.1" }), null);
@@ -283,7 +286,7 @@ test("the content step's refusals and gaps are review reasons", () => {
   assert.equal(contentStep({ ...base, commits: [FIX], commitFiles: () => [".github/workflows/x.yml"] }), "dependabot-fix-content:.github/workflows/x.yml");
   assert.equal(contentStep({ ...base, config: null }), "dependabot-config-unreadable");
   assert.equal(contentStep({ ...base, changedFiles: 2 }), "dependabot-content:files-incomplete");
-  const result = classify({ author: "dependabot[bot]", headRef: NPM, title: "bump x from 1.0.0 to 1.0.1", ...base, files: [changed("dist/x.js")] });
+  const result = classify({ author: "dependabot[bot]", headRef: NPM, title: "bump x from 1.0.0 to 1.0.1", ...base, files: [changed("dist/x.js")], policy: NO_POLICY });
   assert.deepEqual([result.tier, result.reasons], ["review", ["dependabot-content:dist/x.js"]]);
 });
 
@@ -339,6 +342,25 @@ test("the directory is the changed paths' folder", () => {
   assert.deepEqual(listed(reviewOnlyPolicy({}), ROOT, miro), []);
 });
 
+test("a root github-actions entry covers workflow and .github/actions files", () => {
+  const entry = reviewOnlyPolicy({ ecosystem: "github-actions", dependency: "@anthropic-ai/claude-code" });
+  for (const path of [".github/workflows/claude.yml", ".github/actions/setup/action.yml"]) {
+    assert.deepEqual(listed(entry, ACTIONS, [path]), ["review-only:@anthropic-ai/claude-code"], path);
+  }
+  assert.deepEqual(listed(entry, ACTIONS, ["plugins/x/action.yml"]), []);
+});
+
+test("a github-actions entry for a folder covers the action file there", () => {
+  const entry = reviewOnlyPolicy({ ecosystem: "github-actions", directory: "/plugins/x" });
+  assert.deepEqual(listed(entry, ACTIONS, ["plugins/x/action.yml"]), ["review-only:@anthropic-ai/claude-code"]);
+  assert.deepEqual(listed(entry, ACTIONS, [".github/workflows/claude.yml"]), []);
+});
+
+test("a directory glob matches the changed paths' folder", () => {
+  const miro = ["plugins/miro/server/package.json"];
+  assert.deepEqual(listed(reviewOnlyPolicy({ directory: "/plugins/*/server" }), ROOT, miro), ["review-only:@anthropic-ai/claude-code"]);
+});
+
 test("unread paths match any directory", () => {
   assert.deepEqual(listed(reviewOnlyPolicy({ directory: "/plugins/miro/server" }), ROOT, null), ["review-only:@anthropic-ai/claude-code"]);
 });
@@ -372,6 +394,8 @@ test("classify sends a review-only update to review and leaves the rest auto", (
   assert.deepEqual([miss.tier, miss.reasons, miss.reviewOnly], ["auto", [], []]);
   const unreadable = pr(null);
   assert.deepEqual([unreadable.tier, unreadable.reasons], ["review", ["dependabot-policy-unreadable"]]);
+  const omitted = pr(undefined);
+  assert.deepEqual([omitted.tier, omitted.reasons], ["review", ["dependabot-policy-unreadable"]]);
 });
 
 // The provenance gate. Fixtures carry the shapes the registries return: npm's

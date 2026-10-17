@@ -543,14 +543,17 @@ Dependabot policy's `autoMerge.reviewOnly` (melodic-software/standards
 - **Match.** An entry matches an update when its `repository` is this repository (any case), its
   `ecosystem` is the head branch's ecosystem in `dependabot.yml` spelling
   (`dependabot/npm_and_yarn/...` is `npm`, `dependabot/github_actions/...` is `github-actions`,
-  any other segment such as `pip` is itself), its `directory` holds a changed path (any
-  directory when the config or the files listing does not read whole), and its `dependency` is
-  one of the updates. A match makes the pull request tier `review` with the reason
-  `review-only:<dependency>`, whatever the version change.
+  any other segment such as `pip` is itself), its `directory` covers a changed path (any path
+  when the config or the files listing does not read whole), and its `dependency` is one of the
+  updates. A directory covers a path that sits in it, read as the content rule reads a
+  `dependabot.yml` directory (globs included); a `github-actions` entry also covers the workflow
+  and action files the content rule gives its directory (`/` covers `.github/workflows/` and the
+  action files under `.github/actions/`). A match makes the pull request tier `review` with the
+  reason `review-only:<dependency>`, whatever the version change.
 - **Unreadable.** A missing policy file, one that is not JSON, or one whose `reviewOnly` is not a
   list of entries with string `repository`, `ecosystem`, `directory`, `dependency` and `control`
   makes every Dependabot pull request tier `review` with the reason
-  `dependabot-policy-unreadable`.
+  `dependabot-policy-unreadable`; so does a classifier call that passes no policy at all.
 - **Review.** The review activity gets the matched entries. A `merge` verdict on such a pull
   request cites each entry's `control` (this section, for this repository's entries) and states
   what it checked: the release's provenance (who published it and how), maintainer or publisher

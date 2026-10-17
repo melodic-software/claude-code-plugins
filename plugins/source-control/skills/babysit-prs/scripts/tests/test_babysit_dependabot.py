@@ -355,6 +355,46 @@ class ReviewOnly(unittest.TestCase):
         )
         self.assertEqual(self.reasons(review_only_policy({}), paths=miro), ())
 
+    ACTIONS = "dependabot/github_actions/actions/checkout-4.2.0"
+
+    def test_a_root_github_actions_entry_covers_workflow_and_actions_files(
+        self,
+    ) -> None:
+        policy = review_only_policy({"ecosystem": "github-actions"})
+        for path in (
+            ".github/workflows/claude.yml",
+            ".github/actions/setup/action.yml",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(
+                    self.reasons(policy, self.ACTIONS, [path]),
+                    ("review-only:@anthropic-ai/claude-code",),
+                )
+        self.assertEqual(
+            self.reasons(policy, self.ACTIONS, ["plugins/x/action.yml"]), ()
+        )
+
+    def test_a_github_actions_entry_for_a_folder_covers_the_action_file_there(
+        self,
+    ) -> None:
+        policy = review_only_policy(
+            {"ecosystem": "github-actions", "directory": "/plugins/x"}
+        )
+        self.assertEqual(
+            self.reasons(policy, self.ACTIONS, ["plugins/x/action.yml"]),
+            ("review-only:@anthropic-ai/claude-code",),
+        )
+        self.assertEqual(
+            self.reasons(policy, self.ACTIONS, [".github/workflows/claude.yml"]), ()
+        )
+
+    def test_a_directory_glob_matches_the_changed_paths_folder(self) -> None:
+        policy = review_only_policy({"directory": "/plugins/*/server"})
+        self.assertEqual(
+            self.reasons(policy, paths=["plugins/miro/server/package.json"]),
+            ("review-only:@anthropic-ai/claude-code",),
+        )
+
     def test_unread_paths_match_any_directory(self) -> None:
         policy = review_only_policy({"directory": "/plugins/miro/server"})
         self.assertEqual(

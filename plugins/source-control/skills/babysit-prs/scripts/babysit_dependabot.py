@@ -294,10 +294,10 @@ def review_only(
 ) -> tuple[str, ...]:
     """`review-only:<dependency>` for each `autoMerge.reviewOnly` entry of the
     parsed Dependabot policy that names this repository (any case), the head
-    branch's ecosystem (`BRANCH_ECOSYSTEMS`), one of `updates`, and the
-    directory of a changed path (any directory when `paths` is None), in entry
-    order; `dependabot-policy-unreadable` when the policy is None, has no
-    `reviewOnly` list, or holds an entry missing a string field."""
+    branch's ecosystem (`BRANCH_ECOSYSTEMS`), one of `updates`, and a changed
+    path the entry covers (`_entry_covers`; any path when `paths` is None), in
+    entry order; `dependabot-policy-unreadable` when the policy is None, has
+    no `reviewOnly` list, or holds an entry missing a string field."""
     auto = policy.get("autoMerge") if isinstance(policy, dict) else None
     entries = auto.get("reviewOnly") if isinstance(auto, dict) else None
     if not isinstance(entries, list) or not all(
@@ -310,7 +310,6 @@ def review_only(
     segment = found.group(1) if found else ""
     ecosystem = BRANCH_ECOSYSTEMS.get(segment, segment)
     names = {u.name for u in updates}
-    folders = None if paths is None else {posixpath.dirname(p) for p in paths}
     reasons: list[str] = []
     for entry in entries:
         reason = f"review-only:{entry['dependency']}"
@@ -318,11 +317,22 @@ def review_only(
             entry["repository"].casefold() == repository.casefold()
             and entry["ecosystem"] == ecosystem
             and entry["dependency"] in names
-            and (folders is None or entry["directory"].strip("/") in folders)
+            and (paths is None or any(_entry_covers(entry, p) for p in paths))
             and reason not in reasons
         ):
             reasons.append(reason)
     return tuple(reasons)
+
+
+def _entry_covers(entry: dict[str, str], path: str) -> bool:
+    """Whether a review-only entry covers a changed path: the path sits in the
+    entry's directory (glob-aware), or the entry is `github-actions` and the
+    path is a workflow or action file it covers, as the content rule reads
+    them."""
+    ecosystem, directory = entry["ecosystem"], entry["directory"]
+    return _directory(path, directory) or (
+        ecosystem == "github-actions" and _actions_file(path, [(ecosystem, directory)])
+    )
 
 
 # The provenance gate, the same rule as the pr-unblock lane's

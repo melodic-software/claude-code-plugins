@@ -7,8 +7,8 @@ import { test } from "node:test";
 import { ciStatusOf, countRounds, main, readConfig, readPolicy, roundLine, rounds, select as selectLive } from "./review-dependency.mjs";
 
 // No registry reads in tests: the provenance gate finds nothing unless a test
-// passes its own.
-const select = (args) => selectLive({ provenance: async () => [], ...args });
+// passes its own, and the policy lists nothing unless a test passes its own.
+const select = (args) => selectLive({ provenance: async () => [], policy: { autoMerge: { reviewOnly: [] } }, ...args });
 
 const HEAD = "a".repeat(40);
 const OTHER = "b".repeat(40);
