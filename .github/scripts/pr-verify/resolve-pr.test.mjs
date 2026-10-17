@@ -1,4 +1,4 @@
-// Expected values come from issue #7702 (Scope) and the verdict rules in
+// Expected values come from the verdict rules in
 // docs/conventions/pr-pipeline/README.md ("Verifier verdict"): only a successful pr-require-checks pull_request run of this
 // repository starts a verdict, for exactly one open same-repository PR into
 // main whose head is the run's head SHA; the head is the run's, and the base

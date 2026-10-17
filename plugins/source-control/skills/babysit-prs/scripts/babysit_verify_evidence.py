@@ -445,7 +445,7 @@ class Reader:
             judged = {json_object(issue).get("number") for issue in recorded}
             live = self._closing_issues(number)
             # An edit after the judgment started is a spec the model never
-            # read. An unparseable time refuses (PostMergeReadError).
+            # read. An unparsable time refuses (PostMergeReadError).
             started = postmerge._time(self._started.get(run_id))
             if set(live) != judged or any(
                 edited is not None and postmerge._time(edited) > started
