@@ -21,6 +21,7 @@ import json
 import pathlib
 import subprocess
 import sys
+import tempfile
 import unittest
 from datetime import UTC, datetime
 from typing import Any
@@ -2029,7 +2030,9 @@ class ExitCodes(CheckCase):
         with (
             contextlib.redirect_stdout(out),
             mock.patch.object(pm, "_default_is_human", return_value=human),
-            mock.patch.object(pm, "default_floor", return_value=floor) as computed,
+            mock.patch.object(
+                pm, "default_floor", return_value=(floor, {})
+            ) as computed,
             mock.patch.object(pm, "check", wraps=pm.check) as checked,
         ):
             pm.main(["--repo", REPO, "--agent-identity", IDENTITY])
@@ -2046,6 +2049,159 @@ class ExitCodes(CheckCase):
             ),
         ):
             self.assertEqual(pm.main(["--repo", REPO, "--agent-identity", IDENTITY]), 3)
+
+
+MAIN_SHA = "6" * 40
+CONFIG_SHA = "7" * 40
+BINDING = {
+    "mainSha": MAIN_SHA,
+    "configSha": CONFIG_SHA,
+    "demotion": {
+        "active": False,
+        "reason": None,
+        "records": [9],
+        "newestCreated": "2026-10-11T08:00:00+00:00",
+        "clearedAt": "2026-10-11T09:00:00+00:00",
+    },
+}
+
+
+class SharedAnswer(CheckCase):
+    """The report the pr-merge run writes once and every candidate's gate
+    reads back (`read_shared`, `--postmerge-result`): the same answer as the
+    gate's own check, bound to the head and config it was read at."""
+
+    def write_report(self, *extra: str) -> pathlib.Path:
+        out = io.StringIO()
+        with (
+            contextlib.redirect_stdout(out),
+            mock.patch.object(pm, "_default_is_human", return_value=human),
+            mock.patch.object(pm, "default_floor", return_value=(SINCE, BINDING)),
+        ):
+            pm.main(["--repo", REPO, "--agent-identity", IDENTITY, *extra])
+        directory = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        path = directory / "post-merge.json"
+        path.write_text(out.getvalue(), encoding="utf-8")
+        return path
+
+    def canary_failure(self) -> None:
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        self.gh.add_runs(
+            "post-merge-detect-silent-revert.yml", "push", canary_run(21, "failure")
+        )
+
+    def test_a_failure_refuses_as_the_gates_own_check_does(self) -> None:
+        self.canary_failure()
+        shared = pm.read_shared(str(self.write_report()))
+        assert shared is not None
+        self.assertEqual(shared.gate.refusal, "failure:canary#7001")
+        self.assertEqual(shared.floor, SINCE)
+        self.assertEqual(
+            (shared.main_sha, shared.config_sha, shared.identity),
+            (MAIN_SHA, CONFIG_SHA, IDENTITY),
+        )
+        self.assertEqual(
+            shared.demotion,
+            pm.policy.Demotion(
+                False,
+                None,
+                (9,),
+                datetime(2026, 10, 11, 8, 0, tzinfo=UTC),
+                datetime(2026, 10, 11, 9, 0, tzinfo=UTC),
+            ),
+        )
+        self.assertIs(shared.lane_merges_only, False)
+
+    def test_the_report_reads_back_as_the_gates_own_answer(self) -> None:
+        for scenario in (self.canary_failure, self.all_green):
+            with self.subTest(scenario=scenario.__name__):
+                self.setUp()
+                scenario()
+                shared = pm.read_shared(str(self.write_report()))
+                assert shared is not None
+                fresh = pm.gate_from_report(
+                    pm.check(
+                        REPO,
+                        agent_identity=IDENTITY,
+                        is_human=human,
+                        merged_since=SINCE,
+                        pinned_sha=pm.pin_reader(REPO, IDENTITY),
+                    ).report()
+                )
+                self.assertEqual(shared.gate.refusal, fresh.refusal)
+                self.assertEqual(shared.gate.report, fresh.report)
+                merge = mock.Mock(number=7001)
+                self.assertEqual(shared.gate.verified(merge), fresh.verified(merge))
+
+    def test_a_verified_merge_is_verified_and_no_other(self) -> None:
+        report = {
+            "ok": True,
+            "autoMerges": [
+                {"number": 1, "verified": True},
+                {"number": 2, "verified": False},
+            ],
+        }
+        gate = pm.gate_from_report(report)
+        self.assertIsNone(gate.refusal)
+        self.assertEqual(
+            [gate.verified(mock.Mock(number=n)) for n in (1, 2, 3)],
+            [True, False, False],
+        )
+        self.assertFalse(
+            pm.gate_from_report({**report, "ok": False}).verified(mock.Mock(number=1))
+        )
+
+    def test_an_unreadable_or_unbound_report_is_not_shared(self) -> None:
+        self.assertIsNone(pm.read_shared("/nonexistent/post-merge.json"))
+        path = self.write_report("--since", SINCE.isoformat())
+        self.assertNotIn("shared", json.loads(path.read_text(encoding="utf-8")))
+        self.assertIsNone(pm.read_shared(str(path)))
+        path = self.write_report("--branch", "main")
+        self.assertIsNone(pm.read_shared(str(path)))
+        good = json.loads(self.write_report().read_text(encoding="utf-8"))
+        for change in (
+            {"readable": False},
+            {"since": "2026-10-12T00:00:00"},
+            {"shared": {**good["shared"], "mainSha": "main"}},
+            {"shared": {**good["shared"], "computedAt": None}},
+            {"shared": {**good["shared"], "laneMergesOnly": "yes"}},
+            {"shared": {**good["shared"], "demotion": {"active": "no"}}},
+        ):
+            with self.subTest(change=change):
+                path.write_text(json.dumps({**good, **change}), encoding="utf-8")
+                self.assertIsNone(pm.read_shared(str(path)))
+        path.write_text("not json", encoding="utf-8")
+        self.assertIsNone(pm.read_shared(str(path)))
+
+    def test_the_default_floor_names_what_it_was_read_from(self) -> None:
+        demotion = pm.policy.Demotion(False, None, (9,), None, None)
+        with (
+            mock.patch.object(
+                pm.policy, "_default_branch_head", return_value=("main", MAIN_SHA)
+            ),
+            mock.patch.object(
+                pm.policy, "newest_config_commit", return_value=CONFIG_SHA
+            ) as newest,
+            mock.patch.object(pm.policy, "read_demotion", return_value=demotion),
+            mock.patch.object(pm.policy, "merged_since_floor", return_value=SINCE),
+        ):
+            floor, read_from = pm.default_floor(REPO, IDENTITY, [])
+        newest.assert_called_once_with(REPO, MAIN_SHA)
+        self.assertEqual(floor, SINCE)
+        self.assertEqual(
+            read_from,
+            {
+                "mainSha": MAIN_SHA,
+                "configSha": CONFIG_SHA,
+                "demotion": {
+                    "active": False,
+                    "reason": None,
+                    "records": [9],
+                    "newestCreated": None,
+                    "clearedAt": None,
+                },
+            },
+        )
 
 
 class SharedHumanTest(unittest.TestCase):

@@ -2538,6 +2538,90 @@ class PostMergeGate:
     verified: Callable[[AutoMerge], bool] | None
 
 
+# How old a shared post-merge answer may be: the pr-merge job's timeout.
+SHARED_MAX_AGE = timedelta(minutes=30)
+
+
+@dataclass(frozen=True)
+class SharedPostMerge:
+    """The repo-wide part of `assess` (demotion, floor, post-merge answer),
+    computed once per pr-merge run at the default branch head by
+    `babysit_postmerge.py` and handed to each candidate, bound to what it was
+    computed from (`shared_refusal`)."""
+
+    main_sha: str
+    config_sha: str
+    identity: str
+    self_logins: frozenset[str]
+    lane_merges_only: bool
+    computed_at: datetime
+    demotion: Demotion
+    floor: datetime
+    gate: PostMergeGate
+
+
+def newest_config_commit(repo: str, sha: str) -> str:
+    """The newest commit at or before `sha` that changed the pipeline file,
+    where `enabled_since` starts its walk: two SHAs on the (linear, merge
+    queue) default branch that share it share the floor. Raises
+    `PolicyReadError`."""
+    owner, name = _split_repo(repo)
+    status, commits = _get(
+        f"repos/{owner}/{name}/commits?sha={sha}"
+        f"&path={quote(CONFIG_PATH, safe='')}&per_page=1"
+    )
+    newest = (
+        str(json_object(commits[0]).get("sha"))
+        if status == 200 and is_json_array(commits) and commits
+        else ""
+    )
+    if not SHA_RE.fullmatch(newest):
+        raise PolicyReadError(f"{CONFIG_PATH} history at {sha} could not be read")
+    return newest
+
+
+def shared_refusal(
+    repo: str,
+    shared: SharedPostMerge,
+    *,
+    branch: str,
+    base_sha: str,
+    identity: str,
+    self_logins: Collection[str],
+    lane: bool,
+    now: datetime | None = None,
+) -> str | None:
+    """Why `shared` may not stand in for this pull request's own reads, or
+    None: it must name the same identity, self logins and lane, be no older
+    than `SHARED_MAX_AGE`, have been computed at `branch`'s current head, and
+    share this base's newest pipeline-config commit (so the same floor)."""
+    age = (now or datetime.now(UTC)) - shared.computed_at
+    owner, name = _split_repo(repo)
+    checks = (
+        (_login_key(shared.identity) != _login_key(identity), "identity-differs"),
+        (
+            {_login_key(s) for s in shared.self_logins}
+            != {_login_key(s) for s in self_logins},
+            "self-logins-differ",
+        ),
+        (shared.lane_merges_only != lane, "lane-differs"),
+        (not timedelta(0) <= age <= SHARED_MAX_AGE, "stale"),
+    )
+    refusal = next((text for refused, text in checks if refused), None)
+    if refusal:
+        return refusal
+    status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
+    head = payload.get("sha") if status == 200 and is_json_object(payload) else None
+    if head != shared.main_sha:
+        return "main-moved"
+    try:
+        if newest_config_commit(repo, base_sha) != shared.config_sha:
+            return "config-differs"
+    except PolicyReadError:
+        return "config-unreadable"
+    return None
+
+
 def assess(
     repo: str,
     number: int,
@@ -2549,6 +2633,7 @@ def assess(
     authority: str = LOCAL_BABYSIT,
     lane_kill_switch: str | None = None,
     lane_rung_cap: str | None = None,
+    shared: SharedPostMerge | None = None,
 ) -> UnattendedPolicy:
     """The policy readers for one pull request, in the wiring order.
 
@@ -2572,6 +2657,8 @@ def assess(
 
     `post_merge(floor, identity)` runs the post-merge check from the floor
     (`merged_since_floor`) and must be given: without it the path refuses.
+    `shared`, the run's one answer for every candidate, replaces the
+    demotion, floor and post-merge reads when `shared_refusal` passes it.
     `promotion(window_start)` reads the promotion evidence with the newest
     demotion record's creation as the window restart; without it nothing is
     promoted. `self_logins` names only lane or bot self identities (see
@@ -2645,19 +2732,39 @@ def assess(
         "permission": permission,
     }
     inputs.update(permission=permission, self_logins=self_logins)
-    demotion = read_demotion(repo, **readers)
+    # The run's shared answer stands in for the demotion, floor and post-merge
+    # reads when it is bound to this run; otherwise they are read here.
+    reuse = None
+    if shared is not None:
+        unusable = shared_refusal(
+            repo,
+            shared,
+            branch=default,
+            base_sha=base_sha,
+            identity=resolved.login,
+            self_logins=self_logins,
+            lane=lane,
+        )
+        details["postMergeShared"] = f"unused:{unusable}" if unusable else "used"
+        reuse = None if unusable else shared
+    demotion = reuse.demotion if reuse else read_demotion(repo, **readers)
     details["demotion"] = {
         "active": demotion.active,
         "reason": demotion.reason,
         "records": list(demotion.records),
     }
-    try:
-        floor = merged_since_floor(repo, base_sha, demotion, authority)
-    except PolicyReadError as exc:
-        return replace(stopped, reason=f"post-merge:floor-unreadable: {exc}")
+    if reuse:
+        floor = reuse.floor
+    else:
+        try:
+            floor = merged_since_floor(repo, base_sha, demotion, authority)
+        except PolicyReadError as exc:
+            return replace(stopped, reason=f"post-merge:floor-unreadable: {exc}")
     details["mergedSince"] = floor.isoformat()
     gate = (
-        post_merge(floor, resolved.login)
+        reuse.gate
+        if reuse
+        else post_merge(floor, resolved.login)
         if post_merge is not None
         else PostMergeGate("unchecked", {}, None)
     )
