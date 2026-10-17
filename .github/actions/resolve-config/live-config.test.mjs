@@ -113,7 +113,14 @@ test("live config: pr-unblock runs its slots in order", () => {
   });
   assert.deepEqual(
     lane.slots.map((slot) => slot.activity ?? slot.name),
-    ["resolve-conflicts", "address-feedback", "publish-feedback", "report-escalation"],
+    [
+      "resolve-conflicts",
+      "address-feedback",
+      "publish-feedback",
+      "review-dependency",
+      "apply-dependency-verdict",
+      "report-escalation",
+    ],
   );
 });
 
@@ -150,12 +157,30 @@ test("live config: publish-feedback runs the reply script after address-feedback
   );
 });
 
-test("live config: report-escalation follows all three pr-unblock activities", () => {
+test("live config: report-escalation follows every other pr-unblock activity", () => {
   assert.deepEqual(selected("pr-unblock", "report-escalation").needs, [
     "resolve-conflicts",
     "address-feedback",
     "publish-feedback",
+    "review-dependency",
+    "apply-dependency-verdict",
   ]);
+});
+
+test("live config: review-dependency may only write its branch; its verdict job may only write PRs and issues", () => {
+  const grant = (activity) => resolveGrant(FILES, { lane: "pr-unblock", activity, configPath: CONFIG_PATH });
+  assert.deepEqual(grant("review-dependency"), {
+    effect: "mutate-branch",
+    grant: { contents: "write", "pull-requests": "read", issues: "read" },
+  });
+  assert.deepEqual(grant("apply-dependency-verdict"), {
+    effect: "publish-artifact",
+    grant: { contents: "read", "pull-requests": "write", issues: "write" },
+  });
+  const review = selected("pr-unblock", "review-dependency");
+  assert.equal(review.prepare, "dependency-review");
+  assert.equal(review.args, "dependency --ci");
+  assert.equal(selected("pr-unblock", "apply-dependency-verdict").script, ".github/scripts/pr-unblock/apply-dependency-verdict.mjs");
 });
 
 // An agent-ready label event on a read-only issue with no ratification marker. The
@@ -247,10 +272,16 @@ test("live config: resolve-issue may run the can't-fail scan; no other activity 
 });
 
 // Owner decision 2026-10-14: the run may read any web page.
-test("live config: resolve-issue may read any domain; no other activity reads the web", () => {
+test("live config: resolve-issue may read any domain; review-dependency reads release-note hosts; no other activity reads the web", () => {
   assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE)["web-access"], { enabled: true, domains: "any" });
   const doc = parse(FILES.config);
-  const others = Object.entries(doc.activities).filter(([name, a]) => name !== "resolve-issue" && a["web-access"]?.enabled);
+  assert.deepEqual(doc.activities["review-dependency"]["web-access"], {
+    enabled: true,
+    domains: ["github.com", "raw.githubusercontent.com", "www.npmjs.com", "registry.npmjs.org", "pypi.org"],
+  });
+  const others = Object.entries(doc.activities).filter(
+    ([name, a]) => !["resolve-issue", "review-dependency"].includes(name) && a["web-access"]?.enabled,
+  );
   assert.deepEqual(others, []);
 });
 
