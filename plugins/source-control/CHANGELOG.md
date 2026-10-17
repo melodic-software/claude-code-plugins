@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.9.0] - 2026-10-17
+
+### Added
+
+- `/source-control:pull-request ready --skip <step>[,<step>...] --reason "<text>"` lets a person who is present skip pre-flip steps for one run. It is refused under `--unattended`, never re-enables a step `pre_ready` disabled, and leaves the hold checks, the push and the flip in place. Each skipped step is reported as `skipped by <login> for this run: <reason>` and the same lines go into one PR conversation comment, marked with the head it flipped; `ready` never edits the PR body.
+
 ## [1.8.0] - 2026-10-16
 
 ### Added
