@@ -8,6 +8,7 @@ Ports the discovery, author-scope, and review-thread coverage onto
 from __future__ import annotations
 
 import pathlib
+import subprocess
 import sys
 import unittest
 from typing import Any
@@ -17,6 +18,37 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_checks as checks
 import babysit_gh as gh
+import babysit_util as util
+
+
+class GhCaptureTests(unittest.TestCase):
+    """`gh_capture` returns a failed exit instead of raising, and layers
+    `env_overrides` onto the inherited environment for that call alone
+    (`babysit_util.run_command`); with none the child inherits it as is."""
+
+    def capture(self, **kwargs: Any) -> tuple[Any, dict[str, Any]]:
+        failed = subprocess.CompletedProcess(["gh"], 1, "", "gh: boom (HTTP 502)")
+        with (
+            mock.patch.object(util.shutil, "which", return_value="/bin/gh"),
+            mock.patch.object(util.subprocess, "run", return_value=failed) as run,
+            mock.patch.dict("os.environ", {"INHERITED": "1"}, clear=True),
+        ):
+            proc = gh.gh_capture(["api", "user"], **kwargs)
+        return proc, run.call_args.kwargs
+
+    def test_a_failed_exit_is_returned(self) -> None:
+        proc, _ = self.capture()
+        self.assertEqual(proc.returncode, 1)
+
+    def test_env_overrides_layer_onto_the_environment(self) -> None:
+        _, call = self.capture(env_overrides={"GH_TOKEN": "tok"})
+        self.assertEqual(call["env"], {"INHERITED": "1", "GH_TOKEN": "tok"})
+
+    def test_no_or_empty_overrides_inherit_the_environment(self) -> None:
+        for overrides in (None, {}):
+            with self.subTest(overrides):
+                _, call = self.capture(env_overrides=overrides)
+                self.assertIsNone(call["env"])
 
 
 class ParseRepoTests(unittest.TestCase):
