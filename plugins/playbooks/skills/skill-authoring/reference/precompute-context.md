@@ -164,9 +164,9 @@ command name computed at runtime, syntax it cannot parse, or an expansion such a
 refusing loops, `$VAR` reads, `"$(…)"`, and heredocs that never touch git, and 2.1.259 stopped
 refusing common loops, xargs pipelines, and launcher-wrapped commands that cannot reach the main
 checkout. Whether a plain `$VAR` read is accepted today is unsettled: a 2026-09-30 session had
-`sed -n ... $F` refused, which contradicts the 2.1.257 fix, and no probe has reconciled them
-("Accepted command shapes for body-time and subagent Bash" in `gather-block.md` owns the record).
-A `$` expansion in a block that never runs git is not that check by the page's text. The compose gate
+`sed -n ... $F` refused, which may contradict the 2.1.257 fix (the report names no release), and no
+probe has reconciled them ("Accepted command shapes for body-time and subagent Bash" in
+`gather-block.md` owns the record). The compose gate
 (`scripts/check-skill-precompute-compose.sh`) already fires only when a pre-compute block holds a
 git command and more than one injection line. A composed pre-compute block still leaves `$` out, other than a bare `$HOME` a probe has
 shown the guard accepts, because a block that expands anything else is the shape the page still

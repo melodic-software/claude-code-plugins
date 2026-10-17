@@ -20,8 +20,9 @@ calls, one command per call, where each is screened on its own.
   invocations, so the composition itself is not a documented fact.
 - [Worktrees: how Claude Code enforces isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation)
   documents the checks an isolated session applies. The one this record rests on is the
-  command-shape check, which is scoped to git: a `$` expansion that never runs git is not that
-  check. **Pointer:** that section. **As of:** 2026-10-11. **Recheck trigger:** a re-fetch of that
+  command-shape check, which the page words in terms of git the command runs. The errors page adds
+  that a command that never names git can still be refused when an expansion can hide a command,
+  so a git-free `$` expansion is not safe by that scoping alone. **Pointer:** that section. **As of:** 2026-10-11. **Recheck trigger:** a re-fetch of that
   section that drops the command-shape check or stops scoping it to git.
 - `scripts/check-skill-precompute-compose.sh` in this repository is the gate that encodes the
   observed behavior. It refuses a skill whose pre-compute block holds a git command together with
@@ -50,9 +51,9 @@ instead of restating the shapes.
 each git read its own call. Read a file with the Read tool rather than `sed`, `cat` or `head` over
 a path held in a variable.
 
-**Refused, by layer.** Each class below comes from Claude Code's built-in isolation guard. None of
-the refusal texts ("cannot be shown not to be git", "computed at runtime") appears in this
-repository's hooks.
+**Refused.** The first and third classes come from Claude Code's built-in isolation guard;
+the second is attributed to it by owner decision (see its basis). None of the refusal texts
+("cannot be shown not to be git", "computed at runtime") appears in this repository's hooks.
 
 | Class | Rewrite | Basis |
 | --- | --- | --- |
@@ -61,8 +62,9 @@ repository's hooks.
 | `eval` as a command word | Stop and give the user the exact command to run | `/evals:plugin-eval`; upstream watch in #5696 |
 
 **Not settled.** The pre-compute record says Claude Code 2.1.257 stopped refusing a `$VAR` read
-that never touches git. A 2026-09-30 refusal of `sed -n ... $F`, with `F` a scratchpad file,
-contradicts it, and no probe from an isolated session on the current release has reconciled the
+that never touches git. The #5673 report of a 2026-09-30 refusal of `sed -n ... $F`, with `F` a scratchpad file,
+may contradict it; the report names no Claude Code release or full command, so it could predate the
+fix or have set `F` in the same compound command. No probe from an isolated session on the current release has reconciled the
 two. Keep `$` out of worker commands until one does.
 
 **Basis.** The worktrees page "How Claude Code enforces isolation" (the command shape check, which
