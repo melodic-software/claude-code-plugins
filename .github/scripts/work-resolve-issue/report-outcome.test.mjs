@@ -1250,6 +1250,24 @@ test("a reuse PR lists the files the branch changes, denied paths marked and fir
   }
 });
 
+test("a reuse PR lists a file name holding a comment opener in full, escaped", () => {
+  const plan = reusePlan({ issueNumber: 77, branch: lane(400), changedFiles: ["a<!--b.md"], holdPaths: HOLD_GLOBS });
+  assert.ok(plan.body.includes("\n- a&lt;!--b.md\n"), plan.body);
+});
+
+test("format and bidi characters are dropped from file names and summary text", () => {
+  const plan = reusePlan({
+    issueNumber: 77,
+    branch: lane(400),
+    summary: { ...usable, summary: "SUM‮MARY​TEXT" },
+    changedFiles: ["evil‮dm.​sh"],
+    holdPaths: HOLD_GLOBS,
+  });
+  assert.ok(plan.body.includes("\n- evildm.sh\n"), plan.body);
+  assert.ok(plan.body.includes("> SUMMARYTEXT"), plan.body);
+  assert.ok(!/[‮​]/.test(plan.body), plan.body);
+});
+
 test("a reuse PR's file list says when the denied paths or the listing cannot be read", () => {
   const unmarked = reusePlan({ issueNumber: 77, branch: lane(400), changedFiles: [".github/workflows/x.yml"], holdPaths: null });
   assert.ok(unmarked.body.includes("so none is marked") && !unmarked.body.includes("(denied path)"), unmarked.body);

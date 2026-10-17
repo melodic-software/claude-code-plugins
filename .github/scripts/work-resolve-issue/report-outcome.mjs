@@ -222,10 +222,13 @@ export function readOutcome(path) {
 // body as plain text, so `#` becomes a full-width ＃, `GH-` and `/issues/` or
 // `/pull/` gain a space, and no closing keyword in it can close an issue.
 // `://` and `www.` gain a space too, so no bare URL autolinks.
-// Control characters other than newline go. The cap applies after escaping.
-const neutral = (value, cap) =>
-  value
-    .replaceAll(/<!--[\s\S]*?(-->|$)/g, "")
+// Control characters other than newline go, and so do format characters
+// (bidi overrides, zero-width), which can make text read other than it is.
+// The cap applies after escaping. A file path keeps its comments, escaped,
+// so the whole name shows.
+const neutral = (value, cap, { path = false } = {}) =>
+  (path ? value : value.replaceAll(/<!--[\s\S]*?(-->|$)/g, ""))
+    .replaceAll(/\p{Cf}/gu, "")
     .replaceAll("\r\n", "\n")
     .replaceAll(/[\u0000-\u0009\u000b-\u001f\u007f]/g, " ")
     .replaceAll("&", "&amp;")
@@ -359,7 +362,7 @@ function fileList(files, holdPaths) {
     "",
     ...sorted
       .slice(0, MAX_FILES)
-      .map((path) => `- ${neutral(path.replaceAll(/\s+/g, " "), MAX_ITEM).trim()}${denied(path) ? " (denied path)" : ""}`),
+      .map((path) => `- ${neutral(path.replaceAll(/\s+/g, " "), MAX_ITEM, { path: true }).trim()}${denied(path) ? " (denied path)" : ""}`),
     ...(sorted.length > MAX_FILES ? [`- and ${sorted.length - MAX_FILES} more`] : []),
     ...(files.length >= COMPARE_FILES_CAP ? ["", `The compare listing stops at ${COMPARE_FILES_CAP} files, so this list may be incomplete.`] : []),
   ].join("\n");
