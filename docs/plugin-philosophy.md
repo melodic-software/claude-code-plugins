@@ -1497,8 +1497,9 @@ kind of work, and never below `medium` for work that changes code or verifies a 
 [effort floor](#effort-floor)). Twelve pin `effort: high`: `implementation` `phase-verifier`;
 `discovery` `researcher`, `intent-tracer`, and `research-verifier`; `review` `code-reviewer`,
 `architecture-guardian`, `security-reviewer`, `ci-log-auditor`, `doc-drift-detector`, and
-`brief-reviewer`; `plugin-quality` `auditor`; `user-experience` `evaluator`. Seven pin
+`brief-reviewer`; `plugin-quality` `auditor`; `user-experience` `evaluator`. Eight pin
 `effort: medium`: `planning` `plan-reviewer` by its [recorded exception](#named-agent-bar);
+`planning` `upload-reader`, because it reads and summarizes one file it is handed;
 `implementation` `implementer`, because a phase brief is scoped feature work and its verifier runs
 at `high`; `implementation` `scoped-implementer`, because a plan routes only well-scoped work to
 it; `songwriting` `object-writer`, because creative generation is not verification; and `review`
@@ -1544,6 +1545,7 @@ and verdict lanes follow the `high` row; well-specified mechanical work follows 
 | `discovery` `researcher` | `opus` | `high` | `high` | Research that feeds decisions |
 | `performance` `go-faster-sweeper` | `opus` | `medium` | `medium` | Checks each named area of the development process and records findings |
 | `planning` `plan-reviewer` | `opus` | `medium` | `medium` | A review lane held to `medium` by its [recorded exception](#named-agent-bar), not by the review rule |
+| `planning` `upload-reader` | `opus` | `medium` | `medium` | Reads and summarizes one uploaded file it is handed |
 | `plugin-quality` `auditor` | `opus` | `high` | `high` | Audit verdict |
 | `review` `architecture-guardian` | `opus` | `high` | `high` | Review verdict |
 | `review` `brief-reviewer` | `opus` | `high` | `high` | Review verdict on the brief it is handed |
