@@ -446,8 +446,10 @@ export function readBranch(dir, issueNumber) {
 //          opened it (anyone can write `Closes #N`, so an outsider's PR
 //          would let anyone stop the lane);
 //   reuse  the first lane branch, newest first, with commits ahead of the default branch,
-//          a tip commit GitHub verified and the lanes App authored or
-//          committed (a branch name proves nothing about who pushed to it),
+//          a tip commit GitHub verified, authored by the lanes App and
+//          committed by web-flow, as the App's API commits are (a branch
+//          name proves nothing about who pushed to it, and anyone can sign
+//          a commit naming the App's address as author),
 //          no lanes-App PR in any state (a closed one was rejected or
 //          merged) and no lanes-App outcome marker for its run (that report
 //          already handed the work on, so the model runs again);
@@ -481,7 +483,7 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
   const reported = ({ match, tipAt }) =>
     markers.some((marker) => marker.run === match[1] || (marker.run === "" && !(marker.at <= tipAt)));
   const laneTip = ({ tip }) =>
-    tip?.commit?.verification?.verified === true && (tip.author?.login === bot || tip.committer?.login === bot);
+    tip?.commit?.verification?.verified === true && tip.author?.login === bot && tip.committer?.login === "web-flow";
   const reuse = lane.find(
     (branch) => branch.aheadBy > 0 && laneTip(branch) && !branch.pulls.some(byBot) && !reported(branch),
   );

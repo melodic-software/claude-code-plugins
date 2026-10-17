@@ -794,9 +794,29 @@ test("a lane branch whose tip is unverified or not the lanes App's is passed ove
   }
 });
 
-test("a verified tip the lanes App committed but did not author is the lane's work", () => {
-  const tip = { ...LANE_TIP, author: { login: "stranger", type: "User" }, committer: { login: BOT } };
-  assert.deepEqual(prior({ branches: [branchFact(lane(400), { tip })] }), { action: "reuse", branch: lane(400) });
+// A writer can sign their own commit with the App's noreply address as author,
+// and GitHub then shows it verified with the bot as author; only the App's
+// API commits carry web-flow as committer too.
+test("a verified tip is the lane's work only with the bot as author and web-flow as committer", () => {
+  for (const [label, tip] of [
+    ["author bot, committer a person", { ...LANE_TIP, committer: { login: "stranger" } }],
+    ["author bot, committer the bot", { ...LANE_TIP, committer: { login: BOT } }],
+    ["author bot, no committer", { ...LANE_TIP, committer: null }],
+    ["committer web-flow, author a person", { ...LANE_TIP, author: { login: "stranger", type: "User" } }],
+    ["committer the bot, author a person", { ...LANE_TIP, author: { login: "stranger", type: "User" }, committer: { login: BOT } }],
+  ]) {
+    assert.deepEqual(prior({ branches: [branchFact(lane(400), { tip })] }), { action: "run" }, label);
+  }
+  assert.deepEqual(prior({ branches: [branchFact(lane(400))] }), { action: "reuse", branch: lane(400) });
+});
+
+// The sha goes into a request path, so anything but a full commit id fails
+// the step rather than being passed over: matching-refs only ever answers
+// full ids, so another shape means the answer itself is wrong.
+test("--find-prior fails on a lane ref whose sha is not a full commit id", async () => {
+  for (const sha of ["abc", "../../x", "A".repeat(40), undefined]) {
+    await failsClosed(String(sha), { refs: [{ ref: `refs/heads/${lane(400)}`, object: { sha } }] });
+  }
 });
 
 test("--find-prior runs the model when the only lane branch's tip is not the lanes App's", async () => {
@@ -882,7 +902,9 @@ async function runPrior({
       ["GET", /\/repos\/o\/r$/, 200, repoAnswer],
       ["GET", /\/compare\//, 200, comparison],
       ["GET", /\/pulls$/, 200, pulls],
-      ["GET", /^\/repos\/o\/r\/commits\/[0-9a-f]{40}$/, 200, commitAnswer],
+      // GET /commits/{ref} resolves a short sha or a branch name too, so any
+      // ref answers here.
+      ["GET", /^\/repos\/o\/r\/commits\/[^/]+$/, 200, commitAnswer],
     ]);
     const { calls } = fake;
     const fetch = async (url, init = {}) => {

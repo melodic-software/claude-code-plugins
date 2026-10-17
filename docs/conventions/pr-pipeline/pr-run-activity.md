@@ -956,8 +956,9 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
   lane branch is open, or when an open PR in this repository closes the issue and the lanes App or
   a listed human (`trusted-actors.json`) opened it; anyone's other closing PR is ignored. It also
   skips `not-applicable` and sets the `reuse-branch` output to the first lane branch, newest run
-  and attempt first, that has commits ahead, a tip commit GitHub verified and the lanes App
-  authored or committed (a branch name alone proves nothing), no lanes-App PR in any state (a
+  and attempt first, that has commits ahead, a tip commit GitHub verified whose author is the
+  lanes App bot and whose committer is `web-flow`, as the App's API commits are (a branch name
+  alone proves nothing, and anyone can sign a commit naming the App as author), no lanes-App PR in any state (a
   closed one was rejected or merged) and no lanes-App outcome marker for its run: the work was
   made and its report never posted. Branches that fail any of these are passed over, not stopped at, so an older unreported
   branch is reused even when a newer branch's run was handed back or limit-stopped. A branch whose
