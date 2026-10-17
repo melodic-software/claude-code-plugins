@@ -1,5 +1,22 @@
 # Changelog for the PR pipeline convention
 
+## 1.28.0 - 2026-10-17
+
+A `models` block sets each model run's model, effort and turn budget as named profiles, with
+`routes` from a skill activity or `verify-pr` to a profile and a `default-profile` for the rest
+([README.md, Models](README.md#models)). It replaces an activity's `model` and `max-turns` and
+`merge.verifier-model`, which the schema now rejects; a config with no `models` block gets the
+built-in `standard` profile (model `default`, 75 turns). Model values are aliases only.
+`resolve-config` outputs `profile`, `claude-args` and `settings-json` in place of `model`, takes a
+`model-route` input for a run that is no lane activity, and rejects an undefined profile
+(`undefined-profile`) or route (`undefined-route`). The runners pass `claude-args` and
+`settings-json` to claude-code-action and drop their `default-model` and `default-max-turns`
+inputs; `collect-base-activity` drops its `model` and `max-turns` inputs; `pr-verify.yml` resolves
+`verify-pr`. The write runner's lane record gains `models` and `profile`, after `max-turns`. This
+repository's block keeps every run as it was: `standard` for each skill activity, `review` (`opus`,
+60 turns) for the verifier. The pr-pipeline-sandbox config sets activity `max-turns` and moves them
+into a `models` block when it takes this schema. `version` stays 1.
+
 ## 1.27.0 - 2026-10-17
 
 `merge.diff-check` gains three optional pr-merge lane switches, each off when absent:

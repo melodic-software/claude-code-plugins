@@ -15,7 +15,16 @@ import {
 } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { pipelineEvent } from "./predicate.mjs";
 import { findRatification } from "./ratification.mjs";
-import { checkConfigPath, laneHasActivity, loadConfig, neededFacts, resolve } from "./resolve.mjs";
+import {
+  checkConfigPath,
+  laneHasActivity,
+  loadConfig,
+  modelArgs,
+  modelSettings,
+  neededFacts,
+  resolve,
+  resolveRoute,
+} from "./resolve.mjs";
 
 const DEFAULT_BASE_PATH = ".base";
 const DEFAULT_CONFIG_PATH = "docs/conventions/pr-pipeline.yaml";
@@ -163,6 +172,25 @@ async function gatherFacts(
   return facts;
 }
 
+// A model run's step outputs, or empty ones for a script. The args are
+// checked against their only shape, so no output can carry a second line.
+const MODEL_ARGS = /^(?:--model [a-z]+ )?--max-turns [1-9][0-9]*(?: --effort [a-z]+)?$/;
+function modelOutputs(models) {
+  if (models === null) {
+    return { profile: "", "claude-args": "", "settings-json": "", "max-turns": "" };
+  }
+  const args = modelArgs(models);
+  if (!MODEL_ARGS.test(args)) {
+    throw new Error(`the resolved model arguments have an unexpected shape: ${args}`);
+  }
+  return {
+    profile: models.profile,
+    "claude-args": args,
+    "settings-json": modelSettings(models),
+    "max-turns": String(models["max-turns"]),
+  };
+}
+
 function outputsFor({ lane, selected }) {
   const outputs = {
     enabled: String(lane.enabled),
@@ -178,8 +206,7 @@ function outputsFor({ lane, selected }) {
     gating: selected.gating,
     skill: selected.skill ?? "",
     script: selected.script ?? "",
-    model: selected.model ?? "",
-    "max-turns": selected["max-turns"] ?? "",
+    ...modelOutputs(selected.models),
     "reads-untrusted": String(selected["reads-untrusted"]),
     applies: String(selected.applies),
     "skip-reason": selected["skip-reason"] ?? "",
@@ -278,6 +305,25 @@ export async function resolveFromBase({ env, github, sleep = wait, event, absent
   return resolved;
 }
 
+// A run that is no lane activity resolves only its model route.
+function resolveRouteFromBase(env) {
+  if (env.LANE) {
+    throw new Error("set lane or model-route, not both");
+  }
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  const models = resolveRoute(filesUnderBase(basePath, configPath), {
+    route: env.MODEL_ROUTE,
+    configPath,
+  });
+  return {
+    version: 1,
+    source: { "base-path": basePath, "config-path": configPath },
+    route: env.MODEL_ROUTE,
+    models,
+  };
+}
+
 export async function main({ env = process.env, github, sleep = wait } = {}) {
   const outputPath = env.OUTPUT_PATH;
   try {
@@ -285,6 +331,13 @@ export async function main({ env = process.env, github, sleep = wait } = {}) {
       throw new Error("output-path is not set");
     }
     rmSync(outputPath, { force: true });
+    if (env.MODEL_ROUTE) {
+      const routed = resolveRouteFromBase(env);
+      writeFileSync(outputPath, `${JSON.stringify(routed, null, 2)}\n`);
+      writeOutputs(modelOutputs(routed.models), env.GITHUB_OUTPUT);
+      console.log(`resolve-config: route=${routed.route} profile=${routed.models.profile}`);
+      return 0;
+    }
     const resolved = await resolveFromBase({ env, github, sleep });
     writeFileSync(outputPath, `${JSON.stringify(resolved, null, 2)}\n`);
     writeOutputs(outputsFor(resolved), env.GITHUB_OUTPUT);
@@ -292,7 +345,8 @@ export async function main({ env = process.env, github, sleep = wait } = {}) {
     console.log(
       `resolve-config: lane=${resolved.lane.name}` +
         (selected
-          ? ` activity=${selected.name} applies=${selected.applies}`
+          ? ` activity=${selected.name} applies=${selected.applies}` +
+            (selected.models ? ` profile=${selected.models.profile}` : "")
           : ""),
     );
     return 0;

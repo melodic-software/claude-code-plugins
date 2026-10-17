@@ -357,8 +357,7 @@ test("defaults are materialized: loop 2/3/2, merge off and manual, slot scope di
     inputs: [],
     needs: [],
     enabled: true,
-    model: null,
-    "max-turns": null,
+    models: null,
     grant: { contents: "read", "pull-requests": "read", issues: "read" },
     applies: true,
     "skip-reason": null,
@@ -1379,13 +1378,17 @@ function resolveEveryExampleSlot(vocabulary) {
 test("the README example validates and resolves for each of its lanes", () => {
   const results = resolveEveryExampleSlot(VOCABULARY);
   assert.equal(Object.keys(results).length, 14);
-  assert.deepEqual(
-    [
-      results["pr-review / claude"].model,
-      results["pr-review / claude"]["max-turns"],
-    ],
-    ["opus", 100],
-  );
+  // The example's models block routes claude to review and leaves the rest
+  // on default-profile standard.
+  assert.deepEqual(results["pr-review / claude"].models, {
+    profile: "review",
+    model: "opus",
+    effort: "high",
+    "subagent-model": "inherit",
+    "max-turns": 100,
+  });
+  assert.equal(results["pr-refine / fix-docs"].models.profile, "standard");
+  assert.equal(results["pr-require-checks / require-checks"].models, null);
   assert.equal(results["pr-refine / fix-docs"].applies, true);
   assert.deepEqual(results["pr-refine / fix-docs"]["changed-paths"], [
     "README.md",

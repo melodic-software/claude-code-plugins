@@ -54,7 +54,7 @@ inputs:
   lane-class:
     description: >
       The run job's lane-class output: report-lane-outcome's failure class,
-      empty on a success. With the three below it becomes the first line of
+      empty on a success. With the five below it becomes the first line of
       the posted check run's output.summary, its output.text and external_id
       (lane-record.mjs).
     required: false
@@ -69,6 +69,14 @@ inputs:
     default: ""
   lane-max-turns:
     description: The run job's lane-max-turns output, the skill's --max-turns cap.
+    required: false
+    default: ""
+  lane-models:
+    description: The run job's lane-models output, the comma list of models the run's modelUsage names.
+    required: false
+    default: ""
+  lane-profile:
+    description: The run job's lane-profile output, the models profile resolve-config gave the skill.
     required: false
     default: ""
   verdict-path:
@@ -106,6 +114,8 @@ runs:
         LANE_RESETS: ${{ inputs.lane-resets }}
         LANE_TURNS: ${{ inputs.lane-turns }}
         LANE_MAX_TURNS: ${{ inputs.lane-max-turns }}
+        LANE_MODELS: ${{ inputs.lane-models }}
+        LANE_PROFILE: ${{ inputs.lane-profile }}
         VERDICT_PATH: ${{ inputs.verdict-path }}
         BASE_PATH: ${{ inputs.base-path }}
         HEAD_SHA_FALLBACK: ${{ inputs.head-sha-fallback }}

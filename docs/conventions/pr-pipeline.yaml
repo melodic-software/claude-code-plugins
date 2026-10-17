@@ -250,6 +250,19 @@ lanes:
     slots:
       - activity: label-unblocked
 
+# The model, effort and turn budget of every model run (README.md, Models).
+# Aliases only, never full model IDs. `default` passes no --model, so the
+# account's default model runs. No profile sets effort, so each run keeps its
+# model's default effort. Every skill activity takes default-profile;
+# pr-verify.yml's judgment routes as verify-pr.
+models:
+  profiles:
+    standard: { model: default, max-turns: 75 }
+    review: { model: opus, max-turns: 60 }
+  default-profile: standard
+  routes:
+    verify-pr: review
+
 loop:
   review-rounds: 3
   dependency-review-rounds: 2
@@ -266,8 +279,6 @@ merge:
   # A PR merges only with a passing pr-verify.yml verdict at its head. Must be
   # true at a rung above off: the gate refuses otherwise.
   require-verifier-verdict: true
-  # The model pr-verify.yml judges with.
-  verifier-model: opus
   # pr-verify.yml judges only PRs the lanes App (agent-identity) opened; `any`
   # judges every author's.
   verify-authors: lane
