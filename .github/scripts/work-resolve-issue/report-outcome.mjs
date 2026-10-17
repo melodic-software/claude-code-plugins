@@ -518,7 +518,8 @@ function api({ fetch, apiUrl, token }) {
   };
 }
 
-// Every page of a list endpoint, 100 per page.
+// Every page of a list endpoint, 100 per page. A script activity runs from a
+// copy of its own directory (collect-base-activity), so this is not imported.
 async function paginate(github, path, maxPages = 50) {
   const items = [];
   const separator = path.includes("?") ? "&" : "?";

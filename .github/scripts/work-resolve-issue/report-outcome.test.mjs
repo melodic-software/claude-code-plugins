@@ -6,10 +6,11 @@
 // `stopped` comment and add needs-human, and only pushback removes
 // agent-ready.
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   decide,
@@ -1062,5 +1063,18 @@ test("a reuse branch that is not this issue's lane branch is refused", async () 
       assert.equal(await main({ env: reuseEnv(dir, branch), fetch }), 1);
       assert.deepEqual(calls, [], branch);
     });
+  }
+});
+
+// collect-base-activity runs a script activity from a copy of its own
+// directory under $RUNNER_TEMP, so every import must resolve inside it.
+test("the script loads from a copy of its own directory alone", async () => {
+  const copy = mkdtempSync(join(tmpdir(), "base-script-"));
+  try {
+    cpSync(dirname(fileURLToPath(import.meta.url)), copy, { recursive: true });
+    const module = await import(pathToFileURL(join(copy, "report-outcome.mjs")).href);
+    assert.equal(typeof module.main, "function");
+  } finally {
+    rmSync(copy, { recursive: true, force: true });
   }
 });
