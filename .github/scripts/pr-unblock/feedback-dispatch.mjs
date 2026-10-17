@@ -145,7 +145,7 @@ export async function dispatchFeedback({
     return skip(`#${number} has no unresolved thread left only by the reviewer bot`);
   }
   const existing = await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId });
-  if (await anyHandles(existing, { listAnnotations: api.listAnnotations, now })) {
+  if (anyHandles(existing, { now })) {
     return skip(`#${number}: head ${head} already has a ${settings.checkName} check run`);
   }
   // Both review lanes finish on one head, and their dispatchers queue in one
@@ -271,8 +271,6 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
       });
       return (await request(`${repo}/commits/${sha}/check-runs?${query}`)).check_runs;
     },
-    // A limit stop's annotations are a handful, well inside one page.
-    listAnnotations: (checkRunId) => request(`${repo}/check-runs/${Number(checkRunId)}/annotations?per_page=100`),
     // The newest workflow_dispatch runs: a run still queued or going is
     // among them, since a dispatcher waits at most minutes behind it.
     async listWorkflowRuns(workflow) {

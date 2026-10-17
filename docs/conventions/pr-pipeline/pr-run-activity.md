@@ -259,9 +259,8 @@ checks each against a fixed shape and writes them into the posted check run: as 
 `output.summary`, `lane=<lane> activity=<activity>` then `class`, `resets`, `turns` and `max-turns`
 in that order, each omitted when absent; as one JSON block in `output.text`; and as
 `external_id` `<lane>:<activity>:<run id>:<run attempt>`. A failed run whose record says `class=rate-limit`
-is the limit stop the pr-unblock dispatchers read from the check-run list they already fetch. The
-record also stays, for one release, as an annotation in report-lane-outcome's shape, which the
-dispatchers read only for a check run whose summary has no record line. In issue mode the
+is the limit stop the pr-unblock dispatchers read from the check-run list they already fetch; a
+failed run with no record line is not one. In issue mode the
 same `class` and `resets` go into `lane.json` beside the kept branch, for report-outcome's
 `limited` exit. Any code the activity runs, not only the model, can forge this record, for
 example by planting the execution file. A forged limit stop can only restart the lane, at least an
