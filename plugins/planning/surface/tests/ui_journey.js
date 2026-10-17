@@ -80,7 +80,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.fill("#note", "scratch"); await page.click("[data-clear]");
     ok("Clear empties the note and disables itself", (await page.inputValue("#note")) === "" && await page.$eval("[data-clear]", b => b.disabled));
     await page.request.get(base + "api/wait?after=0&timeout=2", {headers: {"X-Interview-Token": await token()}}); await page.waitForTimeout(900);
-    ok("the Claude line reads Claude is working on", /^Claude is working on Q\d/.test(await text("#claudeLine")), await text("#claudeLine"));
+    ok("the working line reads Claude is working on", /^Claude is working on Q\d/.test(await text("#workLine")), await text("#workLine"));
     ok("an unanswered ask shows the Waiting for Claude's reply chip on Q4", /Waiting for Claude's reply/.test(await text('.qbtn[data-q="Q4"]')), await text('.qbtn[data-q="Q4"]'));
     await pick("Q4"); await arm("a"); await tap("[data-save]", 300);
     const nb = (await events()).length;
@@ -128,6 +128,8 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("Q3's rail row reads Pending research with its own color", /Pending research: the retry benchmark/.test(await text(q3 + " .chip.s-wait")) && await page.$eval(q3, el => el.classList.contains("st-wait")), await text(q3));
     ok("the header counts 1 pending research and Q3 not answered", (await text("#pendBtn")) === "1 pending research" && (await text("#meterText")) === "2 of 5 answered", (await text("#pendBtn")) + " / " + await text("#meterText"));
     ok("the Claude line shows the status with its age", /^Researching the retry benchmark for Q3/.test(await text("#claudeLine")) && await page.$eval("#claudeLine .age", el => el.getAttribute("aria-hidden") === "true" && /ago|just now/.test(el.textContent)), await text("#claudeLine"));
+    const wk = await page.evaluate(() => { const w = document.getElementById("workLine"), c = document.getElementById("claudeLine"); return {live: w.getAttribute("aria-live"), apart: w !== c && !c.contains(w), shown: !w.hidden, text: w.textContent, old: c.classList.contains("old"), age: !!c.querySelector(".age").textContent}; });
+    ok("the working text is its own polite live region beside the status, lists every id with no (+N), and the status keeps its age", wk.live === "polite" && wk.apart && !/\(\+\d/.test(wk.text) && (!wk.shown || /^(Claude is working on|Claude has not handled|Sent to Claude|No session is listening|Not listening)/.test(wk.text)) && wk.age && (wk.shown || !wk.old), JSON.stringify(wk));
     ok("a held question's commitments leave the to-confirm count", (await text("#assumeCount")) === "3 to confirm", await text("#assumeCount"));
     const f0 = await page.$eval("#filter", el => el.value);
     await page.selectOption("#filter", "open"); await page.waitForTimeout(200);
