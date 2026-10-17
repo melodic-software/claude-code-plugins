@@ -467,7 +467,7 @@ no lane's behavior, and a purely additive telemetry key reads as additive guidan
 **major**. The attended `attend-queue` lane is unaffected: §4 binds loop lanes, and that lane holds
 no durable-state block.
 
-- **Per-cycle usage sample (§4).** A lane's spend was a blind spot: the cycle budget counts cycles,
+- **Per-cycle usage sample (§4).** No lane's spend was measured: the cycle budget counts cycles,
   the rate-limit guard's pause is a ceiling, and nothing recorded how much of the shared
   subscription windows a cycle consumed. Each loop lane now records a `usage_sample` in its #502
   durable state every cycle, holding the two window percentages the guard step (§6) **already read**
@@ -674,7 +674,7 @@ A change to the autonomy-ladder invariant is a major bump per this file's own ru
 - **The floor reads the pull request, and the dispatch holds its lease.** C5 follows the code's
   provenance and C4 the diff's blast radius, both derived from the PR rather than the linked item's
   stamp, with a class/diff mismatch failing closed; a repository-owner allowlist never substitutes
-  for the provenance test. The provenance test is executable, not a vibe: a cross-repository head,
+  for the provenance test. The provenance test is mechanical: a cross-repository head,
   or an author the provider does not attest as an owner or member of the base repository, where an
   outside collaborator on a base-repository branch is external despite a same-repository head, and
   an unavailable signal fails closed to C5. The floor's verdict attaches to the exact head SHA it
