@@ -133,7 +133,7 @@ self-elected, and gates the launch on a clean tree (save-point files exempt): ot
 changes would not carry into the isolated worktree the background session edits in, so it falls
 back to the manual `/clear`-then-paste exit and says why. The launched agent is a NEW session: it
 inherits neither the current session's CLI flags nor its model/effort choices, the skill mirrors
-and reports the flags the resumed work depends on. Like `handoff`, it STOPS after delivery: the
+and reports the flags the resumed work depends on. Like `handoff`, it STOPS after delivery. The
 background agent is the continuation, and nothing is monitored or babysat.
 
 ```shell

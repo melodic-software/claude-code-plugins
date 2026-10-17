@@ -26,7 +26,7 @@ nothing.
 | `tree-batch` | Run `tree` across many repos (`ghq list`, a glob, or an explicit list) behind one confirmation gate, with a separator-agnostic skip list and a dirty-by-default guard | **Destructive** |
 | `all` | Sweep `caches` + `build` + `git`. **never** the `tree` reset | Medium |
 
-Tiers are cumulative (`build` includes `caches`; `all` = `build` + `git`), and
+Tiers are cumulative (`build` includes `caches`; `all` is `build` plus `git`), and
 neither `tree` nor `tree-batch` is composed into `all`. One mistaken sweep cannot
 trigger a `reset --hard`.
 
