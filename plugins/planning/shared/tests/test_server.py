@@ -114,6 +114,8 @@ class TestAuthClasses(ServerCase):
         self.leader(lead_pid)
 
     def test_person_routes_refuse_a_request_with_no_identity(self):
+        # Join is the one route a newcomer reaches before holding a secret; any other public route goes unchecked here.
+        self.assertEqual(["/api/join"], sorted(p for p, (a, _) in server.ROUTES.items() if a == "public"))
         for path, (auth, _) in server.ROUTES.items():
             if auth == "public":
                 continue
