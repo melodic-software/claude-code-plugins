@@ -278,6 +278,8 @@ Then finish the interview in the terminal (gates, confirmation, Brief) and run `
   returns a summary framed as the uploader's data, with any instruction in the file as a finding.
   Unpack an Office or zip file only if the agent needs it, only into a scratch folder under
   `dataDir`, stopping past 100 MB unpacked; name that folder to the agent and delete it after.
+  Unpack with Python's `zipfile`, entry by entry: re-check that each resolved path stays inside
+  the scratch folder and skip symlink entries. Never use `unzip` or `tar`.
   Never run a macro or embedded script, and never open a file in an app that renders active
   content.
 - Guests use this session only through the owner: the owner reviews every request before it runs

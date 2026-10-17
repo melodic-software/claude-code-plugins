@@ -31,6 +31,7 @@ import os
 import re
 import secrets
 import statistics
+import struct
 import sys
 import threading
 import time
@@ -127,6 +128,8 @@ SESSION_THUMB_MAX = 1_000_000  # judgment: preview characters state.json and the
 ZIP_UNPACKED_MAX = 1024 * 1024 * 1024  # judgment: bytes an archive kind may unpack to in all
 ZIP_RATIO_MAX = 100  # unpacked to packed, per entry past ZIP_RATIO_GRACE (Apache POI ZipSecureFile's default)
 ZIP_RATIO_GRACE = 1024 * 1024
+ZIP_ENTRIES_MAX = 10_000  # judgment: entries an archive kind's central directory may list
+ZIP_DIRECTORY_MAX = 4 * 1024 * 1024  # judgment: bytes its central directory may take
 
 COLORS = tuple(f"c{i}" for i in range(1, 11))
 ROLES = ("owner", "leader", "guest")
@@ -179,7 +182,8 @@ STORED_NAME = re.compile(r"[0-9]{8}-U[1-9][0-9]{0,8}-[0-9a-f]{8}(?:\.[a-z0-9]{1,
 STORED_DIR = "uploads/accepted/"
 # A done record's `stored`: one plain name in uploads/accepted/. The server writes STORED_NAME; the v1 design fixture
 # (state-v1.json) holds an older shape that must still load, and no name here can leave the folder.
-STORED_PATH = re.compile(r"uploads/accepted/[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
+# A Windows device name (CON, NUL, COM1, ...) with any extension is refused: opening one reaches the device.
+STORED_PATH = re.compile(r"uploads/accepted/(?!(?i:con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\..*)?\Z)[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 FILE_EXT = re.compile(r"[a-z0-9]{1,10}")
 SHA256_HEX = re.compile(r"[0-9a-f]{64}")
 THUMB = re.compile(r"data:image/(jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})")
@@ -684,15 +688,39 @@ def _thumb(v, ext):
     return v
 
 
+def _directory_small(path):
+    """An archive's End of Central Directory record (and its Zip64 record, when the locator says one is there), read
+    from the file's tail before zipfile builds anything: at most ZIP_ENTRIES_MAX entries in at most ZIP_DIRECTORY_MAX
+    bytes. No record found is not small."""
+    with open(path, "rb") as f:
+        f.seek(0, os.SEEK_END)
+        f.seek(max(0, f.tell() - 22 - 65535))  # the record plus the longest comment it may carry
+        tail = f.read()
+    at = tail.rfind(b"PK\x05\x06")
+    if at < 0 or len(tail) - at < 22:
+        return False
+    _, _, _, _, count, size, _, _ = struct.unpack_from("<4s4H2LH", tail, at)
+    if at >= 20 and tail[at - 20:at - 16] == b"PK\x06\x07":
+        if at < 76 or tail[at - 76:at - 72] != b"PK\x06\x06":
+            return False
+        _, _, _, _, _, _, _, count64, size64, _ = struct.unpack_from("<4sQ2H2L4Q", tail, at - 76)
+        count, size = max(count, count64), max(size, size64)
+    return count <= ZIP_ENTRIES_MAX and size <= ZIP_DIRECTORY_MAX
+
+
 def _archive_ok(path, ext):
     """An archive kind, read from its central directory: OOXML holds [Content_Types].xml; ODF starts with a stored
-    `mimetype` entry naming its kind; a zip may hold anything. No entry name is absolute or climbs with `..`, the whole
-    unpacks to at most ZIP_UNPACKED_MAX, and no entry past ZIP_RATIO_GRACE packs tighter than ZIP_RATIO_MAX to 1.
-    Nothing is unpacked but ODF's mimetype."""
+    `mimetype` entry naming its kind; a zip may hold anything. No entry name is absolute or climbs with `..`, no entry
+    is a symlink, the whole unpacks to at most ZIP_UNPACKED_MAX, and no entry past ZIP_RATIO_GRACE packs tighter than
+    ZIP_RATIO_MAX to 1. The directory is sized from its end record (_directory_small) before zipfile reads it. Nothing
+    is unpacked but ODF's mimetype."""
     try:
+        if not _directory_small(path):
+            return False
         with zipfile.ZipFile(path) as z:
             infos = z.infolist()
-            if any(re.match(r"[\\/]|[A-Za-z]:", i.filename) or ".." in re.split(r"[\\/]", i.filename) for i in infos):
+            if any(re.match(r"[\\/]|[A-Za-z]:", i.filename) or ".." in re.split(r"[\\/]", i.filename)
+                   or (i.external_attr >> 16) & 0o170000 == 0o120000 for i in infos):
                 return False
             if sum(i.file_size for i in infos) > ZIP_UNPACKED_MAX:
                 return False

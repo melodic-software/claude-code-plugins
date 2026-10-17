@@ -4342,13 +4342,16 @@ class TestUploadRecovery(UploadCase):
 
 
 def zip_of(*entries):
-    """A zip built here: (name, bytes, zipfile compression) per entry, in order."""
+    """A zip built here: (name, bytes, zipfile compression[, Unix mode]) per entry, in order."""
     import io
     import zipfile
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
-        for name, data, how in entries:
-            z.writestr(zipfile.ZipInfo(name, (2025, 1, 1, 0, 0, 0)), data, compress_type=how)
+        for name, data, how, *mode in entries:
+            info = zipfile.ZipInfo(name, (2025, 1, 1, 0, 0, 0))
+            if mode:
+                info.external_attr = mode[0] << 16
+            z.writestr(info, data, compress_type=how)
     return buf.getvalue()
 
 
@@ -4438,6 +4441,8 @@ class TestUploadHardening(UploadCase):
             "slip.docx": (zip_of(("[Content_Types].xml", b"<Types/>", deflated), ("../../evil.txt", b"x", deflated)), "failed"),
             "rooted.docx": (zip_of(("[Content_Types].xml", b"<Types/>", deflated), ("/etc/evil.txt", b"x", deflated)), "failed"),
             "bomb.docx": (zip_of(("[Content_Types].xml", b"<Types/>", deflated), ("word/media/zeros.bin", bytes(2 * 1024 * 1024), deflated)), "failed"),
+            "linked.docx": (zip_of(("[Content_Types].xml", b"<Types/>", deflated), ("word/link", b"/etc/passwd", stored, 0o120777)), "failed"),
+            "plain-mode.docx": (zip_of(("[Content_Types].xml", b"<Types/>", deflated, 0o100644)), "done"),
         }
         self.assertLess(len(cases["bomb.docx"][0]), 8 * 1024)  # tiny on the wire, 2 MiB unpacked: over 100 to 1
         for name, (data, want) in cases.items():
@@ -4447,8 +4452,25 @@ class TestUploadHardening(UploadCase):
                 if want == "failed":
                     self.assertEqual((exc.http, exc.code), (415, "file-type"))
         accepted = self.tmp / "uploads" / "accepted"
-        self.assertEqual(sorted(p.suffix for p in accepted.iterdir()), [".docx", ".odt"])
+        self.assertEqual(sorted(p.suffix for p in accepted.iterdir()), [".docx", ".docx", ".odt"])
         self.assertEqual(self.pending(), [])
+
+    def test_an_archive_whose_end_record_claims_a_huge_directory_is_refused_before_zipfile_reads_it(self):
+        """Bounds from the hardening brief: over 10,000 entries or a central directory over 4 MiB. Each archive
+        here is only its end records, laid out per the zip APPNOTE (4.3.14 to 4.3.16)."""
+        import struct
+        zip64 = (struct.pack("<4sQ2H2L4Q", b"PK\x06\x06", 44, 45, 45, 0, 0, 2_000_000, 2_000_000, 100, 0)
+                 + struct.pack("<4sLQL", b"PK\x06\x07", 0, 0, 1)
+                 + struct.pack("<4s4H2LH", b"PK\x05\x06", 0, 0, 3, 3, 100, 0, 0))  # zipfile takes the Zip64 counts
+        wide = struct.pack("<4s4H2LH", b"PK\x05\x06", 0, 0, 3, 3, 5 * 1024 * 1024, 0, 0)
+        many = struct.pack("<4s4H2LH", b"PK\x05\x06", 0, 0, 10_001, 10_001, 100, 0, 0)
+        for name, data in {"zip64 two million entries": zip64, "5 MiB directory": wide, "10,001 entries": many}.items():
+            with self.subTest(name=name):
+                f = self.tmp / "claims.zip"
+                f.write_bytes(data)
+                with mock.patch.object(session.zipfile, "ZipFile") as built:
+                    self.assertFalse(session._archive_ok(f, "zip"))
+                built.assert_not_called()
 
     def test_a_received_file_carries_the_mark_of_the_web_on_windows_only(self):
         for windows in (True, False):
@@ -4484,7 +4506,14 @@ class TestUploadHardening(UploadCase):
             "ext": lambda u: u.update(ext="../x"),
             "stored outside": lambda u: u["status"].update(stored="uploads/accepted/../../state.json"),
             "stored elsewhere": lambda u: u["status"].update(stored=f"assets/20250101-{uid}.pdf"),
+            **{f"device {n}": (lambda n: lambda u: u["status"].update(stored=f"uploads/accepted/{n}"))(n)
+               for n in ("CON", "nul.txt", "Com1.pdf", "lpt9", "aux.tar.gz", "PRN")},
         }
+        for fine in ("conference.pdf", "com10.txt", "nully.pdf"):
+            with self.subTest(fine=fine):
+                doc = self.disk()
+                doc["uploads"][0]["status"]["stored"] = f"uploads/accepted/{fine}"
+                self.assertIsNone(session.document_error(doc))
         for what, edit in edits.items():
             with self.subTest(what=what):
                 doc = self.disk()
