@@ -52,8 +52,12 @@ class HookTelemetryTests(unittest.TestCase):
         self.fail(f"timed out waiting for the telemetry sink to write {out_file}")
 
     def test_unset_sink_is_noop(self) -> None:
-        with mock.patch.dict(os.environ, {}, clear=True):
-            telemetry.emit("destructive-guard", "PreToolUse", "ok", time.perf_counter())
+        with tempfile.TemporaryDirectory() as tmp:
+            # A project dir is set so a sink wrongly treated as set would resolve and launch.
+            with mock.patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": tmp}, clear=True):
+                with mock.patch.object(telemetry.subprocess, "Popen") as popen:
+                    telemetry.emit("destructive-guard", "PreToolUse", "ok", time.perf_counter())
+        popen.assert_not_called()
 
     def test_relative_sink_resolved_against_project_dir(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -166,6 +166,7 @@ class ClearPrevious(unittest.TestCase):
     def test_an_empty_output_folder_is_fine(self):
         with tempfile.TemporaryDirectory() as tmp:
             render.clear_previous(Path(tmp), 'Scene')
+            self.assertEqual(list(Path(tmp).iterdir()), [])
 
 
 if __name__ == '__main__':

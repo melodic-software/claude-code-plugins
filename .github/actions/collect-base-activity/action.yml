@@ -50,6 +50,12 @@ inputs:
       The activity's prepare mode from resolve-config, empty for none. With
       `merge-base` the runner commits the staged merge after the skill, so
       the skill gets neither the commit tool nor the instruction to commit.
+      With `review-threads` the skill also gets the review-thread tool, a
+      read-only wrapper over the base's feedback-thread.sh that reads the
+      thread file the runner wrote to $RUNNER_TEMP/lane-feedback. With
+      `dependency-review` the skill gets read access to the context file the
+      runner wrote to $RUNNER_TEMP/lane-dependency, made read-only, and must
+      end with the verdict JSON schema's structured output.
     required: false
     default: ""
   resolved-path:
@@ -122,6 +128,10 @@ runs:
         PREPARE: ${{ inputs.prepare }}
         SCRATCH: ${{ runner.temp }}/lane-scratch
         CHECKS_DIR: ${{ runner.temp }}/lane-checks
+        VERIFY_DIR: ${{ runner.temp }}/lane-verify
+        FEEDBACK_DIR: ${{ runner.temp }}/lane-feedback
+        FEEDBACK_STATE: ${{ runner.temp }}/lane-feedback-state
+        DEPENDENCY_DIR: ${{ runner.temp }}/lane-dependency
         WORKSPACE: ${{ github.workspace }}
         ISSUE_NUMBER: ${{ inputs.issue-number }}
       run: |
@@ -142,7 +152,8 @@ runs:
         [[ $SKILL =~ ^[a-z0-9-]+:[a-z0-9-]+$ ]] || fail "the skill must be <plugin>:<skill>"
         [[ $MAX_TURNS =~ ^[1-9][0-9]*$ ]] || fail "max-turns must be a positive integer"
         case "$PREPARE" in
-          "" | merge-base) ;;
+          "" | merge-base | review-threads) ;;
+          dependency-review) [ "$GATING" = advisory ] || fail "dependency-review: the activity must be advisory, since its verdict is the structured output" ;;
           *) fail "the activity's prepare mode is not a known mode" ;;
         esac
         # resolve-config already filtered these; a name outside this set
@@ -174,15 +185,17 @@ runs:
             # so the skill gets no commit tool and no instruction to commit.
             mkdir -p "$SCRATCH"
             allowed="$allowed,Edit,Write,Agent"
+            # delete_files carries a rename's old path or a removal to the
+            # branch, which commit_files cannot.
             if [ "$PREPARE" != merge-base ]; then
-              allowed="$allowed,mcp__github_file_ops__commit_files"
+              allowed="$allowed,mcp__github_file_ops__commit_files,mcp__github_file_ops__delete_files"
             fi
             allowed="$allowed,Edit(/$SCRATCH/**)"
             system_prompt="You run unattended as a CI lane activity on $subject, and no one can answer a question. Run every step the skill instructions name. Your scratchpad directory is $SCRATCH: put every temporary or state file there."
             if [ "$CAN_COMMIT" = true ] && [ "$PREPARE" != merge-base ]; then
               # The slash command never says the edits reach the PR only as
               # commits on CLAUDE_BRANCH.
-              system_prompt="$system_prompt A change to a repository file reaches the branch only as a commit: before you finish, commit every repository file you changed with the mcp__github_file_ops__commit_files tool. An uncommitted change is discarded when the run ends."
+              system_prompt="$system_prompt A change to a repository file reaches the branch only as a commit: before you finish, commit every repository file you changed with the mcp__github_file_ops__commit_files tool, and delete every committed path you renamed or removed with the mcp__github_file_ops__delete_files tool. An uncommitted change is discarded when the run ends."
             fi
             # The web stays off unless the activity sets web-access. On, the
             # skill may search, fetch the listed domains (`any`: every one)
@@ -264,6 +277,96 @@ runs:
               disallowed="${disallowed:+$disallowed,}Edit(/$CHECKS_DIR/**),Write(/$CHECKS_DIR/**)"
               system_prompt="$system_prompt Before you report done, run each of these repository checks as written, with no arguments:$wrappers."
             fi
+            # The activity's verify-scripts run with any arguments from a
+            # read-only base copy of the script's plugin (or of scripts/),
+            # so the files a script reads beside itself come along. Each runs
+            # through a wrapper that starts in the checkout, refuses an
+            # argument naming a path outside it (a script may print what it
+            # reads), and keeps git from loading system, global or hook and
+            # fsmonitor programs.
+            mapfile -t verify < <(jq -r '.selected["verify-scripts"] // [] | .[]' "$RESOLVED")
+            if ((${#verify[@]})); then
+              [[ $VERIFY_DIR =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
+                fail "the verify-scripts copy or workspace has a name a rule cannot carry"
+              shape='^(scripts|plugins/[a-z0-9-]+/(skills/[a-z0-9-]+/)?scripts)/[A-Za-z0-9_-]+\.sh$'
+              mkdir -p "$VERIFY_DIR/bin"
+              commands=""
+              for script in "${verify[@]}"; do
+                [[ $script =~ $shape ]] || fail "a verify-script must be the exact path of a scripts/ script"
+                [ -f "$BASE_PATH/$script" ] || fail "a verify-script is not in the base"
+                unit=scripts
+                if [[ $script == plugins/* ]]; then
+                  rest=${script#plugins/}
+                  unit=plugins/${rest%%/*}
+                fi
+                if [ ! -e "$VERIFY_DIR/$unit" ]; then
+                  mkdir -p "$VERIFY_DIR/$(dirname "$unit")"
+                  cp -R "$BASE_PATH/$unit" "$VERIFY_DIR/$unit"
+                  # chmod does not follow a link, so its target would stay writable.
+                  [ -z "$(find "$VERIFY_DIR/$unit" -type l -print -quit)" ] || fail "a verify-script's directory holds a symbolic link"
+                fi
+                verifier="$VERIFY_DIR/bin/$(basename "$script" .sh)"
+                [ ! -e "$verifier" ] || fail "two verify-scripts share a file name"
+                {
+                  printf '#!/usr/bin/env bash\nworkspace=%q\ncopy=%q\n' "$WORKSPACE" "$VERIFY_DIR/$script"
+                  printf '%s\n' \
+                    'cd "$workspace" && workspace=$(pwd -P) || exit 2' \
+                    'for arg in "$@"; do' \
+                    '  for path in "$arg" "${arg#*=}"; do' \
+                    '    [ -e "$path" ] || [ -L "$path" ] || continue' \
+                    '    real=$(realpath -e -- "$path") || exit 2' \
+                    '    case $real in' \
+                    '      "$workspace" | "$workspace"/*) ;;' \
+                    '      *) echo "refused: $path is outside the checkout" >&2 && exit 2 ;;' \
+                    '    esac' \
+                    '  done' \
+                    'done' \
+                    'export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_COUNT=2' \
+                    'export GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null' \
+                    'bash "$copy" "$@"' \
+                    'status=$?' \
+                    'echo "exit status: $status" >&2' \
+                    'exit "$status"'
+                } >"$verifier"
+                chmod +x "$verifier"
+                allowed="$allowed,Bash($verifier *)"
+                commands="$commands $verifier <arguments>;"
+              done
+              chmod -R a-w "$VERIFY_DIR"
+              disallowed="${disallowed:+$disallowed,}Edit(/$VERIFY_DIR/**),Write(/$VERIFY_DIR/**)"
+              system_prompt="$system_prompt To run one of these repository verification scripts, run its wrapper by exactly this path, with the script's own arguments and paths inside the checkout:${commands%;}. Run each verification wrapper as its own command, not chained to another; it prints the script's exit status."
+            fi
+            # review-threads: the skill reads the runner's thread file, and
+            # records its replies to those threads, only through this tool:
+            # a base copy behind a wrapper that fixes its environment, which
+            # the skill's Edit and Write cannot reach. The tool posts nothing;
+            # the runner uploads its replies file for the reply job.
+            if [ "$PREPARE" = review-threads ]; then
+              [[ $FEEDBACK_DIR =~ ^/[A-Za-z0-9_./-]+$ && $FEEDBACK_STATE =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
+                fail "the review-thread tool directory has a name a rule cannot carry"
+              [ -f "$FEEDBACK_DIR/threads.json" ] || fail "review-threads: the runner wrote no thread file"
+              mkdir -p "$FEEDBACK_DIR/bin" "$FEEDBACK_STATE"
+              cp "$BASE_PATH/plugins/source-control/skills/pull-request/scripts/feedback-thread.sh" "$FEEDBACK_DIR/feedback-thread.sh"
+              tool="$FEEDBACK_DIR/bin/feedback-thread"
+              printf '#!/usr/bin/env bash\nexport FEEDBACK_THREADS=%q FEEDBACK_LOG=%q FEEDBACK_SCRATCH=%q FEEDBACK_WORKSPACE=%q\nexec bash %q "$@"\n' \
+                "$FEEDBACK_DIR/threads.json" "$FEEDBACK_STATE/replies.jsonl" "$SCRATCH" "$WORKSPACE" "$FEEDBACK_DIR/feedback-thread.sh" >"$tool"
+              chmod +x "$tool"
+              chmod -R a-w "$FEEDBACK_DIR"
+              allowed="$allowed,Bash($tool *)"
+              disallowed="${disallowed:+$disallowed,}Edit(/$FEEDBACK_DIR/**),Write(/$FEEDBACK_DIR/**),Edit(/$FEEDBACK_STATE/**),Write(/$FEEDBACK_STATE/**)"
+              system_prompt="$system_prompt The review-thread tool is $tool: run it by exactly this path as $tool list, $tool check-paths <path>... and $tool record <thread-id> <file>, with each disposition file in $SCRATCH. The tool posts nothing: a later job posts what you record."
+            fi
+            # dependency-review: the skill reads the runner's context file,
+            # which its Edit and Write cannot reach, and returns its verdict
+            # as structured output; a later job with no model acts on it.
+            if [ "$PREPARE" = dependency-review ]; then
+              [[ $DEPENDENCY_DIR =~ ^/[A-Za-z0-9_./-]+$ ]] || fail "the dependency context directory has a name a rule cannot carry"
+              [ -f "$DEPENDENCY_DIR/dependency.json" ] || fail "dependency-review: the runner wrote no context file"
+              chmod -R a-w "$DEPENDENCY_DIR"
+              allowed="$allowed,Read(/$DEPENDENCY_DIR/**)"
+              disallowed="${disallowed:+$disallowed,}Edit(/$DEPENDENCY_DIR/**),Write(/$DEPENDENCY_DIR/**)"
+              system_prompt="$system_prompt The dependency context file is $DEPENDENCY_DIR/dependency.json. Your verdict is your structured output; a later job acts on it, and you post nothing."
+            fi
             ;;
           *) fail "the activity's effect is not a known effect" ;;
         esac
@@ -289,6 +392,11 @@ runs:
           advisory) ;;
           *) fail "the activity's gating must be gate or advisory" ;;
         esac
+        # The verdict job validates the same shape (apply-dependency-verdict.mjs).
+        if [ "$PREPARE" = dependency-review ]; then
+          schema='{"type":"object","properties":{"verdict":{"enum":["merge","fix","close","escalate"]},"reasons":{"type":"array","minItems":1,"maxItems":10,"items":{"type":"string","minLength":1,"maxLength":500}},"evidence":{"type":"array","maxItems":20,"items":{"type":"string","minLength":1,"maxLength":300}}},"required":["verdict","reasons","evidence"],"additionalProperties":false}'
+          claude_args="$claude_args --json-schema '$schema'"
+        fi
         args=$(jq -r '.selected.args // ""' "$RESOLVED")
         command_line="/$SKILL"
         for word in "${ISSUE_NUMBER:+--issue $ISSUE_NUMBER}" "$args" "${targets[@]}"; do

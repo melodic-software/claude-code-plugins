@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**Original:** fix the crash when a row is empty.\n\n**Raised:** the importer never crashes on malformed input. Every bad row either gets skipped or raises one `ImportRowError` naming the line number and the reason.\n\n**Depth:** read with the `csv` module instead of `split(\",\")`; validate field count and numeric fields per row.\n\n**Outside check:** a Hypothesis property-based test that generates files mixing valid rows with empty lines, short rows, extra commas and non-numeric `qty`/`price`, and asserts `load_rows` only ever returns rows or raises `ImportRowError`. Run with `pytest`.\n\nDeliver what was accepted, at that scope. The project's own instructions still govern. No file has been changed; reply \"accept\", or \"original\" for only the empty-row fix.",
+      "why": "names an executable property-based test and what it asserts"
+    },
+    {
+      "answer": "The crash happens because a blank line splits into `['']`, so unpacking into three names fails. Skip blank lines before splitting:\n\n```python\nfor line in f:\n    line = line.strip()\n    if not line:\n        continue\n    name, qty, price = line.split(\",\")\n```\n\nI added `test_blank_line_is_skipped` in `tests/test_importer.py`, which writes a file with a blank middle line and a trailing newline and asserts two rows come back. Run `pytest tests/test_importer.py` to confirm.",
+      "why": "names a specific test to execute and what it asserts, though brief"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The crash comes from unpacking an empty line into three variables. Here's the fix:\n\n```python\nfor line in f:\n    line = line.strip()\n    if not line:\n        continue\n    name, qty, price = line.split(\",\")\n    rows.append({\"name\": name, \"qty\": int(qty), \"price\": float(price)})\n```\n\nI double-checked the logic and walked through the empty-line case by hand; this should handle empty rows correctly now, including a trailing newline at the end of the file.",
+      "why": "the only check is the model's own review"
+    },
+    {
+      "answer": "**Original:** fix the crash when a row is empty.\n\n**Raised:** make the importer tolerate malformed rows: blank lines, short rows and non-numeric fields, each reported with its line number instead of crashing.\n\n**Depth:** switch to the `csv` module and validate each row before converting types.\n\n**Outside check:** make sure this gets tested properly before it merges.\n\nDeliver what was accepted, at that scope. The project's own instructions still govern. Nothing has been edited; reply \"accept\" or \"original\".",
+      "why": "mentions testing without saying what would be checked"
+    }
+  ]
+}

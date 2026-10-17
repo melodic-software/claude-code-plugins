@@ -10,6 +10,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
+import { findRatification } from "../resolve-config/ratification.mjs";
 
 const ACTOR_KEYS = ["id", "kind", "login"];
 const KINDS = new Set(["human", "bot"]);
@@ -29,6 +30,9 @@ const WINDOW_MS = 10 * 60 * 1000;
 // every run id it dispatched.
 const RECORD_NAME = /^pr-unblock-dispatched(-[1-9][0-9]{0,14})+$/;
 const RECORD_PREFIX = "pr-unblock-dispatched-";
+// A workflow_run dispatcher sends one dispatch per run and names its record
+// with the upstream run that started it, then the run it dispatched.
+const RUN_RECORD_NAME = /^pr-feedback-dispatched-([1-9][0-9]{0,14})-([1-9][0-9]{0,14})$/;
 // The record can land after this run's gate starts: re-read every 5 s while
 // the dispatcher run is still going, for at most 2 min (judgment).
 const RECORD_WAIT_MS = 5000;
@@ -204,23 +208,42 @@ async function readOrRefuse(github, apiPath) {
   return body;
 }
 
-// Whether the dispatcher run holds an unexpired record of its own whose name
-// lists this run's id. A failed or malformed read refuses.
-async function isRecorded(github, runPath, dispatcherRunId, runId) {
+// What a record name says about this run: null when it does not list it,
+// otherwise true, or for a workflow_run dispatcher's record the upstream run id.
+function readRecordName(name, runId, viaRun) {
+  if (typeof name !== "string") {
+    return null;
+  }
+  if (viaRun) {
+    const match = RUN_RECORD_NAME.exec(name);
+    return match !== null && match[2] === runId ? match[1] : null;
+  }
+  return RECORD_NAME.test(name) && name.slice(RECORD_PREFIX.length).split("-").includes(runId)
+    ? true
+    : null;
+}
+
+// The dispatcher run's unexpired record of its own that lists this run's id,
+// read by readRecordName, or null. A failed or malformed read refuses.
+async function findRecord(github, runPath, dispatcherRunId, runId, viaRun) {
   const body = await readOrRefuse(github, `${runPath}/artifacts?per_page=100`);
   if (!Array.isArray(body.artifacts)) {
     throw new Stop("untrusted-actor");
   }
-  return body.artifacts.some(
-    (artifact) =>
+  for (const artifact of body.artifacts) {
+    if (
       isPlainObject(artifact) &&
       artifact.expired === false &&
       Number.isSafeInteger(artifact.workflow_run?.id) &&
-      String(artifact.workflow_run.id) === dispatcherRunId &&
-      typeof artifact.name === "string" &&
-      RECORD_NAME.test(artifact.name) &&
-      artifact.name.slice(RECORD_PREFIX.length).split("-").includes(runId),
-  );
+      String(artifact.workflow_run.id) === dispatcherRunId
+    ) {
+      const found = readRecordName(artifact.name, runId, viaRun);
+      if (found !== null) {
+        return found;
+      }
+    }
+  }
+  return null;
 }
 
 // The dispatcher run records the ids the dispatch API returned to it, so a
@@ -230,13 +253,15 @@ async function isRecorded(github, runPath, dispatcherRunId, runId) {
 // re-read after RECORD_WAIT_MS, at most RECORD_MAX_SLEEPS times. At the first
 // completed status one more read follows the same wait, for any lag between
 // the run and its artifact list, and then the gate refuses. That wait counts
-// toward the cap, so the whole wait stays within 2 min.
-async function requireRecorded({ github, repository, dispatcherRunId, runId, sleep }) {
+// toward the cap, so the whole wait stays within 2 min. Returns what the
+// record names (readRecordName).
+async function requireRecorded({ github, repository, dispatcherRunId, runId, viaRun, sleep }) {
   const runPath = `/repos/${repository}/actions/runs/${dispatcherRunId}`;
   for (let sleeps = 0; ; sleeps += 1) {
     const { status } = await readOrRefuse(github, runPath);
-    if (await isRecorded(github, runPath, dispatcherRunId, runId)) {
-      return;
+    const found = await findRecord(github, runPath, dispatcherRunId, runId, viaRun);
+    if (found !== null) {
+      return found;
     }
     if (sleeps === RECORD_MAX_SLEEPS) {
       throw new Stop("untrusted-actor");
@@ -246,8 +271,9 @@ async function requireRecorded({ github, repository, dispatcherRunId, runId, sle
     );
     await sleep(RECORD_WAIT_MS);
     if (status === "completed") {
-      if (await isRecorded(github, runPath, dispatcherRunId, runId)) {
-        return;
+      const late = await findRecord(github, runPath, dispatcherRunId, runId, viaRun);
+      if (late !== null) {
+        return late;
       }
       throw new Stop("untrusted-actor");
     }
@@ -260,15 +286,25 @@ async function requireRecorded({ github, repository, dispatcherRunId, runId, sle
 // tip, a re-run attempt started by a listed human, its record listing this
 // run, and this run, the dispatched workflow on the default branch, created
 // between the dispatcher run's start and the earlier of its last update and
-// WINDOW_MS after its start. Returns this run's own record.
+// WINDOW_MS after its start. A dispatcher started by workflow_run must be
+// runDispatcherWorkflow instead, and no actor of it is checked: the upstream
+// run its record names must be one of runDispatcherUpstreams, run on
+// pull_request in this repository, started (and any re-run) by the lanes App
+// or a listed human, at the PR's current head or at expectedUpstreamHead
+// (upstreamHeadHolds). Returns this run's own record.
 async function verifyDispatcher({
   github,
   repository,
   event,
   list,
   deniedIds,
+  pull,
   dispatcherRunId,
   dispatcherWorkflow,
+  runDispatcherWorkflow,
+  runDispatcherUpstreams,
+  expectedUpstreamHead,
+  lanesAppId,
   dispatchedWorkflow,
   runId,
   sleep,
@@ -277,7 +313,6 @@ async function verifyDispatcher({
   if (
     !RUN_ID.test(dispatcherRunId) ||
     !RUN_ID.test(runId) ||
-    dispatcherWorkflow === "" ||
     dispatchedWorkflow === "" ||
     typeof defaultBranch !== "string" ||
     !HEAD_REF.test(defaultBranch) ||
@@ -295,15 +330,21 @@ async function verifyDispatcher({
   const created = timeOf(own.created_at);
   const started = timeOf(dispatcher.run_started_at);
   const attempt = dispatcher.run_attempt;
+  // A workflow_run run reports the default branch and its tip as head_branch
+  // and head_sha, so the branch and ancestry checks below hold for it too.
+  const viaRun = dispatcher.event === "workflow_run";
+  const expectedPath = viaRun ? runDispatcherWorkflow : dispatcherWorkflow;
   // Comparisons with NaN are false, so a missing or unparseable time refuses.
   const trusted =
     own.path === dispatchedWorkflow &&
     own.event === "workflow_dispatch" &&
     dispatcher.repository?.full_name === repository &&
-    dispatcher.path === dispatcherWorkflow &&
+    expectedPath !== "" &&
+    dispatcher.path === expectedPath &&
     dispatcher.head_branch === defaultBranch &&
-    DISPATCHER_EVENTS.has(dispatcher.event) &&
-    (dispatcher.event === "push" || isListedHuman(dispatcher.actor)) &&
+    (viaRun ||
+      (DISPATCHER_EVENTS.has(dispatcher.event) &&
+        (dispatcher.event === "push" || isListedHuman(dispatcher.actor)))) &&
     SHA.test(dispatcher.head_sha ?? "") &&
     Number.isInteger(attempt) &&
     attempt >= 1 &&
@@ -335,8 +376,74 @@ async function verifyDispatcher({
   if (comparison.status !== "ahead" && comparison.status !== "identical") {
     throw new Stop("untrusted-actor");
   }
-  await requireRecorded({ github, repository, dispatcherRunId, runId, sleep });
+  if (expectedUpstreamHead !== "" && (!viaRun || !SHA.test(expectedUpstreamHead))) {
+    throw new Stop("untrusted-actor");
+  }
+  const found = await requireRecorded({ github, repository, dispatcherRunId, runId, viaRun, sleep });
+  if (viaRun) {
+    const upstream = await readOrRefuse(github, `/repos/${repository}/actions/runs/${found}`);
+    // The run the review reacted to was started, and any re-run triggered, by
+    // the lanes App or a listed human.
+    const vouches = (user) =>
+      Number.isInteger(user?.id) && (user.id === lanesAppId || isListedHuman(user));
+    const reviewed =
+      String(upstream.id) === found &&
+      runDispatcherUpstreams.includes(upstream.path) &&
+      upstream.event === "pull_request" &&
+      upstream.repository?.full_name === repository &&
+      upstream.head_repository?.full_name === repository &&
+      vouches(upstream.actor) &&
+      vouches(upstream.triggering_actor) &&
+      (await upstreamHeadHolds({ github, repository, upstreamSha: upstream.head_sha, pullSha: pull.head.sha, expectedUpstreamHead, lanesAppId, runCreated: created }));
+    if (!reviewed) {
+      throw new Stop("untrusted-actor");
+    }
+  }
   return own;
+}
+
+// A job after pr-unblock's model job passes the head that job was gated on:
+// the review must be of it, and every commit from it to the PR's current head
+// one GitHub signed for the lanes App (author the App, committer web-flow,
+// signature valid) during this workflow run. That proves an App-token commit
+// made after this run was created, not which lane made it. A human, foreign,
+// unsigned, older or truncated range refuses. Without one, the review must be
+// of the PR's current head.
+//
+// web-flow, the committer GitHub records on commits it signs (seen on the
+// lanes App's commits of #7493, #7494, #7496, #7520 and #7522).
+const WEB_FLOW_ID = 19864447;
+
+async function upstreamHeadHolds({ github, repository, upstreamSha, pullSha, expectedUpstreamHead, lanesAppId, runCreated }) {
+  if (expectedUpstreamHead === "") {
+    return upstreamSha === pullSha;
+  }
+  if (upstreamSha !== expectedUpstreamHead) {
+    return false;
+  }
+  if (expectedUpstreamHead === pullSha) {
+    return true;
+  }
+  const range = await readOrRefuse(github, `/repos/${repository}/compare/${expectedUpstreamHead}...${pullSha}`);
+  const commits = Array.isArray(range.commits) ? range.commits : [];
+  return (
+    range.status === "ahead" &&
+    commits.length > 0 &&
+    range.total_commits === commits.length &&
+    commits.every(
+      (commit) =>
+        Number.isInteger(commit?.author?.id) &&
+        commit.author.id === lanesAppId &&
+        // GitHub signed it (web-flow): an API commit made with the App's
+        // token. A local commit claiming the App as author is committed
+        // and signed by whoever pushed it.
+        commit.committer?.id === WEB_FLOW_ID &&
+        commit?.commit?.verification?.verified === true &&
+        commit.commit.verification.reason === "valid" &&
+        // Committed during this workflow run, not by an earlier lane.
+        timeOf(commit.commit.committer?.date) >= runCreated,
+    )
+  );
 }
 
 // The re-runner of a dispatched run, read by id from this run's own record:
@@ -352,13 +459,93 @@ function checkDispatchedRerunner({ ids }, deniedIds, own) {
   }
 }
 
+// When an issue's body was last edited and its title last changed.
+const ISSUE_EDITS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    issue(number: $number) {
+      lastEditedAt
+      timelineItems(itemTypes: [RENAMED_TITLE_EVENT], last: 1) { nodes { ... on RenamedTitleEvent { createdAt } } }
+    }
+  }
+}`;
+
+// The issue's body edit and title change times (null when never). A failed
+// read or an unexpected shape throws.
+export async function readIssueEdits(github, repository, number) {
+  const [owner, name] = repository.split("/");
+  const { issue } = (await github("POST", "/graphql", { query: ISSUE_EDITS_QUERY, variables: { owner, name, number: Number(number) } })).data.repository;
+  if (!isPlainObject(issue)) {
+    throw new Error("issue edits have an unexpected shape");
+  }
+  return [issue.lastEditedAt, ...(issue.timelineItems?.nodes ?? []).map((node) => node?.createdAt)];
+}
+
+// True when every time in `editedAt` is null or no later than `at`; NaN
+// compares false, so an unparseable time is a change.
+export const unchangedSince = (editedAt, at) => editedAt.every((time) => time == null || timeOf(time) <= at);
+
+// ratified-app-label: the lanes App applying exactly that label to an issue
+// starts the lane only while the issue carries the owner's ratification marker
+// (findRatification), read now; any other App event, or a failed read, stops.
+// The re-runner is the App itself or a listed human.
+async function checkRatifiedAppLabel({ event, repository, list, deniedIds, triggeringActor, lanesAppId, ratifiedAppLabel, github }) {
+  if (event.action !== "labeled" || event.label?.name !== ratifiedAppLabel) {
+    throw new Stop("bot-actor");
+  }
+  const number = String(event.issue?.number ?? "");
+  if (!PR_NUMBER.test(number)) {
+    throw new Stop("untrusted-actor");
+  }
+  let comments;
+  try {
+    comments = await paginate(github, `/repos/${repository}/issues/${number}/comments`);
+  } catch {
+    throw new Stop("untrusted-actor");
+  }
+  const ratifiers = new Set([...list.humans].filter((id) => !deniedIds.has(id)));
+  // The newest ratifying comment: the owner ratified the title and body as they
+  // stood then, and the run reads them, so an edit since stops the run.
+  const ratifying = comments
+    .filter((comment) => findRatification([comment], ratifiers) !== undefined)
+    .reduce((newest, comment) => (newest === undefined || timeOf(comment.created_at) > timeOf(newest.created_at) ? comment : newest), undefined);
+  if (ratifying === undefined) {
+    throw new Stop("untrusted-actor");
+  }
+  let editedAt;
+  try {
+    editedAt = await readIssueEdits(github, repository, number);
+  } catch {
+    throw new Stop("untrusted-actor");
+  }
+  if (!unchangedSince(editedAt, timeOf(ratifying.created_at))) {
+    throw new Stop("untrusted-actor");
+  }
+  console.log(
+    `check-trusted-trigger: ${ratifiedAppLabel} from the lanes App, ratified by comment ${Number(ratifying.id)}`,
+  );
+  const rerunnerId = list.logins.get(String(triggeringActor).toLowerCase());
+  if (rerunnerId !== lanesAppId && (!list.humans.has(rerunnerId) || deniedIds.has(rerunnerId))) {
+    throw new Stop("untrusted-rerunner");
+  }
+  return { ...stopped("ok"), proceed: "true" };
+}
+
 // require-pr: false. A workflow_dispatch or issues event checks its sender
 // (on issues, the account that applied the label) and the triggering actor, a
 // push only the triggering actor; no PR is read. require-kind human narrows
 // both to actors listed as human.
-function evaluateActors({ eventName, event, list, deniedIds, triggeringActor, requireKind }) {
+async function evaluateActors({ eventName, event, repository, list, deniedIds, triggeringActor, requireKind, lanesAppId, ratifiedAppLabel, github }) {
   if (eventName !== "workflow_dispatch" && eventName !== "issues" && eventName !== "push") {
     throw new Stop("no-pr");
+  }
+  if (
+    eventName === "issues" &&
+    requireKind === "human" &&
+    ratifiedAppLabel !== "" &&
+    lanesAppId !== null &&
+    event.sender?.id === lanesAppId
+  ) {
+    return checkRatifiedAppLabel({ event, repository, list, deniedIds, triggeringActor, lanesAppId, ratifiedAppLabel, github });
   }
   const pool = requireKind === "human" ? list.humans : list.ids;
   if (eventName !== "push") {
@@ -383,8 +570,13 @@ export async function evaluateTrigger({
   prNumber,
   dispatcherRunId = "",
   dispatcherWorkflow = "",
+  runDispatcherWorkflow = "",
+  runDispatcherUpstreams = [],
+  expectedUpstreamHead = "",
+  lanesAppId = null,
   requirePr = "true",
   requireKind = "",
+  ratifiedAppLabel = "",
   runId = "",
   dispatchedWorkflow = "",
   github,
@@ -398,7 +590,7 @@ export async function evaluateTrigger({
     throw new Stop("no-pr");
   }
   if (requirePr === "false") {
-    return evaluateActors({ eventName, event, list, deniedIds, triggeringActor, requireKind });
+    return evaluateActors({ eventName, event, repository, list, deniedIds, triggeringActor, requireKind, lanesAppId, ratifiedAppLabel, github });
   }
   if (requirePr !== "true") {
     throw new Stop("no-pr");
@@ -449,13 +641,20 @@ export async function evaluateTrigger({
       event,
       list,
       deniedIds,
+      pull,
       dispatcherRunId,
       dispatcherWorkflow,
+      runDispatcherWorkflow,
+      runDispatcherUpstreams,
+      expectedUpstreamHead,
+      lanesAppId,
       dispatchedWorkflow,
       runId,
       sleep,
     });
     checkDispatchedRerunner(list, deniedIds, own);
+  } else if (expectedUpstreamHead !== "") {
+    throw new Stop("untrusted-actor");
   } else {
     if (!actors.every((actor) => isListed(ids, actor))) {
       throw new Stop("untrusted-actor");
@@ -513,8 +712,13 @@ export async function main({ env = process.env, github, sleep = defaultSleep } =
       prNumber: env.PR_NUMBER,
       dispatcherRunId: env.DISPATCHER_RUN_ID ?? "",
       dispatcherWorkflow: env.DISPATCHER_WORKFLOW ?? "",
+      runDispatcherWorkflow: env.RUN_DISPATCHER_WORKFLOW ?? "",
+      runDispatcherUpstreams: (env.RUN_DISPATCHER_UPSTREAMS ?? "").split(/\s+/).filter(Boolean),
+      expectedUpstreamHead: env.EXPECTED_UPSTREAM_HEAD ?? "",
+      lanesAppId: /^[1-9][0-9]{0,14}$/.test(env.LANES_APP_ID ?? "") ? Number(env.LANES_APP_ID) : null,
       requirePr: env.REQUIRE_PR ?? "true",
       requireKind: env.REQUIRE_KIND ?? "",
+      ratifiedAppLabel: env.RATIFIED_APP_LABEL ?? "",
       dispatchedWorkflow: env.DISPATCHED_WORKFLOW ?? "",
       runId: env.GITHUB_RUN_ID ?? "",
       github: github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),

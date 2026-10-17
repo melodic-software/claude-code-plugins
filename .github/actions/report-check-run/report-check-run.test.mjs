@@ -12,6 +12,7 @@ import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { anyHandles, limitResetsAt } from "../../scripts/pr-unblock/limit-stop.mjs";
 import { main } from "./report-check-run.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -70,6 +71,7 @@ async function run(env = {}, status) {
       GITHUB_API_URL: "https://api.example.test",
       GITHUB_SERVER_URL: "https://github.com",
       GITHUB_RUN_ID: "123",
+      GITHUB_RUN_ATTEMPT: "1",
       ...env,
     },
     fetchImpl,
@@ -107,6 +109,68 @@ test("a valid verdict POSTs one completed check run with the contract body", asy
     call.body.details_url,
     `https://github.com/${REPOSITORY}/actions/runs/123`,
   );
+});
+
+const LIMIT = {
+  ACT_OUTCOME: "failure",
+  LANE_CLASS: "rate-limit",
+  LANE_RESETS: "2026-10-17T15:30:00Z",
+  LANE_TURNS: "3",
+  LANE_MAX_TURNS: "30",
+};
+
+test("a lane record from env opens the summary and fills output.text and external_id, with no annotation", async () => {
+  const { calls } = await run({ ...LIMIT, GITHUB_RUN_ATTEMPT: "2" });
+  const { body } = calls[0];
+  assert.equal(body.conclusion, "failure");
+  const [line, blank, ...rest] = body.output.summary.split("\n");
+  assert.equal(line, "lane=pr-refine activity=simplify class=rate-limit resets=2026-10-17T15:30:00Z turns=3 max-turns=30");
+  assert.equal(blank, "");
+  assert.equal(rest.join("\n"), "The activity step failed.");
+  const json = /^```json\n(.*)\n```$/.exec(body.output.text);
+  assert.deepEqual(JSON.parse(json[1]), {
+    lane: "pr-refine",
+    activity: "simplify",
+    class: "rate-limit",
+    resets: "2026-10-17T15:30:00Z",
+    turns: 3,
+    "max-turns": 30,
+  });
+  assert.equal(body.external_id, "pr-refine:simplify:123:2");
+  assert.equal(body.output.annotations, undefined);
+});
+
+test("the posted limit stop is the one limit-stop.mjs reads from the summary", async () => {
+  const { calls } = await run(LIMIT);
+  const posted = { ...calls[0].body, id: 1, completed_at: "2026-10-17T12:00:00Z" };
+  assert.equal(limitResetsAt(posted), Date.parse("2026-10-17T15:30:00Z"));
+  const ids = [1, 2, 3].map((id) => ({ ...posted, id }));
+  const now = Date.parse("2026-10-17T16:00:00Z");
+  assert.equal(anyHandles(ids.slice(0, 2), { now }), false);
+  assert.equal(anyHandles(ids, { now }), true);
+  assert.equal(anyHandles(ids.slice(0, 1), { now: Date.parse("2026-10-17T15:00:00Z") }), true);
+});
+
+test("another posted failure class is a record limit-stop.mjs reads as no limit stop", async () => {
+  const { calls } = await run({ ACT_OUTCOME: "failure", LANE_CLASS: "max-turns", LANE_TURNS: "31", LANE_MAX_TURNS: "30" });
+  const posted = { ...calls[0].body, id: 1, completed_at: "2026-10-17T12:00:00Z" };
+  assert.equal(limitResetsAt(posted), null);
+  assert.equal(anyHandles([posted], { now: Date.parse("2026-10-20T00:00:00Z") }), true);
+});
+
+test("a malformed run attempt posts the record without an external_id", async () => {
+  const { calls } = await run({ ...LIMIT, GITHUB_RUN_ATTEMPT: "1:x" });
+  assert.equal("external_id" in calls[0].body, false);
+  assert.match(calls[0].body.output.summary, /^lane=pr-refine activity=simplify class=rate-limit /);
+});
+
+test("no lane record POSTs no annotations, text, external_id or record line", async () => {
+  const { calls } = await run();
+  const { output } = calls[0].body;
+  assert.equal(output.annotations, undefined);
+  assert.equal(output.text, undefined);
+  assert.equal("external_id" in calls[0].body, false);
+  assert.doesNotMatch(output.summary, /lane=/);
 });
 
 test("an absent verdict file POSTs failure on the env head", async () => {

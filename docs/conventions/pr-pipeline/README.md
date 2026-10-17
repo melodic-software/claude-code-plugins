@@ -93,8 +93,9 @@ reader applies.
 | `pr-verify` | dispatch from `pr-refine` |
 | `pr-explain` | dispatch from `pr-refine`, alongside verify |
 | `pr-require-checks` | each verify result |
-| `pr-unblock` | a dispatch for each conflicting PR after a push to the default branch, or a trusted human's dispatch |
+| `pr-unblock` | a dispatch for each conflicting PR and each unreviewed review-tier Dependabot PR after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
+| `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran); labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue` once resolve-issue accepts App-added labels (follow-up by Automation Lanes) |
 | `post-merge-verify` | push to the default branch |
 | `post-merge-sweep-comments` | push to the default branch |
 
@@ -110,6 +111,37 @@ that runs on a push to `main` and on a trusted human's `workflow_dispatch`:
 - A hand run or a re-run must be started by a listed human (`check-trusted-trigger` with
   `require-pr: false` and `require-kind: human`).
 - With the kill switch on, the run ends green with a notice and dispatches nothing.
+
+`pr-unblock`'s `address-feedback` dispatches come from `pr-feedback-dispatch.yml`, also scripted,
+on `workflow_run` `completed` of `pr-review-hosted` and `pr-review-security-hosted`. It takes only
+the upstream run id from the event and reads the rest back. It dispatches `pr-unblock.yml` with
+`activity: address-feedback` when the upstream is a `pull_request` run of one of those two paths in
+this repository, exactly one open non-draft PR into `main` has its head, the lanes App opened that
+PR, it carries neither `do-not-merge` nor `needs-human`, both lanes' newest reviewed-head markers
+name the head, an unresolved thread left only by the reviewer bot exists, the head has no
+`pr-unblock / address-feedback` check run, and no `pr-unblock.yml` run titled
+`pr-unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
+runs the base's resolve-config for that PR and head with `address-feedback` selected, so only that
+slot's `applies-when` is decided, and dispatches only when the `pr-unblock` lane and its
+`address-feedback` and `publish-feedback` slots are enabled and `address-feedback` applies. It records `pr-feedback-dispatched-<upstream id>-<run
+id>`, which the gate and the broker read to tie the run to a review of the PR's current head.
+In `pr-unblock.yml`, `address-feedback` (the model job, `mutate-branch`) is followed by
+`publish-feedback` (a script job with no model, `publish-artifact`), which posts the replies the
+model job recorded ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)).
+
+`pr-unblock`'s `review-dependency` dispatches come from the same `pr-unblock-dispatch.yml` run,
+so the gate and the broker check them as they check a conflict dispatch. After the conflict
+dispatches it lists open, non-draft, same-repository Dependabot PRs into `main`, sorts each with
+`dependency-classify.mjs`, and dispatches `pr-unblock.yml` with `activity: review-dependency` for
+at most 2 `review`-tier PRs per run whose head has no `pr-unblock / review-dependency` check run
+from the GitHub Actions app (the untrusted-trigger skip aside). Their run ids join the same
+dispatched-runs record. It has no schedule: the broker accepts a dispatcher run started only by a
+push or a listed human, so a push to `main` or a hand run wakes it. In `pr-unblock.yml`,
+`review-dependency` (the model job, `mutate-branch`) is followed by `apply-dependency-verdict` (a
+script job with no model, `publish-artifact`), which acts on the verdict the model job recorded
+and never merges; the pr-merge lane merges on its `verdict=merge` marker at the current head
+([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
+[ADR 0074](../../adr/0074-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
 
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
@@ -178,7 +210,10 @@ Each leaf declares:
   verbatim: after the skill name in that skill's own syntax, or to the script.
 - `prepare` (optional, `skill` only, effect other than `read`): what the write runner does around
   the skill. `merge-base` merges the base tip into the gated head without committing before the
-  skill runs, and commits the result with both as parents after it. A write runner performs this
+  skill runs, and commits the result with both as parents after it. `review-threads` keeps the
+  PR's unresolved reviewer-bot threads and decides skip, escalate or proceed before any model
+  turn, gives the skill the review-thread tool, and uploads the replies it records for a reply job
+  with no model to post ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)). A write runner performs this
   only where it declares support by passing `prepare-supported: true` to `resolve-config`; anywhere
   else an applying leaf that sets `prepare` fails red rather than running without it.
 - `model` and `max-turns` (optional, `skill` only): the model and turn budget for the Claude Code
@@ -187,6 +222,15 @@ Each leaf declares:
   flags fixed, that a skill with an effect other than `read` may run. The write runner runs each
   from the base copy against the checkout, so no head code runs
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)).
+- `verify-scripts` (optional, `skill` only): exact repository-relative paths of scripts, each `scripts/<name>.sh`, `plugins/<plugin>/scripts/<name>.sh` or
+  `plugins/<plugin>/skills/<skill>/scripts/<name>.sh`, that a skill with an effect other than
+  `read` may run with any arguments but a path outside the checkout; a `read` leaf cannot set it.
+  The write runner runs each from a read-only base copy of its plugin (or of `scripts/`) against
+  the checkout
+  ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The arguments are the model's, so
+  a script that changes files, runs code from the checkout or reaches the network hands the run
+  that power: list one only when it limits itself, as `scripts/run-test-file.sh` (one test file
+  inside the checkout) and `scripts/git-mv-rm.sh` (`git mv` and `git rm` inside the checkout) do.
 - `web-access` (optional, `skill` only, off when absent): `enabled` and `domains`, either `any` or
   a list of host names (`*.` allowed as a prefix). When on, a skill with an effect other than
   `read` may search the web, fetch those domains, and run the research skills
@@ -216,14 +260,19 @@ Each leaf declares:
   activity skips with `not-applicable-paths`: `pr-refine / fix-docs` does not run on a PR whose
   only changed Markdown is instruction surfaces or CODEOWNERS paths, such as this directory.
 - `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, `labels-absent`, work
-  classes, events, `mergeable`, `draft`, `labeled-after`). `mergeable` is `conflicting` or `clean`,
+  classes, events, `mergeable`, `draft`, `labeled-after`, `admission`). `mergeable` is `conflicting` or `clean`,
   read from the PR at the gated head SHA only; unknown mergeability never matches. `labels-absent`
   matches only when none of its labels is on the PR. `labeled-after`, a UTC time, is an issues
-  lane's go-live time: it matches only an issue labeled after it.
+  lane's go-live time: it matches only an issue labeled after it. `admission` is an issues lane's
+  admission rule. With no `classes` only the owner's batch-ratification marker comment admits
+  (`ratified: true`) and no `work-class:` label is read; this repository's resolve-issue uses that
+  form. With `classes`, an issue carrying a `work-class:` label outside them is refused, even
+  beside a listed one; otherwise a listed class admits it, or, with `ratified: true`, the marker
+  does. A lane never admits on its own judgment.
 
 An activity is idempotent: a rerun on the same commit gives the same verdict or reuses it, a
 mutating activity with nothing to change makes no commit, and each commit it makes names the
-activity in a trailer. Unchanged content (same patch id) reuses the earlier verdict.
+activity in a trailer. A verdict is bound to the commit it judged and is not reused for any other commit.
 
 When an activity needs a human, it escalates with a resume key and exits instead of blocking. An
 activity whose `labels-absent` lists `needs-human` or `do-not-merge` skips with `awaiting-human`
@@ -269,11 +318,12 @@ The reader also adds the config file's own path, `.github/**` and the trusted-ac
 
 | Scope | Rule | Set by |
 |---|---|---|
-| Triggers of one PR's `pr-unblock` | A newer dispatch replaces one still waiting; a running one finishes | workflow group `pr-unblock-<n>`, `cancel-in-progress: false` |
-| Within one run | Leaves run in slot order: `report-escalation` after `resolve-conflicts`, and only when it escalated | the caller's `needs:` |
+| Triggers of one PR's `pr-unblock` activity | A newer dispatch replaces one still waiting; a running one finishes | workflow group `pr-unblock-<activity>-<n>`, `cancel-in-progress: false` |
+| Within one run | Leaves run in slot order: `publish-feedback` after `address-feedback` once its skill ran; `report-escalation` after the others, and only when one escalated | the caller's `needs:` |
 | Across PRs | Unbounded: every group is per PR | group names |
 | Within one PR, across write lanes | One queue: a write job waits for the one ahead and never cancels it | job group `pr-pipeline-write-<n>`, `queue: max`, on every write caller job |
 | `pr-unblock-dispatch` | One run at a time; a newer push replaces a waiting run | workflow group `pr-unblock-dispatch` |
+| `pr-feedback-dispatch` | One run per reviewed head at a time; a waiting one is replaced | workflow group `pr-feedback-dispatch-<head SHA>` |
 
 The write group sits on each caller job, behind an `if:` that leaves out the lanes App's own
 `pull_request` events, so a lane's push never queues a job in it.
@@ -284,7 +334,8 @@ Each leaf reports:
 
 - A verdict: `pass`, `fail`, `neutral` or `skipped`.
 - Findings in the detector-findings shape ([`detector-findings`](../detector-findings/README.md)),
-  keyed by commit fingerprint so a verdict carries over when content is unchanged.
+  for the commit the leaf judged. A new commit gets a new verdict, even when its content is
+  unchanged.
 - An artifact bundle per [`record-bundle`](../record-bundle/README.md).
 - A check run named `<lane> / <leaf>`, for example `pr-refine / simplify`; a composite gets none.
 
@@ -324,13 +375,14 @@ human. Work classes are defined in
   automatically: when the default branch fails after a lane merge, that lane's merge rights turn off
   through a repository variable that can only lower the rung, and a `needs-human` issue is filed.
   The local babysit lane falls through a demotion issue instead (below).
-- A `pr-merge` merge needs a review verdict on the final commit, or a verdict carried over by
-  content fingerprint. The local babysit lane accepts only evidence bound to the pinned head SHA
-  (below).
+- A `pr-merge` merge needs a review verdict bound to the commit being merged. This is a
+  precondition of the lane's own merge, not a required check. A lane merge commit, including one
+  where the lane resolved conflicts, needs a fresh verdict on that commit before the merge. The
+  local babysit lane accepts only evidence bound to the pinned head SHA (below).
 - `merge.stack-landing` defaults to `manual`.
-- A repository has one merge authority. The one exception is
-  `.github/workflows/pr-automerge-dependabot.yml`, which merges Dependabot pull requests on its own
-  rules whatever `merge.authority` says.
+- A repository has one merge authority, Dependabot pull requests included: the pr-merge lane
+  merges tier `auto` ones, and tier `review` ones once the pr-unblock lane's review activity
+  leaves a merge verdict ([Dependabot pull requests](#dependabot-pull-requests), below).
 
 ### The local babysit lane
 
@@ -377,8 +429,8 @@ that fails counts as a refusal.
   the wrapper disarms it.
 - **One merge in flight.** The wrapper refuses while the identity has an entry in the merge queue,
   or while an earlier unattended merge has not passed its post-merge check.
-- **Dependabot.** A dependency-manager author is never eligible for an unattended merge. Those pull
-  requests stay with `pr-automerge-dependabot.yml`.
+- **Dependabot.** A dependency-manager author is never eligible for a local unattended merge. The
+  pr-merge lane owns Dependabot pull requests (below).
 
 A human here is a GitHub user, not the agent identity and not an automation login, with write or
 admin permission on the repository.
@@ -391,17 +443,40 @@ except six:
 
 - **Eligibility.** Not a fork or a dependency manager's pull request, opened by
   `merge.agent-identity` (the lanes App; refused `not-lane-authored` otherwise), exactly one closing issue
-  (`closingIssuesReferences`) in this repository whose class is `work-class: mechanical`, and a
-  diff where no path, either side of a rename, matches `merge.diff-check.denied-paths`. The class
-  lives on the issue only: a `work-class:` label on the pull request is never read. No opt-in label
-  or lane claim is read. No closing issue, or more than one, refuses (`linked-issues:<n>`).
-- **Who labels.** A class label event on the issue counts when `merge.agent-identity` (the lanes
-  App) made it, or a human acting in person (write or admin, not through an App) with no edit of
-  the issue body after it. Another bot's events are ignored, since a workflow on a pushed branch
-  labels as `github-actions[bot]`. A class label anyone adds can still only make the class
-  stricter.
-- **Promotion.** No promotion evidence is read. The lane starts with `merge.report-only: true`;
-  the owner reads its reports and sets `false` to let it merge.
+  (`closingIssuesReferences`) in this repository, and a diff where no path, either side of a
+  rename, matches `merge.diff-check.denied-paths`. Such a pull request is class C2, as a
+  Dependabot pull request is: no `work-class:` label is read, on the issue or the pull request,
+  and the diff-derived C2 checks of the risk score still apply. No opt-in label or lane claim is
+  read. No closing issue, or more than one, refuses (`linked-issues:<n>`); right before the
+  enqueue the closing issue is read again and a different one refuses
+  (`closing-issue-changed:<was>><now>`). The closing issue must also stand ratified under
+  resolve-issue's own start rule (`ratification.mjs` and check-trusted-trigger's
+  `checkRatifiedAppLabel`): a marker comment by a human on the trusted-actor list at the default
+  branch's current head, not one of `pr-merge.yml`'s denied actor ids, not through an App, never
+  edited, with no body edit or title change after the newest such comment. It is read fresh at
+  eligibility and again before the enqueue; otherwise `not-ratified`, and any read that fails
+  refuses. A pull request into any branch but the default refuses `base-not-default:<ref>`.
+- **Verdict criterion.** No promotion evidence is read. The merge criterion is the pr-verify
+  verdict at the head ([Verifier verdict](#verifier-verdict)), which binds to that one closing
+  issue and its trusted spec, so with a rung above off the gate refuses
+  `verifier-verdict-not-required` unless `merge.require-verifier-verdict` is true, and the schema
+  rejects such a config. The lane starts with `merge.report-only: true`; the owner reads its
+  reports and sets `false` to let it merge.
+- **Risk switches.** Each check below is a `merge.diff-check` setting that is off when absent, and
+  this repository leaves every one off (owner decision, 2026-10-17): `denied-paths` (an empty
+  list denies no path), `high-path-floor` (true scores the scorer's fixed HIGH path set HIGH),
+  `c2-contradictions` (true scores a removed, renamed or copied file, a schema change or more
+  than one plugin MED), `max-changed-files` and `max-changed-lines` (absent is no cap). The local
+  babysit lane ignores these switches and keeps every check. The review evidence and the
+  security lane's findings still count.
+
+  What is left with them off: a lane pull request may change the merge gate, the workflows and
+  their tokens, these lane rules, skills, hooks, agent instructions and CI checks, at any size.
+  The brakes that remain are the verifier verdict, the kill switch, the fork and Dependabot
+  refusals, lane authorship with one closing issue, the review evidence and the demotion stop;
+  setting `merge.report-only` back to true stops every merge. A verdict reads the diff only and runs no changed code, and a pull request
+  that weakens a later run's gate (this file, the gate, `pr-merge.yml`) is judged by the gate as
+  it stood at its base.
 - **Kill switches.** The lane token cannot read Actions variables, so the workflow checks the
   switches itself and passes `--lane-kill-switch proceed`. A missing value or any other value
   stops the lane. The value is read once per run, and a stopped run cannot dequeue: to stop at
@@ -412,13 +487,238 @@ except six:
 - **Post-merge check and one merge in flight.** Only merges the agent identity enqueued count. A
   merge by a person or by another App, such as a release pull request, is not the lane's.
 
-While `merge.report-only` is true, the workflow starts no full CI run either; its summary says
-whether it would have.
+While `merge.report-only` is true and `merge.dependabot.mode` is not `enforce`, the workflow starts
+no full CI run either; its summary says whether it would have.
+
+### Dependabot pull requests
+
+No Dependabot pull request waits on a human
+([ADR 0073](../../adr/0073-merge-dependabot-pull-requests-in-the-pr-merge-lane.md)). The pr-merge
+lane is the one merge authority for both tiers. It lists Dependabot's open pull requests beside
+its own and judges each as its own class, in place of the eligibility above. Both lanes sort by
+the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-unblock):
+
+- **Tier `auto`.** Every update is non-major: the first numeric version component does not change,
+  and below 1.0 the second does not either. Every update on a `dependabot/github_actions/...`
+  branch comes from the `actions`, `github` or `anthropics` publisher. The newest `ci-status` run
+  on the head is not red (`failure`, `cancelled`, `timed_out`, `action_required`,
+  `startup_failure`). The updates come from the `updated-dependencies` metadata in Dependabot's
+  verified commit when it is there, and from the title (`bump <name> from <a> to <b>`) or a
+  group's body `Updates` lines otherwise; when both read, they must name the same dependencies and
+  agree on which are major.
+- **Tier `review`.** Anything else, including anything unreadable (a SHA version, an unparsed
+  title), every update to a [review-only dependency](#review-only-dependencies), and an npm or
+  pip update whose [registry provenance](#registry-provenance) changed. The pr-unblock lane's review activity reviews it, and the pr-merge lane merges it only
+  when the newest round marker the lanes App posted on it
+  (`<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<id>-<attempt> -->`)
+  names the current head with `verdict=merge`. A marker from any other author is ignored.
+- **Commits.** Every commit is a GitHub-verified Dependabot commit, or the repository's
+  `[dependabot skip]` version-bump commit (authored by `github-actions[bot]`, verified, touching
+  only a plugin's `plugin.json` or `CHANGELOG.md`). On a reviewed pull request the lanes App's
+  verified `[dependabot skip]` fix commits count too. The commits listing must hold the pull
+  request's whole commit count, else the reason is `commits-listed:<listed>-of:<total>` (the
+  listing stops at 250). A commit's author is text whoever creates it
+  chooses, so two more checks bind the pull request to Dependabot:
+  - **Pushes.** The repository activity API for the head branch, read back to Dependabot's newest
+    branch creation or force push, shows every push by `dependabot[bot]`, or by
+    `github-actions[bot]` (or, after a review, the lanes App) pushing its own commit, and the
+    newest push is the head.
+  - **Content.** Every changed path, either side of a rename, is a manifest or lock file of an
+    ecosystem and directory `.github/dependabot.yml` lists at the base (npm `package.json`,
+    `package-lock.json` and the like; pip `requirements*.txt`/`.in`, `pyproject.toml`, `uv.lock`
+    and the like), or a workflow or action file of a `github-actions` entry whose diff changes only
+    `uses:` lines (`/` covers `.github/workflows/` and the action files under `.github/actions/`).
+    A directory holding `*` or `?` is a glob, read the same way in both lanes: `*` and `?` stay
+    inside one path segment, `**/` is zero or more whole segments (so `**/*` covers the root and
+    every layer below), any other `**` crosses segments, and everything else is literal. A path the version-bump or lanes App fix
+    commit touched counts as checked; a fix commit may not touch `.github/`, and one whose file
+    list cannot be read whole refuses. Anything else (a rebuilt bundle, a manifest outside a listed
+    directory) makes the pull request tier `review` with the reason `dependabot-content:<path>`,
+    so the AI review judges it; it is never left for a person. A failed push check, by contrast,
+    always refuses, verdict or not.
+- **Gate.** Either tier merges only once `ci-status` succeeded on its head, through the same gate
+  as the lane's own: mergeable, no `do-not-merge` label, no body hold, no blocking comment from a
+  human with write access, the rung (C2) and its cap, the kill switches, the post-merge check and
+  one merge in flight. No closing issue, denied-path rule or diff risk score applies: `ci-status`
+  (and, for tier `review`, the review verdict) is the gate, and a workflow pin bump touches
+  `.github/**` by definition.
+- **Switch.** `merge.dependabot.mode` decides it, not `merge.report-only`: `enforce` merges,
+  `report` reports and writes nothing, and `off` (the default) refuses every Dependabot pull
+  request and leaves them unlisted.
+
+The class is `babysit_dependabot.py` beside the wrapper. Auto-merge armed with `GITHUB_TOKEN` is not used: GitHub's
+[`GITHUB_TOKEN` page](https://docs.github.com/en/actions/concepts/security/github_token) says
+"events triggered by the `GITHUB_TOKEN` will not create a new workflow run" (`workflow_dispatch`,
+`repository_dispatch` and some `pull_request` events excepted, not `merge_group`), so the queue
+entry such an arm makes never gets its `ci-status` run and never lands (#6717, #7512).
 
 `.github/workflows/pr-merge.yml` runs the lane's `merge-pr` activity with no model and no head
-checkout. A finished `ci-status` or review run, a label, body or ready change on a PR, a manual
-dispatch and an hourly schedule each only wake it; it lists the candidates from the API and runs the
-gate on each under the lanes App token the broker mints for that file on `main`.
+checkout. A label, body or ready change on a PR, a manual dispatch and a schedule every 15 minutes
+each only wake it; it lists the candidates from the API and runs the gate on each under the lanes
+App token the broker mints for that file on `main`. A finished `ci-status` or review run is picked
+up by the next scheduled run, not by a wake-up of its own: runs are serialized, and the triggers
+must start them more slowly than they finish to stay under GitHub's cap on queued runs.
+
+#### Review-only dependencies
+
+A non-major release of a hijacked package passes tier `auto` on a green `ci-status`. A dependency
+that runs inside a job holding a secret or a write token is therefore listed in the standards
+Dependabot policy's `autoMerge.reviewOnly` (melodic-software/standards
+`components/dependabot-policy/policy.json`), which the sync places at
+`.github/standards/dependabot-policy/policy.json`. Both lanes read that file at the base:
+
+- **Match.** An entry matches an update when its `repository` is this repository (any case), its
+  `ecosystem` is the head branch's ecosystem in `dependabot.yml` spelling
+  (`dependabot/npm_and_yarn/...` is `npm`, `dependabot/github_actions/...` is `github-actions`,
+  any other segment such as `pip` is itself), its `directory` covers a changed path (any path
+  when the config or the files listing does not read whole), and its `dependency` is one of the
+  updates. A directory covers a path that sits in it, read as the content rule reads a
+  `dependabot.yml` directory (globs included); a `github-actions` entry also covers the workflow
+  and action files the content rule gives its directory (`/` covers `.github/workflows/` and the
+  action files under `.github/actions/`). A match makes the pull request tier `review` with the
+  reason `review-only:<dependency>`, whatever the version change.
+- **Unreadable.** A missing policy file, one that is not JSON, or one whose `reviewOnly` is not a
+  list of entries with string `repository`, `ecosystem`, `directory`, `dependency` and `control`
+  makes every Dependabot pull request tier `review` with the reason
+  `dependabot-policy-unreadable`; so does a classifier call that passes no policy at all.
+- **Review.** The review activity gets the matched entries. A `merge` verdict on such a pull
+  request cites each entry's `control` (this section, for this repository's entries) and states
+  what it checked: the release's provenance (who published it and how), maintainer or publisher
+  changes since the previous version, new or changed install scripts, and dependencies the
+  release adds that its changelog does not explain. Anything it cannot check is `escalate`.
+- **Citation check.** The verdict job checks that by script: a `merge` verdict whose `evidence`
+  does not hold each matched entry's `control` string verbatim (as a substring of one entry)
+  posts no merge marker and escalates `dependency-control-uncited`. This proves only that the
+  verdict followed the review-only procedure, not that the model checked anything: the control
+  string is public, and a model steered by release text can quote it as easily as one that did
+  the work. The deterministic defenses are the routing to review and the registry provenance
+  gate below; against steering text the review relies on the model escalating it.
+
+#### Registry provenance
+
+A stolen publish token can ship a non-major release from outside the project's CI, which tier
+`auto` would merge on a green `ci-status`. Both lanes therefore compare who published each npm or
+pip update (`dependabot/npm_and_yarn/...` and `dependabot/pip/...` branches; `github_actions`
+updates are covered by the publisher allowlist), with no model, and only for a pull request every
+other rule left tier `auto`:
+
+- **Identity.** npm: when the version's packument entry (`GET https://registry.npmjs.org/<name>`,
+  a scoped name as `@scope%2Fname`) has `dist.attestations.url`, the SLSA provenance from
+  `GET https://registry.npmjs.org/-/npm/v1/attestations/<name>@<version>` names the identity:
+  `predicate.buildDefinition.externalParameters.workflow` `repository` and `path` (SLSA v0.2:
+  `predicate.invocation.configSource` `uri` without its `@<ref>`, and `entryPoint`), compared
+  without `https://github.com/` and in any case. The ref is never part of it, so a release from a
+  new tag is the same identity. With no attestation, `_npmUser.trustedPublisher` `id` and
+  `oidcConfigId` (any `oidc:` prefix stripped) are the identity. pip: the version's files in
+  `GET https://pypi.org/simple/<name>/` (`Accept: application/vnd.pypi.simple.v1+json`); the
+  first by name with a `provenance` URL is read with
+  `Accept: application/vnd.pypi.integrity.v1+json`, and the first attestation bundle's
+  `publisher` `kind`, `repository` (any case) and `workflow` are the identity. A version with
+  neither has none.
+- **Rule.** The previous identity is the newest stable version (npm `x.y.z`; pip digits and dots
+  with an optional `.postN`, not yanked) published before the new one that has an identity. With
+  one, a new version with no identity is `provenance-missing:<name>` and one with a different
+  identity `provenance-changed:<name>`; either makes the tier `review`. With none, the gate adds
+  nothing: a package that never published provenance keeps the cooldown and the other rules.
+- **Fail closed.** A registry read that fails, takes over 10 seconds or does not parse, a new
+  version the registry does not list, an update with no version, or more than 20 registry reads
+  for one pull request is `provenance-unreadable:<name>`, tier `review`.
+
+The review activity then judges the release as it judges any review-tier pull request.
+
+#### Classifier gaps
+
+A pull request whose every reason is a read failure (`unparsed-updates`, `sources-disagree`,
+`dependabot-config-unreadable`, `dependabot-policy-unreadable`, `provenance-unreadable:<name>`)
+is review tier because the classifier could not read it, not because it is risky. The
+review-dependency select step writes a `::warning::classifier gap` naming those reasons, so a
+parse bug shows in the run log instead of quietly spending AI reviews; fix the classifier.
+
+### Verifier verdict
+
+`.github/workflows/pr-verify.yml` runs on main after each successful `pr-require-checks` run of a
+same-repository, non-draft pull request into main. It never runs the pull request's code: a model
+(`merge.verifier-model`) reads the diff, the trusted pull request text and its linked issues as
+data, and judges whether the diff delivers the issue's intent correctly and safely. The run
+uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON
+(`pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
+account type, `verdict`, `summary`, `notes`, `run_id`). The head SHA is the one `pr-require-checks`
+ran on, never the pull request's live head. A model error or an output that fails the schema
+uploads nothing. A head that already has a counted verdict from a completed run (a `fail` under any
+pull request number) is not judged again. Runs share one concurrency group per pull request and
+head and never cancel a running judgment.
+
+`merge.verify-authors` decides whose pull requests are judged. Under `lane`, the default, only one
+the lanes App opened is: a `Bot` account whose login is `merge.agent-identity`, compared as the
+pr-merge lane decides lane authorship. Any other author's is skipped before the model runs, with
+the reason `author-not-lane` and the step summary line `skipped: author not the lanes App`, since
+only lane-authored pull requests reach the pr-merge lane. `any` judges every author's. Any other
+value judges none (`verify-authors-invalid`). The trusted-spec rule below is scoped to that: on a
+lane pull request the App is the author and a human wrote the issue, so the spec can be trusted,
+while a human author who also wrote the linked issue would read `verify:untrusted-spec`, which
+never arises because such a pull request is neither judged nor read by the pr-merge lane.
+
+With `merge.require-verifier-verdict: true` the pr-merge lane reads the artifacts through their
+run records, since only steps of a run can upload its artifacts. A run is of verifier origin when
+it is `pr-verify.yml`, event `workflow_run`, on main, in this repository with a head on main. A
+`fail` counts from any such run, whatever its conclusion, because the upload comes before the
+run's later steps; a `pass` or `pass-notes` counts only from one that completed with success. Any
+other artifact with such a name is ignored. The resolver and the gate each hold this rule and the
+dependency-manager list, and one test runs both to keep them equal. At the pull request's vetted
+head:
+
+- created more than 80 days ago refuses (`verify:too-old`): artifacts last at most 90 days in this
+  repository (the retention maximum and its setting), so an older verdict may be gone;
+- a counted `fail` at the head, under any pull request number, refuses (`verify:fail`);
+- a counted `fail` at another head of the pull request (its number, one of its commits, or a
+  verdict recording its head branch) refuses (`verify:earlier-fail`);
+- a `fail` artifact tied to it (its number or one of its commits) whose run cannot be read, an
+  untied `fail` whose run is readable and of verifier origin but whose verdict record cannot be
+  downloaded, or any other failed read, refuses (`verify:unreadable`). An untied `fail` whose run
+  cannot be read is ignored. One unreadable record of an untied `fail` therefore blocks every pull
+  request until it can be read, expires or is deleted;
+- every counted `pass` or `pass-notes` for this pull request at the head is checked, whatever order
+  the listing returns them in, and the merge is allowed only when each allows (a changed spec is
+  reported before an untrusted one). Each refuses (`verify:spec-changed`) unless the
+  pull request's closing issues in this repository now are the ones its verdict recorded, none
+  was edited after the verdict's run started, and each issue's spec comments (written, and last
+  edited if ever, by a `User` on the trusted-actor list's humans other than the pull request's
+  author) are the ones it recorded by id and update time, none added, edited or deleted; a partial
+  comment read refuses `verify:unreadable`. It then allows the merge only when every linked
+  issue it records was written, and its body last edited if ever, by a `User` on the trusted-actor
+  list's humans other than the pull request's author (otherwise `verify:untrusted-spec`). The
+  model's spec text holds only what such accounts wrote;
+- no counted verdict refuses (`verify:missing`).
+
+The trusted-spec rule trusts an account, not a person. An agent session that uses an owner's `gh`
+login posts as that owner, so until agent sessions have their own GitHub identity, an issue or an
+admission marker from a trusted account counts as the owner's authority, including when an agent
+acting as that account wrote it. The owner accepts that risk: unattended merge is on
+(`merge.report-only: false`) before that identity exists (#7711).
+
+`verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and `verify:untrusted-spec` need a
+human. While `merge.report-only` is false the lane escalates such a refusal on the pull request
+([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it keeps one
+`<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, rewritten only
+when either changes, then adds the tracker's human-gated role label (`needs-human` unless
+`.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,
+so a label never stands unexplained, and a failed label is added by the next run; a rerun that
+finds both writes nothing. While it is true the refusal is only reported. The
+lane token's `issues: write` and `pull-requests: write` cover both writes. A human clears them
+by merging in person: the verdict is not a check run and stays out of `ci-status` and the required
+checks (github-iac ADR 0011), so a human merge needs `ci-status` alone. A queued entry without an
+allowing verdict at its live head leaves the queue. A dependency manager's pull request (a `Bot`
+account with a dependency manager's login; a `User` named like one is judged) needs no verdict: the lane decides it in its Dependabot class before the verdict is read, or refuses it, and
+its queued entry is not held for one. The gate lists every repository artifact once per
+candidate run, since pr-merge.yml runs the gate once per candidate. A listing that got a 5xx or a fast
+network error is read again, three reads in all with backoff, all inside the one gh timeout a single
+read would get; any other failure, a timeout, a 429 or a rate-limit 403 included, is not. A failed listing is kept for
+that run as well: the pull request and every queued entry refuse `verify:unreadable` without the
+listing being paged again, so a listing outage holds the whole queue rather than merging blind.
+The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
+`BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
+records and the download alone, and every other call keeps the lane token. That job checks out only
+main and runs no pull request code.
 
 ## Trust-root paths
 
@@ -479,16 +779,16 @@ The paths `.github/CODEOWNERS` lists with no owner are the eight synced data fil
 vocabulary, pyright and runner-policy data files) and the three synced hosted caller workflows
 (`pr-check-managed-files-hosted.yml`, `pr-review-hosted.yml`, `pr-review-security-hosted.yml`).
 The required `check-managed-files` job in `ci-status` fails any hand edit or deletion of them.
-`pr-merge` never merges a PR that
-touches a trust-root path, whatever its rung, and leaves it for a human. That refusal is recorded
-here and in `pr-merge`'s `never` rule in `lane-rules.json`; the merge activity enforces it when
-`pr-merge` is built.
+`pr-merge` refuses a PR that touches a path `merge.diff-check.denied-paths` lists and leaves it
+for a human. This repository lists none, so a lane PR touching a trust-root path merges on a
+passing verdict like any other (see the switches above).
 
 ## Loop caps
 
 One counter per PR, in the findings store, is shared by every lane. After `loop.review-rounds`
 full review rounds, one more high-severity-only pass runs; if it still has findings, the PR
-escalates. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
+escalates. The address-feedback activity hands a PR to a person once `loop.review-rounds` of its
+rounds have run. The default is 2; this repository sets 3. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
 escalates.
 
 ## Planning lane work

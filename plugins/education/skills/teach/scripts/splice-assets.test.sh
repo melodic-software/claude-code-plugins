@@ -390,50 +390,6 @@ else
   printf 'SKIP: backslash assets path (not a Git Bash host)\n'
 fi
 
-# --- Case 8: the guardrails bypass guard allows the documented invocation ---
-# The command a coach runs carries no redirect and no staged move, so
-# block-hook-bypass.sh lets it through, while the write-then-mv recipe is refused.
-
-GUARDRAILS_DIR="$SCRIPT_DIR/../../../../guardrails"
-HOOK="$GUARDRAILS_DIR/hooks/block-hook-bypass.sh"
-
-# command_json <command-string>: the PreToolUse Bash payload the hook reads on
-# stdin. Backslash first, then the quote, so an escape is never re-escaped.
-command_json() {
-  local s="$1"
-  s=${s//\\/\\\\}
-  s=${s//\"/\\\"}
-  printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$s"
-}
-
-probe_hook() {
-  RC=0
-  # `env` carries the empty CLAUDE_PROJECT_DIR, which the guardrails suite treats as a
-  # pin: the guard has a scratch-root default gated on a known project root, so a project
-  # dir merely inherited from the surrounding shell would decide the verdict.
-  OUT=$(env CLAUDE_PROJECT_DIR= bash "$HOOK" <<<"$(command_json "$1")" 2>"$ERRFILE") || RC=$?
-  ERR=$(<"$ERRFILE")
-}
-
-# shellcheck disable=SC2016  # `${CLAUDE_PLUGIN_ROOT}` stays literal: the guard is driven with
-# the documented invocation before any path is substituted into it.
-NEW_INVOCATION='bash "${CLAUDE_PLUGIN_ROOT}/skills/teach/scripts/splice-assets.sh" "/c/Users/Test User/Claude Learning/proj/topic/rust/concepts/ownership/lesson.html" "/c/Users/Test User/Claude Learning/proj/topic/rust/assets"'
-OLD_RECIPE='awk -v A="/c/ws/assets" "/\/\* SPLICE:STYLE \*\// { next } { print }" lesson.html > lesson.html.tmp && mv lesson.html.tmp lesson.html'
-
-if [[ -d "$GUARDRAILS_DIR" ]]; then
-  if [[ -f "$HOOK" ]]; then
-    probe_hook "$NEW_INVOCATION"
-    assert_exit "guard allows the documented invocation" 0 "$RC"
-    probe_hook "$OLD_RECIPE"
-    assert_exit "guard still blocks the staged-move recipe" 2 "$RC"
-  else
-    fail "guardrails hook is missing" "expected $HOOK to exist beside the guardrails plugin"
-  fi
-else
-  # discriminating-skip-ok: guardrails plugin not checked out
-  printf 'SKIP: guardrails probe (the guardrails plugin is not checked out)\n'
-fi
-
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

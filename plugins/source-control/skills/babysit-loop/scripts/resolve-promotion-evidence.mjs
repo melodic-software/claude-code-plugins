@@ -53,7 +53,9 @@
 // with no promoted cell or a promoted cell with no ISO 8601 ratified_at ("epoch-start-missing:");
 // an epoch start more than 85 days before now ("epoch-start-expired:"); a --repo other than a set
 // GITHUB_REPOSITORY ("repo-mismatch:"); a publisher that cannot be imported
-// ("publisher-unavailable:"); and any GitHub read that fails ("github-read-failed:").
+// ("publisher-unavailable:"); a deleted run or issue the publisher finds in the window
+// ("run-deleted:", "issue-deleted:", "issue-missing:"); and any GitHub read that fails
+// ("github-read-failed:").
 
 import { spawnSync } from "node:child_process";
 import { accessSync, constants, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -446,7 +448,7 @@ export async function inline({ argv = process.argv.slice(3), gh, now = Date.now(
       ...(gh ? { gh } : {}),
     }));
   } catch (error) {
-    emit(source, `github-read-failed: ${error.message}`);
+    emit(source, error.failClosedReason ?? `github-read-failed: ${error.message}`);
   }
   const evidence = at === undefined ? events : restartEvents(events, at);
   emitVerdict(runChecker(checker, [binding, "--evidence", "-", "--probe-evidence-root", probeRoot, ...credentialRoots], JSON.stringify(evidence)));

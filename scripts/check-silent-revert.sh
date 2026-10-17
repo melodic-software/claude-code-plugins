@@ -870,9 +870,21 @@ scan_commit() {
   # pre-passes are not limit-gated; only the inexact pass is. This flag
   # is a behavior change, not a pin, and it is inert on attribute_file
   # (pathspec-limited, no pair can form).
+  # A commit that changes plugins/<p>/CHANGELOG.md is consuming .changes/<p>/
+  # into it (scripts/release-plugins.sh), not removing it, so those fragment
+  # deletions are skipped; every other plugin's still count.
+  local -a scope=(-- .)
+  local p
+  run_attributing_git "$enum_list" \
+    "git diff --name-only failed enumerating CHANGELOG changes in $sha" \
+    diff --name-only --no-renames "$parent" "$sha" -- ':(glob)plugins/*/CHANGELOG.md'
+  while IFS= read -r p; do
+    p="${p#plugins/}"
+    scope+=(":(exclude,literal).changes/${p%/CHANGELOG.md}/")
+  done <"$enum_list"
   run_attributing_git "$enum_list" \
     "git diff --name-only failed enumerating $sha" \
-    diff --name-only -z -M -l0 --diff-filter=MD "$parent" "$sha"
+    diff --name-only -z -M -l0 --diff-filter=MD "$parent" "$sha" "${scope[@]}"
   local file
   while IFS= read -r -d '' file; do
     attribute_file "$parent" "$sha" "$file" >"$file_attr"

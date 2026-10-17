@@ -375,6 +375,13 @@ function laneSlots(doc, lane) {
   });
 }
 
+// Whether the lane holds a slot for the activity, in a config that passes
+// every check loadConfig makes; a config that does not is a Rejection.
+export function laneHasActivity(files, { lane, activity, configPath }) {
+  const doc = loadConfig(files, { configPath });
+  return laneSlots(doc, lane).some((entry) => entry.name === activity);
+}
+
 // The index of the requested activity's slot, -1 when none was requested.
 function selectedIndex(entries, lane, activity) {
   if (activity === undefined || activity === "") {
@@ -556,6 +563,7 @@ function resolveSlot(
     ...(activity.args === undefined ? {} : { args: activity.args }),
     ...(activity.prepare === undefined ? {} : { prepare: activity.prepare }),
     ...(activity.checks === undefined ? {} : { checks: activity.checks }),
+    ...(activity["verify-scripts"] === undefined ? {} : { "verify-scripts": activity["verify-scripts"] }),
     ...(activity["web-access"] === undefined ? {} : { "web-access": activity["web-access"] }),
     effect: activity.effect,
     gating: activity.gating,
@@ -639,6 +647,7 @@ export function resolve(
     loop: {
       "review-rounds": doc.loop?.["review-rounds"] ?? 2,
       "no-progress": doc.loop?.["no-progress"] ?? 3,
+      "dependency-review-rounds": doc.loop?.["dependency-review-rounds"] ?? 2,
     },
     merge: resolveMerge(doc.merge, configPath),
   };

@@ -29,12 +29,12 @@
       "id": 3,
       "name": "git-hook-install-is-not-run",
       "prompt": "/guardrails:check\n\nAlso install the commit-msg hook while you are at it.",
-      "expected_output": "Runs only the read-only check and says the commit-msg install is the explicit /guardrails:setup apply install-commit-msg action.",
+      "expected_output": "Runs only the read-only check and says the commit-msg hook install is the explicit /guardrails:setup apply install-git-hooks action.",
       "files": [],
       "expectations": [
-        "Does not run apply install-commit-msg or write to .git/hooks",
+        "Does not run apply install-git-hooks or write to .git/hooks",
         "Reports the node and jq rows and leaves the guard toggle report to /guardrails:setup check",
-        "Names /guardrails:setup apply install-commit-msg as the route for that request"
+        "Names /guardrails:setup apply install-git-hooks as the route for that request"
       ]
     }
   ]

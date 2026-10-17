@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { decide, main, readHoldPaths, readOutcome } from "./report-outcome.mjs";
+import { decide, main, parseOutcomeMarker, readHoldPaths, readOutcome } from "./report-outcome.mjs";
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
 
@@ -72,6 +72,24 @@ test("done opens a PR whose body starts with Closes #N", () => {
   const plan = decideDone();
   assert.equal(plan.action, "open-pr");
   assert.ok(plan.body.startsWith("Closes #77\n"), plan.body);
+});
+
+// A recorded keep-Refs decision (#7741): the PR links without closing, and a
+// human merges it because the merge gate finds no closing issue to read.
+test('done with "link": "refs" opens a PR that starts Refs: #N and carries the hold line', () => {
+  withDir({ "work-outcome.json": JSON.stringify({ ...done, link: "refs" }) }, (dir) => {
+    const plan = decideDone({ outcome: readOutcome(join(dir, "work-outcome.json")) });
+    assert.ok(plan.body.startsWith("Refs: #77\n"), plan.body);
+    assert.ok(!plan.body.includes("Closes #77"), plan.body);
+    assert.ok(plan.body.split("\n").includes("Hold: a human merges this"), plan.body);
+  });
+});
+
+test("an unknown link value still closes the issue", () => {
+  withDir({ "work-outcome.json": JSON.stringify({ ...done, link: "fixes" }) }, (dir) => {
+    const plan = decideDone({ outcome: readOutcome(join(dir, "work-outcome.json")) });
+    assert.ok(plan.body.startsWith("Closes #77\n"), plan.body);
+  });
 });
 
 test("done keeps a Conventional Commits title", () => {
@@ -474,4 +492,193 @@ test("main refuses a lane.json branch that is not this issue's lane branch", asy
       assert.ok(!calls.some((c) => c.path.endsWith("/pulls")));
     },
   );
+});
+
+// The limited exit (FINAL-DESIGN C2): a run the usage limit stopped leaves one
+// marker comment naming when the limit resets, keeps agent-ready and adds no
+// label. With no reset in the record, the reset is the run's end plus five
+// hours (the shortest plan limit window).
+test("a limit-stopped run is limited: one marker comment, agent-ready kept, no label", () => {
+  const plan = decide({
+    outcome: { exit: "stopped", reason: "", title: "", summary: "", unread: true },
+    issueNumber: 77,
+    issueLabels: ["agent-ready"],
+    branch: "",
+    changedFiles: [],
+    limit: { resets: Date.parse("2026-10-17T18:00:00Z") },
+    now: Date.parse("2026-10-17T12:00:00Z"),
+    runId: "555",
+  });
+  assert.equal(plan.action, "limited");
+  assert.deepEqual(plan.addLabels, []);
+  assert.deepEqual(plan.removeLabels, []);
+  assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=limited resets=2026-10-17T18:00:00Z run=555 -->\n"));
+});
+
+test("a limit stop with no reset time restarts five hours after the run ended", () => {
+  const plan = decide({
+    outcome: { exit: "stopped", reason: "", title: "", summary: "", unread: true },
+    issueNumber: 77,
+    issueLabels: ["agent-ready"],
+    branch: "",
+    changedFiles: [],
+    limit: { resets: null },
+    now: Date.parse("2026-10-17T12:00:00Z"),
+    runId: "555",
+  });
+  assert.equal(plan.resets, "2026-10-17T17:00:00Z");
+});
+
+// A stated reset is held between one hour and seven days after the stop, so a
+// reset in the past cannot loop restarts and one far off cannot park the issue.
+test("a limit stop's stated reset is held between one hour and seven days out", () => {
+  for (const [resets, expected] of [
+    ["2026-10-01T00:00:00Z", "2026-10-17T13:00:00Z"],
+    ["2027-01-01T00:00:00Z", "2026-10-24T12:00:00Z"],
+  ]) {
+    const plan = decide({
+      outcome: { exit: "stopped", reason: "", title: "", summary: "", unread: true },
+      issueNumber: 77,
+      issueLabels: ["agent-ready"],
+      branch: "",
+      changedFiles: [],
+      limit: { resets: Date.parse(resets) },
+      now: Date.parse("2026-10-17T12:00:00Z"),
+      runId: "555",
+    });
+    assert.equal(plan.resets, expected, resets);
+  }
+});
+
+// The lane record can be forged by any code the run executed, so it never
+// overrides an outcome the skill wrote.
+test("a stop the skill reported goes to a person even with a limit record", () => {
+  const plan = decide({
+    outcome: { exit: "stopped", reason: "The tests cannot run here.", title: "", summary: "" },
+    issueNumber: 77,
+    issueLabels: ["agent-ready"],
+    branch: "",
+    changedFiles: [],
+    limit: { resets: null },
+  });
+  assert.notEqual(plan.action, "limited");
+  assert.deepEqual(plan.addLabels, ["needs-human"]);
+  assert.match(plan.comment, /The tests cannot run here\./);
+});
+
+test("done with no branch still hands back even with a limit record", () => {
+  const plan = decide({
+    outcome: { exit: "done", reason: "", title: "", summary: "" },
+    issueNumber: 77,
+    issueLabels: ["agent-ready"],
+    branch: "",
+    changedFiles: [],
+    limit: { resets: null },
+  });
+  assert.notEqual(plan.action, "limited");
+  assert.deepEqual(plan.addLabels, ["needs-human"]);
+});
+
+test("an unreadable outcome file with a limit record reads as limited", () => {
+  const plan = decide({
+    outcome: readOutcome("/nonexistent/work-outcome.json"),
+    issueNumber: 77,
+    issueLabels: ["agent-ready"],
+    branch: "",
+    changedFiles: [],
+    limit: { resets: null },
+    now: Date.parse("2026-10-17T12:00:00Z"),
+  });
+  assert.equal(plan.action, "limited");
+});
+
+test("a pushback stays a pushback even on a limit-stopped run", () => {
+  const plan = decide({
+    outcome: { exit: "pushback", reason: "Unclear.", title: "", summary: "" },
+    issueNumber: 77,
+    issueLabels: ["agent-ready"],
+    branch: "",
+    changedFiles: [],
+    limit: { resets: null },
+  });
+  assert.deepEqual(plan.addLabels, ["needs-human"]);
+  assert.deepEqual(plan.removeLabels, ["agent-ready"]);
+});
+
+test("the limited marker reads back with its reset and run", () => {
+  assert.deepEqual(parseOutcomeMarker("<!-- work-resolve-issue outcome=limited resets=2026-10-17T18:00:00Z run=555 -->\ntext"), {
+    outcome: "limited",
+    resets: Date.parse("2026-10-17T18:00:00Z"),
+    run: "555",
+  });
+  assert.equal(parseOutcomeMarker("<!-- work-resolve-issue outcome=stopped -->").outcome, "stopped");
+  assert.equal(parseOutcomeMarker("hello"), null);
+});
+
+const LIMIT_NOW = Date.parse("2026-10-17T12:00:00Z");
+const LIMITED_LANE = JSON.stringify({ branch: "", class: "rate-limit", resets: "2026-10-17T18:00:00Z" });
+
+test("main on a limit stop comments the marker and touches no label", async () => {
+  await withDir({ "lane.json": LIMITED_LANE }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["GET", /\/issues\/77\/comments$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: env(dir), fetch, now: LIMIT_NOW }), 0);
+    const posted = calls.filter((c) => c.method === "POST");
+    assert.equal(posted.length, 1);
+    assert.ok(posted[0].body.body.startsWith("<!-- work-resolve-issue outcome=limited resets=2026-10-17T18:00:00Z run=123 -->"));
+    assert.ok(!calls.some((c) => c.path.endsWith("/labels") || c.method === "DELETE"));
+  });
+});
+
+test("main posts the limited marker once per run", async () => {
+  await withDir({ "lane.json": LIMITED_LANE }, async (dir) => {
+    const marker = "<!-- work-resolve-issue outcome=limited resets=2026-10-17T18:00:00Z run=123 -->";
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["GET", /\/issues\/77\/comments$/, 200, [{ user: { login: "melodic-automation-lanes[bot]" }, body: marker }]],
+    ]);
+    assert.equal(await main({ env: env(dir), fetch, now: LIMIT_NOW }), 0);
+    assert.ok(!calls.some((c) => c.method === "POST"));
+  });
+});
+
+test("a late rerun finds its marker past the first page of the whole history", async () => {
+  await withDir({ "lane.json": LIMITED_LANE }, async (dir) => {
+    const marker = "<!-- work-resolve-issue outcome=limited resets=2026-10-17T18:00:00Z run=123 -->";
+    const filler = Array.from({ length: 100 }, () => ({ user: { login: "someone" }, body: "hi" }));
+    const calls = [];
+    const fetch = async (url, init = {}) => {
+      const method = init.method ?? "GET";
+      calls.push({ method, url });
+      const { pathname, searchParams } = new URL(url);
+      const ok = (body) => ({ ok: true, status: 200, json: async () => body });
+      if (method !== "GET") {
+        return { ok: true, status: 201, json: async () => ({}) };
+      }
+      if (pathname.endsWith("/comments")) {
+        return ok(searchParams.get("page") === "1" ? filler : [{ user: { login: "melodic-automation-lanes[bot]" }, body: marker }]);
+      }
+      return ok(ISSUE[2]);
+    };
+    // Two days after the stop: a since-bounded read would miss the marker.
+    assert.equal(await main({ env: env(dir), fetch, now: LIMIT_NOW + 2 * 86_400_000 }), 0);
+    assert.ok(!calls.some((call) => call.method === "POST"));
+    assert.ok(!calls.some((call) => call.url.includes("since=")));
+  });
+});
+
+test("main does not take another account's copy of the marker as its own", async () => {
+  await withDir({ "lane.json": LIMITED_LANE }, async (dir) => {
+    const marker = "<!-- work-resolve-issue outcome=limited resets=2026-10-17T18:00:00Z run=123 -->";
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["GET", /\/issues\/77\/comments$/, 200, [{ user: { login: "stranger" }, body: marker }]],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: env(dir), fetch, now: LIMIT_NOW }), 0);
+    assert.equal(calls.filter((c) => c.method === "POST").length, 1);
+  });
 });

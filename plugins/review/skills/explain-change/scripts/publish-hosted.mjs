@@ -25,10 +25,9 @@ import { fileURLToPath } from "node:url";
 
 import { publishGate } from "../../../lib/publish-gate.mjs";
 import { validateView } from "../../../lib/view-builder.mjs";
+import { lookupVisibility, parseRepo } from "./repo-visibility.mjs";
 
 const ID = /^[A-Za-z0-9_-]{22}$/;
-const NAME = /^[A-Za-z0-9_.-]+$/;
-const HOST = /^(?=.{1,253}$)(?![\d.]+$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i;
 const VISIBILITIES = ["public", "private"];
 
 /** The data block's strings, one per line, so a credential the JSON escaping split is still read whole. */
@@ -70,21 +69,6 @@ function writeSidecar(path, current, stale) {
 }
 
 const pagesPublish = (args) => spawnSync("pages-publish", args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
-
-/** Logged in through gh's stored hosts; an enterprise token in the environment would vouch for any host, so it is left out. */
-function ghLoggedIn(host) {
-  const { GH_ENTERPRISE_TOKEN, GITHUB_ENTERPRISE_TOKEN, ...env } = process.env;
-  return spawnSync("gh", ["auth", "status", "--hostname", host], { env, stdio: "ignore", timeout: 30000 }).status === 0;
-}
-
-/** REST, not `gh repo view`: GraphQL is refused in some sessions. Anything but a clean answer is UNKNOWN, which the gate sends private. */
-function lookupVisibility(host, repo) {
-  // A host gh is not logged in to could be anyone's server, answering "public" for a private repository.
-  if (host && !ghLoggedIn(host)) return "UNKNOWN";
-  const run = spawnSync("gh", ["api", ...(host ? ["--hostname", host] : []), `repos/${repo}`, "--jq", ".visibility"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 30000 });
-  const answer = run.status === 0 && !run.error ? run.stdout.trim() : "";
-  return ["public", "private", "internal"].includes(answer) ? answer.toUpperCase() : "UNKNOWN";
-}
 
 /** @returns {{exit: number, result: object}} */
 export function publishHosted({ page, host, repo, pr, dataDir }) {
@@ -147,17 +131,12 @@ function main(argv) {
   const [page, ...rest] = argv;
   const flags = {};
   for (let i = 0; i < rest.length; i += 2) flags[rest[i]] = rest[i + 1];
-  const parts = String(flags["--repo"] ?? "").split("/");
-  const host = parts.length === 3 ? parts.shift() : undefined;
-  const [owner, name] = parts;
+  const target = parseRepo(flags["--repo"]);
   const ok =
     page &&
     !page.startsWith("--") &&
     rest.length === 6 &&
-    (host === undefined || HOST.test(host)) &&
-    parts.length === 2 &&
-    NAME.test(owner ?? "") &&
-    NAME.test(name ?? "") &&
+    target &&
     /^\d{1,9}$/.test(flags["--pr"] ?? "") &&
     isAbsolute(flags["--data-dir"] ?? "");
   if (!ok || !existsSync(page)) {
@@ -166,8 +145,8 @@ function main(argv) {
   }
   const { exit, result } = publishHosted({
     page: resolve(page),
-    host,
-    repo: `${owner}/${name}`,
+    host: target.host,
+    repo: target.repo,
     pr: flags["--pr"],
     dataDir: flags["--data-dir"],
   });

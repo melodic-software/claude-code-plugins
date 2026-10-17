@@ -37,7 +37,6 @@ plugins/performance/scripts/ab.test.sh
 
 # Always-on hooks assert the marketplace latency budget (docs/conventions/hook-budget/README.md).
 plugins/desktop-notification/hooks/desktop-notification.test.sh
-plugins/instruction-placement/hooks/index-drift.test.sh
 plugins/markdown-format/hooks/markdown-format.test.sh
 plugins/source-control/hooks/pr-body-linkage-gate.test.sh
 plugins/typos-format/hooks/typos-format.test.sh

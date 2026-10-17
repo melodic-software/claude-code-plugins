@@ -71,7 +71,7 @@ say(/protected-path-conflict/.test(prepare.run ?? ""), "a conflicted workflow pa
 say(mint >= 0 && checkout > mint, "the lane token is minted before the head checkout");
 const recheck = at((s) => s.id === "head-recheck");
 say(recheck >= 0 && recheck < mint, "the head re-read runs before the mint");
-for (const id of ["merge-bin", "stage"]) {
+for (const id of ["merge-bin", "hold-label", "stage"]) {
   const i = at((s) => s.id === id);
   say(i >= 0 && i < checkout, `step ${id} copies from the base before the head checkout`);
 }
@@ -105,13 +105,64 @@ say(skill.with?.allowed_bots === "${{ inputs.dispatcher-run-id != '' && 'github-
 say(/--setting-sources user/.test(args) && /--permission-mode dontAsk/.test(args) && !/bypass/i.test(args),
   "the skill loads user settings only, under dontAsk");
 const stage = readFileSync(".github/actions/collect-base-activity/action.yml", "utf8");
-// The two exceptions: an activity's `checks`, each a read-only base-copy
-// wrapper the skill may run with no arguments, and, under web-access `any`,
-// the read-only base copy of the two docs scripts.
+// The four exceptions: an activity's `checks`, each a read-only base-copy
+// wrapper the skill may run with no arguments; its `verify-scripts`, each a
+// read-only wrapper over a base copy it may run with any arguments; under web-access `any`,
+// the read-only base copy of the two docs scripts; and under prepare:
+// review-threads, the read-only review-thread tool wrapper.
 const docsRule = String.raw`allowed="$allowed,Bash(bash $DOCS_DIR/$script *),Bash(bash \\\"$DOCS_DIR/$script\\\" *)"`;
 const allowedLines = stage.split("\n").filter((l) => /allowed="\$allowed|allowed="Skill/.test(l));
-say(allowedLines.length > 0 && allowedLines.every((l) => !/Bash/.test(l) || ['allowed="$allowed,Bash($wrapper)"', docsRule].includes(l.trim())),
-  "the runner grants the skill no Bash but its check wrappers and the docs scripts");
+say(allowedLines.length > 0 && allowedLines.every((l) => !/Bash/.test(l) || ['allowed="$allowed,Bash($wrapper)"', 'allowed="$allowed,Bash($verifier *)"', docsRule, 'allowed="$allowed,Bash($tool *)"'].includes(l.trim())),
+  "the runner grants the skill no Bash but its check wrappers, its verify-scripts, the docs scripts and the review-thread tool");
+say(/chmod -R a-w "\$VERIFY_DIR"/.test(stage) && /disallowed="\$\{disallowed:\+\$disallowed,\}Edit\(\/\$VERIFY_DIR\/\*\*\),Write\(\/\$VERIFY_DIR\/\*\*\)"/.test(stage),
+  "the verify-scripts copy is read-only to the skill");
+say(/chmod -R a-w "\$FEEDBACK_DIR"/.test(stage) && /Edit\(\/\$FEEDBACK_DIR\/\*\*\),Write\(\/\$FEEDBACK_DIR\/\*\*\),Edit\(\/\$FEEDBACK_STATE\/\*\*\),Write\(\/\$FEEDBACK_STATE\/\*\*\)/.test(stage),
+  "the review-thread tool, its thread file and its log are out of the skill's Edit and Write");
+// review-threads decides before the mint with the job token. After the
+// skill, a pinned action (no PATH lookup the activity could redirect) records
+// the gated head and kept threads beside the model's replies; no step of the
+// model run holds a reply or resolve call.
+const select = at((s) => s.id === "feedback-select");
+say(select >= 0 && select < mint && byId("feedback-select").env?.GITHUB_TOKEN === "${{ github.token }}",
+  "the review-threads select step runs before the mint, with the job's read-only token");
+say(/proceed != 'false'/.test(byId("head-recheck").if ?? ""), "a select step that does not proceed skips the mint");
+const feedbackCollect = byId("feedback-collect");
+say(String(feedbackCollect.uses ?? "").startsWith("actions/github-script@") && at((s) => s.id === "feedback-collect") > at((s) => s.id === "promote")
+  && feedbackCollect.env?.HEAD_SHA === "${{ steps.gate.outputs.head-sha }}" && !("github-token" in (feedbackCollect.with ?? {})),
+  "the replies are collected by a pinned action after the promote step, with the gated head and no lane token");
+const runSteps = JSON.stringify(steps);
+say(!/resolveReviewThread|\/replies['"`]|record-round/.test(runSteps) && !/feedback-round/.test(JSON.stringify(steps.map((s) => s.id))),
+  "no step of the write runner replies on or resolves a review thread");
+const promoteScript = String(byId("promote").with?.script ?? "");
+const promoteThreads = String(byId("promote").env?.THREAD_FILE ?? "");
+say(promoteThreads.includes("prepare == 'review-threads'") && promoteThreads.includes("lane-feedback/threads.json"),
+  "review-threads mode hands the promote step the kept threads' paths");
+say(promoteScript.indexOf("if (THREAD_FILE)") >= 0 && promoteScript.indexOf("if (THREAD_FILE)") < promoteScript.indexOf("updateRef"),
+  "the promote step checks the lane branch's paths before it moves the PR branch");
+say(/run-sha256/.test(String(feedbackCollect.with?.script ?? "")) && byId("act-script").env?.RUN_SHA256 === "${{ inputs.review-run-sha256 }}",
+  "the reply script gets the SHA-256 of the run.json the collect step wrote");
+// "Re-run failed jobs" on the reply job alone bumps github.run_attempt but
+// keeps the model job's outputs, so the replies artifact is named by the
+// model job's attempt on both sides, never by the downloading job's own.
+const replyUpload = steps.find((s) => s.name === "Upload the review-thread replies");
+const replyDownload = steps.find((s) => s.name === "Download the review-thread replies");
+say(replyUpload?.with?.name === "feedback-replies-${{ github.run_attempt }}"
+  && replyDownload?.with?.name === "feedback-replies-${{ inputs.review-run-attempt }}"
+  && wf.jobs.run.outputs["feedback-run-attempt"] === "${{ steps.feedback-collect.outcome == 'success' && github.run_attempt || '' }}",
+  "the reply job downloads the replies by the model job's attempt, so a re-run of it alone still finds them");
+const actors = at((s) => s.id === "reply-actors");
+say(actors >= 0 && actors < checkout && /\.base\/\.github\/standards\/trusted-actors\/trusted-actors\.json/.test(byId("reply-actors").run ?? ""),
+  "the reply script's trusted-actors list is copied from the base before the head checkout");
+say(/\?\*:feedback-uncertain \| \?\*:feedback-not-landed \| \?\*:feedback-invalid\)/.test(byId("act-script").run ?? "")
+  && /\?\*:feedback-partial \| \?\*:feedback-incomplete \| \?\*:feedback-disputed\)/.test(byId("act-script").run ?? ""),
+  "a script escalates only with the reply script's own reasons, and only in review-replies mode");
+say(/:\?\*:dependency-invalid \| :\?\*:dependency-fix-not-landed\)/.test(byId("act-script").run ?? "")
+  && /:\?\*:dependency-security-close \| :\?\*:dependency-escalate \| :\?\*:dependency-config-unreadable\)/.test(byId("act-script").run ?? "")
+  && /:\?\*:dependency-files-truncated \| :\?\*:dependency-control-uncited\)/.test(byId("act-script").run ?? ""),
+  "a script escalates with the verdict script's reasons only in dependency-verdict mode");
+say(promoteScript.indexOf("verdict !== 'fix'") >= 0 && promoteScript.indexOf("verdict !== 'fix'") < promoteScript.indexOf("updateRef")
+  && /\[dependabot skip\]/.test(promoteScript) && /\\\.github/.test(promoteScript),
+  "dependency-review promotes only a fix verdict's commits, none under .github/, each with [dependabot skip]");
 say(/chmod -R a-w "\$CHECKS_DIR"/.test(stage) && /disallowed="\$\{disallowed:\+\$disallowed,\}Edit\(\/\$CHECKS_DIR\/\*\*\),Write\(\/\$CHECKS_DIR\/\*\*\)"/.test(stage),
   "the check wrappers and their base copy are read-only to the skill");
 say(/chmod -R a-w "\$DOCS_DIR"/.test(stage) && /disallowed="Edit\(\/\$DOCS_DIR\/\*\*\),Write\(\/\$DOCS_DIR\/\*\*\)"/.test(stage),
@@ -169,8 +220,13 @@ const octokitCallers = steps.filter((s) => /getOctokit/.test(s.with?.script ?? "
 say(octokitCallers.length === 0, `no github-script step calls getOctokit (${octokitCallers.join(", ") || "none"})`);
 say(labels >= 0 && labels < cs.indexOf("createCommit") && /do-not-merge/.test(cs) && /HOLD_LABEL/.test(cs),
   "the commit step re-reads the PR's hold labels before creating the commit");
-say(/\.base\/\.work-item-tracker\.json/.test(copy) && /hold-label=/.test(copy),
-  "the human-gated role label is resolved from the base before the head checkout");
+const holdLabel = byId("hold-label").run ?? "";
+const promoteEnv = byId("promote").env ?? {};
+say(/\.base\/\.work-item-tracker\.json/.test(holdLabel) && /labels-absent/.test(holdLabel) && /echo "labels=\$labels"/.test(holdLabel)
+  && [commit.env, promoteEnv].every((env) => /^\$\{\{ steps\.hold-label\.outputs\.labels \}\}$/.test(String(env?.HOLD_LABELS))
+    && String(env?.READ_TOKEN) === "${{ github.token }}")
+  && /^\$\{\{ steps\.gate\.outputs\.pr-number \}\}$/.test(String(promoteEnv.PR_NUMBER)),
+  "the hold labels are resolved from the base before the head checkout and reach the commit and promote steps with the read-only token");
 
 // Promote moves the PR branch only to the commit the commit step made.
 const promote = byId("promote");

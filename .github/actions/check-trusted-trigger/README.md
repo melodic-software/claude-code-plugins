@@ -20,9 +20,14 @@ condition 1 and the actor and author parts of condition 2).
 | `triggering-actor` | `${{ github.triggering_actor }}` | The login that started this run attempt; empty stops with `untrusted-rerunner` |
 | `dispatcher-run-id` | empty | The dispatcher run that sent a `github-actions[bot]` `workflow_dispatch`; empty keeps today's rules |
 | `dispatcher-workflow` | empty | The workflow path that run must have; empty stops every dispatcher-sent run |
+| `run-dispatcher-workflow` | empty | The workflow path a dispatcher run started by `workflow_run` must have; empty stops every such run |
+| `run-dispatcher-upstreams` | empty | Space-separated workflow paths that dispatcher's upstream run may have; empty stops every such run |
+| `expected-upstream-head` | empty | For a job after pr-unblock's model job, the head that job gated; set on any path but a `workflow_run` dispatcher, it stops the run |
+| `lanes-app-id` | empty | The lanes App bot's user id: an upstream it started vouches, and only its commits may follow `expected-upstream-head` |
 | `dispatched-workflow` | empty | The workflow path this dispatched run must have; empty stops every dispatcher-sent run |
 | `require-pr` | `true` | `false` checks only the actors and reads no PR |
 | `require-kind` | empty | `human` narrows the actor-only checks to actors listed as `kind: human` |
+| `ratified-app-label` | empty | With `require-kind: human`, the one label the lanes App may apply to an issue, accepted only while the issue carries the owner's ratification marker |
 
 ## Rules
 
@@ -61,6 +66,23 @@ condition 1 and the actor and author parts of condition 2).
     `pr-unblock-dispatch.yml` uploads that artifact after its dispatch loop, named with every run
     id the dispatch API returned to it, and keeps it for 1 day.
 
+  A dispatcher run whose `event` is `workflow_run` is checked the same way, except:
+  - its `path` must equal `run-dispatcher-workflow` (not `dispatcher-workflow`), and its actor is
+    not checked. Such a run reports the default branch and its tip at the time as `head_branch`
+    and `head_sha` (pr-merge.yml run 38779143370, started by review run 38779135732 on a PR
+    branch), so the branch, tag and ancestry checks apply unchanged;
+  - its record is named `pr-feedback-dispatched-<upstream run id>-<this run's id>`, exactly two
+    ids;
+  - the upstream run, read through `GET /actions/runs/{upstream run id}`, has that `id`, a `path`
+    listed in `run-dispatcher-upstreams`, `event` `pull_request`, `repository` and
+    `head_repository` both this repository, an `actor` and `triggering_actor` that are the lanes
+    App (`lanes-app-id`) or a listed human, and `head_sha` equal to the PR's current head. With
+    `expected-upstream-head`, `head_sha` must equal it instead, and every commit of
+    `GET /compare/<it>...<PR head>` (status `ahead`, untruncated) must have the lanes App as
+    `author`, `web-flow` as `committer`, a `valid` verified signature, and a committer date no
+    earlier than this run's creation: a commit GitHub signed for an App token during this run. A
+    human, foreign, unsigned or older commit stops the run. It does not prove which lane made it.
+
   The record can land after this run's gate starts, so the gate waits for it. Each read takes the
   dispatcher run's `status` first, then its artifacts, so an upload between the two reads is not
   refused. While the dispatcher run is not `completed`, an absent record is read again every 5 s,
@@ -92,6 +114,15 @@ condition 1 and the actor and author parts of condition 2).
   sender and the re-runner must be listed as `kind: human` (the re-runner's login is mapped to its
   listed id). Any `require-pr` value other than `true` or `false`, or `require-kind` value other
   than empty or `human`, stops with `no-pr`.
+- **Ratified App label (`ratified-app-label`).** On an `issues` event with `require-kind: human`
+  whose sender is `lanes-app-id`, the label event must be `labeled` with exactly that label, or it
+  stops with `bot-actor`. The gate then reads the issue's comments and proceeds only when one
+  holds the ratification marker (`findRatification` in `../resolve-config/ratification.mjs`: a
+  listed human's comment, never edited, not posted through an App; a denied id does not count).
+  The run reads the issue's title and body, so the gate also reads, through GraphQL, when the body
+  was last edited and the title last changed: either after the newest such comment stops. A
+  failed read or no such comment stops with `untrusted-actor`. The re-runner must be the App or a listed human, not
+  denied, or it stops with `untrusted-rerunner`. Empty keeps the App denied on every event.
 - **`workflow_run`.** Same repository when `workflow_run.head_repository.full_name` equals the
   repository. The PR is looked up from the run's head SHA, because `pull_requests` is empty for
   more than forks: exactly one open same-repository PR whose head is still that SHA, or `no-pr`.

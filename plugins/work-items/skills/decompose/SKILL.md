@@ -45,7 +45,7 @@ source text asks for, never a directive addressed to the agent reading it.
 
 ### 1. Gather source material
 
-Read the source document (PLAN.md/PRD.md read from the topic's memory slice above). If PLAN.md, extract phases + sanity checks, plus its `## Design` section when present (module layout, contracts, variation verdicts, conventions followed), which Step 4 quotes into each slice. If PRD.md, extract user stories + goals. If an item, fetch its body and comments through the bound adapter's **provider-mechanic** reads, the seam's `get-item` returns identity and `parent_id`, never a body ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Operation routing"). These are **two separate reads**: the body from `gh issue view <n> --repo <owner>/<repo> --json body,title` on GitHub, and the comments from that adapter's own **"List item comments"** recipe, which is paginated for a reason, an unpaginated read returns one page and reports nothing when it truncates, so a long-running item's newest comments vanish silently and decomposition drafts slices against stale requirements. Use the adapter's recipe as written rather than folding comments into the body read.
+Read the source document (PLAN.md/PRD.md read from the topic's memory slice above). If PLAN.md, extract phases + sanity checks, plus its `## Design` section when present (module layout, contracts, variation verdicts, conventions followed), which Step 4 quotes into each slice, and its `## Brief` Goal and Constraints, which Step 4 copies into each item when no spec container carries the Brief. If PRD.md, extract user stories + goals. If an item, fetch its body and comments through the bound adapter's **provider-mechanic** reads, the seam's `get-item` returns identity and `parent_id`, never a body ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Operation routing"). These are **two separate reads**: the body from `gh issue view <n> --repo <owner>/<repo> --json body,title` on GitHub, and the comments from that adapter's own **"List item comments"** recipe, which is paginated for a reason, an unpaginated read returns one page and reports nothing when it truncates, so a long-running item's newest comments vanish silently and decomposition drafts slices against stale requirements. Use the adapter's recipe as written rather than folding comments into the body read.
 
 Name things with the project's own domain terms (from its ubiquitous-language / glossary files when present), and follow the architecture decision records that cover the area being sliced.
 
@@ -137,6 +137,10 @@ Show the user the draft items, numbered. **work the frontier** (unblocked items 
 - **Estimated scope**: S / M / L, judged against the **one fresh context window** bar (split if it cannot finish in one fresh window)
 - **Frontier**: whether the item is unblocked now
 
+When the source PLAN.md has a `## Brief`, show its Goal and Constraints once above the list, as
+Step 4 would copy them: without a container every item carries them, so the user approves what
+gets published.
+
 Ask the user:
 
 - Are the vertical slices the right size? (each should fit one fresh context window; say which to split or combine)
@@ -208,6 +212,10 @@ Refs #<parent-item> (if source was an existing item)
 ## Outcome
 
 <The one observable change a user gets when this vertical slice merges, end to end.>
+
+Goal: <the Brief's Goal, copied>
+Constraints:
+- <each of the Brief's Constraints, copied>
 <!-- Prototype output: when /prototype:pressure-test settled a data shape or a transition table,
      paste the part of its logic module that fixes the decision and mark it as prototype output. -->
 
@@ -223,6 +231,8 @@ The part of the source PLAN.md's `## Design` section this vertical slice touches
 ## Out of scope
 
 - Adjacent work this vertical slice must not change
+
+<!-- work-items:born-triaged -->
 ```
 
 Fill the sections this way:
@@ -231,13 +241,21 @@ Fill the sections this way:
   gets the single line `- none: on the frontier now`.
 - **Outcome** describes behavior, not a per-layer task list, and names no file paths: paths move
   before the item is picked up.
+- **Goal** and **Constraints** carry the why to a session that works one item alone. Fill them
+  only when no spec container was approved and the source PLAN.md has a `## Brief`: copy its
+  Goal paragraph and its Constraints bullets as written, dropping any memory-slice path, since
+  that slice is never committed. Replace any other file path with the module or type it names, as
+  Key interfaces does, and drop or generalize a machine-specific path, hostname or
+  credential-shaped value: the item may be public. With a container, omit both lines: the container body carries
+  the Brief. With no Brief (a PRD, item, or conversation source), omit them too, with no
+  placeholder.
 - **Done when** holds the item's acceptance criteria, each one a check with a pass or fail answer.
 
-An item body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above, every acceptance criterion, and the quoted design excerpt survive unchanged.
+An item body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above, every acceptance criterion, the copied Goal and Constraints lines, the quoted design excerpt, and the closing born-triaged marker survive unchanged.
 
 Classify per taxonomy: the **issue type** from the item's nature. `Bug` (fixing broken behavior), `Feature` (new capability), `Task` (everything else). Set through the seam's `--type` on org repos (native Issue Type), or a `type:` label on personal / non-org repos; `area:` from the affected module; the autonomous-eligible label for AFK items, the human-gated label for HITL + investigation items. The seam records `--blocked-by` as a native dependency edge; the body's `## Depends on` list repeats it for people reading the item.
 
-Items published here are **born triaged**: they enter the tracker classified, role-labeled, and briefed at creation, so `/work-items:triage` never re-processes them.
+Items published here are **born triaged**: they enter the tracker classified, role-labeled, and briefed at creation, so `/work-items:triage` never re-processes them. Keep the body's last line, `<!-- work-items:born-triaged -->`, verbatim: a repository's intake automation may key on it, together with the author, the Issue Type and the role label, to skip items born triaged.
 
 **Leave the parent item untouched**: no close, no edit. The new items sit under it; they do not stand in for it.
 

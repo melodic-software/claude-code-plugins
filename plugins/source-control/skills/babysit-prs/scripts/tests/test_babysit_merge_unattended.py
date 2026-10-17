@@ -30,6 +30,7 @@ from unittest import mock
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import babysit_dependabot as dependabot
 import babysit_gh as gh
 import babysit_merge as merge
 import babysit_merge_policy as policy
@@ -349,9 +350,28 @@ class Unattended(unittest.TestCase):
         # Raised by the lane evidence read in place of its answer.
         self.lane_error: Exception | None = None
         # The pr-merge lane's eligibility and its re-read before the enqueue.
-        self.lane_eligible = policy.Eligibility(True, None, "C2")
+        self.lane_eligible = policy.Eligibility(True, None, "C2", 41)
         self.lane_recheck: str | None = None
         self.lane_recheck_kwargs: list[dict[str, Any]] = []
+        # True runs the real re-read over a stubbed `_graphql`.
+        self.real_lane_recheck = False
+        # The owner's ratification read (comments and the trusted list).
+        self.ratification_now: str | None = None
+        self.ratification_reads: list[tuple[Any, ...]] = []
+        # The pull request's REST author, and the Dependabot class's reads:
+        # the assessment's, then the re-read before the enqueue.
+        self.pr_user = {"login": IDENTITY, "type": "Bot"}
+        self.pr_labels: list[dict[str, Any]] = []
+        self.dependabot_reads: list[policy.Eligibility] = []
+
+    def _dependabot_eligibility(self, *args: Any, **kwargs: Any) -> Any:
+        if not self.dependabot_reads:
+            raise AssertionError("the Dependabot class was read for this pull request")
+        return (
+            self.dependabot_reads.pop(0)
+            if len(self.dependabot_reads) > 1
+            else self.dependabot_reads[0]
+        )
 
     def _lane_evidence(self, *args: Any) -> Any:
         if self.lane_error is not None:
@@ -376,7 +396,8 @@ class Unattended(unittest.TestCase):
             "node_id": self.node_id,
             "base": {"ref": "main", "sha": BASE},
             "head": {"ref": "feat", "sha": self.scored_head},
-            "user": {"login": IDENTITY, "type": "Bot"},
+            "user": self.pr_user,
+            "labels": self.pr_labels,
         }
         kills = list(self.kill)
         self.capture = mock.Mock(side_effect=self._capture)
@@ -448,15 +469,40 @@ class Unattended(unittest.TestCase):
             mock.patch.object(policy, "in_flight", self.in_flight),
             mock.patch.object(policy, "read_promotion", return_value=self.promotion),
             mock.patch.object(policy, "eligibility", return_value=self.eligible),
-            mock.patch.object(
-                policy, "lane_eligibility", return_value=self.lane_eligible
+            # None runs the real lane eligibility over the stubbed reads.
+            *(
+                [
+                    mock.patch.object(
+                        policy, "lane_eligibility", return_value=self.lane_eligible
+                    )
+                ]
+                if self.lane_eligible is not None
+                else []
             ),
             mock.patch.object(
                 policy,
-                "recheck_lane_class",
-                side_effect=lambda *a, **k: (
-                    self.lane_recheck_kwargs.append(k) or self.lane_recheck
+                "_ratification_refusal",
+                side_effect=lambda *a: (
+                    self.ratification_reads.append(a) or self.ratification_now
                 ),
+            ),
+            *(
+                []
+                if self.real_lane_recheck
+                else [
+                    mock.patch.object(
+                        policy,
+                        "recheck_lane_issue",
+                        side_effect=lambda *a, **k: (
+                            self.lane_recheck_kwargs.append(k) or self.lane_recheck
+                        ),
+                    )
+                ]
+            ),
+            mock.patch.object(
+                policy,
+                "dependabot_eligibility",
+                side_effect=self._dependabot_eligibility,
             ),
             mock.patch.object(policy, "changed_files", return_value=self.files),
             mock.patch.object(
@@ -544,8 +590,19 @@ class LaneMode(Unattended):
     def setUp(self) -> None:
         super().setUp()
         self.config = policy.PipelineConfig(
-            BASE, "C2", "pr-merge", IDENTITY, 200, (".github/**",), "c2-mechanical"
+            BASE, "C2", "pr-merge", IDENTITY, 200, (".github/**",), "c2-mechanical",
+            require_verifier_verdict=True,
+        )  # fmt: skip
+        # A passing verdict at every head (test_babysit_verify_evidence covers
+        # the reader).
+        passing = merge.verify_evidence.Evidence(
+            refusal=None, head=HEAD, verdicts=(), ignored=0
         )
+        patcher = mock.patch.object(
+            merge.verify_evidence.Reader, "evidence", return_value=passing
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
         # The local opt-in re-read is not a lane rule: reaching it would hold.
         self.opt_in_recheck = "not-lane-authored-or-opted-in"
         # D16 replaces the local promotion read: an unpromoted cell must not hold.
@@ -627,22 +684,66 @@ class LaneMode(Unattended):
         self.assertIs(self.post_check.call_args.kwargs["lane_merges_only"], True)
         self.assertIs(self.in_flight.call_args.kwargs["lane_merges_only"], True)
 
-    def test_a_class_label_gone_before_the_enqueue_refuses(self) -> None:
-        self.lane_recheck = "class-label-removed"
+    def closing_issue_now(self, labels: list[str], number: int = 41) -> None:
+        """Run the real enqueue re-read, its closing issue `number` now."""
+        self.real_lane_recheck = True
+        node = {
+            "closingIssuesReferences": {
+                "totalCount": 1,
+                "nodes": [
+                    {
+                        "number": number,
+                        "repository": {"nameWithOwner": "owner/repo"},
+                        "labels": {
+                            "totalCount": len(labels),
+                            "nodes": [{"name": n} for n in labels],
+                        },
+                    }
+                ],
+            }
+        }
+        patcher = mock.patch.object(
+            policy,
+            "_graphql",
+            return_value={"repository": {"pullRequest": node}},
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_a_closing_issue_changed_before_the_enqueue_refuses(self) -> None:
+        self.closing_issue_now([], number=42)
         code, out = self.lane()
         self.assert_no_merge(code)
         self.assertIn(
-            "unattended merge refused: ineligible:class-label-removed", out["blockers"]
+            "unattended merge refused: ineligible:closing-issue-changed:41>42",
+            out["blockers"],
         )
 
-    def test_the_enqueue_recheck_keeps_the_self_logins_and_permission(self) -> None:
-        # A listed self login must not count as a human labeler at the
-        # recheck either (#7507).
-        self.lane("--self-logins", "lane-app[bot]")
+    def test_a_class_label_removed_before_the_enqueue_no_longer_refuses(self) -> None:
+        self.closing_issue_now([])
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_the_enqueue_recheck_reads_the_eligible_issue(self) -> None:
+        self.lane()
         self.assertEqual(len(self.lane_recheck_kwargs), 1)
-        kwargs = self.lane_recheck_kwargs[0]
-        self.assertEqual(kwargs.get("self_logins"), frozenset({"lane-app[bot]"}))
-        self.assertIsNotNone(kwargs.get("permission"))
+        self.assertEqual(self.lane_recheck_kwargs[0], {"issue": 41})
+
+    def test_a_ratification_gone_before_the_enqueue_refuses(self) -> None:
+        # #7725: a marker deleted or edited after the eligibility read.
+        self.closing_issue_now([])
+        self.ratification_now = "not-ratified"
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertIn(
+            "unattended merge refused: ineligible:not-ratified", out["blockers"]
+        )
+        # Read fresh at the recheck, on the closing issue.
+        self.assertEqual(
+            [(o, n, issue["number"]) for o, n, _, issue in self.ratification_reads],
+            [("owner", "repo", 41)],
+        )
 
     def test_an_ineligible_pr_is_refused(self) -> None:
         self.lane_eligible = policy.Eligibility(False, "denied-path:.github/x.yml")
@@ -695,6 +796,137 @@ class LaneMode(Unattended):
                     contextlib.redirect_stdout(out),
                 ):
                     self.assertEqual(merge.main(), 2)
+
+
+AUTO_TIER = dependabot.Classification("auto")
+DEPENDABOT_AUTO = policy.Eligibility(True, None, "C2", dependabot=AUTO_TIER)
+
+
+class DependabotLane(Unattended):
+    """A Dependabot pull request in the pr-merge lane: tier `auto` on a green
+    `ci-status` merges under `merge.dependabot.mode: enforce` while the lane
+    stays report-only, with no diff score; tier `review` and every hold
+    refuse."""
+
+    lane = LaneMode.lane
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.config = policy.PipelineConfig(
+            BASE, "C2", "pr-merge", IDENTITY, 200, (".github/**",), "c2-mechanical",
+            report_only=True, dependabot_mode="enforce",
+        )  # fmt: skip
+        self.opt_in_recheck = "not-lane-authored-or-opted-in"
+        self.promotion = policy.Promotion(None, "resolver-failed")
+        self.kill = []
+        self.pr_user = {"login": "dependabot[bot]", "type": "Bot"}
+        self.pr_view = fixtures._pr(author={"login": "app/dependabot"})
+        self.dependabot_reads = [DEPENDABOT_AUTO]
+        # The class is not scored: reading the review evidence would fail.
+        self.lane_error = AssertionError("the Dependabot class was scored")
+        self.lane_eligible = policy.Eligibility(False, "lane-eligibility-read")
+
+    def test_tier_auto_enqueues_while_the_lane_is_report_only(self) -> None:
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertIs(out["unattended"]["reportOnly"], False)
+        self.assertEqual(out["unattended"]["risk"]["reason"], "not-scored:dependabot")
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+        self.assertFalse(any("dependency manager" in b for b in out["blockers"]))
+
+    def test_report_mode_writes_nothing(self) -> None:
+        self.config = dataclasses.replace(self.config, dependabot_mode="report")
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(out["action"], "check")
+        self.assertEqual(self.log, [])
+        self.async_merge.assert_not_called()
+
+    def test_off_refuses_and_keeps_the_dependency_hold(self) -> None:
+        self.config = dataclasses.replace(self.config, dependabot_mode="off")
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "ineligible:dependabot-merge-off")
+        self.assertTrue(any("dependency manager" in b for b in out["blockers"]))
+
+    def test_a_major_bump_without_a_merge_verdict_is_refused(self) -> None:
+        tier = dependabot.Classification("review", ("major:x",))
+        reason = "dependabot-review:major:x;review-verdict-missing"
+        self.dependabot_reads = [policy.Eligibility(False, reason, dependabot=tier)]
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], f"ineligible:{reason}")
+        self.assertTrue(any("dependency manager" in b for b in out["blockers"]))
+
+    def test_a_major_bump_with_a_merge_verdict_enqueues(self) -> None:
+        tier = dependabot.Classification("review", ("major:x",), approved="55-1")
+        self.dependabot_reads = [policy.Eligibility(True, None, "C2", dependabot=tier)]
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+        self.assertEqual(out["unattended"]["dependabot"]["approved"], "55-1")
+        self.assertFalse(any("dependency manager" in b for b in out["blockers"]))
+
+    def test_a_red_ci_status_is_refused(self) -> None:
+        tier = dependabot.Classification("review", ("ci-status-red",))
+        reason = "dependabot-review:ci-status-red;review-verdict-missing"
+        self.dependabot_reads = [policy.Eligibility(False, reason, dependabot=tier)]
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], f"ineligible:{reason}")
+
+    def test_the_hold_label_or_a_body_hold_refuses(self) -> None:
+        for view in (
+            fixtures._pr(
+                author={"login": "app/dependabot"}, labels=[{"name": "do-not-merge"}]
+            ),
+            fixtures._pr(
+                author={"login": "app/dependabot"}, body="Hold: a human merges this"
+            ),
+        ):
+            with self.subTest(view=view.get("labels") or view.get("body")):
+                self.log = []
+                self.pr_view = view
+                code, out = self.lane()
+                self.assert_no_merge(code)
+                self.assertFalse(out["ready"])
+
+    def test_a_hold_comment_before_the_enqueue_refuses(self) -> None:
+        self.dependabot_reads = [
+            DEPENDABOT_AUTO,
+            policy.Eligibility(False, "human-blocking-comment:maintainer", "C2"),
+        ]
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertIn(
+            "unattended merge refused: ineligible:human-blocking-comment:maintainer",
+            out["blockers"],
+        )
+
+    def test_a_lane_authored_pr_still_reads_report_only(self) -> None:
+        self.pr_user = {"login": IDENTITY, "type": "Bot"}
+        self.pr_view = fixtures._pr()
+        self.lane_eligible = policy.Eligibility(True, None, "C2")
+        self.lane_error = None
+        # A lane PR needs the verdict required; Dependabot's do not.
+        self.config = dataclasses.replace(self.config, require_verifier_verdict=True)
+        passing = merge.verify_evidence.Evidence(None, HEAD, (), 0)
+        with mock.patch.object(
+            merge.verify_evidence.Reader, "evidence", return_value=passing
+        ):
+            code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertIs(out["unattended"]["reportOnly"], True)
+        self.assertEqual(self.log, [])
+
+    def test_a_lane_pr_without_the_verdict_key_is_refused(self) -> None:
+        self.pr_user = {"login": IDENTITY, "type": "Bot"}
+        self.pr_view = fixtures._pr()
+        self.lane_eligible = policy.Eligibility(True, None, "C2")
+        self.lane_error = None
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "verifier-verdict-not-required")
 
 
 class LocalBabysitKeepsItsReads(Unattended):
@@ -1210,6 +1442,41 @@ class ReasonsComment(Unattended):
     def test_a_low_pull_request_gets_no_comment(self) -> None:
         self.run_main()
         self.assertNotIn("risk-comment:POST", self.log)
+
+
+class HeadFile(unittest.TestCase):
+    """`bind()`'s head-file reader proves a deletion, never a rename."""
+
+    def read(self, proc: Any, files: Any = ()) -> str | None:
+        with (
+            mock.patch.object(merge, "gh_capture", return_value=proc),
+            mock.patch.object(merge, "gh_json", return_value={"files": list(files)}),
+        ):
+            return merge._head_file("owner/repo", HEAD)("app.py", "b" * 40)
+
+    @staticmethod
+    def proc(code: int, out: str = "", err: str = "") -> Any:
+        return subprocess.CompletedProcess([], code, out, err)
+
+    def test_text_at_head(self) -> None:
+        self.assertEqual(self.read(self.proc(0, "x\n")), "x\n")
+
+    def test_removed_file_reads_none(self) -> None:
+        gone = self.proc(1, err="gh: Not Found (HTTP 404)")
+        removed = {"filename": "app.py", "status": "removed"}
+        self.assertIsNone(self.read(gone, [removed]))
+
+    def test_renamed_or_unproven_file_raises(self) -> None:
+        gone = self.proc(1, err="gh: Not Found (HTTP 404)")
+        renamed = {"filename": "app.py", "status": "renamed"}
+        removed = {"filename": "app.py", "status": "removed"}
+        for name, proc, files in (
+            ("renamed", gone, [renamed]),
+            ("capped", gone, [removed] + [{"filename": "f"}] * 299),
+            ("forbidden", self.proc(1, err="gh: Forbidden (HTTP 403)"), [removed]),
+        ):
+            with self.subTest(name), self.assertRaises(RuntimeError):
+                self.read(proc, files)
 
 
 class HeadPushers(unittest.TestCase):

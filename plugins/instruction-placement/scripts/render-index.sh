@@ -79,8 +79,11 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The git-hook installer copies this script and discover.sh flat into one directory.
+discover="$SCRIPT_DIR/lib/discover.sh"
+[[ -f "$discover" ]] || discover="$SCRIPT_DIR/discover.sh"
 # shellcheck source=./lib/discover.sh
-. "$SCRIPT_DIR/lib/discover.sh"
+. "$discover"
 
 # Individually-listed surfaces before the index switches to grouping its tail.
 # The index is always-loaded, so its own growth is a cost the migrations were
@@ -396,7 +399,7 @@ fi
 # for it by naming a root.
 #
 # A drive-letter path is ABSOLUTE. `git rev-parse --show-toplevel` answers
-# `C:/repo` under Git Bash, so that spelling is what the index-drift hook hands
+# `C:/repo` under Git Bash, so that spelling is what a caller on Windows hands
 # `--file` and `--root` on every Windows write. Testing only the leading `/`
 # read it as relative and joined it to the calling directory, producing
 # `/d/cwd/C:/repo/AGENTS.md` -- unreadable, so `check` died, the hook swallowed

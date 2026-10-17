@@ -105,7 +105,8 @@ concurrency:
 # says what a job does: `lint` runs linters over source, `check` holds a
 # repository contract across files, `test` executes code. The domain says over
 # what: `repo`, `shell`, `plugins`, `skills`, or the ecosystem a test job runs
-# (`bash`, `python`, `node`). One resolver, `select-tests`, eight working jobs,
+# (`bash`, `python`, `node`). One marker, `mark-lanes`, one resolver,
+# `select-tests`, eight working jobs,
 # `lint-repo`, `lint-shell`, `check-plugins`, `check-skills`, `test-bash`,
 # `test-python`, `test-node` and `check-managed-files`, and one aggregate, `ci-status`, whose name,
 # like this workflow's and this file's, is what the org ci-gate ruleset and its
@@ -191,6 +192,51 @@ jobs:
   # The detector self-test runs first and is NOT `continue-on-error`, so a
   # broken detector turns this job red rather than resolving a scope nobody
   # verified.
+  # A FULL RUN MARKS ITS SHA IN FLIGHT AT ONCE. A contract-only run on this SHA
+  # reads the newest bot-written `ci-lanes` status once and passes only on
+  # `success`, so this `pending` makes it fail at once instead of carrying
+  # forward a verdict this run is about to replace (an earlier full run's on
+  # the same SHA, say). The red it leaves is replaced when this run's
+  # `ci-status` re-runs it after recording its own verdict. `ci-status` needs
+  # this job, so the marker always lands before that verdict, and a write that
+  # keeps failing fails this job and so `ci-status`: a missing marker is the
+  # one way a stale `success` could be carried.
+  #
+  # ITS OWN JOB, SO NO JOB THAT RUNS PULL REQUEST CODE HOLDS `statuses: write`.
+  # A local `./` action resolves from the checked-out head, so a job that
+  # checks out the pull request and runs one runs code the pull request
+  # controls with that job's token. This job checks out nothing and runs no
+  # local action; it is the only job here that needs to write a commit status
+  # besides `ci-status`, which runs no pull request code either.
+  mark-lanes:
+    # The contract-only gate, verbatim (see `select-tests`).
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      statuses: write
+    steps:
+      - name: Mark the lanes in flight
+        # Same repository by id, not full_name: the fleet governance verifier reads
+        # every head.repo.full_name expression as the contract-only predicate.
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.id == github.repository_id
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          for attempt in 1 2 3; do
+            if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+              -f state=pending -f context=ci-lanes \
+              -f description="full run $GITHUB_RUN_ID in flight" \
+              -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null; then
+              echo "Marked ci-lanes pending on $HEAD_SHA."
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          echo "::error::could not mark ci-lanes pending on $HEAD_SHA; a contract-only run could carry an older verdict forward while this run is in flight."
+          exit 1
+
   select-tests:
     # The contract-only gate, verbatim on every job but `ci-status` (see the
     # predicate spelled out under `on.pull_request.types`). It carries no
@@ -203,11 +249,10 @@ jobs:
     timeout-minutes: 3
     # The detect-changes action lists the pull request's files through the
     # API. Nothing else in this workflow needs that read, so it is granted here
-    # and nowhere else. `statuses: write` is for the in-flight marker below.
+    # and nowhere else. No write scope: this job runs pull request code.
     permissions:
       contents: read
       pull-requests: read
-      statuses: write
     outputs:
       run_full: ${{ steps.detect.outputs.docs_only != 'true' }}
       run_tests: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true }}
@@ -237,34 +282,6 @@ jobs:
       python_needs: ${{ steps.plan.outputs.python_needs }}
       node_packages: ${{ steps.plan.outputs.node_packages }}
     steps:
-      # A FULL RUN MARKS ITS SHA IN FLIGHT BEFORE ANYTHING ELSE. A contract-only
-      # run on this SHA reads the newest bot-written `ci-lanes` status once and
-      # passes only on `success`, so this `pending` makes it fail at once
-      # instead of carrying forward a verdict this run is about to replace (an
-      # earlier full run's on the same SHA, say). The red it leaves is
-      # replaced when this run's `ci-status` re-runs it after recording its own
-      # verdict. A write that keeps failing fails this job, and so the run: a
-      # missing marker is the one way a stale `success` could be carried.
-      - name: Mark the lanes in flight
-        # Same repository by id, not full_name: the fleet governance verifier reads
-        # every head.repo.full_name expression as the contract-only predicate.
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.id == github.repository_id
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          for attempt in 1 2 3; do
-            if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
-              -f state=pending -f context=ci-lanes \
-              -f description="full run $GITHUB_RUN_ID in flight" \
-              -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null; then
-              echo "Marked ci-lanes pending on $HEAD_SHA."
-              exit 0
-            fi
-            sleep $((attempt * 5))
-          done
-          echo "::error::could not mark ci-lanes pending on $HEAD_SHA; a contract-only run could carry an older verdict forward while this run is in flight."
-          exit 1
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1653,10 +1670,12 @@ jobs:
       # commit is this pull request's own change on top of main and every entry
       # ahead of it. The group event names no pull request, so this step reads
       # the queued one from the group's head ref
-      # (gh-readonly-queue/<base>/pr-<number>-<head sha>): its author and its
+      # (gh-readonly-queue/<base>/pr-<number>-<base sha>): its author and its
       # head branch, which the release and Dependabot exemptions read on
       # pull_request, and its head commit, fetched so the Dependabot exemption
       # reads the pull request's own commits rather than the queue's squash.
+      # The SHA in the ref is the commit the group is built on, not the pull
+      # request's head, so the head comes from the pull request itself.
       - name: Resolve the queued pull request
         id: queued_pr
         if: github.event_name == 'merge_group'
@@ -1666,13 +1685,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash scripts/run-hygiene-gate.sh queued-pr {0}
         run: |
-          if [[ ! "$QUEUE_HEAD_REF" =~ /pr-([0-9]+)-([0-9a-f]{40})$ ]]; then
-            echo "::error::Cannot read a pull request number and head SHA from the merge group's head ref '$QUEUE_HEAD_REF'."
+          if [[ ! "$QUEUE_HEAD_REF" =~ /pr-([0-9]+)-[0-9a-f]{40}$ ]]; then
+            echo "::error::Cannot read a pull request number from the merge group's head ref '$QUEUE_HEAD_REF'."
             exit 1
           fi
-          number="${BASH_REMATCH[1]}" head_sha="${BASH_REMATCH[2]}"
+          number="${BASH_REMATCH[1]}"
           pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$number")"
           author="$(jq -r '.user.login' <<<"$pr")"
+          head_sha="$(jq -r '.head.sha' <<<"$pr")"
           # A fork's branch name is not this repository's release branch.
           head_ref="$(jq -r --arg repo "$GITHUB_REPOSITORY" 'if .head.repo.full_name == $repo then .head.ref else "" end' <<<"$pr")"
           git fetch --no-tags origin "$head_sha"
@@ -2454,7 +2474,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt', '.github/requirements-ci-animation.txt') }}
+          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt', 'plugins/animation/requirements.txt') }}
       - name: Install and verify ShellCheck toolchain
         # This canonical action also makes the exact ShellCheck version
         # available to the bash-format contract suites in this same job. It
@@ -2500,12 +2520,11 @@ jobs:
       # (ANIMATION_REQUIRE_DEPS, SPEECH_REQUIRE_DEPS, INVENTORY_REQUIRE_ACORN).
       - name: Install locked plugin test toolchains
         run: |
-          # Dependabot bumps the animation wheels here (its /.github pip entry) and the plugin's
-          # lock (its /plugins/animation entry) in separate pull requests, so a one-sided bump
-          # fails here instead of merging as drift.
-          diff <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.in | sort) \
-               <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' .github/requirements-ci-animation.txt | sort) \
-            || { echo "::error::.github/requirements-ci-animation.txt and plugins/animation/requirements.in pin different versions; bump the two together"; exit 1; }
+          # The animation lock must hold every pin its requirements.in declares, so an edit to
+          # the .in without regenerating the lock fails here instead of testing a stale lock.
+          stale=$(comm -23 <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.in | sort) \
+                           <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.txt | sort) | paste -sd ' ')
+          [ -z "$stale" ] || { echo "::error::plugins/animation/requirements.txt lacks $stale from requirements.in; regenerate the lock"; exit 1; }
           leg_needs=$(jq -er --arg leg "$LEG" '.[$leg]' <<<"$LEG_PLAN") ||
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           echo "This leg installs: ${leg_needs:-the base toolchains only}"
@@ -2514,7 +2533,7 @@ jobs:
           npm ci --prefix .github/standards/runner-policy
           requirements=(--requirement .github/requirements-ci.txt)
           if [[ "$leg_needs" == *animation* ]]; then
-            requirements+=(--requirement .github/requirements-ci-animation.txt)
+            requirements+=(--requirement plugins/animation/requirements.txt)
           fi
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
@@ -2642,20 +2661,21 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt', '.github/requirements-ci-animation.txt') }}
+          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt', 'plugins/animation/requirements.txt') }}
       - name: Install locked plugin test toolchains
         run: |
-          # The same pin-equality check test-bash makes: a Python pin change runs this lane.
-          diff <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.in | sort) \
-               <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' .github/requirements-ci-animation.txt | sort) \
-            || { echo "::error::.github/requirements-ci-animation.txt and plugins/animation/requirements.in pin different versions; bump the two together"; exit 1; }
+          # The animation lock must hold every pin its requirements.in declares, so an edit to
+          # the .in without regenerating the lock fails here instead of testing a stale lock.
+          stale=$(comm -23 <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.in | sort) \
+                           <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.txt | sort) | paste -sd ' ')
+          [ -z "$stale" ] || { echo "::error::plugins/animation/requirements.txt lacks $stale from requirements.in; regenerate the lock"; exit 1; }
           leg_needs=$(jq -er --arg leg "$LEG" '.[$leg]' <<<"$LEG_PLAN") ||
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           echo "This leg installs: ${leg_needs:-the base toolchains only}"
           npm ci
           requirements=(--requirement .github/requirements-ci.txt)
           if [[ "$leg_needs" == *animation* ]]; then
-            requirements+=(--requirement .github/requirements-ci-animation.txt)
+            requirements+=(--requirement plugins/animation/requirements.txt)
           fi
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
@@ -2884,6 +2904,7 @@ jobs:
 
   ci-status:
     needs:
+      - mark-lanes
       - select-tests
       - lint-repo
       - lint-shell

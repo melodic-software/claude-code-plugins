@@ -16,7 +16,9 @@
 // probe   A SessionStart hook. Notifies the user (systemMessage) once per session
 //         for each missing entry a hook needs; the model hears of it when the hook
 //         first skips. Always exits 0 on a valid manifest, for the reason the
-//         node-notice header in prerequisites.sh records.
+//         node-notice header in prerequisites.sh records. A plugin with
+//         git-hooks/entries.json also gets one user line per drifted git-hook
+//         entry, once per session (see gitHookDrift).
 //         --run-if-unset-or-true is the plugin option gate exec-bash.mjs offers: the
 //         probe stays silent when CLAUDE_PLUGIN_OPTION_<OPTION> is set to anything
 //         but true, so a plugin's kill switch silences its probe.
@@ -633,8 +635,28 @@ function cmdProbe(opts, ctx, out) {
     if (!isFailure(status) || !firstNoticeThisSession(plugin, entry.id, session, ctx.env)) continue;
     notices.push(userNotice(plugin, entry, status, detail));
   }
+  const drift = gitHookDrift(root, ctx);
+  if (drift.length && firstNoticeThisSession(plugin, "git-hooks", session, ctx.env)) notices.push(...drift);
   if (notices.length) out.stdout(JSON.stringify({ systemMessage: notices.join("\n") }));
   return 0;
+}
+
+// A plugin that ships git-hooks/entries.json reports drift in its git-hook
+// entries through the same row: the vendored installer's `verify --quiet`
+// prints one line per drifted entry and nothing for an ok or declined one. The
+// installer sits beside this file only in plugins that carry it, so it runs as
+// a child process rather than an import.
+function gitHookDrift(root, ctx) {
+  const installer = path.join(path.dirname(fileURLToPath(import.meta.url)), "git-hooks", "install.mjs");
+  if (!existsSync(path.join(root, "git-hooks", "entries.json")) || !existsSync(installer)) return [];
+  const repo = ctx.env.CLAUDE_PROJECT_DIR || ctx.cwd;
+  const r = spawnSync(process.execPath, [installer, "verify", "--quiet", "--repo", repo, "--plugin-root", root], {
+    encoding: "utf8",
+    env: ctx.env,
+    timeout: PROBE_TIMEOUT_MS,
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  return (r.stdout ?? "").split("\n").filter((line) => line.trim() !== "");
 }
 
 // The user line for a missing hook dependency. hook::prereq_notice_to in

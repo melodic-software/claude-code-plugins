@@ -89,7 +89,8 @@ site either reads it or is a documented narrowing/extension of it:
   An unknown class name in the token file is a hard error.
 
 Agent content, schema files, and a fleet-wide bare organization name are **not gated**. That is a
-deliberate narrowing of enforcement to the classes above, not an accident a green build absolves.
+deliberate narrowing of enforcement to the classes above, so a green build does not mean these
+were checked.
 The independent `portability-lint` job stages a related publisher-token class in
 `scripts/skill-portability-tokens.txt`; if that class activates it must consume or align with
 `org-agnosticism-tokens.txt` rather than invent a third set. CI enforces that alignment via
@@ -450,7 +451,7 @@ compatibility shim for builds below its declared version floor (pointers:
 
 `version` lives in `plugin.json` only, never in a marketplace entry. The platform resolves
 plugin.json first, but a marketplace-entry copy is dead metadata that silently becomes live if the
-manifest field is ever removed. One home, no shadow.
+manifest field is ever removed.
 
 For project configuration, use neutral repository-relative paths anchored at
 `${CLAUDE_PROJECT_DIR}`. Validate configured paths at the boundary, reject absolute paths and traversal
@@ -525,7 +526,7 @@ default preserving zero-config behavior and no illegal value to get wrong, inclu
 out-of-set values are documented as falling back to that default. A manifest is trivial when all its
 options are, however many it holds: count is not the test and neither is declared `type`.
 
-The line follows from what the native prompt is: a collector, not a verifier. It stores what the
+The line follows from the native prompt being a collector, not a verifier. It stores what the
 consumer typed; it never confirms the path exists, the token authenticates, or two options agree. A
 `setup` skill's `check` is the only surface that can, which is why a non-trivial option requires one.
 A trivial option requires none: every legal value is valid by construction and the default already
@@ -556,8 +557,8 @@ rest of the shape is house doctrine, and says so: upstream documents native *ini
 surfaces (below) but takes no position on a consumer-facing `setup` skill, so the `check`/`apply`
 split and the criteria above rest on the reasoning given here rather than on upstream backing. This
 is a normative target: setup skills that predate this contract are nonconforming until brought into
-conformance, and the fleet conformance audit tracks the gap rather than the doctrine pretending it
-is closed. Setup must be:
+conformance, and the fleet conformance audit tracks the gap rather than treating it as
+closed. Setup must be:
 
 - idempotent and safe to rerun;
 - transparent about what it inferred, changed, skipped, or could not verify;
@@ -735,7 +736,7 @@ write and stays locally informative; the shape does not follow the name.
 | Consumer-repo dependency | the write adds one named tool to the consumer's own repo through the repo's package manager, so the manifest or lockfile records it | `install-ruff` (dev-dependency add through the repo's Python manager, for example `uv add --dev ruff`, into an environment the repo already has), `install-biome` (`@biomejs/biome` dev dependency: `pnpm add -D`, `yarn add -D`, `bun add -d` or `npm install --save-dev`), `install-lint` (`markdownlint-cli2` dev dependency, same managers) |
 | Machine-global CLI | the write installs the one CLI the plugin exists to drive, into the machine's global package prefix | `install-cli`: context7 `npm install -g ctx7@latest`, playwright `npm install -g @playwright/cli` |
 | Plugin-owned dependencies | the write provisions the plugin's own runtime: node dependencies under `${CLAUDE_PLUGIN_DATA}` plus a Playwright Chromium build, and touches nothing in the consumer's repo or the global npm prefix; where the browser and any OS packages land is stated per subaction | `install-deps` (knowledge: `setup-deps.mjs` for video-digest and course-digest, node dependencies plus Chromium, the browser in `${CLAUDE_PLUGIN_DATA}/ms-playwright` unless `PLAYWRIGHT_BROWSERS_PATH` is set), `install-build-deps` (ai-briefing: `npm ci` in a staged `runtime/build` under the data dir, then `npx playwright install --only-shell chromium`, which on Linux is `npx playwright install --with-deps --only-shell chromium`; the skill sets no `PLAYWRIGHT_BROWSERS_PATH`, so the browser goes to Playwright's default per-user cache, and `--with-deps` installs OS packages machine-wide), `install-model` (speech: `assets.py fetch` downloads the Kokoro model, tokenizer and English voices pinned in `kokoro-assets.json` into `${CLAUDE_PLUGIN_DATA}/models/`, each kept only when its sha256 matches) |
-| Hook file | the write copies a named hook script into the operator's personal `.git/hooks/` | `install-commit-msg` (`hooks/commit-msg` and `hooks/guardrails-resolve-convention.sh`), `install-pre-commit-content` (`hooks/pre-commit` and `hooks/guardrails-content-lib/`) |
+| Hook file | the write copies the plugin's git-hook entry scripts into the clone's hooks directory (local) or a committed `.githooks/<plugin>/` (shared), through the check-placement convention's installer | `install-git-hooks` (typos-format, guardrails: `lib/git-hooks/install.mjs` copies each `git-hooks/entries.json` entry, its check lib and assets) |
 
 A new install subaction fits one of those four by what it writes. It does not invent a fifth, and it
 does not rename a sibling to match. Names are not one grammar: `install-cli` and `install-lint` each
@@ -773,8 +774,8 @@ current refusals. They stay; they are not defects against a missing subaction.
   `plugins/ai-briefing/skills/setup/SKILL.md` (`install-build-deps`: the Linux `--with-deps`
   branch and the absence of `PLAYWRIGHT_BROWSERS_PATH`),
   `plugins/speech/skills/setup/SKILL.md` (`install-model`),
-  `plugins/guardrails/skills/setup/context/install-commit-msg.md` and
-  `plugins/guardrails/skills/setup/context/install-pre-commit-content.md` (hook files). The
+  `plugins/typos-format/skills/setup/SKILL.md` and `plugins/guardrails/skills/setup/SKILL.md`
+  (`install-git-hooks`, hook files). The
   refusals: `plugins/go-format/skills/setup/SKILL.md` and
   `plugins/typos-format/skills/setup/SKILL.md`. Tokens such as `install-hint` and
   `install-browser` are not setup subactions.
@@ -806,7 +807,7 @@ absence class above, documented as a prerequisite, or fixed.
 
 Anything with a runtime prerequisite (for example `jq` on `PATH`) degrades gracefully, never a hard
 crash. Absence is surfaced to both the agent and the user; a candidate channel for durable
-visibility is the hook-telemetry convention's OTel surface. No black boxes: a silently skipped
+visibility is the hook-telemetry convention's OTel surface. A silently skipped
 feature is a defect. The broader false-green class, healthy-while-dead and green-with-hidden-
 findings on health, status, advisory, and gate surfaces, is owned by the
 [liveness-assertion convention](conventions/liveness-assertion/README.md); this section's
@@ -943,7 +944,7 @@ worktree. Outside a git repository the file stays in the folder you ran from.
 
 ## Instruction economy
 
-Every standing instruction this marketplace ships is a per-session tax on every consumer, paid
+Every standing instruction this marketplace ships costs every consumer context in every session, paid
 whether or not the instruction ever fires: a CLAUDE.md line, a hook that corrects model behavior, a
 skill's always-loaded listing text. (Whether a skill's description enters that
 always-loaded listing at all is the invocation-mode choice, owned by the rubric at
@@ -956,15 +957,15 @@ Recheck trigger: either section moves or stops recommending pruning. Anthropic r
 the same doctrine to Claude Code's own system prompt for the Claude 5 generation; no docs page
 covers that as of 2026-08-08
 (correlate with <https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models>).
-Context load is not the only budget: the human maintainer's cognitive load
+Context load is not the only budget. The human maintainer's cognitive load
 is its sibling constraint, and the write-time doctrine budgeting both lives in
 `docs-hygiene:write-for-agents`. Four rules follow:
 
 - **Evidence-gated additions.** A new standing instruction requires observed, repeated stumble
   evidence against the current model, the same failure seen more than once, never anticipation
   of a failure a past model had. Name the evidence where the instruction is added (PR body or an
-  adjacent comment). Anticipatory instructions are the veteran-engineer failure mode: they encode
-  the last model's weaknesses as the next model's ceiling.
+  adjacent comment). Anticipatory instructions encode an earlier model's weaknesses as a cap on
+  what the next model does.
 - **Generation-triggered ablation.** Instructions are disposable per model generation. At each
   Claude model release, re-audit standing instruction surfaces against the new model
   (`harness-config:audit-instructions` for the static text-vs-doctrine pass, on any release;
@@ -1000,7 +1001,7 @@ Mechanism never implies class. A context-injection can be pure policy (relaying 
 findings), and a deny-gate can be behavioral (a block whose predicate is a guess about model
 competence rather than a checkable invariant).
 
-One nuance does the most work: a hook with a *behavioral purpose* but a *non-derivable ground-truth
+One nuance matters most. A hook with a *behavioral purpose* but a *non-derivable ground-truth
 oracle*, such as diffing written flags against a binary's live `--help`, globbing the live plugin tree
 after a rename, or querying git history for a path's disappearance, is a keep, not an ablation
 candidate. It corrects hallucination with machine ground truth no model can know unaided, so "it
@@ -1011,13 +1012,13 @@ requires for addition: config-disable first where a kill switch exists, delete o
 rationale; a hybrid gets its behavioral surface trimmed while its policy residue stays; and the
 security carve-out below overrides every row of the rubric.
 
-Model-capability claims never relax the security posture. Injection resistance in current models is
-measurably better but bounded and hedged in the primary sources; the plugin-acceptance security
-review's deny-by-default stance on egress and trust delegation is policy, not a model-era
+Model-capability claims never relax the security posture. Current models resist prompt injection
+measurably better than earlier ones, but not completely, and the primary sources hedge that claim;
+the plugin-acceptance security review's deny-by-default stance on egress and trust delegation is policy, not a model-era
 workaround, and stays regardless of model generation.
 
-The complementary task-design doctrine, describe the task, guardrails, and exit criteria, give the
-model a way to verify its own work, and skip step-by-step procedure, is already this marketplace's
+The complementary task-design doctrine says to describe the task, guardrails, and exit criteria,
+to give the model a way to verify its own work, and to skip step-by-step procedure. It is already this marketplace's
 encoded practice: the `verification`, `planning` (goal conditions), `tdd`, and `testing` plugins are
 its implementation, and need no new mechanism on its account.
 
@@ -1030,11 +1031,11 @@ Two further axes are settled elsewhere, and neither is implied by the rubric abo
 
 ## Fresh-eyes checkpoints
 
-A context that produced work is structurally the weakest place to judge that work: the reasoning that
-made a mistake plausible is still active, so a self-check inherits the bias. A fresh-context (non-fork)
+A context that produced work is structurally the weakest place to judge that work, because the reasoning
+that made a mistake plausible is still active and a self-check inherits the bias. A fresh-context (non-fork)
 subagent, generic or named, removes it: it starts in its own fresh context window, blind to the
-reasoning under review. A fork does not: it inherits the parent session's full conversation history, so
-it carries the same bias forward. Upstream recommends fresh-context review as well as describing
+reasoning under review. A fork does not, because it inherits the parent session's full conversation history and
+carries the same bias forward. Upstream recommends fresh-context review as well as describing
 the mechanism, and this section is the authoring-time form of that guidance, applied where an
 invoker cannot be relied on to remember it.
 
@@ -1075,7 +1076,7 @@ never the advisor's command flags, which drift against the surface their owner e
 What does not need it: deterministic gates (a script's pass/fail cannot be biased by context, so prefer
 one wherever the judgment is mechanical), and judgment over external input the context did not produce
 (triage of another author's issue or PR). Delegation cost is real; the rule buys unbiased judgment
-exactly where bias is structural, and nothing elsewhere.
+only where bias is structural.
 
 The deterministic-gate exemption is narrow: it reaches the mechanical judgment itself, where the gate's
 pass/fail *is* the verdict, and not a subjective self-review that merely runs ahead of a gate. A build/test/lint
@@ -1111,13 +1112,13 @@ this rule instead of restating it.
    - **As of**: 2026-10-04.
    - **Recheck trigger**: that setting is renamed or removed, or the carve-out stops naming the PR's
      verify stage as its verdict.
-4. **The testing plugin's task-end judge is the precedent.** With `test_judge_enabled` on, a
-   separate model reviews the tests a session created or changed at the end of each task, so the
-   session that wrote a test never grades it.
-   - **Pointer**: the `test_judge_enabled` option of the testing plugin, documented in `/testing:setup`.
-   - **As of**: 2026-10-04.
-   - **Recheck trigger**: the option is renamed or removed, or the judge stops running in a context
-     separate from the session it judges.
+4. **The testing plugin's judge pass is the precedent.** `/testing:audit --judge` hands the tests a
+   change created or changed to a fresh-context subagent on another model class, so the session
+   that wrote a test never grades it.
+   - **Pointer**: the judge pass section of `/testing:audit`.
+   - **As of**: 2026-10-15.
+   - **Recheck trigger**: the pass is renamed or removed, or the judge stops running in a context
+     separate from the session that wrote the tests.
 5. **Deterministic gates stay exempt**, within the narrow scope stated above: a script's pass or fail
    is the verdict, so no author bias reaches it.
 
@@ -1157,7 +1158,7 @@ A dispatch prompt at any rung:
 - **degrades when absent**: a preferred named agent or advisor that is not installed routes to the
   generic fresh-context subagent, never to a command that may not resolve; and
 - **bounds what counts as a finding**: correctness and the stated requirements, everything else
-  optional. An unbounded adversarial prompt buys noise at the same price as judgment, and chasing
+  optional. An unbounded adversarial prompt returns many low-value findings at full cost, and chasing
   every reported gap over-engineers the work. Pointer:
   <https://code.claude.com/docs/en/best-practices#add-an-adversarial-review-step>. As of:
   2026-08-10. Recheck trigger: that section stops recommending a bounded review.
@@ -1259,7 +1260,7 @@ per-spawn `model`.
 - **Recheck trigger:** the switch stops overriding definition and per-spawn `model` values, or the
   subagents page stops describing it.
 
-There is no per-plugin model surface: we read plugin `userConfig` as typed options with no model
+There is no per-plugin model surface. We read plugin `userConfig` as typed options with no model
 semantics, so doctrine travels by authoring-time conformance in each skill, not runtime
 configuration (Pointer:
 [plugin manifest reference: user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
@@ -1352,7 +1353,7 @@ list restated here. Outside the pair, `plugins/implementation/agents/scoped-impl
 the fast tier at `medium` effort, the [effort floor](#effort-floor), and runs only plan-routed
 well-scoped phases, dispatched with an explicit per-invocation `model`.
 
-That floor is the consumer's to lose. An enterprise `availableModels` allowlist reaches frontmatter
+A consumer can lose that floor. An enterprise `availableModels` allowlist reaches frontmatter
 pins too, and Claude Code handles a blocked pin differently for a subagent than for a skill or
 command. Our conclusion, with the per-surface rules left at the pointer: a subagent lane's tier is
 not self-enforcing, because a blocked pin can land below the session (an `opus` pin under an
@@ -1386,7 +1387,7 @@ upstream-owned: resolve it from the model page at decision time, never from this
 - **Recheck trigger:** any new model on Claude Code's model page, or the effort section changes how
   a frontmatter pin ranks.
 
-We treat a lane pin as a posture, never a switch: thinking is adaptive, so a lane pinned `low` still
+We treat a lane pin as a posture, never a switch. Thinking is adaptive, so a lane pinned `low` still
 thinks where the model judges it worth the cost, and a turn with no thinking is not a pin
 misfiring. Authoring conformance follows: pin the lane, then let allocation vary per request
 instead of writing prose that tries to force it uniform (Pointer: for how the model decides when to
@@ -1491,8 +1492,13 @@ same depth on two models):
   - **Recheck trigger:** either section changes what an effort change does to the cache, or which
     models, providers or versions keep the cache across one.
 
-**Pinned agents.** Every named agent in this repository pins its effort, so a session tuned down for
-cost does not silently cheapen a worker. Each pins the level that model config's task rows give its
+**Pinned agents.** Every named agent in this repository that sets its own `model` pins its effort, so
+a session tuned down for cost does not silently cheapen a worker. The twelve `model: inherit` agents
+pin neither: `discovery` `docs-fetcher` and `sweep-worker`; `docs-hygiene` `compare-labeler`;
+`multi-agent` `docs-fetcher`, `drift-checker` and `drift-reader`; `review` `lane-verifier` and
+`stage-normalizer`; `testing` `green-fixer`, `green-runner`, `green-verifier` and `test-judge`. Each
+leaves the model to its dispatcher (a workflow's role map, a CI lane, or a per-call value), and so
+leaves the level to that dispatch or the session. Each other agent pins the level that model config's task rows give its
 kind of work, and never below `medium` for work that changes code or verifies a change (the
 [effort floor](#effort-floor)). Twelve pin `effort: high`: `implementation` `phase-verifier`;
 `discovery` `researcher`, `intent-tracer`, and `research-verifier`; `review` `code-reviewer`,
@@ -1510,7 +1516,8 @@ passes no `effort` of its own, which is every dispatch of a pinned named agent t
 writes unless the user overrides the level for a run; a passed value would override the pin (see "Where per-task effort is set" below).
 
 - **Pointer:** the agent definitions themselves, listed by
-  `git grep -n '^effort:' -- 'plugins/*/agents/*.md'`;
+  `git grep -n '^effort:' -- 'plugins/*/agents/*.md'`, and `git grep -L` for the agents with no
+  pin (the `model: inherit` set above, plus a test fixture under `plugins/harness-ops`);
   [#4253](https://github.com/melodic-software/claude-code-plugins/issues/4253) for the filed pin
   list; for the task rows, see
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
@@ -1518,7 +1525,7 @@ writes unless the user overrides the level for a run; a passed value would overr
   [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level)
   and the `effort` field in
   [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
-- **As of:** 2026-10-02.
+- **As of:** 2026-10-17.
 - **Recheck trigger:** any new model on Claude Code's model page, or a pinned agent's `model`
   changes, since a level name means a different depth on each model; the task rows change; a
   checker pinned `medium` misses a defect a `high` pin caught; or a maintainer changes or drops a
@@ -1664,11 +1671,11 @@ request.
 - **Recheck trigger:** the accepted `effort` value set changes on the model-config or effort page,
   or either frontmatter field list gains a token cap.
 
-Checking the value set mechanically stays deferred: a lint rule's source of truth is the harness's
+Checking the value set mechanically stays deferred, because a lint rule's source of truth is the harness's
 own accepted-value list, which this section deliberately does not restate.
 
-Session-level effort is the consumer's own knob, out of plugin scope: plugins never set session
-effort. A plugin may advise a session level for a phase of work, but it never changes the user's
+Session-level effort is the consumer's own setting and out of plugin scope. Plugins never set
+session effort. A plugin may advise a session level for a phase of work, but it never changes the user's
 session level or saved level (Pointer: for how a level is set and saved, see
 [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level);
 for the ultracode setting, see
@@ -1730,7 +1737,7 @@ A Workflow script this repository ships follows these rules;
   fan-out names `opus`. A single synthesis or judge agent may inherit.
 - **Wave caps plus one retry.** A fan-out runs in waves of `args.maxConcurrent`, with a small
   default, and retries a thrown dispatch once. A `null` result is final and is reported by name.
-- **Unattended runs stay small,** because which runs pause at a usage limit is upstream's rule
+- **Unattended runs stay small,** because upstream decides which runs pause at a usage limit
   (pointer below).
 - **Pointers, not restated limits.** Concurrency, agent caps and the size guideline are read from
   the workflows page, never copied into a script or its docs.

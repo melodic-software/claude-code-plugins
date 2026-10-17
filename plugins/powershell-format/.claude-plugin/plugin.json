@@ -1,7 +1,7 @@
 {
   "name": "powershell-format",
-  "version": "0.10.14",
-  "description": "Auto-format and lint PowerShell on edit via PSScriptAnalyzer, only when a PSScriptAnalyzerSettings.psd1 governs the repo, using the consuming repo's own analyzer settings.",
+  "version": "0.11.1",
+  "description": "Format and lint PowerShell at git pre-commit via PSScriptAnalyzer, only when a PSScriptAnalyzerSettings.psd1 governs the repo; optionally check uncommitted changes when a turn ends.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -18,14 +18,14 @@
   "userConfig": {
     "powershell_format_enabled": {
       "type": "boolean",
-      "title": "Format and lint on edit",
-      "description": "Format and lint PowerShell on edit via PSScriptAnalyzer",
+      "title": "Run the session hooks",
+      "description": "Turns the end-of-turn check and the session-start probe on or off. The git pre-commit entry is registered by /powershell-format:setup apply install-git-hooks and is not affected.",
       "default": true
     },
-    "powershell_format_lint_gitignored": {
+    "powershell_format_end_of_turn": {
       "type": "boolean",
-      "title": "Act on files git ignores",
-      "description": "By default the hook leaves a file the repository gitignores alone: it is not rewritten or analyzed, since a rewrite of an ignored file has no git checkout to undo it. Set true to act on gitignored files too. A tracked file that matches an ignore pattern is always in scope.",
+      "title": "Check PowerShell in uncommitted changes at turn end",
+      "description": "At the end of each turn, run the pre-commit PSScriptAnalyzer check over the lines changed since the last commit and hand any findings back so they are fixed before the turn ends, at most once per turn. Nothing is rewritten. Off by default.",
       "default": false
     }
   }

@@ -1,0 +1,12 @@
+{
+  "entries": [
+    {
+      "name": "typos-check",
+      "event": "pre-commit",
+      "script": "typos-check.sh",
+      "tools": ["typos"],
+      "rewrites": false,
+      "assets": ["config/default-typos.toml"]
+    }
+  ]
+}

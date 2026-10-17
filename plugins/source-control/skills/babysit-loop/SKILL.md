@@ -451,7 +451,7 @@ seconds. Idle backs off toward the 3600s ceiling (standing mode's one-hour wakeu
 daily-scale cadence belongs to `/schedule`, not a single-session `/loop` (same section). On a
 cycle-budget or seven-day-expiry hit, write a restart-request into the telemetry state block and
 stop the loop cleanly, the budget restarts the session, never ends the loop, and every budget hit
-is a manual-restart state, per the convention.
+is a manual-restart state, per the convention. A forge rate-limit error ends the cycle's forge work; wake no earlier than the [API budget](../../reference/providers/github/README.md#api-budget) reset, never retry.
 
 ## Spoke paths
 
@@ -489,7 +489,7 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
   this plugin can remove it.
 - **Dependency-manager PRs stay held even at the C2 rung.** babysit-prs's cross-tier dependency
   hold-merge invariant survives this loop: a Dependabot/Renovate-class PR is never merged
-  autonomously regardless of work class. It lands on the merge-ready report instead; the C2-mechanical rung is a work-class ceiling, not a route around an owner invariant.
+  autonomously by this loop regardless of work class. It lands on the merge-ready report instead; the C2-mechanical rung is a work-class ceiling, not a route around an owner invariant. A repository whose pr-merge lane has its Dependabot class on merges those PRs there, not here.
 - **The grace window is an overlay, not a substitute.** Excluding recently-active PRs at cycle
   level does not relax babysit-prs's expected-head pins or HEAD assertions inside the cycle; both disciplines hold simultaneously.
 - **Drain counts issues, not just PRs.** 0 open PRs alone never exits a drain, the worker lane

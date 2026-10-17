@@ -33,26 +33,63 @@ When GraphQL is refused, read `.base.ref` and `.head.sha` from one
 
 Update a behind branch with a merge-forward or `gh pr update-branch`.
 
+## Behind-branch exceptions
+
+A base uses a merge queue when its branch rules carry a `merge_queue` rule; skip the update there:
+
+```bash
+gh api --paginate --slurp "repos/{owner}/{repo}/rules/branches/$BASE" \
+  | jq -e 'add | any(.[]; .type == "merge_queue")' >/dev/null && echo 'merge queue: skip the update'
+```
+
+A dependency manager's PR names its app as the author. The spelling depends on the source:
+`gh pr view` and `gh pr list` print `app/dependabot`, and REST `.user.login` prints
+`dependabot[bot]`. Match either form, as `is_dependency_author` in the babysit-prs engine does:
+
+```bash
+gh pr view <pr_number> --json author --jq .author.login
+```
+
+For Dependabot, request the rebase with a comment, never `gh pr update-branch` or a push:
+
+```bash
+gh pr comment <pr_number> --body '@dependabot rebase'
+```
+
+For another manager, use its own documented rebase trigger.
+
+- **Pointer**: what a queue tests, under
+  [about merge queues](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue#about-merge-queues);
+  why extra commits are off limits, under
+  [allowing Dependabot to rebase and force push over extra commits](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/managing-pull-requests-for-dependency-updates#allowing-dependabot-to-rebase-and-force-push-over-extra-commits);
+  the comment commands, under
+  [managing Dependabot pull requests with comment commands](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/managing-pull-requests-for-dependency-updates#managing-dependabot-pull-requests-with-comment-commands);
+  the author spellings, from a probe of Dependabot PR melodic-software/claude-code-plugins#7492
+  with `gh pr view 7492 --json author` and `gh api repos/{owner}/{repo}/pulls/7492 --jq .user.login`.
+- **As of**: 2026-10-16
+- **Recheck trigger**: the merge-queue section changing what a queue tests, either Dependabot
+  section changing how it treats extra commits or renaming the rebase comment command, or a `gh`
+  release changing how it prints a bot author.
+
 ## Wait for a known merge state
 
 GitHub reports `mergeStateStatus` as `UNKNOWN` while it recomputes it after a push or a ready flip,
 and `gh pr merge` on a merge-queue base run then arms auto-merge instead of enqueueing. Poll at the
-pinned head while it reads `UNKNOWN`; go on only on `CLEAN`:
+pinned head over REST, at the [API budget](../README.md#api-budget)'s 60 s, while it reads
+`unknown`; go on only on `clean`:
 
 ```bash
 : "${HEAD_SHA:?set HEAD_SHA in 4.1 step 2}"
-for _ in $(seq 20); do
-  S=$(gh pr view <pr_number> --json headRefOid,mergeStateStatus \
-    --jq "if .headRefOid == \"$HEAD_SHA\" then .mergeStateStatus else \"HEAD_MOVED\" end")
-  [ "$S" = UNKNOWN ] || break
-  sleep 15
+for _ in $(seq 5); do
+  S=$(gh api "repos/{owner}/{repo}/pulls/<pr_number>" \
+    --jq "if .head.sha == \"$HEAD_SHA\" then .mergeable_state else \"head_moved\" end") || exit 1
+  [ "$S" = unknown ] || break
+  sleep 60
 done
-[ "$S" = CLEAN ] || { echo "PR reads ${S:-nothing} at the pinned head, not CLEAN: hold" >&2; exit 1; }
+[ "$S" = clean ] || { echo "PR reads ${S:-nothing} at the pinned head, not clean: hold" >&2; exit 1; }
 ```
 
-When GraphQL is refused, poll `.mergeable_state` from `gh api "repos/{owner}/{repo}/pulls/<pr_number>"`
-(after checking `.head.sha` equals `HEAD_SHA`) while it reads `unknown`, and go on only on `clean`.
-`mergeStateStatus` values:
+`mergeable_state` is the REST form of GraphQL's `mergeStateStatus`, lowercased:
 [MergeStateStatus enum](https://docs.github.com/graphql/reference/enums#mergestatestatus), as of
 2026-10-13; recheck when that enum changes.
 
@@ -96,7 +133,7 @@ gh api -X PUT "repos/{owner}/{repo}/pulls/<pr_number>/merge-async" \
 
 For a merge queue send `-f merge_action=merge_queue` and drop `merge_method`. The response carries a
 request `uuid` (a 409 means one is already pending and returns its `uuid`); poll
-`gh api "repos/{owner}/{repo}/pulls/<pr_number>/merge-async/<uuid>" --jq .status` until it reads
+`gh api "repos/{owner}/{repo}/pulls/<pr_number>/merge-async/<uuid>" --jq .status` every 60 s until it reads
 `merged`, `enqueued`, or `failed`. Request fields and statuses:
 [merge a pull request asynchronously](https://docs.github.com/rest/pulls/pulls?apiVersion=2026-03-10#merge-a-pull-request-asynchronously),
 as of 2026-10-02; recheck when a `gh` release adds a command for it or that page changes a field or
@@ -121,19 +158,48 @@ jq -e '[.[].check_runs[]] as $r
   and lane(["pr-review-security / security-review", "security-review / security-review",
             "claude-security-review-status"])' <<<"$RUNS" >/dev/null \
   || { echo 'AI review not complete on the pinned head: hold' >&2; exit 1; }
-for _ in $(seq 20); do
-  S=$(gh pr view <pr_number> --json headRefOid,mergeStateStatus \
-    --jq "if .headRefOid == \"$HEAD_SHA\" then .mergeStateStatus else \"HEAD_MOVED\" end")
-  [ "$S" = UNKNOWN ] || break
-  sleep 15
+for _ in $(seq 5); do
+  S=$(gh api "repos/{owner}/{repo}/pulls/<pr_number>" \
+    --jq "if .head.sha == \"$HEAD_SHA\" then .mergeable_state else \"head_moved\" end") || exit 1
+  [ "$S" = unknown ] || break
+  sleep 60
 done
-[ "$S" = CLEAN ] || { echo "PR reads ${S:-nothing} at the pinned head, not CLEAN: hold" >&2; exit 1; }
+[ "$S" = clean ] || { echo "PR reads ${S:-nothing} at the pinned head, not clean: hold" >&2; exit 1; }
 if jq -e 'any(.[]; .type == "merge_queue")' <<<"$RULES" >/dev/null; then
-  gh pr merge <pr_number> --match-head-commit "$HEAD_SHA"
+  echo "merge-ready $HEAD_SHA queue"
 else
-  gh pr merge <pr_number> --squash --match-head-commit "$HEAD_SHA"
+  echo "merge-ready $HEAD_SHA squash"
 fi
 ```
+
+The script does not merge. When it prints `merge-ready <sha> <queue|squash>`, run the merge as its
+own Bash command in the shape below, with nothing chained before it and every value written
+literally: the PR number, `-R <owner>/<repo>`, your own login (`gh api user --jq .login`) and the
+full 40-character sha the script printed, never a variable, a command substitution or a loop. The
+guard re-checks the head, author, fork, draft, changed files, review checks (none failed) and
+`ci-status` inside the command that merges, so an auto-mode allow entry that requires that guard
+can match it, and a check rerun after the script cannot slip a failed review or an armed auto-merge
+past it. Add `--squash` only
+when the script printed `squash`; behind a merge queue the queue sets the strategy. Keep each
+`|not` clause in its parentheses: jq's `|` binds looser than `and`, so without them a wrong head
+would pass.
+
+```bash
+gh pr view <pr_number> -R <owner>/<repo> --json headRefOid,author,isCrossRepository,isDraft,files,statusCheckRollup --jq '.headRefOid=="<sha>" and .author.login=="<login>" and (.isCrossRepository|not) and (.isDraft|not) and ([.files[].path|select(test("^\\.github/(workflows|actions)/|(^|/)\\.claude/|(^|/)dot_claude/|^\\.chezmoi(data|templates)/|(^|/)(CLAUDE|AGENTS)\\.md(\\.tmpl)?$"))]|length==0) and ([.statusCheckRollup[]|select((.name//"")|test("review"))] as $r|($r|length>0) and ($r|all(.status=="COMPLETED")) and ($r|group_by(.workflowName)|all(any(.[]; .conclusion!="SKIPPED")))) and ([.statusCheckRollup[]|select((.name//"")|test("review"))]|all(.conclusion|IN("SUCCESS","SKIPPED"))) and ([.statusCheckRollup[]|select(.name=="ci-status")]|length>0 and (max_by(.completedAt).conclusion=="SUCCESS"))' | grep -qx true && gh pr merge <pr_number> -R <owner>/<repo> --squash --match-head-commit <sha>
+```
+
+Where the user's own instructions authorize an admin merge for that repository (a required
+code-owner review or a merge queue blocks an otherwise ready merge), use this form instead, and
+only it. It carries exactly `--squash`, `--admin` and `--match-head-commit`, never
+`--delete-branch`:
+
+```bash
+gh pr view <pr_number> -R <owner>/<repo> --json headRefOid,mergeStateStatus,statusCheckRollup,files --jq '.headRefOid=="<sha>" and .mergeStateStatus!="DIRTY" and ([.statusCheckRollup[]|select(.name=="ci-status")]|length>0 and (max_by(.completedAt).conclusion=="SUCCESS")) and all(.statusCheckRollup[]; (.status//"COMPLETED")=="COMPLETED" and (.state//"")!="PENDING") and ([.files[].path|select(test("^\\.github/(workflows|actions)/|(^|/)\\.claude/|(^|/)dot_claude/|^\\.chezmoi(data|templates)/|(^|/)(CLAUDE|AGENTS)\\.md(\\.tmpl)?$"))]|length==0) and ([.statusCheckRollup[]|select((.name//"")|test("review"))] as $r|($r|length>0) and ($r|group_by(.workflowName)|all(any(.[]; .conclusion!="SKIPPED"))) and ($r|all(.conclusion|IN("SUCCESS","SKIPPED")))) and all(.statusCheckRollup[]; (.conclusion//.state//"")|IN("SUCCESS","SKIPPED","NEUTRAL"))' | grep -qx true && gh pr merge <pr_number> -R <owner>/<repo> --squash --admin --match-head-commit <sha>
+```
+
+A merge the permission layer refuses in this shape is a hand-off to the user, not a retry in
+another shape. `grep -qx true` exits non-zero when the guard fails, which is a hold: re-read the PR
+before anything else.
 
 Behind a merge queue `gh pr merge` should enqueue and return; had required checks not passed it
 would arm auto-merge instead. It has also been seen to return with a `CLEAN` PR left out of the
@@ -141,15 +207,24 @@ queue, so [confirm queue entry](#confirm-queue-entry) before the poll.
 
 ### Poll the merge queue
 
+The wait reads REST every 60 s: the PR's state, and its latest queue event
+(`added_to_merge_queue` or `removed_from_merge_queue`). Only when that read changes does it read
+`isInMergeQueue` over GraphQL, once, to decide:
+
 ```bash
 while :; do
+  while [ "$(gh api "repos/{owner}/{repo}/pulls/<pr_number>" --jq .state)" = open ] &&
+    [ "$(gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/events?per_page=100" \
+      --jq '.[] | select(.event | endswith("_merge_queue")) | .event' | tail -n 1)" = added_to_merge_queue ]; do
+    sleep 60
+  done
   S=$(gh api graphql -F owner='{owner}' -F name='{repo}' -F number=<pr_number> -f query='
     query($owner: String!, $name: String!, $number: Int!) {
       repository(owner: $owner, name: $name) { pullRequest(number: $number) { state isInMergeQueue } } }' \
-    --jq '.data.repository.pullRequest | "\(.state) \(.isInMergeQueue)"')
+    --jq '.data.repository.pullRequest | "\(.state) \(.isInMergeQueue)"') || exit 1
   case "$S" in
     MERGED*) break ;;
-    'OPEN true') sleep 30 ;;
+    'OPEN true') sleep 60 ;;
     *) echo "PR left the merge queue unmerged ($S)" >&2; exit 1 ;;
   esac
 done
@@ -158,9 +233,14 @@ done
 - **Pointer**: how `gh pr merge` behaves on a merge-queue base and what `--match-head-commit` does:
   [gh pr merge](https://cli.github.com/manual/gh_pr_merge); `isInMergeQueue`:
   [GraphQL PullRequest object](https://docs.github.com/graphql/reference/objects#pullrequest).
-- **As of**: 2026-10-09
-- **Recheck trigger**: a gh release that changes `gh pr merge` flags or merge-queue handling, or a
-  rename of the AI review lanes' check names.
+  The queue events: `GET repos/{owner}/{repo}/issues/{n}/events` returned `added_to_merge_queue`
+  and `removed_from_merge_queue` for a queue-merged PR (melodic-software/claude-code-plugins#7771,
+  read 2026-10-17), though [issue event types](https://docs.github.com/en/rest/using-the-rest-api/issue-event-types)
+  does not list them.
+- **As of**: 2026-10-09; queue events 2026-10-17
+- **Recheck trigger**: a gh release that changes `gh pr merge` flags or merge-queue handling, a
+  rename of the AI review lanes' check names, or the events endpoint no longer returning the queue
+  events.
 
 ## Confirm queue entry
 
@@ -169,15 +249,15 @@ with the hold:
 
 ```bash
 : "${HEAD_SHA:?set HEAD_SHA in 4.1 step 2}"
-for _ in $(seq 20); do
-  PR=$(gh api graphql -F owner='{owner}' -F name='{repo}' -F number=<pr_number> -f query='
-    query($owner: String!, $name: String!, $number: Int!) {
-      repository(owner: $owner, name: $name) { pullRequest(number: $number) {
-        id state isInMergeQueue mergeStateStatus headRefOid autoMergeRequest { enabledAt } } } }' \
-    --jq '.data.repository.pullRequest') || exit 1
-  [ "$(jq -r .mergeStateStatus <<<"$PR")" = UNKNOWN ] || break
-  sleep 15
+for _ in $(seq 5); do
+  [ "$(gh api "repos/{owner}/{repo}/pulls/<pr_number>" --jq .mergeable_state)" = unknown ] || break
+  sleep 60
 done
+PR=$(gh api graphql -F owner='{owner}' -F name='{repo}' -F number=<pr_number> -f query='
+  query($owner: String!, $name: String!, $number: Int!) {
+    repository(owner: $owner, name: $name) { pullRequest(number: $number) {
+      id state isInMergeQueue mergeStateStatus headRefOid autoMergeRequest { enabledAt } } } }' \
+  --jq '.data.repository.pullRequest') || exit 1
 AUTO=$(jq -r '.autoMergeRequest != null' <<<"$PR")
 [ "$AUTO" = true ] && echo 'auto-merge is armed on this PR; tell the user (4.2.1 never arms it)' >&2
 hold() {

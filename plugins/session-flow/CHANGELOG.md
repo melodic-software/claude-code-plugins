@@ -1,5 +1,23 @@
 # Changelog: session-flow plugin
 
+## [0.58.3] - 2026-10-17
+
+### Changed
+
+- `hop_chain.py` reads transcripts through the shared `transcript_reader` instead of its own JSONL loop.
+
+## [0.58.2] - 2026-10-16
+
+### Fixed
+
+- `audit-sessions` friction scan: a tool call accepted by an allow rule (`reasonType: rule`) is no longer counted as `prompt-approved`; only a prompt the person answered is.
+
+## [0.58.1] - 2026-10-16
+
+### Changed
+
+- Shared `prerequisites.mjs` synced: the SessionStart probe now also reports a drifted git-hook entry for a plugin that ships `git-hooks/entries.json`. This plugin ships none, so its behavior is unchanged.
+
 ## [0.58.0] - 2026-10-14
 
 ### Added

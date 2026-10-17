@@ -8,6 +8,21 @@ import { createGitHubApi, dispatchConflicting, main } from "./dispatch.mjs";
 
 const CHECK_NAME = "pr-unblock / resolve-conflicts";
 const SUCCESS_RUN = { status: "completed", conclusion: "success", output: { title: "Resolved" } };
+// A failed run whose summary opens with the lane record report-check-run
+// writes; `tokens` follow class=rate-limit, and null leaves no record.
+const failedRun = (completed, tokens = "") => ({
+  name: CHECK_NAME,
+  status: "completed",
+  conclusion: "failure",
+  completed_at: completed,
+  output: {
+    title: "Failed",
+    summary:
+      tokens === null
+        ? "The activity step failed."
+        : `lane=pr-unblock activity=resolve-conflicts class=rate-limit${tokens}\n\nThe activity step failed.`,
+  },
+});
 const UNTRUSTED_SKIP = {
   status: "completed",
   conclusion: "neutral",
@@ -51,6 +66,15 @@ function fakeApi({
         nodes: pages[index],
         pageInfo: { hasNextPage: index + 1 < pages.length, endCursor: String(index + 1) },
       };
+    },
+    async listPullCommits() {
+      return [];
+    },
+    async getCommit(sha) {
+      return { sha, files: [] };
+    },
+    async listPullFiles() {
+      return [];
     },
     async getPulls(numbers) {
       calls.get.push([...numbers]);
@@ -222,6 +246,29 @@ test("an in-progress run or any other completed conclusion counts as handled", a
   });
   await run();
   assert.deepEqual(api.calls.dispatch, []);
+});
+
+// A run the usage limit stopped (FINAL-DESIGN C5) stops counting as handled
+// once its limit resets: at its `resets=` time, else five hours after it
+// ended. Until then, and for any failure with no lane record, it still counts.
+test("a limit-stopped run counts as handled only until its limit resets", async () => {
+  const now = Date.parse("2026-10-17T12:00:00Z");
+  const [statedPast, statedFuture, fallbackPast, fallbackFuture, noRecord] = [pr(21), pr(22), pr(23), pr(24), pr(25)];
+  const { api, run } = harness(
+    {
+      pages: [[statedPast, statedFuture, fallbackPast, fallbackFuture, noRecord]],
+      checked: new Map([
+        [statedPast.headRefOid, [failedRun("2026-10-17T10:00:00Z", " resets=2026-10-17T11:00:00Z turns=3")]],
+        [statedFuture.headRefOid, [failedRun("2026-10-17T10:00:00Z", " resets=2026-10-17T13:00:00Z")]],
+        [fallbackPast.headRefOid, [failedRun("2026-10-17T06:00:00Z")]],
+        [fallbackFuture.headRefOid, [failedRun("2026-10-17T08:00:00Z", " turns=2")]],
+        [noRecord.headRefOid, [failedRun("2026-10-01T00:00:00Z", null)]],
+      ]),
+    },
+    { now, maxDispatch: 10 },
+  );
+  await run();
+  assert.deepEqual(dispatchedNumbers(api), ["21", "23"]);
 });
 
 test("maxDispatch defaults to 3, in ascending PR number, logging the PRs left for a later run", async () => {
@@ -399,6 +446,21 @@ test("main writes the recorded ids and exits 1 when another dispatch failed", as
   });
   assert.equal(code, 1);
   assert.equal(output, "run-ids=500\n");
+});
+
+test("main records a review-dependency dispatch beside the conflict dispatches", async () => {
+  const dependabot = pr(131, {
+    mergeable: "MERGEABLE",
+    author: { login: "dependabot[bot]" },
+    headRefName: "dependabot/npm_and_yarn/x-2.0.0",
+    title: "build(deps): bump x from 1.0.0 to 2.0.0",
+    body: "",
+    labels: { nodes: [] },
+    changedFiles: 0,
+  });
+  const { code, output } = await runMain({ pages: [[pr(130), dependabot]] });
+  assert.equal(code, 0);
+  assert.equal(output, "run-ids=9130 9131\n");
 });
 
 test("main writes nothing to GITHUB_OUTPUT when no run was dispatched", async () => {

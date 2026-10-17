@@ -27,7 +27,7 @@ A static field on a `hooks.json` **handler object**, sibling of `type`/`command`
 }
 ```
 
-It labels the spinner while the hook runs. **A hook script never emits this: it is configuration,
+It labels the spinner while the hook runs. **A hook script never emits this, because it is configuration,
 not a runtime output field.** Pointer: for the field, see
 <https://code.claude.com/docs/en/hooks#common-fields>. As of: 2026-10-01. Recheck trigger: that
 table moves the field or a runtime output field takes the name. **Rollout status: near-complete.** As of
@@ -183,8 +183,9 @@ Three cap decisions, each with the section that owns the figure.
    the size. A disclosure the content-mutation rule above requires must reach the reader inline
    and whole, so a hook that must stay inline caps itself under the figure with a truncation that
    keeps its counts and says it truncated, leaving headroom for JSON escaping. The adopting
-   reference is `plugins/typos-format/hooks/typos-format.sh` (4,000 for `systemMessage`, 8,000 for
-   `additionalContext`).
+   reference was typos-format's per-edit hook (4,000 for `systemMessage`, 8,000 for
+   `additionalContext`); typos-format now reports at commit time through its git pre-commit entry,
+   with an opt-in end-of-turn check, and sends neither channel per edit.
    - **Pointer**: for the output cap and what happens over it, see
      <https://code.claude.com/docs/en/hooks#json-output>.
    - **As of**: 2026-10-04
@@ -376,18 +377,12 @@ Fleet audits check, per wired producer hook:
   today: `context-guard`'s operator menu, the site that did, now comes from its mod as a transcript
   line (`$.ui.log`) and a toast (`$.ui.toast`), with a notice row only on surfaces other than the
   terminal, none of which reaches Claude, so it is no `systemMessage`.
-  One site is admitted by owner-approved
-  exception (#4679): `guardrails`' `block-hook-bypass.sh` operator-lever notice. That notice lists
-  switches only the operator may flip (condition 1); stderr separately carries the verdict and the
-  agent's remedy, names an operator option only as the operator's to set, and never says the
-  operator has seen anything (condition 2 and the delivery rule). It fires once per session,
-  which limits repetition but is not a state transition,
-  so it does not satisfy condition 3 and is admitted by the exception. Every other call site is
-  a prerequisite skip or a content-mutation notice, so a second one is a signal to re-read the three
-  conditions rather than to follow the precedent.
+  Every call site is a prerequisite skip or a content-mutation notice, so a new kind is a signal
+  to re-read the three conditions.
 - Every path on which the hook rewrote file content names what it changed on the user channel,
   bounded by a per-run cap with the remainder reported as a count. Not mechanically gated, but
-  reviewed per hook. The adopting reference is `plugins/typos-format/hooks/typos-format.sh`.
+  reviewed per hook. The adopting reference was typos-format's per-edit write mode, removed when
+  typos-format moved to reporting at commit time (pre-commit entry, opt-in end-of-turn check).
 - The hook emits the telemetry envelope for every **meaningful outcome**: a check that ran and
   produced a result (ok / blocked / skipped-for-cause). A pure inapplicability short-circuit
   (wrong tool type, excluded path, empty content, outside the project) that fires before any

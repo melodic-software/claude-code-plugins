@@ -64,7 +64,7 @@ attention as any other, but dependency-authored PRs are never merged autonomousl
 **Draft policy:** drafts stay in the discovery list in
 every tier. In the safe tier a draft is evaluated for terminal state, CI, and unaddressed findings,
 then reported, never fixed, never marked ready. Worker/autopilot draft handling (zero-blocker
-drafts route through a worker; the `/source-control:pull-request ready` flip only in autopilot) is
+drafts route through a worker; the `/source-control:pull-request ready --unattended` flip only in autopilot) is
 defined in SKILL.md.
 
 **Zero-PR fast path:** if discovery returns an empty list, report `No open PRs need
@@ -143,7 +143,7 @@ Before monitoring work on each PR, arm event delivery, in order:
    filter for `<N>` (health checks + arming per
    [pull-request monitor.md](../../pull-request/reference/monitor.md) §3.0.05)
 3. **Monitor-tool fallback:** channel absent/unhealthy → arm a Monitor watch, re-armed at each
-   deadline (30s REST poll, never a blocking checks watch
+   deadline (60s REST poll, never a blocking checks watch
    ([GitHub](../../../reference/providers/github/babysit-prs/loop.md#per-pr-rescan-reads)); arming pattern per
    [pull-request monitor.md](../../pull-request/reference/monitor.md) §3.0.1)
 4. Proceed to the §5.1.3 checklist

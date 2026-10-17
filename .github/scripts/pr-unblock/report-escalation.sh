@@ -11,7 +11,16 @@
 #   PR_NUMBER           the pull request
 #   HEAD_SHA            the gated head; it is the resume key
 #   ESCALATION_REASON   protected-path-conflict | workflow-staged | repeat-cap
-#                       | unresolved-conflict
+#                       | unresolved-conflict | feedback-protected-path
+#                       | feedback-round-cap | feedback-uncertain
+#                       | feedback-not-landed | feedback-invalid
+#                       | feedback-partial | feedback-incomplete
+#                       | feedback-disputed | dependency-round-cap
+#                       | dependency-invalid | dependency-fix-not-landed
+#                       | dependency-security-close | dependency-escalate
+#                       | dependency-config-unreadable
+#                       | dependency-files-truncated
+#                       | dependency-control-uncited
 #   TRACKER_CONFIG      base .work-item-tracker.json
 #                       (default .base/.work-item-tracker.json)
 #   LANES_BOT_LOGIN     the lanes App bot login, the only author whose marker
@@ -39,7 +48,28 @@ case ${ESCALATION_REASON:-} in
   workflow-staged) why='the merge stages a change under .github/workflows/, which the lane does not push' ;;
   repeat-cap) why='the lane has resolved conflicts on this branch as many times in a row as its cap allows' ;;
   unresolved-conflict) why='the lane could not resolve every conflict' ;;
+  feedback-protected-path) why='the pull request changes .github/, so the lane does not address its review threads' ;;
+  feedback-round-cap) why='the lane has addressed review threads on this pull request as many rounds as its cap allows' ;;
+  feedback-uncertain) why='a review finding is uncertain or deferred, so a person decides it' ;;
+  feedback-not-landed) why='a fix the lane recorded did not reach the branch, so none of its review replies was posted' ;;
+  feedback-invalid) why='the review replies the lane recorded did not pass validation, so none was posted' ;;
+  feedback-partial) why='posting the review replies stopped partway, or a fixed thread could not be resolved, so a person finishes them' ;;
+  feedback-incomplete) why='the lane did not record a disposition for every review thread it kept, so none was posted' ;;
+  feedback-disputed) why='the lane replied with evidence that a review finding is incorrect; a person decides and resolves that thread' ;;
+  dependency-round-cap) why='the lane has reviewed this dependency update as many rounds as its cap allows' ;;
+  dependency-invalid) why='the dependency review verdict did not pass validation, so the lane acted on none of it' ;;
+  dependency-fix-not-landed) why='the dependency review chose a fix, but no fix commit reached the branch' ;;
+  dependency-security-close) why='the dependency review would close a security update, which the lane never closes' ;;
+  dependency-escalate) why='the dependency review found a risk the lane does not decide alone' ;;
+  dependency-config-unreadable) why='the lane could not read the base .github/dependabot.yml, so it does not mark this dependency update for merge' ;;
+  dependency-files-truncated) why='the dependency review chose merge, but the files listing it read was cut short, so the lane does not mark this dependency update for merge' ;;
+  dependency-control-uncited) why='the dependency review chose merge for a review-only dependency without quoting its control, so the lane does not mark it for merge' ;;
   *) die "unknown escalation reason [${ESCALATION_REASON:-}]" ;;
+esac
+case $ESCALATION_REASON in
+  feedback-*) activity=address-feedback ;;
+  dependency-*) activity=review-dependency ;;
+  *) activity=resolve-conflicts ;;
 esac
 [[ ${PR_NUMBER:-} =~ ^[1-9][0-9]*$ ]] || die "PR_NUMBER is not a pull request number"
 [[ ${HEAD_SHA:-} =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]] || die "HEAD_SHA is not a commit id"
@@ -79,10 +109,10 @@ The pr-unblock lane stopped on this pull request and needs a person: $why.
 - Reason: \`$ESCALATION_REASON\`
 - Resume key: \`$HEAD_SHA\` (the head the lane stopped on)
 
-To resume, deal with the reason above, remove the \`$label\` label (and \`do-not-merge\`, if set), then dispatch the \`pr-unblock\` workflow with \`pr-number=$PR_NUMBER\`:
+To resume, deal with the reason above, remove the \`$label\` label (and \`do-not-merge\`, if set), then dispatch the \`pr-unblock\` workflow with \`pr-number=$PR_NUMBER\` and \`activity=$activity\`:
 
 \`\`\`sh
-gh workflow run pr-unblock.yml -R $GITHUB_REPOSITORY -f pr-number=$PR_NUMBER
+gh workflow run pr-unblock.yml -R $GITHUB_REPOSITORY -f pr-number=$PR_NUMBER -f activity=$activity
 \`\`\`
 EOF
 

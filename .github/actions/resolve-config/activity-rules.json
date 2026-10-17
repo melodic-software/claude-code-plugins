@@ -9,5 +9,21 @@
   "report-escalation": {
     "forbidden-effects": ["mutate-branch", "merge"],
     "never": "Writes to the branch"
+  },
+  "address-feedback": {
+    "forbidden-effects": ["publish-artifact", "mutate-tracker", "merge"],
+    "never": "Posts to the pull request, or touches a human thread"
+  },
+  "publish-feedback": {
+    "forbidden-effects": ["mutate-branch", "mutate-tracker", "merge"],
+    "never": "Writes to the branch, or posts anything but the recorded replies"
+  },
+  "review-dependency": {
+    "forbidden-effects": ["publish-artifact", "mutate-tracker", "merge"],
+    "never": "Posts to the pull request, merges, closes, or pushes under .github/"
+  },
+  "apply-dependency-verdict": {
+    "forbidden-effects": ["mutate-branch", "merge"],
+    "never": "Writes to the branch, merges, or closes a security update"
   }
 }

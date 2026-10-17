@@ -13,11 +13,12 @@ Classify the branch's changed files by the table below and run the steps each cl
 
 | Class | Which files | What it owes | Where it runs |
 |---|---|---|---|
-| `code` | source files (`.sh`, `.bash`, `.py`, `.mjs`, `.js`, `.cjs`, `.ts`, `.ps1`, `.cs`, project files) | one fresh-context review (`review:quality-gate` under 50 changed lines, `review:fanout` above), then `simplify`, then `verification:confirm` | §1.2 to §1.5 |
+| `code` | source files (`.sh`, `.bash`, `.py`, `.mjs`, `.js`, `.cjs`, `.ts`, `.ps1`, `.cs`, project files) | one fresh-context review (`review:quality-gate` under 50 changed lines, `review:fanout` above) unless the CI code-review lane covers it ([review-venue.md](review-venue.md)), then `simplify`, then `verification:confirm` | §1.2 to §1.5 |
 | `markdown` | `.md` files | `ai-slop:audit` and `docs-hygiene:audit-noise` over the changed `.md` files | §1.2.1 |
 | `renames` | any `R` line in the name-status output | a `docs-hygiene:rename-references` audit | §1.2.1 |
 | `skills` | `plugins/*/skills/**`, `plugins/*/agents/**` | `skill-quality:check` over each changed skill | §1.2.1 |
 | `rules` | `.claude/rules/**` | `instruction-placement:check` | §1.2.1 |
+| `tests` | test files the branch added or changed | the `testing:audit` judge pass over them | §1.2.1 |
 | `security` | any diff that is not docs-only | `review:security-review` over the pull request's diff | [ready-for-review.md](ready-for-review.md) §2.5.3 |
 
 **Check whether the branch holds more than one change.** While classifying, ask whether the diff breaks into parts that do not need each other: no part reads a file, symbol or behavior another part adds, and each could be reviewed, reverted and released alone. A dependency upgrade, a parser bug fix and a new CLI flag on one branch are three such parts. When the diff breaks apart this way, name the parts and the files in each, propose one pull request per part, and ask before going on; several narrow pull requests are each read and reverted more easily than one that mixes them. This is advice, not a gate: the user may keep one pull request. In a run with no one to ask, put the proposed split in the 1.6 report and continue with one pull request.
@@ -29,6 +30,8 @@ Every skill named below is invoked through the Skill tool when its plugin is ena
 **No `code` class?** Skip 1.2 to 1.4; the verify gate (1.5) reduces to lint. The other classes still owe their audits, so a docs-only branch is not exempt: it owes the prose audits in 1.2.1. If the consuming project layers extra prep requirements on PR creation (hooks, gates), satisfy those per its own docs.
 
 ## 1.2 Review the changes (the `code` class)
+
+**Read the review venue first** ([review-venue.md](review-venue.md)). When its `code-review` line reads `ci`, the repository's CI code-review lane reviews the pull request once it is ready, so skip this review (the 1.2.1 audits still run) and report the skip with the line's detail. When it reads `local`, or the read fails, run the review below and report it as the stand-in for the CI lane. `prep review-only` follows the same rule.
 
 Run **one** fresh-context review over the branch diff: `/review:quality-gate` under 50 changed lines, `/review:fanout` above it, when the `review` plugin is enabled.
 
@@ -43,6 +46,7 @@ Run the audit each detected class owes, over the changed files of that class onl
 - **`renames`**: `/docs-hygiene:rename-references audit` when `docs-hygiene` is enabled, otherwise grep the old path and the old name for every surviving reference. The class fires only when the diff reports a rename
 - **`skills`**: `/skill-quality:check` when the `skill-quality` plugin is enabled, otherwise run the project's own skill lint, or read each changed skill's frontmatter against the contract the project documents
 - **`rules`**: `/instruction-placement:check` when the `instruction-placement` plugin is enabled, otherwise confirm each changed rule's `paths:` glob still matches a tracked file
+- **`tests`**: `/testing:audit --judge <remote>/<base-branch>` when the `testing` plugin is enabled; it asks a separate model where each changed test's expected value came from, and its FLAG verdicts are findings for 1.3. When the testing plugin is not installed or not enabled, put `judge pass not run: testing plugin not installed or not enabled` in the 1.6 report; there is no inline fallback, because the writer cannot judge its own tests
 - **`security`**: not here. It reviews the pull request's own diff, so it runs in the ready step
 
 **Added suppressions (any diff that is not docs-only).** When `/code-metrics:audit-suppressions` is among the available skills, run it in its change scope against the base the pull request targets (`--base <remote>/<base-branch>`), and list in the 1.6 report every suppression the change adds, each with its file, line, rule ids and reason. This list is advisory: it never blocks pull request creation, and no suppression is removed or rewritten on its account without the user. When the skill is not available, or the scan exits non-zero, put `suppression check not run: <reason>` in the report (for example `suppression check not run: /code-metrics:audit-suppressions is not available`) and continue.
@@ -90,6 +94,6 @@ Run the project's full build + test + lint surface, via `/verification:confirm` 
 
 ## 1.6 Report
 
-Report: findings verified/dropped, simplify ran/skipped, verify gate pass/fail per ecosystem, which classes 1.1 detected, and any split 1.1 proposed with the user's answer. Proceed to PR creation.
+Report: the review venue's `code-review` line and whether the 1.2 review ran or was skipped for it, findings verified/dropped, simplify ran/skipped, verify gate pass/fail per ecosystem, which classes 1.1 detected, and any split 1.1 proposed with the user's answer. Proceed to PR creation.
 
 **Prep before create is the developer loop.** The rebase in [create.md](create.md) §2.2 and the base merge in [ready-for-review.md](ready-for-review.md) §2.5.2 both move HEAD after prep, which is why the ready step re-runs the verify gate on the head it flips.

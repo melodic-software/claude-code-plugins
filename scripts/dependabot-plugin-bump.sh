@@ -21,39 +21,41 @@
 #   Code plugin-loading page stops tying update delivery to the version string.
 set -euo pipefail
 
-SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Prefer the git checkout root so a copy of this script outside scripts/
-# (workflow extracts origin/<base> to /tmp) still edits the PR working tree
-# and sources helpers from that checkout.
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# Edit the git checkout of the working directory, so a copy of this script in
+# another checkout (the workflow runs main's from .base) edits the PR tree.
 if ! ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"; then
   ROOT="$(cd "$SELF_DIR/.." && pwd)"
 fi
 cd "$ROOT"
 
-SCRIPTS_DIR="$ROOT/scripts"
-if [[ -f "$SELF_DIR/lib/changed-files.sh" ]]; then
-  SCRIPTS_DIR="$SELF_DIR"
-fi
+# Code and lists come only from beside this copy. Run from main's checkout
+# against the pull request's tree, a missing file stops the bump rather than
+# falling back to the pull request's copy.
+for needed in lib/changed-files.sh lib/dependabot-entry.sh check-changelog-parity.sh; do
+  if [[ ! -f "$SELF_DIR/$needed" ]]; then
+    echo "dependabot-plugin-bump: $SELF_DIR/$needed is missing" >&2
+    exit 2
+  fi
+done
 # shellcheck source=lib/changed-files.sh
-. "$SCRIPTS_DIR/lib/changed-files.sh"
-# The workflow writes the base's copies of the fragment and entry libraries
-# next to its copy of this script, so a branch older than either still reads
-# the base's fragment list through the base's code and renders the entry.
-fragments_lib="$SELF_DIR/lib/changelog-fragments.sh"
-[[ -f "$fragments_lib" ]] || fragments_lib="$SCRIPTS_DIR/lib/changelog-fragments.sh"
-if [[ -f "$fragments_lib" ]]; then
+. "$SELF_DIR/lib/changed-files.sh"
+# shellcheck source=lib/dependabot-entry.sh
+. "$SELF_DIR/lib/dependabot-entry.sh"
+if [[ -f "$SELF_DIR/lib/changelog-fragments.sh" ]]; then
   # shellcheck source=lib/changelog-fragments.sh
-  . "$fragments_lib"
-else
+  . "$SELF_DIR/lib/changelog-fragments.sh"
+elif [[ "$SELF_DIR" == "$(pwd -P)/scripts" ]]; then
+  # In its own checkout, a branch older than the fragment library keeps the per-PR bump.
   changelog_fragments::in_mode() { return 1; }
-fi
-if [[ -f "$SELF_DIR/lib/dependabot-entry.sh" ]]; then
-  # shellcheck source=lib/dependabot-entry.sh
-  . "$SELF_DIR/lib/dependabot-entry.sh"
 else
-  # shellcheck source=lib/dependabot-entry.sh
-  . "$SCRIPTS_DIR/lib/dependabot-entry.sh"
+  echo "dependabot-plugin-bump: $SELF_DIR/lib/changelog-fragments.sh is missing" >&2
+  exit 2
 fi
+# The self-check below runs in a child process, so it reads these too.
+export CF_LIST="$SELF_DIR/fragment-plugins.txt"
+export CHANGELOG_NO_OP_BUMPS="$SELF_DIR/changelog-no-op-bumps.txt"
+export CHANGELOG_PARITY_BASELINE="$SELF_DIR/changelog-parity-baseline.txt"
 
 usage() {
   echo "usage: $(basename "$0") <base-ref> [--pr <n>] [--title <text>]" >&2
@@ -184,6 +186,7 @@ ${body}
 
 edited=0
 bumped_names=()
+root_real="$(realpath -- "$ROOT")"
 
 # ${!assoc[@]+...} is NOT safe: bash treats ! as indirection on the values.
 # Guard length, then iterate keys (bash 4+ associative arrays).
@@ -196,6 +199,14 @@ if ((${#shipped_changed[@]} > 0)); then
       echo "dependabot-plugin-bump: $name has no CHANGELOG.md; refusing to invent one" >&2
       exit 1
     fi
+    # The pull request owns these paths, so a symlink in them could make this
+    # script read or write a file outside the tree, and commit what it read.
+    for path in "$manifest" "$changelog"; do
+      if [[ "$(realpath -- "$path")" != "$root_real/$path" ]]; then
+        echo "dependabot-plugin-bump: $path is or passes through a symlink; refusing to edit it" >&2
+        exit 1
+      fi
+    done
 
     base_manifest="$(git show "$base:$manifest" 2>/dev/null || true)"
     [[ -n "$base_manifest" ]] || continue
@@ -240,8 +251,9 @@ if ((${#shipped_changed[@]} > 0)); then
       new_ver="$(bump_patch "$base_ver")" || exit 1
     fi
 
-    jq --arg v "$new_ver" '.version = $v' "$manifest" >"${manifest}.tmp"
-    mv "${manifest}.tmp" "$manifest"
+    manifest_tmp="$(mktemp)"
+    jq --arg v "$new_ver" '.version = $v' "$manifest" >"$manifest_tmp"
+    mv "$manifest_tmp" "$manifest"
 
     # Process substitution, not a pipe into grep -q: under pipefail a matched
     # grep exits early and SIGPIPEs git (scripts/check-pipefail-grep-q.sh).
@@ -270,8 +282,10 @@ if [[ "$edited" -eq 0 ]]; then
   exit 0
 fi
 
-# Self-check against the same gate Dependabot must pass.
-parity="$SCRIPTS_DIR/check-changelog-parity.sh"
+# Self-check against the same gate Dependabot must pass, on this tree even when
+# the scripts come from another checkout.
+export CHANGELOG_PARITY_ROOT="$ROOT"
+parity="$SELF_DIR/check-changelog-parity.sh"
 if ! bash "$parity" --check; then
   echo "dependabot-plugin-bump: --check failed after edits" >&2
   exit 1

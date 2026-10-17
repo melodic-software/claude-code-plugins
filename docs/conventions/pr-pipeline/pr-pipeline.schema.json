@@ -45,6 +45,12 @@
           "minimum": 1,
           "default": 3,
           "description": "Lane runs in a row that change nothing before the PR escalates to needs-human."
+        },
+        "dependency-review-rounds": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 2,
+          "description": "review-dependency rounds on one Dependabot PR before the next one escalates to needs-human."
         }
       }
     },
@@ -113,6 +119,20 @@
           "type": "array",
           "minItems": 1,
           "items": { "$ref": "#/$defs/work-class" }
+        },
+        "admission": {
+          "type": "object",
+          "additionalProperties": false,
+          "anyOf": [{ "required": ["classes"] }, { "required": ["ratified"], "properties": { "ratified": { "const": true } } }],
+          "description": "Which issues an issues lane admits. With no `classes`, only the owner's ratification marker admits (`ratified: true`) and no `work-class:` label is read. With `classes`, an issue carrying a `work-class:` label outside them is refused, even beside a listed one; otherwise it is admitted by a listed class label or, with `ratified: true`, by the owner's ratification marker: a comment line `<!-- admission: admitted when unblocked, owner batch ratification YYYY-MM-DD -->` posted by a human on the trusted-actor list, not through a GitHub App, and never edited; no bot ratifies. Work-class labels match in any casing or spacing, and labels are read when the run starts. The check cannot tell the owner typing from a local agent posting with the owner's token: it guarantees only that no App or Actions bot can self-admit. Off an issues event `ratified` cannot be decided and fails the run.",
+          "properties": {
+            "classes": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "pattern": "^work-class: [a-z-]+$" }
+            },
+            "ratified": { "type": "boolean" }
+          }
         },
         "labeled-after": {
           "type": "string",
@@ -184,7 +204,11 @@
         "max-turns": ["skill"],
         "prepare": ["skill"],
         "checks": ["skill"],
+        "verify-scripts": ["skill"],
         "web-access": ["skill"]
+      },
+      "dependentSchemas": {
+        "verify-scripts": { "properties": { "effect": { "not": { "const": "read" } } } }
       },
       "if": {
         "required": ["web-access"],
@@ -196,8 +220,8 @@
       "properties": {
         "skill": { "$ref": "#/$defs/skill" },
         "prepare": {
-          "enum": ["merge-base"],
-          "description": "What the write runner does around a skill with an effect other than read. merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents."
+          "enum": ["merge-base", "review-threads", "dependency-review"],
+          "description": "What the write runner does around a skill with an effect other than read. merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents. review-threads: before any model turn, keep the PR's unresolved reviewer-bot threads on a reviewed head and escalate on a .github/** diff or the round cap; give the skill the review-thread tool; after it, upload the replies it recorded, which a review-replies script job validates and posts with the round marker. dependency-review: before any model turn, skip a PR Dependabot did not open or one sorted auto, and escalate on the round cap; give the skill a read-only context file and a verdict schema for its structured output; move the PR branch only to commits that touch nothing under .github/ and carry [dependabot skip]; after it, upload the verdict, which a dependency-verdict script job validates and acts on."
         },
         "args": {
           "type": "string",
@@ -213,6 +237,16 @@
             "pattern": "^scripts/[A-Za-z0-9_-]+\\.sh( --[a-z][a-z-]*)*$"
           },
           "description": "Repository check scripts a skill with an effect other than read may run, each with its fixed flags. The write runner runs each from the base copy against the checkout, through a wrapper the skill can call with no arguments."
+        },
+        "verify-scripts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^(scripts|plugins/[a-z0-9-]+/(skills/[a-z0-9-]+/)?scripts)/[A-Za-z0-9_-]+\\.sh$"
+          },
+          "description": "Exact repository-relative paths of scripts a skill with an effect other than read may run with any arguments. The write runner copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout with any arguments but a path outside it. Needs an effect other than read. A script that changes files, runs code from the checkout, or reaches the network hands the run that power: list one only when it limits itself, as scripts/run-test-file.sh and scripts/git-mv-rm.sh do."
         },
         "web-access": {
           "type": "object",
@@ -327,12 +361,15 @@
     "merge": {
       "type": "object",
       "additionalProperties": false,
-      "description": "How far the repository's merge authority may merge without a human. A lane-power setting: raised only by a merged change to this file. Any rung above off requires a diff-check with denied paths; authority local-babysit requires an agent-identity.",
+      "description": "How far the repository's merge authority may merge without a human. A lane-power setting: raised only by a merged change to this file. Authority local-babysit requires an agent-identity and, at a rung above off, a diff-check with denied paths and a line cap; the pr-merge lane needs neither, and above off with an agent-identity it requires the verifier verdict.",
       "allOf": [
         {
           "if": {
-            "required": ["rung"],
-            "properties": { "rung": { "enum": ["C2", "C3"] } }
+            "required": ["rung", "authority"],
+            "properties": {
+              "rung": { "enum": ["C2", "C3"] },
+              "authority": { "const": "local-babysit" }
+            }
           },
           "then": {
             "required": ["diff-check"],
@@ -350,6 +387,19 @@
             "properties": { "authority": { "const": "local-babysit" } }
           },
           "then": { "required": ["agent-identity"] }
+        },
+        {
+          "if": {
+            "required": ["rung", "agent-identity"],
+            "properties": {
+              "rung": { "enum": ["C2", "C3"] },
+              "authority": { "const": "pr-merge" }
+            }
+          },
+          "then": {
+            "required": ["require-verifier-verdict"],
+            "properties": { "require-verifier-verdict": { "const": true } }
+          }
         }
       ],
       "properties": {
@@ -368,6 +418,21 @@
           "default": false,
           "description": "true: the merge authority reports each decision and writes nothing (no enqueue, dequeue or comment). The pr-merge lane starts true; the owner sets false to let it merge (README.md, Merge authority)."
         },
+        "require-verifier-verdict": {
+          "type": "boolean",
+          "default": false,
+          "description": "true: the pr-merge lane refuses a pull request, and dequeues a queued one, without a passing pr-verify verdict at its head (README.md, Verifier verdict). It is the lane's merge criterion, so an enabled pr-merge lane (agent-identity set) at a rung above off must set it true; the gate refuses `verifier-verdict-not-required` otherwise."
+        },
+        "verifier-model": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._\\[\\]-]*$",
+          "description": "The model pr-verify.yml judges each head with. Absent: the action's default model (README.md, Verifier verdict)."
+        },
+        "verify-authors": {
+          "enum": ["lane", "any"],
+          "default": "lane",
+          "description": "Whose pull requests pr-verify.yml judges. lane: only those the lanes App (agent-identity, a Bot account) opened; any: every author's. The resolver skips on any other value (README.md, Verifier verdict)."
+        },
         "agent-identity": {
           "type": "string",
           "pattern": "^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\[bot\\]$",
@@ -383,14 +448,45 @@
             "denied-paths": {
               "type": "array",
               "items": { "type": "string", "minLength": 1 },
-              "description": "Globs a lane-merged diff may not touch."
+              "description": "Globs a lane-merged diff may not touch. Empty: the pr-merge lane denies no path (README.md, The pr-merge lane)."
             },
-            "max-changed-lines": { "type": "integer", "minimum": 1 }
+            "max-changed-lines": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Changed lines above which the diff scores MED. Absent: no cap in the pr-merge lane; the local babysit lane requires it."
+            },
+            "max-changed-files": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "pr-merge lane only: changed files above which the diff scores MED. Absent: no cap. The local babysit lane always caps at 8."
+            },
+            "high-path-floor": {
+              "type": "boolean",
+              "default": false,
+              "description": "pr-merge lane only: true scores a diff touching the risk scorer's fixed HIGH path floor HIGH. Absent or false: only denied-paths count. The local babysit lane always applies the floor."
+            },
+            "c2-contradictions": {
+              "type": "boolean",
+              "default": false,
+              "description": "pr-merge lane only: true scores a C2 diff that removes, renames or copies a file, changes a schema, or spans plugins MED. Absent or false: not checked. The local babysit lane always checks."
+            }
           }
         },
         "stack-landing": {
           "enum": ["manual", "bottom-up"],
           "default": "manual"
+        },
+        "dependabot": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The pr-merge lane's Dependabot class: on verified Dependabot commits and a green ci-status, a tier auto pull request (every update non-major) merges, and a tier review one merges on the lanes App's verdict=merge marker at its head; no closing issue or denied-path rule (README.md, Dependabot pull requests).",
+          "properties": {
+            "mode": {
+              "enum": ["off", "report", "enforce"],
+              "default": "off",
+              "description": "enforce: merge Dependabot pull requests whatever merge.report-only says. report: report each decision and write nothing. off: refuse every Dependabot pull request and leave them unlisted."
+            }
+          }
         }
       }
     }

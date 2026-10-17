@@ -9,6 +9,7 @@
 - [5. Consumers and launch surfaces](#5-consumers-and-launch-surfaces)
 - [6. Rate-limit guard binding](#6-rate-limit-guard-binding)
 - [7. Operator steering through GitHub state](#7-operator-steering-through-github-state)
+- [8. Scheduled reader](#8-scheduled-reader)
 - [Versioning](#versioning)
 
 Owner doc for the concerns shared by every **loop lane**: a session that wraps a single-pass
@@ -847,7 +848,7 @@ detector measures the queue moving, not the lane retrying. When progress resumes
 escalation is still open, the lane records the resumption as a comment on it and leaves the
 disposition to the operator.
 
-**Per-cycle usage sample (measure-only).** A lane's spend was a blind spot: nothing recorded how much
+**Per-cycle usage sample (measure-only).** No lane's spend was measured: nothing recorded how much
 of the shared subscription windows a cycle consumed. Each lane therefore records a `usage_sample` in
 that same durable-state block every cycle, holding the two window percentages the rate-limit guard
 (§6) already read that cycle plus the rise since the previous sample. The reading is already in hand,
@@ -886,7 +887,8 @@ offer to persist the answer; the headless path never waits on one.
 
 **Provider backoff (seam exit 8).** A tracker-seam exit 8, meaning the provider is unavailable or
 secondary forge limits are hit under one credential, is handled as backoff-and-retry and counted as a **dirty** signal for
-the adaptive cap.
+the adaptive cap: the cycle makes no further provider call, and the next try waits until the
+provider's reset (`x-ratelimit-reset`, or `retry-after` when sent), never a retry loop.
 
 **Snapshot drain exit.** The drain-exit condition is evaluated against a snapshot taken at cycle
 start; new automated intake arriving mid-cycle is **reported, never chased**, so an item-producing
@@ -1194,12 +1196,32 @@ that lane's own invocation overrides it. Remove the label to release the PR.
 
 **Pause a lane: no GitHub control exists.** `paused_until` is written by the lane itself before a
 rate-limit pause and means "do not read my silence as death"; no lane reads it as an instruction.
-The nearest GitHub-state lever is starving the lane: park its remaining issues or hold its PRs. A
+The nearest GitHub-state lever is deliberately leaving the lane no work: park its remaining issues or hold its PRs. A
 standing lane then idles; a drain lane stops at its drain-terminal state (§4) once every remaining
 item is human-gated or escalated and no PR is in flight.
 
 **Stop a lane: no GitHub control exists.** Stopping is a session action on the lane's own host:
 `/harness-ops:lanes stop <lane>` there, reached from another machine through `/fleet:reach`.
+
+## 8. Scheduled reader
+
+A scheduled reader is a lane that reads sources on a schedule and posts what changed. The
+"Building effective agent automations" post closes on six rules for one; its
+[upstream record](../../upstream/claude-dev-building-effective-agent-automations.md) holds our
+decisions on it. A new scheduled lane meets each rule through the mechanism named here, not through
+a checklist of its own:
+
+| Rule | Mechanism that meets it |
+|---|---|
+| Bookmark per source | `/harness-ops:morning-brief`'s per-repo bookmark ("What each section reports"); for ai-briefing, the mechanism tracked in #7678; for state a cloud routine keeps between runs, the probe tracked in #7674 |
+| Failed read reported as unreadable | `/harness-ops:morning-brief` "Degraded sections"; for ai-briefing and a headless lane's MCP load check, the mechanism tracked in #7678 |
+| Live re-check before posting | [`pr-run-activity.md`](../pr-pipeline/pr-run-activity.md) "prepare: review-threads" |
+| Post confirmed before it is recorded | §2 "Escalation record write" (record first, marker second); §4 "Telemetry comment" (post-write read-back); for overlapping runs, the research tracked in #7672 |
+| Config re-read each run from a store the lane cannot edit | §4 "Headless-config floor"; base-SHA config in `.github/workflows/pr-run-activity-read.yml`; [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md) decision 4, with the review and intake lanes tracked in #7234; for local lanes, the research tracked in #7680 |
+| Read-only access, and a cap on each run | Not met for read-only access: CI lanes hold the write token their job needs and every tool, the gap [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md) accepts and bounds with short-lived, scoped tokens (decision 3); for run limits per task class, the mechanism tracked in #7677 |
+
+Two related items sit outside the six rules: an external heartbeat for scheduled lanes (#7673) and
+the time zone a scheduled prompt names for dates (#7679).
 
 ## Versioning
 

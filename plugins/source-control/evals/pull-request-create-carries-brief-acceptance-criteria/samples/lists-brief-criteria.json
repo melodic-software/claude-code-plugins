@@ -1,0 +1,104 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body-feat-csv-download.md",
+            "content": "No related issue: small demo change\n\n## Summary\n\nQuote CSV cells and write a byte order mark.\n\n## Verification\n\n- Unit tests pass.\n\nLeft out: nothing\n\n## Acceptance criteria\n\n- AC1: the file starts with a UTF-8 byte order mark so spreadsheet tools detect the encoding.\n- AC2: cells holding a comma, a double quote or a line break are quoted per RFC 4180.\n- AC3: an export with no rows still writes the header row.\n"
+          }
+        }
+      ],
+      "why": "criteria copied from the Brief as the last section"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "No related issue: demo\n\n## Acceptance criteria\n\nFrom the approved plan's Brief:\n\n1. File starts with a UTF-8 BOM.\n2. Cells with a comma, a \"quote\" or a newline are quoted (RFC 4180).\n3. No rows still writes the header row.\n\n## Summary\n\nCSV fixes.\n\n## Verification\n\n- Unit tests pass.\n"
+          }
+        }
+      ],
+      "why": "paraphrased criteria with an escaped quote, section first"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Summary\n\nFix.\n\n## Acceptance Criteria\n\n- [ ] byte order mark at the start\n- [ ] RFC4180 quoting\n- [ ] header row when there are no rows"
+          }
+        }
+      ],
+      "why": "capitalized heading, checkbox list, section ends the body"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Summary\n\nFix.\n\n## Acceptance criteria\n\n- Byte order mark at the start of the file\n- Quoting per RFC 4180\n- Header row written when there are no rows\n"
+          }
+        }
+      ],
+      "why": "bullets that start with a capital letter"
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Summary\n\nQuote CSV cells and write a byte order mark.\n\n## Verification\n\n- Unit tests pass.\n\nLeft out: nothing\n"
+          }
+        }
+      ],
+      "why": "no acceptance criteria section: the plan was never read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Summary\n\nAdds a byte order mark, RFC 4180 quoting, and keeps the header row.\n\n## Verification\n\n- Unit tests pass.\n"
+          }
+        }
+      ],
+      "why": "criteria mentioned in Summary, not under an Acceptance criteria heading"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Acceptance criteria\n\n- byte order mark\n- RFC 4180 quoting\n\n## Verification\n\n- The header row is written when there are no rows.\n"
+          }
+        }
+      ],
+      "why": "third criterion missing from the section; it appears only in a later section"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr create --draft --body '## Acceptance criteria\n- BOM\n- RFC 4180\n- header row'"
+          }
+        }
+      ],
+      "why": "body passed inline, never written with the Write tool"
+    }
+  ]
+}

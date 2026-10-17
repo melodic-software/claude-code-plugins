@@ -3,6 +3,19 @@
 All notable changes to the `docs-naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.3] - 2026-10-16
+
+### Fixed
+
+- `lib/check-retirements.sh` finds and cleans a `.git/` leftover, such as a retired git hook,
+  when run from a linked worktree: such a path resolves under `git rev-parse --git-common-dir`.
+
+## [0.3.2] - 2026-10-16
+
+### Changed
+
+- Shared `prerequisites.mjs` synced: the SessionStart probe now also reports a drifted git-hook entry for a plugin that ships `git-hooks/entries.json`. This plugin ships none, so its behavior is unchanged.
+
 ## [0.3.1] - 2026-10-13
 
 ### Changed

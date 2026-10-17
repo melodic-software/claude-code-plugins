@@ -55,7 +55,8 @@ inputs:
   github-token:
     description: >
       Read-only token, used only when an applies-when predicate needs the
-      PR's labels, draft state, mergeability or changed files.
+      PR's labels, draft state, mergeability or changed files, or an issue's
+      labels or comments.
     required: false
     default: ${{ github.token }}
 

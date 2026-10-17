@@ -1,7 +1,7 @@
 {
   "name": "discipline",
-  "version": "0.20.0",
-  "description": "Correctors that re-anchor a rule, audit work in flight, and fix drift: do-your-research, follow-our-standards, point-dont-copy, reason-dont-recite, tighten-your-output, recheck-against-upstream, pick-for-the-problem, mind-your-maxims, script-the-deterministic-work, use-your-skills, reuse-or-replace, scrutinize-dont-coast. sweep-all runs them as one batch. wait-what re-pitches a message that did not land. hold-my-hand shows work one phase at a time.",
+  "version": "0.21.0",
+  "description": "Correctors that re-anchor a rule, audit work in flight, and fix drift: do-your-research, follow-our-standards, point-dont-copy, reason-dont-recite, tighten-your-output, recheck-against-upstream, pick-for-the-problem, mind-your-maxims, script-the-deterministic-work, use-your-skills, reuse-or-replace, scrutinize-dont-coast. sweep-all runs them as one batch. wait-what re-pitches a message that did not land. hold-my-hand shows work one phase at a time. be-ambitious raises one request's ambition.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"

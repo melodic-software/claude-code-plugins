@@ -3,6 +3,12 @@
 # run scripts/check-affected.sh and block the push (exit 2, summary on stderr)
 # when a check fails, so a lint finding costs a local run instead of a CI round.
 #
+# With --git-hook it is the lefthook pre-push job (lefthook.yml), which runs the
+# merge-base copy of this script: no payload, the repository is the current
+# directory's, and a failing check exits 1. As a Claude Code hook it stays quiet
+# once lefthook's pre-push shim is installed, since git then runs the job on the
+# push itself; until then it runs and says to run `lefthook install`.
+#
 # Wired in .claude/settings.json with `if: "Bash(git push *)"`, which also
 # matches a bare `git push`: a trailing ` *` that is the rule's only wildcard
 # matches the bare command
@@ -286,18 +292,26 @@ run_checks() (
 )
 
 main() {
-  local input cmd cwd dir top out rc mb changed_tool tooling=0 dirty=0
-  hook::buffer_stdin_to input '.tool_input.command' '.cwd' || exit 0
-  cmd="${HOOK_JQ_FIELDS[0]-}"
-  cwd="${HOOK_JQ_FIELDS[1]-}"
-  [[ -n "$cmd" ]] || exit 0
-  push_dir_to dir "$cmd" || exit 0
-  [[ "$dir" == /* ]] || dir="${cwd:-.}/$dir"
-  top="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || exit 0
-  # Run only the project directory's own script (the trust model above), never
-  # one from another worktree or repository the command points at.
-  [[ -n "${CLAUDE_PROJECT_DIR-}" ]] || exit 0
-  [[ "$top" == "$(git -C "$CLAUDE_PROJECT_DIR" rev-parse --show-toplevel 2>/dev/null)" ]] || exit 0
+  local input cmd cwd dir top out rc mb changed_tool tooling=0 dirty=0 git_hook=0 hooks
+  [[ "${1-}" == --git-hook ]] && git_hook=1
+  if ((git_hook)); then
+    top="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+  else
+    hook::buffer_stdin_to input '.tool_input.command' '.cwd' || exit 0
+    cmd="${HOOK_JQ_FIELDS[0]-}"
+    cwd="${HOOK_JQ_FIELDS[1]-}"
+    [[ -n "$cmd" ]] || exit 0
+    push_dir_to dir "$cmd" || exit 0
+    [[ "$dir" == /* ]] || dir="${cwd:-.}/$dir"
+    top="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || exit 0
+    # Run only the project directory's own script (the trust model above), never
+    # one from another worktree or repository the command points at.
+    [[ -n "${CLAUDE_PROJECT_DIR-}" ]] || exit 0
+    [[ "$top" == "$(git -C "$CLAUDE_PROJECT_DIR" rev-parse --show-toplevel 2>/dev/null)" ]] || exit 0
+    hooks="$(git -C "$top" rev-parse --path-format=absolute --git-path hooks 2>/dev/null)"
+    grep -qs lefthook "$hooks/pre-push" && exit 0
+    printf 'check-affected pre-push: run lefthook install so git runs this check on every push.\n' >&2
+  fi
   [[ -x "$top/scripts/check-affected.sh" ]] || exit 0
   if ! mb="$(git -C "$top" merge-base HEAD refs/remotes/origin/main 2>/dev/null)"; then
     printf 'check-affected pre-push: skipped, no origin/main merge-base to take check tooling from; CI checks it.\n' >&2
@@ -317,9 +331,9 @@ main() {
   fi
   ((rc == 1)) || exit 0
   printf 'Push blocked: scripts/check-affected.sh found failing checks on this branch. Fix them, commit, and push again.\n%s\n' "$out" >&2
-  exit 2
+  exit $((git_hook ? 1 : 2))
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  main
+  main "$@"
 fi

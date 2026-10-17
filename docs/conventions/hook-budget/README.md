@@ -6,7 +6,9 @@ for its own hook cost honestly where it accounts at all; nobody summed them, and
 what a consumer experiences: a multi-second stall per tool call that no single plugin reviewed.
 This doc states the ceiling the sum must fit inside. The
 [hook-precision](../hook-precision/README.md) convention owns *what* a hook fires on; this one owns
-*what the always-on set may cost*.
+*what the always-on set may cost*. Where a check runs (Claude Code hook, git hook or CI) and the
+duration budgets for each placement are owned by [check-placement](../check-placement/README.md);
+spawn counts and their CI ratchets stay here.
 
 ## The unit: S
 
@@ -90,7 +92,7 @@ wall time: process spawn is most expensive there, and the fleet's reference meas
 disk-hygiene engine gate) measures ≈ 5.9 s parallel wall and the per-Write set (two formatters +
 three guardrails verifiers) ≈ 1.9 s. #1809's single-writer change removes per-Write work only in
 repos without a markdownlint config; in an opted-in repo the per-Write set is unchanged (typos-format
-still scans in report-only mode), so these figures remain the reference accounting until
+then scanned each edit; it now reports at commit time), so these figures remain the reference accounting until
 re-measured.
 
 ## Reference figures (2026-09-02, after the hook-performance program)
@@ -143,8 +145,8 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
   carries `args` and `"command": "node"`. Option gates
   that used to be shell tests are launcher flags (`--require-true`, `--run-if-unset-or-true`).
   Two more flags skip the bash start on a row whose script would exit at once:
-  `--skip-if-all-false A,B,...` skips only when every named option is exactly `false` (the
-  guardrails verify rows, whose three verifiers each keep their own switch), and
+  `--skip-if-all-false A,B,...` skips only when every named option is exactly `false` (no row
+  uses it since the guardrails verify rows moved to a git hook), and
   `--skip-unless-stdin-contains TEXT` buffers stdin and skips a payload without TEXT (the testing
   `Bash` row). `--skip-unless-stdin-contains` is advisory-only and must never gate a blocking
   guard row: a stdin stall past the idle bound exits 0 without running the script, so a guard

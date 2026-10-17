@@ -3,6 +3,20 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.1] - 2026-10-16
+
+### Changed
+
+- Shared `prerequisites.mjs` synced: the SessionStart probe now also reports a drifted git-hook entry for a plugin that ships `git-hooks/entries.json`. This plugin ships none, so its behavior is unchanged.
+
+## [0.29.0] - 2026-10-15
+
+### Added
+
+- **`check-security-binding.mjs --evidence -` reads the events from stdin**, so a caller that
+  computed them need not write a file. Every evaluation-mode fixture now also runs through stdin
+  and must print the same verdict.
+
 ## [0.28.0] - 2026-10-14
 
 ### Added

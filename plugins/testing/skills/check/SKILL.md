@@ -1,5 +1,5 @@
 ---
-description: "Read-only check that node and jq resolve for the testing hooks. Use when a hook notice says node or jq is missing, or before assuming the test-scan or test-judge hooks ran. Does not install."
+description: "Read-only check that node and jq resolve for the testing hooks. Use when a hook notice says node or jq is missing, or before assuming the test-weaken hook ran. Does not install."
 user-invocable: true
 disable-model-invocation: false
 metadata:

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Plan (read-only, outside your worktree): /srv/dev/billing/.work/late-fee/PLAN.md, its Brief and Phase 2.",
+      "why": "plan by absolute path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Context: read .work/late-fee/PLAN.md before editing.",
+      "why": "relative path, which does not resolve in the worker's worktree"
+    },
+    {
+      "answer": "Goal: charge a late fee on invoices paid after their due date. Acceptance: on-time invoices have no fee.",
+      "why": "no plan pointer"
+    }
+  ]
+}

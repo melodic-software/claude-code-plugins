@@ -169,10 +169,415 @@ for (const check of ["scripts/check-x.sh; rm -rf /", "../scripts/check-x.sh", "s
   });
 }
 
+// pr-run-activity.md, "Skill activities": each listed verify-script runs with
+// any arguments from a read-only base copy of its plugin, so a file it reads
+// beside itself (here ../../../scripts/lib.sh) comes along, through a wrapper
+// that starts in the checkout, refuses paths outside it and pins git config.
+const VERIFY = "plugins/vtest/skills/audit/scripts/scan.sh";
+function withVerify(list, overrides = {}) {
+  const dir = mkdtempSync(path.join(root, "verify-"));
+  const workspace = path.join(dir, "workspace");
+  mkdirSync(path.join(workspace, "tests"), { recursive: true });
+  writeFileSync(path.join(workspace, "tests", "a.test.js"), "");
+  writeFileSync(path.join(dir, "secret.txt"), "");
+  spawnSync("ln", ["-s", path.join(dir, "secret.txt"), path.join(workspace, "link.txt")]);
+  const scripts = path.join(base, "plugins", "vtest", "skills", "audit", "scripts");
+  mkdirSync(scripts, { recursive: true });
+  mkdirSync(path.join(base, "plugins", "vtest", "scripts"), { recursive: true });
+  writeFileSync(
+    path.join(scripts, "scan.sh"),
+    'here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\nsource "$here/../../../scripts/lib.sh"\n' +
+      'echo "from=$0 lib=$LIB pwd=$PWD git=$GIT_CONFIG_NOSYSTEM,$GIT_CONFIG_GLOBAL,$GIT_CONFIG_KEY_0=$GIT_CONFIG_VALUE_0,$GIT_CONFIG_KEY_1=$GIT_CONFIG_VALUE_1 args=$*"\n',
+  );
+  writeFileSync(path.join(scripts, "unlisted.sh"), "echo unlisted\n");
+  writeFileSync(path.join(base, "plugins", "vtest", "scripts", "lib.sh"), "LIB=base\n");
+  const file = path.join(dir, "resolved.json");
+  writeFileSync(file, JSON.stringify({ selected: { args: "--ci", "verify-scripts": list } }));
+  const verifyDir = path.join(dir, "lane-verify");
+  const staged = stage({ SKILL: "work-items:work", RESOLVED: file, VERIFY_DIR: verifyDir, WORKSPACE: workspace, ...overrides });
+  return { dir, workspace, verifyDir, wrapper: path.join(verifyDir, "bin", "scan"), ...staged };
+}
+
+test("a listed verify-script gets one wrapper rule on a read-only copy that runs in the checkout with any arguments", () => {
+  const { status, allowed, denied, args, verifyDir, workspace, wrapper } = withVerify([VERIFY]);
+  assert.equal(status, 0);
+  const copy = path.join(verifyDir, VERIFY);
+  assert.deepEqual(
+    allowed.filter((rule) => rule.startsWith("Bash")),
+    [`Bash(${wrapper} *)`],
+  );
+  assert.ok(denied.includes(`Edit(/${verifyDir}/**)`) && denied.includes(`Write(/${verifyDir}/**)`), denied.join(" | "));
+  assert.ok(args.includes(`${wrapper} <arguments>`), "the system prompt names the command");
+  for (const file of [wrapper, copy, path.join(verifyDir, "plugins", "vtest", "scripts", "lib.sh")]) {
+    const write = spawnSync("bash", ["-c", 'echo x >>"$1"', "_", file]);
+    assert.notEqual(write.status, 0, `${file} is read-only`);
+  }
+  const run = spawnSync(wrapper, ["--check", "--file", "tests/a.test.js", "a b"], { cwd: root, encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(
+    run.stdout.trim(),
+    `from=${copy} lib=base pwd=${workspace} git=1,/dev/null,core.fsmonitor=false,core.hooksPath=/dev/null args=--check --file tests/a.test.js a b`,
+  );
+});
+
+// A chained `; echo "$?"` needs approval the dontAsk lane cannot give, so the
+// wrapper reports the script's exit status itself and the prompt says so.
+const RUN_ALONE = "Run each verification wrapper as its own command, not chained to another; it prints the script's exit status.";
+test("the verify-script wrapper prints the script's exit status and exits with it", () => {
+  writeFileSync(path.join(base, "plugins", "vtest", "scripts", "fails.sh"), "echo failing\nexit 3\n");
+  const { status, args, verifyDir } = withVerify([VERIFY, "plugins/vtest/scripts/fails.sh"]);
+  assert.equal(status, 0);
+  assert.ok(args.includes(RUN_ALONE), args);
+  const run = spawnSync(path.join(verifyDir, "bin", "fails"), ["--check"], { cwd: root, encoding: "utf8" });
+  assert.equal(run.status, 3);
+  assert.equal(run.stdout, "failing\n");
+  assert.equal(run.stderr, "exit status: 3\n");
+});
+
+test("the verify-script wrapper refuses a path outside the checkout", () => {
+  const { status, dir, wrapper } = withVerify([VERIFY]);
+  assert.equal(status, 0);
+  for (const arg of [path.join(dir, "secret.txt"), "../secret.txt", `--file=${path.join(dir, "secret.txt")}`, "link.txt", "/"]) {
+    const run = spawnSync(wrapper, ["--file", arg], { cwd: root, encoding: "utf8" });
+    assert.notEqual(run.status, 0, arg);
+    assert.equal(run.stdout, "", `${arg} ran the script`);
+    assert.match(run.stderr, /refused: .* is outside the checkout/, arg);
+  }
+});
+
+// pr-run-activity.md, "Skill activities": the issue lane lists the repository's
+// test runner and git-mv-rm.sh as verify-scripts, so the same generator wraps
+// them. These stage the real scripts (and the lib they source) into the base.
+const REPO = new URL("../../../", import.meta.url);
+const LANE_TOOLS = ["scripts/run-test-file.sh", "scripts/git-mv-rm.sh"];
+function withLaneTools() {
+  for (const file of [...LANE_TOOLS, "scripts/lib/checkout-path.sh"]) {
+    mkdirSync(path.join(base, path.dirname(file)), { recursive: true });
+    writeFileSync(path.join(base, file), readFileSync(new URL(file, REPO)));
+  }
+  const staged = withVerify(LANE_TOOLS);
+  const { workspace, dir } = staged;
+  const git = (...args) => spawnSync("git", ["-C", workspace, ...args], { encoding: "utf8" });
+  git("init", "-q");
+  writeFileSync(path.join(workspace, "tests", "pass.test.sh"), 'echo "token=${GH_TOKEN:-unset}"\n');
+  writeFileSync(path.join(workspace, "tests", "fail.test.sh"), "echo broken\nexit 3\n");
+  writeFileSync(path.join(workspace, "tests", "a.test.mjs"), 'import { test } from "node:test";\ntest("a", () => {});\n');
+  writeFileSync(path.join(workspace, "tests", "test_a.py"), "");
+  writeFileSync(path.join(workspace, "tests", "notes.txt"), "");
+  writeFileSync(path.join(dir, "outside.test.sh"), "echo outside\n");
+  spawnSync("ln", ["-s", path.join(dir, "outside.test.sh"), path.join(workspace, "tests", "link.test.sh")]);
+  spawnSync("ln", ["-s", dir, path.join(workspace, "out")]);
+  // Without NODE_TEST_CONTEXT, which turns a nested node --test's report off.
+  const { NODE_TEST_CONTEXT, ...parentEnv } = process.env;
+  const run = (name, args, env = {}) =>
+    spawnSync(path.join(staged.verifyDir, "bin", name), args, {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...parentEnv, GH_TOKEN: "fake-lane-token", ...env },
+    });
+  return { ...staged, git, run };
+}
+
+test("the lane tools get wrapper rules, and the commit grant gains delete_files", () => {
+  const { status, allowed, verifyDir } = withLaneTools();
+  assert.equal(status, 0);
+  assert.deepEqual(
+    allowed.filter((rule) => rule.startsWith("Bash")),
+    [`Bash(${path.join(verifyDir, "bin", "run-test-file")} *)`, `Bash(${path.join(verifyDir, "bin", "git-mv-rm")} *)`],
+  );
+  assert.ok(allowed.includes("mcp__github_file_ops__delete_files"), allowed.join(" | "));
+  assert.ok(!allowed.some((rule) => /^Bash\((python3|bash|node|git)[ )]/.test(rule)), allowed.join(" | "));
+});
+
+test("run-test-file runs an in-checkout test file by its runner and prints the exit status", () => {
+  const { status, run, dir } = withLaneTools();
+  assert.equal(status, 0);
+  const pass = run("run-test-file", ["tests/pass.test.sh"]);
+  assert.equal(pass.status, 0, pass.stderr);
+  assert.equal(pass.stdout, "token=unset\n", "the test gets no GitHub token");
+  assert.equal(pass.stderr, "exit status: 0\n");
+  const fail = run("run-test-file", ["tests/fail.test.sh"]);
+  assert.equal(fail.status, 3);
+  assert.equal(fail.stdout, "broken\n");
+  assert.equal(fail.stderr, "exit status: 3\n");
+  const node = run("run-test-file", ["tests/a.test.mjs"]);
+  assert.equal(node.status, 0, node.stderr);
+  assert.match(node.stdout, /pass 1/);
+  assert.match(node.stderr, /exit status: 0\n$/);
+  // pytest for test_*.py, through whichever python3 is on PATH.
+  const shim = path.join(dir, "shim");
+  mkdirSync(shim);
+  writeFileSync(path.join(shim, "python3"), '#!/usr/bin/env bash\necho "python3 $*"\nexit 5\n', { mode: 0o755 });
+  const py = run("run-test-file", ["tests/test_a.py"], { PATH: `${shim}:${process.env.PATH}` });
+  assert.equal(py.status, 5);
+  assert.match(py.stdout, /^python3 -m pytest .*tests\/test_a\.py\n$/);
+  assert.equal(py.stderr, "exit status: 5\n");
+});
+
+test("run-test-file refuses a path outside the checkout, a .. path, a non-test file and an option", () => {
+  const { status, run, dir } = withLaneTools();
+  assert.equal(status, 0);
+  for (const args of [
+    [path.join(dir, "outside.test.sh")],
+    ["../outside.test.sh"],
+    ["tests/../tests/pass.test.sh"],
+    ["tests/link.test.sh"],
+    ["out/outside.test.sh"],
+    ["tests/notes.txt"],
+    ["tests/missing.test.sh"],
+    ["-x"],
+    ["tests/pass.test.sh", "tests/fail.test.sh"],
+    [],
+  ]) {
+    const result = run("run-test-file", args);
+    assert.equal(result.status, 2, JSON.stringify(args));
+    assert.equal(result.stdout, "", `${JSON.stringify(args)} ran a test`);
+    assert.match(result.stderr, /refused|usage/, JSON.stringify(args));
+  }
+});
+
+test("git-mv-rm renames and removes tracked and new files inside the checkout", () => {
+  const { status, run, git, workspace } = withLaneTools();
+  assert.equal(status, 0);
+  git("add", "tests/notes.txt");
+  git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "base");
+  writeFileSync(path.join(workspace, "new.md"), "new\n");
+  for (const args of [
+    ["mv", "tests/notes.txt", "tests/renamed.txt"],
+    ["mv", "new.md", "tests/new.md"],
+    ["rm", "tests/new.md", "tests/fail.test.sh"],
+  ]) {
+    const result = run("git-mv-rm", args);
+    assert.equal(result.status, 0, `${args.join(" ")}: ${result.stderr}`);
+    assert.match(result.stderr, /exit status: 0\n$/);
+  }
+  assert.equal(git("status", "--porcelain", "--", "tests/renamed.txt", "tests/notes.txt").stdout, "R  tests/notes.txt -> tests/renamed.txt\n");
+  for (const gone of ["new.md", "tests/new.md", "tests/fail.test.sh"]) {
+    assert.throws(() => statSync(path.join(workspace, gone)), gone);
+  }
+});
+
+test("git-mv-rm refuses an absolute path, a .. segment, a path through a link out, an option and the checkout itself", () => {
+  const { status, run, dir, workspace } = withLaneTools();
+  assert.equal(status, 0);
+  for (const args of [
+    ["mv", "tests/notes.txt", path.join(dir, "taken.txt")],
+    ["mv", "tests/notes.txt", "../taken.txt"],
+    ["mv", "tests/notes.txt", "tests/../../taken.txt"],
+    ["mv", "tests/notes.txt", "out/taken.txt"],
+    ["rm", path.join(dir, "secret.txt")],
+    ["rm", "out/secret.txt"],
+    ["rm", "--pathspec-from-file=tests/notes.txt"],
+    ["rm", "."],
+    ["mv", "tests/notes.txt"],
+    ["cp", "tests/notes.txt", "tests/x.txt"],
+  ]) {
+    const result = run("git-mv-rm", args);
+    assert.equal(result.status, 2, args.join(" "));
+    assert.match(result.stderr, /refused|usage/, args.join(" "));
+  }
+  statSync(path.join(workspace, "tests", "notes.txt"));
+  statSync(path.join(dir, "secret.txt"));
+  assert.throws(() => statSync(path.join(dir, "taken.txt")));
+});
+
+// git reads a path argument as a pathspec, so a glob or a `:(...)` magic
+// prefix would reach files the path check never saw.
+test("git-mv-rm treats every path literally: a glob removes nothing else and magic is refused", () => {
+  const { status, run, git, workspace } = withLaneTools();
+  assert.equal(status, 0);
+  writeFileSync(path.join(workspace, "tests", "a*b"), "");
+  writeFileSync(path.join(workspace, "tests", "aXb"), "");
+  git("add", "tests");
+  git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "base");
+  const star = run("git-mv-rm", ["rm", "tests/*"]);
+  assert.notEqual(star.status, 0, "no file is literally named *");
+  const magic = run("git-mv-rm", ["rm", ":(glob)**"]);
+  assert.equal(magic.status, 2);
+  assert.match(magic.stderr, /refused/);
+  const literal = run("git-mv-rm", ["rm", "tests/a*b"]);
+  assert.equal(literal.status, 0, literal.stderr);
+  for (const kept of ["aXb", "pass.test.sh", "notes.txt"]) statSync(path.join(workspace, "tests", kept));
+  assert.throws(() => statSync(path.join(workspace, "tests", "a*b")));
+});
+
+test("git-mv-rm renames a new file literally named a*b and leaves aXb untracked", () => {
+  const { status, run, git, workspace } = withLaneTools();
+  assert.equal(status, 0);
+  writeFileSync(path.join(workspace, "a*b"), "");
+  writeFileSync(path.join(workspace, "aXb"), "");
+  const result = run("git-mv-rm", ["mv", "a*b", "renamed.txt"]);
+  assert.equal(result.status, 0, result.stderr);
+  statSync(path.join(workspace, "renamed.txt"));
+  assert.equal(git("status", "--porcelain", "--", ":(literal)aXb").stdout, "?? aXb\n");
+});
+
+test("run-test-file refuses a pytest node id or a name a runner could read as more than a file", () => {
+  const { status, run, dir, workspace } = withLaneTools();
+  assert.equal(status, 0);
+  writeFileSync(path.join(workspace, "tests", "test_a.py::test_x"), "");
+  writeFileSync(path.join(workspace, "tests", "test_b[1].py"), "");
+  const shim = path.join(dir, "shim");
+  mkdirSync(shim);
+  writeFileSync(path.join(shim, "python3"), '#!/usr/bin/env bash\necho "python3 $*"\n', { mode: 0o755 });
+  for (const file of ["tests/test_a.py::test_x", "tests/test_b[1].py"]) {
+    const result = run("run-test-file", [file], { PATH: `${shim}:${process.env.PATH}` });
+    assert.equal(result.status, 2, file);
+    assert.equal(result.stdout, "", `${file} ran`);
+  }
+});
+
+test("a script the list does not name gets no rule, even beside a listed one", () => {
+  const { status, allowed } = withVerify([VERIFY]);
+  assert.equal(status, 0);
+  assert.ok(!allowed.some((rule) => rule.includes("unlisted.sh")), allowed.join(" | "));
+});
+
+test("without verify-scripts no copy or rule is made", () => {
+  const { status, allowed, verifyDir } = withVerify(undefined);
+  assert.equal(status, 0);
+  assert.ok(!allowed.some((rule) => rule.startsWith("Bash")), allowed.join(" | "));
+  assert.throws(() => statSync(verifyDir));
+});
+
+for (const bad of [
+  "plugins/vtest/skills/audit/scripts/*.sh",
+  "plugins/vtest/skills/audit/scripts/scan.sh --check",
+  "plugins/vtest/skills/audit/scripts/scan.sh *",
+  "plugins/vtest/../vtest/skills/audit/scripts/scan.sh",
+  "/plugins/vtest/scripts/lib.sh",
+  "plugins/vtest/lib.sh",
+  'plugins/vtest/scripts/x".sh',
+]) {
+  test(`a verify-script outside the allowed shape fails red: ${bad}`, () => {
+    const { status, stdout, args } = withVerify([bad]);
+    assert.notEqual(status, 0);
+    assert.match(stdout, /::error::a verify-script must be the exact path of a scripts\/ script/);
+    assert.equal(args, "");
+  });
+}
+
+test("a verify-script missing from the base fails red", () => {
+  const { status, stdout, args } = withVerify(["plugins/vtest/scripts/missing.sh"]);
+  assert.notEqual(status, 0);
+  assert.match(stdout, /::error::a verify-script is not in the base/);
+  assert.equal(args, "");
+});
+
+test("a verify-script whose plugin holds a symbolic link fails red", () => {
+  const scripts = path.join(base, "plugins", "vlink", "scripts");
+  mkdirSync(scripts, { recursive: true });
+  writeFileSync(path.join(scripts, "s.sh"), "echo s\n");
+  spawnSync("ln", ["-sfn", root, path.join(scripts, "out")]);
+  const { status, stdout, args } = withVerify(["plugins/vlink/scripts/s.sh"]);
+  assert.notEqual(status, 0);
+  assert.match(stdout, /::error::a verify-script's directory holds a symbolic link/);
+  assert.equal(args, "");
+});
+
+test("a verify-scripts copy path a rule cannot carry fails red", () => {
+  const { status, args } = withVerify([VERIFY], { VERIFY_DIR: path.join(root, "has space") });
+  assert.notEqual(status, 0);
+  assert.equal(args, "");
+});
+
+test("a read skill gets no verify-script rule", () => {
+  const { status, allowed } = withVerify([VERIFY], { EFFECT: "read" });
+  assert.equal(status, 0);
+  assert.ok(!allowed.some((rule) => rule.startsWith("Bash")), allowed.join(" | "));
+});
+
 test("a read skill gets no check wrapper", () => {
   const { status, allowed } = withChecks(["scripts/check-x.sh --check"], { EFFECT: "read" });
   assert.equal(status, 0);
   assert.ok(!allowed.some((rule) => rule.startsWith("Bash")), allowed.join(" | "));
+});
+
+// pr-run-activity.md, "prepare: review-threads": the skill keeps the commit
+// tool and gets one more Bash rule, the review-thread wrapper, which runs a
+// read-only base copy with the thread file, log, scratch and checkout fixed.
+function withThreads(threads = true) {
+  const dir = mkdtempSync(path.join(root, "threads-"));
+  const workspace = path.join(dir, "workspace");
+  const feedbackDir = path.join(dir, "lane-feedback");
+  const feedbackState = path.join(dir, "lane-feedback-state");
+  mkdirSync(workspace, { recursive: true });
+  mkdirSync(feedbackDir, { recursive: true });
+  if (threads) writeFileSync(path.join(feedbackDir, "threads.json"), "{}");
+  const scripts = path.join(base, "plugins", "source-control", "skills", "pull-request", "scripts");
+  mkdirSync(scripts, { recursive: true });
+  writeFileSync(
+    path.join(scripts, "feedback-thread.sh"),
+    'echo "threads=$FEEDBACK_THREADS log=$FEEDBACK_LOG scratch=$FEEDBACK_SCRATCH ws=$FEEDBACK_WORKSPACE args=$*"\n',
+  );
+  const staged = stage({ PREPARE: "review-threads", FEEDBACK_DIR: feedbackDir, FEEDBACK_STATE: feedbackState, WORKSPACE: workspace });
+  return { workspace, feedbackDir, feedbackState, ...staged };
+}
+
+test("prepare: review-threads keeps the commit tool and adds only the review-thread wrapper", () => {
+  const { status, args, allowed, denied, workspace, feedbackDir, feedbackState, env } = withThreads();
+  assert.equal(status, 0);
+  assert.ok(allowed.includes(COMMIT_TOOL), allowed.join(" | "));
+  assert.ok(args.includes(COMMIT_SENTENCE), args);
+  const tool = path.join(feedbackDir, "bin", "feedback-thread");
+  assert.deepEqual(
+    allowed.filter((rule) => rule.startsWith("Bash")),
+    [`Bash(${tool} *)`],
+  );
+  for (const dir of [feedbackDir, feedbackState]) {
+    assert.ok(denied.includes(`Edit(/${dir}/**)`) && denied.includes(`Write(/${dir}/**)`), denied.join(" | "));
+  }
+  assert.ok(args.includes(`${tool} record <thread-id> <file>`), "the system prompt names the tool");
+  const write = spawnSync("bash", ["-c", 'echo x >>"$1"', "_", path.join(feedbackDir, "feedback-thread.sh")]);
+  assert.notEqual(write.status, 0, "the tool's copy is read-only");
+  const run = spawnSync(tool, ["list", "x y"], { cwd: root, encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(
+    run.stdout.trim(),
+    `threads=${path.join(feedbackDir, "threads.json")} log=${path.join(feedbackState, "replies.jsonl")} scratch=${env.SCRATCH} ws=${workspace} args=list x y`,
+  );
+});
+
+test("prepare: review-threads with no thread file fails red before any output", () => {
+  const { status, stdout, args } = withThreads(false);
+  assert.notEqual(status, 0);
+  assert.match(stdout, /::error::review-threads: the runner wrote no thread file/);
+  assert.equal(args, "");
+});
+
+// pr-run-activity.md, "prepare: dependency-review": the skill keeps the commit
+// tool, reads the runner's read-only context file, gets no Bash rule, and
+// must return the verdict schema's structured output.
+function withDependency({ file = true, gating = "advisory" } = {}) {
+  const dir = mkdtempSync(path.join(root, "dependency-"));
+  const dependencyDir = path.join(dir, "lane-dependency");
+  mkdirSync(dependencyDir, { recursive: true });
+  if (file) writeFileSync(path.join(dependencyDir, "dependency.json"), "{}");
+  return { dependencyDir, ...stage({ PREPARE: "dependency-review", DEPENDENCY_DIR: dependencyDir, GATING: gating }) };
+}
+
+test("prepare: dependency-review reads the context file and returns the verdict schema", () => {
+  const { status, args, allowed, denied, dependencyDir } = withDependency();
+  assert.equal(status, 0);
+  assert.ok(allowed.includes(COMMIT_TOOL), allowed.join(" | "));
+  assert.ok(allowed.includes(`Read(/${dependencyDir}/**)`), allowed.join(" | "));
+  assert.ok(!allowed.some((rule) => rule.startsWith("Bash")), allowed.join(" | "));
+  assert.ok(denied.includes(`Edit(/${dependencyDir}/**)`) && denied.includes(`Write(/${dependencyDir}/**)`), denied.join(" | "));
+  const schema = JSON.parse(/--json-schema '([^']+)'/.exec(args)[1]);
+  assert.deepEqual(schema.properties.verdict.enum, ["merge", "fix", "close", "escalate"]);
+  assert.deepEqual(schema.required, ["verdict", "reasons", "evidence"]);
+  const write = spawnSync("bash", ["-c", 'echo x >>"$1"', "_", path.join(dependencyDir, "dependency.json")]);
+  assert.notEqual(write.status, 0, "the context file is read-only");
+});
+
+test("prepare: dependency-review with no context file, or as a gate, fails red before any output", () => {
+  const missing = withDependency({ file: false });
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stdout, /::error::dependency-review: the runner wrote no context file/);
+  assert.equal(missing.args, "");
+  const gate = withDependency({ gating: "gate" });
+  assert.notEqual(gate.status, 0);
+  assert.match(gate.stdout, /::error::dependency-review: the activity must be advisory/);
 });
 
 test("an unknown prepare mode fails red before any output", () => {

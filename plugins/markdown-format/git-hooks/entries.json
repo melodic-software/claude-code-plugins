@@ -1,0 +1,12 @@
+{
+  "entries": [
+    {
+      "name": "markdown-check",
+      "event": "pre-commit",
+      "script": "markdown-check.sh",
+      "tools": ["markdownlint-cli2"],
+      "rewrites": true,
+      "assets": ["git-hooks/markdown-gates.sh"]
+    }
+  ]
+}

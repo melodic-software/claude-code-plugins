@@ -9,9 +9,16 @@ name: work-resolve-issue
 # resolve-issue runs /work-items:work on the issue and commits to a new branch,
 # or stops and says why. report-outcome then opens a ready PR from that branch,
 # or comments on the issue and labels it needs-human. Which issues are admitted
-# (their work class, and the go-live time) is in docs/conventions/pr-pipeline.yaml.
-# The kill switch, the labeler check (a listed human) and the token broker run
-# inside pr-run-activity-write.yml.
+# (their work class or the owner's ratification marker, and the go-live time)
+# is in docs/conventions/pr-pipeline.yaml.
+# The kill switch, the labeler check (a listed human, or the lanes App on an
+# issue the owner ratified) and the token broker run inside
+# pr-run-activity-write.yml.
+
+# The morning brief's Lanes section groups runs by the issue number that ends
+# this title, so a retitled issue stays one item and two issues with one
+# title stay two. Quoted: unquoted, " #" would start a YAML comment.
+run-name: "${{ github.event.issue.title }} #${{ github.event.issue.number }}"
 
 on:
   issues:
@@ -27,10 +34,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The lanes App's agent-ready label reaches the trigger gate, which starts
+  # the run only while the owner's ratification marker is on the issue; the
+  # App's other labels never start a run.
   resolve-issue:
-    if: >-
-      github.event.label.name == 'agent-ready'
-      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+    if: github.event.label.name == 'agent-ready'
     permissions:
       contents: read
       pull-requests: read
@@ -42,6 +50,7 @@ jobs:
       activity: resolve-issue
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
+      ratified-app-label: agent-ready
       timeout-minutes: 50
     secrets:
       claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
@@ -105,3 +114,4 @@ jobs:
       activity: report-outcome
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
+      ratified-app-label: agent-ready

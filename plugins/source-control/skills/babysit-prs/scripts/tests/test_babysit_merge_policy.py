@@ -29,6 +29,7 @@ import babysit_merge_policy as policy
 REPO = "owner/repo"
 SHA = "a" * 40
 IDENTITY = "agent-lanes[bot]"
+POLICY = ".github/standards/dependabot-policy/policy.json"
 OPERATOR = "operator"
 PR_CREATED = "2026-10-12T12:00:00Z"
 DEMOTION_BODY = (
@@ -2216,7 +2217,8 @@ class EnabledSince(unittest.TestCase):
 
 
 LANE_PIPELINE = PIPELINE.replace("local-babysit", "pr-merge").replace(
-    "  diff-check:", "  report-only: true\n  diff-check:"
+    "  diff-check:",
+    "  report-only: true\n  require-verifier-verdict: true\n  diff-check:",
 )
 MECHANICAL = "work-class: mechanical"
 LANE_DENIED = (
@@ -2229,24 +2231,37 @@ LANE_DENIED = (
 )
 
 
-def label_event(
-    event: str, label: str, actor: dict[str, str], at: str, via: Any = None
-) -> dict[str, Any]:
-    return {
-        "event": event,
-        "label": {"name": label},
-        "actor": actor,
-        "created_at": at,
-        "performed_via_github_app": via,
-    }
-
-
-CI_LABELED = label_event(
-    "labeled",
-    MECHANICAL,
-    {"login": "agent-lanes[bot]", "type": "Bot"},
-    "2026-10-12T12:01:00Z",
+# The owner's ratification (resolve-config's ratification.mjs): the marker on
+# a line of its own, by a listed human, not through an App, never edited.
+MARKER = (
+    "<!-- admission: admitted when unblocked, owner batch ratification 2026-10-16 -->"
 )
+OWNER_ID = 153232337
+# The trusted list is read at the default branch's current head, never at a
+# pull request's base.
+DEFAULT_HEAD = "d" * 40
+TRUSTED_LIST = (
+    f"repos/{REPO}/contents/.github/standards/trusted-actors/trusted-actors.json"
+    f"?ref={DEFAULT_HEAD}"
+)
+TRUSTED = {
+    "version": 1,
+    "actors": [
+        {"id": OWNER_ID, "login": "kyle-sexton", "kind": "human"},
+        {"id": 337595936, "login": "melodic-automation-lanes[bot]", "kind": "bot"},
+    ],
+}
+
+
+def ratification(**changes: Any) -> dict[str, Any]:
+    return {
+        "id": 4242,
+        "body": f"Ratified.\n{MARKER}\n",
+        "user": {"id": OWNER_ID, "login": "kyle-sexton"},
+        "performed_via_github_app": None,
+        "created_at": "2026-10-16T12:00:00Z",
+        "updated_at": "2026-10-16T12:00:00Z",
+    } | changes
 
 
 class LaneConfig(unittest.TestCase):
@@ -2266,56 +2281,116 @@ class LaneConfig(unittest.TestCase):
         )
         self.assertIs(policy.read_config_at(REPO, SHA).report_only, True)
 
+    def diff_check(self, lines: str) -> Any:
+        text = LANE_PIPELINE.replace(
+            "    max-changed-lines: 200\n", "".join(f"    {x}\n" for x in lines)
+        )
+        config_fake(self, text)
+        return policy.read_config_at(REPO, SHA)
+
+    def test_the_lane_switches_default_to_off(self) -> None:
+        # Owner decision Q624: absent, the floor, the C2 contradictions and
+        # both size caps are off.
+        config = self.diff_check([])
+        self.assertEqual(
+            (
+                config.high_path_floor,
+                config.c2_contradictions,
+                config.max_changed_files,
+                config.max_changed_lines,
+                config.rung,
+            ),
+            (False, False, None, None, "C2"),
+        )
+
+    def test_the_lane_switches_are_read(self) -> None:
+        config = self.diff_check(
+            [
+                "high-path-floor: true",
+                "c2-contradictions: true",
+                "max-changed-files: 8",
+                "max-changed-lines: 400",
+            ]
+        )
+        self.assertEqual(
+            (
+                config.high_path_floor,
+                config.c2_contradictions,
+                config.max_changed_files,
+                config.max_changed_lines,
+            ),
+            (True, True, 8, 400),
+        )
+
+    def test_an_unreadable_switch_is_on_and_a_bad_cap_is_off(self) -> None:
+        config = self.diff_check(["high-path-floor: maybe", "c2-contradictions: 1"])
+        self.assertEqual(
+            (config.high_path_floor, config.c2_contradictions), (True, True)
+        )
+        self.assertEqual(len(config.notes), 2)
+        config = self.diff_check(["max-changed-files: lots"])
+        self.assertEqual((config.rung, config.max_changed_files), ("off", None))
+
 
 class LaneEligibility(unittest.TestCase):
-    """The pr-merge lane's eligibility (plan Design "Eligibility", D14, D17,
-    D30): the class comes from the pull request's single closing issue, never
-    from a label on the pull request. A `work-class:` label counts when the
-    lane identity's App applied it, or a human in person (not through an App)
-    with no issue body edit after it; the strictest one counting must be
-    `work-class: mechanical`, on a diff that touches no denied path."""
+    """The pr-merge lane's eligibility (merge-criterion plan, Design 1 and 2):
+    a pull request the lanes App opened, not a fork or a dependency
+    manager's, with exactly one closing issue in this repository and a diff
+    touching no denied path, is fixed class C2. No `work-class:` label is
+    read, on the issue or the pull request; the verifier verdict, bound to
+    that closing issue, is the merge criterion."""
 
     ISSUE = 41
     TIMELINE = f"repos/{REPO}/issues/41/timeline?per_page=100"
     FILES = f"repos/{REPO}/pulls/7/files?per_page=100"
+    COMMENTS = f"repos/{REPO}/issues/41/comments?per_page=100"
 
     def issue_node(
         self,
         number: int = 41,
         labels: list[str] | None = None,
         repository: str = REPO,
-        edited: str | None = None,
+        edited: Any = None,
+        renamed: Any = None,
     ) -> dict[str, Any]:
-        names = [MECHANICAL] if labels is None else labels
+        names = [] if labels is None else labels
         return {
             "number": number,
             "lastEditedAt": edited,
             "repository": {"nameWithOwner": repository},
             "labels": {"totalCount": len(names), "nodes": [{"name": n} for n in names]},
+            "timelineItems": {
+                "nodes": [] if renamed is None else [{"createdAt": renamed}]
+            },
         }
 
     def fake(
         self,
         *,
         labels: list[str] | None = None,
-        events: list[dict[str, Any]] | None = None,
         files: list[str] | None = None,
         pr_labels: list[str] | None = None,
         closing: list[dict[str, Any]] | None = None,
-        edited: str | None = None,
         author: dict[str, str] | None = None,
+        comments: Any = None,
+        base_ref: str = "main",
     ) -> GhFake:
-        issues = (
-            [self.issue_node(labels=labels, edited=edited)]
-            if closing is None
-            else closing
-        )
+        issues = [self.issue_node(labels=labels)] if closing is None else closing
         names = pr_labels or []
         gh = GhFake().install(self)
+        gh.rest[f"repos/{REPO}"] = {"default_branch": "main"}
+        gh.rest[f"repos/{REPO}/commits/main"] = {"sha": DEFAULT_HEAD}
+        # Each closing issue's body-edit and title-change times, read fresh.
+        gh.graphql["PolicyIssueEdits"] = lambda v: {
+            "repository": {
+                "issue": next((i for i in issues if str(i["number"]) == v["n"]), None)
+            }
+        }
         gh.graphql["PolicyEligibility"] = {
             "repository": {
                 "pullRequest": {
                     "number": 7,
+                    "baseRefName": base_ref,
                     "createdAt": PR_CREATED,
                     "lastEditedAt": "2026-10-12T13:00:00Z",
                     "isCrossRepository": False,
@@ -2332,14 +2407,17 @@ class LaneEligibility(unittest.TestCase):
                 }
             }
         }
-        gh.rest[self.TIMELINE] = [CI_LABELED] if events is None else events
         self.paths = ["docs/guide.md"] if files is None else files
         gh.rest[self.FILES] = [{"filename": p} for p in self.paths]
+        # The owner's ratification marker on the closing issue (#7725).
+        gh.rest[self.COMMENTS] = [ratification()] if comments is None else comments
+        gh.rest[TRUSTED_LIST] = file_payload(json.dumps(TRUSTED))
         return gh
 
     def eligibility(self, changed: int | None = None) -> Any:
         pr = {
             "number": 7,
+            "base": {"sha": SHA},
             "changed_files": len(self.paths) if changed is None else changed,
         }
         return policy.lane_eligibility(
@@ -2351,48 +2429,35 @@ class LaneEligibility(unittest.TestCase):
             permission=HUMANS,
         )
 
-    def test_a_pr_whose_closing_issue_is_mechanical_is_eligible(self) -> None:
-        # A PR body edited after the label is not a lane rule.
-        self.fake()
+    def test_a_lane_pr_whose_issue_has_no_class_label_is_eligible_as_c2(self) -> None:
+        gh = self.fake()
         result = self.eligibility()
         self.assertTrue(result.eligible, result.reason)
         self.assertEqual((result.work_class, result.issue), ("C2", 41))
+        # No label history is read: the fake answers no timeline call.
+        self.assertFalse(any(self.TIMELINE in " ".join(c) for c in gh.calls))
+
+    def test_a_class_label_on_the_issue_or_the_pr_is_ignored(self) -> None:
+        # The ratified issues still carrying these labels (#5981, #6821).
+        for labels in (
+            ["work-class: scoped"],
+            ["Work-Class: Structural"],
+            [MECHANICAL, "work-class: untrusted-provenance"],
+        ):
+            with self.subTest(labels=labels):
+                self.fake(labels=labels, pr_labels=["work-class: structural"])
+                result = self.eligibility()
+                self.assertTrue(result.eligible, result.reason)
+                self.assertEqual(result.work_class, "C2")
 
     def test_a_pr_the_lanes_app_did_not_open_is_ineligible(self) -> None:
-        # Anyone with write access could name a mechanical issue in `Closes #N`.
+        # Anyone with write access could name an issue in `Closes #N`.
         for author in (user(OPERATOR), bot("other-app")):
             with self.subTest(author["login"]):
                 self.fake(author=author)
                 result = self.eligibility()
                 self.assertFalse(result.eligible)
                 self.assertEqual(result.reason, "not-lane-authored")
-
-    def test_a_human_in_person_label_on_the_issue_counts(self) -> None:
-        owner = {"login": OPERATOR, "type": "User"}
-        self.fake(
-            events=[label_event("labeled", MECHANICAL, owner, "2026-10-12T12:01:00Z")]
-        )
-        result = self.eligibility()
-        self.assertTrue(result.eligible, result.reason)
-
-    def test_a_mechanical_pr_label_with_a_scoped_issue_is_ineligible(self) -> None:
-        lanes = {"login": "agent-lanes[bot]", "type": "Bot"}
-        self.fake(
-            pr_labels=[MECHANICAL],
-            labels=["work-class: scoped"],
-            events=[
-                label_event(
-                    "labeled", "work-class: scoped", lanes, "2026-10-12T12:01:00Z"
-                )
-            ],
-        )
-        result = self.eligibility()
-        self.assertFalse(result.eligible)
-        self.assertEqual(result.reason, "class-not-mechanical:C3")
-
-    def test_a_mechanical_pr_label_alone_is_ineligible(self) -> None:
-        self.fake(pr_labels=[MECHANICAL], labels=[], events=[])
-        self.assertEqual(self.eligibility().reason, "class-missing")
 
     def test_no_or_several_closing_issues_refuse(self) -> None:
         self.fake(closing=[])
@@ -2403,67 +2468,6 @@ class LaneEligibility(unittest.TestCase):
     def test_a_closing_issue_in_another_repository_refuses(self) -> None:
         self.fake(closing=[self.issue_node(repository="other/repo")])
         self.assertEqual(self.eligibility().reason, "linked-issue-other-repository")
-
-    def test_a_label_that_is_neither_the_app_nor_a_human_in_person_is_ignored(
-        self,
-    ) -> None:
-        app = {"slug": "some-app"}
-        for name, event in (
-            # A workflow on a branch an agent pushed can label as github-actions.
-            ("github-actions", ("github-actions[bot]", "Bot", None)),
-            ("another bot", ("other-app[bot]", "Bot", None)),
-            ("a person through an App", (OPERATOR, "User", app)),
-            ("a read-only person", ("reader", "User", None)),
-        ):
-            with self.subTest(name):
-                login, kind, via = event
-                actor = {"login": login, "type": kind}
-                self.fake(
-                    events=[
-                        label_event(
-                            "labeled", MECHANICAL, actor, "2026-10-12T12:01:00Z", via
-                        )
-                    ]
-                )
-                self.assertEqual(self.eligibility().reason, "class-label-untrusted")
-
-    def test_an_issue_body_edit_after_a_human_label_refuses(self) -> None:
-        owner = {"login": OPERATOR, "type": "User"}
-        self.fake(
-            events=[label_event("labeled", MECHANICAL, owner, "2026-10-12T12:01:00Z")],
-            edited="2026-10-12T12:30:00Z",
-        )
-        self.assertEqual(
-            self.eligibility().reason, "class-provenance:body-edited-after-label"
-        )
-
-    def test_an_untrusted_removal_of_a_stricter_label_is_ignored(self) -> None:
-        lanes = {"login": "agent-lanes[bot]", "type": "Bot"}
-        other = {"login": "other-app[bot]", "type": "Bot"}
-        self.fake(
-            events=[
-                label_event(
-                    "labeled", "work-class: scoped", lanes, "2026-10-12T12:00:00Z"
-                ),
-                CI_LABELED,
-                label_event(
-                    "unlabeled", "work-class: scoped", other, "2026-10-12T12:02:00Z"
-                ),
-            ]
-        )
-        self.assertEqual(self.eligibility().reason, "class-not-mechanical:C3")
-
-    def test_no_class_or_another_class_is_ineligible(self) -> None:
-        self.fake(labels=[], events=[])
-        self.assertEqual(self.eligibility().reason, "class-missing")
-        self.fake(labels=["work-class: scoped"], events=[])
-        self.assertEqual(self.eligibility().reason, "class-not-mechanical:C3")
-        # A person's stricter label is not trusted to grant, but it restricts.
-        self.fake(labels=[MECHANICAL, "work-class: scoped"])
-        self.assertEqual(self.eligibility().reason, "class-not-mechanical:C3")
-        # GitHub label names are case-insensitive: another case is the same label.
-        self.fake(labels=[MECHANICAL, "Work-Class: Structural"])
-        self.assertEqual(self.eligibility().reason, "class-not-mechanical:C4")
 
     def test_a_denied_path_pr_refuses(self) -> None:
         for path in (
@@ -2480,14 +2484,16 @@ class LaneEligibility(unittest.TestCase):
                 self.assertFalse(result.eligible)
                 self.assertEqual(result.reason, f"denied-path:{path}")
 
-    def test_the_live_config_denies_each_owner_approved_path(self) -> None:
-        # Plan D17 plus the owner's three additions on #7467.
+    def test_the_live_config_denies_no_path(self) -> None:
+        # Owner decision Q624: the live denied-path list is empty, so a lane
+        # PR touching the paths it used to deny is eligible.
         live = pathlib.Path(__file__).resolve().parents[6] / policy.CONFIG_PATH
         values = policy._concern_values(
             live.read_text(encoding="utf-8"),
             [("merge.diff-check.denied-paths", True)],
         )
         denied = tuple((values or {}).get("merge.diff-check.denied-paths", ()))
+        self.assertEqual(denied, ())
         for path in (
             ".github/workflows/x.yml",
             "docs/conventions/pr-pipeline.yaml",
@@ -2506,11 +2512,12 @@ class LaneEligibility(unittest.TestCase):
                 result = policy.lane_eligibility(
                     REPO,
                     7,
-                    pr={"number": 7, "changed_files": 2},
+                    pr={"number": 7, "base": {"sha": SHA}, "changed_files": 2},
                     denied_paths=denied,
                     agent_identity=IDENTITY,
                 )
-                self.assertEqual(result.reason, f"denied-path:{path}")
+                self.assertTrue(result.eligible, result.reason)
+                self.assertEqual(result.work_class, "C2")
 
     def test_a_renamed_file_from_a_denied_path_refuses(self) -> None:
         gh = self.fake()
@@ -2525,46 +2532,152 @@ class LaneEligibility(unittest.TestCase):
             self.eligibility(changed=3001).reason, "changed-files-incomplete"
         )
 
-    def test_no_denied_paths_configured_refuses(self) -> None:
-        self.fake()
+    def test_no_denied_paths_configured_allows_any_path(self) -> None:
+        # Owner decision Q624: an empty list is the permissive default.
+        self.fake(files=["plugins/source-control/skills/babysit-prs/scripts/x.py"])
         result = policy.lane_eligibility(
             REPO,
             7,
-            pr={"number": 7, "changed_files": 1},
+            pr={"number": 7, "base": {"sha": SHA}, "changed_files": 1},
             denied_paths=(),
             agent_identity=IDENTITY,
         )
-        self.assertEqual(result.reason, "denied-paths-unset")
+        self.assertTrue(result.eligible, result.reason)
 
-    def test_no_identity_trusts_no_author_and_no_app_label(self) -> None:
+    def test_no_identity_trusts_no_author(self) -> None:
         self.fake()
         result = policy.lane_eligibility(
             REPO,
             7,
-            pr={"number": 7, "changed_files": 1},
+            pr={"number": 7, "base": {"sha": SHA}, "changed_files": 1},
             denied_paths=LANE_DENIED,
             agent_identity=None,
         )
         self.assertEqual(result.reason, "not-lane-authored")
+
+    def test_a_ratified_closing_issue_is_eligible(self) -> None:
+        self.fake()
+        self.assertTrue(self.eligibility().eligible)
+
+    def test_an_issue_the_owner_did_not_ratify_refuses(self) -> None:
+        # Each rule of ratification.mjs `findRatification`, one at a time.
+        for name, comments in (
+            ("no comment", []),
+            ("no marker", [ratification(body="Ratified.")]),
+            ("a quoted marker", [ratification(body=f"> {MARKER}")]),
+            ("edited", [ratification(updated_at="2026-10-16T12:05:00Z")]),
+            ("through an App", [ratification(performed_via_github_app={"id": 1})]),
+            ("an unlisted human", [ratification(user={"id": 1, "login": "x"})]),
+            ("a listed bot", [ratification(user={"id": 337595936})]),
+        ):
+            with self.subTest(name):
+                self.fake(comments=comments)
+                result = self.eligibility()
+                self.assertFalse(result.eligible)
+                self.assertEqual(result.reason, "not-ratified")
+
+    def test_one_ratifying_comment_among_others_is_enough(self) -> None:
+        self.fake(comments=[ratification(body="hi"), ratification(id=7)])
+        self.assertTrue(self.eligibility().eligible)
+
+    def test_unreadable_comments_or_trusted_list_refuse(self) -> None:
+        gh = self.fake()
+        gh.rest[self.COMMENTS] = 502
+        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
+        gh = self.fake()
+        gh.rest[TRUSTED_LIST] = file_payload('{"version": 2, "actors": []}')
+        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
+        # The list is read at the default branch's head: no head, no read.
+        gh = self.fake()
+        gh.rest[f"repos/{REPO}/commits/main"] = 502
+        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
+        gh = self.fake()
+        gh.rest[f"repos/{REPO}"] = 502
+        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
+
+    def test_the_trusted_list_is_read_at_the_default_branch_head(self) -> None:
+        # #7725 review: a human removed from the list on main no longer
+        # ratifies an older pull request whose base still lists them.
+        gh = self.fake()
+        gh.rest[TRUSTED_LIST] = file_payload(
+            json.dumps({"version": 1, "actors": TRUSTED["actors"][1:]})
+        )
+        gh.rest[TRUSTED_LIST.replace(DEFAULT_HEAD, SHA)] = file_payload(
+            json.dumps(TRUSTED)
+        )
+        self.assertEqual(self.eligibility().reason, "not-ratified")
+
+    def test_a_pr_into_another_branch_refuses(self) -> None:
+        self.fake(base_ref="release")
+        self.assertEqual(self.eligibility().reason, "base-not-default:release")
         self.assertEqual(
-            policy._lane_class(
-                "owner", "repo", LaneEligibility.issue_node(self), None, lambda _: False
-            ),
-            ("C2", "class-label-untrusted"),
+            policy.recheck_lane_issue(REPO, 7, issue=41), "base-not-default:release"
         )
 
-    def test_the_enqueue_recheck_reads_the_issue_class_again(self) -> None:
-        def recheck() -> str | None:
-            return policy.recheck_lane_class(
-                REPO, 7, agent_identity=IDENTITY, permission=HUMANS
-            )
+    def test_a_denied_actor_does_not_ratify(self) -> None:
+        # check-trusted-trigger.mjs: DENIED_ACTOR_IDS leave the ratifiers.
+        self.fake()
+        env = {policy.DENIED_ACTOR_IDS_ENV: f"1, {OWNER_ID}"}
+        with mock.patch.dict(policy.os.environ, env):
+            self.assertEqual(self.eligibility().reason, "not-ratified")
+        with mock.patch.dict(policy.os.environ, {policy.DENIED_ACTOR_IDS_ENV: "x"}):
+            self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
+        with mock.patch.dict(policy.os.environ, {policy.DENIED_ACTOR_IDS_ENV: "5"}):
+            self.assertTrue(self.eligibility().eligible)
+
+    def test_an_issue_edit_after_the_newest_ratification_refuses(self) -> None:
+        # The owner ratified the title and body as they stood then.
+        after, before = "2026-10-16T12:05:00Z", "2026-10-16T11:00:00Z"
+        for node, eligible in (
+            (self.issue_node(edited=after), False),
+            (self.issue_node(renamed=after), False),
+            (self.issue_node(edited="not a time"), False),
+            (self.issue_node(edited=before, renamed=before), True),
+            (self.issue_node(edited="2026-10-16T12:00:00Z"), True),
+        ):
+            with self.subTest(node=node):
+                self.fake(closing=[node])
+                result = self.eligibility()
+                self.assertIs(result.eligible, eligible, result.reason)
+                if not eligible:
+                    self.assertEqual(result.reason, "not-ratified")
+        # A later marker re-ratifies an edit made after the first.
+        later = ratification(
+            id=5, created_at="2026-10-16T13:00:00Z", updated_at="2026-10-16T13:00:00Z"
+        )
+        self.fake(
+            closing=[self.issue_node(edited=after)], comments=[ratification(), later]
+        )
+        self.assertTrue(self.eligibility().eligible)
+
+    def test_the_enqueue_recheck_reads_the_ratification_again(self) -> None:
+        self.fake(comments=[])
+        self.assertEqual(policy.recheck_lane_issue(REPO, 7, issue=41), "not-ratified")
+        self.fake(closing=[self.issue_node(renamed="2026-10-17T00:00:00Z")])
+        self.assertEqual(policy.recheck_lane_issue(REPO, 7, issue=41), "not-ratified")
+        gh = self.fake()
+        gh.rest[self.COMMENTS] = 502
+        reason = policy.recheck_lane_issue(REPO, 7, issue=41)
+        self.assertTrue(str(reason).startswith("unreadable:"))
+
+    def test_the_enqueue_recheck_reads_the_closing_issue_again(self) -> None:
+        def recheck(issue: int | None = 41) -> str | None:
+            return policy.recheck_lane_issue(REPO, 7, issue=issue)
 
         self.fake()
         self.assertIsNone(recheck())
+        # A label removed since the eligibility read no longer refuses.
         self.fake(labels=[])
-        self.assertEqual(recheck(), "class-label-removed")
+        self.assertIsNone(recheck())
+        self.fake(closing=[self.issue_node(number=42)])
+        self.assertEqual(recheck(), "closing-issue-changed:41>42")
         self.fake(closing=[])
         self.assertEqual(recheck(), "linked-issues:0")
+        self.fake(closing=[self.issue_node(repository="other/repo")])
+        self.assertEqual(recheck(), "linked-issue-other-repository")
+        # No issue from the eligibility read: nothing to hold the recheck to.
+        self.fake()
+        self.assertEqual(recheck(None), "closing-issue-changed:None>41")
 
 
 class LaneEnabledSince(unittest.TestCase):
@@ -2759,6 +2872,22 @@ class LaneAssess(unittest.TestCase):
             (".github/**", "docs/conventions/pr-pipeline.yaml"),
         )
 
+    def test_the_lane_refuses_when_the_verdict_is_not_required(self) -> None:
+        # Design 3: with no class read, the verdict is the merge criterion, so
+        # a lane that does not require it has none; absent reads as false.
+        key = "  require-verifier-verdict: true\n"
+        for value in ("", key.replace("true", "false")):
+            with self.subTest(value=value):
+                gh = self.readable()
+                path = f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"
+                gh.rest[path] = file_payload(LANE_PIPELINE.replace(key, value))
+                self.lane_clear()
+                result = self.lane_assess(post_merge=lambda floor, who: gate())
+                self.assertEqual(result.reason, "verifier-verdict-not-required")
+                self.assertEqual(
+                    result.inputs["own_refusal"], "verifier-verdict-not-required"
+                )
+
     def test_authority_pr_merge_reads_its_own_enabled_since(self) -> None:
         self.readable()
         self.lane_clear()
@@ -2819,6 +2948,614 @@ class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):
         self.assertEqual(code, 10)
         self.assertEqual(out["agentIdentity"], IDENTITY)
         self.assertEqual(out["actingLogin"], "Agent-Lanes[bot]")
+
+
+DEPENDABOT_EMAIL = "49699333+dependabot[bot]@users.noreply.github.com"
+
+
+def dependabot_commit(
+    update_type: str = "semver-minor",
+    *,
+    name: str = "dependabot[bot]",
+    email: str = DEPENDABOT_EMAIL,
+    message: str | None = None,
+    login: str | None = None,
+    sha: str = "d" * 40,
+) -> dict[str, Any]:
+    version = "2.0.0" if update_type == "semver-major" else "1.3.0"
+    message = message or (
+        "build(deps): bump x\n\n---\nupdated-dependencies:\n"
+        f"- dependency-name: x\n  dependency-version: {version}\n"
+        f"  update-type: version-update:{update_type}\n...\n"
+    )
+    return {
+        "sha": sha,
+        "author": {"login": login} if login else None,
+        "commit": {
+            "message": message,
+            "author": {"name": name, "email": email},
+            "committer": {"email": "noreply@github.com"},
+            "verification": {"verified": True},
+        },
+    }
+
+
+class DependabotConfig(unittest.TestCase):
+    """`merge.dependabot.mode`: absent or unknown is off, so a repository
+    that never set it keeps refusing every Dependabot pull request."""
+
+    def test_the_mode_is_read_and_anything_else_is_off(self) -> None:
+        for written, mode in (
+            (None, "off"),
+            ("enforce", "enforce"),
+            ("report", "report"),
+            ("off", "off"),
+            ("yes", "off"),
+        ):
+            with self.subTest(written=written):
+                text = LANE_PIPELINE
+                if written is not None:
+                    text += f"  dependabot:\n    mode: {written}\n"
+                config_fake(self, text)
+                self.assertEqual(policy.read_config_at(REPO, SHA).dependabot_mode, mode)
+
+
+class DependabotEligibility(unittest.TestCase):
+    """The pr-merge lane's Dependabot class: tier `auto` on verified
+    Dependabot commits with non-major updates, a green `ci-status`, and no
+    human blocking comment. No closing issue and no denied paths are read."""
+
+    HEAD = "e" * 40
+    COMMITS = f"repos/{REPO}/pulls/7/commits?per_page=100"
+    ACTIVITY = (
+        f"repos/{REPO}/activity?ref=refs%2Fheads%2Fdependabot%2Fnpm_and_yarn%2Fx-1.3.0"
+        "&per_page=100"
+    )
+    CI = (
+        f"repos/{REPO}/commits/{'e' * 40}/check-runs"
+        "?check_name=ci-status&filter=latest&per_page=100"
+    )
+
+    def fake(
+        self,
+        *,
+        commits: list[dict[str, Any]] | None = None,
+        ci: list[dict[str, Any]] | None = None,
+        comments: list[dict[str, Any]] | None = None,
+        author: dict[str, str] | None = None,
+        cross: bool = False,
+        pushes: list[dict[str, Any]] | None = None,
+        files: list[dict[str, Any]] | None = None,
+        review_only: list[dict[str, Any]] | None = None,
+        registry: dict[str, Any] | None = None,
+    ) -> GhFake:
+        gh = GhFake().install(self)
+        # The package registry: by default x has never had provenance.
+        pages = (
+            {
+                "https://registry.npmjs.org/x": {
+                    "versions": {"1.2.0": {}, "1.3.0": {}},
+                    "time": {
+                        "1.2.0": "2026-09-01T00:00:00Z",
+                        "1.3.0": "2026-10-01T00:00:00Z",
+                    },
+                }
+            }
+            if registry is None
+            else registry
+        )
+        self.registry_calls: list[str] = []
+
+        def read(url: str, accept: str) -> Any:
+            self.registry_calls.append(url)
+            if url not in pages:
+                raise OSError(f"HTTP 404 {url}")
+            return pages[url]
+
+        patcher = mock.patch.object(policy, "_registry_json", read)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        gh.rest[f"repos/{REPO}/contents/{POLICY}?ref={SHA}"] = file_payload(
+            json.dumps(
+                {
+                    "autoMerge": {
+                        "reviewOnly": [self.entry(dependency="y")]
+                        if review_only is None
+                        else review_only
+                    }
+                }
+            )
+        )
+        gh.graphql["PolicyEligibility"] = {
+            "repository": {
+                "pullRequest": {
+                    "number": 7,
+                    "isCrossRepository": cross,
+                    "author": author or bot("dependabot"),
+                    "headRepositoryOwner": {"login": "owner"},
+                }
+            }
+        }
+        self.commits = [dependabot_commit()] if commits is None else commits
+        gh.rest[self.COMMITS] = self.commits
+        runs = [{"status": "completed", "conclusion": "success"}] if ci is None else ci
+        gh.rest[self.CI] = {"check_runs": runs}
+        gh.rest[f"repos/{REPO}/issues/7/comments?per_page=100"] = comments or []
+        gh.rest[f"repos/{REPO}/pulls/7/reviews?per_page=100"] = []
+        gh.rest[f"repos/{REPO}/pulls/7/comments?per_page=100"] = []
+        # Dependabot pushed the head; the diff is a covered lock file.
+        gh.rest[self.ACTIVITY] = (
+            [
+                {
+                    "activity_type": "branch_creation",
+                    "after": self.HEAD,
+                    "actor": {"login": "dependabot[bot]", "type": "Bot"},
+                }
+            ]
+            if pushes is None
+            else pushes
+        )
+        gh.rest[f"repos/{REPO}/contents/.github/dependabot.yml?ref={SHA}"] = (
+            file_payload("updates:\n  - package-ecosystem: npm\n    directory: /\n")
+        )
+        self.files = [{"filename": "package-lock.json"}] if files is None else files
+        gh.rest[f"repos/{REPO}/pulls/7/files?per_page=100"] = self.files
+        return gh
+
+    @staticmethod
+    def entry(**fields: str) -> dict[str, str]:
+        return {
+            "repository": REPO,
+            "ecosystem": "npm",
+            "directory": "/",
+            "dependency": "x",
+            "reviewed": "2026-10-17",
+            "basis": "runs with a secret",
+            "control": "docs/x.md#control",
+            **fields,
+        }
+
+    def eligibility(self, title: str = "build(deps): bump x") -> Any:
+        pr = {
+            "number": 7,
+            "title": title,
+            "body": "",
+            "commits": len(self.commits),
+            "changed_files": len(self.files),
+            "base": {"sha": SHA},
+            "head": {"sha": self.HEAD, "ref": "dependabot/npm_and_yarn/x-1.3.0"},
+            "user": {"login": "dependabot[bot]", "type": "Bot"},
+        }
+        return policy.dependabot_eligibility(REPO, 7, pr=pr, agent_identity=IDENTITY)
+
+    def marker(
+        self, head: str | None = None, verdict: str = "merge", login: str = IDENTITY
+    ) -> dict[str, Any]:
+        return {
+            "id": 9,
+            "created_at": "2026-10-16T12:00:00Z",
+            "user": {"login": login, "type": "Bot"},
+            "body": (
+                "<!-- pr-unblock:review-dependency-round "
+                f"head={head or self.HEAD} verdict={verdict} run=55-1 -->"
+            ),
+        }
+
+    def test_a_minor_bump_whose_provenance_changed_waits_for_a_review(self) -> None:
+        attested = {"dist": {"attestations": {"url": "u"}}}
+        payload = {
+            "predicate": {
+                "buildDefinition": {
+                    "externalParameters": {
+                        "workflow": {
+                            "repository": "https://github.com/o/x",
+                            "path": "w",
+                        }
+                    }
+                }
+            }
+        }
+        packument = {
+            "versions": {"1.2.0": attested, "1.3.0": {}},
+            "time": {"1.2.0": "2026-09-01T00:00:00Z", "1.3.0": "2026-10-01T00:00:00Z"},
+        }
+        attestation = {
+            "attestations": [
+                {
+                    "predicateType": "https://slsa.dev/provenance/v1",
+                    "bundle": {
+                        "dsseEnvelope": {
+                            "payload": base64.b64encode(
+                                json.dumps(payload).encode()
+                            ).decode()
+                        }
+                    },
+                }
+            ]
+        }
+        self.fake(
+            registry={
+                "https://registry.npmjs.org/x": packument,
+                "https://registry.npmjs.org/-/npm/v1/attestations/x@1.2.0": attestation,
+            }
+        )
+        result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(
+            result.reason,
+            "dependabot-review:provenance-missing:x;review-verdict-missing",
+        )
+        self.assertEqual(result.dependabot.tier, "review")
+
+    def test_an_unreadable_registry_waits_for_a_review(self) -> None:
+        self.fake(registry={})
+        self.assertEqual(
+            self.eligibility().reason,
+            "dependabot-review:provenance-unreadable:x;review-verdict-missing",
+        )
+
+    def test_a_review_tier_bump_spends_no_registry_read(self) -> None:
+        self.fake(commits=[dependabot_commit("semver-major")], registry={})
+        self.assertEqual(
+            self.eligibility().reason,
+            "dependabot-review:major:x;review-verdict-missing",
+        )
+        self.assertEqual(self.registry_calls, [])
+
+    def test_a_patch_or_minor_bump_on_a_green_ci_status_is_eligible_as_c2(self) -> None:
+        for kind in ("semver-patch", "semver-minor"):
+            with self.subTest(kind=kind):
+                gh = self.fake(commits=[dependabot_commit(kind)])
+                result = self.eligibility()
+                self.assertTrue(result.eligible, result.reason)
+                self.assertEqual(result.work_class, "C2")
+                self.assertIsNone(result.issue)
+                self.assertEqual(result.dependabot.tier, "auto")
+                calls = " ".join(" ".join(c) for c in gh.calls)
+                self.assertNotIn("timeline", calls)
+
+    def test_a_major_bump_is_tier_review_and_waits_for_the_verdict(self) -> None:
+        self.fake(commits=[dependabot_commit("semver-major")])
+        result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(
+            result.reason, "dependabot-review:major:x;review-verdict-missing"
+        )
+        self.assertEqual(result.dependabot.tier, "review")
+
+    def test_a_merge_verdict_at_the_current_head_on_green_ci_is_eligible(self) -> None:
+        self.fake(commits=[dependabot_commit("semver-major")], comments=[self.marker()])
+        result = self.eligibility()
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.work_class, "C2")
+        self.assertEqual(
+            (result.dependabot.tier, result.dependabot.approved), ("review", "55-1")
+        )
+
+    def test_a_verdict_that_does_not_approve_this_head_refuses(self) -> None:
+        for comment, why in (
+            (self.marker(head="a" * 40), "review-verdict-head-moved"),
+            (self.marker(login="other-app[bot]"), "review-verdict-missing"),
+            (self.marker(verdict="close"), "review-verdict:close"),
+        ):
+            with self.subTest(why=why):
+                self.fake(
+                    commits=[dependabot_commit("semver-major")], comments=[comment]
+                )
+                result = self.eligibility()
+                self.assertFalse(result.eligible)
+                self.assertEqual(result.reason, f"dependabot-review:major:x;{why}")
+
+    def test_an_approved_review_still_needs_a_green_ci_status(self) -> None:
+        self.fake(
+            commits=[dependabot_commit("semver-major")],
+            comments=[self.marker()],
+            ci=[{"status": "in_progress", "conclusion": None}],
+        )
+        self.assertEqual(self.eligibility().reason, "ci-status:pending")
+
+    def test_the_lanes_app_fix_commit_counts_only_after_a_review(self) -> None:
+        fix = dependabot_commit(
+            name="agent-lanes[bot]",
+            email="1+agent-lanes[bot]@users.noreply.github.com",
+            message="fix: adapt [dependabot skip]",
+            login=IDENTITY,
+            sha=self.HEAD,
+        )
+        gh = self.fake(commits=[dependabot_commit(), fix])
+        gh.rest[f"repos/{REPO}/commits/{self.HEAD}"] = {
+            "files": [{"filename": "src/x.js"}]
+        }
+        self.assertEqual(self.eligibility().reason, f"commit-not-dependabot:{'e' * 12}")
+        pushes = [
+            {
+                "activity_type": "push",
+                "after": self.HEAD,
+                "actor": {"login": IDENTITY, "type": "Bot"},
+            },
+            {
+                "activity_type": "branch_creation",
+                "after": "d" * 40,
+                "actor": {"login": "dependabot[bot]", "type": "Bot"},
+            },
+        ]
+        major = [dependabot_commit("semver-major"), fix]
+        fixed = [{"filename": "package-lock.json"}, {"filename": "src/x.js"}]
+        gh = self.fake(
+            commits=major, comments=[self.marker()], pushes=pushes, files=fixed
+        )
+        gh.rest[f"repos/{REPO}/commits/{self.HEAD}"] = {
+            "files": [{"filename": "src/x.js"}]
+        }
+        result = self.eligibility()
+        self.assertTrue(result.eligible, result.reason)
+        # A fix commit may not touch .github/.
+        gh = self.fake(
+            commits=major, comments=[self.marker()], pushes=pushes, files=fixed
+        )
+        gh.rest[f"repos/{REPO}/commits/{self.HEAD}"] = {
+            "files": [{"filename": ".github/workflows/ci.yml"}]
+        }
+        self.assertEqual(
+            self.eligibility().reason,
+            "dependabot-fix-content:.github/workflows/ci.yml",
+        )
+
+    def test_an_unreadable_fix_commit_file_list_refuses(self) -> None:
+        # Unreadable is not "touches nothing": the .github/ boundary must hold.
+        fix = dependabot_commit(
+            name="agent-lanes[bot]",
+            email="1+agent-lanes[bot]@users.noreply.github.com",
+            message="fix: adapt [dependabot skip]",
+            login=IDENTITY,
+            sha=self.HEAD,
+        )
+        for answer in (500, {"files": [{"filename": f"f{i}"} for i in range(300)]}):
+            with self.subTest(answer=type(answer).__name__):
+                gh = self.fake(
+                    commits=[dependabot_commit("semver-major"), fix],
+                    comments=[self.marker()],
+                )
+                gh.rest[f"repos/{REPO}/commits/{self.HEAD}"] = answer
+                self.assertEqual(
+                    self.eligibility().reason,
+                    f"unreadable: commit files {self.HEAD[:12]}",
+                )
+
+    FOREIGN_PUSH = [
+        {
+            "activity_type": "push",
+            "after": "e" * 40,
+            "actor": {"login": "maintainer", "type": "User"},
+        },
+        {
+            "activity_type": "branch_creation",
+            "after": "d" * 40,
+            "actor": {"login": "dependabot[bot]", "type": "Bot"},
+        },
+    ]
+
+    def test_bad_provenance_refuses_even_with_a_merge_verdict(self) -> None:
+        # A commit's author is text; the pusher is who it is.
+        self.fake(pushes=self.FOREIGN_PUSH)
+        self.assertEqual(self.eligibility().reason, "pushed-by:maintainer")
+        self.fake(pushes=self.FOREIGN_PUSH, comments=[self.marker()])
+        self.assertEqual(self.eligibility().reason, "pushed-by:maintainer")
+        self.fake(pushes=[], comments=[self.marker()])
+        self.assertEqual(self.eligibility().reason, "push-history-incomplete")
+        gh = self.fake(comments=[self.marker()])
+        gh.rest[self.ACTIVITY] = 403
+        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
+
+    def test_content_beyond_manifests_is_tier_review_not_a_refusal(self) -> None:
+        # A rebuilt bundle on a minor bump: the AI review judges it.
+        files = [
+            {"filename": "package-lock.json"},
+            {"filename": "plugins/miro/server/dist/index.min.js"},
+        ]
+        self.fake(files=files)
+        result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.dependabot.tier, "review")
+        self.assertEqual(
+            result.reason,
+            "dependabot-review:dependabot-content:plugins/miro/server/dist/index.min.js;"
+            "review-verdict-missing",
+        )
+        self.fake(files=files, comments=[self.marker()])
+        result = self.eligibility()
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.dependabot.approved, "55-1")
+        self.fake(files=files, comments=[self.marker(head="a" * 40)])
+        self.assertFalse(self.eligibility().eligible)
+
+    def test_a_review_only_dependency_is_tier_review_whatever_its_version(
+        self,
+    ) -> None:
+        self.fake(review_only=[self.entry(repository="OWNER/Repo")])
+        result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.dependabot.tier, "review")
+        self.assertEqual(
+            result.reason, "dependabot-review:review-only:x;review-verdict-missing"
+        )
+        self.fake(review_only=[self.entry()], comments=[self.marker()])
+        result = self.eligibility()
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.dependabot.approved, "55-1")
+
+    def test_an_entry_for_another_repo_ecosystem_directory_or_dependency_is_auto(
+        self,
+    ) -> None:
+        for fields in (
+            {"repository": "owner/other"},
+            {"ecosystem": "pip"},
+            {"directory": "/plugins/miro/server"},
+            {"dependency": "y"},
+        ):
+            with self.subTest(fields=fields):
+                self.fake(review_only=[self.entry(**fields)])
+                result = self.eligibility()
+                self.assertTrue(result.eligible, result.reason)
+                self.assertEqual(result.dependabot.tier, "auto")
+
+    def test_an_unreadable_policy_sends_every_update_to_review(self) -> None:
+        for answer in (404, file_payload("{not json"), file_payload("{}")):
+            with self.subTest(answer=answer):
+                gh = self.fake()
+                gh.rest[f"repos/{REPO}/contents/{POLICY}?ref={SHA}"] = answer
+                gh.rest[f"repos/{REPO}/contents?ref={SHA}"] = []
+                result = self.eligibility()
+                self.assertFalse(result.eligible)
+                self.assertEqual(result.dependabot.tier, "review")
+                self.assertEqual(
+                    result.reason,
+                    "dependabot-review:dependabot-policy-unreadable;"
+                    "review-verdict-missing",
+                )
+
+    def test_a_0x_minor_is_review_and_a_1x_minor_is_auto(self) -> None:
+        zero = dependabot_commit(
+            message=(
+                "bump x\n\n---\nupdated-dependencies:\n- dependency-name: x\n"
+                "  dependency-version: 0.4.0\n  update-type: version-update:semver-minor\n...\n"
+            )
+        )
+        self.fake(commits=[zero])
+        self.assertEqual(self.eligibility().dependabot.tier, "review")
+        self.fake()
+        self.assertEqual(self.eligibility().dependabot.tier, "auto")
+
+    def test_a_commit_not_dependabots_is_refused(self) -> None:
+        pushed = dependabot_commit(name="octocat", email="octocat@example.com")
+        self.fake(commits=[dependabot_commit(), pushed])
+        result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, f"commit-not-dependabot:{'d' * 12}")
+
+    def test_a_red_ci_status_is_tier_review(self) -> None:
+        self.fake(ci=[{"status": "completed", "conclusion": "failure"}])
+        result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(
+            result.reason, "dependabot-review:ci-status-red;review-verdict-missing"
+        )
+        self.assertEqual(result.dependabot.tier, "review")
+
+    def test_a_running_or_missing_ci_status_waits_at_tier_auto(self) -> None:
+        for runs in ([], [{"status": "in_progress", "conclusion": None}]):
+            with self.subTest(runs=runs):
+                self.fake(ci=runs)
+                result = self.eligibility()
+                self.assertFalse(result.eligible)
+                self.assertEqual(result.reason, "ci-status:pending")
+                self.assertEqual(result.dependabot.tier, "auto")
+
+    def test_a_human_hold_comment_refuses(self) -> None:
+        hold = {
+            "user": {"login": "maintainer", "type": "User"},
+            "author_association": "MEMBER",
+            "body": "Do not merge this one yet",
+        }
+        self.fake(comments=[hold])
+        result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "human-blocking-comment:maintainer")
+
+    def test_a_fork_or_another_author_is_ineligible(self) -> None:
+        self.fake(cross=True)
+        self.assertEqual(self.eligibility().reason, "fork")
+        self.fake(author=bot("renovate"))
+        self.assertEqual(self.eligibility().reason, "not-dependabot-authored")
+
+    def test_a_commit_list_short_of_the_pull_requests_count_is_ineligible(self) -> None:
+        self.fake()
+        self.commits = [dependabot_commit(), dependabot_commit()]
+        self.assertEqual(self.eligibility().reason, "commits-listed:1-of:2")
+
+
+class DependabotAssess(unittest.TestCase):
+    """`assess(authority="pr-merge")` on a Dependabot pull request: its own
+    eligibility and its own report-only, `merge.dependabot.mode`."""
+
+    readable = LaneAssess.readable
+    fake = Assess.fake
+
+    def assess_mode(
+        self, mode: str | None, eligible: Any = None, pipeline: str = LANE_PIPELINE
+    ) -> Any:
+        gh = self.readable()
+        text = pipeline + (f"  dependabot:\n    mode: {mode}\n" if mode else "")
+        gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"] = file_payload(
+            text
+        )
+        gh.rest[f"repos/{REPO}/pulls/1"]["user"] = {
+            "login": "dependabot[bot]",
+            "type": "Bot",
+        }
+        tier = policy.dependabot.Classification("auto")
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(
+            mock.patch.object(
+                policy, "in_flight", return_value=policy.InFlight(True, None)
+            )
+        )
+        self.read = stack.enter_context(
+            mock.patch.object(
+                policy,
+                "dependabot_eligibility",
+                return_value=eligible
+                or policy.Eligibility(True, None, "C2", dependabot=tier),
+            )
+        )
+        for other in ("lane_eligibility", "eligibility"):
+            stack.enter_context(
+                mock.patch.object(policy, other, side_effect=AssertionError)
+            )
+        return policy.assess(
+            REPO,
+            1,
+            acting_login=IDENTITY,
+            authority="pr-merge",
+            post_merge=lambda floor, who: gate(),
+            lane_kill_switch="proceed",
+            lane_rung_cap="",
+        )
+
+    def test_enforce_merges_while_the_lane_is_report_only(self) -> None:
+        result = self.assess_mode("enforce")
+        self.assertIsNone(result.reason)
+        self.assertIs(result.report()["reportOnly"], False)
+        self.assertEqual(result.report()["dependabot"]["tier"], "auto")
+
+    def test_a_dependabot_pr_needs_no_verdict_key(self) -> None:
+        # Its tier and ci-status are its criterion, not the verifier verdict.
+        pipeline = LANE_PIPELINE.replace("  require-verifier-verdict: true\n", "")
+        self.assertIsNone(self.assess_mode("enforce", pipeline=pipeline).reason)
+
+    def test_report_writes_nothing_and_off_refuses(self) -> None:
+        self.assertIs(self.assess_mode("report").report()["reportOnly"], True)
+        result = self.assess_mode(None)
+        self.assertEqual(result.reason, "ineligible:dependabot-merge-off")
+        self.read.assert_not_called()
+
+    def test_tier_review_is_refused(self) -> None:
+        tier = policy.dependabot.Classification("review", ("major:x",))
+        result = self.assess_mode(
+            "enforce",
+            policy.Eligibility(False, "dependabot-review:major:x", dependabot=tier),
+        )
+        self.assertEqual(result.reason, "ineligible:dependabot-review:major:x")
+
+    def test_the_rung_still_binds_the_class(self) -> None:
+        self.readable()
+        result = None
+        with mock.patch.object(
+            policy, "rung_cap", return_value=policy.RungCap("off", "x")
+        ):
+            result = self.assess_mode("enforce")
+        self.assertEqual(result.reason, "rung-off:rungCap")
 
 
 if __name__ == "__main__":

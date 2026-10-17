@@ -22,7 +22,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=177
+EXPECTED_CASES=179
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -618,6 +618,22 @@ assert_not_contains "cues: a cue inside a list-item fence does not" "$(cat "$K3/
 assert_line_in "cues: a cue after a wrapped quote's close counts" "$K3/batches/cues.txt" \
   "batch=05 cue=seam occurrences=1 files=1"
 assert_not_contains "cues: a cue inside a wrapped quote does not" "$(cat "$K3/batches/cues.txt")" "batch=05 cue=load-bearing"
+
+# A generated region belongs to the script that writes it, so its cues are not
+# counted; prose after the END line is.
+KG="$TEST_TMPDIR/cues-gen"
+mkdir -p "$KG"
+cat >"$KG/g.md" <<'EOF'
+<!-- BEGIN GENERATED: x. Run scripts/x.py -->
+A seam and a load-bearing wall.
+<!-- END GENERATED: x -->
+After it, a seam.
+EOF
+printf 'g.md\t%s\n' "$KG/g.md" >"$KG/targets.tsv"
+bash "$FANOUT" plan --out "$KG/batches" --order mtime "$KG/targets.tsv" >/dev/null 2>&1
+assert_line_in "cues: a cue after a generated region counts" "$KG/batches/cues.txt" \
+  "cue=seam occurrences=1 files=1 saturated=no"
+assert_not_contains "cues: a cue inside a generated region does not" "$(cat "$KG/batches/cues.txt")" "batch=01 cue=load-bearing"
 
 # More non-prose, one file per batch: an inline triple-backtick span is not a
 # fence opener; code spans close on a run of the same length; a first-line ---

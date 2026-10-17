@@ -1,5 +1,321 @@
 # Changelog for the PR pipeline convention
 
+## 1.27.0 - 2026-10-17
+
+`merge.diff-check` gains three optional pr-merge lane switches, each off when absent:
+`high-path-floor`, `c2-contradictions` and `max-changed-files`. In the pr-merge lane an absent
+`max-changed-lines` is now no cap, and an empty `denied-paths` denies no path instead of refusing
+`denied-paths-unset`. The schema asks for `denied-paths` and `max-changed-lines` only under
+authority `local-babysit`, which keeps every check whatever the switches say. This repository
+empties `denied-paths` and drops `max-changed-lines: 400` (owner decision, 2026-10-17), so a lane
+pull request may touch any path at any size; the residual risk is in "The pr-merge lane", "Risk
+switches". `version` stays 1.
+
+## 1.26.0 - 2026-10-17
+
+The pr-merge lane reads no `work-class:` label. A pull request the lanes App opened, not a fork or
+a dependency manager's, with exactly one closing issue in this repository and no denied path, is
+class C2, and the diff-derived C2 checks of the risk score still apply. The pr-verify verdict is
+the merge criterion: with a rung above off the gate refuses `verifier-verdict-not-required` unless
+`merge.require-verifier-verdict` is true, and the schema rejects an enabled pr-merge lane
+(`agent-identity` set, authority absent or `pr-merge`) at C2 or C3 without it. Right before the
+enqueue the closing issue is read again, and a different one refuses
+(`closing-issue-changed:<was>><now>`); a class label removed meanwhile no longer refuses. The
+closing issue must carry the owner's ratification marker under resolve-issue's rule, read fresh
+at eligibility and before the enqueue (`not-ratified`).
+`admission.classes` is now optional: without it only the owner's ratification marker admits and no
+`work-class:` label is read, and an `admission` must set `classes` or `ratified`. This repository's
+resolve-issue now admits on `{ratified: true}` alone, so an issue labeled read-only or mechanical
+with no marker no longer starts the lane, and a ratified issue carrying another class now does
+("Merge authority", "Activities"). `version` stays 1.
+
+## 1.25.1 - 2026-10-17
+
+The review-dependency activity checks commit provenance
+([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review)). Its classifier applies the
+pr-merge lane's commit check as review reasons, so an unverified commit, one GitHub did not
+commit, or one that is neither Dependabot's nor the version-bump commit sorts `review`, never
+`auto`, and so does a commits listing short of the pull request's commit count
+(`commits-listed:<listed>-of:<total>`). The select step skips `superseded-sha` when the head
+moved since the gate, and records its start time before any model turn. The verdict job accepts
+a `fix` only from commits GitHub signed for the lanes App during the run (author, committer
+`web-flow`, a valid signature, a commit date no earlier than that start time) in a comparison
+listed whole, else `dependency-invalid` or `superseded-sha`; it reads no Actions API. `run.json`
+gains `files_truncated` and `started_at`, and a `merge` verdict on a truncated files listing
+escalates the new reason `dependency-files-truncated`. `version` stays 1.
+
+## 1.25.0 - 2026-10-17
+
+Both Dependabot classifiers read the standards Dependabot policy at the base and make every update
+to a dependency its `autoMerge.reviewOnly` lists tier `review` (`review-only:<dependency>`),
+whatever the version change, and every Dependabot pull request tier `review`
+(`dependabot-policy-unreadable`) when the policy does not read or a caller passes none. An entry's
+`directory` covers a changed path in it, and a `github-actions` entry also covers the workflow and
+action files the content rule gives its directory (README, "Review-only dependencies"). The
+review-dependency activity gets the matched entries. Both classifiers also make an otherwise tier
+`auto` npm or pip update tier `review` when its
+registry provenance changed or cannot be read (`provenance-changed:<name>`,
+`provenance-missing:<name>`, `provenance-unreadable:<name>`; README, "Registry provenance"). The
+review-dependency select step outputs `controls`, `run.json` gains `controls`, and the write
+runner gains a seventh dependency escalation reason, `dependency-control-uncited`: a `merge`
+verdict on a review-only dependency that does not quote each matched entry's `control` in
+`evidence`. The select step warns `classifier gap` when only a read failure sent a pull request
+to review (README, "Classifier gaps"). `version` stays 1.
+
+## 1.24.0 - 2026-10-17
+
+`resolve-issue` lists two more `verify-scripts`, each wrapped by the same generator as the
+can't-fail scan: `scripts/run-test-file.sh` runs one test file inside the checkout by name
+(`test_*.py` under pytest, `*.test.sh` under bash, `*.test.mjs` under `node --test`, without
+`GH_TOKEN` or `GITHUB_TOKEN`), and `scripts/git-mv-rm.sh` runs `git mv` or `git rm` inside the
+checkout, recording an untracked path as intent-to-add first. Both refuse an absolute path, a `..`
+segment, a leading `-` or `:` and a path that resolves outside the checkout (`scripts/lib/checkout-path.sh`).
+`git-mv-rm.sh` sets `GIT_LITERAL_PATHSPECS=1`, so git reads no glob or pathspec magic, and
+`run-test-file.sh` takes only `[A-Za-z0-9._/-]` names after `--`, so pytest reads no node id.
+A write skill that commits also gets `mcp__github_file_ops__delete_files`, and the system prompt
+tells it to delete each committed path it renamed or removed. When the stage grants the test-file
+runner, the write runner sets up Python and installs the base's hash-pinned CI requirements before
+the head checkout. `verify-scripts` may now list a script that changes files or runs checkout code
+when the script limits itself. `version` stays 1.
+
+## 1.23.0 - 2026-10-17
+
+`merge.verify-authors` (`lane`, `any`; absent is `lane`) is a new optional key. Under `lane`
+`.github/workflows/pr-verify.yml` judges only pull requests the lanes App opened (a `Bot` account
+whose login is `merge.agent-identity`, compared as the pr-merge lane compares it) and skips any
+other author's before the model runs, with the reason `author-not-lane`; `any` judges every
+author's, and any other value judges none ("Verifier verdict"). `version` stays 1.
+
+## 1.22.0 - 2026-10-17
+
+`pr-unblock` gains `review-dependency` and `apply-dependency-verdict`, and `prepare` gains
+`dependency-review` ([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
+[ADR 0074](../../adr/0074-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
+`pr-unblock-dispatch.yml` also dispatches `review-dependency` for at most 2 review-tier Dependabot
+pull requests per run whose head has no `pr-unblock / review-dependency` check run. The model job
+(`mutate-branch`) reads a read-only context file, the checkout and the upstream release notes as
+data, may push a fix outside `.github/` whose every commit carries `[dependabot skip]`, and returns
+a `merge`, `fix`, `close` or `escalate` verdict as structured output. The verdict job
+(`publish-artifact`, no model) validates it and posts the round marker, closes the pull request
+with an ignore-entry issue (never a security update), or escalates. Neither merges: the pr-merge
+lane merges a review-tier pull request on the `verdict=merge` marker at the current head (1.20.0,
+[ADR 0073](../../adr/0073-merge-dependabot-pull-requests-in-the-pr-merge-lane.md)). The
+dispatcher sorts with the same tier and content rules as the pr-merge lane, and a base
+`dependabot.yml` it cannot read is the reason `dependabot-config-unreadable`. `loop` gains
+`dependency-review-rounds` (default 2; this repository sets 2), and the write runner gains the
+`dependency-verdict`, `dependency-run-sha256` and `dependency-run-attempt` inputs and six
+escalation reasons: `dependency-round-cap`, `dependency-invalid`, `dependency-fix-not-landed`,
+`dependency-security-close`, `dependency-escalate` and `dependency-config-unreadable`. `version`
+stays 1.
+
+## 1.21.0 - 2026-10-17
+
+`merge.require-verifier-verdict` and `merge.verifier-model` are new optional keys.
+`.github/workflows/pr-verify.yml` judges each pull request head that passes `pr-require-checks`
+and uploads a `pr-verify-<pr>-<head-sha>-<verdict>` artifact; with the first key true the pr-merge
+lane refuses a merge, and dequeues a queued entry, without an allowing verdict at the head: a
+counted `fail` under any pull request number or at an earlier head blocks, a pass needs every
+linked issue written and last edited by a trusted human other than the author and unchanged since
+the judgment, and a pull request older than 80 days goes to a human ("Verifier verdict" under
+"Merge authority"). pr-merge.yml grants its job `actions: read` for the verdict reads. `version`
+stays 1.
+
+## 1.20.0 - 2026-10-16
+
+`merge.dependabot.mode` (`off`, `report`, `enforce`; absent is `off`) adds the pr-merge lane's
+Dependabot class (ADR 0073), and the pr-merge lane becomes the one merge authority for every
+Dependabot pull request. The lane lists them unless the mode is `off`. Tier `auto` (every update
+non-major, where major is a first-component change or, below 1.0, a second-component change;
+Actions publishers `actions`, `github` or `anthropics` only; `ci-status` not red; read from the
+verified commit metadata, else the title or body `Updates` lines, which must agree when both read)
+merges on a green `ci-status`. Tier `review` merges only when the newest pr-unblock round marker
+the lanes App authored names the current head with `verdict=merge`, and then also on a green
+`ci-status`. Every commit must be a verified Dependabot commit, the `[dependabot skip]`
+version-bump commit, or, after a review, the lanes App's `[dependabot skip]` fix; every push to
+the head branch must be Dependabot's (or that commit's own pusher's), per the repository activity
+API; and every changed path a manifest or lock file `.github/dependabot.yml` covers or a
+`uses:`-only workflow or action repin; any other path makes the tier `review` with the reason
+`dependabot-content:<path>`, while a failed push check always refuses. Both go through
+the lane's gate as C2 with no closing issue, denied-path rule or diff risk score. The mode, not
+`merge.report-only`, decides whether a Dependabot pull request writes, and the workflow starts the
+post-merge full run when either can merge. `.github/workflows/pr-automerge-dependabot.yml` is
+removed, and "Merge authority" no longer names it as an exception to the single authority.
+`version` stays 1.
+
+## 1.19.3 - 2026-10-16
+
+"Outputs and skips" no longer says a leaf's verdict carries over to a commit with unchanged
+content. A verdict and its findings belong to the commit the leaf judged, as "Activities" already
+states, and a new commit gets a new verdict. `version` stays 1.
+
+## 1.19.2 - 2026-10-16
+
+`work-unblock.yml` also runs hourly (`schedule`, minute 47, from main only). A scheduled run lists
+the issues closed in the last three hours (`LOOKBACK_HOURS` in `label-unblocked.mjs`; pull
+requests and issues updated but closed earlier are left out), keeps those with a trusted close,
+and applies the close path's rules to each issue they blocked, each once per run. It catches an
+issue closed by a bot sender, such as a pull request merge, which the close-triggered run skips. A
+scheduled run has no closer or re-runner to check; the kill switch and the `applies` gate still
+run first, and the token request names no issue. On both paths, every blocking issue now counts as
+done only when it was closed as completed with a trusted close, read fresh per blocker: its
+`closed_by` is a listed human (by id), or a merge in this repository closed it: the `closer` of
+the issue's last `ClosedEvent`, read with one GraphQL query, is a merged pull request or a commit
+in this repository. The REST close event carries no link to the pull request, so GraphQL is the
+read. Any other close, such as a workflow's `GITHUB_TOKEN`, does not count. A blocking pull
+request counts only once merged, and a blocker in another repository never counts. An outside
+author closing their own blocking issue therefore unblocks nothing. Both paths also refuse an
+issue whose `agent-ready` label was ever removed, so removing it by hand stops the lane and
+overlapping windows never put it back; a person adds it again to restart. The broker contract in
+`pr-run-activity.md` lists `work-unblock.yml` as a `schedule` caller. `version` stays 1.
+
+## 1.19.1 - 2026-10-16
+
+The `verify-scripts` wrapper prints `exit status: <n>` to stderr and exits with the script's
+status, and the system prompt tells the skill to run each wrapper as its own command: a chained
+`; echo "$?"` needs approval the `dontAsk` lane denies. The write file's skill-run diagnostics
+(`act-turns.json` and the step summary) gain `denied`, each command the permission mode denied,
+redacted and cut to 300 characters. `version` stays 1.
+
+## 1.19.0 - 2026-10-16
+
+A skill leaf gains `verify-scripts`: exact paths of read-only checker scripts under `scripts/`,
+`plugins/<plugin>/scripts/` or `plugins/<plugin>/skills/<skill>/scripts/`, no globs. For a skill
+with an effect other than `read`, `collect-base-activity` copies each script's base plugin (or the
+base `scripts/`) to a read-only `$RUNNER_TEMP/lane-verify`, denies `Edit` and `Write` on it, and
+allows `Bash(<copy>/bin/<name> *)`, a wrapper that runs the script from the checkout with any
+arguments except a path outside the checkout, with system, global, hook and fsmonitor git config
+switched off. A leaf with effect `read` cannot set it. This repository's `resolve-issue` lists the
+testing plugin's `cant-fail-scan.sh`. `version` stays 1.
+
+## 1.18.5 - 2026-10-16
+
+The write file gains the `ratified-app-label` input, issue mode only. `work-resolve-issue.yml`
+sets it to `agent-ready` and no longer skips the lanes App's `agent-ready` label: the trigger gate
+lets that one label from the App through only while the issue carries the owner's ratification
+marker, read from the API when the run starts by the rule resolve-issue's admission uses
+(`resolve-config/ratification.mjs`). Because the run reads the issue's title and body, a body
+edit or title change after the newest marker also stops it. Any other App label or event, a
+failed read, or no marker stops the run. The lanes token broker accepts the same labeler for an
+`issues` mint, re-checking the marker. `version` stays 1.
+
+## 1.18.4 - 2026-10-16
+
+This repository's `pr-pipeline.yaml` adds the `work-unblock` lane (stage `work`) with one
+activity, `label-unblocked` (a script, `mutate-tracker`). `work-unblock.yml` runs it when a
+listed human closes an issue: each issue the closed one blocked gets `agent-ready` when it is
+open, every blocker is closed as completed (not as not planned or duplicate), it carries none of
+`needs-owner-decision`, `status: needs-decision` or `needs-human` in any casing, it holds the
+owner's admission marker as resolve-issue reads it (the check now lives in
+`resolve-config/ratification.mjs`, shared by both), and resolve-issue's `admission` admits it
+(no `work-class:` label outside its classes; read from the config by
+`resolve-config`'s `readAdmission`). The workflow stops before the token request when the
+resolved activity does not apply (`enabled: false`). The label starts `work-resolve-issue` once
+resolve-issue accepts App-added labels (follow-up by Automation Lanes). Everything is re-read
+from the API when the run starts. A close whose sender is a bot (`sender.type` `Bot`), or whose
+closer or re-runner is not a listed human (each is checked on its own; a re-runner may be
+another listed human), is a clean skip. `version` stays 1.
+
+## 1.18.3 - 2026-10-16
+
+A verdict is bound to the commit it judged: the README no longer promises reuse by patch id or
+content fingerprint. A `pr-merge` merge needs a verdict on the commit being merged, a precondition of
+the lane's own merge rather than a required check, and a lane merge commit needs a fresh one. The
+address-feedback round cap is `loop.review-rounds` (default 2) instead of a fixed 2. This
+repository's `pr-pipeline.yaml` sets it to 3. `version` stays 1.
+
+## 1.18.1 - 2026-10-16
+
+`pr-merge.yml` no longer wakes on `workflow_run` completions of `pr-require-checks`,
+`pr-review-hosted` and `pr-review-security-hosted`, and its schedule runs every 15 minutes
+instead of hourly. Those completions arrived faster than the serialized runs finished, so the
+`pr-merge` concurrency group's queue reached GitHub's 100-run cap and further runs were rejected.
+Every run already reads every open PR, so the schedule finds what those wake-ups found.
+`version` stays 1.
+
+## 1.18.0 - 2026-10-16
+
+`applies-when` gains `admission` (`classes`, optional `ratified`), an issues lane's admission
+rule. An issue carrying a `work-class:` label outside `classes`, in any casing or spacing, is
+refused with `not-applicable`, even beside a listed class. Otherwise an exact listed class label
+admits it, or, with `ratified: true`, the owner's batch-ratification marker
+`<!-- admission: admitted when unblocked, owner batch ratification YYYY-MM-DD -->` does: a line
+in a never-edited comment by a human on the trusted-actor list, posted through no GitHub App. No
+bot ratifies, the lanes App included. An `admission` predicate reads the issue's labels when the
+run starts, and with `ratified: true` reads its comments; off an issues event, or when that read
+is refused, the run fails. resolve-config logs the id, author and creation time of the ratifying
+comment, never its text. This repository's `resolve-issue` replaces its `labels` allowlist with
+`admission: { classes: [read-only, mechanical], ratified: true }`. `version` stays 1.
+
+## 1.17.3 - 2026-10-16
+
+This repository's `pr-pipeline.yaml` enables the address-feedback round: the `pr-unblock` lane now
+runs `resolve-conflicts`, `address-feedback` (`source-control:pull-request comments --ci`,
+`prepare: review-threads`, `mutate-branch`, held by `do-not-merge` or `needs-human`, skipping
+drafts), `publish-feedback` (the reply script, `publish-artifact`) and `report-escalation`, which
+now follows all three. `pr-feedback-dispatch.yml` starts dispatching on lanes App PRs from here
+on. `version` stays 1.
+
+## 1.17.2 - 2026-10-16
+
+The write runner's promote step re-reads the PR's labels and draft flag with the job's
+`GITHUB_TOKEN` right before it moves the PR branch: `do-not-merge`, the base's human-gated role
+label, a label in the activity's `labels-absent` list, or a draft set while the activity ran drops
+the lane's commits and skips `awaiting-human`, for every `mutate-branch` activity that promotes.
+The hold labels are now read from the base by their own step for every PR-mode skill, not only
+merge-base, and the merge commit step holds on the same list. `fix-docs` gains `draft: [false]`,
+so it skips a draft before any model turn. `publish-feedback.mjs` re-reads the
+PR branch before each post and each resolve and posts nothing more once it moved past the head the
+job gated (`feedback-not-landed` before any reply, `feedback-partial` after one), and its round
+marker names the model run, so a re-run of the reply job alone posts no second marker (a model run
+that uploaded no replies names none and always posts). The
+script needs `HEAD_REF`, `GITHUB_RUN_ID` and `MODEL_RUN_ATTEMPT`. `version` stays 1.
+
+## 1.17.1 - 2026-10-16
+
+`pr-feedback-dispatch.yml` no longer resolves the whole `pr-unblock` lane, which decided every
+slot's `applies-when` and failed on `resolve-conflicts`' `mergeable` predicate with no head SHA.
+`feedback-dispatch.mjs` finds the PR and its head first, then resolves only the `address-feedback`
+slot for them, and dispatches only when the lane, `address-feedback` and `publish-feedback` are
+enabled and `address-feedback` applies. A disabled slot no longer counts as present, and a lane with
+no `address-feedback` slot still skips; a config the resolver refuses fails the run. resolve-config's
+`resolve-config.mjs` exports `resolveFromBase`, which returns the resolved config or throws the
+resolver's refusal (with `absentAsNull`, null for a valid config whose lane lacks the activity);
+`main` wraps it. `resolve.mjs` exports `laneHasActivity`.
+
+## 1.17.0 - 2026-10-15
+
+`pr-unblock.yml` takes an `activity` input (`resolve-conflicts`, the default, or
+`address-feedback`), and its dispatch concurrency group names the activity. `address-feedback`
+runs as two jobs: the model job (`mutate-branch`), then, when its `feedback-round` output is
+`true`, the `publish-feedback` script job (`publish-artifact`, `review-replies: true`, and the
+model job's `feedback-run-sha256` as `review-run-sha256`), which posts the replies;
+`report-escalation` takes any job's reason and its resume command names the activity. The
+activity rules forbid `address-feedback` every effect that posts and `publish-feedback` every
+effect that pushes. `pr-feedback-dispatch.yml`
+dispatches `address-feedback` from `workflow_run` when both review lanes have reviewed a lanes App
+PR's current head and a reviewer-bot thread is open; the trigger gate and the broker accept its
+runs through the review run their record names, which a lanes App push or a listed human must have
+started. The jobs after the model job pass its gated head as `expected-upstream-head`, so the gate
+and the broker accept the review of that head when only commits GitHub signed for the lanes App
+during the run (committer `web-flow`, signature `valid`) follow it. The dispatcher skips while a `pr-unblock address-feedback #<n>` run (the new
+`run-name`) is queued or going, and dispatches nothing until the lane config holds both slots. The
+write file gains the `expected-upstream-head` input and `head-sha` output. No effect grants both `contents: write` and
+`pull-requests: write` but `merge`. No live activity sets either leaf yet. `version` stays 1.
+
+## 1.16.0 - 2026-10-15
+
+Schema: `prepare` takes `review-threads`. `pr-run-activity.md` "prepare: review-threads" says what
+the write runner then does in two jobs. The model job keeps the reviewer bot's unresolved threads
+on a marker-confirmed head before the mint, escalates `feedback-protected-path` or
+`feedback-round-cap` before any model turn, stages the review-thread tool, pushes the fixes, and
+uploads the replies the tool recorded; it posts nothing. A script job with the new
+`review-replies` input and no model validates those replies, posts them and resolves only the
+fixed `VALID` threads, posts the round marker, and escalates `feedback-uncertain`,
+`feedback-not-landed`, `feedback-invalid`, `feedback-partial` (posting stopped partway),
+`feedback-incomplete` (a kept thread has no disposition) or `feedback-disputed` (an INCORRECT
+reply, left open for a person). The write file gains the `feedback-round` output. No
+live activity sets it yet. `version` stays 1.
+
 ## 1.15.0 - 2026-10-14
 
 Issue mode: `report-outcome` opens the PR ready, not draft, since the skill's CI mode now runs the

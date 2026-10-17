@@ -3,6 +3,32 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.2] - 2026-10-16
+
+### Fixed
+
+- The pre-push range reader treats an all-zero object id of any width as zero, so in a SHA-256 repository a new branch is checked from its merge-base and a deletion is skipped instead of the hook checking nothing.
+
+## [0.10.1] - 2026-10-16
+
+### Changed
+
+- Shared `check-lib.sh` synced where this plugin carries it: it gains `checks_refuse_config_drift`, which the typos entry does not call.
+- Test-only: drops an unused test helper copy and stops a test case restating the plugin hint wording.
+
+## [0.10.0] - 2026-10-16
+
+### Added
+
+- A git pre-commit entry, `typos-check`, that blocks a commit only on a typo in a line the commit adds, with the bundled `config/default-typos.toml` copied beside it. `/typos-format:setup apply install-git-hooks [scope=local|shared]` registers it with lefthook, husky or plain git hooks, and `check` reports its drift.
+- The opt-in `typos_format_end_of_turn` option: when a turn ends, the same check runs over the uncommitted changes and hands its findings back, at most once per turn.
+- The SessionStart probe reports a missing, stale or edited git-hook entry once per session.
+
+### Removed
+
+- The per-edit PostToolUse spell-check row: findings now arrive at commit time from the pre-commit entry, or at turn end with `typos_format_end_of_turn` on. Its write mode, the `typos_format_write_changes` and `typos_format_lint_gitignored` options, and the SessionStart `compact|clear` row that re-sent its findings went with it.
+- jq as a requirement: no remaining row needs it, so a host without jq no longer gets a notice at session start.
+
 ## [0.9.14] - 2026-10-13
 
 ### Changed

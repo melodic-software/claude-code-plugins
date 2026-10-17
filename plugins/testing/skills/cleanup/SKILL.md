@@ -1,5 +1,5 @@
 ---
-description: "Clean up low-value tests in one folder: reads /testing:audit findings, test-judge FLAG verdicts and the tests the user names as flaky, has a fresh-context classifier pick quarantine, rewrite, delete, merge or keep per test, rewrites by default, and deletes or merges only with a stated no-contract reason and the user's yes on each item. A mutation gate records the mutants the tests kill before any edit and replays them after, blocking the batch when a kill is lost. Nothing is committed until the user approves the batch. Use when: the user wants an existing suite of tautological, vacuous or low-value tests cleaned up ('clean up these tests', 'prune the useless tests in this folder', 'fix the tests audit flagged'), or audit findings need acting on rather than reporting. Needs the mutation-testing plugin set up, or --cannot-fail-only, which deletes only skeptic-cleared tests that cannot fail."
+description: "Clean up low-value tests in one folder: reads /testing:audit findings, its judge pass's FLAG verdicts and the tests the user names as flaky, has a fresh-context classifier pick quarantine, rewrite, delete, merge or keep per test, rewrites by default, and deletes or merges only with a stated no-contract reason and the user's yes on each item. A mutation gate records the mutants the tests kill before any edit and replays them after, blocking the batch when a kill is lost. Nothing is committed until the user approves the batch. Use when: the user wants an existing suite of tautological, vacuous or low-value tests cleaned up ('clean up these tests', 'prune the useless tests in this folder', 'fix the tests audit flagged'), or audit findings need acting on rather than reporting. Needs the mutation-testing plugin set up, or --cannot-fail-only, which deletes only skeptic-cleared tests that cannot fail."
 argument-hint: "<folder> [--max <n>] [--flaky <test> ...] [--cannot-fail-only]"
 user-invocable: true
 disable-model-invocation: false
@@ -76,8 +76,7 @@ Gather all four before any edit, and write the candidate list to `decisions.md`:
    `env CANT_FAIL_SCAN_ROOT="<absolute folder>" bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/cant-fail-scan.sh" --findings`.
    Quote every path you put in a command, each as its own argument.
    Every row is a candidate, report-only rules included. `Location` is repo-relative.
-2. Test-judge findings, when present. The judge is off by default, so usually there are none. Read
-   every `.work/reviews/*/*.md` whose frontmatter has `type: review-findings` and a `branch:` equal
+2. Judge-pass findings, when `/testing:audit --judge --persist-findings` wrote any. Read every `.work/reviews/*/*.md` whose frontmatter has `type: review-findings` and a `branch:` equal
    to the current branch exactly (the frontmatter, not the directory, proves the branch), and keep
    the `testing/judge/rule-restated-expectation` rows whose `Location` is under the folder. A FLAG
    makes its test a candidate; a PASS clears no scanner finding.
@@ -136,7 +135,7 @@ through the Skill tool, with no `--paths`. Then read its report:
 
 Write `<work>/classifier-brief.md` from [`context/classifier-brief.md`](context/classifier-brief.md),
 with `<plugin-root>` rendered as `${CLAUDE_PLUGIN_ROOT}`, and dispatch a fresh-context `general-purpose` subagent with `model: opus`, so it does not inherit
-the session's model. Opus is chosen over the judge's `sonnet` because a wrong deletion costs more
+the session's model. Opus is chosen over the judge pass's default `sonnet` because a wrong deletion costs more
 than a wrong verdict. Write its table to `<work>/classifier-answer.md` and apply that file's
 reading rules.
 
@@ -198,7 +197,7 @@ review, do not re-apply` (or `kept: <reason>`). Quarantined tests have no rule a
 and the user's choice for it (re-enabled, escalated, renewed to a date, or undecided).
 
 Show the batch and wait for the user's approval. Then commit the batch's files only (named paths,
-never `git add -A`) and delete `before.tsv` and `after.tsv`. Push and the draft pull request go
+never `git add -A`) and delete `before.tsv` and `after.tsv`. Push and the pull request go
 through `/source-control:pull-request` when that plugin is enabled, otherwise leave them to the
 user. Unattended runs stop before the commit.
 
@@ -262,7 +261,7 @@ unused-code check, so ask the user to build and lint the test project before app
 
 ## Next
 
-- Open the batch's draft pull request with `pr-body.md` as its body: /source-control:pull-request create
+- Open the batch's pull request with `pr-body.md` as its body: /source-control:pull-request create
 - A deletion left an export, global or wrapper with no production caller: /code-tidying:audit-dead-code
 
 ## Gotchas

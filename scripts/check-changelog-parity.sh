@@ -124,7 +124,9 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
-cd "$SCRIPT_DIR/.." || exit 2
+# CHANGELOG_PARITY_ROOT checks another tree with this copy's code: the
+# Dependabot bump runs main's scripts against the pull request's checkout.
+cd "${CHANGELOG_PARITY_ROOT:-$SCRIPT_DIR/..}" || exit 2
 # shellcheck source=lib/read-list.sh
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 # shellcheck source=lib/changed-files.sh

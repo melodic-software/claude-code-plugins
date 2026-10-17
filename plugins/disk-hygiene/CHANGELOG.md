@@ -3,6 +3,18 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.16] - 2026-10-16
+
+### Fixed
+
+- The unset-sink telemetry test now asserts that no sink process is launched, so it fails if the emitter stops treating an unset sink as a no-op.
+
+## [0.43.15] - 2026-10-16
+
+### Changed
+
+- Shared `prerequisites.mjs` synced: the SessionStart probe now also reports a drifted git-hook entry for a plugin that ships `git-hooks/entries.json`. This plugin ships none, so its behavior is unchanged.
+
 ## [0.43.14] - 2026-10-13
 
 ### Changed

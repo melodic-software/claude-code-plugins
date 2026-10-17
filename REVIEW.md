@@ -76,12 +76,15 @@ Always check:
   an atomic rename, a constraint, or a compensation step. An
   interruption between steps must not leave state no code path expects
   (`conventions/review/error-handling.md#atomicity`).
-- A GitHub Actions dependency bump takes one of two lanes. A non-major bump
-  from `actions/*`, `github/*` or `anthropics/*` merges itself once
-  `ci-status` passes; any other publisher, and any major, waits for a human
-  to merge. A change that adds an action from another publisher says why no
-  vendor action or `gh` or script step serves
-  (`components/dependabot-policy/README.md#merge-lanes-for-github-actions-bumps`).
+- No Dependabot pull request waits on a human. One whose updates are all
+  non-major, with GitHub Actions only from `actions/*`, `github/*` or
+  `anthropics/*`, and none in the policy's `reviewOnly` security-critical
+  list, merges once `ci-status` passes; any other, a major included, merges
+  on an AI review lane's `merge` verdict at its current head once
+  `ci-status` passes, and a verdict on a security-critical dependency cites
+  the threat-model control it checked. A change that adds an action from another
+  publisher says why no vendor action or `gh` or script step serves
+  (`components/dependabot-policy/README.md#merge-tiers-for-dependabot-pull-requests`).
 
 ## Security lane scope
 
