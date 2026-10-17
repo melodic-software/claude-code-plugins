@@ -1402,9 +1402,9 @@ LANES_JQ='
   def turns_of: num("(?:^|[^a-z-])turns=([0-9]+)") // num("\"num_turns\":([0-9]+)") // num("after ([0-9]+) turns, exceeding");
   def cap_of: num("max-turns=([0-9]+)") // num("configured maximum of ([0-9]+)");
   def klass:
-    if test("class=rate-limit\\b") then "rate-limit"
-    elif test("class=auth\\b") then "auth"
-    elif test("class=max-turns\\b|error_max_turns|exceeding the configured maximum of [0-9]+|maximum number of turns"; "i") then "max-turns"
+    if test("class=rate-limit(?![a-z-])") then "rate-limit"
+    elif test("class=auth(?![a-z-])") then "auth"
+    elif test("class=max-turns(?![a-z-])|error_max_turns|exceeding the configured maximum of [0-9]+|maximum number of turns"; "i") then "max-turns"
     else "other" end;
   def hot($cap): $cap != null and . != null and . * 100 >= 80 * $cap;
   ($runs[0]) as $all | ($ann[0]) as $texts
