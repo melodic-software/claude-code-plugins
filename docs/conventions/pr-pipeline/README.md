@@ -550,14 +550,19 @@ the lanes App opened is: a `Bot` account whose login is `merge.agent-identity`, 
 pr-merge lane decides lane authorship. Any other author's is skipped before the model runs, with
 the reason `author-not-lane` and the step summary line `skipped: author not the lanes App`, since
 only lane-authored pull requests reach the pr-merge lane. `any` judges every author's. Any other
-value judges none (`verify-authors-invalid`).
+value judges none (`verify-authors-invalid`). The trusted-spec rule below is scoped to that: on a
+lane pull request the App is the author and a human wrote the issue, so the spec can be trusted,
+while a human author who also wrote the linked issue would read `verify:untrusted-spec`, which
+never arises because such a pull request is neither judged nor read by the pr-merge lane.
 
 With `merge.require-verifier-verdict: true` the pr-merge lane reads the artifacts through their
 run records, since only steps of a run can upload its artifacts. A run is of verifier origin when
 it is `pr-verify.yml`, event `workflow_run`, on main, in this repository with a head on main. A
 `fail` counts from any such run, whatever its conclusion, because the upload comes before the
 run's later steps; a `pass` or `pass-notes` counts only from one that completed with success. Any
-other artifact with such a name is ignored. At the pull request's vetted head:
+other artifact with such a name is ignored. The resolver and the gate each hold this rule and the
+dependency-manager list, and one test runs both to keep them equal. At the pull request's vetted
+head:
 
 - created more than 80 days ago refuses (`verify:too-old`): artifacts last at most 90 days in this
   repository (the retention maximum and its setting), so an older verdict may be gone;
@@ -569,7 +574,9 @@ other artifact with such a name is ignored. At the pull request's vetted head:
   downloaded, or any other failed read, refuses (`verify:unreadable`). An untied `fail` whose run
   cannot be read is ignored. One unreadable record of an untied `fail` therefore blocks every pull
   request until it can be read, expires or is deleted;
-- a counted `pass` or `pass-notes` for this pull request refuses (`verify:spec-changed`) unless the
+- every counted `pass` or `pass-notes` for this pull request at the head is checked, whatever order
+  the listing returns them in, and the merge is allowed only when each allows (a changed spec is
+  reported before an untrusted one). Each refuses (`verify:spec-changed`) unless the
   pull request's closing issues in this repository now are the ones its verdict recorded, none
   was edited after the verdict's run started, and each issue's spec comments (written, and last
   edited if ever, by a `User` on the trusted-actor list's humans other than the pull request's
@@ -587,14 +594,23 @@ acting as that account wrote it. Unattended merge stays off (`merge.report-only:
 identity exists.
 
 `verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and `verify:untrusted-spec` need a
-human, who clears them
+human. While `merge.report-only` is false the lane escalates such a refusal on the pull request
+([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it keeps one
+`<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, rewritten only
+when either changes, then adds the tracker's human-gated role label (`needs-human` unless
+`.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,
+so a label never stands unexplained, and a failed label is added by the next run; a rerun that
+finds both writes nothing. While it is true the refusal is only reported. The
+lane token's `issues: write` and `pull-requests: write` cover both writes. A human clears them
 by merging in person: the verdict is not a check run and stays out of `ci-status` and the required
 checks (github-iac ADR 0011), so a human merge needs `ci-status` alone. A queued entry without an
-allowing verdict at its live head leaves the queue. A dependency manager's pull request needs no
-verdict: the lane decides it in its Dependabot class before the verdict is read, or refuses it, and
+allowing verdict at its live head leaves the queue. A dependency manager's pull request (a `Bot`
+account with a dependency manager's login; a `User` named like one is judged) needs no verdict: the lane decides it in its Dependabot class before the verdict is read, or refuses it, and
 its queued entry is not held for one. The gate lists every repository artifact once per
-candidate run, since pr-merge.yml runs the gate once per candidate. The lane token holds no Actions
-permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
+candidate run, since pr-merge.yml runs the gate once per candidate. A failed listing is kept for
+that run as well: the pull request and every queued entry refuse `verify:unreadable` without the
+listing being paged again, so a listing outage holds the whole queue rather than merging blind.
+The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
 records and the download alone, and every other call keeps the lane token. That job checks out only
 main and runs no pull request code.

@@ -26,7 +26,9 @@ from a completed, successful one. Any other artifact is ignored.
   whose recorded head branch (its verdict.json) cannot be read is
   `verify:unreadable`, so one such artifact blocks every pull request until it
   is readable, expires or is deleted;
-- a counted PASS or PASS-NOTES at the head of this pull request: refused
+- counted PASS or PASS-NOTES verdicts at the head of this pull request, each
+  checked, so any one that refuses refuses (`verify:spec-changed` before
+  `verify:untrusted-spec`, whatever the listing order): each is refused
   `verify:spec-changed` unless the pull request's closing issues now are the
   ones its verdict recorded, none was edited after its run started, and each
   issue's trusted comments (`_spec_comments`) are the recorded ones by id and
@@ -40,6 +42,8 @@ from a completed, successful one. Any other artifact is ignored.
 (`verify:unreadable`). The repository's artifacts are listed once per
 `Reader`, which pr-merge.yml builds once per candidate gate run, every page,
 and filtered on the name here: the API's name filter matches whole names only.
+A failed listing is kept as well, so one outage refuses every entry of the
+run without paging again: it holds the whole queue rather than merging blind.
 """
 
 from __future__ import annotations
@@ -95,6 +99,16 @@ UNREAD, FOREIGN, ORIGIN, COUNTED = "unreadable", "foreign", "origin", "counted"
 
 class _Unreadable(Exception):
     pass
+
+
+def dependency_bot(user: Any) -> bool:
+    """A REST user that is a Bot account with a dependency manager's login; a
+    User named like one is not. resolve-pr.mjs `isDependencyManager` is its
+    twin, and tests/test_verify_rules_sync.py compares them."""
+    user = json_object(user)
+    return user.get("type") == "Bot" and is_dependency_author(
+        str(user.get("login") or "")
+    )
 
 
 @dataclass(frozen=True)
@@ -153,6 +167,7 @@ class Reader:
         default_factory=lambda: os.environ.get(TOKEN_ENV) or None
     )
     _artifacts: list[dict[str, Any]] | None = None
+    _listing_error: str | None = None
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
     _on_branch: dict[str, bool] = field(default_factory=dict)
@@ -160,23 +175,28 @@ class Reader:
     _humans: frozenset[int] | None = None
 
     def _listing(self) -> list[dict[str, Any]]:
+        """Every repository artifact, read once: a failed read is kept too,
+        so one outage refuses each later entry without paging again."""
+        if self._listing_error is not None:
+            raise _Unreadable(self._listing_error)
         listing = self._artifacts
         if listing is None:
-            payload = self._actions(
-                [
-                    "api",
-                    f"repos/{self.repo}/actions/artifacts?per_page=100",
-                    "--paginate",
-                    "--slurp",
-                ],
-                "repository artifacts",
-            )
             try:
+                payload = self._actions(
+                    [
+                        "api",
+                        f"repos/{self.repo}/actions/artifacts?per_page=100",
+                        "--paginate",
+                        "--slurp",
+                    ],
+                    "repository artifacts",
+                )
                 listing = flatten_paginated_items(
                     payload, "repository artifacts", items_key="artifacts"
                 )
-            except RuntimeError as exc:
-                raise _Unreadable(str(exc)) from exc
+            except (_Unreadable, RuntimeError) as exc:
+                self._listing_error = str(exc)
+                raise _Unreadable(self._listing_error) from exc
             self._artifacts = listing
         return listing
 
@@ -488,37 +508,51 @@ class Reader:
         elif unreadable:
             refusal = UNREADABLE
         elif passes:
-            run_id, name = passes[0]
-            record = self._record(run_id, name)
-            if record.get("pr") != number or record.get("head_sha") != head:
-                raise _Unreadable(
-                    f"artifact {name} records another pull request or head"
-                )
-            recorded = record.get("linked_issues")
-            if not is_json_array(recorded):
-                raise _Unreadable(f"artifact {name} records no linked issues")
-            issues = {json_object(i).get("number"): json_object(i) for i in recorded}
+            # Every pass at the head must allow, so listing order decides
+            # nothing; any unreadable one refuses (`_Unreadable`).
             live = self._closing_issues(number)
-            # An edit after the judgment started is a spec the model never
-            # read. An unparsable time refuses (PostMergeReadError).
-            started = postmerge._time(self._started.get(run_id))
-            if set(live) != set(issues) or any(
-                (edited := node.get("lastEditedAt")) is not None
-                and postmerge._time(edited) > started
-                or self._spec_comments(
-                    json_array(json_object(node.get("comments")).get("nodes")), author
-                )
-                != self._recorded_comments(issues[n])
-                for n, node in live.items()
-            ):
-                refusal = SPEC_CHANGED
-            elif self._trusted_spec(record, author):
-                refusal = None
-            else:
-                refusal = UNTRUSTED_SPEC
+            refusals = {
+                self._pass_refusal(run_id, name, number, head, author, live)
+                for run_id, name in passes
+            }
+            refusal = next(
+                (r for r in (SPEC_CHANGED, UNTRUSTED_SPEC) if r in refusals), None
+            )
         else:
             refusal = MISSING
         return Evidence(refusal, head, tuple(verdicts), ignored, detail)
+
+    def _pass_refusal(
+        self,
+        run_id: int,
+        name: str,
+        number: int,
+        head: str,
+        author: str,
+        live: dict[Any, Any],
+    ) -> str | None:
+        """One counted pass at the head against the live closing issues."""
+        record = self._record(run_id, name)
+        if record.get("pr") != number or record.get("head_sha") != head:
+            raise _Unreadable(f"artifact {name} records another pull request or head")
+        recorded = record.get("linked_issues")
+        if not is_json_array(recorded):
+            raise _Unreadable(f"artifact {name} records no linked issues")
+        issues = {json_object(i).get("number"): json_object(i) for i in recorded}
+        # An edit after the judgment started is a spec the model never
+        # read. An unparsable time refuses (PostMergeReadError).
+        started = postmerge._time(self._started.get(run_id))
+        if set(live) != set(issues) or any(
+            (edited := node.get("lastEditedAt")) is not None
+            and postmerge._time(edited) > started
+            or self._spec_comments(
+                json_array(json_object(node.get("comments")).get("nodes")), author
+            )
+            != self._recorded_comments(issues[n])
+            for n, node in live.items()
+        ):
+            return SPEC_CHANGED
+        return None if self._trusted_spec(record, author) else UNTRUSTED_SPEC
 
     def queued_hold(self, number: int) -> str | None:
         """Why a queued entry must leave: no allowing verdict at its live
@@ -529,7 +563,7 @@ class Reader:
             pr = merge_policy.pull_request(self.repo, number)
         except merge_policy.PolicyReadError:
             return UNREADABLE
-        if is_dependency_author(str(json_object(pr.get("user")).get("login") or "")):
+        if dependency_bot(pr.get("user")):
             return None
         head = str(json_object(pr.get("head")).get("sha"))
         return self.evidence(number, head, pr).refusal
