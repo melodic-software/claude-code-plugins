@@ -547,7 +547,7 @@ _bupm_changes="$BUPM_OUT"
 # dropped first: it neither counts nor supersedes. jq -c escapes each entry, so
 # the array is a safe jq literal.
 _bupm_ignored="$(jq -cn --arg s "${CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS-github-actions:merge}" \
-  '$s | split(",") | map(gsub("^\\s+|\\s+$"; "") | select(length > 0))')" || _bupm_ignored='[]'
+  '$s | split(",") | map(gsub("^ +| +$"; "") | select(length > 0))')" || _bupm_ignored='[]'
 # shellcheck disable=SC2016
 _bupm_api "repos/$BUPM_REPO/commits/$_bupm_sha/check-runs?per_page=100" --jq "$_bupm_ignored"' as $ign
   | [.check_runs[] | select(("\(.app.slug // ""):\(.name)") | IN($ign[]) | not)] as $all
