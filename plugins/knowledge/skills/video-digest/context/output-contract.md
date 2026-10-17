@@ -13,15 +13,16 @@ staging a slice, and when grading a finished watch.
 
 Every extraction command in this skill runs through `run.mjs`, and each writes its
 `.work/<watch-epic>/…` artifacts under a work root resolved by `resolveWorkRoot()`. That root
-honors the knowledge plugin's personal `library_dir` user-configuration setting, substituted into
-this skill's content as `${user_config.library_dir}`:
+honors the knowledge plugin's personal `library_dir` user-configuration setting. This file arrives
+through Read unsubstituted, so take the value from the `library_dir` row of SKILL.md's "Configured
+options" table, written `<library_dir>` below:
 
-- **Non-default**: when `${user_config.library_dir}` is a non-empty value other than the
-  repo-root default `.` (and not an unexpanded `${user_config.library_dir}` token), pass it as a
-  **leading** `--work-root` flag on **every** `run.mjs` invocation in this skill:
+- **Non-default**: when `<library_dir>` is a non-empty value other than the repo-root default `.`
+  (and not an unexpanded `user_config` token), pass it as a **leading** `--work-root` flag on
+  **every** `run.mjs` invocation in this skill:
 
   ```bash
-  node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" --work-root "${CLAUDE_PROJECT_DIR}/${user_config.library_dir}" <script.js> [args…]
+  node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" --work-root "${CLAUDE_PROJECT_DIR}/<library_dir>" <script.js> [args…]
   ```
 
   `run.mjs` forwards it to the extraction child as an environment variable (a double-quoted CLI
@@ -41,8 +42,7 @@ this skill's content as `${user_config.library_dir}`:
   `analyze-harvested-repos.js`, `check-research-complete.js`, `check-watch-outcomes.js`, and
   `run-resume.js`, not only the first.
 
-- **Default / unset**: when `${user_config.library_dir}` is `.`, empty, or still an unexpanded
-  token, invoke `run.mjs` **without** `--work-root`. `resolveWorkRoot()` falls back to
+- **Default / unset**: when `<library_dir>` is `.`, empty, or still an unexpanded token, invoke `run.mjs` **without** `--work-root`. `resolveWorkRoot()` falls back to
   `${CLAUDE_PROJECT_DIR}` (then `process.cwd()`), landing artifacts at the consuming repo root.
 
 The `setup-deps.mjs` install step takes no `--work-root`. It installs node dependencies into the
@@ -87,8 +87,8 @@ paths you materialize by hand: the `mkdir -p .work/<watch-epic>/claims` and `QUE
 copy/append steps, the `claims/*.json` stubs, and every agent-authored slice artifact in the
 Output contract below.
 
-When `${user_config.library_dir}` is non-default, write them all under
-`${CLAUDE_PROJECT_DIR}/${user_config.library_dir}/.work/<watch-epic>/…` so the queue table, its
+When `<library_dir>` is non-default, write them all under
+`${CLAUDE_PROJECT_DIR}/<library_dir>/.work/<watch-epic>/…` so the queue table, its
 concurrency claims, and the `--work-root` script output share one root; a split root would let
 `queue list` / `watch` read claims from a different directory than the table being edited. For the
 portable value forms, resolve the root **once** before writing anything. `~` is the home

@@ -8,7 +8,9 @@
 # first line is `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`,
 # labeled needs-human, one per (signal, SHA). A matching record gets a comment
 # instead; a run that is not a failed scheduled or dispatched full run, or a
-# failed canary push run, on main files nothing.
+# failed canary push run, on main files nothing. A full run's first failed
+# attempt is re-run instead, and a later one files only for checks green on
+# main's previous run of the same event; the gitleaks gate files nothing.
 # test-scope: .github/workflows/post-merge-demotion-alert.yml
 set -uo pipefail
 
@@ -46,11 +48,11 @@ if [[ "$triggers" == *"workflows: [$full_name, $canary_name]"* && "$triggers" ==
 else
   fail "workflow_run does not name both workflows: '$triggers'"
 fi
-if [[ "$(grep -c 'issues: write' "$WORKFLOW")" -eq 1 ]] && grep -q '^permissions: {}$' "$WORKFLOW" &&
-  [[ "$(grep -cE '^ +[a-z-]+: (read|write)( |$)' "$WORKFLOW")" -eq 1 ]]; then
-  ok "the token holds issues: write and nothing else"
+if grep -q '^permissions: {}$' "$WORKFLOW" &&
+  [[ "$(grep -oE '^ +[a-z-]+: (read|write)( |$)' "$WORKFLOW" | sed 's/^ *//; s/ *$//' | sort | paste -sd ' ')" == 'actions: write checks: read issues: write' ]]; then
+  ok "the token holds issues: write, actions: write and checks: read, nothing else"
 else
-  fail "permissions are not exactly issues: write"
+  fail "permissions are not exactly issues: write, actions: write, checks: read"
 fi
 if grep -qE '^[[:space:]]*-?[[:space:]]*uses:' "$WORKFLOW"; then
   fail "the workflow runs an action; it must check out and run nothing"
@@ -81,6 +83,10 @@ for ((i = 0; i < ${#args[@]}; i++)); do
 done
 printf '%s %s\n' "$method" "$endpoint" >>"$STUB_DIR/log"
 n=$(wc -l <"$STUB_DIR/log")
+if [[ "$method" != GET && "${STUB_RERUN_POST_FAIL:-}" == 1 && "$endpoint" == */rerun-failed-jobs ]]; then
+  printf '%s %s\n' "$method" "$endpoint" >>"$STUB_DIR/failed"
+  exit 1
+fi
 if [[ "$method" != GET ]]; then
   printf '%s\n' "${fields[@]}" >"$STUB_DIR/post.$n"
   printf '{"number": 900}\n'
@@ -89,9 +95,31 @@ fi
 [[ "${STUB_FAIL_READ:-}" != 1 ]] || exit 1
 case "$endpoint" in
   */comments*) fixture="$STUB_DIR/comments.json" ;;
+  */jobs*)
+    fixture="$(sed -E 's#.*/runs/([0-9]+)/attempts/([0-9]+)/jobs.*#jobs.\1.\2.json#' <<<"$endpoint")"
+    fixture="$STUB_DIR/$fixture"
+    [[ -f "$fixture" ]] || fixture="$STUB_DIR/jobs.default.json"
+    ;;
+  */check-runs/*)
+    fixture="$STUB_DIR/annotations.$(sed -E 's#.*/check-runs/([0-9]+)/.*#\1#' <<<"$endpoint").json"
+    [[ -f "$fixture" ]] || fixture="$STUB_DIR/annotations.none.json"
+    ;;
+  */actions/workflows/*) fixture="$STUB_DIR/runs.json" ;;
+  */actions/runs/[0-9]*)
+    # The re-run's attempt 2: in progress until poll STUB_POLLS, then
+    # STUB_RERUN (never: it does not finish).
+    polls=$(($(cat "$STUB_DIR/polls" 2>/dev/null || echo 0) + 1))
+    echo "$polls" >"$STUB_DIR/polls"
+    fixture="$STUB_DIR/rerun.json"
+    if [[ "${STUB_RERUN:-never}" != never && "$polls" -ge "${STUB_POLLS:-2}" ]]; then
+      jq -n --arg c "$STUB_RERUN" '{run_attempt: 2, status: "completed", conclusion: $c}' >"$fixture"
+    else
+      jq -n '{run_attempt: 2, status: "in_progress", conclusion: null}' >"$fixture"
+    fi
+    ;;
   *) fixture="$STUB_DIR/issues.json" ;;
 esac
-jq -r "$filter" "$fixture"
+RUN_SHA="${STUB_RUN_SHA:-}" RUN_CREATED="${STUB_RUN_CREATED:-}" jq -r "$filter" "$fixture"
 EOF
 chmod +x "$TMP_ROOT/bin/gh"
 
@@ -108,16 +136,46 @@ issue() {
      + (if $pr == "" then {} else {pull_request: {url: $pr}} end)'
 }
 
+CREATED=2026-10-17T16:26:00Z
+
+# job <id> <name> [failed-step...] -> one failed job of the jobs API
+job() {
+  local id="$1" name="$2"
+  shift 2
+  jq -n --argjson id "$id" --arg name "$name" '$ARGS.positional as $failed
+    | {id: $id, name: $name, conclusion: "failure",
+       steps: ([{name: "Set up job", conclusion: "success"}] + [$failed[] | {name: ., conclusion: "failure"}])}' \
+    --args "$@"
+}
+
+# baseline_run <id> <conclusion> [sha] -> one completed run of the runs API
+baseline_run() {
+  jq -n --argjson id "$1" --arg c "$2" --arg sha "${3:-$OTHER}" \
+    '{id: $id, run_attempt: 1, conclusion: $c, status: "completed", head_branch: "main",
+      head_sha: $sha, created_at: "2026-10-17T15:00:00Z"}'
+}
+
+# Fixtures a test sets before run_step: JOBS (this attempt), BASE_JOBS (run
+# 4141 attempt 1), RUNS (the baseline listing), ANNOTATIONS_<id>.
 # run_step <workflow> <event> <conclusion> <branch> <head-repo> <sha> <issues-json> [comments-json]
 run_step() {
   rm -rf "$TMP_ROOT/stub"
   mkdir -p "$TMP_ROOT/stub"
   printf '%s\n' "$7" >"$TMP_ROOT/stub/issues.json"
   printf '%s\n' "${8:-[]}" >"$TMP_ROOT/stub/comments.json"
+  printf '{"jobs": [%s]}\n' "$(job 1 test-bash 'Run the bash tests')" >"$TMP_ROOT/stub/jobs.default.json"
+  printf '{"jobs": [%s]}\n' "${JOBS-$(job 1 test-bash 'Run the bash tests')}" >"$TMP_ROOT/stub/jobs.4242.${ATTEMPT:-2}.json"
+  printf '{"jobs": [%s]}\n' "${BASE_JOBS:-}" >"$TMP_ROOT/stub/jobs.4141.1.json"
+  printf '{"workflow_runs": [%s]}\n' "${RUNS:-}" >"$TMP_ROOT/stub/runs.json"
+  printf '[]\n' >"$TMP_ROOT/stub/annotations.none.json"
+  printf '%s\n' "${ANNOTATIONS_7:-[]}" >"$TMP_ROOT/stub/annotations.7.json"
   : >"$TMP_ROOT/stub/log"
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" STUB_FAIL_READ="${FAIL_READ:-}" \
+    STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
+    STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
-    RUN_BRANCH="$4" RUN_REPO="$5" RUN_SHA="$6" RUN_URL="$RUN_URL" RUN_ATTEMPT="${ATTEMPT:-1}" \
+    RUN_BRANCH="$4" RUN_REPO="$5" RUN_SHA="$6" RUN_URL="$RUN_URL" RUN_ATTEMPT="${ATTEMPT:-2}" \
+    RUN_ID=4242 RUN_WORKFLOW_ID=77 RUN_CREATED="$CREATED" \
     RUN_COMMIT_MESSAGE="${COMMIT_MESSAGE:-fix: a change (#1234)}" \
     bash -e "$TMP_ROOT/body.sh" 2>&1)" && RC=0 || RC=$?
   LOG="$(cat "$TMP_ROOT/stub/log")"
@@ -144,7 +202,7 @@ files() {
     fail "$label: body's first line is not the marker: '${body%%$'\n'*}'"
   elif [[ "$body" != *"git revert $SHA"* || "$body" == *"revert -m"* ]]; then
     fail "$label: body lacks 'git revert $SHA'"
-  elif [[ "$body" != *"- Failing run: $RUN_URL/attempts/${ATTEMPT:-1}"$'\n'* ]]; then
+  elif [[ "$body" != *"- Failing run: $RUN_URL/attempts/${ATTEMPT:-2}"$'\n'* ]]; then
     fail "$label: body lacks the failing attempt's link"
   elif [[ "$body" != *"https://github.com/o/r/pull/1234"* ]]; then
     fail "$label: body lacks the pull request link"
@@ -161,7 +219,7 @@ files() {
 
 # quiet <label> <workflow> <event> <conclusion> <branch> <head-repo>
 quiet() {
-  run_step "$2" "$3" "$4" "$5" "$6" "$SHA" '[]'
+  ATTEMPT="${ATTEMPT:-1}" run_step "$2" "$3" "$4" "$5" "$6" "$SHA" '[]'
   if [[ "$RC" -ne 0 ]]; then
     fail "$1: rc=$RC out='$OUT'"
   elif [[ -n "$LOG" ]]; then
@@ -187,7 +245,7 @@ files "a pull request carrying the marker is not a record" schedule "$FULL" sche
 
 run_step "$FULL" schedule failure main o/r "$SHA" "[$(issue 3 "x"), $(issue 41 "$MARKER"$'\n\nbody')]"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -qx 'POST repos/o/r/issues/41/comments' <<<"$LOG" &&
-  [[ "$(post_fields)" == "body=The post-merge check found this failure again: $RUN_URL/attempts/1" ]]; then
+  [[ "$(post_fields)" == "body=The post-merge check found this failure again: $RUN_URL/attempts/2" ]]; then
   ok "an existing record gets a comment with the attempt link, not a second issue"
 else
   fail "existing record: rc=$RC log='$LOG' out='$OUT'"
@@ -200,7 +258,7 @@ else
   fail "whitespace around the marker: rc=$RC log='$LOG'"
 fi
 
-FILED="$MARKER"$'\n\n'"- Failing run: $RUN_URL/attempts/1"$'\n'
+FILED="$MARKER"$'\n\n'"- Failing run: $RUN_URL/attempts/2"$'\n'
 run_step "$FULL" schedule failure main o/r "$SHA" "[$(issue 41 "$FILED")]"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 0 ]]; then
   ok "a record that already names this attempt gets no comment"
@@ -211,7 +269,7 @@ fi
 ATTEMPT=10 run_step "$FULL" schedule failure main o/r "$SHA" "[$(issue 41 "$FILED" '' closed)]"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -qx 'PATCH repos/o/r/issues/41' <<<"$LOG" &&
   [[ "$(post_fields)" == *"$RUN_URL/attempts/10" ]]; then
-  ok "a later failing attempt of the filed run reopens and comments (attempt 10 is not attempt 1)"
+  ok "a later failing attempt of the filed run reopens and comments (attempt 10 is not attempt 2)"
 else
   fail "later failing attempt of the filed run: rc=$RC log='$LOG' out='$OUT'"
 fi
@@ -222,7 +280,7 @@ comment() {
 }
 
 run_step "$FULL" schedule failure main o/r "$SHA" "[$(issue 41 "$MARKER")]" \
-  "[$(comment someone "$RUN_URL"), $(comment 'github-actions[bot]' "The post-merge check found this failure again: $RUN_URL/attempts/1")]"
+  "[$(comment someone "$RUN_URL"), $(comment 'github-actions[bot]' "The post-merge check found this failure again: $RUN_URL/attempts/2")]"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 0 ]]; then
   ok "a record whose own comments already name this run gets no comment"
 else
@@ -253,24 +311,24 @@ else
   fail "open record patched: log='$LOG'"
 fi
 
-ATTEMPT=2 run_step "$FULL" schedule success main o/r "$SHA" "[$(issue 41 "$FILED" '' closed)]"
+ATTEMPT=3 run_step "$FULL" schedule success main o/r "$SHA" "[$(issue 41 "$FILED" '' closed)]"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -qx 'POST repos/o/r/issues/41/comments' <<<"$LOG" &&
-  [[ "$(post_fields)" == "body=re-run passed: $RUN_URL/attempts/2" ]] && ! grep -q '^PATCH' <<<"$LOG"; then
+  [[ "$(post_fields)" == "body=re-run passed: $RUN_URL/attempts/3" ]] && ! grep -q '^PATCH' <<<"$LOG"; then
   ok "a re-run that passes comments on the record without reopening it"
 else
   fail "re-run passed: rc=$RC log='$LOG' out='$OUT'"
 fi
 
-ATTEMPT=2 run_step "$FULL" schedule success main o/r "$SHA" "[$(issue 41 "$FILED")]" \
-  "[$(comment 'github-actions[bot]' "re-run passed: $RUN_URL/attempts/2")]"
+ATTEMPT=3 run_step "$FULL" schedule success main o/r "$SHA" "[$(issue 41 "$FILED")]" \
+  "[$(comment 'github-actions[bot]' "re-run passed: $RUN_URL/attempts/3")]"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 0 ]]; then
   ok "a re-run pass already recorded is not commented twice"
 else
   fail "duplicate re-run pass: rc=$RC log='$LOG'"
 fi
 
-ATTEMPT=3 run_step "$FULL" schedule failure main o/r "$SHA" "[$(issue 41 "$FILED" '' closed)]" \
-  "[$(comment 'github-actions[bot]' "re-run passed: $RUN_URL/attempts/2")]"
+ATTEMPT=4 run_step "$FULL" schedule failure main o/r "$SHA" "[$(issue 41 "$FILED" '' closed)]" \
+  "[$(comment 'github-actions[bot]' "re-run passed: $RUN_URL/attempts/3")]"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -qx 'PATCH repos/o/r/issues/41' <<<"$LOG" &&
   grep -qx 'POST repos/o/r/issues/41/comments' <<<"$LOG"; then
   ok "a failure after a passing re-run of the same run reopens and comments"
@@ -320,6 +378,128 @@ if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && [[ "$(post_fields)" != *"/pull/"* ]]
   ok "a head commit with no (#N) subject links no pull request"
 else
   fail "no PR number: rc=$RC log='$LOG' fields='$(post_fields 2>/dev/null)'"
+fi
+
+# --- Re-run, baseline and the gitleaks gate ------------------------------------
+RERUN=success ATTEMPT=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(head -1 <<<"$LOG")" == 'POST repos/o/r/actions/runs/4242/rerun-failed-jobs' &&
+  "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq 2 && "$(posts)" -eq 1 ]]; then
+  ok "a full run's first failed attempt re-runs its failed jobs and a passing re-run files nothing"
+else
+  fail "re-run passes: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+RERUN=failure ATTEMPT=1 RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+issue_fields="$(cat "$TMP_ROOT/stub/post.$(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | cut -d: -f1)" 2>/dev/null)"
+if [[ "$RC" -eq 0 ]] && grep -q '^GET repos/o/r/actions/runs/4242/attempts/2/jobs' <<<"$LOG" &&
+  [[ "$issue_fields" == *"- Failing run: $RUN_URL/attempts/2"$'\n'"- Newly failing: test-bash"* ]]; then
+  ok "a failing re-run is judged on its own attempt against the baseline and files"
+else
+  fail "re-run fails: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+RERUN=failure ATTEMPT=1 RUNS="$(baseline_run 4141 failure)" BASE_JOBS="$(job 2 test-bash 'Run the bash tests')" \
+  run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$OUT" == *"already failing before"* ]]; then
+  ok "a failing re-run on a check already red before files nothing"
+else
+  fail "re-run fails on a pre-existing check: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+RERUN=success RERUN_POST_FAIL=1 ATTEMPT=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$OUT" == *"could not re-run"* && "$OUT" == *"passed: nothing to file"* ]]; then
+  ok "a re-run another actor already started is waited for when this one cannot start"
+else
+  fail "re-run POST refused: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+STARTER='github-actions[bot]' ATTEMPT=1 run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -qx 'POST repos/o/r/issues' <<<"$LOG" &&
+  ! grep -q 'rerun-failed-jobs\|^GET repos/o/r/actions/runs/4242$' <<<"$LOG"; then
+  ok "a run the bot started is not re-run here and attempt 1 is judged"
+else
+  fail "bot-started run: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+JOBS='' run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: pr-require-checks.yml: no failed jobs"* ]]; then
+  ok "a red run with no failed job files a record"
+else
+  fail "zero-job red run: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+JOBS='' RUNS="$(baseline_run 4141 startup_failure)" BASE_JOBS='' run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$OUT" == *"already failing before"* ]]; then
+  ok "a red run with no failed job after the same red before files nothing"
+else
+  fail "zero-job red run after the same: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+RERUN=never ATTEMPT=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+issue_fields="$(cat "$TMP_ROOT/stub/post.$(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | cut -d: -f1)" 2>/dev/null)"
+if [[ "$RC" -eq 0 && "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq 20 &&
+  "$issue_fields" == *"- Failing run: $RUN_URL/attempts/1"$'\n'* && "$OUT" == *"did not finish"* ]]; then
+  ok "a re-run that does not finish in 20 polls leaves attempt 1 to demote"
+else
+  fail "re-run timeout: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+ATTEMPT=1 files "a canary's first failed attempt files without a re-run" canary "$CANARY" push '[]'
+if grep -q 'rerun-failed-jobs' <<<"$LOG"; then
+  fail "a canary run was re-run: log='$LOG'"
+fi
+
+RUNS="$(baseline_run 4141 failure)" BASE_JOBS="$(job 2 test-bash 'Run the bash tests')" \
+  run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$OUT" == *"already failing before"* ]]; then
+  ok "a check already red on main's previous run files nothing"
+else
+  fail "pre-existing failure: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+RUNS="$(baseline_run 4141 success)" files "a check green on main's previous run files a record" \
+  schedule "$FULL" schedule '[]'
+
+RUNS="$(baseline_run 4141 failure)" BASE_JOBS="$(job 2 lint-shell ShellCheck)" \
+  run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: test-bash"* ]]; then
+  ok "another check red on main's previous run does not excuse this one"
+else
+  fail "different pre-existing check: rc=$RC log='$LOG'"
+fi
+
+RUNS="$(baseline_run 4141 failure "$SHA")" BASE_JOBS="$(job 2 test-bash 'Run the bash tests')" \
+  run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]]; then
+  ok "a run at the same SHA is not the baseline"
+else
+  fail "same-SHA baseline: rc=$RC log='$LOG'"
+fi
+
+RUNS="$(baseline_run 4141 failure)" BASE_JOBS="$(job 2 test-bash 'Run the bash tests')" \
+  run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+if grep -q 'runs?event=workflow_dispatch&branch=main&status=completed&created=%3C' <<<"$LOG"; then
+  ok "the baseline is read for the same event"
+else
+  fail "baseline event: log='$LOG'"
+fi
+
+GITLEAKS='[{"annotation_level": "failure", "title": "", "message": "Process completed with exit code 1."},
+  {"annotation_level": "failure", "title": "gitleaks failed", "message": "Hygiene check finished with outcome: failure."}]'
+LINT_RED="$(job 7 lint-repo 'Aggregate hygiene results'), $(job 8 ci-status 'Aggregate lane results')"
+JOBS="$LINT_RED" ANNOTATIONS_7="$GITLEAKS" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$OUT" == *"no merge can cause"* ]]; then
+  ok "a failure only on the all-branches gitleaks gate files nothing"
+else
+  fail "gitleaks only: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+JOBS="$LINT_RED" ANNOTATIONS_7="$(jq -c '. + [{annotation_level: "failure", title: "markdown failed", message: "x"}]' <<<"$GITLEAKS")" \
+  run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: lint-repo: markdown failed"$'\n'* ]]; then
+  ok "another gate beside gitleaks files, naming only that gate"
+else
+  fail "gate beside gitleaks: rc=$RC log='$LOG' fields='$(post_fields 2>/dev/null)'"
 fi
 
 quiet "a failed pull_request run files nothing" "$FULL" pull_request failure main o/r

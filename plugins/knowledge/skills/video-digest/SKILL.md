@@ -4,6 +4,7 @@ argument-hint: "<watch [<url>|<n>]|<url>|queue <url>...|queue list|transcript <u
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+allowed-tools: ["Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs\":*)"]
 ---
 
 **Arguments.** `<watch [<url>|<n>]|<url>|queue <url>...|queue list|transcript <url>|resume <slug>>`. Full form: watch <url> [--target <repo>] | watch [--target <repo>] | watch <n> [--target <repo>] | <url> | queue <url> | queue list | transcript <url> | resume <slice-slug>
@@ -11,11 +12,28 @@ shell: bash
 ## Pre-computed context
 
 ```!
-printf 'video-extraction deps: '; node -e "const fs=require('fs'),path=require('path'),p=process.argv[1];console.log(p&&fs.existsSync(path.join(p,'node_modules','@melodic','video-digestion'))?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')" "${CLAUDE_PLUGIN_DATA}" 2>/dev/null || echo "MISSING - node not found (see Prerequisites)"
-printf 'yt-dlp: '; command -v yt-dlp >/dev/null 2>&1 && yt-dlp --version 2>/dev/null | head -1 || command -v yt-dlp >/dev/null 2>&1 || echo "MISSING — install yt-dlp (see Prerequisites)"
-printf 'ffmpeg: '; command -v ffmpeg >/dev/null 2>&1 && ffmpeg -version 2>/dev/null | head -1 || command -v ffmpeg >/dev/null 2>&1 || echo "MISSING — install ffmpeg (watch action only)"
-printf 'ImageMagick: '; command -v magick >/dev/null 2>&1 && magick -version 2>/dev/null | head -1 || command -v magick >/dev/null 2>&1 || echo "MISSING — install ImageMagick 7 (watch action only)"
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"
 ```
+
+If the report above did not run or shows no readiness lines, run that command by hand before any
+action.
+
+## Configured options
+
+Claude Code substitutes these values when the skill loads. The spokes you open with Read arrive
+unsubstituted, so they refer to this table. A cell that reads as a literal `user_config` token
+rather than a value is unset: treat it as the default.
+
+| Option | Value | Default |
+| --- | --- | --- |
+| `library_dir` | `${user_config.library_dir}` | `.` |
+| `yt_dlp_js_runtimes` | `${user_config.yt_dlp_js_runtimes}` | `node` |
+| `yt_dlp_cookies_file` | `${user_config.yt_dlp_cookies_file}` | empty |
+| `yt_dlp_cookies_from_browser` | `${user_config.yt_dlp_cookies_from_browser}` | empty |
+| `max_concurrent_acquires` | `${user_config.max_concurrent_acquires}` | `1` |
+
+How each value becomes a `run.mjs` flag: `context/output-contract.md` (`library_dir`) and
+`reference/sources/youtube.md` (the yt-dlp options).
 
 # Video digest. YouTube and X
 
@@ -123,9 +141,11 @@ Ordered phase spine. Each phase's procedure, inputs, and outputs: `context/watch
 
 **Bootstrap contract**
 
-1. **Prerequisites gate**. Run `setup-deps.mjs`; STOP if the pre-computed context above shows
-   MISSING, or a version below its floor, for yt-dlp, ffmpeg, or ImageMagick (install fallbacks
-   and the upgrade policy: "Prerequisites" below). Cloud agents without the media toolchain fail
+1. **Prerequisites gate**. Run `setup-deps.mjs`; STOP if it fails (report its failure text) or the
+   pre-computed context above shows MISSING, or a version below its floor, for the node
+   dependencies, yt-dlp, ffmpeg, or ImageMagick (install fallbacks and the upgrade policy:
+   "Prerequisites" below). When the node pipeline cannot run, a hand-run of yt-dlp, ffmpeg or
+   ImageMagick is not this skill's output: write no slice artifacts. Cloud agents without the media toolchain fail
    closed, as does any run whose video exists but fails to download ("No video, no watch").
 2. **Phase 0b. Companion deep-dive**, only when `source/companion-sources.md` exists, and **before**
    CLI bootstrap.
@@ -244,7 +264,11 @@ runs without bash) and **Node 20.11 or newer**, or 21.2+ on the 21 line (the run
 [Node `import.meta.dirname`](https://github.com/nodejs/node/blob/main/doc/api/esm.md#importmetadirname),
 as of 2026-10-10; recheck when either section changes.
 
-Verify before starting (stop and route to the fix path on failure):
+Verify before starting (stop and route to the fix path on failure). The readiness report is
+`node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"`;
+run it by hand when the pre-computed context did not run. It also prints where the dependencies
+install. `--data-dir` is the relocation override: pass another directory to both `setup-deps.mjs`
+and `run.mjs` when the default is not writable.
 
 1. **video-extraction deps**. `node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"`.
    Installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across plugin
