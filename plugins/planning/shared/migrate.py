@@ -120,6 +120,12 @@ def _num(ident):
     return int(m.group(1)) if m else 0
 
 
+def _purpose(fmt_kind, settled):
+    if fmt_kind == "confirm":
+        return "poll"
+    return "gather" if fmt_kind == "text" and not settled else "decide"
+
+
 class _V0:
     """One prototype document on its way to version 1."""
 
@@ -259,7 +265,6 @@ class _V0:
         q["dependsOn"] = [d for d in dict.fromkeys(_list(raw.get("dependsOn"))) if d in known]
         rnd = raw.get("round", 1)
         q["round"] = rnd if isinstance(rnd, int) and not isinstance(rnd, bool) and rnd >= 1 else 1
-        q["purpose"] = "decide"
         options = [o for o in _list(raw.get("options")) if isinstance(o, dict)]
         if fmt_kind == "choice" and 2 <= len(options) <= 4:
             q["format"] = {"kind": "choice", "options": []}
@@ -289,6 +294,9 @@ class _V0:
             q.pop("recommendation", None)
             q.pop("basis", None)
             q["alternatives"] = []
+        voted = any(_list(_dict(a).get("votes")) for a in by.values())
+        settled = bool(q.get("recommendation")) or voted or qid in _dict(self.src.get("locks"))
+        q["purpose"] = _purpose(q["format"]["kind"], settled)
         if isinstance(raw.get("lockedText"), str):
             q["lockedText"] = raw["lockedText"]
         flag = _dict(raw.get("needsReview"))

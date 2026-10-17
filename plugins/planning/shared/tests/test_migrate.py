@@ -156,6 +156,26 @@ class TestFromPrototype(unittest.TestCase):
         self.assertEqual(self.q("Q3")["origin"], {"kind": "host", "proposal": "P1", "by": "host"})
         self.assertEqual(self.q("Q4")["origin"], {"kind": "proposal", "proposal": "P2"})
 
+    def test_a_text_question_nobody_voted_on_or_locked_gathers(self):
+        self.assertEqual(self.q("Q3")["purpose"], "gather")
+
+    def test_a_confirm_question_is_a_poll(self):
+        raw = json.loads(self.raw)
+        confirm = {"id": "Q5", "text": "Is this the pay button?", "format": "confirm", "image": "0123456789abcdef.png", "rect": {"x": 1, "y": 2, "w": 3, "h": 4}}
+        raw["questions"].append(confirm)
+        raw["answers"]["Q5"] = {"opt-yes": {"option": True, "votes": [ANN]}, BO: {"name": "Bo Sample", "text": "", "pick": "opt-no", "ts": 1300}}
+        doc = migrate.migrate(raw, [], NOW)
+        q5 = next(q for q in doc["questions"] if q["id"] == "Q5")
+        self.assertEqual((q5["format"]["kind"], q5["purpose"]), ("confirm", "poll"))
+        self.assertIsNone(schema.first_error(doc, STATE))
+        self.assertEqual(session.cross_field_errors(doc), [])
+
+    def test_a_choice_question_decides(self):
+        self.assertEqual(self.q("Q2")["purpose"], "decide")
+
+    def test_a_text_question_with_claudes_cards_a_lock_or_votes_still_decides(self):
+        self.assertEqual((self.q("Q1")["purpose"], self.q("Q4")["purpose"]), ("decide", "decide"))
+
     def test_answers_picks_and_votes_keep_who_wrote_and_who_voted(self):
         cards = self.doc["cards"]
         self.assertEqual([card_key(c) for c in cards["Q1"]], ["c:rec", "c:a", "c:b", f"p:{ANN}", "p:host"])

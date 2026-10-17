@@ -1435,6 +1435,33 @@ class TestProposals(SessionCase):
         self.assertEqual((sug["pid"], sug["fromProposal"], sug["note"]), (self.bo, p[2], "Narrow laptops"))
         self.assertEqual([n["kind"] for n in self.notes(self.bo, "proposal")], ["proposal"] * 6)
 
+    def assert_gathers(self, qid):
+        """A promoted question gathers: a guest's answer takes reactions, never votes, a lock or a disagreement."""
+        self.assertEqual(self.question(qid)["purpose"], "gather")
+        self.act("answer", self.ann, {"qid": qid, "text": "A spreadsheet", "view": "focus"})
+        card = f"p:{self.ann}"
+        self.act("react", self.bo, {"qid": qid, "card": card, "reaction": "thumbs"})
+        self.assertEqual(self.s.state["reactions"][qid], {card: {self.bo: "thumbs"}})
+        self.refused("wrong-purpose", "vote", self.bo, {"qid": qid, "card": card, "on": True}, http=409)
+        self.refused("wrong-purpose", "disagree", self.bo, {"qid": qid, "card": card, "reason": "Not for me"}, http=409)
+        self.refused("wrong-purpose", "lock", HOST, {"qid": qid, "card": card}, http=409)
+
+    def test_a_proposal_a_moderator_makes_a_question_gathers_answers(self):
+        self.open_round(text_q("Q1"))
+        prop = self.propose(self.bo, "What are you using right now?")
+        qid = self.act("act_on_proposal", HOST, {"id": prop, "action": "question"})["question"]
+        self.send()
+        self.ack(1)
+        self.open_round(text_q("Q10"))
+        self.assert_gathers(qid)
+
+    def test_a_proposal_claude_places_as_a_question_without_a_body_gathers_answers(self):
+        p = self.to_working_round()
+        placements = [{"proposal": p[0], "as": "question"}, *({"proposal": x, "as": "later", "reason": "Later"} for x in p[1:])]
+        self.open_round(text_q("Q3"), placements=placements)
+        qid = next(x["status"]["question"] for x in self.s.state["proposals"] if x["id"] == p[0])
+        self.assert_gathers(qid)
+
     def test_the_author_sees_not_placed_with_the_reason(self):
         p = self.to_working_round()
         placements = [{"proposal": x, "as": "later", "reason": "Later"} for x in p[1:]]
