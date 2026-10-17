@@ -1105,6 +1105,23 @@ class TestModerationRoutes(ServerCase):
         code, _, anon = self.get("/api/state")
         self.assertEqual(sorted(anon), ["ended", "joinNeedsKey", "schemaVersion", "title"])
 
+    def test_the_owner_merges_a_second_identity_into_the_owner_and_its_secret_ends(self):
+        code, _, out = self.post("/api/chat", {"text": "From my phone"}, self.bo)
+        self.assertEqual(code, 200, out)
+        code, _, out = self.post("/api/person/merge", {"from": self.bo_pid, "to": "host"}, self.owner)
+        self.assertEqual((code, out["pid"]), (200, "host"))
+        snap = self.state(self.owner)
+        self.assertNotIn(self.bo_pid, [p["pid"] for p in snap["people"]])
+        self.assertEqual([m["pid"] for m in snap["chat"]], ["host"])
+        code, _, out = self.get("/api/state?since=0", self.bo)
+        self.assertEqual((code, out["error"]), (401, "unknown-session"))
+
+    def test_merging_the_owner_into_anyone_is_refused(self):
+        code, _, out = self.post("/api/person/merge", {"from": "host", "to": self.ann_pid}, self.owner)
+        self.assertEqual((code, out["error"], out["field"]), (400, "bad-field", "from"))
+        code, _, out = self.post("/api/merge-request", {"to": "host"}, self.bo)
+        self.assertEqual((code, out["error"]), (400, "bad-field"))
+
 
 class TestPrototypePage(ServerCase):
     """Phase 7 (Q98): GET /proto/<qid> serves the prototype page for a prototype question only; an html variant stays

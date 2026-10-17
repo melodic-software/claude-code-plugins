@@ -672,10 +672,10 @@ class TestMerge(SessionCase):
         self.assertNotIn(HOST, self.s.state["credentials"]["secrets"].values())
         self.assertEqual(self.s.resolve(secret=self.old_secret), self.old)
 
-    def test_merge_itself_refuses_the_owner_on_either_side(self):
-        for src, dst in ((self.old, HOST), (HOST, self.old)):
-            with self.assertRaises(session.DomainError):
-                self.s._merge(src, dst)
+    def test_merge_itself_refuses_to_merge_the_owner_away(self):
+        with self.assertRaises(session.DomainError):
+            self.s._merge(HOST, self.old)
+        self.assertIn(HOST, self.s.state["people"])
 
     def test_a_write_that_would_map_a_secret_to_the_owner_is_not_saved(self):
         self.s.validate_writes = False
@@ -690,6 +690,74 @@ class TestMerge(SessionCase):
         self.assertEqual(self.act("act_on_merge_request", HOST, {"id": mid, "action": "approve"})["status"], "declined")
         self.assertEqual(self.s.state["mergeRequests"][0]["status"]["why"], "gone")
         self.assertIn(self.old, self.s.state["people"])
+
+
+class TestOwnerMerge(SessionCase):
+    """The owner folds a second identity of their own (another device, another join) into the owner."""
+
+    def setUp(self):
+        super().setUp()
+        self.ann, _ = self.join("Ann")
+        self.bo, _ = self.join("Bo")
+        self.twin, self.twin_secret = self.join("Admin 2")
+        self.open_round(text_q("Q1"), text_q("Q2"), text_q("Q3", purpose="gather"))
+
+    def test_the_owner_absorbs_a_second_identity_and_its_secret_stops_working(self):
+        self.act("answer", self.ann, {"qid": "Q3", "text": "Ann's idea", "view": "focus"})
+        self.act("answer", self.twin, {"qid": "Q1", "text": "From my phone", "view": "focus"})
+        self.act("vote", self.twin, {"qid": "Q2", "card": "c:rec", "on": True})
+        self.act("react", self.twin, {"qid": "Q3", "card": f"p:{self.ann}", "reaction": "heart"})
+        hello = self.act("chat", self.ann, {"text": "Hello"})["id"]
+        mine = self.act("chat", self.twin, {"text": "Hi from the phone"})["id"]
+        self.act("react_chat", self.twin, {"id": hello, "emoji": "👍", "on": True})
+        rid = self.act("request", self.twin, {"qid": "Q1", "kind": "ask", "text": "Look it up"})["id"]
+        self.assertEqual(self.act("merge_people", HOST, {"from": self.twin, "to": HOST}), {"pid": HOST})
+        st = self.s.state
+        self.assertNotIn(self.twin, st["people"])
+        self.assertEqual([c["pid"] for c in st["cards"]["Q1"] if c["kind"] == "person"], [HOST])
+        self.assertEqual(st["votes"]["Q2"], {HOST: "c:rec"})
+        self.assertEqual(st["reactions"]["Q3"], {f"p:{self.ann}": {HOST: "heart"}})
+        self.assertEqual({m["id"]: m["pid"] for m in st["chat"]}, {hello: self.ann, mine: HOST})
+        self.assertEqual(next(m for m in st["chat"] if m["id"] == hello)["reactions"], {"👍": [HOST]})
+        self.assertEqual([(r["id"], r["pid"]) for r in st["requests"]], [(rid, HOST)])
+        owner = st["people"][HOST]
+        self.assertEqual((owner["role"], owner["trusted"], owner["status"]), ("owner", True, {"kind": "active"}))
+        self.assertEqual(self.s.resolve(owner_token=self.owner_token), HOST)
+        self.assertNotIn(HOST, st["credentials"]["secrets"].values())
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.resolve(secret=self.twin_secret)
+        self.assertEqual((ctx.exception.http, ctx.exception.code), (401, "unknown-session"))
+        self.assertEqual(session.cross_field_errors(st), [])
+
+    def test_where_both_answered_or_voted_the_newer_answer_and_the_owners_vote_win(self):
+        self.act("answer", HOST, {"qid": "Q1", "text": "Owner's first", "view": "focus"})
+        self.act("answer", self.twin, {"qid": "Q1", "text": "Phone, later", "view": "focus"})
+        self.act("vote", self.bo, {"qid": "Q1", "card": f"p:{self.twin}", "on": True})
+        self.act("answer", self.ann, {"qid": "Q2", "text": "Ann's", "view": "focus"})
+        self.act("vote", HOST, {"qid": "Q2", "card": "c:rec", "on": True})
+        self.act("vote", self.twin, {"qid": "Q2", "card": f"p:{self.ann}", "on": True})
+        self.act("merge_people", HOST, {"from": self.twin, "to": HOST})
+        st = self.s.state
+        self.assertEqual([(c["pid"], c["text"]) for c in st["cards"]["Q1"] if c["kind"] == "person"], [(HOST, "Phone, later")])
+        self.assertEqual(st["votes"]["Q1"], {self.bo: f"p:{HOST}"})
+        self.assertEqual(st["votes"]["Q2"], {HOST: "c:rec"})
+        self.assertIsNone(session.document_error(st))
+
+    def test_an_open_own_claude_request_goes_to_the_owners_queue(self):
+        rid = self.act("request", self.twin, {"qid": "Q1", "kind": "ask", "text": "Mine to run", "runner": "self"})["id"]
+        self.act("merge_people", HOST, {"from": self.twin, "to": HOST})
+        r = next(r for r in self.s.state["requests"] if r["id"] == rid)
+        self.assertEqual((r["pid"], r["runner"], r["status"]), (HOST, "host", {"kind": "pending"}))
+
+    def test_the_owner_is_never_merged_away(self):
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.merge_people(HOST, {"from": HOST, "to": self.ann})
+        self.assertEqual((ctx.exception.code, ctx.exception.details.get("field")), ("bad-field", "from"))
+        self.assertIn(HOST, self.s.state["people"])
+
+    def test_a_guest_still_cannot_claim_to_be_the_owner(self):
+        self.refused("bad-field", "request_merge", self.twin, {"to": HOST})
+        self.assertEqual(self.s.state["mergeRequests"], [])
 
 
 # ---------------------------------------------------------------------------------------------

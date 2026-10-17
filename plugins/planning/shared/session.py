@@ -1390,12 +1390,22 @@ class Session:
             self._discard(f)
         return {"removed": on}
 
+    def _merge_target(self, body, field):
+        """A person merge_people names: `to` may be the owner, who absorbs a second identity of their own;
+        `from` never is, since the owner is never merged away."""
+        target = _ident(body, field)
+        if target not in self.state["people"]:
+            raise DomainError(404, "not-found", "No such person.", field=field)
+        if target == HOST and field == "from":
+            raise _bad(field, "The owner cannot be merged into anyone; merge the other identity into the owner.")
+        return target
+
     def merge_people(self, pid, body):
         """POST /api/person/merge: everything `from` holds moves to `to`, then `from` is forgotten."""
         with self._tx():
             self._owner(pid)
-            src = self._target_person(body, "from")
-            dst = self._target_person(body, "to")
+            src = self._merge_target(body, "from")
+            dst = self._merge_target(body, "to")
             if src == dst:
                 raise _bad("to", "Pick two different people.")
             if "waiting" in (self.state["people"][src]["status"]["kind"], self.state["people"][dst]["status"]["kind"]):
@@ -1444,7 +1454,9 @@ class Session:
             return {"status": m["status"]["kind"]}
 
     def _merge(self, src, dst):
-        if HOST in (src, dst):
+        """Into the owner too: then `src`'s secrets end rather than move (only the owner link names the owner),
+        and its open own-Claude requests wait in the owner's queue, since the owner holds no watcher key."""
+        if src == HOST:
             raise _bad("from", "The owner cannot be merged.")
         st = self.state
         moved = {}  # (qid, old ref) -> new ref
@@ -1570,9 +1582,17 @@ class Session:
         for m in st["mergeRequests"]:
             if m["status"]["kind"] == "pending" and src in (m["from"], m["to"]):
                 m["status"] = {"kind": "declined", "at": now, "why": "gone"}
-        for h, p in list(st["credentials"]["secrets"].items()):
+        if dst == HOST:
+            for r in st["requests"]:
+                if r["pid"] == HOST and r["runner"] == "self" and r["status"]["kind"] in ("pending", "running"):
+                    r.update(runner="host", status={"kind": "pending"})
+        secrets = st["credentials"]["secrets"]
+        for h, p in list(secrets.items()):
             if p == src:
-                st["credentials"]["secrets"][h] = dst
+                if dst == HOST:
+                    secrets.pop(h)
+                else:
+                    secrets[h] = dst
         self._drop_watcher(src)  # a watcher key never gains another person's requests
         st["people"].pop(src)
         self._presence.pop(src, None)
