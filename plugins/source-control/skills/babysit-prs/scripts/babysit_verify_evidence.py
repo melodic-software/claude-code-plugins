@@ -101,6 +101,16 @@ class _Unreadable(Exception):
     pass
 
 
+def dependency_bot(user: Any) -> bool:
+    """A REST user that is a Bot account with a dependency manager's login; a
+    User named like one is not. resolve-pr.mjs `isDependencyManager` is its
+    twin."""
+    user = json_object(user)
+    return user.get("type") == "Bot" and is_dependency_author(
+        str(user.get("login") or "")
+    )
+
+
 @dataclass(frozen=True)
 class Verdict:
     sha: str
@@ -553,7 +563,7 @@ class Reader:
             pr = merge_policy.pull_request(self.repo, number)
         except merge_policy.PolicyReadError:
             return UNREADABLE
-        if is_dependency_author(str(json_object(pr.get("user")).get("login") or "")):
+        if dependency_bot(pr.get("user")):
             return None
         head = str(json_object(pr.get("head")).get("sha"))
         return self.evidence(number, head, pr).refusal

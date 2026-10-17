@@ -592,8 +592,8 @@ identity exists.
 human, who clears them
 by merging in person: the verdict is not a check run and stays out of `ci-status` and the required
 checks (github-iac ADR 0011), so a human merge needs `ci-status` alone. A queued entry without an
-allowing verdict at its live head leaves the queue. A dependency manager's pull request needs no
-verdict: the lane decides it in its Dependabot class before the verdict is read, or refuses it, and
+allowing verdict at its live head leaves the queue. A dependency manager's pull request (a `Bot`
+account with a dependency manager's login; a `User` named like one is judged) needs no verdict: the lane decides it in its Dependabot class before the verdict is read, or refuses it, and
 its queued entry is not held for one. The gate lists every repository artifact once per
 candidate run, since pr-merge.yml runs the gate once per candidate. A failed listing is kept for
 that run as well: the pull request and every queued entry refuse `verify:unreadable` without the

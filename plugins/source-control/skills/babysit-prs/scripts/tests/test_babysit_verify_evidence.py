@@ -796,26 +796,29 @@ class AQueuedDependabotEntryNeedsNoVerdict(unittest.TestCase):
     """The pr-merge lane enqueues Dependabot pull requests in their own class
     (babysit_dependabot), which pr-verify never judges."""
 
+    def hold(self, user: dict[str, Any]) -> tuple[str | None, FakeGitHub]:
+        fake = FakeGitHub([], {})
+        with (
+            mock.patch.object(policy, "pull_request", return_value=pull(user=user)),
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+        ):
+            return ve.Reader(REPO, "main", now=NOW).queued_hold(PR), fake
+
     def test_a_dependency_managers_entry_is_not_held(self) -> None:
         for login in ("dependabot[bot]", "renovate[bot]"):
             with self.subTest(login):
-                fake = FakeGitHub([], {})
-                with (
-                    mock.patch.object(
-                        policy, "pull_request", return_value=pull(user={"login": login})
-                    ),
-                    mock.patch.object(postmerge, "gh_capture", side_effect=fake),
-                ):
-                    self.assertIsNone(ve.Reader(REPO, "main", now=NOW).queued_hold(PR))
+                hold, fake = self.hold({"login": login, "type": "Bot"})
+                self.assertIsNone(hold)
                 self.assertEqual(fake.calls, [])
 
+    def test_a_user_named_like_a_dependency_manager_is_judged(self) -> None:
+        for login in ("dependabot[bot]", "renovate"):
+            with self.subTest(login):
+                hold, _ = self.hold({"login": login, "type": "User"})
+                self.assertEqual(hold, "verify:missing")
+
     def test_anyone_elses_entry_is_judged(self) -> None:
-        fake = FakeGitHub([], {})
-        with (
-            mock.patch.object(policy, "pull_request", return_value=pull()),
-            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
-        ):
-            hold = ve.Reader(REPO, "main", now=NOW).queued_hold(PR)
+        hold, _ = self.hold({"login": "agent-lanes[bot]", "type": "Bot"})
         self.assertEqual(hold, "verify:missing")
 
 
