@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=../pr-pipeline.schema.json
-version: 1
+version: 2
 
 activities:
   simplify:
@@ -31,8 +31,6 @@ activities:
     inputs: [head-sha, changed-paths]
   claude:
     skill: review:code-review
-    model: opus
-    max-turns: 100
     effect: publish-artifact
     gating: gate
     reads-untrusted: true
@@ -156,6 +154,16 @@ lanes:
 loop:
   review-rounds: 3
   no-progress: 3
+
+# Every skill activity takes default-profile unless a route names another
+# (README.md, Models).
+models:
+  profiles:
+    standard: { model: default, max-turns: 75 }
+    review: { model: opus, max-turns: 100 }
+  default-profile: standard
+  routes:
+    claude: review
 
 merge:
   rung: C2

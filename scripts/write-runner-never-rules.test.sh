@@ -241,6 +241,26 @@ const collect = steps.find((s) => s.name === "Collect the issue outcome");
 say(outcomeWriters.length === 1 && collect !== undefined
   && [...outcomeWriters, collect].every((s) => /steps\.config\.outputs\.kind == 'skill'/.test(String(s.if ?? ""))),
   "issue mode collects and uploads the outcome artifact only in a skill run");
+
+// Issue mode: the check for an earlier run's work decides before the mint,
+// with the job's read-only token, and a stop or reuse skips the mint.
+const prior = byId("issue-prior");
+const priorAt = at((s) => s.id === "issue-prior");
+say(priorAt >= 0 && priorAt < recheck && priorAt < mint && prior.env?.GH_TOKEN === "${{ github.token }}"
+  && !/lane-token/.test(JSON.stringify(prior)),
+  "the earlier-work check runs before the head re-read and the mint, with the job's read-only token and no lane token");
+say(/steps\.config\.outputs\.kind == 'skill'/.test(String(prior.if ?? "")) && /inputs\.issue-number != ''/.test(String(prior.if ?? ""))
+  && /\.base\/\.github\/scripts\/work-resolve-issue\/report-outcome\.mjs --find-prior/.test(prior.run ?? ""),
+  "the earlier-work check runs only for an issue-mode skill, from the base copy");
+say(/steps\.issue-prior\.outputs\.proceed != 'false'/.test(String(byId("head-recheck").if ?? "")),
+  "an earlier run's work skips the mint");
+say(wf.jobs.run.outputs["reuse-branch"] === "${{ steps.issue-prior.outputs.reuse-branch }}",
+  "the reuse-branch output comes only from the runner's earlier-work check");
+const first = steps[0];
+say(first.env?.REUSE_BRANCH === "${{ inputs.reuse-branch }}"
+  && (first.run ?? "").includes("[[ $REUSE_BRANCH =~ ^work-resolve-issue/issue-${ISSUE_NUMBER}-[1-9][0-9]*-[1-9][0-9]*$ ]]"),
+  "the first step refuses a reuse-branch input that is not this issue's lane branch");
+say(byId("act-script").env?.REUSE_BRANCH === "${{ inputs.reuse-branch }}", "the script step gets the checked reuse-branch input");
 EOF
 )
 if [[ -z "$results" ]]; then
