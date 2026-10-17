@@ -147,6 +147,9 @@ A repository with no index block is never failed.
 When the user does not want the entry in this clone, run
 `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry index-check`; the
 session-start drift line then stays silent until `verify` runs by hand, and `--undo` reverses it.
+Add `--global` (with or without `--undo`) to decline the entry in every clone;
+`git config --global checks.git-hooks.declined true` declines every entry of every plugin, and an
+entry's own key set to `false` in a clone opts that entry back in.
 
 ## Hard rules
 
