@@ -215,13 +215,22 @@ the broker request, and no other permission; it never holds `checks: write` or `
 9. `setup-runner-isolation`: for a skill, installs bubblewrap and socat with `apt-get` (three tries) and, where
    `/proc/sys/kernel/apparmor_restrict_unprivileged_userns` exists, sets it to `0`. It fails red
    if `bwrap` is not on `PATH` afterwards. The skill step needs it for subprocess isolation (below).
-10. Removes sudo and docker access for the rest of the job: `/var/run/docker.sock` becomes
-   root-only and the runner user's `/etc/sudoers.d/runner` entry is deleted. It fails red if
-   `sudo -n true` still succeeds or the socket is still open to the runner user.
+10. Leaves sudo and docker access in place: lanes keep them for now (owner decision,
+    2026-10-17), and the lanes audit re-evaluates that. For a skill, copies the base's
+    [`scripts/setup-env.sh`](../../../scripts/setup-env.sh) and the files it installs from
+    (`.python-version`, `.github/requirements-ci.txt`, the root and
+    `.github/standards/runner-policy` `package.json` and `package-lock.json`) to
+    `$RUNNER_TEMP/setup-env`; a base without the script skips this and step 12's install with a
+    notice.
 11. Checks out the trigger gate's `head-sha` with `persist-credentials: false` (full history for
     `prepare: merge-base`, else depth 1), then fails red unless `git rev-parse HEAD` equals that
     SHA. This replaces `.base`.
-12. Runs the activity (below), then, in the read file, records whether the tree is dirty.
+12. For a skill, sets up Python from the copied `.python-version` and runs the copied
+    `setup-env.sh`, which installs the hash-pinned wheels in `.github/requirements-ci.txt` into a
+    venv under `$RUNNER_TEMP` and the locked Node packages, and puts both on `PATH`. The read file
+    installs from the head's lock files into the checkout; the write file, whose skill runs no
+    head code, installs from the base copies in `$RUNNER_TEMP/setup-env`. Then runs the activity
+    (below) and, in the read file, records whether the tree is dirty.
 13. Writes `verdict.json` with `jq` (`if: always()`) and uploads it as
     `verdict-<lane>-<activity>-<run_attempt>`, unique per activity and attempt.
 14. Write file only, `if: always()` whenever step 6 output a token: `actions/github-script`,
@@ -766,9 +775,9 @@ Claude OAuth token. Two routes reach it and the activity's GitHub token:
   job `GITHUB_TOKEN` in the read file, the effect-scoped App token in the write file. The action installs
   bubblewrap only for `allowed_non_write_users`, so run job step 9 installs it and fails the job
   when it is missing.
-- Runner memory, with root. A hosted runner holds referenced secrets in the runner's memory.
-  Removing sudo and docker access before the head checkout blocks the documented memory-dump
-  route.
+- Runner memory, with root. A hosted runner holds referenced secrets in the runner's memory, and
+  sudo or the docker socket reaches it. Lanes keep both for now (owner decision, 2026-10-17), so
+  this route is open until the lanes audit re-evaluates it.
 
 Both are mitigations for the OAuth token and the activity's own GitHub token. The App key is kept
 off every runner by the broker instead: no workflow holds it.

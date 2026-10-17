@@ -1,10 +1,10 @@
 name: Set up runner isolation
 description: >
-  Before PR head code runs: for a skill, install the bubblewrap and socat that
-  CLAUDE_CODE_SUBPROCESS_ENV_SCRUB needs while sudo still works, failing
-  closed without bwrap; then remove sudo and docker access for the rest of the
-  job. Contract: docs/conventions/pr-pipeline/pr-run-activity.md, run job
-  steps 9 and 10.
+  For a skill, install the bubblewrap and socat that
+  CLAUDE_CODE_SUBPROCESS_ENV_SCRUB needs, failing closed without bwrap. Lanes
+  keep sudo and docker access (owner decision 2026-10-17, re-evaluated in the
+  lanes audit). Contract: docs/conventions/pr-pipeline/pr-run-activity.md, run
+  job step 9.
 
 inputs:
   install-subprocess-isolation:
@@ -35,25 +35,5 @@ runs:
         fi
         if ! command -v bwrap >/dev/null; then
           echo "::error::bubblewrap is not installed; the skill's subprocesses cannot be isolated"
-          exit 1
-        fi
-
-    # Removes the documented route from head code to the job's secrets in
-    # runner memory (harden-runner's disable-sudo does the same): the docker
-    # socket becomes root-only, then the runner user's sudoers entry goes.
-    - name: Remove sudo and docker access
-      shell: bash
-      run: |
-        sock=/var/run/docker.sock
-        if [ -e "$sock" ]; then
-          sudo chmod 600 "$sock"
-        fi
-        sudo rm -f /etc/sudoers.d/runner
-        if sudo -n true 2>/dev/null; then
-          echo "::error::sudo still works for the runner user"
-          exit 1
-        fi
-        if [ -e "$sock" ] && { [ -r "$sock" ] || [ -w "$sock" ]; }; then
-          echo "::error::the docker socket is still open to the runner user"
           exit 1
         fi

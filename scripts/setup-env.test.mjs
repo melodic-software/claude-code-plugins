@@ -1,0 +1,165 @@
+// Suite for scripts/setup-env.sh. Every tool it installs with (python, npm,
+// node, sudo) is a stub on PATH that logs its arguments, so the suite checks
+// what the script asks for, not what the network returns.
+import { strict as assert } from "node:assert";
+import { spawnSync } from "node:child_process";
+import {
+	chmodSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	symlinkSync,
+	writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, test } from "node:test";
+
+const script = join(import.meta.dirname, "setup-env.sh");
+const which = (tool) =>
+	spawnSync("sh", ["-c", `command -v ${tool}`], {
+		encoding: "utf8",
+	}).stdout.trim();
+const bash = which("bash");
+let dir;
+let root;
+let stubs;
+let log;
+
+function stub(name, body) {
+	const file = join(stubs, name);
+	writeFileSync(
+		file,
+		`#!/usr/bin/env bash\necho "${name} $*" >>"${log}"\n${body}\n`,
+	);
+	chmodSync(file, 0o755);
+}
+
+function run(args = [], env = {}) {
+	writeFileSync(log, "");
+	const result = spawnSync(bash, [script, "--root", root, ...args], {
+		encoding: "utf8",
+		env: {
+			...process.env,
+			PATH: `${stubs}:${process.env.PATH}`,
+			GITHUB_PATH: "",
+			SETUP_ENV_PLAYWRIGHT: "",
+			...env,
+		},
+	});
+	return {
+		...result,
+		calls: readFileSync(log, "utf8").split("\n").filter(Boolean),
+	};
+}
+
+beforeEach(() => {
+	dir = mkdtempSync(join(tmpdir(), "setup-env-"));
+	root = join(dir, "repo");
+	stubs = join(dir, "stubs");
+	log = join(dir, "calls.log");
+	mkdirSync(join(root, ".github/standards/runner-policy"), { recursive: true });
+	mkdirSync(stubs);
+	// A version no real interpreter has, so only the stub can match it.
+	writeFileSync(join(root, ".python-version"), "3.99\n");
+	writeFileSync(
+		join(root, ".github/requirements-ci.txt"),
+		"pytest==9.1.1 --hash=sha256:aa\n",
+	);
+	writeFileSync(join(root, "package-lock.json"), '{"v":1}\n');
+	writeFileSync(
+		join(root, ".github/standards/runner-policy/package-lock.json"),
+		'{"v":2}\n',
+	);
+	stub(
+		"python3.99",
+		`if [ "$1" = -m ] && [ "$2" = venv ]; then
+  mkdir -p "$4/bin"
+  printf '#!/usr/bin/env bash\\necho "venv-python $*" >>"${log}"\\n' >"$4/bin/python"
+  chmod +x "$4/bin/python"
+fi`,
+	);
+	stub("npm", 'mkdir -p "$3/node_modules"');
+	stub("node", "");
+	stub("sudo", "exit 1");
+});
+
+afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+test("a first run installs the pinned wheels into a venv and runs npm ci in both lock dirs", () => {
+	const r = run();
+	assert.equal(r.status, 0, r.stderr);
+	assert.deepEqual(r.calls, [
+		`python3.99 -c import sys; sys.exit('%d.%d' % sys.version_info[:2] != '3.99')`,
+		`python3.99 -m venv --clear ${root}/.work/venv`,
+		"venv-python -m pip install --quiet --only-binary=:all: --require-hashes --requirement .github/requirements-ci.txt",
+		"npm ci --prefix .",
+		"npm ci --prefix .github/standards/runner-policy",
+	]);
+});
+
+test("a second run with unchanged lock files installs nothing", () => {
+	run();
+	const r = run();
+	assert.equal(r.status, 0, r.stderr);
+	assert.deepEqual(r.calls, []);
+});
+
+test("a changed lock file reinstalls only what it pins", () => {
+	run();
+	writeFileSync(join(root, "package-lock.json"), '{"v":3}\n');
+	const r = run();
+	assert.deepEqual(r.calls, ["npm ci --prefix ."]);
+});
+
+test("Chromium is installed only when asked, by flag or by env", () => {
+	run();
+	assert.ok(!run().calls.some((c) => c.startsWith("node ")));
+	assert.deepEqual(run(["--playwright"]).calls, [
+		"sudo -n true",
+		"node node_modules/playwright/cli.js install chromium",
+	]);
+	assert.deepEqual(
+		run([], { SETUP_ENV_PLAYWRIGHT: "1" }).calls.at(-1),
+		"node node_modules/playwright/cli.js install chromium",
+	);
+});
+
+test("with sudo, Chromium comes with its system libraries", () => {
+	run();
+	stub("sudo", "exit 0");
+	assert.equal(
+		run(["--playwright"]).calls.at(-1),
+		"node node_modules/playwright/cli.js install --with-deps chromium",
+	);
+});
+
+test("under Actions the venv and node_modules/.bin go on GITHUB_PATH", () => {
+	const pathFile = join(dir, "github-path");
+	writeFileSync(pathFile, "");
+	assert.equal(run([], { GITHUB_PATH: pathFile }).status, 0);
+	assert.equal(
+		readFileSync(pathFile, "utf8"),
+		`${root}/.work/venv/bin\n${root}/node_modules/.bin\n`,
+	);
+});
+
+test("no matching Python and no uv fails without installing", () => {
+	rmSync(join(stubs, "python3.99"));
+	// Only the stubs and the coreutils the script reads with, so no real python or uv resolves.
+	const tools = join(dir, "tools");
+	mkdirSync(tools);
+	for (const tool of ["cat", "cut", "tr", "sha256sum"])
+		symlinkSync(which(tool), join(tools, tool));
+	const r = run([], { PATH: `${stubs}:${tools}` });
+	assert.equal(r.status, 1);
+	assert.match(r.stderr, /no Python 3\.99/);
+	assert.deepEqual(r.calls, []);
+});
+
+test("an unknown argument is a usage error", () => {
+	const r = run(["--bogus"]);
+	assert.equal(r.status, 2);
+	assert.match(r.stderr, /unknown argument: --bogus/);
+});

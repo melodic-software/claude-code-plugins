@@ -1,5 +1,12 @@
 # Changelog for the PR pipeline convention
 
+## 1.28.0 - 2026-10-17
+
+`pr-run-activity.md` run job step 10 no longer removes sudo and docker access: lanes keep them for
+now (owner decision, 2026-10-17), and the lanes audit re-evaluates that. Step 12 now sets up Python
+and runs the base's `scripts/setup-env.sh` before a skill activity, so the skill can run the
+repository's Python and Node tests. `version` stays 1.
+
 ## 1.27.0 - 2026-10-17
 
 `merge.diff-check` gains three optional pr-merge lane switches, each off when absent:

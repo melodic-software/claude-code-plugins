@@ -67,9 +67,11 @@ code it may run is limited by what it holds. Line references are to
    subprocess still holds the activity's GitHub token. Because the action installs bubblewrap only
    for `allowed_non_write_users`, the run job installs bubblewrap and socat itself and fails red
    when `bwrap` is missing (lines 306-327).
-6. **No root and no unneeded token in the head-code job.** A `read` activity mints no App token
-   (lines 189-220). Before the head checkout the run job makes the docker socket root-only, deletes
-   the runner user's sudoers entry, and fails red if either still works (lines 329-348).
+6. **No unneeded token in the head-code job.** A `read` activity mints no App token
+   (lines 189-220). Before the head checkout the run job made the docker socket root-only, deleted
+   the runner user's sudoers entry, and failed red if either still worked (lines 329-348). The
+   owner reversed that on 2026-10-17: lanes keep sudo and docker for now, and the lanes audit
+   re-evaluates it.
 7. **A skill that holds a write token or gates must not run head code.** A skill whose effect is not
    `read` holds a contents-write App token in its process and in the git config, so it runs no test,
    build or other PR code through Bash. A `gating: gate` skill must end in a schema-checked verdict
@@ -122,7 +124,7 @@ default-branch workflow at each commit named.
   [37222032673](https://github.com/melodic-software/pr-pipeline-sandbox/actions/runs/37222032673)
   failed every run job at "Assert the base is on the default branch", with no head checkout, mint or
   act step.
-- Sudo and docker are gone before head code: run
+- Sudo and docker were gone before head code, until the 2026-10-17 reversal in item 6: run
   [37222034731](https://github.com/melodic-software/pr-pipeline-sandbox/actions/runs/37222034731)
   read `sudo: a password is required`, a root-only socket, and a skipped mint for a `read` activity.
 - A gate skill's verdict decides its check: runs
