@@ -199,7 +199,8 @@ path stays inside `<work-root>/digests/` before writing.
 
 Read [context/dual-verification.md](context/dual-verification.md) once Phase 3's digest exists and
 before presenting it: it owns both verification passes, what each one reads, the fence and snippet
-checks each one runs, the disagreement disposition, and what a failed pass does to the artifact. A
+checks each one runs, the verdict set and the rule that sets it, the disagreement disposition, and what a failed pass
+does to the artifact. A
 digest presented without it is unverified, which is the state this phase exists to rule out.
 
 From the pin until every verifier arm has returned, nothing edits the slice, and that includes
