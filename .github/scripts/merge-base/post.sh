@@ -43,7 +43,7 @@
 # shellcheck disable=SC2310  # g wraps one git call, so its status is that call's
 set -euo pipefail
 
-export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_LITERAL_PATHSPECS=1
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_LITERAL_PATHSPECS=1 GIT_NO_REPLACE_OBJECTS=1
 g() { git -c core.hooksPath=/dev/null -c core.fsmonitor= -c diff.external= "$@"; }
 die() {
   printf 'post.sh: %s\n' "$*" >&2
@@ -170,9 +170,7 @@ filter_workflows() {
 filter_workflows "$out/index-snapshot" >"$tmp/workflows-before"
 filter_workflows "$tmp/index" >"$tmp/workflows-after"
 cmp -s "$tmp/workflows-before" "$tmp/workflows-after" || reason workflow-staged
-g ls-tree -r -z --full-tree --format='%(objectmode) %(objectname) 0%x09%(path)' "$head" -- .github/workflows >"$tmp/head-tree"
-filter_workflows "$tmp/head-tree" >"$tmp/workflows-head"
-cmp -s "$tmp/workflows-head" "$tmp/workflows-after" || reason workflow-staged
+g diff-index --cached --quiet "$head" -- .github/workflows/ || reason workflow-staged
 
 tree=$(g write-tree)
 printf 'escalation-reason=\ntree=%s\n' "$tree"
