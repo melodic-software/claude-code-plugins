@@ -484,8 +484,11 @@ other artifact with such a name is ignored. At the pull request's vetted head:
 - a counted `fail` at the head, under any pull request number, refuses (`verify:fail`);
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
   verdict recording its head branch) refuses (`verify:earlier-fail`);
-- a `fail` artifact tied to it whose run or record cannot be read, or any other failed read,
-  refuses (`verify:unreadable`);
+- a `fail` artifact tied to it (its number or one of its commits) whose run cannot be read, an
+  untied `fail` whose run is readable and of verifier origin but whose verdict record cannot be
+  downloaded, or any other failed read, refuses (`verify:unreadable`). An untied `fail` whose run
+  cannot be read is ignored. One unreadable record of an untied `fail` therefore blocks every pull
+  request until it can be read, expires or is deleted;
 - a counted `pass` or `pass-notes` for this pull request refuses (`verify:spec-changed`) unless the
   pull request's closing issues in this repository now are the ones its verdict recorded and none
   was edited after the verdict's run started, and then allows the merge only when every linked
@@ -500,7 +503,11 @@ by merging in person: the verdict is not a check run and stays out of `ci-status
 checks (github-iac ADR 0011), so a human merge needs `ci-status` alone. A queued entry without an
 allowing verdict at its live head leaves the queue. A dependency manager's pull request is refused
 before the verdict is read, so it needs none. The gate lists every repository artifact once per
-candidate run, since pr-merge.yml runs the gate once per candidate.
+candidate run, since pr-merge.yml runs the gate once per candidate. The lane token holds no Actions
+permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
+`BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
+records and the download alone, and every other call keeps the lane token. That job checks out only
+main and runs no pull request code.
 
 ## Trust-root paths
 

@@ -1,5 +1,5 @@
-// Expected values come from issue #7702 (Scope) and the review round on its
-// pull request: the artifact is named pr-verify-<pr>-<head-sha>-<verdict>, the
+// Expected values come from issue #7702 (Scope) and the verdict rules in
+// docs/conventions/pr-pipeline/README.md ("Verifier verdict"): the artifact is named pr-verify-<pr>-<head-sha>-<verdict>, the
 // verdict JSON holds {pr, head_sha, base_sha, head_ref, linked_issues,
 // verdict, summary, notes, run_id}, each linked issue records its author, and
 // malformed output writes nothing.

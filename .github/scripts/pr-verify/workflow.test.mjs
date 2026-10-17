@@ -1,5 +1,5 @@
-// pr-verify.yml's ordering rules, from the review round on #7702: GitHub
-// cancels an older pending run in the same concurrency group, so a cancelled
+// pr-verify.yml's ordering rules, from its concurrency comment and the
+// README's "Verifier verdict" section: GitHub cancels an older pending run in the same concurrency group, so a cancelled
 // run must leave no verdict. The upload is therefore the job's only artifact
 // step, it runs after the verdict file is written, and only when writing it
 // succeeded; the group is per PR and head, never cancelling a running judgment.
@@ -25,6 +25,17 @@ test("the upload is the only artifact step and follows the written verdict", () 
   assert.ok(index("Upload the verdict") > index("Write the verdict"));
   assert.match(uploads[0].block, /if: steps\.verdict\.outcome == 'success'/);
   assert.doesNotMatch(text, /actions\/upload-artifact\/merge|gh api .*artifacts.* -X (POST|PUT)/);
+});
+
+test("pr-merge.yml gives the gate an Actions token for the verdict reads only", () => {
+  // babysit_verify_evidence.py reads BABYSIT_VERIFY_GH_TOKEN; the lane token
+  // the gate runs gh with holds no Actions permission.
+  const merge = readFileSync(new URL("../../workflows/pr-merge.yml", import.meta.url), "utf8");
+  const job = /\n  merge:\n([\s\S]*?)\n  [a-z-]+:\n/.exec(merge)[1];
+  assert.match(job, /\n {6}actions: read\n/);
+  const gate = /- name: Run the merge gate on each candidate\n([\s\S]*?)\n {6}- name: /.exec(job)[1];
+  assert.match(gate, /\n {10}GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}\n/);
+  assert.match(gate, /\n {10}BABYSIT_VERIFY_GH_TOKEN: \$\{\{ github\.token \}\}\n/);
 });
 
 test("the concurrency group is per PR and head and never cancels a running judgment", () => {

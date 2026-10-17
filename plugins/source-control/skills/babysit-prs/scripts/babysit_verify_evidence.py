@@ -20,8 +20,12 @@ from a completed, successful one. Any other artifact is ignored.
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch:
   `verify:earlier-fail`;
-- a FAIL-named artifact tied to this pull request by number or SHA whose run,
-  or whose recorded head branch, cannot be read: `verify:unreadable`;
+- a FAIL-named artifact tied to this pull request by number or SHA whose run
+  cannot be read: `verify:unreadable`. An untied FAIL whose run cannot be read
+  is ignored; an untied FAIL whose run is readable and of verifier origin but
+  whose recorded head branch (its verdict.json) cannot be read is
+  `verify:unreadable`, so one such artifact blocks every pull request until it
+  is readable, expires or is deleted;
 - a counted PASS or PASS-NOTES at the head of this pull request: refused
   `verify:spec-changed` unless the pull request's closing issues now are the
   ones its verdict recorded, then allowed only when it records a linked issue
@@ -39,6 +43,7 @@ and filtered on the name here: the API's name filter matches whole names only.
 from __future__ import annotations
 
 import json
+import os
 import re
 import tempfile
 from dataclasses import dataclass, field
@@ -48,10 +53,12 @@ from typing import Any
 
 import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
+from babysit_gh import flatten_paginated_items
 from babysit_util import is_json_array, is_json_object, json_array, json_object
 
 WORKFLOW_PATH = ".github/workflows/pr-verify.yml"
 TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
+TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
 NAME_RE = re.compile(r"pr-verify-([1-9][0-9]*)-([0-9a-f]{40})-(pass|pass-notes|fail)")
 PASSES = ("pass", "pass-notes")
 # Artifacts last at most 90 days in this repository (the retention maximum,
@@ -132,6 +139,12 @@ class Reader:
     repo: str
     branch: str
     now: datetime | None = None
+    # The token for the Actions reads (artifact listing, run records,
+    # download): pr-merge.yml passes the job's GITHUB_TOKEN, which holds
+    # `actions: read`, while the lane token it runs gh with holds none.
+    actions_token: str | None = field(
+        default_factory=lambda: os.environ.get(TOKEN_ENV) or None
+    )
     _artifacts: list[dict[str, Any]] | None = None
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
@@ -142,16 +155,41 @@ class Reader:
     def _listing(self) -> list[dict[str, Any]]:
         listing = self._artifacts
         if listing is None:
-            try:
-                listing = postmerge._paginated(
+            payload = self._actions(
+                [
+                    "api",
                     f"repos/{self.repo}/actions/artifacts?per_page=100",
-                    "repository artifacts",
-                    "artifacts",
+                    "--paginate",
+                    "--slurp",
+                ],
+                "repository artifacts",
+            )
+            try:
+                listing = flatten_paginated_items(
+                    payload, "repository artifacts", items_key="artifacts"
                 )
-            except postmerge.PostMergeReadError as exc:
+            except RuntimeError as exc:
                 raise _Unreadable(str(exc)) from exc
             self._artifacts = listing
         return listing
+
+    def _env(self) -> dict[str, str] | None:
+        return {"GH_TOKEN": self.actions_token} if self.actions_token else None
+
+    def _actions(self, args: list[str], label: str) -> Any:
+        """A read the Actions API answers, under the Actions token when set."""
+        try:
+            proc = postmerge.gh_capture(args, env_overrides=self._env())
+        except (RuntimeError, ValueError, OSError) as exc:
+            raise _Unreadable(f"{label}: {exc}") from exc
+        if proc.returncode != 0:
+            raise _Unreadable(
+                f"{label}: {(proc.stderr or '').strip() or proc.returncode}"
+            )
+        try:
+            return json.loads(proc.stdout) if proc.stdout.strip() else None
+        except ValueError as exc:
+            raise _Unreadable(f"{label}: {exc}") from exc
 
     def _contains(self, sha: str) -> bool:
         if sha not in self._on_branch:
@@ -168,7 +206,7 @@ class Reader:
         if run_id not in self._runs:
             try:
                 record = json_object(
-                    _read(
+                    self._actions(
                         ["api", f"repos/{self.repo}/actions/runs/{run_id}"],
                         f"run {run_id}",
                     )
@@ -205,7 +243,12 @@ class Reader:
         if key not in self._records:
             with tempfile.TemporaryDirectory() as tmp:
                 args = ["run", "download", str(run_id), "-R", self.repo]
-                proc = postmerge.gh_capture([*args, "-n", name, "-D", tmp])
+                try:
+                    proc = postmerge.gh_capture(
+                        [*args, "-n", name, "-D", tmp], env_overrides=self._env()
+                    )
+                except (RuntimeError, ValueError, OSError) as exc:
+                    raise _Unreadable(f"artifact {name}: {exc}") from exc
                 path = Path(tmp) / "verdict.json"
                 if proc.returncode != 0 or not path.is_file():
                     raise _Unreadable(f"artifact {name} of run {run_id}")

@@ -82,6 +82,9 @@ jobs:
     permissions:
       contents: read # check out main
       pull-requests: read # list the open PRs
+      # The gate's pr-verify verdict reads (artifact listing, run records,
+      # download); the lane token holds no Actions permission.
+      actions: read
       id-token: write # prove to the token broker which workflow this is
     outputs:
       # `true` when the lane is live (not report-only) and either a PR merged
@@ -236,6 +239,10 @@ jobs:
         if: steps.candidates.outcome == 'success'
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          # Only the verdict reader's Actions calls use this, as their own
+          # GH_TOKEN (babysit_verify_evidence.py); the job runs main's code
+          # alone, never a PR's.
+          BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           OWNER: ${{ github.repository_owner }}
           SCRIPT: ${{ steps.config.outputs.script }}

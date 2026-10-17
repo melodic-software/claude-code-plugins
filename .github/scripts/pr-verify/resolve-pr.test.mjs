@@ -1,5 +1,5 @@
-// Expected values come from issue #7702 (Scope) and the review round on its
-// pull request: only a successful pr-require-checks pull_request run of this
+// Expected values come from issue #7702 (Scope) and the verdict rules in
+// docs/conventions/pr-pipeline/README.md ("Verifier verdict"): only a successful pr-require-checks pull_request run of this
 // repository starts a verdict, for exactly one open same-repository PR into
 // main whose head is the run's head SHA; the head is the run's, and the base
 // SHA is the PR's; a head with a counted verdict from a completed run (a FAIL
@@ -170,6 +170,14 @@ test("a run still going, or a run that uploaded nothing, does not stop a new jud
   assert.equal(await reason({ artifacts: [artifact(`pr-verify-41-${HEAD}-fail`, 77)], runs: { 77: going } }), "ok");
   // A failed run with no artifact leaves nothing in the listing.
   assert.equal(await reason({ artifacts: [], runs: { 77: verifyRun(77, { conclusion: "failure" }) } }), "ok");
+});
+
+test("a head whose only verdict can no longer be read is judged again", async () => {
+  // An expired artifact cannot be downloaded, so the gate cannot read it either.
+  for (const verdict of ["pass", "fail"]) {
+    const item = artifact(`pr-verify-41-${HEAD}-${verdict}`, 77, true);
+    assert.equal(await reason({ artifacts: [item], runs: { 77: verifyRun(77) } }), "ok", verdict);
+  }
 });
 
 test("a verdict that would not count does not stop a new judgment", async () => {

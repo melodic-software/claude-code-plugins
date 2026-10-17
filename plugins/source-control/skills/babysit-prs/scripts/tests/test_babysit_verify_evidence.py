@@ -1,14 +1,16 @@
 """The pr-merge lane's reader of verifier verdicts (`babysit_verify_evidence`).
 
-Expected values come from issue #7702 (Scope, Done when) and the review round
-on its pull request: an artifact named `pr-verify-<pr>-<sha>-<verdict>` counts
-only through a run of `.github/workflows/pr-verify.yml` on main of this
-repository; a FAIL counts whatever the run's conclusion and under any pull
-request number, a PASS only from a completed success at this pull request's
-head; a FAIL at another head of the pull request goes to a human; an
-unreadable FAIL blocks; a pull request older than 80 days goes to a human; a
-pass whose linked issues no trusted human other than the author wrote does not
-count; a Dependabot pull request needs no verdict.
+Expected values come from issue #7702 (Scope, Done when) and the verdict rules
+in docs/conventions/pr-pipeline/README.md ("Verifier verdict"): an artifact
+named `pr-verify-<pr>-<sha>-<verdict>` counts only through a run of
+`.github/workflows/pr-verify.yml` on main of this repository; a FAIL counts
+whatever the run's conclusion and under any pull request number, a PASS only
+from a completed success at this pull request's head; a FAIL at another head
+of the pull request goes to a human; an unreadable FAIL blocks; a pull request
+older than 80 days goes to a human; a pass needs every linked issue written
+and last edited by a trusted human other than the author, unchanged since the
+judgment; the Actions reads use the Actions token; a Dependabot pull request
+needs no verdict.
 
 The artifact and run shapes follow responses recorded from
 `GET /repos/{owner}/{repo}/actions/artifacts` and `GET .../actions/runs/{id}`
@@ -144,6 +146,7 @@ class FakeGitHub:
         self.commits = [IN_PR, HEAD]
         self.actors: Any = {"version": 1, "actors": [MAINTAINER, LANES]}
         self.calls: list[list[str]] = []
+        self.envs: list[tuple[list[str], Any]] = []
         self.fail: set[str] = set()
         # The PR's closing issues now: (number, repository).
         self.closing: list[tuple[int, str]] = [(7, REPO)]
@@ -151,8 +154,11 @@ class FakeGitHub:
         # Each closing issue's body lastEditedAt now, by number.
         self.closing_edited: dict[int, str | None] = {}
 
-    def __call__(self, args: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+    def __call__(
+        self, args: list[str], **kwargs: Any
+    ) -> subprocess.CompletedProcess[str]:
         self.calls.append(args)
+        self.envs.append((args, kwargs.get("env_overrides")))
 
         def ok(payload: Any) -> subprocess.CompletedProcess[str]:
             return subprocess.CompletedProcess(args, 0, json.dumps(payload), "")
@@ -471,6 +477,12 @@ class TheSpecMustBeTrusted(unittest.TestCase):
         evidence = self.with_issues([TRUSTED_ISSUE], user={"login": "Maintainer"})
         self.assertEqual(evidence.refusal, "verify:untrusted-spec")
 
+    def test_a_pull_request_with_no_readable_author_does_not(self) -> None:
+        # With no author login, no issue author can be shown to be someone else.
+        self.assertEqual(
+            self.with_issues([TRUSTED_ISSUE], user={}).refusal, "verify:untrusted-spec"
+        )
+
     def test_every_linked_issue_must_be_trusted(self) -> None:
         # A trivially satisfied human issue beside the lanes App's own.
         bot = {**TRUSTED_ISSUE, "number": 8, "author_type": "Bot", "author_id": 200}
@@ -603,6 +615,39 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
         fake = passing()
         fake.records[named(HEAD, "pass")] = record(linked_issues=None)
         self.assertEqual(read(fake).refusal, "verify:unreadable")
+
+
+class ActionsReadsUseTheActionsToken(unittest.TestCase):
+    """The lane token holds no Actions permission, so the artifact listing,
+    the run records and the download run under `BABYSIT_VERIFY_GH_TOKEN`;
+    every other read keeps the process token."""
+
+    ACTIONS = ("actions/artifacts", "actions/runs/", "run download")
+
+    def reads(self, reader: ve.Reader) -> dict[str, Any]:
+        fake = passing()
+        with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+            self.assertIsNone(reader.evidence(PR, HEAD, pull()).refusal)
+        return {" ".join(args): env for args, env in fake.envs}
+
+    def test_only_the_actions_reads_carry_the_token(self) -> None:
+        reads = self.reads(ve.Reader(REPO, "main", now=NOW, actions_token="tok"))
+        for call, env in reads.items():
+            with self.subTest(call):
+                if any(kind in call for kind in self.ACTIONS):
+                    self.assertEqual(env, {"GH_TOKEN": "tok"})
+                else:
+                    self.assertIsNone(env)
+        for kind in self.ACTIONS:
+            self.assertTrue(any(kind in call for call in reads), kind)
+
+    def test_the_token_comes_from_the_environment(self) -> None:
+        with mock.patch.dict("os.environ", {"BABYSIT_VERIFY_GH_TOKEN": "env-tok"}):
+            reader = ve.Reader(REPO, "main", now=NOW)
+        self.assertEqual(reader.actions_token, "env-tok")
+        with mock.patch.dict("os.environ", {}, clear=True):
+            reads = self.reads(ve.Reader(REPO, "main", now=NOW))
+        self.assertTrue(all(env is None for env in reads.values()))
 
 
 class TheListingIsReadOncePerReader(unittest.TestCase):
