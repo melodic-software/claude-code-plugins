@@ -193,6 +193,7 @@
         const r = x.request ? reqText.get(x.request) : null, by = x.by?.kind === "guest-claude" ? x.by.pid : r?.pid;
         return { id: x.id, kind: x.kind, summary: x.summary, sources: x.sources || [], report: x.report || "", ts: x.at, requestId: x.request || "",
           skill: (x.used || []).map(u => u.name).join(", ") || "Claude", why: x.why || "", published: x.published !== false,
+          own: x.by?.kind === "guest-claude", // the requester's own Claude answered it (Connect your Claude), not the host's
           ...(r ? { ask: r.text } : {}), ...(by ? { byCid: by, by: nameOf(by) } : {}) };
       });
     }
@@ -389,7 +390,14 @@
     },
     setPurpose: (qid, purpose) => act("/api/question/purpose", { qid, purpose }),
     sendRound: () => act("/api/round/send", {}),
-    request: (qid, kind, text) => act("/api/request", { qid, kind, text }),
+    /** runner "self": the request runs on my own Claude (Connect your Claude); only I see it. */
+    request: (qid, kind, text, _extra, runner) => act("/api/request", { qid, kind, text, ...(runner === "self" ? { runner } : {}) }),
+    /** My own Claude's side of a self request: claim it, post its answer ({summary, sources, report, used, why}), or give up. */
+    myClaim: id => act("/api/mine/requests/claim", { id }),
+    myResult: (id, body) => act("/api/mine/requests/result", { id, ...body }),
+    myFail: (id, reason) => act("/api/mine/requests/fail", { id, reason }),
+    /** My personal key, for my own Claude to watch my requests with; empty for the owner, whose token stays here. */
+    watcherKey: () => (ownerToken ? "" : secret),
     later: (id, reason) => act("/api/proposal/act", { id, action: "later", reason }),
     /** Owner: edit | decline | fail | rerun one request, publish | discard a result; runRequests runs the given ids still pending. */
     requestAct: (id, action, text) => act("/api/request/act", { id, action, ...(text != null ? { text } : {}) }),
@@ -485,7 +493,7 @@
   // than a second there.
   const SPACED = new Set(["/api/answer", "/api/pick", "/api/propose", "/api/chat", "/api/suggest", "/api/request", "/api/merge-request",
     "/api/annotate", "/api/rename", "/api/color", "/api/prefs", "/api/about-you", "/api/vote", "/api/react", "/api/disagree",
-    "/api/go-with", "/api/notifications/read", "/api/chat/react"]);
+    "/api/go-with", "/api/notifications/read", "/api/chat/react", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail"]);
   const GAP = 1050; // ms: the server's one-a-second limit, plus a margin for clock rounding
   const lanes = new Map(); // path -> {tail: promise of the last write, done: when it answered}
   const wait = ms => new Promise(res => setTimeout(res, Math.max(0, ms)));

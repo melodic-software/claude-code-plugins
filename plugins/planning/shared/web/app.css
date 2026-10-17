@@ -1507,6 +1507,16 @@
 .app .vf-apreq[data-stat="done"] .vf-thstat { color: var(--ok); }
 .app .vf-qref-wrap { white-space: normal; overflow: visible; text-overflow: clip; text-align: start; overflow-wrap: anywhere; }
 .app .vf-apscroll > .vf-pop-sub { margin-block-start: 8px; }
+/* Connect your Claude (R2-12) */
+.app .vf-apself { padding-inline: 0; }
+.app .vf-apconnect { display: grid; gap: 6px; padding-block-end: 10px; border-block-end: 1px solid var(--line); }
+.app .vf-apconnect .vf-pop-note, .app .vf-apconnect .vf-meta { margin: 0; }
+.app .vf-apc-links { margin: 0; }
+.app .vf-selfacts { display: grid; gap: 6px; }
+.app .vf-selfacts .vf-acts { margin: 0; }
+.app .vf-selfform { display: grid; gap: 6px; }
+.app .vf-selfform .vf-meta { margin: 0; }
+.app .vf-res-own { border-inline-start: 2px solid var(--accent); }
 @media (prefers-reduced-motion: no-preference) {
   .app .vf-drawer:not([hidden]) { animation: vf-drawer-in 300ms var(--ease-drawer) both; }
 }

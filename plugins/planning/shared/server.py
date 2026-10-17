@@ -68,6 +68,7 @@ STATIC = {
     "/": ("index.html", "text/html"),
     "/core.js": ("core.js", "text/javascript"),
     "/app.js": ("app.js", "text/javascript"),
+    "/connect.js": ("connect.js", "text/javascript"),
     "/core.css": ("core.css", "text/css"),
     "/app.css": ("app.css", "text/css"),
     "/proto.js": ("proto.js", "text/javascript"),

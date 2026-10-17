@@ -22,7 +22,7 @@
       bumped: false, heard: {}, renaming: false, tie: null,
       // round 8
       revealed: new Set(), threadTab: "answers", cites: {}, hostFilter: "all", treeClosed: new Set(),
-      askPanel: false, askMode: "ask", askQ: "", picks: {}, goalEditing: false, notified: {}, msgMenu: null,
+      askPanel: false, askMode: "ask", askQ: "", askSelf: false, picks: {}, goalEditing: false, notified: {}, msgMenu: null,
     };
     // Unsent text saved by the last reload for a new version (Core.onReload, at the end): answer drafts and the chat field.
     const UNSENT = "vf-unsent";
@@ -1528,18 +1528,35 @@
     apQWrap.s.onchange = () => { ui.askQ = apQWrap.s.value; };
     const apLabel = E("label", "vf-asklabel"); const apTa = E("textarea", "vf-ta"); apTa.rows = 3; apTa.maxLength = 2000; apTa.id = "vf-ap-ta"; apLabel.htmlFor = apTa.id;
     const apNote = E("p", "vf-pop-note");
+    // Connect your Claude (R2-12): a guest's request can run on their own Claude, never the host's.
+    const apSelf = btn("vf-sw-row vf-apself"); apSelf.setAttribute("role", "switch");
+    apSelf.append(E("span", "vf-sw-txt vf-sw-label", "Run it on my own Claude"), E("span", "vf-switch"));
+    apSelf.onclick = () => { ui.askSelf = !ui.askSelf; render(); };
     const apRow = E("div", "vf-crow");
     const apAttach = ibtn("vf-btn vf-btn-ghost vf-btn-sm vf-attach", "clip", "Attach a file");
     const apSend = E("button", "vf-btn vf-btn-primary"); apSend.type = "submit";
     apRow.append(apAttach, E("span", "vf-spacer"), apSend);
-    apForm.append(apQWrap.w, apLabel, apTa, apNote, apRow);
+    apForm.append(apQWrap.w, apLabel, apTa, apSelf, apNote, apRow);
+    const apConnect = E("section", "vf-apconnect"); apConnect.setAttribute("aria-labelledby", "vf-apc-h");
+    const apcHead = E("h3", "vf-pop-sub", "Connect your Claude"); apcHead.id = "vf-apc-h";
+    const apcLinks = E("div", "vf-acts vf-apc-links");
+    const apcCode = E("a", "vf-btn vf-btn-ghost vf-btn-sm vf-apc-code", "Open in Claude Code");
+    const apcDesk = E("a", "vf-btn vf-btn-ghost vf-btn-sm vf-apc-desk", "Open in Claude Desktop (Code)");
+    const apcCopyW = btn("vf-btn vf-btn-ghost vf-btn-sm vf-apc-copyw", "Copy watch prompt");
+    const apcKey = btn("vf-btn vf-btn-ghost vf-btn-sm vf-apc-key", "Copy my key");
+    apcLinks.append(apcCode, apcDesk, apcCopyW, apcKey);
+    apConnect.append(apcHead,
+      E("p", "vf-pop-note", "Your own Claude, on your own plan, runs these requests. The host and the host's Claude never see them; each answer shows on its question for everyone, marked as from your Claude."),
+      E("p", "vf-pop-note", "Let Claude Code answer them as they come: open it with the prompt filled in, read it, and press Enter. It asks for your key."),
+      apcLinks,
+      E("p", "vf-meta", "Your key signs you in. Paste it only into your own Claude, when it asks. Or run one request at a time: copy its prompt below and paste the answer back."));
     const apScroll = E("div", "vf-pscroll vf-apscroll");
     const apReqHead = E("h3", "vf-pop-sub", "Your requests");
     const apReqs = E("ul", "vf-plist vf-apreqs"); apReqs.setAttribute("role", "list");
     const apReqEmpty = E("p", "vf-empty vf-empty-sm", "No requests yet. What you ask shows here with where it stands.");
     const apFileHead = E("h3", "vf-pop-sub", "Your files");
     const apFiles = E("ul", "vf-upstrip vf-apfiles"); apFiles.setAttribute("aria-label", "Your files");
-    apScroll.append(apForm, apReqHead, apReqs, apReqEmpty, apFileHead, apFiles);
+    apScroll.append(apForm, apConnect, apReqHead, apReqs, apReqEmpty, apFileHead, apFiles);
     askPanel.append(apHead, apModes, apScroll);
 
     // Use on another device: a personal link and its QR code.
@@ -1982,17 +1999,76 @@
     apForm.onsubmit = e => {
       e.preventDefault();
       const text = apTa.value.trim(); if (!text) return apTa.focus();
-      const mode = ui.askMode, qid = apQWrap.s.value || ui.cur;
+      const mode = ui.askMode, qid = apQWrap.s.value || ui.cur, own = selfAsk(mode);
       apSend.disabled = true;
-      const go = mode === "propose" ? Core.idea(text, attExtra(apSlot)) : Core.request(qid, mode, text, attExtra(apSlot));
+      const go = mode === "propose" ? Core.idea(text, attExtra(apSlot)) : Core.request(qid, mode, text, attExtra(apSlot), own ? "self" : "host");
       go.then(() => {
         apTa.value = ""; grow(apTa); apSlot.clear();
         flash(mode === "propose" ? "Proposed. Claude places it when the round is sent, or says why not."
+          : own ? "Added to your requests. Run it on your own Claude from there."
           : Core.me.isOwner ? "Added to Requests. Run it from there." : "Sent to the host. It runs once they press Run.");
         render();
       }).catch(fail).finally(() => { apSend.disabled = false; });
     };
     on(apTa, "keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); apForm.requestSubmit(); } });
+
+    // ---------- Connect your Claude (R2-12, AC 70) ----------
+    // A guest's `runner: self` request runs on their own Claude: a watcher in Claude Code or Desktop's Code tab, or one
+    // prompt copied (or opened in Desktop chat) with the answer pasted back. Prompts and links come from connect.js.
+    const selfAsk = mode => !Core.me.isOwner && mode !== "propose" && !!ui.askSelf;
+    const sessionBase = () => location.origin; // the address this guest reaches the session at; their Claude runs beside them
+    async function copyOut(text, done, title, from) {
+      try { await navigator.clipboard.writeText(text); flash(done); }
+      catch { openReader(title, "Select it and copy it.", text, from); }
+    }
+    apcCopyW.onclick = () => copyOut(Connect.watcherPrompt(sessionBase()), "Watch prompt copied. Paste it into Claude Code; it asks for your key.", "Watch prompt", apcCopyW);
+    apcKey.onclick = () => copyOut(Core.watcherKey(), "Key copied. Paste it only into your own Claude.", "Your key", apcKey);
+    let selfSeq = 0;
+    /** Copy prompt, Open in Claude Desktop, Paste answer and Cancel for one of my own self requests. */
+    function makeSelfActs() {
+      const box = E("div", "vf-selfacts"), row = E("div", "vf-acts");
+      const copyP = lbtn("vf-btn vf-btn-ghost vf-btn-sm vf-self-copy", "doc", "Copy prompt");
+      const chat = E("a", "vf-btn vf-btn-ghost vf-btn-sm vf-self-chat", "Open in Claude Desktop");
+      const paste = lbtn("vf-btn vf-btn-primary vf-btn-sm vf-self-paste", "reply", "Paste answer");
+      const cancel = btn("vf-btn vf-btn-ghost vf-btn-sm vf-self-cancel", "Cancel request");
+      row.append(copyP, chat, paste, cancel);
+      const form = E("form", "vf-selfform"); form.hidden = true;
+      const ta = E("textarea", "vf-ta"); ta.rows = 5; ta.id = `vf-self-ta-${++selfSeq}`;
+      const lab = E("label", "vf-asklabel", "Your Claude's answer"); lab.htmlFor = ta.id;
+      const post = E("button", "vf-btn vf-btn-primary vf-btn-sm", "Post answer"); post.type = "submit";
+      const notNow = btn("vf-btn vf-btn-ghost vf-btn-sm", "Not now");
+      const frow = E("div", "vf-acts"); frow.append(post, notNow);
+      form.append(lab, ta, E("p", "vf-meta", "Sources on the last lines, as \"Title - https://...\", show as links. Everyone sees the answer."), frow);
+      box.append(row, form);
+      const prompt = () => Connect.requestPrompt({ qid: box._q.id, question: box._q.text, kind: box._r.kind, text: box._r.text });
+      copyP.onclick = () => copyOut(prompt(), "Prompt copied. Paste it into your Claude, then paste its answer back here.", "Prompt for your Claude", copyP);
+      paste.onclick = () => { form.hidden = false; ta.focus(); };
+      notNow.onclick = () => { form.hidden = true; paste.focus(); };
+      cancel.onclick = guarded({ title: "Cancel this request?", ok: "Cancel request", body: "It stays in your list as failed. Nobody else saw it." },
+        () => Core.myFail(box._r.id, "Cancelled by me.").then(() => flash("Request cancelled.")).catch(fail));
+      form.onsubmit = e => {
+        e.preventDefault();
+        const { summary, sources } = Connect.parseReply(ta.value), r = box._r;
+        if (!summary) { flash("Paste your Claude's answer first."); return ta.focus(); }
+        if (summary.length > Connect.MAX_SUMMARY) { flash(`Shorten it to ${Connect.MAX_SUMMARY} characters; it has ${summary.length}.`); return ta.focus(); }
+        post.disabled = true;
+        (r.status === "pending" ? Core.myClaim(r.id) : Promise.resolve())
+          .then(() => Core.myResult(r.id, { summary, sources, report: "", used: [], why: "Pasted back from my own Claude." }))
+          .then(() => { ta.value = ""; form.hidden = true; flash("Posted. Everyone sees it on the question, marked as from your Claude."); })
+          .catch(fail).finally(() => { post.disabled = false; });
+      };
+      box._k = { chat, form };
+      return box;
+    }
+    function fillSelfActs(box, r, q) {
+      const open = !!q && (r.status === "pending" || r.status === "running");
+      box.hidden = !open;
+      if (!open) { box._k.form.hidden = true; return; }
+      box._r = r; box._q = q;
+      const href = Connect.link("desktopChat", Connect.requestPrompt({ qid: q.id, question: q.text, kind: r.kind, text: r.text }));
+      box._k.chat.hidden = !href;
+      if (href) box._k.chat.href = href;
+    }
 
     // ---------- Phase 4c: chat reactions ----------
     const reactPop = E("div", "vf-pop vf-reactpop"); reactPop.setAttribute("role", "dialog"); reactPop.setAttribute("aria-label", "Add a reaction"); reactPop.hidden = true;
@@ -3763,6 +3839,8 @@
     const KIND_LABEL = { ask: "Answer", research: "Research", explore: "Explore", design: "Design", prototype: "Prototype" };
     const KIND_REQ = { ask: "Ask", research: "Research", explore: "Explore", design: "Design", prototype: "Prototype" };
     const RSTAT = { pending: "Waiting for the host", running: "Running", declined: "Declined", done: "Done", failed: "Failed" };
+    const RSTAT_SELF = { pending: "Waiting for your Claude", running: "Your Claude is on it" };
+    const rstat = r => (r.runner === "self" && RSTAT_SELF[r.status]) || RSTAT[r.status] || r.status;
     function threadItems(S, q) {
       const res = (S.research?.[q.id] || []).map(x => ({ t: "res", id: "x:" + x.id, ts: x.ts, x }));
       const reqs = new Map();
@@ -3823,7 +3901,10 @@
       const k = li._k, open = !ui.resClosed.has(x.id);
       li._x = x; li._q = q;
       if (!k.bodyR.id) { k.bodyR.id = "vf-res-" + x.id; k.head.setAttribute("aria-controls", k.bodyR.id); }
-      k.ttl.textContent = x.kind === "ask" ? "Claude's answer" : KIND_LABEL[x.kind] || "Research";
+      // Connect your Claude: a result the requester's own Claude wrote says whose Claude it was.
+      k.ttl.textContent = x.own ? `${x.kind === "ask" ? "Answer" : KIND_LABEL[x.kind] || "Answer"} from ${isMe(x.byCid) ? "your" : `${disp(x.by || "someone")}'s`} own Claude`
+        : x.kind === "ask" ? "Claude's answer" : KIND_LABEL[x.kind] || "Research";
+      li.classList.toggle("vf-res-own", !!x.own);
       k.via.textContent = `via ${x.skill}`;
       k.via.title = x.why || ""; // C37: why Claude routed it there
       k.share.hidden = x.published !== false || !Core.me.isOwner;
@@ -3885,7 +3966,8 @@
       const run = lbtn("vf-btn vf-btn-primary vf-btn-sm", "play", "Run"), decline = btn("vf-btn vf-btn-ghost vf-btn-sm", "Decline");
       const failB = btn("vf-btn vf-btn-ghost vf-btn-sm", "Mark failed"), rerun = lbtn("vf-btn vf-btn-ghost vf-btn-sm", "restore", "Run again");
       acts.append(decline, run, failB, rerun);
-      li.append(head, who, text, acts);
+      li._self = makeSelfActs();
+      li.append(head, who, text, acts, li._self);
       li._att = attRowEl(); text.after(li._att);
       run.onclick = () => Core.requestAct(li._r.id, "run").then(() => flash("Running. The result shows here.")).catch(fail);
       decline.onclick = () => Core.requestAct(li._r.id, "decline").then(() => flash("Request declined.")).catch(fail);
@@ -3901,8 +3983,9 @@
       k.kind.className = "vf-chip " + (r.kind === "research" ? "vf-chip-accent" : "vf-chip-quiet");
       const wk = r.cid + "|" + r.name + "|" + r.ts;
       if (k.who._k !== wk) { k.who._k = wk; k.who.replaceChildren(av(r.cid, r.name, 16), E("span", null, `${isMe(r.cid) ? "You" : disp(r.name)}`), E("span", "vf-card-time", ago(r.ts))); }
-      k.status.textContent = `${RSTAT[r.status] || r.status}${r.edited ? ", edited by host" : ""}${r.reason ? `: ${r.reason}` : ""}`;
+      k.status.textContent = `${rstat(r)}${r.edited ? ", edited by host" : ""}${r.reason ? `: ${r.reason}` : ""}`;
       li.dataset.stat = r.status;
+      if (r.runner === "self" && isMe(r.cid)) fillSelfActs(li._self, r, q); else li._self.hidden = true;
       fillClamp(k.text, "tr:" + r.id, r.text, `${KIND_REQ[r.kind] || "Request"} from ${isMe(r.cid) ? "you" : disp(r.name)}`, `${q.id}: ${q.text}`);
       fillAtts(li._att, r.att || (Core.state.myRequests || []).find(x => x.id === r.id)?.att, `Request from ${isMe(r.cid) ? "you" : disp(r.name)}`);
       k.run.hidden = k.decline.hidden = !(owner && r.status === "pending");
@@ -3916,7 +3999,7 @@
       sync(thList, items, i => i.id, i => (i.t === "res" ? makeRes() : i.t === "note" ? makeThNote() : makeThReq()),
         (li, i) => (i.t === "res" ? fillRes(li, i.x, q) : i.t === "note" ? fillThNote(li, i.a, q) : fillThReq(li, i.r, q)));
       thEmpty.hidden = items.length > 0;
-      const mineOpen = (S.myRequests || []).filter(r => r.qid === q.id && (r.status === "pending" || r.status === "running")).length;
+      const mineOpen = (S.myRequests || []).filter(r => r.qid === q.id && r.runner !== "self" && (r.status === "pending" || r.status === "running")).length;
       const others = Math.max(0, (S.requestCounts?.byQ?.[q.id] || 0) - (Core.me.isOwner ? (S.requests || []).filter(r => r.qid === q.id && (r.status === "pending" || r.status === "running")).length : mineOpen));
       reqChip.textContent = others ? `${others} more open with the host` : "";
       reqChip.hidden = !others;
@@ -4494,8 +4577,19 @@
       apQWrap.w.hidden = mode === "propose" || !qs.length;
       apLabel.textContent = { ask: "What should Claude answer?", research: "What should Claude find out?", explore: "What should Claude look for in this session?", propose: "What should the group be asked?" }[mode];
       apTa.placeholder = { ask: "A question Claude answers on the question", research: "What to look up, compare or verify", explore: "Something in the answers, the chat or the linked project", propose: "Your question for the group" }[mode];
+      const own = selfAsk(mode);
+      apSelf.hidden = Core.me.isOwner || mode === "propose";
+      apSelf.setAttribute("aria-checked", String(!!ui.askSelf));
       apNote.textContent = mode === "propose" ? "It goes to Proposed. Claude places it when the round is sent, or says why not."
+        : own ? "Only you see this request. Your own Claude runs it; its answer shows on the question for everyone, marked as from your Claude."
         : "The host runs it; the result lands on the question's Claude thread. Your request text shows there for everyone.";
+      const selfOpen = (S.myRequests || []).some(r => r.runner === "self" && (r.status === "pending" || r.status === "running"));
+      apConnect.hidden = Core.me.isOwner || !(own || selfOpen);
+      if (!apConnect.hidden) {
+        const wp = Connect.watcherPrompt(sessionBase());
+        for (const [a, kind] of [[apcCode, "code"], [apcDesk, "desktopCode"]]) { const href = Connect.link(kind, wp); a.hidden = !href; if (href) a.href = href; }
+        apcKey.hidden = !Core.watcherKey();
+      }
       apSend.textContent = mode === "propose" ? "Propose" : "Send request";
       const ro = (!!S.ended && !Core.me.isOwner) || !!S.youRemoved;
       apSend.disabled = ro; apTa.disabled = ro;
@@ -4508,7 +4602,8 @@
         head.append(kind, E("span", "vf-spacer"), status);
         const qref = btn("vf-qref vf-qref-wrap");
         const text = clampBox();
-        li.append(head, qref, text);
+        li._self = makeSelfActs();
+        li.append(head, qref, text, li._self);
         li._att = attRowEl(); text.after(li._att);
         qref.onclick = () => { const r = li._r; closePop(); ui.threadTab = "claude"; focusQuestion(r.qid); };
         li._k = { kind, status, qref, text };
@@ -4518,8 +4613,9 @@
         li._r = r;
         k.kind.textContent = KIND_REQ[r.kind] || r.kind;
         k.kind.className = "vf-chip " + (r.kind === "research" ? "vf-chip-accent" : "vf-chip-quiet");
-        k.status.textContent = `${RSTAT[r.status] || r.status}${r.edited ? ", edited by host" : ""}${r.reason ? `: ${r.reason}` : ""}`;
+        k.status.textContent = `${rstat(r)}${r.edited ? ", edited by host" : ""}${r.reason ? `: ${r.reason}` : ""}`;
         li.dataset.stat = r.status;
+        if (r.runner === "self") fillSelfActs(li._self, r, q); else li._self.hidden = true;
         k.qref.textContent = q ? `${q.id}: ${q.text}` : r.qid;
         k.qref.setAttribute("aria-label", `Open ${q ? q.id : r.qid} and its Claude thread`);
         fillClamp(k.text, "ar:" + r.id, r.text, `Your ${KIND_REQ[r.kind] || "request"}`, q ? `${q.id}: ${q.text}` : "");

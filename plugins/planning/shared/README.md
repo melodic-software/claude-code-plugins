@@ -19,8 +19,8 @@ and the session-bridge watcher. Python 3 standard library only.
 | `session_bridge.py`, `watch.sh`, `wake.sh` | Generated copies of `lib/session-bridge/` (`scripts/sync-shared-copies.sh`); edit the canonical, never these |
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
-| `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/core.css`, `/app.css`, `/proto.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when `schemaVersion` or the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_proto.js`, `align.test.sh` (with `align.js`), `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/core.css`, `/app.css`, `/proto.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when `schemaVersion` or the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_proto.js`, `ui_connect.js`, `align.test.sh` (with `align.js`), `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -217,6 +217,41 @@ for a free-form selector an earlier build took.
   or Back in that tab; when the owner follows a session link, `core.js` opens the page with
   `#owner=` in its fragment (a new tab with `noopener`), and that page takes it out in turn.
 
+## Connect your Claude
+
+A guest can run a request on their own Claude instead of the host's (R2-12; Brief C18-C20): in
+Ask Claude, "Run it on my own Claude" sends `POST /api/request` with `runner: "self"`. Such a
+request never enters the owner's queue, never makes an event or a notification (a mention in it
+tells nobody), and is read, claimed, answered or failed only with its requester's own secret
+through `GET /api/mine/requests[?status=]` and `POST /api/mine/requests/{claim,result,fail}`
+(another person gets 404 `no-such-request`; one write a second per route). Its result is shown at
+once, to everyone, marked `by: guest-claude` ("Answer from Ann's own Claude"), and reaches the
+round's digest with `from: "guest-claude"`. Nobody else ever sees the request text.
+
+`web/connect.js` builds everything surface-specific; the server knows only `runner: self`:
+
+- **Watcher** (Claude Code, or Claude Desktop's Code tab): a prompt that polls the guest's pending
+  requests at the address they opened the page on, claims each, and posts the answer. It holds no
+  secret; Claude asks for the key, which the guest copies with "Copy my key".
+- **One request** (any Claude, including Desktop chat and claude.ai on the web): "Copy prompt" (or
+  "Open in Claude Desktop"), then "Paste answer"; trailing `Title - https://...` lines become
+  sources.
+- Both prompts frame the session's text as data with the untrusted-content spine
+  (`docs/conventions/untrusted-content/README.md` in the marketplace repository) and quote it
+  between `--- SESSION DATA ---` markers that the quoted text cannot close.
+- Links use only `claude-cli://open?q=`, `claude://code/new?q=` and `claude://claude.ai/new?q=`,
+  the prompt through `encodeURIComponent`. A link longer than its surface's limit is not offered;
+  copying still works. Each prefills the prompt and sends nothing until the guest presses Enter.
+
+Upstream link formats (volatile; read the pages, never copy their limits here):
+
+- Claude Code `claude-cli://open` and its `q` limit: <https://code.claude.com/docs/en/deep-links#build-a-link>.
+- Claude Desktop `claude://code/new` and `claude://claude.ai/new`, and their `q` limit:
+  <https://support.claude.com/en/articles/14729294-open-claude-desktop-with-a-link>.
+- claude.ai on the web documents no prefill link, so the web uses Copy prompt.
+- As of 2026-10-17. Recheck when either page changes a format or limit, when claude.ai documents a
+  web prefill link, or when a link opens with its prompt sent rather than filled in.
+
 ## Data contract
 
 One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
@@ -350,8 +385,14 @@ node plugins/planning/shared/tests/ui_chat.js
 node plugins/planning/shared/tests/ui_moderation.js
 node plugins/planning/shared/tests/ui_acceptance.js
 node plugins/planning/shared/tests/ui_proto.js
+node plugins/planning/shared/tests/ui_connect.js
 bash plugins/planning/shared/tests/align.test.sh
 ```
+
+`ui_connect.js` checks Connect your Claude for a desktop guest and a 390x844 phone guest: the
+watcher and Desktop chat links and their decoded prompts, Copy prompt, Paste answer, the answer
+marked as the guest's own Claude, a watcher's round trip with the guest's key, and that the owner
+and another guest never see the request and another key cannot answer it.
 
 `ui_proto.js` checks the prototype page on a desktop and a 390x844 phone in separate browser
 contexts: the preview tile and its link, the variant switcher, Annotate, a note pinned to an
