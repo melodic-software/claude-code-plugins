@@ -80,7 +80,7 @@ test("rejection 1: no file at the config path is rejected", () => {
 test("rejection 1: unparsable YAML and duplicate keys are rejected", () => {
   assertRejected(() => run("version: [1\n"), "invalid-config");
   assertRejected(
-    () => run(`${fixture("valid.yaml")}version: 1\n`),
+    () => run(`${fixture("valid.yaml")}version: 2\n`),
     "invalid-config",
   );
 });
@@ -357,8 +357,7 @@ test("defaults are materialized: loop 2/3/2, merge off and manual, slot scope di
     inputs: [],
     needs: [],
     enabled: true,
-    model: null,
-    "max-turns": null,
+    models: null,
     grant: { contents: "read", "pull-requests": "read", issues: "read" },
     applies: true,
     "skip-reason": null,
@@ -543,7 +542,7 @@ test("each effect resolves to its App grant", () => {
     merge: { contents: "write", "pull-requests": "write", issues: "write" },
   };
   for (const [effect, grant] of Object.entries(expected)) {
-    const config = `version: 1
+    const config = `version: 2
 activities:
   merge:
     script: scripts/merge.sh
@@ -846,7 +845,7 @@ test("an activity with the changed-paths input needs the changed files even with
 
 // Composite activities
 
-const COMPOSITE = `version: 1
+const COMPOSITE = `version: 2
 activities:
   simplify:
     skill: code-tidying:batch-simplify
@@ -1275,7 +1274,7 @@ test("a forbidden effect that is not an effect-grants.json key is rejected", () 
 });
 
 test("the shipped activity rules keep report-escalation off the branch", () => {
-  const config = `version: 1
+  const config = `version: 2
 activities:
   report-escalation:
     script: .github/scripts/pr-unblock/report-escalation.sh
@@ -1296,7 +1295,7 @@ lanes:
 
 // Owner shape (#7032 amendment): the model job only pushes, the reply job
 // only posts.
-const feedbackLeaf = (activity, effect) => `version: 1
+const feedbackLeaf = (activity, effect) => `version: 2
 activities:
   ${activity}:
     ${activity === "address-feedback" ? "skill: source-control:pull-request" : "script: .github/scripts/pr-unblock/publish-feedback.mjs"}
@@ -1327,7 +1326,7 @@ for (const [activity, allowed, forbidden] of [
 // Stages
 
 test("the respond stage is gone; pr-unblock has stage unblock", () => {
-  const lane = (stage) => `version: 1
+  const lane = (stage) => `version: 2
 activities:
   report-escalation:
     script: .github/scripts/pr-unblock/report-escalation.sh
@@ -1379,13 +1378,17 @@ function resolveEveryExampleSlot(vocabulary) {
 test("the README example validates and resolves for each of its lanes", () => {
   const results = resolveEveryExampleSlot(VOCABULARY);
   assert.equal(Object.keys(results).length, 14);
-  assert.deepEqual(
-    [
-      results["pr-review / claude"].model,
-      results["pr-review / claude"]["max-turns"],
-    ],
-    ["opus", 100],
-  );
+  // The example's models block routes claude to review and leaves the rest
+  // on default-profile standard.
+  assert.deepEqual(results["pr-review / claude"].models, {
+    profile: "review",
+    model: "opus",
+    effort: null,
+    "subagent-model": "inherit",
+    "max-turns": 100,
+  });
+  assert.equal(results["pr-refine / fix-docs"].models.profile, "standard");
+  assert.equal(results["pr-require-checks / require-checks"].models, null);
   assert.equal(results["pr-refine / fix-docs"].applies, true);
   assert.deepEqual(results["pr-refine / fix-docs"]["changed-paths"], [
     "README.md",

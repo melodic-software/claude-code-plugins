@@ -1,16 +1,17 @@
 # resolve-config
 
 Read a repository's PR pipeline config from the base-SHA checkout, validate it, and resolve one
-lane and activity into what the runner needs: the skill or script, the model, the turn budget and
-the App token grant. The config's contract is the
+lane and activity into what the runner needs: the skill or script, the models profile (model,
+effort, turn budget) and the App token grant. The config's contract is the
 [`pr-pipeline` convention](../../../docs/conventions/pr-pipeline/README.md).
 
 ## Inputs
 
 | Input | Default | Meaning |
 |---|---|---|
-| `lane` | required | The lane, its workflow's file stem |
+| `lane` | empty | The lane, its workflow's file stem; required unless `model-route` is set |
 | `activity` | empty | The activity to select from the lane's slots |
+| `model-route` | empty | A run that is no lane activity (`verify-pr`): resolve only its models profile. Set it or `lane`, not both |
 | `base-path` | `.base` | The base-SHA checkout; every config, schema and vocabulary read is under it |
 | `config-path` | `docs/conventions/pr-pipeline.yaml` | The config, relative to `base-path`; for test callers only |
 | `output-path` | required | Where the `ResolvedConfig` JSON file is written |
@@ -56,6 +57,9 @@ The step fails and writes no file when:
 12. The selected leaf applies and sets `prepare`, and `prepare-supported` is not `true`: the
     runner would run the skill without its prepare step. The action checks this; `resolveGrant`
     does not.
+13. `models.default-profile` or a route names a profile `models.profiles` does not define
+    (`undefined-profile`), or a route key is neither a skill activity nor `verify-pr`
+    (`undefined-route`), so a mistyped route cannot quietly take the default.
 
 It also fails when a predicate it decides cannot be decided: `pulls/{n}/files` lists 3000 files or
 fewer than the PR's `changed_files`, a predicate needs the PR and there is no `pr-number`, a
@@ -89,8 +93,11 @@ off an `issues` event cannot be decided and fails the step.
 The file at `output-path` holds `version`, `source` (`base-path`, `config-path`), `lane` (name,
 stage, enabled, and every slot resolved), `selected` (the requested activity's slot, or null),
 `loop` and `merge`. Every default is applied: `scope` `diff`, `enabled` true, `loop` 2 and 3,
-`merge.rung` `off`, `stack-landing` `manual`, and `model` and `max-turns` null for the runner's
-defaults. A slot's `applies-when` replaces its activity's. `merge.diff-check.denied-paths` always
+`merge.rung` `off`, `stack-landing` `manual`. A skill slot carries `models`: its profile name and
+that profile's `model`, `effort` (null when unset), `subagent-model` (`inherit` when unset) and
+`max-turns`, from its activity's route, else `models.default-profile`, else, with no `models`
+block, the built-in `standard` profile (model `default`, 75 turns); a script slot carries `models`
+null. A slot's `applies-when` replaces its activity's. `merge.diff-check.denied-paths` always
 gains the config path, `.github/**` and the trusted-actor list.
 
 The lane's slots are its leaves: each composite is replaced by its children, depth first in list
@@ -119,17 +126,27 @@ result turns the slot into `not-applicable-paths`. Declaring the
 input makes the reader fetch the PR's files even without a `paths` predicate.
 
 Step outputs: `enabled` and `slots` (a JSON list of names); with `activity`, also `kind`,
-`effect`, `gating` (`gate` or `advisory`), `skill`, `script`, `model`, `max-turns`,
-`reads-untrusted`, `applies`, `skip-reason`, `contents`, `pull-requests`, `issues` and
-`can-commit` (`false` only when `contents` is `read`), and `prepare` only when the leaf sets it.
-`args` is free text and stays in the file.
+`effect`, `gating` (`gate` or `advisory`), `skill`, `script`, `profile`, `claude-args`,
+`settings-json`, `max-turns`, `reads-untrusted`, `applies`, `skip-reason`, `contents`,
+`pull-requests`, `issues` and `can-commit` (`false` only when `contents` is `read`), and `prepare`
+only when the leaf sets it. `args` is free text and stays in the file.
+
+`claude-args` is `--model <alias>` unless the model is `default`, then `--max-turns <n>`, then
+`--effort <level>` when the profile sets one; `settings-json` is
+`{"env":{"CLAUDE_CODE_SUBAGENT_MODEL":"<alias>"}}`, or empty for `inherit`. Both are built only
+from schema enums and an integer, and the step fails on any other `claude-args` shape. A script
+gets all four model outputs empty.
+
+With `model-route` the step resolves no lane: the file holds `version`, `source`, `route` and
+`models`, and the step outputs are `profile`, `claude-args`, `settings-json` and `max-turns` for
+that route.
 
 ## Token broker entry point
 
 `resolve.mjs` exports `resolveGrant(files, { lane, activity, configPath })` for the token broker,
 which fetches `effect-grants.json` and `lane-rules.json` from this repository's default-branch tip
 and decides a lane's App token grant through it. It runs the same file checks as the action
-(rejections 1-11 above) and the effect-grant check, for one required leaf `activity`, and returns
+(rejections 1-11 and 13 above) and the effect-grant check, for one required leaf `activity`, and returns
 `{ effect, grant }`, where `grant` is a frozen copy of the effect's row in `effect-grants.json`. A
 slot whose lane or slot sets `enabled: false` gets no grant: it rejects with `slot-disabled`. It
 decides no `applies-when` predicate, so it takes no facts. `applies-when` is not an authorization
