@@ -614,7 +614,8 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
     }
     const closing = await closingPulls(github, { owner, name, number: issueNumber });
     const shape = laneBranch(issueNumber);
-    // The trailing `-` keeps issue 1 from matching issue 12's branches.
+    // The trailing `-` keeps one issue's prefix from matching a longer
+    // issue number that starts with the same digits.
     const matching = await github("GET", `${repo}/git/matching-refs/heads/work-resolve-issue/issue-${issueNumber}-`);
     if (!Array.isArray(matching)) {
       throw new Error("the issue's lane branches could not be read");
