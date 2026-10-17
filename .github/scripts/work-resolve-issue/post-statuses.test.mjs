@@ -175,6 +175,57 @@ test("main posts nothing when lane.json names no lane branch of this issue", asy
   );
 });
 
+// A branch resolve-issue reused from an earlier run whose report this run never
+// read: no prep step was reported, so each fails closed as error, and so does
+// resolve-issue, whose skipped run says nothing of the work.
+const REUSED = "work-resolve-issue/issue-77-400-1";
+const UNREPORTED = {
+  "pipeline/resolve-issue": "error",
+  "pipeline/report-outcome": "success",
+  "pipeline/review": "error",
+  "pipeline/verify": "error",
+  "pipeline/checks": "error",
+};
+
+test("a reused branch with no report of its own posts error for every step but report-outcome", () => {
+  assert.deepEqual(byContext(plan({ outcome: null, branch: REUSED, resolveResult: "success", reportResult: "success" })), UNREPORTED);
+});
+
+test("main posts on the reused branch when lane.json names no branch, or another one", async () => {
+  for (const files of [{}, { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }) }]) {
+    await withOutcome(files, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/git\/ref\/heads\/work-resolve-issue\/issue-77-400-1$/, 200, { object: { sha: SHA } }],
+        ["POST", new RegExp(`/statuses/${SHA}$`), 201, {}],
+      ]);
+      assert.equal(await main({ env: { ...env(dir), REUSE_BRANCH: REUSED }, fetch }), 0);
+      assert.deepEqual(byContext(calls.filter((c) => c.method === "POST").map((c) => c.body)), UNREPORTED);
+    });
+  }
+});
+
+test("main reads the run's own outcome for a reused branch lane.json names", async () => {
+  await withOutcome({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: REUSED }) }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/git\/ref\/heads\/work-resolve-issue\/issue-77-400-1$/, 200, { object: { sha: SHA } }],
+      ["POST", new RegExp(`/statuses/${SHA}$`), 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), REUSE_BRANCH: REUSED }, fetch }), 0);
+    assert.deepEqual(byContext(calls.filter((c) => c.method === "POST").map((c) => c.body)), {
+      "pipeline/resolve-issue": "success",
+      "pipeline/report-outcome": "success",
+    });
+  });
+});
+
+test("main refuses a reuse branch that is not this issue's lane branch", async () => {
+  await withOutcome({}, async (dir) => {
+    const { fetch, calls } = fakeFetch([]);
+    assert.equal(await main({ env: { ...env(dir), REUSE_BRANCH: "main" }, fetch }), 1);
+    assert.deepEqual(calls, []);
+  });
+});
+
 test("main fails when the branch head cannot be read", async () => {
   await withOutcome(
     { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }) },

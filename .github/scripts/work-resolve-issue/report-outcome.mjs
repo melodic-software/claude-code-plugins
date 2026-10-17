@@ -24,29 +24,41 @@
 //             limit before it could report): comments once with the
 //             limited marker naming when the limit resets, keeps agent-ready
 //             and adds no label, so work-unblock restarts it after the reset.
+//   reused    the resolve-issue run skipped the model for a lane branch an
+//             earlier run left with commits and no report (REUSE_BRANCH):
+//             the earlier outcome counts only when this run's artifact names
+//             that branch (a re-run attempt); with none readable, a held PR
+//             with fixed text only opens from it, whatever the limit record.
 //
 // Run from the base copy. It reads only the outcome directory and the GitHub
 // API, and never writes to a branch.
 //
+// `--find-prior` runs before the resolve-issue mint instead, with the job's
+// read-only token, and writes the step outputs `proceed`, `skip-reason` and
+// `reuse-branch` (see findPrior).
+//
 // Environment:
 //   GH_TOKEN            token with pull-requests: write and issues: write
+//                       (--find-prior: the job's read-only GITHUB_TOKEN)
 //   GITHUB_REPOSITORY   owner/repo
 //   ISSUE_NUMBER        the issue the lane worked
 //   WORK_OUTCOME_DIR    holds work-outcome.json (written by the skill, so
 //                       untrusted) and lane.json (written by the runner: the
 //                       lane branch, and the run's limit `class` and `resets`)
+//   REUSE_BRANCH        the lane branch --find-prior chose, or empty
 //   TRACKER_CONFIG      base .work-item-tracker.json, for the human-gated label
 //   RESOLVED_CONFIG     resolve-config's output for this run (default
 //                       $RUNNER_TEMP/resolved-config.json), for the denied paths
 //   LANES_BOT_LOGIN     the lanes App bot login, the only author of an open PR
 //                       a rerun reuses (default melodic-automation-lanes[bot])
+//   TRUSTED_ACTORS_PATH --find-prior: trusted-actors.json from the default
+//                       branch tip, whose humans' closing PRs stop the lane
+//   GITHUB_OUTPUT       --find-prior: the step output file
 //   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID
-import { readFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import { join, posix } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
-
-import { paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
 export const HOLD_LINE = "Hold: a human merges this";
 const EXITS = new Set(["done", "pushback", "stopped"]);
@@ -205,10 +217,12 @@ const bullets = (items) =>
     .map((item) => `- ${neutral(item.replaceAll(/\s+/g, " "), MAX_ITEM).trim()}`)
     .join("\n");
 
-function handBack({ outcome, issueNumber, branch, humanLabel, runUrl }) {
+// The marker names the run, so --find-prior never reuses a branch whose work
+// this report already handed on.
+function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId }) {
   const pushback = outcome.exit === "pushback";
   const lines = [
-    `<!-- work-resolve-issue outcome=${outcome.exit} -->`,
+    `<!-- work-resolve-issue outcome=${outcome.exit}${runId ? ` run=${runId}` : ""} -->`,
     pushback
       ? "The work-resolve-issue lane did not start this issue: it needs a person to make it clearer first."
       : "The work-resolve-issue lane stopped partway through this issue and needs a person.",
@@ -258,6 +272,38 @@ function limitedPlan({ issueNumber, branch, resets, runId, runUrl }) {
   return { action: "limited", exit: "limited", issueNumber, resets, runId, comment: lines.join("\n"), addLabels: [], removeLabels: [] };
 }
 
+// A lane branch an earlier run left with commits and no report, whose outcome
+// this run cannot read: a PR a human merges, with fixed text only.
+export function reusePlan({ issueNumber, branch, runUrl = "", earlierRunUrl = "" }) {
+  const body = [
+    `Closes #${issueNumber}`,
+    "",
+    HOLD_LINE,
+    "",
+    "## Summary",
+    "",
+    `Opened by the work-resolve-issue lane from \`${branch}\`, which an earlier run left with commits and no report. The model did not run again, and the earlier run's outcome could not be read, so this body carries none of its text.`,
+    "",
+    "## Fix",
+    "",
+    "The diff shows the changes.",
+    "",
+    "## Verification",
+    "",
+    "The earlier run reported no checks here.",
+    "",
+    earlierRunUrl ? `- The earlier lane run: ${earlierRunUrl}` : "- The earlier lane run.",
+    runUrl ? `- This lane run: ${runUrl}` : "- This lane run.",
+    "",
+    "Left out: every check; a person reviews the diff before merging.",
+    "",
+    "## Related",
+    "",
+    `#${issueNumber}`,
+  ].join("\n");
+  return { action: "open-pr", issueNumber, title: `chore: work on #${issueNumber}`, body, branch };
+}
+
 // What to do on the issue, from the outcome and what the run left. `limit` is
 // the runner's limit record ({resets}, epoch ms or null) when the run hit its
 // usage limit; a missing reset counts from `now`, the run's end.
@@ -289,10 +335,11 @@ export function decide({
       branch,
       humanLabel,
       runUrl,
+      runId,
     });
   }
   if (outcome.exit !== "done") {
-    return handBack({ outcome, issueNumber, branch, humanLabel, runUrl });
+    return handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId });
   }
   if (outcome.notDone.some(({ required }) => required)) {
     return handBack({
@@ -305,6 +352,7 @@ export function decide({
       branch,
       humanLabel,
       runUrl,
+      runId,
     });
   }
   const refs = outcome.link === "refs";
@@ -373,13 +421,68 @@ function humanLabelFrom(path) {
   return label;
 }
 
+// The issue's lane branch name, capturing its run id and attempt.
+const laneBranch = (issueNumber) => new RegExp(`^work-resolve-issue/issue-${issueNumber}-([1-9][0-9]*)-([1-9][0-9]*)$`);
+export const isLaneBranch = (name, issueNumber) => laneBranch(issueNumber).test(name ?? "");
+
 export function readBranch(dir, issueNumber) {
   try {
     const { branch } = JSON.parse(readFileSync(join(dir, "lane.json"), "utf8"));
-    return new RegExp(`^work-resolve-issue/issue-${issueNumber}-[1-9][0-9]*-[1-9][0-9]*$`).test(branch ?? "") ? branch : "";
+    return isLaneBranch(branch, issueNumber) ? branch : "";
   } catch {
     return "";
   }
+}
+
+// Whether an earlier run already did the issue's work, from facts read before
+// the resolve-issue mint:
+//   stop   a lanes-App PR from a lane branch is open, or an open PR in this
+//          repository closes the issue and the lanes App or a listed human
+//          opened it (anyone can write `Closes #N`, so an outsider's PR
+//          would let anyone stop the lane);
+//   reuse  the newest lane branch with commits ahead of the default branch,
+//          no lanes-App PR in any state (a closed one was rejected or
+//          merged) and no lanes-App outcome marker for its run (that report
+//          already handed the work on, so the model runs again);
+//   run    otherwise.
+// `branches` are {name, aheadBy, tipAt, pulls} (tipAt epoch ms, pulls from
+// GET /pulls?state=all&head=); `closing` the issue's open closing PRs as
+// GraphQL nodes; `markers` the lanes App's parsed outcome markers, each with
+// `at`. A marker naming no run, posted before markers named one, covers every
+// branch whose tip is not newer than it.
+export function findPrior({ issueNumber, repo, bot, humans, branches, closing, markers }) {
+  const shape = laneBranch(issueNumber);
+  const lane = branches
+    .map((branch) => ({ ...branch, match: shape.exec(branch.name) }))
+    .filter(({ match }) => match)
+    .sort((a, b) => Number(b.match[1]) - Number(a.match[1]) || Number(b.match[2]) - Number(a.match[2]));
+  const byBot = (pull) => pull?.user?.login === bot;
+  const open = lane.find(({ pulls }) => pulls.some((pull) => pull.state === "open" && byBot(pull)));
+  if (open) {
+    return { action: "stop", reason: `the lanes App's PR from ${open.name} is open` };
+  }
+  const trusted = closing.find(
+    ({ author, repository }) =>
+      String(repository?.nameWithOwner ?? "").toLowerCase() === repo.toLowerCase() &&
+      ((author?.__typename === "Bot" && (author.login === bot || `${author.login}[bot]` === bot)) ||
+        (author?.__typename === "User" && humans.has(author.databaseId))),
+  );
+  if (trusted) {
+    return { action: "stop", reason: `open PR #${trusted.number} closes the issue` };
+  }
+  const reported = ({ match, tipAt }) =>
+    markers.some((marker) => marker.run === match[1] || (marker.run === "" && !(marker.at <= tipAt)));
+  const reuse = lane.find((branch) => branch.aheadBy > 0 && !branch.pulls.some(byBot) && !reported(branch));
+  return reuse ? { action: "reuse", branch: reuse.name } : { action: "run" };
+}
+
+// The listed humans' ids in trusted-actors.json; throws when it cannot be read.
+export function readHumans(path) {
+  const list = JSON.parse(readFileSync(path, "utf8"));
+  if (list?.version !== 1 || !Array.isArray(list.actors)) {
+    throw new Error("the trusted-actor list does not match its schema");
+  }
+  return new Set(list.actors.filter((actor) => actor?.kind === "human" && Number.isInteger(actor.id)).map((actor) => actor.id));
 }
 
 // The runner's limit record in lane.json: {resets} (epoch ms, or null when
@@ -415,6 +518,90 @@ function api({ fetch, apiUrl, token }) {
   };
 }
 
+// Every page of a list endpoint, 100 per page.
+async function paginate(github, path, maxPages = 50) {
+  const items = [];
+  const separator = path.includes("?") ? "&" : "?";
+  for (let page = 1; page <= maxPages; page += 1) {
+    const batch = await github("GET", `${path}${separator}per_page=100&page=${page}`);
+    items.push(...batch);
+    if (batch.length < 100) {
+      return items;
+    }
+  }
+  throw new Error(`${path} has more than ${maxPages} pages`);
+}
+
+const CLOSING_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    issue(number: $number) {
+      closedByPullRequestsReferences(first: 100, includeClosedPrs: false) {
+        nodes { number author { __typename login ... on User { databaseId } } repository { nameWithOwner } }
+      }
+    }
+  }
+}`;
+
+// --find-prior: reads the facts findPrior decides on and writes its step
+// outputs. Any failed read fails the step, so the mint never follows it.
+export async function findPriorMain({ env = process.env, fetch = globalThis.fetch } = {}) {
+  try {
+    if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "")) {
+      throw new Error("ISSUE_NUMBER is not an issue number");
+    }
+    if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(env.GITHUB_REPOSITORY ?? "")) {
+      throw new Error("GITHUB_REPOSITORY is not owner/repo");
+    }
+    const issueNumber = Number(env.ISSUE_NUMBER);
+    const [owner, name] = env.GITHUB_REPOSITORY.split("/");
+    const repo = `/repos/${env.GITHUB_REPOSITORY}`;
+    const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
+    const humans = readHumans(env.TRUSTED_ACTORS_PATH ?? "");
+    const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN });
+    const markers = (await paginate(github, `${repo}/issues/${issueNumber}/comments`))
+      .filter((comment) => comment.user?.login === bot)
+      .map((comment) => ({ ...parseOutcomeMarker(comment.body), at: Date.parse(comment.created_at) }))
+      .filter((marker) => marker.outcome !== undefined);
+    const answer = await github("POST", "/graphql", { query: CLOSING_QUERY, variables: { owner, name, number: issueNumber } });
+    const closing = answer?.data?.repository?.issue?.closedByPullRequestsReferences?.nodes;
+    if (answer?.errors?.length || !Array.isArray(closing)) {
+      throw new Error("the issue's closing pull requests could not be read");
+    }
+    const shape = laneBranch(issueNumber);
+    // The trailing `-` keeps issue 1 from matching issue 12's branches.
+    const refs = (await github("GET", `${repo}/git/matching-refs/heads/work-resolve-issue/issue-${issueNumber}-`))
+      .map((ref) => ({ name: String(ref.ref ?? "").replace(/^refs\/heads\//, ""), sha: ref.object?.sha }))
+      .filter((ref) => shape.test(ref.name));
+    const base = refs.length ? (await github("GET", repo)).default_branch : "";
+    const legacy = markers.some((marker) => marker.run === "");
+    const branches = [];
+    for (const ref of refs) {
+      const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(ref.name)}`);
+      const pulls = await github("GET", `${repo}/pulls?state=all&head=${encodeURIComponent(`${owner}:${ref.name}`)}`);
+      // Only a marker naming no run needs the tip's time.
+      const tipAt = legacy ? Date.parse((await github("GET", `${repo}/git/commits/${ref.sha}`))?.committer?.date) : Number.NaN;
+      branches.push({ name: ref.name, aheadBy: Number(comparison.ahead_by) || 0, tipAt, pulls: Array.isArray(pulls) ? pulls : [] });
+    }
+    const prior = findPrior({ issueNumber, repo: env.GITHUB_REPOSITORY, bot, humans, branches, closing, markers });
+    const outputs =
+      prior.action === "run"
+        ? { proceed: "true", "skip-reason": "", "reuse-branch": "" }
+        : { proceed: "false", "skip-reason": "not-applicable", "reuse-branch": prior.action === "reuse" ? prior.branch : "" };
+    appendFileSync(env.GITHUB_OUTPUT, Object.entries(outputs).map(([key, value]) => `${key}=${value}\n`).join(""));
+    console.log(
+      prior.action === "run"
+        ? `report-outcome: no earlier run of issue #${issueNumber} left work to report; the model runs`
+        : prior.action === "reuse"
+          ? `report-outcome: ${prior.branch} holds unreported work for issue #${issueNumber}; the model is skipped and report-outcome opens its PR`
+          : `report-outcome: ${prior.reason}; the model is skipped`,
+    );
+    return 0;
+  } catch (error) {
+    console.log(`::error title=report-outcome::${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
+    return 1;
+  }
+}
+
 export async function main({ env = process.env, fetch = globalThis.fetch, now = Date.now() } = {}) {
   try {
     const issueNumber = Number(env.ISSUE_NUMBER);
@@ -424,38 +611,50 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
     }
+    const reuse = env.REUSE_BRANCH ?? "";
+    const reused = laneBranch(issueNumber).exec(reuse);
+    if (reuse && !reused) {
+      throw new Error("REUSE_BRANCH is not this issue's lane branch");
+    }
     const repo = `/repos/${env.GITHUB_REPOSITORY}`;
     const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN });
     const dir = env.WORK_OUTCOME_DIR ?? "";
-    const outcome = readOutcome(join(dir, "work-outcome.json"));
-    const branch = readBranch(dir, issueNumber);
+    const ran = readBranch(dir, issueNumber);
+    // On a reuse the downloaded outcome is the branch's own only when it names
+    // that branch (a re-run attempt of the run that made it).
+    const outcome = reuse && ran !== reuse ? null : readOutcome(join(dir, "work-outcome.json"));
+    const branch = reuse || ran;
     const limit = readLimit(dir);
+    const runUrlOf = (id) => (env.GITHUB_SERVER_URL && id ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${id}` : "");
+    const runUrl = runUrlOf(env.GITHUB_RUN_ID);
     const issue = await github("GET", `${repo}/issues/${issueNumber}`);
     let changedFiles = [];
     let base = "";
-    if (outcome.exit === "done" && branch) {
+    if (outcome?.exit === "done" && branch) {
       base = (await github("GET", repo)).default_branch;
       const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(branch)}`);
       changedFiles = (comparison.files ?? []).flatMap((file) =>
         file.previous_filename ? [file.filename, file.previous_filename] : [file.filename],
       );
     }
-    const plan = decide({
-      outcome,
-      issueNumber,
-      issueLabels: (issue.labels ?? []).map((label) => label.name),
-      branch,
-      changedFiles,
-      holdPaths: readHoldPaths(env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json")),
-      humanLabel: humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json"),
-      runUrl:
-        env.GITHUB_SERVER_URL && env.GITHUB_RUN_ID
-          ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`
-          : "",
-      limit,
-      now,
-      runId: /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "",
-    });
+    // A reuse whose outcome cannot be read never takes the limit record: the
+    // skipped run hit no limit, and a limited marker would loop restarts.
+    const plan =
+      reuse && (outcome === null || outcome.unread)
+        ? reusePlan({ issueNumber, branch, runUrl, earlierRunUrl: runUrlOf(reused[1]) })
+        : decide({
+            outcome,
+            issueNumber,
+            issueLabels: (issue.labels ?? []).map((label) => label.name),
+            branch,
+            changedFiles,
+            holdPaths: readHoldPaths(env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json")),
+            humanLabel: humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json"),
+            runUrl,
+            limit,
+            now,
+            runId: /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "",
+          });
     if (plan.action === "limited") {
       // Once per run: a rerun of this report, however late, finds its own
       // marker in the issue's whole comment history and posts nothing.
@@ -485,7 +684,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           title: plan.title,
           body: plan.body,
           head: plan.branch,
-          base,
+          base: base || (await github("GET", repo)).default_branch,
           draft: false,
         }));
       console.log(`report-outcome: opened PR #${pull.number} for issue #${issueNumber}`);
@@ -508,5 +707,5 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  process.exitCode = await main();
+  process.exitCode = process.argv[2] === "--find-prior" ? await findPriorMain() : await main();
 }

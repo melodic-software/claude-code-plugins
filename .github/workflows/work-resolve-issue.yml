@@ -61,7 +61,9 @@ jobs:
   # GITHUB_TOKEN, and it runs only scripts from the default branch tip.
   report-statuses:
     needs: [resolve-issue, report-outcome]
-    if: ${{ !cancelled() && needs.resolve-issue.outputs.issue-run-started == 'true' }}
+    if: >-
+      ${{ !cancelled() && (needs.resolve-issue.outputs.issue-run-started == 'true'
+      || needs.resolve-issue.outputs.reuse-branch != '') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -94,6 +96,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           WORK_OUTCOME_DIR: ${{ runner.temp }}/work-outcome
+          REUSE_BRANCH: ${{ needs.resolve-issue.outputs.reuse-branch }}
           RESOLVE_RESULT: ${{ needs.resolve-issue.result }}
           REPORT_RESULT: ${{ needs.report-outcome.result }}
         run: node .base/.github/scripts/work-resolve-issue/post-statuses.mjs
@@ -102,7 +105,12 @@ jobs:
     needs: resolve-issue
     # issue-run-started is set only by the write runner's own steps, once the
     # run got its token; a run that failed after that still reports.
-    if: ${{ !cancelled() && needs.resolve-issue.outputs.issue-run-started == 'true' }}
+    # reuse-branch, also runner-computed, names a lane branch an earlier run
+    # left with commits and no report: the model was skipped, and this opens
+    # the PR from it.
+    if: >-
+      ${{ !cancelled() && (needs.resolve-issue.outputs.issue-run-started == 'true'
+      || needs.resolve-issue.outputs.reuse-branch != '') }}
     permissions:
       contents: read
       pull-requests: read
@@ -115,3 +123,4 @@ jobs:
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
       ratified-app-label: agent-ready
+      reuse-branch: ${{ needs.resolve-issue.outputs.reuse-branch }}

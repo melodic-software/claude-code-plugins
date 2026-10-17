@@ -11,7 +11,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { decide, main, parseOutcomeMarker, readHoldPaths, readOutcome } from "./report-outcome.mjs";
+import {
+  decide,
+  findPrior,
+  findPriorMain,
+  main,
+  parseOutcomeMarker,
+  readHoldPaths,
+  readOutcome,
+  reusePlan,
+} from "./report-outcome.mjs";
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
 
@@ -681,4 +690,275 @@ test("main does not take another account's copy of the marker as its own", async
     assert.equal(await main({ env: env(dir), fetch, now: LIMIT_NOW }), 0);
     assert.equal(calls.filter((c) => c.method === "POST").length, 1);
   });
+});
+
+// Idempotency per issue, before the resolve-issue mint. Expected values come
+// from the owner's decisions: stop on an open lanes-App PR from a lane branch,
+// or an open closing PR by the lanes App or a listed human (never an
+// outsider's); reuse only the newest lane branch ahead of main with no
+// lanes-App PR in any state and no outcome marker for its run; else run.
+const BOT = "melodic-automation-lanes[bot]";
+const OWNER_ID = 153232337;
+const HUMANS = new Set([OWNER_ID]);
+const lane = (run, attempt = 1) => `work-resolve-issue/issue-77-${run}-${attempt}`;
+const branchFact = (name, { aheadBy = 2, tipAt = Date.parse("2026-10-16T10:00:00Z"), pulls = [] } = {}) => ({ name, aheadBy, tipAt, pulls });
+const pullBy = (login, state = "open") => ({ state, user: { login } });
+const closer = (typename, login, databaseId, repo = "o/r") => ({
+  number: 501,
+  author: { __typename: typename, login, ...(databaseId ? { databaseId } : {}) },
+  repository: { nameWithOwner: repo },
+});
+const prior = (facts) => findPrior({ issueNumber: 77, repo: "o/r", bot: BOT, humans: HUMANS, branches: [], closing: [], markers: [], ...facts });
+
+test("an open lanes-App PR from a lane branch stops the run", () => {
+  assert.equal(prior({ branches: [branchFact(lane(400), { pulls: [pullBy(BOT)] })] }).action, "stop");
+});
+
+test("an open closing PR by a listed human or the lanes App stops the run", () => {
+  for (const node of [closer("User", "kyle-sexton", OWNER_ID), closer("Bot", "melodic-automation-lanes"), closer("Bot", BOT)]) {
+    assert.equal(prior({ closing: [node] }).action, "stop", JSON.stringify(node.author));
+  }
+});
+
+test("an outsider's closing PR, or a listed human's in another repository, does not stop the run", () => {
+  for (const node of [
+    closer("User", "stranger", 42),
+    closer("User", "melodic-automation-lanes[bot]", 42),
+    closer("Bot", "other-app"),
+    closer("User", "kyle-sexton", OWNER_ID, "fork/r"),
+  ]) {
+    assert.equal(prior({ closing: [node] }).action, "run", JSON.stringify(node));
+  }
+});
+
+test("an outsider's open PR from a lane branch neither stops the run nor makes the branch stale", () => {
+  assert.deepEqual(prior({ branches: [branchFact(lane(400), { pulls: [pullBy("stranger")] })] }), { action: "reuse", branch: lane(400) });
+});
+
+test("the newest unreported lane branch ahead of main is reused", () => {
+  const branches = [branchFact(lane(400, 1)), branchFact(lane(400, 2)), branchFact(lane(399, 3))];
+  assert.deepEqual(prior({ branches }), { action: "reuse", branch: lane(400, 2) });
+});
+
+test("a lane branch with a closed lanes-App PR, or no commits ahead, is not reused", () => {
+  for (const branch of [branchFact(lane(400), { pulls: [pullBy(BOT, "closed")] }), branchFact(lane(400), { aheadBy: 0 })]) {
+    assert.deepEqual(prior({ branches: [branch] }), { action: "run" });
+  }
+});
+
+test("a stopped, pushback or limited marker for the branch's run keeps it from reuse", () => {
+  for (const outcome of ["stopped", "pushback", "limited"]) {
+    const markers = [{ outcome, run: "400", resets: null, at: Date.parse("2026-10-16T11:00:00Z") }];
+    assert.deepEqual(prior({ branches: [branchFact(lane(400))], markers }), { action: "run" }, outcome);
+  }
+});
+
+test("a marker for another run leaves the branch reusable", () => {
+  const markers = [{ outcome: "stopped", run: "399", resets: null, at: Date.parse("2026-10-16T11:00:00Z") }];
+  assert.deepEqual(prior({ branches: [branchFact(lane(400))], markers }), { action: "reuse", branch: lane(400) });
+});
+
+test("a marker naming no run covers branches whose tip is older than it, not newer ones", () => {
+  const markers = [{ outcome: "stopped", run: "", resets: null, at: Date.parse("2026-10-16T11:00:00Z") }];
+  const older = branchFact(lane(399), { tipAt: Date.parse("2026-10-16T10:00:00Z") });
+  const newer = branchFact(lane(400), { tipAt: Date.parse("2026-10-16T12:00:00Z") });
+  assert.deepEqual(prior({ branches: [older], markers }), { action: "run" });
+  assert.deepEqual(prior({ branches: [older, newer], markers }), { action: "reuse", branch: lane(400) });
+});
+
+test("another issue's lane branches are never this issue's", () => {
+  const branches = [branchFact("work-resolve-issue/issue-7-400-1"), branchFact("work-resolve-issue/issue-770-400-1", { pulls: [pullBy(BOT)] })];
+  assert.deepEqual(prior({ branches }), { action: "run" });
+});
+
+test("with no lane branch and no closing PR the run goes ahead as before", () => {
+  assert.deepEqual(prior({}), { action: "run" });
+});
+
+// findPriorMain against a fake GitHub API: its only effect is the step
+// outputs, and it writes nothing to GitHub.
+async function withAsyncDir(files, run) {
+  const dir = mkdtempSync(join(tmpdir(), "prior-"));
+  try {
+    for (const [name, text] of Object.entries(files)) {
+      writeFileSync(join(dir, name), text);
+    }
+    return await run(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const TRUSTED_LIST = JSON.stringify({
+  version: 1,
+  actors: [
+    { id: OWNER_ID, login: "kyle-sexton", kind: "human" },
+    { id: 337595936, login: BOT, kind: "bot" },
+  ],
+});
+const graphql = (nodes) => ({ data: { repository: { issue: { closedByPullRequestsReferences: { nodes } } } } });
+const refOf = (name) => ({ ref: `refs/heads/${name}`, object: { sha: "a".repeat(40) } });
+
+async function runPrior({ comments = [], nodes = [], refs = [], pulls = [], aheadBy = 2 }) {
+  return withAsyncDir({ "trusted.json": TRUSTED_LIST, output: "" }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77\/comments$/, 200, comments],
+      ["POST", /^\/graphql$/, 200, graphql(nodes)],
+      ["GET", /\/git\/matching-refs\/heads\/work-resolve-issue\/issue-77-$/, 200, refs],
+      ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+      ["GET", /\/compare\//, 200, { ahead_by: aheadBy }],
+      ["GET", /\/pulls$/, 200, pulls],
+      ["GET", /\/git\/commits\//, 200, { committer: { date: "2026-10-16T10:00:00Z" } }],
+    ]);
+    const code = await findPriorMain({
+      env: {
+        ISSUE_NUMBER: "77",
+        GITHUB_REPOSITORY: "o/r",
+        GITHUB_API_URL: "https://api.example",
+        GH_TOKEN: "t",
+        TRUSTED_ACTORS_PATH: join(dir, "trusted.json"),
+        GITHUB_OUTPUT: join(dir, "output"),
+      },
+      fetch,
+    });
+    return { code, calls, output: readFileSync(join(dir, "output"), "utf8") };
+  });
+}
+
+const writesToGitHub = (calls) => calls.filter((c) => c.method !== "GET" && c.path !== "/graphql");
+
+test("--find-prior stops not-applicable on an open lanes-App PR, with no comment and no reuse branch", async () => {
+  const { code, calls, output } = await runPrior({ refs: [refOf(lane(400))], pulls: [pullBy(BOT)] });
+  assert.equal(code, 0);
+  assert.equal(output, "proceed=false\nskip-reason=not-applicable\nreuse-branch=\n");
+  assert.deepEqual(writesToGitHub(calls), []);
+});
+
+test("--find-prior stops not-applicable on a listed human's closing PR", async () => {
+  const { output } = await runPrior({ nodes: [closer("User", "kyle-sexton", OWNER_ID)] });
+  assert.equal(output, "proceed=false\nskip-reason=not-applicable\nreuse-branch=\n");
+});
+
+test("--find-prior goes ahead on an outsider's closing PR", async () => {
+  const { output } = await runPrior({ nodes: [closer("User", "stranger", 42)] });
+  assert.equal(output, "proceed=true\nskip-reason=\nreuse-branch=\n");
+});
+
+test("--find-prior names an unreported lane branch ahead of main as the reuse branch", async () => {
+  const { code, calls, output } = await runPrior({ refs: [refOf(lane(400))] });
+  assert.equal(code, 0);
+  assert.equal(output, `proceed=false\nskip-reason=not-applicable\nreuse-branch=${lane(400)}\n`);
+  assert.deepEqual(writesToGitHub(calls), []);
+});
+
+test("--find-prior runs the model again for a branch its run's hand-back already reported", async () => {
+  const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped run=400 -->\nStopped.", created_at: "2026-10-16T11:00:00Z" }];
+  const { output } = await runPrior({ comments, refs: [refOf(lane(400))] });
+  assert.equal(output, "proceed=true\nskip-reason=\nreuse-branch=\n");
+});
+
+test("--find-prior does not take another account's copy of a marker as a report", async () => {
+  const comments = [{ user: { login: "stranger" }, body: "<!-- work-resolve-issue outcome=stopped run=400 -->", created_at: "2026-10-16T11:00:00Z" }];
+  const { output } = await runPrior({ comments, refs: [refOf(lane(400))] });
+  assert.equal(output, `proceed=false\nskip-reason=not-applicable\nreuse-branch=${lane(400)}\n`);
+});
+
+test("--find-prior fails and writes no output when a read fails, so the mint never follows", async () => {
+  await withAsyncDir({ "trusted.json": TRUSTED_LIST, output: "" }, async (dir) => {
+    const { fetch } = fakeFetch([["GET", /\/issues\/77\/comments$/, 200, []]]);
+    const code = await findPriorMain({
+      env: {
+        ISSUE_NUMBER: "77",
+        GITHUB_REPOSITORY: "o/r",
+        GITHUB_API_URL: "https://api.example",
+        TRUSTED_ACTORS_PATH: join(dir, "trusted.json"),
+        GITHUB_OUTPUT: join(dir, "output"),
+      },
+      fetch,
+    });
+    assert.equal(code, 1);
+    assert.equal(readFileSync(join(dir, "output"), "utf8"), "");
+  });
+});
+
+// Hand-back markers name the run, so a later --find-prior matches the branch
+// issue-<N>-<run>-* to its report.
+test("hand-back markers carry run= and read back with it", () => {
+  for (const outcome of [
+    { exit: "stopped", reason: "Tests failed.", title: "", summary: "" },
+    { exit: "pushback", reason: "Which file?", title: "", summary: "" },
+  ]) {
+    const plan = decide({ outcome, issueNumber: 77, issueLabels: [], branch: BRANCH, changedFiles: [], runId: "555" });
+    assert.ok(plan.comment.startsWith(`<!-- work-resolve-issue outcome=${outcome.exit} run=555 -->\n`), plan.comment);
+    assert.deepEqual(parseOutcomeMarker(plan.comment), { outcome: outcome.exit, resets: null, run: "555" });
+  }
+});
+
+test("the reuse PR body is fixed text, held, and follows the PR body contract's order", () => {
+  const plan = reusePlan({ issueNumber: 77, branch: lane(400), earlierRunUrl: "https://example/o/r/actions/runs/400" });
+  assert.equal(plan.title, "chore: work on #77");
+  assert.ok(plan.body.startsWith("Closes #77\n\nHold: a human merges this\n"), plan.body);
+  assert.deepEqual(headings(plan.body), ["## Summary", "## Fix", "## Verification", "## Related"]);
+  assert.ok(plan.body.includes("https://example/o/r/actions/runs/400"), plan.body);
+});
+
+const reuseEnv = (dir, branch = lane(400)) => ({ ...env(dir), REUSE_BRANCH: branch });
+const PR_ROUTES = [
+  ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+  ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+  ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
+  ["GET", /\/pulls$/, 200, []],
+  ["POST", /\/pulls$/, 201, { number: 90 }],
+];
+const model = { ...done, summary: "MODEL-SUMMARY-TEXT", title: "docs(work-items): model title" };
+
+test("a reused branch whose own run's outcome is here opens the normal PR from it", async () => {
+  await withAsyncDir({ "work-outcome.json": JSON.stringify(model), "lane.json": JSON.stringify({ branch: lane(400) }) }, async (dir) => {
+    const { fetch, calls } = fakeFetch(PR_ROUTES);
+    assert.equal(await main({ env: reuseEnv(dir), fetch }), 0);
+    const pull = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body;
+    assert.equal(pull.head, lane(400));
+    assert.equal(pull.title, "docs(work-items): model title");
+    assert.ok(pull.body.includes("MODEL-SUMMARY-TEXT"), pull.body);
+  });
+});
+
+test("a reused branch with another run's or no outcome opens a held PR with none of the model's text", async () => {
+  for (const files of [
+    { "work-outcome.json": JSON.stringify(model), "lane.json": JSON.stringify({ branch: lane(399) }) },
+    {},
+    { "lane.json": JSON.stringify({ branch: lane(400) }) },
+  ]) {
+    await withAsyncDir(files, async (dir) => {
+      const { fetch, calls } = fakeFetch(PR_ROUTES);
+      assert.equal(await main({ env: reuseEnv(dir), fetch }), 0);
+      const pull = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body;
+      assert.equal(pull.head, lane(400));
+      assert.equal(pull.base, "main");
+      assert.equal(pull.title, "chore: work on #77");
+      assert.ok(pull.body.split("\n").includes("Hold: a human merges this"), pull.body);
+      assert.ok(!pull.body.includes("MODEL-SUMMARY-TEXT") && !pull.body.includes("model title"), pull.body);
+      assert.ok(pull.body.includes("https://example/o/r/actions/runs/400"), pull.body);
+      assert.ok(!calls.some((c) => c.path.endsWith("/comments") || c.path.endsWith("/labels")), Object.keys(files).join());
+    });
+  }
+});
+
+test("a reused branch ignores a limit record, so no limited marker restarts it", async () => {
+  await withAsyncDir({ "lane.json": JSON.stringify({ branch: lane(400), class: "rate-limit", resets: "2026-10-17T18:00:00Z" }) }, async (dir) => {
+    const { fetch, calls } = fakeFetch(PR_ROUTES);
+    assert.equal(await main({ env: reuseEnv(dir), fetch, now: LIMIT_NOW }), 0);
+    assert.ok(!calls.some((c) => c.path.endsWith("/comments")));
+    assert.ok(calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")));
+  });
+});
+
+test("a reuse branch that is not this issue's lane branch is refused", async () => {
+  for (const branch of ["main", "work-resolve-issue/issue-7-400-1", "work-resolve-issue/issue-77-400-1/x"]) {
+    await withAsyncDir({}, async (dir) => {
+      const { fetch, calls } = fakeFetch(PR_ROUTES);
+      assert.equal(await main({ env: reuseEnv(dir, branch), fetch }), 1);
+      assert.deepEqual(calls, [], branch);
+    });
+  }
 });

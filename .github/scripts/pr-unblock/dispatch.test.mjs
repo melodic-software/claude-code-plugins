@@ -271,6 +271,29 @@ test("a limit-stopped run counts as handled only until its limit resets", async 
   assert.deepEqual(dispatchedNumbers(api), ["21", "23"]);
 });
 
+// The restart keys on the PR's current condition and head, not on an earlier
+// run's branch: work done since the stop (the conflict resolved, or a new
+// head) is never redone from the old head.
+test("a reset limit stop restarts only a PR still conflicting, and a moved head is judged on its own runs", async () => {
+  const now = Date.parse("2026-10-17T12:00:00Z");
+  const stale = "f".repeat(40);
+  const resolved = pr(26, { mergeable: "MERGEABLE" });
+  const moved = pr(27, { headRefOid: "e".repeat(40) });
+  const { api, run } = harness(
+    {
+      pages: [[resolved, moved]],
+      checked: new Map([
+        [resolved.headRefOid, [failedRun("2026-10-17T06:00:00Z")]],
+        [stale, [SUCCESS_RUN]],
+      ]),
+    },
+    { now, maxDispatch: 10 },
+  );
+  await run();
+  assert.deepEqual(dispatchedNumbers(api), ["27"]);
+  assert.ok(!api.calls.checks.some((call) => call.sha === stale));
+});
+
 test("maxDispatch defaults to 3, in ascending PR number, logging the PRs left for a later run", async () => {
   const { api, lines, run } = harness({ pages: [[pr(25), pr(23), pr(21), pr(24), pr(22)]] });
   await run();
