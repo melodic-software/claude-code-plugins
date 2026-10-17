@@ -545,6 +545,13 @@ uploads nothing. A head that already has a counted verdict from a completed run 
 pull request number) is not judged again. Runs share one concurrency group per pull request and
 head and never cancel a running judgment.
 
+`merge.verify-authors` decides whose pull requests are judged. Under `lane`, the default, only one
+the lanes App opened is: a `Bot` account whose login is `merge.agent-identity`, compared as the
+pr-merge lane decides lane authorship. Any other author's is skipped before the model runs, with
+the reason `author-not-lane` and the step summary line `skipped: author not the lanes App`, since
+only lane-authored pull requests reach the pr-merge lane. `any` judges every author's. Any other
+value judges none (`verify-authors-invalid`).
+
 With `merge.require-verifier-verdict: true` the pr-merge lane reads the artifacts through their
 run records, since only steps of a run can upload its artifacts. A run is of verifier origin when
 it is `pr-verify.yml`, event `workflow_run`, on main, in this repository with a head on main. A
@@ -572,6 +579,12 @@ other artifact with such a name is ignored. At the pull request's vetted head:
   list's humans other than the pull request's author (otherwise `verify:untrusted-spec`). The
   model's spec text holds only what such accounts wrote;
 - no counted verdict refuses (`verify:missing`).
+
+The trusted-spec rule trusts an account, not a person. An agent session that uses an owner's `gh`
+login posts as that owner, so until agent sessions have their own GitHub identity, an issue or an
+admission marker from a trusted account counts as the owner's authority, including when an agent
+acting as that account wrote it. Unattended merge stays off (`merge.report-only: true`) until that
+identity exists.
 
 `verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and `verify:untrusted-spec` need a
 human, who clears them
