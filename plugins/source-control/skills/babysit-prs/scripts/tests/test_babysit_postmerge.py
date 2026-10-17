@@ -268,7 +268,11 @@ class FakeGh:
             artifacts = self.artifacts.get(name, [])
             return completed({"total_count": len(artifacts), "artifacts": artifacts})
         if endpoint.split("/actions/runs/")[-1].isdigit():
-            record = self.run_records.get(int(endpoint.rsplit("/", 1)[1]))
+            run_id = int(endpoint.rsplit("/", 1)[1])
+            record = self.run_records.get(run_id) or next(
+                (r for runs in self.runs.values() for r in runs if r["id"] == run_id),
+                None,
+            )
             if record is None:
                 return completed(returncode=1, stderr="gh: Not Found (HTTP 404)")
             return completed(record)
@@ -915,6 +919,138 @@ class Baseline(CheckCase):
         verdict = self.check()
         self.assertEqual(verdict.failures, ())
         self.assertTrue(verdict.merges[0].verified)
+
+
+class AlertRerun(CheckCase):
+    """post-merge-demotion-alert.yml re-runs a red full run once under
+    GITHUB_TOKEN, so attempt 2's triggering actor is github-actions[bot]. That
+    one re-run is judged like the wrapper's; a re-run of a run the bot itself
+    started, like a person's, still cannot clear attempt 1."""
+
+    BOT = by("github-actions[bot]")
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+
+    def rerun_by_bot(self, conclusion: str, first_actor: dict[str, Any]) -> None:
+        after = "2026-10-12T10:30:00Z"
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "schedule",
+            schedule_run(
+                31,
+                conclusion,
+                run_attempt=2,
+                triggering_actor=self.BOT,
+                created_at=after,
+            ),
+        )
+        self.gh.attempts[(31, 1)] = schedule_run(
+            31, triggering_actor=first_actor, created_at=after
+        )
+
+    def test_a_passing_alert_rerun_is_a_flake(self) -> None:
+        self.rerun_by_bot("success", by("maintainer"))
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(verdict.flakes, (f"{RUN_URL}/31",))
+
+    def test_a_failing_alert_rerun_goes_through_the_baseline(self) -> None:
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "schedule",
+            schedule_run(30, head_sha=HEAD_SHA, created_at="2026-10-12T09:30:00Z"),
+        )
+        self.rerun_by_bot("failure", by("maintainer"))
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(verdict.unattributed, (f"{RUN_URL}/31/attempts/2",))
+
+    def test_a_failing_alert_rerun_with_a_green_baseline_demotes(self) -> None:
+        self.rerun_by_bot("failure", by("maintainer"))
+        verdict = self.check()
+        self.assertEqual(
+            [(f.signal, f.run_url) for f in verdict.failures],
+            [("schedule", f"{RUN_URL}/31/attempts/2")],
+        )
+
+    def test_a_bot_rerun_of_a_run_the_bot_started_does_not_clear_it(self) -> None:
+        self.rerun_by_bot("success", self.BOT)
+        verdict = self.check()
+        self.assertEqual([f.signal for f in verdict.failures], ["schedule"])
+        self.assertEqual(verdict.flakes, ())
+
+    def test_the_wrapper_starts_no_rerun_once_attempt_2_exists(self) -> None:
+        self.rerun_by_bot("success", by("maintainer"))
+        verdict = pm.PostMergeVerdict(
+            True, reruns=(pm.Rerun(31, f"{RUN_URL}/31", "schedule"),)
+        )
+        self.assertEqual(pm.attribute(REPO, verdict), [])
+        self.assertEqual(self.gh.writes(), [])
+
+
+class NoFailedJobs(CheckCase):
+    """A red full run with no failed job (a workflow file that no longer
+    loads) is a check of its own: charged, unless the run before the merge
+    was red the same way."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        after = "2026-10-12T10:30:00Z"
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "schedule",
+            schedule_run(
+                31,
+                "startup_failure",
+                run_attempt=2,
+                triggering_actor=by(IDENTITY),
+                created_at=after,
+            ),
+        )
+        self.gh.attempts[(31, 1)] = schedule_run(
+            31, "startup_failure", created_at=after
+        )
+        self.gh.jobs[(31, 2)] = []
+
+    def test_a_red_run_with_no_failed_job_is_charged(self) -> None:
+        verdict = self.check()
+        self.assertEqual([f.signal for f in verdict.failures], ["schedule"])
+        self.assertIn(
+            "newly failing: pr-require-checks.yml: no failed jobs",
+            verdict.failures[0].detail,
+        )
+
+    def test_the_same_red_before_the_merge_excuses_it(self) -> None:
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "schedule",
+            schedule_run(
+                30,
+                "startup_failure",
+                head_sha=HEAD_SHA,
+                created_at="2026-10-12T09:30:00Z",
+            ),
+        )
+        self.gh.jobs[(30, 1)] = []
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(verdict.unattributed, (f"{RUN_URL}/31/attempts/2",))
+
+    def test_a_dispatch_run_with_no_failed_job_does_not_verify(self) -> None:
+        self.gh.runs[("pr-require-checks.yml", "schedule")] = []
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(11, "failure", run_attempt=2),
+        )
+        self.gh.attempts[(11, 1)] = dispatch_run(11, "failure")
+        self.gh.jobs[(11, 2)] = []
+        verdict = self.check()
+        self.assertFalse(verdict.merges[0].verified)
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
 
 
 class DispatchCoverage(CheckCase):

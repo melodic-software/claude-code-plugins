@@ -83,6 +83,10 @@ for ((i = 0; i < ${#args[@]}; i++)); do
 done
 printf '%s %s\n' "$method" "$endpoint" >>"$STUB_DIR/log"
 n=$(wc -l <"$STUB_DIR/log")
+if [[ "$method" != GET && "${STUB_RERUN_POST_FAIL:-}" == 1 && "$endpoint" == */rerun-failed-jobs ]]; then
+  printf '%s %s\n' "$method" "$endpoint" >>"$STUB_DIR/failed"
+  exit 1
+fi
 if [[ "$method" != GET ]]; then
   printf '%s\n' "${fields[@]}" >"$STUB_DIR/post.$n"
   printf '{"number": 900}\n'
@@ -160,7 +164,7 @@ run_step() {
   printf '%s\n' "$7" >"$TMP_ROOT/stub/issues.json"
   printf '%s\n' "${8:-[]}" >"$TMP_ROOT/stub/comments.json"
   printf '{"jobs": [%s]}\n' "$(job 1 test-bash 'Run the bash tests')" >"$TMP_ROOT/stub/jobs.default.json"
-  printf '{"jobs": [%s]}\n' "${JOBS:-$(job 1 test-bash 'Run the bash tests')}" >"$TMP_ROOT/stub/jobs.4242.${ATTEMPT:-2}.json"
+  printf '{"jobs": [%s]}\n' "${JOBS-$(job 1 test-bash 'Run the bash tests')}" >"$TMP_ROOT/stub/jobs.4242.${ATTEMPT:-2}.json"
   printf '{"jobs": [%s]}\n' "${BASE_JOBS:-}" >"$TMP_ROOT/stub/jobs.4141.1.json"
   printf '{"workflow_runs": [%s]}\n' "${RUNS:-}" >"$TMP_ROOT/stub/runs.json"
   printf '[]\n' >"$TMP_ROOT/stub/annotations.none.json"
@@ -168,6 +172,7 @@ run_step() {
   : >"$TMP_ROOT/stub/log"
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" STUB_FAIL_READ="${FAIL_READ:-}" \
     STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
+    STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
     RUN_BRANCH="$4" RUN_REPO="$5" RUN_SHA="$6" RUN_URL="$RUN_URL" RUN_ATTEMPT="${ATTEMPT:-2}" \
     RUN_ID=4242 RUN_WORKFLOW_ID=77 RUN_CREATED="$CREATED" \
@@ -399,6 +404,35 @@ if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$OUT" == *"already failing before"* ]]
   ok "a failing re-run on a check already red before files nothing"
 else
   fail "re-run fails on a pre-existing check: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+RERUN=success RERUN_POST_FAIL=1 ATTEMPT=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$OUT" == *"could not re-run"* && "$OUT" == *"passed: nothing to file"* ]]; then
+  ok "a re-run another actor already started is waited for when this one cannot start"
+else
+  fail "re-run POST refused: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+STARTER='github-actions[bot]' ATTEMPT=1 run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -qx 'POST repos/o/r/issues' <<<"$LOG" &&
+  ! grep -q 'rerun-failed-jobs\|^GET repos/o/r/actions/runs/4242$' <<<"$LOG"; then
+  ok "a run the bot started is not re-run here and attempt 1 is judged"
+else
+  fail "bot-started run: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+JOBS='' run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: pr-require-checks.yml: no failed jobs"* ]]; then
+  ok "a red run with no failed job files a record"
+else
+  fail "zero-job red run: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+JOBS='' RUNS="$(baseline_run 4141 startup_failure)" BASE_JOBS='' run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$OUT" == *"already failing before"* ]]; then
+  ok "a red run with no failed job after the same red before files nothing"
+else
+  fail "zero-job red run after the same: rc=$RC log='$LOG' out='$OUT'"
 fi
 
 RERUN=never ATTEMPT=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'

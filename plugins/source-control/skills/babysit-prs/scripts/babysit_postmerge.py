@@ -549,7 +549,11 @@ class _Context:
                 )
                 if j.get("conclusion") in FAILED_CONCLUSIONS
             ]
-            checks: set[str] = set()
+            # A red run with no failed job (a workflow file that does not
+            # load) is one check of its own, never excused.
+            checks: set[str] = (
+                set() if jobs else {f"{FULL_RUN_WORKFLOW}: no failed jobs"}
+            )
             for job in jobs:
                 name = str(job.get("name") or "")
                 if name == LANE_AGGREGATE_JOB and len(jobs) > 1:
@@ -681,7 +685,14 @@ class _Context:
         second = self._attempt(run, 2) if run.attempt >= 2 else None
         if second is None:
             return RERUN, f"attempt 1 {first.conclusion}; awaiting the wrapper's re-run"
-        if second.triggering_actor != self.identity:
+        # A re-run by anyone else (a person re-running until green) cannot
+        # clear a red attempt 1. The one other re-run that can is
+        # post-merge-demotion-alert.yml's single re-run under GITHUB_TOKEN,
+        # and that workflow re-runs no run the bot started.
+        if second.triggering_actor != self.identity and not (
+            second.triggering_actor == LANE_DISPATCH_ACTOR
+            and first.triggering_actor != LANE_DISPATCH_ACTOR
+        ):
             return (
                 RED,
                 f"attempt 1 {first.conclusion}; attempt 2 not triggered by the agent identity",
@@ -689,7 +700,7 @@ class _Context:
         if second.status != "completed":
             return PENDING, "re-run-in-progress"
         if second.conclusion == "success":
-            return FLAKE, "attempt 1 failed, the wrapper's re-run passed"
+            return FLAKE, "attempt 1 failed, the one re-run passed"
         self.red_on_rerun.add(run.id)
         return RED, f"attempt 1 {first.conclusion}; re-run {second.conclusion}"
 
@@ -964,9 +975,21 @@ def dispatch_full_run(repo: str, *, ref: str) -> None:
 
 
 def attribute(repo: str, verdict: PostMergeVerdict) -> list[int]:
-    """Trigger the one `rerun-failed-jobs` on each red full run awaiting it."""
+    """Trigger the one `rerun-failed-jobs` on each red full run awaiting it,
+    unless another re-run (post-merge-demotion-alert.yml's) started since."""
     owner, name = _split_repo(repo)
+    triggered: list[int] = []
     for rerun in verdict.reruns:
+        current = json_object(
+            _call(
+                ["api", f"repos/{owner}/{name}/actions/runs/{rerun.run_id}"],
+                f"run {rerun.run_id}",
+                PostMergeWriteError,
+            )
+        ).get("run_attempt")
+        if not isinstance(current, int) or current >= 2:
+            continue
+        triggered.append(rerun.run_id)
         _write(
             [
                 "api",
@@ -976,7 +999,7 @@ def attribute(repo: str, verdict: PostMergeVerdict) -> list[int]:
             ],
             f"re-run {rerun.run_id}",
         )
-    return [r.run_id for r in verdict.reruns]
+    return triggered
 
 
 def _role_label(owner: str, name: str) -> str:

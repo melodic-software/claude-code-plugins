@@ -63,6 +63,7 @@ jobs:
           RUN_WORKFLOW_ID: ${{ github.event.workflow_run.workflow_id }}
           RUN_CREATED: ${{ github.event.workflow_run.created_at }}
           RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          RUN_TRIGGERING_ACTOR: ${{ github.event.workflow_run.triggering_actor.login }}
           RUN_COMMIT_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
         run: |
           case "$RUN_WORKFLOW:$RUN_EVENT" in
@@ -105,27 +106,31 @@ jobs:
           fi
           newly=''
           if [[ -z "$passed" && "$signal" != canary ]]; then
-            if [[ "$RUN_ATTEMPT" -eq 1 ]]; then
-              # Re-run the failed jobs once and wait here for that attempt: a
-              # re-run this token starts raises no workflow_run event of its
-              # own. A re-run that cannot start or does not finish within 20
-              # minutes leaves attempt 1 to be judged.
-              if gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/rerun-failed-jobs" >/dev/null; then
-                for _ in $(seq 20); do
-                  sleep "${POLL_SECONDS:-60}"
-                  latest="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" \
-                    --jq '[.run_attempt, .status, (.conclusion // "")] | @tsv')" || continue
-                  IFS=$'\t' read -r attempt status conclusion <<<"$latest"
-                  if [[ "$attempt" =~ ^[0-9]+$ && "$attempt" -ge 2 && "$status" == completed ]]; then
-                    if [[ "$conclusion" == success ]]; then
-                      echo "attempt $attempt, the re-run of the failed jobs, passed: nothing to file"
-                      exit 0
-                    fi
-                    RUN_ATTEMPT="$attempt"
-                    break
-                  fi
-                done
+            # Re-run the failed jobs once and wait here for that attempt: a
+            # re-run this token starts raises no workflow_run event of its own.
+            # babysit_postmerge.py credits this re-run only on a run the bot
+            # did not start, so a run the bot started (a pr-merge dispatch) is
+            # left to the wrapper's own re-run. When the wrapper re-ran first,
+            # the POST fails and the wait reads its attempt instead. A re-run
+            # that does not finish within 20 minutes leaves attempt 1 judged.
+            if [[ "$RUN_ATTEMPT" -eq 1 && "$RUN_TRIGGERING_ACTOR" != 'github-actions[bot]' ]]; then
+              if ! gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/rerun-failed-jobs" >/dev/null; then
+                echo "::warning::could not re-run $RUN_URL; waiting for any re-run already started"
               fi
+              for _ in $(seq 20); do
+                sleep "${POLL_SECONDS:-60}"
+                latest="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" \
+                  --jq '[.run_attempt, .status, (.conclusion // "")] | @tsv')" || continue
+                IFS=$'\t' read -r attempt status conclusion <<<"$latest"
+                if [[ "$attempt" =~ ^[0-9]+$ && "$attempt" -ge 2 && "$status" == completed ]]; then
+                  if [[ "$conclusion" == success ]]; then
+                    echo "attempt $attempt, the re-run of the failed jobs, passed: nothing to file"
+                    exit 0
+                  fi
+                  RUN_ATTEMPT="$attempt"
+                  break
+                fi
+              done
               if [[ "$RUN_ATTEMPT" -eq 1 ]]; then
                 echo "::warning::the re-run of $RUN_URL did not finish: judging attempt 1"
               fi
@@ -138,6 +143,11 @@ jobs:
                   | [.id, .name, ([.steps[]? | select(.conclusion | IN("failure", "timed_out", "cancelled"))
                       | select(.name != "Aggregate hygiene results")] | length)] | @tsv')"
               count="$(awk 'NF' <<<"$jobs" | wc -l)"
+              # A red run with no failed job (a workflow file that does not
+              # load) is one check of its own, never excused.
+              if [[ "$count" -eq 0 ]]; then
+                echo 'pr-require-checks.yml: no failed jobs'
+              fi
               while IFS=$'\t' read -r id name other; do
                 if [[ -z "$id" || ("$name" == ci-status && "$count" -gt 1) ]]; then
                   continue
