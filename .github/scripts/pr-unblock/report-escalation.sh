@@ -20,6 +20,7 @@
 #                       | dependency-security-close | dependency-escalate
 #                       | dependency-config-unreadable
 #                       | dependency-files-truncated
+#                       | dependency-control-uncited
 #   TRACKER_CONFIG      base .work-item-tracker.json
 #                       (default .base/.work-item-tracker.json)
 #   LANES_BOT_LOGIN     the lanes App bot login, the only author whose marker
@@ -62,6 +63,7 @@ case ${ESCALATION_REASON:-} in
   dependency-escalate) why='the dependency review found a risk the lane does not decide alone' ;;
   dependency-config-unreadable) why='the lane could not read the base .github/dependabot.yml, so it does not mark this dependency update for merge' ;;
   dependency-files-truncated) why='the dependency review chose merge, but the files listing it read was cut short, so the lane does not mark this dependency update for merge' ;;
+  dependency-control-uncited) why='the dependency review chose merge for a review-only dependency without quoting its control, so the lane does not mark it for merge' ;;
   *) die "unknown escalation reason [${ESCALATION_REASON:-}]" ;;
 esac
 case $ESCALATION_REASON in

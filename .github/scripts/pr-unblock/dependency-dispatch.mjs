@@ -46,6 +46,9 @@ export async function dispatchDependencyReviews({
   appId = DEFAULTS.appId,
   maxDispatch = DEFAULTS.maxDispatch,
   config = null,
+  policy,
+  repository,
+  provenance,
 }) {
   const candidates = (await listAll(api, base))
     .filter((node) => node.isDraft === false && node.isCrossRepository === false && node.baseRefName === base)
@@ -75,7 +78,10 @@ export async function dispatchDependencyReviews({
           commits: await api.listPullCommits(node.number),
           files: await api.listPullFiles(node.number),
           config,
+          policy,
+          repository,
           readCommitFiles: commitFilesReader(api),
+          provenance,
         })
       ).tier;
       if (tier !== "review") {

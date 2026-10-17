@@ -18,7 +18,16 @@ import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { createGitHubApi, need, positive, SHA } from "./address-feedback.mjs";
-import { classify, COMMIT_FILES_LIMIT, DEPENDABOT_LOGIN, isDependabotCommit, parseConfig } from "./dependency-classify.mjs";
+import {
+  classifierGaps,
+  classify,
+  COMMIT_FILES_LIMIT,
+  DEPENDABOT_LOGIN,
+  isDependabotCommit,
+  parseConfig,
+  provenanceReasons,
+  withProvenance,
+} from "./dependency-classify.mjs";
 
 export const DEFAULT_MAX_ROUNDS = 2;
 export const MODEL_CHECK = "pr-unblock / review-dependency";
@@ -91,15 +100,18 @@ export function commitFilesReader(api) {
 }
 
 // The classifier's input from REST reads: the pull request, its commits and
-// files, the files of each non-Dependabot commit, and the base config.
-export async function classifyPull({ pull, ciStatus, commits, files, config, readCommitFiles }) {
+// files, the files of each non-Dependabot commit, the base config, and the
+// base Dependabot policy (readPolicy) with this repository's name; then the
+// provenance gate, which reads the package registry (`provenance`, the live
+// one unless a test passes its own).
+export async function classifyPull({ pull, ciStatus, commits, files, config, policy, repository, readCommitFiles, provenance = provenanceReasons }) {
   const touched = new Map();
   for (const item of commits) {
     if (!isDependabotCommit(item)) {
       touched.set(String(item.sha ?? ""), await readCommitFiles(String(item.sha ?? "")));
     }
   }
-  return classify({
+  const classification = classify({
     author: pull.user?.login,
     headRef: pull.head?.ref,
     title: pull.title ?? "",
@@ -110,9 +122,12 @@ export async function classifyPull({ pull, ciStatus, commits, files, config, rea
     totalCommits: pull.commits,
     files,
     config,
+    policy,
+    repository,
     changedFiles: pull.changed_files,
     commitFiles: (sha) => touched.get(sha) ?? null,
   });
+  return withProvenance(classification, provenance);
 }
 
 function capPatches(files) {
@@ -132,7 +147,7 @@ function capPatches(files) {
   });
 }
 
-export async function select({ api, pr, headSha, appId, dependabotId, config = null, repository = "", maxRounds = DEFAULT_MAX_ROUNDS }) {
+export async function select({ api, pr, headSha, appId, dependabotId, config = null, policy, repository = "", maxRounds = DEFAULT_MAX_ROUNDS, provenance }) {
   const pull = await api.getPull(pr);
   if (pull.user?.id !== dependabotId || pull.user?.login !== DEPENDABOT_LOGIN) {
     return { decision: "skip", skipReason: "not-applicable" };
@@ -149,7 +164,10 @@ export async function select({ api, pr, headSha, appId, dependabotId, config = n
     commits,
     files,
     config,
+    policy,
+    repository,
     readCommitFiles: commitFilesReader(api),
+    provenance,
   });
   if (classification.tier !== "review") {
     return { decision: "skip", skipReason: "not-applicable", classification };
@@ -210,15 +228,31 @@ export function readConfig(path, log = (line) => console.log(line)) {
   return pairs;
 }
 
+// The base's standards Dependabot policy as parsed JSON. A file it cannot
+// read or parse is null, which the classifier reports as
+// dependabot-policy-unreadable (review tier for every Dependabot PR).
+export function readPolicy(path, log = (line) => console.log(line)) {
+  try {
+    return JSON.parse(readFileSync(String(path ?? ""), "utf8"));
+  } catch (error) {
+    log(`::warning::cannot read the Dependabot policy ${path || "(no path)"} (${error.code ?? error.name}); every Dependabot PR is review tier until it reads`);
+    return null;
+  }
+}
+
+// The distinct `control` strings of the review-only entries the
+// classification matched, in entry order.
+export const reviewControls = (classification) => [...new Set((classification?.reviewOnly ?? []).map((entry) => entry.control))];
+
 export function maxRoundsFrom(value) {
   return value === undefined || value === "" ? DEFAULT_MAX_ROUNDS : positive(value, "DEPENDENCY_REVIEW_ROUNDS");
 }
 
-export async function main(argv, env, { api, log = (line) => console.log(line) } = {}) {
+export async function main(argv, env, { api, log = (line) => console.log(line), provenance } = {}) {
   if (argv[0] !== "select") {
     throw new Error("usage: review-dependency.mjs select");
   }
-  need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "HEAD_SHA", "APP_SENDER_ID", "TRUSTED_ACTORS", "DEPENDENCY_FILE", "DEPENDABOT_CONFIG"]);
+  need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "HEAD_SHA", "APP_SENDER_ID", "TRUSTED_ACTORS", "DEPENDENCY_FILE", "DEPENDABOT_CONFIG", "DEPENDABOT_POLICY"]);
   const pr = positive(env.PR_NUMBER, "PR_NUMBER");
   if (!SHA.test(env.HEAD_SHA)) {
     throw new Error("HEAD_SHA is not a commit id");
@@ -240,6 +274,8 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     repository: env.GITHUB_REPOSITORY,
     maxRounds: maxRoundsFrom(env.DEPENDENCY_REVIEW_ROUNDS),
     config: readConfig(env.DEPENDABOT_CONFIG, log),
+    policy: readPolicy(env.DEPENDABOT_POLICY, log),
+    provenance,
   });
   if (result.file) {
     writeFileSync(env.DEPENDENCY_FILE, `${JSON.stringify(result.file, null, 2)}\n`);
@@ -251,6 +287,13 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
   output("security", String(result.classification?.security === true));
   output("config-unreadable", String((result.classification?.reasons ?? []).includes("dependabot-config-unreadable")));
   output("files-truncated", String(result.file?.files_truncated === true));
+  // Each matched review-only entry's control, which a merge verdict must
+  // quote (apply-dependency-verdict.mjs); JSON keeps it on one line.
+  output("controls", JSON.stringify(reviewControls(result.classification)));
+  const gaps = classifierGaps(result.classification?.tier === "review" ? result.classification.reasons : []);
+  if (gaps.length) {
+    log(`::warning::classifier gap: #${pr} goes to review only because the classifier could not read it (${gaps.join(", ")}); fix the classifier, not the pull request`);
+  }
   log(
     `${result.decision}: tier ${result.classification?.tier ?? "-"} (${(result.classification?.reasons ?? []).join(", ") || "none"}), ` +
       `${result.rounds ?? 0} earlier round(s)${result.escalationReason ? `, ${result.escalationReason}` : ""}`,

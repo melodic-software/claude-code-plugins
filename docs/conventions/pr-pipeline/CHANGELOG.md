@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 1.24.1 - 2026-10-17
+## 1.25.1 - 2026-10-17
 
 The review-dependency activity checks commit provenance
 ([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review)). Its classifier applies the
@@ -14,6 +14,24 @@ a `fix` only from commits GitHub signed for the lanes App during the run (author
 listed whole, else `dependency-invalid` or `superseded-sha`; it reads no Actions API. `run.json`
 gains `files_truncated` and `started_at`, and a `merge` verdict on a truncated files listing
 escalates the new reason `dependency-files-truncated`. `version` stays 1.
+
+## 1.25.0 - 2026-10-17
+
+Both Dependabot classifiers read the standards Dependabot policy at the base and make every update
+to a dependency its `autoMerge.reviewOnly` lists tier `review` (`review-only:<dependency>`),
+whatever the version change, and every Dependabot pull request tier `review`
+(`dependabot-policy-unreadable`) when the policy does not read or a caller passes none. An entry's
+`directory` covers a changed path in it, and a `github-actions` entry also covers the workflow and
+action files the content rule gives its directory (README, "Review-only dependencies"). The
+review-dependency activity gets the matched entries. Both classifiers also make an otherwise tier
+`auto` npm or pip update tier `review` when its
+registry provenance changed or cannot be read (`provenance-changed:<name>`,
+`provenance-missing:<name>`, `provenance-unreadable:<name>`; README, "Registry provenance"). The
+review-dependency select step outputs `controls`, `run.json` gains `controls`, and the write
+runner gains a seventh dependency escalation reason, `dependency-control-uncited`: a `merge`
+verdict on a review-only dependency that does not quote each matched entry's `control` in
+`evidence`. The select step warns `classifier gap` when only a read failure sent a pull request
+to review (README, "Classifier gaps"). `version` stays 1.
 
 ## 1.24.0 - 2026-10-17
 

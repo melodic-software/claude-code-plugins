@@ -21,6 +21,9 @@
 //      record the pr-merge lane merges on; this job never merges or enqueues.
 //      A model that saw a truncated files listing escalates
 //      dependency-files-truncated instead.
+//      A merge on a review-only dependency whose evidence does not quote each
+//      matched entry's control (run.json `controls`) escalates
+//      dependency-control-uncited instead.
 //      close: never on a security update (the security label or an advisory
 //      in the body, read fresh here, or the model job's flag), which escalates
 //      dependency-security-close; otherwise finds or files the issue
@@ -96,7 +99,7 @@ export function validateRun(run, pr) {
   const fail = (why) => {
     throw new Invalid(`run.json is invalid: ${why}`);
   };
-  if (!exactKeys(run, ["version", "pr", "head_sha", "security", "config_unreadable", "files_truncated", "started_at", "output"])) fail("its fields are not the runner's");
+  if (!exactKeys(run, ["version", "pr", "head_sha", "security", "config_unreadable", "files_truncated", "started_at", "controls", "output"])) fail("its fields are not the runner's");
   if (run.version !== 1) fail("version is not 1");
   if (run.pr !== pr) fail("it names another pull request");
   if (!SHA.test(String(run.head_sha))) fail("head_sha is not a commit id");
@@ -104,6 +107,9 @@ export function validateRun(run, pr) {
   if (typeof run.config_unreadable !== "boolean") fail("config_unreadable is not a boolean");
   if (typeof run.files_truncated !== "boolean") fail("files_truncated is not a boolean");
   if (!STARTED_AT.test(String(run.started_at)) || Number.isNaN(Date.parse(run.started_at))) fail("started_at is not a UTC time");
+  if (!Array.isArray(run.controls) || run.controls.length > LIMITS.evidence || !run.controls.every((c) => typeof c === "string" && c.length >= 1)) {
+    fail("controls is not a list of review-only controls");
+  }
   const out = run.output;
   if (!exactKeys(out, ["verdict", "reasons", "evidence"])) fail("the verdict's fields are not the template's");
   if (!VERDICTS.includes(out.verdict)) fail("the verdict is not merge, fix, close or escalate");
@@ -242,6 +248,14 @@ export async function apply({ api, pr, appId, modelRun, run, log }) {
     if (run.files_truncated) {
       await record("escalate", { reasons, evidence });
       return { escalationReason: "dependency-files-truncated", skipReason: "" };
+    }
+    // A review-only dependency merges only on a verdict that quotes each
+    // matched entry's control verbatim in an evidence entry.
+    const uncited = run.controls.filter((control) => !evidence.some((item) => item.includes(control)));
+    if (uncited.length) {
+      log(`#${pr}: the merge verdict's evidence does not quote ${uncited.length} review-only control(s)`);
+      await record("escalate", { reasons, evidence });
+      return { escalationReason: "dependency-control-uncited", skipReason: "" };
     }
     await record("merge", { reasons, evidence });
     return { escalationReason: "", skipReason: "" };

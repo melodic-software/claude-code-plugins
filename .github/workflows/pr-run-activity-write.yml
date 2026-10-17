@@ -162,7 +162,8 @@ on:
           feedback-disputed; for dependency-review, before any model turn,
           dependency-round-cap; for the dependency-verdict script
           dependency-invalid, dependency-fix-not-landed, dependency-config-unreadable,
-          dependency-files-truncated, dependency-security-close or
+          dependency-files-truncated, dependency-control-uncited,
+          dependency-security-close or
           dependency-escalate; empty otherwise.
           Set only by runner steps and the base's reply and verdict scripts.
         value: ${{ jobs.run.outputs.escalation-reason }}
@@ -329,7 +330,7 @@ jobs:
             feedback-partial | feedback-incomplete | feedback-disputed) ;;
             dependency-round-cap | dependency-invalid | dependency-fix-not-landed) ;;
             dependency-security-close | dependency-escalate | dependency-config-unreadable) ;;
-            dependency-files-truncated) ;;
+            dependency-files-truncated | dependency-control-uncited) ;;
             *)
               echo "::error::the escalation-reason input is not a known escalation reason"
               exit 1
@@ -463,6 +464,8 @@ jobs:
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
           # The content rule's ecosystems and directories, read from the base.
           DEPENDABOT_CONFIG: .base/.github/dependabot.yml
+          # The review-only dependencies, read from the base.
+          DEPENDABOT_POLICY: .base/.github/standards/dependabot-policy/policy.json
           RESOLVED: ${{ runner.temp }}/resolved-config.json
         run: |
           # Before any model turn: no lanes App fix commit of this job is older.
@@ -1461,13 +1464,15 @@ jobs:
           CONFIG_UNREADABLE: ${{ steps.dependency-select.outputs.config-unreadable }}
           FILES_TRUNCATED: ${{ steps.dependency-select.outputs.files-truncated }}
           STARTED_AT: ${{ steps.dependency-select.outputs.started-at }}
+          # The matched review-only controls a merge verdict must quote.
+          CONTROLS: ${{ steps.dependency-select.outputs.controls }}
           STRUCTURED_OUTPUT: ${{ steps.act-skill.outputs.structured_output }}
           OUT_DIR: ${{ runner.temp }}/lane-dependency-out
         with:
           retries: 0
           script: |
             const fs = require('fs');
-            const { HEAD_SHA, PR_NUMBER, SECURITY, CONFIG_UNREADABLE, FILES_TRUNCATED, STARTED_AT, STRUCTURED_OUTPUT, OUT_DIR } = process.env;
+            const { HEAD_SHA, PR_NUMBER, SECURITY, CONFIG_UNREADABLE, FILES_TRUNCATED, STARTED_AT, CONTROLS, STRUCTURED_OUTPUT, OUT_DIR } = process.env;
             fs.rmSync(OUT_DIR, { recursive: true, force: true });
             fs.mkdirSync(OUT_DIR);
             let output = null;
@@ -1484,6 +1489,14 @@ jobs:
               config_unreadable: CONFIG_UNREADABLE === 'true',
               files_truncated: FILES_TRUNCATED === 'true',
               started_at: STARTED_AT,
+              // Unreadable controls leave a value the verdict job refuses.
+              controls: (() => {
+                try {
+                  return JSON.parse(CONTROLS);
+                } catch {
+                  return null;
+                }
+              })(),
               output,
             };
             const text = `${JSON.stringify(run)}\n`;
@@ -1657,7 +1670,7 @@ jobs:
                 case "$FEEDBACK_REPLIES_DIR:$DEPENDENCY_VERDICT_DIR:$escalation" in
                   :?*:dependency-invalid | :?*:dependency-fix-not-landed) ;;
                   :?*:dependency-security-close | :?*:dependency-escalate | :?*:dependency-config-unreadable) ;;
-                  :?*:dependency-files-truncated) ;;
+                  :?*:dependency-files-truncated | :?*:dependency-control-uncited) ;;
                   *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
                 esac
                 ;;

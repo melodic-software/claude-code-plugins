@@ -156,7 +156,14 @@ test("anything but exactly one open same-repository PR into main at that head st
 test("a draft and a dependency manager's PR start nothing", async () => {
   assert.equal(await reason({ pulls: [pull({ draft: true })] }), "draft");
   for (const login of ["dependabot[bot]", "Renovate[bot]", "renovate-bot", "app/dependabot-preview"]) {
-    assert.equal(await reason({ pulls: [pull({ user: { id: 1, login } })] }), "dependency-manager", login);
+    assert.equal(await reason({ pulls: [pull({ user: { id: 1, login, type: "Bot" } })] }), "dependency-manager", login);
+  }
+});
+
+test("a User account named like a dependency manager is not one", async () => {
+  for (const login of ["dependabot", "renovate-bot"]) {
+    const user = { id: 9, login, type: "User" };
+    assert.equal(await reason({ pulls: [pull({ user })] }, { verifyAuthors: "any" }), "ok", login);
   }
 });
 

@@ -33,6 +33,7 @@ from unittest import mock
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import babysit_merge as merge
 import babysit_merge_policy as policy
 import babysit_postmerge as postmerge
 import babysit_verify_evidence as ve
@@ -290,6 +291,78 @@ class VerdictAtTheCurrentHead(unittest.TestCase):
 
     def test_no_verdict_is_missing(self) -> None:
         self.assertEqual(read(FakeGitHub([], {})).refusal, "verify:missing")
+
+
+class EveryPassAtTheHeadIsChecked(unittest.TestCase):
+    """Several passes at one head are equivalent: each must allow, whatever
+    order the listing returns them in, and a FAIL there still blocks."""
+
+    def judge(self, second: dict[str, Any], *, reverse: bool) -> ve.Evidence:
+        """A pass (run 1) and a pass-notes (run 2) whose record or run start
+        is `second`'s, listed in that order or reversed."""
+        items = [
+            artifact(named(HEAD, "pass"), 1),
+            artifact(named(HEAD, "pass-notes"), 2),
+        ]
+        fake = FakeGitHub(
+            items[::-1] if reverse else items,
+            {1: run(1), 2: run(2, **second.get("run", {}))},
+            {
+                named(HEAD, "pass"): record(),
+                named(HEAD, "pass-notes"): record(**second.get("record", {})),
+            },
+        )
+        fake.closing_edited = second.get("edited", {})
+        return read(fake)
+
+    def each_order(self, second: dict[str, Any]) -> set[str | None]:
+        return {self.judge(second, reverse=r).refusal for r in (False, True)}
+
+    def test_two_allowing_passes_allow(self) -> None:
+        self.assertEqual(self.each_order({}), {None})
+
+    def test_one_judged_before_a_spec_edit_refuses_either_way(self) -> None:
+        # Run 2 started before the issue's edit; run 1 after it.
+        second = {
+            "run": {"run_started_at": "2026-10-13T00:00:00Z"},
+            "edited": {7: "2026-10-14T00:00:00Z"},
+        }
+        self.assertEqual(self.each_order(second), {"verify:spec-changed"})
+
+    def test_one_recording_an_untrusted_spec_refuses_either_way(self) -> None:
+        bot = {**TRUSTED_ISSUE, "author_type": "Bot", "author_id": 200}
+        second = {"record": {"linked_issues": [bot]}}
+        self.assertEqual(self.each_order(second), {"verify:untrusted-spec"})
+
+    def test_a_changed_spec_is_reported_before_an_untrusted_one(self) -> None:
+        # The README's order: the spec must be the judged one before its
+        # authors are weighed. Run 2 records an untrusted spec and run 1
+        # (started first) predates the issue's edit.
+        bot = {**TRUSTED_ISSUE, "author_type": "Bot", "author_id": 200}
+        second = {
+            "record": {"linked_issues": [bot]},
+            "run": {"run_started_at": "2026-10-15T12:00:00Z"},
+            "edited": {7: "2026-10-15T06:00:00Z"},
+        }
+        self.assertEqual(self.each_order(second), {"verify:spec-changed"})
+
+    def test_a_fail_beside_two_passes_blocks(self) -> None:
+        for reverse in (False, True):
+            with self.subTest(reverse=reverse):
+                items = [
+                    artifact(named(HEAD, "pass"), 1),
+                    artifact(named(HEAD, "fail"), 3),
+                    artifact(named(HEAD, "pass-notes"), 2),
+                ]
+                fake = FakeGitHub(
+                    items[::-1] if reverse else items,
+                    {1: run(1), 2: run(2), 3: run(3)},
+                    {
+                        named(HEAD, "pass"): record(),
+                        named(HEAD, "pass-notes"): record(),
+                    },
+                )
+                self.assertEqual(read(fake).refusal, "verify:fail")
 
 
 class AVerdictForAnotherShaDoesNotCount(unittest.TestCase):
@@ -724,26 +797,29 @@ class AQueuedDependabotEntryNeedsNoVerdict(unittest.TestCase):
     """The pr-merge lane enqueues Dependabot pull requests in their own class
     (babysit_dependabot), which pr-verify never judges."""
 
+    def hold(self, user: dict[str, Any]) -> tuple[str | None, FakeGitHub]:
+        fake = FakeGitHub([], {})
+        with (
+            mock.patch.object(policy, "pull_request", return_value=pull(user=user)),
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+        ):
+            return ve.Reader(REPO, "main", now=NOW).queued_hold(PR), fake
+
     def test_a_dependency_managers_entry_is_not_held(self) -> None:
         for login in ("dependabot[bot]", "renovate[bot]"):
             with self.subTest(login):
-                fake = FakeGitHub([], {})
-                with (
-                    mock.patch.object(
-                        policy, "pull_request", return_value=pull(user={"login": login})
-                    ),
-                    mock.patch.object(postmerge, "gh_capture", side_effect=fake),
-                ):
-                    self.assertIsNone(ve.Reader(REPO, "main", now=NOW).queued_hold(PR))
+                hold, fake = self.hold({"login": login, "type": "Bot"})
+                self.assertIsNone(hold)
                 self.assertEqual(fake.calls, [])
 
+    def test_a_user_named_like_a_dependency_manager_is_judged(self) -> None:
+        for login in ("dependabot[bot]", "renovate"):
+            with self.subTest(login):
+                hold, _ = self.hold({"login": login, "type": "User"})
+                self.assertEqual(hold, "verify:missing")
+
     def test_anyone_elses_entry_is_judged(self) -> None:
-        fake = FakeGitHub([], {})
-        with (
-            mock.patch.object(policy, "pull_request", return_value=pull()),
-            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
-        ):
-            hold = ve.Reader(REPO, "main", now=NOW).queued_hold(PR)
+        hold, _ = self.hold({"login": "agent-lanes[bot]", "type": "Bot"})
         self.assertEqual(hold, "verify:missing")
 
 
@@ -790,6 +866,20 @@ class TheListingIsReadOncePerReader(unittest.TestCase):
         listings = [c for c in fake.calls if any("actions/artifacts" in a for a in c)]
         self.assertEqual(len(listings), 1)
 
+    def test_a_failed_listing_refuses_every_entry_and_is_read_once(self) -> None:
+        # One outage holds the whole queue rather than merging blind.
+        fake = passing()
+        fake.fail = {"actions/artifacts"}
+        with (
+            mock.patch.object(policy, "pull_request", return_value=pull()),
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+        ):
+            reader = ve.Reader(REPO, "main", now=NOW)
+            holds = [reader.queued_hold(n) for n in (PR, PR, PR)]
+        self.assertEqual(holds, ["verify:unreadable"] * 3)
+        listings = [c for c in fake.calls if any("actions/artifacts" in a for a in c)]
+        self.assertEqual(len(listings), 1)
+
 
 # --- The --authority pr-merge path ------------------------------------------------
 
@@ -821,9 +911,158 @@ class LaneRequiresAVerdict(unattended.Unattended):
         patcher = mock.patch.object(ve.Reader, "evidence", side_effect=self._evidence)
         patcher.start()
         self.addCleanup(patcher.stop)
+        # The tracker's human-gated role label (`.work-item-tracker.json`).
+        self.role_label = mock.Mock(return_value="needs-human")
+        patcher = mock.patch.object(postmerge, "_role_label", self.role_label)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+        # Writes whose argv holds one of these fail (HTTP 502).
+        self.failing: set[str] = set()
 
     def _evidence(self, number: int, head: str, pr: Any = None) -> ve.Evidence:
         return self.read(number, head)
+
+    def _capture(self, args: list[str]) -> Any:
+        if any(f in a for f in self.failing for a in args):
+            self.log.append("failed:" + " ".join(args))
+            return subprocess.CompletedProcess(args, 1, "", "gh: boom (HTTP 502)")
+        return super()._capture(args)
+
+    def escalation_comment(self) -> dict[str, Any]:
+        return {
+            "id": 90,
+            "user": {"login": unattended.IDENTITY, "type": "Bot"},
+            "created_at": "2026-10-12T10:00:00Z",
+            "body": merge.verify_escalation_body("verify:too-old", unattended.HEAD),
+        }
+
+    def test_a_failed_comment_adds_no_label(self) -> None:
+        self.verdicts[unattended.PR] = evidence("verify:too-old")
+        self.failing = {merge.VERIFY_ESCALATION_MARKER}
+        _, out = self.lane()
+        self.assertFalse(
+            any("/labels" in a for w in self.escalation_writes() for a in w)
+        )
+        self.assertNotIn("escalation", out["unattended"]["writes"])
+        self.assertTrue(
+            any(
+                e.startswith("escalation:")
+                for e in out["unattended"]["writes"]["errors"]
+            )
+        )
+
+    def test_a_failed_label_is_added_on_the_next_run_without_a_second_comment(
+        self,
+    ) -> None:
+        self.verdicts[unattended.PR] = evidence("verify:too-old")
+        self.failing = {"/labels"}
+        _, out = self.lane()
+        self.assertTrue(
+            any(
+                e.startswith("escalation:")
+                for e in out["unattended"]["writes"]["errors"]
+            )
+        )
+        # The next run reads the comment the first one posted.
+        self.failing = set()
+        self.comments = [self.escalation_comment()]
+        _, out = self.lane()
+        (label,) = self.escalation_writes()
+        self.assertIn("labels[]=needs-human", label)
+        self.assertEqual(
+            out["unattended"]["writes"]["escalation"],
+            {"label": "added", "comment": "unchanged"},
+        )
+
+    def test_a_label_differing_only_in_case_is_not_added_again(self) -> None:
+        self.verdicts[unattended.PR] = evidence("verify:too-old")
+        self.pr_labels = [{"name": "Needs-Human"}]
+        self.comments = [self.escalation_comment()]
+        _, out = self.lane()
+        self.assertEqual(self.escalation_writes(), [])
+        self.assertEqual(out["unattended"]["writes"]["escalation"]["label"], "present")
+
+    def escalation_writes(self) -> list[list[str]]:
+        return [
+            c.args[0]
+            for c in self.capture.call_args_list
+            if any(
+                "/labels" in a or merge.VERIFY_ESCALATION_MARKER in a for a in c.args[0]
+            )
+        ]
+
+    def test_a_needs_human_refusal_labels_the_pr_and_comments_once(self) -> None:
+        for refusal in ve.NEEDS_HUMAN:
+            with self.subTest(refusal):
+                self.verdicts[unattended.PR] = evidence(refusal)
+                code, out = self.lane()
+                self.assert_no_merge(code)
+                # The comment explains the label, so it is written first.
+                comment, label = self.escalation_writes()
+                self.assertEqual(
+                    label[-4:],
+                    ["POST", f"repos/owner/repo/issues/{unattended.PR}/labels"]
+                    + ["-f", "labels[]=needs-human"],
+                )
+                self.assertIn("POST", comment)
+                body = comment[-1].removeprefix("body=")
+                self.assertTrue(body.startswith(merge.VERIFY_ESCALATION_MARKER + "\n"))
+                self.assertIn(f"`{refusal}`", body)
+                self.assertIn(unattended.HEAD, body)
+                self.assertEqual(
+                    out["unattended"]["writes"]["escalation"],
+                    {"label": "added", "comment": "created"},
+                )
+
+    def test_the_label_is_the_trackers_human_gated_role(self) -> None:
+        self.role_label.return_value = "status: needs-decision"
+        self.verdicts[unattended.PR] = evidence("verify:too-old")
+        self.lane()
+        self.assertIn("labels[]=status: needs-decision", self.escalation_writes()[-1])
+
+    def test_another_label_does_not_stand_in_for_the_role_label(self) -> None:
+        self.verdicts[unattended.PR] = evidence("verify:earlier-fail")
+        self.pr_labels = [{"name": "enhancement"}]
+        _, out = self.lane()
+        self.assertEqual(out["unattended"]["writes"]["escalation"]["label"], "added")
+
+    def test_a_rerun_writes_no_second_label_or_comment(self) -> None:
+        self.verdicts[unattended.PR] = evidence("verify:spec-changed")
+        self.pr_labels = [{"name": "needs-human"}]
+        self.comments = [
+            {
+                "id": 90,
+                "user": {"login": unattended.IDENTITY, "type": "Bot"},
+                "created_at": "2026-10-12T10:00:00Z",
+                "body": merge.verify_escalation_body(
+                    "verify:spec-changed", unattended.HEAD
+                ),
+            }
+        ]
+        _, out = self.lane()
+        self.assertEqual(self.escalation_writes(), [])
+        self.assertEqual(
+            out["unattended"]["writes"]["escalation"],
+            {"label": "present", "comment": "unchanged"},
+        )
+
+    def test_report_only_reports_a_needs_human_refusal_and_writes_nothing(self) -> None:
+        self.config = dataclasses.replace(self.config, report_only=True)
+        self.verdicts[unattended.PR] = evidence("verify:untrusted-spec")
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertIs(out["unattended"]["verify"]["needsHuman"], True)
+        self.capture.assert_not_called()
+        self.assertNotIn("writes", out["unattended"])
+
+    def test_a_refusal_that_needs_no_human_is_not_escalated(self) -> None:
+        for refusal in ("verify:fail", "verify:missing", "verify:unreadable"):
+            with self.subTest(refusal):
+                self.verdicts[unattended.PR] = evidence(refusal)
+                _, out = self.lane()
+                self.assertEqual(self.escalation_writes(), [])
+                self.assertNotIn("escalation", out["unattended"]["writes"])
 
     def test_a_pass_at_the_head_enqueues(self) -> None:
         code, out = self.lane()

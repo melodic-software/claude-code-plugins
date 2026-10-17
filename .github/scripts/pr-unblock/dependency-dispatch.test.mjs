@@ -57,7 +57,8 @@ function fakeApi({ nodes = [], checks = new Map(), ci = new Map(), files = new M
   };
 }
 
-const run = (api, extra = {}) => dispatchDependencyReviews({ api, runId: "55", log: () => {}, config: [], ...extra });
+const run = (api, extra = {}) =>
+  dispatchDependencyReviews({ api, runId: "55", log: () => {}, config: [], policy: { autoMerge: { reviewOnly: [] } }, provenance: async () => [], ...extra });
 
 test("dispatches review-dependency for a review-tier Dependabot PR", async () => {
   const api = fakeApi({ nodes: [pr(4)] });
@@ -85,6 +86,12 @@ test("leaves auto-tier bumps, other authors, drafts and forks alone", async () =
   assert.deepEqual(dispatched, []);
 });
 
+test("a minor bump whose registry provenance changed is dispatched for review", async () => {
+  const api = fakeApi({ nodes: [pr(1, { title: "bump x from 1.0.0 to 1.1.0" })] });
+  await run(api, { provenance: async () => ["provenance-changed:x"] });
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["1"]);
+});
+
 test("a red ci-status makes a patch bump review", async () => {
   const node = pr(8, { title: "bump x from 1.0.0 to 1.0.1" });
   const api = fakeApi({
@@ -92,6 +99,18 @@ test("a red ci-status makes a patch bump review", async () => {
     ci: new Map([[node.headRefOid, [{ id: 1, app: { slug: "github-actions" }, status: "completed", conclusion: "failure" }]]]),
   });
   assert.equal((await run(api)).dispatched.length, 1);
+});
+
+test("a review-only dependency makes a patch bump review, and an unreadable policy makes every bump review", async () => {
+  const node = pr(9, { title: "bump x from 1.0.0 to 1.0.1", changedFiles: 1 });
+  const files = new Map([[9, [{ filename: "package.json", patch: "" }]]]);
+  const entry = { repository: "o/r", ecosystem: "npm", directory: "/", dependency: "x", reviewed: "2026-10-17", basis: "b", control: "c" };
+  const policy = (dependency) => ({ autoMerge: { reviewOnly: [{ ...entry, dependency }] } });
+  const extra = { config: [["npm", "/"]], repository: "o/r" };
+  assert.equal((await run(fakeApi({ nodes: [node], files }), { ...extra, policy: policy("x") })).dispatched.length, 1);
+  assert.equal((await run(fakeApi({ nodes: [node], files }), { ...extra, policy: policy("y") })).dispatched.length, 0);
+  assert.equal((await run(fakeApi({ nodes: [node], files }), { ...extra, policy: null })).dispatched.length, 1);
+  assert.equal((await run(fakeApi({ nodes: [node], files }), { ...extra, policy: undefined })).dispatched.length, 1);
 });
 
 test("skips a head that already has a review-dependency check run, except an untrusted-trigger skip", async () => {
