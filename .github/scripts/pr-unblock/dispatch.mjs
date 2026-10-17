@@ -7,7 +7,8 @@
 // It lists open PRs into main, keeps the non-draft, same-repository ones
 // whose mergeable state is CONFLICTING (re-querying UNKNOWN a bounded number
 // of times), skips a PR whose current head already carries a pr-unblock check
-// run, and dispatches pr-unblock.yml on main for at most maxDispatch of them,
+// run (one the usage limit stopped stops counting once its limit resets, see
+// limit-stop.mjs), and dispatches pr-unblock.yml on main for at most maxDispatch of them,
 // lowest PR number first. Labels and authors are left to the lane's own
 // config and gate. Logs carry PR numbers, SHAs and run ids only. The run ids
 // it dispatched become the step output run-ids, which the workflow records.
@@ -19,6 +20,7 @@ import { pathToFileURL } from "node:url";
 
 import { POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
+import { anyHandles } from "./limit-stop.mjs";
 import { readConfig, readPolicy } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -57,16 +59,6 @@ function isPending(node, base) {
   );
 }
 
-// A check run handles the head unless it is the gate's completed neutral skip
-// for an untrusted trigger: a trusted dispatch may still resolve that head.
-function handles(run) {
-  return !(
-    run.status === "completed" &&
-    run.conclusion === "neutral" &&
-    String(run.output?.title ?? "").startsWith("Skipped: untrusted-trigger")
-  );
-}
-
 async function listAll(api, base) {
   const nodes = [];
   let after;
@@ -92,6 +84,7 @@ export async function dispatchConflicting({
   maxDispatch = DEFAULTS.maxDispatch,
   unknownRetries = DEFAULTS.unknownRetries,
   unknownDelayMs = DEFAULTS.unknownDelayMs,
+  now = Date.now(),
 }) {
   const listed = await listAll(api, base);
   const candidates = listed.filter((node) => isCandidate(node, base));
@@ -120,9 +113,10 @@ export async function dispatchConflicting({
       log(`defer #${node.number}: ${maxDispatch} dispatches this run; left for a later run`);
       continue;
     }
-    let existing;
+    let handled;
     try {
-      existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
+      const existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
+      handled = await anyHandles(existing, { listAnnotations: api.listAnnotations, now });
     } catch (error) {
       failed += 1;
       log(
@@ -130,7 +124,7 @@ export async function dispatchConflicting({
       );
       continue;
     }
-    if (existing.some(handles)) {
+    if (handled) {
       log(`skip #${node.number}: head ${node.headRefOid} already has a ${checkName} check run`);
       continue;
     }
@@ -259,6 +253,7 @@ export function createGitHubApi({
       );
       return result.check_runs;
     },
+    listAnnotations: (checkRunId) => paginate(`check-runs/${Number(checkRunId)}/annotations`),
     async dispatchWorkflow({ workflow, ref, inputs }) {
       const result = await request(
         `${apiUrl}/repos/${owner}/${name}/actions/workflows/${workflow}/dispatches`,
