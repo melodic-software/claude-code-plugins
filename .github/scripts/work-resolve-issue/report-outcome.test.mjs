@@ -942,6 +942,22 @@ test("--find-prior fails on a closing-PR page with no page information", async (
   }
 });
 
+test("--find-prior fails at once on a next page with no cursor, after one closing-PR read", async () => {
+  for (const endCursor of [null, ""]) {
+    const { code, calls, output } = await runPrior({ closingAnswer: graphql([], { hasNextPage: true, endCursor }) });
+    assert.equal(code, 1, String(endCursor));
+    assert.equal(output, "", String(endCursor));
+    assert.equal(calls.filter((c) => c.path === "/graphql").length, 1, String(endCursor));
+  }
+});
+
+test("--find-prior fails on a lanes-App marker naming no run whose time cannot be read", async () => {
+  for (const created_at of [undefined, "not a date"]) {
+    const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped -->", created_at }];
+    await failsClosed(String(created_at), { comments });
+  }
+});
+
 test("--find-prior fails on a lane-branch listing that is not a list", async () => {
   await failsClosed("matching-refs object", { refs: { message: "odd" } });
 });

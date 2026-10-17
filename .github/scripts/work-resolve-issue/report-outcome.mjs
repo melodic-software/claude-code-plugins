@@ -565,6 +565,9 @@ async function closingPulls(github, { owner, name, number }, maxPages = 50) {
       return nodes;
     }
     after = refs.pageInfo.endCursor;
+    if (typeof after !== "string" || after === "") {
+      throw new Error("the issue's closing pull requests answered a next page with no cursor");
+    }
   }
   throw new Error(`the issue has more than ${maxPages} pages of closing pull requests`);
 }
@@ -590,6 +593,10 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
       .filter((comment) => comment.user?.login === bot)
       .map((comment) => ({ ...parseOutcomeMarker(comment.body), at: Date.parse(comment.created_at) }))
       .filter((marker) => marker.outcome !== undefined);
+    // A marker naming no run is matched by its time, so that time must read.
+    if (markers.some((marker) => marker.run === "" && !Number.isFinite(marker.at))) {
+      throw new Error("a lane outcome marker that names no run has no readable time");
+    }
     const closing = await closingPulls(github, { owner, name, number: issueNumber });
     const shape = laneBranch(issueNumber);
     // The trailing `-` keeps issue 1 from matching issue 12's branches.
