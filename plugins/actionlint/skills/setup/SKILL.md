@@ -117,9 +117,10 @@ finding actionlint reports on a line the commit adds. It rewrites nothing.
 When the user does not want an entry in this clone, run
 `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry actionlint-check`; the
 session-start drift line then stays silent until `verify` runs by hand, and `--undo` reverses it.
-Add `--global` (with or without `--undo`) to decline the entry in every clone. The [adoption
-path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/check-placement/adopting-git-hooks.md) covers the rest for the user: each scope,
-the master key that declines every entry, and opting a clone back in.
+Add `--global` (with or without `--undo`) to decline the entry in every clone;
+`git config --global checks.git-hooks.declined true` declines every entry of every plugin, and an
+entry's own key set to `false` in a clone opts that entry back in. The [adoption
+path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/check-placement/adopting-git-hooks.md) explains each install scope to the user.
 
 ## `apply` (idempotent)
 
