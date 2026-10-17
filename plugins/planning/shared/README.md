@@ -20,7 +20,7 @@ and the session-bridge watcher. Python 3 standard library only.
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
 | `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/core.css`, `/app.css`, `/proto.js`). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when `schemaVersion` or the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret` |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -151,7 +151,9 @@ How people answer each `format` through `POST /api/pick` (`{qid, view, device?, 
   since the last key, pointer or touch) and `away` (the person's own snooze, sent until their next
   input). A person is offline after 90 s with no beat, and Away while hidden, after 5 minutes
   visible with no input, or snoozed; the snapshot gives `state` and, when Away, `since`. Typing
-  flags last 5 s. A beat that changes `visible` or `away` is taken at once.
+  flags last 5 s. A beat that changes `visible` or `away` is taken at once. The page beats every
+  2 s and at once on a visibility change, never two beats within the one-a-second limit, and sends
+  writes to one throttled route a second apart, so in normal use it gets no 429.
 
 ## Data contract
 
@@ -276,11 +278,17 @@ python3 -m unittest discover -s plugins/planning/shared/tests
 bash plugins/planning/shared/tests/tracer.test.sh
 bash plugins/planning/shared/tests/tracer-live.test.sh [CLOUDFLARED]
 node plugins/planning/shared/tests/ui_journey.js
+node plugins/planning/shared/tests/ui_formats.js
+node plugins/planning/shared/tests/ui_presence.js
 ```
 
 `ui_journey.js` drives the page in Chromium against `ensure-running` on spare ports with the fake
 tunnel: the owner and a guest join, answer, vote, lock, pick, react and send a round; every state
 poll carries a query string; no page breaks the CSP; and a guest of an imported prototype session
-comes back as the same person. It needs playwright-core (from `node_modules`, or the one
-playwright-cli bundles) and SKIPs without it. `tracer.test.sh` runs the whole flow against the fake tunnel. `tracer-live.test.sh` uses a real
+comes back as the same person. `ui_formats.js` covers `multi`, `scale` and `rank` (keyboard, and
+touch on a 390x844 phone), Something else on `choice`, `multi` and `rank`, Disagree, the `down`
+reaction and a diagram's alt text. `ui_presence.js` (about 4 minutes) hides a tab for 3 minutes
+with throttled timers, closes another, snoozes a third, and checks no request gets a 429. The
+browser suites share `browser_harness.js` (not a test), need playwright-core (from `node_modules`,
+or the one playwright-cli bundles), and SKIP without it. `tracer.test.sh` runs the whole flow against the fake tunnel. `tracer-live.test.sh` uses a real
 cloudflared (a path argument, else PATH), opens a public address, and SKIPs in CI or without one.

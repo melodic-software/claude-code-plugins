@@ -192,6 +192,8 @@
 .app .vf-person-act { cursor: pointer; }
 .app .vf-person .core-avatar { box-shadow: 0 0 0 2px var(--bg); }
 .app .vf-person[data-role="host"] .core-avatar { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--accent); }
+/* Away: present but hidden, idle five minutes, or snoozed by hand; shown dimmed (offline people are not shown here) */
+.app .vf-person[data-presence="away"] .core-avatar, .app .vf-hperson[data-presence="away"] .vf-hp-av { opacity: 0.45; filter: grayscale(0.6); }
 .app .vf-person[data-role="leader"] .core-avatar { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--brass); }
 .app .vf-here { color: var(--faint); font-size: 12px; white-space: nowrap; }
 .app .vf-follow {
@@ -1183,6 +1185,79 @@
 .app .vf-confirm-fig .vf-imgbtn { inline-size: min(100%, 640px); }
 .app .vf-confirm-box { display: block; position: relative; inline-size: min(100%, 640px); border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--line-strong); background: var(--sunk); }
 .app .vf-imgbtn .vf-confirm-box { inline-size: 100%; }
+/* "Something else…": no picture; its card asks for the person's own option */
+.app .vf-opt-other { border-style: dashed; }
+.app .vf-opt-other .vf-optlabel { color: var(--muted); }
+
+/* ---------- multi, scale and rank questions; the box for one's own option; their results ---------- */
+.app .vf-multi { display: grid; gap: 8px; }
+.app .vf-check {
+  display: flex; align-items: center; gap: 12px; min-block-size: 44px; padding: 8px 12px; cursor: pointer;
+  border: 1px solid var(--line-strong); border-radius: var(--r-md); background: var(--pane); font-size: 14px; font-weight: 600;
+  overflow-wrap: anywhere; transition: border-color 150ms var(--ease-out), background-color 150ms var(--ease-out);
+}
+.app .vf-check-row[data-on="true"] .vf-check { border-color: var(--accent); background: var(--accent-soft); }
+.app .vf-check-other .vf-check { border-style: dashed; }
+.app .vf-check-box { flex: none; inline-size: 20px; block-size: 20px; margin: 0; accent-color: var(--accent); }
+.app .vf-check-box:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app .vf-check-box:disabled + .vf-check-l { opacity: 0.6; }
+.app .vf-check-l { min-width: 0; }
+.app .vf-scale { display: grid; gap: 6px; }
+.app .vf-scale-row { display: flex; gap: 6px; }
+.app .vf-scale-btn {
+  all: unset; box-sizing: border-box; cursor: pointer; flex: 1 1 0; min-inline-size: 0; block-size: 44px; display: grid; place-items: center;
+  border: 1px solid var(--line-strong); border-radius: var(--r-md); background: var(--pane); color: var(--text);
+  font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; touch-action: manipulation;
+  transition: border-color 150ms var(--ease-out), background-color 150ms var(--ease-out);
+}
+.app .vf-scale-btn[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.app .vf-scale-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app .vf-scale-btn:disabled { opacity: 0.5; cursor: default; }
+.app .vf-scale-ends { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; color: var(--muted); font-size: 12px; }
+.app .vf-scale-mid { text-align: center; }
+.app .vf-scale-max { text-align: end; }
+.app .vf-rank { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.app .vf-rank-item {
+  display: flex; align-items: center; gap: 8px; min-block-size: 48px; padding: 4px 6px 4px 4px;
+  border: 1px solid var(--line-strong); border-radius: var(--r-md); background: var(--pane); font-size: 14px; font-weight: 600;
+}
+.app .vf-rank-own { border-style: dashed; }
+.app .vf-rank-item.vf-dragging { border-color: var(--accent); box-shadow: var(--shadow-pop); background: var(--raise); }
+.app .vf-rank-grip {
+  all: unset; box-sizing: border-box; flex: none; inline-size: 44px; block-size: 44px; display: grid; place-items: center;
+  border-radius: var(--r-sm); color: var(--muted); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.app .vf-rank-grip .vf-i { inline-size: 20px; block-size: 20px; stroke-width: 3; }
+.app .vf-rank-grip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app .vf-dragging .vf-rank-grip { cursor: grabbing; }
+.app .vf-rank-ro .vf-rank-grip { cursor: default; opacity: 0.5; }
+.app .vf-rank-pos {
+  flex: none; inline-size: 26px; block-size: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--raise); color: var(--text); font-size: 12.5px; font-variant-numeric: tabular-nums;
+}
+.app .vf-rank-l { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.app .vf-rank-item .vf-icon-btn { flex: none; inline-size: 44px; block-size: 44px; }
+.app .vf-rank-item .vf-icon-btn:disabled { opacity: 0.35; cursor: default; }
+.app .vf-otherbox { display: grid; gap: 6px; padding: 10px; border: 1px dashed var(--line-input); border-radius: var(--r-md); background: var(--pane); }
+.app .vf-otherlbl { font-size: 13px; font-weight: 650; }
+.app .vf-fmtacts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.app .vf-fmtacts .vf-btn { block-size: 44px; font-size: 14px; }
+.app .vf-fmt-save[aria-disabled="true"] { opacity: 0.5; cursor: default; }
+.app .vf-fmtres { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--sunk); }
+.app .vf-fmtres-h { font-size: 12px; font-weight: 650; color: var(--muted); margin: 0; }
+.app .vf-fmtres-sum { font-size: 13px; color: var(--text); margin: 0; }
+.app .vf-fmtres-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.app .vf-fmtres-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "l n" "bar bar"; column-gap: 10px; font-size: 13px; }
+.app .vf-fmtres-l { grid-area: l; overflow-wrap: anywhere; }
+.app .vf-fmtres-n { grid-area: n; color: var(--muted); font-variant-numeric: tabular-nums; }
+.app .vf-fmtres-bar { grid-area: bar; block-size: 4px; border-radius: 2px; background: var(--line-strong); overflow: hidden; }
+.app .vf-fmtres-bar > span { display: block; block-size: 100%; inline-size: 0; background: var(--accent); }
+/* Disagree on decide questions: the reason form and the reasons given */
+.app .vf-disform { display: grid; gap: 6px; margin-block-start: 8px; }
+.app .vf-dislist { display: grid; gap: 4px; margin: 8px 0 0; padding: 0; list-style: none; font-size: 12.5px; }
+.app .vf-dis { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; color: var(--muted); overflow-wrap: anywhere; }
+.app .vf-dis-who { font-weight: 650; color: var(--text); }
+.app .vf-dis-why { min-width: 0; }
 
 /* ---------- picture viewer ---------- */
 .app .vf-lb {
@@ -1205,6 +1280,7 @@
   position: relative; display: block; overflow: hidden; border-radius: var(--r-sm); transform-origin: center;
   aspect-ratio: var(--ar, 1.6); inline-size: min(calc(100cqi - 24px), calc((100cqb - 24px) * var(--ar, 1.6)));
 }
+.app .vf-lb-diagram { background: oklch(0.99 0 none); }
 .app .vf-lb-img { display: block; inline-size: 100%; block-size: 100%; object-fit: contain; -webkit-user-drag: none; }
 .app .vf-lb-nav {
   all: unset; box-sizing: border-box; cursor: pointer; position: absolute; inset-block-start: 50%; translate: 0 -50%;
@@ -1697,6 +1773,9 @@
 .app .vf-ref-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 13px; }
 .app .vf-ref-dom { font-size: 12px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-inline-start: 20px; }
 .app .vf-ref-x { position: absolute; inset-block-start: 4px; inset-inline-end: 4px; background: var(--pane); }
+/* a diagram is drawn whole on a light ground, whatever the theme */
+.app .vf-ref[data-kind="diagram"] .vf-ref-thumb img { object-fit: contain; background: oklch(0.99 0 none); }
+.app .vf-ref[data-kind="diagram"] .vf-ref-x,
 .app .vf-ref[data-kind="image"] .vf-ref-x { background: color-mix(in oklch, var(--pane) 85%, transparent); }
 .app .vf-refpop { inline-size: 340px; display: grid; gap: 10px; }
 .app .vf-refpop .vf-pop-title { margin: 0; }

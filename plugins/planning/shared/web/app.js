@@ -106,6 +106,8 @@
       chevL: ["M14.5 6 8.5 12l6 6"],
       chevR: ["M9.5 6l6 6-6 6"],
       chevD: ["M6 9.5l6 6 6-6"],
+      chevU: ["M6 14.5l6-6 6 6"],
+      grip: ["M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"],
       pencil: ["M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z", "M13.5 6.5l4 4"],
       sparkle: ["M12 3.5l1.8 5.2 5.2 1.8-5.2 1.8L12 17.5l-1.8-5.2L5 10.5l5.2-1.8z", "M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"],
       search: ["M10.5 17.5a7 7 0 1 0 0-14 7 7 0 0 0 0 14z", "M20 20l-4.5-4.5"],
@@ -230,6 +232,8 @@
       const s = Math.max(0, (Core.state.serverTime || Date.now() / 1000) - ts);
       return s < 45 ? "now" : s < 3600 ? Math.round(s / 60) + "m" : s < 86400 ? Math.round(s / 3600) + "h" : Math.round(s / 86400) + "d";
     }
+    /** How long a present person has been Away, as " 4m"; "" just now or while active. */
+    const awayFor = p => { const a = p?.awaySince ? ago(p.awaySince) : "now"; return a === "now" ? "" : ` ${a}`; };
     function names(list) {
       const n = list.map(p => disp(p.name));
       return n.length <= 2 ? n.join(" and ") : `${n[0]} and ${n.length - 1} others`;
@@ -292,7 +296,32 @@
     const hasAnswered = qid => !!myRec(qid);
     const isOpenForMe = id => { const q = qById(id); return !!q && !hasAnswered(id) && !Core.lockOf(id) && !readOnly(q); };
     const optionsOf = q => q?.options || [];
-    const isChoice = q => q?.format === "choice" || q?.format === "confirm";
+    /** A question that takes a pick (its options are the vote), not a written answer. */
+    const isChoice = q => ["choice", "confirm", "multi", "scale", "rank"].includes(q?.format);
+    const isFormat = q => ["multi", "scale", "rank"].includes(q?.format);
+    /** The server-added "Something else…" option, where the question has one. */
+    const otherOf = q => optionsOf(q).find(o => o.other) || null;
+    const realOptions = q => optionsOf(q).filter(o => !o.other);
+    /** My saved pick as the fields /api/pick takes, or null with none. */
+    function savedPick(q, rec) {
+      if (!q || !rec) return null;
+      if (q.format === "multi") return rec.picks?.length ? { options: rec.picks } : null;
+      if (q.format === "scale") return rec.value != null ? { value: rec.value } : null;
+      if (q.format === "rank") return rec.order?.length ? { order: rec.order } : null;
+      return rec.pick ? { option: rec.pick } : null;
+    }
+    const pickLabel = (q, id) => optionsOf(q).find(o => o.id === id)?.label || id;
+    /** What a person card picked, in words: "Picked: Card", "Picked: A, B", "Chose 4 of 5", "Ranked: A > B > C". */
+    function pickedText(q, a) {
+      if (!q || a.claude || a.option) return "";
+      if (a.picks?.length) return `Picked: ${a.picks.filter(o => o !== "other").map(o => pickLabel(q, o)).join(", ")}${a.other ? `${a.picks.length > 1 ? ", and " : ""}their own option` : ""}`;
+      if (a.value != null) { const end = a.value === q.min ? q.labels?.min : a.value === q.max ? q.labels?.max : ""; return `Chose ${a.value} of ${q.max}${end ? ` (${end})` : ""}`; }
+      if (a.order?.length) return `Ranked: ${a.order.map(o => (o === "other" ? "their own option" : pickLabel(q, o))).join(" > ")}`;
+      if (a.pick === "other") return "Their own option";
+      const opt = a.pick && optionsOf(q).find(o => o.id === a.pick);
+      if (opt) return `Picked: ${opt.label}`;
+      return q.format === "confirm" ? "Something else" : "";
+    }
     const assetUrl = id => "/assets/" + encodeURIComponent(id);
     /** People's answers and Claude's cards; a choice question's options render as their own cards above. */
     const peopleAnswers = qid => Core.answersFor(qid).filter(a => !a.option);
@@ -787,7 +816,34 @@
     const cfUndo = btn("vf-btn vf-btn-ghost vf-btn-sm vf-optundo", "Undo");
     cfRow.append(yesBtn, noBtn, elseBtn, cfUndo);
     const fmtNote = E("p", "vf-fmt-note");
-    fmtBox.append(fmtHint, optGrid, confirmFig, cfRow, fmtNote);
+    // Phase 4b formats. multi: checkboxes, any subset of at least one. scale: one value from min to max. rank: every
+    // option in order, by dragging its handle (mouse or touch), its Up and Down buttons, or the arrow keys on its handle.
+    const multiList = E("ul", "vf-multi"); multiList.setAttribute("role", "list");
+    const scaleBox = E("div", "vf-scale");
+    const scaleRow = E("div", "vf-scale-row"); scaleRow.setAttribute("role", "radiogroup");
+    const scaleEnds = E("div", "vf-scale-ends");
+    const scaleMin = E("span", "vf-scale-end"), scaleMid = E("span", "vf-scale-end vf-scale-mid"), scaleMax = E("span", "vf-scale-end vf-scale-max");
+    scaleEnds.append(scaleMin, scaleMid, scaleMax);
+    scaleBox.append(scaleRow, scaleEnds);
+    const rankList = E("ol", "vf-rank"); rankList.setAttribute("aria-label", "Your ranking, best first");
+    // "Something else…": the person's own option, written here; it becomes a card others can back.
+    const otherBox = E("div", "vf-otherbox");
+    const otherLbl = E("label", "vf-otherlbl", "Your own option"); otherLbl.htmlFor = "vf-other";
+    const otherTa = E("textarea", "vf-ta vf-other-ta"); otherTa.id = "vf-other"; otherTa.rows = 2; otherTa.maxLength = 2000;
+    otherTa.placeholder = "Say what you would pick instead";
+    const otherRow = E("div", "vf-crow");
+    const otherCancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel");
+    const otherSave = btn("vf-btn vf-btn-primary vf-btn-sm vf-other-save", "Add my option");
+    otherRow.append(E("span", "vf-spacer"), otherCancel, otherSave);
+    otherBox.append(otherLbl, otherTa, otherRow);
+    const fmtActs = E("div", "vf-fmtacts");
+    const fmtSave = btn("vf-btn vf-btn-primary vf-btn-sm vf-fmt-save"), fmtClear = btn("vf-btn vf-btn-ghost vf-btn-sm vf-fmt-clear");
+    fmtActs.append(fmtClear, E("span", "vf-spacer"), fmtSave);
+    // Results where the options are: counts (multi, scale with mean and median), Borda points (rank).
+    const fmtRes = E("section", "vf-fmtres"); fmtRes.setAttribute("aria-label", "Results");
+    const fmtResHead = E("h3", "vf-fmtres-h"), fmtResSum = E("p", "vf-fmtres-sum"), fmtResList = E("ol", "vf-fmtres-list");
+    fmtRes.append(fmtResHead, fmtResSum, fmtResList);
+    fmtBox.append(fmtHint, optGrid, multiList, scaleBox, rankList, confirmFig, cfRow, otherBox, fmtActs, fmtNote, fmtRes);
     // Q77: Answers | Claude (N). Side by side from 1200px; tabs below that.
     const split = E("div", "vf-split");
     const splitTabs = E("div", "vf-seg vf-splittabs"); splitTabs.setAttribute("role", "tablist"); splitTabs.setAttribute("aria-label", "Answers or Claude");
@@ -1232,8 +1288,9 @@
       sendBtn.disabled = true;
       const extra = attExtra(cSlot);
       try {
-        // A choice question or a poll: the text is a comment on my pick. Without a pick (or on confirm) it is my own answer.
-        if ((q?.format === "choice" || q?.purpose === "poll") && rec?.pick) await Core.pick(qid, rec.pick, text, extra);
+        // A question that takes a pick (or a poll): the text is a comment on my pick. Without a pick (or on confirm) it is my own answer.
+        const fields = savedPick(q, rec);
+        if (fields && (q.format === "choice" || isFormat(q) || q.purpose === "poll")) await Core.pickWith(qid, fields, { comment: text });
         else await Core.answerCiting(qid, text, ui.cites[qid] || [], extra);
         delete ui.drafts[qid]; delete ui.attDraft[qid]; ui.dirty = false; ta.value = Core.myAnswer(qid); grow(ta);
         if (phone.matches) ta.blur(); // the one-line composer folds back once sent
@@ -1346,7 +1403,8 @@
       if (!q) return [];
       if (LB.kind === "choice") return optionsOf(q).filter(o => o.image).map(o => ({ asset: o.image, title: o.label, opt: o.id }));
       if (LB.kind === "confirm") return q.image ? [{ asset: q.image, title: "Did you mean this?", rect: q.rect || null }] : [];
-      return (q.references || []).map(r => attAsset(r) && { asset: attAsset(r), title: r.caption || (r.upload ? Core.state.files?.[r.upload]?.file : "") || "Screenshot", rect: r.rect }).filter(Boolean);
+      return (q.references || []).map(r => attAsset(r) && { asset: attAsset(r), title: r.caption || (r.upload ? Core.state.files?.[r.upload]?.file : "") || (r.kind === "diagram" ? "Diagram" : "Screenshot"),
+        rect: r.rect, ...(r.kind === "diagram" ? { alt: r.alt } : {}) }).filter(Boolean);
     }
     function openLb(kind, qid, i, from, items = null, meta = "") {
       Object.assign(LB, { kind, qid, i: Math.max(0, i), from, vKey: null, cur: ui.cur, items, meta });
@@ -1369,7 +1427,8 @@
       LB.i = Math.min(LB.i, items.length - 1);
       const it = items[LB.i], many = items.length > 1;
       if (lbImg._src !== (it.src || it.asset)) { lbImg._src = it.src || it.asset; lbImg.src = it.src || assetUrl(it.asset); }
-      lbImg.alt = it.rect ? `${it.title}, with the area in question marked` : it.title;
+      lbImg.alt = it.alt || (it.rect ? `${it.title}, with the area in question marked` : it.title);
+      lbFrame.classList.toggle("vf-lb-diagram", !!it.alt);
       markRect(lbMark, it.rect);
       lbTitle.textContent = it.title;
       lbMeta.textContent = LB.kind === "att" ? LB.meta : `${q.id}: ${q.text}`;
@@ -1810,21 +1869,24 @@
     // uploads; the contract has no field or route for them yet, so the attach button stays hidden.
     const attOn = () => false;
     const fileOf = a => (a?.upload && (Core.state.files?.[a.upload] || (Core.state.myUploads || []).find(u => u.id === a.upload))) || null;
-    const attAsset = a => (a?.kind === "image" ? a.asset || fileOf(a)?.asset || "" : "");
-    const attTitle = a => a.caption || fileOf(a)?.file || "Picture";
+    // A diagram reference is an SVG Claude made, shown like a picture, with its required alt text on the image.
+    const attAsset = a => (a?.kind === "image" ? a.asset || fileOf(a)?.asset || "" : a?.kind === "diagram" ? a.asset || "" : "");
+    const attTitle = a => a.caption || fileOf(a)?.file || (a.kind === "diagram" ? "Diagram" : "Picture");
     const attKey = list => JSON.stringify((list || []).map(a => [a, fileOf(a)?.status || "", attAsset(a)]));
     const ATT_STAT = { offered: "Waiting for the host to accept", accepted: "Accepted, sending", uploading: "Sending", done: "Received by the host",
       declined: "Not accepted", withdrawn: "Withdrawn", failed: "Failed" };
     /** One attachment, drawn the same everywhere. open(from) shows an inline picture in the viewer. */
     function attNode(a, open) {
       const li = E("li", "vf-ref"), asset = attAsset(a);
-      li.dataset.kind = asset ? "image" : a.kind === "image" ? "file" : a.kind;
+      const diagram = a.kind === "diagram";
+      li.dataset.kind = asset ? (diagram ? "diagram" : "image") : a.kind === "image" ? "file" : a.kind;
       if (asset) {
         const b = btn("vf-ref-img"), thumb = E("span", "vf-ref-thumb"), img = E("img"), mark = E("span", "vf-confirm-mark");
-        img.src = assetUrl(asset); img.alt = ""; img.loading = "lazy"; mark.setAttribute("aria-hidden", "true"); markRect(mark, a.rect);
+        img.src = assetUrl(asset); img.alt = diagram ? a.alt || "" : ""; img.loading = "lazy"; mark.setAttribute("aria-hidden", "true"); markRect(mark, a.rect);
         thumb.append(img, mark, zoomTag());
         b.append(thumb, E("span", "vf-ref-cap", attTitle(a)));
-        b.setAttribute("aria-label", `View larger: ${attTitle(a)}${a.rect ? ", with a marked area" : ""}`);
+        // A diagram's button is named by its alt text and caption; a picture's by its caption alone.
+        b.setAttribute("aria-label", diagram ? `View larger: ${attTitle(a)}. ${a.alt || ""}`.trim() : `View larger: ${attTitle(a)}${a.rect ? ", with a marked area" : ""}`);
         b.onclick = () => open(b);
         li.append(b);
       } else if (a.kind === "file" || a.kind === "image") {
@@ -2409,16 +2471,19 @@
     askBtn.onclick = () => (ui.pop === askMenu ? closePop() : openPop(askMenu, askBtn));
     citeBtn.onclick = () => (ui.pop === citePop ? closePop() : openPop(citePop, citeBtn));
     // Picking another option moves my pick (one vote per question); only Undo clears it. Pressing my own pick does nothing.
+    // A comment rides along with a new pick; my own option's text does not (it was the option, not a comment).
+    const keptComment = (q, rec) => (q.format === "choice" && !rec?.other ? rec?.text || "" : "");
     const pickOpt = (optId, qid = ui.cur) => {
       const rec = myRec(qid), q = qById(qid);
       if (!q || readOnly(q) || Core.lockOf(qid) || rec?.pick === optId) return;
+      if (optionsOf(q).find(x => x.id === optId)?.other) return openOther(qid);
       const label = optionsOf(q).find(x => x.id === optId)?.label || "it";
-      Core.pick(qid, optId, q.format === "choice" ? rec?.text || "" : "").then(() => announce(rec?.pick ? `Your choice moved to ${label}.` : `You picked ${label}.`)).catch(fail);
+      Core.pick(qid, optId, keptComment(q, rec)).then(() => announce(rec?.pick ? `Your choice moved to ${label}.` : `You picked ${label}.`)).catch(fail);
     };
     const clearPick = (qid = ui.cur) => {
       const rec = myRec(qid), q = qById(qid);
       if (!q || !rec?.pick || readOnly(q) || Core.lockOf(qid)) return;
-      Core.pick(qid, "", q.format === "choice" ? rec.text || "" : "").then(() => announce("Your choice is cleared.")).catch(fail);
+      Core.pick(qid, "", keptComment(q, rec)).then(() => announce("Your choice is cleared.")).catch(fail);
     };
     confirmView.onclick = () => openLb("confirm", ui.cur, 0, confirmView);
     yesBtn.onclick = () => pickOpt("opt-yes");
@@ -2613,7 +2678,7 @@
       const S = Core.state, pid = c.pid, name = nameOf(pid, c.name), here = S.presence.find(p => p.cid === pid);
       const role = roleOf(pid), joined = S.people?.[pid]?.ts, me = isMe(pid), owner = Core.me.isOwner;
       const q = here?.q && qById(here.q);
-      const sig = JSON.stringify([pid, name, role, here?.q, q?.text, joined, c.pinned, ui.mergeFrom, ui.mergeTo, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude], owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
+      const sig = JSON.stringify([pid, name, role, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude], owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
       if (c.sig === sig) return;
       const refocus = pcard.contains(document.activeElement) ? document.activeElement.dataset.k : null;
       c.sig = sig;
@@ -2624,7 +2689,7 @@
       head.append(big, who);
       const facts = E("dl", "vf-pc-facts");
       const fact = (k, v) => facts.append(E("dt", null, k), E("dd", null, v));
-      fact("Now", here ? (q ? `${q.id}: ${q.text}` : "Here, between questions") : "Not here right now");
+      fact("Now", here ? `${here.away ? `Away${awayFor(here)}. ` : ""}${q ? `${q.id}: ${q.text}` : "Here, between questions"}` : "Offline: not here right now");
       if (joined) fact("Joined", ago(joined) === "now" ? "just now" : `${ago(joined)} ago`);
       const parts = [head, facts];
       const k = (b, key) => { b.dataset.k = key; return b; };
@@ -2644,9 +2709,14 @@
         }
         parts.push(E("h3", "vf-pop-sub", "Claude's take"), cseg);
         if (c.pinned) {
+          // Away by hand (the snooze): others see me as Away until my next key, click or touch.
+          const awayB = k(lbtn("vf-menu-item vf-menu-plain vf-away-btn", "moon", Core.isAway() ? "You show as Away. Any key or tap ends it" : "Show me as Away"), "away");
+          awayB.setAttribute("aria-pressed", String(Core.isAway()));
+          // Pressed means this click is the input that ended Away (core.js clears it on pointerdown or keydown).
+          awayB.onclick = () => { if (awayB.getAttribute("aria-pressed") === "true" || Core.isAway()) return; Core.setAway(true); flash("You show as Away until you next type, click or tap."); fillPcard(); };
           const dev = k(lbtn("vf-menu-item vf-menu-plain", "device", "Use on another device"), "device");
           dev.onclick = openDevice;
-          parts.push(dev);
+          parts.push(awayB, dev);
         }
         if (ui.renaming) {
           const f = E("form", "vf-rename");
@@ -2890,11 +2960,45 @@
         k.agree = E("span", "vf-agree");
         k.goWith = btn("vf-btn vf-btn-ghost vf-btn-sm", "Go with this");
         k.lockThis = btn("vf-btn vf-btn-ghost vf-btn-sm vf-btn-brass-ghost", "Lock this one");
-        foot.append(k.agree, E("span", "vf-spacer"), k.goWith, k.lockThis);
+        // Decide questions: Disagree, with a reason of 1 to 200 characters. It never changes the vote count.
+        k.disBtn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-disagree-btn", "Disagree");
+        k.disBtn.setAttribute("aria-expanded", "false");
+        foot.append(k.agree, E("span", "vf-spacer"), k.disBtn, k.goWith, k.lockThis);
         k.goWith.onclick = () => Core.goWith(k.qid, k.ref).then(() => { delete ui.drafts[k.qid]; ui.dirty = false; ta.value = ""; grow(ta); flash("Your answer was withdrawn and your vote moved."); }).catch(fail);
         k.lockThis.onclick = () => Core.lock(k.qid, k.ref).catch(fail);
+        const disForm = E("form", "vf-disform"); disForm.hidden = true;
+        const disIn = E("input", "vf-input vf-dis-in"); disIn.maxLength = 200;
+        disIn.placeholder = "Why do you disagree? (up to 200 characters)"; disIn.setAttribute("aria-label", "Why you disagree");
+        const disCancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel");
+        const disSend = E("button", "vf-btn vf-btn-primary vf-btn-sm vf-dis-send", "Send"); disSend.type = "submit";
+        const disRow = E("div", "vf-crow"); disRow.append(E("span", "vf-count-txt vf-dis-count"), E("span", "vf-spacer"), disCancel, disSend);
+        disForm.append(disIn, disRow);
+        const disList = E("ul", "vf-dislist"); disList.setAttribute("aria-label", "Disagreements");
+        li.append(disForm, disList);
+        Object.assign(k, { disForm, disIn, disList, disCount: disRow.firstChild });
+        const closeDis = () => { disForm.hidden = true; k.disBtn.setAttribute("aria-expanded", "false"); };
+        k.disBtn.onclick = () => {
+          const open = disForm.hidden;
+          disForm.hidden = !open; k.disBtn.setAttribute("aria-expanded", String(open));
+          if (open) { disIn.value = k.myDis?.reason || ""; disIn.focus(); }
+        };
+        disCancel.onclick = () => { closeDis(); k.disBtn.focus(); };
+        on(disIn, "input", () => { const n = disIn.value.length; k.disCount.textContent = n >= 150 ? `${n} / 200` : ""; });
+        on(disIn, "keydown", e => { if (e.key === "Escape") { e.stopPropagation(); closeDis(); k.disBtn.focus(); } });
+        disForm.onsubmit = e => {
+          e.preventDefault();
+          const reason = disIn.value.trim();
+          if (!reason) { disIn.focus(); return flash("Say why you disagree first."); }
+          disSend.disabled = true;
+          Core.disagree(k.qid, k.ref, reason).then(() => { closeDis(); flash("Your disagreement is noted with your reason. Votes stay as they are."); })
+            .catch(fail).finally(() => { disSend.disabled = false; });
+        };
       }
-      vote.onclick = () => Core.vote(k.qid, k.ref, !k.mine).then(r => { if (r?.moved) flash("Your vote moved here. One vote per question."); }).catch(fail);
+      vote.onclick = () => { const was = k.mine; return Core.vote(k.qid, k.ref, !was).then(r => {
+        const q = qById(k.qid);
+        if (k.other && q?.format === "choice" && !was) flash("You back this option now. It is your pick.");
+        else if (r?.moved) flash("Your vote moved here. One vote per question.");
+      }).catch(fail); };
       li._k = k;
       return li;
     }
@@ -2918,9 +3022,9 @@
       fillClamp(k.text, (compact ? "c:" : "a:") + qid + ":" + a.cid, a.text, `Answer from ${who}`, q ? `${q.id}: ${q.text}` : "");
       k.basis.textContent = a.basis ? `Basis: ${a.basis}` : ""; k.basis.hidden = !a.basis || compact;
       k.edited.textContent = a.editedAfter ? `Edited after ${a.editedAfter} vote${a.editedAfter > 1 ? "s" : ""}` : ""; k.edited.hidden = !a.editedAfter;
-      const opt = a.pick && optionsOf(q).find(o => o.id === a.pick);
+      const opt = a.pick && optionsOf(q).find(o => o.id === a.pick && !o.other);
       k.pick = a.pick;
-      k.pickTxt.textContent = opt ? `Picked: ${opt.label}` : q?.format === "confirm" && !a.claude && !a.pick ? "Something else" : "";
+      k.pickTxt.textContent = pickedText(q, a);
       k.pickChip.hidden = !k.pickTxt.textContent;
       k.pickThumb.hidden = !opt?.image;
       if (opt?.image && k.pickImg._src !== opt.image) { k.pickImg._src = opt.image; k.pickImg.src = assetUrl(opt.image); }
@@ -2950,7 +3054,10 @@
       li.classList.toggle("vf-pinned", isLocked);
       const votes = a.votes || [], ro = readOnly(qById(qid)), gather = q?.purpose === "gather";
       k.mine = votes.includes(me.cid);
-      k.vote.hidden = !s.voting || isChoice(q) || gather; // on a choice question the pick is the vote
+      k.other = !!a.other;
+      // On a question that takes a pick, the pick is the vote; a person's own "Something else…" option is backed with one.
+      k.vote.hidden = !s.voting || (isChoice(q) && !k.other) || gather;
+      k.vote.classList.toggle("vf-vote-back", k.other);
       k.reacts.hidden = !gather || !!a.option;
       if (gather) {
         const mineR = Core.myReaction(qid, k.ref);
@@ -2970,13 +3077,39 @@
       if (k.vKey !== vKey) { k.vKey = vKey; avStack(k.voters, named.map(c => ({ cid: c, name: nameOf(c) })), 3, 16); }
       k.vote.setAttribute("aria-pressed", String(k.mine));
       k.vote.disabled = isMe(a.cid) || locked || ro;
-      k.vote.title = isMe(a.cid) ? "Your answer" : ro ? "This round went to Claude" : k.mine ? "Remove your vote" : "Vote for this answer";
+      k.vote.title = isMe(a.cid) ? "Your answer" : ro ? "This round went to Claude"
+        : k.other ? (k.mine ? "Stop backing this option" : q?.format === "choice" ? "Back this option: it becomes your pick" : "Back this option")
+        : k.mine ? "Remove your vote" : "Vote for this answer";
       const voterNames = named.length ? `: ${names(named.map(c => ({ name: nameOf(c) })))}` : "";
-      k.vote.setAttribute("aria-label", `${votes.length} vote${votes.length === 1 ? "" : "s"}${k.mine ? ", including yours" : ""}${voterNames}`);
-      li.setAttribute("aria-label", `${who}${tagTxt ? ", " + tagTxt.toLowerCase() : ""}, ${votes.length} votes`);
+      const noun = k.other ? "backer" : "vote";
+      k.vote.setAttribute("aria-label", `${k.other && !isMe(a.cid) ? (k.mine ? "Backing this option. " : "Back this option. ") : ""}${votes.length} ${noun}${votes.length === 1 ? "" : "s"}${k.mine ? ", including you" : ""}${voterNames}`);
+      li.setAttribute("aria-label", `${who}${tagTxt ? ", " + tagTxt.toLowerCase() : ""}, ${votes.length} ${noun}s`);
       if (k.goWith) {
         k.goWith.hidden = !s.voting || locked || ro || isMe(a.cid) || !Core.myAnswer(qid) || isChoice(q) || gather;
-        k.lockThis.hidden = locked || !Core.canModerate() || q?.format === "choice" || gather || (q?.purpose === "poll" && !me.isOwner);
+        // On a question with options, Lock this one sits on the option itself; a person's own option is a card, so it locks here.
+        k.lockThis.hidden = locked || !Core.canModerate() || (isChoice(q) && q.format !== "confirm" && !k.other) || gather || (q?.purpose === "poll" && !me.isOwner);
+        // Disagree: decide questions only, never on my own answer.
+        const dis = Core.disagreementsOn(qid, k.ref);
+        k.myDis = dis.find(d => d.cid && isMe(d.cid)) || null;
+        k.disBtn.hidden = q?.purpose !== "decide" || isMe(a.cid) || locked || ro || !!Core.state.youRemoved;
+        k.disBtn.textContent = k.myDis ? "Change why I disagree" : "Disagree";
+        if (k.disBtn.hidden) k.disForm.hidden = true;
+        const dKey = JSON.stringify(dis.map(d => [d.cid, d.name, d.reason]));
+        if (k.disList._k !== dKey) {
+          k.disList._k = dKey;
+          k.disList.replaceChildren(...dis.map(d => {
+            const li2 = E("li", "vf-dis"), mineD = !!d.cid && isMe(d.cid);
+            li2.append(E("span", "vf-dis-who", mineD ? "You disagree:" : `${d.cid ? disp(d.name) : "Someone"} disagrees:`), E("span", "vf-dis-why", d.reason));
+            if (mineD && !ro && !locked) {
+              const back = btn("vf-lbtn vf-dis-back", "Take back");
+              back.setAttribute("aria-label", "Take back your disagreement");
+              back.onclick = () => Core.disagree(qid, k.ref, "", false).then(() => flash("Disagreement taken back.")).catch(fail);
+              li2.append(back);
+            }
+            return li2;
+          }));
+        }
+        k.disList.hidden = !dis.length;
         const n = agreeing(a), total = Core.state.presence.length;
         k.agree.textContent = s.signoff && !locked ? `${n} of ${total} agree` : "";
         k.agree.classList.toggle("vf-agree-all", n === total);
@@ -2986,19 +3119,27 @@
     // ---------- render ----------
     function renderComposer() {
       const qid = ui.cur, q = qById(qid), mine = Core.myAnswer(qid), S = Core.state;
-      const lockedQ = !!Core.lockOf(qid), ro = readOnly(q), pollWait = q?.purpose === "poll" && !myRec(qid)?.pick, locked = lockedQ || ro || pollWait;
+      const rec = myRec(qid), picked = !!savedPick(q, rec);
+      // A pick comes first where the question takes one: polls, multi, scale and rank, and a choice with "Something else…"
+      // (writing your own option goes there). My own option is my card's text, so it takes no comment.
+      const pickFirst = q?.purpose === "poll" || isFormat(q) || (q?.format === "choice" && !!otherOf(q));
+      const lockedQ = !!Core.lockOf(qid), ro = readOnly(q), pollWait = pickFirst && !picked, ownOpt = !!rec?.other;
+      const locked = lockedQ || ro || pollWait || ownOpt;
       ta.disabled = !qid || locked;
       ta.placeholder = S.youRemoved ? "The host removed you from this session."
         : S.ended && !Core.me.isOwner ? "This session has ended."
         : q && notOpenYet(q) ? `Round ${roundOf(q)} opens after round ${curRound().current}. You can answer then.`
         : ro ? `Round ${roundOf(q)} went to Claude, so this question is read-only.${lockedQ && !Core.canModerate() ? " Suggest a change above." : ""}`
         : lockedQ ? (Core.canModerate() ? "This question is locked. Edit or unlock it above." : "This question is locked. Suggest a change above.")
-        : pollWait ? "Pick an option above; then you can add a comment."
-        : q?.format === "choice" ? (myRec(qid)?.pick ? "Add a comment on your pick (optional)…" : "Pick an option above, or write your own answer…")
-        : q?.format === "confirm" ? (myRec(qid)?.pick && q.purpose === "poll" ? "Add a comment on your pick (optional)…" : "Something else? Say what you meant…")
+        : ownOpt ? "Your own option is your answer here. Change it above."
+        : pollWait ? (q?.format === "choice" && otherOf(q) ? "Pick an option above, or choose Something else… to write your own; then you can add a comment."
+          : q?.format === "rank" ? "Save your ranking above; then you can add a comment." : "Pick above; then you can add a comment.")
+        : q?.format === "choice" ? (picked ? "Add a comment on your pick (optional)…" : "Pick an option above, or write your own answer…")
+        : isFormat(q) ? "Add a comment on your pick (optional)…"
+        : q?.format === "confirm" ? (picked && q.purpose === "poll" ? "Add a comment on your pick (optional)…" : "Something else? Say what you meant…")
         : "Write your answer…";
       composer.classList.toggle("vf-composer-locked", locked);
-      const commenting = (q?.format === "choice" || q?.purpose === "poll") && !!myRec(qid)?.pick;
+      const commenting = (q?.format === "choice" || isFormat(q) || q?.purpose === "poll") && picked;
       if (!sendBtn.disabled) { sendLbl.textContent = commenting ? (mine ? "Update comment" : "Comment") : mine ? "Update" : "Answer"; sendBtn.setAttribute("aria-label", sendLbl.textContent); }
       ta.setAttribute("aria-label", commenting ? "Comment on your pick" : q?.format === "confirm" ? "Something else: your answer" : "Your answer");
       sendBtn.setAttribute("aria-disabled", String(locked || (ta.value.trim() === mine && sameCites(qid) && sameAtt(qid)) || !qid));
@@ -3301,10 +3442,16 @@
       if (!show) return;
       const fmt = q.format, rec = myRec(q.id), lk = Core.lockOf(q.id), ro = readOnly(q) || !!lk;
       // A poll shows its results once the person picked (the owner always sees them), as Claude's take waits (Q97).
-      const hideResults = q.purpose === "poll" && !rec?.pick && !Core.me.isOwner && !lk, lead = hideResults ? "" : leadOf(q.id);
+      const hideResults = q.purpose === "poll" && !savedPick(q, rec) && !Core.me.isOwner && !lk, lead = hideResults ? "" : leadOf(q.id);
       const byId = hideResults ? {} : Object.fromEntries(Core.answersFor(q.id).filter(a => a.option).map(a => [a.cid, a]));
+      const owns = hideResults ? [] : peopleAnswers(q.id).filter(a => a.other); // people's own options
       fmtBox.dataset.fmt = fmt;
       optGrid.hidden = fmt !== "choice"; confirmFig.hidden = cfRow.hidden = fmt !== "confirm";
+      multiList.hidden = fmt !== "multi"; scaleBox.hidden = fmt !== "scale"; rankList.hidden = fmt !== "rank";
+      fmtActs.hidden = true;
+      renderOther(q, rec, ro);
+      renderResults(q, hideResults);
+      if (isFormat(q)) return renderPicks(q, rec, ro, hideResults);
       const voterKey = a => (st().showNames ? (a?.votes || []).filter(Boolean) : []).join(",");
       if (fmt === "choice") {
         if (optGrid._q !== q.id) { resetList(optGrid); optGrid._q = q.id; }
@@ -3320,7 +3467,7 @@
           foot.append(voters, n, E("span", "vf-spacer"), tag);
           const acts = E("div", "vf-optacts");
           const choose = btn("vf-btn vf-optchoose"), undo = btn("vf-btn vf-btn-ghost vf-btn-sm vf-optundo", "Undo");
-          choose.onclick = () => pickOpt(li._o.id);
+          choose.onclick = () => (li._o.other ? openOther(ui.cur) : pickOpt(li._o.id));
           undo.onclick = () => { choose.focus({ preventScroll: true }); clearPick(); };
           acts.append(choose, undo);
           const lockB = btn("vf-btn vf-btn-ghost vf-btn-sm vf-btn-brass-ghost vf-optlock", "Lock this one");
@@ -3337,25 +3484,33 @@
           k.lab.textContent = o.label;
           const isLocked = lk && lk.answerCid === o.id;
           k.tag.textContent = isLocked ? "Locked" : lead === o.id && st().voting ? "Leading" : "";
-          k.n.textContent = hideResults ? "" : chose(votes.length);
-          const vk = voterKey(a);
+          // "Something else…" has no card of its own: each person who picks it writes their own option, a card in Answers.
+          k.n.textContent = hideResults ? "" : o.other ? (owns.length ? `${owns.length} wrote their own, in Answers` : "Write your own option") : chose(votes.length);
+          const vk = o.other ? "" : voterKey(a);
           if (k.vKey !== vk) { k.vKey = vk; avStack(k.voters, (vk ? vk.split(",") : []).map(c => ({ cid: c, name: nameOf(c) })), 3, 20); }
-          if (k.mine !== mine) { k.mine = mine; k.choose.replaceChildren(radioDot(), E("span", null, mine ? "Your choice" : rec?.pick ? "Choose this instead" : "Choose this")); }
-          else k.choose.lastChild.textContent = mine ? "Your choice" : rec?.pick ? "Choose this instead" : "Choose this";
+          const label = o.other ? (mine ? "Your own option: edit it" : rec?.pick ? "Write your own instead" : "Write your own")
+            : mine ? "Your choice" : rec?.pick ? "Choose this instead" : "Choose this";
+          if (k.mine !== mine) { k.mine = mine; k.choose.replaceChildren(radioDot(), E("span", null, label)); }
+          else k.choose.lastChild.textContent = label;
           k.choose.setAttribute("aria-pressed", String(mine));
-          k.choose.setAttribute("aria-label", mine ? `Your choice: ${o.label}` : `Choose ${o.label}${rec?.pick ? " instead" : ""}`);
+          k.choose.setAttribute("aria-label", o.other ? (mine ? "Your choice is your own option: edit it" : `Something else: write your own option${rec?.pick ? " instead" : ""}`)
+            : mine ? `Your choice: ${o.label}` : `Choose ${o.label}${rec?.pick ? " instead" : ""}`);
+          if (o.other) k.choose.setAttribute("aria-expanded", String(!otherBox.hidden)); else k.choose.removeAttribute("aria-expanded");
           k.choose.disabled = ro;
           k.undo.hidden = !mine || ro;
-          k.undo.setAttribute("aria-label", `Undo: clear your choice of ${o.label}`);
+          k.undo.setAttribute("aria-label", o.other ? "Undo: take back your own option" : `Undo: clear your choice of ${o.label}`);
           li.dataset.state = mine ? "mine" : votes.length ? "picked" : "none";
+          li.classList.toggle("vf-opt-other", !!o.other);
           li.classList.toggle("vf-opt-lead", lead === o.id && !lk);
           li.classList.toggle("vf-opt-locked", !!isLocked);
-          k.lockB.hidden = !!lk || !Core.canModerate() || q.purpose === "gather" || (q.purpose === "poll" && !Core.me.isOwner);
+          // Lock this one never sits on "Something else…": a person's own option is locked from its card in Answers.
+          k.lockB.hidden = !!o.other || !!lk || !Core.canModerate() || q.purpose === "gather" || (q.purpose === "poll" && !Core.me.isOwner);
         });
         const picked = optionsOf(q).find(o => o.id === rec?.pick);
         fmtHint.textContent = (optionsOf(q).some(o => o.image) ? "Tap a picture to see it bigger. " : "") + "Choose this picks one; choosing another moves your pick.";
         fmtHint.hidden = ro;
         fmtNote.textContent = lk ? (q.purpose === "poll" ? "The poll is closed." : "Locked. The choice is decided.") : ro ? "Read-only now."
+          : picked?.other ? "You wrote your own option. It shows in Answers, where others can back it."
           : picked ? `You chose ${picked.label}. Add a comment below if you like.`
           : hideResults ? "Pick one to see how everyone voted." : "Your choice is your vote. You can add a comment below.";
       } else {
@@ -3381,14 +3536,355 @@
         fmtNote.textContent = lk ? "Locked." : somethingElse ? "Your answer is below. Edit it there." : "Yes or No counts as your vote. Something else: write what you meant below.";
       }
     }
+
+    // ---------- multi, scale and rank; "Something else…"; their results ----------
+    // A draft is my pick while I change it (multi and rank save with a button; scale sends itself a moment after the
+    // last change). ui.otherText holds my own option's text while I write it.
+    Object.assign(ui, { fdraft: {}, otherOpen: {}, otherText: {} });
+    const FMT = { timer: 0, drag: null };
+    const sameList = (a, b) => JSON.stringify(a || []) === JSON.stringify(b || []);
+    /** My working pick: the draft, else what I saved, else none (a rank starts from the order given). */
+    function draftOf(q, rec = myRec(q.id)) {
+      const d = ui.fdraft[q.id];
+      if (q.format === "multi") return d?.options ?? rec?.picks ?? [];
+      if (q.format === "rank") return d?.order ?? rec?.order ?? realOptions(q).map(o => o.id);
+      if (q.format === "scale") return d?.value ?? rec?.value ?? null;
+      return null;
+    }
+    const ownText = (q, rec = myRec(q.id)) => ui.otherText[q.id] ?? (rec?.other ? rec.text : "");
+    const ownChanged = (q, rec) => (ui.otherText[q.id] ?? null) !== null && ui.otherText[q.id].trim() !== (rec?.other ? rec.text : "");
+    /** Choosing "Something else…" opens the box for my own option (with what I wrote before, if I did). */
+    function openOther(qid) {
+      const q = qById(qid);
+      if (!q || readOnly(q) || Core.lockOf(qid) || !otherOf(q)) return;
+      ui.otherOpen[qid] = true;
+      ui.otherText[qid] = ownText(q);
+      if (q.format === "multi" && !draftOf(q).includes("other")) ui.fdraft[qid] = { options: [...draftOf(q), "other"] };
+      otherBox._q = null;
+      render();
+      if (phone.matches) setTab("answer");
+      otherTa.focus({ preventScroll: true }); otherTa.scrollIntoView?.({ block: "nearest" });
+    }
+    function renderOther(q, rec, ro) {
+      const open = !!otherOf(q) && !ro && (!!ui.otherOpen[q.id] || (q.format === "multi" && draftOf(q, rec).includes("other")));
+      otherBox.hidden = !open;
+      if (!open) return;
+      if (otherBox._q !== q.id) { otherBox._q = q.id; otherTa.value = ownText(q, rec); grow(otherTa); }
+      otherLbl.textContent = q.format === "multi" ? "Your own option, saved with your picks" : "Your own option";
+      otherSave.hidden = q.format === "multi";
+      otherSave.textContent = q.format === "rank" ? (draftOf(q, rec).includes("other") ? "Update in my ranking" : "Add to my ranking") : rec?.other ? "Save my option" : "Add my option";
+    }
+    otherSave.onclick = () => {
+      const qid = ui.cur, q = qById(qid), text = otherTa.value.trim();
+      if (!q) return;
+      if (!text) { otherTa.focus(); return flash("Write your own option first."); }
+      if (q.format === "rank") {
+        ui.otherText[qid] = text;
+        const cur = draftOf(q);
+        ui.fdraft[qid] = { order: cur.includes("other") ? cur : [...cur, "other"] };
+        ui.otherOpen[qid] = false;
+        render();
+        announce("Your own option is in your ranking. Move it where it belongs, then save your ranking.");
+        return fmtSave.focus({ preventScroll: true });
+      }
+      otherSave.disabled = true;
+      Core.pick(qid, "other", "", { other: text }).then(() => {
+        delete ui.otherText[qid]; ui.otherOpen[qid] = false;
+        flash("Your own option is in Answers, where others can back it.");
+      }).catch(fail).finally(() => { otherSave.disabled = false; render(); });
+    };
+    otherCancel.onclick = () => {
+      const qid = ui.cur, q = qById(qid);
+      if (!q) return;
+      if (q.format === "multi") ui.fdraft[qid] = { options: draftOf(q).filter(o => o !== "other") };
+      delete ui.otherText[qid]; ui.otherOpen[qid] = false; otherBox._q = null;
+      render();
+    };
+    on(otherTa, "input", () => { ui.otherText[ui.cur] = otherTa.value; Core.setTyping(); const q = qById(ui.cur); if (q) paintFmtActs(q, myRec(q.id), readOnly(q) || !!Core.lockOf(q.id)); });
+    on(otherTa, "keydown", e => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); (otherSave.hidden ? fmtSave : otherSave).click(); }
+      else if (e.key === "Escape") { e.stopPropagation(); otherCancel.click(); }
+    });
+
+    /** The pick controls of a multi, scale or rank question. */
+    function renderPicks(q, rec, ro, hideResults) {
+      const lk = Core.lockOf(q.id);
+      if (q.format === "multi") {
+        const cur = draftOf(q, rec);
+        if (multiList._q !== q.id) { resetList(multiList); multiList._q = q.id; }
+        sync(multiList, optionsOf(q), o => o.id, () => {
+          const li = E("li", "vf-check-row"), lab = E("label", "vf-check"), box = E("input", "vf-check-box"); box.type = "checkbox";
+          lab.append(box, E("span", "vf-check-l"));
+          li.append(lab);
+          box.onchange = () => toggleMulti(li._o, box.checked);
+          li._box = box;
+          return li;
+        }, (li, o) => {
+          li._o = o;
+          li._box.checked = cur.includes(o.id); li._box.disabled = ro;
+          li.firstChild.lastChild.textContent = o.label;
+          li.classList.toggle("vf-check-other", !!o.other);
+          li.dataset.on = String(li._box.checked);
+        });
+        fmtHint.textContent = "Pick every option that fits, then save. Your picks are your vote.";
+        fmtNote.textContent = lk ? (q.purpose === "poll" ? "The poll is closed." : "Locked. The choice is decided.") : ro ? "Read-only now."
+          : rec?.picks?.length ? `You picked ${rec.picks.length}. Add a comment below if you like.` : hideResults ? "Pick to see how everyone voted." : "";
+      } else if (q.format === "scale") {
+        const v = draftOf(q, rec), labels = q.labels || {}, mid = (q.min + q.max) % 2 === 0 ? (q.min + q.max) / 2 : null;
+        const named = n => (n === q.min ? labels.min : n === q.max ? labels.max : n === mid ? labels.mid : "") || "";
+        scaleRow.setAttribute("aria-label", `Your rating, ${q.min} (${labels.min}) to ${q.max} (${labels.max})`);
+        if (scaleRow._q !== q.id) { resetList(scaleRow); scaleRow._q = q.id; }
+        sync(scaleRow, optionsOf(q), o => o.id, () => {
+          const b = btn("vf-scale-btn"); b.setAttribute("role", "radio");
+          b.onclick = () => pickScale(+b._o.id);
+          return b;
+        }, (b, o) => {
+          const n = +o.id, mine = v === n;
+          b._o = o; b.textContent = o.id;
+          b.setAttribute("aria-checked", String(mine));
+          b.tabIndex = mine || (v == null && n === q.min) ? 0 : -1;
+          b.disabled = ro;
+          b.setAttribute("aria-label", named(n) ? `${n}, ${named(n)}` : String(n));
+        });
+        scaleMin.textContent = `${q.min}: ${labels.min}`; scaleMax.textContent = `${q.max}: ${labels.max}`;
+        scaleMid.textContent = labels.mid ? (mid != null ? `${mid}: ${labels.mid}` : labels.mid) : ""; // kept empty, it holds the middle column
+        fmtHint.textContent = `Tap a number from ${q.min} to ${q.max}, or use the arrow keys. It saves by itself.`;
+        fmtNote.textContent = lk ? (q.purpose === "poll" ? "The poll is closed." : "Locked. The choice is decided.") : ro ? "Read-only now."
+          : rec?.value != null ? `You chose ${rec.value}. Add a comment below if you like.` : hideResults ? "Choose to see how everyone voted." : "";
+      } else {
+        const order = draftOf(q, rec), n = order.length;
+        if (rankList._q !== q.id) { resetList(rankList); rankList._q = q.id; }
+        sync(rankList, order, id => id, buildRankItem, (li, id) => {
+          const k = li._k, i = order.indexOf(id), own = id === "other";
+          const label = own ? ownText(q, rec) || "Your own option" : optionsOf(q).find(o => o.id === id)?.label || id;
+          li._id = id;
+          k.pos.textContent = String(i + 1);
+          k.lab.textContent = own ? `Your own: ${label}` : label;
+          k.grip.setAttribute("aria-label", `${label}, position ${i + 1} of ${n}. Press up or down arrow to move it.`);
+          k.up.setAttribute("aria-label", `Move ${label} up`); k.down.setAttribute("aria-label", `Move ${label} down`);
+          k.up.disabled = ro || i === 0; k.down.disabled = ro || i === n - 1; k.grip.disabled = ro;
+          k.edit.hidden = k.rm.hidden = !own || ro;
+          li.classList.toggle("vf-rank-own", own);
+        });
+        rankList.classList.toggle("vf-rank-ro", ro);
+        fmtHint.textContent = "Put every option in order, best first: drag the handle, or use the arrows. Then save your ranking.";
+        const saved = !!rec?.order?.length, dirty = !sameList(order, rec?.order) || ownChanged(q, rec);
+        fmtNote.textContent = lk ? (q.purpose === "poll" ? "The poll is closed." : "Locked. The order is decided.") : ro ? "Read-only now."
+          : saved && !dirty ? "Your ranking is saved. Add a comment below if you like." : saved ? "Not saved yet: save to update your ranking."
+          : hideResults ? "Save your ranking to see everyone's." : "Not saved yet.";
+      }
+      fmtHint.hidden = ro;
+      paintFmtActs(q, rec, ro);
+    }
+    /** Save and Clear under the picks: multi and rank save with the button; scale saves itself. */
+    function paintFmtActs(q, rec, ro) {
+      const saved = !!savedPick(q, rec);
+      fmtActs.hidden = !isFormat(q) || ro;
+      if (fmtActs.hidden) return;
+      fmtSave.hidden = q.format === "scale";
+      fmtOwn.hidden = q.format !== "rank" || !otherOf(q) || draftOf(q, rec).includes("other") || !!ui.otherOpen[q.id];
+      if (q.format === "multi") {
+        const cur = draftOf(q, rec), dirty = !sameList([...cur].sort(), [...(rec?.picks || [])].sort()) || (cur.includes("other") && ownChanged(q, rec));
+        fmtSave.textContent = saved ? "Update my picks" : "Save my picks";
+        fmtSave.setAttribute("aria-disabled", String(!cur.length || !dirty));
+        fmtClear.textContent = "Clear my picks";
+      } else if (q.format === "rank") {
+        const dirty = !sameList(draftOf(q, rec), rec?.order) || ownChanged(q, rec);
+        fmtSave.textContent = saved ? "Update my ranking" : "Save my ranking";
+        fmtSave.setAttribute("aria-disabled", String(saved && !dirty));
+        fmtClear.textContent = "Clear my ranking";
+      } else fmtClear.textContent = "Clear my choice";
+      fmtClear.hidden = !saved;
+    }
+    const fmtOwn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-fmt-own", "Add your own option");
+    fmtActs.insertBefore(fmtOwn, fmtActs.children[1]);
+    fmtOwn.onclick = () => openOther(ui.cur);
+    function toggleMulti(o, checked) {
+      const q = qById(ui.cur); if (!q) return;
+      if (o.other) { if (checked) return openOther(q.id); return otherCancel.click(); }
+      const cur = new Set(draftOf(q)); checked ? cur.add(o.id) : cur.delete(o.id);
+      ui.fdraft[q.id] = { options: optionsOf(q).map(x => x.id).filter(id => cur.has(id)) };
+      render();
+    }
+    /** The comment my pick keeps when I change it; my own option is its card's text, never a comment. */
+    const commentOf = rec => (rec?.other ? "" : rec?.text || "");
+    fmtSave.onclick = () => {
+      const qid = ui.cur, q = qById(qid), rec = myRec(qid);
+      if (!q || fmtSave.getAttribute("aria-disabled") === "true") {
+        if (q?.format === "multi" && !draftOf(q, rec).length) flash("Pick at least one option first.");
+        return;
+      }
+      const list = draftOf(q, rec), own = list.includes("other") ? ownText(q, rec).trim() : null;
+      if (own === "") { openOther(qid); return flash("Write your own option first."); }
+      const fields = q.format === "multi" ? { options: list } : { order: list };
+      fmtSave.disabled = true;
+      Core.pickWith(qid, fields, own != null ? { other: own } : { comment: commentOf(rec) }).then(() => {
+        delete ui.fdraft[qid]; delete ui.otherText[qid]; ui.otherOpen[qid] = false; otherBox._q = null;
+        flash(q.format === "multi" ? "Your picks are saved." : "Your ranking is saved.");
+      }).catch(fail).finally(() => { fmtSave.disabled = false; render(); });
+    };
+    fmtClear.onclick = () => {
+      const qid = ui.cur, q = qById(qid), rec = myRec(qid);
+      if (!q || !savedPick(q, rec)) return;
+      const fields = q.format === "multi" ? { options: [] } : q.format === "rank" ? { order: [] } : { value: null };
+      clearTimeout(FMT.timer);
+      Core.pickWith(qid, fields, { comment: commentOf(rec) }).then(() => {
+        delete ui.fdraft[qid]; delete ui.otherText[qid]; ui.otherOpen[qid] = false; otherBox._q = null;
+        flash(q.format === "rank" ? "Your ranking is cleared." : "Your pick is cleared.");
+      }).catch(fail).finally(render);
+    };
+    /** A scale value: shown at once, sent a moment after the last change, so arrowing across sends one pick. */
+    function pickScale(n) {
+      const qid = ui.cur, q = qById(qid);
+      if (!q || readOnly(q) || Core.lockOf(qid) || n < q.min || n > q.max) return;
+      ui.fdraft[qid] = { value: n };
+      render();
+      scaleRow._map?.get(String(n))?.focus({ preventScroll: true });
+      clearTimeout(FMT.timer);
+      FMT.timer = setTimeout(() => {
+        const rec = myRec(qid);
+        if (rec?.value === n) { delete ui.fdraft[qid]; return render(); }
+        Core.pickWith(qid, { value: n }, { comment: commentOf(rec) }).then(() => {
+          if (ui.fdraft[qid]?.value === n) delete ui.fdraft[qid];
+          announce(`You chose ${n}.`);
+        }).catch(e => { delete ui.fdraft[qid]; fail(e); }).finally(render);
+      }, 450);
+    }
+    on(scaleRow, "keydown", e => {
+      const q = qById(ui.cur); if (!q || q.format !== "scale") return;
+      // From the focused value (with nothing chosen yet, focus sits on the first), as a radio group moves.
+      const v = e.target.closest?.(".vf-scale-btn")?._o ? +e.target.closest(".vf-scale-btn")._o.id : draftOf(q) ?? q.min;
+      const to = { ArrowRight: v + 1, ArrowUp: v + 1, ArrowLeft: v - 1, ArrowDown: v - 1, Home: q.min, End: q.max }[e.key];
+      if (to == null) return;
+      e.preventDefault(); e.stopPropagation();
+      pickScale(Math.min(q.max, Math.max(q.min, to)));
+    });
+    // ---------- rank: drag with mouse or touch on the handle, or move with the arrows ----------
+    function buildRankItem() {
+      const li = E("li", "vf-rank-item");
+      const grip = btn("vf-rank-grip"); grip.append(icon("grip"));
+      const pos = E("span", "vf-rank-pos"), lab = E("span", "vf-rank-l");
+      const edit = btn("vf-lbtn vf-rank-edit", "Edit");
+      const rm = ibtn("vf-tbtn vf-icon-btn vf-rank-rm", "x", "Take your own option out");
+      const up = ibtn("vf-tbtn vf-icon-btn vf-rank-up", "chevU", "Move up"), down = ibtn("vf-tbtn vf-icon-btn vf-rank-down", "chevD", "Move down");
+      li.append(grip, pos, lab, edit, rm, up, down);
+      li._k = { grip, pos, lab, edit, rm, up, down };
+      up.onclick = () => moveRank(li._id, -1, "up");
+      down.onclick = () => moveRank(li._id, 1, "down");
+      grip.onkeydown = e => {
+        if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+        e.preventDefault(); e.stopPropagation();
+        moveRank(li._id, e.key === "ArrowUp" ? -1 : 1, "grip");
+      };
+      edit.onclick = () => openOther(ui.cur);
+      rm.onclick = () => {
+        const q = qById(ui.cur); if (!q) return;
+        ui.fdraft[q.id] = { order: draftOf(q).filter(o => o !== "other") };
+        render(); fmtSave.focus({ preventScroll: true });
+      };
+      grip.onpointerdown = e => {
+        if ((e.pointerType === "mouse" && e.button !== 0) || grip.disabled) return;
+        e.preventDefault();
+        FMT.drag = { id: li._id, pointer: e.pointerId, moved: false };
+        try { rankList.setPointerCapture(e.pointerId); } catch { /* the pointer is gone */ }
+        li.classList.add("vf-dragging");
+      };
+      return li;
+    }
+    function moveRank(id, d, refocus) {
+      const q = qById(ui.cur); if (!q || readOnly(q) || Core.lockOf(q.id)) return;
+      const order = [...draftOf(q)], i = order.indexOf(id), j = i + d;
+      if (i < 0 || j < 0 || j >= order.length) return;
+      order.splice(j, 0, ...order.splice(i, 1));
+      ui.fdraft[q.id] = { order };
+      render();
+      const k = rankList._map?.get(id)?._k;
+      const to = refocus === "up" && j === 0 ? k?.down : refocus === "down" && j === order.length - 1 ? k?.up : k?.[refocus];
+      to?.focus({ preventScroll: true });
+      announce(`Moved to position ${j + 1} of ${order.length}.`);
+    }
+    on(rankList, "pointermove", e => {
+      const dr = FMT.drag; if (!dr || e.pointerId !== dr.pointer) return;
+      const q = qById(ui.cur); if (!q) return;
+      const order = [...draftOf(q)], from = order.indexOf(dr.id);
+      // Where the pointer is among the other items' middles.
+      let to = 0;
+      for (const li of rankList.children) {
+        if (li._id === dr.id) continue;
+        const r = li.getBoundingClientRect();
+        if (e.clientY > r.top + r.height / 2) to++;
+      }
+      if (from < 0 || to === from) return;
+      order.splice(to, 0, ...order.splice(from, 1));
+      ui.fdraft[q.id] = { order }; dr.moved = true;
+      render();
+    });
+    const endDrag = e => {
+      const dr = FMT.drag; if (!dr || e.pointerId !== dr.pointer) return;
+      FMT.drag = null;
+      try { rankList.releasePointerCapture(e.pointerId); } catch { /* released */ }
+      const li = rankList._map?.get(dr.id);
+      li?.classList.remove("vf-dragging");
+      if (dr.moved) { const q = qById(ui.cur); announce(`Moved to position ${draftOf(q).indexOf(dr.id) + 1}. Save your ranking when it is right.`); }
+    };
+    on(rankList, "pointerup", endDrag); on(rankList, "pointercancel", endDrag);
+
+    /** Results where the options are: counts per option (multi), per value with the mean and median (scale), Borda points (rank). */
+    function renderResults(q, hide) {
+      const show = isFormat(q) && !hide;
+      fmtRes.hidden = !show;
+      if (!show) return;
+      const people = peopleAnswers(q.id).filter(a => !a.claude);
+      const count = id => (optCard(q.id, id)?.votes || []).length;
+      let rows, total, sum;
+      if (q.format === "multi") {
+        total = people.filter(a => a.picks?.length).length;
+        rows = realOptions(q).map(o => ({ id: o.id, label: o.label, n: count(o.id), text: `${count(o.id)} picked` }));
+        fmtResHead.textContent = "Picks so far";
+        sum = `${total} ${total === 1 ? "person" : "people"} picked.`;
+      } else if (q.format === "scale") {
+        const vals = people.filter(a => a.value != null).map(a => a.value).sort((a, b) => a - b), m = vals.length;
+        const mean = m ? vals.reduce((s, x) => s + x, 0) / m : null, median = m ? (m % 2 ? vals[(m - 1) / 2] : (vals[m / 2 - 1] + vals[m / 2]) / 2) : null;
+        total = m;
+        const end = n => (n === q.min ? q.labels?.min : n === q.max ? q.labels?.max : "");
+        rows = optionsOf(q).map(o => ({ id: o.id, label: end(+o.id) ? `${o.id}, ${end(+o.id)}` : o.id, n: count(o.id), text: `${count(o.id)} ${count(o.id) === 1 ? "person" : "people"}` }));
+        fmtResHead.textContent = "Ratings so far";
+        const num = x => String(Math.round(x * 100) / 100);
+        sum = m ? `Mean ${num(mean)}, median ${num(median)}, from ${m} ${m === 1 ? "person" : "people"}.` : "No one has rated it yet.";
+      } else {
+        const opts = realOptions(q);
+        total = people.filter(a => a.order?.length).length;
+        rows = opts.map((o, i) => ({ id: o.id, i, label: o.label, n: optCard(q.id, o.id)?.points || 0 }))
+          .sort((a, b) => b.n - a.n || a.i - b.i).map(r => ({ ...r, text: `${r.n} point${r.n === 1 ? "" : "s"}` }));
+        total = Math.max(total, 0);
+        fmtResHead.textContent = "Ranking so far";
+        sum = `Borda points from ${total} ranking${total === 1 ? "" : "s"}: first place gets ${opts.length - 1}, last gets 0.`;
+      }
+      fmtResSum.textContent = sum;
+      const top = Math.max(1, ...rows.map(r => r.n));
+      if (fmtResList._q !== q.id) { resetList(fmtResList); fmtResList._q = q.id; }
+      sync(fmtResList, rows, r => r.id, () => {
+        const li = E("li", "vf-fmtres-row"), bar = E("span", "vf-fmtres-bar"); bar.setAttribute("aria-hidden", "true"); bar.append(E("span"));
+        li.append(E("span", "vf-fmtres-l"), E("span", "vf-fmtres-n"), bar);
+        return li;
+      }, (li, r) => {
+        li.dataset.k = r.id;
+        li.children[0].textContent = r.label;
+        li.children[1].textContent = r.text;
+        li.children[2].firstChild.style.inlineSize = `${Math.round((r.n / top) * 100)}%`;
+      });
+    }
+
     /** Compact options for a Compare column. */
     function fillColFormat(holder, q) {
       holder.hidden = !isChoice(q);
       if (!isChoice(q)) return;
       const byId = Object.fromEntries(Core.answersFor(q.id).filter(a => a.option).map(a => [a.cid, a])), lk = Core.lockOf(q.id);
+      // Counts: votes on an option (picks on multi, people per value on scale), Borda points on rank, own options written.
       const rows = q.format === "confirm"
         ? [{ id: "opt-yes", label: "Yes" }, { id: "opt-no", label: "No" }, { id: "", label: "Something else", n: peopleAnswers(q.id).filter(a => !a.claude && !a.pick && a.text).length }]
-        : optionsOf(q);
+        : optionsOf(q).map(o => (o.other ? { ...o, id: "", n: peopleAnswers(q.id).filter(a => a.other).length }
+          : q.format === "rank" ? { ...o, n: byId[o.id]?.points || 0 } : o));
       const sig = JSON.stringify([q.format, q.image, rows.map(o => [o.id, o.label, o.image, o.n ?? byId[o.id]?.votes?.length, lk?.answerCid === o.id])]);
       if (holder._sig === sig) return;
       holder._sig = sig;
@@ -3615,11 +4111,13 @@
         k.nm.textContent = disp(p.name) + (me2 ? " (you)" : "");
         k.role.textContent = isGone ? "Removed" : rl; k.role.className = `vf-role vf-role-${isGone ? "removed" : rl.toLowerCase()}`;
         const hq = h?.q && qById(h.q);
-        const last = h ? (hq ? `Here, on ${hq.id}` : "Here now") : p.seen ? `Last active ${ago(p.seen)} ago` : `Joined ${ago(p.ts)} ago`;
+        // Active, Away (with how long), or offline: no heartbeat for a while, so not in presence at all.
+        const last = h ? (h.away ? `Away${awayFor(h)}` : hq ? `Active, on ${hq.id}` : "Active") : p.seen ? `Offline, last active ${ago(p.seen)} ago` : `Offline, joined ${ago(p.ts)} ago`;
         const na = answeredBy[p.pid] || 0;
         k.meta.textContent = `${last}. ${na} answered${h?.typing ? ", typing" : ""}`;
         ctxBadge(k.ctxB, owner ? lastCtx[p.pid] : null);
         li.dataset.here = String(!!h);
+        li.dataset.presence = !h ? "offline" : h.away ? "away" : "active";
         li.classList.toggle("vf-hperson-gone", isGone);
         const can = owner && !me2 && rl !== "Host";
         k.acts.hidden = !can;
@@ -3629,7 +4127,8 @@
         k.lead.setAttribute("aria-label", `Leader: ${disp(p.name)}`); k.trust.setAttribute("aria-label", `Trusted: ${disp(p.name)}`);
         k.merge.setAttribute("aria-label", `Merge ${disp(p.name)} into someone`); k.remove.setAttribute("aria-label", `${isGone ? "Restore" : "Remove"} ${disp(p.name)}`);
       });
-      hPeople._m.textContent = `${S.presence.length} here, ${ppl.filter(p => !gone.has(p.pid)).length} joined`;
+      const nAway = S.presence.filter(p => p.away).length;
+      hPeople._m.textContent = `${S.presence.length} here${nAway ? ` (${nAway} away)` : ""}, ${ppl.filter(p => !gone.has(p.pid)).length} joined`;
       // links and settings
       hNewGuest.hidden = hNewOwner.hidden = hSettings.hidden = hEnd.hidden = !owner;
       const nl = laterItems().length;
@@ -3728,9 +4227,11 @@
         return b;
       }, (b, p) => {
         const role = p.owner ? "host" : p.leader ? "leader" : "";
-        const label = `${disp(p.name)}${isMe(p.cid) ? " (you)" : ""}${role ? ", " + role : ""}. Show details`;
+        const label = `${disp(p.name)}${isMe(p.cid) ? " (you)" : ""}${role ? ", " + role : ""}${p.away ? `, away${awayFor(p)}` : ""}. Show details`;
         b.setAttribute("aria-label", label);
         b.dataset.role = role;
+        b.dataset.presence = p.away ? "away" : "active";
+        b.title = p.away ? `${disp(p.name)}: away${awayFor(p)}` : "";
         // data-pid on the button itself, so Enter and Space (which click the button, not the avatar) open the card
         b.dataset.pid = p.cid; b.dataset.name = p.name;
         b.classList.toggle("vf-person-me", isMe(p.cid));

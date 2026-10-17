@@ -30,7 +30,7 @@
   let focusQ = "", typingUntil = 0, chatTypingUntil = 0, lastOk = 0, joining = null;
   let snap = null, rev = 0, etag = "", build = "", polling = false;
   const DEFAULTS = {
-    questions: [], answers: {}, ideas: [], presence: [], locks: {}, suggestions: {}, chat: [], leaders: [], trusted: [],
+    questions: [], answers: {}, ideas: [], presence: [], locks: {}, disagreements: {}, suggestions: {}, chat: [], leaders: [], trusted: [],
     round: { current: 1, status: "open" }, rounds: [], title: "", people: {}, research: {}, requestCounts: { open: 0, byQ: {} }, requests: [],
     myRequests: [], ended: false, youRemoved: false, removed: [], guestKey: "", shareChanged: false, shareUrl: "",
     goal: "", uploads: [], myUploads: [], files: {}, mergeRequests: [], myMergeRequests: [], me: null, joinNeedsKey: false,
@@ -59,6 +59,9 @@
     return opts.includes(target) ? "o:" + optOut(target) : "p:" + target;
   }
   const qOf = (qs, id) => qs.find(q => q.id === id);
+  /** A pick's fields with the page's option ids turned back into the contract's. */
+  const contractPick = f => ("option" in f ? { option: f.option ? optOut(f.option) : "" } : "options" in f ? { options: f.options.map(optOut) }
+    : "order" in f ? { order: f.order.map(optOut) } : f);
 
   function toView(s) {
     const people = {}, nameOf = pid => (pid === "host" && !people.host ? "Host" : people[pid]?.name || "Someone");
@@ -89,7 +92,11 @@
       // TODO(Phase 7, Q98): prototype questions open their own page; until then their variants pick like options.
       else if (f.kind === "prototype") { out.format = "choice"; out.options = f.variants.map(v => ({ id: v.id, label: v.label })); out.variants = f.variants; }
       else if (f.kind === "confirm") { out.format = "confirm"; out.image = f.image; out.rect = f.rect; out.options = [{ id: "opt-yes", label: "Yes" }, { id: "opt-no", label: "No" }]; }
-      // TODO(Phase 4b): multi, scale and rank formats get their own cards here.
+      else if (f.kind === "multi" || f.kind === "rank") { out.format = f.kind; out.options = f.options.map(o => ({ ...o, id: optIn(o.id) })); }
+      else if (f.kind === "scale") {
+        out.format = "scale"; out.min = f.min; out.max = f.max; out.labels = f.labels || {};
+        out.options = Array.from({ length: f.max - f.min + 1 }, (_, i) => ({ id: String(f.min + i), label: String(f.min + i) }));
+      }
       out.formatKind = f.kind;
       out.needsReview = flag ? { because: flag.because, ts: flag.at, ...(flag.why?.suggestion ? { suggestion: flag.why.suggestion } : {}) } : null;
       if (!flag) delete out.needsReview;
@@ -98,8 +105,25 @@
       return out;
     });
     const details = s.cardDetails || {};
+    // Who stands behind an option of a multi, scale or rank question: the people whose pick holds it (ranked
+    // first, on a rank), masked the way the server masks votes for this viewer. Rank options also carry their
+    // Borda points (n options: first n-1, last 0; a person's own option is left out).
+    const masked = settings.names !== "full" && !["owner", "leader"].includes(s.me?.role);
+    const shownPid = pid => (masked && pid !== s.me?.pid ? "" : pid);
+    function backers(q, cards) {
+      const by = {}, points = {};
+      for (const c of cards) {
+        if (c.kind !== "person") continue;
+        const ranked = (c.order || []).filter(o => o !== "other");
+        const ids = q.format === "multi" ? c.picks || [] : q.format === "scale" ? ("value" in c ? [String(c.value)] : []) : ranked.slice(0, 1);
+        for (const o of ids) (by[o] ||= []).push(shownPid(c.pid));
+        ranked.forEach((o, i) => { points[o] = (points[o] || 0) + ranked.length - 1 - i; });
+      }
+      return { by, points };
+    }
     for (const [qid, cards] of Object.entries(s.cards || {})) {
       const q = qOf(view.questions, qid) || {};
+      const formatted = ["multi", "scale", "rank"].includes(q.format) ? backers(q, cards) : null;
       view.answers[qid] = cards.map(c => {
         const base = { cid: cidOf(c.ref), ref: c.ref, votes: c.votes || [], reactions: c.reactions || {} };
         if (c.kind === "claude") {
@@ -109,11 +133,16 @@
         }
         if (c.kind === "option") {
           const o = (q.options || []).find(x => x.id === optIn(c.option));
-          return { ...base, option: true, claude: false, name: "Option", text: o?.label || "", ts: 0 };
+          const extra = formatted ? { votes: formatted.by[c.option] || [], ...(q.format === "rank" ? { points: formatted.points[c.option] || 0 } : {}) } : {};
+          return { ...base, option: true, claude: false, name: "Option", text: o?.label || "", ts: 0, ...extra };
         }
         const d = details[qid]?.[c.ref], info = d?.deviceInfo;
+        // A person's own "Something else…" option: their pick, picks or order holds it, and their text is it.
+        const other = c.pick === "other" || (c.picks || []).includes("other") || (c.order || []).includes("other");
         return { ...base, name: nameOf(c.pid), text: c.text || "", ts: c.at, cites: c.cites || [], device: c.device,
-          ...(c.pick ? { pick: optIn(c.pick) } : {}), ...(c.editedAfterVotes ? { editedAfter: c.editedAfterVotes } : {}), ...(c.late ? { late: c.late } : {}),
+          ...(c.pick ? { pick: optIn(c.pick) } : {}), ...(c.picks ? { picks: c.picks.map(optIn) } : {}), ...("value" in c ? { value: c.value } : {}),
+          ...(c.order ? { order: c.order.map(optIn) } : {}), ...(other ? { other: true } : {}),
+          ...(c.editedAfterVotes ? { editedAfter: c.editedAfterVotes } : {}), ...(c.late ? { late: c.late } : {}),
           ...(d ? { ctx: { view: d.view, ...(info ? { device: info.kind, browser: info.browser, vw: info.screen?.w, vh: info.screen?.h } : {}) } } : {}) };
       });
     }
@@ -148,9 +177,14 @@
     view.myRequests = (s.myRequests || []).map(req);
     view.mergeRequests = (s.mergeRequests || []).map(m => ({ id: m.id, from: m.from, to: m.to, fromName: nameOf(m.from), toName: nameOf(m.to), ts: m.at, status: m.status.kind }));
     view.myMergeRequests = (s.myMergeRequests || []).map(m => ({ id: m.id, status: m.status.kind, toName: nameOf(m.to) }));
+    // Present people are active or away (with since when); a person with no heartbeat for a while is absent: offline.
     view.presence = (s.presence || []).map(p => ({ cid: p.pid, name: nameOf(p.pid), q: p.q, typing: p.typing, chatTyping: p.chatTyping,
+      away: p.state === "away", ...(p.state === "away" ? { awaySince: p.since } : {}),
       owner: p.pid === "host", leader: roles[p.pid]?.role === "leader", trusted: !!roles[p.pid]?.trusted }));
-    // TODO(Phase 4b): presence states (active, idle, offline) from the heartbeat's visible and lastInput.
+    view.disagreements = {};
+    for (const [qid, lst] of Object.entries(s.disagreements || {})) {
+      view.disagreements[qid] = lst.map(d => ({ cid: d.pid, card: d.card, reason: d.reason, ts: d.at, name: d.pid ? nameOf(d.pid) : "Someone" }));
+    }
     if (s.me) {
       view.me = { ...s.me, notifications: (s.me.notifications || []).map(n => ({ ...n, ts: n.at, ...(n.by ? { byCid: n.by, by: nameOf(n.by) } : {}) })) };
       view.myReactions = s.me.reactions || {};
@@ -190,8 +224,29 @@
     "state-invalid": "The session could not save that. Nothing was changed.",
     full: "This session is full right now. Try again later, or ask the host.",
     busy: "The session is busy. Try again in a moment.",
+    "bad-action": "That does not work on this question. Reload the page to see how it takes answers now.",
+    "bad-field": "The page sent something the session does not take. Reload and try again.",
+    "bad-request": "The page sent something the session could not read. Reload and try again.",
+    "json-required": "The page sent something the session could not read. Reload and try again.",
+    "bad-host": "This address does not serve the session. Open the link the host shared.",
+    "body-timeout": "That took too long to arrive. Check your connection and try again.",
+    "no-such-card": "That answer is gone. The page shows what is there now.",
+    "no-such-question": "That question is gone. Reload the page.",
+    "no-such-proposal": "That proposal is gone. The page shows what is there now.",
+    "no-such-request": "That request is gone. The page shows what is there now.",
+    "not-found": "That is gone. The page shows what is there now.",
+    "not-agreed": "Not everyone here has voted for that answer yet.",
   };
-  const errorText = e => MESSAGES[e?.error] || e?.message || (e?.status ? "The session refused that." : "The session is out of reach. Check your connection.");
+  // A few codes read better with the field they name.
+  const FIELD_MESSAGES = {
+    "empty:other": "Write your own option first.",
+    "empty:reason": "Say why you disagree first.",
+    "too-long:reason": "Keep the reason to 200 characters or fewer.",
+    "too-long:other": "Your own option is too long.",
+    "too-long:comment": "That comment is too long.",
+  };
+  const errorText = e => FIELD_MESSAGES[`${e?.error}:${e?.field}`] || MESSAGES[e?.error] || e?.message
+    || (e?.status ? "The session refused that." : "The session is out of reach. Check your connection.");
 
   const Core = {
     // cid holds the public pid (the prototype's name for it).
@@ -237,19 +292,25 @@
     // Each action rejects with {status, error, message, ...} from the server; errorText(e) words it.
     /** My one answer to a question, citing results; empty text clears it. Carries the view and device it was made on. */
     answerCiting: (qid, text, cites) => act("/api/answer", { qid, text, cites, ...where() }).then(r => { typingUntil = 0; return r; }),
-    /** Choice, confirm, prototype or poll question: pick an option ("" clears it), with an optional comment. */
+    /** Choice, confirm, prototype or poll question: pick an option ("" clears it), with an optional comment.
+     *  Picking "other" (Something else…) needs opts.other, the person's own option, which takes the comment's place. */
     // TODO(Phase 9, C44): attachments on a pick and its comment.
-    pick: (qid, option, comment) => act("/api/pick", { qid, option: option ? optOut(option) : "", comment: comment || "", ...where() }),
-    // TODO(Phase 4b): "Something else…" on choice questions, and the multi, scale and rank picks.
+    pick: (qid, option, comment, opts) => Core.pickWith(qid, { option: option || "" }, { comment, other: opts?.other }),
+    /** Any format's pick: fields is {option}, {options: [...]} (multi), {value} (scale) or {order: [...]} (rank); an
+     *  empty list or a null value clears it. `other` is the person's own option when the pick holds "other". */
+    pickWith: (qid, fields, { comment, other } = {}) => act("/api/pick", { qid, ...contractPick(fields), ...(other != null ? { other } : { comment: comment || "" }), ...where() })
+      .then(r => { typingUntil = 0; return r; }),
     idea: text => act("/api/propose", { text }).then(r => { typingUntil = 0; return r; }),
     /** A vote on an answer card (its ref, or the page's id) or on a suggestion of that question. */
     vote: (qid, target, on) => ((Core.state.suggestions[qid] || []).some(s => s.id === target)
       ? act("/api/vote", { qid, suggestion: target, on }) : act("/api/vote", { qid, card: refOf(qid, target), on })),
-    /** Gather questions: thumbs, heart or idea on an answer; null clears mine. */
-    // TODO(Phase 4b): the "down" reaction, and Disagree with a reason on Decide questions.
+    /** Gather questions: thumbs, down, heart or idea on an answer; null clears mine. */
     react: (qid, target, reaction) => act("/api/react", { qid, card: refOf(qid, target), reaction }),
-    REACTIONS: [["thumbs", "👍", "Agree"], ["heart", "❤️", "Love it"], ["idea", "💡", "Sparks an idea"]],
+    REACTIONS: [["thumbs", "👍", "Agree"], ["down", "👎", "Disagree"], ["heart", "❤️", "Love it"], ["idea", "💡", "Sparks an idea"]],
     myReaction: (qid, ref) => Core.state.myReactions?.[qid]?.[ref] || null,
+    /** Decide questions: why I disagree with one answer (1..200 characters; a new reason replaces mine); on=false takes it back. */
+    disagree: (qid, target, reason, on = true) => act("/api/disagree", { qid, card: refOf(qid, target), on, ...(on ? { reason } : {}) }),
+    disagreementsOn: (qid, ref) => (Core.state.disagreements[qid] || []).filter(d => d.card === ref),
     goWith: (qid, target) => act("/api/go-with", { qid, card: refOf(qid, target) }),
     lock: (qid, target) => act("/api/lock", { qid, ...(target ? { card: refOf(qid, target) } : {}) }).catch(e => {
       throw e?.error === "tie" ? { ...e, tied: (e.tied || []).map(cidOf) } : e;
@@ -340,13 +401,33 @@
     }).finally(() => { joining = null; });
   }
 
+  // The server takes one write a second per person on each of these routes (session.py THROTTLED, WRITE_INTERVAL)
+  // and answers a faster one 429. Writes to one route go out one at a time, the next a second after the last answer
+  // came back: the server stamps a write before it answers, so that gap is never shorter than a second there.
+  const SPACED = new Set(["/api/answer", "/api/pick", "/api/propose", "/api/chat", "/api/suggest", "/api/request", "/api/merge-request",
+    "/api/annotate", "/api/rename", "/api/color", "/api/prefs", "/api/about-you", "/api/vote", "/api/react", "/api/disagree",
+    "/api/go-with", "/api/notifications/read"]);
+  const GAP = 1050; // ms: the server's one-a-second limit, plus a margin for clock rounding
+  const lanes = new Map(); // path -> {tail: promise of the last write, done: when it answered}
+  const wait = ms => new Promise(res => setTimeout(res, Math.max(0, ms)));
+  function spaced(path, run) {
+    if (!SPACED.has(path)) return run();
+    const lane = lanes.get(path) || { tail: Promise.resolve(), done: -Infinity };
+    lanes.set(path, lane);
+    const mine = lane.tail.then(() => wait(lane.done + GAP - Date.now())).then(run).finally(() => { lane.done = Date.now(); });
+    lane.tail = mine.catch(() => {});
+    return mine;
+  }
+
   /** POST as me: the owner token or secret goes in a header, never the body. Re-joins once if the server forgot me. */
-  async function send(path, body) {
-    if (!ownerToken && !secret) await join();
-    const go = () => fetch(path, { method: "POST", headers: { "Content-Type": "application/json", ...ident() }, body: JSON.stringify(body) });
-    let r = await go();
-    if (r.status === 401 && !ownerToken) { forget(); await join(); r = await go(); }
-    return r;
+  function send(path, body) {
+    return spaced(path, async () => {
+      if (!ownerToken && !secret) await join();
+      const go = () => fetch(path, { method: "POST", headers: { "Content-Type": "application/json", ...ident() }, body: JSON.stringify(body) });
+      let r = await go();
+      if (r.status === 401 && !ownerToken) { forget(); await join(); r = await go(); }
+      return r;
+    });
   }
   function forget() { secret = ""; drop("secret"); drop("pid"); Core.me.cid = ""; }
 
@@ -397,17 +478,46 @@
     }
   }
   Core.snapshot = () => snap;
-  function beat() {
-    if (!ownerToken && !secret) return;
-    send("/api/heartbeat", { q: focusQ, typing: Date.now() < typingUntil, chatTyping: Date.now() < chatTypingUntil })
-      .then(r => (r.ok ? r.json() : null)).then(r => {
-        if (!r) return;
-        if (r.pid && r.pid !== Core.me.cid) { Core.me.cid = r.pid; emit(); }
-        if (r.name && r.name !== Core.me.name) { Core.me.name = r.name; if (!ownerToken) put("name", r.name); emit(); }
-        Core.me.isOwner = r.role === "owner"; Core.me.isLeader = r.role === "leader"; Core.me.isTrusted = !!r.trusted;
-      }).catch(() => {});
+
+  // ---------- heartbeat: where I am, whether the tab is visible, how long since my last input, Away by hand ----------
+  // The server takes one beat a second (HEARTBEAT_INTERVAL) and answers a faster one 429. A beat that changes `visible`
+  // or `away` skips that limit, under its own one a second. So beats never overlap: each waits a GAP after the last
+  // one answered (a change beat, after the last change beat only), and many asks in that wait send one beat, built
+  // from the state when it goes out.
+  const HB = { busy: false, timer: 0, wanted: false, done: -Infinity, changeDone: -Infinity, visible: null, away: null };
+  let away = false, lastInputAt = Date.now();
+  const visibleNow = () => document.visibilityState !== "hidden";
+  function beat() { HB.wanted = true; pumpBeat(); }
+  function pumpBeat() {
+    if (HB.busy || HB.timer || !HB.wanted || (!ownerToken && !secret)) return;
+    const visible = visibleNow(), change = HB.visible !== null && (visible !== HB.visible || away !== HB.away);
+    const due = (change ? HB.changeDone : HB.done) + GAP - Date.now();
+    if (due > 0) { HB.timer = setTimeout(() => { HB.timer = 0; pumpBeat(); }, due); return; }
+    HB.wanted = false; HB.busy = true;
+    const body = { q: focusQ, typing: Date.now() < typingUntil, chatTyping: Date.now() < chatTypingUntil,
+      visible, lastInput: Math.max(0, Math.round((Date.now() - lastInputAt) / 1000)), away };
+    send("/api/heartbeat", body).then(r => {
+      if (r.ok) { HB.visible = visible; HB.away = away; }
+      return r.ok ? r.json() : null;
+    }).then(r => {
+      if (!r) return;
+      if (r.pid && r.pid !== Core.me.cid) { Core.me.cid = r.pid; emit(); }
+      if (r.name && r.name !== Core.me.name) { Core.me.name = r.name; if (!ownerToken) put("name", r.name); emit(); }
+      Core.me.isOwner = r.role === "owner"; Core.me.isLeader = r.role === "leader"; Core.me.isTrusted = !!r.trusted;
+    }).catch(() => {}).finally(() => {
+      HB.busy = false; HB.done = Date.now(); if (change) HB.changeDone = HB.done;
+      pumpBeat();
+    });
   }
-  // TODO(Phase 4b): the heartbeat's visible and lastInput, a beat on every visibility change, and Away by hand.
+  /** Away by hand (the snooze): shown as Away to everyone until my next key, click or touch. */
+  Core.setAway = on => { away = !!on; emit(); beat(); };
+  Core.isAway = () => away;
+  const input = () => {
+    lastInputAt = Date.now();
+    if (away) { away = false; emit(); beat(); }
+  };
+  for (const ev of ["keydown", "pointerdown", "touchstart"]) window.addEventListener(ev, input, { capture: true, passive: true });
+  document.addEventListener("visibilitychange", beat);
 
   // Name prompt. It stays open until the join succeeds; Escape does not close it.
   function askName(notice = "") {
@@ -482,7 +592,12 @@
   fitViewport();
   /** A secret with no name beside it (a personal link, or a guest the import carried over): ask the server who it is. */
   async function adoptIdentity() {
-    const r = await fetch("/api/heartbeat", { method: "POST", headers: { "Content-Type": "application/json", "X-Session-Secret": secret }, body: "{}" });
+    HB.busy = true; // this is a beat too: the next one waits its turn
+    const visible = visibleNow();
+    const ask = () => fetch("/api/heartbeat", { method: "POST", headers: { "Content-Type": "application/json", "X-Session-Secret": secret }, body: JSON.stringify({ visible }) });
+    // The same person's other device may have beaten this very second (429): ask once more after the limit.
+    const r = await ask().then(x => (x.status === 429 ? wait(GAP).then(ask) : x)).finally(() => { HB.busy = false; HB.done = Date.now(); });
+    if (r.ok) { HB.visible = visible; HB.away = false; }
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.pid) throw r.status;
     Core.me.cid = j.pid; Core.me.name = j.name; put("pid", j.pid); put("name", j.name);
@@ -496,7 +611,8 @@
         askName(adopt ? "That personal link no longer works. Join with your name; the host can merge you with your earlier self." : "");
       });
     } else if (!ownerToken && !secret) askName();
-    poll(); beat();
+    else beat();
+    poll();
     setInterval(poll, 1500); setInterval(beat, 2000);
   });
 })();

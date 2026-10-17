@@ -52,7 +52,7 @@ async function main() {
   try { browser = await pw.chromium.launch(); } catch (e) { console.log(`SKIP: no Chromium to launch (${String(e.message).split("\n")[0]})`); return 0; } // silent-skip-ok: no browser binary
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "shared-ui-journey-"));
   const dirs = [];
-  const errors = [], csp = [], stateUrls = [];
+  const errors = [], csp = [], stateUrls = [], tooFast = [];
   /** A page that records its errors, its CSP violations and every /api/state request it makes. */
   async function openPage(url, init) {
     const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
@@ -62,6 +62,7 @@ async function main() {
     page.on("pageerror", e => errors.push(String(e)));
     page.on("console", m => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
     page.on("request", r => { const u = new URL(r.url()); if (u.pathname === "/api/state") stateUrls.push(u.search); });
+    page.on("response", r => { if (r.status() === 429) tooFast.push(new URL(r.url()).pathname); });
     await page.goto(url);
     return page;
   }
@@ -123,6 +124,12 @@ async function main() {
     await railQ(guest, "Q2").click();
     await guest.locator(".vf-opt", { hasText: "Card" }).locator(".vf-optchoose").click();
     ok("a pick is the guest's vote on the option", await until(owner, p => window.Core.snapshot()?.me && (window.Core.snapshot().cards.Q2.find(c => c.ref === "o:opt-1")?.votes || []).includes(p), gusPid));
+    // The server adds "Something else…" to every choice question; the owner locks options, never that one.
+    await railQ(owner, "Q2").click();
+    ok("the choice question offers Something else…, with no Lock this one on it", await until(owner, () => {
+      const o = document.querySelector(".vf-opt.vf-opt-other");
+      return !!o && /Something else…/.test(o.textContent) && o.querySelector(".vf-optlock").hidden && !document.querySelector(".vf-opt:not(.vf-opt-other) .vf-optlock").hidden;
+    }));
 
     // gather: reactions instead of votes
     await railQ(owner, "Q3").click();
@@ -159,6 +166,7 @@ async function main() {
     for (const p of [owner, guest, back, bare]) csp.push(...(await p.evaluate(() => window.__csp || [])));
     ok("no page broke the server's CSP", csp.length === 0, csp.slice(0, 3).join(" | "));
     ok("no page error or console error", errors.length === 0, errors.slice(0, 3).join(" | "));
+    ok("no request was answered 429 (slow down)", tooFast.length === 0, tooFast.slice(0, 5).join(", "));
   } catch (e) {
     results.push(`ERROR ${e?.stack || e}`);
   } finally {
