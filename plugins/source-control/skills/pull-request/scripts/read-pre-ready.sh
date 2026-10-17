@@ -37,7 +37,9 @@
 # Exit 0, or 2 for a usage error.
 set -uo pipefail
 
-STEPS=(base-merge plan-evidence code-review security-review verify)
+# shellcheck source=pre-ready-steps.sh
+source "$(dirname "${BASH_SOURCE[0]}")/pre-ready-steps.sh"
+STEPS=("${PRE_READY_STEPS[@]}")
 PARSER="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)/yaml-subset.awk"
 
 usage() {
