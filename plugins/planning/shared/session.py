@@ -1570,6 +1570,10 @@ class Session:
                 if n.get("by") == src:
                     n["by"] = dst
         notes = st["notifications"].pop(src, [])
+        for n in notes:  # a vote line keys on the answer it counts, which is now dst's
+            if n["kind"] == "votes" and "rollup" in n:
+                qid, _, ref = n["rollup"]["key"].partition(":")
+                n["rollup"]["key"] = f"{qid}:{moved.get((qid, ref), ref)}"
         if notes:
             st["notifications"][dst] = sorted(notes + st["notifications"].get(dst, []), key=lambda n: n["at"])[-NOTIFY_CAP:]
         src_prefs = st["prefs"].pop(src, {})
@@ -1579,9 +1583,16 @@ class Session:
         if about and dst not in st["aboutYou"]:
             st["aboutYou"][dst] = about
         now = self.now()
+        kept = []
         for m in st["mergeRequests"]:
-            if m["status"]["kind"] == "pending" and src in (m["from"], m["to"]):
-                m["status"] = {"kind": "declined", "at": now, "why": "gone"}
+            if src in (m["from"], m["to"]):
+                if m["status"]["kind"] == "pending":
+                    m["status"] = {"kind": "declined", "at": now, "why": "gone"}
+                m["from"], m["to"] = swap(m["from"]), swap(m["to"])
+                if m["from"] == m["to"] or HOST in (m["from"], m["to"]):
+                    continue  # between src and dst, or now naming the owner: it asks nothing anyone could still mean
+            kept.append(m)
+        st["mergeRequests"][:] = kept
         if dst == HOST:
             for r in st["requests"]:
                 if r["pid"] == HOST and r["runner"] == "self" and r["status"]["kind"] in ("pending", "running"):

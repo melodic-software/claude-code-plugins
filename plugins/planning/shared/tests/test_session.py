@@ -684,6 +684,25 @@ class TestMerge(SessionCase):
             self.s._commit()
         self.assertEqual(ctx.exception.code, "state-invalid")
 
+    def test_answered_merge_requests_name_the_kept_person_after_a_merge(self):
+        declined = self.act("request_merge", self.old, {"to": self.bo})["id"]
+        self.act("act_on_merge_request", HOST, {"id": declined, "action": "decline"})
+        before = json.loads(json.dumps(self.s.state["mergeRequests"][0]))
+        approved = self.act("request_merge", self.old, {"to": self.ann})["id"]
+        self.act("act_on_merge_request", HOST, {"id": approved, "action": "approve"})
+        # The declined one now reads Ann asked about Bo; the approved one, Old Ann into Ann, is the merge itself.
+        self.assertEqual(self.s.state["mergeRequests"], [{**before, "from": self.ann}])
+        self.assertIsNone(session.document_error(self.s.state))
+
+    def test_a_vote_line_on_a_merged_answer_keeps_rolling_up_for_the_kept_person(self):
+        cy, _ = self.join("Cy")
+        self.act("answer", self.old, {"qid": "Q1", "text": "Old answer", "view": "focus"})
+        self.act("vote", self.bo, {"qid": "Q1", "card": f"p:{self.old}", "on": True})
+        self.act("merge_people", HOST, {"from": self.old, "to": self.ann})
+        self.act("vote", cy, {"qid": "Q1", "card": f"p:{self.ann}", "on": True})
+        lines = self.notes(self.ann, "votes")
+        self.assertEqual([(n["rollup"]["key"], n["rollup"]["n"]) for n in lines], [(f"Q1:p:{self.ann}", 2)])
+
     def test_a_merge_request_whose_person_is_gone_is_declined_as_gone(self):
         mid = self.act("request_merge", self.old, {"to": self.ann})["id"]
         self.act("set_removed", HOST, {"pid": self.ann, "on": True})
@@ -754,6 +773,13 @@ class TestOwnerMerge(SessionCase):
             self.s.merge_people(HOST, {"from": HOST, "to": self.ann})
         self.assertEqual((ctx.exception.code, ctx.exception.details.get("field")), ("bad-field", "from"))
         self.assertIn(HOST, self.s.state["people"])
+
+    def test_an_answered_merge_request_of_the_absorbed_identity_is_dropped(self):
+        mid = self.act("request_merge", self.twin, {"to": self.ann})["id"]
+        self.act("act_on_merge_request", HOST, {"id": mid, "action": "decline"})
+        self.act("merge_people", HOST, {"from": self.twin, "to": HOST})
+        self.assertEqual(self.s.state["mergeRequests"], [])  # it would read the owner asked to be Ann
+        self.assertEqual(session.cross_field_errors(self.s.state), [])
 
     def test_a_guest_still_cannot_claim_to_be_the_owner(self):
         self.refused("bad-field", "request_merge", self.twin, {"to": HOST})
@@ -2664,6 +2690,30 @@ class TestApply(SessionCase):
         self.assertEqual(err.details["field"], "purpose")
         self.assertEqual(self.question("Q1")["purpose"], "decide")
         self.assertEqual(self.refused("bad-field", "set_purpose", HOST, {"qid": "Q1", "purpose": "poll"}).details["field"], "purpose")
+
+    def test_set_purpose_op_refuses_making_a_locked_decide_question_a_poll(self):
+        self.open_round(choice_q("Q1", purpose="decide"))
+        self.act("lock", HOST, {"qid": "Q1", "card": "o:opt-1"})
+        before = copy_state(self.s)
+        err = self.refused_ops("locked", {"op": "set-purpose", "qid": "Q1", "purpose": "poll"})
+        self.assertEqual(err.http, 409)
+        self.assertEqual(self.s.state, before)
+
+    def test_set_purpose_op_refuses_turning_a_closed_poll_into_a_decide_question(self):
+        self.open_round(choice_q("Q1"))
+        self.act("lock", HOST, {"qid": "Q1"})
+        err = self.refused_ops("locked", {"op": "set-purpose", "qid": "Q1", "purpose": "decide"})
+        self.assertEqual(err.http, 409)
+        self.assertEqual((self.question("Q1")["purpose"], self.s.state["locks"]["Q1"]["source"]), ("poll", {"kind": "poll"}))
+
+    def test_after_unlock_the_set_purpose_op_makes_a_poll_that_closes_only_as_a_whole(self):
+        self.open_round(choice_q("Q1", purpose="decide"))
+        self.act("lock", HOST, {"qid": "Q1", "card": "o:opt-1"})
+        self.act("unlock", HOST, {"qid": "Q1"})
+        self.apply({"op": "set-purpose", "qid": "Q1", "purpose": "poll"})
+        self.refused("wrong-purpose", "lock", HOST, {"qid": "Q1", "card": "o:opt-1"}, http=409)
+        self.act("lock", HOST, {"qid": "Q1"})
+        self.assertEqual(self.s.state["locks"]["Q1"]["source"], {"kind": "poll"})
 
     def test_the_ops_schema_takes_set_purpose_only_with_a_known_purpose(self):
         self.assertIsNone(session.ops_error({"ops": [{"op": "set-purpose", "qid": "Q1", "purpose": "poll"}]}))
