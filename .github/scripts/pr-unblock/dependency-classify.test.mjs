@@ -40,7 +40,7 @@ test("a patch or 1.x minor update is auto", () => {
 });
 
 test("a quoted scoped npm name matches the title", () => {
-  // Dependabot quotes `@scope/name` in the metadata (PR #7706).
+  // Dependabot quotes `@scope/name` in the metadata.
   const message = metadata(['"@anthropic-ai/claude-code"', "semver-patch", "2.1.302"]);
   const result = tier("build: Bump @anthropic-ai/claude-code from 2.1.301 to 2.1.302 in the npm-minor-patch group", {
     commits: [commit(message)],
