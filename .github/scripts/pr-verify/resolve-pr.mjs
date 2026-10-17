@@ -277,8 +277,12 @@ export async function main(env = process.env, { github } = {}) {
     `head-ref=${result.headRef ?? ""}`,
   ];
   appendFileSync(env.GITHUB_OUTPUT, `${lines.join("\n")}\n`);
-  if (result.reason === "author-not-lane" && env.GITHUB_STEP_SUMMARY) {
-    appendFileSync(env.GITHUB_STEP_SUMMARY, "skipped: author not the lanes App\n");
+  const summary = {
+    "author-not-lane": "skipped: author not the lanes App",
+    "verify-authors-invalid": "skipped: verify-authors value is invalid",
+  }[result.reason];
+  if (summary && env.GITHUB_STEP_SUMMARY) {
+    appendFileSync(env.GITHUB_STEP_SUMMARY, `${summary}\n`);
   }
   console.log(`resolve-pr: proceed=${result.proceed} reason=${result.reason}${result.proceed ? ` pr=${result.prNumber} head=${result.headSha}` : ""}`);
 }

@@ -346,3 +346,27 @@ test("main reports a human's PR as skipped in the log and the step summary", asy
   assert.deepEqual(log.mock.calls.map((call) => call.arguments[0]), ["resolve-pr: proceed=false reason=author-not-lane"]);
   assert.equal(readFileSync(summary, "utf8"), "skipped: author not the lanes App\n");
 });
+
+test("main reports an invalid verify-authors value in the step summary", async (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const summary = path.join(dir, "summary");
+  const actors = path.join(dir, "trusted-actors.json");
+  writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
+  t.mock.method(console, "log", () => {});
+  await main(
+    {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: REPO,
+      GITHUB_OUTPUT: path.join(dir, "out"),
+      GITHUB_STEP_SUMMARY: summary,
+      UPSTREAM_RUN_ID: String(RUN),
+      SPEC_FILE: path.join(dir, "spec.json"),
+      SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
+      TRUSTED_ACTORS_PATH: actors,
+      LANE_IDENTITY: LANE,
+      VERIFY_AUTHORS: "all",
+    },
+    { github: fake() },
+  );
+  assert.equal(readFileSync(summary, "utf8"), "skipped: verify-authors value is invalid\n");
+});

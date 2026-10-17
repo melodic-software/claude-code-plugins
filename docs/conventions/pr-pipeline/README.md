@@ -570,7 +570,7 @@ The trusted-spec rule trusts an account, not a person. An agent session that use
 login posts as that owner, so until agent sessions have their own GitHub identity, an issue or an
 admission marker from a trusted account counts as the owner's authority, including when an agent
 acting as that account wrote it. Unattended merge stays off (`merge.report-only: true`) until that
-identity exists (#7709 item 10).
+identity exists.
 
 `verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and `verify:untrusted-spec` need a
 human, who clears them
