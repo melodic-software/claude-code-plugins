@@ -1216,8 +1216,10 @@
     function openEdit(qid, a, anchor) {
       ui.editing = { qid, ref: a.ref, cid: a.cid };
       epTa.value = a.text || "";
-      fillHistory(epHist, a.history);
-      epHistH.hidden = epHist.hidden = !(a.history || []).length;
+      epHist.replaceChildren();
+      epHistH.hidden = epHist.hidden = !a.versions;
+      // The versions are not in the snapshot: fetch them for this answer when the list opens.
+      if (a.versions) Core.cardHistory(qid, a.ref).then(h => { if (ui.editing?.ref === a.ref) fillHistory(epHist, h.history); }).catch(fail);
       openPop(editPop, anchor);
       requestAnimationFrame(() => epTa.focus());
     }
@@ -1265,8 +1267,9 @@
         }
       }
       const reqs = (S.requests || []).filter(r => r.cid === pid), msgs = S.chat.filter(m => m.cid === pid);
-      const sig = JSON.stringify([name, gone, answers.map(([q, a]) => [q.id, a.ref, a.text, a.pick, a.picks, a.value, a.order, !!a.hidden, !!a.hostEdited, (a.history || []).length]),
-        votes.map(([q, a]) => [q.id, a.ref, a.text]), reqs.map(r => [r.id, r.status, r.text]), msgs.map(m => [m.id, m.text])]);
+      const cleared = (S.cleared || []).filter(t => t.cid === pid);
+      const sig = JSON.stringify([name, gone, answers.map(([q, a]) => [q.id, a.ref, a.text, a.pick, a.picks, a.value, a.order, !!a.hidden, !!a.hostEdited, a.versions || 0]),
+        votes.map(([q, a]) => [q.id, a.ref, a.text]), reqs.map(r => [r.id, r.status, r.text]), msgs.map(m => [m.id, m.text]), cleared.map(t => [t.qid, t.ref, t.ts])]);
       if (ppvBody._sig === sig) return;
       ppvBody._sig = sig;
       const section = (title, rows, empty) => {
@@ -1284,7 +1287,7 @@
       };
       const ansRows = answers.map(([q, a]) => {
         const said = [a.text, pickedText(q, a)].filter(Boolean).join(" | ") || "(no text)";
-        const marks = [a.hidden ? "hidden" : "", a.hostEdited ? "edited by you" : "", (a.history || []).length ? `${a.history.length} earlier version${a.history.length === 1 ? "" : "s"}` : ""].filter(Boolean);
+        const marks = [a.hidden ? "hidden" : "", a.hostEdited ? "edited by you" : "", a.versions ? `${a.versions} earlier version${a.versions === 1 ? "" : "s"}` : ""].filter(Boolean);
         const hide = btn("vf-btn vf-btn-ghost vf-btn-sm", a.hidden ? "Show" : "Hide");
         hide.setAttribute("aria-label", `${a.hidden ? "Show" : "Hide"} ${disp(name)}'s answer on ${q.id}`);
         hide.onclick = () => toggleHidden(q.id, a);
@@ -1296,8 +1299,22 @@
       const voteRows = votes.map(([q, a]) => row(q.id, a.option ? `Picked: ${a.text}` : a.claude ? `Voted for Claude's card: ${a.text}` : `Voted for ${disp(a.name)}'s answer: ${a.text}`));
       const reqRows = reqs.map(r => row(`${r.qid}, ${r.status}`, `${KIND_REQ[r.kind] || "Request"}: ${r.text}`));
       const chatRows = msgs.map(m => row(`${ago(m.ts)} ago`, m.text));
+      // An answer they cleared after you hid or edited it: its last text and versions, fetched when asked.
+      const clearedRows = cleared.map(t => {
+        const show = btn("vf-btn vf-btn-ghost vf-btn-sm", "Show what it said");
+        show.setAttribute("aria-label", `Show what ${disp(name)}'s cleared answer on ${t.qid} said`);
+        const li = row(`${t.qid}, cleared ${ago(t.ts)} ago${t.hidden ? " (hidden)" : ""}`, "", show), out = li.querySelector(".vf-ppv-t"), ol = E("ol", "vf-history");
+        li.append(ol);
+        show.onclick = () => Core.cardHistory(t.qid, t.ref).then(h => {
+          out.textContent = h.text || "(no text)";
+          fillHistory(ol, h.history);
+          show.hidden = true;
+        }).catch(fail);
+        return li;
+      });
       ppvBody.replaceChildren(section("Answers and picks", ansRows, "No answers."), section("Votes", voteRows, "No votes."),
-        section("Requests to Claude", reqRows, "No requests."), section("Chat", chatRows, "No chat messages."));
+        section("Requests to Claude", reqRows, "No requests."), section("Chat", chatRows, "No chat messages."),
+        ...(clearedRows.length ? [section("Cleared after you hid or edited them", clearedRows, "")] : []));
     }
 
     // Reader: one text at full width.
@@ -3459,8 +3476,10 @@
       const k = li._k, me = Core.me, s = st(), lk = Core.lockOf(qid), locked = !!lk, bot = !!a.claude;
       k.qid = qid; k.cid = a.cid; k.ref = a.ref || a.cid; k.a = a;
       const person = !bot && !a.option;
-      const modTxt = a.hidden ? (isMe(a.cid) ? `Hidden by the host${a.hidden.reason ? `: ${a.hidden.reason}` : ""}. Only you and the host see it. Change your answer and send it again to show it.`
-        : `Hidden by ${me.isOwner ? "you" : "the host"}${a.hidden.reason ? `: ${a.hidden.reason}` : ""}. Only you and its author see it.`)
+      // A hidden answer's picks leave the tally with its text (session.py _tally counts shown cards only).
+      const uncounted = a.hidden && (a.other || ["multi", "scale", "rank"].includes(qById(qid)?.format));
+      const modTxt = a.hidden ? (isMe(a.cid) ? `Hidden by the host${a.hidden.reason ? `: ${a.hidden.reason}` : ""}. Only you and the host see it.${uncounted ? " Your pick is not counted while it is hidden." : ""}`
+        : `Hidden by ${me.isOwner ? "you" : "the host"}${a.hidden.reason ? `: ${a.hidden.reason}` : ""}. Only you and its author see it.${uncounted ? " Its pick is not counted while it is hidden." : ""}`)
         : a.hostEdited ? "Edited by the host" : "";
       k.modNote.textContent = modTxt; k.modNote.hidden = !modTxt;
       li.classList.toggle("vf-hiddencard", !!a.hidden);
@@ -3468,7 +3487,7 @@
         k.modHide.hidden = k.modEdit.hidden = !me.isOwner || !person || isMe(a.cid);
         k.modHide.textContent = a.hidden ? "Show" : "Hide";
         k.modHide.setAttribute("aria-label", `${a.hidden ? "Show" : "Hide"} ${disp(a.name)}'s answer`);
-        k.modEdit.setAttribute("aria-label", `Edit ${disp(a.name)}'s answer${(a.history || []).length ? `, ${a.history.length} earlier version${a.history.length === 1 ? "" : "s"}` : ""}`);
+        k.modEdit.setAttribute("aria-label", `Edit ${disp(a.name)}'s answer${a.versions ? `, ${a.versions} earlier version${a.versions === 1 ? "" : "s"}` : ""}`);
         k.modEdit.hidden ||= !a.text;
       }
       const [avBox, nm, tag, dot, , tm] = k.head.children;
@@ -4452,6 +4471,13 @@
       return out.sort((a, b) => a.ts - b.ts);
     }
     const QT = { request: "Request", proposal: "Proposal", suggestion: "Suggestion", merge: "Merge", upload: "Upload", ready: "Ready to send", join: "Join" };
+    const BROWSER_NAME = { chrome: "Chrome", safari: "Safari", firefox: "Firefox", edge: "Edge", samsung: "Samsung Internet", "in-app": "an in-app browser" };
+    const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th");
+    /** " (2nd waiting; phone · Safari)": the join order and what the join said about its device, never more. */
+    const joinHint = j => {
+      const hint = [j.device, BROWSER_NAME[j.browser]].filter(Boolean).join(" · ");
+      return j.n ? ` (${ordinal(j.n)} waiting${hint ? `; ${hint}` : ""})` : "";
+    };
     function makeQItem(it) {
       const li = E("li", "vf-qitem");
       li.dataset.t = it.t;
@@ -4487,7 +4513,7 @@
       const txt = it.r ? `${KIND_REQ[it.r.kind] || "Request"}: ${it.r.text}` : it.i ? it.i.text : it.x ? it.x.text + (it.x.note ? `\n\nWhy: ${it.x.note}` : "")
         : it.m ? `${it.m.fromName} says they were ${it.m.toName} before. Approve to join them: ${it.m.fromName}'s answers and votes move to ${it.m.toName}.`
         : it.ready ? `${it.ready.by} marked round ${curRound().current} ready to send.`
-        : it.j ? `Wants to join: ${it.j.name}` : "";
+        : it.j ? `Wants to join: ${it.j.name}${joinHint(it.j)}` : "";
       k.text.hidden = !txt;
       if (txt) fillClamp(k.text, "q:" + it.id, txt, `${QT[it.t]} from ${disp(person[1] || "someone")}`, q ? `${q.id}: ${q.text}` : "");
       if (k.up) fillUpRow(k.up, it.u);
@@ -5081,8 +5107,11 @@
           lockBy.textContent = `by ${disp(lk.by)}, ${ago(lk.ts)}${lk.edited ? ", edited" : ""}`;
           const lname = lk.name === "Claude" && String(lk.answerCid).startsWith("claude") ? "Claude" : disp(lk.name);
           fillClamp(lockText, "l:" + q.id, lk.text, `Locked answer`, `${q.id}: ${q.text}`);
-          const lkey = lk.answerCid + "|" + lname;
-          if (lockFrom._k !== lkey) { lockFrom._k = lkey; lockFrom.replaceChildren(lname === "Claude" ? claudeAv(18) : av(lk.answerCid, lk.name, 18, true), E("span", null, `Answer from ${lname}`)); }
+          const lkey = lk.answerCid + "|" + lname + "|" + lk.hostEdited;
+          if (lockFrom._k !== lkey) {
+            lockFrom._k = lkey;
+            lockFrom.replaceChildren(lname === "Claude" ? claudeAv(18) : av(lk.answerCid, lk.name, 18, true), E("span", null, `Answer from ${lname}${lk.hostEdited ? ", edited by the host" : ""}`));
+          }
           unlockBtn.hidden = editBtn.hidden = !mod;
           if (!mod) editForm.hidden = true;
           const sugs = openSugs(q.id).sort((a, b) => b.votes.length - a.votes.length || a.ts - b.ts);

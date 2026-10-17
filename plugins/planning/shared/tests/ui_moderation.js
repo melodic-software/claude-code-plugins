@@ -2,10 +2,12 @@
 // Phase 4c in real browsers, against `share.sh ensure-running` with the fake cloudflared: the session intro ("Why
 // you're here") before question 1 and from the header; on a 390x844 phone the first screen still shows the goal, the
 // ask, "Start here", "Something else…" and the answer box, with the intro folded behind its toggle; the owner hides an
-// answer (gone for another guest, marked for its author) and shows it again; the owner edits an answer ("Edited by
-// the host" for everyone, earlier versions for the owner only); Approve new joins holds a new person until the owner
-// lets them in, while a guest already here keeps going; the owner's per-person view lists one person's answers, votes
-// and chat; chat reactions toggle per person and tell the author. Two browsers and a phone.
+// answer (gone for another guest, marked for its author, held through the author's new version) and shows it again;
+// the owner edits an answer ("Edited by the host" for everyone, earlier versions fetched for the owner only), locks it
+// (the lock says it was edited) and cannot hide the locked answer; a hidden multi pick tells its author it is not
+// counted; Approve new joins holds a new person, listed in join order with a device hint, until the owner lets them
+// in, while a guest already here keeps going; the owner's per-person view lists one person's answers, votes, chat and
+// the hidden answer they cleared; chat reactions toggle per person and tell the author. Two browsers and a phone.
 //   node plugins/planning/shared/tests/ui_moderation.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from PLAN.md Phase 4c and the texts this suite writes, never from the page.
@@ -76,14 +78,19 @@ async function main() {
     const ref = `p:${gusPid}`;
     ok("a hidden answer leaves another guest's view", await until(pia, r => !(window.Core.snapshot().cards.Q2 || []).some(c => c.ref === r)
       && !JSON.stringify(window.Core.snapshot()).includes("rude words"), ref));
-    ok("its author sees \"Hidden by the host\" on it", await until(gus, () => [...document.querySelectorAll(".vf-modnote")].some(n => !n.hidden && n.textContent.startsWith("Hidden by the host"))));
+    ok("its author sees \"Hidden by the host\" on it, with no promise that sending it again shows it", await until(gus, () => [...document.querySelectorAll(".vf-modnote")]
+      .some(n => !n.hidden && n.textContent.startsWith("Hidden by the host") && !/send it again/i.test(n.textContent))));
     ok("the owner still sees it, marked", await until(owner, () => !!document.querySelector(".vf-card.vf-hiddencard") && /Show/.test(document.querySelector(".vf-card.vf-hiddencard .vf-mod-hide").textContent)));
+    await gus.evaluate(() => window.Core.answerCiting("Q2", "A pub crawl, more rude words", []));
+    ok("a new version from its author stays hidden", await until(gus, () => (window.Core.snapshot().cards.Q2 || []).some(c => c.text === "A pub crawl, more rude words" && c.hidden)));
+    ok("while it is hidden, Pia's page shows none of its text", await pia.evaluate(() => !document.body.innerText.includes("rude words")
+      && !JSON.stringify(window.Core.snapshot()).includes("rude words")));
     await owner.locator(".vf-card.vf-hiddencard .vf-mod-hide").click();
     ok("Show puts it back for everyone", await until(pia, r => (window.Core.snapshot().cards.Q2 || []).some(c => c.ref === r), ref));
 
     // ---------- edit an answer, history for the owner only ----------
     await owner.locator(".vf-card .vf-mod-edit:not([hidden])").first().click();
-    ok("Edit opens the answer's text", await until(owner, () => { const p = document.querySelector(".vf-editpop"); return !p.hidden && document.querySelector(".vf-edit-ta").value === "A pub crawl, rude words here"; }));
+    ok("Edit opens the answer's text", await until(owner, () => { const p = document.querySelector(".vf-editpop"); return !p.hidden && document.querySelector(".vf-edit-ta").value === "A pub crawl, more rude words"; }));
     await owner.fill(".vf-edit-ta", "A pub crawl");
     await owner.click(".vf-editpop .vf-btn-primary");
     ok("everyone sees the new text marked \"Edited by the host\"", await until(pia, () => {
@@ -93,11 +100,28 @@ async function main() {
     ok("no guest's snapshot carries the earlier versions", await pia.evaluate(() => !JSON.stringify(window.Core.snapshot()).includes("\"history\""))
       && await gus.evaluate(() => !JSON.stringify(window.Core.snapshot()).includes("\"history\"")));
     await owner.locator(".vf-card .vf-mod-edit:not([hidden])").first().click();
-    ok("the owner sees the earlier version, with who wrote it", await until(owner, () => {
+    ok("the owner sees the earlier versions, with who wrote them, fetched when the list opens", await until(owner, () => {
       const items = [...document.querySelectorAll(".vf-editpop .vf-hist")];
-      return items.length === 1 && items[0].textContent.includes("A pub crawl, rude words here") && items[0].textContent.includes("Gus");
+      return items.length === 2 && items[0].textContent.includes("A pub crawl, rude words here") && items[1].textContent.includes("A pub crawl, more rude words")
+        && items.every(i => i.textContent.includes("Gus"));
     }));
     await owner.keyboard.press("Escape");
+
+    // ---------- lock the edited answer: the lock says the host edited it ----------
+    await owner.evaluate(r => window.Core.lock("Q2", r), ref);
+    ok("the lock banner says the host edited the locked answer", await until(gus, () => [...document.querySelectorAll(".vf-lock-from")].some(n => /edited by the host/.test(n.textContent))));
+    ok("Hide is refused on the locked answer, with a reason", await owner.evaluate(r => window.Core.hideCard("Q2", r, true).then(() => "", e => e.message || ""), ref)
+      .then(m => /Unlock/.test(m)));
+    await owner.evaluate(() => window.Core.unlock("Q2"));
+
+    // ---------- a hidden multi pick: its author is told it is not counted ----------
+    await gus.evaluate(() => window.Core.pickWith("Q3", { options: ["opt-1"] }, { comment: "Hike, please" }));
+    await owner.evaluate(r => window.Core.hideCard("Q3", r, true), ref);
+    await gus.locator(".vf-q", { hasText: "Which activities?" }).first().click();
+    ok("its author reads that a hidden pick is not counted", await until(gus, () => [...document.querySelectorAll(".vf-modnote")]
+      .some(n => !n.hidden && /not counted while it is hidden/.test(n.textContent))));
+    await gus.evaluate(() => window.Core.pickWith("Q3", { options: [] }, { comment: "" })); // he clears it: the owner keeps a tombstone
+    await gus.locator(".vf-q", { hasText: "What should the first evening" }).first().click();
 
     // ---------- chat reactions ----------
     await gus.evaluate(() => window.Core.chat("Lunch at noon?"));
@@ -124,6 +148,11 @@ async function main() {
       return items.some(t => t.includes("Q2") && t.includes("A pub crawl") && t.includes("Hide") && t.includes("Edit")) && items.some(t => t.includes("Lunch at noon?"))
         && /Remove Gus/.test(p.textContent);
     }));
+    const clearedRow = owner.locator(".vf-personpop .vf-ppv-item", { hasText: "Q3, cleared" });
+    ok("View all lists the hidden answer Gus cleared, marked hidden", await clearedRow.waitFor({ timeout: 8000 }).then(() => clearedRow.textContent()).then(t => /\(hidden\)/.test(t), () => false));
+    await clearedRow.getByRole("button", { name: /Show what Gus's cleared answer on Q3 said/ }).click();
+    ok("Show what it said fetches its last text for the owner", await until(owner, () => [...document.querySelectorAll(".vf-personpop .vf-ppv-item")]
+      .some(i => i.textContent.includes("Q3, cleared") && i.querySelector(".vf-ppv-t").textContent === "Hike, please")));
     await owner.keyboard.press("Escape");
 
     // ---------- approve new joins ----------
@@ -140,11 +169,13 @@ async function main() {
     ok("a waiting person reads nothing of the session", await jib.evaluate(() => window.Core.state.questions.length === 0 && !window.Core.snapshot()));
     const gus2 = await rec.openIn(gus.context(), A.localUrl); // a new tab: the stored secret, no join
     ok("a guest already here keeps going in a new tab", await until(gus2, pid => window.Core.snapshot()?.me?.pid === pid && window.Core.state.questions.length === 3, gusPid));
-    ok("the owner's queue says \"Wants to join: Jib\"", await until(owner, () => [...document.querySelectorAll(".vf-qitem")].some(i => i.textContent.includes("Wants to join: Jib"))));
+    ok("the owner's queue says \"Wants to join: Jib\", first in line, on a computer in Chrome", await until(owner, () => [...document.querySelectorAll(".vf-qitem")]
+      .some(i => i.textContent.includes("Wants to join: Jib (1st waiting; computer · Chrome)"))));
     await owner.locator(".vf-qitem", { hasText: "Wants to join: Jib" }).getByRole("button", { name: "Let in" }).click();
     ok("once let in, the page opens by itself", await until(jib, () => window.Core.snapshot()?.me?.name === "Jib" && window.Core.state.questions.length === 3, null, 10000));
 
-    ok("Pia never saw Gus's hidden or earlier text", piaPid && await pia.evaluate(() => !document.body.innerText.includes("rude words")));
+    ok("after the host's edit, Pia's page holds none of Gus's earlier text", piaPid && await pia.evaluate(() => !document.body.innerText.includes("rude words")
+      && !JSON.stringify(window.Core.snapshot()).includes("rude words")));
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     ok("no page error", rec.errors.filter(m => !/Failed to load resource/.test(m)).length === 0, rec.errors.slice(0, 3).join(" | "));
     ok("no request was answered 429 (slow down)", rec.too.length === 0, rec.too.slice(0, 5).join(", "));

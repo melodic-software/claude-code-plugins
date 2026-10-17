@@ -126,7 +126,15 @@ class TestStopStatusUrl(Running):
         code, st, _ = share(self.d, "status")
         self.assertEqual(code, 0)
         self.assertEqual((st["running"], st["tunnel"], st["guestUrl"], st["people"]["joined"]), (True, "quick", self.first["guestUrl"], 1))
-        self.assertEqual(sorted(st), ["guestUrl", "lease", "ok", "people", "queue", "round", "running", "tunnel", "unhandled"])
+        self.assertEqual(sorted(st), ["guestUrl", "intro", "lease", "ok", "people", "queue", "round", "running", "tunnel", "unhandled"])
+
+    def test_status_says_whether_the_intro_is_set_running_or_stopped(self):
+        """lane-shared.md Start step 5 reads `intro` from `share.sh status` to know whether to draft one."""
+        self.assertIs(share(self.d, "status")[1]["intro"], False)
+        self.apply({"op": "set-intro", "intro": "Why you're here: the payment step."})
+        self.assertIs(share(self.d, "status")[1]["intro"], True)
+        share(self.d, "stop", "--keep-tunnel")
+        self.assertIs(share(self.d, "status")[1]["intro"], True)
 
     def test_url_prints_the_guest_link_and_owner_only_on_request(self):
         code, out, _ = share(self.d, "url")

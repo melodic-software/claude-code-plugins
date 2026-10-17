@@ -52,6 +52,7 @@
       "type": "object",
       "additionalProperties": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/cardRef"}}}
     },
+    "cleared": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/clearedCard"}}},
     "log": {"$ref": "#/$defs/eventLog"}
   },
   "$defs": {
@@ -164,11 +165,16 @@
               "properties": {"kind": {"enum": ["removed"]}, "at": {"$ref": "#/$defs/ts"}, "by": {"enum": ["host"]}}
             },
             {
-              "description": "Joined under Approve new joins: waits in the owner's queue until admitted or declined.",
+              "description": "Joined under Approve new joins: waits in the owner's queue until admitted or declined; device and browser are the owner's hint, as the join said them.",
               "type": "object",
               "required": ["kind", "at"],
               "additionalProperties": false,
-              "properties": {"kind": {"enum": ["waiting"]}, "at": {"$ref": "#/$defs/ts"}}
+              "properties": {
+                "kind": {"enum": ["waiting"]},
+                "at": {"$ref": "#/$defs/ts"},
+                "device": {"$ref": "#/$defs/deviceKind"},
+                "browser": {"enum": ["chrome", "safari", "firefox", "edge", "samsung", "in-app", "other"]}
+              }
             }
           ]
         }
@@ -473,6 +479,47 @@
         }
       }
     },
+    "cardHidden": {
+      "description": "The owner hid this answer from everyone else, the tally and the digest; it holds through its author's new versions until the owner shows it.",
+      "type": "object",
+      "required": ["by", "at"],
+      "additionalProperties": false,
+      "properties": {"by": {"$ref": "#/$defs/pid"}, "at": {"$ref": "#/$defs/ts"}, "reason": {"$ref": "#/$defs/note"}}
+    },
+    "cardEdited": {
+      "description": "The owner replaced the text: who and when.",
+      "type": "object",
+      "required": ["by", "at"],
+      "additionalProperties": false,
+      "properties": {"by": {"$ref": "#/$defs/pid"}, "at": {"$ref": "#/$defs/ts"}}
+    },
+    "cardHistory": {
+      "description": "Earlier versions, oldest first (the original kept), each with who wrote it and when; kept once the owner hid or edited the answer, and only the owner reads it.",
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "required": ["text", "by", "at"],
+        "additionalProperties": false,
+        "properties": {"text": {"$ref": "#/$defs/text"}, "by": {"$ref": "#/$defs/pid"}, "at": {"$ref": "#/$defs/ts"}}
+      }
+    },
+    "clearedCard": {
+      "description": "A person answer its author cleared after the owner hid or edited it: its last text, its marks and versions, for the owner only. The author's next answer in the same place takes it up.",
+      "type": "object",
+      "required": ["pid", "text", "at", "clearedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "pid": {"$ref": "#/$defs/pid"},
+        "device": {"$ref": "#/$defs/deviceKind"},
+        "text": {"$ref": "#/$defs/text"},
+        "at": {"$ref": "#/$defs/ts"},
+        "clearedAt": {"$ref": "#/$defs/ts"},
+        "hidden": {"$ref": "#/$defs/cardHidden"},
+        "edited": {"$ref": "#/$defs/cardEdited"},
+        "history": {"$ref": "#/$defs/cardHistory"}
+      }
+    },
     "card": {
       "oneOf": [
         {
@@ -499,31 +546,9 @@
               "additionalProperties": false,
               "properties": {"round": {"type": "integer", "minimum": 1}}
             },
-            "hidden": {
-              "description": "The owner hid this answer from everyone else and the digest; reversible.",
-              "type": "object",
-              "required": ["by", "at"],
-              "additionalProperties": false,
-              "properties": {"by": {"$ref": "#/$defs/pid"}, "at": {"$ref": "#/$defs/ts"}, "reason": {"$ref": "#/$defs/note"}}
-            },
-            "edited": {
-              "description": "The owner replaced the text: who and when.",
-              "type": "object",
-              "required": ["by", "at"],
-              "additionalProperties": false,
-              "properties": {"by": {"$ref": "#/$defs/pid"}, "at": {"$ref": "#/$defs/ts"}}
-            },
-            "history": {
-              "description": "Earlier versions, oldest first (the original kept), each with who wrote it and when; only the owner reads it.",
-              "type": "array",
-              "maxItems": 50,
-              "items": {
-                "type": "object",
-                "required": ["text", "by", "at"],
-                "additionalProperties": false,
-                "properties": {"text": {"$ref": "#/$defs/text"}, "by": {"$ref": "#/$defs/pid"}, "at": {"$ref": "#/$defs/ts"}}
-              }
-            }
+            "hidden": {"$ref": "#/$defs/cardHidden"},
+            "edited": {"$ref": "#/$defs/cardEdited"},
+            "history": {"$ref": "#/$defs/cardHistory"}
           }
         },
         {
@@ -559,7 +584,12 @@
               "type": "object",
               "required": ["kind", "card", "text"],
               "additionalProperties": false,
-              "properties": {"kind": {"enum": ["card"]}, "card": {"$ref": "#/$defs/cardRef"}, "text": {"type": "string"}}
+              "properties": {
+                "kind": {"enum": ["card"]},
+                "card": {"$ref": "#/$defs/cardRef"},
+                "text": {"type": "string"},
+                "editedBy": {"description": "The locked text is the owner's edit of the answer, not its author's words.", "enum": ["host"]}
+              }
             },
             {
               "type": "object",

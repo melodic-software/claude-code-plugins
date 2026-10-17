@@ -2853,7 +2853,7 @@ class TestIntro(SessionCase):
         self.assertEqual(self.s.snapshot(ann)["intro"], "")
 
 
-class TestHideAndEdit(SessionCase):
+class HideEditCase(SessionCase):
     def setUp(self):
         super().setUp()
         self.ann, self.bo, self.cy = self.people("Ann", "Bo", "Cy")
@@ -2869,6 +2869,11 @@ class TestHideAndEdit(SessionCase):
     def card(self, pid, ref=None, qid="Q1"):
         return next(c for c in self.s.snapshot(pid)["cards"][qid] if c["ref"] == (ref or self.bo_ref))
 
+    def history(self, ref=None, qid="Q1"):
+        return self.s.card_history(HOST, {"qid": qid, "card": ref or self.bo_ref})["history"]
+
+
+class TestHideAndEdit(HideEditCase):
     def test_hidden_card_absent_for_guests_and_digest(self):
         self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True, "reason": "Off topic"})
         for viewer in (self.cy, self.ann):  # a guest and a leader
@@ -2892,12 +2897,12 @@ class TestHideAndEdit(SessionCase):
         self.refused("no-such-card", "lock", HOST, {"qid": "Q1", "card": self.bo_ref}, http=404)
         self.refused("no-votes", "lock", self.ann, {"qid": "Q1"}, http=409)
 
-    def test_the_author_edits_and_resends_a_hidden_answer(self):
+    def test_the_author_edits_a_hidden_answer_and_it_stays_hidden_with_the_version_kept(self):
         self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True})
         self.act("answer", self.bo, {"qid": "Q1", "text": "Pay later", "view": "focus"})
-        self.assertIn(self.bo_ref, self.refs(self.cy))
-        self.assertEqual(self.card(self.cy)["text"], "Pay later")
-        self.assertEqual([v["text"] for v in self.card(HOST)["history"]], ["Pay later, rude words here"])
+        self.assertNotIn(self.bo_ref, self.refs(self.cy))
+        self.assertEqual(self.card(self.bo)["text"], "Pay later")
+        self.assertEqual([v["text"] for v in self.history()], ["Pay later, rude words here"])
 
     def test_resending_the_same_text_keeps_it_hidden(self):
         self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True})
@@ -2912,22 +2917,23 @@ class TestHideAndEdit(SessionCase):
             self.assertEqual(seen["text"], "Pay later")
             self.assertEqual(seen["edited"]["by"], HOST)
             self.assertNotIn("history", seen)
-        self.assertEqual(self.card(HOST)["history"], [{"text": "Pay later, rude words here", "by": self.bo, "at": t0}])
+        self.assertEqual(self.history(), [{"text": "Pay later, rude words here", "by": self.bo, "at": t0}])
         top = digest_of(self)["questions"][0]["outcome"]["top"]
         self.assertEqual(next(e for e in top if e["source"] == "person"), {"text": "Pay later", "votes": 1, "source": "person", "edited": True})
 
-    def test_every_version_keeps_who_and_when(self):
-        self.act("answer", self.bo, {"qid": "Q1", "text": "Second", "view": "focus"})
+    def test_once_the_owner_edits_every_version_keeps_who_and_when(self):
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Second", "view": "focus"})  # not moderated yet: no version kept
         t1 = self.clock.t
         self.act("edit_card", HOST, {"qid": "Q1", "card": self.bo_ref, "text": "Third, by the host"})
         t2 = self.clock.t
         self.act("answer", self.bo, {"qid": "Q1", "text": "Fourth", "view": "focus"})
-        history = self.card(HOST)["history"]
-        self.assertEqual([(v["text"], v["by"]) for v in history], [("Pay later, rude words here", self.bo), ("Second", self.bo), ("Third, by the host", HOST)])
-        self.assertEqual([v["at"] for v in history[1:]], [t1, t2])
+        history = self.history()
+        self.assertEqual([(v["text"], v["by"]) for v in history], [("Second", self.bo), ("Third, by the host", HOST)])
+        self.assertEqual([v["at"] for v in history], [t1, t2])
         self.assertNotIn("edited", self.card(self.cy))  # the current text is Bo's own again
 
     def test_history_keeps_the_original_and_the_newest_versions(self):
+        self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True})
         for i in range(60):
             self.act("answer", self.bo, {"qid": "Q1", "text": f"Version {i}", "view": "focus"})
         history = self.s.state["cards"]["Q1"][-1]["history"]
@@ -3132,10 +3138,7 @@ class TestMultiBacking(FormatCase):
         self.assertEqual(self.s.state["backs"], {"Q1": {self.cy: [f"p:{self.ann}", f"p:{self.bo}"]}})
 
 
-class TestStateFrom0bbffb3(unittest.TestCase):
-    """state.json files the 0bbffb3 build wrote load unchanged and take the Phase 4c writes. The
-    fixtures are that build's state-v1.json and a state its session.py wrote (state-written-0bbffb3.json)."""
-
+class StateFixtureCase(unittest.TestCase):
     def load(self, name):
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
@@ -3147,6 +3150,11 @@ class TestStateFrom0bbffb3(unittest.TestCase):
         self.assertEqual((tmp / "state.json").read_text(encoding="utf-8"), raw)  # nothing rewritten on load
         self.assertEqual(sorted(p.name for p in tmp.iterdir()), ["assets", "state.json"])  # no state.v<N>.json backup
         return s
+
+
+class TestStateFrom0bbffb3(StateFixtureCase):
+    """state.json files the 0bbffb3 build wrote load unchanged and take the Phase 4c writes. The
+    fixtures are that build's state-v1.json and a state its session.py wrote (state-written-0bbffb3.json)."""
 
     def test_state_v1_fixture_from_0bbffb3_loads_unchanged(self):
         s = self.load("state-v1.json")
@@ -3168,6 +3176,211 @@ class TestStateFrom0bbffb3(unittest.TestCase):
         reloaded = session.Session.load(s.path, validate_writes=True)
         self.assertEqual(reloaded.state["session"]["intro"], "Why you're here: pick the offsite.")
         self.assertEqual(reloaded.snapshot(ann)["me"]["prefs"]["tour"], "done")
+
+
+# ---------------------------------------------------------------------------------------------
+# Phase 4c review fixes. Expected values come from the review findings (bounded history, owner-only
+# history by its own GET, Hide holds until Show, a tombstone on clearing, edited locks, Hide refused
+# on a locked answer, one chat reaction a second per message, a waiting list of 20 that is never
+# evicted) and the hand-built states below, never from running the code under test.
+# ---------------------------------------------------------------------------------------------
+
+
+class TestHistoryBounds(HideEditCase):
+    LONG = "x" * (session.MAX_TEXT - 4)
+
+    def test_a_guest_editing_one_answer_200_times_leaves_state_json_bounded(self):
+        """Before the owner hides or edits an answer its author's edits keep no versions: 200 edits of
+        a 2000-character answer grow state.json by under 1 KB (rev and times only)."""
+        self.act("answer", self.bo, {"qid": "Q1", "text": self.LONG + "0000", "view": "focus"})
+        before = self.path.stat().st_size
+        for i in range(200):
+            self.act("answer", self.bo, {"qid": "Q1", "text": f"{self.LONG}{i:04d}", "view": "focus"})
+        self.assertLess(self.path.stat().st_size - before, 1024)
+        self.assertNotIn("history", self.s.state["cards"]["Q1"][-1])
+
+    def test_once_the_owner_hid_it_every_author_version_is_kept(self):
+        self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True})
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Second", "view": "focus"})
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Third", "view": "focus"})
+        history = self.s.card_history(HOST, {"qid": "Q1", "card": self.bo_ref})["history"]
+        self.assertEqual([(v["text"], v["by"]) for v in history], [("Pay later, rude words here", self.bo), ("Second", self.bo)])
+
+    def test_the_owner_snapshot_carries_no_history_only_a_count(self):
+        self.act("edit_card", HOST, {"qid": "Q1", "card": self.bo_ref, "text": "Pay later"})
+        snap = self.s.snapshot(HOST)
+        self.assertNotIn('"history"', json.dumps(snap))
+        self.assertNotIn("rude words", json.dumps(snap))
+        self.assertEqual(self.card(HOST)["versions"], 1)
+        out = self.s.card_history(HOST, {"qid": "Q1", "card": self.bo_ref})
+        self.assertEqual(out["history"][0]["text"], "Pay later, rude words here")
+        for pid in (self.ann, self.bo, self.cy):
+            self.refused("owner-only", "card_history", pid, {"qid": "Q1", "card": self.bo_ref}, http=403)
+        self.refused("no-such-card", "card_history", HOST, {"qid": "Q1", "card": "p:nobody"}, http=404)
+
+
+class TestHideHolds(HideEditCase):
+    def test_hide_holds_when_its_author_changes_the_text(self):
+        self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True, "reason": "Off topic"})
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Pay later, worse words", "view": "focus"})
+        self.assertNotIn(self.bo_ref, self.refs(self.cy))
+        self.assertEqual(self.card(self.bo)["hidden"]["reason"], "Off topic")
+        self.assertNotIn("worse words", json.dumps(digest_of(self)))
+
+    def test_only_show_puts_it_back(self):
+        self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True})
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Pay later", "view": "focus"})
+        self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": False})
+        self.assertEqual(self.card(self.cy)["text"], "Pay later")
+
+    def test_clearing_a_hidden_answer_keeps_an_owner_only_tombstone_with_its_history(self):
+        self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True})
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Second try", "view": "focus"})
+        self.act("answer", self.bo, {"qid": "Q1", "text": "", "view": "focus"})
+        self.assertNotIn(self.bo_ref, self.refs(HOST))
+        self.assertEqual([c["ref"] for c in self.s.snapshot(HOST)["cleared"]["Q1"]], [self.bo_ref])
+        for pid in (self.bo, self.cy, self.ann):
+            self.assertNotIn("cleared", self.s.snapshot(pid))
+        out = self.s.card_history(HOST, {"qid": "Q1", "card": self.bo_ref})
+        self.assertEqual(out["text"], "Second try")
+        self.assertTrue(out["cleared"])
+        self.assertEqual([v["text"] for v in out["history"]], ["Pay later, rude words here"])
+        self.assertNotIn("Second try", json.dumps(self.s.snapshot(HOST)))
+
+    def test_clearing_an_unmoderated_answer_keeps_nothing(self):
+        self.act("answer", self.bo, {"qid": "Q1", "text": "", "view": "focus"})
+        self.assertNotIn("cleared", self.disk())
+
+    def test_answering_again_after_clearing_a_hidden_answer_stays_hidden(self):
+        self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True})
+        self.act("answer", self.bo, {"qid": "Q1", "text": "", "view": "focus"})
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Back again", "view": "focus"})
+        self.assertNotIn(self.bo_ref, self.refs(self.cy))
+        self.assertNotIn("cleared", self.disk())
+        history = self.s.card_history(HOST, {"qid": "Q1", "card": self.bo_ref})["history"]
+        self.assertEqual([v["text"] for v in history], ["Pay later, rude words here"])
+
+    def test_hiding_or_editing_drops_the_mention_excerpt_the_answer_sent(self):
+        self.act("answer", self.bo, {"qid": "Q1", "text": "@Cy rude words here", "view": "focus"})
+        self.assertIn("rude words", self.notes(self.cy, "mention")[-1]["body"])
+        self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True})
+        self.assertNotIn("body", self.notes(self.cy, "mention")[-1])
+        self.assertNotIn("rude words", json.dumps(self.s.snapshot(self.cy)))
+        self.act("answer", self.ann, {"qid": "Q1", "text": "@Cy mean words", "view": "focus"})
+        self.act("edit_card", HOST, {"qid": "Q1", "card": f"p:{self.ann}", "text": "Kind words"})
+        self.assertNotIn("mean words", json.dumps(self.s.snapshot(self.cy)))
+
+
+class TestEditedLocks(HideEditCase):
+    def test_locking_an_owner_edited_answer_says_it_was_edited(self):
+        self.act("edit_card", HOST, {"qid": "Q1", "card": self.bo_ref, "text": "Pay later"})
+        self.act("lock", HOST, {"qid": "Q1", "card": self.bo_ref})
+        self.assertEqual(self.s.state["locks"]["Q1"]["source"], {"kind": "card", "card": self.bo_ref, "text": "Pay later", "editedBy": "host"})
+        self.assertEqual(digest_of(self)["questions"][0]["outcome"], {"kind": "locked", "text": "Pay later", "source": "person", "edited": True})
+
+    def test_locking_an_unedited_answer_carries_no_edit_mark(self):
+        self.act("lock", HOST, {"qid": "Q1", "card": self.bo_ref})
+        self.assertNotIn("editedBy", self.s.state["locks"]["Q1"]["source"])
+
+    def test_an_owner_edit_after_votes_marks_how_many_it_had(self):
+        self.act("edit_card", HOST, {"qid": "Q1", "card": self.bo_ref, "text": "Pay later"})
+        self.assertEqual(self.s.state["cards"]["Q1"][-1]["editedAfterVotes"], 1)
+
+    def test_hide_is_refused_on_the_locked_answer(self):
+        self.act("lock", HOST, {"qid": "Q1", "card": self.bo_ref})
+        err = self.refused("locked", "hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True}, http=409)
+        self.assertIn("Unlock", err.message)
+        self.act("unlock", HOST, {"qid": "Q1"})
+        self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True})
+
+
+class TestOwnerEditOfAnOwnOption(FormatCase):
+    def test_an_owner_edit_of_an_own_option_drops_its_backers(self):
+        self.pick(self.ann, "Q4", option="other", other="Apple Pay")
+        self.act("vote", self.bo, {"qid": "Q4", "card": f"p:{self.ann}", "on": True})
+        self.act("edit_card", HOST, {"qid": "Q4", "card": f"p:{self.ann}", "text": "Apple Pay or Google Pay"})
+        self.assertNotIn(self.bo, self.s.state["votes"].get("Q4", {}))
+        self.assertEqual(self.mine("Q4", self.ann)["editedAfterVotes"], 1)
+
+
+class TestChatReactionRate(SessionCase):
+    def test_one_person_reacts_to_one_message_once_a_second(self):
+        ann, bo = self.people("Ann", "Bo")
+        m1 = self.act("chat", ann, {"text": "Lunch at noon?"})["id"]
+        m2 = self.act("chat", ann, {"text": "Or one?"})["id"]
+        self.clock.tick()
+        self.s.react_chat(bo, {"id": m1, "emoji": "👍", "on": True})
+        self.clock.tick(0.5)
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.react_chat(bo, {"id": m1, "emoji": "🎉", "on": True})
+        self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
+        self.s.react_chat(bo, {"id": m2, "emoji": "🎉", "on": True})  # another message is its own limit
+        self.clock.tick(0.5)
+        self.s.react_chat(bo, {"id": m1, "emoji": "🎉", "on": True})
+        self.assertEqual(self.disk()["chat"][0]["reactions"], {"👍": [bo], "🎉": [bo]})
+
+
+class TestWaitingList(SessionCase):
+    def test_the_owner_sees_join_order_and_a_device_hint(self):
+        self.act("update_settings", HOST, {"approveJoins": True})
+        self.clock.tick()
+        self.s.join(None, {"name": "Jib", "device": "phone", "browser": "safari"})
+        self.clock.tick()
+        self.s.join(None, {"name": "Kai"})
+        self.clock.tick()
+        self.s.join(None, {"name": "Lu", "device": "computer", "browser": "netscape"})
+        got = [(j["name"], j["n"], j.get("device"), j.get("browser")) for j in self.s.snapshot(HOST)["joinRequests"]]
+        self.assertEqual(got, [("Jib", 1, "phone", "safari"), ("Kai", 2, None, None), ("Lu", 3, "computer", "other")])
+
+    def test_at_most_20_wait_and_a_21st_is_told_why(self):
+        self.act("update_settings", HOST, {"approveJoins": True})
+        for i in range(20):
+            self.s.join(None, {"name": f"W{i}"}, address=f"198.51.100.{i}")
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.join(None, {"name": "One more"}, address="198.51.100.99")
+        self.assertEqual((ctx.exception.http, ctx.exception.code), (503, "waiting-full"))
+        self.assertIn("let", ctx.exception.message)
+
+    def test_a_full_session_evicts_an_idle_guest_never_a_waiting_one(self):
+        with mock.patch.object(session, "MAX_PEOPLE", 4):
+            self.act("update_settings", HOST, {"approveJoins": True})
+            jib = self.s.join(None, {"name": "Jib"})["pid"]  # the least recently joined: the old rule's pick
+            kai = self.s.join(None, {"name": "Kai"})["pid"]
+            self.act("update_settings", HOST, {"approveJoins": False})
+            idle = self.s.join(None, {"name": "Idle"})["pid"]  # active, never seen, holds nothing
+            self.clock.tick()
+            self.s.join(None, {"name": "Lu"})
+            people = self.s.state["people"]
+            self.assertIn(jib, people)
+            self.assertIn(kai, people)
+            self.assertNotIn(idle, people)
+
+
+class TestStateFrom3153973(StateFixtureCase):
+    """A state the 3153973 build's session.py wrote (state-written-3153973.json: an intro, a hidden
+    card, an owner-edited card with author versions after it, a hidden multi pick, a lock, chat
+    reactions and a waiting join) loads unchanged and takes the review fixes' writes."""
+
+    def test_a_state_3153973_wrote_loads_unchanged_and_takes_the_new_writes(self):
+        s = self.load("state-written-3153973.json")
+        ann, bo, cy = "tok0002x9", "tok0004x9", "tok0006x9"
+        self.assertEqual(s.snapshot(HOST)["joinRequests"][0]["n"], 1)
+        self.assertNotIn('"history"', json.dumps(s.snapshot(HOST)))
+        hist = s.card_history(HOST, {"qid": "Q1", "card": f"p:{ann}"})["history"]
+        self.assertEqual([v["text"] for v in hist], ["Dinner by the river", "Dinner by the river, early"])
+        s.clock.t += 5
+        s.answer(bo, {"qid": "Q1", "text": "A pub crawl", "view": "focus"})
+        self.assertNotIn(f"p:{bo}", [c["ref"] for c in s.snapshot(cy)["cards"]["Q1"]])  # still hidden
+        s.clock.t += 5
+        s.answer(bo, {"qid": "Q1", "text": "", "view": "focus"})
+        self.assertEqual([c["ref"] for c in s.snapshot(HOST)["cleared"]["Q1"]], [f"p:{bo}"])
+        s.clock.t += 5
+        s.edit_card(HOST, {"qid": "Q1", "card": f"p:{ann}", "text": "Dinner at seven"})
+        s.lock(HOST, {"qid": "Q1", "card": f"p:{ann}"})
+        self.assertEqual(s.state["locks"]["Q1"]["source"]["editedBy"], "host")
+        self.assertIsNone(session.document_error(json.loads(s.path.read_text(encoding="utf-8"))))
+        reloaded = session.Session.load(s.path, validate_writes=True)
+        self.assertEqual(reloaded.state["cleared"]["Q1"][0]["text"], "A pub crawl")
 
 
 if __name__ == "__main__":

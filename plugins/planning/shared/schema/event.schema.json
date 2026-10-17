@@ -297,7 +297,8 @@
                 "kind": {"enum": ["locked"]},
                 "text": {"type": "string"},
                 "source": {"enum": ["person", "claude-rec", "claude-alt", "option", "edited", "suggestion"]},
-                "by": {"$ref": "#/$defs/by"}
+                "by": {"$ref": "#/$defs/by"},
+                "edited": {"$ref": "#/$defs/edited"}
               }
             },
             {

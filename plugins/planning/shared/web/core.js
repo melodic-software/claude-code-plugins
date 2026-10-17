@@ -32,7 +32,7 @@
   const DEFAULTS = {
     questions: [], answers: {}, ideas: [], presence: [], locks: {}, disagreements: {}, suggestions: {}, chat: [], leaders: [], trusted: [],
     round: { current: 1, status: "open" }, rounds: [], title: "", people: {}, research: {}, requestCounts: { open: 0, byQ: {} }, requests: [],
-    myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], guestKey: "", shareChanged: false, shareUrl: "",
+    myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], cleared: [], guestKey: "", shareChanged: false, shareUrl: "",
     goal: "", intro: "", uploads: [], myUploads: [], files: {}, mergeRequests: [], myMergeRequests: [], me: null, joinNeedsKey: false,
     settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true },
   };
@@ -144,10 +144,10 @@
           ...(c.pick ? { pick: optIn(c.pick) } : {}), ...(c.picks ? { picks: c.picks.map(optIn) } : {}), ...("value" in c ? { value: c.value } : {}),
           ...(c.order ? { order: c.order.map(optIn) } : {}), ...(other ? { other: true } : {}),
           ...(c.editedAfterVotes ? { editedAfter: c.editedAfterVotes } : {}), ...(c.late ? { late: c.late } : {}),
-          // Phase 4c: hidden by the owner (only its author and the owner get it), edited by the owner, and the
-          // earlier versions (the owner's snapshot only).
+          // Phase 4c: hidden by the owner (only its author and the owner get it), edited by the owner, and how many
+          // earlier versions it has (the owner's snapshot only; Core.cardHistory fetches them).
           ...(c.hidden ? { hidden: { ts: c.hidden.at, reason: c.hidden.reason || "" } } : {}), ...(c.edited ? { hostEdited: { ts: c.edited.at } } : {}),
-          ...(c.history ? { history: c.history.map(v => ({ text: v.text, cid: v.by, name: nameOf(v.by), ts: v.at })) } : {}),
+          ...(c.versions ? { versions: c.versions } : {}),
           ...(d ? { ctx: { view: d.view, ...(info ? { device: info.kind, browser: info.browser, vw: info.screen?.w, vh: info.screen?.h } : {}) } } : {}) };
       });
     }
@@ -156,7 +156,7 @@
       const src = lk.source || {}, sug = src.kind === "suggestion" ? (s.suggestions?.[qid] || []).find(x => x.id === src.suggestion) : null;
       const ref = src.kind === "card" ? src.card : src.kind === "edited" && /^[pco]:/.test(src.from || "") ? src.from : sug ? "p:" + sug.pid : "";
       const kind = ref.split(":")[0];
-      view.locks[qid] = { text: src.text, answerCid: authorCid(qid, ref), by: nameOf(lk.by), ts: lk.at, edited: src.kind === "edited",
+      view.locks[qid] = { text: src.text, answerCid: authorCid(qid, ref), by: nameOf(lk.by), ts: lk.at, edited: src.kind === "edited", hostEdited: !!src.editedBy,
         name: kind === "c" ? "Claude" : kind === "o" ? "Option" : kind === "p" ? nameOf(ref.split(":")[1]) : "" };
     }
     for (const [qid, lst] of Object.entries(s.suggestions || {})) {
@@ -168,7 +168,9 @@
     view.chat = (s.chat || []).map(m => ({ id: m.id, cid: m.pid, name: nameOf(m.pid), text: m.text, ts: m.at,
       ...(m.replyTo ? { replyTo: { id: m.replyTo.id, cid: m.replyTo.pid, name: nameOf(m.replyTo.pid), text: m.replyTo.excerpt } } : {}),
       ...(m.proposed ? { forwarded: m.proposed } : {}), reactions: m.reactions || {} }));
-    view.joinRequests = (s.joinRequests || []).map(j => ({ pid: j.pid, name: j.name, ts: j.at }));
+    view.joinRequests = (s.joinRequests || []).map(j => ({ pid: j.pid, name: j.name, ts: j.at, n: j.n, device: j.device || "", browser: j.browser || "" }));
+    // Answers their authors cleared after the owner hid or edited them (owner only); Core.cardHistory reads one.
+    view.cleared = Object.entries(s.cleared || {}).flatMap(([qid, lst]) => lst.map(t => ({ qid, ref: t.ref, cid: t.pid, name: nameOf(t.pid), ts: t.clearedAt, hidden: t.hidden })));
     for (const [qid, lst] of Object.entries(s.results || {})) {
       view.research[qid] = lst.map(x => {
         const r = x.request ? reqText.get(x.request) : null, by = x.by?.kind === "guest-claude" ? x.by.pid : r?.pid;
@@ -345,6 +347,14 @@
     /** Owner: hide an answer from everyone else and the digest (reversible), or replace its text. */
     hideCard: (qid, target, on, reason) => act("/api/card/hide", { qid, card: refOf(qid, target), on, ...(reason ? { reason } : {}) }),
     editCard: (qid, target, text) => act("/api/card/edit", { qid, card: refOf(qid, target), text }),
+    /** Owner: one answer's earlier versions (oldest first), or a cleared answer's last text and versions. */
+    cardHistory: async (qid, target) => {
+      const r = await fetch(`/api/card/history?${new URLSearchParams({ qid, card: refOf(qid, target) })}`, { headers: ident() });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw { status: r.status, ...j };
+      const nameOf = pid => (pid === "host" ? "Host" : Core.state.people[pid]?.name || "Someone");
+      return { ...j, history: (j.history || []).map(v => ({ text: v.text, cid: v.by, name: nameOf(v.by), ts: v.at })) };
+    },
     /** Owner: admit or decline one person waiting under Approve new joins. */
     joinAct: (pid, action) => act("/api/join/act", { pid, action }),
     /** Owner: "Why you're here" (empty removes it). */
@@ -400,10 +410,11 @@
   // ---------- where an answer was made (Q99): the view, and the device, never more ----------
   const BROWSERS = [[/SamsungBrowser\//, "samsung"], [/Edg\//, "edge"], [/(FBAN|FBAV|Instagram|Line\/|; wv\))/, "in-app"], [/Firefox\/|FxiOS\//, "firefox"], [/Chrome\/|CriOS\//, "chrome"], [/Safari\//, "safari"]];
   const deviceKind = () => (matchMedia("(pointer: coarse)").matches ? (matchMedia("(max-width: 720px)").matches ? "phone" : "tablet") : "computer");
+  const browserKind = () => BROWSERS.find(([re]) => re.test(navigator.userAgent))?.[1] || "other";
   function where() {
-    const c = Core.context?.() || {}, ua = navigator.userAgent;
+    const c = Core.context?.() || {};
     const view = ["focus", "compare", "tree", "host", "prototype"].includes(c.view) ? c.view : "focus";
-    return { view, deviceInfo: { kind: deviceKind(), browser: BROWSERS.find(([re]) => re.test(ua))?.[1] || "other",
+    return { view, deviceInfo: { kind: deviceKind(), browser: browserKind(),
       screen: { w: Math.round(innerWidth), h: Math.round(innerHeight) } } };
   }
 
@@ -412,7 +423,7 @@
 
   /** Get a fresh {pid, secret}. Concurrent callers share one request. The owner never joins: the link is the identity. */
   function join(name = Core.me.name) {
-    const req = json({ name: name || "", key: joinKey, device: deviceKind() });
+    const req = json({ name: name || "", key: joinKey, device: deviceKind(), browser: browserKind() });
     return joining ||= fetch("/api/join", req).then(async r => {
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw { status: r.status, ...j };
@@ -424,21 +435,21 @@
     }).finally(() => { joining = null; });
   }
 
-  // The server takes one write a second per person on each of these routes (session.py _throttle, WRITE_INTERVAL)
-  // and answers a faster one 429. Writes to one route go out one at a time, the next a second after the last answer
-  // came back: the server stamps a write before it answers, so that gap is never shorter than a second there.
+  // The server takes one write a second per person on each of these routes (session.py _throttle, WRITE_INTERVAL;
+  // a chat reaction per message) and answers a faster one 429. Writes to one route go out one at a time, the next a
+  // second after the last answer came back: the server stamps a write before it answers, so that gap is never shorter
+  // than a second there.
   const SPACED = new Set(["/api/answer", "/api/pick", "/api/propose", "/api/chat", "/api/suggest", "/api/request", "/api/merge-request",
     "/api/annotate", "/api/rename", "/api/color", "/api/prefs", "/api/about-you", "/api/vote", "/api/react", "/api/disagree",
     "/api/go-with", "/api/notifications/read", "/api/chat/react"]);
   const GAP = 1050; // ms: the server's one-a-second limit, plus a margin for clock rounding
-  const GAPS = { "/api/chat/react": 350 }; // session.CHAT_REACT_INTERVAL is 0.3 s
   const lanes = new Map(); // path -> {tail: promise of the last write, done: when it answered}
   const wait = ms => new Promise(res => setTimeout(res, Math.max(0, ms)));
   function spaced(path, run) {
     if (!SPACED.has(path)) return run();
     const lane = lanes.get(path) || { tail: Promise.resolve(), done: -Infinity };
     lanes.set(path, lane);
-    const mine = lane.tail.then(() => wait(lane.done + (GAPS[path] || GAP) - Date.now())).then(run).finally(() => { lane.done = Date.now(); });
+    const mine = lane.tail.then(() => wait(lane.done + GAP - Date.now())).then(run).finally(() => { lane.done = Date.now(); });
     lane.tail = mine.catch(() => {});
     return mine;
   }

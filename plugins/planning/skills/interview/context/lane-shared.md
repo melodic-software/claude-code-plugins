@@ -76,9 +76,10 @@ designer session and a product owner session), each with its own data dir and li
 5. **Why you're here.** Draft the intro guests read before question 1 from the topic and the
    owner's goal: who is asking, why, roughly how long it takes, and that Claude reads the answers
    when a round is sent while the chat is not sent (1 to 600 characters). Show the draft in the
-   terminal and apply it with a `set-intro` op once the owner says yes. A resumed session with no
-   intro (one imported from the prototype) gets one drafted from its title and goal the same way.
-   The owner edits it later from the Host view.
+   terminal and apply it with a `set-intro` op once the owner says yes. On a resumed session, run
+   `bash '<plugin-root>/shared/share.sh' --dir '<data_dir>' status` and read its `intro` field:
+   `false` (one imported from the prototype, say) gets an intro drafted from its title and goal
+   the same way; `true` keeps the one set. The owner edits it later from the Host view.
 6. **Arm** the `watch` command from step 3 as a background Bash task (`run_in_background`). One
    watcher per data dir: it exits 3 when another session holds the lease (`share.sh lease` names
    the holder; `lease --release` hands it over).
@@ -198,8 +199,9 @@ same register rows and tools as any round, in the same wake:
 
 An entry in `others` or a `top` answer marked `other` is a person's own option: quote it with
 `free-text:` and weigh it with its backers. Each `disagreements` entry goes in the resolution
-beside the answer it names; it changes no count. An answer marked `edited: true` carries the text
-the owner edited it to: record that text as given. Answers the owner hid are not in the digest.
+beside the answer it names; it changes no count. An answer or `locked` outcome marked
+`edited: true` carries the text the owner edited it to: record that text as given, as the owner's
+wording rather than its author's. Answers the owner hid are not in the digest, nor are their picks.
 
 A `needsReview` entry means an answer later questions rest on changed: recompute the frontier as for
 a reshaping answer and re-ask what it invalidates. `late` answers count with this round. The digest

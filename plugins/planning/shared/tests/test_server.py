@@ -1038,11 +1038,30 @@ class TestModerationRoutes(ServerCase):
             self.assertIn("Kind words", raw)
             self.assertNotIn("Original words", raw)
         owner_card = next(c for c in self.state(self.owner)["cards"]["Q1"] if c["ref"] == self.ref)
-        self.assertEqual([v["text"] for v in owner_card["history"]], ["Original words"])
+        self.assertEqual((owner_card["versions"], "history" in owner_card), (1, False))
+        code, _, out = self.get(f"/api/card/history?qid=Q1&card={self.ref}", self.owner)
+        self.assertEqual((code, [v["text"] for v in out["history"]]), (200, ["Original words"]))
         code, _, out = self.post("/api/card/hide", {"qid": "Q1", "card": self.ref, "on": True}, self.owner)
         self.assertEqual(code, 200, out)
         self.assertNotIn(self.ref, [c["ref"] for c in self.state(self.bo)["cards"]["Q1"]])
         self.assertEqual(next(c for c in self.state(self.ann)["cards"]["Q1"] if c["ref"] == self.ref)["hidden"]["by"], "host")
+
+    def test_history_is_an_owner_only_get_for_one_card(self):
+        self.post("/api/card/edit", {"qid": "Q1", "card": self.ref, "text": "Kind words"}, self.owner)
+        for who in (self.ann, self.bo):
+            code, _, out = self.get(f"/api/card/history?qid=Q1&card={self.ref}", who)
+            self.assertEqual((code, out["error"]), (403, "owner-only"))
+        code, _, out = self.get("/api/card/history?qid=Q1&card=p:nobody", self.owner)
+        self.assertEqual((code, out["error"]), (404, "no-such-card"))
+
+    def test_a_304_builds_no_snapshot(self):
+        _, h, _ = self.get("/api/state?since=0", self.ann)
+        with mock.patch.object(self.app.session, "snapshot", wraps=self.app.session.snapshot) as built:
+            code, _, _ = self.get("/api/state?since=0", {**self.ann, "If-None-Match": h["ETag"]})
+            self.assertEqual((code, built.call_count), (304, 0))
+            self.post("/api/person/remove", {"pid": self.ann_pid, "on": True}, self.owner)
+            code, _, out = self.get("/api/state?since=0", {**self.ann, "If-None-Match": h["ETag"]})
+            self.assertEqual((code, out["error"]), (403, "removed"))
 
     def test_a_join_waits_for_the_owner_when_approval_is_on(self):
         code, _, out = self.post("/api/session/settings", {"approveJoins": True}, self.owner)

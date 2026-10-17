@@ -36,7 +36,7 @@ Every command prints one JSON line on stdout and diagnostics on stderr. On Windo
 | `ensure-running` | `[--open] [--defaults-file F] [--guest-port N] [--import STATE] [--adopt-tunnel PID URL]` | `{ok, guestUrl, localUrl, ownerLinkFile, shareChanged, resumed, tunnel, watch}`: starts or reuses the server and the tunnel. A new session's `state.json` comes from `defaults.json` (`{"settings": {...}}`, state.schema field names). `--guest-port` applies only when the session is created; later starts reuse the recorded ports. `--import` and `--adopt-tunnel`: see [Moving the prototype's session](#moving-the-prototypes-session) |
 | `stop` | `[--keep-tunnel]` | `{ok, stopped}`: ends the armed watcher, the server and cloudflared (an adopted cloudflared keeps running; see [Moving the prototype's session](#moving-the-prototypes-session)); keeps the ports and the state. `--keep-tunnel` keeps the guest link for the next start |
 | `restart` | | Stops and starts the server only, on the same ports, with the same control token: the tunnel, the guest link, the state and an armed watcher all survive. Open pages see the new build and reload |
-| `status` | | `{ok, running, tunnel, guestUrl, round, people, queue, unhandled, lease}` |
+| `status` | | `{ok, running, tunnel, guestUrl, round, intro, people, queue, unhandled, lease}`; `intro` is true once "Why you're here" is set |
 | `url` | `[--owner]` | `{guestUrl}`, or `{ownerUrl}` (a credential, printed only on request) |
 | `list` | `--root '<memory_dir>'` (no `--dir`) | `{sessions: [{dir, title, running, guestUrl, round, ended}]}` |
 | `apply` | `--file F` | `{ok, results}`; deletes `F` once it applies. A missing `F` is a no-op, so `wake.sh` re-arms with nothing to write |
@@ -170,15 +170,17 @@ Owner-only routes (`X-Owner-Token`); a leader cannot use them.
 
 | Route | Body | Effect |
 |---|---|---|
-| `/api/card/hide` | `{qid, card, on, reason?}` | A hidden answer leaves every other person's snapshot, the tally and the digest; its author still gets it with `hidden {by, at, reason?}`, and a changed version from them shows it again. `on: false` shows it again |
-| `/api/card/edit` | `{qid, card, text}` | Replaces the text and sets `edited {by, at}`, which everyone sees and the digest marks; the replaced version goes to `history`, which only the owner's snapshot carries. A person's own edits also add their earlier versions to `history` (the original kept, then the newest, 50 in all) |
-| `/api/join/act` | `{pid, action: admit\|decline}` | With the `approveJoins` setting on, a join gets a secret but waits (`status: waiting`, 403 `waiting` on every route) in the owner's `joinRequests` until admitted; declining removes the person. People whose secret already resolves are not affected |
+| `/api/card/hide` | `{qid, card, on, reason?}` | A hidden answer leaves every other person's snapshot, the tally (its picks too) and the digest, and its text leaves the mention notifications it sent; its author still gets it with `hidden {by, at, reason?}`. It stays hidden through its author's new versions until `on: false` shows it. Refused (409 `locked`) on the locked answer: unlock first |
+| `/api/card/edit` | `{qid, card, text}` | Replaces the text and sets `edited {by, at}`, which everyone sees and the digest marks; an edit after votes sets `editedAfterVotes`, an edited own option loses its backers, and the text leaves the mention notifications it sent. Locking an edited answer stores `editedBy: "host"` on the lock and the digest marks it `edited` |
+| `GET /api/card/history?qid=&card=` | | Once the owner has hidden or edited an answer, every replaced version goes to its `history` (the original kept, then the newest, 50 in all); before that its author's edits keep none. This route returns one answer's `history`; the owner's snapshot carries only `versions`, the count. An answer its author clears after the owner hid or edited it leaves a tombstone in `cleared` (in the owner's snapshot as `{ref, pid, clearedAt, hidden}`); this route returns its last `text` with `cleared: true`, and the author's next answer there takes it up, hidden if it was |
+| `/api/join/act` | `{pid, action: admit\|decline}` | With the `approveJoins` setting on, a join gets a secret but waits (`status: waiting`, 403 `waiting` on every route) in the owner's `joinRequests` (in join order `n`, with the `device` and `browser` the join named) until admitted; declining removes the person. At most 20 wait (503 `waiting-full`), and a full session never evicts a waiting person. People whose secret already resolves are not affected |
 | `/api/session/intro` | `{intro}` | Edits "Why you're here" |
 
 `POST /api/chat/react {id, emoji, on}` (any person) adds or takes back one's own emoji on a chat
 message: only the page's fixed set (`CHAT_EMOJI` in `session.py` and `web/app.js`), at most 20
-distinct per message and 6 per person per message, one tap per 0.3 s. Chat and its reactions stay
-out of the digest; a reaction tells the message's author in one rolled-up notification.
+distinct per message and 6 per person per message, one reaction a second per person per message.
+Chat and its reactions stay out of the digest; a reaction tells the message's author in one
+rolled-up notification.
 
 There is no device or address blocking (C35): Remove stops a person's secret, and Approve new joins
 or a new guest link stops a removed person rejoining under a new name.

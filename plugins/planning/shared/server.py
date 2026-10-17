@@ -158,7 +158,7 @@ ROUTES = {
     "/api/mine/requests/result": ("person", "post_my_result"),
     "/api/mine/requests/fail": ("person", "fail_my_request"),
 }
-GET_ROUTES = {"/api/mine/requests": ("person", "my_requests")}
+GET_ROUTES = {"/api/mine/requests": ("person", "my_requests"), "/api/card/history": ("owner", "card_history")}
 BODY_CAPS = {}  # path -> bytes, where a route allows more than session.BODY_MAX
 
 
@@ -626,8 +626,7 @@ class GuestHandler(BaseHTTPRequestHandler):
         if app.old_pages and not query:
             return self.send(200, app.old_page_view())
         tag = app.etag(pid)
-        if self.headers.get("If-None-Match") == tag:
-            app.session.snapshot(pid)  # a removed person still reads nothing
+        if self.headers.get("If-None-Match") == tag:  # identity() already refused a removed or waiting person
             return self.send(304, b"", extra={"ETag": tag})
         snap = app.session.snapshot(pid)
         snap["build"] = app.build
