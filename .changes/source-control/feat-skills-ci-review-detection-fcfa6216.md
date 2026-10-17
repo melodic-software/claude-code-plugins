@@ -4,7 +4,7 @@ bump: minor
 
 ### Added
 
-- **`/source-control:pull-request review-venue` says, per AI review lane, whether CI reviews this repository.** A lane is `ci` when its caller workflow calls the org review workflow and its newest run with a verdict succeeded within 7 days (`--max-age-days`); otherwise it is `local` (absent, failing, which includes a usage-limit stop, or stale). A failed read treats every lane as `local`.
+- **`/source-control:pull-request review-venue` says, per AI review lane, whether CI reviews this repository.** A lane is `ci` when its caller workflow calls the org review workflow, is enabled, and its newest pull request run with a verdict succeeded within 7 days (`--max-age-days`); otherwise it is `local` (absent, which includes a disabled workflow, failing, which includes a usage-limit stop, or stale). A failed read treats every lane as `local`.
 
 ### Changed
 

@@ -19,10 +19,11 @@ Run the bundled script, which changes nothing
 Refuse a `--repo` value holding a character outside `A-Za-z0-9._/-`. It prints one line per lane,
 `code-review` first, then `security-review`:
 
-- **`<lane> ci healthy: <detail>`**: the lane's newest run that reached a verdict (finished, and
-  neither skipped nor cancelled) succeeded within the window. CI covers this lane.
+- **`<lane> ci healthy: <detail>`**: the lane's workflow is enabled and its newest pull request
+  run that reached a verdict (finished, and neither skipped nor cancelled) succeeded within the
+  window. CI covers this lane.
 - **`<lane> local absent: <detail>`**: no recent pull request run in the repository calls the
-  lane.
+  lane, or the caller workflow is disabled.
 - **`<lane> local failing: <detail>`**: that newest run failed, timed out or did not start. A
   usage-limit stop is a failed run, so it lands here.
 - **`<lane> local stale: <detail>`**: no run with a verdict inside the window.

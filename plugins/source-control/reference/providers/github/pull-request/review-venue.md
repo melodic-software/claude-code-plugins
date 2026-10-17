@@ -32,8 +32,19 @@ As of: 2026-10-17, read from live responses on `melodic-software/claude-code-plu
 ## The lane's newest verdict
 
 ```bash
-gh api "repos/{owner}/{repo}/actions/workflows/<workflow_id>/runs?per_page=100"
+gh api "repos/{owner}/{repo}/actions/workflows/<workflow_id>"
+gh api "repos/{owner}/{repo}/actions/workflows/<workflow_id>/runs?event=pull_request&per_page=100"
 ```
+
+The first read gives the workflow's `state`. Any value but `active` reads `local absent`: a
+disabled workflow keeps its run history but runs on no trigger. The second lists only pull request
+runs, so a manual or scheduled run of the same workflow cannot mask a failing pull request run.
+Pointer: `state` and its values are read at
+[REST API: get a workflow](https://docs.github.com/en/rest/actions/workflows#get-a-workflow), the
+`event` filter at
+[REST API: list workflow runs for a workflow](https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow).
+As of: 2026-10-17. Recheck trigger: either section renames `state` or `event`, or changes what
+`active` means.
 
 Runs come newest first. The script takes the first with `status` `completed` and a `conclusion`
 other than `skipped` (a draft, or an actor the lane does not admit) and `cancelled` (a newer push

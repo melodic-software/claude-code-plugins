@@ -33,7 +33,16 @@ case "\$2" in
   */actions/workflows/*/runs\?*)
     id="\${2#*/actions/workflows/}"; id="\${id%%/*}"
     [[ -f "$TEST_TMPDIR/wf-\$id.json" ]] || exit 1
-    cat "$TEST_TMPDIR/wf-\$id.json"
+    # The documented event filter: only runs of that event come back.
+    case "\$2" in
+      *event=pull_request*) jq -c '.workflow_runs |= map(select(.event == "pull_request"))' "$TEST_TMPDIR/wf-\$id.json" ;;
+      *) cat "$TEST_TMPDIR/wf-\$id.json" ;;
+    esac
+    ;;
+  */actions/workflows/*)
+    id="\${2##*/}"
+    [[ -f "$TEST_TMPDIR/wfmeta-\$id.json" ]] || exit 1
+    cat "$TEST_TMPDIR/wfmeta-\$id.json"
     ;;
   *) echo "gh-stub: unrouted \$*" >&2; exit 1 ;;
 esac
@@ -60,19 +69,24 @@ page() {
   jq -sc '{workflow_runs: .}' <<<"$(printf '%s\n' "$@")" >"$TEST_TMPDIR/page-$n.json"
 }
 
-# wf <id> <status:conclusion:hours-ago>... -> wf-id.json, newest first
+# wf <id> <status:conclusion:hours-ago[:event]>... -> wf-id.json, newest first,
+# event pull_request unless given; the workflow itself reads active.
 wf() {
   local id="$1" spec runs=()
   shift
   for spec in "$@"; do
-    IFS=: read -r st co h <<<"$spec"
-    runs+=("$(jq -nc --arg s "$st" --arg c "$co" --arg t "$(ago "$h")" --argjson i "$RANDOM" \
-      '{id: $i, status: $s, conclusion: (if $c == "" then null else $c end), created_at: $t}')")
+    IFS=: read -r st co h ev <<<"$spec"
+    runs+=("$(jq -nc --arg s "$st" --arg c "$co" --arg t "$(ago "$h")" --arg e "${ev:-pull_request}" --argjson i "$RANDOM" \
+      '{id: $i, event: $e, status: $s, conclusion: (if $c == "" then null else $c end), created_at: $t}')")
   done
   jq -sc '{workflow_runs: .}' <<<"$(printf '%s\n' "${runs[@]}")" >"$TEST_TMPDIR/wf-$id.json"
+  wf_state "$id" active
 }
 
-reset() { rm -f "$TEST_TMPDIR"/page-*.json "$TEST_TMPDIR"/wf-*.json; }
+# wf_state <id> <state> -> the workflow's state, as GET .../actions/workflows/<id> returns it
+wf_state() { jq -nc --arg s "$2" '{state: $s}' >"$TEST_TMPDIR/wfmeta-$1.json"; }
+
+reset() { rm -f "$TEST_TMPDIR"/page-*.json "$TEST_TMPDIR"/wf-*.json "$TEST_TMPDIR"/wfmeta-*.json; }
 
 run() {
   : >"$TEST_TMPDIR/calls"
@@ -134,6 +148,33 @@ out=$(run)
 assert_contains "a lane with no run carrying a verdict is stale" "$out" "code-review local stale"
 
 reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:success:1
+wf_state 11 disabled_manually
+wf 22 completed:success:1
+wf_state 22 disabled_inactivity
+out=$(run)
+assert_exit "a disabled lane is still a read" 0 "$?"
+assert_contains "a manually disabled lane runs locally despite a recent success" "$out" "code-review local absent"
+assert_contains "the line names the workflow state" "$out" "disabled_manually"
+assert_contains "a lane disabled for inactivity runs locally" "$out" "security-review local absent"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:success:1:workflow_dispatch completed:failure:2
+wf 22 completed:success:1
+out=$(run)
+assert_contains "a manual run's success does not mask a failing pull request run" "$out" "code-review local failing"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:success:1
+wf 22 completed:success:1
+rm -f "$TEST_TMPDIR/wfmeta-22.json"
+run >/dev/null 2>&1
+assert_exit "an unreadable workflow state fails closed" 2 "$?"
+
+reset
 page 1 "$(other_run)"
 out=$(run)
 assert_exit "a repository without lanes is still a read" 0 "$?"
@@ -185,7 +226,7 @@ assert_exit "an unreadable lane workflow fails closed" 2 "$?"
 reset
 echo 'not json' >"$TEST_TMPDIR/page-1.json"
 run >/dev/null 2>&1
-assert_exit "an unparseable run listing fails closed" 2 "$?"
+assert_exit "an unparsable run listing fails closed" 2 "$?"
 
 run --repo 'acme app' >/dev/null 2>&1
 assert_exit "a malformed --repo exits 1" 1 "$?"

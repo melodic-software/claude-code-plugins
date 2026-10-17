@@ -4,10 +4,11 @@
 #
 # A lane is a workflow whose pull_request runs call the org's reusable review
 # workflow: ci-workflows pr-review.yml (code-review) or pr-review-security.yml
-# (security-review). It is healthy when its newest run that reached a verdict
-# (completed, and neither skipped nor cancelled) succeeded and was created
-# within --max-age-days. A failed run (a usage-limit stop included), a timed-out
-# one, or none in the window is not healthy.
+# (security-review). It is healthy when its workflow is active and its newest
+# pull_request run that reached a verdict (completed, and neither skipped nor
+# cancelled) succeeded and was created within --max-age-days. A disabled
+# workflow, a failed run (a usage-limit stop included), a timed-out one, or none
+# in the window is not healthy.
 #
 # Usage:
 #   review-venue.sh [--repo <owner/repo>] [--max-age-days <n>]
@@ -19,7 +20,7 @@
 # Exit codes:
 #   0  read; every lane has a line
 #   1  invalid argument
-#   2  a gh call failed or returned something unparseable: treat every lane as local
+#   2  a gh call failed or returned something unparsable: treat every lane as local
 #   5  prerequisite missing (gh, jq)
 
 # portability-scope: the GitHub implementation of the review-venue read; every read is a gh call.
@@ -96,7 +97,14 @@ for i in "${!LANES[@]}"; do
     continue
   fi
   [[ "$id" =~ ^[0-9]+$ ]] || die 2 "unexpected workflow id for $lane"
-  lane_runs=$(gh api "repos/$REPO/actions/workflows/$id/runs?per_page=100") ||
+  # A disabled workflow keeps its run history but answers no trigger.
+  wf=$(gh api "repos/$REPO/actions/workflows/$id") || die 2 "cannot read the workflow $path"
+  state=$(jq -er '.state | strings' <<<"$wf") || die 2 "cannot parse the workflow $path"
+  if [[ "$state" != active ]]; then
+    printf '%s local absent: %s is %s\n' "$lane" "$path" "$state"
+    continue
+  fi
+  lane_runs=$(gh api "repos/$REPO/actions/workflows/$id/runs?event=pull_request&per_page=100") ||
     die 2 "cannot list the runs of $path"
   jq -r --arg lane "$lane" --arg path "$path" --argjson days "$MAX_AGE_DAYS" '
     [.workflow_runs[]? | select(.status == "completed" and (.conclusion | IN("skipped", "cancelled") | not))][0] as $r
