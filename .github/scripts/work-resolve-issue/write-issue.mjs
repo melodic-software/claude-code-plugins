@@ -63,15 +63,19 @@ async function readIssueEdits(github, repository, number) {
 
 // When `senderId` last added `label` to the issue: that account admitted the
 // text as it stood then. Another account's later label event never moves it.
-async function readAdmittedAt(github, repository, number, label, senderId) {
-  const events = await paginate(github, `/repos/${repository}/issues/${number}/events`);
-  const at = Math.max(
-    ...events
-      .filter((event) => event?.event === "labeled" && event.label?.name === label && event.actor?.id === senderId)
-      .map((event) => timeOf(event.created_at)),
-  );
+// The lanes App's remove-and-re-add after a limit stop (work-unblock's
+// restart) admits nothing new, so it anchors at the label it restarted.
+async function readAdmittedAt(github, repository, number, label, senderId, lanesAppId) {
+  const events = (await paginate(github, `/repos/${repository}/issues/${number}/events`))
+    .filter((event) => (event?.event === "labeled" || event?.event === "unlabeled") && event.label?.name === label)
+    .sort((a, b) => timeOf(a.created_at) - timeOf(b.created_at));
+  let index = events.findLastIndex((event) => event.event === "labeled" && event.actor?.id === senderId);
+  while (index > 0 && events[index].actor?.id === lanesAppId && events[index - 1].event === "unlabeled" && events[index - 1].actor?.id === lanesAppId) {
+    index = events.slice(0, index - 1).findLastIndex((event) => event.event === "labeled");
+  }
+  const at = index < 0 ? Number.NaN : timeOf(events[index].created_at);
   if (!Number.isFinite(at)) {
-    throw new Error(`no ${label} label event from the account that applied it`);
+    throw new Error(`no ${label} label event that admitted the issue`);
   }
   return at;
 }
@@ -107,10 +111,11 @@ export async function main({ env = process.env, github, log = console.log } = {}
     dropped["after-admission"] = 0;
     dropped["over-cap"] = 0;
 
-    const frozenAt = await readAdmittedAt(client, repository, env.ISSUE_NUMBER, env.LABEL_NAME, Number(env.LABEL_SENDER_ID));
+    const frozenAt = await readAdmittedAt(client, repository, env.ISSUE_NUMBER, env.LABEL_NAME, Number(env.LABEL_SENDER_ID), lanesAppId);
+    // Timestamps are whole seconds, so a change in the label's own second counts as after it.
     // NaN compares false, so an unparseable time is a change.
     const edits = await readIssueEdits(client, repository, env.ISSUE_NUMBER);
-    if (!edits.every((time) => time == null || timeOf(time) <= frozenAt)) {
+    if (!edits.every((time) => time == null || timeOf(time) < frozenAt)) {
       throw new Error(`the issue title or body changed after ${env.LABEL_NAME} was added`);
     }
 
@@ -123,7 +128,7 @@ export async function main({ env = process.env, github, log = console.log } = {}
       const createdAt = timeOf(comment.created_at);
       const editedAt = lastEditedAt === null ? createdAt : timeOf(lastEditedAt);
       // NaN compares false, so an unparseable time is left out.
-      if (!(createdAt <= frozenAt && editedAt <= frozenAt)) {
+      if (!(createdAt < frozenAt && editedAt < frozenAt)) {
         dropped["after-admission"] += 1;
         continue;
       }

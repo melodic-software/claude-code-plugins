@@ -949,7 +949,8 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
   the skill. The lanes App's own comments are left out, a listed human's comment whose first line
   is `**Decision recorded.**` is marked `decision: true`, and comments other than decisions are
   capped at the newest 20. The issue is frozen when the account that applied the label last
-  added it (the issue's `labeled` events; another account's later label event never moves it): a
+  added it (the issue's `labeled` events; another account's later label event never moves it, and the lanes App's remove-and-re-add after
+  a limit stop anchors at the label it restarted): a
   comment created or edited after that is left out, and a title or body changed since fails the
   step, so text edited after admission does not steer the run. The skill commits to a new branch,
   `<lane>/issue-<n>-<run id>-<attempt>`, which is kept only when it holds commits. The skill's

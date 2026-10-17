@@ -44,7 +44,10 @@ const ISSUE = {
   labels: [{ name: "agent-ready" }, "work-class: mechanical"],
 };
 
-const labeled = (actor, day, name = "agent-ready") => ({ event: "labeled", label: { name }, actor, created_at: at(day) });
+// Label events land at noon, so a comment or edit at midnight that day is before them.
+const labelEvent = (event, actor, day, name) => ({ event, label: { name }, actor, created_at: at(day).replace("T00", "T12") });
+const labeled = (actor, day, name = "agent-ready") => labelEvent("labeled", actor, day, name);
+const unlabeled = (actor, day, name = "agent-ready") => labelEvent("unlabeled", actor, day, name);
 
 // By default the owner added agent-ready after every comment a test posts.
 function fakeGitHub({ comments, edits = {}, issueEdits = {}, users = {}, fail = "", events = [labeled(OWNER, 28)] }) {
@@ -260,6 +263,26 @@ test("the newest label event from the account that applied it is the anchor; ano
   const { issue } = await run(fakeGitHub({ comments: FOUR, edits: LATE_EDIT, events }));
   assert.deepEqual(bodies(issue), ["**Decision recorded.** → option 1", "Before the label."]);
   const { code } = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-15T00:00:00Z" }, events }));
+  assert.equal(code, 1);
+});
+
+// A limit-stop restart (the App removing and re-adding the label) admits
+// nothing new: an edit between the admitting label and the restart still fails.
+test("the App's restart anchors at the label it restarted, so an edit before the restart fails", async () => {
+  const restart = [labeled(OWNER, 13), unlabeled(LANES_BOT, 20), labeled(LANES_BOT, 20)];
+  const app = { sender: String(LANES_BOT.id) };
+  const { code, issue } = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-15T00:00:00Z" }, events: restart }), app);
+  assert.equal(code, 1);
+  assert.equal(issue, null);
+  const kept = await run(fakeGitHub({ comments: FOUR, edits: LATE_EDIT, events: restart }), app);
+  assert.deepEqual(bodies(kept.issue), ["**Decision recorded.** → option 1", "Before the label."]);
+  // A first App label, as work-unblock adds it, is its own anchor.
+  const first = await run(fakeGitHub({ comments: FOUR, events: [labeled(LANES_BOT, 13)] }), app);
+  assert.equal(first.code, 0);
+});
+
+test("a change in the same second as the label counts as after it", async () => {
+  const { code } = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-13T12:00:00Z" }, events: [labeled(OWNER, 13)] }));
   assert.equal(code, 1);
 });
 
