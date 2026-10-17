@@ -1,13 +1,17 @@
 # Docpage-digest pipeline hardening
 
 Spoke for the interview-ratified contract in `SKILL.md` (fence mandate, standing
-gates, freeze/pin, subagent-death ladder). The skill file owns the binding
-rules and each gate's blind spots; this file owns the format, invocation, and
-pin-manifest shape so `SKILL.md` stays a procedure.
+gates, freeze/pin). The skill file owns the binding rules and each gate's blind
+spots; this file owns the format, invocation, and pin-manifest shape so
+`SKILL.md` stays a procedure. It also holds the one subagent-death ladder; the
+degraded-verifier rule is in [dual-verification.md](dual-verification.md).
 
 **Prerequisite:** `python3` (3.9+) on PATH for the two standing gates under
 `scripts/`. Missing Python means say so and stop. There is no agent-judgment
-fallback for a deterministic quote/snippet check.
+fallback for a deterministic quote/snippet check. The five scripts that import a
+sibling module set `sys.dont_write_bytecode` so they leave no `__pycache__` in the skill's
+installed `scripts/` directory; an ad-hoc script that imports from
+`<skill-dir>/scripts` runs with `python3 -B`.
 
 ## Fence mandate
 
@@ -115,17 +119,39 @@ appeared. Wait for the arm to return.
 ## Subagent-death / usage-limit ladder
 
 Dominant failure mode of the cloud-fleet run, ahead of any content defect
-(lost agents, killed completion reports, mid-audit kills, slot exhaustion,
-refused fan-out). `SKILL.md`'s degraded-verifier rule covers a *missing*
-cross-vendor arm, not a session that cannot spawn.
+(lost agents, killed completion reports, mid-audit kills). The
+degraded-verifier rule in [dual-verification.md](dual-verification.md) covers a
+*missing* cross-vendor arm, not a session that cannot spawn. This is the one
+copy of the ladder; every other file points here.
 
-1. **Retry window**: re-dispatch the same brief once; record the death and
-   the retry.
-2. **Inline-with-disclosure**: if the retry also dies, the orchestrator
-   completes that unit inline and records `inline-with-disclosure` naming the
-   dead slot and the unit.
-3. **Degraded marker + re-run trigger**: if inline is impossible, write the
-   marker on the checklist (and the verdict header if an arm is what died)
-   and name the unfinished units. Do not tick the phase complete.
+0. **A concurrency refusal is not a death.** A spawn refused with
+   `Concurrent subagent limit reached` (the refusal tells the caller not to
+   retry) is a full session, not a lost agent. Do not re-dispatch at once. If
+   this run has agents of its own running, wait for one to return. If it has
+   none, do phase work that needs no agent, or wait a few minutes with a
+   Monitor wait (the Bash tool blocks a foreground `sleep`). Then dispatch the
+   refused units once more, and record each wait and each refusal on the
+   checklist. A unit refused again falls to rung 2 with the refusals recorded.
+   Rung 1 does not apply to a refusal.
+   - **Pointer**: <https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit>
+     (the refusal, that it tells Claude not to retry, and that spawning
+     succeeds again once the running count drops below the limit). Do not
+     restate the limit here.
+   - **As of**: 2026-10-17
+   - **Recheck trigger**: that section changes what the refusal tells Claude
+     to do or when spawning succeeds again.
+1. **Retry window** (an agent that died, not a refusal): re-dispatch the same
+   brief once; record the death and the retry.
+2. **Inline-with-disclosure**: if the retry also dies, or a unit was refused
+   twice under rung 0, the orchestrator completes that unit inline and records
+   `inline-with-disclosure` naming the dead slot or the refusals, and the
+   unit. Inline runs on the orchestrator's model. When the publisher profile
+   maps the unit to a different model (see Digest-agent model matching in the
+   profile), skip this rung: wait under rung 0 again, or take rung 3. An
+   inline unit's checklist line records the mapped and the actual model, and
+   the verdict header and handoff carry them.
+3. **Degraded marker + re-run trigger**: if inline is impossible or skipped,
+   write the marker on the checklist (and the verdict header if an arm is what
+   died) and name the unfinished units. Do not tick the phase complete.
 
 Silence is not a rung.
