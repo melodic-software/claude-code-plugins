@@ -1200,6 +1200,28 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
   Step 3 dispatch starts passing `effort`, that section changes how a per-call `effort` ranks against
   the `effort` field or which spawns honor it, or the agent's `model` or `effort` changes.
 
+**Exception: `planning:upload-reader`.**
+
+- **Decision:** this agent has one dispatch site, the Trust section of the `/planning:interview`
+  shared lane, and its description says not to invoke it directly, so the multiple-sites clause is
+  unmet; the enforced tool restriction carries it. An upload is a file no one has reviewed, and the
+  `Read`-only cage is what contains a plant the reader obeys: it cannot write, run commands, fetch,
+  or spawn agents. Inline instructions can only ask a generic subagent not to use a tool, so only
+  a definition's `tools` list enforces the cage. The site passes no `model` or `effort`, so the pins hold,
+  and names no generic fallback: the plugin ships the agent, so there is nothing to presence-gate.
+  Model: `opus` keeps the reader at least as strong as the text trying to steer it. Effort:
+  `medium` bounds one file's read, and `maxTurns` bounds it further.
+- **Pointer:** the frontmatter of `plugins/planning/agents/upload-reader.md` (`tools: "Read"`,
+  `model: opus`, `effort: medium`, `maxTurns: 6`) and the Trust section of
+  `plugins/planning/skills/interview/context/lane-shared.md`; for how a `tools` list withholds
+  tools, fetch
+  [create custom subagents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools)
+  live.
+- **As of:** 2026-10-17.
+- **Recheck trigger:** a second dispatch site or direct use appears (the exception then ends), the
+  shared-lane dispatch starts passing `model` or `effort`, that section changes how a `tools` list
+  withholds tools, or the agent's `tools`, `model` or `effort` changes.
+
 ### Model tiers
 
 Four rules decide a lane's model, applied in this order:
