@@ -485,8 +485,11 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
     ecosystem and directory `.github/dependabot.yml` lists at the base (npm `package.json`,
     `package-lock.json` and the like; pip `requirements*.txt`/`.in`, `pyproject.toml`, `uv.lock`
     and the like), or a workflow or action file of a `github-actions` entry whose diff changes only
-    `uses:` lines. A path the version-bump or lanes App fix commit touched counts as checked; a fix
-    commit may not touch `.github/`. Anything else (a rebuilt bundle, a manifest outside a listed
+    `uses:` lines (`/` covers `.github/workflows/` and the root `action.yml`). A `directories` item
+    is a glob as Dependabot reads it: `*` matches within one path segment, `**` any depth, and
+    `**/*` the root too; a `directory` value is literal. A path the version-bump or lanes App fix
+    commit touched counts as checked; a fix commit may not touch `.github/`, and one whose file
+    list cannot be read whole refuses. Anything else (a rebuilt bundle, a manifest outside a listed
     directory) makes the pull request tier `review` with the reason `dependabot-content:<path>`,
     so the AI review judges it; it is never left for a person. A failed push check, by contrast,
     always refuses, verdict or not.

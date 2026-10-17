@@ -1508,14 +1508,19 @@ def _dependabot_content(
     names a diff that is not only covered manifests, lock files and `uses:`
     repins (`content_refusal`, per `.github/dependabot.yml` at the base); it
     sends the pull request to tier `review`. The paths a version-bump or lanes
-    App fix commit touched count as checked; a fix commit touching `.github/`
-    is the refusal. Raises `PolicyReadError` on a read failure."""
+    App fix commit touched count as checked; a fix commit touching `.github/`,
+    or one whose file list cannot be read whole, is the refusal. Raises
+    `PolicyReadError` on a read failure."""
     base_sha = str(json_object(pr.get("base")).get("sha") or "")
     extra: set[str] = set()
     for item in commits:
         if dependabot.is_dependabot_commit(item):
             continue
-        touched = files(str(item.get("sha") or "")) or []
+        sha = str(item.get("sha") or "")
+        touched = files(sha)
+        if touched is None:
+            # Unreadable (or past the listing cap) is not "touches nothing".
+            return None, f"unreadable: commit files {sha[:12]}"
         if not dependabot.is_actions_commit(item):
             gated = [p for p in touched if p == ".github" or p.startswith(".github/")]
             if gated:

@@ -3060,6 +3060,27 @@ class DependabotEligibility(unittest.TestCase):
             "dependabot-fix-content:.github/workflows/ci.yml",
         )
 
+    def test_an_unreadable_fix_commit_file_list_refuses(self) -> None:
+        # Unreadable is not "touches nothing": the .github/ boundary must hold.
+        fix = dependabot_commit(
+            name="agent-lanes[bot]",
+            email="1+agent-lanes[bot]@users.noreply.github.com",
+            message="fix: adapt [dependabot skip]",
+            login=IDENTITY,
+            sha=self.HEAD,
+        )
+        for answer in (500, {"files": [{"filename": f"f{i}"} for i in range(300)]}):
+            with self.subTest(answer=type(answer).__name__):
+                gh = self.fake(
+                    commits=[dependabot_commit("semver-major"), fix],
+                    comments=[self.marker()],
+                )
+                gh.rest[f"repos/{REPO}/commits/{self.HEAD}"] = answer
+                self.assertEqual(
+                    self.eligibility().reason,
+                    f"unreadable: commit files {self.HEAD[:12]}",
+                )
+
     FOREIGN_PUSH = [
         {
             "activity_type": "push",

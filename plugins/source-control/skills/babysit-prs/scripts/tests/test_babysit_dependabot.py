@@ -366,13 +366,43 @@ class Content(unittest.TestCase):
         self.assertEqual(
             CONFIG_PAIRS,
             [
-                ("github-actions", "/"),
-                ("npm", "/plugins/miro/server"),
-                ("pip", "/plugins/speech"),
-                ("pip", "/.github"),
+                ("github-actions", "/", False),
+                ("npm", "/plugins/miro/server", False),
+                ("pip", "/plugins/speech", True),
+                ("pip", "/.github", True),
             ],
         )
         self.assertIsNone(dependabot.parse_config("version: 2\n"))
+
+    def test_directories_globs_match_by_segment(self) -> None:
+        # docs.github.com dependabot-options-reference: `directories` supports
+        # globbing and `*`, `directory` does not; `*` is a single-segment
+        # wildcard and `**` matches recursively; `/lib-*` is the root's
+        # directories starting with lib-, `**/*` every directory from the
+        # current layer down.
+        cases = [
+            ("/lib-*", "lib-a/package.json", True),
+            ("/lib-*", "lib-a/sub/package.json", False),
+            ("/lib-*", "package.json", False),
+            ("/plugins/*/server", "plugins/miro/server/package.json", True),
+            ("/plugins/*/server", "plugins/a/b/server/package.json", False),
+            ("/plugins/**/server", "plugins/a/b/server/package.json", True),
+            ("/plugins/**/server", "plugins/server/package.json", True),
+            ("**/*", "package.json", True),
+            ("**/*", "a/b/c/package.json", True),
+            ("/", "package.json", True),
+            ("/", "a/package.json", False),
+        ]
+        for pattern, path, expected in cases:
+            with self.subTest(pattern=pattern, path=path):
+                config = [("npm", pattern, True)]
+                refusal = dependabot.content_refusal([changed(path)], config)
+                self.assertEqual(refusal is None, expected)
+        # The `directory` key takes no glob: `*` is a literal there.
+        literal = [("npm", "/lib-*", False)]
+        self.assertIsNotNone(
+            dependabot.content_refusal([changed("lib-a/package.json")], literal)
+        )
 
     def test_covered_manifests_and_lock_files_pass(self) -> None:
         self.assertIsNone(
@@ -413,9 +443,16 @@ class Content(unittest.TestCase):
         )
 
     def test_a_uses_pin_only_workflow_diff_passes(self) -> None:
-        for path in (".github/workflows/ci.yml", ".github/actions/setup/action.yaml"):
+        for path in (".github/workflows/ci.yml", "action.yml"):
             with self.subTest(path=path):
                 self.assertIsNone(self.refusal(changed(path, PIN)))
+        # `/` covers `.github/workflows` and the root action file only.
+        nested = ".github/actions/setup/action.yaml"
+        self.assertEqual(
+            self.refusal(changed(nested, PIN)), f"dependabot-content:{nested}"
+        )
+        config = [("github-actions", "/.github/actions/*", True)]
+        self.assertIsNone(dependabot.content_refusal([changed(nested, PIN)], config))
 
     def test_a_workflow_diff_changing_a_run_line_is_refused(self) -> None:
         patch = (
