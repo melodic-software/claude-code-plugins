@@ -73,8 +73,8 @@ rollback across scopes is never a convergence.
 ```
 
 **Every `project`/`local`-scope command targets its row's own `scopes[].projectPath`, never the
-current working directory.** `-s project`/`-s local` have no path/target flag. The CLI always
-operates on the *current directory's* `.claude/settings*.json`. A divergence row can legitimately
+current working directory.** `-s project`/`-s local` have no path/target flag. The CLI is aimed at the *current directory's* `.claude/settings*.json`, though for `update` the aim is not
+reliable when a sibling worktree holds a record of the same id (Step 4 checks the result). A divergence row can legitimately
 belong to a different repo than the one this session is standing in (the "elsewhere on this machine"
 rows a bulk report collapses). Never construct the proposed command as a bare
 `claude plugin uninstall|update <id> -s project`, only as
@@ -135,6 +135,26 @@ the **step**. That is a deliberate difference, not a contradiction: this action 
 low-volume (a handful of plugins, each with a human decision between them), so a re-read per mutation
 costs nothing and the elapsed time between confirms is real. `sync`'s Step 3 loop issues dozens of
 calls back to back with no pause, where the same discipline would buy only redundant work.
+
+**After each `update -s project`/`-s local`, check that the intended record moved.** The CLI can
+update a sibling worktree's record of the same id instead of the cwd's
+([scope-semantics.md](scope-semantics.md)), and exit `0` either way.
+
+1. Read the scope path the CLI printed and compare it with the row's `scopes[].projectPath`. A
+   different path is a misfire. A missing or unparsable path decides nothing, so go on to the next check.
+2. Re-run `fleet-state.sh` and read the record for `(id, scope, projectPath)`. Its `version` must equal
+   the version the update was expected to install (the catalog version). Also compare every other record
+   of that id with the read taken just before this mutation, and name any whose `version` or `lastUpdated` changed.
+3. Report a misfire as its own row, never as success, and do not retry the same command (it can hit the
+   same sibling again):
+
+```text
+- <id>@<marketplace>: MISFIRE: the CLI updated "<other path>" instead of "<intended path>".
+  The intended record is still at <version>.
+```
+
+A record that did not move and no other record that did is reported as "did not move", with the CLI's
+output.
 
 ## Step 5: Surface the resulting diff
 
