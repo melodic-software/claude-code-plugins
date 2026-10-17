@@ -46,7 +46,20 @@ import { join, posix } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+// A script activity runs from a copy of its own directory
+// (collect-base-activity), so it imports nothing from outside it.
+async function paginate(github, apiPath, maxPages = 50) {
+  const items = [];
+  const separator = apiPath.includes("?") ? "&" : "?";
+  for (let page = 1; page <= maxPages; page += 1) {
+    const batch = await github("GET", `${apiPath}${separator}per_page=100&page=${page}`);
+    items.push(...batch);
+    if (batch.length < 100) {
+      return items;
+    }
+  }
+  throw new Error(`${apiPath} has more than ${maxPages} pages`);
+}
 
 export const HOLD_LINE = "Hold: a human merges this";
 const EXITS = new Set(["done", "pushback", "stopped"]);

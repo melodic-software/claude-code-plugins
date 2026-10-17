@@ -11,6 +11,7 @@
 - [Outputs and skips](#outputs-and-skips)
 - [Merge authority](#merge-authority)
 - [Trust-root paths](#trust-root-paths)
+- [Models](#models)
 - [Loop caps](#loop-caps)
 - [Planning lane work](#planning-lane-work)
 - [Changing this config](#changing-this-config)
@@ -216,8 +217,6 @@ Each leaf declares:
   with no model to post ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)). A write runner performs this
   only where it declares support by passing `prepare-supported: true` to `resolve-config`; anywhere
   else an applying leaf that sets `prepare` fails red rather than running without it.
-- `model` and `max-turns` (optional, `skill` only): the model and turn budget for the Claude Code
-  run. When unset, `pr-run-activity`'s defaults apply.
 - `checks` (optional, `skill` only): repository check scripts, each `scripts/<name>.sh` with its
   flags fixed, that a skill with an effect other than `read` may run. The write runner runs each
   from the base copy against the checkout, so no head code runs
@@ -638,7 +637,7 @@ parse bug shows in the run log instead of quietly spending AI reviews; fix the c
 
 `.github/workflows/pr-verify.yml` runs on main after each successful `pr-require-checks` run of a
 same-repository, non-draft pull request into main. It never runs the pull request's code: a model
-(`merge.verifier-model`) reads the diff, the trusted pull request text and its linked issues as
+(the `verify-pr` route of [Models](#models)) reads the diff, the trusted pull request text and its linked issues as
 data, and judges whether the diff delivers the issue's intent correctly and safely. The run
 uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON
 (`pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
@@ -782,6 +781,32 @@ The required `check-managed-files` job in `ci-status` fails any hand edit or del
 `pr-merge` refuses a PR that touches a path `merge.diff-check.denied-paths` lists and leaves it
 for a human. This repository lists none, so a lane PR touching a trust-root path merges on a
 passing verdict like any other (see the switches above).
+
+## Models
+
+`models` sets the model, effort and turn budget of every model run, so a model change is one edit.
+Each profile under `models.profiles` names:
+
+- `model`: an alias (`default`, `best`, `fable`, `opus` or `sonnet`), never a full model ID, passed
+  as `--model`. `default` passes no `--model`, so the account's default model runs.
+- `effort` (optional): `low`, `medium`, `high`, `xhigh` or `max`, passed as `--effort`. Unset
+  passes none, so the model's default effort applies.
+- `subagent-model` (optional, default `inherit`): an alias set as `CLAUDE_CODE_SUBAGENT_MODEL`
+  through the run's `settings` env; `inherit` sets nothing. A spawn's own `model` and an agent
+  definition's still win.
+- `max-turns`: the turn budget, passed as `--max-turns`.
+
+`models.routes` maps a run to a profile: a skill activity by its name, and `verify-pr` for the
+[verifier](#verifier-verdict). A run no route names takes `models.default-profile`. The config
+reader rejects a route or default naming an undefined profile, and a route that is neither a skill
+activity nor `verify-pr`. A config with no `models` block gives every run the built-in `standard`
+profile: model `default` and 75 turns. `resolve-config` turns the run's profile into its
+`claude-args` and `settings-json` outputs, which the runners pass to claude-code-action as
+`claude_args` and `settings`; the values come only from this file on the base, never from text the
+run reads.
+
+This repository's block has two profiles: `standard` (model `default`, 75 turns), every skill
+activity's, and `review` (`opus`, 60 turns), the verifier's. Neither sets effort.
 
 ## Loop caps
 

@@ -39,16 +39,6 @@ on:
         required: false
         type: string
         default: ""
-      default-model:
-        description: The model when the activity sets none; empty omits --model.
-        required: false
-        type: string
-        default: ""
-      default-max-turns:
-        description: The turn budget when the activity sets none.
-        required: false
-        type: number
-        default: 75
       timeout-minutes:
         description: The run job's timeout in minutes.
         required: false
@@ -283,8 +273,6 @@ jobs:
           kind: ${{ steps.config.outputs.kind }}
           script: ${{ steps.config.outputs.script }}
           skill: ${{ steps.config.outputs.skill }}
-          model: ${{ steps.config.outputs.model || inputs.default-model }}
-          max-turns: ${{ steps.config.outputs.max-turns || inputs.default-max-turns }}
           gating: ${{ steps.config.outputs.gating }}
           effect: ${{ steps.config.outputs.effect }}
           resolved-path: ${{ runner.temp }}/resolved-config.json
@@ -391,9 +379,13 @@ jobs:
           plugin_marketplaces: ${{ runner.temp }}/base-marketplace
           plugins: ${{ steps.stage.outputs.plugins }}
           prompt: ${{ steps.stage.outputs.prompt }}
+          # The model, turns and effort come from the base config's models
+          # profile (resolve-config), never from text the run reads.
+          settings: ${{ steps.config.outputs.settings-json }}
           claude_args: >-
             --setting-sources user
             --permission-mode dontAsk
+            ${{ steps.config.outputs.claude-args }}
             ${{ steps.stage.outputs.claude-args }}
 
       # The reply is untrusted model text: it is read with jq and printed as

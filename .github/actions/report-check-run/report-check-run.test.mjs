@@ -141,7 +141,8 @@ test("a lane record from env opens the summary and fills output.text and externa
 });
 
 test("the posted limit stop is the one limit-stop.mjs reads from the summary", async () => {
-  const { calls } = await run(LIMIT);
+  const { calls } = await run({ ...LIMIT, LANE_MODELS: "claude-opus-5-5", LANE_PROFILE: "standard" });
+  assert.match(calls[0].body.output.summary, / max-turns=30 models=claude-opus-5-5 profile=standard\n/);
   const posted = { ...calls[0].body, id: 1, completed_at: "2026-10-17T12:00:00Z" };
   assert.equal(limitResetsAt(posted), Date.parse("2026-10-17T15:30:00Z"));
   const ids = [1, 2, 3].map((id) => ({ ...posted, id }));

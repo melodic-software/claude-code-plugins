@@ -54,8 +54,6 @@ permissions, and passes no App key.
 | `activity` | required | The activity, one of the lane's slots |
 | `config-path` | `docs/conventions/pr-pipeline.yaml` | For test callers only (below) |
 | `pr-number` | `''` | The PR on `workflow_dispatch` |
-| `default-model` | `''` | The model when the activity sets none; empty omits `--model` |
-| `default-max-turns` | `75` | The turn budget when the activity sets none |
 | `timeout-minutes` | `30` | The run job's timeout; the report job's is fixed at 10 |
 | `dispatcher-run-id` | `''` | Write file only: the `pr-unblock-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
 | `trusted-base` | `pr-base` | Write file only: `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
@@ -263,11 +261,13 @@ after the skill.
 
 The write file also outputs the lane record of a skill run: `lane-class` and `lane-resets`, the
 failure class and usage-limit reset that ci-workflows' `report-lane-outcome` reads from the
-execution file's structured fields, and `lane-turns` and `lane-max-turns`, the turns taken and the
-cap. They come from steps after the skill. The report job passes them to `report-check-run`, which
-checks each against a fixed shape and writes them into the posted check run: as the first line of
-`output.summary`, `lane=<lane> activity=<activity>` then `class`, `resets`, `turns` and `max-turns`
-in that order, each omitted when absent; as one JSON block in `output.text`; and as
+execution file's structured fields, `lane-turns` and `lane-max-turns`, the turns taken and the
+cap, `lane-models`, the comma list of model IDs the result's `modelUsage` names, and
+`lane-profile`, the models profile `resolve-config` gave the skill. They come from steps after the
+skill. The report job passes them to `report-check-run`, which checks each against a fixed shape
+and writes them into the posted check run: as the first line of `output.summary`,
+`lane=<lane> activity=<activity>` then `class`, `resets`, `turns`, `max-turns`, `models` and
+`profile` in that order, each omitted when absent; as one JSON block in `output.text`; and as
 `external_id` `<lane>:<activity>:<run id>:<run attempt>`. A failed run whose record says `class=rate-limit`
 is the limit stop the pr-unblock dispatchers read from the check-run list they already fetch; a
 failed run with no record line is not one. In issue mode the
@@ -299,7 +299,10 @@ known residual. The skill gets the App token as `github_token` in the write file
 read-only `GITHUB_TOKEN` in the read file. `claude_args` passes `--setting-sources user`, so no
 project or local settings, hooks, `CLAUDE.md`, `AGENTS.md` or `.mcp.json` from the PR head load;
 `--permission-mode dontAsk`; `--allowedTools "Skill(<plugin>:<skill>)"`, so the skill's own
-`allowed-tools` decide what else it may use; `--max-turns`; and `--model` when one is set. The
+`allowed-tools` decide what else it may use; and `resolve-config`'s `claude-args` for the
+activity's models profile (`--max-turns`, `--model` unless the model is `default`, `--effort` when
+set), with its `settings-json` as the action's `settings`
+([README.md, Models](README.md#models)). The
 plugin installs only from `$RUNNER_TEMP/base-marketplace` and loads from there, outside the working
 directory, so `--allowedTools` also carries `Read(/$RUNNER_TEMP/base-marketplace/**)`: without
 it the skill cannot read its own reference files. Commits go through the API, signed
