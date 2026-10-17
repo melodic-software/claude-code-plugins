@@ -1513,14 +1513,15 @@ def dependabot_eligibility(
     agent_identity: str | None,
 ) -> Eligibility:
     """Whether the pr-merge lane may merge a Dependabot pull request: not a
-    fork, opened by Dependabot's App, tier `auto` (`babysit_dependabot.classify`:
-    every commit Dependabot's and verified, every update non-major), a green
-    `ci-status` on the head, and no human blocking comment. A finished
-    `ci-status` that failed makes the tier `review`, which the lane never
-    merges; one still running is tier `auto`, not yet eligible. The class is
-    C2 (mechanical), so the rung and its cap still bind it. No closing issue
-    and no denied-path rule: `ci-status` is the gate. The `do-not-merge` label
-    and a body hold are the gate's, as for every pull request."""
+    fork, opened by Dependabot's App; tier `auto` (`babysit_dependabot.classify`),
+    or tier `review` with the lanes App's `verdict=merge` round marker at the
+    current head (`merge_verdict`); every commit Dependabot's (plus, after a
+    review, the lanes App's `[dependabot skip]` fixes); a green `ci-status` on
+    the head; and no human blocking comment. A running `ci-status` waits. The
+    class is C2 (mechanical), so the rung and its cap still bind it. No
+    closing issue and no denied-path rule: `ci-status` is the gate. The
+    `do-not-merge` label and a body hold are the gate's, as for every pull
+    request."""
     owner, name = _split_repo(repo)
     head = str(json_object(pr.get("head")).get("sha") or "")
     try:
@@ -1550,19 +1551,36 @@ def dependabot_eligibility(
             or total != len(commits)
         ):
             return Eligibility(False, f"commits-listed:{len(commits)}-of:{total}")
+        ci = _ci_status(owner, name, head)
+        if ci == "unreadable":
+            return Eligibility(False, "ci-status:unreadable")
         tier = dependabot.classify(
-            str(pr.get("title") or ""), commits, _commit_files(owner, name)
+            str(pr.get("title") or ""),
+            str(pr.get("body") or ""),
+            str(json_object(pr.get("head")).get("ref") or ""),
+            ci,
+            commits,
         )
-        if tier.tier == dependabot.AUTO:
-            ci = _ci_status(owner, name, head)
-            if ci not in ("success", "pending", "unreadable"):
-                tier = dependabot.Classification(
-                    dependabot.REVIEW, f"ci-status:{ci}", tier.updates
-                )
+        # A tier `review` pull request merges only on the review activity's
+        # `verdict=merge` at this head, and may then carry its fix commits.
+        lane_commits = None
         if tier.tier != dependabot.AUTO:
-            return Eligibility(
-                False, f"dependabot-review:{tier.reason}", dependabot=tier
+            comments = _paginated(
+                f"repos/{owner}/{name}/issues/{number}/comments?per_page=100",
+                f"#{number} comments",
             )
+            run, why = dependabot.merge_verdict(comments, str(agent_identity), head)
+            if run is None:
+                return Eligibility(
+                    False, f"dependabot-review:{tier.reason};{why}", dependabot=tier
+                )
+            tier = replace(tier, approved=run)
+            lane_commits = agent_identity
+        refusal = dependabot.commits_refusal(
+            commits, _commit_files(owner, name), lane_commits
+        )
+        if refusal:
+            return Eligibility(False, refusal, "C2", dependabot=tier)
         if ci != "success":
             return Eligibility(False, f"ci-status:{ci}", "C2", dependabot=tier)
         blockers = _human_blockers(owner, name, number, str(agent_identity or ""))

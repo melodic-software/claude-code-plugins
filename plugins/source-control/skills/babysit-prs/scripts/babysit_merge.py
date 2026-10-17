@@ -41,7 +41,7 @@ Contract enforced here (encoded as code, not convention):
   merge lands them together. Without it a stack layer is held as before.
 - A PR authored by a dependency manager (Dependabot/Renovate-class) is held --
   never merged -- unless `--allow-dependency` is passed, or the pr-merge lane
-  (`--authority pr-merge`) reads it as a tier `auto` Dependabot pull request.
+  (`--authority pr-merge`) reads it as a mergeable Dependabot pull request.
 - A PR on an unprotected base (zero required reviews AND zero required contexts)
   is held unless `--allow-unprotected` is passed: on such a base `CLEAN` proves
   nothing. A configured self login is exempt only when that base is the
@@ -101,10 +101,11 @@ Contract enforced here (encoded as code, not convention):
   only merges the identity enqueued are judged after the fact, and while
   `merge.report-only` is true `--merge` runs as a check that writes nothing.
   A Dependabot pull request there is its own class (`babysit_dependabot`):
-  tier `auto` (verified Dependabot commits, every update non-major) on a green
-  `ci-status` is eligible as C2 with no closing issue, no denied-path rule
-  and no diff score, and `merge.dependabot.mode` (not `merge.report-only`)
-  decides whether it writes; tier `review` is refused.
+  tier `auto` (every update non-major), or tier `review` with the review
+  activity's `verdict=merge` marker at the head, on verified Dependabot
+  commits and a green `ci-status` is eligible as C2 with no closing issue, no
+  denied-path rule and no diff score, and `merge.dependabot.mode` (not
+  `merge.report-only`) decides whether it writes.
 
 Readiness is gated on GitHub's own `mergeStateStatus == CLEAN` (which integrates
 required checks, approvals, conversation resolution, and up-to-date where the
@@ -132,7 +133,6 @@ from pathlib import Path
 from typing import Any, cast
 from urllib.parse import quote
 
-import babysit_dependabot as dependabot
 import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
 import babysit_review_evidence as review_evidence
@@ -3475,7 +3475,7 @@ def main() -> int:
             "with --unattended, the merge authority this run is (default "
             "local-babysit); merge.authority at the base must name it. "
             "pr-merge is the CI lane: a CI-labeled C2 pull request off the "
-            "denied paths, or a tier auto Dependabot pull request on a green "
+            "denied paths, or a mergeable Dependabot pull request on a green "
             "ci-status, no promotion read, and nothing written while "
             "merge.report-only (merge.dependabot.mode short of enforce, for "
             "Dependabot) holds"
@@ -3792,7 +3792,7 @@ def main() -> int:
         except (RuntimeError, OSError) as exc:
             return _refuse(f"pending merge record unreadable: {exc}", 2)
 
-    # The pr-merge lane's tier `auto` Dependabot pull request is the one
+    # The pr-merge lane's mergeable Dependabot pull request is the one
     # dependency-manager PR an unattended run may merge.
     lane_dependabot = getattr(
         ((unattended.inputs or {}) if unattended else {}).get("eligibility"),
@@ -3810,7 +3810,7 @@ def main() -> int:
             or (
                 args.unattended
                 and lane_dependabot is not None
-                and lane_dependabot.tier == dependabot.AUTO
+                and lane_dependabot.mergeable
             ),
             args.allow_unprotected,
             tier,

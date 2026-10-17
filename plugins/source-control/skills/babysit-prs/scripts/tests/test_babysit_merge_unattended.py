@@ -716,7 +716,7 @@ class LaneMode(Unattended):
                     self.assertEqual(merge.main(), 2)
 
 
-AUTO_TIER = dependabot.Classification("auto", None)
+AUTO_TIER = dependabot.Classification("auto")
 DEPENDABOT_AUTO = policy.Eligibility(True, None, "C2", dependabot=AUTO_TIER)
 
 
@@ -767,31 +767,31 @@ class DependabotLane(Unattended):
         self.assertEqual(out["unattended"]["reason"], "ineligible:dependabot-merge-off")
         self.assertTrue(any("dependency manager" in b for b in out["blockers"]))
 
-    def test_a_major_bump_is_refused(self) -> None:
-        tier = dependabot.Classification("review", "major:x")
-        self.dependabot_reads = [
-            policy.Eligibility(False, "dependabot-review:major:x", dependabot=tier)
-        ]
+    def test_a_major_bump_without_a_merge_verdict_is_refused(self) -> None:
+        tier = dependabot.Classification("review", ("major:x",))
+        reason = "dependabot-review:major:x;review-verdict-missing"
+        self.dependabot_reads = [policy.Eligibility(False, reason, dependabot=tier)]
         code, out = self.lane()
         self.assert_no_merge(code)
-        self.assertEqual(
-            out["unattended"]["reason"], "ineligible:dependabot-review:major:x"
-        )
+        self.assertEqual(out["unattended"]["reason"], f"ineligible:{reason}")
         self.assertTrue(any("dependency manager" in b for b in out["blockers"]))
 
+    def test_a_major_bump_with_a_merge_verdict_enqueues(self) -> None:
+        tier = dependabot.Classification("review", ("major:x",), approved="55-1")
+        self.dependabot_reads = [policy.Eligibility(True, None, "C2", dependabot=tier)]
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+        self.assertEqual(out["unattended"]["dependabot"]["approved"], "55-1")
+        self.assertFalse(any("dependency manager" in b for b in out["blockers"]))
+
     def test_a_red_ci_status_is_refused(self) -> None:
-        tier = dependabot.Classification("review", "ci-status:failure")
-        self.dependabot_reads = [
-            policy.Eligibility(
-                False, "dependabot-review:ci-status:failure", dependabot=tier
-            )
-        ]
+        tier = dependabot.Classification("review", ("ci-status-red",))
+        reason = "dependabot-review:ci-status-red;review-verdict-missing"
+        self.dependabot_reads = [policy.Eligibility(False, reason, dependabot=tier)]
         code, out = self.lane()
         self.assert_no_merge(code)
-        self.assertEqual(
-            out["unattended"]["reason"],
-            "ineligible:dependabot-review:ci-status:failure",
-        )
+        self.assertEqual(out["unattended"]["reason"], f"ineligible:{reason}")
 
     def test_the_hold_label_or_a_body_hold_refuses(self) -> None:
         for view in (

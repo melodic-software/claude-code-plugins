@@ -423,12 +423,12 @@
         "dependabot": {
           "type": "object",
           "additionalProperties": false,
-          "description": "The pr-merge lane's Dependabot class: a tier auto pull request (verified Dependabot commits, every update semver-patch or semver-minor) merges on a green ci-status with no closing issue or denied-path rule; tier review never merges here (README.md, Dependabot pull requests).",
+          "description": "The pr-merge lane's Dependabot class: on verified Dependabot commits and a green ci-status, a tier auto pull request (every update non-major) merges, and a tier review one merges on the lanes App's verdict=merge marker at its head; no closing issue or denied-path rule (README.md, Dependabot pull requests).",
           "properties": {
             "mode": {
               "enum": ["off", "report", "enforce"],
               "default": "off",
-              "description": "enforce: merge tier auto pull requests whatever merge.report-only says. report: report each decision and write nothing. off: refuse every Dependabot pull request and leave them unlisted."
+              "description": "enforce: merge Dependabot pull requests whatever merge.report-only says. report: report each decision and write nothing. off: refuse every Dependabot pull request and leave them unlisted."
             }
           }
         }

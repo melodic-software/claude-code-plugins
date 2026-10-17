@@ -215,9 +215,10 @@ merge:
   # Reports each decision and writes nothing until the owner sets false.
   report-only: true
   # Dependabot pull requests answer to this switch, not report-only: tier auto
-  # (verified Dependabot commits, every update patch or minor) merges once
-  # ci-status passes; tier review is the pr-unblock lane's. Owner decision: no
-  # Dependabot pull request waits on a human (docs/adr/0073).
+  # (every update non-major, allowed Actions publishers) merges once ci-status
+  # passes; tier review merges once the pr-unblock review leaves a merge
+  # verdict at the head and ci-status passes. Owner decision: no Dependabot
+  # pull request waits on a human (docs/adr/0073).
   dependabot:
     mode: enforce
   diff-check:

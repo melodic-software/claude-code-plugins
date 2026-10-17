@@ -9,10 +9,12 @@ name: pr-merge
 # the exact commit the gate checked. The merge queue then runs CI one last
 # time and merges.
 #
-# Dependabot PRs are the other kind it merges: a patch or minor bump made only
-# of Dependabot's own verified commits, once `ci-status` passes (tier `auto`).
-# A major bump, any other commit, or a failed `ci-status` is tier `review`,
-# which this workflow never merges; the pr-unblock lane reviews those.
+# Dependabot PRs are the other kind it merges, made only of Dependabot's own
+# verified commits and only once `ci-status` passes. A non-major bump from an
+# allowed publisher (tier `auto`) merges as is. Anything riskier (tier
+# `review`: a major bump, another Actions publisher, a red `ci-status`) merges
+# only after the pr-unblock lane's AI review leaves a `verdict=merge` marker,
+# written by the lanes App, for the PR's current commit.
 #
 # It runs no AI model and never checks out a PR's own code: every script it
 # runs comes from the main branch. The rules live in

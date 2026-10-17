@@ -1,11 +1,15 @@
-"""The Dependabot tier: `auto` only for verified Dependabot commits whose every
-update is semver-patch or semver-minor; anything else is `review`.
+"""The Dependabot class: the tier both lanes share, the commit check, and the
+review activity's merge verdict.
 
-Commit shapes are those of the REST pull-request commits API. The metadata
-block is the one Dependabot writes into its commit message and
-`dependabot/fetch-metadata` parses; the github-actions[bot] commit is the
-repository's `[dependabot skip]` version bump (pr-bump-plugin-version.yml), as
-`scripts/lib/changelog-fragments.sh` (`dependabot_only`) accepts it.
+The tier rules are the owner's decision recorded in ADR 0073: major means the
+first numeric version component changes or, below 1.0, the second does; an
+Actions update is `auto` only from the `actions`, `github` or `anthropics`
+publisher; a red `ci-status` and anything unreadable are `review`. Commit
+shapes are those of the REST pull-request commits API; the metadata block is
+the one Dependabot writes into its commit message; the github-actions[bot]
+commit is the repository's `[dependabot skip]` version bump, as
+`scripts/lib/changelog-fragments.sh` (`dependabot_only`) accepts it; the round
+marker is the one pr-run-activity.md's "prepare: dependency-review" defines.
 """
 
 from __future__ import annotations
@@ -21,12 +25,17 @@ import babysit_dependabot as dependabot
 
 SHA = "d" * 40
 ACTIONS_SHA = "e" * 40
+HEAD = "f" * 40
+OLD_HEAD = "a" * 40
+IDENTITY = "agent-lanes[bot]"
+NPM = "dependabot/npm_and_yarn/x-1.3.0"
+ACTIONS = "dependabot/github_actions/actions/checkout-4.2.0"
 
 
-def metadata(*updates: tuple[str, str | None]) -> str:
+def metadata(*updates: tuple[str, str | None, str]) -> str:
     lines = ["Bumps things.", "", "---", "updated-dependencies:"]
-    for name, kind in updates:
-        lines += [f"- dependency-name: {name}", "  dependency-version: 4.2.0"]
+    for name, kind, version in updates:
+        lines += [f"- dependency-name: {name}", f"  dependency-version: {version}"]
         lines += ["  dependency-type: direct:production"]
         if kind is not None:
             lines.append(f"  update-type: version-update:{kind}")
@@ -42,9 +51,11 @@ def commit(
     email: str = "49699333+dependabot[bot]@users.noreply.github.com",
     committer: str = "noreply@github.com",
     verified: bool = True,
+    login: str | None = None,
 ) -> dict[str, Any]:
     return {
         "sha": sha,
+        "author": {"login": login} if login else None,
         "commit": {
             "message": message,
             "author": {"name": name, "email": email},
@@ -58,113 +69,142 @@ def no_files(sha: str) -> list[str] | None:
     raise AssertionError(f"files read for a Dependabot commit {sha}")
 
 
-class Classify(unittest.TestCase):
-    TITLE = "build(deps): bump actions/checkout from 4.1.0 to 4.2.0"
+def tier(
+    title: str, *, body: str = "", ref: str = NPM, ci: str = "success", commits=()
+) -> dependabot.Classification:
+    return dependabot.classify(title, body, ref, ci, list(commits))
 
-    def test_a_patch_or_minor_update_is_auto(self) -> None:
-        for kind, title in (
-            ("semver-patch", "build(deps): bump x from 1.2.3 to 1.2.4"),
-            ("semver-minor", self.TITLE),
+
+class Classify(unittest.TestCase):
+    def test_a_patch_or_1x_minor_update_is_auto(self) -> None:
+        for title in (
+            "bump x from 1.2.3 to 1.2.4",
+            "build(deps): bump x from 1.2.0 to 1.3.0",
         ):
-            with self.subTest(kind=kind):
-                result = dependabot.classify(
-                    title, [commit(metadata(("x", kind)))], no_files
-                )
-                self.assertEqual((result.tier, result.reason), ("auto", None))
-                self.assertEqual(result.updates, (dependabot.Update("x", kind),))
+            with self.subTest(title=title):
+                result = tier(title)
+                self.assertEqual((result.tier, result.reasons), ("auto", ()))
+
+    def test_a_0x_minor_update_is_review(self) -> None:
+        # Semver promises nothing below 1.0, so 0.3 to 0.4 is breaking.
+        result = tier("Bump x from 0.3.1 to 0.4.0")
+        self.assertEqual((result.tier, result.reasons), ("review", ("major:x",)))
+        self.assertEqual(tier("Bump x from 0.3.1 to 0.3.2").tier, "auto")
 
     def test_a_major_update_is_review(self) -> None:
-        result = dependabot.classify(
-            "build(deps): bump x from 4.2.0 to 5.0.0",
-            [commit(metadata(("x", "semver-major")))],
-            no_files,
-        )
-        self.assertEqual((result.tier, result.reason), ("review", "title-major"))
-        # The metadata alone decides when the title names no versions.
-        result = dependabot.classify(
-            "build(deps): bump x", [commit(metadata(("x", "semver-major")))], no_files
-        )
-        self.assertEqual((result.tier, result.reason), ("review", "major:x"))
+        result = tier("build(deps): bump x from 4.2.0 to 5.0.0")
+        self.assertEqual(result.reasons, ("major:x",))
 
-    def test_a_title_reading_major_overrides_minor_metadata(self) -> None:
-        result = dependabot.classify(
-            "Bump x from 1.9.0 to 2.0.0", [commit(metadata(("x", "semver-minor")))],
-            no_files,
-        )  # fmt: skip
-        self.assertEqual((result.tier, result.reason), ("review", "title-major"))
-
-    def test_a_zero_major_minor_change_reads_as_major_from_the_title(self) -> None:
-        result = dependabot.classify(
-            "Bump x from 0.3.1 to 0.4.0", [commit(metadata(("x", None)))], no_files
-        )
-        self.assertEqual(result.tier, "review")
-
-    def test_a_missing_update_type_takes_the_title_or_is_review(self) -> None:
-        result = dependabot.classify(
-            "Bump x from 1.2.0 to 1.3.0", [commit(metadata(("x", None)))], no_files
-        )
-        self.assertEqual(result.tier, "auto")
-        result = dependabot.classify(
-            "Bump x", [commit(metadata(("x", None)))], no_files
-        )
-        self.assertEqual(
-            (result.tier, result.reason), ("review", "update-type-unknown:x")
-        )
+    def test_an_unreadable_title_or_version_is_review(self) -> None:
+        self.assertEqual(tier("chore: tidy").reasons, ("unparsed-updates",))
+        result = tier("bump x from 0a1b2c3d4e5f to 9f8e7d6c5b4a")
+        self.assertEqual(result.reasons, ("unparsed-version:x",))
 
     def test_a_group_with_one_major_entry_is_review(self) -> None:
-        message = metadata(
-            ("actions/checkout", "semver-minor"),
-            ("actions/setup-node", "semver-major"),
-            ("github/codeql-action", "semver-patch"),
+        body = (
+            "Updates `actions/checkout` from 4.1.0 to 4.2.0\n"
+            "Updates `actions/setup-node` from 6.0.0 to 7.0.0\n"
+            "Updates `github/codeql-action` from 3.1.0 to 3.1.1\n"
         )
-        result = dependabot.classify(
-            "build(deps): bump the github-actions group with 3 updates",
-            [commit(message)],
-            no_files,
+        result = tier(
+            "build: Bump the vendor-actions group across 1 directory with 3 updates",
+            body=body,
+            ref=ACTIONS,
         )
+        self.assertEqual(result.reasons, ("major:actions/setup-node",))
+
+    def test_a_group_whose_lines_do_not_add_up_is_review(self) -> None:
+        result = tier(
+            "bump the g group with 3 updates", body="Updates `a` from 1.0.0 to 1.0.1\n"
+        )
+        self.assertEqual(result.reasons, ("unparsed-updates",))
+
+    def test_an_actions_update_from_an_unlisted_publisher_is_review(self) -> None:
         self.assertEqual(
-            (result.tier, result.reason), ("review", "major:actions/setup-node")
+            tier("bump actions/checkout from 4.1.0 to 4.2.0", ref=ACTIONS).tier, "auto"
+        )
+        result = tier("bump someone/action from 1.0.0 to 1.1.0", ref=ACTIONS)
+        self.assertEqual(result.reasons, ("publisher:someone/action",))
+        # Outside github_actions the publisher is not read.
+        self.assertEqual(tier("bump someone/pkg from 1.0.0 to 1.1.0").tier, "auto")
+
+    def test_a_red_ci_status_is_review_and_a_running_one_is_not(self) -> None:
+        for ci in sorted(dependabot.RED):
+            with self.subTest(ci=ci):
+                self.assertIn(
+                    "ci-status-red", tier("bump x from 1.0.0 to 1.0.1", ci=ci).reasons
+                )
+        self.assertEqual(tier("bump x from 1.0.0 to 1.0.1", ci="pending").tier, "auto")
+
+    def test_metadata_is_read_and_must_agree_with_the_title(self) -> None:
+        minor = commit(metadata(("x", "semver-minor", "1.3.0")))
+        self.assertEqual(
+            tier("bump x from 1.2.0 to 1.3.0", commits=[minor]).tier, "auto"
+        )
+        # Metadata alone, when the title names nothing.
+        self.assertEqual(tier("bump x", commits=[minor]).tier, "auto")
+        major = commit(metadata(("x", "semver-major", "2.0.0")))
+        self.assertEqual(tier("bump x", commits=[major]).reasons, ("major:x",))
+        # Metadata calling a 1.x jump minor disagrees with a title reading major.
+        result = tier("bump x from 1.9.0 to 2.0.0", commits=[minor])
+        self.assertEqual(result.tier, "review")
+        self.assertIn("sources-disagree", result.reasons)
+        other = commit(metadata(("y", "semver-patch", "1.0.1")))
+        self.assertIn(
+            "sources-disagree",
+            tier("bump x from 1.0.0 to 1.0.1", commits=[other]).reasons,
         )
 
-    def test_a_non_major_group_is_auto(self) -> None:
-        message = metadata(("a", "semver-minor"), ("b", "semver-patch"))
-        result = dependabot.classify(
-            "build(deps): bump the vendor-actions group across 1 directory with 2 updates",
-            [commit(message)],
-            no_files,
+    def test_a_0x_minor_in_the_metadata_is_major(self) -> None:
+        zero = commit(metadata(("x", "semver-minor", "0.4.0")))
+        self.assertEqual(tier("bump x", commits=[zero]).reasons, ("major:x",))
+        unknown = commit(metadata(("x", None, "1.3.0")))
+        self.assertEqual(
+            tier("bump x", commits=[unknown]).reasons, ("unparsed-version:x",)
         )
-        self.assertEqual(result.tier, "auto")
-        self.assertEqual(len(result.updates), 2)
 
-    def test_a_group_count_the_metadata_does_not_match_is_review(self) -> None:
-        result = dependabot.classify(
-            "bump the g group with 3 updates",
-            [commit(metadata(("a", "semver-minor"), ("b", "semver-patch")))],
-            no_files,
+    def test_real_group_metadata_and_body_agree(self) -> None:
+        message = metadata(
+            ("actions/create-github-app-token", "semver-minor", "3.3.0"),
+            ("actions/setup-node", "semver-minor", "7.1.0"),
+            ("anthropics/claude-code-action", "semver-patch", "1.0.248"),
         )
-        self.assertEqual(result.reason, "group-count:3-of:2")
+        body = (
+            "Updates `actions/create-github-app-token` from 3.2.0 to 3.3.0\n"
+            "Updates `actions/setup-node` from 7.0.0 to 7.1.0\n"
+            "Updates `anthropics/claude-code-action` from 1.0.247 to 1.0.248\n"
+        )
+        result = tier(
+            "build: Bump the vendor-actions group across 1 directory with 3 updates",
+            body=body,
+            ref=ACTIONS,
+            commits=[commit(message)],
+        )
+        self.assertEqual((result.tier, len(result.updates)), ("auto", 3))
 
-    def test_a_commit_not_dependabots_is_review(self) -> None:
+
+class Commits(unittest.TestCase):
+    MESSAGE = metadata(("x", "semver-minor", "1.3.0"))
+
+    def test_a_commit_not_dependabots_is_refused(self) -> None:
         cases = {
-            "commit-unverified": commit(
-                metadata(("x", "semver-patch")), verified=False
-            ),
+            "commit-unverified": commit(self.MESSAGE, verified=False),
             # A pusher can write any author and committer, not the signature.
             "commit-not-committed-by-github": commit(
-                metadata(("x", "semver-patch")), committer="someone@example.com"
+                self.MESSAGE, committer="me@example.com"
             ),
             "commit-not-dependabot": commit(
-                "fix: tweak", name="octocat", email="octocat@example.com"
+                "fix: tweak", name="octocat", email="o@example.com"
             ),
         }
         for reason, other in cases.items():
             with self.subTest(reason=reason):
-                result = dependabot.classify(
-                    self.TITLE, [commit(metadata(("x", "semver-minor"))), other],
-                    no_files,
-                )  # fmt: skip
-                self.assertEqual(result.tier, "review")
-                self.assertEqual(result.reason, f"{reason}:{SHA[:12]}")
+                refusal = dependabot.commits_refusal(
+                    [commit(self.MESSAGE), other], no_files
+                )
+                self.assertEqual(refusal, f"{reason}:{SHA[:12]}")
+        self.assertIsNone(dependabot.commits_refusal([commit(self.MESSAGE)], no_files))
+        self.assertEqual(dependabot.commits_refusal([], no_files), "commits-missing")
 
     def test_the_repositorys_version_bump_commit_is_accepted(self) -> None:
         bump = commit(
@@ -173,37 +213,93 @@ class Classify(unittest.TestCase):
             name="github-actions[bot]",
             email="41898282+github-actions[bot]@users.noreply.github.com",
         )
-        paths = {
-            ACTIONS_SHA: [
-                "plugins/miro/.claude-plugin/plugin.json",
-                "plugins/miro/CHANGELOG.md",
-            ]
-        }
-        result = dependabot.classify(
-            self.TITLE, [commit(metadata(("x", "semver-minor"))), bump], paths.get
-        )
-        self.assertEqual(result.tier, "auto")
-        # Any other path, an unreadable listing, or no skip marker is review.
+        paths = ["plugins/miro/.claude-plugin/plugin.json", "plugins/miro/CHANGELOG.md"]
+        self.assertIsNone(dependabot.commit_refusal(bump, lambda sha: paths))
         for files, message in (
             (["plugins/miro/server.js"], bump["commit"]["message"]),
             (None, bump["commit"]["message"]),
-            (paths[ACTIONS_SHA], "chore(plugins): release bump"),
+            (paths, "chore(plugins): release bump"),
         ):
             with self.subTest(files=files, message=message):
                 other = {**bump, "commit": {**bump["commit"], "message": message}}
-                result = dependabot.classify(
-                    self.TITLE,
-                    [commit(metadata(("x", "semver-minor"))), other],
-                    lambda sha, f=files: f,
+                self.assertIsNotNone(
+                    dependabot.commit_refusal(other, lambda sha, f=files: f)
                 )
-                self.assertEqual(result.tier, "review")
 
-    def test_no_commits_or_no_metadata_is_review(self) -> None:
-        self.assertEqual(
-            dependabot.classify(self.TITLE, [], no_files).reason, "commits-missing"
+    def test_a_lanes_app_fix_commit_counts_only_for_a_reviewed_pr(self) -> None:
+        fix = commit(
+            "fix: adapt to the new API [dependabot skip]",
+            name="agent-lanes[bot]",
+            email="1+agent-lanes[bot]@users.noreply.github.com",
+            login=IDENTITY,
         )
-        result = dependabot.classify(self.TITLE, [commit("Bump x")], no_files)
-        self.assertEqual(result.reason, "metadata-missing")
+        self.assertEqual(
+            dependabot.commit_refusal(fix, no_files),
+            f"commit-not-dependabot:{SHA[:12]}",
+        )
+        self.assertIsNone(dependabot.commit_refusal(fix, no_files, IDENTITY))
+        unmarked = {**fix, "commit": {**fix["commit"], "message": "fix: adapt"}}
+        self.assertIsNotNone(dependabot.commit_refusal(unmarked, no_files, IDENTITY))
+
+
+def marker(
+    head: str = HEAD,
+    verdict: str = "merge",
+    *,
+    login: str = IDENTITY,
+    kind: str = "Bot",
+    at: str = "2026-10-16T12:00:00Z",
+) -> dict[str, Any]:
+    return {
+        "id": 1,
+        "created_at": at,
+        "user": {"login": login, "type": kind},
+        "body": (
+            f"<!-- pr-unblock:review-dependency-round head={head} "
+            f"verdict={verdict} run=123-1 -->\nThe review found the bump safe."
+        ),
+    }
+
+
+class MergeVerdict(unittest.TestCase):
+    def verdict(self, *comments: dict[str, Any]) -> tuple[str | None, str | None]:
+        return dependabot.merge_verdict(list(comments), IDENTITY, HEAD)
+
+    def test_a_merge_marker_at_the_current_head_approves(self) -> None:
+        self.assertEqual(self.verdict(marker()), ("123-1", None))
+
+    def test_a_marker_at_an_old_head_does_not(self) -> None:
+        self.assertEqual(
+            self.verdict(marker(OLD_HEAD)), (None, "review-verdict-head-moved")
+        )
+
+    def test_a_marker_by_anyone_but_the_lanes_app_is_ignored(self) -> None:
+        for login, kind in (
+            ("maintainer", "User"),
+            ("other-app[bot]", "Bot"),
+            (IDENTITY, "User"),
+        ):
+            with self.subTest(login=login, kind=kind):
+                self.assertEqual(
+                    self.verdict(marker(login=login, kind=kind)),
+                    (None, "review-verdict-missing"),
+                )
+
+    def test_a_verdict_other_than_merge_does_not(self) -> None:
+        for verdict in ("fix", "close", "escalate"):
+            with self.subTest(verdict=verdict):
+                self.assertEqual(
+                    self.verdict(marker(verdict=verdict)),
+                    (None, f"review-verdict:{verdict}"),
+                )
+
+    def test_the_newest_lanes_app_marker_decides(self) -> None:
+        older = marker(at="2026-10-16T10:00:00Z")
+        newer = marker(verdict="escalate", at="2026-10-16T11:00:00Z")
+        self.assertEqual(self.verdict(older, newer), (None, "review-verdict:escalate"))
+        # A later marker from someone else does not displace the App's.
+        forged = marker(login="maintainer", kind="User", at="2026-10-16T13:00:00Z")
+        self.assertEqual(self.verdict(older, forged), ("123-1", None))
 
 
 class IsDependabot(unittest.TestCase):

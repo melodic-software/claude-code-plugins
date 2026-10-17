@@ -2829,13 +2829,18 @@ def dependabot_commit(
     *,
     name: str = "dependabot[bot]",
     email: str = DEPENDABOT_EMAIL,
+    message: str | None = None,
+    login: str | None = None,
 ) -> dict[str, Any]:
-    message = (
+    version = "2.0.0" if update_type == "semver-major" else "1.3.0"
+    message = message or (
         "build(deps): bump x\n\n---\nupdated-dependencies:\n"
-        f"- dependency-name: x\n  update-type: version-update:{update_type}\n...\n"
+        f"- dependency-name: x\n  dependency-version: {version}\n"
+        f"  update-type: version-update:{update_type}\n...\n"
     )
     return {
         "sha": "d" * 40,
+        "author": {"login": login} if login else None,
         "commit": {
             "message": message,
             "author": {"name": name, "email": email},
@@ -2910,11 +2915,25 @@ class DependabotEligibility(unittest.TestCase):
         pr = {
             "number": 7,
             "title": title,
+            "body": "",
             "commits": len(self.commits),
-            "head": {"sha": self.HEAD},
+            "head": {"sha": self.HEAD, "ref": "dependabot/npm_and_yarn/x-1.3.0"},
             "user": {"login": "dependabot[bot]", "type": "Bot"},
         }
         return policy.dependabot_eligibility(REPO, 7, pr=pr, agent_identity=IDENTITY)
+
+    def marker(
+        self, head: str | None = None, verdict: str = "merge", login: str = IDENTITY
+    ) -> dict[str, Any]:
+        return {
+            "id": 9,
+            "created_at": "2026-10-16T12:00:00Z",
+            "user": {"login": login, "type": "Bot"},
+            "body": (
+                "<!-- pr-unblock:review-dependency-round "
+                f"head={head or self.HEAD} verdict={verdict} run=55-1 -->"
+            ),
+        }
 
     def test_a_patch_or_minor_bump_on_a_green_ci_status_is_eligible_as_c2(self) -> None:
         for kind in ("semver-patch", "semver-minor"):
@@ -2929,27 +2948,86 @@ class DependabotEligibility(unittest.TestCase):
                 self.assertNotIn("/files", calls)
                 self.assertNotIn("timeline", calls)
 
-    def test_a_major_bump_is_tier_review(self) -> None:
+    def test_a_major_bump_is_tier_review_and_waits_for_the_verdict(self) -> None:
         self.fake(commits=[dependabot_commit("semver-major")])
         result = self.eligibility()
         self.assertFalse(result.eligible)
-        self.assertEqual(result.reason, "dependabot-review:major:x")
+        self.assertEqual(
+            result.reason, "dependabot-review:major:x;review-verdict-missing"
+        )
         self.assertEqual(result.dependabot.tier, "review")
 
-    def test_a_commit_not_dependabots_is_tier_review(self) -> None:
+    def test_a_merge_verdict_at_the_current_head_on_green_ci_is_eligible(self) -> None:
+        self.fake(commits=[dependabot_commit("semver-major")], comments=[self.marker()])
+        result = self.eligibility()
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.work_class, "C2")
+        self.assertEqual(
+            (result.dependabot.tier, result.dependabot.approved), ("review", "55-1")
+        )
+
+    def test_a_verdict_that_does_not_approve_this_head_refuses(self) -> None:
+        for comment, why in (
+            (self.marker(head="a" * 40), "review-verdict-head-moved"),
+            (self.marker(login="other-app[bot]"), "review-verdict-missing"),
+            (self.marker(verdict="close"), "review-verdict:close"),
+        ):
+            with self.subTest(why=why):
+                self.fake(
+                    commits=[dependabot_commit("semver-major")], comments=[comment]
+                )
+                result = self.eligibility()
+                self.assertFalse(result.eligible)
+                self.assertEqual(result.reason, f"dependabot-review:major:x;{why}")
+
+    def test_an_approved_review_still_needs_a_green_ci_status(self) -> None:
+        self.fake(
+            commits=[dependabot_commit("semver-major")],
+            comments=[self.marker()],
+            ci=[{"status": "in_progress", "conclusion": None}],
+        )
+        self.assertEqual(self.eligibility().reason, "ci-status:pending")
+
+    def test_the_lanes_app_fix_commit_counts_only_after_a_review(self) -> None:
+        fix = dependabot_commit(
+            name="agent-lanes[bot]",
+            email="1+agent-lanes[bot]@users.noreply.github.com",
+            message="fix: adapt [dependabot skip]",
+            login=IDENTITY,
+        )
+        self.fake(commits=[dependabot_commit(), fix])
+        self.assertEqual(self.eligibility().reason, f"commit-not-dependabot:{'d' * 12}")
+        self.fake(
+            commits=[dependabot_commit("semver-major"), fix], comments=[self.marker()]
+        )
+        self.assertTrue(self.eligibility().eligible)
+
+    def test_a_0x_minor_is_review_and_a_1x_minor_is_auto(self) -> None:
+        zero = dependabot_commit(
+            message=(
+                "bump x\n\n---\nupdated-dependencies:\n- dependency-name: x\n"
+                "  dependency-version: 0.4.0\n  update-type: version-update:semver-minor\n...\n"
+            )
+        )
+        self.fake(commits=[zero])
+        self.assertEqual(self.eligibility().dependabot.tier, "review")
+        self.fake()
+        self.assertEqual(self.eligibility().dependabot.tier, "auto")
+
+    def test_a_commit_not_dependabots_is_refused(self) -> None:
         pushed = dependabot_commit(name="octocat", email="octocat@example.com")
         self.fake(commits=[dependabot_commit(), pushed])
         result = self.eligibility()
         self.assertFalse(result.eligible)
-        self.assertEqual(
-            result.reason, f"dependabot-review:commit-not-dependabot:{'d' * 12}"
-        )
+        self.assertEqual(result.reason, f"commit-not-dependabot:{'d' * 12}")
 
     def test_a_red_ci_status_is_tier_review(self) -> None:
         self.fake(ci=[{"status": "completed", "conclusion": "failure"}])
         result = self.eligibility()
         self.assertFalse(result.eligible)
-        self.assertEqual(result.reason, "dependabot-review:ci-status:failure")
+        self.assertEqual(
+            result.reason, "dependabot-review:ci-status-red;review-verdict-missing"
+        )
         self.assertEqual(result.dependabot.tier, "review")
 
     def test_a_running_or_missing_ci_status_waits_at_tier_auto(self) -> None:
@@ -3001,7 +3079,7 @@ class DependabotAssess(unittest.TestCase):
             "login": "dependabot[bot]",
             "type": "Bot",
         }
-        tier = policy.dependabot.Classification("auto", None)
+        tier = policy.dependabot.Classification("auto")
         stack = contextlib.ExitStack()
         self.addCleanup(stack.close)
         stack.enter_context(
@@ -3044,7 +3122,7 @@ class DependabotAssess(unittest.TestCase):
         self.read.assert_not_called()
 
     def test_tier_review_is_refused(self) -> None:
-        tier = policy.dependabot.Classification("review", "major:x")
+        tier = policy.dependabot.Classification("review", ("major:x",))
         result = self.assess_mode(
             "enforce",
             policy.Eligibility(False, "dependabot-review:major:x", dependabot=tier),

@@ -365,8 +365,8 @@ human. Work classes are defined in
   local babysit lane accepts only evidence bound to the pinned head SHA (below).
 - `merge.stack-landing` defaults to `manual`.
 - A repository has one merge authority, Dependabot pull requests included: the pr-merge lane
-  merges tier `auto` ones and the pr-unblock lane's review activity takes tier `review` ones
-  ([Dependabot pull requests](#dependabot-pull-requests), below).
+  merges tier `auto` ones, and tier `review` ones once the pr-unblock lane's review activity
+  leaves a merge verdict ([Dependabot pull requests](#dependabot-pull-requests), below).
 
 ### The local babysit lane
 
@@ -455,29 +455,38 @@ no full CI run either; its summary says whether it would have.
 
 No Dependabot pull request waits on a human
 ([ADR 0073](../../adr/0073-merge-dependabot-pull-requests-in-the-pr-merge-lane.md)). The pr-merge
-lane lists Dependabot's open pull requests beside its own and judges each as its own class, in
-place of the eligibility above:
+lane is the one merge authority for both tiers. It lists Dependabot's open pull requests beside
+its own and judges each as its own class, in place of the eligibility above. Both lanes sort by
+the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-unblock):
 
-- **Tier `auto`.** Every commit is a GitHub-verified Dependabot commit, or the repository's
+- **Tier `auto`.** Every update is non-major: the first numeric version component does not change,
+  and below 1.0 the second does not either. Every update on a `dependabot/github_actions/...`
+  branch comes from the `actions`, `github` or `anthropics` publisher. The newest `ci-status` run
+  on the head is not red (`failure`, `cancelled`, `timed_out`, `action_required`,
+  `startup_failure`). The updates come from the `updated-dependencies` metadata in Dependabot's
+  verified commit when it is there, and from the title (`bump <name> from <a> to <b>`) or a
+  group's body `Updates` lines otherwise; when both read, they must name the same dependencies and
+  agree on which are major.
+- **Tier `review`.** Anything else, including anything unreadable (a SHA version, an unparsed
+  title). The pr-unblock lane's review activity reviews it, and the pr-merge lane merges it only
+  when the newest round marker the lanes App posted on it
+  (`<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<id>-<attempt> -->`)
+  names the current head with `verdict=merge`. A marker from any other author is ignored.
+- **Commits.** Every commit is a GitHub-verified Dependabot commit, or the repository's
   `[dependabot skip]` version-bump commit (authored by `github-actions[bot]`, verified, touching
-  only a plugin's `plugin.json` or `CHANGELOG.md`). Every dependency the commit metadata
-  (`updated-dependencies`) lists is a `semver-patch` or `semver-minor` update, in any ecosystem;
-  a `Bump X from A to B` title that reads as major, or a group title whose update count the
-  metadata does not match, is not.
-- **Tier `review`.** Anything else: a major update, an unknown update type, any other commit, or a
-  finished `ci-status` that did not succeed. The lane never merges it; the pr-unblock lane's review
-  activity takes it.
-- **Gate.** A tier `auto` pull request merges once `ci-status` succeeded on its head, through the
-  same gate as the lane's own: mergeable, no `do-not-merge` label, no body hold, no blocking
-  comment from a human with write access, the rung (C2) and its cap, the kill switches, the
-  post-merge check and one merge in flight. No closing issue, denied-path rule or diff risk score
-  applies: `ci-status` is the gate, and a workflow pin bump touches `.github/**` by definition.
+  only a plugin's `plugin.json` or `CHANGELOG.md`). On a reviewed pull request the lanes App's
+  verified `[dependabot skip]` fix commits count too.
+- **Gate.** Either tier merges only once `ci-status` succeeded on its head, through the same gate
+  as the lane's own: mergeable, no `do-not-merge` label, no body hold, no blocking comment from a
+  human with write access, the rung (C2) and its cap, the kill switches, the post-merge check and
+  one merge in flight. No closing issue, denied-path rule or diff risk score applies: `ci-status`
+  (and, for tier `review`, the review verdict) is the gate, and a workflow pin bump touches
+  `.github/**` by definition.
 - **Switch.** `merge.dependabot.mode` decides it, not `merge.report-only`: `enforce` merges,
   `report` reports and writes nothing, and `off` (the default) refuses every Dependabot pull
   request and leaves them unlisted.
 
-The class is `babysit_dependabot.py` beside the wrapper; its tier is the seam the review activity
-reads. Auto-merge armed with `GITHUB_TOKEN` is not used: GitHub's
+The class is `babysit_dependabot.py` beside the wrapper. Auto-merge armed with `GITHUB_TOKEN` is not used: GitHub's
 [`GITHUB_TOKEN` page](https://docs.github.com/en/actions/concepts/security/github_token) says
 "events triggered by the `GITHUB_TOKEN` will not create a new workflow run" (`workflow_dispatch`,
 `repository_dispatch` and some `pull_request` events excepted, not `merge_group`), so the queue
