@@ -31,7 +31,8 @@ collision check reads them to tell a resume from a slug collision.
       gates (`check-fences-exact.py`, `check-snippets.py`, and `check-html-rows.py` when digests
       carry `**FN.**` rows quoted from `source.html`) PASS; Verifier A (same-vendor) +
       Verifier B (cross-vendor) verdicts in `verification/` (append-only; each arm states the
-      hashes it audited; degraded fallback / death-ladder recorded, never silent)
+      hashes it audited and one verdict, PASS / PASS-WITH-FINDINGS / FAIL / BLOCKED, done only on
+      PASS or PASS-WITH-FINDINGS from both arms; degraded fallback / death-ladder recorded, never silent)
 - [ ] Phase 5: Interview handoff, with `interview-handoff.md` authored (relied-on-links table: one
       disposition per link, covered / queued / skipped with a reason) and its own commands replayed
       (every Phase 4 check precedes it); `/planning:interview` run or artifact presented

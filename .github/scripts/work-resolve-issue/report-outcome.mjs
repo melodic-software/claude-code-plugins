@@ -15,8 +15,9 @@
 //   stopped   comments why, adds the human-gated label, and names the branch
 //             that holds any partial work. A missing or invalid outcome file
 //             is stopped.
-//   limited   a stopped run whose lane.json carries class rate-limit (the run
-//             hit its credential's usage limit): comments once with the
+//   limited   a run that wrote no readable outcome file and whose lane.json
+//             carries class rate-limit (the run hit its credential's usage
+//             limit before it could report): comments once with the
 //             limited marker naming when the limit resets, keeps agent-ready
 //             and adds no label, so work-unblock restarts it after the reset.
 //
@@ -139,10 +140,10 @@ export function readOutcome(path) {
   try {
     parsed = JSON.parse(readFileSync(path, "utf8"));
   } catch {
-    return stopped("The run wrote no readable outcome file, so it stopped before it finished.");
+    return { ...stopped("The run wrote no readable outcome file, so it stopped before it finished."), unread: true };
   }
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed) || !EXITS.has(parsed.exit)) {
-    return stopped("The run's outcome file names no known exit (done, pushback or stopped).");
+    return { ...stopped("The run's outcome file names no known exit (done, pushback or stopped)."), unread: true };
   }
   return {
     exit: parsed.exit,
@@ -269,7 +270,10 @@ export function decide({
   runId = "",
 }) {
   outcome = { changes: [], verification: [], notDone: [], ...outcome };
-  if (limit && outcome.exit !== "pushback" && !(outcome.exit === "done" && branch)) {
+  // A limit record counts only for a run that left no outcome of its own: any
+  // code the run executed can forge the record, so it must not hide a stop
+  // or pushback the skill reported from the person it goes to.
+  if (limit && outcome.unread) {
     const resets = new Date(clampReset(limit.resets, now)).toISOString().replace(/\.\d+Z$/, "Z");
     return limitedPlan({ issueNumber, branch, resets, runId, runUrl });
   }

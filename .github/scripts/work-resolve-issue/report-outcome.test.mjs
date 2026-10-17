@@ -482,7 +482,7 @@ test("main refuses a lane.json branch that is not this issue's lane branch", asy
 // hours (the shortest plan limit window).
 test("a limit-stopped run is limited: one marker comment, agent-ready kept, no label", () => {
   const plan = decide({
-    outcome: { exit: "stopped", reason: "", title: "", summary: "" },
+    outcome: { exit: "stopped", reason: "", title: "", summary: "", unread: true },
     issueNumber: 77,
     issueLabels: ["agent-ready"],
     branch: "",
@@ -499,7 +499,7 @@ test("a limit-stopped run is limited: one marker comment, agent-ready kept, no l
 
 test("a limit stop with no reset time restarts five hours after the run ended", () => {
   const plan = decide({
-    outcome: { exit: "stopped", reason: "", title: "", summary: "" },
+    outcome: { exit: "stopped", reason: "", title: "", summary: "", unread: true },
     issueNumber: 77,
     issueLabels: ["agent-ready"],
     branch: "",
@@ -519,7 +519,7 @@ test("a limit stop's stated reset is held between one hour and seven days out", 
     ["2027-01-01T00:00:00Z", "2026-10-24T12:00:00Z"],
   ]) {
     const plan = decide({
-      outcome: { exit: "stopped", reason: "", title: "", summary: "" },
+      outcome: { exit: "stopped", reason: "", title: "", summary: "", unread: true },
       issueNumber: 77,
       issueLabels: ["agent-ready"],
       branch: "",
@@ -530,6 +530,48 @@ test("a limit stop's stated reset is held between one hour and seven days out", 
     });
     assert.equal(plan.resets, expected, resets);
   }
+});
+
+// The lane record can be forged by any code the run executed, so it never
+// overrides an outcome the skill wrote.
+test("a stop the skill reported goes to a person even with a limit record", () => {
+  const plan = decide({
+    outcome: { exit: "stopped", reason: "The tests cannot run here.", title: "", summary: "" },
+    issueNumber: 77,
+    issueLabels: ["agent-ready"],
+    branch: "",
+    changedFiles: [],
+    limit: { resets: null },
+  });
+  assert.notEqual(plan.action, "limited");
+  assert.deepEqual(plan.addLabels, ["needs-human"]);
+  assert.match(plan.comment, /The tests cannot run here\./);
+});
+
+test("done with no branch still hands back even with a limit record", () => {
+  const plan = decide({
+    outcome: { exit: "done", reason: "", title: "", summary: "" },
+    issueNumber: 77,
+    issueLabels: ["agent-ready"],
+    branch: "",
+    changedFiles: [],
+    limit: { resets: null },
+  });
+  assert.notEqual(plan.action, "limited");
+  assert.deepEqual(plan.addLabels, ["needs-human"]);
+});
+
+test("an unreadable outcome file with a limit record reads as limited", () => {
+  const plan = decide({
+    outcome: readOutcome("/nonexistent/work-outcome.json"),
+    issueNumber: 77,
+    issueLabels: ["agent-ready"],
+    branch: "",
+    changedFiles: [],
+    limit: { resets: null },
+    now: Date.parse("2026-10-17T12:00:00Z"),
+  });
+  assert.equal(plan.action, "limited");
 });
 
 test("a pushback stays a pushback even on a limit-stopped run", () => {
