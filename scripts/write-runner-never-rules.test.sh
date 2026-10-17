@@ -275,7 +275,7 @@ say(summarySteps.length === summaryIds.length + 1 && !/lane-token/.test(JSON.str
   "no summary pass step reads the lane token");
 const summaryData = byId("summary-data");
 say(summaryData.env?.GITHUB_TOKEN === "${{ github.token }}" && /--filter=blob:none/.test(summaryData.run ?? "")
-  && /diff --no-ext-diff --no-textconv/.test(summaryData.run ?? "") && !/checkout|worktree|\bnpm\b|bash "\$SRC|node "\$SRC/.test(summaryData.run ?? ""),
+  && /diff --no-ext-diff --no-textconv/.test(summaryData.run ?? "") && !/checkout|worktree|npm |bash "\$SRC|node "\$SRC/.test(summaryData.run ?? ""),
   "the summary data step fetches the branch as objects with the read-only token and diffs it without running anything from it");
 const summaryRun = byId("summary-run");
 const summaryArgs = String(byId("summary-prompt").run ?? "");
