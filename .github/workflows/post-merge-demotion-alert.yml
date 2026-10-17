@@ -12,8 +12,8 @@ name: post-merge-demotion-alert
 # record from each filer; both hold the rung off. This workflow merges,
 # reverts and dequeues nothing.
 #
-# A red full run files only after one re-run of its failed jobs fails again,
-# and only for checks that were not already failing on main's newest
+# A red full run files only after one re-run of its failed jobs, which the
+# job waits up to 20 minutes for, fails again or does not finish, and only for checks that were not already failing on main's newest
 # completed run of the same event at an earlier SHA (babysit_postmerge.py
 # applies the same rule). A check is a failed job, or one gate the hygiene
 # aggregator names in a titled annotation; the lane aggregator ci-status adds
@@ -38,7 +38,7 @@ jobs:
   alert:
     name: File the demotion issue
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 30 # up to 20 minutes waiting on the re-run
     permissions:
       issues: write # file the demotion issue or comment on it
       actions: write # re-run a red full run's failed jobs; read jobs and runs
@@ -106,11 +106,29 @@ jobs:
           newly=''
           if [[ -z "$passed" && "$signal" != canary ]]; then
             if [[ "$RUN_ATTEMPT" -eq 1 ]]; then
-              # POST /repos/{owner}/{repo}/actions/runs/{run_id}/rerun-failed-jobs;
-              # the re-run's own completed event decides.
-              gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/rerun-failed-jobs" >/dev/null
-              echo "attempt 1 failed: re-ran its failed jobs once before judging"
-              exit 0
+              # Re-run the failed jobs once and wait here for that attempt: a
+              # re-run this token starts raises no workflow_run event of its
+              # own. A re-run that cannot start or does not finish within 20
+              # minutes leaves attempt 1 to be judged.
+              if gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/rerun-failed-jobs" >/dev/null; then
+                for _ in $(seq 20); do
+                  sleep "${POLL_SECONDS:-60}"
+                  latest="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" \
+                    --jq '[.run_attempt, .status, (.conclusion // "")] | @tsv')" || continue
+                  IFS=$'\t' read -r attempt status conclusion <<<"$latest"
+                  if [[ "$attempt" =~ ^[0-9]+$ && "$attempt" -ge 2 && "$status" == completed ]]; then
+                    if [[ "$conclusion" == success ]]; then
+                      echo "attempt $attempt, the re-run of the failed jobs, passed: nothing to file"
+                      exit 0
+                    fi
+                    RUN_ATTEMPT="$attempt"
+                    break
+                  fi
+                done
+              fi
+              if [[ "$RUN_ATTEMPT" -eq 1 ]]; then
+                echo "::warning::the re-run of $RUN_URL did not finish: judging attempt 1"
+              fi
             fi
             # failing_checks <run id> <attempt>: one check per line.
             failing_checks() {

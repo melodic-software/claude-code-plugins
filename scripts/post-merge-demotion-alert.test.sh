@@ -101,6 +101,18 @@ case "$endpoint" in
     [[ -f "$fixture" ]] || fixture="$STUB_DIR/annotations.none.json"
     ;;
   */actions/workflows/*) fixture="$STUB_DIR/runs.json" ;;
+  */actions/runs/[0-9]*)
+    # The re-run's attempt 2: in progress until poll STUB_POLLS, then
+    # STUB_RERUN (never: it does not finish).
+    polls=$(($(cat "$STUB_DIR/polls" 2>/dev/null || echo 0) + 1))
+    echo "$polls" >"$STUB_DIR/polls"
+    fixture="$STUB_DIR/rerun.json"
+    if [[ "${STUB_RERUN:-never}" != never && "$polls" -ge "${STUB_POLLS:-2}" ]]; then
+      jq -n --arg c "$STUB_RERUN" '{run_attempt: 2, status: "completed", conclusion: $c}' >"$fixture"
+    else
+      jq -n '{run_attempt: 2, status: "in_progress", conclusion: null}' >"$fixture"
+    fi
+    ;;
   *) fixture="$STUB_DIR/issues.json" ;;
 esac
 RUN_SHA="${STUB_RUN_SHA:-}" RUN_CREATED="${STUB_RUN_CREATED:-}" jq -r "$filter" "$fixture"
@@ -155,7 +167,7 @@ run_step() {
   printf '%s\n' "${ANNOTATIONS_7:-[]}" >"$TMP_ROOT/stub/annotations.7.json"
   : >"$TMP_ROOT/stub/log"
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" STUB_FAIL_READ="${FAIL_READ:-}" \
-    STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" \
+    STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
     RUN_BRANCH="$4" RUN_REPO="$5" RUN_SHA="$6" RUN_URL="$RUN_URL" RUN_ATTEMPT="${ATTEMPT:-2}" \
     RUN_ID=4242 RUN_WORKFLOW_ID=77 RUN_CREATED="$CREATED" \
@@ -364,14 +376,44 @@ else
 fi
 
 # --- Re-run, baseline and the gitleaks gate ------------------------------------
-ATTEMPT=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-if [[ "$RC" -eq 0 && "$LOG" == 'POST repos/o/r/actions/runs/4242/rerun-failed-jobs' ]]; then
-  ok "a full run's first failed attempt re-runs its failed jobs and files nothing"
+RERUN=success ATTEMPT=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(head -1 <<<"$LOG")" == 'POST repos/o/r/actions/runs/4242/rerun-failed-jobs' &&
+  "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq 2 && "$(posts)" -eq 1 ]]; then
+  ok "a full run's first failed attempt re-runs its failed jobs and a passing re-run files nothing"
 else
-  fail "attempt 1 re-run: rc=$RC log='$LOG' out='$OUT'"
+  fail "re-run passes: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+RERUN=failure ATTEMPT=1 RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+issue_fields="$(cat "$TMP_ROOT/stub/post.$(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | cut -d: -f1)" 2>/dev/null)"
+if [[ "$RC" -eq 0 ]] && grep -q '^GET repos/o/r/actions/runs/4242/attempts/2/jobs' <<<"$LOG" &&
+  [[ "$issue_fields" == *"- Failing run: $RUN_URL/attempts/2"$'\n'"- Newly failing: test-bash"* ]]; then
+  ok "a failing re-run is judged on its own attempt against the baseline and files"
+else
+  fail "re-run fails: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+RERUN=failure ATTEMPT=1 RUNS="$(baseline_run 4141 failure)" BASE_JOBS="$(job 2 test-bash 'Run the bash tests')" \
+  run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$OUT" == *"already failing before"* ]]; then
+  ok "a failing re-run on a check already red before files nothing"
+else
+  fail "re-run fails on a pre-existing check: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+RERUN=never ATTEMPT=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+issue_fields="$(cat "$TMP_ROOT/stub/post.$(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | cut -d: -f1)" 2>/dev/null)"
+if [[ "$RC" -eq 0 && "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq 20 &&
+  "$issue_fields" == *"- Failing run: $RUN_URL/attempts/1"$'\n'* && "$OUT" == *"did not finish"* ]]; then
+  ok "a re-run that does not finish in 20 polls leaves attempt 1 to demote"
+else
+  fail "re-run timeout: rc=$RC log='$LOG' out='$OUT'"
 fi
 
 ATTEMPT=1 files "a canary's first failed attempt files without a re-run" canary "$CANARY" push '[]'
+if grep -q 'rerun-failed-jobs' <<<"$LOG"; then
+  fail "a canary run was re-run: log='$LOG'"
+fi
 
 RUNS="$(baseline_run 4141 failure)" BASE_JOBS="$(job 2 test-bash 'Run the bash tests')" \
   run_step "$FULL" schedule failure main o/r "$SHA" '[]'
