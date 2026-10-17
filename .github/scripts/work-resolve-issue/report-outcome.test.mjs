@@ -74,6 +74,24 @@ test("done opens a PR whose body starts with Closes #N", () => {
   assert.ok(plan.body.startsWith("Closes #77\n"), plan.body);
 });
 
+// A recorded keep-Refs decision (#7741): the PR links without closing, and a
+// human merges it because the merge gate finds no closing issue to read.
+test('done with "link": "refs" opens a PR that starts Refs: #N and carries the hold line', () => {
+  withDir({ "work-outcome.json": JSON.stringify({ ...done, link: "refs" }) }, (dir) => {
+    const plan = decideDone({ outcome: readOutcome(join(dir, "work-outcome.json")) });
+    assert.ok(plan.body.startsWith("Refs: #77\n"), plan.body);
+    assert.ok(!plan.body.includes("Closes #77"), plan.body);
+    assert.ok(plan.body.split("\n").includes("Hold: a human merges this"), plan.body);
+  });
+});
+
+test("an unknown link value still closes the issue", () => {
+  withDir({ "work-outcome.json": JSON.stringify({ ...done, link: "fixes" }) }, (dir) => {
+    const plan = decideDone({ outcome: readOutcome(join(dir, "work-outcome.json")) });
+    assert.ok(plan.body.startsWith("Closes #77\n"), plan.body);
+  });
+});
+
 test("done keeps a Conventional Commits title", () => {
   assert.equal(decideDone().title, "docs(work-items): fix a typo");
 });
