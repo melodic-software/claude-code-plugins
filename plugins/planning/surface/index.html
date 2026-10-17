@@ -54,6 +54,8 @@ header.top{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;border-botto
 .cline{flex:1 1 12em;min-width:0;text-align:left;border:0;background:none;padding:2px 0;cursor:pointer;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cline .age{color:var(--faint);font:12px var(--mono);margin-left:6px}
 .cline .age:empty{display:none}
+.cline.old #clText{color:var(--faint)}
+.wline{flex:0 1 auto;white-space:normal;overflow-wrap:anywhere;overflow:visible;text-overflow:clip} /* every pending id stays readable */
 .notice{display:flex;gap:8px;align-items:center;margin-left:auto;border:1px solid var(--chg);background:var(--chg-soft);border-radius:6px;padding:3px 8px;max-width:55%;white-space:nowrap}
 .notice[hidden]{display:none}
 .notice span{overflow:hidden;text-overflow:ellipsis}
@@ -405,6 +407,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       <span class="pill offline" id="pill" aria-live="off">Connecting</span>
       <span class="ctx" id="ctxBadge" title="Context used" hidden></span>
       <button class="cline" id="claudeLine" aria-live="polite" title="Open the Activity panel (l)" hidden><span id="clText"></span><span class="age" id="clAge" aria-hidden="true"></span></button>
+      <button class="cline wline" id="workLine" aria-live="polite" title="Open the Activity panel (l)" hidden></button>
       <div class="notice" id="notice" hidden></div>
     </div>
     <div class="banner" id="reBanner" hidden></div>
@@ -860,20 +863,25 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   function working(){ // what Claude is doing with the user's events, else ""
     if (!S.online) return "";
-    const p = pending(), more = p.length > 1 ? " (+" + (p.length - 1) + ")" : "";
+    const p = pending();
     if (!p.length) return ""; // everything handled: the newest entry says more than the watcher's state
-    const d = p.find(delivered);
-    if (!d) return (unheard() ? NOT_LISTENING + ": " : "Sent to Claude: ") + subject(p[0]) + more;
-    return stalled() ? "Claude has not handled " + subject(d) + more + " yet" : "Claude is working on " + subject(d) + more;
+    const d = p.find(delivered), ids = es => [...new Set(es.map(subject))].join(", "); // every pending id is listed, the delivered one first
+    if (!d) return (unheard() ? NOT_LISTENING + ": " : "Sent to Claude: ") + ids(p);
+    const all = ids([d, ...p.filter(e => e !== d)]);
+    return stalled() ? "Claude has not handled " + all + " yet" : "Claude is working on " + all;
   }
   function ago(iso){ const s = (Date.now() - Date.parse(iso)) / 1000; return isNaN(s) ? "" : s < 60 ? "just now" : s < 3600 ? Math.floor(s / 60) + " min ago" : Math.floor(s / 3600) + " h ago"; }
-  function claudeLine(){ // [text, age]: the status with its age, else the working text, else the newest entry with its time
-    const st = S.doc.status, w = working(), a = acts()[acts().length - 1];
-    if (st && st.text) return [st.text, ago(st.at)]; // a terminal status such as "Done: the Brief is written" stays visible offline
-    if (S.finished) return [S.finished.text || "Interview finished", ago(S.finished.at)];
-    if (w) return [w, ""];
-    return a ? [a.text, fmtT(a.at)] : ["", ""];
+  function oldStatus(st){ // set before the newest unhandled user event, so it cannot be about that event
+    const t = Date.parse(st.at), n = Math.max(0, ...pending().map(e => Date.parse(e.at) || 0));
+    return !isNaN(t) && t < n;
   }
+  function claudeLine(){ // [text, age, kind, old]: the status with its age, else the finish, else the newest entry with its time; the working text is workLine's
+    const st = S.doc.status, a = acts()[acts().length - 1];
+    if (st && st.text) return [st.text, ago(st.at), "status", oldStatus(st)]; // a terminal status such as "Done: the Brief is written" stays visible offline
+    if (S.finished) return [S.finished.text || "Interview finished", ago(S.finished.at), "finished", false];
+    return a ? [a.text, fmtT(a.at), "entry", false] : ["", "", "entry", false];
+  }
+  const workLine = () => S.finished ? "" : working(); // the finish text outranks it, as it did when one line held both
   const setHtml = (el, h) => { if (el._h !== h) { el._h = h; el.innerHTML = h; } }; // an unchanged region is never rewritten or re-announced
   function renderHeader(){
     const m = S.doc.meta || {};
@@ -889,8 +897,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     pill.className = "pill " + cls; pill.setAttribute("aria-live", cls === "listening" || cls === "rest" ? "off" : "polite");
     setHtml(pill, esc(word).replace(/next$/, "<code>next</code>"));
     pill.title = S.restarted ? "The server restarted with a new key: reload this page to keep answering" : S.finished ? "The interview is finished: you can close this tab" : cls === "offline" ? "The page cannot reach the server: check the terminal" : cls === "idle" ? (neverPolled() ? "No watcher has reached the server yet: the first wake may be waiting on a permission prompt in the terminal" : "Claude is not listening: type next in the terminal") : cls === "rest" ? "Nothing is waiting on Claude" : "";
-    const [ct, age] = claudeLine(); // text and age update apart, so a new age is never announced
-    $("claudeLine").hidden = !ct;
+    const [ct, age, , old] = claudeLine(); // text and age update apart, so a new age is never announced
+    $("claudeLine").hidden = !ct; $("claudeLine").classList.toggle("old", old);
+    const wt = workLine(), wl = $("workLine"); // its own polite live region: a status never replaces it
+    wl.hidden = !wt; if (wl.textContent !== wt) wl.textContent = wt;
     if ($("clText").textContent !== ct) $("clText").textContent = ct;
     if ($("clAge").textContent !== age) $("clAge").textContent = age;
     const cx = S.doc.context, cb = $("ctxBadge"), cl = cx ? cx.percent + "% " + cx.zone : ""; // a display only: it feeds no Needs-you count, toast or title
@@ -1331,7 +1341,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   function renderSummary(){ // regions rebuild only when their markup changes
     const el = $("dscroll"), l = S.doc.questions.filter(live).sort(byIdCmp), waits = l.filter(q => stateOf(q) === "wait"), open = l.filter(q => !isAnswered(stateOf(q)) && stateOf(q) !== "wait");
-    const st = claudeLine()[0] || conn()[1], p = pending(), wraps = events().filter(e => e.kind === "wrapup"), lastWrap = wraps[wraps.length - 1];
+    const cl = claudeLine(), st = (cl[2] !== "entry" && cl[0]) || working() || cl[0] || conn()[1], p = pending(), wraps = events().filter(e => e.kind === "wrapup"), lastWrap = wraps[wraps.length - 1];
     if (!$("uBox")) el.innerHTML = '<div id="sumTop" class="blk"></div><div id="uBox"></div><div id="cBox"></div><div id="sumRest" class="blk"></div>';
     const f = focusKey();
     let h = "<div class=\"dhead\"><h3 class=\"done-h\" id=\"qhead\">" + (open.length ? open.length + " still open" : waits.length ? "Your part is done for now. Claude is researching " + waits.map(q => esc(q.id)).join(", ") + "." : "All answered") + "</h3><div class=\"kbd\">" + esc(st) + "</div></div>";
@@ -2029,7 +2039,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const nt = t.closest("#needToast button");
     if (nt) { if (nt.dataset.notify) { enableNotify(); return; } S.need = null; renderNeedToast(); if (nt.dataset.ntgo) goTo(nt.dataset.ntgo); return; }
     const go = t.closest("[data-go]"); if (go) { goTo(go.dataset.go); return; }
-    if (t.closest("[data-allact], #claudeLine")) { showFly("activity"); return; }
+    if (t.closest("[data-allact], #claudeLine, #workLine")) { showFly("activity"); return; }
     if (t.closest("#meterText")) { const n = nextNeeding(1); if (n) select(n, {animate: true}); else select(SUMMARY, {animate: true}); return; }
     if (t.closest("#pendBtn, #revBtn")) { S.filter = t.closest("#revBtn") ? "review" : "pending"; lsSet("filter", S.filter); S.railHidden = false; lsSet("railHidden", false); renderFly(); renderRail(); return; }
     const tc = t.closest("#assumeCount, [data-toconfirm]"); // the list, or one question's entries in it
