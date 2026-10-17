@@ -75,7 +75,8 @@ see the [hooks reference](https://code.claude.com/docs/en/hooks). As of 2026-10-
 
 Rule D1, split between script and agent: scripts only detect, list, diff, render snippets, verify,
 and write files the plugin owns outright (copied check scripts, the plain dispatcher and its
-`<event>.d/` entries, the `git config --local` decline key). Every step that needs judgment
+`<event>.d/` entries, the decline key: `git config --local`, or `--global` only when the user
+asks to decline across every repo). Every step that needs judgment
 returns to the setup agent as data, and the agent reasons about it and applies it:
 
 | The agent reasons and applies | Why it needs judgment |
