@@ -276,8 +276,7 @@ def summarize_record(rec: dict) -> dict:
                 if isinstance(c, dict) and c.get("type") == "tool_result"
             ]
             # A bare string inside the content list is kept as human text here, as
-            # a `text` block is; the shared reader's `user_text` skips it, and no
-            # real transcript has the shape.
+            # a `text` block is; the shared reader's `user_text` skips it.
             humans = [
                 c if isinstance(c, str) else c.get("text", "")
                 for c in content
