@@ -1171,5 +1171,57 @@ class TestPrototypePage(ServerCase):
         self.assertEqual([(a["id"], a["text"]) for a in notes], [("A1", "Hard to find")])
 
 
+class TestConnectYourClaude(ServerCase):
+    """Phase 8 (R2-12, C18-C20): a guest's `runner: self` request runs on their own Claude through the four
+    /api/mine/requests* routes. It never reaches the owner's queue or the control channel, and only the requester's
+    own secret reads, claims, answers or fails it. Expected values come from the Design's request rules and routes."""
+
+    def setUp(self):
+        super().setUp()
+        self.open_round("Q1")
+        _, self.ann = self.join("Ann")
+        _, self.bo = self.join("Bo")
+        code, _, out = self.post("/api/request", {"qid": "Q1", "kind": "ask", "text": "Which step drops most?", "runner": "self"}, self.ann)
+        self.assertEqual(code, 200, out)
+        self.rid = out["id"]
+
+    def control(self, path):
+        return call(self.app.control_port, "GET", path, headers={"X-Shared-Token": self.app.hub.token})
+
+    def test_a_self_request_answered_through_the_mine_routes_makes_no_control_event(self):
+        self.assertEqual(self.post("/api/mine/requests/claim", {"id": self.rid}, self.ann)[0], 200)
+        body = {"id": self.rid, "summary": "The address step.", "sources": [{"title": "Notes", "url": "https://example.com/n"}], "report": "", "used": [], "why": "Mine."}
+        self.assertEqual(self.post("/api/mine/requests/result", body, self.ann)[0], 200)
+        code, _, status = self.control("/api/status")
+        self.assertEqual((code, status["unhandled"], status["queue"]["requests"]), (200, 0, 0))
+        self.assertEqual(json.loads((self.d / "state.json").read_text(encoding="utf-8"))["log"]["events"], [])
+        owner = self.get("/api/state", self.owner)[2]
+        self.assertEqual((owner["requests"], owner["requestCounts"]), ([], {"open": 0, "byQ": {}}))
+        (res,) = self.get("/api/state", self.bo)[2]["results"]["Q1"]
+        self.assertEqual((res["summary"], res["by"]["kind"]), ("The address step.", "guest-claude"))
+
+    def test_another_persons_secret_cannot_read_claim_answer_or_fail_it(self):
+        body = {"id": self.rid, "summary": "Bo's answer.", "sources": [], "report": "", "used": [], "why": ""}
+        for who in (self.bo, self.owner):
+            self.assertEqual(self.get("/api/mine/requests", who)[2]["requests"], [])
+            for path, b in (("claim", {"id": self.rid}), ("result", body), ("fail", {"id": self.rid, "reason": "Mine now."})):
+                with self.subTest(path=path, who=sorted(who)):
+                    code, _, out = self.post(f"/api/mine/requests/{path}", b, who)
+                    self.assertEqual((code, out["error"]), (404, "no-such-request"))
+        self.assertNotIn("Which step drops most?", json.dumps(self.get("/api/state", self.bo)[2]))
+        self.assertEqual(self.get("/api/mine/requests?status=pending", self.ann)[2]["requests"][0]["status"], {"kind": "pending"})
+
+    def test_the_mine_routes_need_an_identity_and_json(self):
+        for path in ("claim", "result", "fail"):
+            self.assertEqual(self.post(f"/api/mine/requests/{path}", {"id": self.rid})[0], 401)
+        code, _, out = call(self.port, "POST", "/api/mine/requests/claim", raw=json.dumps({"id": self.rid}).encode(), headers={**self.ann, "Content-Type": "text/plain"})
+        self.assertEqual((code, out["error"]), (415, "json-required"))
+
+    def test_a_second_claim_within_a_second_is_slowed(self):
+        self.assertEqual(self.post("/api/mine/requests/claim", {"id": self.rid}, self.ann)[0], 200)
+        code, _, out = self.post("/api/mine/requests/claim", {"id": self.rid}, self.ann)
+        self.assertEqual((code, out["error"]), (429, "slow-down"))
+
+
 if __name__ == "__main__":
     unittest.main()

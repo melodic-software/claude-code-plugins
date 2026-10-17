@@ -2562,9 +2562,9 @@ class Session:
             st["requests"].append(
                 {"id": rid, "pid": pid, "qid": q["id"], "at": now, "kind": kind, "text": text, "edited": False, "runner": runner, "status": {"kind": "pending"}}
             )
-            if runner == "host":
+            if runner == "host":  # a self request's text is its requester's alone: no queue note, no mention
                 self._queue_note([HOST], pid)
-            self._notify_mentions(text, pid, f"in a request on question {q['id']}", qid=q["id"])
+                self._notify_mentions(text, pid, f"in a request on question {q['id']}", qid=q["id"])
         self._wrote(pid, "request", now)
         return {"id": rid}
 
@@ -2677,8 +2677,7 @@ class Session:
             return {"requests": out}
 
     def claim_my_request(self, pid, body):
-        with self._tx():
-            self._writer(pid)
+        with self._write_as(pid, "mine-claim"):
             r = self._request(_ident(body, "id"), runner="self", owner_pid=pid)
             if r["status"]["kind"] != "pending":
                 raise DomainError(409, "wrong-status", f"Request {r['id']} is {r['status']['kind']}.", status=r["status"]["kind"])
@@ -2687,8 +2686,7 @@ class Session:
 
     def post_my_result(self, pid, body):
         """POST /api/mine/requests/result: the requester's own Claude answers; shown at once."""
-        with self._tx():
-            self._writer(pid)
+        with self._write_as(pid, "mine-result"):
             r = self._request(_ident(body, "id"), runner="self", owner_pid=pid)
             if r["status"]["kind"] != "running":
                 raise DomainError(409, "wrong-status", f"Request {r['id']} is {r['status']['kind']}.", status=r["status"]["kind"])
@@ -2697,8 +2695,7 @@ class Session:
 
     def fail_my_request(self, pid, body):
         reason = _text(body, "reason", limit=MAX_NOTE)
-        with self._tx():
-            self._writer(pid)
+        with self._write_as(pid, "mine-fail"):
             r = self._request(_ident(body, "id"), runner="self", owner_pid=pid)
             if r["status"]["kind"] not in ("pending", "running"):
                 raise DomainError(409, "wrong-status", f"Request {r['id']} is {r['status']['kind']}.", status=r["status"]["kind"])
@@ -2932,7 +2929,7 @@ class Session:
                     item["suggestion"] = f["why"]["suggestion"]
                 review.append(item)
         results = [
-            {"qid": r["qid"], "id": r["id"], "kind": r["kind"], "summary": r["summary"]}
+            {"qid": r["qid"], "id": r["id"], "kind": r["kind"], "summary": r["summary"], **({"from": "guest-claude"} if r["by"]["kind"] == "guest-claude" else {})}
             for lst in st["results"].values()
             for r in lst
             if r["published"] and r["at"] > prev

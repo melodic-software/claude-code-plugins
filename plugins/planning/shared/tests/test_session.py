@@ -1972,6 +1972,62 @@ class TestSelfRunner(SessionCase):
         self.act("fail_my_request", self.ann, {"id": self.rid, "reason": "My Claude is offline."})
         self.assertEqual(self.s.state["requests"][0]["status"]["kind"], "failed")
 
+    # Phase 8 (Connect your Claude). Expected values come from the Design's request rules (never in the owner's
+    # queue, no control event, results only with the requester's secret, a person sees only their own self
+    # requests), its write limit of one a second per route, and C18-C20.
+
+    def test_a_self_request_makes_no_event_from_request_to_result(self):
+        body = {"id": self.rid, "summary": "The address step.", "sources": [], "report": "", "used": [], "why": ""}
+        self.act("claim_my_request", self.ann, {"id": self.rid})
+        self.act("post_my_result", self.ann, body)
+        other = self.act("request", self.ann, {"qid": "Q1", "kind": "research", "text": "Prices?", "runner": "self"})["id"]
+        self.act("fail_my_request", self.ann, {"id": other, "reason": "Gave up."})
+        self.assertEqual(self.events(), [])
+        self.assertEqual(self.s.summary()["queue"]["requests"], 0)
+
+    def test_a_mention_in_a_self_request_tells_nobody_its_text(self):
+        self.act("request", self.ann, {"qid": "Q1", "kind": "ask", "text": "Would @Bo or @Kim pay later?", "runner": "self"})
+        self.assertEqual((self.notes(self.bo, "mention"), self.notes(HOST, "mention"), self.notes(HOST, "queue")), ([], [], []))
+        self.assertNotIn("pay later", json.dumps(self.s.state["notifications"]).casefold())
+
+    def test_another_person_can_neither_claim_nor_fail_it_and_the_owner_cannot_run_it(self):
+        self.refused("no-such-request", "claim_my_request", self.bo, {"id": self.rid}, http=404)
+        self.refused("no-such-request", "fail_my_request", self.bo, {"id": self.rid, "reason": "Mine now."}, http=404)
+        self.refused("no-such-request", "claim_my_request", HOST, {"id": self.rid}, http=404)
+        self.refused("wrong-status", "act_on_request", HOST, {"action": "run", "ids": [self.rid]}, http=409)
+        self.assertEqual(self.s.state["requests"][0]["status"], {"kind": "pending"})
+
+    def test_another_persons_snapshot_has_neither_its_text_nor_a_count(self):
+        snap = self.s.snapshot(self.bo)
+        self.assertNotIn("Which step drops most?", json.dumps(snap))
+        self.assertEqual(snap["requestCounts"], {"open": 0, "byQ": {}})
+        self.assertEqual([r["id"] for r in self.s.snapshot(self.ann)["myRequests"]], [self.rid])
+
+    def test_claim_result_and_fail_take_one_write_a_second(self):
+        second = self.act("request", self.ann, {"qid": "Q1", "kind": "ask", "text": "And the second?", "runner": "self"})["id"]
+        self.act("claim_my_request", self.ann, {"id": self.rid})
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.claim_my_request(self.ann, {"id": second})  # same clock instant: under a second later
+        self.assertEqual((ctx.exception.code, ctx.exception.http), ("slow-down", 429))
+        self.s.fail_my_request(self.ann, {"id": second, "reason": "Not needed."})  # another route: its own limit
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.fail_my_request(self.ann, {"id": self.rid, "reason": "Not needed."})
+        self.assertEqual(ctx.exception.code, "slow-down")
+
+    def test_a_self_result_reaches_the_digest_marked_as_a_guests_own_claude(self):
+        self.act("claim_my_request", self.ann, {"id": self.rid})
+        self.act("post_my_result", self.ann, {"id": self.rid, "summary": "The address step.", "sources": [], "report": "", "used": [], "why": ""})
+        host_req = self.act("request", self.bo, {"qid": "Q1", "kind": "research", "text": "Prices?"})["id"]
+        self.act("act_on_request", HOST, {"action": "run", "ids": [host_req]})
+        self.apply({"op": "result", "qid": "Q1", "request": host_req, "kind": "research", "used": [], "why": "Web.", "summary": "Two shops.", "sources": [], "report": ""})
+        self.act("act_on_request", HOST, {"action": "publish", "id": host_req})
+        self.send()
+        (sent,) = self.events("round-sent")
+        self.assertEqual(
+            [(r["summary"], r.get("from")) for r in sent["digest"]["results"]],
+            [("The address step.", "guest-claude"), ("Two shops.", None)],
+        )
+
 
 # ---------------------------------------------------------------------------------------------
 # Item 9: settings, prefs, title, goal, end, links
@@ -3648,6 +3704,27 @@ class TestStateFromf6f1318(StateFixtureCase):
         self.assertIsNone(session.document_error(json.loads(s.path.read_text(encoding="utf-8"))))
         reloaded = session.Session.load(s.path, validate_writes=True)
         self.assertEqual([a["id"] for a in reloaded.state["annotations"]], ["A1", "A2", "A3", "A4"])
+
+
+class TestStateFrom08ff888(StateFixtureCase):
+    """state-written-08ff888.json was written by 08ff888's own session.py: Ann (tok0002x9) has host request R1
+    pending and self request R2 answered by her own Claude (result X1, "The address step."), Bo (tok0004x9) has
+    self request R3 pending, and round 1 is sent with a digest whose results carry no `from`. It loads unchanged
+    and takes the Phase 8 writes."""
+
+    def test_a_state_08ff888_wrote_loads_unchanged_and_takes_self_requests(self):
+        s = self.load("state-written-08ff888.json")
+        ann, bo = "tok0002x9", "tok0004x9"
+        self.assertEqual([r["id"] for r in s.my_requests(bo, {"status": "pending"})["requests"]], ["R3"])
+        self.assertEqual([r["id"] for r in s.snapshot(HOST)["requests"]], ["R1"])
+        self.assertEqual(s.snapshot(bo)["results"]["Q1"][0]["by"], {"kind": "guest-claude", "pid": ann})
+        events = len(s.state["log"]["events"])
+        s.claim_my_request(bo, {"id": "R3"})
+        s.post_my_result(bo, {"id": "R3", "summary": "Bo's Claude says two days.", "sources": [], "report": "", "used": [], "why": ""})
+        self.assertEqual(len(s.state["log"]["events"]), events)
+        self.assertIsNone(session.document_error(json.loads(s.path.read_text(encoding="utf-8"))))
+        reloaded = session.Session.load(s.path, validate_writes=True)
+        self.assertEqual([r["status"]["kind"] for r in reloaded.state["requests"]], ["pending", "done", "done"])
 
 
 if __name__ == "__main__":

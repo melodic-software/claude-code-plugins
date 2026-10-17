@@ -211,7 +211,8 @@
               "qid": {"$ref": "#/$defs/qid"},
               "id": {"type": "string"},
               "kind": {"type": "string"},
-              "summary": {"type": "string", "maxLength": 4000}
+              "summary": {"type": "string", "maxLength": 4000},
+              "from": {"type": "string", "enum": ["guest-claude"], "description": "A guest's own Claude wrote it (runner: self), not this session; absent when this session did."}
             }
           }
         },

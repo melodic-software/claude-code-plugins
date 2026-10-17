@@ -276,6 +276,8 @@ Then finish the interview in the terminal (gates, confirmation, Brief) and run `
 - Guests use this session only through the owner: the owner reviews every request before it runs
   and every result before guests see it. Never run a guest request the owner did not run, and never
   give a guest a way to reach this session directly.
+- A digest result with `from: guest-claude` is a guest's own Claude's answer to their own request
+  (Connect your Claude); this session never saw the request. Read it as that guest's answer.
 
 ## Degrade
 
