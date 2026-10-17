@@ -6,7 +6,7 @@
 // profiles at the height left above an on-screen keyboard, and on a 1440x900 desktop. For each, the suite types 2000
 // characters, then pastes a 300-character unbroken word, and checks: no horizontal overflow, the caret (at the end)
 // is in view, the field is wholly inside visualViewport, nothing covers its corners, and the send control's label
-// or icon is centred in it within 0.5 px.
+// or icon is centered in it within 0.5 px.
 //   node plugins/planning/shared/tests/ui_inputs.js
 // The iPhone profiles want WebKit; where it cannot launch they run in Chromium with the same device profile, and a
 // NOTE line says so. Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
@@ -107,7 +107,7 @@ async function main() {
                 const dx = (cr.left + cr.right) / 2 - (br.left + br.right) / 2, dy = (cr.top + cr.bottom) / 2 - (br.top + br.bottom) / 2;
                 // A text label's range box follows the font's ascent and descent, not the glyphs, so only an icon is held
                 // to the 0.5 px pass on both axes; a label is held to it across.
-                if (Math.abs(dx) > T || (svg && Math.abs(dy) > T)) out.push(`send control's ${svg ? "icon" : "label"} off centre by ${dx.toFixed(2)}, ${dy.toFixed(2)}`);
+                if (Math.abs(dx) > T || (svg && Math.abs(dy) > T)) out.push(`send control's ${svg ? "icon" : "label"} off center by ${dx.toFixed(2)}, ${dy.toFixed(2)}`);
               }
             }
             return out;

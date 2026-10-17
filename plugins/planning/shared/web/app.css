@@ -541,7 +541,7 @@
 .app .vf-chat-title .vf-h2 { color: var(--text); font-size: 13px; }
 .app .vf-mscroll { overflow: auto; padding: 12px; overscroll-behavior: contain; }
 .app .vf-mlist { display: grid; gap: 2px; }
-/* Name above the bubble; the avatar sits beside the bubble, centred on its first line, however the name wraps. */
+/* Name above the bubble; the avatar sits beside the bubble, centered on its first line, however the name wraps. */
 .app .vf-msg {
   display: grid; grid-template-columns: 26px minmax(0, 1fr); grid-template-areas: ". meta" "av bubble";
   column-gap: 8px; row-gap: 3px; justify-items: start; margin-block-start: 10px;
@@ -1687,7 +1687,7 @@
 .app .vf-bellpop .vf-pp-head { padding: 8px 8px 8px 16px; border-block-end: 1px solid var(--line); }
 .app .vf-bpscroll { flex: 1 1 auto; padding: 6px; display: grid; align-content: start; gap: 2px; }
 .app .vf-nlist { display: grid; gap: 2px; grid-template-columns: minmax(0, 1fr); }
-/* lead, text, time, unread dot; the lead and the dot centre on the title's first line (20px) */
+/* lead, text, time, unread dot; the lead and the dot center on the title's first line (20px) */
 .app .vf-nitem {
   all: unset; box-sizing: border-box; cursor: pointer; inline-size: 100%;
   display: grid; grid-template-columns: 24px minmax(0, 1fr) auto 8px; column-gap: 10px; align-items: start;
@@ -1965,7 +1965,7 @@
 /* Question pictures stay compact so the answer controls stay on screen; View larger opens the viewer. */
 /* The confirm picture keeps the column's width and at most 240px of height (30% of a phone screen); a taller picture is
    cropped around the marked area, and the viewer shows it whole. --ar is its width / height, set when it loads; --my is
-   the mark's middle as a fraction of its height. The canvas is the whole picture, shifted up to centre the mark. */
+   the mark's middle as a fraction of its height. The canvas is the whole picture, shifted up to center the mark. */
 .app .vf-confirm-fig .vf-confirm-box { aspect-ratio: var(--ar, 1.6); max-block-size: 240px; container-type: size; }
 .app .vf-confirm-canvas { position: absolute; inset-inline: 0; inset-block-start: clamp(100cqb - 100cqi / var(--ar, 1.6), 50cqb - var(--my, 0.5) * 100cqi / var(--ar, 1.6), 0px); }
 @media (max-width: 720px) {

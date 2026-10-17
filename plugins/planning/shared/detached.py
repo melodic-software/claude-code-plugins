@@ -92,7 +92,7 @@ def which(name):
     """`name` on PATH, never from the current folder: Windows searches it first unless told not to."""
     if not WINDOWS:
         return shutil.which(name)
-    os.environ["NoDefaultCurrentDirectoryInExePath"] = "1"  # honoured by shutil.which from Python 3.12
+    os.environ["NoDefaultCurrentDirectoryInExePath"] = "1"  # honored by shutil.which from Python 3.12
     found = shutil.which(name)
     if found and Path(found).resolve().parent == Path.cwd().resolve():  # older Pythons still look there
         return None

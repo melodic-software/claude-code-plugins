@@ -505,7 +505,7 @@
       });
       toastT = setTimeout(() => (toastQ.length ? flash(...toastQ.shift()) : hideToast()), action ? 9000 : 3200);
     }
-    /** Centred on the centre pane (the part the chat leaves uncovered; the whole page when the pane is hidden),
+    /** Centered on the center pane (the part the chat leaves uncovered; the whole page when the pane is hidden),
      *  12px above whatever is docked at the bottom under it: tab bar, chat button, panel or the phone edit sheet. */
     function placeToast() {
       const R = root.getBoundingClientRect(), C = center.getBoundingClientRect(), side = !chat.hidden ? chat : askPanel.isConnected && !askPanel.hidden && !drawerSheet.matches ? askPanel : null, ch = side ? side.getBoundingClientRect() : null;
@@ -516,7 +516,7 @@
         return toast.offsetWidth;
       };
       let w = fit();
-      // only when the open chat panel would sit under it, centre it on the part of the pane the chat leaves
+      // only when the open chat panel would sit under it, center it on the part of the pane the chat leaves
       if (ch && ch.left > L + 200 && ch.left < (L + Rt) / 2 + w / 2) { Rt = ch.left - 8; w = fit(); }
       const l = (L + Rt) / 2 - w / 2, r = l + w;
       let bottom = R.bottom - 16;
@@ -1827,7 +1827,7 @@
       lbZoom.textContent = coarse.matches ? `Pinch or double-tap to zoom.${many ? " Swipe for the next picture." : ""}` : `Double-click to zoom.${many ? " Use ← and → for the next picture." : ""} Esc closes.`;
     }
     const coarse = matchMedia("(pointer: coarse)");
-    // Zoom keeps the point under the finger or cursor in place; the frame is centred, so offsets are from the stage centre.
+    // Zoom keeps the point under the finger or cursor in place; the frame is centered, so offsets are from the stage center.
     function lbApply() {
       const fw = lbFrame.offsetWidth * LB.s, fh = lbFrame.offsetHeight * LB.s;
       const mx = Math.max(0, (fw - lbStage.clientWidth) / 2), my = Math.max(0, (fh - lbStage.clientHeight) / 2);
@@ -1841,7 +1841,7 @@
       else { LB.x = cx - (cx - LB.x) * s / LB.s; LB.y = cy - (cy - LB.y) * s / LB.s; }
       LB.s = s; lbApply();
     }
-    const fromCentre = (x, y) => { const r = lbStage.getBoundingClientRect(); return [x - r.left - r.width / 2, y - r.top - r.height / 2]; };
+    const fromCenter = (x, y) => { const r = lbStage.getBoundingClientRect(); return [x - r.left - r.width / 2, y - r.top - r.height / 2]; };
     const ptrs = new Map();
     let pinch = null, drag = null, lastTap = 0;
     on(lbStage, "pointerdown", e => {
@@ -1856,7 +1856,7 @@
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (pinch && ptrs.size === 2) {
         const [a, b] = [...ptrs.values()];
-        lbZoomTo(pinch.s * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d, ...fromCentre((a.x + b.x) / 2, (a.y + b.y) / 2));
+        lbZoomTo(pinch.s * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d, ...fromCenter((a.x + b.x) / 2, (a.y + b.y) / 2));
       } else if (drag && LB.s > 1) { LB.x = drag.tx + e.clientX - drag.x; LB.y = drag.ty + e.clientY - drag.y; lbApply(); }
     });
     const lbUp = e => {
@@ -1866,14 +1866,14 @@
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
       if (e.type === "pointerup" && LB.s === 1 && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) lbGo(dx < 0 ? 1 : -1);
       else if (e.type === "pointerup" && Date.now() - drag.t < 300 && Math.hypot(dx, dy) < 10) { // two quick taps toggle zoom
-        if (Date.now() - lastTap < 350) { lastTap = 0; LB.s > 1 ? lbZoomTo(1) : lbZoomTo(2.5, ...fromCentre(e.clientX, e.clientY)); }
+        if (Date.now() - lastTap < 350) { lastTap = 0; LB.s > 1 ? lbZoomTo(1) : lbZoomTo(2.5, ...fromCenter(e.clientX, e.clientY)); }
         else lastTap = Date.now();
       }
       drag = null;
     };
     on(lbStage, "pointerup", lbUp); on(lbStage, "pointercancel", lbUp);
     on(lbStage, "wheel", e => {
-      if (e.ctrlKey) lbZoomTo(LB.s * Math.exp(-e.deltaY / 100), ...fromCentre(e.clientX, e.clientY)); // trackpad pinch
+      if (e.ctrlKey) lbZoomTo(LB.s * Math.exp(-e.deltaY / 100), ...fromCenter(e.clientX, e.clientY)); // trackpad pinch
       else if (LB.s > 1) { LB.x -= e.deltaX; LB.y -= e.deltaY; lbApply(); }
       else return;
       e.preventDefault();
@@ -4672,7 +4672,7 @@
     }
     const QT = { request: "Request", proposal: "Proposal", suggestion: "Suggestion", merge: "Merge", upload: "Upload", ready: "Ready to send", join: "Join" };
     const BROWSER_NAME = { chrome: "Chrome", safari: "Safari", firefox: "Firefox", edge: "Edge", samsung: "Samsung Internet", "in-app": "an in-app browser" };
-    const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th");
+    const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th"); // spellchecker:disable-line
     /** " (2nd waiting; phone · Safari)": the join order and what the join said about its device, never more. */
     const joinHint = j => {
       const hint = [j.device, BROWSER_NAME[j.browser]].filter(Boolean).join(" · ");

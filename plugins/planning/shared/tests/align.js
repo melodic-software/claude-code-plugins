@@ -2,7 +2,7 @@
 // Page alignment check: seeds a varied session and an empty one through `share.sh ensure-running` (fake cloudflared,
 // spare ports), then opens every view below at each size and theme and checks the geometry in the page: no page scroll,
 // no horizontal overflow, no overlapping text, like rows aligned, icons on their text line (icon-line), the toast's
-// place, the phone tab bar, choice and confirm controls above the fold, and icon-only buttons with the icon centred
+// place, the phone tab bar, choice and confirm controls above the fold, and icon-only buttons with the icon centered
 // on the button within 0.5 px (icon-center).
 //   node plugins/planning/shared/tests/align.js
 //   ALIGN_VIEWS=chat,focus-q1-short ALIGN_SIZES=390x844,1440x900 node plugins/planning/shared/tests/align.js
@@ -20,7 +20,7 @@ const THEMES = ["dark", "light"];
 const MAX_DETAIL = 6;
 const list = v => (v || "").split(",").map(x => x.trim()).filter(Boolean);
 
-/** A w x h PNG in two colours, striped, so each picture is its own asset. */
+/** A w x h PNG in two colors, striped, so each picture is its own asset. */
 function png(w, h, [r1, g1, b1], [r2, g2, b2]) {
   const raw = Buffer.alloc((w * 3 + 1) * h);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -75,7 +75,7 @@ async function seed(s, A) {
       q("Q5", "Which reaction fits the new flow best? 🎉🚀😅👍🏽 🧑‍💻 or 🛒✨"),
       q("Q6", "האם עמוד התשלום צריך לתמוך בעברית? ما هي طريقة الدفع المفضلة لديك؟"),
       q("Q7", "What worries you about the new checkout?", undefined, { purpose: "gather" }),
-      q("Q8", "How should the confirmation page read?\n\nToday it repeats the whole order, the address and the delivery estimate, then asks for a review.\n\nSecond paragraph: should it link to the order history, or to the help centre, or neither?\n\nThird paragraph: anything else it should say."),
+      q("Q8", "How should the confirmation page read?\n\nToday it repeats the whole order, the address and the delivery estimate, then asks for a review.\n\nSecond paragraph: should it link to the order history, or to the help center, or neither?\n\nThird paragraph: anything else it should say."),
     ] }]);
   const [bea, chen, dana, eli] = [await join("Bea"), await join("Chen"), await join("Dana Okonkwo-Fitzgerald"), await join("Eli")];
   const at = { view: "focus", deviceInfo: { kind: "computer", browser: "chrome", screen: { w: 1440, h: 900 } } };
@@ -312,7 +312,7 @@ const check = (page, theme) => page.evaluate(theme => {
     return [...rg.getClientRects()].find(r => r.width > 0) || null;
   };
   if (!app) return [{ rule: "setup", msg: "no #app on the page" }];
-  // the theme the page shows follows the emulated colour scheme (the default theme mode is System)
+  // the theme the page shows follows the emulated color scheme (the default theme mode is System)
   const shown = app.dataset.theme || document.documentElement.dataset.theme || app.closest("[data-theme]")?.dataset.theme;
   if (shown && shown !== theme) fail("theme", `page shows theme ${shown}, expected ${theme}`);
   const all = [...app.querySelectorAll("*")].filter(vis);
@@ -397,7 +397,7 @@ const check = (page, theme) => page.evaluate(theme => {
     fail("text-overlap", `${name(a.el)} overlaps ${name(b.el)} (${w.toFixed(1)}x${h.toFixed(1)})`);
   }
 
-  // 4. Sibling rows of one kind share the left x of icon, id and text; icons centre on their first text line.
+  // 4. Sibling rows of one kind share the left x of icon, id and text; icons center on their first text line.
   const STATE = /^(vf-(?:q-cur|tcur|col-cur|round-cur|rcur|fresh|ritem-fresh|on|pinned|mine|tgrey|tlocked|topen|bump|badge-pop|dim|edited|nunread|hl))$/;
   const kindOf = el => `${el.tagName}|${[...el.classList].filter(c => !STATE.test(c)).sort().join(".")}`;
   const ICON = "svg, .core-avatar, .vf-tstat, .vf-qstat, .vf-rstat, .vf-mp-stat, .vf-mr-stat, .vf-claude-av, .vf-switch";
@@ -444,7 +444,7 @@ const check = (page, theme) => page.evaluate(theme => {
       }
     }
   }
-  // toast: centred on the centre pane ±1px, text centred, clear of composer, tab bar, chat button and chat
+  // toast: centered on the center pane ±1px, text centered, clear of composer, tab bar, chat button and chat
   const toast = app.querySelector(".vf-toast.vf-on");
   if (toast && vis(toast)) {
     const tb = toast.getBoundingClientRect(), mid = (tb.left + tb.right) / 2;
@@ -453,9 +453,9 @@ const check = (page, theme) => page.evaluate(theme => {
     const ch = chEl && vis(chEl) ? chEl.getBoundingClientRect() : null;
     const full = (C.left + C.right) / 2, narrowed = (C.left + (ch ? ch.left - 8 : 0)) / 2;
     const ref = Math.abs(mid - full) <= 1 || !ch ? full : narrowed;
-    if (ref === full && ch && ch.left < tb.right && ch.left > C.left + 200) fail("toast", "toast centred on the full pane runs under the open chat panel");
-    if (Math.abs(mid - ref) > 1) fail("toast", `toast centre x ${mid.toFixed(1)} vs centre-pane centre ${ref.toFixed(1)}`);
-    if (getComputedStyle(toast).textAlign !== "center") fail("toast", "toast text is not centred");
+    if (ref === full && ch && ch.left < tb.right && ch.left > C.left + 200) fail("toast", "toast centered on the full pane runs under the open chat panel");
+    if (Math.abs(mid - ref) > 1) fail("toast", `toast center x ${mid.toFixed(1)} vs center-pane center ${ref.toFixed(1)}`);
+    if (getComputedStyle(toast).textAlign !== "center") fail("toast", "toast text is not centered");
     for (const el of app.querySelectorAll(".vf-top, .vf-composer, .vf-tabs, .vf-fab, .vf-chat, .vf-panel, .vf-drawer, textarea, input")) {
       if (!vis(el)) continue;
       const b = el.getBoundingClientRect();
@@ -505,7 +505,7 @@ const check = (page, theme) => page.evaluate(theme => {
     const top = eb.top + parseFloat(cs.borderTopWidth) + parseFloat(cs.paddingTop);
     const blockLine = cs.display !== "inline" && lh > 0 && pick.r.top >= top - 0.5 && pick.r.bottom <= top + lh + 0.5;
     const lineMid = blockLine ? top + lh / 2 : pick.r.top + pick.r.height / 2, iconMid = ib.top + ib.height / 2;
-    if (Math.abs(lineMid - iconMid) > 1) fail("icon-line", `${name(icon)} centre y off the text line of ${name(pick.el)} by ${(iconMid - lineMid).toFixed(1)}px`);
+    if (Math.abs(lineMid - iconMid) > 1) fail("icon-line", `${name(icon)} center y off the text line of ${name(pick.el)} by ${(iconMid - lineMid).toFixed(1)}px`);
   }
   for (const svg of app.querySelectorAll("svg")) {
     if (!vis(svg) || seen.has(svg)) continue;
@@ -518,7 +518,7 @@ const check = (page, theme) => page.evaluate(theme => {
     if (Math.abs(d) > 1) fail("icon-line", `${name(svg.parentElement)} icon off its label's first line by ${d.toFixed(1)}px`);
   }
   // icon-center: an icon-only button (the answer and chat send buttons, the chat button, any round icon button) has
-  // its one visible icon centred on the button's border box within 0.5 px on both axes.
+  // its one visible icon centered on the button's border box within 0.5 px on both axes.
   const shownText = b => { // text a person sees in the button, badges (positioned) and screen-reader-only labels left out
     const tw = document.createTreeWalker(b, NodeFilter.SHOW_TEXT);
     for (let n; (n = tw.nextNode());) {
@@ -543,7 +543,7 @@ const check = (page, theme) => page.evaluate(theme => {
     if (icons.length !== 1) continue;
     const br = b.getBoundingClientRect(), ir = icons[0].getBoundingClientRect();
     const dx = (ir.left + ir.right) / 2 - (br.left + br.right) / 2, dy = (ir.top + ir.bottom) / 2 - (br.top + br.bottom) / 2;
-    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) fail("icon-center", `${name(b)}${b.getAttribute("aria-label") ? ` [${b.getAttribute("aria-label")}]` : ""} icon centre off the button centre by x ${dx.toFixed(2)}, y ${dy.toFixed(2)}px (button ${br.width.toFixed(1)}x${br.height.toFixed(1)}, icon ${ir.width.toFixed(1)}x${ir.height.toFixed(1)})`);
+    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) fail("icon-center", `${name(b)}${b.getAttribute("aria-label") ? ` [${b.getAttribute("aria-label")}]` : ""} icon center off the button center by x ${dx.toFixed(2)}, y ${dy.toFixed(2)}px (button ${br.width.toFixed(1)}x${br.height.toFixed(1)}, icon ${ir.width.toFixed(1)}x${ir.height.toFixed(1)})`);
   }
   // fold: with nothing focused and the question at its top, a choice or confirm question's answer controls show
   // without scrolling (confirm: every pick button; choice: the first Choose button)

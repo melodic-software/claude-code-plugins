@@ -47,7 +47,7 @@ Before the recommendation, `context` carries what drives the decision and nothin
 - the problem the decision solves, in one or two sentences;
 - what the source says or ships, paraphrased, with a short quote only where the exact words matter;
 - what exists today and the gap;
-- which parts of an absorbed idea come from the source and which are ours, labelled;
+- which parts of an absorbed idea come from the source and which are ours, labeled;
 - any term the question relies on that the reader may not share, defined inline.
 
 Every factual claim carries a link or `file:line` the reader can open. If removing a line would not

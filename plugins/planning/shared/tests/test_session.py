@@ -2195,7 +2195,7 @@ class TestSessionControls(SessionCase):
     def test_settings_take_a_partial_object_and_refuse_unknown_keys_and_values(self):
         out = self.act("update_settings", HOST, {"names": "initials", "theme": {"accent": "amber"}})
         self.assertEqual((out["settings"]["names"], out["settings"]["theme"]), ("initials", {"mode": "system", "accent": "amber"}))
-        self.refused("bad-field", "update_settings", HOST, {"colour": "red"})
+        self.refused("bad-field", "update_settings", HOST, {"color": "red"})
         self.refused("bad-field", "update_settings", HOST, {"voting": "yes"})
         self.refused("bad-field", "update_settings", HOST, {"theme": {"accent": "pink"}})
         self.refused("owner-only", "update_settings", self.ann, {"voting": False})

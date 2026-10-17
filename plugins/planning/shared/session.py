@@ -654,7 +654,7 @@ UPLOAD_KINDS = {
 }
 GUEST_KINDS = frozenset(UPLOAD_KINDS) - {"zip"}
 ARCHIVE_KINDS = {k for k, (_, check) in UPLOAD_KINDS.items() if check is _ZIP}
-OOXML_KINDS, ODF_KINDS = {"docx", "xlsx", "pptx"}, {"odt", "ods", "odp"}
+OOXML_KINDS, OPENDOC_KINDS = {"docx", "xlsx", "pptx"}, {"odt", "ods", "odp"}
 _WINDOWS = os.name == "nt"
 THUMB_KINDS = {"png", "jpg", "jpeg", "gif", "webp"}
 
@@ -709,11 +709,11 @@ def _directory_small(path):
 
 
 def _archive_ok(path, ext):
-    """An archive kind, read from its central directory: OOXML holds [Content_Types].xml; ODF starts with a stored
+    """An archive kind, read from its central directory: OOXML holds [Content_Types].xml; OpenDocument starts with a stored
     `mimetype` entry naming its kind; a zip may hold anything. No entry name is absolute or climbs with `..`, no entry
     is a symlink, the whole unpacks to at most ZIP_UNPACKED_MAX, and no entry past ZIP_RATIO_GRACE packs tighter than
     ZIP_RATIO_MAX to 1. The directory is sized from its end record (_directory_small) before zipfile reads it. Nothing
-    is unpacked but ODF's mimetype."""
+    is unpacked but OpenDocument's mimetype."""
     try:
         if not _directory_small(path):
             return False
@@ -728,7 +728,7 @@ def _archive_ok(path, ext):
                 return False
             if ext in OOXML_KINDS:
                 return "[Content_Types].xml" in z.namelist()
-            if ext in ODF_KINDS:
+            if ext in OPENDOC_KINDS:
                 first = infos[0] if infos else None
                 return (first is not None and first.filename == "mimetype" and first.header_offset == 0 and first.compress_type == zipfile.ZIP_STORED
                         and first.file_size <= 100 and z.read(first) == UPLOAD_KINDS[ext][0].encode())

@@ -180,7 +180,7 @@ def adopt(data_dir, pid, url, port):
 
 
 def _end(rec):
-    """Stop the recorded cloudflared, unless it was adopted: that one is never signalled, so the
+    """Stop the recorded cloudflared, unless it was adopted: that one is never signaled, so the
     prototype it came from can take its link back. True when one was stopped."""
     return not rec.get("adopted") and detached.stop(rec["pid"], rec.get("marker") or "cloudflared")
 
