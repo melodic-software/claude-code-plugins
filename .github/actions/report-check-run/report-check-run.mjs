@@ -96,6 +96,8 @@ export async function main({
     resets: env.LANE_RESETS ?? "",
     turns: env.LANE_TURNS ?? "",
     maxTurns: env.LANE_MAX_TURNS ?? "",
+    models: env.LANE_MODELS ?? "",
+    profile: env.LANE_PROFILE ?? "",
     activity: env.ACTIVITY,
     runId: env.GITHUB_RUN_ID ?? "",
     runAttempt: env.GITHUB_RUN_ATTEMPT ?? "",

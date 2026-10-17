@@ -61,16 +61,6 @@ on:
         required: false
         type: string
         default: ""
-      default-model:
-        description: The model when the activity sets none; empty omits --model.
-        required: false
-        type: string
-        default: ""
-      default-max-turns:
-        description: The turn budget when the activity sets none.
-        required: false
-        type: number
-        default: 75
       timeout-minutes:
         description: The run job's timeout in minutes.
         required: false
@@ -292,9 +282,9 @@ jobs:
       lane-class: ${{ steps.lane-record.outputs.failure-class }}
       lane-resets: ${{ steps.lane-record.outputs.resets-at }}
       lane-turns: ${{ steps.lane-record.outcome == 'success' && steps.act-turns.outputs.turns || '' }}
-      lane-max-turns: >-
-        ${{ steps.lane-record.outcome == 'success'
-        && (steps.config.outputs.max-turns || inputs.default-max-turns) || '' }}
+      lane-max-turns: ${{ steps.lane-record.outcome == 'success' && steps.config.outputs.max-turns || '' }}
+      lane-models: ${{ steps.lane-record.outcome == 'success' && steps.act-turns.outputs.models || '' }}
+      lane-profile: ${{ steps.lane-record.outcome == 'success' && steps.config.outputs.profile || '' }}
       # A gate skill succeeds only on a `pass` verdict, a skill that took no
       # model turn fails, and a skill whose commits could not be moved onto
       # the PR branch fails. In merge-base mode a clean merge skips the skill
@@ -614,8 +604,6 @@ jobs:
           kind: ${{ steps.config.outputs.kind }}
           script: ${{ steps.config.outputs.script }}
           skill: ${{ steps.config.outputs.skill }}
-          model: ${{ steps.config.outputs.model || inputs.default-model }}
-          max-turns: ${{ steps.config.outputs.max-turns || inputs.default-max-turns }}
           gating: ${{ steps.config.outputs.gating }}
           effect: ${{ steps.config.outputs.effect }}
           can-commit: ${{ steps.config.outputs.can-commit }}
@@ -946,9 +934,13 @@ jobs:
           plugin_marketplaces: ${{ runner.temp }}/base-marketplace
           plugins: ${{ steps.stage.outputs.plugins }}
           prompt: ${{ steps.stage.outputs.prompt }}
+          # The model, turns and effort come from the base config's models
+          # profile (resolve-config), never from text the run reads.
+          settings: ${{ steps.config.outputs.settings-json }}
           claude_args: >-
             --setting-sources user
             --permission-mode dontAsk
+            ${{ steps.config.outputs.claude-args }}
             ${{ steps.stage.outputs.claude-args }}
 
       # The reply is untrusted model text: it is read with jq and printed as
@@ -1045,6 +1037,9 @@ jobs:
             if (Number.isSafeInteger(diag.num_turns) && diag.num_turns >= 0) {
               core.setOutput('turns', String(diag.num_turns));
             }
+            // The CLI's modelUsage keys, the models the run used; the report
+            // job's lane-record.mjs drops a list that fails its shape.
+            core.setOutput('models', diag.models.join(','));
             if (!(diag.num_turns > 0) || diag.models.length === 0) {
               core.setFailed(
                 'no-model-turn: the skill ended without a model turn, so it did nothing; ' +
@@ -1068,7 +1063,7 @@ jobs:
             || format('{0}/claude-execution-output.json', runner.temp) }}
           lane: ${{ inputs.lane }}
           credential: CLAUDE_CODE_OAUTH_TOKEN
-          max-turns: ${{ steps.config.outputs.max-turns || inputs.default-max-turns }}
+          max-turns: ${{ steps.config.outputs.max-turns }}
 
       - name: Upload the skill's final reply
         if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
@@ -1979,6 +1974,8 @@ jobs:
           lane-resets: ${{ needs.run.outputs.lane-resets }}
           lane-turns: ${{ needs.run.outputs.lane-turns }}
           lane-max-turns: ${{ needs.run.outputs.lane-max-turns }}
+          lane-models: ${{ needs.run.outputs.lane-models }}
+          lane-profile: ${{ needs.run.outputs.lane-profile }}
           verdict-path: ${{ runner.temp }}/verdict/verdict.json
           base-path: .base
           head-sha-fallback: ${{ github.event.pull_request.head.sha || github.sha }}
