@@ -11,7 +11,7 @@
 //
 //   digest-policy.mjs [--event ready|review] [--blast-radius LEVEL]
 //                     [--policy off|offer|always] [--requested] < facts.json
-//   digest-policy.mjs --publish-gate --facts <facts.json> [--explicit] < diff
+//   digest-policy.mjs --publish-gate --repo <[host/]owner/repo> [--explicit] < diff
 // Exit 0 decided, 2 usage or unreadable facts.
 
 import { execFileSync } from "node:child_process";
@@ -19,6 +19,7 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, relative, resolve, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
+import { lookupVisibility, parseRepo } from "./repo-visibility.mjs";
 import { SECRET_PATTERNS, findRoot, findSecret, overlayApplies, publishGate as sharedGate } from "../../../lib/publish-gate.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -400,27 +401,18 @@ export function publishGate({ explicit, visibility, diff }) {
 
 // ------------------------------------------------------------ CLI
 
-// The gate's only visibility input is `--facts <file>`: the facts the
-// source-control `view` action looked up and wrote, so no visibility a caller
-// types reaches the gate and no second interpreter reads the facts. A missing,
-// unreadable or empty value gates as UNKNOWN.
-function factsVisibility(file) {
-  try {
-    const value = JSON.parse(readFileSync(file, "utf8"))?.visibility;
-    return typeof value === "string" && value ? value : "UNKNOWN";
-  } catch {
-    return "UNKNOWN";
-  }
-}
-
+// The gate's only visibility input is `--repo <[host/]owner/repo>`, which the
+// gate looks up itself (the lookup `publish-hosted.mjs` uses), so no visibility
+// a caller or the facts file types reaches it. A failed lookup gates as UNKNOWN.
 function gateMain(argv) {
-  const [flag, file, ...rest] = argv;
-  if (flag !== "--facts" || !file || file.startsWith("--") || rest.some((a) => a !== "--explicit")) {
-    process.stderr.write("usage: digest-policy.mjs --publish-gate --facts <facts.json> [--explicit] < diff\n");
+  const [flag, repo, ...rest] = argv;
+  const target = flag === "--repo" ? parseRepo(repo) : null;
+  if (!target || rest.some((a) => a !== "--explicit")) {
+    process.stderr.write("usage: digest-policy.mjs --publish-gate --repo <[host/]owner/repo> [--explicit] < diff\n");
     return 2;
   }
   const diff = readFileSync(0, "utf8");
-  const result = publishGate({ explicit: rest.includes("--explicit"), visibility: factsVisibility(file).toUpperCase(), diff });
+  const result = publishGate({ explicit: rest.includes("--explicit"), visibility: lookupVisibility(target.host, target.repo), diff });
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   return 0;
 }
