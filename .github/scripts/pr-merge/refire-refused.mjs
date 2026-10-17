@@ -45,7 +45,7 @@ import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { GitHubError, createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 const DEPENDABOT_ID = 49699333;
@@ -130,7 +130,7 @@ async function failedRuns(actions, repo, file, now) {
 }
 
 // The open PR whose current head the run is about, or undefined.
-async function pullOfRun({ actions, repo, run, lane, byHead, byNumber, ids, appId }) {
+async function pullOfRun({ actions, repo, run, lane, byHead, byNumber, ids, appId, mainSha }) {
   if (!lane.events.includes(run.event) || run.repository?.full_name !== repo) {
     return undefined;
   }
@@ -154,7 +154,7 @@ async function pullOfRun({ actions, repo, run, lane, byHead, byNumber, ids, appI
   }
   // A run on a tag named main also reports head_branch main: its commit must
   // be on the branch.
-  const compare = await actions("GET", `/repos/${repo}/compare/${run.head_sha}...main`);
+  const compare = await actions("GET", `/repos/${repo}/compare/${run.head_sha}...${mainSha}`);
   if (compare?.status !== "ahead" && compare?.status !== "identical") {
     return undefined;
   }
@@ -191,13 +191,13 @@ async function refusedFile({ actions, repo, run, lane }) {
 
 // Why `pull` is not re-fired for `path` now, or null with whether its marker
 // is already posted.
-async function refusal({ github, repo, pull, path, blob, bot, lane, now }) {
+async function refusal({ github, repo, pull, path, blob, bot, lane, now, mainSha }) {
   // A run on a head that changes a file the broker compares came from that
   // file, not main's: no empty commit can make it pass, and its refusal could
   // have been printed by the edited file itself.
   // The three-dot compare lists what the PR changes since its merge base; it
   // lists at most 300 files, so a longer list is not read as complete.
-  const changed = (await github("GET", `/repos/${repo}/compare/main...${pull.head.sha}`))?.files;
+  const changed = (await github("GET", `/repos/${repo}/compare/${mainSha}...${pull.head.sha}`))?.files;
   if (!Array.isArray(changed) || changed.length >= 300) {
     return { reason: "its changed files cannot be listed in full" };
   }
@@ -219,11 +219,9 @@ async function refusal({ github, repo, pull, path, blob, bot, lane, now }) {
   return { reason: null, recorded: markers.length > 0 };
 }
 
-// An empty commit on the head, moved onto the branch only as a fast-forward,
-// so a push since the read fails it.
-async function pushEmptyCommit(github, repo, pull, path) {
-  // Read again: a PR closed, drafted, retargeted or pushed since the listing
-  // is left alone.
+// The head's tree, read after a fresh read of the PR: a PR closed, drafted,
+// retargeted or pushed since the listing is left alone.
+async function headTree(github, repo, pull) {
   const current = await github("GET", `/repos/${repo}/pulls/${pull.number}`);
   if (current?.head?.sha !== pull.head.sha || current.head.ref !== pull.head.ref || current.state !== "open" || current.draft === true || current.base?.ref !== "main") {
     throw new Error("the PR changed since it was listed; nothing pushed");
@@ -232,9 +230,15 @@ async function pushEmptyCommit(github, repo, pull, path) {
   if (!SHA.test(String(head?.tree?.sha))) {
     throw new Error(`the head ${pull.head.sha} has no tree`);
   }
+  return head.tree.sha;
+}
+
+// An empty commit on the head, moved onto the branch only as a fast-forward,
+// so a push since the read fails it.
+async function pushEmptyCommit(github, repo, pull, path, tree) {
   const commit = await github("POST", `/repos/${repo}/git/commits`, {
     message: commitMessage(path),
-    tree: head.tree.sha,
+    tree,
     parents: [pull.head.sha],
   });
   if (!SHA.test(String(commit?.sha))) {
@@ -264,6 +268,24 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     actions ??= createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
 
+    // Main's tip, read once, so every compare and blob read in this run sees
+    // one commit. A tag named main would make `main` ambiguous, so one must not
+    // exist; only a 404 proves that (as check-trusted-trigger checks).
+    let tagAbsent = false;
+    try {
+      await github("GET", `/repos/${repo}/git/ref/tags/main`);
+    } catch (error) {
+      tagAbsent = error instanceof GitHubError && error.status === 404;
+    }
+    if (!tagAbsent) {
+      throw new Error("a tag named main exists, or its absence could not be read; nothing pushed");
+    }
+    const tip = await github("GET", `/repos/${repo}/git/ref/heads/main`);
+    const mainSha = tip?.ref === "refs/heads/main" ? tip.object?.sha : undefined;
+    if (!SHA.test(String(mainSha))) {
+      throw new Error("main's tip has no commit SHA");
+    }
+
     const open = (await paginate(github, `/repos/${repo}/pulls?state=open&base=main`)).filter((pull) => qualifies(pull, repo, ids));
     const byHead = new Map(open.map((pull) => [pull.head.sha, pull]));
     const byNumber = new Map(open.map((pull) => [pull.number, pull]));
@@ -281,7 +303,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
       }
       for (const run of runs) {
         try {
-          const pull = await pullOfRun({ actions, repo, run, lane, byHead, byNumber, ids, appId });
+          const pull = await pullOfRun({ actions, repo, run, lane, byHead, byNumber, ids, appId, mainSha });
           if (pull === undefined || refused.has(pull.number)) {
             continue;
           }
@@ -299,7 +321,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     const blobs = new Map();
     const blobOf = async (path) => {
       if (!blobs.has(path)) {
-        const sha = (await github("GET", `/repos/${repo}/contents/${path}?ref=main`))?.sha;
+        const sha = (await github("GET", `/repos/${repo}/contents/${path}?ref=${mainSha}`))?.sha;
         if (!SHA.test(String(sha))) {
           throw new Error(`${path} on main has no blob SHA`);
         }
@@ -311,7 +333,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     for (const [number, { pull, path, lane, run }] of [...refused].sort((a, b) => a[0] - b[0])) {
       try {
         const blob = await blobOf(path);
-        const { reason, recorded } = await refusal({ github, repo, pull, path, blob, bot, lane, now });
+        const { reason, recorded } = await refusal({ github, repo, pull, path, blob, bot, lane, now, mainSha });
         if (reason !== null) {
           console.log(`refire-refused: #${number} not re-fired: ${reason}`);
           continue;
@@ -327,11 +349,13 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     }
     for (const { pull, path, blob, recorded, run } of ready.slice(0, REFIRES_PER_RUN)) {
       try {
-        // The record first: a failed comment pushes nothing, so the bound holds.
+        // The fresh read first, so no marker is posted for a PR that changed;
+        // then the record: a failed comment pushes nothing, so the bound holds.
+        const tree = await headTree(github, repo, pull);
         if (!recorded) {
           await github("POST", `/repos/${repo}/issues/${pull.number}/comments`, { body: refireComment(path, blob, pull.head.sha) });
         }
-        const sha = await pushEmptyCommit(github, repo, pull, path);
+        const sha = await pushEmptyCommit(github, repo, pull, path, tree);
         const line = `#${pull.number} moved from ${pull.head.sha} to ${sha} after run ${run} was refused for ${path} at ${blob}`;
         console.log(`refire-refused: ${line}`);
         if (env.GITHUB_STEP_SUMMARY) {

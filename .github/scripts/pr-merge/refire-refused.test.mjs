@@ -9,6 +9,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { REFIRES_PER_RUN, main, refireComment } from "./refire-refused.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -23,6 +24,7 @@ const NEW_BLOB = "c".repeat(40);
 const TREE = "e".repeat(40);
 const NEW_SHA = "f".repeat(40);
 const sha = (n) => String(n).padStart(40, "0");
+const MAIN_TIP = "a".repeat(40);
 const REFINE = ".github/workflows/pr-refine.yml";
 const WRITER = ".github/workflows/pr-run-activity-write.yml";
 const MERGE = ".github/workflows/pr-merge.yml";
@@ -63,7 +65,7 @@ const marker = (path, blob, head, { user = BOT, at = "2026-10-17T21:50:00Z" } = 
 // changes against its merge base with main.
 // `compare` is the status of a run's head against main; `moved` is a PR as a
 // fresh GET /pulls/{n} answers it, when it changed since the listing.
-function world({ pulls = [], runs = {}, comments = {}, checks = {}, blobs = MAIN_BLOBS, changed = {}, compare = "ahead", moved = {}, failOn } = {}) {
+function world({ pulls = [], runs = {}, comments = {}, checks = {}, blobs = MAIN_BLOBS, changed = {}, compare = "ahead", moved = {}, mainTag = false, failOn } = {}) {
   const calls = [];
   const all = Object.values(runs).flat();
   const answer = (method, path, body) => {
@@ -90,13 +92,24 @@ function world({ pulls = [], runs = {}, comments = {}, checks = {}, blobs = MAIN
     if ((match = /\/commits\/([0-9a-f]{40})\/check-runs$/.exec(route))) {
       return { check_runs: checks[match[1]] ?? [] };
     }
+    if (route === `/repos/${REPO}/git/ref/tags/main`) {
+      if (mainTag) {
+        return { ref: "refs/tags/main", object: { sha: sha(1) } };
+      }
+      throw new GitHubError(404, `${method} ${path}`);
+    }
+    if (route === `/repos/${REPO}/git/ref/heads/main`) {
+      return { ref: "refs/heads/main", object: { sha: MAIN_TIP } };
+    }
+    // Every main-side read names main's tip, never the name main.
     if ((match = /\/contents\/(.+)$/.exec(route))) {
+      assert.equal(new URL(path, "https://x").searchParams.get("ref"), MAIN_TIP);
       return { sha: blobs[match[1]] };
     }
-    if ((match = /\/compare\/main\.\.\.([0-9a-f]{40})$/.exec(route))) {
+    if ((match = new RegExp(`/compare/${MAIN_TIP}\\.\\.\\.([0-9a-f]{40})$`).exec(route))) {
       return { files: (changed[match[1]] ?? ["README.md"]).map((filename) => ({ filename })) };
     }
-    if (/\/compare\/[0-9a-f]{40}\.\.\.main$/.test(route)) {
+    if (new RegExp(`/compare/[0-9a-f]{40}\\.\\.\\.${MAIN_TIP}$`).test(route)) {
       return { status: compare };
     }
     if ((match = /\/pulls\/(\d+)$/.exec(route))) {
@@ -196,11 +209,31 @@ test("a PR whose changed files cannot be listed in full is not re-fired", async 
   assert.deepEqual(pushes(w.calls), []);
 });
 
+test("a tag named main stops the run before any run is read or anything pushed", async () => {
+  const w = world({ pulls: [pr(7)], runs: { "pr-refine.yml": [run(70, { head: sha(7) })] }, mainTag: true });
+  assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 1);
+  assert.deepEqual(pushes(w.calls), []);
+  assert.deepEqual(posts(w.calls), []);
+  assert.equal(w.calls.some((call) => call.includes("/actions/")), false);
+});
+
+test("the fresh PR read and the tree read come before the marker, and the marker before the ref update", async () => {
+  const w = world({ pulls: [pr(7)], runs: { "pr-refine.yml": [run(70, { head: sha(7) })] } });
+  assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+  const at = (prefix) => w.calls.findIndex((call) => call.startsWith(prefix));
+  const reread = at(`GET /repos/${REPO}/pulls/7`);
+  const tree = at(`GET /repos/${REPO}/git/commits/${sha(7)}`);
+  const comment = at(`POST /repos/${REPO}/issues/7/comments`);
+  const ref = at("PATCH ");
+  assert.ok(reread >= 0 && reread < tree && tree < comment && comment < ref, JSON.stringify({ reread, tree, comment, ref }));
+});
+
 test("a PR pushed, drafted or closed since the listing is not pushed to", async () => {
   for (const change of [{ head: { ...pr(7).head, sha: sha(70) } }, { draft: true }, { state: "closed" }]) {
     const w = world({ pulls: [pr(7)], runs: { "pr-refine.yml": [run(70, { head: sha(7) })] }, moved: { 7: { ...pr(7), ...change } } });
     assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 1);
     assert.deepEqual(pushes(w.calls), [], JSON.stringify(change));
+    assert.deepEqual(posts(w.calls), [], JSON.stringify(change));
   }
 });
 
