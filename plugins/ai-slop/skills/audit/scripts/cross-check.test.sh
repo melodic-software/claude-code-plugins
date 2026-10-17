@@ -20,7 +20,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=24
+EXPECTED_CASES=26
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -191,6 +191,24 @@ bash "$DETECT" --list-targets "$F" >"$RT" 2>/dev/null
 bash "$DETECT" --paths-file "$RT" >"$RD" 2>/dev/null
 out="$(bash "$CROSS" --targets "$RT" --detector "$RD" 2>&1)"
 assert_contains "real detector: zero disagreements over the fixtures" "$out" "CrossCheck total: files=5 disagreements=0"
+
+# A generated region belongs to the script that writes it: neither side counts
+# it, so an em dash inside one raises no Disagree row. A backticked marker
+# mention opens nothing.
+G="$TEST_TMPDIR/gen"
+mkdir -p "$G"
+{
+  printf 'Mention `<!-- BEGIN GENERATED: x -->` and %s dash.\n' "$EM"
+  printf '<!-- BEGIN GENERATED: x. Run scripts/x.py -->\nInside %s it.\n<!-- END GENERATED: x -->\n' "$EM"
+  printf 'After %s it.\n' "$EM"
+} >"$G/generated.md"
+GT="$TEST_TMPDIR/gen-targets.tsv"
+GD="$TEST_TMPDIR/gen-detector.txt"
+bash "$DETECT" --list-targets "$G" >"$GT" 2>/dev/null
+bash "$DETECT" --paths-file "$GT" >"$GD" 2>/dev/null
+out="$(bash "$CROSS" --targets "$GT" --detector "$GD" 2>&1)"
+assert_contains "generated: the region's lines are not counted" "$out" "generated.md em_dash_lines=2"
+assert_contains "generated: the detector agrees" "$out" "CrossCheck total: files=1 disagreements=0"
 
 # --- Result ---------------------------------------------------------------------
 
