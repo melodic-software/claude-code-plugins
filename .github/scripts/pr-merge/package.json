@@ -1,0 +1,7 @@
+{
+  "name": "pr-merge",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}
