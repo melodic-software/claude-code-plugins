@@ -53,6 +53,7 @@ from typing import Any
 
 import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
+from babysit_classify import is_dependency_author
 from babysit_gh import flatten_paginated_items
 from babysit_util import is_json_array, is_json_object, json_array, json_object
 
@@ -461,10 +462,14 @@ class Reader:
 
     def queued_hold(self, number: int) -> str | None:
         """Why a queued entry must leave: no allowing verdict at its live
-        head now. An unreadable pull request is a hold."""
+        head now. An unreadable pull request is a hold. A dependency
+        manager's entry is the lane's Dependabot class, which pr-verify never
+        judges, so it is not held here."""
         try:
             pr = merge_policy.pull_request(self.repo, number)
         except merge_policy.PolicyReadError:
             return UNREADABLE
+        if is_dependency_author(str(json_object(pr.get("user")).get("login") or "")):
+            return None
         head = str(json_object(pr.get("head")).get("sha"))
         return self.evidence(number, head, pr).refusal

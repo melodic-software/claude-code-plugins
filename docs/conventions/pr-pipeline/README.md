@@ -560,8 +560,9 @@ other artifact with such a name is ignored. At the pull request's vetted head:
 human, who clears them
 by merging in person: the verdict is not a check run and stays out of `ci-status` and the required
 checks (github-iac ADR 0011), so a human merge needs `ci-status` alone. A queued entry without an
-allowing verdict at its live head leaves the queue. A dependency manager's pull request is refused
-before the verdict is read, so it needs none. The gate lists every repository artifact once per
+allowing verdict at its live head leaves the queue. A dependency manager's pull request needs no
+verdict: the lane decides it in its Dependabot class before the verdict is read, or refuses it, and
+its queued entry is not held for one. The gate lists every repository artifact once per
 candidate run, since pr-merge.yml runs the gate once per candidate. The lane token holds no Actions
 permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run

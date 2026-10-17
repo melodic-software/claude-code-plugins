@@ -617,6 +617,33 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:unreadable")
 
 
+class AQueuedDependabotEntryNeedsNoVerdict(unittest.TestCase):
+    """The pr-merge lane enqueues Dependabot pull requests in their own class
+    (babysit_dependabot), which pr-verify never judges."""
+
+    def test_a_dependency_managers_entry_is_not_held(self) -> None:
+        for login in ("dependabot[bot]", "renovate[bot]"):
+            with self.subTest(login):
+                fake = FakeGitHub([], {})
+                with (
+                    mock.patch.object(
+                        policy, "pull_request", return_value=pull(user={"login": login})
+                    ),
+                    mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+                ):
+                    self.assertIsNone(ve.Reader(REPO, "main", now=NOW).queued_hold(PR))
+                self.assertEqual(fake.calls, [])
+
+    def test_anyone_elses_entry_is_judged(self) -> None:
+        fake = FakeGitHub([], {})
+        with (
+            mock.patch.object(policy, "pull_request", return_value=pull()),
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+        ):
+            hold = ve.Reader(REPO, "main", now=NOW).queued_hold(PR)
+        self.assertEqual(hold, "verify:missing")
+
+
 class ActionsReadsUseTheActionsToken(unittest.TestCase):
     """The lane token holds no Actions permission, so the artifact listing,
     the run records and the download run under `BABYSIT_VERIFY_GH_TOKEN`;
