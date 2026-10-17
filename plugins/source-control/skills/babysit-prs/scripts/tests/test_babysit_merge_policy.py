@@ -3021,7 +3021,10 @@ class DependabotEligibility(unittest.TestCase):
             login=IDENTITY,
             sha=self.HEAD,
         )
-        self.fake(commits=[dependabot_commit(), fix])
+        gh = self.fake(commits=[dependabot_commit(), fix])
+        gh.rest[f"repos/{REPO}/commits/{self.HEAD}"] = {
+            "files": [{"filename": "src/x.js"}]
+        }
         self.assertEqual(self.eligibility().reason, f"commit-not-dependabot:{'e' * 12}")
         pushes = [
             {
@@ -3053,32 +3056,56 @@ class DependabotEligibility(unittest.TestCase):
             "files": [{"filename": ".github/workflows/ci.yml"}]
         }
         self.assertEqual(
-            self.eligibility().reason, "dependabot-content:.github/workflows/ci.yml"
+            self.eligibility().reason,
+            "dependabot-fix-content:.github/workflows/ci.yml",
         )
 
-    def test_a_push_by_another_account_refuses(self) -> None:
+    FOREIGN_PUSH = [
+        {
+            "activity_type": "push",
+            "after": "e" * 40,
+            "actor": {"login": "maintainer", "type": "User"},
+        },
+        {
+            "activity_type": "branch_creation",
+            "after": "d" * 40,
+            "actor": {"login": "dependabot[bot]", "type": "Bot"},
+        },
+    ]
+
+    def test_bad_provenance_refuses_even_with_a_merge_verdict(self) -> None:
         # A commit's author is text; the pusher is who it is.
-        self.fake(
-            pushes=[
-                {
-                    "activity_type": "push",
-                    "after": self.HEAD,
-                    "actor": {"login": "maintainer", "type": "User"},
-                },
-                {
-                    "activity_type": "branch_creation",
-                    "after": "d" * 40,
-                    "actor": {"login": "dependabot[bot]", "type": "Bot"},
-                },
-            ]
-        )
+        self.fake(pushes=self.FOREIGN_PUSH)
         self.assertEqual(self.eligibility().reason, "pushed-by:maintainer")
+        self.fake(pushes=self.FOREIGN_PUSH, comments=[self.marker()])
+        self.assertEqual(self.eligibility().reason, "pushed-by:maintainer")
+        self.fake(pushes=[], comments=[self.marker()])
+        self.assertEqual(self.eligibility().reason, "push-history-incomplete")
+        gh = self.fake(comments=[self.marker()])
+        gh.rest[self.ACTIVITY] = 403
+        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
 
-    def test_a_file_dependabot_does_not_manage_refuses(self) -> None:
-        self.fake(
-            files=[{"filename": "package-lock.json"}, {"filename": "scripts/x.sh"}]
+    def test_content_beyond_manifests_is_tier_review_not_a_refusal(self) -> None:
+        # A rebuilt bundle on a minor bump: the AI review judges it.
+        files = [
+            {"filename": "package-lock.json"},
+            {"filename": "plugins/miro/server/dist/index.min.js"},
+        ]
+        self.fake(files=files)
+        result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.dependabot.tier, "review")
+        self.assertEqual(
+            result.reason,
+            "dependabot-review:dependabot-content:plugins/miro/server/dist/index.min.js;"
+            "review-verdict-missing",
         )
-        self.assertEqual(self.eligibility().reason, "dependabot-content:scripts/x.sh")
+        self.fake(files=files, comments=[self.marker()])
+        result = self.eligibility()
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.dependabot.approved, "55-1")
+        self.fake(files=files, comments=[self.marker(head="a" * 40)])
+        self.assertFalse(self.eligibility().eligible)
 
     def test_a_0x_minor_is_review_and_a_1x_minor_is_auto(self) -> None:
         zero = dependabot_commit(

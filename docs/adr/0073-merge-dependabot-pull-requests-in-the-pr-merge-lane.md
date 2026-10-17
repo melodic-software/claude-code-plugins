@@ -55,8 +55,10 @@ may not merge (one merge authority per repository).
    or, after a review, the lanes App's verified `[dependabot skip]` fix commit. Because a commit's
    author is text anyone with write access can set, the repository activity API must show every
    push to the head branch by Dependabot (or the github-actions or lanes App push of its own
-   commit), and the diff may touch only the manifests and lock files `.github/dependabot.yml`
-   covers and `uses:`-only action repins. The class is C2,
+   commit); a push that fails this refuses, verdict or not. A diff beyond the manifests and lock
+   files `.github/dependabot.yml` covers and `uses:`-only action repins (a rebuilt bundle, a
+   manifest outside a listed directory) makes the tier `review` (`dependabot-content:<path>`),
+   so the AI review judges it rather than a person. The class is C2,
    so the rung and its cap bind it, but no closing issue, denied-path rule or diff risk score
    applies: a workflow pin bump sits on `.github/**` by definition.
 4. **Its own switch.** `merge.dependabot.mode` (`off`, `report`, `enforce`; absent is `off`)
@@ -84,5 +86,8 @@ may not merge (one merge authority per repository).
   The content check does not read inside a manifest: a `package.json` script or a requirements
   index option rides along, which CI and the review tier must catch.
 - The two lanes' classifiers must change together; a mismatch leaves a pull request with no owner.
+  In particular the pr-unblock lane's `dependency-classify.mjs` (#7698) must also make a pull
+  request tier `review` when its diff goes beyond Dependabot's manifests, lock files and `uses:`
+  repins, or the review activity skips one the pr-merge lane will not merge without its verdict.
 - `.github/standards/runner-policy/policy.json` still admits the removed caller's reusable
   workflow; that file is synced from standards and changes there.

@@ -1475,37 +1475,42 @@ def is_dependabot_pull_request(pr: Mapping[str, Any]) -> bool:
 DEPENDABOT_CONFIG = ".github/dependabot.yml"
 
 
-def _dependabot_binding(
+def _dependabot_pushes(
+    owner: str,
+    name: str,
+    number: int,
+    pr: Mapping[str, Any],
+    commits: list[dict[str, Any]],
+    lane_identity: str | None,
+) -> str | None:
+    """Who pushed each update of the head branch (`push_refusal`): what binds
+    the pull request to Dependabot beyond its commits' author text. Raises
+    `PolicyReadError` when the history cannot be read."""
+    head = json_object(pr.get("head"))
+    ref = quote(f"refs/heads/{head.get('ref')}", safe="")
+    activities = _paginated(
+        f"repos/{owner}/{name}/activity?ref={ref}&per_page=100", f"#{number} pushes"
+    )
+    return dependabot.push_refusal(
+        activities, str(head.get("sha") or ""), commits, lane_identity
+    )
+
+
+def _dependabot_content(
     owner: str,
     name: str,
     number: int,
     pr: Mapping[str, Any],
     commits: list[dict[str, Any]],
     files: Callable[[str], list[str] | None],
-    lane_identity: str | None,
-) -> str | None:
-    """What binds the pull request to Dependabot beyond its commits' author
-    text: who pushed each update of the head branch (`push_refusal`), and a
-    diff of covered manifests, lock files and `uses:`-only action repins
-    (`content_refusal`) per `.github/dependabot.yml` at the base. The paths a
-    version-bump or lanes App fix commit touched count as checked; a fix
-    commit may not touch `.github/`. Raises `PolicyReadError` on a read
-    failure."""
-    head = json_object(pr.get("head"))
+) -> tuple[str | None, str | None]:
+    """(content reason, refusal). The content reason, `dependabot-content:<x>`,
+    names a diff that is not only covered manifests, lock files and `uses:`
+    repins (`content_refusal`, per `.github/dependabot.yml` at the base); it
+    sends the pull request to tier `review`. The paths a version-bump or lanes
+    App fix commit touched count as checked; a fix commit touching `.github/`
+    is the refusal. Raises `PolicyReadError` on a read failure."""
     base_sha = str(json_object(pr.get("base")).get("sha") or "")
-    ref = quote(f"refs/heads/{head.get('ref')}", safe="")
-    activities = _paginated(
-        f"repos/{owner}/{name}/activity?ref={ref}&per_page=100", f"#{number} pushes"
-    )
-    refusal = dependabot.push_refusal(
-        activities, str(head.get("sha") or ""), commits, lane_identity
-    )
-    if refusal:
-        return refusal
-    text = _file_at(owner, name, DEPENDABOT_CONFIG, base_sha)
-    config = dependabot.parse_config(text or "")
-    if config is None:
-        return "dependabot-config-unreadable"
     extra: set[str] = set()
     for item in commits:
         if dependabot.is_dependabot_commit(item):
@@ -1514,15 +1519,20 @@ def _dependabot_binding(
         if not dependabot.is_actions_commit(item):
             gated = [p for p in touched if p == ".github" or p.startswith(".github/")]
             if gated:
-                return f"dependabot-content:{gated[0]}"
+                return None, f"dependabot-fix-content:{gated[0]}"
         extra.update(touched)
+    config = dependabot.parse_config(
+        _file_at(owner, name, DEPENDABOT_CONFIG, base_sha) or ""
+    )
+    if config is None:
+        return "dependabot-content:config-unreadable", None
     listing = _paginated(
         f"repos/{owner}/{name}/pulls/{number}/files?per_page=100", f"#{number} files"
     )
     changed = pr.get("changed_files")
     if not isinstance(changed, int) or changed != len(listing):
-        return "changed-files-incomplete"
-    return dependabot.content_refusal(listing, config, extra)
+        return "dependabot-content:files-incomplete", None
+    return dependabot.content_refusal(listing, config, extra), None
 
 
 def _commit_files(owner: str, name: str) -> Callable[[str], list[str] | None]:
@@ -1575,8 +1585,11 @@ def dependabot_eligibility(
     """Whether the pr-merge lane may merge a Dependabot pull request: not a
     fork, opened by Dependabot's App; tier `auto` (`babysit_dependabot.classify`),
     or tier `review` with the lanes App's `verdict=merge` round marker at the
-    current head (`merge_verdict`); every commit Dependabot's (plus, after a
-    review, the lanes App's `[dependabot skip]` fixes); a green `ci-status` on
+    current head (`merge_verdict`), where a diff beyond the manifests, lock
+    files and `uses:` repins Dependabot manages also makes the tier `review`;
+    every commit Dependabot's (plus, after a review, the lanes App's
+    `[dependabot skip]` fixes) and every push Dependabot's (or that commit's
+    pusher's), never demoted, always refused; a green `ci-status` on
     the head; and no human blocking comment. A running `ci-status` waits. The
     class is C2 (mechanical), so the rung and its cap still bind it. No
     closing issue and no denied-path rule: `ci-status` is the gate. The
@@ -1621,6 +1634,20 @@ def dependabot_eligibility(
             ci,
             commits,
         )
+        # A diff that is not only what Dependabot manages goes to review, not
+        # to a person: the AI review judges it like any risky bump.
+        files = _commit_files(owner, name)
+        # Commits no review could admit refuse before any content is read.
+        refusal = dependabot.commits_refusal(commits, files, agent_identity)
+        if refusal:
+            return Eligibility(False, refusal, "C2", dependabot=tier)
+        content, refusal = _dependabot_content(owner, name, number, pr, commits, files)
+        if refusal:
+            return Eligibility(False, refusal, "C2", dependabot=tier)
+        if content:
+            tier = replace(
+                tier, tier=dependabot.REVIEW, reasons=(*tier.reasons, content)
+            )
         # A tier `review` pull request merges only on the review activity's
         # `verdict=merge` at this head, and may then carry its fix commits.
         lane_commits = None
@@ -1636,10 +1663,10 @@ def dependabot_eligibility(
                 )
             tier = replace(tier, approved=run)
             lane_commits = agent_identity
-        files = _commit_files(owner, name)
+        # Provenance is never demoted: a push or commit not Dependabot's refuses.
         refusal = dependabot.commits_refusal(
             commits, files, lane_commits
-        ) or _dependabot_binding(owner, name, number, pr, commits, files, lane_commits)
+        ) or _dependabot_pushes(owner, name, number, pr, commits, lane_commits)
         if refusal:
             return Eligibility(False, refusal, "C2", dependabot=tier)
         if ci != "success":

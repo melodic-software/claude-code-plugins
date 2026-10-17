@@ -486,7 +486,10 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
     `package-lock.json` and the like; pip `requirements*.txt`/`.in`, `pyproject.toml`, `uv.lock`
     and the like), or a workflow or action file of a `github-actions` entry whose diff changes only
     `uses:` lines. A path the version-bump or lanes App fix commit touched counts as checked; a fix
-    commit may not touch `.github/`. Anything else refuses `dependabot-content:<path>`.
+    commit may not touch `.github/`. Anything else (a rebuilt bundle, a manifest outside a listed
+    directory) makes the pull request tier `review` with the reason `dependabot-content:<path>`,
+    so the AI review judges it; it is never left for a person. A failed push check, by contrast,
+    always refuses, verdict or not.
 - **Gate.** Either tier merges only once `ci-status` succeeded on its head, through the same gate
   as the lane's own: mergeable, no `do-not-merge` label, no body hold, no blocking comment from a
   human with write access, the rung (C2) and its cap, the kill switches, the post-merge check and

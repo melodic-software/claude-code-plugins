@@ -32,9 +32,11 @@ lanes App authored. A commit's author is text whoever creates it chooses, so
 two more checks bind the pull request to Dependabot. `push_refusal()` reads
 who pushed each update of the head branch (the repository activity API) and
 admits only Dependabot, and the github-actions or lanes App push of such a
-commit. `content_refusal()` admits only the manifests and lock files
-`.github/dependabot.yml` covers, a workflow or action file whose diff changes
-only `uses:` lines, and the paths those other commits touched.
+commit; a failure there always refuses. `content_refusal()` names any path
+beyond the manifests and lock files `.github/dependabot.yml` covers, a
+workflow or action file whose diff changes only `uses:` lines, and the paths
+those other commits touched; the caller makes such a pull request tier
+`review`, for the AI review to judge.
 """
 
 from __future__ import annotations

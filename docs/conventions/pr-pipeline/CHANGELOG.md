@@ -14,7 +14,8 @@ the lanes App authored names the current head with `verdict=merge`, and then als
 version-bump commit, or, after a review, the lanes App's `[dependabot skip]` fix; every push to
 the head branch must be Dependabot's (or that commit's own pusher's), per the repository activity
 API; and every changed path a manifest or lock file `.github/dependabot.yml` covers or a
-`uses:`-only workflow or action repin (`dependabot-content:<path>` otherwise). Both go through
+`uses:`-only workflow or action repin; any other path makes the tier `review` with the reason
+`dependabot-content:<path>`, while a failed push check always refuses. Both go through
 the lane's gate as C2 with no closing issue, denied-path rule or diff risk score. The mode, not
 `merge.report-only`, decides whether a Dependabot pull request writes, and the workflow starts the
 post-merge full run when either can merge. `.github/workflows/pr-automerge-dependabot.yml` is
