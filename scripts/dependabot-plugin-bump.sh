@@ -21,7 +21,7 @@
 #   Code plugin-loading page stops tying update delivery to the version string.
 set -euo pipefail
 
-SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # Edit the git checkout of the working directory, so a copy of this script in
 # another checkout (the workflow runs main's from .base) edits the PR tree.
 if ! ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"; then
@@ -29,29 +29,32 @@ if ! ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"; then
 fi
 cd "$ROOT"
 
-SCRIPTS_DIR="$ROOT/scripts"
-if [[ -f "$SELF_DIR/lib/changed-files.sh" ]]; then
-  SCRIPTS_DIR="$SELF_DIR"
-fi
+# Code and lists come only from beside this copy. Run from main's checkout
+# against the pull request's tree, a missing file stops the bump rather than
+# falling back to the pull request's copy.
+for needed in lib/changed-files.sh lib/dependabot-entry.sh check-changelog-parity.sh; do
+  if [[ ! -f "$SELF_DIR/$needed" ]]; then
+    echo "dependabot-plugin-bump: $SELF_DIR/$needed is missing" >&2
+    exit 2
+  fi
+done
 # shellcheck source=lib/changed-files.sh
-. "$SCRIPTS_DIR/lib/changed-files.sh"
-# Libraries beside this copy win, so a branch older than either still reads the
-# base's fragment list through the base's code and renders the entry.
-fragments_lib="$SELF_DIR/lib/changelog-fragments.sh"
-[[ -f "$fragments_lib" ]] || fragments_lib="$SCRIPTS_DIR/lib/changelog-fragments.sh"
-if [[ -f "$fragments_lib" ]]; then
+. "$SELF_DIR/lib/changed-files.sh"
+# shellcheck source=lib/dependabot-entry.sh
+. "$SELF_DIR/lib/dependabot-entry.sh"
+if [[ -f "$SELF_DIR/lib/changelog-fragments.sh" ]]; then
   # shellcheck source=lib/changelog-fragments.sh
-  . "$fragments_lib"
-else
+  . "$SELF_DIR/lib/changelog-fragments.sh"
+elif [[ "$SELF_DIR" == "$(pwd -P)/scripts" ]]; then
+  # In its own checkout, a branch older than the fragment library keeps the per-PR bump.
   changelog_fragments::in_mode() { return 1; }
-fi
-if [[ -f "$SELF_DIR/lib/dependabot-entry.sh" ]]; then
-  # shellcheck source=lib/dependabot-entry.sh
-  . "$SELF_DIR/lib/dependabot-entry.sh"
 else
-  # shellcheck source=lib/dependabot-entry.sh
-  . "$SCRIPTS_DIR/lib/dependabot-entry.sh"
+  echo "dependabot-plugin-bump: $SELF_DIR/lib/changelog-fragments.sh is missing" >&2
+  exit 2
 fi
+# The self-check below runs in a child process, so it reads these too.
+export CF_LIST="$SELF_DIR/fragment-plugins.txt"
+export CHANGELOG_NO_OP_BUMPS="$SELF_DIR/changelog-no-op-bumps.txt"
 
 usage() {
   echo "usage: $(basename "$0") <base-ref> [--pr <n>] [--title <text>]" >&2
@@ -281,7 +284,7 @@ fi
 # Self-check against the same gate Dependabot must pass, on this tree even when
 # the scripts come from another checkout.
 export CHANGELOG_PARITY_ROOT="$ROOT"
-parity="$SCRIPTS_DIR/check-changelog-parity.sh"
+parity="$SELF_DIR/check-changelog-parity.sh"
 if ! bash "$parity" --check; then
   echo "dependabot-plugin-bump: --check failed after edits" >&2
   exit 1

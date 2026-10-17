@@ -53,9 +53,10 @@ jobs:
     # github.base_ref's fragment-plugins.txt and manifests, as data; the pull
     # request picks that ref. A local action would load from the pull request,
     # so the job uses none. scripts/pr-bump-plugin-version.test.sh holds the
-    # allowlist of what this job may run. actions/checkout writes only inside
-    # the workspace, so .base sits in the pull request's tree and must not
-    # already exist there.
+    # allowlist of what this job may run. actions/checkout refuses a path
+    # outside the workspace, so main is checked out at $GITHUB_WORKSPACE/.base,
+    # inside the pull request's tree, and .base must not exist there in any
+    # form, a dangling symlink included.
     steps:
       - name: Check out the pull request head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -64,7 +65,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Refuse a pull request that tracks .base
-        run: test ! -e .base
+        run: test ! -e .base -a ! -L .base
       - name: Check out main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
