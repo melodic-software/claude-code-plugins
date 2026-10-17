@@ -475,7 +475,18 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
 - **Commits.** Every commit is a GitHub-verified Dependabot commit, or the repository's
   `[dependabot skip]` version-bump commit (authored by `github-actions[bot]`, verified, touching
   only a plugin's `plugin.json` or `CHANGELOG.md`). On a reviewed pull request the lanes App's
-  verified `[dependabot skip]` fix commits count too.
+  verified `[dependabot skip]` fix commits count too. A commit's author is text whoever creates it
+  chooses, so two more checks bind the pull request to Dependabot:
+  - **Pushes.** The repository activity API for the head branch, read back to Dependabot's newest
+    branch creation or force push, shows every push by `dependabot[bot]`, or by
+    `github-actions[bot]` (or, after a review, the lanes App) pushing its own commit, and the
+    newest push is the head.
+  - **Content.** Every changed path, either side of a rename, is a manifest or lock file of an
+    ecosystem and directory `.github/dependabot.yml` lists at the base (npm `package.json`,
+    `package-lock.json` and the like; pip `requirements*.txt`/`.in`, `pyproject.toml`, `uv.lock`
+    and the like), or a workflow or action file of a `github-actions` entry whose diff changes only
+    `uses:` lines. A path the version-bump or lanes App fix commit touched counts as checked; a fix
+    commit may not touch `.github/`. Anything else refuses `dependabot-content:<path>`.
 - **Gate.** Either tier merges only once `ci-status` succeeded on its head, through the same gate
   as the lane's own: mergeable, no `do-not-merge` label, no body hold, no blocking comment from a
   human with write access, the rung (C2) and its cap, the kill switches, the post-merge check and

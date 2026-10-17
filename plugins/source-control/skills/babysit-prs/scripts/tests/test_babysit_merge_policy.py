@@ -2831,6 +2831,7 @@ def dependabot_commit(
     email: str = DEPENDABOT_EMAIL,
     message: str | None = None,
     login: str | None = None,
+    sha: str = "d" * 40,
 ) -> dict[str, Any]:
     version = "2.0.0" if update_type == "semver-major" else "1.3.0"
     message = message or (
@@ -2839,7 +2840,7 @@ def dependabot_commit(
         f"  update-type: version-update:{update_type}\n...\n"
     )
     return {
-        "sha": "d" * 40,
+        "sha": sha,
         "author": {"login": login} if login else None,
         "commit": {
             "message": message,
@@ -2877,6 +2878,10 @@ class DependabotEligibility(unittest.TestCase):
 
     HEAD = "e" * 40
     COMMITS = f"repos/{REPO}/pulls/7/commits?per_page=100"
+    ACTIVITY = (
+        f"repos/{REPO}/activity?ref=refs%2Fheads%2Fdependabot%2Fnpm_and_yarn%2Fx-1.3.0"
+        "&per_page=100"
+    )
     CI = (
         f"repos/{REPO}/commits/{'e' * 40}/check-runs"
         "?check_name=ci-status&filter=latest&per_page=100"
@@ -2890,6 +2895,8 @@ class DependabotEligibility(unittest.TestCase):
         comments: list[dict[str, Any]] | None = None,
         author: dict[str, str] | None = None,
         cross: bool = False,
+        pushes: list[dict[str, Any]] | None = None,
+        files: list[dict[str, Any]] | None = None,
     ) -> GhFake:
         gh = GhFake().install(self)
         gh.graphql["PolicyEligibility"] = {
@@ -2909,6 +2916,23 @@ class DependabotEligibility(unittest.TestCase):
         gh.rest[f"repos/{REPO}/issues/7/comments?per_page=100"] = comments or []
         gh.rest[f"repos/{REPO}/pulls/7/reviews?per_page=100"] = []
         gh.rest[f"repos/{REPO}/pulls/7/comments?per_page=100"] = []
+        # Dependabot pushed the head; the diff is a covered lock file.
+        gh.rest[self.ACTIVITY] = (
+            [
+                {
+                    "activity_type": "branch_creation",
+                    "after": self.HEAD,
+                    "actor": {"login": "dependabot[bot]", "type": "Bot"},
+                }
+            ]
+            if pushes is None
+            else pushes
+        )
+        gh.rest[f"repos/{REPO}/contents/.github/dependabot.yml?ref={SHA}"] = (
+            file_payload("updates:\n  - package-ecosystem: npm\n    directory: /\n")
+        )
+        self.files = [{"filename": "package-lock.json"}] if files is None else files
+        gh.rest[f"repos/{REPO}/pulls/7/files?per_page=100"] = self.files
         return gh
 
     def eligibility(self, title: str = "build(deps): bump x") -> Any:
@@ -2917,6 +2941,8 @@ class DependabotEligibility(unittest.TestCase):
             "title": title,
             "body": "",
             "commits": len(self.commits),
+            "changed_files": len(self.files),
+            "base": {"sha": SHA},
             "head": {"sha": self.HEAD, "ref": "dependabot/npm_and_yarn/x-1.3.0"},
             "user": {"login": "dependabot[bot]", "type": "Bot"},
         }
@@ -2945,7 +2971,6 @@ class DependabotEligibility(unittest.TestCase):
                 self.assertIsNone(result.issue)
                 self.assertEqual(result.dependabot.tier, "auto")
                 calls = " ".join(" ".join(c) for c in gh.calls)
-                self.assertNotIn("/files", calls)
                 self.assertNotIn("timeline", calls)
 
     def test_a_major_bump_is_tier_review_and_waits_for_the_verdict(self) -> None:
@@ -2994,13 +3019,66 @@ class DependabotEligibility(unittest.TestCase):
             email="1+agent-lanes[bot]@users.noreply.github.com",
             message="fix: adapt [dependabot skip]",
             login=IDENTITY,
+            sha=self.HEAD,
         )
         self.fake(commits=[dependabot_commit(), fix])
-        self.assertEqual(self.eligibility().reason, f"commit-not-dependabot:{'d' * 12}")
-        self.fake(
-            commits=[dependabot_commit("semver-major"), fix], comments=[self.marker()]
+        self.assertEqual(self.eligibility().reason, f"commit-not-dependabot:{'e' * 12}")
+        pushes = [
+            {
+                "activity_type": "push",
+                "after": self.HEAD,
+                "actor": {"login": IDENTITY, "type": "Bot"},
+            },
+            {
+                "activity_type": "branch_creation",
+                "after": "d" * 40,
+                "actor": {"login": "dependabot[bot]", "type": "Bot"},
+            },
+        ]
+        major = [dependabot_commit("semver-major"), fix]
+        fixed = [{"filename": "package-lock.json"}, {"filename": "src/x.js"}]
+        gh = self.fake(
+            commits=major, comments=[self.marker()], pushes=pushes, files=fixed
         )
-        self.assertTrue(self.eligibility().eligible)
+        gh.rest[f"repos/{REPO}/commits/{self.HEAD}"] = {
+            "files": [{"filename": "src/x.js"}]
+        }
+        result = self.eligibility()
+        self.assertTrue(result.eligible, result.reason)
+        # A fix commit may not touch .github/.
+        gh = self.fake(
+            commits=major, comments=[self.marker()], pushes=pushes, files=fixed
+        )
+        gh.rest[f"repos/{REPO}/commits/{self.HEAD}"] = {
+            "files": [{"filename": ".github/workflows/ci.yml"}]
+        }
+        self.assertEqual(
+            self.eligibility().reason, "dependabot-content:.github/workflows/ci.yml"
+        )
+
+    def test_a_push_by_another_account_refuses(self) -> None:
+        # A commit's author is text; the pusher is who it is.
+        self.fake(
+            pushes=[
+                {
+                    "activity_type": "push",
+                    "after": self.HEAD,
+                    "actor": {"login": "maintainer", "type": "User"},
+                },
+                {
+                    "activity_type": "branch_creation",
+                    "after": "d" * 40,
+                    "actor": {"login": "dependabot[bot]", "type": "Bot"},
+                },
+            ]
+        )
+        self.assertEqual(self.eligibility().reason, "pushed-by:maintainer")
+
+    def test_a_file_dependabot_does_not_manage_refuses(self) -> None:
+        self.fake(
+            files=[{"filename": "package-lock.json"}, {"filename": "scripts/x.sh"}]
+        )
+        self.assertEqual(self.eligibility().reason, "dependabot-content:scripts/x.sh")
 
     def test_a_0x_minor_is_review_and_a_1x_minor_is_auto(self) -> None:
         zero = dependabot_commit(

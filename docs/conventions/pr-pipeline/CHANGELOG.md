@@ -11,7 +11,10 @@ verified commit metadata, else the title or body `Updates` lines, which must agr
 merges on a green `ci-status`. Tier `review` merges only when the newest pr-unblock round marker
 the lanes App authored names the current head with `verdict=merge`, and then also on a green
 `ci-status`. Every commit must be a verified Dependabot commit, the `[dependabot skip]`
-version-bump commit, or, after a review, the lanes App's `[dependabot skip]` fix. Both go through
+version-bump commit, or, after a review, the lanes App's `[dependabot skip]` fix; every push to
+the head branch must be Dependabot's (or that commit's own pusher's), per the repository activity
+API; and every changed path a manifest or lock file `.github/dependabot.yml` covers or a
+`uses:`-only workflow or action repin (`dependabot-content:<path>` otherwise). Both go through
 the lane's gate as C2 with no closing issue, denied-path rule or diff risk score. The mode, not
 `merge.report-only`, decides whether a Dependabot pull request writes, and the workflow starts the
 post-merge full run when either can merge. `.github/workflows/pr-automerge-dependabot.yml` is

@@ -1472,8 +1472,68 @@ def is_dependabot_pull_request(pr: Mapping[str, Any]) -> bool:
     return user.get("type") == "Bot" and dependabot.is_dependabot(user.get("login"))
 
 
+DEPENDABOT_CONFIG = ".github/dependabot.yml"
+
+
+def _dependabot_binding(
+    owner: str,
+    name: str,
+    number: int,
+    pr: Mapping[str, Any],
+    commits: list[dict[str, Any]],
+    files: Callable[[str], list[str] | None],
+    lane_identity: str | None,
+) -> str | None:
+    """What binds the pull request to Dependabot beyond its commits' author
+    text: who pushed each update of the head branch (`push_refusal`), and a
+    diff of covered manifests, lock files and `uses:`-only action repins
+    (`content_refusal`) per `.github/dependabot.yml` at the base. The paths a
+    version-bump or lanes App fix commit touched count as checked; a fix
+    commit may not touch `.github/`. Raises `PolicyReadError` on a read
+    failure."""
+    head = json_object(pr.get("head"))
+    base_sha = str(json_object(pr.get("base")).get("sha") or "")
+    ref = quote(f"refs/heads/{head.get('ref')}", safe="")
+    activities = _paginated(
+        f"repos/{owner}/{name}/activity?ref={ref}&per_page=100", f"#{number} pushes"
+    )
+    refusal = dependabot.push_refusal(
+        activities, str(head.get("sha") or ""), commits, lane_identity
+    )
+    if refusal:
+        return refusal
+    text = _file_at(owner, name, DEPENDABOT_CONFIG, base_sha)
+    config = dependabot.parse_config(text or "")
+    if config is None:
+        return "dependabot-config-unreadable"
+    extra: set[str] = set()
+    for item in commits:
+        if dependabot.is_dependabot_commit(item):
+            continue
+        touched = files(str(item.get("sha") or "")) or []
+        if not dependabot.is_actions_commit(item):
+            gated = [p for p in touched if p == ".github" or p.startswith(".github/")]
+            if gated:
+                return f"dependabot-content:{gated[0]}"
+        extra.update(touched)
+    listing = _paginated(
+        f"repos/{owner}/{name}/pulls/{number}/files?per_page=100", f"#{number} files"
+    )
+    changed = pr.get("changed_files")
+    if not isinstance(changed, int) or changed != len(listing):
+        return "changed-files-incomplete"
+    return dependabot.content_refusal(listing, config, extra)
+
+
 def _commit_files(owner: str, name: str) -> Callable[[str], list[str] | None]:
+    cache: dict[str, list[str] | None] = {}
+
     def files(sha: str) -> list[str] | None:
+        if sha not in cache:
+            cache[sha] = read(sha)
+        return cache[sha]
+
+    def read(sha: str) -> list[str] | None:
         if not SHA_RE.fullmatch(sha):
             return None
         status, payload = _get(f"repos/{owner}/{name}/commits/{sha}")
@@ -1576,9 +1636,10 @@ def dependabot_eligibility(
                 )
             tier = replace(tier, approved=run)
             lane_commits = agent_identity
+        files = _commit_files(owner, name)
         refusal = dependabot.commits_refusal(
-            commits, _commit_files(owner, name), lane_commits
-        )
+            commits, files, lane_commits
+        ) or _dependabot_binding(owner, name, number, pr, commits, files, lane_commits)
         if refusal:
             return Eligibility(False, refusal, "C2", dependabot=tier)
         if ci != "success":

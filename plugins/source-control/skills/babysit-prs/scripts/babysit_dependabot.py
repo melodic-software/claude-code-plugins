@@ -28,13 +28,21 @@ Dependabot commit, the repository's `[dependabot skip]` version-bump commit
 (github-actions[bot], touching only a plugin's `plugin.json` or `CHANGELOG.md`;
 the shape `scripts/lib/changelog-fragments.sh` `dependabot_only` accepts), or,
 for a reviewed pull request, a verified `[dependabot skip]` fix commit the
-lanes App authored.
+lanes App authored. A commit's author is text whoever creates it chooses, so
+two more checks bind the pull request to Dependabot. `push_refusal()` reads
+who pushed each update of the head branch (the repository activity API) and
+admits only Dependabot, and the github-actions or lanes App push of such a
+commit. `content_refusal()` admits only the manifests and lock files
+`.github/dependabot.yml` covers, a workflow or action file whose diff changes
+only `uses:` lines, and the paths those other commits touched.
 """
 
 from __future__ import annotations
 
+import fnmatch
+import posixpath
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -76,6 +84,26 @@ _MARKER = re.compile(
 _BUMP_PATH = re.compile(
     r"^plugins/[A-Za-z0-9._-]+/(\.claude-plugin/plugin\.json|CHANGELOG\.md)$"
 )
+# The files each ecosystem's updates edit, in the configured directory.
+MANIFESTS = {
+    "npm": re.compile(
+        r"^(package\.json|package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml)$"
+    ),
+    "pip": re.compile(
+        r"^(requirements[^/]*\.(txt|in)|pyproject\.toml|uv\.lock|setup\.cfg|setup\.py"
+        r"|Pipfile|Pipfile\.lock|poetry\.lock|pdm\.lock)$"
+    ),
+}
+_WORKFLOW = re.compile(r"^\.github/workflows/[^/]+\.ya?ml$")
+_ACTION = re.compile(r"^(.+/)?action\.ya?ml$")
+# A changed line that only repins an action: `uses:` and its ref, with an
+# optional trailing comment (the version).
+_USES_LINE = re.compile(r"^[+-]\s*(-\s+)?uses:\s*[^\s#]+(\s+#.*)?\s*$")
+_CONFIG_ENTRY = re.compile(r"^\s*-\s+package-ecosystem:\s*[\"']?([A-Za-z0-9_-]+)")
+_CONFIG_DIR = re.compile(r"^\s+directory:\s*[\"']?([^\"'#\s]+)")
+_CONFIG_DIRS = re.compile(r"^\s+directories:\s*$")
+_CONFIG_ITEM = re.compile(r"^\s+-\s+[\"']?([^\"'#\s]+)")
+PUSH_TYPES = frozenset({"push", "force_push", "branch_creation"})
 
 
 @dataclass(frozen=True)
@@ -303,3 +331,152 @@ def commits_refusal(
     return next(
         (r for c in commits if (r := commit_refusal(c, files, lane_identity))), None
     )
+
+
+def _signed(item: Any) -> tuple[Any, Any]:
+    author = json_object(json_object(json_object(item).get("commit")).get("author"))
+    return author.get("name"), author.get("email")
+
+
+def is_dependabot_commit(item: Any) -> bool:
+    return _signed(item) == DEPENDABOT_AUTHOR
+
+
+def is_actions_commit(item: Any) -> bool:
+    return _signed(item) == ACTIONS_AUTHOR
+
+
+def parse_config(text: str) -> list[tuple[str, str]] | None:
+    """(ecosystem, directory) for each `updates` entry of a dependabot.yml,
+    one pair per directory; None when no entry reads."""
+    pairs: list[tuple[str, str]] = []
+    ecosystem: str | None = None
+    in_dirs = False
+    for line in str(text).replace("\r\n", "\n").split("\n"):
+        if entry := _CONFIG_ENTRY.match(line):
+            ecosystem, in_dirs = entry.group(1), False
+        elif ecosystem and (found := _CONFIG_DIR.match(line)):
+            pairs.append((ecosystem, found.group(1)))
+            in_dirs = False
+        elif ecosystem and _CONFIG_DIRS.match(line):
+            in_dirs = True
+        elif in_dirs and (item := _CONFIG_ITEM.match(line)):
+            pairs.append((ecosystem, item.group(1)))
+        elif line.strip() and not line.lstrip().startswith("#"):
+            in_dirs = False
+    return pairs or None
+
+
+def _directory(path: str, directory: str) -> bool:
+    folder = posixpath.dirname(path)
+    want = directory.strip("/")
+    return fnmatch.fnmatchcase(folder, want) if "*" in want else folder == want
+
+
+def _actions_file(path: str, config: Sequence[tuple[str, str]]) -> bool:
+    """A workflow or action file a `github-actions` entry covers: directory
+    `/` covers `.github/workflows/` and `.github/actions/**`, any other the
+    `action.yml` in it."""
+    for eco, folder in config:
+        if eco != "github-actions":
+            continue
+        if folder.strip("/") == "":
+            if _WORKFLOW.match(path) or (
+                path.startswith(".github/actions/") and _ACTION.match(path)
+            ):
+                return True
+        elif _ACTION.match(path) and _directory(path, folder):
+            return True
+    return False
+
+
+def uses_only(patch: Any) -> bool:
+    """Whether a unified diff changes only `uses:` lines (an action repin)."""
+    changed = [
+        line
+        for line in str(patch or "").split("\n")
+        if line.startswith(("+", "-")) and not line.startswith(("+++", "---"))
+    ]
+    return bool(changed) and all(_USES_LINE.match(line) for line in changed)
+
+
+def content_refusal(
+    files: Sequence[Any],
+    config: Sequence[tuple[str, str]],
+    extra: Collection[str] = (),
+) -> str | None:
+    """`dependabot-content:<path>` for the first changed path (either side of
+    a rename) that is neither a manifest or lock file an ecosystem in `config`
+    covers, nor a workflow or action file whose diff changes only `uses:`
+    lines, nor in `extra` (the paths the version-bump and lanes App fix
+    commits touched, each checked on its own). `files` is the REST
+    pull-request files listing, patches included."""
+    for item in files:
+        entry = json_object(item)
+        paths = {entry.get("filename"), entry.get("previous_filename")} - {None, ""}
+        for path in sorted(str(p) for p in paths):
+            if path in extra:
+                continue
+            name = posixpath.basename(path)
+            manifest = any(
+                eco in MANIFESTS
+                and MANIFESTS[eco].match(name)
+                and _directory(path, folder)
+                for eco, folder in config
+            )
+            if manifest or (
+                _actions_file(path, config) and uses_only(entry.get("patch"))
+            ):
+                continue
+            return f"dependabot-content:{path}"
+    return None
+
+
+def push_refusal(
+    activities: Sequence[Any],
+    head: str,
+    commits: Sequence[Any],
+    lane_identity: str | None = None,
+) -> str | None:
+    """Why the head branch's push history does not bind it to Dependabot, or
+    None. `activities` is the repository activity API for the branch, newest
+    first. Reading back to Dependabot's newest branch creation or force push
+    (which rewrites the branch), every push must be by `dependabot[bot]`, or
+    by github-actions[bot] (or, for a reviewed pull request, the lanes App)
+    when the commit it pushed is that account's own commit in the pull
+    request; the newest push must have pushed `head`."""
+    pushes = [
+        json_object(a)
+        for a in activities
+        if json_object(a).get("activity_type") in PUSH_TYPES
+    ]
+    if not pushes or pushes[0].get("after") != head:
+        return "push-history-incomplete"
+    by_sha = {str(json_object(c).get("sha")): c for c in commits}
+    for push in pushes:
+        actor = json_object(push.get("actor"))
+        login = str(actor.get("login") or "").casefold()
+        tip = by_sha.get(str(push.get("after")))
+        if login == "dependabot[bot]" and actor.get("type") == "Bot":
+            if push.get("activity_type") in ("force_push", "branch_creation"):
+                return None
+            continue
+        if (
+            login == "github-actions[bot]"
+            and tip is not None
+            and _signed(tip) == ACTIONS_AUTHOR
+        ):
+            continue
+        if (
+            lane_identity
+            and login == lane_identity.casefold()
+            and tip is not None
+            and str(
+                json_object(json_object(tip).get("author")).get("login") or ""
+            ).casefold()
+            == login
+        ):
+            continue
+        return f"pushed-by:{login or 'unknown'}"
+    # No Dependabot branch creation or force push in reach: the history is cut.
+    return "push-history-incomplete"

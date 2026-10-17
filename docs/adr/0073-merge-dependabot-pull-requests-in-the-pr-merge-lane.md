@@ -52,7 +52,11 @@ may not merge (one merge authority per repository).
      `verdict=merge`.
 3. **CI is the gate.** Either tier merges only on a green `ci-status` at its head, with every
    commit a verified Dependabot commit, the repository's `[dependabot skip]` version-bump commit,
-   or, after a review, the lanes App's verified `[dependabot skip]` fix commit. The class is C2,
+   or, after a review, the lanes App's verified `[dependabot skip]` fix commit. Because a commit's
+   author is text anyone with write access can set, the repository activity API must show every
+   push to the head branch by Dependabot (or the github-actions or lanes App push of its own
+   commit), and the diff may touch only the manifests and lock files `.github/dependabot.yml`
+   covers and `uses:`-only action repins. The class is C2,
    so the rung and its cap bind it, but no closing issue, denied-path rule or diff risk score
    applies: a workflow pin bump sits on `.github/**` by definition.
 4. **Its own switch.** `merge.dependabot.mode` (`off`, `report`, `enforce`; absent is `off`)
@@ -75,8 +79,10 @@ may not merge (one merge authority per repository).
 - Non-major Dependabot bumps land without a human, one at a time, each verified by the post-merge
   full run like any lane merge. Major and unlisted-publisher bumps land on an AI review verdict.
 - A compromised upstream release that passes `ci-status` (and, for a review-tier one, the review)
-  can merge without a person reading it. The cooldown in `.github/dependabot.yml`, the signature
-  check on every commit, the head-bound marker and the post-merge demotion bound that risk.
+  can merge without a person reading it. The cooldown in `.github/dependabot.yml`, the signature,
+  pusher and content checks, the head-bound marker and the post-merge demotion bound that risk.
+  The content check does not read inside a manifest: a `package.json` script or a requirements
+  index option rides along, which CI and the review tier must catch.
 - The two lanes' classifiers must change together; a mismatch leaves a pull request with no owner.
 - `.github/standards/runner-policy/policy.json` still admits the removed caller's reusable
   workflow; that file is synced from standards and changes there.
