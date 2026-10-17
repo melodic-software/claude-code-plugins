@@ -17,8 +17,9 @@
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+import { POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
-import { readConfig } from "./review-dependency.mjs";
+import { readConfig, readPolicy } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -302,6 +303,8 @@ export async function main(
     runId: env.GITHUB_RUN_ID,
     log,
     config: readConfig(env.DEPENDABOT_CONFIG ?? ".base/.github/dependabot.yml", log),
+    policy: readPolicy(env.DEPENDABOT_POLICY ?? `.base/${POLICY_PATH}`, log),
+    repository: env.GITHUB_REPOSITORY,
   });
   const dispatched = [...conflicts.dispatched, ...reviews.dispatched];
   const failed = conflicts.failed + reviews.failed;

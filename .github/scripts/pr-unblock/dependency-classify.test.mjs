@@ -5,7 +5,19 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { classify, contentReason, contentStep, isMajor, isSecurityUpdate, parseConfig, usesOnly } from "./dependency-classify.mjs";
+import {
+  classifierGaps,
+  classify,
+  contentReason,
+  contentStep,
+  isMajor,
+  isSecurityUpdate,
+  parseConfig,
+  provenanceReasons,
+  reviewOnly,
+  usesOnly,
+  withProvenance,
+} from "./dependency-classify.mjs";
 
 const NPM = "dependabot/npm_and_yarn/x-1.3.0";
 const ACTIONS = "dependabot/github_actions/actions/checkout-4.2.0";
@@ -25,8 +37,11 @@ const commit = (message, { sha = "d".repeat(40), name = "dependabot[bot]", email
   commit: { message, author: { name, email } },
 });
 
+// A readable policy that lists nothing, so the review-only step adds no reason.
+const NO_POLICY = { autoMerge: { reviewOnly: [] } };
+
 const tier = (title, { body = "", ref = NPM, ci = "success", commits = [] } = {}) =>
-  classify({ author: "dependabot[bot]", headRef: ref, title, body, labels: [], ciStatus: ci, commits });
+  classify({ author: "dependabot[bot]", headRef: ref, title, body, labels: [], ciStatus: ci, commits, policy: NO_POLICY });
 
 test("a pull request another author opened is not classified", () => {
   assert.equal(classify({ author: "octocat", title: "bump x from 1.0.0 to 1.0.1" }), null);
@@ -280,6 +295,322 @@ test("the content step's refusals and gaps are review reasons", () => {
   assert.equal(contentStep({ ...base, commits: [FIX], commitFiles: () => [".github/workflows/x.yml"] }), "dependabot-fix-content:.github/workflows/x.yml");
   assert.equal(contentStep({ ...base, config: null }), "dependabot-config-unreadable");
   assert.equal(contentStep({ ...base, changedFiles: 2 }), "dependabot-content:files-incomplete");
-  const result = classify({ author: "dependabot[bot]", headRef: NPM, title: "bump x from 1.0.0 to 1.0.1", ...base, files: [changed("dist/x.js")] });
+  const result = classify({ author: "dependabot[bot]", headRef: NPM, title: "bump x from 1.0.0 to 1.0.1", ...base, files: [changed("dist/x.js")], policy: NO_POLICY });
   assert.deepEqual([result.tier, result.reasons], ["review", ["dependabot-content:dist/x.js"]]);
+});
+
+// Review-only: the pr-merge lane's ReviewOnly class, one for one.
+const REPO = "melodic-software/claude-code-plugins";
+const ROOT = "dependabot/npm_and_yarn/npm-minor-patch-ba695db9ca";
+const UPDATES = [
+  { name: "@anthropic-ai/claude-code", major: false },
+  { name: "@biomejs/biome", major: false },
+];
+const ROOT_PATHS = ["package.json", "package-lock.json"];
+const reviewOnlyPolicy = (...entries) => ({
+  autoMerge: {
+    reviewOnly: entries.map((entry) => ({
+      repository: REPO,
+      ecosystem: "npm",
+      directory: "/",
+      dependency: "@anthropic-ai/claude-code",
+      reviewed: "2026-10-17",
+      basis: "runs with a secret",
+      control: "docs/x.md#control",
+      ...entry,
+    })),
+  },
+});
+const listed = (policy, ref = ROOT, paths = ROOT_PATHS) => reviewOnly(policy, REPO, ref, UPDATES, paths).reasons;
+
+test("a listed dependency is review-only", () => {
+  const policy = reviewOnlyPolicy({}, { repository: "Melodic-Software/Claude-Code-Plugins" });
+  assert.deepEqual(listed(policy), ["review-only:@anthropic-ai/claude-code"]);
+  assert.deepEqual(reviewOnly(policy, REPO, ROOT, UPDATES, ROOT_PATHS).entries, [policy.autoMerge.reviewOnly[0]]);
+});
+
+test("each branch ecosystem maps to its dependabot.yml spelling", () => {
+  for (const [segment, ecosystem] of [
+    ["npm_and_yarn", "npm"],
+    ["pip", "pip"],
+    ["github_actions", "github-actions"],
+  ]) {
+    assert.deepEqual(listed(reviewOnlyPolicy({ ecosystem }), `dependabot/${segment}/x-1.0.1`), ["review-only:@anthropic-ai/claude-code"], segment);
+  }
+});
+
+test("another repo, ecosystem, directory or dependency does not match", () => {
+  for (const fields of [{ repository: "melodic-software/standards" }, { ecosystem: "pip" }, { directory: "/plugins/miro/server" }, { dependency: "@playwright/cli" }]) {
+    assert.deepEqual(listed(reviewOnlyPolicy(fields)), [], JSON.stringify(fields));
+  }
+});
+
+test("the directory is the changed paths' folder", () => {
+  const miro = ["plugins/miro/server/package.json", "plugins/miro/server/package-lock.json"];
+  assert.deepEqual(listed(reviewOnlyPolicy({ directory: "/plugins/miro/server" }), ROOT, miro), ["review-only:@anthropic-ai/claude-code"]);
+  assert.deepEqual(listed(reviewOnlyPolicy({}), ROOT, miro), []);
+});
+
+test("a root github-actions entry covers workflow and .github/actions files", () => {
+  const entry = reviewOnlyPolicy({ ecosystem: "github-actions", dependency: "@anthropic-ai/claude-code" });
+  for (const path of [".github/workflows/claude.yml", ".github/actions/setup/action.yml"]) {
+    assert.deepEqual(listed(entry, ACTIONS, [path]), ["review-only:@anthropic-ai/claude-code"], path);
+  }
+  assert.deepEqual(listed(entry, ACTIONS, ["plugins/x/action.yml"]), []);
+});
+
+test("a github-actions entry for a folder covers the action file there", () => {
+  const entry = reviewOnlyPolicy({ ecosystem: "github-actions", directory: "/plugins/x" });
+  assert.deepEqual(listed(entry, ACTIONS, ["plugins/x/action.yml"]), ["review-only:@anthropic-ai/claude-code"]);
+  assert.deepEqual(listed(entry, ACTIONS, [".github/workflows/claude.yml"]), []);
+});
+
+test("a directory glob matches the changed paths' folder", () => {
+  const miro = ["plugins/miro/server/package.json"];
+  assert.deepEqual(listed(reviewOnlyPolicy({ directory: "/plugins/*/server" }), ROOT, miro), ["review-only:@anthropic-ai/claude-code"]);
+});
+
+test("unread paths match any directory", () => {
+  assert.deepEqual(listed(reviewOnlyPolicy({ directory: "/plugins/miro/server" }), ROOT, null), ["review-only:@anthropic-ai/claude-code"]);
+});
+
+test("an unreadable policy is review", () => {
+  for (const policy of [null, [], {}, { autoMerge: {} }, { autoMerge: { reviewOnly: {} } }, { autoMerge: { reviewOnly: [{ dependency: "x" }] } }]) {
+    assert.deepEqual(listed(policy), ["dependabot-policy-unreadable"], JSON.stringify(policy));
+  }
+});
+
+test("an empty list lists nothing", () => {
+  assert.deepEqual(listed({ autoMerge: { reviewOnly: [] } }), []);
+});
+
+test("classify sends a review-only update to review and leaves the rest auto", () => {
+  const pr = (policy) =>
+    classify({
+      author: "dependabot[bot]",
+      headRef: "dependabot/npm_and_yarn/x-1.3.0",
+      title: "bump x from 1.2.0 to 1.3.0",
+      repository: "o/r",
+      policy,
+      files: [changed("package.json"), changed("package-lock.json")],
+      config: [["npm", "/"]],
+      changedFiles: 2,
+    });
+  const match = pr(reviewOnlyPolicy({ repository: "o/r", dependency: "x" }));
+  assert.deepEqual([match.tier, match.reasons], ["review", ["review-only:x"]]);
+  assert.equal(match.reviewOnly[0].control, "docs/x.md#control");
+  const miss = pr(reviewOnlyPolicy({ repository: "o/r", dependency: "y" }));
+  assert.deepEqual([miss.tier, miss.reasons, miss.reviewOnly], ["auto", [], []]);
+  const unreadable = pr(null);
+  assert.deepEqual([unreadable.tier, unreadable.reasons], ["review", ["dependabot-policy-unreadable"]]);
+  const omitted = pr(undefined);
+  assert.deepEqual([omitted.tier, omitted.reasons], ["review", ["dependabot-policy-unreadable"]]);
+});
+
+// The provenance gate. Fixtures carry the shapes the registries return: npm's
+// packument (dist.attestations, _npmUser.trustedPublisher) and attestations
+// endpoint (a base64 DSSE payload holding the SLSA v1 predicate), PyPI's
+// simple index JSON (files[].provenance, upload-time) and integrity endpoint
+// (attestation_bundles[].publisher). The identities are what the registries
+// served on 2026-10-17: biome 2.5.14 from biomejs/biome
+// .github/workflows/release.yml, its trusted publisher's oidcConfigId both
+// with and without `oidc:`, numpy from numpy/numpy-release wheels.yml.
+const REG = "https://registry.npmjs.org";
+const BIOME_OIDC = "88a86367-18c3-4668-9f8d-aa7619d345aa";
+const slsa = (repository, path, ref = "refs/heads/main") => ({
+  attestations: [
+    { predicateType: "https://github.com/npm/attestation/tree/main/specs/publish/v0.1", bundle: {} },
+    {
+      predicateType: "https://slsa.dev/provenance/v1",
+      bundle: {
+        dsseEnvelope: {
+          payload: Buffer.from(
+            JSON.stringify({ predicate: { buildDefinition: { externalParameters: { workflow: { ref, repository: `https://github.com/${repository}`, path } } } } }),
+          ).toString("base64"),
+        },
+      },
+    },
+  ],
+});
+// A packument of [version, publish date, { attested, oidc }] rows.
+const packument = (name, rows) => ({
+  name,
+  versions: Object.fromEntries(
+    rows.map(([v, , { attested = false, oidc = null } = {}]) => [
+      v,
+      {
+        version: v,
+        dist: attested ? { attestations: { url: `${REG}/-/npm/v1/attestations/${name}@${v}`, provenance: { predicateType: "https://slsa.dev/provenance/v1" } } } : {},
+        _npmUser: oidc ? { name: "GitHub Actions", trustedPublisher: { id: "github", oidcConfigId: oidc } } : { name: "someone" },
+      },
+    ]),
+  ),
+  time: { created: "2020-01-01T00:00:00.000Z", ...Object.fromEntries(rows.map(([v, at]) => [v, at])) },
+});
+// A registry answering only the URLs it holds; anything else throws, as a
+// 404 or a timeout does.
+function registry(pages) {
+  const calls = [];
+  const get = async (url, accept) => {
+    calls.push(url);
+    if (!Object.hasOwn(pages, url) || pages[url] instanceof Error) {
+      throw pages[url] ?? new Error(`HTTP 404 ${url}`);
+    }
+    assert.ok(accept, "every read names its media type");
+    return structuredClone(pages[url]);
+  };
+  return { get, calls };
+}
+const BIOME = "@biomejs/biome";
+const biomePages = (newAttestation = slsa("biomejs/biome", ".github/workflows/release.yml"), newRow = { attested: true, oidc: `oidc:${BIOME_OIDC}` }) => ({
+  [`${REG}/@biomejs%2Fbiome`]: packument(BIOME, [
+    ["2.5.12", "2026-09-01T00:00:00Z", { attested: true, oidc: `oidc:${BIOME_OIDC}` }],
+    ["2.5.13", "2026-09-20T00:00:00Z", { attested: true, oidc: `oidc:${BIOME_OIDC}` }],
+    ["2.6.0-beta.1", "2026-10-01T00:00:00Z", {}],
+    ["2.5.14", "2026-10-10T00:00:00Z", newRow],
+  ]),
+  [`${REG}/-/npm/v1/attestations/@biomejs%2Fbiome@2.5.13`]: slsa("biomejs/biome", ".github/workflows/release.yml"),
+  ...(newAttestation ? { [`${REG}/-/npm/v1/attestations/@biomejs%2Fbiome@2.5.14`]: newAttestation } : {}),
+});
+const npmUpdate = (name, version) => [{ name, major: false, version }];
+
+test("an npm release from the same repository and workflow as the previous one passes", async () => {
+  const { get, calls } = registry(biomePages());
+  assert.deepEqual(await provenanceReasons(npmUpdate(BIOME, "2.5.14"), "npm_and_yarn", get), []);
+  // The packument, the new version's attestation and the newest earlier
+  // stable version's; the prerelease and older versions are not read.
+  assert.equal(calls.length, 3);
+});
+
+test("a release workflow on a new tag ref is the same identity", async () => {
+  const { get } = registry(biomePages(slsa("biomejs/biome", ".github/workflows/release.yml", "refs/tags/v2.5.14")));
+  assert.deepEqual(await provenanceReasons(npmUpdate(BIOME, "2.5.14"), "npm_and_yarn", get), []);
+});
+
+test("a release that drops its attestation, or comes from another repository or workflow, is review", async () => {
+  const dropped = registry(biomePages(null, {}));
+  assert.deepEqual(await provenanceReasons(npmUpdate(BIOME, "2.5.14"), "npm_and_yarn", dropped.get), [`provenance-missing:${BIOME}`]);
+  const publisherOnly = registry(biomePages(null, { oidc: BIOME_OIDC }));
+  assert.deepEqual(await provenanceReasons(npmUpdate(BIOME, "2.5.14"), "npm_and_yarn", publisherOnly.get), [`provenance-changed:${BIOME}`]);
+  for (const [repository, path] of [
+    ["someone/biome", ".github/workflows/release.yml"],
+    ["biomejs/biome", ".github/workflows/other.yml"],
+  ]) {
+    const moved = registry(biomePages(slsa(repository, path)));
+    assert.deepEqual(await provenanceReasons(npmUpdate(BIOME, "2.5.14"), "npm_and_yarn", moved.get), [`provenance-changed:${BIOME}`], repository + path);
+  }
+});
+
+test("a trusted publisher's oidcConfigId compares with any oidc: prefix stripped", async () => {
+  const name = "@anthropic-ai/claude-code";
+  const pages = (oidc) => ({
+    [`${REG}/@anthropic-ai%2Fclaude-code`]: packument(name, [
+      ["2.1.301", "2026-10-01T00:00:00Z", { oidc: `oidc:${BIOME_OIDC}` }],
+      ["2.1.302", "2026-10-02T00:00:00Z", { oidc }],
+    ]),
+  });
+  assert.deepEqual(await provenanceReasons(npmUpdate(name, "2.1.302"), "npm_and_yarn", registry(pages(BIOME_OIDC)).get), []);
+  assert.deepEqual(await provenanceReasons(npmUpdate(name, "2.1.302"), "npm_and_yarn", registry(pages("ed8551cb-3303-4af8-bcf8-5818707a0f2d")).get), [
+    `provenance-changed:${name}`,
+  ]);
+  assert.deepEqual(await provenanceReasons(npmUpdate(name, "2.1.302"), "npm_and_yarn", registry(pages(null)).get), [`provenance-missing:${name}`]);
+});
+
+test("a package that never had provenance passes, and costs one read", async () => {
+  const { get, calls } = registry({
+    [`${REG}/markdownlint-cli2`]: packument("markdownlint-cli2", [
+      ["0.18.0", "2026-08-01T00:00:00Z"],
+      ["0.18.1", "2026-09-01T00:00:00Z"],
+    ]),
+  });
+  assert.deepEqual(await provenanceReasons(npmUpdate("markdownlint-cli2", "0.18.1"), "npm_and_yarn", get), []);
+  assert.equal(calls.length, 1);
+});
+
+test("a registry read that fails, a version the registry lacks, or no version is unreadable", async () => {
+  assert.deepEqual(await provenanceReasons(npmUpdate(BIOME, "2.5.14"), "npm_and_yarn", registry({}).get), [`provenance-unreadable:${BIOME}`]);
+  const pages = biomePages();
+  pages[`${REG}/-/npm/v1/attestations/@biomejs%2Fbiome@2.5.13`] = new Error("timeout");
+  assert.deepEqual(await provenanceReasons(npmUpdate(BIOME, "2.5.14"), "npm_and_yarn", registry(pages).get), [`provenance-unreadable:${BIOME}`]);
+  const garbled = biomePages({ attestations: [{ predicateType: "https://slsa.dev/provenance/v1", bundle: { dsseEnvelope: { payload: "not json" } } }] });
+  assert.deepEqual(await provenanceReasons(npmUpdate(BIOME, "2.5.14"), "npm_and_yarn", registry(garbled).get), [`provenance-unreadable:${BIOME}`]);
+  assert.deepEqual(await provenanceReasons(npmUpdate(BIOME, "9.9.9"), "npm_and_yarn", registry(biomePages()).get), [`provenance-unreadable:${BIOME}`]);
+  assert.deepEqual(await provenanceReasons([{ name: BIOME, major: false, version: null }], "npm_and_yarn", registry(biomePages()).get), [
+    `provenance-unreadable:${BIOME}`,
+  ]);
+});
+
+test("past the per-PR read cap every remaining update is unreadable", async () => {
+  const { get } = registry(biomePages());
+  const two = [...npmUpdate(BIOME, "2.5.14"), ...npmUpdate(BIOME, "2.5.14")];
+  assert.deepEqual(await provenanceReasons(two, "npm_and_yarn", get, 4), [`provenance-unreadable:${BIOME}`]);
+  assert.deepEqual(await provenanceReasons(two, "npm_and_yarn", registry(biomePages()).get, 6), []);
+});
+
+const PYPI_SIMPLE = "https://pypi.org/simple/numpy/";
+const integrity = (file) => `https://pypi.org/integrity/numpy/${file.split("-")[1]}/${file}/provenance`;
+const pypiPages = ({ newPublisher = { kind: "GitHub", repository: "numpy/numpy-release", workflow: "wheels.yml" } } = {}) => {
+  const files = [
+    ["numpy-2.3.4-cp312-cp312-manylinux_2_28_x86_64.whl", "2025-10-15T16:15:56Z", true],
+    ["numpy-2.3.4.tar.gz", "2025-10-15T16:10:00Z", true],
+    ["numpy-2.4.0rc1-cp312-cp312-manylinux_2_28_x86_64.whl", "2025-11-01T00:00:00Z", false],
+    ["numpy-2.3.5-cp312-cp312-manylinux_2_28_x86_64.whl", "2025-11-16T22:50:02Z", newPublisher !== null],
+    ["numpy-2.3.5.tar.gz", "2025-11-16T22:40:00Z", newPublisher !== null],
+  ];
+  const publisher = { environment: "pypi", kind: "GitHub", repository: "numpy/numpy-release", workflow: "wheels.yml" };
+  return {
+    [PYPI_SIMPLE]: {
+      meta: { "api-version": "1.4" },
+      name: "numpy",
+      versions: ["2.3.4", "2.3.5", "2.4.0rc1"],
+      files: files.map(([filename, at, attested]) => ({ filename, "upload-time": at, yanked: false, ...(attested ? { provenance: integrity(filename) } : {}) })),
+    },
+    [integrity(files[0][0])]: { version: 1, attestation_bundles: [{ publisher }] },
+    [integrity(files[1][0])]: { version: 1, attestation_bundles: [{ publisher }] },
+    ...(newPublisher ? { [integrity(files[3][0])]: { version: 1, attestation_bundles: [{ publisher: newPublisher }] } } : {}),
+    ...(newPublisher ? { [integrity(files[4][0])]: { version: 1, attestation_bundles: [{ publisher: newPublisher }] } } : {}),
+  };
+};
+const pipUpdate = (version = "2.3.5") => [{ name: "numpy", major: false, version }];
+
+test("a PyPI release keeps its PEP 740 publisher, or is review", async () => {
+  assert.deepEqual(await provenanceReasons(pipUpdate(), "pip", registry(pypiPages()).get), []);
+  assert.deepEqual(await provenanceReasons(pipUpdate(), "pip", registry(pypiPages({ newPublisher: null })).get), ["provenance-missing:numpy"]);
+  const moved = { kind: "GitHub", repository: "someone/numpy", workflow: "wheels.yml" };
+  assert.deepEqual(await provenanceReasons(pipUpdate(), "pip", registry(pypiPages({ newPublisher: moved })).get), ["provenance-changed:numpy"]);
+  assert.deepEqual(await provenanceReasons(pipUpdate("9.9.9"), "pip", registry(pypiPages()).get), ["provenance-unreadable:numpy"]);
+  assert.deepEqual(await provenanceReasons(pipUpdate(), "pip", registry({}).get), ["provenance-unreadable:numpy"]);
+});
+
+test("github_actions and other ecosystems are not read: the publisher allowlist covers actions", async () => {
+  const { get, calls } = registry({});
+  assert.deepEqual(await provenanceReasons(npmUpdate("actions/checkout", "4.2.0"), "github_actions", get), []);
+  assert.equal(calls.length, 0);
+});
+
+test("only an auto classification spends registry reads, and a provenance reason makes it review", async () => {
+  const auto = tier("bump x from 1.2.0 to 1.3.0");
+  let reads = 0;
+  const found = async () => {
+    reads += 1;
+    return ["provenance-changed:x"];
+  };
+  const reviewed = await withProvenance(auto, found);
+  assert.deepEqual([reviewed.tier, reviewed.reasons, reads], ["review", ["provenance-changed:x"], 1]);
+  assert.equal(auto.updates[0].version, "1.3.0");
+  const major = tier("bump x from 1.2.0 to 2.0.0");
+  assert.equal(await withProvenance(major, found), major);
+  assert.equal(reads, 1);
+  assert.equal(await withProvenance(auto, async () => []), auto);
+});
+
+test("a review that only a parse gap caused is a classifier gap; any other reason is not", () => {
+  assert.deepEqual(classifierGaps(["unparsed-updates"]), ["unparsed-updates"]);
+  assert.deepEqual(classifierGaps(["sources-disagree", "provenance-unreadable:x"]), ["sources-disagree", "provenance-unreadable:x"]);
+  for (const reason of ["dependabot-config-unreadable", "dependabot-policy-unreadable"]) {
+    assert.deepEqual(classifierGaps([reason]), [reason]);
+  }
+  assert.deepEqual(classifierGaps(["provenance-unreadable:x", "major:y"]), []);
+  assert.deepEqual(classifierGaps(["provenance-changed:x"]), []);
+  assert.deepEqual(classifierGaps([]), []);
 });

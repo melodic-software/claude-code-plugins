@@ -283,13 +283,14 @@ when the grant can commit.
 
 A skill with any effect but `read` also gets what it needs to do its job: `Edit`, `Write`, `Agent`
 (for subagents such as a fix flow's semantic-diff check or a rubric fan-out) and
-`mcp__github_file_ops__commit_files`, the action's signed-commit tool on `CLAUDE_BRANCH`, and a
+`mcp__github_file_ops__commit_files` and `mcp__github_file_ops__delete_files`, the action's
+signed-commit tools on `CLAUDE_BRANCH` (the second carries a rename's old path or a removal), and a
 scratch directory, `$RUNNER_TEMP/lane-scratch`, passed as `--add-dir` with an `Edit` rule on it so
 its state files and its `Bash` redirects land there. `--append-system-prompt` names that
 directory, says no one can answer a question, and, when the grant can commit, tells it to commit
-every file it changed with that tool: the prompt is the slash command alone, so without this the
+every file it changed, and delete every committed path it renamed or removed, with those tools: the prompt is the slash command alone, so without this the
 skill leaves its edits uncommitted and the lane moves nothing. A `prepare: merge-base` skill
-gets neither the tool nor that sentence: it stages its resolution and the runner commits
+gets neither tool nor that sentence: it stages its resolution and the runner commits
 ([below](#prepare-merge-base)). Under `--permission-mode dontAsk` a skill's own `allowed-tools`
 grants nothing: its `Bash` is only what this list allows, one rule per entry in the activity's
 `checks`: `collect-base-activity` copies the base `scripts/` to `$RUNNER_TEMP/lane-checks`, outside
@@ -308,7 +309,19 @@ script may print lines of a file it reads, sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONF
 and command-scope `core.fsmonitor=false` and `core.hooksPath=/dev/null`, then runs the copy with
 the arguments and prints `exit status: <n>` to stderr before exiting with that status, since the
 lane denies a chained `; echo "$?"`; the system prompt says to run each wrapper as its own command.
-Any other arguments match, so the list holds only scripts that read and report.
+Any other arguments match, so a listed script that changes files or runs checkout code must limit
+itself. `resolve-issue` lists two that do, each refusing (exit 2) an argument that is absolute,
+has a `..` segment, starts with `-` or `:`, or resolves through a link to outside the checkout, including
+a path that does not exist yet (`scripts/lib/checkout-path.sh`). `scripts/run-test-file.sh` takes
+one test file and runs it by name, `test_*.py` under `python3 -m pytest`, `*.test.sh` under
+`bash`, `*.test.mjs` under `node --test`, each after `--`, without `GH_TOKEN` or `GITHUB_TOKEN`;
+it refuses any other file and any name outside `[A-Za-z0-9._/-]`, so pytest reads no node id. Its tests are checkout code with the network open. When the stage grants its wrapper,
+the write runner sets up Python from the base `.python-version` and installs the base's
+hash-pinned `.github/requirements-ci.txt` before the head checkout. `scripts/git-mv-rm.sh` runs
+`git mv <source> <destination>` or `git rm -r -f <path>...`, first recording an untracked path as
+intent-to-add so a file the run created can be renamed or removed, with `GIT_LITERAL_PATHSPECS=1`
+so git reads each path literally, never as a glob or pathspec magic. The index is local: the
+change reaches the branch through `commit_files` and `delete_files`.
 `WebFetch` and
 `WebSearch` stay off (`--disallowedTools`) unless the activity sets `web-access`. With it on, the
 runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
@@ -601,7 +614,9 @@ commit's files, and the base's `.github/dependabot.yml`. The content step's refu
 pr-merge lane (a commit whose files cannot be read whole, a fix commit touching `.github/`)
 are review reasons here. A base `dependabot.yml` that cannot be read, or holds no entry that
 reads, is `dependabot-config-unreadable`, with a warning naming which. A security update is the
-`security` label or an advisory, GHSA or CVE id in the body; it is a flag on either tier.
+`security` label or an advisory, GHSA or CVE id in the body; it is a flag on either tier. Both
+also apply the [registry provenance](README.md#registry-provenance) gate, and the select step
+warns of a [classifier gap](README.md#classifier-gaps).
 
 1. After `resolve-config` and before the mint, the model job runs `review-dependency.mjs select`
    with the job's `GITHUB_TOKEN`. A pull request whose author is not `dependabot[bot]` (by id,
@@ -624,7 +639,8 @@ reads, is `dependabot-config-unreadable`, with a warning naming which. A securit
    discarded with the lane branch.
 4. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
    `github-script` step writes `run.json` (`version`, `pr`, the gated `head_sha`, the select
-   step's `security` and `config_unreadable` flags, and the skill's structured output as `output`, `null` when absent or
+   step's `security` and `config_unreadable` flags, its `controls` (the matched review-only
+   entries' `control` strings), and the skill's structured output as `output`, `null` when absent or
    unparsable) and the job uploads it as `dependency-verdict-<run attempt>`. Its
    `dependency-round` output is then `true`, with `dependency-run-sha256` and
    `dependency-run-attempt`.
@@ -644,7 +660,10 @@ reads, is `dependabot-config-unreadable`, with a warning naming which. A securit
      `<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<run id>-<attempt> -->`
      from the lanes App is the record the pr-merge lane merges a review-tier pull request on,
      at the current head and through its own gate. With `config_unreadable` it posts no merge
-     marker and escalates `dependency-config-unreadable`. This job never merges or enqueues;
+     marker and escalates `dependency-config-unreadable`; without each of `controls` quoted in
+     `evidence` it escalates `dependency-control-uncited`
+     ([README, "Review-only dependencies"](README.md#review-only-dependencies)). This job never
+     merges or enqueues;
    - `close`: escalates `dependency-security-close` for a security update (the model job's flag,
      or the label or an advisory in the body read fresh); otherwise finds the lanes App issue whose first line is
      `<!-- pr-unblock:dependency-ignore pr=<n> head=<sha> -->` or files it, proposing the
@@ -654,7 +673,7 @@ reads, is `dependabot-config-unreadable`, with a warning naming which. A securit
    - posts the round marker once per model run, named `none` when the model run uploaded no
      verdict: a re-run that finds its own marker posts none.
 
-   The runner accepts only those five reasons, and only with `dependency-verdict`.
+   The runner accepts only those six reasons, and only with `dependency-verdict`.
 
 ## The report job
 

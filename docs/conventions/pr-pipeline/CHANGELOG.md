@@ -1,5 +1,47 @@
 # Changelog for the PR pipeline convention
 
+## 1.25.0 - 2026-10-17
+
+Both Dependabot classifiers read the standards Dependabot policy at the base and make every update
+to a dependency its `autoMerge.reviewOnly` lists tier `review` (`review-only:<dependency>`),
+whatever the version change, and every Dependabot pull request tier `review`
+(`dependabot-policy-unreadable`) when the policy does not read or a caller passes none. An entry's
+`directory` covers a changed path in it, and a `github-actions` entry also covers the workflow and
+action files the content rule gives its directory (README, "Review-only dependencies"). The
+review-dependency activity gets the matched entries. Both classifiers also make an otherwise tier
+`auto` npm or pip update tier `review` when its
+registry provenance changed or cannot be read (`provenance-changed:<name>`,
+`provenance-missing:<name>`, `provenance-unreadable:<name>`; README, "Registry provenance"). The
+review-dependency select step outputs `controls`, `run.json` gains `controls`, and the write
+runner gains a seventh dependency escalation reason, `dependency-control-uncited`: a `merge`
+verdict on a review-only dependency that does not quote each matched entry's `control` in
+`evidence`. The select step warns `classifier gap` when only a read failure sent a pull request
+to review (README, "Classifier gaps"). `version` stays 1.
+
+## 1.24.0 - 2026-10-17
+
+`resolve-issue` lists two more `verify-scripts`, each wrapped by the same generator as the
+can't-fail scan: `scripts/run-test-file.sh` runs one test file inside the checkout by name
+(`test_*.py` under pytest, `*.test.sh` under bash, `*.test.mjs` under `node --test`, without
+`GH_TOKEN` or `GITHUB_TOKEN`), and `scripts/git-mv-rm.sh` runs `git mv` or `git rm` inside the
+checkout, recording an untracked path as intent-to-add first. Both refuse an absolute path, a `..`
+segment, a leading `-` or `:` and a path that resolves outside the checkout (`scripts/lib/checkout-path.sh`).
+`git-mv-rm.sh` sets `GIT_LITERAL_PATHSPECS=1`, so git reads no glob or pathspec magic, and
+`run-test-file.sh` takes only `[A-Za-z0-9._/-]` names after `--`, so pytest reads no node id.
+A write skill that commits also gets `mcp__github_file_ops__delete_files`, and the system prompt
+tells it to delete each committed path it renamed or removed. When the stage grants the test-file
+runner, the write runner sets up Python and installs the base's hash-pinned CI requirements before
+the head checkout. `verify-scripts` may now list a script that changes files or runs checkout code
+when the script limits itself. `version` stays 1.
+
+## 1.23.0 - 2026-10-17
+
+`merge.verify-authors` (`lane`, `any`; absent is `lane`) is a new optional key. Under `lane`
+`.github/workflows/pr-verify.yml` judges only pull requests the lanes App opened (a `Bot` account
+whose login is `merge.agent-identity`, compared as the pr-merge lane compares it) and skips any
+other author's before the model runs, with the reason `author-not-lane`; `any` judges every
+author's, and any other value judges none ("Verifier verdict"). `version` stays 1.
+
 ## 1.22.0 - 2026-10-17
 
 `pr-unblock` gains `review-dependency` and `apply-dependency-verdict`, and `prepare` gains
