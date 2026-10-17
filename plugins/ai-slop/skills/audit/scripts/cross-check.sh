@@ -2,7 +2,8 @@
 # Independent em-dash count for the /ai-slop:audit fix flow's closing step.
 #
 # Reads a `detect.sh --list-targets` file and finds, per file, the lines that
-# hold an em dash outside fenced code, inline code, and ignore markers. The
+# hold an em dash outside fenced code, inline code, generated regions, and
+# ignore markers. The
 # parse is written separately from detect.sh on purpose: a shared parser would
 # share its blind spots. Given the detector's output, it prints a Disagree row
 # for every file whose count or set of line numbers differs from the
@@ -87,9 +88,12 @@ count_prog='
   }
   function done_file() { if (cur != "") printf "%s\t%d\t%s\n", cur, n, (ls == "" ? "-" : substr(ls, 2)) }
   BEGIN { em = "\342\200\224" }
-  FNR == 1 { done_file(); cur = FILENAME; n = 0; ls = ""; fence = ""; fcol = 0; block = 0 }
+  FNR == 1 { done_file(); cur = FILENAME; n = 0; ls = ""; fence = ""; fcol = 0; block = 0; gen = 0 }
   { line = $0; sub(/\r$/, "", line) }
   line ~ /^[ \t]*<!-- ai-slop-ignore-file(:[^>]*)? -->[ \t]*$/ { n = 0; ls = ""; nextfile }
+  # A generated region, BEGIN GENERATED line through END GENERATED line, is
+  # owned by the script that writes it, so it is not counted.
+  gen { if (line ~ /^[ \t]*<!-- END GENERATED:[^>]*-->[ \t]*$/) gen = 0; next }
   {
     # CommonMark fence rules as detect.sh applies them: indentation counts
     # spaces only; an opener sits at most three spaces in, optionally after a
@@ -121,6 +125,7 @@ count_prog='
     }
     if (c != "") { fence = c; next }
   }
+  line ~ /^[ \t]*<!-- BEGIN GENERATED:[^>]*-->[ \t]*$/ { gen = 1; next }
   line ~ /^[ \t]*<!-- ai-slop-ignore-start(:[^>]*)? -->[ \t]*$/ { block = 1; next }
   line ~ /^[ \t]*<!-- ai-slop-ignore-end(:[^>]*)? -->[ \t]*$/ { block = 0; next }
   block { next }

@@ -46,7 +46,7 @@ SKIPPED=0
 # assertion it replaces, so a host that cannot build a fixture moves cases
 # between the two counters without changing their sum. Adding or removing a case
 # updates this number, and the Result block names both totals when they disagree.
-EXPECTED_CASES=244
+EXPECTED_CASES=248
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -1010,6 +1010,36 @@ out="$(bash "$DETECT" "$DEDENTFENCE" 2>&1)"
 assert_contains "list fence dedent: a column-zero fence below the item opens a new block" "$out" "rule=ai-slop/audit/rule-em-dash findings=0 "
 assert_not_contains "list fence dedent: the line inside that new block stays exempt" "$out" "after the new opener"
 assert_contains "list fence dedent: the new block running to EOF is reported unclosed" "$out" "code fence opened at line 3 is never closed"
+
+# A generated region belongs to the script its marker names, which overwrites
+# any edit, so no rule scans it. A backticked mention of the marker opens
+# nothing, and prose after the END line is scanned again.
+GENERATED="$TEST_TMPDIR/generated.md"
+cat >"$GENERATED" <<EOF
+# Generated region
+
+Mentioning \`<!-- BEGIN GENERATED: x -->\` in prose opens nothing ${EM} must flag.
+
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+Inside the region ${EM} zephyrantic stays exempt.
+<!-- END GENERATED: plugin options -->
+
+After the region ${EM} must flag.
+EOF
+out="$(bash "$DETECT" "$GENERATED" 2>&1)"
+assert_contains "generated region: prose outside it flags" "$out" "rule=ai-slop/audit/rule-em-dash findings=2 "
+assert_contains "generated region: the line after END is scanned" "$out" "line=9"
+assert_not_contains "generated region: its content stays exempt" "$out" "zephyrantic"
+
+GENUNCLOSED="$TEST_TMPDIR/genunclosed.md"
+cat >"$GENUNCLOSED" <<EOF
+# Unclosed region
+
+<!-- BEGIN GENERATED: x -->
+An em dash ${EM} in a region that never closes.
+EOF
+out="$(bash "$DETECT" "$GENUNCLOSED" 2>&1)"
+assert_contains "generated region: an unclosed one is reported" "$out" "generated region opened at line 3 is never closed"
 
 # --- Directory target expansion ---------------------------------------------------
 
