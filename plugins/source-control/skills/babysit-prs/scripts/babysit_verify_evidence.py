@@ -42,9 +42,9 @@ from a completed, successful one. Any other artifact is ignored.
 (`verify:unreadable`). The repository's artifacts are listed once per
 `Reader`, which pr-merge.yml builds once per candidate gate run, every page,
 and filtered on the name here: the API's name filter matches whole names only.
-A transient listing failure (no HTTP response, a 5xx, a 429, or a 403 naming
-a rate limit) is tried again, `LISTING_ATTEMPTS` reads in all with backoff;
-any other failure is not. A failed listing is kept as well, so one outage
+A listing that timed out, met a network error or got a 5xx is read again,
+`LISTING_ATTEMPTS` reads in all with backoff and a shorter timeout; any other
+failure, a 429 or a rate-limit 403 included, is not. A failed listing is kept as well, so one outage
 refuses every entry of the run without paging again: it holds the whole queue
 rather than merging blind.
 """
@@ -54,6 +54,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -78,9 +79,21 @@ PASSES = ("pass", "pass-notes")
 TOO_OLD_DAYS = 80
 # `GET /pulls/{n}/commits` lists at most 250 commits.
 COMMITS_CAP = 250
-# Three reads, 2s then 4s apart: short beside the gate run (judgment).
+# Three reads, 2s then 4s apart, each retry capped at 15s: at most 36s on
+# top of the first read, per gate run (judgment).
 LISTING_ATTEMPTS = 3
 LISTING_BACKOFF_SECONDS = 2.0
+LISTING_RETRY_TIMEOUT_SECONDS = 15.0
+# How gh reports a request that never got an HTTP response: its own
+# "error connecting to <host>" for a failed lookup, else Go's net/http error.
+NETWORK_ERRORS = (
+    "error connecting to",
+    "connection reset by peer",
+    "connection refused",
+    "i/o timeout",
+    "tls handshake timeout",
+    "unexpected eof",
+)
 FAIL = "verify:fail"
 EARLIER_FAIL = "verify:earlier-fail"
 MISSING = "verify:missing"
@@ -109,19 +122,17 @@ class _Unreadable(Exception):
 
 
 class _Transient(_Unreadable):
-    """A failed read GitHub may not repeat."""
+    """A failed read that may succeed if repeated."""
 
 
 def _transient(detail: str) -> bool:
-    """No HTTP response at all, a 5xx, a 429, or a 403 naming a rate limit
-    (the secondary rate limit answers 403)."""
+    """A 5xx, or a network error with no HTTP response. A rate limit is not:
+    a fixed short wait outlasts neither a Retry-After nor an hourly reset, and
+    more requests can extend a secondary limit."""
     status = gh_http_status(detail)
-    return (
-        status is None
-        or status >= 500
-        or status == 429
-        or (status == 403 and "rate limit" in detail.casefold())
-    )
+    if status is not None:
+        return status >= 500
+    return any(phrase in detail.casefold() for phrase in NETWORK_ERRORS)
 
 
 def _listing_sleep(seconds: float) -> None:
@@ -219,6 +230,7 @@ class Reader:
                                 "--slurp",
                             ],
                             "repository artifacts",
+                            LISTING_RETRY_TIMEOUT_SECONDS if attempt else None,
                         )
                         break
                     except _Transient:
@@ -237,15 +249,21 @@ class Reader:
     def _env(self) -> dict[str, str] | None:
         return {"GH_TOKEN": self.actions_token} if self.actions_token else None
 
-    def _actions(self, args: list[str], label: str) -> Any:
-        """A read the Actions API answers, under the Actions token when set."""
+    def _actions(
+        self, args: list[str], label: str, timeout_seconds: float | None = None
+    ) -> Any:
+        """A read the Actions API answers, under the Actions token when set;
+        `None` keeps gh's default timeout."""
         try:
-            proc = postmerge.gh_capture(args, env_overrides=self._env())
-        except RuntimeError as exc:
-            # A timeout, or no gh on PATH.
-            raise _Transient(f"{label}: {exc}") from exc
-        except (ValueError, OSError) as exc:
-            raise _Unreadable(f"{label}: {exc}") from exc
+            proc = postmerge.gh_capture(
+                args, timeout_seconds=timeout_seconds, env_overrides=self._env()
+            )
+        except (RuntimeError, ValueError, OSError) as exc:
+            # run_command raises a timeout from TimeoutExpired; a missing gh
+            # is a RuntimeError too, and not transient.
+            timed_out = isinstance(exc.__cause__, subprocess.TimeoutExpired)
+            kind = _Transient if timed_out else _Unreadable
+            raise kind(f"{label}: {exc}") from exc
         if proc.returncode != 0:
             detail = f"{label}: {(proc.stderr or '').strip() or proc.returncode}"
             raise (_Transient if _transient(detail) else _Unreadable)(detail)
