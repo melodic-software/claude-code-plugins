@@ -42,11 +42,11 @@ from a completed, successful one. Any other artifact is ignored.
 (`verify:unreadable`). The repository's artifacts are listed once per
 `Reader`, which pr-merge.yml builds once per candidate gate run, every page,
 and filtered on the name here: the API's name filter matches whole names only.
-A listing that timed out, met a network error or got a 5xx is read again,
-`LISTING_ATTEMPTS` reads in all with backoff and a shorter timeout; any other
-failure, a 429 or a rate-limit 403 included, is not. A failed listing is kept as well, so one outage
-refuses every entry of the run without paging again: it holds the whole queue
-rather than merging blind.
+A listing that got a 5xx or a fast network error is read again after each of
+`LISTING_WAITS`, every read inside one gh timeout in all; any other failure, a
+timeout, a 429 or a rate-limit 403 included, is not. A failed listing is kept
+as well, so one outage refuses every entry of the run without paging again:
+it holds the whole queue rather than merging blind.
 """
 
 from __future__ import annotations
@@ -54,7 +54,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import subprocess
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -65,7 +64,7 @@ from typing import Any
 import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
 from babysit_classify import is_dependency_author
-from babysit_gh import flatten_paginated_items, gh_http_status
+from babysit_gh import flatten_paginated_items, gh_http_status, gh_timeout_seconds
 from babysit_util import is_json_array, is_json_object, json_array, json_object
 
 WORKFLOW_PATH = ".github/workflows/pr-verify.yml"
@@ -79,11 +78,8 @@ PASSES = ("pass", "pass-notes")
 TOO_OLD_DAYS = 80
 # `GET /pulls/{n}/commits` lists at most 250 commits.
 COMMITS_CAP = 250
-# Three reads, 2s then 4s apart, each retry capped at 15s: at most 36s on
-# top of the first read, per gate run (judgment).
-LISTING_ATTEMPTS = 3
-LISTING_BACKOFF_SECONDS = 2.0
-LISTING_RETRY_TIMEOUT_SECONDS = 15.0
+# The waits before the second and third listing reads (judgment).
+LISTING_WAITS = (2.0, 4.0)
 # How gh reports a request that never got an HTTP response: its own
 # "error connecting to <host>" for a failed lookup, else Go's net/http error.
 NETWORK_ERRORS = (
@@ -137,6 +133,10 @@ def _transient(detail: str) -> bool:
 
 def _listing_sleep(seconds: float) -> None:
     time.sleep(seconds)
+
+
+def _listing_clock() -> float:
+    return time.monotonic()
 
 
 def dependency_bot(user: Any) -> bool:
@@ -220,31 +220,37 @@ class Reader:
         listing = self._artifacts
         if listing is None:
             try:
-                for attempt in range(LISTING_ATTEMPTS):
-                    try:
-                        payload = self._actions(
-                            [
-                                "api",
-                                f"repos/{self.repo}/actions/artifacts?per_page=100",
-                                "--paginate",
-                                "--slurp",
-                            ],
-                            "repository artifacts",
-                            LISTING_RETRY_TIMEOUT_SECONDS if attempt else None,
-                        )
-                        break
-                    except _Transient:
-                        if attempt + 1 == LISTING_ATTEMPTS:
-                            raise
-                        _listing_sleep(LISTING_BACKOFF_SECONDS * 2**attempt)
                 listing = flatten_paginated_items(
-                    payload, "repository artifacts", items_key="artifacts"
+                    self._read_listing(), "repository artifacts", items_key="artifacts"
                 )
             except (_Unreadable, RuntimeError) as exc:
                 self._listing_error = str(exc)
                 raise _Unreadable(self._listing_error) from exc
             self._artifacts = listing
         return listing
+
+    def _read_listing(self) -> Any:
+        """The listing payload, read again after a 5xx or a fast network
+        error while time is left: every read and wait fits in the one gh
+        timeout a single read would get, so a retry adds no time to the run's
+        worst case."""
+        args = [
+            "api",
+            f"repos/{self.repo}/actions/artifacts?per_page=100",
+            "--paginate",
+            "--slurp",
+        ]
+        deadline = _listing_clock() + gh_timeout_seconds()
+        timeout: float | None = None
+        for wait in LISTING_WAITS:
+            try:
+                return self._actions(args, "repository artifacts", timeout)
+            except _Transient:
+                timeout = deadline - _listing_clock() - wait
+                if timeout <= 0:
+                    raise
+                _listing_sleep(wait)
+        return self._actions(args, "repository artifacts", timeout)
 
     def _env(self) -> dict[str, str] | None:
         return {"GH_TOKEN": self.actions_token} if self.actions_token else None
@@ -259,11 +265,8 @@ class Reader:
                 args, timeout_seconds=timeout_seconds, env_overrides=self._env()
             )
         except (RuntimeError, ValueError, OSError) as exc:
-            # run_command raises a timeout from TimeoutExpired; a missing gh
-            # is a RuntimeError too, and not transient.
-            timed_out = isinstance(exc.__cause__, subprocess.TimeoutExpired)
-            kind = _Transient if timed_out else _Unreadable
-            raise kind(f"{label}: {exc}") from exc
+            # A timeout, or no gh on PATH: neither is read again.
+            raise _Unreadable(f"{label}: {exc}") from exc
         if proc.returncode != 0:
             detail = f"{label}: {(proc.stderr or '').strip() or proc.returncode}"
             raise (_Transient if _transient(detail) else _Unreadable)(detail)

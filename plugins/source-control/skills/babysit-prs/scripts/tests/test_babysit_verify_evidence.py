@@ -866,7 +866,9 @@ class TheListingIsReadOncePerReader(unittest.TestCase):
         listings = [c for c in fake.calls if any("actions/artifacts" in a for a in c)]
         self.assertEqual(len(listings), 1)
 
-    def test_a_failed_listing_refuses_every_entry_and_is_not_read_per_entry(self) -> None:
+    def test_a_failed_listing_refuses_every_entry_and_is_not_read_per_entry(
+        self,
+    ) -> None:
         # One outage holds the whole queue rather than merging blind.
         fake = passing()
         fake.fail = {"actions/artifacts"}
@@ -878,7 +880,7 @@ class TheListingIsReadOncePerReader(unittest.TestCase):
             holds = [reader.queued_hold(n) for n in (PR, PR, PR)]
         self.assertEqual(holds, ["verify:unreadable"] * 3)
         listings = [c for c in fake.calls if any("actions/artifacts" in a for a in c)]
-        self.assertEqual(len(listings), ve.LISTING_ATTEMPTS)
+        self.assertEqual(len(listings), len(ve.LISTING_WAITS) + 1)
 
 
 # --- A transient listing failure is read again --------------------------------
@@ -956,8 +958,9 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         "gh: Too Many Requests (HTTP 429)",
         "gh: You have exceeded a secondary rate limit. (HTTP 403)",
         "gh: API rate limit exceeded for installation ID 1. (HTTP 403)",
-        # gh with no credential (exit 4), and gh missing from PATH
-        # (babysit_util.run_command).
+        # A read that used the whole gh timeout, gh with no credential
+        # (exit 4), and gh missing from PATH (babysit_util.run_command).
+        timed_out(),
         "To get started with GitHub CLI, please run:  gh auth login\n"
         "Alternatively, populate the GH_TOKEN environment variable with a "
         "GitHub API authentication token.",
@@ -972,7 +975,7 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         return evidence, [c.args[0] for c in sleep.call_args_list]
 
     def test_a_transient_failure_then_a_listing_reads_the_verdict(self) -> None:
-        for error in (*self.TRANSIENT, timed_out()):
+        for error in self.TRANSIENT:
             with self.subTest(str(error)):
                 fake = FlakyListing([error])
                 evidence, sleeps = self.judge(fake)
@@ -988,10 +991,25 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         self.assertEqual(fake.listings(), 3)
         self.assertEqual(sleeps, [2.0, 4.0])
 
-    def test_only_the_retries_shorten_the_timeout(self) -> None:
+    def timed(self, clock: list[float]) -> FlakyListing:
+        """Three 502s, the clock reading `clock` in turn, a 60s gh timeout."""
         fake = FlakyListing(["gh: Bad Gateway (HTTP 502)"] * 3)
-        self.judge(fake)
-        self.assertEqual(fake.timeouts, [None, 15.0, 15.0])
+        with (
+            mock.patch.object(ve, "_listing_clock", side_effect=clock),
+            mock.patch.object(ve, "gh_timeout_seconds", return_value=60.0),
+        ):
+            self.judge(fake)
+        return fake
+
+    def test_the_retries_share_one_read_timeout(self) -> None:
+        # Deadline 0 + 60; a retry gets what is left after its wait.
+        fake = self.timed([0.0, 1.0, 20.0])
+        self.assertEqual(fake.timeouts, [None, 60.0 - 1.0 - 2.0, 60.0 - 20.0 - 4.0])
+
+    def test_no_retry_once_the_timeout_is_spent(self) -> None:
+        fake = self.timed([0.0, 58.5])
+        self.assertEqual(fake.timeouts, [None])
+        self.assertEqual(fake.listings(), 1)
 
     def test_any_other_failure_is_not_read_again(self) -> None:
         for error in self.NOT_TRANSIENT:
