@@ -418,6 +418,11 @@ function humanLabelFrom(path) {
   if (typeof label !== "string" || label === "") {
     throw new Error("the human-gated role label is not a non-empty string");
   }
+  // agent-ready starts this lane, so a pushback adding it would start the
+  // next run itself.
+  if (label.trim().toLowerCase() === "agent-ready") {
+    throw new Error("the human-gated role label is agent-ready");
+  }
   return label;
 }
 

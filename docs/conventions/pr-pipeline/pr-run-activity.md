@@ -846,7 +846,7 @@ The request is `POST <LANES_BROKER_URL>` with `Authorization: Bearer <OIDC token
 body `{"lane": "<lane>", "activity": "<activity>", "pr_number": <n>, "dispatcher_run_id": <id>}`;
 `pr_number` is the gate's PR and is required on `workflow_dispatch` and `workflow_run`. An `issues` request,
 allowed only from `work-resolve-issue.yml`, sends `issue_number` (the `issue-number` input)
-instead, and neither of the other two; its actor, the labeler, must be a listed human, or the lanes App on an issue the owner ratified (the broker re-checks the marker). A `merge` request from `pr-merge.yml` names no pull request either; its actor must be a listed human, except on a `schedule` run on `refs/heads/main`, whose actor is whoever last edited the workflow file and is not checked. A re-run of a scheduled run must be started by a listed human. `dispatcher_run_id`, a positive
+instead, and neither of the other two; its actor, the labeler, must be a listed human, or the lanes App. The broker (azure-iac's `lanes-token-broker`) still re-checks the retired ratification marker for the App, so until it drops that check an App-labeled issue without the marker gets no token and the run fails closed. A `merge` request from `pr-merge.yml` names no pull request either; its actor must be a listed human, except on a `schedule` run on `refs/heads/main`, whose actor is whoever last edited the workflow file and is not checked. A re-run of a scheduled run must be started by a listed human. `dispatcher_run_id`, a positive
 JSON integer, is the `dispatcher-run-id` input, sent only when set. The broker reads it only when
 the OIDC actor is `github-actions[bot]`: such a run mints only when the `pr-unblock-dispatch.yml`
 run it names passes the checks the trusted-trigger gate applies. That run must be on `main`,
@@ -941,13 +941,11 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
   non-empty `reuse-branch` is this issue's `work-resolve-issue/issue-<n>-<run id>-<attempt>`.
 - The trigger gate runs with `require-pr: false` and `require-kind: human`: the account that
   applied the label, and any re-runner, must be listed as a human. The one exception is the
-  caller's `ratified-app-label` (`agent-ready` for `work-resolve-issue.yml`): the lanes App may
-  apply it while the issue carries the owner's ratification marker, re-read from the API when the
-  run starts (a listed human's comment, never edited, not posted through an App), with no body
-  edit or title change since the newest such comment; the re-runner
-  is then the App or a listed human. The App's other labels never start a run. `check-trusted-base` trusts the
+  caller's `app-label` (`agent-ready` for `work-resolve-issue.yml`): the lanes App may apply it,
+  and the label alone admits the issue; the re-runner is then the App or a listed human. The
+  App's other labels never start a run, and no step of the lane adds `agent-ready`. `check-trusted-base` trusts the
   default branch tip, and that commit is the head the job checks out.
-- `resolve-config` decides the issue's labels from the event payload and `labeled-after`, the
+- `resolve-config` reads the issue's labels now, for the hold labels, and `labeled-after`, the
   lane's go-live time, from the issue's update time. The token request sends `issue_number`.
 - Each issue is worked once. In a skill run, the `issue-prior` step (`report-outcome.mjs
   --find-prior`) runs after `resolve-config` and before the mint, with the job's read-only
@@ -970,8 +968,12 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
   rules keep (`write-issue.mjs`), oldest first, so a listed maintainer's recorded decision reaches
   the skill. The lanes App's own comments are left out, a listed human's comment whose first line
   is `**Decision recorded.**` is marked `decision: true`, and comments other than decisions are
-  capped at the newest 20. When the lanes App applied the label, a comment created or edited
-  after the newest ratification marker is left out, matching the gate's frozen title and body. The skill commits to a new branch,
+  capped at the newest 20. The issue is frozen at the `labeled` event that started this run (the
+  labeler's newest such event no later than the payload's issue `updated_at`; a later label event
+  by anyone never moves it, and the lanes App's remove-and-re-add after a limit stop anchors at
+  the label it restarted): a
+  comment created or edited after that is left out, and a title or body changed since fails the
+  step, so text edited after admission does not steer the run. The skill commits to a new branch,
   `<lane>/issue-<n>-<run id>-<attempt>`, which is kept only when it holds commits. The skill's
   `work-outcome.json` and the runner's `lane.json` (the kept branch, or empty) are uploaded as the
   `work-outcome-<n>` artifact, and the job output `issue-run-started` is `true` once the token

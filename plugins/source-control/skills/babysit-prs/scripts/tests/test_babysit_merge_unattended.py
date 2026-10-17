@@ -355,9 +355,9 @@ class Unattended(unittest.TestCase):
         self.lane_recheck_kwargs: list[dict[str, Any]] = []
         # True runs the real re-read over a stubbed `_graphql`.
         self.real_lane_recheck = False
-        # The owner's ratification read (comments and the trusted list).
-        self.ratification_now: str | None = None
-        self.ratification_reads: list[tuple[Any, ...]] = []
+        # The base-branch read (the default branch's name).
+        self.base_now: str | None = None
+        self.base_reads: list[tuple[Any, ...]] = []
         # The pull request's REST author, and the Dependabot class's reads:
         # the assessment's, then the re-read before the enqueue.
         self.pr_user = {"login": IDENTITY, "type": "Bot"}
@@ -481,10 +481,8 @@ class Unattended(unittest.TestCase):
             ),
             mock.patch.object(
                 policy,
-                "_ratification_refusal",
-                side_effect=lambda *a: (
-                    self.ratification_reads.append(a) or self.ratification_now
-                ),
+                "_base_refusal",
+                side_effect=lambda *a: self.base_reads.append(a) or self.base_now,
             ),
             *(
                 []
@@ -730,20 +728,17 @@ class LaneMode(Unattended):
         self.assertEqual(len(self.lane_recheck_kwargs), 1)
         self.assertEqual(self.lane_recheck_kwargs[0], {"issue": 41})
 
-    def test_a_ratification_gone_before_the_enqueue_refuses(self) -> None:
-        # #7725: a marker deleted or edited after the eligibility read.
+    def test_a_base_retargeted_before_the_enqueue_refuses(self) -> None:
         self.closing_issue_now([])
-        self.ratification_now = "not-ratified"
+        self.base_now = "base-not-default:release"
         code, out = self.lane()
         self.assert_no_merge(code)
         self.assertIn(
-            "unattended merge refused: ineligible:not-ratified", out["blockers"]
+            "unattended merge refused: ineligible:base-not-default:release",
+            out["blockers"],
         )
-        # Read fresh at the recheck, on the closing issue.
-        self.assertEqual(
-            [(o, n, issue["number"]) for o, n, _, issue in self.ratification_reads],
-            [("owner", "repo", 41)],
-        )
+        # Read fresh at the recheck.
+        self.assertEqual([(o, n) for o, n, _ in self.base_reads], [("owner", "repo")])
 
     def test_an_ineligible_pr_is_refused(self) -> None:
         self.lane_eligible = policy.Eligibility(False, "denied-path:.github/x.yml")

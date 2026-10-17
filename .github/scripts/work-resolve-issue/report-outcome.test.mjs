@@ -428,6 +428,24 @@ test("main with no outcome files comments stopped and adds needs-human", async (
   });
 });
 
+// agent-ready starts this lane, so a run that added it would start the next.
+test("main refuses a human-gated label that is agent-ready and writes no label", async () => {
+  // Not withDir: main reads the tracker config after its first await.
+  const dir = mkdtempSync(join(tmpdir(), "outcome-"));
+  try {
+    writeFileSync(join(dir, "tracker.json"), JSON.stringify({ config: { role_labels: { "human-gated": " Agent-Ready" } } }));
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), TRACKER_CONFIG: join(dir, "tracker.json") }, fetch }), 1);
+    assert.ok(!calls.some((c) => c.method === "POST"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("main on done opens a ready PR from the branch and adds no label to it", async () => {
   await withDir(
     { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }) },

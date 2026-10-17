@@ -51,11 +51,11 @@ const LIVE_FACTS = {
   event: "labeled",
   changedPaths: ["docs/guide.md"],
   changedTargets: ["docs/guide.md"],
-  labels: [],
+  // resolve-issue applies only while its issue carries agent-ready.
+  labels: ["agent-ready"],
   workClasses: [],
   mergeable: "conflicting",
   draft: false,
-  ratified: true,
   labeledAt: "2026-10-16T00:00:00Z",
 };
 const liveSlot = (lane, activity) =>
