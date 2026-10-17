@@ -131,6 +131,7 @@ runs:
           fail "lane-token-unconfigured: LANES_BROKER_AUDIENCE holds characters an audience cannot"
         name='^[a-z][a-z0-9]*(-[a-z0-9]+)*$'
         [[ $LANE =~ $name && $ACTIVITY =~ $name ]] || fail "the lane and activity must be kebab-case names"
+        SUPERSEDED_OK=${SUPERSEDED_OK:-false}
         [[ $SUPERSEDED_OK == true || $SUPERSEDED_OK == false ]] || fail "superseded-ok must be true or false"
         case "$MODE" in
         token)
