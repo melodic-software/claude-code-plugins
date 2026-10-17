@@ -31,6 +31,7 @@ import posixpath
 import re
 import sys
 import tempfile
+import urllib.request
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
@@ -1513,13 +1514,15 @@ def _dependabot_content(
     pr: Mapping[str, Any],
     commits: list[dict[str, Any]],
     files: Callable[[str], list[str] | None],
-) -> tuple[str | None, str | None]:
-    """(content reason, refusal). The content reason, `dependabot-content:<x>`,
-    names a diff that is not only covered manifests, lock files and `uses:`
-    repins (`content_refusal`, per `.github/dependabot.yml` at the base); it
-    sends the pull request to tier `review`. The paths a version-bump or lanes
-    App fix commit touched count as checked; a fix commit touching `.github/`,
-    or one whose file list cannot be read whole, is the refusal. Raises
+) -> tuple[str | None, str | None, list[str] | None]:
+    """(content reason, refusal, changed paths). The content reason,
+    `dependabot-content:<x>`, names a diff that is not only covered manifests,
+    lock files and `uses:` repins (`content_refusal`, per
+    `.github/dependabot.yml` at the base); it sends the pull request to tier
+    `review`. The paths a version-bump or lanes App fix commit touched count
+    as checked; a fix commit touching `.github/`, or one whose file list cannot
+    be read whole, is the refusal. The changed paths (either side of a rename)
+    are None when the files listing was not read whole. Raises
     `PolicyReadError` on a read failure."""
     base_sha = str(json_object(pr.get("base")).get("sha") or "")
     extra: set[str] = set()
@@ -1530,24 +1533,53 @@ def _dependabot_content(
         touched = files(sha)
         if touched is None:
             # Unreadable (or past the listing cap) is not "touches nothing".
-            return None, f"unreadable: commit files {sha[:12]}"
+            return None, f"unreadable: commit files {sha[:12]}", None
         if not dependabot.is_actions_commit(item):
             gated = [p for p in touched if p == ".github" or p.startswith(".github/")]
             if gated:
-                return None, f"dependabot-fix-content:{gated[0]}"
+                return None, f"dependabot-fix-content:{gated[0]}", None
         extra.update(touched)
     config = dependabot.parse_config(
         _file_at(owner, name, DEPENDABOT_CONFIG, base_sha) or ""
     )
     if config is None:
-        return "dependabot-config-unreadable", None
+        return "dependabot-config-unreadable", None, None
     listing = _paginated(
         f"repos/{owner}/{name}/pulls/{number}/files?per_page=100", f"#{number} files"
     )
     changed = pr.get("changed_files")
     if not isinstance(changed, int) or changed != len(listing):
-        return "dependabot-content:files-incomplete", None
-    return dependabot.content_refusal(listing, config, extra), None
+        return "dependabot-content:files-incomplete", None, None
+    paths = [
+        str(p)
+        for entry in map(json_object, listing)
+        for p in (entry.get("filename"), entry.get("previous_filename"))
+        if p
+    ]
+    return dependabot.content_refusal(listing, config, extra), None, paths
+
+
+def _dependabot_policy(owner: str, name: str, base_sha: str) -> Any:
+    """The base's standards Dependabot policy as parsed JSON, or None when it
+    is absent or not JSON (`review_only` then reports it unreadable). Raises
+    `PolicyReadError` on a read failure."""
+    text = _file_at(owner, name, dependabot.POLICY_PATH, base_sha)
+    try:
+        return json.loads(text) if text is not None else None
+    except ValueError:
+        return None
+
+
+def _registry_json(url: str, accept: str) -> Any:
+    """A package registry's JSON at `url` for the provenance gate; raises on
+    any HTTP failure, a timeout or a body that is not JSON."""
+    request = urllib.request.Request(
+        url, headers={"Accept": accept, "User-Agent": "babysit-prs"}
+    )
+    with urllib.request.urlopen(  # noqa: S310 - fixed https registry URLs
+        request, timeout=dependabot.PROVENANCE_TIMEOUT
+    ) as response:
+        return json.loads(response.read())
 
 
 def _commit_files(owner: str, name: str) -> Callable[[str], list[str] | None]:
@@ -1656,12 +1688,32 @@ def dependabot_eligibility(
         refusal = dependabot.commits_refusal(commits, files, agent_identity)
         if refusal:
             return Eligibility(False, refusal, "C2", dependabot=tier)
-        content, refusal = _dependabot_content(owner, name, number, pr, commits, files)
+        content, refusal, paths = _dependabot_content(
+            owner, name, number, pr, commits, files
+        )
         if refusal:
             return Eligibility(False, refusal, "C2", dependabot=tier)
-        if content:
+        # A dependency the standards policy lists as review-only goes to review
+        # whatever its version change; an unreadable policy sends every one.
+        listed = dependabot.review_only(
+            _dependabot_policy(
+                owner, name, str(json_object(pr.get("base")).get("sha") or "")
+            ),
+            repo,
+            str(json_object(pr.get("head")).get("ref") or ""),
+            tier.updates,
+            paths,
+        )
+        added = tuple(r for r in (content, *listed) if r)
+        # A release whose registry provenance changed goes to review; only a
+        # pull request still tier `auto` spends the registry reads.
+        if not added and tier.tier == dependabot.AUTO:
+            added = dependabot.provenance_reasons(
+                tier.updates, tier.ecosystem, _registry_json
+            )
+        if added:
             tier = replace(
-                tier, tier=dependabot.REVIEW, reasons=(*tier.reasons, content)
+                tier, tier=dependabot.REVIEW, reasons=(*tier.reasons, *added)
             )
         # A tier `review` pull request merges only on the review activity's
         # `verdict=merge` at this head, and may then carry its fix commits.
