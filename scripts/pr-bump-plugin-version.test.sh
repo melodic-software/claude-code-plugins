@@ -50,6 +50,8 @@ const TOP_KEYS = ["name", "on", "permissions", "concurrency", "jobs"];
 const JOB_KEYS = ["if", "runs-on", "timeout-minutes", "permissions", "steps"];
 const STEP_KEYS = ["name", "id", "uses", "with", "run", "env"];
 const BUMP_JOB = "bump-plugin-version";
+const ON = { pull_request: { types: ["opened", "synchronize", "reopened"], paths: ["plugins/**"] } };
+const BUMP_IF = "github.event.pull_request.user.login == 'dependabot[bot]'";
 
 const isMap = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const readOnly = (p) =>
@@ -97,18 +99,49 @@ function auditWriter(id, job) {
     if (typeof run !== "string") return flag(`${at}: run is not a string`);
     if (!run.includes("\n")) {
       if (RUN_LINES.includes(run)) return;
-      if (BASE_SCRIPT.test(run) && !run.includes("..") && !CHAINING.test(run)) return;
+      if (BASE_SCRIPT.test(run) && !run.includes("..") && !run.includes("${{") && !CHAINING.test(run)) return;
       return flag(`${at}: run '${run}' is neither bash on a .base script nor a listed line`);
     }
     const sum = createHash("sha256").update(run).digest("hex");
     if (!RUN_BLOCKS.includes(sum)) flag(`${at}: an inline run block is not on the allowlist (sha256 ${sum})`);
   });
+  auditOrder(id, job.steps);
+}
+
+// One PR-head checkout, then the guard, then main's checkout at .base, after
+// which no checkout runs; `bash .base/...` runs only after main's checkout.
+function auditOrder(id, steps) {
+  const at = (pred) => steps.flatMap((s, i) => (isMap(s) && pred(s) ? [i] : []));
+  const prs = at((s) => s.uses === CHECKOUT && isMap(s.with) && !("path" in s.with));
+  const bases = at((s) => s.uses === CHECKOUT && s.with?.path === ".base");
+  const guards = at((s) => s.run === GUARD);
+  const uses = at((s) => "uses" in s);
+  if (prs.length !== 1) flag(`${id}: has ${prs.length} pull request checkouts, not exactly one`);
+  const base = bases.length ? bases[0] : Infinity;
+  if (uses.some((i) => i > base)) flag(`${id}: a checkout or action runs after main's checkout`);
+  if (bases.length && !guards.some((g) => g > Math.max(...prs, -1) && g < base))
+    flag(`${id}: main's checkout does not follow the last pull request checkout and the .base guard`);
+  for (const i of at((s) => typeof s.run === "string" && BASE_SCRIPT.test(s.run)))
+    if (!(i > base)) flag(`${id} step ${i + 1}: runs a .base script before main's checkout`);
+}
+
+// `<<` would merge keys in from elsewhere in the file under a YAML 1.1 reader.
+function mergeKeys(node, path) {
+  if (Array.isArray(node)) node.forEach((v, i) => mergeKeys(v, `${path}[${i}]`));
+  else if (isMap(node))
+    for (const [k, v] of Object.entries(node)) {
+      if (k === "<<") flag(`${path}: uses a << merge key`);
+      mergeKeys(v, `${path}.${k}`);
+    }
 }
 
 if (!isMap(wf) || !isMap(wf.jobs)) {
   flag("the workflow has no jobs mapping");
 } else {
+  mergeKeys(wf, "(workflow)");
   for (const key of Object.keys(wf)) if (!TOP_KEYS.includes(key)) flag(`the workflow sets top-level ${key}`);
+  if (!isDeepStrictEqual(wf.on, ON)) flag(`the workflow triggers on ${JSON.stringify(wf.on)}, not the pinned trigger`);
+  if (wf.jobs[BUMP_JOB]?.if !== BUMP_IF) flag(`${BUMP_JOB} does not run only for Dependabot's pull requests`);
   if (wf.jobs[BUMP_JOB]?.permissions?.contents !== "write")
     flag(`${BUMP_JOB} does not hold contents: write; the bump cannot land`);
   for (const [id, job] of Object.entries(wf.jobs)) {
@@ -116,12 +149,8 @@ if (!isMap(wf) || !isMap(wf.jobs)) {
     const perms = "permissions" in job ? job.permissions : wf.permissions;
     if (!readOnly(perms)) auditWriter(id, job);
   }
-  const pr = steps.findIndex((s) => s?.uses === CHECKOUT && isMap(s.with) && !("path" in s.with));
-  const guard = steps.findIndex((s) => s?.run === GUARD);
   const base = steps.findIndex((s) => s?.uses === CHECKOUT && s.with?.path === ".base");
-  if (!(pr >= 0 && pr < guard && guard < base))
-    flag(`${BUMP_JOB}: the .base guard does not run after the pull request checkout and before main's`);
-  if (!steps.some((s, i) => i > base && /^bash \.base\/scripts\/dependabot-plugin-bump\.sh /.test(s?.run ?? "")))
+  if (base < 0 || !steps.some((s, i) => i > base && /^bash \.base\/scripts\/dependabot-plugin-bump\.sh /.test(s?.run ?? "")))
     flag(`${BUMP_JOB}: no step after main's checkout runs .base/scripts/dependabot-plugin-bump.sh`);
 }
 if (findings.length) console.log(findings.join("\n"));
@@ -227,6 +256,18 @@ mutants=(
   "job:$(job "$NL      id-token: write")"
   "sub:  contents: read=>  contents: write${S}job:$(job '')"
   "sub:permissions:=>${S}sub:  contents: read=>${S}job:$(job '')"
+  # A: a writer that runs a .base script with no main checkout behind it.
+  "job:  extra:$NL    runs-on: ubuntu-24.04$NL    permissions:$NL      contents: write$NL    steps:$NL$checkout$NL$pr_with$NL          persist-credentials: false$NL      - run: bash .base/scripts/x.sh"
+  # B: a .base script between the pull request checkout and the guard.
+  "sub:      - name: Refuse a pull request that tracks .base=>      - run: bash .base/scripts/x.sh$NL      - name: Refuse a pull request that tracks .base"
+  # C: a second pull request checkout after main's.
+  "sub:      - name: Bump legacy plugin manifests and changelogs=>$checkout$NL$pr_with$NL          persist-credentials: false$NL      - name: Bump legacy plugin manifests and changelogs"
+  # D: an expression interpolated into an allowed run line.
+  "sub:      - name: Commit release metadata=>      - run: bash .base/scripts/x.sh \${{ github.event.pull_request.title }}$NL      - name: Commit release metadata"
+  # E: a merge key.
+  "sub:  cancel-in-progress: true=>  cancel-in-progress: true$NL  <<: {group: x}"
+  # F: pull_request_target, with the Dependabot-only condition dropped.
+  "sub:  pull_request:=>  pull_request_target:${S}sub:    if: github.event.pull_request.user.login == 'dependabot[bot]'=>"
 )
 for mutant in "${mutants[@]}"; do
   mapfile -d "$S" -t ops < <(printf '%s' "$mutant")
