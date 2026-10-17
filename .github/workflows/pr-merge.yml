@@ -111,11 +111,14 @@ jobs:
       dispatch: ${{ steps.mode.outputs.live == 'true' && (steps.gate.outputs.dispatch == 'true' || steps.post-merge.outputs.needs-dispatch == 'true') }}
     steps:
       # Everything below runs from main as it is right now, never from a PR.
+      # Full history: the gate reads the pipeline config's history from this
+      # clone with git instead of one contents-API call per commit.
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: refs/heads/main
           path: .base
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node
