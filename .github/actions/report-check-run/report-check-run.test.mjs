@@ -126,7 +126,7 @@ test("a lane record from env opens the summary, fills output.text and external_i
   const [line, blank, ...rest] = body.output.summary.split("\n");
   assert.equal(line, "lane=pr-refine activity=simplify class=rate-limit resets=2026-10-17T15:30:00Z turns=3 max-turns=30");
   assert.equal(blank, "");
-  assert.notEqual(rest.join("\n"), "");
+  assert.equal(rest.join("\n"), "The activity step failed.");
   const json = /^```json\n(.*)\n```$/.exec(body.output.text);
   assert.deepEqual(JSON.parse(json[1]), {
     lane: "pr-refine",
