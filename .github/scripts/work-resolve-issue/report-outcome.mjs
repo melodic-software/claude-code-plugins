@@ -7,7 +7,7 @@
 //             `"link": "refs"` (a recorded decision keeps the issue open),
 //             which also holds the PR for a human, since the merge gate
 //             reads the work class from a closing issue. The title is the
-//             run's Conventional Commits title, with any `#` or `/` dropped
+//             run's Conventional Commits title, with any `#` or `/` a space
 //             (else one built from the issue title), and the body carries
 //             the hold line when a human must merge it. The PR gets no label:
 //             the work class lives on the issue only, and the merge gate reads
@@ -63,17 +63,19 @@ async function paginate(github, apiPath, maxPages = 50) {
 
 export const HOLD_LINE = "Hold: a human merges this";
 const EXITS = new Set(["done", "pushback", "stopped"]);
-// The subject allows no `#` or `/`, so the squash commit title cannot name an
-// issue to close.
-const PREFIX = /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._-]+\))?!?: /;
-const SUBJECT = /^[A-Za-z0-9][A-Za-z0-9 ,.:;()'"`!?+=_-]{0,98}$/;
+// The subject allows no `#`, `/` or `GH-<digit>`, so the squash commit title
+// cannot name an issue to close.
+const PREFIX = /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|security|style|test)(\([a-z0-9._-]+\))?!?: /;
+const SUBJECT = /^(?!.*\bGH-\d)[A-Za-z0-9][A-Za-z0-9 ,.:;()'"`!?+=_-]{0,98}$/i;
 const SUBJECT_MAX = 99;
 
-// A subject with every character SUBJECT refuses made a space, starting at a
-// letter or digit, and cut at a word to SUBJECT_MAX; empty when nothing is left.
+// A subject with every character SUBJECT refuses made a space, `GH-<digit>`
+// split, starting at a letter or digit, and cut at a word to SUBJECT_MAX;
+// empty when nothing is left.
 function subjectFrom(text) {
   let subject = text
     .replaceAll(/[^A-Za-z0-9 ,.:;()'"`!?+=_-]+/g, " ")
+    .replaceAll(/\b(GH)-(?=\d)/gi, "$1 ")
     .replaceAll(/\s+/g, " ")
     .replace(/^[^A-Za-z0-9]+/, "")
     .trimEnd();
@@ -93,7 +95,7 @@ function conventionalFrom(text) {
 }
 
 // The PR title: the run's when valid; else the run's with the refused
-// characters dropped, when it opens with a type; else one from the issue
+// characters made spaces, when it opens with a type; else one from the issue
 // title; else one from the issue number.
 function prTitle(runTitle, issueTitle, issueNumber) {
   const match = PREFIX.exec(runTitle);

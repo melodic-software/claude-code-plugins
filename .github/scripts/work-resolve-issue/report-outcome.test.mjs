@@ -137,6 +137,10 @@ test("a long issue title is cut at a word to the subject's 99 characters", () =>
   );
 });
 
+test("done keeps a security: title", () => {
+  assert.equal(decideDone({ outcome: { ...done, title: "security: pin an action" } }).title, "security: pin an action");
+});
+
 test("with no usable run or issue title the PR is titled from the issue number", () => {
   assert.equal(decideDone({ outcome: { ...done, title: "" }, issueTitle: "###" }).title, "fix: resolve issue 77");
 });
@@ -373,6 +377,11 @@ test("no issue reference from the model's summary survives into the body", () =>
 
 test("a title carrying an issue reference loses the reference", () => {
   assert.equal(decideDone({ outcome: { ...done, title: "fix: x, closes #5" } }).title, "fix: x, closes 5");
+});
+
+test("a GH- issue reference is broken in a run or issue title", () => {
+  assert.equal(decideDone({ outcome: { ...done, title: "fix: x, closes GH-5" } }).title, "fix: x, closes GH 5");
+  assert.equal(decideDone({ outcome: { ...done, title: "" }, issueTitle: "Closes gh-5" }).title, "fix: Closes gh 5");
 });
 
 test("an issue title carrying an issue reference or URL loses it", () => {
