@@ -2,7 +2,7 @@
 
 A Claude Code plugin that bundles three doctrine and knowledge playbooks as
 on-demand skills, one playbook runner (`repo-sweep`), and one maintainer-facing
-update skill. Each pack is a pure knowledge or navigation skill: invoking it
+update skill. Each pack is a pure knowledge or navigation skill. Invoking it
 serves distilled guidance and performs no work of its own.
 
 ## Skills
@@ -77,7 +77,7 @@ reads it from.
 
 ### How to set these
 
-Three supported routes, in the order most people want them:
+Three supported routes:
 
 1. **Interactively.** Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure playbooks@<marketplace>`.

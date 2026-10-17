@@ -161,7 +161,7 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         "",
         "### How to set these",
         "",
-        "Three supported routes, in the order most people want them:",
+        "Three supported routes:",
         "",
         "1. **Interactively.** Claude Code prompts for declared options when you enable the",
         f"   plugin. To change them later: `/plugin configure {plugin}@{marketplace}`.",

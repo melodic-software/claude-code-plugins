@@ -1243,6 +1243,145 @@ test("a reuse branch that is not this issue's lane branch is refused", async () 
   }
 });
 
+// The summary pass: on a reuse, a read-only model pass over the branch diff
+// and the issue writes reuse-summary.json beside runner facts (issue, branch,
+// the tip it read). Owner decision: a reuse PR keeps the hold line whether or
+// not it carries a usable summary; with none, it keeps today's fixed text.
+const TIP = "a".repeat(40);
+const summaryFile = (overrides = {}, output = {}) =>
+  JSON.stringify({
+    version: 1,
+    issue: 77,
+    branch: lane(400),
+    tip: TIP,
+    output: { title: "docs(work-items): summary title", summary: "SUMMARY-PASS-TEXT", changes: ["CHANGE-ONE"], ...output },
+    ...overrides,
+  });
+// Readable denied paths, so a hold decided from runner facts (decide()'s
+// predicate) would not hold the README-only, read-only-class reuse PRs below:
+// only the rule that every reuse PR is held puts the hold line on them.
+const RESOLVED = JSON.stringify({ merge: { "diff-check": { "denied-paths": HOLD_GLOBS } } });
+const summaryEnv = (dir) => ({ ...reuseEnv(dir), REUSE_SUMMARY_DIR: dir, RESOLVED_CONFIG: join(dir, "resolved.json") });
+const tipRoute = (sha = TIP) => ["GET", /\/git\/ref\/heads\/work-resolve-issue\/issue-77-400-1$/, 200, { object: { sha } }];
+const usable = { title: "docs(work-items): summary title", summary: "SUMMARY-PASS-TEXT", changes: ["CHANGE-ONE"] };
+
+test("a reuse PR with a usable summary carries it under the hold line", () => {
+  const plan = reusePlan({ issueNumber: 77, branch: lane(400), summary: usable, changedFiles: ["README.md"], holdPaths: HOLD_GLOBS });
+  assert.equal(plan.title, "docs(work-items): summary title");
+  assert.ok(plan.body.startsWith("Closes #77\n\nHold: a human merges this\n\n## Summary\n"), plan.body);
+  assert.ok(plan.body.includes("> SUMMARY-PASS-TEXT"), plan.body);
+  assert.ok(plan.body.includes("- CHANGE-ONE"), plan.body);
+  assert.deepEqual(headings(plan.body), ["## Summary", "## Fix", "## Verification", "## Related"]);
+});
+
+test("a reuse PR lists the files the branch changes, denied paths marked and first", () => {
+  for (const summary of [usable, null]) {
+    const plan = reusePlan({
+      issueNumber: 77,
+      branch: lane(400),
+      summary,
+      changedFiles: ["README.md", ".github/workflows/x.yml"],
+      holdPaths: HOLD_GLOBS,
+    });
+    const fix = plan.body.slice(plan.body.indexOf("## Fix"), plan.body.indexOf("## Verification"));
+    assert.ok(fix.includes("- .github/workflows/x.yml (denied path)\n- README.md\n"), fix);
+  }
+});
+
+test("a reuse PR lists a file name holding a comment opener in full, escaped", () => {
+  const plan = reusePlan({ issueNumber: 77, branch: lane(400), changedFiles: ["a<!--b.md"], holdPaths: HOLD_GLOBS });
+  assert.ok(plan.body.includes("\n- a&lt;!--b.md\n"), plan.body);
+});
+
+test("format and bidi characters are dropped from file names and summary text", () => {
+  const plan = reusePlan({
+    issueNumber: 77,
+    branch: lane(400),
+    summary: { ...usable, summary: "SUM‮MARY​TEXT" },
+    changedFiles: ["evil‮dm.​sh"],
+    holdPaths: HOLD_GLOBS,
+  });
+  assert.ok(plan.body.includes("\n- evildm.sh\n"), plan.body);
+  assert.ok(plan.body.includes("> SUMMARYTEXT"), plan.body);
+  assert.ok(!/[‮​]/.test(plan.body), plan.body);
+});
+
+test("a reuse PR's file list says when the denied paths or the listing cannot be read", () => {
+  const unmarked = reusePlan({ issueNumber: 77, branch: lane(400), changedFiles: [".github/workflows/x.yml"], holdPaths: null });
+  assert.ok(unmarked.body.includes("so none is marked") && !unmarked.body.includes("(denied path)"), unmarked.body);
+  const missing = reusePlan({ issueNumber: 77, branch: lane(400), changedFiles: null, holdPaths: HOLD_GLOBS });
+  assert.ok(missing.body.includes("The changed-file list is unavailable"), missing.body);
+});
+
+test("main opens a held reuse PR when the compare request fails, saying the file list is unavailable", async () => {
+  await withAsyncDir({ "reuse-summary.json": summaryFile(), "resolved.json": RESOLVED }, async (dir) => {
+    const routes = [tipRoute(), ...PR_ROUTES.map((r) => (String(r[1]) === String(/\/compare\//) ? ["GET", /\/compare\//, 500, { message: "boom" }] : r))];
+    const { fetch, calls } = fakeFetch(routes);
+    assert.equal(await main({ env: summaryEnv(dir), fetch }), 0);
+    const pull = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body;
+    assert.ok(pull.body.includes("The changed-file list is unavailable"), pull.body);
+    assert.ok(pull.body.includes("SUMMARY-PASS-TEXT"), pull.body);
+    assert.ok(pull.body.split("\n").includes("Hold: a human merges this"), pull.body);
+  });
+});
+
+test("main opens a held reuse PR from a summary bound to this issue, branch and tip", async () => {
+  await withAsyncDir({ "reuse-summary.json": summaryFile(), "resolved.json": RESOLVED }, async (dir) => {
+    const { fetch, calls } = fakeFetch([tipRoute(), ...PR_ROUTES]);
+    assert.equal(await main({ env: summaryEnv(dir), fetch }), 0);
+    const pull = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body;
+    assert.equal(pull.head, lane(400));
+    assert.equal(pull.title, "docs(work-items): summary title");
+    assert.ok(pull.body.includes("SUMMARY-PASS-TEXT") && pull.body.includes("CHANGE-ONE"), pull.body);
+    assert.ok(pull.body.includes("\n- README.md\n") && !pull.body.includes("(denied path)"), pull.body);
+    assert.ok(pull.body.split("\n").includes("Hold: a human merges this"), pull.body);
+  });
+});
+
+test("main keeps the fixed text and the hold line when the summary is missing or unusable", async () => {
+  for (const [label, files, tip] of [
+    ["no summary file", {}, TIP],
+    ["another issue", { "reuse-summary.json": summaryFile({ issue: 7 }) }, TIP],
+    ["another branch", { "reuse-summary.json": summaryFile({ branch: lane(399) }) }, TIP],
+    ["the branch moved", { "reuse-summary.json": summaryFile() }, "b".repeat(40)],
+    ["no structured output", { "reuse-summary.json": summaryFile({ output: null }) }, TIP],
+    ["an empty summary", { "reuse-summary.json": summaryFile({}, { summary: "  " }) }, TIP],
+    ["not JSON", { "reuse-summary.json": "{" }, TIP],
+    ["another version", { "reuse-summary.json": summaryFile({ version: 2 }) }, TIP],
+  ]) {
+    await withAsyncDir(files, async (dir) => {
+      const { fetch, calls } = fakeFetch([tipRoute(tip), ...PR_ROUTES]);
+      assert.equal(await main({ env: summaryEnv(dir), fetch }), 0, label);
+      const pull = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body;
+      assert.equal(pull.title, "fix: resolve issue 77", label);
+      assert.ok(pull.body.split("\n").includes("Hold: a human merges this"), label);
+      assert.ok(!pull.body.includes("SUMMARY-PASS-TEXT") && !pull.body.includes("CHANGE-ONE"), label);
+    });
+  }
+});
+
+test("main keeps the hold line when the branch tip cannot be read", async () => {
+  await withAsyncDir({ "reuse-summary.json": summaryFile() }, async (dir) => {
+    const { fetch, calls } = fakeFetch(PR_ROUTES);
+    assert.equal(await main({ env: summaryEnv(dir), fetch }), 0);
+    const pull = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body;
+    assert.ok(pull.body.split("\n").includes("Hold: a human merges this"), pull.body);
+    assert.ok(!pull.body.includes("SUMMARY-PASS-TEXT"), pull.body);
+  });
+});
+
+test("a branch's own outcome wins over a summary, so the summary never stands in for a report", async () => {
+  await withAsyncDir(
+    { "work-outcome.json": JSON.stringify(model), "lane.json": JSON.stringify({ branch: lane(400) }), "reuse-summary.json": summaryFile() },
+    async (dir) => {
+      const { fetch, calls } = fakeFetch([tipRoute(), ...PR_ROUTES]);
+      assert.equal(await main({ env: summaryEnv(dir), fetch }), 0);
+      const pull = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body;
+      assert.ok(pull.body.includes("MODEL-SUMMARY-TEXT") && !pull.body.includes("SUMMARY-PASS-TEXT"), pull.body);
+    },
+  );
+});
+
 // collect-base-activity runs a script activity from a copy of its own
 // directory under $RUNNER_TEMP, so every import must resolve inside it.
 test("the script loads from a copy of its own directory alone", async () => {

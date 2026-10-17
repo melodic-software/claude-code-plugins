@@ -109,6 +109,8 @@ for (const [route, profile, args] of [
   ["review-code", "pr-review", "--model sonnet --max-turns 75 --effort high"],
   ["review-security", "pr-review", "--model sonnet --max-turns 75 --effort high"],
   ["triage-issue", "triage", "--model sonnet --max-turns 30 --effort medium"],
+  // Owner decision: the reuse summary is a short read-only pass at a low turn budget.
+  ["summarize-reuse", "summary", "--model sonnet --max-turns 10 --effort medium"],
 ]) {
   test(`live config: ${route} resolves ${args}`, () => {
     const models = resolveRoute(LIVE, { route, configPath: CONFIG_PATH });
@@ -219,7 +221,7 @@ test("a route naming a script activity or nothing known is undefined-route", () 
   assertRejected(() => resolveRoute(LIVE, { route: "fix-docs", configPath: CONFIG_PATH }), "undefined-route");
 });
 
-test("a run route that is not one of the four is undefined-route, as a model-route and as a config route", () => {
+test("a run route that is not one of the five is undefined-route, as a model-route and as a config route", () => {
   assertRejected(() => resolveRoute(LIVE, { route: "review-docs", configPath: CONFIG_PATH }), "undefined-route");
   const profiles = { p: { model: "opus", "max-turns": 5 } };
   assertRejected(
