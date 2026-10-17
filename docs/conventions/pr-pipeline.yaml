@@ -261,8 +261,8 @@ merge:
   rung: C2
   authority: pr-merge
   agent-identity: melodic-automation-lanes[bot]
-  # Reports each decision and writes nothing until the owner sets false.
-  report-only: true
+  # true: report each decision and write nothing.
+  report-only: false
   # A PR merges only with a passing pr-verify.yml verdict at its head. Must be
   # true at a rung above off: the gate refuses otherwise.
   require-verifier-verdict: true
