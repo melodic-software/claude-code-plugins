@@ -184,6 +184,39 @@ test("the denied paths come from the resolved config the runner wrote", () => {
   withDir({}, (dir) => assert.equal(readHoldPaths(join(dir, "resolved-config.json")), null));
 });
 
+// docs/conventions/pr-pipeline.yaml sets `denied-paths: []` on purpose: no
+// path is denied, so only the other hold reasons hold a PR (#7793, #7795).
+test("an empty denied-path list denies no path, so a PR with no other hold reason carries no hold line", () => {
+  withDir({ "resolved-config.json": JSON.stringify({ merge: { "diff-check": { "denied-paths": [] } } }) }, (dir) => {
+    const holdPaths = readHoldPaths(join(dir, "resolved-config.json"));
+    assert.deepEqual(holdPaths, []);
+    assert.ok(!decideDone({ holdPaths, changedFiles: [".github/workflows/ci.yml"] }).body.includes("Hold: a human merges this"));
+  });
+});
+
+for (const [name, text] of [
+  ["not JSON", "{"],
+  ["no denied-paths key", JSON.stringify({ merge: { "diff-check": {} } })],
+  ["a denied-paths string", JSON.stringify({ merge: { "diff-check": { "denied-paths": "a/**" } } })],
+  ["a non-string denied path", JSON.stringify({ merge: { "diff-check": { "denied-paths": ["a/**", 7] } } })],
+]) {
+  test(`a resolved config holding ${name} reads as no denied-path list and holds the PR`, () => {
+    withDir({ "resolved-config.json": text }, (dir) => {
+      const holdPaths = readHoldPaths(join(dir, "resolved-config.json"));
+      assert.equal(holdPaths, null);
+      assert.ok(decideDone({ holdPaths }).body.split("\n").includes("Hold: a human merges this"));
+    });
+  });
+}
+
+test("an unreadable resolved config reads as no denied-path list and holds the PR", () => {
+  withDir({}, (dir) => {
+    const holdPaths = readHoldPaths(dir);
+    assert.equal(holdPaths, null);
+    assert.ok(decideDone({ holdPaths }).body.split("\n").includes("Hold: a human merges this"));
+  });
+});
+
 // The body's `##` headings, in order.
 const headings = (body) => body.split("\n").filter((line) => /^## /.test(line));
 const section = (body, name) => body.split(`\n## ${name}\n\n`)[1].split("\n\n## ")[0];

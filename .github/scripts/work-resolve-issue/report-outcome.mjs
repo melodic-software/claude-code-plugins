@@ -176,12 +176,13 @@ const stepList = (value) =>
     .slice(0, MAX_ITEMS)
     .map(({ activity, result }) => ({ activity: activity.slice(0, 40), result: result.slice(0, 20) }));
 
-// The merge lane's denied-path globs from the resolved config, or null when
-// they cannot be read, which holds every PR.
+// The merge lane's denied-path globs from the resolved config; an empty list
+// denies no path. Null, which holds every PR, when the file cannot be read or
+// parsed, or the value is missing, not a list, or holds a non-string.
 export function readHoldPaths(path) {
   try {
     const paths = JSON.parse(readFileSync(path, "utf8"))?.merge?.["diff-check"]?.["denied-paths"];
-    return Array.isArray(paths) && paths.length && paths.every((glob) => typeof glob === "string") ? paths : null;
+    return Array.isArray(paths) && paths.every((glob) => typeof glob === "string") ? paths : null;
   } catch {
     return null;
   }
