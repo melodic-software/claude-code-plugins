@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## 2.4.0 - 2026-10-17
+
+`scripts/run-test-file.sh` runs a `*.test.js` or `*.test.ts` file that imports `vitest` with the
+package's locked vitest (`npx --no-install vitest run`, from the nearest `package.json` inside the
+checkout), under the same checkout-path guard. When it is a verify-script, the system prompt names
+its wrapper as the test entry and says a compound `cd <dir>; <command>` is refused
+([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). `version` stays 2.
+
 ## 2.3.0 - 2026-10-17
 
 `pr-run-activity.md` run job steps 11 and 12 now copy the base's `scripts/setup-env.sh` before the
