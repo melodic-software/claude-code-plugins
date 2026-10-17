@@ -1492,8 +1492,13 @@ same depth on two models):
   - **Recheck trigger:** either section changes what an effort change does to the cache, or which
     models, providers or versions keep the cache across one.
 
-**Pinned agents.** Every named agent in this repository pins its effort, so a session tuned down for
-cost does not silently cheapen a worker. Each pins the level that model config's task rows give its
+**Pinned agents.** Every named agent in this repository that sets its own `model` pins its effort, so
+a session tuned down for cost does not silently cheapen a worker. The twelve `model: inherit` agents
+pin neither: `discovery` `docs-fetcher` and `sweep-worker`; `docs-hygiene` `compare-labeler`;
+`multi-agent` `docs-fetcher`, `drift-checker` and `drift-reader`; `review` `lane-verifier` and
+`stage-normalizer`; `testing` `green-fixer`, `green-runner`, `green-verifier` and `test-judge`. Each
+leaves the model to its dispatcher (a workflow's role map, a CI lane, or a per-call value), and so
+leaves the level to that dispatch or the session. Each other agent pins the level that model config's task rows give its
 kind of work, and never below `medium` for work that changes code or verifies a change (the
 [effort floor](#effort-floor)). Twelve pin `effort: high`: `implementation` `phase-verifier`;
 `discovery` `researcher`, `intent-tracer`, and `research-verifier`; `review` `code-reviewer`,
@@ -1511,7 +1516,8 @@ passes no `effort` of its own, which is every dispatch of a pinned named agent t
 writes unless the user overrides the level for a run; a passed value would override the pin (see "Where per-task effort is set" below).
 
 - **Pointer:** the agent definitions themselves, listed by
-  `git grep -n '^effort:' -- 'plugins/*/agents/*.md'`;
+  `git grep -n '^effort:' -- 'plugins/*/agents/*.md'`, and `git grep -L` for the agents with no
+  pin (the `model: inherit` set above, plus a test fixture under `plugins/harness-ops`);
   [#4253](https://github.com/melodic-software/claude-code-plugins/issues/4253) for the filed pin
   list; for the task rows, see
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
@@ -1519,7 +1525,7 @@ writes unless the user overrides the level for a run; a passed value would overr
   [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level)
   and the `effort` field in
   [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
-- **As of:** 2026-10-02.
+- **As of:** 2026-10-17.
 - **Recheck trigger:** any new model on Claude Code's model page, or a pinned agent's `model`
   changes, since a level name means a different depth on each model; the task rows change; a
   checker pinned `medium` misses a defect a `high` pin caught; or a maintainer changes or drops a
