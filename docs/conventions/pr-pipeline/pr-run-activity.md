@@ -346,8 +346,14 @@ itself. `resolve-issue` lists two that do, each refusing (exit 2) an argument th
 has a `..` segment, starts with `-` or `:`, or resolves through a link to outside the checkout, including
 a path that does not exist yet (`scripts/lib/checkout-path.sh`). `scripts/run-test-file.sh` takes
 one test file and runs it by name, `test_*.py` under `python3 -m pytest`, `*.test.sh` under
-`bash`, `*.test.mjs` under `node --test`, each after `--`, without `GH_TOKEN` or `GITHUB_TOKEN`;
-it refuses any other file and any name outside `[A-Za-z0-9._/-]`, so pytest reads no node id. Its tests are checkout code with the network open. When the stage grants its wrapper,
+`bash`, `*.test.mjs` under `node --test`, each after `--`, and a `*.test.js` or `*.test.ts` file
+that imports `vitest` under `npx --no-install vitest run <absolute path>` from the nearest
+directory inside the checkout holding a `package.json`, so the package's locked vitest runs, first
+running `npm ci --ignore-scripts` there once when it has a `package-lock.json` and no
+`node_modules`; all
+without `GH_TOKEN` or `GITHUB_TOKEN`. It refuses any other file and any name outside
+`[A-Za-z0-9._/-]`, so pytest reads no node id. When it is listed, the system prompt names its
+wrapper as the way to run a test file and says a compound `cd <dir>; <command>` is refused. Its tests are checkout code with the network open. When the stage grants its wrapper,
 the write runner sets up Python from the base `.python-version` and installs the base's
 hash-pinned `.github/requirements-ci.txt` before the head checkout. `scripts/git-mv-rm.sh` runs
 `git mv <source> <destination>` or `git rm -r -f <path>...`, first recording an untracked path as
