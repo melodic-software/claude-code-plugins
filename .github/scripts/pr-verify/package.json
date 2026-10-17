@@ -1,0 +1,7 @@
+{
+  "name": "pr-verify",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

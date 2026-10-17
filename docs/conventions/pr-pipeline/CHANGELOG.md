@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## 1.20.0 - 2026-10-16
+
+`merge.require-verifier-verdict` and `merge.verifier-model` are new optional keys.
+`.github/workflows/pr-verify.yml` judges each pull request head that passes `pr-require-checks`
+and uploads a `pr-verify-<pr>-<head-sha>-<verdict>` artifact; with the first key true the pr-merge
+lane refuses a merge, and dequeues a queued entry, without a passing verdict at the head ("Verifier
+verdict" under "Merge authority"). `version` stays 1.
+
 ## 1.19.3 - 2026-10-16
 
 "Outputs and skips" no longer says a leaf's verdict carries over to a commit with unchanged

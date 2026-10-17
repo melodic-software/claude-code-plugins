@@ -130,6 +130,7 @@ import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
 import babysit_review_evidence as review_evidence
 import babysit_risk
+import babysit_verify_evidence as verify_evidence
 import babysit_repo_config as repo_policy
 from babysit_state import resolve_state_dir, state_lock, write_state
 from babysit_checks import check_identity_key, classify_checks
@@ -2877,6 +2878,19 @@ def score_unattended(
     reason = policy.reason or (
         None if risk.score is babysit_risk.Risk.LOW else f"risk:{risk.score.name}"
     )
+    # The pr-merge lane also needs a passing verifier verdict at the head; a
+    # refusal makes this pull request's own queued entry leave too.
+    if (
+        inputs.get("authority") == merge_policy.PR_MERGE
+        and config.require_verifier_verdict
+    ):
+        reader = verify_evidence.Reader(repo, str(inputs["branch"]))
+        verdict = reader.evidence(number, str(details["headSha"]))
+        details["verify"] = verdict.report()
+        inputs["verify_reader"] = reader
+        if verdict.refusal:
+            inputs["own_refusal"] = inputs.get("own_refusal") or verdict.refusal
+        reason = reason or verdict.refusal
     return replace(policy, reason=reason, details=details, inputs=inputs)
 
 
@@ -3023,6 +3037,16 @@ def unattended_writes(
             numbers = None
         else:
             queued, _ = postmerge.identity_queue(repo, branch, identity)
+            # In the pr-merge lane a queued entry also leaves without a
+            # passing verifier verdict at its head now.
+            config = inputs.get("config")
+            verifier = inputs.get("verify_reader") or (
+                verify_evidence.Reader(repo, branch)
+                if inputs.get("authority") == merge_policy.PR_MERGE
+                and config is not None
+                and config.require_verifier_verdict
+                else None
+            )
             report["holds"] = {
                 n: hold
                 for n in queued
@@ -3033,6 +3057,11 @@ def unattended_writes(
                         identity,
                         self_logins=inputs.get("self_logins") or frozenset(),
                         permission=inputs.get("permission"),
+                    )
+                    or (
+                        verifier.queued_hold(n)
+                        if verifier is not None and n != number
+                        else None
                     )
                 )
             }

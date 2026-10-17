@@ -458,6 +458,33 @@ App token the broker mints for that file on `main`. A finished `ci-status` or re
 up by the next scheduled run, not by a wake-up of its own: runs are serialized, and the triggers
 must start them more slowly than they finish to stay under GitHub's cap on queued runs.
 
+### Verifier verdict
+
+`.github/workflows/pr-verify.yml` runs on main after each successful `pr-require-checks` run of a
+same-repository, non-draft pull request into main. It never runs the pull request's code: a model
+(`merge.verifier-model`) reads the diff, the trusted pull request text and its linked issues as
+data, and judges whether the diff delivers the issue's intent correctly and safely. The run
+uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON
+(`pr`, `head_sha`, `base_sha`, `verdict`, `summary`, `notes`, `run_id`). The head SHA is the one
+`pr-require-checks` ran on, never the pull request's live head. A model error or an output that
+fails the schema uploads nothing.
+
+With `merge.require-verifier-verdict: true` the pr-merge lane counts an artifact only when its run
+is `pr-verify.yml`, event `workflow_run`, on main, concluded success, in this repository with a
+head on main: only steps of that run can upload its artifacts. Any other artifact with such a name
+is ignored. At the pull request's vetted head:
+
+- a counted `pass` or `pass-notes` allows the merge;
+- a counted `fail` refuses (`verify:fail`);
+- no counted verdict refuses (`verify:missing`);
+- a counted `fail` at any other head of the pull request refuses (`verify:earlier-fail`), and a
+  human decides.
+
+A queued entry without a passing verdict at its head leaves the queue. A dependency manager's pull
+request is refused before the verdict is read, so it needs none. The verdict is not a check run
+and stays out of `ci-status` and the required checks (github-iac ADR 0011), so a human merge needs
+`ci-status` alone.
+
 ## Trust-root paths
 
 A lane's token grant and the rules it is judged by come from these default-branch paths, so a

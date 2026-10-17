@@ -1,0 +1,237 @@
+name: pr-verify
+
+# The verifier: a model that did not write the pull request judges each head
+# that passes pr-require-checks against its linked issue, and the run uploads
+# its verdict as the artifact pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>.
+# Only steps of a run of this file on main can upload that run's artifacts, so
+# the pr-merge lane counts a verdict only through its run record
+# (plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py).
+# The verdict is not a check run and stays out of ci-status
+# (docs/conventions/pr-pipeline/README.md, "Verifier verdict").
+#
+# No pull request code runs here. The diff is fetched into a directory outside
+# the model's working directory, and the model reads it, the trusted PR text
+# and its linked issues as data with the Read tool alone. The job token can
+# only read. Every script and action comes from the main checkout in .base.
+#
+# Every action runs from the main checkout at ./.base. zizmor's
+# self-repository advice (`$/...`) is ignored on those lines, as in
+# pr-run-activity-read.yml.
+
+on:
+  # workflow_run runs this file from the default branch, never a PR's copy.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [pr-require-checks]
+    types: [completed]
+
+permissions: {}
+
+# A newer head of the same PR supersedes a judgment still running. The head
+# SHA stands in when the payload names no PR, so the expression never fails.
+concurrency:
+  group: pr-verify-${{ github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.head_sha }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check-intent:
+    if: >-
+      github.ref == 'refs/heads/main'
+      && github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read # check out main; read the PR's commits for the diff
+      pull-requests: read # the PR, its comments and reviews
+      actions: read # the upstream run, and verdicts already uploaded
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: |
+          echo "::notice::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); no verdict"
+
+      # The upstream run's actors, the re-runner and the PR author must all be
+      # on the trusted-actor list.
+      - name: Check the trigger
+        id: gate
+        if: steps.kill.outputs.proceed == 'true'
+        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
+        with:
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          triggering-actor: ${{ github.triggering_actor }}
+
+      - name: Resolve the pull request
+        id: pr
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: node .base/.github/scripts/pr-verify/resolve-pr.mjs
+
+      # The gate and the resolver read the PR separately; both must name the
+      # same PR at the run's head, or nothing is judged.
+      - name: Assert the gate and the resolver agree
+        id: agree
+        if: steps.pr.outputs.proceed == 'true'
+        env:
+          GATE_PR: ${{ steps.gate.outputs.pr-number }}
+          GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
+        run: |
+          if [ "$GATE_PR" != "$PR_NUMBER" ] || [ "$GATE_HEAD" != "$HEAD_SHA" ]; then
+            echo "::error::the trigger gate and the resolver name different pull requests or heads"
+            exit 1
+          fi
+
+      - name: Select the trusted PR text
+        if: steps.agree.outcome == 'success'
+        uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
+        with:
+          pr-number: ${{ steps.pr.outputs.pr-number }}
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          output-path: ${{ runner.temp }}/pr-verify-data/context.json
+          github-token: ${{ github.token }}
+
+      # A blobless fetch of the two commits into its own repository outside
+      # the workspace. git diff reads no attributes or diff drivers from it,
+      # so nothing in the PR runs; the patch is a data file.
+      - name: Write the diff
+        if: steps.agree.outcome == 'success'
+        env:
+          HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
+          BASE_SHA: ${{ steps.pr.outputs.base-sha }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
+          DATA: ${{ runner.temp }}/pr-verify-data
+          SRC: ${{ runner.temp }}/pr-verify-src
+        run: |
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          mkdir -p "$DATA"
+          git init -q "$SRC"
+          git -C "$SRC" remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+          git -C "$SRC" fetch -q --no-tags --filter=blob:none origin "$BASE_SHA" "$HEAD_SHA"
+          git -C "$SRC" diff --no-ext-diff --no-textconv --no-color "$BASE_SHA...$HEAD_SHA" >"$DATA/diff.patch"
+          jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" \
+            '{pr: $pr, head_sha: $head, base_sha: $base}' >"$DATA/pr.json"
+          echo "diff: $(wc -l <"$DATA/diff.patch") lines"
+
+      - name: Build the prompt and arguments
+        id: prompt
+        if: steps.agree.outcome == 'success'
+        env:
+          DATA: ${{ runner.temp }}/pr-verify-data
+        run: |
+          [[ $DATA =~ ^/[A-Za-z0-9_./-]+$ ]] || { echo "::error::the data directory has a name a rule cannot carry"; exit 1; }
+          model=$(yq '.merge."verifier-model" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          if [ -n "$model" ] && ! [[ $model =~ ^[A-Za-z0-9][]A-Za-z0-9._[-]*$ ]]; then
+            echo "::error::merge.verifier-model is malformed"
+            exit 1
+          fi
+          prompt=$(<.base/.github/scripts/pr-verify/prompt.md)
+          prompt=${prompt//DIFF_FILE/$DATA/diff.patch}
+          prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
+          prompt=${prompt//PR_FILE/$DATA/pr.json}
+          schema='{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}'
+          # A rule path starting `//` is absolute.
+          args="--max-turns 60 --allowedTools \"Read(/$DATA/**)\" --disallowedTools \"Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent\" --json-schema '$schema'"
+          if [ -n "$model" ]; then
+            args="$args --model $model"
+          fi
+          delimiter="prompt_$(openssl rand -hex 16)"
+          {
+            echo "claude-args=$args"
+            echo "prompt<<$delimiter"
+            printf '%s\n' "$prompt"
+            echo "$delimiter"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Isolate the runner
+        if: steps.agree.outcome == 'success'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: true
+
+      # The trigger gate admitted only listed actors, so the action's own
+      # actor check may pass the lanes App, which pushes the lane's PRs.
+      - name: Judge the pull request
+        id: judge
+        if: steps.agree.outcome == 'success'
+        uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc # v1.0.248
+        env:
+          # Strips the OAuth token and other credentials from any subprocess
+          # (code.claude.com/docs/en/env-vars, as of 2026-10-04; recheck as in
+          # pr-run-activity-read.yml).
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+          # The action stops reading at the first result message, so no work
+          # may run in the background (pr-run-activity-read.yml).
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          claude_code_oauth_token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          allowed_bots: melodic-automation-lanes[bot]
+          prompt: ${{ steps.prompt.outputs.prompt }}
+          claude_args: >-
+            --setting-sources user
+            --permission-mode dontAsk
+            ${{ steps.prompt.outputs.claude-args }}
+
+      # The structured output is untrusted model text: read through env and
+      # checked by the script, never interpolated into a command.
+      - name: Write the verdict
+        id: verdict
+        if: steps.judge.outcome == 'success'
+        env:
+          STRUCTURED_OUTPUT: ${{ steps.judge.outputs.structured_output }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
+          BASE_SHA: ${{ steps.pr.outputs.base-sha }}
+          VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
+        run: node .base/.github/scripts/pr-verify/write-verdict.mjs
+
+      - name: Upload the verdict
+        if: steps.verdict.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.verdict.outputs.name }}
+          path: ${{ runner.temp }}/pr-verify-verdict/verdict.json
+          if-no-files-found: error
+
+      - name: Summarize the verdict
+        if: steps.verdict.outcome == 'success'
+        env:
+          VERDICT_FILE: ${{ runner.temp }}/pr-verify-verdict/verdict.json
+        run: |
+          {
+            echo "### Verifier verdict"
+            echo
+            echo '```json'
+            jq '.summary |= gsub("`"; "'"'"'") | .notes |= map(gsub("`"; "'"'"'"))' "$VERDICT_FILE"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
