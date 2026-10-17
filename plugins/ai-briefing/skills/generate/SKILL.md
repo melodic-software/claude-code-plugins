@@ -171,8 +171,8 @@ source by its own id of lowercase letters, digits, dots, dashes and underscores,
 that two entries share):
 
 ```bash
-bash "${CLAUDE_SKILL_DIR}/scripts/source-bookmarks.sh" get --data-dir "${CLAUDE_PLUGIN_DATA}" --profile "$PROFILE" --source "$SOURCE"
-bash "${CLAUDE_SKILL_DIR}/scripts/source-bookmarks.sh" advance --data-dir "${CLAUDE_PLUGIN_DATA}" --profile "$PROFILE" --source "$SOURCE" --state "$STATE" --read "$READ" --at "$TODAY"
+bash "${CLAUDE_SKILL_DIR}/lib/source-bookmarks.sh" get --data-dir "${CLAUDE_PLUGIN_DATA}" --profile "$PROFILE" --source "$SOURCE"
+bash "${CLAUDE_SKILL_DIR}/lib/source-bookmarks.sh" advance --data-dir "${CLAUDE_PLUGIN_DATA}" --profile "$PROFILE" --source "$SOURCE" --state "$STATE" --read "$READ" --at "$TODAY"
 ```
 
 `get` prints the date or `none`. `advance` moves the bookmark only for `--read full` with state

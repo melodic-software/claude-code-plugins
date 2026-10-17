@@ -59,8 +59,15 @@ fi
 
 [[ "$state" == data || "$state" == empty || "$state" == unreadable ]] || die "--state must be data, empty or unreadable"
 [[ "$read_kind" == full || "$read_kind" == partial ]] || die "--read must be full or partial"
-[[ "$at" =~ $date_ok ]] || die "--at must be YYYY-MM-DD"
-[[ "$at" == "$(date -u -d "$at" +%F 2>/dev/null || date -u -j -f %F "$at" +%F 2>/dev/null)" ]] || die "--at is not a calendar date"
+[[ "$at" =~ ^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$ ]] || die "--at must be YYYY-MM-DD"
+# Month length with leap February, in portable arithmetic (no GNU date -d).
+y=$((10#${BASH_REMATCH[1]})) m=$((10#${BASH_REMATCH[2]})) d=$((10#${BASH_REMATCH[3]}))
+case "$m" in
+4 | 6 | 9 | 11) max=30 ;;
+2) max=$(((y % 4 == 0 && y % 100 != 0) || y % 400 == 0 ? 29 : 28)) ;;
+*) max=31 ;;
+esac
+((d <= max)) || die "--at is not a calendar date"
 
 if [[ "$read_kind" != full || "$state" == unreadable ]]; then
   echo unchanged

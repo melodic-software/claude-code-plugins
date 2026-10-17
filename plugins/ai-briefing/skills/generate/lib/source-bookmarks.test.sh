@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests for scripts/source-bookmarks.sh: a bookmark moves only after a full,
+# Tests for lib/source-bookmarks.sh: a bookmark moves only after a full,
 # readable read of its source. Self-contained and cwd-independent.
 set -uo pipefail
 
@@ -48,5 +48,8 @@ check "bad date refused (exit 2)" 2 "$?"
 
 sb advance --source vendor-a --state data --read full --at 2026-13-45 >/dev/null 2>&1
 check "impossible date refused (exit 2)" 2 "$?"
+sb advance --source vendor-a --state data --read full --at 2026-02-29 >/dev/null 2>&1
+check "February 29 of a common year refused (exit 2)" 2 "$?"
+check "February 29 of a leap year advances" advanced "$(sb advance --source vendor-a --state data --read full --at 2028-02-29)"
 
 exit "$FAILED"
