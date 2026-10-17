@@ -7,8 +7,8 @@
 //             `"link": "refs"` (a recorded decision keeps the issue open),
 //             which also holds the PR for a human, since the merge gate
 //             reads the work class from a closing issue. The title is the
-//             run's when it is Conventional Commits (else
-//             `chore: work on #<issue>`), and the body carries
+//             run's Conventional Commits title, with any `#` or `/` dropped
+//             (else one built from the issue title), and the body carries
 //             the hold line when a human must merge it. The PR gets no label:
 //             the work class lives on the issue only, and the merge gate reads
 //             it from the PR's closing issue. The body fills the PR body contract's
@@ -65,8 +65,43 @@ export const HOLD_LINE = "Hold: a human merges this";
 const EXITS = new Set(["done", "pushback", "stopped"]);
 // The subject allows no `#` or `/`, so the squash commit title cannot name an
 // issue to close.
-const CONVENTIONAL =
-  /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._-]+\))?!?: [A-Za-z0-9][A-Za-z0-9 ,.:()'_-]{0,98}$/;
+const PREFIX = /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._-]+\))?!?: /;
+const SUBJECT = /^[A-Za-z0-9][A-Za-z0-9 ,.:;()'"`!?+=_-]{0,98}$/;
+const SUBJECT_MAX = 99;
+
+// A subject with every character SUBJECT refuses made a space, starting at a
+// letter or digit, and cut at a word to SUBJECT_MAX; empty when nothing is left.
+function subjectFrom(text) {
+  let subject = text
+    .replaceAll(/[^A-Za-z0-9 ,.:;()'"`!?+=_-]+/g, " ")
+    .replaceAll(/\s+/g, " ")
+    .replace(/^[^A-Za-z0-9]+/, "")
+    .trimEnd();
+  if (subject.length > SUBJECT_MAX) {
+    const cut = subject.slice(0, SUBJECT_MAX + 1);
+    subject = cut.slice(0, cut.lastIndexOf(" ") > 0 ? cut.lastIndexOf(" ") : SUBJECT_MAX);
+  }
+  return subject.replace(/[ ,:;-]+$/, "");
+}
+
+// A Conventional Commits title from `text`: its own type and scope when it
+// opens with them, else `fix:`; empty when no subject is left.
+function conventionalFrom(text) {
+  const prefix = PREFIX.exec(text)?.[0] ?? "";
+  const subject = subjectFrom(text.slice(prefix.length));
+  return subject ? `${prefix || "fix: "}${subject}` : "";
+}
+
+// The PR title: the run's when valid; else the run's with the refused
+// characters dropped, when it opens with a type; else one from the issue
+// title; else one from the issue number.
+function prTitle(runTitle, issueTitle, issueNumber) {
+  const match = PREFIX.exec(runTitle);
+  if (match && SUBJECT.test(runTitle.slice(match[0].length))) {
+    return runTitle;
+  }
+  return (match && conventionalFrom(runTitle)) || conventionalFrom(issueTitle) || `fix: resolve issue ${issueNumber}`;
+}
 // Work a human merges: the classes past mechanical, and any diff that touches
 // a path the merge lane refuses (merge.diff-check.denied-paths in the base
 // pr-pipeline.yaml), so the two lists cannot drift apart.
@@ -278,6 +313,7 @@ export function decide({
   outcome,
   issueNumber,
   issueLabels,
+  issueTitle = "",
   branch,
   changedFiles,
   holdPaths = null,
@@ -359,7 +395,7 @@ export function decide({
   return {
     action: "open-pr",
     issueNumber,
-    title: CONVENTIONAL.test(outcome.title) ? outcome.title : `chore: work on #${issueNumber}`,
+    title: prTitle(outcome.title, issueTitle, issueNumber),
     body,
     branch,
   };
@@ -462,6 +498,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       outcome,
       issueNumber,
       issueLabels: (issue.labels ?? []).map((label) => label.name),
+      issueTitle: typeof issue.title === "string" ? issue.title : "",
       branch,
       changedFiles,
       holdPaths: readHoldPaths(env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json")),

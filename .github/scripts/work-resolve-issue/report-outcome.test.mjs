@@ -1,6 +1,6 @@
 // Expected values come from the lane's plan: a missing or invalid outcome file
 // means `stopped`; `done` opens a ready PR whose body starts `Closes #<issue>`,
-// with a Conventional Commits title (else `chore: work on #<issue>`), no
+// with a Conventional Commits title (the run's, else one from the issue title), no
 // label (the class lives on the issue only), and the hold line for scoped, structural and
 // untrusted-provenance work or a trust or lane-power diff; `pushback` and
 // `stopped` comment and add needs-human, and only pushback removes
@@ -97,8 +97,48 @@ test("done keeps a Conventional Commits title", () => {
   assert.equal(decideDone().title, "docs(work-items): fix a typo");
 });
 
-test("done replaces a title that is not Conventional Commits", () => {
-  assert.equal(decideDone({ outcome: { ...done, title: "Fix a typo" } }).title, "chore: work on #77");
+// The two titles below are the ones runs 39065545077 (issue 7394) and
+// 39065563719 (issue 7761) wrote; each fell back to `chore: work on #<issue>`.
+test("done keeps a run title whose subject holds a semicolon", () => {
+  const title = "fix(bugs): frame scanned-repo and tracker text as untrusted; author-check scan lane cursor and dedupe";
+  assert.equal(decideDone({ outcome: { ...done, title } }).title, title);
+});
+
+test("done keeps a run title naming a slash command, without the slash", () => {
+  const title = "fix(planning): add round.sh lease --takeover to hand an interview over after /clear";
+  assert.equal(
+    decideDone({ outcome: { ...done, title } }).title,
+    "fix(planning): add round.sh lease --takeover to hand an interview over after clear",
+  );
+});
+
+test("a run title that is not Conventional Commits takes the issue's own type and scope", () => {
+  const issueTitle = "fix(planning): add one round.sh command to hand an interview over after /clear";
+  assert.equal(
+    decideDone({ outcome: { ...done, title: "Fix a typo" }, issueTitle }).title,
+    "fix(planning): add one round.sh command to hand an interview over after clear",
+  );
+});
+
+test("a run title that is not Conventional Commits becomes fix: and the issue title", () => {
+  const issueTitle = "Lane PR titles fall back to a placeholder";
+  assert.equal(
+    decideDone({ outcome: { ...done, title: "Fix a typo" }, issueTitle }).title,
+    "fix: Lane PR titles fall back to a placeholder",
+  );
+});
+
+test("a long issue title is cut at a word to the subject's 99 characters", () => {
+  const issueTitle =
+    "bugs: frame scanned-repo and tracker text as untrusted data; author-check scan's lane cursor and dedupe";
+  assert.equal(
+    decideDone({ outcome: { ...done, title: "" }, issueTitle }).title,
+    "fix: bugs: frame scanned-repo and tracker text as untrusted data; author-check scan's lane cursor and",
+  );
+});
+
+test("with no usable run or issue title the PR is titled from the issue number", () => {
+  assert.equal(decideDone({ outcome: { ...done, title: "" }, issueTitle: "###" }).title, "fix: resolve issue 77");
 });
 
 test("done puts no label on the PR, so the class stays on the issue", () => {
@@ -331,8 +371,16 @@ test("no issue reference from the model's summary survives into the body", () =>
   assert.ok(!/#\d|\/issues\/\d/.test(tail.replace(/^#77$/m, "")), plan.body);
 });
 
-test("a title carrying an issue reference falls back", () => {
-  assert.equal(decideDone({ outcome: { ...done, title: "fix: x, closes #5" } }).title, "chore: work on #77");
+test("a title carrying an issue reference loses the reference", () => {
+  assert.equal(decideDone({ outcome: { ...done, title: "fix: x, closes #5" } }).title, "fix: x, closes 5");
+});
+
+test("an issue title carrying an issue reference or URL loses it", () => {
+  const issueTitle = "Fixes #5 and https://github.com/o/r/issues/6";
+  assert.equal(
+    decideDone({ outcome: { ...done, title: "" }, issueTitle }).title,
+    "fix: Fixes 5 and https: github.com o r issues 6",
+  );
 });
 
 test("a diff the compare listing may have cut short carries the hold line", () => {
