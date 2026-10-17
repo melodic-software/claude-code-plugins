@@ -76,8 +76,11 @@ _GROUP = re.compile(r"\bbump the \S+ group\b.*\bwith (\d+) updates?\s*$", re.I)
 _UPDATE_LINE = re.compile(r"^Updates `([^`\s]+)` from (\S+) to (\S+?)\.?$", re.M)
 _VERSION = re.compile(r"^v?(\d+)(?:\.(\d+))?(?:\.\d+)*(?:[-+.][0-9A-Za-z.+-]*)?$")
 _ECOSYSTEM = re.compile(r"^dependabot/([^/]+)/")
-_ENTRY = re.compile(r"^-\s+dependency-name:\s*(\S+)\s*$")
-_FIELD = re.compile(r"^\s+(dependency-version|update-type):\s*(\S+)\s*$")
+# Dependabot quotes a value YAML would misread, such as a scoped npm name.
+_ENTRY = re.compile(r"""^-\s+dependency-name:\s*(["']?)([^"'\s]+)\1\s*$""")
+_FIELD = re.compile(
+    r"""^\s+(dependency-version|update-type):\s*(["']?)([^"'\s]+)\2\s*$"""
+)
 _MARKER = re.compile(
     r"^<!-- pr-unblock:review-dependency-round head=([0-9a-f]{40}) "
     r"verdict=([a-z]+) run=([0-9]+-[0-9]+) -->$"
@@ -177,9 +180,9 @@ def parse_metadata(message: str) -> list[Update] | None:
         if line.strip() in ("...", "---") or (line and not line.startswith(("-", " "))):
             break
         if entry := _ENTRY.match(line):
-            entries.append({"name": entry.group(1)})
+            entries.append({"name": entry.group(2)})
         elif (field := _FIELD.match(line)) and entries:
-            entries[-1][field.group(1)] = field.group(2)
+            entries[-1][field.group(1)] = field.group(3)
     updates = []
     for entry in entries:
         kind = entry.get("update-type", "").removeprefix("version-update:")

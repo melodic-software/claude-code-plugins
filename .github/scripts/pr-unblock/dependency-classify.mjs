@@ -32,8 +32,9 @@ const GROUP = /\bbump the \S+ group\b.*\bwith (\d+) updates?\s*$/i;
 const UPDATE_LINE = /^Updates `([^`\s]+)` from (\S+) to (\S+?)\.?$/gm;
 const VERSION = /^v?(\d+)(?:\.(\d+))?(?:\.\d+)*(?:[-+.][0-9A-Za-z.+-]*)?$/;
 const ECOSYSTEM = /^dependabot\/([^/]+)\//;
-const ENTRY = /^-\s+dependency-name:\s*(\S+)\s*$/;
-const FIELD = /^\s+(dependency-version|update-type):\s*(\S+)\s*$/;
+// Dependabot quotes a value YAML would misread, such as a scoped npm name.
+const ENTRY = /^-\s+dependency-name:\s*(["']?)([^"'\s]+)\1\s*$/;
+const FIELD = /^\s+(dependency-version|update-type):\s*(["']?)([^"'\s]+)\2\s*$/;
 
 function versionParts(version) {
   const found = VERSION.exec(String(version));
@@ -71,9 +72,9 @@ export function parseMetadata(message) {
     const entry = ENTRY.exec(line);
     const field = FIELD.exec(line);
     if (entry) {
-      entries.push({ name: entry[1] });
+      entries.push({ name: entry[2] });
     } else if (field && entries.length > 0) {
-      entries.at(-1)[field[1]] = field[2];
+      entries.at(-1)[field[1]] = field[3];
     }
   }
   return entries.map((entry) => {

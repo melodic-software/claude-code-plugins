@@ -85,6 +85,15 @@ class Classify(unittest.TestCase):
                 result = tier(title)
                 self.assertEqual((result.tier, result.reasons), ("auto", ()))
 
+    def test_a_quoted_scoped_npm_name_matches_the_title(self) -> None:
+        # Dependabot quotes `@scope/name` in the metadata (PR #7706).
+        message = metadata(('"@anthropic-ai/claude-code"', "semver-patch", "2.1.302"))
+        result = tier(
+            "build: Bump @anthropic-ai/claude-code from 2.1.301 to 2.1.302 in the npm-minor-patch group",
+            commits=[commit(message)],
+        )
+        self.assertEqual((result.tier, result.reasons), ("auto", ()))
+
     def test_a_0x_minor_update_is_review(self) -> None:
         # Semver promises nothing below 1.0, so 0.3 to 0.4 is breaking.
         result = tier("Bump x from 0.3.1 to 0.4.0")

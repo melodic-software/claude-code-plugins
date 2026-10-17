@@ -39,6 +39,15 @@ test("a patch or 1.x minor update is auto", () => {
   }
 });
 
+test("a quoted scoped npm name matches the title", () => {
+  // Dependabot quotes `@scope/name` in the metadata (PR #7706).
+  const message = metadata(['"@anthropic-ai/claude-code"', "semver-patch", "2.1.302"]);
+  const result = tier("build: Bump @anthropic-ai/claude-code from 2.1.301 to 2.1.302 in the npm-minor-patch group", {
+    commits: [commit(message)],
+  });
+  assert.deepEqual([result.tier, result.reasons], ["auto", []]);
+});
+
 test("a 0.x minor update is review", () => {
   const result = tier("Bump x from 0.3.1 to 0.4.0");
   assert.deepEqual([result.tier, result.reasons], ["review", ["major:x"]]);
