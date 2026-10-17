@@ -106,8 +106,8 @@ test("done keeps a Conventional Commits title", () => {
   assert.equal(decideDone().title, "docs(work-items): fix a typo");
 });
 
-// The two titles below are the ones runs 39065545077 (issue 7394) and
-// 39065563719 (issue 7761) wrote; each fell back to `chore: work on #<issue>`.
+// The two titles below are ones real lane runs wrote, which the old subject
+// class refused.
 test("done keeps a run title whose subject holds a semicolon", () => {
   const title = "fix(bugs): frame scanned-repo and tracker text as untrusted; author-check scan lane cursor and dedupe";
   assert.equal(decideDone({ outcome: { ...done, title } }).title, title);
