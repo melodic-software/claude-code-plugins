@@ -218,8 +218,8 @@ export async function buildTrustedContext({ github, repository, prNumber, ids })
 }
 
 // An issue's comments, oldest first, kept under the same author and edit rules
-// as a PR's. Used by the issue lane, which gives the model the issue body
-// as untrusted data and only these comments beside it.
+// as a PR's, each as { comment, lastEditedAt } (the REST comment, and the
+// last edit time or null). The issue lane's write-issue.mjs shapes them.
 export async function selectTrustedIssueComments({ github, repository, issueNumber, ids }) {
   const trusted = createTrustCheck(github, ids);
   const dropped = { "issue-comment": 0, "edited-by-untrusted": 0 };
@@ -236,28 +236,25 @@ export async function selectTrustedIssueComments({ github, repository, issueNumb
     ids,
     authored.map((comment) => comment.node_id),
   );
-  const comments = [];
+  const kept = [];
   for (const comment of authored) {
     if (!editedByListed(comment.node_id)) {
       dropped["edited-by-untrusted"] += 1;
       continue;
     }
-    comments.push({
-      author_login: comment.user.login,
-      created_at: comment.created_at ?? "",
-      url: comment.html_url,
-      body: comment.body ?? "",
-    });
+    kept.push({ comment, lastEditedAt: editedByListed.lastEditedAt.get(comment.node_id) ?? null });
   }
-  return { comments, dropped };
+  return { kept, dropped };
 }
 
 // Returns a predicate over node ids: true when the node was never edited or
 // its last editor is listed. A node missing from the answer, or an edit with
-// no resolvable editor, is false. GraphQL errors raise.
+// no resolvable editor, is false. Its `lastEditedAt` map holds each kept
+// node's last edit time (null when never edited). GraphQL errors raise.
 async function readEditors(github, ids, nodeIds) {
   const unique = [...new Set(nodeIds.filter((id) => typeof id === "string" && id !== ""))];
   const trustedNodes = new Set();
+  const lastEditedAt = new Map();
   for (let start = 0; start < unique.length; start += 100) {
     const answer = await github("POST", "/graphql", {
       query: LAST_EDITORS,
@@ -269,10 +266,11 @@ async function readEditors(github, ids, nodeIds) {
       }
       if (node.lastEditedAt === null || isListed(ids, { id: node.editor?.databaseId })) {
         trustedNodes.add(node.id);
+        lastEditedAt.set(node.id, node.lastEditedAt);
       }
     }
   }
-  return (nodeId) => trustedNodes.has(nodeId);
+  return Object.assign((nodeId) => trustedNodes.has(nodeId), { lastEditedAt });
 }
 
 // Returns the process exit code. On any failure nothing is written, so a lane

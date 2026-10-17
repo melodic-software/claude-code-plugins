@@ -933,7 +933,10 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
 - Before the skill, the runner writes the issue's number, title, body and labels to `issue.json`
   in the skill's scratch directory, with only the comments `select-trusted-text`'s author and edit
   rules keep (`write-issue.mjs`), oldest first, so a listed maintainer's recorded decision reaches
-  the skill. The skill commits to a new branch,
+  the skill. The lanes App's own comments are left out, a listed human's comment whose first line
+  is `**Decision recorded.**` is marked `decision: true`, and comments other than decisions are
+  capped at the newest 20. When the lanes App applied the label, a comment created or edited
+  after the newest ratification marker is left out, matching the gate's frozen title and body. The skill commits to a new branch,
   `<lane>/issue-<n>-<run id>-<attempt>`, which is kept only when it holds commits. The skill's
   `work-outcome.json` and the runner's `lane.json` (the kept branch, or empty) are uploaded as the
   `work-outcome-<n>` artifact, and the job output `issue-run-started` is `true` once the token

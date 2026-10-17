@@ -171,7 +171,8 @@ answer without stopping the pass to ask which item is in front of them.
   of fix options, an open-question section), state the chosen option there, one line linking the
   comment, and mark each option it ruled out as not chosen. A lane that reads the body sees the decision too.
   Edit the body before the operator ratifies the item's admission: the issue lane starts no run
-  on an issue whose body changed after the newest ratification marker.
+  on an issue whose body changed after the newest ratification marker, so a body edit after
+  ratification needs a fresh ratification marker before the lane can start.
 - **`[ratify]` rows for `kind=ratify-c3`**. Restate the brief above, then present the classification and the intended
   dispatch from the marker comment and the consequence of ratifying versus declining. On operator
   ratification, record it as a reply comment and flip the item per the rule below; on decline, leave

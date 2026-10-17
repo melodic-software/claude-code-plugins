@@ -590,7 +590,9 @@ jobs:
       # needs no shell or API access. Title, body and labels as written, which
       # the skill evaluates as untrusted data, plus only the comments
       # select-trusted-text's author and edit rules keep, so a listed
-      # maintainer's recorded decision reaches the skill. Runs from the base
+      # maintainer's recorded decision reaches the skill. The lanes App's own
+      # comments are left out, and on its ratified label so is any comment
+      # created or edited after the ratification marker. Runs from the base
       # copy before the checkout below replaces it.
       - name: Write the issue for the skill
         if: >-
@@ -601,6 +603,8 @@ jobs:
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           ISSUE_FILE: ${{ runner.temp }}/lane-scratch/issue.json
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          LABEL_SENDER_ID: ${{ format('{0}', github.event.sender.id) }}
         run: node .base/.github/scripts/work-resolve-issue/write-issue.mjs
 
       # A script reads the base's work-item tracker config (report-escalation's
