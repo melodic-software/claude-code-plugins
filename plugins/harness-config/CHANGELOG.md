@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.15.0] - 2026-10-17
+
+### Changed
+
+- `audit-instructions` I21: a `high` effort pin that targets subagents is judged against the model each subagent runs on, and the effort its definition sets, rather than only the session's resolved target. Eval case 34 gains a subagent-on-a-different-model run.
+
 ## [1.14.10] - 2026-10-16
 
 ### Changed
