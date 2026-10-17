@@ -2787,7 +2787,7 @@ class TestPresenceStates(SessionCase):
                 accepted += 1
             except session.DomainError as exc:
                 self.assertEqual(exc.http, 429)
-        self.assertEqual(accepted, session.MAX_TABS)
+        self.assertEqual(accepted, 8)
         self.clock.tick(session.HEARTBEAT_INTERVAL)
         self.s.heartbeat(self.bo, {"tab": "t99"})
 
