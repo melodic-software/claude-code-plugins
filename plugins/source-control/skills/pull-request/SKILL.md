@@ -12,7 +12,7 @@ metadata:
 
 ## Repository context. Gather first
 
-The read actions `view` and `list`, and `comments --ci`, skip this section. For every other action, collect these with
+The read actions `view` and `list`, `comments --ci` and `dependency --ci` skip this section. For every other action, collect these with
 **individual** Bash calls, one command per call, never combined into a single invocation:
 
 - Current branch, `git branch --show-current`
@@ -70,6 +70,7 @@ For PR lifecycle runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pul
 | `monitor` | Phase 3 | Watch CI, fix failures, evaluate comments. **Three-tier event delivery: (1) push channel** when your environment ships a forge-events channel (an MCP server delivering webhook events into the session), ~0 idle requests; **(2) Monitor tool** fallback (30s poll); **(3) plain polling** in cloud/headless sessions. Check the push channel FIRST per [monitor.md](reference/monitor.md) §3.0.05 before falling back |
 | `comments` | Phase 3.5 | Evaluate/respond to PR comments only |
 | `comments --ci` | Phase 3.5 (CI) | The pr-unblock lane's unattended mode: the runner's kept reviewer-bot threads only, through its review-thread tool, running no head code. See [reference/comments-ci.md](reference/comments-ci.md) |
+| `dependency --ci` | Phase 3.5 (CI) | The pr-unblock lane's unattended review of one risky Dependabot update: reads the runner's context file, the checkout and the upstream release notes as data, may push a scoped fix outside `.github/`, and returns a merge, fix, close or escalate verdict as structured output, running no head code. See [reference/dependency-ci.md](reference/dependency-ci.md) |
 | `merge` | Phase 4 | Squash merge, or merge or enqueue pinned to the reviewed head commit once the PR is `CLEAN` and the AI review checks have passed on that head, then confirm a merge-queue PR entered the queue (enqueue a `CLEAN` one left out, report the refusal text verbatim; §4.2.2) and wait for `MERGED` (no strategy flag behind a merge queue, never arm auto-merge; [reference/merge.md](reference/merge.md) §4.2.1) + worktree transition (reuse it, or release this session's lock) + verify. Never removes a worktree: that is `/source-control:worktree cleanup` |
 | `status` | Report only | Unified status across all phases |
 | `full` | Phase 1-4 | Run prep → create → monitor → merge end-to-end |
@@ -137,13 +138,14 @@ Execute in order. Each phase is self-contained. Read the relevant file for detai
 | 2.5. Ready for review | [reference/ready-for-review.md](reference/ready-for-review.md) | `ready` |
 | 3. Monitor | [reference/monitor.md](reference/monitor.md) | `monitor`, `comments` |
 | 3.5 (CI) | [reference/comments-ci.md](reference/comments-ci.md) | `comments --ci` |
+| 3.5 (CI) | [reference/dependency-ci.md](reference/dependency-ci.md) | `dependency --ci` |
 | 4. Merge | [reference/merge.md](reference/merge.md) | `merge` |
 
 ---
 
 ## Monitor entry checklist (in order, before any monitoring work)
 
-When entering Phase 3 (`monitor`, `comments`, or `full` reaching monitor), complete the steps below in order before any CI polling or comment evaluation; the event-delivery choice depends on the environment and is decided first. `comments --ci` skips this checklist: the runner has checked out the head and kept the threads.
+When entering Phase 3 (`monitor`, `comments`, or `full` reaching monitor), complete the steps below in order before any CI polling or comment evaluation; the event-delivery choice depends on the environment and is decided first. `comments --ci` skips this checklist: the runner has checked out the head and kept the threads. `dependency --ci` does not enter Phase 3.
 
 - [ ] **Step 0, Checkout the PR source branch (DEFAULT):** monitoring a PR means working ON its head branch, exploration, research, and any fix must run against the PR's actual code, not whatever branch you happen to be on. Check it out with the forge's PR checkout (provider reference; fork-safe, a fork's head branch is not fetchable from `origin` by name, and a bare `git checkout <headRefName>` can select a stale same-named local branch). This is the default, not an exception.
   - **Pre-check `git worktree list`:** if the branch is already checked out in another worktree, work there (or process read-only, no fix, if you can't). If you're already on the PR branch, no-op.

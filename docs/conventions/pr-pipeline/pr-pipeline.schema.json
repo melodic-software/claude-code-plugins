@@ -45,6 +45,12 @@
           "minimum": 1,
           "default": 3,
           "description": "Lane runs in a row that change nothing before the PR escalates to needs-human."
+        },
+        "dependency-review-rounds": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 2,
+          "description": "review-dependency rounds on one Dependabot PR before the next one escalates to needs-human."
         }
       }
     },
@@ -214,8 +220,8 @@
       "properties": {
         "skill": { "$ref": "#/$defs/skill" },
         "prepare": {
-          "enum": ["merge-base", "review-threads"],
-          "description": "What the write runner does around a skill with an effect other than read. merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents. review-threads: before any model turn, keep the PR's unresolved reviewer-bot threads on a reviewed head and escalate on a .github/** diff or the round cap; give the skill the review-thread tool; after it, upload the replies it recorded, which a review-replies script job validates and posts with the round marker."
+          "enum": ["merge-base", "review-threads", "dependency-review"],
+          "description": "What the write runner does around a skill with an effect other than read. merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents. review-threads: before any model turn, keep the PR's unresolved reviewer-bot threads on a reviewed head and escalate on a .github/** diff or the round cap; give the skill the review-thread tool; after it, upload the replies it recorded, which a review-replies script job validates and posts with the round marker. dependency-review: before any model turn, skip a PR Dependabot did not open or one sorted auto, and escalate on the round cap; give the skill a read-only context file and a verdict schema for its structured output; move the PR branch only to commits that touch nothing under .github/ and carry [dependabot skip]; after it, upload the verdict, which a dependency-verdict script job validates and acts on."
         },
         "args": {
           "type": "string",

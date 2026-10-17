@@ -584,6 +584,78 @@ The head re-read in step 5 applies to every `mutate-branch` activity, not only t
 pr-refine run whose PR branch moved before the mint now posts neutral `superseded-sha` without a
 model turn.
 
+### prepare: dependency-review
+
+A review of one risky Dependabot pull request is two jobs, for the reason review-threads is: the
+model job reads third-party release notes, so it holds `contents: write` and nothing that can
+post, close or enqueue. The model job is a `mutate-branch` skill leaf whose config sets
+`prepare: dependency-review` and `gating: advisory`; the verdict job is a `publish-artifact`
+script leaf with no model, called with `dependency-verdict: true`. The scripts are the base's
+`.github/scripts/pr-unblock/review-dependency.mjs` and `apply-dependency-verdict.mjs`. Both this
+lane's dispatcher and select step sort pull requests with `dependency-classify.mjs`, a port of
+the pr-merge lane's `babysit_dependabot.py` and its content step, so the tiers, the content rule
+and the `directories` globs are the ones
+[README, "Dependabot pull requests"](README.md#dependabot-pull-requests) states. They read the
+same inputs: the pull request, its REST commits and files with patches, each non-Dependabot
+commit's files, and the base's `.github/dependabot.yml`. The content step's refusals in the
+pr-merge lane (a commit whose files cannot be read whole, a fix commit touching `.github/`)
+are review reasons here. A base `dependabot.yml` that cannot be read, or holds no entry that
+reads, is `dependabot-config-unreadable`, with a warning naming which. A security update is the
+`security` label or an advisory, GHSA or CVE id in the body; it is a flag on either tier.
+
+1. After `resolve-config` and before the mint, the model job runs `review-dependency.mjs select`
+   with the job's `GITHUB_TOKEN`. A pull request whose author is not `dependabot[bot]` (by id,
+   from the base's trusted-actors list) or that sorts `auto` skips `not-applicable`.
+   `loop.dependency-review-rounds` earlier rounds escalate `dependency-round-cap` and skip
+   `awaiting-human`, nothing minted: the larger of the round markers the lanes App posted and
+   the PR commits carrying a `github-actions` `pr-unblock / review-dependency` check run that
+   ended `success` or `failure`. Otherwise it writes `$RUNNER_TEMP/lane-dependency/dependency.json`:
+   the head, title, labels, classification, each changed file with its patch (20,000 characters
+   each, 300,000 in all), and the body as data.
+2. `collect-base-activity` makes that directory read-only, grants `Read` on it, denies Edit and
+   Write there, keeps the commit tool, and passes a `--json-schema` for the verdict:
+   `verdict` (`merge`, `fix`, `close`, `escalate`), 1-10 `reasons` of at most 500 characters and
+   at most 20 `evidence` entries of at most 300. The activity's `web-access` names the release-note
+   hosts. The skill runs no head code; `ci-status` runs the tests on the pushed head.
+3. The promote step moves the PR branch only when the skill's structured verdict is `fix`, the
+   lane branch changes nothing under `.github/` in fewer than 300 files, and every commit's
+   message carries `[dependabot skip]`, so Dependabot may still rebase over the fix
+   (pr-bump-plugin-version.yml states the convention). Commits made beside any other verdict are
+   discarded with the lane branch.
+4. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
+   `github-script` step writes `run.json` (`version`, `pr`, the gated `head_sha`, the select
+   step's `security` and `config_unreadable` flags, and the skill's structured output as `output`, `null` when absent or
+   unparsable) and the job uploads it as `dependency-verdict-<run attempt>`. Its
+   `dependency-round` output is then `true`, with `dependency-run-sha256` and
+   `dependency-run-attempt`.
+5. The caller runs the verdict job when `dependency-round` is `true`. `apply-dependency-verdict.mjs`:
+   - validates `run.json`: exactly that SHA-256, a regular file of at most 64 KiB, exactly the
+     runner's fields, and an `output` with exactly the schema's fields within its limits, each
+     string plain prose with no control character, code fence, HTML comment or @-mention. Any
+     failure, or a missing artifact, escalates `dependency-invalid`;
+   - re-reads the pull request: a closed one gets nothing, unless it is a `close` this job
+     started at the reviewed head (its issue or marker is there), which resumes. `merge`,
+     `close` and `escalate` need the reviewed head; a moved head skips `superseded-sha` and the
+     next dispatcher run reviews the new one. `fix` needs the PR head ahead of the reviewed head
+     by commits the lanes App authored only, else `dependency-fix-not-landed` (no commit) or
+     `superseded-sha`, and those commits may change nothing under `.github/`, else
+     `dependency-invalid`;
+   - `merge`: posts the round marker, whose first line
+     `<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<run id>-<attempt> -->`
+     from the lanes App is the record the pr-merge lane merges a review-tier pull request on,
+     at the current head and through its own gate. With `config_unreadable` it posts no merge
+     marker and escalates `dependency-config-unreadable`. This job never merges or enqueues;
+   - `close`: escalates `dependency-security-close` for a security update (the model job's flag,
+     or the label or an advisory in the body read fresh); otherwise finds the lanes App issue whose first line is
+     `<!-- pr-unblock:dependency-ignore pr=<n> head=<sha> -->` or files it, proposing the
+     `.github/dependabot.yml` `ignore` entry, then posts the marker, then closes an open pull
+     request. Each step is safe to repeat, so a re-run after a partial failure resumes;
+   - `escalate`: escalates `dependency-escalate`;
+   - posts the round marker once per model run, named `none` when the model run uploaded no
+     verdict: a re-run that finds its own marker posts none.
+
+   The runner accepts only those five reasons, and only with `dependency-verdict`.
+
 ## The report job
 
 Runs after the run job whatever its result, with `checks: write`, `contents: read` and

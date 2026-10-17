@@ -363,6 +363,41 @@ test("prepare: review-threads with no thread file fails red before any output", 
   assert.equal(args, "");
 });
 
+// pr-run-activity.md, "prepare: dependency-review": the skill keeps the commit
+// tool, reads the runner's read-only context file, gets no Bash rule, and
+// must return the verdict schema's structured output.
+function withDependency({ file = true, gating = "advisory" } = {}) {
+  const dir = mkdtempSync(path.join(root, "dependency-"));
+  const dependencyDir = path.join(dir, "lane-dependency");
+  mkdirSync(dependencyDir, { recursive: true });
+  if (file) writeFileSync(path.join(dependencyDir, "dependency.json"), "{}");
+  return { dependencyDir, ...stage({ PREPARE: "dependency-review", DEPENDENCY_DIR: dependencyDir, GATING: gating }) };
+}
+
+test("prepare: dependency-review reads the context file and returns the verdict schema", () => {
+  const { status, args, allowed, denied, dependencyDir } = withDependency();
+  assert.equal(status, 0);
+  assert.ok(allowed.includes(COMMIT_TOOL), allowed.join(" | "));
+  assert.ok(allowed.includes(`Read(/${dependencyDir}/**)`), allowed.join(" | "));
+  assert.ok(!allowed.some((rule) => rule.startsWith("Bash")), allowed.join(" | "));
+  assert.ok(denied.includes(`Edit(/${dependencyDir}/**)`) && denied.includes(`Write(/${dependencyDir}/**)`), denied.join(" | "));
+  const schema = JSON.parse(/--json-schema '([^']+)'/.exec(args)[1]);
+  assert.deepEqual(schema.properties.verdict.enum, ["merge", "fix", "close", "escalate"]);
+  assert.deepEqual(schema.required, ["verdict", "reasons", "evidence"]);
+  const write = spawnSync("bash", ["-c", 'echo x >>"$1"', "_", path.join(dependencyDir, "dependency.json")]);
+  assert.notEqual(write.status, 0, "the context file is read-only");
+});
+
+test("prepare: dependency-review with no context file, or as a gate, fails red before any output", () => {
+  const missing = withDependency({ file: false });
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stdout, /::error::dependency-review: the runner wrote no context file/);
+  assert.equal(missing.args, "");
+  const gate = withDependency({ gating: "gate" });
+  assert.notEqual(gate.status, 0);
+  assert.match(gate.stdout, /::error::dependency-review: the activity must be advisory/);
+});
+
 test("an unknown prepare mode fails red before any output", () => {
   const { status, stdout, args } = stage({ PREPARE: "rebase" });
   assert.notEqual(status, 0);

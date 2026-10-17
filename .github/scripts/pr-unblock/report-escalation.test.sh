@@ -106,7 +106,9 @@ done
 # Accepted reasons: one comment, one label, both on the PR.
 for reason in protected-path-conflict workflow-staged repeat-cap unresolved-conflict \
   feedback-protected-path feedback-round-cap feedback-uncertain feedback-not-landed feedback-invalid \
-  feedback-partial feedback-incomplete feedback-disputed; do
+  feedback-partial feedback-incomplete feedback-disputed \
+  dependency-round-cap dependency-invalid dependency-fix-not-landed dependency-security-close dependency-escalate \
+  dependency-config-unreadable; do
   setup '[]' '[]'
   run "$reason"
   check "$reason: exit 0" 0 "$RC"
@@ -119,7 +121,11 @@ for reason in protected-path-conflict workflow-staged repeat-cap unresolved-conf
   has "$reason: comment says to remove the label" 'remove the `needs-human` label' "$STUB/bodies"
   has "$reason: comment says to dispatch pr-unblock" 'pr-unblock' "$STUB/bodies"
   has "$reason: comment names the PR to dispatch" 'pr-number=42' "$STUB/bodies"
-  if [[ $reason == feedback-* ]]; then want=address-feedback; else want=resolve-conflicts; fi
+  case $reason in
+    feedback-*) want=address-feedback ;;
+    dependency-*) want=review-dependency ;;
+    *) want=resolve-conflicts ;;
+  esac
   has "$reason: comment names the activity to dispatch" "-f pr-number=42 -f activity=$want" "$STUB/bodies"
   has "$reason: label defaults to needs-human" 'labels[]=needs-human' "$STUB/calls"
 done

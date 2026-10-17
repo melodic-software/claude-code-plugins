@@ -11,9 +11,14 @@
 // lowest PR number first. Labels and authors are left to the lane's own
 // config and gate. Logs carry PR numbers, SHAs and run ids only. The run ids
 // it dispatched become the step output run-ids, which the workflow records.
+// The same run then starts review-dependency for review-tier Dependabot PRs
+// (dependency-dispatch.mjs), and its run ids join the same record.
 
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+
+import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
+import { readConfig } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -153,7 +158,9 @@ export async function dispatchConflicting({
   return { dispatched, failed };
 }
 
-const PULL_FIELDS = "number isDraft isCrossRepository mergeable baseRefName headRefOid state";
+// The Dependabot fields feed dependency-dispatch.mjs's classification.
+const PULL_FIELDS =
+  "number isDraft isCrossRepository mergeable baseRefName headRefOid headRefName state title body author { login } labels(first: 100) { nodes { name } } changedFiles";
 
 const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!, $after: String) {
   repository(owner: $owner, name: $name) {
@@ -190,6 +197,20 @@ export function createGitHubApi({
     return response.status === 204 ? {} : response.json();
   }
 
+  async function paginate(path) {
+    const rows = [];
+    let url = `${apiUrl}/repos/${owner}/${name}/${path}?per_page=100`;
+    while (url) {
+      const response = await fetch(url, { headers });
+      if (!response.ok) {
+        throw new Error(`GET ${url} returned ${response.status}`);
+      }
+      rows.push(...(await response.json()));
+      url = /<([^>]+)>;\s*rel="next"/.exec(response.headers.get("link") ?? "")?.[1] ?? "";
+    }
+    return rows;
+  }
+
   async function graphql(query, variables) {
     const result = await request(graphqlUrl, "POST", { query, variables });
     if (result.errors?.length) {
@@ -217,6 +238,13 @@ export function createGitHubApi({
         { owner, name },
       );
       return Object.values(data.repository).filter((node) => node?.state === "OPEN");
+    },
+    // The REST reads the Dependabot classifier takes: the files listing with
+    // patches, the commits, and one commit's files.
+    listPullFiles: (number) => paginate(`pulls/${Number(number)}/files`),
+    listPullCommits: (number) => paginate(`pulls/${Number(number)}/commits`),
+    async getCommit(sha) {
+      return request(`${apiUrl}/repos/${owner}/${name}/commits/${encodeURIComponent(sha)}`);
     },
     async listCheckRuns({ sha, checkName, appId }) {
       const query = new URLSearchParams({
@@ -260,19 +288,23 @@ export async function main(
       throw new Error(`${key} is not set`);
     }
   }
-  const { dispatched, failed } = await dispatchConflicting({
-    api:
-      api ??
-      createGitHubApi({
-        token: env.GITHUB_TOKEN,
-        repository: env.GITHUB_REPOSITORY,
-        apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
-        graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
-      }),
+  const client =
+    api ??
+    createGitHubApi({
+      token: env.GITHUB_TOKEN,
+      repository: env.GITHUB_REPOSITORY,
+      apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
+      graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+    });
+  const conflicts = await dispatchConflicting({ api: client, runId: env.GITHUB_RUN_ID, sleep, log });
+  const reviews = await dispatchDependencyReviews({
+    api: client,
     runId: env.GITHUB_RUN_ID,
-    sleep,
     log,
+    config: readConfig(env.DEPENDABOT_CONFIG ?? ".base/.github/dependabot.yml", log),
   });
+  const dispatched = [...conflicts.dispatched, ...reviews.dispatched];
+  const failed = conflicts.failed + reviews.failed;
   if (dispatched.length > 0) {
     const ids = dispatched.map((run) => run.workflowRunId).join(" ");
     appendFileSync(env.GITHUB_OUTPUT, `run-ids=${ids}\n`);

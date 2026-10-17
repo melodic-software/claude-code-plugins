@@ -52,6 +52,15 @@ function fakeApi({
         pageInfo: { hasNextPage: index + 1 < pages.length, endCursor: String(index + 1) },
       };
     },
+    async listPullCommits() {
+      return [];
+    },
+    async getCommit(sha) {
+      return { sha, files: [] };
+    },
+    async listPullFiles() {
+      return [];
+    },
     async getPulls(numbers) {
       calls.get.push([...numbers]);
       const answer = requeries[Math.min(round, requeries.length - 1)] ?? [];
@@ -399,6 +408,21 @@ test("main writes the recorded ids and exits 1 when another dispatch failed", as
   });
   assert.equal(code, 1);
   assert.equal(output, "run-ids=500\n");
+});
+
+test("main records a review-dependency dispatch beside the conflict dispatches", async () => {
+  const dependabot = pr(131, {
+    mergeable: "MERGEABLE",
+    author: { login: "dependabot[bot]" },
+    headRefName: "dependabot/npm_and_yarn/x-2.0.0",
+    title: "build(deps): bump x from 1.0.0 to 2.0.0",
+    body: "",
+    labels: { nodes: [] },
+    changedFiles: 0,
+  });
+  const { code, output } = await runMain({ pages: [[pr(130), dependabot]] });
+  assert.equal(code, 0);
+  assert.equal(output, "run-ids=9130 9131\n");
 });
 
 test("main writes nothing to GITHUB_OUTPUT when no run was dispatched", async () => {
