@@ -16,7 +16,7 @@ import { checkCloser, escalationComment, main as runMain } from "./label-unblock
 
 // resolve-issue's admission in docs/conventions/pr-pipeline.yaml; the
 // resolve-config live-config test checks the script's reader returns it.
-const ADMISSION = { classes: ["work-class: read-only", "work-class: mechanical"], ratified: true };
+const ADMISSION = { ratified: true };
 const main = (args) => runMain({ admission: ADMISSION, ...args });
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -221,18 +221,22 @@ test("a pull request blocker counts once merged, and not when closed unmerged", 
   }
 });
 
-test("a ratified issue with a work class resolve-issue does not admit stays unlabeled, even beside an admitted one", async () => {
-  for (const labels of [["work-class: feature"], ["work-class: mechanical", "Work-Class: Feature"]]) {
+// The live admission reads no work-class label: the marker alone admits.
+test("a ratified issue is labeled whatever its work-class label", async () => {
+  for (const labels of [["work-class: mechanical"], ["work-class: scoped"], ["Work-Class: Structural"]]) {
     const { github, calls } = oneDependent({ labels });
     assert.equal(await main({ env: envFor(), github }), 0);
-    assert.deepEqual(writes(calls), [], JSON.stringify(labels));
+    assert.deepEqual(writes(calls), [labeled(20)], JSON.stringify(labels));
   }
 });
 
-test("a ratified issue with an admitted work class is labeled", async () => {
-  const { github, calls } = oneDependent({ labels: ["work-class: mechanical"] });
-  assert.equal(await main({ env: envFor(), github }), 0);
-  assert.deepEqual(writes(calls), [labeled(20)]);
+test("under an admission with classes, a ratified issue with another class stays unlabeled", async () => {
+  const admission = { classes: ["work-class: read-only", "work-class: mechanical"], ratified: true };
+  for (const labels of [["work-class: feature"], ["work-class: mechanical", "Work-Class: Feature"]]) {
+    const { github, calls } = oneDependent({ labels });
+    assert.equal(await runMain({ admission, env: envFor(), github }), 0);
+    assert.deepEqual(writes(calls), [], JSON.stringify(labels));
+  }
 });
 
 test("an admitted work class without the marker stays unlabeled", async () => {

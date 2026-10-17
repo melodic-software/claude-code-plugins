@@ -5,8 +5,8 @@
 // Automation Lanes): open, every blocker closed as completed by a listed
 // human or a merge (a pull request blocker: merged), no hold label,
 // not already agent-ready, ratified by the owner's admission marker, and
-// admitted by resolve-issue's own admission rule (no work class outside its
-// classes). Every fact is read from the API now, never from the event
+// admitted by resolve-issue's own admission rule (when it lists classes, no
+// work class outside them). Every fact is read from the API now, never from the event
 // payload. No model.
 //
 // On `schedule` it sweeps instead: every issue closed in the last

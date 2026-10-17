@@ -17,10 +17,14 @@ export class MissingFact extends Error {
 const WORK_CLASS = /^\s*work-class\s*:\s*/i;
 const normalClass = (label) => `work-class: ${label.replace(WORK_CLASS, "").trim().toLowerCase()}`;
 
-// An issue carrying a work-class label outside `classes` is refused, even
-// beside a listed one. Otherwise it is admitted by a listed class or, with
-// `ratified`, by the owner's ratification marker (the `ratified` fact).
+// With no `classes`, only the owner's ratification marker (the `ratified`
+// fact, under `ratified`) admits, and no work-class label is read. With
+// `classes`, an issue carrying a work-class label outside them is refused,
+// even beside a listed one; otherwise a listed class or the marker admits.
 export function admits({ classes, ratified }, labels, facts) {
+  if (classes === undefined) {
+    return ratified === true && facts.ratified === true;
+  }
   const allowed = new Set(classes.map(normalClass));
   if (labels.some((label) => WORK_CLASS.test(label) && !allowed.has(normalClass(label)))) {
     return false;
