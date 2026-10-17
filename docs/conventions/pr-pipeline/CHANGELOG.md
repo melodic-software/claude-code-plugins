@@ -1,5 +1,16 @@
 # Changelog for the PR pipeline convention
 
+## 1.24.0 - 2026-10-17
+
+Both Dependabot classifiers make an otherwise tier `auto` npm or pip update tier `review` when its
+registry provenance changed or cannot be read (`provenance-changed:<name>`,
+`provenance-missing:<name>`, `provenance-unreadable:<name>`; README, "Registry provenance"). The
+review-dependency select step outputs `controls`, `run.json` gains `controls`, and the write
+runner gains a seventh dependency escalation reason, `dependency-control-uncited`: a `merge`
+verdict on a review-only dependency that does not quote each matched entry's `control` in
+`evidence`. The select step warns `classifier gap` when only a read failure sent a pull request
+to review (README, "Classifier gaps"). `version` stays 1.
+
 ## 1.23.0 - 2026-10-17
 
 `merge.verify-authors` (`lane`, `any`; absent is `lane`) is a new optional key. Under `lane`

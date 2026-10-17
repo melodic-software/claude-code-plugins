@@ -2899,8 +2899,34 @@ class DependabotEligibility(unittest.TestCase):
         pushes: list[dict[str, Any]] | None = None,
         files: list[dict[str, Any]] | None = None,
         review_only: list[dict[str, Any]] | None = None,
+        registry: dict[str, Any] | None = None,
     ) -> GhFake:
         gh = GhFake().install(self)
+        # The package registry: by default x has never had provenance.
+        pages = (
+            {
+                "https://registry.npmjs.org/x": {
+                    "versions": {"1.2.0": {}, "1.3.0": {}},
+                    "time": {
+                        "1.2.0": "2026-09-01T00:00:00Z",
+                        "1.3.0": "2026-10-01T00:00:00Z",
+                    },
+                }
+            }
+            if registry is None
+            else registry
+        )
+        self.registry_calls: list[str] = []
+
+        def read(url: str, accept: str) -> Any:
+            self.registry_calls.append(url)
+            if url not in pages:
+                raise OSError(f"HTTP 404 {url}")
+            return pages[url]
+
+        patcher = mock.patch.object(policy, "_registry_json", read)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         gh.rest[f"repos/{REPO}/contents/{POLICY}?ref={SHA}"] = file_payload(
             json.dumps(
                 {
@@ -2986,6 +3012,62 @@ class DependabotEligibility(unittest.TestCase):
                 f"head={head or self.HEAD} verdict={verdict} run=55-1 -->"
             ),
         }
+
+    def test_a_minor_bump_whose_provenance_changed_waits_for_a_review(self) -> None:
+        attested = {"dist": {"attestations": {"url": "u"}}}
+        payload = {
+            "predicate": {
+                "buildDefinition": {
+                    "externalParameters": {
+                        "workflow": {"repository": "https://github.com/o/x", "path": "w"}
+                    }
+                }
+            }
+        }
+        packument = {
+            "versions": {"1.2.0": attested, "1.3.0": {}},
+            "time": {"1.2.0": "2026-09-01T00:00:00Z", "1.3.0": "2026-10-01T00:00:00Z"},
+        }
+        attestation = {
+            "attestations": [
+                {
+                    "predicateType": "https://slsa.dev/provenance/v1",
+                    "bundle": {
+                        "dsseEnvelope": {
+                            "payload": base64.b64encode(
+                                json.dumps(payload).encode()
+                            ).decode()
+                        }
+                    },
+                }
+            ]
+        }
+        self.fake(
+            registry={
+                "https://registry.npmjs.org/x": packument,
+                "https://registry.npmjs.org/-/npm/v1/attestations/x@1.2.0": attestation,
+            }
+        )
+        result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(
+            result.reason, "dependabot-review:provenance-missing:x;review-verdict-missing"
+        )
+        self.assertEqual(result.dependabot.tier, "review")
+
+    def test_an_unreadable_registry_waits_for_a_review(self) -> None:
+        self.fake(registry={})
+        self.assertEqual(
+            self.eligibility().reason,
+            "dependabot-review:provenance-unreadable:x;review-verdict-missing",
+        )
+
+    def test_a_review_tier_bump_spends_no_registry_read(self) -> None:
+        self.fake(commits=[dependabot_commit("semver-major")], registry={})
+        self.assertEqual(
+            self.eligibility().reason, "dependabot-review:major:x;review-verdict-missing"
+        )
+        self.assertEqual(self.registry_calls, [])
 
     def test_a_patch_or_minor_bump_on_a_green_ci_status_is_eligible_as_c2(self) -> None:
         for kind in ("semver-patch", "semver-minor"):

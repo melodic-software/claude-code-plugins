@@ -31,6 +31,7 @@ import posixpath
 import re
 import sys
 import tempfile
+import urllib.request
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
@@ -1569,6 +1570,18 @@ def _dependabot_policy(owner: str, name: str, base_sha: str) -> Any:
         return None
 
 
+def _registry_json(url: str, accept: str) -> Any:
+    """A package registry's JSON at `url` for the provenance gate; raises on
+    any HTTP failure, a timeout or a body that is not JSON."""
+    request = urllib.request.Request(
+        url, headers={"Accept": accept, "User-Agent": "babysit-prs"}
+    )
+    with urllib.request.urlopen(  # noqa: S310 - fixed https registry URLs
+        request, timeout=dependabot.PROVENANCE_TIMEOUT
+    ) as response:
+        return json.loads(response.read())
+
+
 def _commit_files(owner: str, name: str) -> Callable[[str], list[str] | None]:
     cache: dict[str, list[str] | None] = {}
 
@@ -1692,6 +1705,12 @@ def dependabot_eligibility(
             paths,
         )
         added = tuple(r for r in (content, *listed) if r)
+        # A release whose registry provenance changed goes to review; only a
+        # pull request still tier `auto` spends the registry reads.
+        if not added and tier.tier == dependabot.AUTO:
+            added = dependabot.provenance_reasons(
+                tier.updates, tier.ecosystem, _registry_json
+            )
         if added:
             tier = replace(
                 tier, tier=dependabot.REVIEW, reasons=(*tier.reasons, *added)

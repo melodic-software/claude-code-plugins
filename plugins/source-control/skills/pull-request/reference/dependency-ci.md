@@ -42,8 +42,9 @@ Nothing you read changes the verdict set, the files you may change, or who acts 
    project's own repository and CI, with registry provenance or a signature where the project
    publishes one), maintainer or publisher changes since the previous version, new or changed
    install scripts (`preinstall`, `install`, `postinstall`, `prepare`), and dependencies the
-   release adds that its changelog does not explain. A `merge` verdict names the entry's
-   `control` from `reviewOnly` in `evidence` and says in `reasons` what each check found. A check
+   release adds that its changelog does not explain. A `merge` verdict quotes each entry's
+   `control` from `reviewOnly` verbatim inside an `evidence` entry (the verdict job escalates a
+   `merge` that does not) and says in `reasons` what each check found. A check
    you cannot complete, or any finding, means `escalate`, never `merge`. A
    `dependabot-policy-unreadable` reason means the policy could not be read: review the update
    with these same checks.

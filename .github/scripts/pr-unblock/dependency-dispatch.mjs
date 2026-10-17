@@ -48,6 +48,7 @@ export async function dispatchDependencyReviews({
   config = null,
   policy,
   repository,
+  provenance,
 }) {
   const candidates = (await listAll(api, base))
     .filter((node) => node.isDraft === false && node.isCrossRepository === false && node.baseRefName === base)
@@ -79,6 +80,7 @@ export async function dispatchDependencyReviews({
           policy,
           repository,
           readCommitFiles: commitFilesReader(api),
+          provenance,
         })
       ).tier;
       if (tier !== "review") {

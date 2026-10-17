@@ -17,7 +17,7 @@ const output = (overrides = {}) => ({
   evidence: [".node-version:1"],
   ...overrides,
 });
-const runOf = (overrides = {}) => ({ version: 1, pr: 7, head_sha: HEAD, security: false, config_unreadable: false, output: output(), ...overrides });
+const runOf = (overrides = {}) => ({ version: 1, pr: 7, head_sha: HEAD, security: false, config_unreadable: false, controls: [], output: output(), ...overrides });
 
 function fakeApi({ head = HEAD, state = "open", labels = [], body = "", compare = { status: "ahead", commits: [], files: [] }, comments = [], issues = [], failClose = false } = {}) {
   // State persists across calls, so a second apply() is a re-run.
@@ -170,6 +170,36 @@ test("a merge verdict on an unreadable Dependabot config escalates and posts no 
   assert.equal(result.escalationReason, "dependency-config-unreadable");
   assert.doesNotMatch(api.calls.comments.join("\n"), /verdict=merge/);
   assert.throws(() => validateRun(runOf({ config_unreadable: "no" }), 7), /invalid/i);
+});
+
+const CONTROL = "docs/conventions/pr-pipeline/README.md#review-only-dependencies";
+
+test("a merge verdict on a review-only dependency must quote each matched control verbatim", async () => {
+  const cited = output({ evidence: [`${CONTROL}: provenance unchanged from 2.5.13`, ".node-version:1"] });
+  const merged = fakeApi();
+  assert.equal((await go(merged, runOf({ controls: [CONTROL], output: cited }))).escalationReason, "");
+  assert.match(merged.calls.comments.join("\n"), /verdict=merge/);
+  for (const evidence of [[".node-version:1"], ["docs/conventions/pr-pipeline/README.md"], [CONTROL.toUpperCase()]]) {
+    const api = fakeApi();
+    const result = await go(api, runOf({ controls: [CONTROL], output: output({ evidence }) }));
+    assert.equal(result.escalationReason, "dependency-control-uncited", JSON.stringify(evidence));
+    assert.doesNotMatch(api.calls.comments.join("\n"), /verdict=merge/);
+    assert.match(api.calls.comments.join("\n"), /verdict=escalate/);
+  }
+  // Every control, not just one.
+  const two = fakeApi();
+  assert.equal((await go(two, runOf({ controls: [CONTROL, "docs/y.md#z"], output: cited }))).escalationReason, "dependency-control-uncited");
+  // No control to cite: a merge stands, and a non-merge verdict is not checked.
+  assert.equal((await go(fakeApi(), runOf())).escalationReason, "");
+  assert.equal((await go(fakeApi(), runOf({ controls: [CONTROL], output: output({ verdict: "escalate" }) }))).escalationReason, "dependency-escalate");
+});
+
+test("validateRun refuses a run.json without a list of controls", () => {
+  for (const controls of [undefined, "x", [1], [""], Array(21).fill("c")]) {
+    const run = runOf({ controls });
+    if (controls === undefined) delete run.controls;
+    assert.throws(() => validateRun(run, 7), /invalid/i, JSON.stringify(controls));
+  }
 });
 
 test("a security update is never closed: it escalates", async () => {
