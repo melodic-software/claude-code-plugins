@@ -445,10 +445,10 @@ declares_both_fixtures B "$CASE_B"
 
 # Both defenses are body prose, each covered by its own section digest below; no
 # frontmatter key states or qualifies either. `argument-hint` is the slot list
-# `[me|lock|scope] [topic]`, with the invocation examples in the body's `Arguments.` line.
+# `[me|lock|scope|share] [topic]`, with the invocation examples in the body's `Arguments.` line.
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "2e53b9942730509a6e02349e032fdd9e4329c16ad6130a4ea61929d757b0216c"
+  "c7cdb6ad399bfc71c4645d8448ab54e040588034d97fa617ffc895c97ba5120a"
 
 # The Gates block restates the auto-guard, the `lock` STOP-on-gap and the register gate near
 # the top of SKILL.md, where a compaction's re-attach still reaches (#5332;

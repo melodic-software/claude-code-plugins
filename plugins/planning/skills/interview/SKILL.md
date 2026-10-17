@@ -1,6 +1,6 @@
 ---
 description: "Rounds of numbered, recommended questions that bring a task, proposal, or choice to shared understanding. An engineering task locks a PLAN.md Brief (goal, constraints, acceptance criteria, assumptions). Use when: 'interview me', 'lock the brief', 'spec this task', 'grill me', 'this is underspecified', 'ask me questions first', 'what do you need to know', 'acceptance criteria', 'how will we know this is done', or before work whose diff is not quick to review and cheap to retry; skip one that is."
-argument-hint: "[me|lock|scope] [topic]"
+argument-hint: "[me|lock|scope|share] [topic]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
