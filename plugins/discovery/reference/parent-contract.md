@@ -701,7 +701,9 @@ path as an argument and stop there: no `; echo exit=$?`, no `for` loop, and no `
 chain. The tool result already carries a non-zero exit. A worktree-isolated session
 refused a compound command whose words included a slice path ending in `git`, and
 allowed the same path as one plain command. The side-effect-free `--help` probes in
-"Pre-flight" stay chained; they take no slice path.
+"Pre-flight" stay chained; they take no slice path. The accepted shapes for any worker Bash call
+are in "Accepted command shapes for body-time and subagent Bash" in the source-control plugin's
+`skills/worktree/reference/gather-block.md`.
 
 - **Pointer**: when a worktree-isolated Bash command is refused, fetch [worktrees: how Claude Code enforces isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation) live. The probe is [#6067](https://github.com/melodic-software/claude-code-plugins/issues/6067).
 - **As of**: 2026-10-11 (pointer anchor); the probe ran 2026-10-03
