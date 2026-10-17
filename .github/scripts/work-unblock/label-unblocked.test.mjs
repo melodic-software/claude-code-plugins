@@ -881,7 +881,7 @@ test("a failed listing of closed issues writes nothing and fails the run", async
   assert.deepEqual(writes(calls), []);
 });
 
-// Re-fires after a failed run (issue 7816): a rerun keeps its first event's
+// Re-fires after a failed run: a rerun keeps its first event's
 // workflow files, so the token broker refuses it as workflow-modified once
 // main's pr-run-activity-write.yml or work-resolve-issue.yml has changed, and
 // a run that crashed before its report leaves no marker. The sweep gives such
@@ -1009,4 +1009,30 @@ test("with no Actions token the sweep reads no run and re-fires nothing", async 
   assert.equal(await sweep({ github }), 0);
   assert.deepEqual(writes(calls), []);
   assert.ok(!calls.some((call) => call.includes("/actions/")));
+});
+
+// The record and the App's re-add can land in the same whole second; the record
+// still counts as done, and a later workflow version still re-fires once more.
+test("a re-fire record in the same second as the App's re-add still counts, and a new workflow version re-fires", async () => {
+  const newer = "3".repeat(40);
+  const { github, actions, calls } = failedRun({
+    comments: [note(), refireNote(KEY, "2026-10-16T11:00:01Z")],
+    events: [
+      added(LABELED_AT, OWNER),
+      { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T11:00:01Z" },
+      added("2026-10-16T11:00:01Z"),
+    ],
+    runs: [laneRun(), laneRun({ at: "2026-10-16T11:00:04Z" })],
+    blobs: { ...BLOBS, ".github/workflows/pr-run-activity-write.yml": newer },
+  });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30, `${newer}-${CALLER_SHA}`));
+});
+
+// The record posted but the label never moved (a failed DELETE): the next
+// sweep moves the label without posting the record again.
+test("a re-fire record with no App re-add after it is finished by the next sweep, without a second record", async () => {
+  const { github, actions, calls } = failedRun({ comments: [note(), refireNote(KEY, "2026-10-16T11:00:00Z")] });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), restarted(30));
 });

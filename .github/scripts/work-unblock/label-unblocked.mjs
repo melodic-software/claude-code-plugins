@@ -323,7 +323,7 @@ async function laneRuns(actions, repo, number, addedAt) {
 
 // Why an agent-ready issue whose newest label has no marker after it is not
 // re-fired now, or null with the workflow key to record.
-async function refireRefusal({ actions, repo, number, lastAdd, addedAt, markers, humans, bot, workflowKey }) {
+async function refireRefusal({ actions, repo, number, lastAdd, addedAt, markers, events, humans, bot, workflowKey }) {
   if (lastAdd.actor?.login !== bot && !humans.has(lastAdd.actor?.id)) {
     return { reason: `${LABEL} was added by neither a listed human nor the lanes App` };
   }
@@ -341,10 +341,15 @@ async function refireRefusal({ actions, repo, number, lastAdd, addedAt, markers,
     return { reason: "its lane run did not fail" };
   }
   const key = await workflowKey();
-  if (markers.some((marker) => marker.outcome === "refired" && marker.key === key)) {
+  // A record counts once the App added the label back at or after it; one
+  // whose label write failed is finished by the next sweep, not posted again.
+  const recorded = markers.filter((marker) => marker.outcome === "refired" && marker.key === key);
+  const relabeled = (marker) =>
+    events.some((event) => isLabel(event, "labeled") && event.actor?.login === bot && Date.parse(event.created_at) >= marker.at);
+  if (recorded.some(relabeled)) {
     return { reason: `already re-fired for workflow files ${key}` };
   }
-  return { reason: null, resets: addedAt, refire: key };
+  return { reason: null, resets: addedAt, refire: key, recorded: recorded.length > 0 };
 }
 
 // Why an agent-ready issue is not restarted now (after a limit stop) or
@@ -359,7 +364,8 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
   }
   const comments = await paginate(github, `${base}/comments`);
   const markers = appMarkers(comments, bot);
-  const marker = markers.at(-1);
+  // A re-fire record ends no run, so only outcome markers count here.
+  const marker = markers.filter((item) => item.outcome !== "refired").at(-1);
   const events = await paginate(github, `${base}/events`);
   // A lane run starts on agent-ready being added, and its outcome marker ends
   // it, so a label added after the newest marker is a run since: still going,
@@ -367,7 +373,7 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
   const lastAdd = events.filter((event) => isLabel(event, "labeled")).at(-1);
   const addedAt = Date.parse(lastAdd?.created_at);
   if (Number.isFinite(addedAt) && (marker === undefined || addedAt > marker.at)) {
-    return refireRefusal({ actions, repo, number: issue.number, lastAdd, addedAt, markers, humans, bot, workflowKey });
+    return refireRefusal({ actions, repo, number: issue.number, lastAdd, addedAt, markers, events, humans, bot, workflowKey });
   }
   if (marker?.outcome !== "limited") {
     return { reason: "no limit stop is its newest lane outcome" };
@@ -422,7 +428,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, cap = R
   }
   for (const issue of open) {
     try {
-      const { reason, resets, escalate, explained, refire } = await restartRefusal({
+      const { reason, resets, escalate, explained, refire, recorded } = await restartRefusal({
         github,
         actions,
         repo,
@@ -449,7 +455,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, cap = R
         console.log(`label-unblocked: #${issue.number} not restarted: ${reason}`);
         continue;
       }
-      ready.push({ number: Number(issue.number), resets, refire });
+      ready.push({ number: Number(issue.number), resets, refire, recorded });
     } catch (error) {
       failed += 1;
       reportError(issue.number, error);
@@ -459,10 +465,10 @@ async function restartLimited({ github, actions, repo, bot, humans, now, cap = R
   for (const { number } of ready.slice(cap)) {
     console.log(`label-unblocked: #${number} restart deferred: ${cap} restarts this run`);
   }
-  for (const { number, refire } of ready.slice(0, cap)) {
+  for (const { number, refire, recorded } of ready.slice(0, cap)) {
     try {
       // The record first: a failed comment re-fires nothing, so the bound holds.
-      if (refire) {
+      if (refire && !recorded) {
         await github("POST", `/repos/${repo}/issues/${number}/comments`, { body: refireComment(refire) });
       }
       await github("DELETE", `/repos/${repo}/issues/${number}/labels/${LABEL}`);
