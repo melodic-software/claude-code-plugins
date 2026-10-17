@@ -125,9 +125,9 @@ activities:
     # read-only copy of the base. A script that changes files, runs code from
     # the checkout or reaches the network hands the run that power, so list
     # one only when it limits that itself. run-test-file.sh runs one test
-    # file inside the checkout (pytest, bash or node --test, without the
-    # GitHub token), so the run can show a test it changed passing and
-    # failing when broken on purpose. git-mv-rm.sh renames and removes paths
+    # file inside the checkout (pytest, bash, node --test or the package's
+    # vitest, without the GitHub token), so the run can show a test it
+    # changed passing and failing when broken on purpose. git-mv-rm.sh renames and removes paths
     # inside the checkout. skill-quality's check-skill.sh is left out because
     # it runs every skill's scripts/*.test.sh and a markdownlint from the
     # checkout.

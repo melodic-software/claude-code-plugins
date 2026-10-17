@@ -1,11 +1,20 @@
 # Changelog for the PR pipeline convention
 
-## 2.5.0 - 2026-10-17
+## 2.6.0 - 2026-10-17
 
 A daily `maintenance` producer, the lane sweep ([README.md, The lane sweep](README.md#the-lane-sweep)):
 a collect script, one read-only model leg per unit, and a file script that checks every quoted line
 against main, de-duplicates by fingerprint, and files at most 5 `needs-triage` issues with the job's
 own token. It labels nothing `agent-ready`. `version` stays 2.
+
+## 2.5.0 - 2026-10-17
+
+`scripts/run-test-file.sh` runs a `*.test.js` or `*.test.ts` file that imports `vitest` with the
+package's locked vitest (`npx --no-install vitest run`, from the nearest `package.json` inside the
+checkout), under the same checkout-path guard, after `npm ci --ignore-scripts` there when the
+package has a `package-lock.json` and no `node_modules`. When it is a verify-script, the system prompt names
+its wrapper as the test entry and says a compound `cd <dir>; <command>` is refused
+([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). `version` stays 2.
 
 ## 2.4.0 - 2026-10-17
 

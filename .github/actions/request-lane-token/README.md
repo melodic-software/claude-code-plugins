@@ -23,6 +23,7 @@ run, and mints nothing ([Check mode](#check-mode)).
 | `issue-number` | `token` mode: the issue an `issues` lane works; sent as `issue_number` when set, which the broker needs on an `issues` event. Never with `pr-number` or `dispatcher-run-id` |
 | `dispatcher-run-id` | `token` mode: the `pr-unblock-dispatch.yml` run that dispatched this one; sent as `dispatcher_run_id` when set. The broker needs it to trust a run sent by `github-actions[bot]` |
 | `effect`, `contents`, `pull-requests`, `issues` | `token` mode: this job's own `resolve-config` outputs, compared with the broker's answer |
+| `superseded-ok` | `true` ends green, with a `lane-token-superseded` warning and no token, on a 403 whose reason is `workflow-modified` (a newer copy of the caller workflow on the default branch, whose run does the work). Default `false` |
 
 ## Outputs
 
@@ -43,6 +44,8 @@ run, and mints nothing ([Check mode](#check-mode)).
    nobody revokes. No response at all fails red with `broker-unreachable`.
 4. Any status but 200 fails red with `lane-token-denied`, the HTTP status, and the broker's
    `reason` and `detail`, printed as one line of data. The reasons are listed in the contract.
+   With `superseded-ok: true`, a 403 with reason `workflow-modified` warns and ends green instead,
+   setting no output, so steps gated on the `token` output skip.
 5. On 200, masks the token, then compares the broker's `effect`, `permissions`, `lane`, `activity`
    and `repository_ids` with this job's values (`pull-requests` is `pull_requests` in the API). Any
    difference revokes the token and fails red with `effect-mismatch`. That happens when the PR's
