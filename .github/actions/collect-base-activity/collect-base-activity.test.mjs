@@ -484,6 +484,29 @@ test("run-test-file runs a vitest file with its package's vitest from the packag
   assert.match(broken.stderr, /exit status: 1\n$/);
 });
 
+// A lane checkout has no node_modules in a plugin package, so run-test-file
+// installs the package's lockfile (npm ci --ignore-scripts) once, first. The
+// stand-in vitest is a local file: dependency, so the install needs no network.
+test("run-test-file installs a package's locked dependencies once when node_modules is missing", () => {
+  const staged = withLaneTools();
+  assert.equal(staged.status, 0);
+  withVitestPackage(staged);
+  const pkg = path.join(staged.workspace, "fresh");
+  mkdirSync(path.join(pkg, "src"), { recursive: true });
+  writeFileSync(path.join(pkg, "package.json"), JSON.stringify({ name: "fresh", devDependencies: { vitest: "file:../plugin/node_modules/vitest" } }));
+  const lock = spawnSync("npm", ["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: pkg, encoding: "utf8" });
+  assert.equal(lock.status, 0, lock.stderr);
+  assert.throws(() => statSync(path.join(pkg, "node_modules")), "the fixture starts with no node_modules");
+  writeFileSync(path.join(pkg, "src", "pass.test.ts"), 'import { test } from "vitest";\ntest("a", () => {});\n');
+  const first = staged.run("run-test-file", ["fresh/src/pass.test.ts"]);
+  assert.equal(first.status, 0, first.stderr);
+  assert.equal(first.stdout, `vitest cwd=${pkg} args=run ${path.join(pkg, "src", "pass.test.ts")}\n`);
+  const installed = statSync(path.join(pkg, "node_modules", ".package-lock.json")).mtimeMs;
+  const second = staged.run("run-test-file", ["fresh/src/pass.test.ts"]);
+  assert.equal(second.status, 0, second.stderr);
+  assert.equal(statSync(path.join(pkg, "node_modules", ".package-lock.json")).mtimeMs, installed, "a present node_modules is not reinstalled");
+});
+
 test("run-test-file refuses a vitest file outside the checkout, one without a package and one that does not import vitest", () => {
   const staged = withLaneTools();
   assert.equal(staged.status, 0);

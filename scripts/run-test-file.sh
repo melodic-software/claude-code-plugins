@@ -6,7 +6,9 @@
 # test_*.py runs under python3 -m pytest, *.test.sh under bash, *.test.mjs
 # under node --test, and a *.test.js or *.test.ts file that imports vitest
 # under its package's locked vitest (npx --no-install vitest run, from the
-# nearest directory holding a package.json, within the checkout). The path
+# nearest directory holding a package.json, within the checkout), after
+# npm ci --ignore-scripts there when it has a package-lock.json and no
+# node_modules. The path
 # must name a test file inside the checkout (the
 # current directory; scripts/lib/checkout-path.sh). The test runs without
 # GH_TOKEN or GITHUB_TOKEN. The name may hold only letters, digits, `.`, `_`,
@@ -37,8 +39,14 @@ case ${1##*/} in
       [[ $dir != "$here" ]] || checkout_path::refuse "'$1' has no package.json inside the checkout"
       dir=${dir%/*}
     done
+    cd -- "$dir" || exit 2
+    # A lane checkout installs no plugin package, so install its lockfile
+    # once, with no install scripts, as scripts/setup-env.sh does at the root.
+    if [[ ! -d node_modules && -f package-lock.json ]]; then
+      npm ci --ignore-scripts --no-audit --no-fund >&2 || exit
+    fi
     # An absolute path, so vitest cannot read the filter as an option.
-    cd -- "$dir" && exec npx --no-install vitest run "$file"
+    exec npx --no-install vitest run "$file"
     ;;
   *) checkout_path::refuse "'$1' is not a test_*.py, *.test.sh, *.test.mjs or vitest *.test.js/*.test.ts file" ;;
 esac
