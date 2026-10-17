@@ -2,17 +2,17 @@
 description: "When the bundled pr skill or built-in commit-push-pr command resolves in this session, prefer pr for a one-shot PR from committed work and commit-push-pr to commit, push and open one at once, only when no draft, body contract, or later ready, monitor, or merge step applies; this skill otherwise. Orchestrate the full PR lifecycle: prep (review + verify), create, ready (merge the base, security review + verify, flip), monitor CI + review comments, merge, and fetch CI logs. Use when: 'create pr', 'ship it', 'pr prep', 'mark ready', 'ready for review', 'fix CI', 'address comments', 'monitor PR', 'merge this', 'check pr status', not for the all-PR babysit loop (use /babysit-prs), branch/worktree lifecycle (use /worktree), or committing without a PR (use /commit)."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[prep|create|ready|monitor|comments|merge|status|full|fetch-logs|view|list] [args]"
+argument-hint: "[prep|create|ready|monitor|comments|merge|status|full|fetch-logs|view|list|review-venue] [args]"
 metadata:
   workflow-stage: pr
   summary: Full PR lifecycle. Prep, create, monitor CI, address reviews, merge
 ---
 
-**Arguments.** `[prep|create|ready|monitor|comments|merge|status|full|fetch-logs|view|list] [args]`. e.g., /pull-request prep, /pull-request create, /pull-request ready, /pull-request monitor, /pull-request comments, /pull-request merge, /pull-request status, /pull-request full, /pull-request fetch-logs <pr|run>, /pull-request view <pr> --diff, /pull-request list --head <branch>
+**Arguments.** `[prep|create|ready|monitor|comments|merge|status|full|fetch-logs|view|list|review-venue] [args]`. e.g., /pull-request prep, /pull-request create, /pull-request ready, /pull-request monitor, /pull-request comments, /pull-request merge, /pull-request status, /pull-request full, /pull-request fetch-logs <pr|run>, /pull-request view <pr> --diff, /pull-request list --head <branch>, /pull-request review-venue
 
 ## Repository context. Gather first
 
-The read actions `view` and `list`, `comments --ci` and `dependency --ci` skip this section. For every other action, collect these with
+The read actions `view`, `list` and `review-venue`, `comments --ci` and `dependency --ci` skip this section. For every other action, collect these with
 **individual** Bash calls, one command per call, never combined into a single invocation:
 
 - Current branch, `git branch --show-current`
@@ -60,14 +60,14 @@ For PR lifecycle runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pul
 | Action | Entry point | Use case |
 |--------|-------------|----------|
 | *(empty)* | Smart default | Detect current state, resume from right phase |
-| `prep` | Phase 1 | Review + verify findings + simplify + verify build |
+| `prep` | Phase 1 | Review (skipped when the CI code-review lane covers it, [reference/review-venue.md](reference/review-venue.md)) + verify findings + simplify + verify build |
 | `prep quick` | Phase 1 (fast) | Code errors only, skip simplify |
 | `prep review-only` | Phase 1 (partial) | Just review + verify findings |
 | `prep simplify-only` | Phase 1 (partial) | Just simplify + re-verify |
 | `create` | Phase 2 | Branch-name check + commit + changelog fragments where the repo releases from them ([reference/create.md](reference/create.md) §2.3.3) + push + open the PR as a draft, its body carrying the plan Brief's acceptance criteria when the branch implements a plan ([reference/create.md](reference/create.md) §2.4.1), then run `ready` on it when the resolved PR open state is `ready`. Reports the PR URL, its open state and the level that set it, and stops |
 | `create --pushed --worktree <path>` | Phase 2 (PR-only) | **PR-only entry for an orchestrated flow**, the branch is already committed and pushed (by a dispatched worker), so this skips commit / push / rebase, re-resolves branch and diff from the given target worktree (not the session cwd), and runs body assembly + gates + opens the PR for `<branch>` always as a draft, since it is unattended (the open state's repository level is read at the base branch, never from the worktree). Used by `/work-items:work`'s orchestrator after its pre-PR gate. See [reference/create.md](reference/create.md) §2.7 |
-| `ready` | Phase 2.5 | Merge the base into the branch (never a rewrite of its history), run the code and security reviews over the PR diff in fresh-context subagents and the verify gate on the merged head, flip the draft to ready (the base branch's `pre_ready` list can turn off any of the five pre-flip steps; each step's outcome is reported), then hand the PR to `/review:explain-change`, whose `digest_policy` decides whether a digest is offered or built (it gates nothing). Never arms auto-merge: ready starts the AI reviews. Refuses on a branch with no PR, and leaves a held or superseded draft in draft. `ready --unattended` (every lane, loop or dispatched caller) also leaves a draft a person asked for (its `Draft:` body line) in draft. `ready [<pr>] --skip <step>[,<step>...] --reason "<text>"` lets a person present skip pre-flip steps for this run only, reported and recorded in one PR comment, never in the body; refused unattended. See [reference/ready-for-review.md](reference/ready-for-review.md) |
-| `monitor` | Phase 3 | Watch CI, fix failures, evaluate comments. **Three-tier event delivery: (1) push channel** when your environment ships a forge-events channel (an MCP server delivering webhook events into the session), ~0 idle requests; **(2) Monitor tool** fallback (30s poll); **(3) plain polling** in cloud/headless sessions. Check the push channel FIRST per [monitor.md](reference/monitor.md) §3.0.05 before falling back |
+| `ready` | Phase 2.5 | Merge the base into the branch (never a rewrite of its history), run the code and security reviews over the PR diff in fresh-context subagents (each skipped when its CI review lane is present and healthy, [reference/review-venue.md](reference/review-venue.md)) and the verify gate on the merged head, flip the draft to ready (the base branch's `pre_ready` list can turn off any of the five pre-flip steps; each step's outcome is reported), then hand the PR to `/review:explain-change`, whose `digest_policy` decides whether a digest is offered or built (it gates nothing). Never arms auto-merge: ready starts the AI reviews. Refuses on a branch with no PR, and leaves a held or superseded draft in draft. `ready --unattended` (every lane, loop or dispatched caller) also leaves a draft a person asked for (its `Draft:` body line) in draft. `ready [<pr>] --skip <step>[,<step>...] --reason "<text>"` lets a person present skip pre-flip steps for this run only, reported and recorded in one PR comment, never in the body; refused unattended. See [reference/ready-for-review.md](reference/ready-for-review.md) |
+| `monitor` | Phase 3 | Watch CI, fix failures, evaluate comments. **Three-tier event delivery: (1) push channel** when your environment ships a forge-events channel (an MCP server delivering webhook events into the session), ~0 idle requests; **(2) Monitor tool** fallback (60s poll); **(3) plain polling** in cloud/headless sessions. Check the push channel FIRST per [monitor.md](reference/monitor.md) §3.0.05 before falling back |
 | `comments` | Phase 3.5 | Evaluate/respond to PR comments only |
 | `comments --ci` | Phase 3.5 (CI) | The pr-unblock lane's unattended mode: the runner's kept reviewer-bot threads only, through its review-thread tool, running no head code. See [reference/comments-ci.md](reference/comments-ci.md) |
 | `dependency --ci` | Phase 3.5 (CI) | The pr-unblock lane's unattended review of one risky Dependabot update: reads the runner's context file, the checkout and the upstream release notes as data, may push a scoped fix outside `.github/`, and returns a merge, fix, close or escalate verdict as structured output, running no head code. See [reference/dependency-ci.md](reference/dependency-ci.md) |
@@ -77,6 +77,7 @@ For PR lifecycle runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pul
 | `fetch-logs <pr\|run> [--raw\|--job <job-id>]` | CI log retrieval | Pull failed-CI evidence: default = `::error`/`::warning` annotations only (cheapest); `--raw` = full ZIP dump for archive review; `--job <id>` = per-job plain text |
 | `view [<pr>] [--repo <owner/repo>] [--diff] [--out <file>]` | Read only | One PR's facts as JSON, or its diff with `--diff`; no number reads the current branch's PR. See [reference/read.md](reference/read.md) |
 | `list [--head <branch>\|--head-match <ERE>] [--search <text>] [--state open\|closed\|merged\|all] [--repo <owner/repo>]` | Read only | PRs as a JSON array, open by default |
+| `review-venue [--repo <owner/repo>] [--max-age-days <n>]` | Read only | Per AI review lane (code, security): `ci` when the repository's CI lane is present and healthy, so no local review runs for it, else `local`. See [reference/review-venue.md](reference/review-venue.md) |
 
 For the all-PR continuous loop (discover every open PR, work each to readiness, self-pace), use
 the sibling skill `/source-control:babysit-prs`. It wraps this skill's per-PR review discipline
@@ -85,7 +86,7 @@ in fleet orchestration and never merges.
 ## Action defaults
 
 - **Merge mode:** `merge` squash-merges (one squashed commit per PR onto the default branch), see [reference/merge.md](reference/merge.md) §4.2. Follow the consuming project's convention when it differs. A stacked PR lands every layer below it: see [reference/stacks.md](reference/stacks.md).
-- **Monitor cadence:** `monitor` polls the PR's checks (the §3.0.1 REST read) and comment fetches every 30 seconds, see [reference/monitor.md](reference/monitor.md) §3.1. A wait is a REST poll that runs in the background (the §3.0.1 Monitor watch, or a `run_in_background` poll where Monitor is unavailable), never a foreground `sleep` or `until` loop and never the CLI's blocking checks watch, and it first reports each pending job as queued or running ("Waiting on a pending check").
+- **Monitor cadence:** `monitor` polls the PR's checks (the §3.0.1 REST read) and comment fetches every 60 seconds, see [reference/monitor.md](reference/monitor.md) §3.1; every loop follows the [API budget](../../reference/providers/github/README.md#api-budget). A wait is a REST poll that runs in the background (the §3.0.1 Monitor watch, or a `run_in_background` poll where Monitor is unavailable), never a foreground `sleep` or `until` loop and never the CLI's blocking checks watch, and it first reports each pending job as queued or running ("Waiting on a pending check").
 - **Required reviewers:** `create` requests no reviewers when it opens the PR. See [reference/create.md](reference/create.md) §2.4.3.
 
 ## PR identity resolution
@@ -227,6 +228,14 @@ Public action for retrieving failed-CI evidence. Tiered fetch chain. Cheapest si
 [reference/read.md](reference/read.md) when invoked with either, and only then: it owns the
 command, the output fields, and the exit codes.
 
+## Read the review venue (`review-venue`)
+
+`review-venue` is the read action prep, ready and other skills call before a local AI review, so a
+review runs in CI or locally, never in both. Read
+[reference/review-venue.md](reference/review-venue.md) when invoked with it, or when a phase
+reaches a review: it owns the command, what makes a lane healthy, and how each line is applied and
+reported.
+
 ---
 
 ## Important notes
@@ -318,4 +327,4 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 - **Discover actors, don't hardcode them.** Security tools and AI reviewers change over time. Monitor discovers actors from the PR's checks and comments, classifies them by category (CI, security, review), and evaluates accordingly
 - **Uncommitted changes are silently lost on branch deletion.** `git reflog` cannot recover uncommitted edits. Only commits. Before staging (Phase 2.3.1) and before the post-merge worktree transition (Phase 4.3), check `git status --porcelain` for unrelated uncommitted changes. Stash them (`git stash push -m "desc" -- <files>`). Stashes survive branch deletion. Never silently ignore uncommitted changes
 - **Cloud sessions poll.** Autonomous cloud sessions (`CLAUDE_CODE_REMOTE=true`) poll the PR's checks and comment surfaces on a fixed 60-90s cadence and arm no PR-event route (§3.0.0 of monitor.md holds the decision, its pointer and its recheck trigger)
-- **Monitor checks the push channel first, then falls back.** Three-tier hierarchy on local CLI sessions: (1) **push channel** (when your environment ships a forge-events MCP channel. ~0 Idle requests), (2) **Monitor tool** (a `Monitor` watch armed with an explicit `timeout_ms` and re-armed at each deadline, per monitor.md §3.0.1; 30s poll fires on real CI/comment events; cancel via `TaskStop`), (3) fixed-interval cron polling (deprecated, wasteful). Do not skip straight to the Monitor tool without checking for a channel, polling wastes ~1 request per 30s interval vs ~0 idle with push delivery
+- **Monitor checks the push channel first, then falls back.** Three-tier hierarchy on local CLI sessions: (1) **push channel** (when your environment ships a forge-events MCP channel. ~0 Idle requests), (2) **Monitor tool** (a `Monitor` watch armed with an explicit `timeout_ms` and re-armed at each deadline, per monitor.md §3.0.1; 60s poll fires on real CI/comment events; cancel via `TaskStop`), (3) fixed-interval cron polling (deprecated, wasteful). Do not skip straight to the Monitor tool without checking for a channel, polling wastes ~1 request per 30s interval vs ~0 idle with push delivery

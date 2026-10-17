@@ -117,8 +117,65 @@ test("rung C2 with a valid diff-check and no authority still validates (absent a
   );
 });
 
-test("rung C2 without diff-check still fails the schema", () => {
-  rejectedFor(withMerge({ rung: "C2" }), /required property 'diff-check'/);
+// Merge-criterion plan, Design 3: the enabled pr-merge lane reads no class,
+// so the verifier verdict must be required.
+const LANE = {
+  rung: "C2",
+  "agent-identity": IDENTITY,
+  "diff-check": { "denied-paths": [".claude/**"], "max-changed-lines": 200 },
+};
+
+test("an enabled pr-merge lane above off without a required verdict fails the schema", () => {
+  for (const merge of [
+    LANE,
+    { ...LANE, authority: "pr-merge" },
+    { ...LANE, "require-verifier-verdict": false },
+    { ...LANE, rung: "C3", "require-verifier-verdict": false },
+  ]) {
+    rejectedFor(withMerge(merge), /require-verifier-verdict/);
+  }
+});
+
+test("an enabled pr-merge lane with a required verdict, or at rung off, validates", () => {
+  assert.doesNotThrow(() => run(withMerge({ ...LANE, "require-verifier-verdict": true })));
+  assert.doesNotThrow(() => run(withMerge({ ...LANE, rung: "off" })));
+  assert.doesNotThrow(() =>
+    run(withMerge({ ...LANE, authority: "local-babysit" })),
+  );
+});
+
+// Owner decision Q624: the pr-merge lane needs no denied path or size cap;
+// each check is a diff-check setting.
+test("a pr-merge rung C2 with no diff-check, or an empty one, validates", () => {
+  assert.doesNotThrow(() => run(withMerge({ rung: "C2" })));
+  assert.doesNotThrow(() =>
+    run(withMerge({ ...LANE, "require-verifier-verdict": true, "diff-check": { "denied-paths": [] } })),
+  );
+  assert.doesNotThrow(() =>
+    run(
+      withMerge({
+        ...LANE,
+        "require-verifier-verdict": true,
+        "diff-check": {
+          "denied-paths": [".github/**"],
+          "max-changed-lines": 400,
+          "max-changed-files": 8,
+          "high-path-floor": true,
+          "c2-contradictions": true,
+        },
+      }),
+    ),
+  );
+  rejectedFor(withMerge({ ...LANE, "diff-check": { "high-path-floor": "yes" } }), /high-path-floor/);
+});
+
+test("a local-babysit rung C2 still needs denied paths and a line cap", () => {
+  const local = { rung: "C2", authority: "local-babysit", "agent-identity": IDENTITY };
+  rejectedFor(withMerge({ ...local, "diff-check": { "denied-paths": [] } }), /max-changed-lines/);
+  rejectedFor(
+    withMerge({ ...local, "diff-check": { "denied-paths": [], "max-changed-lines": 200 } }),
+    /denied-paths/,
+  );
 });
 
 test("rung C2 with authority local-babysit and an identity but no diff-check fails the schema", () => {

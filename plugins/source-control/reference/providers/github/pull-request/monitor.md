@@ -29,19 +29,27 @@ placeholder the pull-request skill resolves.
 
 ```bash
 PR_NUMBER=<N>
+INTERVAL=60  # raise with several watchers (../README.md#api-budget)
 OWNER=$(gh repo view --json owner -q .owner.login)
 REPO=$(gh repo view --json name -q .name)
 prev_checks=""
 last_comment_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 prev_threads=""
 poll=0
+err=$(mktemp)  # stderr of every later gh call, checked for a rate limit each poll
 
 while true; do
   # Terminal state check — exit watch if PR closed/merged. REST, like the
-  # CI read below (§3.1 "Polling CI from more than one worker").
-  read -r state head_sha < <(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER" \
-    --jq '"\(if .merged then "MERGED" elif .state == "closed" then "CLOSED" else "OPEN" end) \(.head.sha)"' \
-    2>/dev/null | tr -d '\r')
+  # CI read below (§3.1 "Polling CI from more than one worker"). A rate
+  # limit stops the watch: polling on would probe for recovery
+  # (../README.md#api-budget).
+  if out=$(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER" \
+    --jq '"\(if .merged then "MERGED" elif .state == "closed" then "CLOSED" else "OPEN" end) \(.head.sha)"' 2>&1); then
+    read -r state head_sha <<<"$(printf '%s' "$out" | tr -d '\r')"
+  elif grep -qiE 'rate limit|HTTP 429' <<<"$out"; then
+    echo "RATE-LIMITED — watch stopped: $out"
+    exit 2
+  fi
   if [ "$state" = "MERGED" ] || [ "$state" = "CLOSED" ]; then
     echo "PR #$PR_NUMBER $state — watch complete"
     exit 0
@@ -53,12 +61,12 @@ while true; do
   # commit statuses are always read, since check-runs omit them.
   b='def b: ascii_upcase | if . == "SUCCESS" then "pass" elif . == "SKIPPED" or . == "NEUTRAL" then "skipping" elif . == "CANCELLED" then "cancel" elif . == "ERROR" or . == "FAILURE" or . == "TIMED_OUT" or . == "ACTION_REQUIRED" then "fail" else "pending" end;'
   wf=$(gh api --paginate "repos/$OWNER/$REPO/actions/runs?head_sha=$head_sha&per_page=100" \
-    --jq '.workflow_runs[] | {(.check_suite_id | tostring): "\(.name)/\(.event)"}' 2>/dev/null | jq -s -c 'add // {}')
+    --jq '.workflow_runs[] | {(.check_suite_id | tostring): "\(.name)/\(.event)"}' 2>>"$err" | jq -s -c 'add // {}')
   cur_checks=$({ gh api --paginate "repos/$OWNER/$REPO/commits/$head_sha/check-runs?per_page=100" \
       | jq -s -r --argjson wf "$wf" "$b"' [.[].check_runs[] | {k: "\(.name)/\($wf[.check_suite.id | tostring] // "")", name, t: (.started_at // ""), s: (if .status == "completed" then .conclusion else .status end)}] | group_by(.k) | map(max_by(.t))[] | "\(.name): \(.s | b)"'
     gh api --paginate "repos/$OWNER/$REPO/commits/$head_sha/status?per_page=100" \
       --jq "$b"' .statuses[] | "\(.context): \(.state | b)"'
-  } 2>/dev/null | tr -d '\r' | grep -v ': pending$' | sort || true)
+  } 2>>"$err" | tr -d '\r' | grep -v ': pending$' | sort || true)
   if [ "$cur_checks" != "$prev_checks" ]; then
     # Bucket values mirror gh pr checks: pass|fail|pending|skipping|cancel.
     # The first poll only records the checks, so a re-arm at the
@@ -80,11 +88,11 @@ while true; do
   now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   fetch_ok=1
   if out=$(gh api --paginate "repos/$OWNER/$REPO/issues/$PR_NUMBER/comments?since=$last_comment_ts&per_page=100" \
-    --jq '.[] | "COMMENT \(.user.login): \(.body[:80])"' 2>/dev/null); then
+    --jq '.[] | "COMMENT \(.user.login): \(.body[:80])"' 2>>"$err"); then
     printf '%s\n' "$out" | tr -d '\r' | grep --line-buffered . || true
   else fetch_ok=0; fi
   if out=$(gh api --paginate "repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments?since=$last_comment_ts&per_page=100" \
-    --jq '.[] | "INLINE-COMMENT \(.user.login): \(.body[:80])"' 2>/dev/null); then
+    --jq '.[] | "INLINE-COMMENT \(.user.login): \(.body[:80])"' 2>>"$err"); then
     printf '%s\n' "$out" | tr -d '\r' | grep --line-buffered . || true
   else fetch_ok=0; fi
   # Reviews API has no `since` param — filter client-side on submitted_at.
@@ -92,17 +100,17 @@ while true; do
   # returns the 30 OLDEST reviews, so on a PR past that count the new ones
   # this poll exists to catch are exactly the ones never fetched.
   if out=$(gh api --paginate "repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews?per_page=100" \
-    --jq ".[] | select(.submitted_at > \"$last_comment_ts\") | \"REVIEW \(.user.login) [\(.state)]: \(.body[:80])\"" 2>/dev/null); then
+    --jq ".[] | select(.submitted_at > \"$last_comment_ts\") | \"REVIEW \(.user.login) [\(.state)]: \(.body[:80])\"" 2>>"$err"); then
     printf '%s\n' "$out" | tr -d '\r' | grep --line-buffered . || true
   else fetch_ok=0; fi
   [ "$fetch_ok" -eq 1 ] && last_comment_ts="$now"
 
   # Review threads: resolving one moves no check and posts no comment, so
   # the reads above never see it. The Gate 7 read (readiness.md) costs a
-  # GraphQL call, so it runs every 4th poll (about 2 minutes) and emits
+  # GraphQL call, so it runs every 4th poll (about 4 minutes) and emits
   # when the unresolved count, or THREADS_UNPROVEN, changes.
   if [ $((poll % 4)) -eq 0 ]; then
-    cur_threads=$(bash "<scripts-dir>/source-control-review-threads" "$OWNER/$REPO#$PR_NUMBER" 2>/dev/null \
+    cur_threads=$(bash "<scripts-dir>/source-control-review-threads" "$OWNER/$REPO#$PR_NUMBER" 2>>"$err" \
       | awk 'NR == 1 && /^THREADS_(OK|BLOCKED) unresolved=/ { sub(/.*unresolved=/, ""); sub(/[^0-9].*/, ""); print }')
     cur_threads=${cur_threads:-THREADS_UNPROVEN}
     if [ "$cur_threads" != "$prev_threads" ]; then
@@ -110,14 +118,19 @@ while true; do
       prev_threads="$cur_threads"
     fi
   fi
+  if grep -qiE 'rate limit|HTTP 429' "$err"; then
+    echo "RATE-LIMITED — watch stopped: $(grep -iE -m1 'rate limit|HTTP 429' "$err")"
+    exit 2
+  fi
+  : >"$err"
   poll=$((poll + 1))
 
-  sleep 30
+  sleep "$INTERVAL"
 done
 ```
 
 Its state check and CI block (the `head_sha` read through `cur_checks`) also run standalone, with
-`OWNER`, `REPO`, and `PR_NUMBER` set, as the REST read of a PR's checks. The bucket mapping and the
+`OWNER`, `REPO`, `PR_NUMBER`, and `err` set, as the REST read of a PR's checks. The bucket mapping and the
 latest-per-name/workflow/event dedupe follow gh's `pkg/cmd/pr/checks/aggregate.go`.
 
 ## Why polling uses REST

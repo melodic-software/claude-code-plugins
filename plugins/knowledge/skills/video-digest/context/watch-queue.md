@@ -102,7 +102,11 @@ If `claims/<n>.json` exists and `claimedAt` is older than **7 days**, skill may:
 node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/queue-claim.js stale-check
 ```
 
-Then reset row `#n` from `in_progress` → `pending` and delete the stub (abandoned run).
+`stale-check` owns the whole reclaim: for each stale stub it deletes the stub and resets row `#n` from `in_progress` → `pending` in `QUEUE.md` (output keys `released` and `reset`). The agent does not repeat either step.
+
+The output also lists `orphaned`: `in_progress` rows with no stub (a run crashed before writing one). Their age is unknown, so `stale-check` leaves them; the agent decides per row whether to reset it to `pending`.
+
+`claim` exits `1` when row `<n>` is not in `QUEUE.md`. Pass `--claimed-by <name>` to record the session holding the claim; the default names the short-lived CLI process (`<host>-pid<n>`).
 
 ## Queue row lifecycle
 
@@ -164,6 +168,11 @@ classification rejects. Everything else, whether bot-check, auth, network, or un
 **A 0-video X post enqueues.** Sources declaring media-optional results have preflight pass
 `--ignore-no-formats-error`, so a post with no video reports metadata instead of erroring and
 takes the `enqueue` / `ok` row like any other. Its `title` / `channel` cells may be blank for a
-link post, whose text is not recoverable. See `../reference/sources/x.md`.
+link post, whose text is not recoverable; a link post's `note` reads `link post, no video (empty media)`,
+so copy it into `notes`. A removed or nonexistent status (probe succeeds, but no uploader, description or
+counts) is the `reject` / `unavailable` row. Acquisition also fails such a post as
+`X post unavailable`, which is permanent: mark the row failed instead of retrying. A deleted post was not
+probed and may fail as `X acquisition degraded`; stop retrying one id after 3 such degraded failures.
+See `../reference/sources/x.md`.
 
 `displayTitle` / `displayChannel` are already markdown-escaped (`|` → `\|`) and title-capped, so paste them directly. Dedupe by `videoId` against existing rows. CLI exit code is `2` when any URL resolved to `reject`.

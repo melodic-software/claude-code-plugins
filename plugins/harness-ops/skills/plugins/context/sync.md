@@ -512,6 +512,14 @@ holding. Verified safe: `plugin update
 [scope-semantics.md](scope-semantics.md)), so no settings-diff review is needed for this step,
 unlike `converge`.
 
+**The call can update a sibling worktree's record instead of the run's own**
+([scope-semantics.md](scope-semantics.md)). `sync-run.sh` reads a project/local version only from
+the record flagged `currentProject`, and after the post read it compares the run's own record with
+the CLI's `updated from X to Y` line: when that line names the version `Y` and the record is still at
+`X`, the id is reported as a failed row naming the record that moved, never as an Updated row. A line
+that names no version leaves the row Updated with direction `unknown`. This check covers this
+step only; an `--allow-downgrade` project/local rollback is not compared.
+
 ## Step 3: User-scope update sweep
 
 Partially catalog-dependent: the sweep itself is installed-state-driven and always runs, but its

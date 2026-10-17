@@ -2,7 +2,9 @@
 # Gives a scaffolded repository an offline forge: a bare `origin` holding the base and head branches,
 # and a gh stand-in that serves one open draft pull request from them. Run it from a case's
 # scaffold.sh in the workspace, after the base and head branches exist:
-#   bash install.sh <number> <head-branch> <base-branch> <title>
+#   bash install.sh <number> <head-branch> <base-branch> <title> [--open] [--failing-check <name>]
+# The pull request is a draft unless --open is given. --failing-check adds one failing check with
+# that name, which `pr checks` and the pull request's status rollup then report.
 #
 # The bare repository's path ends in eval-fixture/app.git so push-branch.sh, which compares the
 # push remote's URL with the PR's head repository, accepts it as eval-fixture/app.
@@ -20,6 +22,22 @@
 set -euo pipefail
 
 number="$1" head="$2" base="$3" title="$4"
+shift 4
+draft=true failing=""
+while (($#)); do
+  case "$1" in
+    --open) draft=false ;;
+    --failing-check)
+      failing="${2:?--failing-check needs a check name}"
+      shift
+      ;;
+    *)
+      echo "install.sh: unknown argument '$1'" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 forge="$(git rev-parse --path-format=absolute --git-common-dir)/eval-forge"
@@ -30,7 +48,13 @@ mkdir -p "$forge/bin"
 cp "$here/gh" "$forge/bin/gh"
 chmod +x "$forge/bin/gh"
 printf 'PR_NUMBER=%q\nPR_HEAD=%q\nPR_BASE=%q\nPR_TITLE=%q\n' "$number" "$head" "$base" "$title" >"$forge/state"
-echo true >"$forge/draft"
+echo "$draft" >"$forge/draft"
+if [[ -n "$failing" ]]; then
+  jq -n --arg name "$failing" --arg url "https://github.com/eval-fixture/app/actions/runs/1" \
+    '[{name: $name, state: "FAILURE", bucket: "fail", workflow: "ci", link: $url}]' >"$forge/checks"
+else
+  echo '[]' >"$forge/checks"
+fi
 
 git init -q --bare "$forge/eval-fixture/app.git"
 git push -q origin "$base" "$head"

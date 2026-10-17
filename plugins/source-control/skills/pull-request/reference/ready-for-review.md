@@ -135,6 +135,11 @@ hand it the pull request's diff
 the acceptance criteria, not the author's reasoning. Each bullet names its `pre_ready` step; skip
 a step the list disabled or `--skip` removed, after any built-in skip it has.
 
+Before the reviews, read the review venue again ([review-venue.md](review-venue.md)); a lane can
+fail between prep and the flip. A review whose lane reads `ci` is skipped as a built-in condition:
+the flip itself starts that CI lane on the whole pull request. A lane that
+reads `local`, or a venue that cannot be read, means the review runs here as that lane's stand-in.
+
 - **The plan's review evidence (`plan-evidence`), when a plan asks for it.** When the branch implements a plan (the
   `PLAN.md` the pull request body or the session names) and a phase this pull request ships sets a
   `Review:` value that asks for evidence, such as screenshots of each changed screen or a short
@@ -147,11 +152,13 @@ a step the list disabled or `--skip` removed, after any built-in skip it has.
   `Review:` value on the shipped phases, skip this step. When the evidence cannot be gathered,
   leave the pull request in draft and report what is missing; in a run with no one to ask, that
   report is the result.
-- **Code review of the pull request's diff (`code-review`)**, for any diff that is not docs-only: `/code-review`
+- **Code review of the pull request's diff (`code-review`)**, for any diff that is not docs-only
+  whose `code-review` venue reads `local`: `/code-review`
   against the pull request, or the `review` plugin's reviewer agents when that resolves instead.
   Fix each verified finding (prep.md §1.3), or record why it stays in the pull request body. It
   repeats prep's review because the diff that ships includes the base merge and every fix since.
-- **Security review of the same diff (`security-review`)**, for any diff that is not docs-only. It runs here rather than
+- **Security review of the same diff (`security-review`)**, for any diff that is not docs-only
+  whose `security-review` venue reads `local`. It runs here rather than
   in prep because it needs the PR to exist. Run `/review:security-review` over that diff when the
   `review` plugin is installed. Without it, run a security-reviewer agent when your environment
   ships one, and otherwise a fresh-context subagent over the diff for the security scope the
@@ -164,7 +171,8 @@ a step the list disabled or `--skip` removed, after any built-in skip it has.
   deterministic gate; exit 1 stops the flip.
 
 Completion criterion, for each step that ran: any review evidence the plan asks for is linked,
-both reviews' findings are fixed or recorded, and the verify gate is clean on `git rev-parse HEAD`.
+the findings of each review that ran are fixed or recorded, and the verify gate is clean on
+`git rev-parse HEAD`.
 
 ## 2.5.4 Flip to ready
 
@@ -219,9 +227,11 @@ Report one line per step, in the order they ran, each with exactly one outcome:
 
 - **ran, passed** or **ran, failed**, with the detail the step owes: the base merge's result, the
   review evidence's link or what is missing, each review's findings and how each was dispositioned
-  (or the fallback that stood in for the review), the verify gate's result with the head it ran on;
-- **skipped**, naming the built-in condition (a docs-only diff, no plan or no evidence-asking
-  `Review:` value, already out of draft for the flip);
+  (or the fallback that stood in for the review), and for a review, that it ran in place of its CI
+  lane and the venue line that sent it here; the verify gate's result with the head it ran on;
+- **skipped**, naming the built-in condition (a docs-only diff, the CI lane covers it with the
+  venue line's detail, no plan or no evidence-asking `Review:` value, already out of draft for the
+  flip);
 - **skipped by `<login>` for this run: `<reason>`**, for a step `--skip` removed;
 - **disabled by `pre_ready` at `<base-branch>`**, for a step the list turned off. A disabled or skipped step
   is never reported as passing.

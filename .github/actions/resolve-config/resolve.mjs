@@ -15,6 +15,14 @@ const CONFIG_BASENAME = "pr-pipeline.yaml";
 const RESERVED_ACTIVITIES = new Set(["run", "report"]);
 const TRUSTED_ACTORS_PATH =
   ".github/standards/trusted-actors/trusted-actors.json";
+// Model routes that are no activity: pr-verify.yml's judgment, the code and
+// security review lanes, and intake triage.
+const RUN_ROUTES = new Set(["verify-pr", "review-code", "review-security", "triage-issue", "summarize-reuse"]);
+// The profile every run takes in a config with no `models` block.
+const BUILTIN_MODELS = Object.freeze({
+  profiles: { standard: { model: "default", "max-turns": 75 } },
+  "default-profile": "standard",
+});
 
 export class Rejection extends Error {
   constructor(code, message) {
@@ -218,6 +226,36 @@ function checkLeaves(activities, activityRules) {
   }
 }
 
+// What the schema cannot check about `models`: every profile a route or
+// default-profile names exists, and every route names a skill activity or a
+// run route, so a mistyped route cannot silently take the default.
+function checkModels(models, activities) {
+  if (models === undefined) {
+    return;
+  }
+  const { profiles } = models;
+  for (const [route, profile] of [
+    ["default-profile", models["default-profile"]],
+    ...Object.entries(models.routes ?? {}),
+  ]) {
+    if (!Object.hasOwn(profiles, profile)) {
+      throw new Rejection(
+        "undefined-profile",
+        `models: \`${route}\` names profile \`${profile}\`, which is not defined`,
+      );
+    }
+  }
+  for (const route of Object.keys(models.routes ?? {})) {
+    const activity = Object.hasOwn(activities, route) ? activities[route] : undefined;
+    if (!RUN_ROUTES.has(route) && typeof activity?.skill !== "string") {
+      throw new Rejection(
+        "undefined-route",
+        `models.routes names \`${route}\`, which is neither a skill activity nor ${[...RUN_ROUTES].join(", ")}`,
+      );
+    }
+  }
+}
+
 // Rejections 1, 2, 4-9 and 3 over the whole file, whichever lane the run asked for.
 export function loadConfig(files, { configPath }) {
   checkConfigPath(configPath);
@@ -252,6 +290,7 @@ export function loadConfig(files, { configPath }) {
     }
   }
   checkComposites(doc.activities);
+  checkModels(doc.models, doc.activities);
   checkLeaves(
     doc.activities,
     checkActivityRules(files.activityRules, files.effectGrants),
@@ -518,11 +557,59 @@ function grantFor(effectGrants, effect) {
   return Object.freeze({ ...row });
 }
 
+// The profile a route takes, with every default applied: its route's profile,
+// else default-profile; the built-in one when the config has no `models`.
+function routeModels(models = BUILTIN_MODELS, route) {
+  const routes = models.routes ?? {};
+  const profile = Object.hasOwn(routes, route) ? routes[route] : models["default-profile"];
+  const values = models.profiles[profile];
+  return {
+    profile,
+    model: values.model,
+    effort: values.effort ?? null,
+    "subagent-model": values["subagent-model"] ?? "inherit",
+    "max-turns": values["max-turns"],
+  };
+}
+
+// The Claude Code arguments a resolved profile sets: `--model` unless the
+// model is `default`, `--max-turns`, and `--effort` only when the profile sets
+// one. Every value is a schema enum or integer, never free text.
+export function modelArgs(models) {
+  return [
+    ...(models.model === "default" ? [] : ["--model", models.model]),
+    "--max-turns",
+    String(models["max-turns"]),
+    ...(models.effort === null ? [] : ["--effort", models.effort]),
+  ].join(" ");
+}
+
+// The settings JSON a resolved profile sets: the subagent model as settings
+// env, or empty for `inherit`.
+export function modelSettings(models) {
+  return models["subagent-model"] === "inherit"
+    ? ""
+    : JSON.stringify({ env: { CLAUDE_CODE_SUBAGENT_MODEL: models["subagent-model"] } });
+}
+
+// The resolved profile of a run that is no lane activity (RUN_ROUTES), after
+// the same file checks as resolve().
+export function resolveRoute(files, { route, configPath }) {
+  if (!RUN_ROUTES.has(route)) {
+    throw new Rejection(
+      "undefined-route",
+      `\`${route}\` is not a run route; one of ${[...RUN_ROUTES].join(", ")} is required`,
+    );
+  }
+  return routeModels(loadConfig(files, { configPath }).models, route);
+}
+
 function resolveSlot(
   { name, activity, predicate, predicates, enabled, needs },
   { effectGrants, codeowners },
   facts,
   decided,
+  models,
 ) {
   const grant = grantFor(effectGrants, activity.effect);
   let outcome = { applies: null, skipReason: null };
@@ -573,8 +660,7 @@ function resolveSlot(
     needs,
     ...(predicate === undefined ? {} : { "applies-when": predicate }),
     enabled,
-    model: activity.model ?? null,
-    "max-turns": activity["max-turns"] ?? null,
+    models: kind === "skill" ? routeModels(models, name) : null,
     grant,
     applies: outcome.applies,
     "skip-reason": outcome.skipReason,
@@ -632,7 +718,7 @@ export function resolve(
   const entries = laneSlots(doc, lane);
   const index = selectedIndex(entries, lane, activity);
   const slots = entries.map((entry, i) =>
-    resolveSlot(entry, files, facts, decides(i, index)),
+    resolveSlot(entry, files, facts, decides(i, index), doc.models),
   );
   return {
     version: 1,

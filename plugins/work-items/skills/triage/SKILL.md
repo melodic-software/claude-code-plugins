@@ -202,6 +202,8 @@ Classify **bug vs enhancement** first. It steers the rest of the flow (bugs get 
 
 The autonomous branch is the mode the AI disclaimer already anticipates: a session that mutates without a human turn. The two are one mode, not a contradiction.
 
+A lane triaging many items holds to the provider's API budget ([`tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Gotchas"): its writes go one at a time, and a rate-limit error stops the run's tracker calls, never a retry.
+
 ### 3. Verify, BEFORE any interview
 
 Never interview anyone about the fix for a claim nobody has confirmed. Verification precedes questioning:

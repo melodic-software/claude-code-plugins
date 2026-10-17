@@ -1,4 +1,4 @@
-version: 1
+version: 2
 activities:
   run-tests:
     script: scripts/run-tests.sh

@@ -2,9 +2,10 @@ name: pr-merge
 
 # What this does, in plain words:
 #
-# Some pull requests are low-risk chores (the lanes App opened them for an
-# issue labeled `work-class: mechanical`, also called C2). Instead of the
-# owner merging each one by hand, this workflow asks the existing merge gate
+# The lanes App opens pull requests, each for one issue. The gate treats each
+# as class C2 and reads no `work-class:` label: it merges one only when the
+# pr-verify verifier passed its current commit against that issue. Instead of
+# the owner merging each one by hand, this workflow asks the existing merge gate
 # (the babysit merge script) about each such PR and, when the gate says yes, adds the PR to GitHub's merge queue at
 # the exact commit the gate checked. The merge queue then runs CI one last
 # time and merges.
@@ -39,11 +40,15 @@ on:
   # to say which PR to look at: it lists the open PRs from the GitHub API and
   # checks each one, so any trigger leads to the same decisions.
 
-  # A label or the PR body changed, or a draft became ready. pull_request_target
-  # runs this file as it is on main, not the PR's copy, so a PR cannot change
+  # A label was removed, the PR body changed, or a draft became ready. Since
+  # every run reads every PR, an event starts a run only when it can make a
+  # PR mergeable sooner. Adding a label can only add a hold, which the next
+  # run sees anyway, so it starts none; a body edit can unblock (a new
+  # closing-issue line, a removed `Hold:` line). pull_request_target runs
+  # this file as it is on main, not the PR's copy, so a PR cannot change
   # what this lane does; the job below never checks out the PR's code.
   pull_request_target: # zizmor: ignore[dangerous-triggers]
-    types: [labeled, unlabeled, edited, ready_for_review]
+    types: [unlabeled, edited, ready_for_review]
 
   # A person can start a run by hand (Actions tab, "Run workflow") to retry a
   # PR that looks stuck. Only a run on main does anything.
@@ -106,11 +111,14 @@ jobs:
       dispatch: ${{ steps.mode.outputs.live == 'true' && (steps.gate.outputs.dispatch == 'true' || steps.post-merge.outputs.needs-dispatch == 'true') }}
     steps:
       # Everything below runs from main as it is right now, never from a PR.
+      # Full history: the gate reads the pipeline config's history from this
+      # clone with git instead of one contents-API call per commit.
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: refs/heads/main
           path: .base
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node
@@ -227,10 +235,9 @@ jobs:
 
       # Candidates: open, non-draft PRs into main that the lanes App
       # (merge.agent-identity on main) opened, plus Dependabot's unless
-      # merge.dependabot.mode is off. The work class lives on the closing
-      # issue, never on the PR, so no PR label is read here. This is only a
-      # shortlist; the gate checks the author, the class or Dependabot tier
-      # and every other rule again. Read with the job's own read-only token.
+      # merge.dependabot.mode is off. No label is read here. This is only a
+      # shortlist; the gate checks the author, the closing issue and verifier
+      # verdict or the Dependabot tier, and every other rule again. Read with the job's own read-only token.
       - name: List the candidate PRs
         id: candidates
         if: steps.lane-token.outputs.token != ''
@@ -258,12 +265,40 @@ jobs:
               | {number, head: .headRefOid, updatedAt}] | unique_by(.number)' >"$RUNNER_TEMP/candidates.json"
           echo "count=$(jq length "$RUNNER_TEMP/candidates.json")" >>"$GITHUB_OUTPUT"
 
+      # The post-merge check, read-only, on every run whether or not any PR is
+      # a candidate: after the queue lands the last lane PR there is none, yet
+      # that merge still needs its full CI run to be verified. It looks only
+      # at PRs this lane put in the merge queue itself; merges by a person or
+      # by another App (a release PR, say) are not the lane's to check.
+      # It runs before the gate, which reuses its answer for every candidate
+      # while main's head and config are unchanged (--postmerge-result); a PR
+      # that merges during the run is in the gate's own `dispatch` output.
+      - name: Check earlier lane merges
+        id: post-merge
+        if: steps.lane-token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          code=0
+          python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
+            --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
+            </dev/null >"$RUNNER_TEMP/post-merge.json" || code=$?
+          echo "::group::post-merge check: exit $code"
+          cat "$RUNNER_TEMP/post-merge.json"
+          echo "::endgroup::"
+          needs=$(jq '.needsDispatch == true' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || echo false)
+          echo "needs-dispatch=$needs" >>"$GITHUB_OUTPUT"
+
       # The gate itself, once per candidate, using the lane App's token. It is
       # the same script the local babysit loop uses, run as the pr-merge lane:
       # it refuses on any hold, missing review, failing check, risk above LOW,
-      # a changed file on the denied list, or a head that moved since listing.
+      # a changed file on the denied list, no passing verifier verdict at the
+      # head, or a head that moved since listing.
       # A Dependabot PR is judged by its tier and `ci-status` instead of the
-      # risk score and denied list.
+      # risk score, denied list and verdict.
       # When it passes (and that PR's kind is live) it posts the checked commit as
       # a pin comment and adds the PR to the merge queue at that commit.
       # The gate's token cannot read the kill switch, so it gets this run's
@@ -297,6 +332,7 @@ jobs:
             code=0
             ".base/$SCRIPT" "${args[@]}" --allowed-owners "$OWNER" \
               --lane-kill-switch "$KILL_SWITCH" --lane-rung-cap "$RUNG_CAP" \
+              --postmerge-result "$RUNNER_TEMP/post-merge.json" \
               --expected-head "$head" "$REPO#$number" </dev/null >"$out" || code=$?
             echo "::group::PR #$number at $head: exit $code"
             cat "$out"
@@ -314,30 +350,6 @@ jobs:
           jq -s . "$results" >"$RUNNER_TEMP/pr-merge-summary.json"
           dispatch=$(jq 'any(.[]; .merged and .dispatched != true)' "$RUNNER_TEMP/pr-merge-summary.json")
           echo "dispatch=$dispatch" >>"$GITHUB_OUTPUT"
-
-      # The post-merge check, read-only, on every run whether or not any PR is
-      # a candidate: after the queue lands the last lane PR there is none, yet
-      # that merge still needs its full CI run to be verified. It looks only
-      # at PRs this lane put in the merge queue itself; merges by a person or
-      # by another App (a release PR, say) are not the lane's to check.
-      - name: Check earlier lane merges
-        id: post-merge
-        if: steps.lane-token.outputs.token != ''
-        env:
-          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-          REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
-          code=0
-          python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
-            --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
-            </dev/null >"$RUNNER_TEMP/post-merge.json" || code=$?
-          echo "::group::post-merge check: exit $code"
-          cat "$RUNNER_TEMP/post-merge.json"
-          echo "::endgroup::"
-          needs=$(jq '.needsDispatch == true' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || echo false)
-          echo "needs-dispatch=$needs" >>"$GITHUB_OUTPUT"
 
       # The run's report: every candidate with its verdict, whether a full CI
       # run is started (or, in report-only mode, would have been), then the

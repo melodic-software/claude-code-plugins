@@ -3,8 +3,10 @@
 #
 # Prints, for the current repo, one scannable picture: open issue counts per
 # queue label, the gh-native merge-ready PR list, parked decisions with their
-# RECOMMENDED lines, loop-lane telemetry freshness (last-cycle age + flags), and
-# review findings stranded on already-merged PRs.
+# RECOMMENDED lines, loop-lane telemetry freshness (last-cycle age + flags),
+# review findings stranded on already-merged PRs, and per lane workflow the last
+# 7 days of runs: failures by class, limit stops, restarts and turn headroom,
+# then model usage per activity and profile.
 #
 # Read-only and gh-based: it never mutates labels, comments, issues, or PRs.
 # It runs `gh` read queries only. The authoritative merge gate lives in the
@@ -53,6 +55,10 @@
 #                                             absolute, with no .. segment or control character
 #   morning-brief.sh --rec-maxlen N           truncate RECOMMENDED previews (default 240; 0 = full)
 #   morning-brief.sh --pr-limit N             cap on per-PR reads: REST merge state, and base freshness of clean PRs (default 50)
+#   morning-brief.sh --lane-workflows A,B     pin the lane workflow files the lanes section reads
+#   morning-brief.sh --lane-read-limit N      cap on lane runs whose job annotations are read (default 200)
+#   morning-brief.sh --max-turns-hits N       max-turns hits per activity and profile above which
+#                                             the lanes model-usage table prints RECOMMENDED (default: unset)
 #   morning-brief.sh --help
 #
 # Fixture flags (skip the network; used by the test suite and for reuse):
@@ -68,6 +74,14 @@
 #   --merged-json FILE        array of merged-PR GraphQL page documents, as
 #                             emitted by `gh api graphql --paginate` (the
 #                             stranded-findings section)
+#   --lane-runs-json FILE     object mapping a workflow file name to its runs,
+#                             each {id,html_url,event,display_title,head_sha,
+#                             status,conclusion,created_at} (the lanes section)
+#   --lane-annotations-json FILE
+#                             object mapping a run id to the joined annotation
+#                             messages of its jobs, plus an activity=<name>
+#                             line per reusable-workflow job with annotations;
+#                             a run absent from it was not read
 #
 # Exit codes:
 #   0  brief rendered, every section read
@@ -111,6 +125,26 @@ MERGED_JSON=""
 # gap between runs is covered by the bookmark, not by this number.
 STRANDED_DAYS="3"
 DATA_DIR_ARG=""
+LANE_RUNS_JSON=""
+LANE_ANNOTATIONS_JSON=""
+LANE_WORKFLOWS_ARG=""
+# The workflows that run Claude in the melodic-software repos; live runs keep
+# the ones that exist in the target repo.
+DEFAULT_LANE_WORKFLOWS=(
+  "intake-triage.yml"
+  "pr-review-hosted.yml"
+  "pr-review-security-hosted.yml"
+  "pr-verify.yml"
+  "pr-refine.yml"
+  "pr-unblock.yml"
+  "work-resolve-issue.yml"
+)
+LANE_DAYS=7
+# Each read run costs one jobs read plus one annotations read per job.
+LANE_READ_LIMIT=200
+# Max-turns hits per activity and profile above which the model-usage table
+# prints a RECOMMENDED line. Unset by default: no evidence yet sets a number.
+MAX_TURNS_HITS=""
 
 # Result caps on the gh list reads. A result that reaches its cap prints PARTIAL.
 LABEL_LIMIT=500
@@ -226,6 +260,35 @@ while (($# > 0)); do
     require_value "$1" "${2:-}"
     require_uint "$1" "$2"
     PR_LIMIT="$((10#$2))"
+    shift 2
+    ;;
+  --lane-workflows)
+    require_value "$1" "${2:-}"
+    LANE_WORKFLOWS_ARG="$2"
+    shift 2
+    ;;
+  --lane-read-limit)
+    require_value "$1" "${2:-}"
+    require_uint "$1" "$2"
+    LANE_READ_LIMIT="$((10#$2))"
+    shift 2
+    ;;
+  --max-turns-hits)
+    require_value "$1" "${2:-}"
+    require_uint "$1" "$2"
+    MAX_TURNS_HITS="$((10#$2))"
+    shift 2
+    ;;
+  --lane-runs-json)
+    require_value "$1" "${2:-}"
+    require_file "$1" "$2"
+    LANE_RUNS_JSON="$2"
+    shift 2
+    ;;
+  --lane-annotations-json)
+    require_value "$1" "${2:-}"
+    require_file "$1" "$2"
+    LANE_ANNOTATIONS_JSON="$2"
     shift 2
     ;;
   --now)
@@ -602,7 +665,7 @@ resolve_decision_label
 # --- Section state ---------------------------------------------------------
 # Sections render into files so the header, printed first, can carry the
 # unreadable count.
-SECTIONS_TOTAL=5
+SECTIONS_TOTAL=6
 UNREADABLE=0
 UNREADABLE_NAMES=()
 
@@ -1335,6 +1398,237 @@ print_stranded() {
 }
 
 # =============================================================================
+# Section 6 — lane runs: failures by class, limit stops, restarts, turn headroom
+# =============================================================================
+# One row per lane workflow over the last LANE_DAYS days. A failed run's class
+# comes from its jobs' check-run annotations: the lane record's `class=` field
+# (ci-workflows classify), except that a run the action stopped for exceeding
+# its turn cap is max-turns even where classify still writes class=other. Turns
+# and the cap come from the record's `turns=` and `max-turns=` fields, else from
+# the SDK result's num_turns or the action's "after N turns, exceeding the
+# configured maximum of M" annotation. A restart is a run of a lane on an item
+# whose previous run of that lane was a limit stop. An item is the head commit
+# for a pull_request or workflow_run run. Any other run carries no head or
+# issue number, so its item is the event and the `#N` that ends its title
+# (pr-unblock's run-name, work-resolve-issue's), else its whole title.
+# shellcheck disable=SC2016  # $runs, $ann, $lanes, $since and $threshold are jq variables bound by --slurpfile/--argjson
+LANE_DEFS='
+  def num(re): [match(re; "i") | .captures[0].string | tonumber] | first;
+  def tok($k): [match("(?:^|[^A-Za-z0-9_-])" + $k + "=([A-Za-z0-9._:/,\\[\\]-]+)") | .captures[0].string | sub("[.,]+$"; "")] | first;
+  def turns_of: num("(?:^|[^a-z-])turns=([0-9]+)") // num("\"num_turns\":([0-9]+)") // num("after ([0-9]+) turns, exceeding");
+  def cap_of: num("max-turns=([0-9]+)") // num("configured maximum of ([0-9]+)");
+  def klass:
+    if test("class=rate-limit(?![a-z-])") then "rate-limit"
+    elif test("class=auth(?![a-z-])") then "auth"
+    elif test("class=max-turns(?![a-z-])|error_max_turns|exceeding the configured maximum of [0-9]+|maximum number of turns"; "i") then "max-turns"
+    else "other" end;
+  def hot($cap): $cap != null and . != null and . * 100 >= 80 * $cap;
+  def lane_runs($wf):
+    ($ann[0]) as $texts
+    | ($wf | sub("\\.ya?ml$"; "")) as $lane
+    | [ ($runs[0][$wf] // [])[]
+      | select(.status == "completed" and .conclusion != "skipped" and .conclusion != null)
+      | select((.created_at | fromdateiso8601) >= $since)
+      | ($texts[(.id | tostring)]) as $t
+      | (if $t != null then ($t | tok("activity")) else null end) as $act
+      | . + {
+          read: ($t != null),
+          record: ($t != null and ($t | test("(?:^|[^A-Za-z0-9_-])(?:class|turns|max-turns|models|profile)="))),
+          failed: (.conclusion | IN("failure", "timed_out", "startup_failure")),
+          turns: (if $t != null then ($t | turns_of) else null end),
+          cap: (if $t != null then ($t | cap_of) else null end),
+          head: (((.event // "") | startswith("pull_request")) or .event == "workflow_run"),
+          number: ([(.display_title // "") | capture(" #(?<n>[0-9]+)$") | .n] | first),
+          name: (if $act != null and $act != $lane then "\($lane) / \($act)" else $lane end),
+          profile: ((if $t != null then ($t | tok("profile")) else null end) // "unknown"),
+          models: (if $t != null then (($t | tok("models")) // "" | split(",") | map(select(. != ""))) else [] end)
+        }
+      | . + {
+          key: (if .head then "head \(.head_sha)" elif .number then "\(.event) #\(.number)" else "title \(.display_title)" end)
+        }
+      | . + {class: (if .failed | not then null
+                     elif .conclusion != "failure" then "other"
+                     elif .read then ($t | klass)
+                     else "unread" end)}
+    ];
+'
+# shellcheck disable=SC2016  # jq variables, as above
+LANES_JQ="$LANE_DEFS"'
+  $lanes[]
+  | . as $wf
+  | lane_runs($wf) as $r
+  | ($r | map(select(.failed))) as $f
+  | ($f | map(select(.class == "rate-limit")) | length) as $stops
+  | ($r | group_by(.key) | map(sort_by(.created_at))) as $items
+  | ([ $items[] | . as $g | range(1; length) | select($g[. - 1].class == "rate-limit") ] | length) as $restarts
+  | [ $items[] | select((map(select(.class == "rate-limit")) | length) >= 3)
+      | {n: (map(select(.class == "rate-limit")) | length), title: .[0].display_title, sha: (.[0].head_sha // "")[0:7], head: .[0].head} ] as $repeat
+  | ($r | map(.turns | numbers) | sort) as $ts
+  | ($r | sort_by(.created_at) | map(.cap | numbers) | last) as $cap
+  | (if ($ts | length) > 0 then $ts[((($ts | length) * 0.9) | ceil) - 1] else null end) as $p90
+  | ($f | map(select(.class == "max-turns")) | length) as $maxturns
+  | "  \($wf)  runs=\($r | length)  failed=\($f | length) [rate-limit \($stops), max-turns \($maxturns), auth \($f | map(select(.class == "auth")) | length), other \($f | map(select(.class == "other")) | length)\(($f | map(select(.class == "unread")) | length) as $u | if $u > 0 then ", unread \($u)" else "" end)]  limit-stops=\($stops)  restarts=\($restarts)",
+    (if ($ts | length) > 0 then
+       "    turns: max=\($ts | last) p90=\($p90) cap=\($cap // "?") (\($ts | length) runs)"
+       + (if $maxturns > 0 or ($p90 | hot($cap)) then "  CHECK: " + ([ (if $maxturns > 0 then "\($maxturns) max-turns failure(s)" else empty end), (if ($p90 | hot($cap)) then "p90 at or above 80% of the cap" else empty end) ] | join("; ")) + "; raise the cap or inspect the runs" else "" end)
+     elif $maxturns > 0 then "    turns: none recorded  CHECK: \($maxturns) max-turns failure(s); raise the cap or inspect the runs"
+     else empty end),
+    ($r | map(select(.class == "max-turns" or ((.cap // $cap) as $c | .turns | hot($c)))) | sort_by(.created_at) | reverse | .[:5][] | "      \(.html_url)"),
+    ($repeat[] | "    \(.n) limit stops on one \(if .head then "head" else "item" end): \(.title)\(if .head and .sha != "" then " @ \(.sha)" else "" end)")
+'
+# The model-usage baseline: one row per activity and profile over the same
+# runs, from the record tokens of the runs whose annotations carry a lane
+# record; a run read with none (cancelled, stopped at a gate) is left out. An
+# activity is the record's `activity=` (a pipeline lane's), else the lane; a
+# profile is the record's `profile=`, else unknown. A pass is a run that
+# concluded success; a max-turns hit is a failed run of class max-turns.
+# shellcheck disable=SC2016  # jq variables, as above
+MODELS_JQ="$LANE_DEFS"'
+  def median: if length == 0 then null elif length % 2 == 1 then .[length / 2 | floor] else (.[length / 2 - 1] + .[length / 2]) / 2 end;
+  [ $lanes[] as $wf | lane_runs($wf)[] ] as $all
+  | ($all | map(select(.record))) as $read
+  | (($all | length) - ($read | length)) as $unread
+  | ($read | group_by([.name, .profile]) | map({
+      name: .[0].name, profile: .[0].profile, runs: length,
+      pass: (map(select(.conclusion == "success")) | length),
+      median: (map(.turns | numbers) | sort | median),
+      hits: (map(select(.class == "max-turns")) | length),
+      models: ([.[].models[]] | unique)
+    })) as $cells
+  | "  model usage by activity and profile (runs with a read lane record; no sizes or costs):",
+    (if ($cells | length) == 0 then "    no lane records read" else empty end),
+    ($cells[] | "    \(.name)  profile=\(.profile)  runs=\(.runs)  pass=\(.pass)/\(.runs)  median-turns=\(.median // "-")  max-turns-hits=\(.hits)  models=\(if (.models | length) > 0 then .models | join(",") else "none recorded" end)"),
+    (if $unread > 0 then "    \($unread) run(s) left out: no lane record was read" else empty end),
+    (if $threshold == null then "    no threshold set: pass --max-turns-hits N for RECOMMENDED lines"
+     else ($cells[] | select(.hits > $threshold)
+       | "    RECOMMENDED: \(.name) profile=\(.profile) hit max-turns \(.hits) times, over the threshold of \($threshold); raise its max-turns or route it to a stronger profile in the models: table")
+     end)
+'
+
+LANES_PARTIAL=0
+CALLER_JOB_RE='^([a-z0-9][a-z0-9-]*) / '
+# fetch_lane_runs OUTFILE SINCE_EPOCH: an object of workflow file -> runs.
+fetch_lane_runs() {
+  local out="$1" day wf
+  day="$(from_epoch "$2")"
+  day="${day%%T*}"
+  echo '{}' >"$out"
+  for wf in "${LANE_WORKFLOWS[@]}"; do
+    gh_read "$WORK/lane.page" api --paginate "repos/$REPO/actions/workflows/$(urlencode "$wf")/runs?created=>=$day&per_page=100" || return 1
+    jq -s --arg wf "$wf" --slurpfile acc "$out" '
+      $acc[0] + {($wf): [ .[].workflow_runs[]? | {id, html_url, event, display_title, head_sha, status, conclusion, created_at} ]}
+    ' "$WORK/lane.page" >"$WORK/lane.acc" 2>/dev/null || {
+      LAST_ERR="could not parse the runs of $wf"
+      return 1
+    }
+    mv "$WORK/lane.acc" "$out"
+  done
+}
+
+# fetch_lane_annotations RUNSFILE OUTFILE: the joined job annotations of up to
+# LANE_READ_LIMIT finished runs, by run id: failed runs first, then the rest,
+# each newest first. A run whose read failed is left out, which the rendering
+# shows as unread. A job a reusable workflow ran is named "<caller job> / <job>";
+# the pipeline lanes name each caller job after its activity, so such a job
+# with annotations adds an `activity=<caller job>` line. That name comes from
+# the jobs read already made, so the posted `<lane> / <activity>` check runs,
+# whose record copies the run job's, cost no read.
+fetch_lane_annotations() {
+  local runs="$1" out="$2" id jid jname ids n
+  : >"$WORK/lane.ann"
+  ids="$(jq -r '[ .[][] | select(.status == "completed" and .conclusion != "skipped") ]
+    | sort_by(.created_at) | reverse | sort_by(.conclusion != "failure") | .[].id' "$runs")"
+  n="$(grep -c . <<<"$ids")"
+  ((n > LANE_READ_LIMIT)) && LANES_PARTIAL=$((n - LANE_READ_LIMIT))
+  for id in $(head -n "$LANE_READ_LIMIT" <<<"$ids"); do
+    gh_read "$WORK/lane.jobs" api --paginate "repos/$REPO/actions/runs/$id/jobs?per_page=100" || continue
+    : >"$WORK/lane.msgs"
+    local ok=1
+    while IFS=$'\t' read -r jid jname; do
+      [[ -n "$jid" ]] || continue
+      gh_read "$WORK/lane.one" api "repos/$REPO/check-runs/$jid/annotations?per_page=100" || {
+        ok=0
+        break
+      }
+      jq -r '.[]?.message // empty' "$WORK/lane.one" >>"$WORK/lane.msgs" 2>/dev/null
+      [[ "$jname" =~ $CALLER_JOB_RE ]] && jq -e 'length > 0' "$WORK/lane.one" >/dev/null 2>&1 &&
+        echo "activity=${BASH_REMATCH[1]}" >>"$WORK/lane.msgs"
+    done < <(jq -r -s '.[].jobs[]? | [.id, (.name // "")] | @tsv' "$WORK/lane.jobs" 2>/dev/null)
+    ((ok)) && jq -R -s -c --arg id "$id" '{($id): .}' "$WORK/lane.msgs" >>"$WORK/lane.ann"
+  done
+  jq -s 'add // {}' "$WORK/lane.ann" >"$out"
+}
+
+print_lanes() {
+  local since=$((NOW_EPOCH - LANE_DAYS * 86400)) runs="$WORK/lane-runs.json" ann="$WORK/lane-ann.json" part _parts
+  echo "== Lanes, last ${LANE_DAYS}d (runs, failures by class, limit stops, restarts, turn headroom, model usage) =="
+  LANE_WORKFLOWS=()
+  if [[ -n "$LANE_WORKFLOWS_ARG" ]]; then
+    IFS=',' read -ra _parts <<<"$LANE_WORKFLOWS_ARG"
+    for part in "${_parts[@]}"; do
+      part="${part//[[:space:]]/}"
+      [[ -n "$part" ]] && LANE_WORKFLOWS+=("$part")
+    done
+  fi
+  if [[ -n "$LANE_RUNS_JSON" ]]; then
+    runs="$LANE_RUNS_JSON"
+    jq -e 'type == "object"' "$runs" >/dev/null 2>&1 || {
+      unreadable lanes "--lane-runs-json is not an object"
+      return
+    }
+    ((${#LANE_WORKFLOWS[@]})) || mapfile -t LANE_WORKFLOWS < <(jq -r 'keys[]' "$runs")
+    if [[ -n "$LANE_ANNOTATIONS_JSON" ]]; then ann="$LANE_ANNOTATIONS_JSON"; else echo '{}' >"$ann"; fi
+    ((${#LANE_WORKFLOWS[@]})) || {
+      echo "  no lane workflows found (nothing to report)"
+      echo
+      return
+    }
+  elif [[ -z "$REPO" ]]; then
+    echo "  (no repo resolved — pass --repo or --lane-runs-json)"
+    echo
+    return
+  else
+    if ((${#LANE_WORKFLOWS[@]} == 0)); then
+      gh_read "$WORK/lane.wfs" api --paginate "repos/$REPO/actions/workflows?per_page=100" || {
+        unreadable lanes "workflow list: $LAST_ERR"
+        return
+      }
+      local wf
+      for wf in "${DEFAULT_LANE_WORKFLOWS[@]}"; do
+        jq -s -e --arg wf "$wf" '[ .[].workflows[]?.path | split("/") | last ] | index($wf) != null' "$WORK/lane.wfs" >/dev/null 2>&1 &&
+          LANE_WORKFLOWS+=("$wf")
+      done
+    fi
+    ((${#LANE_WORKFLOWS[@]})) || {
+      echo "  no lane workflows found (nothing to report)"
+      echo
+      return
+    }
+    fetch_lane_runs "$runs" "$since" || {
+      unreadable lanes "$LAST_ERR"
+      return
+    }
+    fetch_lane_annotations "$runs" "$ann"
+  fi
+  local rows
+  rows="$(jq -n -r --argjson since "$since" --slurpfile runs "$runs" --slurpfile ann "$ann" \
+    --argjson lanes "$(printf '%s\n' "${LANE_WORKFLOWS[@]}" | jq -R . | jq -s .)" "$LANES_JQ" 2>&1)" || {
+    unreadable lanes "could not parse the lane runs: ${rows%%$'\n'*}"
+    return
+  }
+  echo "$rows"
+  ((LANES_PARTIAL)) && echo "  PARTIAL: annotations read for $LANE_READ_LIMIT runs, failed runs first; $LANES_PARTIAL more were not read (raise --lane-read-limit)"
+  rows="$(jq -n -r --argjson since "$since" --slurpfile runs "$runs" --slurpfile ann "$ann" \
+    --argjson threshold "${MAX_TURNS_HITS:-null}" \
+    --argjson lanes "$(printf '%s\n' "${LANE_WORKFLOWS[@]}" | jq -R . | jq -s .)" "$MODELS_JQ" 2>&1)" || {
+    unreadable lanes "could not parse the lane records: ${rows%%$'\n'*}"
+    return
+  }
+  echo "$rows"
+  echo
+}
+
+# =============================================================================
 # Render
 # =============================================================================
 # Each section renders into its own file first so the header can state how
@@ -1344,6 +1638,7 @@ print_merge_ready >"$WORK/s2"
 print_decisions >"$WORK/s3"
 print_telemetry >"$WORK/s4"
 print_stranded >"$WORK/s5"
+print_lanes >"$WORK/s6"
 
 printf 'Morning brief — %s — %s\n' "${REPO:-<fixtures>}" "$(from_epoch "$NOW_EPOCH")"
 [[ "$REPO_SOURCE" == "git remote" ]] && echo "  repo resolved from the git origin remote (gh repo view unavailable)"
@@ -1352,7 +1647,7 @@ if ((UNREADABLE > 0)); then
   echo "  $UNREADABLE of $SECTIONS_TOTAL sections unreadable: ${UNREADABLE_NAMES[*]}"
 fi
 echo
-cat "$WORK/s1" "$WORK/s2" "$WORK/s3" "$WORK/s4" "$WORK/s5"
+cat "$WORK/s1" "$WORK/s2" "$WORK/s3" "$WORK/s4" "$WORK/s5" "$WORK/s6"
 
 # Exit 5 when the brief carries no data at all; 6 when some sections rendered
 # beside unreadable ones, so a caller never takes a partial brief for a full one.

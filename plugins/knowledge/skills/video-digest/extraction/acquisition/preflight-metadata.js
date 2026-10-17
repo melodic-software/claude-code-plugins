@@ -28,6 +28,7 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { classifyErrorDetail, UnsupportedSourceError } from "../adapters/adapter-contract.js";
 import { resolveSourceAdapter } from "../adapters/registry.js";
+import { parseDelegationRefusal } from "../adapters/x.js";
 import { adapterSourceDeclarations } from "./acquire.js";
 import { spawnFailureDetail } from "./acquire-with-retry.js";
 import { resolveYtDlpAuthArgs } from "./build-yt-dlp-args.js";
@@ -42,6 +43,12 @@ export const PREFLIGHT_PRINT_TEMPLATE = [
   "%(title)s",
   "%(channel)s",
   "%(uploader_id)s",
+  // Trailing emptiness probes (see isEmptyPostShell): "D" when a description
+  // exists, then the engagement counts ("NA" when null).
+  "%(description&D|)s",
+  "%(repost_count)s",
+  "%(comment_count)s",
+  "%(like_count)s",
 ].join(PREFLIGHT_FIELD_SEP);
 
 /** Display cap for the queue `title` cell (keeps the markdown table scannable). */
@@ -130,6 +137,23 @@ export function parsePreflightLine(stdout) {
     channel: normalizeField(channel),
     handle: normalizeField(handle),
   };
+}
+
+/**
+ * Whether a successful probe printed the empty shell yt-dlp returns for a
+ * removed or nonexistent post: no channel, handle, description or counts
+ * together. A real post, with or without video, carries an uploader. Returns
+ * false when the line has no probe fields (an older or foreign print shape).
+ *
+ * @param {string} stdout
+ * @returns {boolean}
+ */
+export function isEmptyPostShell(stdout) {
+  const fields = firstNonEmptyLine(stdout).split(PREFLIGHT_FIELD_SEP);
+  if (fields.length < 8) {
+    return false;
+  }
+  return fields.slice(2).every((field) => normalizeField(field) === "");
 }
 
 /**
@@ -272,6 +296,26 @@ export async function preflightVideo(url, deps = {}) {
     source: sourceDeclarations,
   });
 
+  const mediaOptional = adapter.capabilities.mediaOptional === true;
+
+  if (result.success && mediaOptional && isEmptyPostShell(result.stdout)) {
+    // Removed or nonexistent post: yt-dlp still exits 0 with a synthetic title.
+    return {
+      url,
+      videoId,
+      ok: false,
+      status: "unavailable",
+      action: "reject",
+      note: "",
+      reason: "post removed or nonexistent (no uploader, description or counts)",
+      title: "",
+      channel: "",
+      handle: "",
+      displayTitle: "",
+      displayChannel: "",
+    };
+  }
+
   if (result.success) {
     const parsed = parsePreflightLine(result.stdout);
     return {
@@ -291,6 +335,24 @@ export async function preflightVideo(url, deps = {}) {
   }
 
   const detail = spawnFailureDetail(result);
+  // A link post: the allow-list refused the post's outbound URL without a
+  // fetch. That is the well-formed 0-media result, so it takes the `ok` row.
+  if (mediaOptional && parseDelegationRefusal(detail)) {
+    return {
+      url,
+      videoId,
+      ok: true,
+      status: "ok",
+      action: "enqueue",
+      note: "link post, no video (empty media)",
+      reason: "",
+      title: "",
+      channel: "",
+      handle: "",
+      displayTitle: "",
+      displayChannel: "",
+    };
+  }
   const status = classifyPreflightFailure(detail, adapter.errorPatterns);
   const reason = escapeTableCell(summarizeDetail(detail));
   return {

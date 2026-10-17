@@ -33,6 +33,12 @@ Two independent verifiers over the full digest set, fresh context, production ra
   live-doc check it could not replay. That arm is degraded for those checks only, under the
   fallback rule below. Granting it network access instead is the operator's configuration call,
   recorded in the header when made.
+  - **The live-doc checks** are these three: the re-fetched channel bytes match `source.*`; each
+    anchor `SOURCES.md` cites exists on the live page; each positive-tag live-doc citation holds
+    as the publisher profile defines it (for the Anthropic profile, the live-doc citation rule
+    in [anthropic-docs-profile.md](anthropic-docs-profile.md)). When Verifier B has no network,
+    Verifier A owns them and records in its header that it replayed them in B's place. No
+    substitute arm is dispatched for them.
   - **Pointer**: for a Codex sandbox's network default and how to enable it, see
     <https://learn.chatgpt.com/docs/agent-approvals-security#network-access>.
   - **As of**: 2026-10-01
@@ -42,6 +48,41 @@ Two independent verifiers over the full digest set, fresh context, production ra
 Verdicts land in `<work-root>/verification/` and are **append-only historical records**. A
 wrong verdict gets a dated corrections-applied record beside it, never a rewrite. Corrections
 apply to the digests; re-verify what changed.
+
+**Verdict set and the rule that sets it.** Both arms return the same vocabulary, and the brief
+for each arm states it, with the rule below, so no verifier invents its own. Each finding carries a
+severity, `high`, `medium` or `low`: `high` is a fabricated claim, a claim contradicting its
+source, or a source section left unrepresented; `medium` is a fidelity or anchor defect that
+misleads a reader without changing what the source says; `low` is anything cosmetic or
+presentational. The verdict header names one verdict: `PASS`, `PASS-WITH-FINDINGS` and `FAIL`
+are set by the highest open finding; `BLOCKED` is set independently of any finding, below:
+
+| Verdict | Set when |
+| --- | --- |
+| `PASS` | no open finding |
+| `PASS-WITH-FINDINGS` | open findings, none `high` |
+| `FAIL` | at least one open `high` finding |
+| `BLOCKED` | the arm's audit hit bytes that moved: a `--check` mismatch against the pin |
+
+An arm that dies, or that stops for effort below `medium`, returns no verdict: the death ladder
+below or the effort stop above governs, and the phase is not complete.
+
+`FAIL` requires a corrections round and a re-verify of what changed. `BLOCKED` is not a content
+finding: it gets a re-pin and a re-run, not a correction. The phase takes the worst arm verdict,
+ordered `PASS`, `PASS-WITH-FINDINGS`, `FAIL`, `BLOCKED`; when one arm is `FAIL` and the other
+`BLOCKED`, run the corrections round first, then re-pin and re-run both.
+
+The verdict records what was open when the arm returned, and stays as written. Each `medium` or
+`low` finding is then either fixed in a corrections round or **deferred to the interview
+handoff**, and deferral does not block Phase 4 completion: with no `high` finding open, the phase
+completes on `PASS` or `PASS-WITH-FINDINGS` from both arms. Record each deferral in the round's
+applied record, and carry it into `interview-handoff.md` with its severity and the verifiers'
+verdict state. A `high` finding is never deferred, and one that cannot be corrected (a source
+ambiguity, or an arm disagreement) goes to the operator as a stop, not to the handoff. A finding
+class that another file bars from deferral, such as the `vendor-claimed` marker in
+[anthropic-docs-profile.md](anthropic-docs-profile.md), is rated `high`. A re-verify applies the
+same rule, so a deferred `low` finding the verifier lists again does not keep the re-verify from
+completing.
 
 **One corrections file per digest unit per round.** Agents applying corrections in parallel
 each write only their own unit's file,
@@ -114,13 +155,8 @@ adversarial refuter, and RECORD the degradation and its reason in the verdict fi
 verification record that hides its degraded provenance is worse than a missing one. That rule
 covers a *missing* cross-vendor arm, not a session that cannot spawn.
 
-**Subagent-death / usage-limit ladder** (dominant failure mode, ahead of content defects. Lost
-agents, killed completion reports, mid-audit kills, slot exhaustion, refused fan-out):
-
-1. **Retry window**. Re-dispatch the same brief once; record the death and the retry.
-2. **Inline-with-disclosure**, if the retry also dies, complete that unit inline and record
-   `inline-with-disclosure` naming the dead slot and the unit.
-3. **Degraded marker + re-run trigger**, if inline is impossible, write the marker and name the
-   unfinished units; do not tick the phase complete.
-
-Silence is not a rung. Detail: [pipeline-hardening.md](pipeline-hardening.md).
+**Subagent-death / usage-limit ladder.** The one ladder text, including how a concurrency
+refusal is handled and what the inline rung may not do, is in
+[pipeline-hardening.md](pipeline-hardening.md#subagent-death--usage-limit-ladder). It governs a
+dead or refused Verifier A, Verifier B or correction agent the same way it governs a digest
+agent. Silence is not a rung.
