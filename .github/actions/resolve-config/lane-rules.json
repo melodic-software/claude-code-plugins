@@ -7,7 +7,7 @@
   "work-unblock": {
     "stage": "work",
     "forbidden-effects": ["mutate-branch", "publish-artifact", "merge"],
-    "never": "Writes to a branch, or labels an issue the owner has not ratified"
+    "never": "Writes to a branch, or labels an issue that carries a hold label"
   },
   "pr-refine": {
     "stage": "refine",

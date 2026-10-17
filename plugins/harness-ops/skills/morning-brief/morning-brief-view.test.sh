@@ -51,10 +51,13 @@ jq -n --arg t "$HOSTILE" '[{number: 100, title: $t, url: "http://x/i/100", body:
 printf '[]\n' >"$TMP/empty.json"
 # A merged-PR read always carries a page document; a bare [] is UNREADABLE.
 printf '[{"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false}, "nodes": []}}}}]\n' >"$TMP/merged.json"
+printf '{"pr-unblock.yml": [{"id": 30, "html_url": "http://x/runs/30", "event": "pull_request", "display_title": "PR A", "head_sha": "a1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"}]}\n' >"$TMP/lane-runs.json"
+printf '{"30": "pr-unblock completed: turns=8 max-turns=40 models=claude-sonnet-5.\\nactivity=resolve-conflicts"}\n' >"$TMP/lane-ann.json"
 
 if bash "$BRIEF" --now "2026-07-20T08:00Z" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
   --behind-json "$TMP/behind.json" --decisions-json "$TMP/decisions.json" \
-  --telemetry-json "$TMP/empty.json" --merged-json "$TMP/merged.json" >"$TMP/brief.txt" 2>&1; then
+  --telemetry-json "$TMP/empty.json" --merged-json "$TMP/merged.json" \
+  --lane-runs-json "$TMP/lane-runs.json" --lane-annotations-json "$TMP/lane-ann.json" >"$TMP/brief.txt" 2>&1; then
   pass "the fixture brief renders"
 else
   fail "the fixture brief renders"
@@ -78,6 +81,7 @@ check "the page carries exactly two scripts" "$([[ "$(grep -o '<script' "$TMP/br
 check "no hostile markup reaches the page outside the data block" "$([[ "$outside" != *"pwned"* && "$outside" != *"onerror"* && "$outside" != *"<img"* ]] && echo 1 || echo 0)"
 check "the hostile title is in the data block with < escaped" "$([[ "$page" == *'003cscript>globalThis.pwned'* ]] && echo 1 || echo 0)"
 check "the brief's sections are all in the data block" "$([[ "$(grep -c '^== ' "$TMP/brief.txt")" == "$(grep -o '"name":' "$TMP/brief.html" | wc -l)" ]] && echo 1 || echo 0)"
+check "the lanes model-usage row is in the data block" "$([[ "$page" == *'pr-unblock / resolve-conflicts  profile=unknown  runs=1  pass=1/1  median-turns=8'* ]] && echo 1 || echo 0)"
 check "the title is the brief's first line" "$([[ "$page" == *'"title":"Morning brief'* ]] && echo 1 || echo 0)"
 
 if printf 'not a brief\n' | node "$BUILDER" --out "$TMP/odd.html" >/dev/null; then

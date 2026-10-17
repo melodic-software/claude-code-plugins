@@ -871,7 +871,21 @@ EOF
 # Lanes, live: only intake-triage.yml of the default lane set exists; one run
 # in the window, failed on the limit, read through its job's annotations.
 cat >"$REST/$(rest_key "$R/actions/workflows?per_page=100").json" <<'EOF'
-{"total_count": 2, "workflows": [{"path": ".github/workflows/intake-triage.yml"}, {"path": ".github/workflows/ci.yml"}]}
+{"total_count": 3, "workflows": [{"path": ".github/workflows/intake-triage.yml"}, {"path": ".github/workflows/ci.yml"}, {"path": ".github/workflows/pr-unblock.yml"}]}
+EOF
+# pr-unblock: one run whose first job, a reusable-workflow job with no
+# annotations, must not name the activity; the second job carries the record.
+cat >"$REST/$(rest_key "$R/actions/workflows/pr-unblock.yml/runs?created=>=2026-07-13&per_page=100").json" <<'EOF'
+{"total_count": 1, "workflow_runs": [{"id": 88, "html_url": "http://x/runs/88", "event": "pull_request", "display_title": "PR R", "head_sha": "r1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T00:00:00Z"}]}
+EOF
+cat >"$REST/$(rest_key "$R/actions/runs/88/jobs?per_page=100").json" <<'EOF'
+{"total_count": 2, "jobs": [{"id": 881, "name": "publish-feedback / run"}, {"id": 880, "name": "resolve-conflicts / run"}]}
+EOF
+cat >"$REST/$(rest_key "$R/check-runs/881/annotations?per_page=100").json" <<'EOF'
+[]
+EOF
+cat >"$REST/$(rest_key "$R/check-runs/880/annotations?per_page=100").json" <<'EOF'
+[{"message": "pr-unblock completed: turns=7 max-turns=40 models=claude-sonnet-5. Findings (if any) are in the PR comments."}]
 EOF
 cat >"$REST/$(rest_key "$R/actions/workflows/intake-triage.yml/runs?created=>=2026-07-13&per_page=100").json" <<'EOF'
 {"total_count": 1, "workflow_runs": [{"id": 77, "html_url": "http://x/runs/77", "event": "issues", "display_title": "Issue R", "head_sha": "m1", "status": "completed", "conclusion": "failure", "created_at": "2026-07-19T00:00:00Z"}]}
@@ -887,6 +901,8 @@ OUT_REST="$(run_stub rest)"
 RC_REST=$?
 assert_contains "rest: lanes read live, keeping only lane workflows that exist" "$(section "$OUT_REST" "== Lanes")" \
   "intake-triage.yml  runs=1  failed=1 [rate-limit 1, max-turns 0, auth 0, other 0]  limit-stops=1  restarts=0"
+assert_contains "rest: the activity comes from the caller job of the job that carries the record" "$(section "$OUT_REST" "== Lanes")" \
+  "    pr-unblock / resolve-conflicts  profile=unknown  runs=1  pass=1/1  median-turns=7  max-turns-hits=0  models=claude-sonnet-5"
 assert_exit "rest: renders with the stranded section unreadable (exit 6)" 6 "$RC_REST"
 assert_contains "rest: the header names the transport" "$OUT_REST" "transport: REST"
 assert_contains "rest: queue count excludes pull requests" "$(section "$OUT_REST" "== Queues")" "status: ready            2"
@@ -1240,6 +1256,75 @@ OUT_LANES_BAD="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --p
   --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
   --lane-runs-json "$TMP/lane-runs-bad.json" 2>&1)"
 assert_contains "lanes: a runs file that is not an object is UNREADABLE" "$(section "$OUT_LANES_BAD" "== Lanes")" "UNREADABLE:"
+assert_contains "models: a lane whose records carry no models= still gets a row" "$LANES" \
+  "    pr-verify  profile=unknown  runs=3  pass=0/3  median-turns=-  max-turns-hits=0  models=none recorded"
+
+# --- Lanes: model usage by activity and profile ---------------------------------
+# pr-unblock runs 30-36: resolve-conflicts with no profile= runs 30, 31, 34 and
+# 36 (two pass, two max-turns failures, turns 8, 40, 40, 10, so the median is
+# (10 + 40) / 2 = 25); run 32 carries profile=standard; run 33 is
+# address-feedback; run 35 has no annotations read, and cancelled run 37's
+# annotations carry no lane record. intake-triage run 40 has no
+# activity= and so is its own activity.
+cat >"$TMP/model-runs.json" <<'EOF'
+{
+  "pr-unblock.yml": [
+    {"id": 30, "html_url": "http://x/runs/30", "event": "pull_request", "display_title": "PR A", "head_sha": "a1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"},
+    {"id": 31, "html_url": "http://x/runs/31", "event": "pull_request", "display_title": "PR A", "head_sha": "a2", "status": "completed", "conclusion": "failure", "created_at": "2026-07-19T11:00:00Z"},
+    {"id": 32, "html_url": "http://x/runs/32", "event": "pull_request", "display_title": "PR B", "head_sha": "b1", "status": "completed", "conclusion": "success", "created_at": "2026-07-18T10:00:00Z"},
+    {"id": 33, "html_url": "http://x/runs/33", "event": "pull_request", "display_title": "PR C", "head_sha": "c1", "status": "completed", "conclusion": "success", "created_at": "2026-07-18T11:00:00Z"},
+    {"id": 34, "html_url": "http://x/runs/34", "event": "pull_request", "display_title": "PR D", "head_sha": "d1", "status": "completed", "conclusion": "failure", "created_at": "2026-07-17T10:00:00Z"},
+    {"id": 35, "html_url": "http://x/runs/35", "event": "pull_request", "display_title": "PR E", "head_sha": "e1", "status": "completed", "conclusion": "failure", "created_at": "2026-07-17T11:00:00Z"},
+    {"id": 36, "html_url": "http://x/runs/36", "event": "pull_request", "display_title": "PR F", "head_sha": "f1", "status": "completed", "conclusion": "success", "created_at": "2026-07-16T10:00:00Z"},
+    {"id": 37, "html_url": "http://x/runs/37", "event": "pull_request", "display_title": "PR G", "head_sha": "g1", "status": "completed", "conclusion": "cancelled", "created_at": "2026-07-16T11:00:00Z"}
+  ],
+  "intake-triage.yml": [
+    {"id": 40, "html_url": "http://x/runs/40", "event": "issues", "display_title": "Issue Q", "head_sha": "m1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T09:00:00Z"}
+  ]
+}
+EOF
+cat >"$TMP/model-annotations.json" <<'EOF'
+{
+  "30": "pr-unblock completed: turns=8 max-turns=40 models=claude-sonnet-5. Findings (if any) are in the PR comments.\nactivity=resolve-conflicts",
+  "31": "pr-unblock exited with: failure class=max-turns turns=40 max-turns=40 models=claude-sonnet-5,claude-haiku-5 (infrastructure error)\nactivity=resolve-conflicts",
+  "32": "pr-unblock completed: turns=12 max-turns=40 profile=standard models=claude-opus-5. Findings (if any) are in the PR comments.\nactivity=resolve-conflicts",
+  "33": "activity=address-feedback\npr-unblock completed: turns=5 max-turns=40 models=claude-sonnet-5.",
+  "34": "pr-unblock exited with: failure class=max-turns turns=40 max-turns=40 models=claude-sonnet-5\nactivity=resolve-conflicts",
+  "36": "pr-unblock completed: turns=10 max-turns=40 models=claude-sonnet-5.\nactivity=resolve-conflicts",
+  "37": "The run was canceled by @someone.\nactivity=resolve-conflicts",
+  "40": "Claude intake triage completed: turns=3 max-turns=10 models=claude-sonnet-5. Findings (if any) are in the PR comments."
+}
+EOF
+models_brief() {
+  bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
+    --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
+    --lane-runs-json "$TMP/model-runs.json" --lane-annotations-json "$TMP/model-annotations.json" "$@" 2>&1
+}
+MODELS="$(section "$(models_brief)" "== Lanes")"
+assert_contains "models: a lane with no activity= is its own activity" "$MODELS" \
+  "    intake-triage  profile=unknown  runs=1  pass=1/1  median-turns=3  max-turns-hits=0  models=claude-sonnet-5"
+assert_contains "models: a pipeline activity gets its own row" "$MODELS" \
+  "    pr-unblock / address-feedback  profile=unknown  runs=1  pass=1/1  median-turns=5  max-turns-hits=0  models=claude-sonnet-5"
+assert_contains "models: a profile= token splits the activity's row" "$MODELS" \
+  "    pr-unblock / resolve-conflicts  profile=standard  runs=1  pass=1/1  median-turns=12  max-turns-hits=0  models=claude-opus-5"
+assert_contains "models: pass count, even-count median, max-turns hits and the union of models" "$MODELS" \
+  "    pr-unblock / resolve-conflicts  profile=unknown  runs=4  pass=2/4  median-turns=25  max-turns-hits=2  models=claude-haiku-5,claude-sonnet-5"
+assert_contains "models: runs with no lane record read, unread or recordless, are left out and counted" "$MODELS" \
+  "    2 run(s) left out: no lane record was read"
+assert_contains "models: no threshold set prints no RECOMMENDED line" "$MODELS" \
+  "    no threshold set: pass --max-turns-hits N for RECOMMENDED lines"
+assert_not_contains "models: no RECOMMENDED line without a threshold" "$MODELS" "RECOMMENDED:"
+MODELS_T1="$(section "$(models_brief --max-turns-hits 1)" "== Lanes")"
+assert_contains "models: hits over the threshold print RECOMMENDED for that cell" "$MODELS_T1" \
+  "    RECOMMENDED: pr-unblock / resolve-conflicts profile=unknown hit max-turns 2 times, over the threshold of 1;"
+assert_eq "models: only the cell over the threshold is RECOMMENDED" "1" "$(grep -c "RECOMMENDED:" <<<"$MODELS_T1")"
+assert_not_contains "models: a set threshold drops the no-threshold line" "$MODELS_T1" "no threshold set"
+MODELS_T2="$(section "$(models_brief --max-turns-hits 2)" "== Lanes")"
+assert_not_contains "models: hits equal to the threshold do not exceed it" "$MODELS_T2" "RECOMMENDED:"
+assert_exit "models: a non-numeric threshold is an invalid argument" 3 "$(
+  models_brief --max-turns-hits many >/dev/null
+  echo $?
+)"
 
 # --- Summary ------------------------------------------------------------------
 echo
