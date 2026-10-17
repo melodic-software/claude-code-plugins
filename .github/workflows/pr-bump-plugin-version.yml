@@ -47,42 +47,31 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
+    # The token can write contents, so nothing from the pull request runs here:
+    # its checkout is data that git, jq and main's scripts read and edit. Every
+    # script comes from main's checkout in .base, never from github.base_ref,
+    # which the pull request picks. A local action would load from the pull
+    # request, so the job uses none.
     steps:
-      - name: Check out
+      - name: Check out the pull request head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
           persist-credentials: false
-      - name: Fetch base
-        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
-      - name: Switch to PR head
-        env:
-          HEAD_REF: ${{ github.head_ref }}
-        run: |
-          git fetch --no-tags origin "$HEAD_REF":"refs/remotes/origin/$HEAD_REF"
-          git checkout -B "$HEAD_REF" "origin/$HEAD_REF"
+      - name: Check out main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
       - name: Bump legacy plugin manifests and changelogs
         id: bump
         env:
           BASE_REF: ${{ github.base_ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
-        run: |
-          # Prefer the base tip's copy of the bump script, and of the fragment
-          # and entry libraries it sources from beside itself, so a Dependabot
-          # branch that has not yet rebased still runs the landed implementation.
-          bump_script=scripts/dependabot-plugin-bump.sh
-          if git cat-file -e "origin/$BASE_REF:$bump_script" 2>/dev/null; then
-            git show "origin/$BASE_REF:$bump_script" > "$RUNNER_TEMP/dependabot-plugin-bump.sh"
-            bump_script="$RUNNER_TEMP/dependabot-plugin-bump.sh"
-            chmod +x "$bump_script"
-            mkdir -p "$RUNNER_TEMP/lib"
-            for lib in changelog-fragments.sh read-list.sh dependabot-entry.sh; do
-              if git cat-file -e "origin/$BASE_REF:scripts/lib/$lib" 2>/dev/null; then
-                git show "origin/$BASE_REF:scripts/lib/$lib" > "$RUNNER_TEMP/lib/$lib"
-              fi
-            done
-          fi
-          bash "$bump_script" "origin/$BASE_REF" --pr "$PR_NUMBER" --title "$PR_TITLE"
+        run: bash .base/scripts/dependabot-plugin-bump.sh "origin/$BASE_REF" --pr "$PR_NUMBER" --title "$PR_TITLE"
       - name: Commit release metadata
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

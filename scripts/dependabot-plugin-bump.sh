@@ -22,9 +22,8 @@
 set -euo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Prefer the git checkout root so a copy of this script outside scripts/
-# (workflow extracts origin/<base> to /tmp) still edits the PR working tree
-# and sources helpers from that checkout.
+# Edit the git checkout of the working directory, so a copy of this script in
+# another checkout (the workflow runs main's from .base) edits the PR tree.
 if ! ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"; then
   ROOT="$(cd "$SELF_DIR/.." && pwd)"
 fi
@@ -36,9 +35,8 @@ if [[ -f "$SELF_DIR/lib/changed-files.sh" ]]; then
 fi
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPTS_DIR/lib/changed-files.sh"
-# The workflow writes the base's copies of the fragment and entry libraries
-# next to its copy of this script, so a branch older than either still reads
-# the base's fragment list through the base's code and renders the entry.
+# Libraries beside this copy win, so a branch older than either still reads the
+# base's fragment list through the base's code and renders the entry.
 fragments_lib="$SELF_DIR/lib/changelog-fragments.sh"
 [[ -f "$fragments_lib" ]] || fragments_lib="$SCRIPTS_DIR/lib/changelog-fragments.sh"
 if [[ -f "$fragments_lib" ]]; then
@@ -270,7 +268,9 @@ if [[ "$edited" -eq 0 ]]; then
   exit 0
 fi
 
-# Self-check against the same gate Dependabot must pass.
+# Self-check against the same gate Dependabot must pass, on this tree even when
+# the scripts come from another checkout.
+export CHANGELOG_PARITY_ROOT="$ROOT"
 parity="$SCRIPTS_DIR/check-changelog-parity.sh"
 if ! bash "$parity" --check; then
   echo "dependabot-plugin-bump: --check failed after edits" >&2

@@ -13,6 +13,7 @@ SCRIPT="$SELF_DIR/dependabot-plugin-bump.sh"
 . "$SELF_DIR/lib/fixture-tree.sh"
 
 repo=""
+base=""
 
 mk_repo() {
   local out="$1"
@@ -253,6 +254,28 @@ else
   fail "extracted base script: rc=$rc ver=$ver out='$out'"
 fi
 rm -rf "$repo"
+
+# --- run from main's checkout beside the PR, the bump executes none of the PR's scripts ---
+mk_repo repo
+mk_repo base
+mk_plugin "$repo" alpha 1.0.0
+init_git "$repo"
+begin_pr "$repo"
+marker="$repo/.git/pr-code-ran"
+for trap_file in check-changelog-parity.sh lib/changed-files.sh lib/dependabot-entry.sh; do
+  printf 'touch %q\nexit 1\n' "$marker" >"$repo/scripts/$trap_file"
+done
+echo y >>"$repo/plugins/alpha/server/package-lock.json"
+git -C "$repo" add -A && git -C "$repo" commit -qm "deps"
+out="$(cd "$repo" && bash "$base/scripts/dependabot-plugin-bump.sh" main 2>&1)"
+rc=$?
+ver="$(jq -r .version "$repo/plugins/alpha/.claude-plugin/plugin.json")"
+if [[ $rc -eq 0 && "$ver" == "1.0.1" && ! -e "$marker" ]]; then
+  ok "a bump run from main's scripts edits the PR tree and runs none of its scripts"
+else
+  fail "bump from a separate base checkout: rc=$rc ver=$ver marker=$([[ -e $marker ]] && echo present || echo absent) out='$out'"
+fi
+rm -rf "$repo" "$base"
 
 # --- no plugin paths: no-op ---
 mk_repo repo
