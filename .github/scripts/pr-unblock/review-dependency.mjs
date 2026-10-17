@@ -90,8 +90,9 @@ export function commitFilesReader(api) {
 }
 
 // The classifier's input from REST reads: the pull request, its commits and
-// files, the files of each non-Dependabot commit, and the base config.
-export async function classifyPull({ pull, ciStatus, commits, files, config, readCommitFiles }) {
+// files, the files of each non-Dependabot commit, the base config, and the
+// base Dependabot policy (readPolicy) with this repository's name.
+export async function classifyPull({ pull, ciStatus, commits, files, config, policy, repository, readCommitFiles }) {
   const touched = new Map();
   for (const item of commits) {
     if (!isDependabotCommit(item)) {
@@ -108,6 +109,8 @@ export async function classifyPull({ pull, ciStatus, commits, files, config, rea
     commits,
     files,
     config,
+    policy,
+    repository,
     changedFiles: pull.changed_files,
     commitFiles: (sha) => touched.get(sha) ?? null,
   });
@@ -130,7 +133,7 @@ function capPatches(files) {
   });
 }
 
-export async function select({ api, pr, headSha, appId, dependabotId, config = null, repository = "", maxRounds = DEFAULT_MAX_ROUNDS }) {
+export async function select({ api, pr, headSha, appId, dependabotId, config = null, policy, repository = "", maxRounds = DEFAULT_MAX_ROUNDS }) {
   const pull = await api.getPull(pr);
   if (pull.user?.id !== dependabotId || pull.user?.login !== DEPENDABOT_LOGIN) {
     return { decision: "skip", skipReason: "not-applicable" };
@@ -143,6 +146,8 @@ export async function select({ api, pr, headSha, appId, dependabotId, config = n
     commits,
     files,
     config,
+    policy,
+    repository,
     readCommitFiles: commitFilesReader(api),
   });
   if (classification.tier !== "review") {
@@ -204,6 +209,18 @@ export function readConfig(path, log = (line) => console.log(line)) {
   return pairs;
 }
 
+// The base's standards Dependabot policy as parsed JSON. A file it cannot
+// read or parse is null, which the classifier reports as
+// dependabot-policy-unreadable (review tier for every Dependabot PR).
+export function readPolicy(path, log = (line) => console.log(line)) {
+  try {
+    return JSON.parse(readFileSync(String(path ?? ""), "utf8"));
+  } catch (error) {
+    log(`::warning::cannot read the Dependabot policy ${path || "(no path)"} (${error.code ?? error.name}); every Dependabot PR is review tier until it reads`);
+    return null;
+  }
+}
+
 export function maxRoundsFrom(value) {
   return value === undefined || value === "" ? DEFAULT_MAX_ROUNDS : positive(value, "DEPENDENCY_REVIEW_ROUNDS");
 }
@@ -212,7 +229,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
   if (argv[0] !== "select") {
     throw new Error("usage: review-dependency.mjs select");
   }
-  need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "HEAD_SHA", "APP_SENDER_ID", "TRUSTED_ACTORS", "DEPENDENCY_FILE", "DEPENDABOT_CONFIG"]);
+  need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "HEAD_SHA", "APP_SENDER_ID", "TRUSTED_ACTORS", "DEPENDENCY_FILE", "DEPENDABOT_CONFIG", "DEPENDABOT_POLICY"]);
   const pr = positive(env.PR_NUMBER, "PR_NUMBER");
   if (!SHA.test(env.HEAD_SHA)) {
     throw new Error("HEAD_SHA is not a commit id");
@@ -234,6 +251,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     repository: env.GITHUB_REPOSITORY,
     maxRounds: maxRoundsFrom(env.DEPENDENCY_REVIEW_ROUNDS),
     config: readConfig(env.DEPENDABOT_CONFIG, log),
+    policy: readPolicy(env.DEPENDABOT_POLICY, log),
   });
   if (result.file) {
     writeFileSync(env.DEPENDENCY_FILE, `${JSON.stringify(result.file, null, 2)}\n`);

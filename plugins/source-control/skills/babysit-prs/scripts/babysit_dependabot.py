@@ -12,7 +12,9 @@ pull requests"):
   `github_actions` update (head branch `dependabot/github_actions/...`) comes
   from the `actions`, `github` or `anthropics` publisher; and the newest
   `ci-status` run on the head is not red.
-- `review`: anything else, including anything this cannot read.
+- `review`: anything else, including anything this cannot read, and every
+  update to a dependency the standards Dependabot policy lists under
+  `autoMerge.reviewOnly` (`review_only`).
 
 The updates come from the `updated-dependencies` metadata in Dependabot's
 verified commit message when it is there, and from the title (`bump <name>
@@ -69,6 +71,13 @@ RED = frozenset(
     {"failure", "cancelled", "timed_out", "action_required", "startup_failure"}
 )
 MARKER_PREFIX = "<!-- pr-unblock:review-dependency-round "
+# The standards-synced Dependabot policy, read at the base.
+POLICY_PATH = ".github/standards/dependabot-policy/policy.json"
+POLICY_UNREADABLE = "dependabot-policy-unreadable"
+# The head branch's ecosystem segment in `dependabot.yml` spelling; any other
+# segment is the same in both.
+BRANCH_ECOSYSTEMS = {"npm_and_yarn": "npm", "github_actions": "github-actions"}
+_REVIEW_ONLY_KEYS = ("repository", "ecosystem", "directory", "dependency", "control")
 
 _PREFIX = re.compile(r"^[a-z]+(\([^)]*\))?!?:\s*", re.I)
 _SINGLE = re.compile(r"\bbump (\S+) from (\S+) to (\S+?)(?:\s+in\s.*)?$", re.I)
@@ -257,6 +266,46 @@ def classify(
     return Classification(
         AUTO if not reasons else REVIEW, tuple(reasons), tuple(updates), ecosystem
     )
+
+
+def review_only(
+    policy: Any,
+    repository: str,
+    head_ref: str,
+    updates: Sequence[Update],
+    paths: Collection[str] | None,
+) -> tuple[str, ...]:
+    """`review-only:<dependency>` for each `autoMerge.reviewOnly` entry of the
+    parsed Dependabot policy that names this repository (any case), the head
+    branch's ecosystem (`BRANCH_ECOSYSTEMS`), one of `updates`, and the
+    directory of a changed path (any directory when `paths` is None), in entry
+    order; `dependabot-policy-unreadable` when the policy is None, has no
+    `reviewOnly` list, or holds an entry missing a string field."""
+    auto = policy.get("autoMerge") if isinstance(policy, dict) else None
+    entries = auto.get("reviewOnly") if isinstance(auto, dict) else None
+    if not isinstance(entries, list) or not all(
+        isinstance(e, dict)
+        and all(isinstance(e.get(k), str) for k in _REVIEW_ONLY_KEYS)
+        for e in entries
+    ):
+        return (POLICY_UNREADABLE,)
+    found = _ECOSYSTEM.match(str(head_ref))
+    segment = found.group(1) if found else ""
+    ecosystem = BRANCH_ECOSYSTEMS.get(segment, segment)
+    names = {u.name for u in updates}
+    folders = None if paths is None else {posixpath.dirname(p) for p in paths}
+    reasons: list[str] = []
+    for entry in entries:
+        reason = f"review-only:{entry['dependency']}"
+        if (
+            entry["repository"].casefold() == repository.casefold()
+            and entry["ecosystem"] == ecosystem
+            and entry["dependency"] in names
+            and (folders is None or entry["directory"].strip("/") in folders)
+            and reason not in reasons
+        ):
+            reasons.append(reason)
+    return tuple(reasons)
 
 
 def merge_verdict(

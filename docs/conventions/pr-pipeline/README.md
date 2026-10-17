@@ -482,7 +482,7 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   group's body `Updates` lines otherwise; when both read, they must name the same dependencies and
   agree on which are major.
 - **Tier `review`.** Anything else, including anything unreadable (a SHA version, an unparsed
-  title). The pr-unblock lane's review activity reviews it, and the pr-merge lane merges it only
+  title), and every update to a [review-only dependency](#review-only-dependencies). The pr-unblock lane's review activity reviews it, and the pr-merge lane merges it only
   when the newest round marker the lanes App posted on it
   (`<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<id>-<attempt> -->`)
   names the current head with `verdict=merge`. A marker from any other author is ignored.
@@ -530,6 +530,31 @@ each only wake it; it lists the candidates from the API and runs the gate on eac
 App token the broker mints for that file on `main`. A finished `ci-status` or review run is picked
 up by the next scheduled run, not by a wake-up of its own: runs are serialized, and the triggers
 must start them more slowly than they finish to stay under GitHub's cap on queued runs.
+
+#### Review-only dependencies
+
+A non-major release of a hijacked package passes tier `auto` on a green `ci-status`. A dependency
+that runs inside a job holding a secret or a write token is therefore listed in the standards
+Dependabot policy's `autoMerge.reviewOnly` (melodic-software/standards
+`components/dependabot-policy/policy.json`), which the sync places at
+`.github/standards/dependabot-policy/policy.json`. Both lanes read that file at the base:
+
+- **Match.** An entry matches an update when its `repository` is this repository (any case), its
+  `ecosystem` is the head branch's ecosystem in `dependabot.yml` spelling
+  (`dependabot/npm_and_yarn/...` is `npm`, `dependabot/github_actions/...` is `github-actions`,
+  any other segment such as `pip` is itself), its `directory` holds a changed path (any
+  directory when the config or the files listing does not read whole), and its `dependency` is
+  one of the updates. A match makes the pull request tier `review` with the reason
+  `review-only:<dependency>`, whatever the version change.
+- **Unreadable.** A missing policy file, one that is not JSON, or one whose `reviewOnly` is not a
+  list of entries with string `repository`, `ecosystem`, `directory`, `dependency` and `control`
+  makes every Dependabot pull request tier `review` with the reason
+  `dependabot-policy-unreadable`.
+- **Review.** The review activity gets the matched entries. A `merge` verdict on such a pull
+  request cites each entry's `control` (this section, for this repository's entries) and states
+  what it checked: the release's provenance (who published it and how), maintainer or publisher
+  changes since the previous version, new or changed install scripts, and dependencies the
+  release adds that its changelog does not explain. Anything it cannot check is `escalate`.
 
 ### Verifier verdict
 

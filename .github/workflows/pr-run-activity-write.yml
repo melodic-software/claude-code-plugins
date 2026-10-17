@@ -461,6 +461,8 @@ jobs:
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
           # The content rule's ecosystems and directories, read from the base.
           DEPENDABOT_CONFIG: .base/.github/dependabot.yml
+          # The review-only dependencies, read from the base.
+          DEPENDABOT_POLICY: .base/.github/standards/dependabot-policy/policy.json
           RESOLVED: ${{ runner.temp }}/resolved-config.json
         run: |
           mkdir -p "$DEPENDENCY_DIR"

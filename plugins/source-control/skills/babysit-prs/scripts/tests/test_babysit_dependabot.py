@@ -261,6 +261,123 @@ def marker(
     }
 
 
+def review_only_policy(*entries: dict[str, str]) -> dict[str, Any]:
+    return {
+        "autoMerge": {
+            "reviewOnly": [
+                {
+                    "repository": "melodic-software/claude-code-plugins",
+                    "ecosystem": "npm",
+                    "directory": "/",
+                    "dependency": "@anthropic-ai/claude-code",
+                    "reviewed": "2026-10-17",
+                    "basis": "runs with a secret",
+                    "control": "docs/x.md#control",
+                    **entry,
+                }
+                for entry in entries
+            ]
+        }
+    }
+
+
+class ReviewOnly(unittest.TestCase):
+    """`autoMerge.reviewOnly` in the standards Dependabot policy: a listed
+    dependency is review whatever its version change; an unreadable policy
+    sends every update to review."""
+
+    REPO = "melodic-software/claude-code-plugins"
+    ROOT = "dependabot/npm_and_yarn/npm-minor-patch-ba695db9ca"
+    UPDATES = (
+        dependabot.Update("@anthropic-ai/claude-code", False),
+        dependabot.Update("@biomejs/biome", False),
+    )
+
+    def reasons(
+        self,
+        policy: Any,
+        head_ref: str = ROOT,
+        paths: list[str] | None = None,
+    ) -> tuple[str, ...]:
+        return dependabot.review_only(
+            policy,
+            self.REPO,
+            head_ref,
+            self.UPDATES,
+            ["package.json", "package-lock.json"] if paths is None else paths,
+        )
+
+    def test_a_listed_dependency_is_review_only(self) -> None:
+        self.assertEqual(
+            self.reasons(
+                review_only_policy(
+                    {}, {"repository": "Melodic-Software/Claude-Code-Plugins"}
+                )
+            ),
+            ("review-only:@anthropic-ai/claude-code",),
+        )
+
+    def test_each_branch_ecosystem_maps_to_its_dependabot_yml_spelling(self) -> None:
+        for segment, ecosystem in (
+            ("npm_and_yarn", "npm"),
+            ("pip", "pip"),
+            ("github_actions", "github-actions"),
+        ):
+            with self.subTest(segment=segment):
+                policy = review_only_policy({"ecosystem": ecosystem})
+                self.assertEqual(
+                    self.reasons(policy, f"dependabot/{segment}/x-1.0.1"),
+                    ("review-only:@anthropic-ai/claude-code",),
+                )
+
+    def test_another_repo_ecosystem_directory_or_dependency_does_not_match(
+        self,
+    ) -> None:
+        for fields in (
+            {"repository": "melodic-software/standards"},
+            {"ecosystem": "pip"},
+            {"directory": "/plugins/miro/server"},
+            {"dependency": "@playwright/cli"},
+        ):
+            with self.subTest(fields=fields):
+                self.assertEqual(self.reasons(review_only_policy(fields)), ())
+
+    def test_the_directory_is_the_changed_paths_folder(self) -> None:
+        policy = review_only_policy({"directory": "/plugins/miro/server"})
+        miro = [
+            "plugins/miro/server/package.json",
+            "plugins/miro/server/package-lock.json",
+        ]
+        self.assertEqual(
+            self.reasons(policy, paths=miro), ("review-only:@anthropic-ai/claude-code",)
+        )
+        self.assertEqual(self.reasons(review_only_policy({}), paths=miro), ())
+
+    def test_unread_paths_match_any_directory(self) -> None:
+        policy = review_only_policy({"directory": "/plugins/miro/server"})
+        self.assertEqual(
+            dependabot.review_only(policy, self.REPO, self.ROOT, self.UPDATES, None),
+            ("review-only:@anthropic-ai/claude-code",),
+        )
+
+    def test_an_unreadable_policy_is_review(self) -> None:
+        for policy in (
+            None,
+            [],
+            {},
+            {"autoMerge": {}},
+            {"autoMerge": {"reviewOnly": {}}},
+            {"autoMerge": {"reviewOnly": [{"dependency": "x"}]}},
+        ):
+            with self.subTest(policy=policy):
+                self.assertEqual(
+                    self.reasons(policy), ("dependabot-policy-unreadable",)
+                )
+
+    def test_an_empty_list_lists_nothing(self) -> None:
+        self.assertEqual(self.reasons({"autoMerge": {"reviewOnly": []}}), ())
+
+
 class MergeVerdict(unittest.TestCase):
     def verdict(self, *comments: dict[str, Any]) -> tuple[str | None, str | None]:
         return dependabot.merge_verdict(list(comments), IDENTITY, HEAD)

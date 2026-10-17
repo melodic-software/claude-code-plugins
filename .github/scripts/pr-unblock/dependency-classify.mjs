@@ -11,8 +11,10 @@
 //           github_actions update comes from an allowlisted publisher,
 //           ci-status is not red, and the diff is only what Dependabot
 //           manages. The pr-merge lane merges these.
-//   review  anything else, including anything this cannot read. The
-//           pr-unblock lane's review-dependency activity reviews these.
+//   review  anything else, including anything this cannot read, and every
+//           update to a dependency the standards Dependabot policy lists under
+//           autoMerge.reviewOnly (reviewOnly). The pr-unblock lane's
+//           review-dependency activity reviews these.
 //
 // The updates come from the `updated-dependencies` metadata in Dependabot's
 // commits when there is any, and from the title (`bump <name> from <a> to
@@ -265,6 +267,48 @@ export function contentStep({ commits = [], commitFiles = () => null, files, con
   return contentReason(files, config, extra);
 }
 
+// The standards-synced Dependabot policy, read at the base.
+export const POLICY_PATH = ".github/standards/dependabot-policy/policy.json";
+export const POLICY_UNREADABLE = "dependabot-policy-unreadable";
+// The head branch's ecosystem segment in dependabot.yml spelling; any other
+// segment is the same in both.
+const BRANCH_ECOSYSTEMS = Object.freeze({ npm_and_yarn: "npm", github_actions: "github-actions" });
+const REVIEW_ONLY_KEYS = ["repository", "ecosystem", "directory", "dependency", "control"];
+
+// As babysit_dependabot.review_only: { reasons, entries } where reasons holds
+// `review-only:<dependency>` for each autoMerge.reviewOnly entry of the parsed
+// policy that names this repository (any case), the head branch's ecosystem,
+// one of `updates`, and the directory of a changed path (any directory when
+// `paths` is null), in entry order, and entries the entries that matched;
+// reasons is [dependabot-policy-unreadable] when the policy is null, has no
+// reviewOnly list, or holds an entry missing a string field.
+export function reviewOnly(policy, repository, headRef, updates, paths) {
+  const entries = policy?.autoMerge?.reviewOnly;
+  if (!Array.isArray(entries) || !entries.every((e) => e !== null && typeof e === "object" && REVIEW_ONLY_KEYS.every((k) => typeof e[k] === "string"))) {
+    return { reasons: [POLICY_UNREADABLE], entries: [] };
+  }
+  const segment = ECOSYSTEM.exec(String(headRef ?? ""))?.[1] ?? "";
+  const ecosystem = Object.hasOwn(BRANCH_ECOSYSTEMS, segment) ? BRANCH_ECOSYSTEMS[segment] : segment;
+  const names = new Set(updates.map((u) => u.name));
+  const folders = paths === null ? null : new Set(paths.map(dirname));
+  const reasons = [];
+  const matched = [];
+  for (const entry of entries) {
+    const reason = `review-only:${entry.dependency}`;
+    if (
+      entry.repository.toLowerCase() === String(repository).toLowerCase() &&
+      entry.ecosystem === ecosystem &&
+      names.has(entry.dependency) &&
+      (folders === null || folders.has(entry.directory.replace(/^\/+|\/+$/g, ""))) &&
+      !reasons.includes(reason)
+    ) {
+      reasons.push(reason);
+      matched.push(entry);
+    }
+  }
+  return { reasons, entries: matched };
+}
+
 export function isSecurityUpdate({ labels = [], body = "" }) {
   return (
     labels.some((label) => String(label).toLowerCase() === "security") ||
@@ -323,11 +367,23 @@ export function classify(pr) {
     const content = contentStep(pr);
     if (content) reasons.push(content);
   }
+  // With `policy` (parsed policy.json, or null when unreadable) and
+  // `repository`, the review-only step applies too, over the changed paths
+  // when the config reads and `files` is the whole listing, as the pr-merge
+  // lane reads them.
+  let listed = null;
+  if (pr.policy !== undefined) {
+    const whole = Array.isArray(pr.files) && pr.config != null && pr.changedFiles === pr.files.length;
+    const paths = whole ? pr.files.flatMap((f) => [f.filename, f.previous_filename].filter(Boolean).map(String)) : null;
+    listed = reviewOnly(pr.policy, pr.repository ?? "", pr.headRef, updates, paths);
+    reasons.push(...listed.reasons);
+  }
   return {
     tier: reasons.length === 0 ? "auto" : "review",
     reasons,
     ecosystem,
     updates,
     security: isSecurityUpdate(pr),
+    ...(listed ? { reviewOnly: listed.entries } : {}),
   };
 }

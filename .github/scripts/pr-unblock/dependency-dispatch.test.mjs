@@ -91,6 +91,17 @@ test("a red ci-status makes a patch bump review", async () => {
   assert.equal((await run(api)).dispatched.length, 1);
 });
 
+test("a review-only dependency makes a patch bump review, and an unreadable policy makes every bump review", async () => {
+  const node = pr(9, { title: "bump x from 1.0.0 to 1.0.1", changedFiles: 1 });
+  const files = new Map([[9, [{ filename: "package.json", patch: "" }]]]);
+  const entry = { repository: "o/r", ecosystem: "npm", directory: "/", dependency: "x", reviewed: "2026-10-17", basis: "b", control: "c" };
+  const policy = (dependency) => ({ autoMerge: { reviewOnly: [{ ...entry, dependency }] } });
+  const extra = { config: [["npm", "/"]], repository: "o/r" };
+  assert.equal((await run(fakeApi({ nodes: [node], files }), { ...extra, policy: policy("x") })).dispatched.length, 1);
+  assert.equal((await run(fakeApi({ nodes: [node], files }), { ...extra, policy: policy("y") })).dispatched.length, 0);
+  assert.equal((await run(fakeApi({ nodes: [node], files }), { ...extra, policy: null })).dispatched.length, 1);
+});
+
 test("skips a head that already has a review-dependency check run, except an untrusted-trigger skip", async () => {
   const a = pr(10);
   const b = pr(11);

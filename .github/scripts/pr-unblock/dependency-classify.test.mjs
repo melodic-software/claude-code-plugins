@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { classify, contentReason, contentStep, isMajor, isSecurityUpdate, parseConfig, usesOnly } from "./dependency-classify.mjs";
+import { classify, contentReason, contentStep, isMajor, isSecurityUpdate, parseConfig, reviewOnly, usesOnly } from "./dependency-classify.mjs";
 
 const NPM = "dependabot/npm_and_yarn/x-1.3.0";
 const ACTIONS = "dependabot/github_actions/actions/checkout-4.2.0";
@@ -273,4 +273,91 @@ test("the content step's refusals and gaps are review reasons", () => {
   assert.equal(contentStep({ ...base, changedFiles: 2 }), "dependabot-content:files-incomplete");
   const result = classify({ author: "dependabot[bot]", headRef: NPM, title: "bump x from 1.0.0 to 1.0.1", ...base, files: [changed("dist/x.js")] });
   assert.deepEqual([result.tier, result.reasons], ["review", ["dependabot-content:dist/x.js"]]);
+});
+
+// Review-only: the pr-merge lane's ReviewOnly class, one for one.
+const REPO = "melodic-software/claude-code-plugins";
+const ROOT = "dependabot/npm_and_yarn/npm-minor-patch-ba695db9ca";
+const UPDATES = [
+  { name: "@anthropic-ai/claude-code", major: false },
+  { name: "@biomejs/biome", major: false },
+];
+const ROOT_PATHS = ["package.json", "package-lock.json"];
+const reviewOnlyPolicy = (...entries) => ({
+  autoMerge: {
+    reviewOnly: entries.map((entry) => ({
+      repository: REPO,
+      ecosystem: "npm",
+      directory: "/",
+      dependency: "@anthropic-ai/claude-code",
+      reviewed: "2026-10-17",
+      basis: "runs with a secret",
+      control: "docs/x.md#control",
+      ...entry,
+    })),
+  },
+});
+const listed = (policy, ref = ROOT, paths = ROOT_PATHS) => reviewOnly(policy, REPO, ref, UPDATES, paths).reasons;
+
+test("a listed dependency is review-only", () => {
+  const policy = reviewOnlyPolicy({}, { repository: "Melodic-Software/Claude-Code-Plugins" });
+  assert.deepEqual(listed(policy), ["review-only:@anthropic-ai/claude-code"]);
+  assert.deepEqual(reviewOnly(policy, REPO, ROOT, UPDATES, ROOT_PATHS).entries, [policy.autoMerge.reviewOnly[0]]);
+});
+
+test("each branch ecosystem maps to its dependabot.yml spelling", () => {
+  for (const [segment, ecosystem] of [
+    ["npm_and_yarn", "npm"],
+    ["pip", "pip"],
+    ["github_actions", "github-actions"],
+  ]) {
+    assert.deepEqual(listed(reviewOnlyPolicy({ ecosystem }), `dependabot/${segment}/x-1.0.1`), ["review-only:@anthropic-ai/claude-code"], segment);
+  }
+});
+
+test("another repo, ecosystem, directory or dependency does not match", () => {
+  for (const fields of [{ repository: "melodic-software/standards" }, { ecosystem: "pip" }, { directory: "/plugins/miro/server" }, { dependency: "@playwright/cli" }]) {
+    assert.deepEqual(listed(reviewOnlyPolicy(fields)), [], JSON.stringify(fields));
+  }
+});
+
+test("the directory is the changed paths' folder", () => {
+  const miro = ["plugins/miro/server/package.json", "plugins/miro/server/package-lock.json"];
+  assert.deepEqual(listed(reviewOnlyPolicy({ directory: "/plugins/miro/server" }), ROOT, miro), ["review-only:@anthropic-ai/claude-code"]);
+  assert.deepEqual(listed(reviewOnlyPolicy({}), ROOT, miro), []);
+});
+
+test("unread paths match any directory", () => {
+  assert.deepEqual(listed(reviewOnlyPolicy({ directory: "/plugins/miro/server" }), ROOT, null), ["review-only:@anthropic-ai/claude-code"]);
+});
+
+test("an unreadable policy is review", () => {
+  for (const policy of [null, [], {}, { autoMerge: {} }, { autoMerge: { reviewOnly: {} } }, { autoMerge: { reviewOnly: [{ dependency: "x" }] } }]) {
+    assert.deepEqual(listed(policy), ["dependabot-policy-unreadable"], JSON.stringify(policy));
+  }
+});
+
+test("an empty list lists nothing", () => {
+  assert.deepEqual(listed({ autoMerge: { reviewOnly: [] } }), []);
+});
+
+test("classify sends a review-only update to review and leaves the rest auto", () => {
+  const pr = (policy) =>
+    classify({
+      author: "dependabot[bot]",
+      headRef: "dependabot/npm_and_yarn/x-1.3.0",
+      title: "bump x from 1.2.0 to 1.3.0",
+      repository: "o/r",
+      policy,
+      files: [changed("package.json"), changed("package-lock.json")],
+      config: [["npm", "/"]],
+      changedFiles: 2,
+    });
+  const match = pr(reviewOnlyPolicy({ repository: "o/r", dependency: "x" }));
+  assert.deepEqual([match.tier, match.reasons], ["review", ["review-only:x"]]);
+  assert.equal(match.reviewOnly[0].control, "docs/x.md#control");
+  const miss = pr(reviewOnlyPolicy({ repository: "o/r", dependency: "y" }));
+  assert.deepEqual([miss.tier, miss.reasons, miss.reviewOnly], ["auto", [], []]);
+  const unreadable = pr(null);
+  assert.deepEqual([unreadable.tier, unreadable.reasons], ["review", ["dependabot-policy-unreadable"]]);
 });

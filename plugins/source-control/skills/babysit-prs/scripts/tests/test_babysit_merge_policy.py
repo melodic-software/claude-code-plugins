@@ -29,6 +29,7 @@ import babysit_merge_policy as policy
 REPO = "owner/repo"
 SHA = "a" * 40
 IDENTITY = "agent-lanes[bot]"
+POLICY = ".github/standards/dependabot-policy/policy.json"
 OPERATOR = "operator"
 PR_CREATED = "2026-10-12T12:00:00Z"
 DEMOTION_BODY = (
@@ -2897,8 +2898,20 @@ class DependabotEligibility(unittest.TestCase):
         cross: bool = False,
         pushes: list[dict[str, Any]] | None = None,
         files: list[dict[str, Any]] | None = None,
+        review_only: list[dict[str, Any]] | None = None,
     ) -> GhFake:
         gh = GhFake().install(self)
+        gh.rest[f"repos/{REPO}/contents/{POLICY}?ref={SHA}"] = file_payload(
+            json.dumps(
+                {
+                    "autoMerge": {
+                        "reviewOnly": [self.entry(dependency="y")]
+                        if review_only is None
+                        else review_only
+                    }
+                }
+            )
+        )
         gh.graphql["PolicyEligibility"] = {
             "repository": {
                 "pullRequest": {
@@ -2934,6 +2947,19 @@ class DependabotEligibility(unittest.TestCase):
         self.files = [{"filename": "package-lock.json"}] if files is None else files
         gh.rest[f"repos/{REPO}/pulls/7/files?per_page=100"] = self.files
         return gh
+
+    @staticmethod
+    def entry(**fields: str) -> dict[str, str]:
+        return {
+            "repository": REPO,
+            "ecosystem": "npm",
+            "directory": "/",
+            "dependency": "x",
+            "reviewed": "2026-10-17",
+            "basis": "runs with a secret",
+            "control": "docs/x.md#control",
+            **fields,
+        }
 
     def eligibility(self, title: str = "build(deps): bump x") -> Any:
         pr = {
@@ -3127,6 +3153,51 @@ class DependabotEligibility(unittest.TestCase):
         self.assertEqual(result.dependabot.approved, "55-1")
         self.fake(files=files, comments=[self.marker(head="a" * 40)])
         self.assertFalse(self.eligibility().eligible)
+
+    def test_a_review_only_dependency_is_tier_review_whatever_its_version(
+        self,
+    ) -> None:
+        self.fake(review_only=[self.entry(repository="OWNER/Repo")])
+        result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.dependabot.tier, "review")
+        self.assertEqual(
+            result.reason, "dependabot-review:review-only:x;review-verdict-missing"
+        )
+        self.fake(review_only=[self.entry()], comments=[self.marker()])
+        result = self.eligibility()
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.dependabot.approved, "55-1")
+
+    def test_an_entry_for_another_repo_ecosystem_directory_or_dependency_is_auto(
+        self,
+    ) -> None:
+        for fields in (
+            {"repository": "owner/other"},
+            {"ecosystem": "pip"},
+            {"directory": "/plugins/miro/server"},
+            {"dependency": "y"},
+        ):
+            with self.subTest(fields=fields):
+                self.fake(review_only=[self.entry(**fields)])
+                result = self.eligibility()
+                self.assertTrue(result.eligible, result.reason)
+                self.assertEqual(result.dependabot.tier, "auto")
+
+    def test_an_unreadable_policy_sends_every_update_to_review(self) -> None:
+        for answer in (404, file_payload("{not json"), file_payload("{}")):
+            with self.subTest(answer=answer):
+                gh = self.fake()
+                gh.rest[f"repos/{REPO}/contents/{POLICY}?ref={SHA}"] = answer
+                gh.rest[f"repos/{REPO}/contents?ref={SHA}"] = []
+                result = self.eligibility()
+                self.assertFalse(result.eligible)
+                self.assertEqual(result.dependabot.tier, "review")
+                self.assertEqual(
+                    result.reason,
+                    "dependabot-review:dependabot-policy-unreadable;"
+                    "review-verdict-missing",
+                )
 
     def test_a_0x_minor_is_review_and_a_1x_minor_is_auto(self) -> None:
         zero = dependabot_commit(
