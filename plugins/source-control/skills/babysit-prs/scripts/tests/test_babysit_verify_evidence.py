@@ -139,6 +139,9 @@ class FakeGitHub:
         self.actors: Any = {"version": 1, "actors": [MAINTAINER, LANES]}
         self.calls: list[list[str]] = []
         self.fail: set[str] = set()
+        # The PR's closing issues now: (number, repository).
+        self.closing: list[tuple[int, str]] = [(7, REPO)]
+        self.closing_total: int | None = None
 
     def __call__(self, args: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
         self.calls.append(args)
@@ -149,6 +152,21 @@ class FakeGitHub:
         def missing() -> subprocess.CompletedProcess[str]:
             return subprocess.CompletedProcess(args, 1, "", "gh: Not Found (HTTP 404)")
 
+        if args[:2] == ["api", "graphql"]:
+            if "graphql" in self.fail:
+                return subprocess.CompletedProcess(args, 1, "", "gh: boom (HTTP 502)")
+            nodes = [
+                {"number": n, "repository": {"nameWithOwner": repo}}
+                for n, repo in self.closing
+            ]
+            refs = {"totalCount": self.closing_total or len(nodes), "nodes": nodes}
+            return ok(
+                {
+                    "data": {
+                        "repository": {"pullRequest": {"closingIssuesReferences": refs}}
+                    }
+                }
+            )
         if args[:2] == ["run", "download"]:
             name, target = args[args.index("-n") + 1], args[args.index("-D") + 1]
             if name not in self.records:
@@ -413,6 +431,7 @@ class TheSpecMustBeTrusted(unittest.TestCase):
     def with_issues(self, issues: list[dict[str, Any]], **pr: Any) -> ve.Evidence:
         fake = passing()
         fake.records[named(HEAD, "pass")] = record(linked_issues=issues)
+        fake.closing = [(issue["number"], REPO) for issue in issues]
         return read(fake, pull(**pr))
 
     def test_a_trusted_humans_issue_allows(self) -> None:
@@ -453,6 +472,49 @@ class TheSpecMustBeTrusted(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:unreadable")
         fake = passing()
         del fake.records[named(HEAD, "pass")]
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
+
+
+class TheSpecMustBeTheJudgedOne(unittest.TestCase):
+    """The PR's closing issues now must be the ones the verdict recorded."""
+
+    def test_the_same_closing_issues_allow(self) -> None:
+        fake = passing()
+        fake.closing = [
+            (7, REPO),
+            (3, "someone/else"),
+        ]  # another repository's is left out
+        self.assertIsNone(read(fake).refusal)
+
+    def test_a_changed_set_refuses(self) -> None:
+        for label, closing in {
+            "another issue": [(8, REPO)],
+            "one more": [(7, REPO), (8, REPO)],
+            "none": [],
+        }.items():
+            with self.subTest(label):
+                fake = passing()
+                fake.closing = closing
+                evidence = read(fake)
+                self.assertEqual(evidence.refusal, "verify:spec-changed")
+                self.assertTrue(evidence.needs_human)
+
+    def test_an_unreadable_or_partial_listing_refuses(self) -> None:
+        fake = passing()
+        fake.fail = {"graphql"}
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
+        fake = passing()
+        fake.closing_total = 11
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
+
+    def test_a_pull_request_record_of_no_known_shape_refuses(self) -> None:
+        with mock.patch.object(postmerge, "gh_capture", side_effect=passing()):
+            evidence = ve.Reader(REPO, "main", now=NOW).evidence(PR, HEAD, {})
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+
+    def test_a_record_whose_issues_are_not_a_list_refuses(self) -> None:
+        fake = passing()
+        fake.records[named(HEAD, "pass")] = record(linked_issues=None)
         self.assertEqual(read(fake).refusal, "verify:unreadable")
 
 

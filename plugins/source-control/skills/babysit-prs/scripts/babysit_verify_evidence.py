@@ -22,14 +22,15 @@ from a completed, successful one. Any other artifact is ignored.
   `verify:earlier-fail`;
 - a FAIL-named artifact tied to this pull request by number or SHA whose run,
   or whose recorded head branch, cannot be read: `verify:unreadable`;
-- a counted PASS or PASS-NOTES at the head of this pull request: allowed only
-  when its verdict records a linked issue written by a User on the trusted
-  list's humans other than the pull request's author, else
-  `verify:untrusted-spec`;
+- a counted PASS or PASS-NOTES at the head of this pull request: refused
+  `verify:spec-changed` unless the pull request's closing issues now are the
+  ones its verdict recorded, then allowed only when it records a linked issue
+  written by a User on the trusted list's humans other than the pull
+  request's author, else `verify:untrusted-spec`;
 - otherwise `verify:missing`.
 
-`verify:too-old`, `verify:earlier-fail` and `verify:untrusted-spec` need a
-human, who merges in person. Any read that fails refuses
+`verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and
+`verify:untrusted-spec` need a human, who merges in person. Any read that fails refuses
 (`verify:unreadable`). The repository's artifacts are listed once per
 `Reader`, which pr-merge.yml builds once per candidate gate run, every page,
 and filtered on the name here: the API's name filter matches whole names only.
@@ -65,7 +66,13 @@ MISSING = "verify:missing"
 UNREADABLE = "verify:unreadable"
 TOO_OLD = "verify:too-old"
 UNTRUSTED_SPEC = "verify:untrusted-spec"
-NEEDS_HUMAN = (EARLIER_FAIL, TOO_OLD, UNTRUSTED_SPEC)
+SPEC_CHANGED = "verify:spec-changed"
+NEEDS_HUMAN = (EARLIER_FAIL, TOO_OLD, UNTRUSTED_SPEC, SPEC_CHANGED)
+CLOSING_QUERY = (
+    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    "pullRequest(number:$n){closingIssuesReferences(first:10){totalCount "
+    "nodes{number repository{nameWithOwner}}}}}}"
+)
 
 # A run's standing: unreadable, foreign (not of verifier origin), origin (of
 # verifier origin, not a completed success), or counted (both).
@@ -244,6 +251,38 @@ class Reader:
             for issue in map(json_object, json_array(record.get("linked_issues")))
         )
 
+    def _closing_issues(self, number: int) -> set[Any]:
+        """The PR's closing issues in this repository now, read as the
+        resolver reads them (closingIssuesReferences, first 10)."""
+        owner, _, name = self.repo.partition("/")
+        payload = json_object(
+            _read(
+                ["api", "graphql", "-f", f"query={CLOSING_QUERY}"]
+                + ["-f", f"o={owner}", "-f", f"r={name}", "-F", f"n={number}"],
+                f"#{number} closing issues",
+            )
+        )
+        refs = json_object(
+            json_object(
+                json_object(json_object(payload.get("data")).get("repository")).get(
+                    "pullRequest"
+                )
+            ).get("closingIssuesReferences")
+        )
+        nodes = refs.get("nodes")
+        if (
+            payload.get("errors")
+            or not is_json_array(nodes)
+            or refs.get("totalCount") != len(nodes)
+        ):
+            raise _Unreadable(f"#{number}: the closing issues could not be read")
+        return {
+            json_object(node).get("number")
+            for node in nodes
+            if json_object(json_object(node).get("repository")).get("nameWithOwner")
+            == self.repo
+        }
+
     def _commits(self, number: int) -> set[str]:
         try:
             commits = postmerge._paginated(
@@ -270,6 +309,8 @@ class Reader:
                 pr = merge_policy.pull_request(self.repo, number)
             except merge_policy.PolicyReadError as exc:
                 raise _Unreadable(str(exc)) from exc
+        # A record of no known shape has no creation time, which refuses.
+        pr = json_object(pr)
         created = postmerge._time(pr.get("created_at"))
         now = self.now or datetime.now(UTC)
         if now - created > timedelta(days=TOO_OLD_DAYS):
@@ -338,7 +379,16 @@ class Reader:
                 raise _Unreadable(
                     f"artifact {name} records another pull request or head"
                 )
-            refusal = None if self._trusted_spec(record, author) else UNTRUSTED_SPEC
+            recorded = record.get("linked_issues")
+            if not is_json_array(recorded):
+                raise _Unreadable(f"artifact {name} records no linked issues")
+            judged = {json_object(issue).get("number") for issue in recorded}
+            if self._closing_issues(number) != judged:
+                refusal = SPEC_CHANGED
+            elif self._trusted_spec(record, author):
+                refusal = None
+            else:
+                refusal = UNTRUSTED_SPEC
         else:
             refusal = MISSING
         return Evidence(refusal, head, tuple(verdicts), ignored, detail)

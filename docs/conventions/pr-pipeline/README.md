@@ -486,12 +486,14 @@ other artifact with such a name is ignored. At the pull request's vetted head:
   verdict recording its head branch) refuses (`verify:earlier-fail`);
 - a `fail` artifact tied to it whose run or record cannot be read, or any other failed read,
   refuses (`verify:unreadable`);
-- a counted `pass` or `pass-notes` for this pull request allows the merge only when its verdict
-  records a linked issue a `User` on the trusted-actor list's humans wrote, other than the pull
+- a counted `pass` or `pass-notes` for this pull request refuses (`verify:spec-changed`) unless the
+  pull request's closing issues in this repository now are the ones its verdict recorded, and then
+  allows the merge only when its verdict records a linked issue a `User` on the trusted-actor list's humans wrote, other than the pull
   request's author, and otherwise refuses (`verify:untrusted-spec`);
 - no counted verdict refuses (`verify:missing`).
 
-`verify:too-old`, `verify:earlier-fail` and `verify:untrusted-spec` need a human, who clears them
+`verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and `verify:untrusted-spec` need a
+human, who clears them
 by merging in person: the verdict is not a check run and stays out of `ci-status` and the required
 checks (github-iac ADR 0011), so a human merge needs `ci-status` alone. A queued entry without an
 allowing verdict at its live head leaves the queue. A dependency manager's pull request is refused
