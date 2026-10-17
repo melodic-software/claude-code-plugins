@@ -18,7 +18,7 @@ and the session-bridge watcher. Python 3 standard library only.
 | `detached.py` | Processes that outlive their starter, and liveness and stop by pid, on Windows, macOS and Linux |
 | `session_bridge.py`, `watch.sh`, `wake.sh` | Generated copies of `lib/session-bridge/` (`scripts/sync-shared-copies.sh`); edit the canonical, never these |
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
-| `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape` |
+| `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
 | `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/core.css`, `/app.css`, `/proto.js`). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when `schemaVersion` or the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret` |
 | `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
@@ -123,6 +123,36 @@ the refused op's index).
 | `make-question-from` | `proposal`, `question` | |
 | `handle` | `seqs` | Marks events handled |
 
+## Answering
+
+How people answer each `format` through `POST /api/pick` (`{qid, view, device?, comment?, ...}`):
+
+| Format | Pick field | Rule |
+|---|---|---|
+| `choice`, `confirm`, `prototype` | `option` (`""` for none) | One pick, which is the person's vote |
+| `multi` | `options` (`[]` for none) | A subset of the option ids, each at most once |
+| `scale` | `value` (`null` for none) | A whole number from `min` (1) to `max` (3..10) |
+| `rank` | `order` (`[]` for none) | Every option id once |
+
+- **Something else.** The server adds one `{id: "other", other: true}` option to every `choice`,
+  `multi` and `rank` question and refuses one in Claude's ops. Picking it needs `other`, the
+  person's own option, which becomes their card's text. Others back that card with
+  `POST /api/vote {qid, card, on}`: on a `choice` question that moves their one pick to it; on
+  `multi` and `rank` it is one vote, outside the picks and the Borda count. `scale` and `confirm`
+  take a `comment` instead.
+- **Disagree.** `POST /api/disagree {qid, card, reason}` on a `decide` question records a reason
+  (1..200 characters), one per person per answer; `on: false` takes it back. Vote counts never
+  change, and the digest lists each one under its question.
+- **Reactions.** `thumbs`, `down`, `heart` and `idea`, on `gather` questions only.
+- **Digest.** `multi` reports picks per option; `scale` the count per value, the mean (two places)
+  and the median; `rank` Borda totals (with n options a first place scores n-1, a last 0) and how
+  many gave each full order. Each lists people's own options with their backers, and the comments.
+- **Presence.** The heartbeat (`schema/wire.schema.json`) carries `visible`, `lastInput` (seconds
+  since the last key, pointer or touch) and `away` (the person's own snooze, sent until their next
+  input). A person is offline after 90 s with no beat, and Away while hidden, after 5 minutes
+  visible with no input, or snoozed; the snapshot gives `state` and, when Away, `since`. Typing
+  flags last 5 s. A beat that changes `visible` or `away` is taken at once.
+
 ## Data contract
 
 One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
@@ -171,8 +201,8 @@ build reloads itself.
   |---|---|
   | Requests per address (`CF-Connecting-IP` only, never `X-Forwarded-For`; an IPv6 address counts by its /64) | 100 a second, bursts of 200; the 10000 most recently seen addresses are remembered |
   | Joins | 30 a minute per address and guest key; 60 per 10 minutes per guest key across all addresses (rotating the guest link starts a new count) |
-  | Writes | 1 a second per person per route, on every route that writes (answer, pick, vote, react, go-with, rename, color, prefs, about-you, notifications/read, chat, propose, suggest, request, annotate, merge-request) |
-  | Heartbeat | 1 a second per person (429 otherwise) |
+  | Writes | 1 a second per person per route, on every route that writes (answer, pick, vote, react, disagree, go-with, rename, color, prefs, about-you, notifications/read, chat, propose, suggest, request, annotate, merge-request) |
+  | Heartbeat | 1 a second per person (429 otherwise), except a beat that changes `visible` or `away` |
   | Stored chat, notes, suggestions | the newest 2000 messages; 2000 notes; 200 suggestions per question, with votes on a dropped one dropped too |
   | Connections served at once | 64; one more is answered 503 `busy` |
 

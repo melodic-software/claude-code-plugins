@@ -296,6 +296,54 @@ class TestHeadersAndCaps(ServerCase):
         self.assertEqual(self.get("/api/state", {"CF-Connecting-IP": "203.0.113.6"})[0], 200)
 
 
+class TestFormatsAndPresenceRoutes(ServerCase):
+    """Phase 4b over HTTP: the pick bodies for multi, scale and rank, /api/disagree, and the
+    heartbeat's visible and lastInput fields (amendments "Reactions and formats", "Presence")."""
+
+    def setUp(self):
+        super().setUp()
+        opts = [{"id": f"opt-{i}", "label": label} for i, label in enumerate(("Speed", "Trust", "Fewer fields"), 1)]
+        questions = [
+            {"id": "Q1", "text": "Which?", "alternatives": [], "dependsOn": [], "purpose": "decide", "format": {"kind": "multi", "options": opts}},
+            {"id": "Q2", "text": "How often?", "alternatives": [], "dependsOn": [], "purpose": "poll", "format": {"kind": "scale", "min": 1, "max": 5, "labels": {"min": "Never", "max": "Always"}}},
+            {"id": "Q3", "text": "Order them.", "alternatives": [], "dependsOn": [], "purpose": "decide", "format": {"kind": "rank", "options": opts}},
+        ]
+        code, _, out = self.ops({"op": "open-round", "questions": questions})
+        self.assertEqual(code, 200, out)
+        self.ann_pid, self.ann = self.join("Ann")
+
+    def pick(self, body):
+        return self.post("/api/pick", {"device": "computer", "view": "focus", **body}, self.ann)
+
+    def test_multi_scale_and_rank_picks_travel_in_their_own_fields(self):
+        self.assertEqual(self.pick({"qid": "Q1", "options": ["opt-2", "other"], "other": "Price"})[2], {"ok": True, "picks": ["opt-2", "other"]})
+        time.sleep(session.WRITE_INTERVAL)
+        self.assertEqual(self.pick({"qid": "Q2", "value": 4})[2], {"ok": True, "value": 4})
+        time.sleep(session.WRITE_INTERVAL)
+        self.assertEqual(self.pick({"qid": "Q3", "order": ["opt-3", "opt-1", "opt-2"]})[2], {"ok": True, "order": ["opt-3", "opt-1", "opt-2"]})
+        time.sleep(session.WRITE_INTERVAL)
+        code, _, out = self.pick({"qid": "Q3", "order": ["opt-3"]})
+        self.assertEqual((code, out["error"], out["field"]), (400, "bad-field", "order"))
+
+    def test_disagree_is_a_throttled_person_route_with_the_default_body_cap(self):
+        body = {"qid": "Q3", "card": "o:opt-1", "reason": "Speed is not the goal."}
+        self.assertEqual(self.post("/api/disagree", body)[2]["error"], "unknown-session")
+        self.assertEqual(self.post("/api/disagree", body, self.ann)[:3:2], (200, {"ok": True, "disagree": True}))
+        code, _, out = self.post("/api/disagree", body, self.ann)
+        self.assertEqual((code, out["error"]), (429, "slow-down"))
+        code, _, out = call(self.port, "POST", "/api/disagree", raw=b"", headers={**self.ann, "Content-Type": "application/json", "Content-Length": str(session.BODY_MAX + 1)})
+        self.assertEqual((code, out["error"]), (413, "body-too-large"))
+
+    def test_a_hidden_page_shows_away_in_the_snapshot(self):
+        code, _, out = self.post("/api/heartbeat", {"q": "Q1", "visible": False, "lastInput": 12}, self.ann)
+        self.assertEqual(code, 200, out)
+        _, _, snap = self.get("/api/state", self.owner)
+        (mine,) = [p for p in snap["presence"] if p["pid"] == self.ann_pid]
+        self.assertEqual((mine["state"], mine["q"]), ("away", "Q1"))
+        code, _, out = self.post("/api/heartbeat", {"lastInput": "soon"}, self.ann)
+        self.assertEqual((code, out["error"], out["field"]), (400, "bad-field", "lastInput"))
+
+
 class TestJoinLimit(ServerCase):
     def test_the_join_limit_keys_on_cf_connecting_ip_and_ignores_x_forwarded_for(self):
         for i in range(session.JOINS_PER_WINDOW):

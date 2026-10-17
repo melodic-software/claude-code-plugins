@@ -25,6 +25,7 @@ STATE = schema.load("state", SCHEMA_DIR)
 OPS = schema.load("ops", SCHEMA_DIR)
 EVENT = schema.load("event", SCHEMA_DIR)
 SHAPE = schema.load("question-shape", SCHEMA_DIR)
+WIRE = schema.load("wire", SCHEMA_DIR)
 
 
 def fixture(name):
@@ -33,6 +34,14 @@ def fixture(name):
 
 def question_error(question):
     return schema.first_error(question, STATE["$defs"]["question"], "$", STATE)
+
+
+def wire_error(body, shape):
+    return schema.first_error(body, WIRE["$defs"][shape], "$", WIRE)
+
+
+def question(qid):
+    return copy.deepcopy(next(q for q in fixture("state-v1.json")["questions"] if q["id"] == qid))
 
 
 class TestSchemaDirectory(unittest.TestCase):
@@ -95,7 +104,7 @@ class TestRefusedShapes(unittest.TestCase):
         state = fixture("state-v1.json")
         state["reactions"] = fixture("invalid-reaction-agree.json")
         self.assertIn(
-            "'agree' is not one of ['thumbs', 'heart', 'idea']",
+            "'agree' is not one of ['thumbs', 'down', 'heart', 'idea']",
             schema.first_error(state, STATE),
         )
         state["reactions"]["Q5"]["p:aB3dE5fG7hJ9:computer"]["kL1mN3pQ5rS7"] = "thumbs"
@@ -115,6 +124,80 @@ class TestRefusedShapes(unittest.TestCase):
         ops = fixture("ops-open-round.json")
         ops["ops"][0]["questions"][1]["recommendation"] = "Standard."
         self.assertIn("$.ops[0]", schema.first_error(ops, OPS))
+
+
+class TestFormatsReactionsPresence(unittest.TestCase):
+    """The amendment's shapes (Reactions and formats; Presence), each with a sample and a refusal."""
+
+    def test_down_is_a_reaction_and_the_digest_counts_all_four(self):
+        state = fixture("state-v1.json")
+        self.assertEqual(state["reactions"]["Q5"]["p:kL1mN3pQ5rS7:phone"]["host"], "down")
+        counts = {"thumbs": 0, "heart": 0, "idea": 0}
+        self.assertIn("missing required 'down'", schema.first_error(counts, EVENT["$defs"]["reactionCounts"], "$", EVENT))
+        self.assertIsNone(schema.first_error({**counts, "down": 1}, EVENT["$defs"]["reactionCounts"], "$", EVENT))
+
+    def test_a_multi_question_takes_two_or_more_options(self):
+        q = question("Q6")
+        self.assertIsNone(question_error(q))
+        q["format"]["options"] = q["format"]["options"][:1]
+        self.assertIn("$.format", question_error(q))
+
+    def test_a_scale_runs_from_1_to_between_3_and_10_with_end_labels(self):
+        q = question("Q7")
+        self.assertIsNone(question_error(q))
+        for bad in ({"max": 2}, {"max": 11}, {"min": 0}, {"labels": {"min": "Never"}}):
+            with self.subTest(bad=bad):
+                self.assertIn("$.format", question_error({**q, "format": {**q["format"], **bad}}))
+
+    def test_a_rank_takes_three_or_more_options(self):
+        q = question("Q8")
+        self.assertIsNone(question_error(q))
+        q["format"]["options"] = q["format"]["options"][:2]
+        self.assertIn("$.format", question_error(q))
+
+    def test_the_something_else_option_is_flagged_true_or_not_at_all(self):
+        q = question("Q2")
+        self.assertEqual(q["format"]["options"][-1], {"id": "other", "label": "Something else…", "other": True})
+        q["format"]["options"][-1]["other"] = False
+        self.assertIn("$.format", question_error(q))
+
+    def test_a_diagram_reference_needs_alt_text(self):
+        q = question("Q8")
+        self.assertEqual(q["references"][0]["kind"], "diagram")
+        del q["references"][0]["alt"]
+        self.assertIn("$.references[0]", question_error(q))
+
+    def test_multi_scale_and_rank_take_one_answer_per_person_not_per_device(self):
+        for qid in ("Q6", "Q7", "Q8"):
+            with self.subTest(qid=qid):
+                self.assertIn("$.answerScope", question_error({**question(qid), "answerScope": "device"}))
+
+    def test_a_disagreement_needs_a_reason_of_at_most_200_characters(self):
+        state = fixture("state-v1.json")
+        self.assertIsNone(schema.first_error(state, STATE))
+        d = state["disagreements"]["Q8"][0]
+        d["reason"] = "x" * 201
+        self.assertIn("allows at most 200 characters", schema.first_error(state, STATE))
+        del d["reason"]
+        self.assertIn("missing required 'reason'", schema.first_error(state, STATE))
+
+    def test_a_file_from_before_disagreements_is_still_valid(self):
+        state = fixture("state-v1.json")
+        del state["disagreements"]
+        self.assertIsNone(schema.first_error(state, STATE))
+
+    def test_heartbeat_samples_are_valid_and_their_fields_typed(self):
+        for body in fixture("wire-heartbeat.json"):
+            self.assertIsNone(wire_error(body, "heartbeat"), body)
+        for bad in ({"visible": "yes"}, {"lastInput": -1}, {"away": 1}, {"pid": "host"}):
+            with self.subTest(bad=bad):
+                self.assertIsNotNone(wire_error(bad, "heartbeat"))
+
+    def test_presence_samples_are_valid_and_the_state_is_active_or_away(self):
+        for entry in fixture("wire-presence.json"):
+            self.assertIsNone(wire_error(entry, "presence"), entry)
+        entry = fixture("wire-presence.json")[0]
+        self.assertIn("'offline' is not one of ['active', 'away']", wire_error({**entry, "state": "offline"}, "presence"))
 
 
 if __name__ == "__main__":

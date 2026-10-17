@@ -77,7 +77,8 @@
         "options": [
           {"id": "opt-1", "label": "Card", "image": "1111222233334444.webp"},
           {"id": "opt-2", "label": "Saved method"},
-          {"id": "opt-3", "label": "None"}
+          {"id": "opt-3", "label": "None"},
+          {"id": "other", "label": "Something else…", "other": true}
         ]
       },
       "answerScope": "person",
@@ -138,6 +139,64 @@
       "references": [],
       "origin": {"kind": "proposal", "proposal": "P5"},
       "needsReview": []
+    },
+    {
+      "id": "Q6",
+      "text": "Which payment methods should the step offer?",
+      "scope": "Payment step, method picker",
+      "alternatives": [],
+      "dependsOn": [],
+      "round": 2,
+      "purpose": "decide",
+      "format": {
+        "kind": "multi",
+        "options": [
+          {"id": "opt-1", "label": "Card"},
+          {"id": "opt-2", "label": "PayPal"},
+          {"id": "opt-3", "label": "Bank transfer"},
+          {"id": "other", "label": "Something else…", "other": true}
+        ]
+      },
+      "answerScope": "person",
+      "references": [],
+      "origin": {"kind": "claude"},
+      "needsReview": []
+    },
+    {
+      "id": "Q7",
+      "text": "How often do you pay with a saved card?",
+      "scope": "Payment step, saved cards",
+      "alternatives": [],
+      "dependsOn": [],
+      "round": 2,
+      "purpose": "poll",
+      "format": {"kind": "scale", "min": 1, "max": 5, "labels": {"min": "Never", "max": "Always", "mid": "Sometimes"}},
+      "answerScope": "person",
+      "references": [],
+      "origin": {"kind": "claude"},
+      "needsReview": []
+    },
+    {
+      "id": "Q8",
+      "text": "Order these checkout goals from most to least important.",
+      "scope": "Checkout, every step",
+      "alternatives": [],
+      "dependsOn": [],
+      "round": 2,
+      "purpose": "decide",
+      "format": {
+        "kind": "rank",
+        "options": [
+          {"id": "opt-1", "label": "Speed"},
+          {"id": "opt-2", "label": "Trust"},
+          {"id": "opt-3", "label": "Fewer fields"},
+          {"id": "other", "label": "Something else…", "other": true}
+        ]
+      },
+      "answerScope": "person",
+      "references": [{"kind": "diagram", "asset": "aaaabbbbccccdddd.svg", "alt": "Funnel chart: 60 percent of people leave at the payment step.", "caption": "Where people leave checkout"}],
+      "origin": {"kind": "claude"},
+      "needsReview": []
     }
   ],
   "cards": {
@@ -151,7 +210,8 @@
       {"kind": "option", "option": "opt-1"},
       {"kind": "option", "option": "opt-2"},
       {"kind": "option", "option": "opt-3"},
-      {"kind": "person", "pid": "kL1mN3pQ5rS7", "text": "Saved method, it is what most of us use.", "at": 1760601400.0, "pick": "opt-2", "cites": [], "view": "compare", "late": {"round": 1}}
+      {"kind": "person", "pid": "kL1mN3pQ5rS7", "text": "Saved method, it is what most of us use.", "at": 1760601400.0, "pick": "opt-2", "cites": [], "view": "compare", "late": {"round": 1}},
+      {"kind": "person", "pid": "aB3dE5fG7hJ9", "text": "Pay by bank app.", "at": 1760601410.0, "pick": "other", "cites": [], "view": "focus", "late": {"round": 1}}
     ],
     "Q3": [
       {"kind": "option", "option": "yes"},
@@ -169,17 +229,42 @@
     "Q5": [
       {"kind": "person", "pid": "aB3dE5fG7hJ9", "device": "computer", "text": "The address form resets when I go back.", "at": 1760601650.0, "cites": [], "editedAfterVotes": 1, "view": "tree"},
       {"kind": "person", "pid": "kL1mN3pQ5rS7", "device": "phone", "text": "Typing the card number.", "at": 1760601660.0, "cites": [], "view": "host"}
+    ],
+    "Q6": [
+      {"kind": "option", "option": "opt-1"},
+      {"kind": "option", "option": "opt-2"},
+      {"kind": "option", "option": "opt-3"},
+      {"kind": "person", "pid": "aB3dE5fG7hJ9", "text": "", "at": 1760601710.0, "picks": ["opt-1", "opt-3"], "cites": [], "view": "focus"},
+      {"kind": "person", "pid": "kL1mN3pQ5rS7", "text": "Apple Pay.", "at": 1760601720.0, "picks": ["opt-1", "other"], "cites": [], "view": "focus"}
+    ],
+    "Q7": [
+      {"kind": "option", "option": "1"},
+      {"kind": "option", "option": "2"},
+      {"kind": "option", "option": "3"},
+      {"kind": "option", "option": "4"},
+      {"kind": "option", "option": "5"},
+      {"kind": "person", "pid": "aB3dE5fG7hJ9", "text": "Only on my own laptop.", "at": 1760601730.0, "value": 4, "cites": [], "view": "focus"}
+    ],
+    "Q8": [
+      {"kind": "option", "option": "opt-1"},
+      {"kind": "option", "option": "opt-2"},
+      {"kind": "option", "option": "opt-3"},
+      {"kind": "person", "pid": "aB3dE5fG7hJ9", "text": "", "at": 1760601740.0, "order": ["opt-2", "opt-1", "opt-3"], "cites": [], "view": "compare"}
     ]
   },
   "votes": {
     "Q1": {"host": "p:aB3dE5fG7hJ9", "aB3dE5fG7hJ9": "c:rec", "kL1mN3pQ5rS7": "c:rec"},
-    "Q2": {"kL1mN3pQ5rS7": "o:opt-2"},
-    "Q3": {"aB3dE5fG7hJ9": "o:yes"}
+    "Q2": {"kL1mN3pQ5rS7": "o:opt-2", "host": "p:aB3dE5fG7hJ9"},
+    "Q3": {"aB3dE5fG7hJ9": "o:yes"},
+    "Q6": {"aB3dE5fG7hJ9": "p:kL1mN3pQ5rS7"}
+  },
+  "disagreements": {
+    "Q8": [{"pid": "kL1mN3pQ5rS7", "card": "o:opt-1", "reason": "Speed matters less than trust here.", "at": 1760601750.0}]
   },
   "reactions": {
     "Q5": {
       "p:aB3dE5fG7hJ9:computer": {"kL1mN3pQ5rS7": "thumbs", "host": "idea"},
-      "p:kL1mN3pQ5rS7:phone": {"aB3dE5fG7hJ9": "heart"}
+      "p:kL1mN3pQ5rS7:phone": {"aB3dE5fG7hJ9": "heart", "host": "down"}
     }
   },
   "locks": {

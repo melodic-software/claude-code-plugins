@@ -91,6 +91,22 @@ def choice_q(qid, *, purpose="poll", labels=("Card", "Saved method", "None")):
     }
 
 
+def options_q(qid, kind, labels, *, purpose="decide"):
+    return {
+        "id": qid,
+        "text": f"Pick for {qid}?",
+        "alternatives": [],
+        "dependsOn": [],
+        "purpose": purpose,
+        "format": {"kind": kind, "options": [{"id": f"opt-{i}", "label": label} for i, label in enumerate(labels, 1)]},
+    }
+
+
+def scale_q(qid, *, purpose="poll", top=5):
+    labels = {"min": "Never", "max": "Always", "mid": "Sometimes"}
+    return {"id": qid, "text": f"How often, {qid}?", "alternatives": [], "dependsOn": [], "purpose": purpose, "format": {"kind": "scale", "min": 1, "max": top, "labels": labels}}
+
+
 class SessionCase(unittest.TestCase):
     """A fresh session in a temp folder, written with full schema validation on every write."""
 
@@ -1193,6 +1209,7 @@ class TestLocks(SessionCase):
 
     def test_sign_off_refuses_a_lock_until_everyone_present_agrees(self):
         self.act("update_settings", HOST, {"signoff": True})
+        self.clock.tick(session.OFFLINE_AFTER)  # whoever joined earlier but sends no heartbeat is offline
         for p in (HOST, self.ann, self.bo):
             self.s.heartbeat(p, {})
         self.act("vote", self.bo, {"qid": "Q1", "card": "c:a", "on": True})
@@ -2030,7 +2047,7 @@ class TestDigest(SessionCase):
         self.act("react", self.bo, {"qid": "Q1", "card": f"p:{self.ann}", "reaction": "thumbs"})
         self.act("react", self.cy, {"qid": "Q1", "card": f"p:{self.ann}", "reaction": "idea"})
         out = self.by_id(self.digest())["Q1"]["outcome"]
-        self.assertEqual(out, {"kind": "gathered", "answers": [{"text": "Address form", "reactions": {"thumbs": 1, "heart": 0, "idea": 1}}]})
+        self.assertEqual(out, {"kind": "gathered", "answers": [{"text": "Address form", "reactions": {"thumbs": 1, "down": 0, "heart": 0, "idea": 1}}]})
 
     def test_a_poll_reports_counts_per_option_and_whether_it_closed(self):
         self.open_round(choice_q("Q1"))
@@ -2326,11 +2343,381 @@ class TestSnapshots(SessionCase):
         self.assertIn("Bo's answer", json.dumps(snap))
         self.assertTrue(self.s.anonymous_view()["ended"])
 
-    def test_presence_shows_who_is_here_within_the_ttl(self):
+    def test_presence_shows_who_is_here_until_they_go_offline(self):
+        self.clock.tick(session.OFFLINE_AFTER)  # the joins' own presence has lapsed
         self.s.heartbeat(self.bo, {"q": "Q1", "typing": True})
         self.assertEqual([p["pid"] for p in self.s.snapshot(self.cy)["presence"]], [self.bo])
-        self.clock.tick(session.PRESENCE_TTL + 1)
+        self.clock.tick(session.OFFLINE_AFTER + 1)
         self.assertEqual(self.s.snapshot(self.cy)["presence"], [])
+
+
+# ---------------------------------------------------------------------------------------------
+# Phase 4b: formats (multi, scale, rank), Something else, Disagree, the down reaction, diagrams.
+# Expected values come from the amendments "Reactions and formats" and "Presence" and triage 22;
+# digest numbers are worked by hand in each test's comment.
+# ---------------------------------------------------------------------------------------------
+
+
+class FormatCase(SessionCase):
+    def setUp(self):
+        super().setUp()
+        self.ann, self.bo, self.cy = self.people("Ann", "Bo", "Cy")
+        self.open_round(
+            options_q("Q1", "multi", ("Card", "PayPal", "Bank transfer")),
+            scale_q("Q2"),
+            options_q("Q3", "rank", ("Speed", "Trust", "Fewer fields")),
+            choice_q("Q4", purpose="decide"),
+            text_q("Q5"),
+            text_q("Q6", purpose="gather"),
+        )
+
+    def pick(self, pid, qid, **body):
+        return self.act("pick", pid, {"qid": qid, "view": "focus", **body})
+
+    def mine(self, qid, pid):
+        return next(c for c in self.s.state["cards"][qid] if c["kind"] == "person" and c["pid"] == pid)
+
+    def outcome(self, qid):
+        self.send()
+        digest = self.events("round-sent")[-1]["digest"]
+        self.assertIsNone(session.schema.first_error(digest, session.schema.load("event", session.SCHEMA_DIR)["$defs"]["digest"], "$", session.schema.load("event", session.SCHEMA_DIR)))
+        return next(q for q in digest["questions"] if q["id"] == qid)
+
+
+class TestFormatPicks(FormatCase):
+    def test_multi_pick_is_a_subset_of_the_option_ids(self):
+        self.assertEqual(self.pick(self.ann, "Q1", options=["opt-3", "opt-1"]), {"picks": ["opt-1", "opt-3"]})
+        self.assertEqual(self.mine("Q1", self.ann)["picks"], ["opt-1", "opt-3"])
+        self.assertNotIn(self.ann, self.s.state["votes"].get("Q1", {}))
+        self.refused("bad-field", "pick", self.ann, {"qid": "Q1", "options": ["opt-1", "opt-1"], "view": "focus"}, http=400)
+        self.refused("no-such-option", "pick", self.ann, {"qid": "Q1", "options": ["opt-1", "opt-9"], "view": "focus"}, http=400)
+
+    def test_multi_pick_of_an_empty_subset_withdraws_the_pick(self):
+        self.pick(self.ann, "Q1", options=["opt-2"])
+        self.pick(self.ann, "Q1", options=[])
+        self.assertEqual([c for c in self.s.state["cards"]["Q1"] if c["kind"] == "person"], [])
+
+    def test_multi_takes_two_to_eight_options_from_claude(self):
+        self.send()
+        self.ack(1)
+        nine = options_q("Q7", "multi", [f"Way {i}" for i in range(1, 10)])
+        self.refused_ops("bad-field", {"op": "open-round", "questions": [nine]})
+        self.refused_ops("bad-field", {"op": "open-round", "questions": [options_q("Q7", "rank", ("Only", "Two"))]})
+        self.refused_ops("bad-field", {"op": "open-round", "questions": [options_q("Q7", "choice", ("A", "B", "C", "D", "E"))]})
+
+    def test_scale_value_must_be_in_range(self):
+        for bad in (0, 6, 2.5, "3", True):
+            with self.subTest(value=bad):
+                self.refused("bad-field", "pick", self.ann, {"qid": "Q2", "value": bad, "view": "focus"}, http=400)
+        self.pick(self.ann, "Q2", value=5, comment="Every time")
+        card = self.mine("Q2", self.ann)
+        self.assertEqual((card["value"], card["text"]), (5, "Every time"))
+
+    def test_rank_needs_a_full_order_of_the_options(self):
+        self.refused("bad-field", "pick", self.ann, {"qid": "Q3", "order": ["opt-2", "opt-1"], "view": "focus"}, http=400)
+        self.refused("bad-field", "pick", self.ann, {"qid": "Q3", "order": ["opt-2", "opt-2", "opt-1", "opt-3"], "view": "focus"}, http=400)
+        self.pick(self.ann, "Q3", order=["opt-2", "opt-3", "opt-1"])
+        self.assertEqual(self.mine("Q3", self.ann)["order"], ["opt-2", "opt-3", "opt-1"])
+
+    def test_multi_scale_and_rank_take_a_pick_not_a_written_answer(self):
+        for qid in ("Q1", "Q3"):  # Q2 is a poll, which refuses a written answer as wrong-purpose first
+            with self.subTest(qid=qid):
+                self.refused("bad-action", "answer", self.ann, {"qid": qid, "text": "Words", "view": "focus"}, http=400)
+
+    def test_scale_options_are_its_values_with_the_end_and_middle_labels(self):
+        cards = [c["option"] for c in self.s.state["cards"]["Q2"]]
+        self.assertEqual(cards, ["1", "2", "3", "4", "5"])
+        self.act("lock", HOST, {"qid": "Q2", "card": "o:3"})
+        self.assertEqual(self.s.state["locks"]["Q2"]["source"]["text"], "3 (Sometimes)")
+
+
+class TestFormatDigest(FormatCase):
+    def test_multi_digest_counts_each_option_picked(self):
+        # Ann Card+Bank, Bo Card, Cy PayPal and her own option: Card 2, PayPal 1, Bank 1; 3 people.
+        self.pick(self.ann, "Q1", options=["opt-1", "opt-3"])
+        self.pick(self.bo, "Q1", options=["opt-1"])
+        self.pick(self.cy, "Q1", options=["opt-2", "other"], other="Apple Pay")
+        out = self.outcome("Q1")["outcome"]
+        self.assertEqual(out["counts"], [{"option": "Card", "picks": 2}, {"option": "PayPal", "picks": 1}, {"option": "Bank transfer", "picks": 1}])
+        self.assertEqual((out["kind"], out["people"], out["others"]), ("multi", 3, [{"text": "Apple Pay", "backers": 1}]))
+
+    def test_scale_digest_gives_counts_mean_and_median(self):
+        # Values 1, 2, 2, 5: mean 10 / 4 = 2.5, median (2 + 2) / 2 = 2.
+        for pid, v in ((self.ann, 1), (self.bo, 2), (self.cy, 2), (HOST, 5)):
+            self.pick(pid, "Q2", value=v)
+        out = self.outcome("Q2")["outcome"]
+        self.assertEqual(out["counts"], [{"value": 1, "people": 1}, {"value": 2, "people": 2}, {"value": 3, "people": 0}, {"value": 4, "people": 0}, {"value": 5, "people": 1}])
+        self.assertEqual((out["mean"], out["median"], out["people"], out["closed"]), (2.5, 2, 4, False))
+
+    def test_scale_mean_is_rounded_to_two_places_and_the_odd_median_is_the_middle(self):
+        # Values 1, 4, 5: mean 10 / 3 = 3.33, median 4.
+        for pid, v in ((self.ann, 1), (self.bo, 4), (self.cy, 5)):
+            self.pick(pid, "Q2", value=v)
+        out = self.outcome("Q2")["outcome"]
+        self.assertEqual((out["mean"], out["median"]), (3.33, 4))
+
+    def test_rank_digest_gives_borda_totals_and_full_order_counts(self):
+        # 3 options: first 2 points, second 1, last 0. Ann and Bo Trust > Speed > Fewer, Cy Speed > Trust > Fewer:
+        # Trust 2 + 2 + 1 = 5, Speed 1 + 1 + 2 = 4, Fewer fields 0.
+        self.pick(self.ann, "Q3", order=["opt-2", "opt-1", "opt-3"])
+        self.pick(self.bo, "Q3", order=["opt-2", "opt-1", "opt-3"])
+        self.pick(self.cy, "Q3", order=["opt-1", "opt-2", "opt-3"])
+        out = self.outcome("Q3")["outcome"]
+        self.assertEqual(out["borda"], [{"option": "Trust", "points": 5}, {"option": "Speed", "points": 4}, {"option": "Fewer fields", "points": 0}])
+        self.assertEqual(out["orders"], [{"order": ["Trust", "Speed", "Fewer fields"], "people": 2}, {"order": ["Speed", "Trust", "Fewer fields"], "people": 1}])
+
+    def test_lock_top_answer_on_a_rank_takes_the_borda_winner(self):
+        # Ann Speed > Trust > Fewer (Speed 2), Bo Trust > Fewer > Speed (Trust 2, Speed 0), Cy Trust > Speed > Fewer:
+        # Trust 1 + 2 + 2 = 5, Speed 2 + 0 + 1 = 3.
+        self.pick(self.ann, "Q3", order=["opt-1", "opt-2", "opt-3"])
+        self.pick(self.bo, "Q3", order=["opt-2", "opt-3", "opt-1"])
+        self.pick(self.cy, "Q3", order=["opt-2", "opt-1", "opt-3"])
+        self.assertEqual(self.act("lock", HOST, {"qid": "Q3"})["text"], "Trust")
+
+    def test_an_untouched_format_question_is_unanswered(self):
+        self.assertEqual(self.outcome("Q1")["outcome"], {"kind": "unanswered"})
+
+    def test_a_late_multi_pick_reads_as_its_option_names(self):
+        self.send()
+        self.ack(1)
+        self.apply({"op": "open-round", "questions": [text_q("Q7")]})
+        self.pick(self.ann, "Q1", options=["opt-1", "opt-2"])
+        self.send()
+        late = self.events("round-sent")[-1]["digest"]["late"]
+        self.assertEqual(late, [{"id": "Q1", "round": 1, "text": "Card, PayPal"}])
+
+
+class TestSomethingElse(FormatCase):
+    def test_the_server_adds_one_something_else_option_to_choice_multi_and_rank(self):
+        for qid in ("Q1", "Q3", "Q4"):
+            options = self.question(qid)["format"]["options"]
+            self.assertEqual(options[-1], {"id": "other", "label": "Something else…", "other": True})
+            self.assertEqual(sum(1 for o in options if o.get("other")), 1)
+            self.assertNotIn("o:other", [session.card_ref(c) for c in self.s.state["cards"][qid]])
+        self.assertNotIn("options", self.question("Q2")["format"])
+
+    def test_claude_cannot_write_the_something_else_option(self):
+        q = options_q("Q7", "choice", ("A", "B"))
+        q["format"]["options"].append({"id": "other", "label": "Other", "other": True})
+        self.send()
+        self.ack(1)
+        rev = self.s.state["rev"]
+        self.refused_ops("bad-field", {"op": "open-round", "questions": [q]})
+        self.assertEqual(self.s.state["rev"], rev)
+
+    def test_picking_something_else_needs_text(self):
+        self.refused("empty", "pick", self.ann, {"qid": "Q4", "option": "other", "view": "focus"}, http=400)
+        self.refused("bad-field", "pick", self.ann, {"qid": "Q4", "option": "opt-1", "other": "Mine", "view": "focus"}, http=400)
+        self.pick(self.ann, "Q4", option="other", other="Pay by bank app")
+        card = self.mine("Q4", self.ann)
+        self.assertEqual((card["pick"], card["text"]), ("other", "Pay by bank app"))
+        self.assertNotIn(self.ann, self.s.state["votes"]["Q4"])
+
+    def test_others_pick_a_persons_own_option_on_a_choice_question(self):
+        # Ann's own option, backed by Bo (whose pick moves off Card) and by Cy: 3 with Ann herself.
+        self.pick(self.ann, "Q4", option="other", other="Pay by bank app")
+        self.pick(self.bo, "Q4", option="opt-1")
+        self.act("vote", self.bo, {"qid": "Q4", "card": f"p:{self.ann}", "on": True})
+        self.act("vote", self.cy, {"qid": "Q4", "card": f"p:{self.ann}", "on": True})
+        self.assertEqual(self.s.state["votes"]["Q4"], {self.bo: f"p:{self.ann}", self.cy: f"p:{self.ann}"})
+        top = self.outcome("Q4")["outcome"]["top"]
+        self.assertEqual(top[0], {"text": "Pay by bank app", "votes": 3, "source": "person", "other": True})
+
+    def test_others_vote_on_a_persons_own_option_on_multi_and_rank(self):
+        self.pick(self.ann, "Q1", options=["other"], other="Apple Pay")
+        self.pick(self.bo, "Q1", options=["opt-1"])
+        self.act("vote", self.bo, {"qid": "Q1", "card": f"p:{self.ann}", "on": True})
+        self.assertEqual(self.mine("Q1", self.bo)["picks"], ["opt-1"])
+        self.pick(self.cy, "Q3", order=["opt-1", "other", "opt-2", "opt-3"], other="Accessibility")
+        self.act("vote", self.ann, {"qid": "Q3", "card": f"p:{self.cy}", "on": True})
+        self.assertEqual(self.s.state["votes"]["Q3"], {self.ann: f"p:{self.cy}"})
+
+    def test_a_plain_answer_on_an_option_question_takes_no_vote(self):
+        self.pick(self.ann, "Q4", option="opt-1", comment="Fastest")
+        self.refused("bad-action", "vote", self.bo, {"qid": "Q4", "card": f"p:{self.ann}", "on": True}, http=400)
+
+    def test_scale_and_confirm_take_a_comment_not_something_else(self):
+        self.refused("bad-field", "pick", self.ann, {"qid": "Q2", "value": 3, "other": "Mine", "view": "focus"}, http=400)
+        self.assertNotIn("options", self.question("Q2")["format"])
+
+    def test_leaving_something_else_drops_the_votes_for_it(self):
+        self.pick(self.ann, "Q4", option="other", other="Pay by bank app")
+        self.act("vote", self.bo, {"qid": "Q4", "card": f"p:{self.ann}", "on": True})
+        self.pick(self.ann, "Q4", option="opt-2")
+        self.assertEqual(self.s.state["votes"]["Q4"], {self.ann: "o:opt-2"})
+
+    def test_rewording_your_own_option_marks_it_edited_after_votes(self):
+        self.pick(self.ann, "Q4", option="other", other="Pay by bank app")
+        self.act("vote", self.bo, {"qid": "Q4", "card": f"p:{self.ann}", "on": True})
+        self.pick(self.ann, "Q4", option="other", other="Pay from my banking app")
+        self.assertEqual(self.mine("Q4", self.ann)["editedAfterVotes"], 1)
+        self.assertEqual(self.s.state["votes"]["Q4"], {self.bo: f"p:{self.ann}"})
+
+
+class TestDisagree(FormatCase):
+    def test_disagree_needs_a_reason_of_1_to_200_characters(self):
+        self.refused("empty", "disagree", self.ann, {"qid": "Q5", "card": "c:rec"}, http=400)
+        self.refused("empty", "disagree", self.ann, {"qid": "Q5", "card": "c:rec", "reason": "   "}, http=400)
+        self.refused("too-long", "disagree", self.ann, {"qid": "Q5", "card": "c:rec", "reason": "x" * 201}, http=400)
+        self.act("disagree", self.ann, {"qid": "Q5", "card": "c:rec", "reason": "x" * 200})
+        self.assertEqual(self.s.state["disagreements"]["Q5"], [{"pid": self.ann, "card": "c:rec", "reason": "x" * 200, "at": self.clock.t}])
+
+    def test_disagree_is_for_decide_questions_only(self):
+        self.act("answer", self.ann, {"qid": "Q6", "text": "Slow form", "view": "focus"})
+        self.refused("wrong-purpose", "disagree", self.bo, {"qid": "Q6", "card": f"p:{self.ann}", "reason": "Not for me"}, http=409)
+        self.refused("wrong-purpose", "disagree", self.bo, {"qid": "Q2", "card": "o:3", "reason": "Not for me"}, http=409)
+
+    def test_a_disagreement_leaves_the_vote_counts_and_shows_in_the_digest(self):
+        self.act("vote", self.ann, {"qid": "Q5", "card": "c:rec", "on": True})
+        self.act("disagree", self.bo, {"qid": "Q5", "card": "c:rec", "reason": "Too costly to build"})
+        self.assertEqual(self.s._tally("Q5")["c:rec"], 1)
+        q = self.outcome("Q5")
+        self.assertEqual(q["disagreements"], [{"text": "Recommended for Q5.", "reason": "Too costly to build"}])
+        self.assertEqual(q["outcome"]["top"][0], {"text": "Recommended for Q5.", "votes": 1, "source": "claude-rec"})
+
+    def test_one_disagreement_per_person_per_answer_and_on_false_takes_it_back(self):
+        self.act("disagree", self.bo, {"qid": "Q5", "card": "c:a", "reason": "First"})
+        self.act("disagree", self.bo, {"qid": "Q5", "card": "c:a", "reason": "Second"})
+        self.assertEqual([d["reason"] for d in self.s.state["disagreements"]["Q5"]], ["Second"])
+        self.act("disagree", self.bo, {"qid": "Q5", "card": "c:a", "on": False})
+        self.assertNotIn("Q5", self.s.state["disagreements"])
+
+    def test_disagreeing_with_your_own_answer_is_refused(self):
+        self.act("answer", self.ann, {"qid": "Q5", "text": "Mine", "view": "focus"})
+        self.refused("cannot-vote-own", "disagree", self.ann, {"qid": "Q5", "card": f"p:{self.ann}", "reason": "Changed my mind"}, http=400)
+
+    def test_a_withdrawn_answer_takes_its_disagreements_with_it(self):
+        self.act("answer", self.ann, {"qid": "Q5", "text": "Mine", "view": "focus"})
+        self.act("disagree", self.bo, {"qid": "Q5", "card": f"p:{self.ann}", "reason": "No"})
+        self.act("answer", self.ann, {"qid": "Q5", "text": "", "view": "focus"})
+        self.assertNotIn("Q5", self.s.state["disagreements"])
+
+    def test_who_disagreed_is_masked_where_names_are(self):
+        self.act("update_settings", HOST, {"names": "someone"})
+        self.act("disagree", self.bo, {"qid": "Q5", "card": "c:a", "reason": "No"})
+        self.assertEqual([d["pid"] for d in self.s.snapshot(self.cy)["disagreements"]["Q5"]], [""])
+        self.assertEqual([d["pid"] for d in self.s.snapshot(self.bo)["disagreements"]["Q5"]], [self.bo])
+
+    def test_a_merge_moves_the_merged_persons_disagreement(self):
+        self.act("disagree", self.cy, {"qid": "Q5", "card": "c:a", "reason": "No"})
+        self.act("merge_people", HOST, {"from": self.cy, "to": self.bo})
+        self.assertEqual([d["pid"] for d in self.s.state["disagreements"]["Q5"]], [self.bo])
+
+    def test_down_refused_on_decide_and_counted_on_gather(self):
+        self.act("answer", self.ann, {"qid": "Q5", "text": "Mine", "view": "focus"})
+        self.refused("wrong-purpose", "react", self.bo, {"qid": "Q5", "card": f"p:{self.ann}", "reaction": "down"}, http=409)
+        self.act("answer", self.ann, {"qid": "Q6", "text": "Slow form", "view": "focus"})
+        self.act("react", self.bo, {"qid": "Q6", "card": f"p:{self.ann}", "reaction": "down"})
+        answers = self.outcome("Q6")["outcome"]["answers"]
+        self.assertEqual(answers, [{"text": "Slow form", "reactions": {"thumbs": 0, "down": 1, "heart": 0, "idea": 0}}])
+
+
+class TestDiagramReference(SessionCase):
+    SVG = "abcdefabcdef0123.svg"
+
+    def setUp(self):
+        super().setUp()
+        (self.tmp / "assets" / self.SVG).write_bytes(b"<svg/>")
+        self.open_round(text_q("Q1"))
+
+    def test_a_diagram_reference_needs_an_svg_asset_and_alt_text(self):
+        self.refused_ops("bad-field", {"op": "add-reference", "qid": "Q1", "reference": {"kind": "diagram", "asset": self.SVG}})
+        self.refused_ops("empty", {"op": "add-reference", "qid": "Q1", "reference": {"kind": "diagram", "asset": self.SVG, "alt": "  "}})
+        self.refused_ops("bad-field", {"op": "add-reference", "qid": "Q1", "reference": {"kind": "diagram", "asset": PNG, "alt": "Chart"}})
+        self.apply({"op": "add-reference", "qid": "Q1", "reference": {"kind": "diagram", "asset": self.SVG, "alt": "Funnel: most people leave at payment."}})
+        self.assertEqual(self.question("Q1")["references"], [{"kind": "diagram", "asset": self.SVG, "alt": "Funnel: most people leave at payment."}])
+
+
+class TestPresenceStates(SessionCase):
+    def setUp(self):
+        super().setUp()
+        self.ann, self.bo = self.people("Ann", "Bo")
+        self.clock.tick(session.OFFLINE_AFTER)  # the joins' own presence has lapsed
+
+    def state_of(self, pid):
+        return next((p for p in self.s.snapshot(HOST)["presence"] if p["pid"] == pid), None)
+
+    def beat(self, pid, **body):
+        return self.s.heartbeat(pid, body)
+
+    def test_presence_thresholds_offline_after_90_seconds_without_a_beat(self):
+        self.beat(self.ann)
+        self.clock.tick(89)
+        self.assertEqual(self.state_of(self.ann)["state"], "active")
+        self.clock.tick(1)
+        self.assertIsNone(self.state_of(self.ann))
+
+    def test_presence_thresholds_away_after_5_minutes_without_input(self):
+        self.beat(self.ann, lastInput=299)
+        self.assertEqual(self.state_of(self.ann), {"pid": self.ann, "q": "", "typing": False, "chatTyping": False, "state": "active"})
+        self.clock.tick(2)
+        self.beat(self.ann, lastInput=301)
+        self.assertEqual(self.state_of(self.ann)["state"], "away")
+        self.assertEqual(self.state_of(self.ann)["since"], self.clock.t - 1)
+
+    def test_presence_thresholds_hidden_is_away_since_it_hid(self):
+        self.beat(self.ann, visible=True)
+        self.clock.tick(10)
+        hid = self.clock.t
+        self.beat(self.ann, visible=False)
+        self.clock.tick(30)
+        self.beat(self.ann, visible=False)
+        self.assertEqual((self.state_of(self.ann)["state"], self.state_of(self.ann)["since"]), ("away", hid))
+        self.clock.tick(30)
+        self.beat(self.ann, visible=True)
+        self.assertEqual(self.state_of(self.ann)["state"], "active")
+
+    def test_a_visibility_change_beats_at_once(self):
+        self.beat(self.ann, visible=True)
+        self.beat(self.ann, visible=False)
+        self.assertEqual(self.state_of(self.ann)["state"], "away")
+        with self.assertRaises(session.DomainError) as ctx:
+            self.beat(self.ann, visible=False)
+        self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
+
+    def test_flipping_visibility_is_limited_to_one_change_a_second(self):
+        self.beat(self.ann, visible=True)
+        self.clock.tick(2)
+        self.beat(self.ann, visible=False)
+        with self.assertRaises(session.DomainError) as ctx:
+            self.beat(self.ann, visible=True)
+        self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
+        self.clock.tick(1)
+        self.beat(self.ann, visible=True)
+        self.assertEqual(self.state_of(self.ann)["state"], "active")
+
+    def test_manual_away_lasts_while_sent_and_ends_with_the_next_input_beat(self):
+        self.beat(self.ann, away=True)
+        set_at = self.clock.t
+        self.clock.tick(5)
+        self.beat(self.ann, away=True, lastInput=5)
+        self.assertEqual((self.state_of(self.ann)["state"], self.state_of(self.ann)["since"]), ("away", set_at))
+        self.clock.tick(5)
+        self.beat(self.ann, lastInput=0)
+        self.assertEqual(self.state_of(self.ann)["state"], "active")
+
+    def test_typing_shows_for_5_seconds_after_the_beat_that_set_it(self):
+        self.beat(self.ann, typing=True, chatTyping=True)
+        self.clock.tick(4)
+        self.assertEqual((self.state_of(self.ann)["typing"], self.state_of(self.ann)["chatTyping"]), (True, True))
+        self.clock.tick(1)
+        self.assertEqual((self.state_of(self.ann)["typing"], self.state_of(self.ann)["chatTyping"]), (False, False))
+
+    def test_heartbeat_fields_are_checked(self):
+        bad = (({"visible": "no"}, "visible"), ({"lastInput": -3}, "lastInput"), ({"lastInput": float("inf")}, "lastInput"), ({"away": "yes"}, "away"))
+        for body, field in bad:
+            with self.subTest(body=body):
+                with self.assertRaises(session.DomainError) as ctx:
+                    self.s.heartbeat(self.bo, body)
+                self.assertEqual((ctx.exception.code, ctx.exception.details["field"]), ("bad-field", field))
+
+    def test_presence_entries_match_the_wire_shape(self):
+        self.beat(self.ann, q="Q1", typing=True)
+        self.beat(self.bo, visible=False)
+        entries = self.s.snapshot(HOST)["presence"]
+        self.assertEqual(len(entries), 2)
+        for e in entries:
+            self.assertIsNone(session.wire_error(e, "presence"), e)
 
 
 if __name__ == "__main__":

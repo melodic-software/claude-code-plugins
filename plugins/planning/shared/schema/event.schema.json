@@ -117,15 +117,37 @@
     },
     "reactionCounts": {
       "type": "object",
-      "required": ["thumbs", "heart", "idea"],
+      "required": ["thumbs", "down", "heart", "idea"],
       "additionalProperties": false,
       "properties": {
         "thumbs": {"type": "integer", "minimum": 0},
+        "down": {"type": "integer", "minimum": 0},
         "heart": {"type": "integer", "minimum": 0},
         "idea": {"type": "integer", "minimum": 0}
       }
     },
     "by": {"type": "string"},
+    "closed": {"type": "boolean"},
+    "people": {"type": "integer", "minimum": 0},
+    "others": {
+      "description": "Each person's own Something else option: its text and how many back it (its author included).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["text", "backers"],
+        "additionalProperties": false,
+        "properties": {"text": {"type": "string"}, "backers": {"type": "integer", "minimum": 0}, "by": {"$ref": "#/$defs/by"}}
+      }
+    },
+    "comments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["text"],
+        "additionalProperties": false,
+        "properties": {"text": {"type": "string"}, "by": {"$ref": "#/$defs/by"}}
+      }
+    },
     "digest": {
       "type": "object",
       "required": ["round", "names", "questions", "late", "needsReview", "results", "proposals", "annotations", "people"],
@@ -252,7 +274,17 @@
         "text": {"type": "string"},
         "scope": {"type": "string"},
         "purpose": {"enum": ["decide", "gather", "poll"]},
-        "format": {"enum": ["text", "choice", "confirm", "prototype"]},
+        "format": {"enum": ["text", "choice", "multi", "scale", "rank", "confirm", "prototype"]},
+        "disagreements": {
+          "description": "Decide questions: who disagreed with which answer and why; vote counts do not change.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["text", "reason"],
+            "additionalProperties": false,
+            "properties": {"text": {"type": "string"}, "reason": {"type": "string"}, "by": {"$ref": "#/$defs/by"}}
+          }
+        },
         "outcome": {
           "oneOf": [
             {
@@ -283,6 +315,7 @@
                       "text": {"type": "string"},
                       "votes": {"type": "integer", "minimum": 0},
                       "source": {"type": "string"},
+                      "other": {"enum": [true]},
                       "by": {"$ref": "#/$defs/by"}
                     }
                   }
@@ -323,9 +356,97 @@
                     "type": "object",
                     "required": ["option", "votes"],
                     "additionalProperties": false,
-                    "properties": {"option": {"type": "string"}, "votes": {"type": "integer", "minimum": 0}}
+                    "properties": {
+                      "option": {"type": "string"},
+                      "votes": {"type": "integer", "minimum": 0},
+                      "other": {"enum": [true]},
+                      "by": {"$ref": "#/$defs/by"}
+                    }
                   }
                 }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "closed", "people", "counts", "others", "comments"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["multi"]},
+                "closed": {"$ref": "#/$defs/closed"},
+                "people": {"$ref": "#/$defs/people"},
+                "counts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["option", "picks"],
+                    "additionalProperties": false,
+                    "properties": {"option": {"type": "string"}, "picks": {"type": "integer", "minimum": 0}}
+                  }
+                },
+                "others": {"$ref": "#/$defs/others"},
+                "comments": {"$ref": "#/$defs/comments"}
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "closed", "people", "min", "max", "labels", "counts", "mean", "median", "comments"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["scale"]},
+                "closed": {"$ref": "#/$defs/closed"},
+                "people": {"$ref": "#/$defs/people"},
+                "min": {"type": "integer"},
+                "max": {"type": "integer"},
+                "labels": {
+                  "type": "object",
+                  "required": ["min", "max"],
+                  "additionalProperties": false,
+                  "properties": {"min": {"type": "string"}, "max": {"type": "string"}, "mid": {"type": "string"}}
+                },
+                "counts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["value", "people"],
+                    "additionalProperties": false,
+                    "properties": {"value": {"type": "integer"}, "people": {"type": "integer", "minimum": 0}}
+                  }
+                },
+                "mean": {"type": ["number", "null"]},
+                "median": {"type": ["number", "null"]},
+                "comments": {"$ref": "#/$defs/comments"}
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "closed", "people", "borda", "orders", "others", "comments"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["rank"]},
+                "closed": {"$ref": "#/$defs/closed"},
+                "people": {"$ref": "#/$defs/people"},
+                "borda": {
+                  "description": "Borda totals, highest first: with n options a person's first gets n-1 points and their last 0.",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["option", "points"],
+                    "additionalProperties": false,
+                    "properties": {"option": {"type": "string"}, "points": {"type": "integer", "minimum": 0}}
+                  }
+                },
+                "orders": {
+                  "description": "Each full order people gave and how many gave it, most first.",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["order", "people"],
+                    "additionalProperties": false,
+                    "properties": {"order": {"type": "array", "items": {"type": "string"}}, "people": {"type": "integer", "minimum": 1}}
+                  }
+                },
+                "others": {"$ref": "#/$defs/others"},
+                "comments": {"$ref": "#/$defs/comments"}
               }
             },
             {
