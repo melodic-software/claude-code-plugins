@@ -14,7 +14,7 @@ the hook manager the repository already uses:
 |---|---|
 | lefthook | a job in `lefthook-local.yml`, lefthook's per-clone config |
 | husky | none: husky has no per-clone hooks, so setup offers `scope=shared` |
-| plain git hooks | a dispatcher in the clone's hooks directory |
+| plain git hooks | a dispatcher in the clone's hooks directory, or under `.githooks/local/` when the repository already uses plain shared hooks |
 
 When nobody is there to answer the scope question, setup installs locally.
 
@@ -41,9 +41,9 @@ As of 2026-10-17. Recheck when either section changes the file's name, location 
 
 ## Share it with the team
 
-`scope=shared` commits the entry under `.githooks/<plugin>/` together with the manager's config
-(`lefthook.yml`, `.husky/<event>`, or `.githooks/` for plain hooks). Review and merge those files
-like any change.
+`scope=shared` writes and stages the entry under `.githooks/<plugin>/` together with the manager's
+config (`lefthook.yml`, `.husky/<event>`, or `.githooks/` for plain hooks), for you to commit.
+Review and merge those files like any change.
 
 Committed config does not install itself: every clone runs the manager's install once.
 
@@ -54,9 +54,9 @@ Committed config does not install itself: every clone runs the manager's install
 A clone that skips this step gets no hooks, so for a team with authors outside Claude Code prefer
 lefthook or husky over plain hooks. A clone that tried the entry locally moves to shared by
 running setup with `scope=shared`; setup offers to remove the local copies once the shared entry
-verifies. Committed hook config runs whatever the checked-out branch holds, so read a branch's
-changes to those paths before pushing from it
-([details](README.md#where-installed-copies-live)).
+verifies. Committed hook config runs whatever the checked-out branch holds, so before committing
+or pushing on a branch you do not trust, read its diff to `lefthook.yml`, `.husky/` and
+`.githooks/` ([details](README.md#where-installed-copies-live)).
 
 ## Decline
 
@@ -75,12 +75,14 @@ decline sets that for you.
 
 ## CI stays the enforcement point
 
-A git hook runs on the author's machine, and anyone can get past it: `--no-verify` skips
-`pre-commit` and `commit-msg`, a clone may never have installed the hooks, and `checks.skipmissing`
+A git hook runs on the author's machine, and anyone can get past it: `git commit --no-verify`
+skips `pre-commit` and `commit-msg`, `git push --no-verify` skips `pre-push`, a clone may never
+have installed the hooks, and `checks.skipmissing`
 skips a check whose tool is missing. CI re-runs every check on the change whatever the hooks
 reported, so a repository adopting an entry needs a CI job that runs the same tool. Setup says
 when no CI workflow runs an entry's tool.
 
 Pointer: git's [githooks `pre-commit`](https://git-scm.com/docs/githooks#_pre_commit) and
-[`commit-msg`](https://git-scm.com/docs/githooks#_commit_msg) sections. As of 2026-10-17. Recheck
-when either section changes what `--no-verify` bypasses.
+[`commit-msg`](https://git-scm.com/docs/githooks#_commit_msg) and
+[`pre-push`](https://git-scm.com/docs/githooks#_pre_push) sections. As of 2026-10-17. Recheck
+when any of them changes what `--no-verify` bypasses.
