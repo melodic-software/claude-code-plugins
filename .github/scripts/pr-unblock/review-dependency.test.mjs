@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { ciStatusOf, countRounds, main, roundLine, rounds, select } from "./review-dependency.mjs";
+import { ciStatusOf, countRounds, main, readConfig, roundLine, rounds, select } from "./review-dependency.mjs";
 
 const HEAD = "a".repeat(40);
 const OTHER = "b".repeat(40);
@@ -58,6 +58,7 @@ test("select skips a pull request Dependabot did not open", async () => {
     headSha: HEAD,
     appId: APP,
     dependabotId: DEPENDABOT,
+    config: [],
   });
   assert.equal(result.decision, "skip");
   assert.equal(result.skipReason, "not-applicable");
@@ -70,6 +71,7 @@ test("select skips an auto-tier bump, which pr-merge owns", async () => {
     headSha: HEAD,
     appId: APP,
     dependabotId: DEPENDABOT,
+    config: [],
   });
   assert.equal(result.decision, "skip");
   assert.equal(result.skipReason, "not-applicable");
@@ -103,9 +105,36 @@ test("select reviews a red ci-status even on a patch bump", async () => {
     headSha: HEAD,
     appId: APP,
     dependabotId: DEPENDABOT,
+    config: [],
   });
   assert.equal(result.decision, "proceed");
   assert.deepEqual(result.file.classification.reasons, ["ci-status-red"]);
+});
+
+test("readConfig tells a missing or unparsable file from a config with no entries, and warns", () => {
+  const dir = mkdtempSync(join(tmpdir(), "dependabot-config-"));
+  const warnings = [];
+  const log = (line) => warnings.push(line);
+  assert.equal(readConfig(join(dir, "absent.yml"), log), null);
+  writeFileSync(join(dir, "junk.yml"), "not: a dependabot config\n");
+  assert.equal(readConfig(join(dir, "junk.yml"), log), null);
+  writeFileSync(join(dir, "empty.yml"), "version: 2\nupdates: []\n");
+  assert.deepEqual(readConfig(join(dir, "empty.yml"), log), []);
+  assert.equal(warnings.length, 2);
+  assert.ok(warnings.every((line) => line.startsWith("::warning::")));
+});
+
+test("select reports an unreadable config as its own reason and output", async () => {
+  const result = await select({
+    api: fakeApi({ pull: { title: "bump x from 1.4.0 to 1.4.1" }, files: [{ filename: "package-lock.json" }] }),
+    pr: 7,
+    headSha: HEAD,
+    appId: APP,
+    dependabotId: DEPENDABOT,
+    config: null,
+  });
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file.classification.reasons, ["dependabot-config-unreadable"]);
 });
 
 test("select applies the content rule from the base's dependabot.yml", async () => {
@@ -130,7 +159,7 @@ test("select reads the verified commit's metadata, and ignores an unverified one
     "...",
   ].join("\n");
   const commit = (verified) => ({ sha: HEAD, author: { login: "dependabot[bot]" }, commit: { message, verification: { verified } } });
-  const args = { pr: 7, headSha: HEAD, appId: APP, dependabotId: DEPENDABOT };
+  const args = { pr: 7, headSha: HEAD, appId: APP, dependabotId: DEPENDABOT, config: [] };
   const pull = { title: "bump x from 1.4.0 to 1.4.1" };
   const disagree = await select({ api: fakeApi({ pull, commit: commit(true) }), ...args });
   assert.equal(disagree.decision, "proceed");
@@ -146,6 +175,7 @@ test("select escalates once the round cap is reached, counting markers or model 
     headSha: HEAD,
     appId: APP,
     dependabotId: DEPENDABOT,
+    config: [],
     maxRounds: 2,
   });
   assert.equal(byMarker.decision, "escalate");
@@ -157,6 +187,7 @@ test("select escalates once the round cap is reached, counting markers or model 
     headSha: HEAD,
     appId: APP,
     dependabotId: DEPENDABOT,
+    config: [],
     maxRounds: 2,
   });
   assert.equal(byCheck.decision, "escalate");
@@ -165,7 +196,7 @@ test("select escalates once the round cap is reached, counting markers or model 
 test("select caps each patch and the total it hands the model", async () => {
   const big = "x".repeat(50_000);
   const files = Array.from({ length: 30 }, (_, i) => ({ filename: `f${i}`, status: "modified", additions: 1, deletions: 0, patch: big }));
-  const result = await select({ api: fakeApi({ files }), pr: 7, headSha: HEAD, appId: APP, dependabotId: DEPENDABOT });
+  const result = await select({ api: fakeApi({ files }), pr: 7, headSha: HEAD, appId: APP, dependabotId: DEPENDABOT, config: [] });
   const patches = result.file.files.map((file) => file.patch ?? "");
   assert.ok(patches.every((patch) => patch.length <= 20_000 + 40));
   assert.ok(patches.join("").length <= 300_000 + 40 * 30);
@@ -194,5 +225,6 @@ test("main writes the outputs and the file, and the security flag", async () => 
   assert.match(out, /^skip-reason=$/m);
   assert.match(out, /^escalation-reason=$/m);
   assert.match(out, /^security=true$/m);
+  assert.match(out, /^config-unreadable=true$/m, "the main test points at no config file");
   assert.equal(JSON.parse(readFileSync(env.DEPENDENCY_FILE, "utf8")).pr, 7);
 });

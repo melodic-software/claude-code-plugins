@@ -294,7 +294,7 @@ export async function main(
     api: client,
     runId: env.GITHUB_RUN_ID,
     log,
-    config: readConfig(env.DEPENDABOT_CONFIG ?? ".base/.github/dependabot.yml"),
+    config: readConfig(env.DEPENDABOT_CONFIG ?? ".base/.github/dependabot.yml", log),
   });
   const dispatched = [...conflicts.dispatched, ...reviews.dispatched];
   const failed = conflicts.failed + reviews.failed;

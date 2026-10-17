@@ -161,14 +161,23 @@ export function dependabotIdFrom(trustedActorsPath) {
   return positive(actor?.id, `the ${DEPENDABOT_LOGIN} id in ${trustedActorsPath}`);
 }
 
-// The base's .github/dependabot.yml as [ecosystem, directory] pairs; null
-// (which covers no path, so every PR is review) when it cannot be read.
-export function readConfig(path) {
+// The base's .github/dependabot.yml as [ecosystem, directory] pairs, [] for
+// a config with no entries. A file it cannot read or parse is null, which the
+// classifier reports as dependabot-config-unreadable (review tier, and no
+// merge verdict), and is logged as a warning so the cause is visible.
+export function readConfig(path, log = (line) => console.log(line)) {
+  let text;
   try {
-    return path ? parseConfig(readFileSync(path, "utf8")) : null;
-  } catch {
+    text = readFileSync(String(path ?? ""), "utf8");
+  } catch (error) {
+    log(`::warning::cannot read the Dependabot config ${path || "(no path)"} (${error.code ?? error.name}); every Dependabot PR is review tier until it reads`);
     return null;
   }
+  const pairs = parseConfig(text);
+  if (pairs === null) {
+    log(`::warning::the Dependabot config ${path} has no top-level updates: key; every Dependabot PR is review tier until it parses`);
+  }
+  return pairs;
 }
 
 export function maxRoundsFrom(value) {
@@ -200,7 +209,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     dependabotId: dependabotIdFrom(env.TRUSTED_ACTORS),
     repository: env.GITHUB_REPOSITORY,
     maxRounds: maxRoundsFrom(env.DEPENDENCY_REVIEW_ROUNDS),
-    config: readConfig(env.DEPENDABOT_CONFIG),
+    config: readConfig(env.DEPENDABOT_CONFIG, log),
   });
   if (result.file) {
     writeFileSync(env.DEPENDENCY_FILE, `${JSON.stringify(result.file, null, 2)}\n`);
@@ -210,6 +219,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
   output("skip-reason", result.decision === "skip" ? result.skipReason : result.decision === "escalate" ? "awaiting-human" : "");
   output("escalation-reason", result.escalationReason ?? "");
   output("security", String(result.classification?.security === true));
+  output("config-unreadable", String((result.classification?.reasons ?? []).includes("dependabot-config-unreadable")));
   log(
     `${result.decision}: tier ${result.classification?.tier ?? "-"} (${(result.classification?.reasons ?? []).join(", ") || "none"}), ` +
       `${result.rounds ?? 0} earlier round(s)${result.escalationReason ? `, ${result.escalationReason}` : ""}`,

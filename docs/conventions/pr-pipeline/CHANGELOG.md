@@ -15,9 +15,10 @@ with an ignore-entry issue (never a security update), or escalates. Neither merg
 lane merges on the `verdict=merge` marker at the current head. Majors include a 0.x minor, and
 the classifier reads the verified head commit's `updated-dependencies` metadata. `loop` gains
 `dependency-review-rounds` (default 2; this repository sets 2), and the write runner gains the
-`dependency-verdict`, `dependency-run-sha256` and `dependency-run-attempt` inputs and five
+`dependency-verdict`, `dependency-run-sha256` and `dependency-run-attempt` inputs and six
 escalation reasons: `dependency-round-cap`, `dependency-invalid`, `dependency-fix-not-landed`,
-`dependency-security-close` and `dependency-escalate`. `version` stays 1.
+`dependency-security-close`, `dependency-escalate` and `dependency-config-unreadable`. `version`
+stays 1.
 
 ## 1.19.3 - 2026-10-16
 

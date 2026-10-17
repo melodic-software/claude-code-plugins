@@ -603,10 +603,14 @@ sort pull requests with `dependency-classify.mjs`:
   `semver-major`; every changed path (both sides of a rename) is a manifest or lockfile of an
   ecosystem and directory the base's `.github/dependabot.yml` lists, or a workflow or action
   file a `github-actions` entry covers whose diff changes only `uses:` lines (otherwise the
-  reason is `dependabot-content:<path>`, the pr-merge lane's content rule); every
-  `github_actions` update's publisher is `actions`, `github` or `anthropics`; and the newest
-  GitHub Actions `ci-status`
-  run on the head is not red (`failure`, `cancelled`, `timed_out`, `action_required`,
+  reason is `dependabot-content:<path>`, the pr-merge lane's content rule). A `directories`
+  glob follows Dependabot's documented globbing (the options reference's `directories` note
+  and the `/lib-*` and `**/*` examples): `*` and `?` match within one path segment, `**/`
+  matches zero or more whole segments, and the rest is literal. A base `dependabot.yml` that
+  cannot be read, or has no top-level `updates:` key, is the reason
+  `dependabot-config-unreadable`, logged as a warning; an `updates:` key with no entries covers
+  no path. Every `github_actions` update's publisher is `actions`, `github` or `anthropics`; and
+  the newest GitHub Actions `ci-status` run on the head is not red (`failure`, `cancelled`, `timed_out`, `action_required`,
   `startup_failure`; pending is not red). The pr-merge lane owns these.
 - `review`: every other Dependabot pull request, including a version the classifier cannot
   read (a SHA) and metadata that disagrees with the title. A security update is the `security` label or an advisory, GHSA or CVE id in the
@@ -633,7 +637,7 @@ sort pull requests with `dependency-classify.mjs`:
    discarded with the lane branch.
 4. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
    `github-script` step writes `run.json` (`version`, `pr`, the gated `head_sha`, the select
-   step's `security` flag, and the skill's structured output as `output`, `null` when absent or
+   step's `security` and `config_unreadable` flags, and the skill's structured output as `output`, `null` when absent or
    unparsable) and the job uploads it as `dependency-verdict-<run attempt>`. Its
    `dependency-round` output is then `true`, with `dependency-run-sha256` and
    `dependency-run-attempt`.
@@ -652,7 +656,8 @@ sort pull requests with `dependency-classify.mjs`:
    - `merge`: posts the round marker, whose first line
      `<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<run id>-<attempt> -->`
      from the lanes App is the record the pr-merge lane merges a review-tier pull request on,
-     at the current head and through its own gate. This job never merges or enqueues;
+     at the current head and through its own gate. With `config_unreadable` it posts no merge
+     marker and escalates `dependency-config-unreadable`. This job never merges or enqueues;
    - `close`: escalates `dependency-security-close` for a security update (the model job's flag,
      or the label or an advisory in the body read fresh); otherwise finds the lanes App issue whose first line is
      `<!-- pr-unblock:dependency-ignore pr=<n> head=<sha> -->` or files it, proposing the
@@ -662,7 +667,7 @@ sort pull requests with `dependency-classify.mjs`:
    - posts the round marker once per model run, named `none` when the model run uploaded no
      verdict: a re-run that finds its own marker posts none.
 
-   The runner accepts only those four reasons, and only with `dependency-verdict`.
+   The runner accepts only those five reasons, and only with `dependency-verdict`.
 
 ## The report job
 

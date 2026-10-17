@@ -45,7 +45,7 @@ function fakeApi({ nodes = [], checks = new Map(), ci = new Map(), files = new M
   };
 }
 
-const run = (api, extra = {}) => dispatchDependencyReviews({ api, runId: "55", log: () => {}, ...extra });
+const run = (api, extra = {}) => dispatchDependencyReviews({ api, runId: "55", log: () => {}, config: [], ...extra });
 
 test("dispatches review-dependency for a review-tier Dependabot PR", async () => {
   const api = fakeApi({ nodes: [pr(4)] });

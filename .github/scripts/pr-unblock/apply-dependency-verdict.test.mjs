@@ -17,7 +17,7 @@ const output = (overrides = {}) => ({
   evidence: [".node-version:1"],
   ...overrides,
 });
-const runOf = (overrides = {}) => ({ version: 1, pr: 7, head_sha: HEAD, security: false, output: output(), ...overrides });
+const runOf = (overrides = {}) => ({ version: 1, pr: 7, head_sha: HEAD, security: false, config_unreadable: false, output: output(), ...overrides });
 
 function fakeApi({ head = HEAD, state = "open", labels = [], body = "", compare = { status: "ahead", commits: [], files: [] }, comments = [], issues = [], failClose = false } = {}) {
   // State persists across calls, so a second apply() is a re-run.
@@ -162,6 +162,14 @@ test("a fix that changed a path under .github/ is invalid", async () => {
     compare: { status: "ahead", commits: [{ author: { id: APP } }], files: [{ filename: ".github/workflows/x.yml" }] },
   });
   assert.equal((await go(api, runOf({ output: output({ verdict: "fix" }) }))).escalationReason, "dependency-invalid");
+});
+
+test("a merge verdict on an unreadable Dependabot config escalates and posts no merge marker", async () => {
+  const api = fakeApi();
+  const result = await go(api, runOf({ config_unreadable: true }));
+  assert.equal(result.escalationReason, "dependency-config-unreadable");
+  assert.doesNotMatch(api.calls.comments.join("\n"), /verdict=merge/);
+  assert.throws(() => validateRun(runOf({ config_unreadable: "no" }), 7), /invalid/i);
 });
 
 test("a security update is never closed: it escalates", async () => {

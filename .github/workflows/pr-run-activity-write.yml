@@ -161,7 +161,7 @@ on:
           feedback-invalid, feedback-partial, feedback-incomplete or
           feedback-disputed; for dependency-review, before any model turn,
           dependency-round-cap; for the dependency-verdict script
-          dependency-invalid, dependency-fix-not-landed,
+          dependency-invalid, dependency-fix-not-landed, dependency-config-unreadable,
           dependency-security-close or dependency-escalate; empty otherwise.
           Set only by runner steps and the base's reply and verdict scripts.
         value: ${{ jobs.run.outputs.escalation-reason }}
@@ -327,7 +327,7 @@ jobs:
             feedback-protected-path | feedback-round-cap | feedback-uncertain | feedback-not-landed | feedback-invalid) ;;
             feedback-partial | feedback-incomplete | feedback-disputed) ;;
             dependency-round-cap | dependency-invalid | dependency-fix-not-landed) ;;
-            dependency-security-close | dependency-escalate) ;;
+            dependency-security-close | dependency-escalate | dependency-config-unreadable) ;;
             *)
               echo "::error::the escalation-reason input is not a known escalation reason"
               exit 1
@@ -1440,13 +1440,14 @@ jobs:
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           SECURITY: ${{ steps.dependency-select.outputs.security }}
+          CONFIG_UNREADABLE: ${{ steps.dependency-select.outputs.config-unreadable }}
           STRUCTURED_OUTPUT: ${{ steps.act-skill.outputs.structured_output }}
           OUT_DIR: ${{ runner.temp }}/lane-dependency-out
         with:
           retries: 0
           script: |
             const fs = require('fs');
-            const { HEAD_SHA, PR_NUMBER, SECURITY, STRUCTURED_OUTPUT, OUT_DIR } = process.env;
+            const { HEAD_SHA, PR_NUMBER, SECURITY, CONFIG_UNREADABLE, STRUCTURED_OUTPUT, OUT_DIR } = process.env;
             fs.rmSync(OUT_DIR, { recursive: true, force: true });
             fs.mkdirSync(OUT_DIR);
             let output = null;
@@ -1455,7 +1456,14 @@ jobs:
             } catch {
               core.warning('the skill returned no parsable structured output; the verdict job escalates');
             }
-            const run = { version: 1, pr: Number(PR_NUMBER), head_sha: HEAD_SHA, security: SECURITY === 'true', output };
+            const run = {
+              version: 1,
+              pr: Number(PR_NUMBER),
+              head_sha: HEAD_SHA,
+              security: SECURITY === 'true',
+              config_unreadable: CONFIG_UNREADABLE === 'true',
+              output,
+            };
             const text = `${JSON.stringify(run)}\n`;
             fs.writeFileSync(`${OUT_DIR}/run.json`, text);
             core.setOutput('run-sha256', require('crypto').createHash('sha256').update(text).digest('hex'));
@@ -1626,7 +1634,7 @@ jobs:
                 # The verdict script's reasons, only in dependency-verdict mode.
                 case "$FEEDBACK_REPLIES_DIR:$DEPENDENCY_VERDICT_DIR:$escalation" in
                   :?*:dependency-invalid | :?*:dependency-fix-not-landed) ;;
-                  :?*:dependency-security-close | :?*:dependency-escalate) ;;
+                  :?*:dependency-security-close | :?*:dependency-escalate | :?*:dependency-config-unreadable) ;;
                   *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
                 esac
                 ;;

@@ -72,11 +72,12 @@ export function validateRun(run, pr) {
   const fail = (why) => {
     throw new Invalid(`run.json is invalid: ${why}`);
   };
-  if (!exactKeys(run, ["version", "pr", "head_sha", "security", "output"])) fail("its fields are not the runner's");
+  if (!exactKeys(run, ["version", "pr", "head_sha", "security", "config_unreadable", "output"])) fail("its fields are not the runner's");
   if (run.version !== 1) fail("version is not 1");
   if (run.pr !== pr) fail("it names another pull request");
   if (!SHA.test(String(run.head_sha))) fail("head_sha is not a commit id");
   if (typeof run.security !== "boolean") fail("security is not a boolean");
+  if (typeof run.config_unreadable !== "boolean") fail("config_unreadable is not a boolean");
   const out = run.output;
   if (!exactKeys(out, ["verdict", "reasons", "evidence"])) fail("the verdict's fields are not the template's");
   if (!VERDICTS.includes(out.verdict)) fail("the verdict is not merge, fix, close or escalate");
@@ -189,6 +190,11 @@ export async function apply({ api, pr, appId, modelRun, run, log }) {
     return { escalationReason: "", skipReason: "superseded-sha" };
   }
   if (verdict === "merge") {
+    // The content rule could not run, so no merge marker is posted on it.
+    if (run.config_unreadable) {
+      await record("escalate", { reasons, evidence });
+      return { escalationReason: "dependency-config-unreadable", skipReason: "" };
+    }
     await record("merge", { reasons, evidence });
     return { escalationReason: "", skipReason: "" };
   }

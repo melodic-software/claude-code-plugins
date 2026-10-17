@@ -18,6 +18,7 @@
 #                       | feedback-disputed | dependency-round-cap
 #                       | dependency-invalid | dependency-fix-not-landed
 #                       | dependency-security-close | dependency-escalate
+#                       | dependency-config-unreadable
 #   TRACKER_CONFIG      base .work-item-tracker.json
 #                       (default .base/.work-item-tracker.json)
 #   LANES_BOT_LOGIN     the lanes App bot login, the only author whose marker
@@ -58,6 +59,7 @@ case ${ESCALATION_REASON:-} in
   dependency-fix-not-landed) why='the dependency review chose a fix, but no fix commit reached the branch' ;;
   dependency-security-close) why='the dependency review would close a security update, which the lane never closes' ;;
   dependency-escalate) why='the dependency review found a risk the lane does not decide alone' ;;
+  dependency-config-unreadable) why='the lane could not read the base .github/dependabot.yml, so it does not mark this dependency update for merge' ;;
   *) die "unknown escalation reason [${ESCALATION_REASON:-}]" ;;
 esac
 case $ESCALATION_REASON in

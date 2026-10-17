@@ -210,7 +210,34 @@ test("the config reads one ecosystem and directory per entry and listed director
     ["npm", "/plugins/*/scripts"],
     ["pip", "/plugins/animation"],
   ]);
-  assert.equal(parseConfig("version: 2\n"), null);
+  assert.equal(parseConfig("version: 2\n"), null, "no updates: key is unreadable");
+  assert.deepEqual(parseConfig("version: 2\nupdates: []\n"), [], "an updates: key with no entry is an empty config");
+});
+
+test("a directories glob: * and ? stay in one segment, **/ spans zero or more segments", () => {
+  const covered = (path, directory) => contentReason([{ filename: path }], [["npm", directory]]) === null;
+  assert.equal(covered("plugins/x/scripts/package.json", "/plugins/*/scripts"), true);
+  assert.equal(covered("plugins/x/extra/scripts/package.json", "/plugins/*/scripts"), false, "* does not cross /");
+  assert.equal(covered("lib-a/package.json", "/lib-*"), true);
+  assert.equal(covered("lib-a/b/package.json", "/lib-*"), false);
+  assert.equal(covered("lib-ab/package.json", "/lib-?b"), true);
+  assert.equal(covered("lib-a/b/package.json", "/lib-?/b"), true);
+  assert.equal(covered("lib-/b/package.json", "/lib-?/b"), false, "? is exactly one character");
+  assert.equal(covered("package.json", "**/*"), true, "the docs' globstar covers the current layer");
+  assert.equal(covered("a/b/c/package.json", "**/*"), true, "and every layer below");
+  assert.equal(covered("plugins/x/y/scripts/package.json", "/plugins/**/scripts"), true);
+  assert.equal(covered("plugins/scripts/package.json", "/plugins/**/scripts"), true, "**/ may match no segment");
+  assert.equal(covered("plugins.x/package.json", "/plugins?x"), true);
+  assert.equal(covered("pluginsQx/package.json", "/plugins.x"), false, ". is literal");
+});
+
+test("files with an unreadable config are review with their own reason", () => {
+  const result = classify(pr({ files: [{ filename: "package.json" }], config: null }));
+  assert.equal(result.tier, "review");
+  assert.deepEqual(result.reasons, ["dependabot-config-unreadable"]);
+  assert.deepEqual(classify(pr({ files: [{ filename: "package.json" }], config: [] })).reasons, [
+    "dependabot-content:package.json",
+  ]);
 });
 
 test("manifests and lockfiles in listed directories, and a uses:-only pin, stay auto", () => {

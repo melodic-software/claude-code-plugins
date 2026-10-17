@@ -89,7 +89,8 @@ const CONFIG_DIRS = /^\s+directories:\s*$/;
 const CONFIG_ITEM = /^\s+-\s+["']?([^"'#\s]+)/;
 
 // [ecosystem, directory] per `updates` entry of a dependabot.yml, one pair
-// per directory; null when no entry reads.
+// per directory: [] for an `updates:` key with no entry, null when the text
+// has no top-level `updates:` key (not a dependabot.yml it can read).
 export function parseConfig(text) {
   const pairs = [];
   let ecosystem = null;
@@ -112,15 +113,40 @@ export function parseConfig(text) {
       inDirs = false;
     }
   }
-  return pairs.length > 0 ? pairs : null;
+  return /^updates:\s*(\[\s*\])?\s*(#.*)?$/m.test(String(text ?? "").replace(/\r\n/g, "\n")) ? pairs : null;
 }
 
 const dirname = (path) => (path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "");
-const glob = (pattern) => new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\?]/g, "\\$&").replace(/\*/g, ".*")}$`);
+// A `directories` glob (docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference,
+// "directories or directory", and the "Defining multiple locations for
+// manifest files" examples `/lib-*` and the globstar `**/*`, "all
+// directories from the current layer and below recursively", as of
+// 2026-10-17; recheck when either page changes its glob wording): `*` and
+// `?` stay inside one path segment, `**/` is zero or more whole segments,
+// and any other `**` crosses segments. Everything else is literal.
+export function globRegex(pattern) {
+  let out = "";
+  for (let i = 0; i < pattern.length; i += 1) {
+    if (pattern.startsWith("**/", i)) {
+      out += "(?:[^/]*/)*";
+      i += 2;
+    } else if (pattern.startsWith("**", i)) {
+      out += ".*";
+      i += 1;
+    } else if (pattern[i] === "*") {
+      out += "[^/]*";
+    } else if (pattern[i] === "?") {
+      out += "[^/]";
+    } else {
+      out += pattern[i].replace(/[.+^${}()|[\]\\]/g, "\\$&");
+    }
+  }
+  return new RegExp(`^${out}$`);
+}
 
 function inDirectory(path, directory) {
   const want = directory.replace(/^\/+|\/+$/g, "");
-  return want.includes("*") ? glob(want).test(dirname(path)) : dirname(path) === want;
+  return /[*?]/.test(want) ? globRegex(want).test(dirname(path)) : dirname(path) === want;
 }
 
 function actionsFile(path, config) {
@@ -242,7 +268,9 @@ export function classify(pr) {
     }
   }
   if (Array.isArray(pr.files)) {
-    const content = contentReason(pr.files, pr.config ?? null);
+    // A config that could not be read or parsed is its own reason: it keeps
+    // the PR in review, and the verdict job never posts a merge on it.
+    const content = Array.isArray(pr.config) ? contentReason(pr.files, pr.config) : "dependabot-config-unreadable";
     if (content) reasons.push(content);
   }
   if (RED.has(pr.ciStatus)) {
