@@ -29,7 +29,7 @@ function runScript() {
 }
 
 // curl: the broker POST (it has -w) logs its --data-binary body to $BODY_LOG,
-// writes $FAKE_RESPONSE to its -o file and prints $FAKE_STATUS (200 unset); the OIDC GET prints a
+// writes $FAKE_RESPONSE to its -o file and prints 200; the OIDC GET prints a
 // token; anything else (a revoke) prints 204.
 const FAKE_CURL = `#!/usr/bin/env bash
 cat >/dev/null
@@ -66,7 +66,8 @@ before(() => {
 
 after(() => rmSync(root, { recursive: true, force: true }));
 
-function request(inputs, response) {
+// `denial` makes the broker answer that HTTP status with that JSON body.
+function request(inputs, denial) {
   const dir = mkdtempSync(path.join(root, "run-"));
   const files = Object.fromEntries(
     ["output", "summary", "response.json"].map((name) => [name, path.join(dir, name)]),
@@ -87,11 +88,12 @@ function request(inputs, response) {
     CONTENTS: "write",
     PULL_REQUESTS: "read",
     ISSUES: "read",
+    SUPERSEDED_OK: "false",
     ...inputs,
   };
   writeFileSync(
     files["response.json"],
-    JSON.stringify(response ?? {
+    JSON.stringify(denial?.body ?? {
       token: "ghs_lane",
       expires_at: "2026-10-11T13:00:00Z",
       mint_id: "5550001-1",
@@ -117,6 +119,7 @@ function request(inputs, response) {
       RUNNER_TEMP: dir,
       BODY_LOG: bodyLog,
       FAKE_RESPONSE: files["response.json"],
+      FAKE_STATUS: denial?.status ?? "200",
     },
   });
   return {
@@ -126,6 +129,43 @@ function request(inputs, response) {
     output: readFileSync(files.output, "utf8"),
   };
 }
+
+// The 403 shape pr-merge run 39074050115 logged when pr-merge.yml changed on
+// main while it was queued.
+const SUPERSEDED = {
+  status: "403",
+  body: { reason: "workflow-modified", detail: ".github/workflows/pr-merge.yml differs from refs/heads/main" },
+};
+const MERGE = { LANE: "pr-merge", ACTIVITY: "merge-pr", PR_NUMBER: "", EFFECT: "merge-pr", CONTENTS: "write", PULL_REQUESTS: "write" };
+
+test("with superseded-ok, a 403 workflow-modified ends green with a warning and no token", () => {
+  const run = request({ ...MERGE, SUPERSEDED_OK: "true" }, SUPERSEDED);
+  assert.equal(run.status, 0, run.stdout);
+  assert.match(run.stdout, /^::warning::lane-token-superseded: pr-merge\.yml changed on the default branch/m);
+  assert.doesNotMatch(run.stdout, /::error::/);
+  assert.equal(run.output, "");
+});
+
+test("with superseded-ok, any other denial reason still fails red", () => {
+  const run = request({ ...MERGE, SUPERSEDED_OK: "true" }, { status: "403", body: { reason: "already-minted" } });
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /::error::lane-token-denied: the broker answered 403 with reason already-minted/);
+  assert.doesNotMatch(run.output, /^token=/m);
+});
+
+test("without superseded-ok, a 403 workflow-modified still fails red", () => {
+  const run = request(MERGE, SUPERSEDED);
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /::error::lane-token-denied: the broker answered 403 with reason workflow-modified: \.github\/workflows\/pr-merge\.yml differs/);
+  assert.doesNotMatch(run.output, /^token=/m);
+});
+
+test("a superseded-ok other than true or false fails before the broker request", () => {
+  const run = request({ SUPERSEDED_OK: "yes" });
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /::error::superseded-ok must be true or false/);
+  assert.equal(run.body, null);
+});
 
 test("a dispatcher run id is sent as dispatcher_run_id, an integer", () => {
   const run = request({ DISPATCHER_RUN_ID: "38155572048" });
@@ -165,8 +205,8 @@ test("an expected upstream head without a dispatcher run id, or not a SHA, fails
 // run job's check summary.
 test("a broker denial fails red and writes its reason as the failure-reason output", () => {
   const run = request(
-    { FAKE_STATUS: "403" },
-    { reason: "workflow-modified", detail: "the workflow file changed" },
+    {},
+    { status: "403", body: { reason: "workflow-modified", detail: "the workflow file changed" } },
   );
   assert.equal(run.status, 1);
   assert.match(

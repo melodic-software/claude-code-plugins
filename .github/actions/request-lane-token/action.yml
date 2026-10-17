@@ -71,6 +71,14 @@ inputs:
     description: The resolved grant's `issues`, `read` or `write`. Required in `token` mode, empty in `check` mode.
     required: false
     default: ""
+  superseded-ok:
+    description: >-
+      `true` ends the step green, with a warning and no token, when the broker
+      answers 403 with reason `workflow-modified`: the caller workflow changed
+      on the default branch after this run started, so a newer run does its
+      work. Any other denial still fails red. Default `false`.
+    required: false
+    default: "false"
 
 outputs:
   token:
@@ -108,6 +116,7 @@ runs:
         CONTENTS: ${{ inputs.contents }}
         PULL_REQUESTS: ${{ inputs.pull-requests }}
         ISSUES: ${{ inputs.issues }}
+        SUPERSEDED_OK: ${{ inputs.superseded-ok }}
       run: |
         set -euo pipefail
         umask 077
@@ -128,6 +137,8 @@ runs:
           fail "lane-token-unconfigured: LANES_BROKER_AUDIENCE holds characters an audience cannot"
         name='^[a-z][a-z0-9]*(-[a-z0-9]+)*$'
         [[ $LANE =~ $name && $ACTIVITY =~ $name ]] || fail "the lane and activity must be kebab-case names"
+        SUPERSEDED_OK=${SUPERSEDED_OK:-false}
+        [[ $SUPERSEDED_OK == true || $SUPERSEDED_OK == false ]] || fail "superseded-ok must be true or false"
         case "$MODE" in
         token)
           [[ $EFFECT =~ $name ]] || fail "the effect must be a kebab-case name"
@@ -213,6 +224,12 @@ runs:
           reason=$(jq -r 'if type == "object" and (.reason | type) == "string" then .reason else "" end' "$response" 2>/dev/null) || reason=""
           [[ $reason =~ ^[a-z]+(-[a-z]+)*$ ]] || reason=unknown
           detail=$(jq -r 'if type == "object" and (.detail | type) == "string" then .detail else "" end' "$response" 2>/dev/null | one_line) || detail=""
+          if [[ $SUPERSEDED_OK == true && $status == 403 && $reason == workflow-modified ]]; then
+            msg="lane-token-superseded: $LANE.yml changed on the default branch after this run started, so a newer run of it does this work; this run takes no token and skips the rest"
+            echo "::warning::$msg"
+            printf -- '- %s\n' "$msg" >>"$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           fail "$denied: the broker answered $status with reason $reason${detail:+: $detail}"
         fi
 
