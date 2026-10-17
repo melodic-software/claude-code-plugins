@@ -144,7 +144,7 @@ update a sibling worktree's record of the same id instead of the cwd's
    different path is a misfire. A missing or unparsable path decides nothing, so go on to the next check.
 2. Re-run `fleet-state.sh` and read the record for `(id, scope, projectPath)`. Its `version` must equal
    the version the update was expected to install (the catalog version). Also compare every other record
-   of that id with the Step 1 snapshot, and name any whose `version` or `lastUpdated` changed.
+   of that id with the read taken just before this mutation, and name any whose `version` or `lastUpdated` changed.
 3. Report a misfire as its own row, never as success, and do not retry the same command (it can hit the
    same sibling again):
 

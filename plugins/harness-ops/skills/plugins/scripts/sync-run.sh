@@ -1337,12 +1337,24 @@ finalize_moves() {
     # included, so it does not append it again.
     if ((ONLY_INSTALL_MODE == 0)) && [[ "$kind" == "in_repo" && "$scope" != "user" &&
       "$result" == "updated" && -n "$new" && -n "$old" && -f "$post" ]]; then
-      local cur
+      local cur moved=""
       version_at cur "$post" "$id" "$scope"
       if [[ "$cur" == "$old" && "$new" != "$old" ]]; then
-        IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" --arg new "$new" \
+        # Name the record that did move: another project's record of the id whose
+        # version differs between the pre and post reads.
+        if [[ -f "$RUN_DIR/pre.$mp.json" ]]; then
+          # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+          jq_to moved -r -n --arg id "$id" --arg sc "$scope" \
+            --slurpfile pre "$RUN_DIR/pre.$mp.json" --slurpfile post "$post" \
+            '[$post[0].installed[]? | select(.id == $id and .scope == $sc and .currentProject != true)
+              | . as $r | select(([$pre[0].installed[]? | select(.id == $id and .scope == $sc
+                  and .projectPath == $r.projectPath) | .version] | first) != $r.version)
+              | .projectPath] | map("\"\(.)\"") | join(", ")'
+        fi
+        IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" --arg new "$new" --arg moved "$moved" \
           '{id: $id, scope: $sc, rc: 0, output: "",
-            reason: ("the CLI reported \($old) to \($new), but this project'"'"'s record is still at \($old): it updated another record of the id (a sibling worktree'"'"'s)")}')")
+            reason: ("the CLI reported \($old) to \($new), but this project'"'"'s record is still at \($old): it updated "
+              + (if $moved == "" then "another record of the id (a sibling worktree'"'"'s)" else $moved end) + " instead")}')")
         continue
       fi
     fi

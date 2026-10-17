@@ -810,8 +810,8 @@ assert_eq "misfire: a move of another project's record is not an Updated row" "0
   "$(jq -r '.marketplaces[0].in_repo.updated | length' <<<"$out")"
 assert_eq "misfire: it is reported as its own failed row" "alpha@market1" \
   "$(jq -r '.marketplaces[0].in_repo.failed[0].id' <<<"$out")"
-assert_contains "misfire: the reason names the sibling worktree" \
-  "$(jq -r '.marketplaces[0].in_repo.failed[0].reason' <<<"$out")" "sibling worktree"
+assert_contains "misfire: the reason names the sibling worktree's path" \
+  "$(jq -r '.marketplaces[0].in_repo.failed[0].reason' <<<"$out")" "updated \"$sibling\" instead"
 
 # ============================================================================
 # Case: an in-repo record for the plugin providing this skill is a self-update
