@@ -42,6 +42,7 @@ Wire it into CI beside the linters. It is fast, deterministic, and has no judgme
 
 | Check | Mechanism | Failure means |
 |---|---|---|
+| Frontmatter parses | same (`FRONTMATTER` row) | Claude Code ignores the frontmatter and loads the rule unscoped, in every session |
 | Glob resolves | `glob-tools.sh rules` | The rule never fires for any file in the repository |
 | Bracket expressions valid | same | The pattern silently matches nothing |
 | Brace budget respected | same | The pattern is used unexpanded; its braces match nothing |
@@ -134,8 +135,13 @@ Both scripts emit deterministic TSV. `glob-tools.sh` rows are:
 
 ```text
 PATTERN <tab> source-rule <tab> pattern <tab> expanded <tab> matches <tab> status
+FRONTMATTER <tab> source-rule <tab> line <tab> reason <tab> unparsable
 SUMMARY <tab> tracked <tab> patterns <tab> invalid <tab> overbroad <tab> verdict
 ```
+
+A `FRONTMATTER` row counts toward `invalid`. It is a static screen, not a YAML parser, so a green
+gate does not prove the YAML is valid; `claude --debug` prints the parser's own error
+(<https://code.claude.com/docs/en/memory#rules-frontmatter-reference>, read 2026-10-17).
 
 Report per failing pattern: the rule file, the pattern, the status, and **what the operator should
 do about it**. The three failure statuses have different fixes and saying "invalid" helps nobody.
@@ -145,6 +151,7 @@ do about it**. The three failure statuses have different fixes and saying "inval
 | `zero-match` | No tracked file matches | The glob is wrong, or the code it described was moved or deleted. Correct the pattern, or retire the rule |
 | `bad-bracket` | A `[` cannot be read as a bracket expression | Escape it as `\[` if it is a literal, or close the expression |
 | `over-budget` | Expansion exceeded 1,000 patterns or 4 MiB | Split the rule, or replace brace groups with a broader pattern |
+| `unparsable` (`FRONTMATTER`) | The YAML between the `---` markers will not parse | Quote the offending value (`paths: "**/*.ts"`), fix the indentation, then rerun. The rule is loading unscoped until then |
 | `over-broad` | Matches most of the repository | Advisory. Narrow it, or accept it and raise `--breadth-max` |
 
 ## Hard rules

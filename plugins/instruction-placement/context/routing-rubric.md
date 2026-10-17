@@ -51,7 +51,9 @@ absent at the moment it was needed, not how the sentence is worded.
   to a matching path fires it, but most likely after the file is written, a timing not yet measured
   (`verified-mechanics.md`, the write-trigger gap). Either way a rule governing how new files are
   made may not be in context for the creation it exists for. It may still route to a subtree
-  destination, or stay. This is a deny of one *destination*, not of the candidate.
+  destination, or stay. This is a deny of one *destination*, not of the candidate. The owner
+  decision on issue 6193 (2026-10-12) keeps this deny until a canary measures whether a
+  Write-triggered rule arrives before the write; lift or narrow it only on that measurement.
 - **A candidate whose body is only an `@import` is never routed to a path-scoped rule.** The import
   inlines at session start and defeats the scoping, producing a move that reads as a saving and is
   not one.
@@ -91,6 +93,14 @@ truncated at 1,536 chars per
 <https://code.claude.com/docs/en/skills#frontmatter-reference>, verified 2026-08-31; recheck
 trigger: that page moving the cap re-derives this sentence), so the saving is the body minus that
 entry; folding into an **existing** skill adds nothing.
+
+A procedure that applies only to some file kinds may take a **path-scoped skill**: a `SKILL.md`
+whose `paths:` frontmatter limits automatic loading to matching files, in the same format as
+rules (<https://code.claude.com/docs/en/skills#frontmatter-reference>, read 2026-10-17; recheck
+trigger: that table changing the `paths` row). Derive and validate its glob as under
+[Deriving the glob](#deriving-the-glob). Only procedure goes there: a constraint ("never", "always",
+a convention to hold) stays a rule, because a skill is invoked or matched, not held. A hard-deny
+candidate stays put whatever the destination.
 
 **4. Is its scope narrower than the repo?** Yes → **demote**, destination by scope shape below.
 

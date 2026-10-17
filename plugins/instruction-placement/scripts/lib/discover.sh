@@ -132,6 +132,79 @@ ip_parse_paths() {
 }
 
 # ---------------------------------------------------------------------------
+# Frontmatter readability.
+#
+# Claude Code ignores frontmatter whose YAML does not parse and loads the rule
+# as if it had no `paths:` (https://code.claude.com/docs/en/memory, "Rule
+# frontmatter reference", read 2026-10-17). The rule then loads in every session
+# and says nothing. This is a static screen for the mistakes that cause that, not
+# a YAML parser: it prints `<line><TAB><reason>` for the first one found and
+# nothing for a file with no frontmatter or none of them. Block scalars and flow
+# collections are skipped, since their content is free-form.
+#
+# Flagged: a tab in indentation; a plain value starting with `*` (an alias, the
+# classic unquoted `paths: **/*.ts`), `@` or a backtick; a plain value holding
+# `: `, which YAML reads as a nested mapping.
+# ---------------------------------------------------------------------------
+ip_frontmatter_problem() {
+  local file="${1:-}"
+  [[ -f "$file" ]] || return 0
+  awk '
+    function bad(reason) { printf "%d\t%s\n", NR, reason; exit }
+    # Net flow-collection nesting of one line: openers minus closers.
+    function nest(s,   t, o, c) {
+      t = s; o = gsub(/[[{]/, "", t)
+      t = s; c = gsub(/[]}]/, "", t)
+      return o - c
+    }
+    NR == 1 && $0 != "---" { exit }
+    NR == 1 { next }
+    $0 == "---" { exit }
+    /^[[:space:]]*$/ || /^[[:space:]]*#/ { next }
+    {
+      if (open != "") {
+        # Inside a quoted or flow value that began on an earlier line.
+        if (open == "F") { depth += nest($0); if (depth <= 0) open = "" }
+        else if (index($0, open) > 0) open = ""
+        next
+      }
+      match($0, /^[[:space:]]*/); ind = RLENGTH
+      if (block >= 0) {
+        if (ind > block) next
+        block = -1
+      }
+      if (substr($0, 1, ind) ~ /\t/) bad("tab in indentation")
+      v = ""
+      if (match($0, /^[[:space:]]*-[[:space:]]+/)) {
+        v = substr($0, RLENGTH + 1)
+        # `- key: value` opens a mapping item; judge only its value.
+        if (match(v, /^[A-Za-z0-9_.-]+:([[:space:]]+|$)/)) v = substr(v, RLENGTH + 1)
+      } else if (match($0, /^[[:space:]]*[A-Za-z0-9_.-]+:([[:space:]]+|$)/)) v = substr($0, RLENGTH + 1)
+      else next
+      sub(/[[:space:]]+#.*$/, "", v); sub(/[[:space:]]+$/, "", v)
+      if (v == "") next
+      # An anchor or tag may precede the value: `&a |`, `!!str text`.
+      while (match(v, /^[&!][^[:space:]]*[[:space:]]+/)) v = substr(v, RLENGTH + 1)
+      c = substr(v, 1, 1)
+      if (c == "|" || c == ">") { block = ind; next }
+      if (c == "\"" || c == "'"'"'") {
+        if (index(substr(v, 2), c) == 0) open = c
+        next
+      }
+      if (c == "[" || c == "{") {
+        depth = nest(v)
+        if (depth > 0) open = "F"
+        next
+      }
+      if (c == "*") bad("plain value starts with * (a YAML alias); quote the glob")
+      if (c == "@" || c == "`") bad("plain value starts with a reserved indicator " c "; quote it")
+      if (v ~ /: / || v ~ /:$/) bad("plain value contains a colon followed by a space; quote it")
+    }
+    BEGIN { block = -1; open = ""; depth = 0 }
+  ' "$file" 2>/dev/null
+}
+
+# ---------------------------------------------------------------------------
 # Rules discovery
 #
 # Two deliberate asymmetries against the nested-instruction discovery below:

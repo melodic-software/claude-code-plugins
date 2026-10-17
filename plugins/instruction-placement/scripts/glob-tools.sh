@@ -39,16 +39,19 @@ Usage:
   glob-tools.sh --help
 
 validate  check globs given on the command line
-rules     check every `paths:` glob under <root>/.claude/rules (recursive)
+rules     check every `paths:` glob under <root>/.claude/rules (recursive), and that
+          each rule's YAML frontmatter is readable: Claude Code ignores frontmatter
+          that does not parse and loads the rule unscoped
 
 Output (TSV, sorted, deterministic):
   PATTERN <tab> source <tab> pattern <tab> expanded <tab> matches <tab> status
+  FRONTMATTER <tab> source <tab> line <tab> reason <tab> unparsable   (rules only)
   SUMMARY <tab> tracked <tab> patterns <tab> invalid <tab> overbroad <tab> verdict
 
 status   ok | zero-match | bad-bracket | over-budget | over-broad
 verdict  PASS | FAIL
 
-Exit: 0 valid (over-broad warns); 1 at least one invalid; 2 usage error.
+Exit: 0 valid (over-broad warns); 1 at least one invalid or unparsable; 2 usage error.
 EOF
 }
 
@@ -346,6 +349,7 @@ TRACKED_TOTAL=$(wc -l <"$TRACKED_FILE" | tr -d ' ')
 # BUDGET_KEY is deliberately NOT the displayed source: the budget belongs to a
 # rule's whole `paths:` list, so each standalone `--glob` is its own unit of one.
 declare -a SOURCES=() BUDGET_KEYS=() PATTERNS=()
+FM_BAD=0
 if [[ "$SUBCOMMAND" == "validate" ]]; then
   cli_i=0
   for g in "${CLI_GLOBS[@]}"; do
@@ -363,10 +367,17 @@ else
       BUDGET_KEYS+=("$rule")
       PATTERNS+=("$pat")
     done < <(ip_parse_paths "$rule")
+    fm_problem="$(ip_frontmatter_problem "$rule")"
+    if [[ -n "$fm_problem" ]]; then
+      FM_BAD=$((FM_BAD + 1))
+      fm_line="${fm_problem%%$'\t'*}"
+      fm_reason="${fm_problem#*$'\t'}"
+      printf 'FRONTMATTER\t%s\t%s\t%s\tunparsable\n' "$rule" "$fm_line" "$fm_reason" >>"$ROWS_FILE"
+    fi
   done < <(ip_discover_rules .)
 fi
 
-INVALID=0
+INVALID=$FM_BAD
 OVERBROAD=0
 
 # A running counter, not `declare -A` (bash 4+; macOS ships 3.2): a rule's
