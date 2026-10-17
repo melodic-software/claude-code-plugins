@@ -121,7 +121,7 @@ this catalog's verdicts are read:
 Stated once here and inherited by every rule; the design follows the Wikipedia Manual of Style's
 principle of minimal change for quoted material (quotations are not the repo's own prose to
 restyle) and the detector implements it mechanically. No rule scans fenced code, inline code
-spans, or ignore-marked lines, whatever its class. Each rule carries a class:
+spans, generated regions, or ignore-marked lines, whatever its class. Each rule carries a class:
 
 - **wording**: the rule judges prose the repo AUTHORS. It never scans quoted material:
   blockquote lines and double-quoted spans are removed from its input.

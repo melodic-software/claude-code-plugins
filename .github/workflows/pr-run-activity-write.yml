@@ -568,6 +568,19 @@ jobs:
           resolved-path: ${{ runner.temp }}/resolved-config.json
           issue-number: ${{ inputs.issue-number }}
 
+      # The run-test-file verify-script runs test_*.py under pytest, which the
+      # runner image lacks. When the stage granted its wrapper, install the
+      # base's hash-pinned CI requirements, before the head checkout replaces
+      # .base.
+      - name: Set up Python for the test-file runner
+        if: contains(steps.stage.outputs.claude-args, '/lane-verify/bin/run-test-file ')
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .base/.python-version
+      - name: Install the pinned pytest for the test-file runner
+        if: contains(steps.stage.outputs.claude-args, '/lane-verify/bin/run-test-file ')
+        run: python -m pip install --only-binary ':all:' --require-hashes --requirement .base/.github/requirements-ci.txt
+
       # Issue mode: the skill reads the issue from its scratch directory, so it
       # needs no shell or API access. Title, body and labels only: comments
       # are left out. The text is untrusted data the skill evaluates.
