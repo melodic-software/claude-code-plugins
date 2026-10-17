@@ -258,8 +258,9 @@ cap. They come from steps after the skill. The report job passes them to `report
 checks each against a fixed shape and posts them as one annotation on the check run; a
 `class=rate-limit` annotation is the limit stop the pr-unblock dispatchers read. In issue mode the
 same `class` and `resets` go into `lane.json` beside the kept branch, for report-outcome's
-`limited` exit. A forged limit stop can only restart the lane, at least an hour later and a
-bounded number of times.
+`limited` exit. Any code the activity runs, not only the model, can forge this record, for
+example by planting the execution file. A forged limit stop can only restart the lane, at least an
+hour later and a bounded number of times.
 
 ### Skill activities
 

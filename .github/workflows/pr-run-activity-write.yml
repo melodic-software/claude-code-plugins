@@ -1581,9 +1581,10 @@ jobs:
         env:
           SCRATCH_OUTCOME: ${{ runner.temp }}/lane-scratch/work-outcome.json
           OUT_DIR: ${{ runner.temp }}/work-outcome
-          # lane.json holds only runner step outputs: the kept branch and the
-          # lane record. Anything else in the directory could have been
-          # planted during the run.
+          # lane.json is built from step outputs, never from a file in the
+          # directory, which could have been planted during the run. Code the
+          # activity ran can still reach this step (BASH_ENV, PATH), so
+          # report-outcome re-checks every field.
           LANE_BRANCH: ${{ steps.issue-branch.outcome == 'success' && steps.issue-branch.outputs.branch || '' }}
           LANE_CLASS: ${{ steps.lane-record.outputs.failure-class }}
           LANE_RESETS: ${{ steps.lane-record.outputs.resets-at }}
