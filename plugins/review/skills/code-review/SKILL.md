@@ -107,32 +107,6 @@ caller, or command that produces the wrong result). Exclude:
 - Generic advice, style nits, and "consider adding tests" without a concrete gap
 - Security findings that belong on the security lane (see "Gotchas" above)
 
-## Converge across rounds
-
-A pull request this lane reviews more than once must converge on fewer findings each round, not
-draw a fresh set every push. Before hunting, read what this lane already posted on the PR (its
-review bodies and summary comments, `gh pr view <n> --json reviews,comments`) and count its earlier
-rounds.
-
-- **First round reviews the whole PR; later rounds review only the new diff.** After the first
-  round, hunt only in the changes since the head this lane last reviewed. When the wrapper narrows
-  the scope to those files, keep to it; do not re-read unchanged code for new findings.
-- **No repeats.** Never post a finding this lane already posted, open or resolved, unless the new
-  diff changed the code it names. Refer to the earlier finding instead.
-- **Flag the class, not one instance.** When a finding is one case of a repeatable mistake (the same
-  missing check, the same wrong pattern), name the class once, list every instance in the diff, and
-  say where else it can occur, so one push fixes all of them instead of one per round.
-- **Cap: three rounds.** From the fourth round on, post no new findings. Post one summary saying the
-  cap is reached, list the findings still open by class, ask the author to step back and reconsider
-  the approach, and leave the next step to a person. A security
-  finding is not held by the cap: it belongs to the security lane, or, where none runs, is still
-  reported and escalated.
-
-Pointer: the convergence practice these rules follow is read at
-[Solving code review at Anthropic: how we make the reviewer better](https://claude.dev/blog/solving-code-review-at-anthropic/#how-we-make-the-reviewer-better),
-its "Review has to converge" paragraph. As of: 2026-10-17. Recheck trigger: that paragraph changes
-its round cap or its re-review scope.
-
 ## Adversarial validation
 
 When you fan out subagents for candidate findings, dispatch each hunter and
