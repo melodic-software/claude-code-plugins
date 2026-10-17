@@ -615,7 +615,9 @@ refusals are review reasons here, so the AI review owns the pull request: a comm
 `verification.verified` is not `true` (`commit-unverified:<sha>`), whose git committer email is
 not `noreply@github.com` (`commit-not-committed-by-github:<sha>`), or that is neither signed
 `dependabot[bot]` nor the `[dependabot skip]` version-bump commit (`commit-not-dependabot:<sha>`,
-`commit-not-version-bump:<sha>`); no commits (`commits-missing`); a commit whose files cannot be
+`commit-not-version-bump:<sha>`); no commits (`commits-missing`); a commits listing short of the
+pull request's commit count, which the dispatcher reads as GraphQL `commits.totalCount`
+(`commits-listed:<listed>-of:<total>`); a commit whose files cannot be
 read whole; a fix commit touching `.github/`. The lanes App admission is left out, so a pull
 request carrying a lanes App fix stays `review`. The `updated-dependencies` metadata is read only
 from commits signed `dependabot[bot]`, and a pull request sorts `auto` only when every commit
@@ -624,7 +626,7 @@ reads, is `dependabot-config-unreadable`, with a warning naming which. A securit
 `security` label or an advisory, GHSA or CVE id in the body; it is a flag on either tier.
 
 1. After `resolve-config` and before the mint, the model job runs `review-dependency.mjs select`
-   with the job's `GITHUB_TOKEN`. A pull request whose author is not `dependabot[bot]` (by id,
+   with the job's `GITHUB_TOKEN`, first recording the UTC time as its `started-at` output. A pull request whose author is not `dependabot[bot]` (by id,
    from the base's trusted-actors list) or that sorts `auto` skips `not-applicable`; one whose
    head is no longer the gated head skips `superseded-sha`.
    `loop.dependency-review-rounds` earlier rounds escalate `dependency-round-cap` and skip
@@ -646,7 +648,8 @@ reads, is `dependabot-config-unreadable`, with a warning naming which. A securit
    discarded with the lane branch.
 4. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
    `github-script` step writes `run.json` (`version`, `pr`, the gated `head_sha`, the select
-   step's `security`, `config_unreadable` and `files_truncated` flags, and the skill's structured output as `output`, `null` when absent or
+   step's `security`, `config_unreadable` and `files_truncated` flags, its `started-at` as
+   `started_at`, and the skill's structured output as `output`, `null` when absent or
    unparsable) and the job uploads it as `dependency-verdict-<run attempt>`. Its
    `dependency-round` output is then `true`, with `dependency-run-sha256` and
    `dependency-run-attempt`.
@@ -665,8 +668,9 @@ reads, is `dependabot-config-unreadable`, with a warning naming which. A securit
      else `dependency-invalid`. Every commit must be one GitHub signed for the lanes App during
      this workflow run, as `check-trusted-trigger` checks a commit after a model job: author id
      the App's, committer `web-flow`, `verification.verified` `true` with reason `valid`, and a
-     committer date no earlier than the run's `created_at` (read from the Actions runs API; an
-     unreadable run is `dependency-invalid`), else `superseded-sha`. Those commits may change
+     committer date no earlier than `run.json`'s `started_at` (taken before any model turn, so
+     the verdict job reads no Actions API and needs no `actions` permission), else
+     `superseded-sha`. Those commits may change
      nothing under `.github/`, either side of a rename, else `dependency-invalid`;
    - `merge`: posts the round marker, whose first line
      `<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<run id>-<attempt> -->`

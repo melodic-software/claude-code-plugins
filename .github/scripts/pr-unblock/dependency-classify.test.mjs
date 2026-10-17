@@ -273,20 +273,21 @@ test("the content step's refusals and gaps are review reasons", () => {
   assert.equal(contentStep({ ...base, commits: [FIX], commitFiles: () => [".github/workflows/x.yml"] }), "dependabot-fix-content:.github/workflows/x.yml");
   assert.equal(contentStep({ ...base, config: null }), "dependabot-config-unreadable");
   assert.equal(contentStep({ ...base, changedFiles: 2 }), "dependabot-content:files-incomplete");
-  const result = classify({ author: "dependabot[bot]", headRef: NPM, title: "bump x from 1.0.0 to 1.0.1", ...base, commits: [commit("")], files: [changed("dist/x.js")] });
+  const result = classify({ author: "dependabot[bot]", headRef: NPM, title: "bump x from 1.0.0 to 1.0.1", ...base, commits: [commit("")], totalCommits: 1, files: [changed("dist/x.js")] });
   assert.deepEqual([result.tier, result.reasons], ["review", ["dependabot-content:dist/x.js"]]);
 });
 
 // The commit step, as the pr-merge lane's commits_refusal (its cases are
 // test_babysit_dependabot.py's class Commits), as review reasons here.
 const H = "1".repeat(40);
-const full = (commits, files, commitFiles = () => null) =>
+const full = (commits, files, commitFiles = () => null, totalCommits = commits.length) =>
   classify({
     author: "dependabot[bot]",
     headRef: "dependabot/npm_and_yarn/plugins/miro/server/x-1.0.1",
     title: "bump x from 1.0.0 to 1.0.1",
     ciStatus: "success",
     commits,
+    totalCommits,
     files,
     config: CONFIG_PAIRS,
     changedFiles: files.length,
@@ -296,6 +297,20 @@ const LOCK = changed("plugins/miro/server/package-lock.json");
 
 test("a verified Dependabot commit with covered files is auto", () => {
   assert.deepEqual(full([commit("")], [LOCK]).tier, "auto");
+});
+
+// test_babysit_merge_policy.py's commits-listed case, as a review reason.
+test("a commits listing that is not the pull request's whole total is review", () => {
+  const listed = (total) => full([commit("")], [LOCK], () => null, total);
+  assert.equal(listed(1).tier, "auto");
+  for (const [total, reason] of [
+    [2, "commits-listed:1-of:2"],
+    [251, "commits-listed:1-of:251"],
+    [null, "commits-listed:1-of:null"],
+    ["1", "commits-listed:1-of:1"],
+  ]) {
+    assert.deepEqual([listed(total).tier, listed(total).reasons], ["review", [reason]], String(total));
+  }
 });
 
 test("a commit another author added is review, even when its own paths are all it adds", () => {

@@ -17,6 +17,8 @@ const output = (overrides = {}) => ({
   evidence: [".node-version:1"],
   ...overrides,
 });
+// When the model job's select step ran, before any model turn.
+const RUN_STARTED = "2026-10-17T10:00:00Z";
 const runOf = (overrides = {}) => ({
   version: 1,
   pr: 7,
@@ -24,12 +26,12 @@ const runOf = (overrides = {}) => ({
   security: false,
   config_unreadable: false,
   files_truncated: false,
+  started_at: RUN_STARTED,
   output: output(),
   ...overrides,
 });
 
-const RUN_CREATED = "2026-10-17T10:00:00Z";
-// A commit GitHub signed for the lanes App after the model run was created.
+// A commit GitHub signed for the lanes App after the model job started.
 const laneCommit = (overrides = {}) => ({
   sha: FIX,
   author: { id: APP },
@@ -39,7 +41,7 @@ const laneCommit = (overrides = {}) => ({
 });
 const landed = (overrides = {}) => ({ status: "ahead", total_commits: 1, commits: [laneCommit()], files: [{ filename: "package.json" }], ...overrides });
 
-function fakeApi({ head = HEAD, state = "open", labels = [], body = "", compare = { status: "ahead", total_commits: 0, commits: [], files: [] }, comments = [], issues = [], failClose = false, run = { created_at: RUN_CREATED } } = {}) {
+function fakeApi({ head = HEAD, state = "open", labels = [], body = "", compare = { status: "ahead", total_commits: 0, commits: [], files: [] }, comments = [], issues = [], failClose = false } = {}) {
   // State persists across calls, so a second apply() is a re-run.
   const calls = { comments: [], closed: [], issues: [] };
   const pull = { number: 7, state, head: { sha: head }, labels: labels.map((name) => ({ name })), body, title: "bump x from 1.0.0 to 2.0.0" };
@@ -50,10 +52,9 @@ function fakeApi({ head = HEAD, state = "open", labels = [], body = "", compare 
     getPull: async () => ({ ...pull }),
     listIssueComments: async () => comments,
     compare: async () => compare,
-    getRun: async (id) => {
-      if (run instanceof Error) throw run;
-      calls.runs = [...(calls.runs ?? []), id];
-      return run;
+    // The lane token holds no actions permission.
+    getRun: async () => {
+      throw new Error("403 Resource not accessible by integration");
     },
     createIssueComment: async (pr, text) => {
       calls.comments.push(text);
@@ -75,7 +76,7 @@ function fakeApi({ head = HEAD, state = "open", labels = [], body = "", compare 
   return api;
 }
 
-const go = (api, run, extra = {}) => apply({ api, pr: 7, appId: APP, runId: 11, modelRun: "11-1", run, log: () => {}, ...extra });
+const go = (api, run, extra = {}) => apply({ api, pr: 7, appId: APP, modelRun: "11-1", run, log: () => {}, ...extra });
 
 test("validateRun accepts the runner's record and refuses anything off the template", () => {
   assert.deepEqual(validateRun(runOf(), 7).output.verdict, "merge");
@@ -93,6 +94,11 @@ test("validateRun accepts the runner's record and refuses anything off the templ
     runOf({ output: output({ reasons: ["bell \u0007"] }) }),
     runOf({ output: output({ evidence: Array(21).fill("a:1") }) }),
     runOf({ output: { ...output(), extra: 1 } }),
+    runOf({ started_at: undefined }),
+    runOf({ started_at: 1760695200 }),
+    runOf({ started_at: "not a date" }),
+    runOf({ started_at: "2026-10-17" }),
+    runOf({ started_at: "2026-13-45T99:99:99Z" }),
   ];
   for (const run of bad) {
     assert.throws(() => validateRun(run, 7), /invalid/i, JSON.stringify(run).slice(0, 120));
@@ -118,13 +124,12 @@ test("a head that moved since the review is superseded for merge, close and esca
   }
 });
 
-const fix = () => runOf({ output: output({ verdict: "fix" }) });
+const fix = (overrides = {}) => runOf({ output: output({ verdict: "fix" }), ...overrides });
 
 test("fix needs the lanes App's commits on top of the reviewed head", async () => {
   const ok = fakeApi({ head: FIX, compare: landed() });
   assert.deepEqual(await go(ok, fix()), { escalationReason: "", skipReason: "" });
   assert.match(ok.calls.comments[0], /verdict=fix/);
-  assert.deepEqual(ok.calls.runs, [11], "the commit date is bounded by this workflow run's creation");
   const notLanded = fakeApi();
   assert.equal((await go(notLanded, fix())).escalationReason, "dependency-fix-not-landed");
   const rebased = fakeApi({ head: FIX, compare: landed({ status: "diverged", commits: [laneCommit({ author: { id: 49699333 } })] }) });
@@ -173,11 +178,12 @@ test("a .github/ path in the 300th file of a capped listing is still invalid", a
   assert.equal((await go(fakeApi({ head: FIX, compare: landed({ files }) }), fix())).escalationReason, "dependency-invalid");
 });
 
-test("a fix escalates dependency-invalid when the model run cannot be read", async () => {
-  for (const run of [new Error("403"), {}, { created_at: "not a date" }]) {
-    const api = fakeApi({ head: FIX, compare: landed(), run });
-    assert.equal((await go(api, fix())).escalationReason, "dependency-invalid", String(run));
-  }
+test("a fix commit's date is bounded by the run.json start time, with no Actions API read", async () => {
+  const at = (date) => laneCommit({ commit: { committer: { date }, verification: { verified: true, reason: "valid" } } });
+  const onTheSecond = fakeApi({ head: FIX, compare: landed({ commits: [at(RUN_STARTED)] }) });
+  assert.deepEqual(await go(onTheSecond, fix()), { escalationReason: "", skipReason: "" });
+  const later = fakeApi({ head: FIX, compare: landed({ commits: [at("2026-10-17T10:05:00Z")] }) });
+  assert.deepEqual(await go(later, fix({ started_at: "2026-10-17T10:05:01Z" })), { escalationReason: "", skipReason: "superseded-sha" });
 });
 
 test("a merge verdict from a model that read a truncated files listing escalates and posts no merge marker", async () => {

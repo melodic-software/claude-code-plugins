@@ -465,6 +465,8 @@ jobs:
           DEPENDABOT_CONFIG: .base/.github/dependabot.yml
           RESOLVED: ${{ runner.temp }}/resolved-config.json
         run: |
+          # Before any model turn: no lanes App fix commit of this job is older.
+          echo "started-at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$GITHUB_OUTPUT"
           mkdir -p "$DEPENDENCY_DIR"
           DEPENDENCY_REVIEW_ROUNDS=$(jq -r '.loop["dependency-review-rounds"] // empty' "$RESOLVED")
           export DEPENDENCY_REVIEW_ROUNDS
@@ -1442,7 +1444,8 @@ jobs:
       # dependency-review, after any model turn, also after a failed,
       # cancelled or timed-out skill: this job posts nothing to the PR.
       # run.json is the runner's own record: the gated head, the select
-      # step's security, config-unreadable and files-truncated flags, and the skill's structured output (the verdict
+      # step's security, config-unreadable and files-truncated flags and
+      # start time, and the skill's structured output (the verdict
       # JSON, model output, null when absent or unparsable), which the
       # verdict job validates and acts on.
       - name: Collect the dependency verdict
@@ -1457,13 +1460,14 @@ jobs:
           SECURITY: ${{ steps.dependency-select.outputs.security }}
           CONFIG_UNREADABLE: ${{ steps.dependency-select.outputs.config-unreadable }}
           FILES_TRUNCATED: ${{ steps.dependency-select.outputs.files-truncated }}
+          STARTED_AT: ${{ steps.dependency-select.outputs.started-at }}
           STRUCTURED_OUTPUT: ${{ steps.act-skill.outputs.structured_output }}
           OUT_DIR: ${{ runner.temp }}/lane-dependency-out
         with:
           retries: 0
           script: |
             const fs = require('fs');
-            const { HEAD_SHA, PR_NUMBER, SECURITY, CONFIG_UNREADABLE, FILES_TRUNCATED, STRUCTURED_OUTPUT, OUT_DIR } = process.env;
+            const { HEAD_SHA, PR_NUMBER, SECURITY, CONFIG_UNREADABLE, FILES_TRUNCATED, STARTED_AT, STRUCTURED_OUTPUT, OUT_DIR } = process.env;
             fs.rmSync(OUT_DIR, { recursive: true, force: true });
             fs.mkdirSync(OUT_DIR);
             let output = null;
@@ -1479,6 +1483,7 @@ jobs:
               security: SECURITY === 'true',
               config_unreadable: CONFIG_UNREADABLE === 'true',
               files_truncated: FILES_TRUNCATED === 'true',
+              started_at: STARTED_AT,
               output,
             };
             const text = `${JSON.stringify(run)}\n`;

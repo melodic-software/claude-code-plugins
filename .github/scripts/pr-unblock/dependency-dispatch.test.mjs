@@ -18,6 +18,7 @@ function pr(number, overrides = {}) {
     body: "",
     labels: { nodes: [{ name: "dependencies" }] },
     changedFiles: 0,
+    commits: { totalCount: 1 },
     ...overrides,
   };
 }
@@ -129,6 +130,18 @@ test("a patch bump whose files the content rule does not cover is review", async
   ]);
   const { dispatched } = await run(fakeApi({ nodes, files }), { config });
   assert.deepEqual(dispatched.map((d) => d.number), [41]);
+});
+
+test("a patch bump whose commits listing is short of its total is review", async () => {
+  const config = [["npm", "/"]];
+  const bump = { title: "bump x from 1.0.0 to 1.0.1", changedFiles: 1 };
+  const nodes = [pr(50, bump), pr(51, { ...bump, commits: { totalCount: 251 } })];
+  const files = new Map([
+    [50, [{ filename: "package-lock.json" }]],
+    [51, [{ filename: "package-lock.json" }]],
+  ]);
+  const { dispatched } = await run(fakeApi({ nodes, files }), { config });
+  assert.deepEqual(dispatched.map((d) => d.number), [51]);
 });
 
 test("dispatches at most the cap, lowest number first", async () => {

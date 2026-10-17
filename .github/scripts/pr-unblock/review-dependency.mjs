@@ -107,6 +107,7 @@ export async function classifyPull({ pull, ciStatus, commits, files, config, rea
     labels: (pull.labels ?? []).map((label) => (typeof label === "string" ? label : label.name)),
     ciStatus,
     commits,
+    totalCommits: pull.commits,
     files,
     config,
     changedFiles: pull.changed_files,

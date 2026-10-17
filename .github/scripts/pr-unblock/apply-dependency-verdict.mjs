@@ -36,7 +36,6 @@
 //   GITHUB_REPOSITORY       owner/repo
 //   PR_NUMBER, HEAD_SHA     the gated pull request and its head
 //   GITHUB_RUN_ID, DEPENDENCY_RUN_ATTEMPT  the model run the round marker names
-//                           (and whose creation bounds a fix commit's date)
 //   APP_SENDER_ID           the lanes App bot's user id
 //   DEPENDENCY_VERDICT_DIR  the downloaded artifact holding run.json
 //   DEPENDENCY_RUN_SHA256   run.json's SHA-256, from the model job's runner step
@@ -61,18 +60,21 @@ export const COMPARE_LIMITS = { commits: 250, files: 300 };
 const WEB_FLOW_ID = 19864447;
 
 // A commit GitHub signed for the lanes App during this workflow run: author
-// the App, committer web-flow, signature valid, committed after the run was
-// created (check-trusted-trigger.mjs's upstreamHeadHolds). An author id
-// alone is whatever a pusher claims.
-export const isLaneCommit = (commit, appId, runCreated) =>
+// the App, committer web-flow, signature valid, committed no earlier than
+// run.json's started_at, which the model job's select step recorded before
+// any model turn. An author id alone is whatever a pusher claims.
+export const isLaneCommit = (commit, appId, started) =>
   Number.isInteger(commit?.author?.id) &&
   commit.author.id === appId &&
   commit.committer?.id === WEB_FLOW_ID &&
   commit.commit?.verification?.verified === true &&
   commit.commit.verification.reason === "valid" &&
-  Date.parse(commit.commit.committer?.date ?? "") >= runCreated;
+  Date.parse(commit.commit.committer?.date ?? "") >= started;
 
 class Invalid extends Error {}
+
+// `date -u +%Y-%m-%dT%H:%M:%SZ`, as the model job's select step records it.
+const STARTED_AT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 
 const exactKeys = (value, keys) =>
   value !== null && typeof value === "object" && !Array.isArray(value) && Object.keys(value).sort().join() === [...keys].sort().join();
@@ -94,13 +96,14 @@ export function validateRun(run, pr) {
   const fail = (why) => {
     throw new Invalid(`run.json is invalid: ${why}`);
   };
-  if (!exactKeys(run, ["version", "pr", "head_sha", "security", "config_unreadable", "files_truncated", "output"])) fail("its fields are not the runner's");
+  if (!exactKeys(run, ["version", "pr", "head_sha", "security", "config_unreadable", "files_truncated", "started_at", "output"])) fail("its fields are not the runner's");
   if (run.version !== 1) fail("version is not 1");
   if (run.pr !== pr) fail("it names another pull request");
   if (!SHA.test(String(run.head_sha))) fail("head_sha is not a commit id");
   if (typeof run.security !== "boolean") fail("security is not a boolean");
   if (typeof run.config_unreadable !== "boolean") fail("config_unreadable is not a boolean");
   if (typeof run.files_truncated !== "boolean") fail("files_truncated is not a boolean");
+  if (!STARTED_AT.test(String(run.started_at)) || Number.isNaN(Date.parse(run.started_at))) fail("started_at is not a UTC time");
   const out = run.output;
   if (!exactKeys(out, ["verdict", "reasons", "evidence"])) fail("the verdict's fields are not the template's");
   if (!VERDICTS.includes(out.verdict)) fail("the verdict is not merge, fix, close or escalate");
@@ -156,7 +159,7 @@ function ignoreIssue({ pr, head, title, reasons }) {
   };
 }
 
-export async function apply({ api, pr, appId, runId, modelRun, run, log }) {
+export async function apply({ api, pr, appId, modelRun, run, log }) {
   // One value names the model run in the marker and in the re-run check.
   const runKey = modelRun ?? "none";
   const pull = await api.getPull(pr);
@@ -211,17 +214,8 @@ export async function apply({ api, pr, appId, runId, modelRun, run, log }) {
       await record("invalid", { reasons, evidence });
       return { escalationReason: "dependency-invalid", skipReason: "" };
     }
-    let runCreated = Number.NaN;
-    try {
-      runCreated = Date.parse((await api.getRun(runId)).created_at ?? "");
-    } catch (error) {
-      log(`#${pr}: cannot read model run ${runId} (${String(error?.message ?? error).slice(0, 200)})`);
-    }
-    if (Number.isNaN(runCreated)) {
-      await record("invalid", { reasons, evidence });
-      return { escalationReason: "dependency-invalid", skipReason: "" };
-    }
-    if (!commits.every((commit) => isLaneCommit(commit, appId, runCreated))) {
+    const started = Date.parse(run.started_at);
+    if (!commits.every((commit) => isLaneCommit(commit, appId, started))) {
       log(`#${pr}: the head moved from ${run.head_sha} to ${head} by more than the lane's fix; the next run reviews it`);
       return { escalationReason: "", skipReason: "superseded-sha" };
     }
@@ -324,7 +318,6 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       }),
     pr,
     appId,
-    runId: positive(env.GITHUB_RUN_ID, "GITHUB_RUN_ID"),
     modelRun,
     run,
     log,

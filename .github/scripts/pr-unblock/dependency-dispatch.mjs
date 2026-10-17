@@ -69,6 +69,7 @@ export async function dispatchDependencyReviews({
             body: node.body,
             labels: node.labels?.nodes ?? [],
             changed_files: node.changedFiles,
+            commits: node.commits?.totalCount,
           },
           ciStatus: ciStatusOf(ci),
           commits: await api.listPullCommits(node.number),

@@ -323,7 +323,8 @@ export function isSecurityUpdate({ labels = [], body = "" }) {
 // pr: { author, headRef, title, body, labels, ciStatus, commits }, where
 // ciStatus is the newest ci-status check run's conclusion (pending or empty
 // while none completed) and commits is the REST pull-request commits listing.
-// With `files` (the REST files listing, patches included), `config`
+// With `files` (the REST files listing, patches included), `totalCommits`
+// (the pull request's own commit count), `config`
 // (parseConfig of the base's .github/dependabot.yml), `changedFiles` and
 // `commitFiles`, the commit and content steps apply too. Returns null for a pull
 // request Dependabot did not open.
@@ -368,6 +369,11 @@ export function classify(pr) {
     reasons.push("ci-status-red");
   }
   if (Array.isArray(pr.files)) {
+    // The commits listing stops at 250, so a prefix is never read as all.
+    const listed = (pr.commits ?? []).length;
+    if (!Number.isInteger(pr.totalCommits) || pr.totalCommits !== listed) {
+      reasons.push(`commits-listed:${listed}-of:${pr.totalCommits}`);
+    }
     const refusal = commitsRefusal(pr.commits ?? [], pr.commitFiles ?? (() => null));
     if (refusal) reasons.push(refusal);
     const content = contentStep(pr);

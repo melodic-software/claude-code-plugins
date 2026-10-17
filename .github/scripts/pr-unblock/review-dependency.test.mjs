@@ -19,6 +19,7 @@ const dependabotCommit = (sha, message = "bump") => ({
 });
 
 function fakeApi({ pull = {}, comments = [], ciRuns = [], files = [], modelRuns = {}, commits = null, commitFiles = {} } = {}) {
+  const listed = commits ?? [HEAD, ...Object.keys(modelRuns).filter((sha) => sha !== HEAD)].map((sha) => dependabotCommit(sha));
   return {
     getCommit: async (sha) => ({ sha, files: (commitFiles[sha] ?? []).map((filename) => ({ filename })) }),
     getPull: async () => ({
@@ -29,11 +30,12 @@ function fakeApi({ pull = {}, comments = [], ciRuns = [], files = [], modelRuns 
       body: "Bumps x from 1.4.0 to 2.0.0.",
       labels: [{ name: "dependencies" }],
       changed_files: files.length,
+      commits: listed.length,
       ...pull,
     }),
     listIssueComments: async () => comments,
     listPullFiles: async () => files,
-    listPullCommits: async () => commits ?? [HEAD, ...Object.keys(modelRuns).filter((sha) => sha !== HEAD)].map((sha) => dependabotCommit(sha)),
+    listPullCommits: async () => listed,
     listCheckRuns: async (sha, name) => (name === "ci-status" ? ciRuns : (modelRuns[sha] ?? [])),
   };
 }
@@ -168,6 +170,16 @@ test("select applies the content rule from the base's dependabot.yml", async () 
   const odd = await select({ api: fakeApi({ pull, files: [{ filename: "package-lock.json" }, { filename: "dist/x.js" }] }), ...args });
   assert.equal(odd.decision, "proceed");
   assert.deepEqual(odd.file.classification.reasons, ["dependabot-content:dist/x.js"]);
+});
+
+test("select sorts a patch bump review when the commits listing is short of the pull request's total", async () => {
+  const args = { pr: 7, headSha: HEAD, appId: APP, dependabotId: DEPENDABOT, config: [["npm", "/"]] };
+  const files = [{ filename: "package-lock.json", patch: "" }];
+  const whole = await select({ api: fakeApi({ pull: { title: "bump x from 1.4.0 to 1.4.1" }, files }), ...args });
+  assert.equal(whole.decision, "skip");
+  const capped = await select({ api: fakeApi({ pull: { title: "bump x from 1.4.0 to 1.4.1", commits: 251 }, files }), ...args });
+  assert.equal(capped.decision, "proceed");
+  assert.deepEqual(capped.file.classification.reasons, ["commits-listed:1-of:251"]);
 });
 
 test("select reads the metadata in Dependabot's commits, and not in another author's", async () => {
