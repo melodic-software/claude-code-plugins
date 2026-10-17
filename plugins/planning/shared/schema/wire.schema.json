@@ -14,7 +14,7 @@
         "visible": {"type": "boolean"},
         "lastInput": {"type": "number", "minimum": 0},
         "away": {"type": "boolean"},
-        "tab": {"type": "string", "minLength": 1, "maxLength": 32}
+        "tab": {"type": "string", "minLength": 1, "maxLength": 32, "pattern": "^[A-Za-z0-9_-]{1,32}$"}
       }
     },
     "presence": {

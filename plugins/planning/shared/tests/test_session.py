@@ -2772,12 +2772,24 @@ class TestPresenceStates(SessionCase):
         self.assertEqual(self.state_of(self.ann)["state"], "away")
 
     def test_the_tab_id_is_a_short_string(self):
-        for body in ({"tab": "x" * 33}, {"tab": 7}, {"tab": ""}):
+        for body in ({"tab": "x" * 33}, {"tab": 7}, {"tab": ""}, {"tab": "\u0000‮<img src=x>"}, {"tab": "../../etc"}, {"tab": " "}):
             with self.subTest(body=body):
                 with self.assertRaises(session.DomainError) as ctx:
                     self.s.heartbeat(self.bo, body)
                 self.assertEqual((ctx.exception.code, ctx.exception.details["field"]), ("bad-field", "tab"))
         self.beat(self.bo, tab="x" * 32)
+
+    def test_new_tab_ids_cannot_raise_one_persons_beat_rate_past_eight_a_second(self):
+        accepted = 0
+        for i in range(20):
+            try:
+                self.s.heartbeat(self.bo, {"tab": f"t{i}"})
+                accepted += 1
+            except session.DomainError as exc:
+                self.assertEqual(exc.http, 429)
+        self.assertEqual(accepted, session.MAX_TABS)
+        self.clock.tick(session.HEARTBEAT_INTERVAL)
+        self.s.heartbeat(self.bo, {"tab": "t99"})
 
     def test_presence_entries_match_the_wire_shape(self):
         self.beat(self.ann, q="Q1", typing=True)

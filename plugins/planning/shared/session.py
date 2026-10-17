@@ -79,6 +79,7 @@ TYPING_TTL = 5.0
 WRITE_INTERVAL = 1.0
 HEARTBEAT_INTERVAL = 1.0  # judgment: the page beats every 2 s per tab, plus one on a visibility change
 MAX_TABS = 8  # judgment: tabs and devices tracked per person; a ninth forgets the least recent
+TAB_ID = re.compile(r"[A-Za-z0-9_-]{1,32}")  # the page sends 24 hex characters
 JOIN_WINDOW = 60.0
 JOINS_PER_WINDOW = 30
 JOIN_KEY_WINDOW = 600.0
@@ -911,9 +912,9 @@ class Session:
             raise _bad(m.group(1) if m else "body", err)
         if not math.isfinite(body.get("lastInput", 0)):  # json.loads takes Infinity and NaN
             raise _bad("lastInput", "lastInput must be a finite number of seconds.")
-        if body.get("tab") == "":
-            raise _bad("tab", "tab must name the tab: 1 to 32 characters.")
         tab = body.get("tab", "")
+        if "tab" in body and not TAB_ID.fullmatch(tab):
+            raise _bad("tab", "tab must name the tab: 1 to 32 letters, digits, - or _.")
         visible = body.get("visible", True)
         away = body.get("away") is True
         with self._lock:
@@ -924,6 +925,9 @@ class Session:
             changed = old is not None and (old["visible"] != visible or (old.get("awayAt") is not None) != away)
             route = f"heartbeat-change:{tab}" if changed else f"heartbeat:{tab}"
             self._throttle(pid, route, now, HEARTBEAT_INTERVAL)
+            recent = rec.setdefault("recent", collections.deque(maxlen=MAX_TABS))
+            if len(recent) == MAX_TABS and now - recent[0] < HEARTBEAT_INTERVAL:
+                raise DomainError(429, "slow-down", "Wait a moment before sending again.")
             old = old or {}
             beat = {
                 "q": (body.get("q") or "")[:16],
@@ -946,6 +950,7 @@ class Session:
             tabs[tab] = beat
             self._presence_rev += 1
             self._wrote(pid, route, now)
+            recent.append(now)
             if changed:
                 self._wrote(pid, f"heartbeat:{tab}", now)
             return {"pid": pid, "name": person["name"], "role": person["role"], "trusted": person["trusted"]}
