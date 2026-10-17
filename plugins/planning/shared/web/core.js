@@ -295,7 +295,11 @@
     "too-long:attachments": "An answer carries four files at most.",
     "file-type:file": "That file's contents are not what its name says.",
   };
-  const errorText = e => FIELD_MESSAGES[`${e?.error}:${e?.field}`] || MESSAGES[e?.error] || e?.message
+  // Codes whose sentence above only says the page sent something wrong: a 4xx carrying the server's own message shows
+  // that instead, since it says what was refused (bad-field: "The owner's own role, trust and presence cannot change.").
+  const GENERIC = new Set(["bad-json", "bytes-required", "bad-field", "bad-request", "json-required"]);
+  const errorText = e => FIELD_MESSAGES[`${e?.error}:${e?.field}`]
+    || (GENERIC.has(e?.error) && e?.status < 500 && e?.message) || MESSAGES[e?.error] || e?.message
     || (e?.status ? "The session refused that." : "The session is out of reach. Check your connection.");
 
   const Core = {
@@ -597,12 +601,31 @@
     return spaced(path, async () => {
       if (!ownerToken && !secret) await join();
       const go = () => fetch(path, { method: "POST", headers: { "Content-Type": "application/json", ...ident() }, body: JSON.stringify(body) });
-      let r = await go();
-      if (r.status === 401 && !ownerToken) { forget(); await join(); r = await go(); }
+      let r;
+      try {
+        r = await go();
+        if (r.status === 401 && !ownerToken) { forget(); await join(); r = await go(); }
+      } catch (e) {
+        if (e instanceof TypeError) reportError("api", e.message, { route: path, code: "network" });
+        throw e;
+      }
+      if (!r.ok) r.clone().json().catch(() => ({})).then(j => reportError("api", `HTTP ${r.status}: ${j.message || r.statusText}`, { route: path, code: String(j.error || r.status) }));
       return r;
     });
   }
   function forget() { secret = ""; drop("secret"); drop("pid"); Core.me.cid = ""; }
+
+  // ---------- error reports: what went wrong in this page reaches server.log as a client entry (README "Logs") ----------
+  // Script errors, unhandled rejections, and every action the server refused or never answered (send above). Only once
+  // joined: the server refuses an anonymous report. Never answer or chat text, the address's fragment, or a credential.
+  const cut = (text, n) => Array.from(String(text)).slice(0, n).join(""); // by code point, as the server counts
+  function reportError(kind, message, extra = {}) {
+    if (!ownerToken && !secret) return;
+    const body = { kind, message: cut(message || kind, 500), route: cut(location.pathname, 200), ua: `${browserKind()} ${deviceKind()}`, ...extra };
+    fetch("/api/client-log", { method: "POST", headers: { "Content-Type": "application/json", ...ident() }, body: JSON.stringify(body), keepalive: true }).catch(() => {});
+  }
+  addEventListener("error", e => reportError("error", e.message, e.filename ? { source: cut(`${new URL(e.filename, location.href).pathname}:${e.lineno}`, 200) } : {}));
+  addEventListener("unhandledrejection", e => reportError("rejection", e.reason?.message || e.reason?.error || String(e.reason)));
 
   // ---------- optimistic actions: shown at once, reconciled with the server in the background ----------
   // An action given a patch shows before its request goes out: patch(snapshot, myPid) edits a copy of the server's

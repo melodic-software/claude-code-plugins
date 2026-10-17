@@ -951,6 +951,143 @@ class TestFailureLog(ServerCase):
         self.assertIn("boom\\x1b[31m\\x0a2026-01-01", log)
 
 
+class LogCase(ServerCase):
+    def log_text(self):
+        for h in self.app.log.handlers:
+            h.flush()
+        return "\n".join(p.read_text(encoding="utf-8") for p in sorted(self.d.glob("server.log*")))
+
+    def entry_for(self, marker):
+        """The last log line holding `marker`."""
+        lines = [line for line in self.log_text().splitlines() if marker in line]
+        self.assertTrue(lines, f"no log line holds {marker!r}")
+        return lines[-1]
+
+    def owner_pid(self):
+        return self.get("/api/state", self.owner)[2]["me"]["pid"]
+
+
+class TestRequestLog(LogCase):
+    """README "Logs": every 4xx and 5xx is one entry with its error code, field and message, the route, status,
+    time and acting pid; a 5xx adds the traceback; never a body."""
+
+    def test_a_refusal_logs_code_field_message_route_status_and_pid_but_no_body(self):
+        guest_pid, _ = self.join("Ann")
+        code, _, out = self.post("/api/person/role", {"pid": guest_pid, "role": "body-only-zebra"}, self.owner)
+        self.assertEqual((code, out["error"], out["field"]), (400, "bad-field", "role"))
+        line = self.entry_for("route=/api/person/role")
+        self.assertRegex(line, r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d{3} WARNING request method=POST route=/api/person/role status=400 ms=\d+\.\d ")
+        for part in (f"pid={self.owner_pid()}", "code=bad-field", "field=role", 'message="role must be one of leader, guest."'):
+            self.assertIn(part, line)
+        self.assertNotIn("body-only-zebra", self.log_text())
+
+    def test_a_server_error_on_a_post_logs_its_traceback_with_the_request(self):
+        pid, guest = self.join("Ann")
+        with mock.patch.object(session.Session, "rename", side_effect=RuntimeError("forced-post-failure")):
+            code, _, out = self.post("/api/rename", {"name": "Bo"}, guest)
+        self.assertEqual((code, out["error"]), (500, "state-invalid"))
+        line = self.entry_for("route=/api/rename")
+        self.assertIn(" ERROR request method=POST route=/api/rename status=500 ", line)
+        for part in (f"pid={pid}", "code=state-invalid", "Traceback (most recent call last)", "RuntimeError: forced-post-failure"):
+            self.assertIn(part, line)
+
+    def test_a_server_error_on_a_get_is_answered_500_and_logs_its_traceback(self):
+        pid, guest = self.join("Ann")
+        with mock.patch.object(session.Session, "my_requests", side_effect=RuntimeError("forced-get-failure")):
+            code, _, out = self.get("/api/mine/requests", guest)
+        self.assertEqual((code, out["error"]), (500, "state-invalid"))
+        line = self.entry_for("route=/api/mine/requests")
+        self.assertIn(" ERROR request method=GET route=/api/mine/requests status=500 ", line)
+        self.assertIn(f"pid={pid}", line)
+        self.assertIn("RuntimeError: forced-get-failure", line)
+
+    def test_a_scripted_session_leaves_no_secret_or_user_text_in_the_log(self):
+        self.open_round("Q1")
+        code, _, rotated_key = self.post("/api/link/guest", {}, self.owner)
+        self.assertEqual(code, 200, rotated_key)
+        key = rotated_key["guestKey"]
+        code, _, out = self.post("/api/join", {"name": "Ann", "device": "computer", "key": key})
+        self.assertEqual(code, 200, out)
+        guest = {"X-Session-Secret": out["secret"]}
+        answer, chat = "answer-text-fixture-quokka", "chat-text-fixture-narwhal"
+        self.assertEqual(self.post("/api/answer", {"qid": "Q1", "text": answer, "device": "computer", "view": "focus"}, guest)[0], 200)
+        self.assertEqual(self.post("/api/chat", {"text": chat}, guest)[0], 200)
+        self.assertEqual(self.post("/api/rename", {"name": "x" * 200 + answer}, guest)[0], 400)
+        self.assertEqual(self.post("/api/client-log", {"kind": "error", "message": "TypeError: x is undefined"}, guest)[0], 200)
+        old_owner = self.app.secrets["owner"]
+        code, _, rotated = self.post("/api/link/owner", {}, self.owner)
+        self.assertEqual(code, 200, rotated)
+        link = (self.d / server.OWNER_LINK).read_text(encoding="utf-8").strip()
+        log = self.log_text()
+        self.assertIn("TypeError: x is undefined", log)  # the log is the one read
+        for secret in (old_owner, rotated["token"], link, out["secret"], key, answer, chat):
+            self.assertNotIn(secret, log)
+
+
+class TestClientLog(LogCase):
+    """README "Logs": POST /api/client-log takes {kind, message, source, route, code, ua} from a joined person and
+    appends a client entry; anonymous 401 unknown-session, over CLIENT_LOG_MAX bytes 413 body-too-large, a 21st entry
+    within a minute 429 slow-down, an unknown key 400 bad-field, a message over 500 characters 400 too-long."""
+
+    ENTRY = {"kind": "error", "message": "TypeError: x is undefined", "source": "/app.js:12", "route": "/", "ua": "chrome computer"}
+
+    def test_a_joined_persons_entry_is_appended_as_a_client_entry(self):
+        pid, guest = self.join("Ann")
+        code, _, out = self.post("/api/client-log", self.ENTRY, guest)
+        self.assertEqual((code, out), (200, {"ok": True}))
+        line = self.entry_for(" client ")
+        self.assertRegex(line, r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d{3} WARNING client ")
+        want = f'client pid={pid} kind=error message="TypeError: x is undefined" source=/app.js:12 route=/ ua="chrome computer"'
+        self.assertTrue(line.endswith(want), line)
+
+    def test_a_lone_surrogate_in_a_message_still_reaches_the_log(self):
+        _, guest = self.join("Ann")
+        self.assertEqual(self.post("/api/client-log", {"kind": "error", "message": "cut-emoji-\ud83d"}, guest)[0], 200)
+        self.assertIn("cut-emoji-\\ud83d", self.entry_for("cut-emoji-"))
+
+    def test_an_anonymous_caller_is_refused(self):
+        code, _, out = self.post("/api/client-log", self.ENTRY)
+        self.assertEqual((code, out["error"]), (401, "unknown-session"))
+        self.assertNotIn(" client ", self.log_text())
+
+    def test_an_oversize_body_is_refused_unread(self):
+        _, guest = self.join("Ann")
+        code, _, out = self.post("/api/client-log", {**self.ENTRY, "message": "x" * 5000}, guest)
+        self.assertEqual((code, out["error"]), (413, "body-too-large"))
+
+    def test_a_message_over_500_characters_and_an_unknown_key_are_refused(self):
+        _, guest = self.join("Ann")
+        code, _, out = self.post("/api/client-log", {**self.ENTRY, "message": "x" * 501}, guest)
+        self.assertEqual((code, out["error"], out["field"]), (400, "too-long", "message"))
+        code, _, out = self.post("/api/client-log", {**self.ENTRY, "text": "an answer"}, guest)
+        self.assertEqual((code, out["error"], out["field"]), (400, "bad-field", "text"))
+        self.assertNotIn(" client ", self.log_text())
+
+    def test_the_twenty_first_entry_in_a_minute_is_refused(self):
+        _, ann = self.join("Ann")
+        _, bo = self.join("Bo")
+        codes = [self.post("/api/client-log", self.ENTRY, ann)[0] for _ in range(20)]
+        self.assertEqual(codes, [200] * 20)
+        code, _, out = self.post("/api/client-log", self.ENTRY, ann)
+        self.assertEqual((code, out["error"]), (429, "slow-down"))
+        self.assertEqual(self.post("/api/client-log", self.ENTRY, bo)[0], 200)  # per person, not per address
+
+    def test_client_entries_rotate_with_the_log_at_its_size(self):
+        d = tmpdir(self)
+        with mock.patch.object(server, "LOG_BYTES", 400):
+            app = server.App(d, watch_tunnel=False)
+            app.serve()
+            self.addCleanup(app.shutdown)
+            code, _, out = call(app.guest_port, "POST", "/api/join", {"name": "Ann", "device": "computer"})
+            guest = {"X-Session-Secret": out["secret"]}
+            for i in range(20):
+                call(app.guest_port, "POST", "/api/client-log", {"kind": "error", "message": f"entry-{i:02d}"}, guest)
+        for h in app.log.handlers:
+            h.flush()
+        self.assertEqual(sorted(p.name for p in d.glob("server.log*")), ["server.log", "server.log.1", "server.log.2", "server.log.3"])
+        self.assertIn("entry-19", (d / "server.log").read_text(encoding="utf-8"))
+
+
 class TestOldPages(unittest.TestCase):
     """A prototype page left open across the cutover polls `GET /api/state` with no query string and
     its identity headers (X-Session-Secret, and X-Owner-Token on the owner's tab), as its core.js

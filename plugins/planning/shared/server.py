@@ -107,14 +107,34 @@ def loggable(text, limit=80):
 
 
 def trace():
-    """The exception being handled as one log line: its last TRACE_LIMIT characters (the exception
-    is at the end), escaped like any request-derived text, since its message may quote a request."""
-    return loggable(traceback.format_exc()[-TRACE_LIMIT:], TRACE_LIMIT)
+    """The exception being handled: its last TRACE_LIMIT characters (the exception is at the end)."""
+    return traceback.format_exc()[-TRACE_LIMIT:]
+
+
+def entry(what, /, **fields):
+    """One log entry, for requests and client entries alike: `what`, then key=value for each field given (None
+    dropped). Each value is cut to its FIELD_LIMITS length and escaped like loggable, a double quote as \\x22 too,
+    and quoted when it holds a space, so the entry stays on one line and its leading fields split on spaces."""
+    out = [what]
+    for k, v in fields.items():
+        if v is None:
+            continue
+        v = loggable(v, FIELD_LIMITS.get(k, 80)).replace('"', "\\x22").encode("utf-8", "backslashreplace").decode("utf-8")  # a lone surrogate too
+        out.append(f'{k}="{v}"' if " " in v else f"{k}={v}")
+    return " ".join(out)
 
 
 TRACE_LIMIT = 8000  # judgment: a traceback's characters kept on its one log line, enough for a deep stack
+CLIENT_MESSAGE_MAX = 500
+FIELD_LIMITS = {"method": 16, "message": CLIENT_MESSAGE_MAX, "trace": TRACE_LIMIT, "route": 200, "source": 200}
 LOG_BYTES = 1024 * 1024
 LOG_KEEP = 3
+# POST /api/client-log: what a joined person's page reports of its own errors (web/core.js reportError).
+CLIENT_LOG = "/api/client-log"
+CLIENT_LOG_MAX = 4096  # bytes: a 500-character message in any script, plus the other fields
+CLIENT_FIELDS = {"kind": 20, "message": CLIENT_MESSAGE_MAX, "source": 200, "route": 200, "code": 60, "ua": 60}
+CLIENT_KINDS = ("error", "rejection", "api")
+CLIENT_PER_MINUTE = 20  # judgment: entries one person's page may log a minute; a page in an error loop stops there
 TUNNEL_POLL = 1.0  # seconds between tunnel checks
 TUNNEL_BACKOFF_MAX = 60.0
 PRESENCE_TICK = 5  # the snapshot ETag moves at least this often, so expired presence shows
@@ -187,7 +207,26 @@ GET_ROUTES = {"/api/mine/requests": ("person", "my_requests"), "/api/card/histor
 # The only routes a watcher key (X-Watcher-Key) works on: a guest's own Claude reads and answers their own self
 # requests. Anywhere else the header answers 401, so the key never acts as the person's session secret.
 WATCHER_ROUTES = {"/api/mine/requests", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail"}
-BODY_CAPS = {"/api/upload/offer": session.OFFER_MAX}  # path -> bytes, where a route allows more than session.BODY_MAX
+BODY_CAPS = {"/api/upload/offer": session.OFFER_MAX, CLIENT_LOG: CLIENT_LOG_MAX}  # path -> bytes, where not session.BODY_MAX
+SERVER_ERROR = ("state-invalid", "The server could not do that; nothing was written.")
+
+
+def client_fields(body):
+    """A client-log body checked against CLIENT_FIELDS: strings within their limits, a known kind, a message."""
+    extra = sorted(set(body) - set(CLIENT_FIELDS))
+    if extra:
+        raise DomainError(400, "bad-field", f"{extra[0][:40]} is not a client-log field.", field=extra[0][:40])
+    for k, limit in CLIENT_FIELDS.items():
+        v = body.get(k)
+        if v is not None and not isinstance(v, str):
+            raise DomainError(400, "bad-field", f"{k} must be a string.", field=k)
+        if v is not None and len(v) > limit:
+            raise DomainError(400, "too-long", f"{k} allows at most {limit} characters.", field=k, max=limit)
+    if body.get("kind") not in CLIENT_KINDS:
+        raise DomainError(400, "bad-field", f"kind must be one of {', '.join(CLIENT_KINDS)}.", field="kind")
+    if not body.get("message"):
+        raise DomainError(400, "empty", "message is empty.", field="message")
+    return {k: body.get(k) for k in CLIENT_FIELDS}
 
 
 class StartRefused(Exception):
@@ -540,19 +579,46 @@ class GuestHandler(BaseHTTPRequestHandler):
         for k, v in extra.items():
             self.send_header(k, v)
         self.end_headers()
+        self.log_request_entry(code)  # before the body goes out, so a client that has its answer finds the entry
         if code != 304:
             with contextlib.suppress(*session_bridge.DISCONNECTS):
                 self.wfile.write(raw)
-        path = loggable(urlparse(getattr(self, "path", "") or "").path)
-        took = (time.monotonic() - getattr(self, "t0", time.monotonic())) * 1000
-        self.app.log.info("%s %s %d %.1fms", loggable(self.command or "-", 16), path or "-", code, took)
+
+    # The acting pid, the refusal and the traceback of the request being answered; send() logs and clears them, since
+    # one handler serves every request on a kept-alive connection.
+    pid = refusal = failure = None
+
+    def log_request_entry(self, code):
+        """One entry per answer (README "Logs"): INFO for a success, WARNING for a refusal, ERROR with the traceback
+        for a server error. Never a header or body value: no credential, request body or upload reaches the log."""
+        exc, took = self.refusal, (time.monotonic() - getattr(self, "t0", time.monotonic())) * 1000
+        line = entry(
+            "request",
+            method=self.command or "-",
+            route=urlparse(getattr(self, "path", "") or "").path or "-",
+            status=code,
+            ms=f"{took:.1f}",
+            pid=self.pid,
+            code=exc and exc.code,
+            field=exc and exc.details.get("field"),
+            message=exc and exc.message,
+            trace=self.failure,
+        )
+        self.app.log.log(logging.ERROR if code >= 500 else logging.WARNING if code >= 400 else logging.INFO, "%s", line)
+        self.pid = self.refusal = self.failure = None
 
     def send_error(self, code, message=None, explain=None):
         """http.server's own refusals (a request line too long, an unknown method): JSON, same headers."""
-        self.send(code, {"error": ERROR_CODES.get(code, "bad-request"), "message": message or self.responses.get(code, ("Refused.",))[0]})
+        self.fail(DomainError(code, ERROR_CODES.get(code, "bad-request"), message or self.responses.get(code, ("Refused.",))[0]))
 
-    def fail(self, exc):
+    def fail(self, exc, failure=None):
+        """Answer a refusal; `failure`, the traceback of a server error, goes to the log only."""
+        self.refusal, self.failure = exc, failure
         return self.send(exc.http, exc.body())
+
+    def crash(self):
+        """Answer the exception being handled as a server error, its traceback logged."""
+        return self.fail(DomainError(500, *SERVER_ERROR), trace())
 
     def address(self):
         """The client key for limits, from Cloudflare's CF-Connecting-IP only (never X-Forwarded-For)."""
@@ -601,10 +667,10 @@ class GuestHandler(BaseHTTPRequestHandler):
         secret = self.headers.get("X-Session-Secret")
         watcher = self.headers.get("X-Watcher-Key")
         if watcher is not None:
-            return self.app.session.resolve(watcher=watcher)
-        if not owner and not secret:
-            return None
-        return self.app.session.resolve(secret=secret, owner_token=owner)
+            self.pid = self.app.session.resolve(watcher=watcher)
+        elif owner or secret:
+            self.pid = self.app.session.resolve(secret=secret, owner_token=owner)
+        return self.pid
 
     def watcher_misplaced(self):
         """A watcher key on any other route, or beside another credential: answered 401 before anything else runs."""
@@ -645,6 +711,8 @@ class GuestHandler(BaseHTTPRequestHandler):
                 return self.send(200, {"ok": True, **getattr(self.app.session, method)(pid, query)})
         except DomainError as exc:
             return self.fail(exc)
+        except Exception:  # a bug: a read writes nothing
+            return self.crash()
         return self.fail(DomainError(404, "not-found", "Nothing here."))
 
     def static(self, name, ctype):
@@ -688,7 +756,7 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.fail(DomainError(401, "unknown-session", "A watcher key works only on /api/mine/requests."))
         if path == UPLOAD_CHUNK:
             return self.upload_chunk()
-        if path not in ROUTES:
+        if path not in ROUTES and path != CLIENT_LOG:
             return self.fail(DomainError(404, "not-found", "Nothing here."))
         if not self.headers.get("Content-Type", "").lower().startswith("application/json"):
             return self.fail(DomainError(415, "json-required", "Send JSON with Content-Type: application/json."))
@@ -713,6 +781,8 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.fail(DomainError(400, "bad-json", "The body is not JSON."))
         if not isinstance(body, dict):
             return self.fail(DomainError(400, "bad-json", "The body must be a JSON object."))
+        if path == CLIENT_LOG:
+            return self.client_log(body)
         auth, method = ROUTES[path]
         app = self.app
         try:
@@ -722,8 +792,7 @@ class GuestHandler(BaseHTTPRequestHandler):
         except DomainError as exc:
             return self.fail(exc)
         except Exception:  # a bug: the transaction rolled back, so nothing was written
-            app.log.error("%s failed: %s", loggable(path), trace())
-            return self.fail(DomainError(500, "state-invalid", "The server could not do that; nothing was written."))
+            return self.crash()
         if method == "rotate_owner_link":
             app.write_owner_link()
         app.changed()
@@ -771,10 +840,22 @@ class GuestHandler(BaseHTTPRequestHandler):
         except DomainError as exc:
             return self.fail(exc)
         except Exception:  # a bug: the transaction rolled back, so nothing was written
-            app.log.error("%s failed: %s", UPLOAD_CHUNK, trace())
-            return self.fail(DomainError(500, "state-invalid", "The server could not do that; nothing was written."))
+            return self.crash()
         app.changed()
         return self.send(200, {"ok": True, **out})
+
+    def client_log(self, body):
+        """POST /api/client-log (README "Logs"): one error a joined person's page saw, appended to server.log as a
+        client entry under their pid. At most CLIENT_PER_MINUTE a minute per person; it changes no session state."""
+        try:
+            pid = self.authorize("person")
+            fields = client_fields(body)
+            if not self.app.client_bucket.take(pid):
+                raise DomainError(429, "slow-down", f"At most {CLIENT_PER_MINUTE} error reports a minute.")
+        except DomainError as exc:
+            return self.fail(exc)
+        self.app.log.warning("%s", entry("client", pid=pid, **fields))
+        return self.send(200, {"ok": True})
 
     def refuse_method(self):
         if not self.refused():
@@ -806,6 +887,7 @@ class App:
         self.old_pages = (self.dir / "state.v0.json").exists()  # imported from the prototype: its open tabs may still poll
         self.build = build_hash()
         self.bucket = Bucket(session.RATE_PER_SECOND, session.RATE_BURST)
+        self.client_bucket = Bucket(CLIENT_PER_MINUTE / 60, CLIENT_PER_MINUTE)  # keyed by pid
         self.watch_tunnel = watch_tunnel
         self.public_url = ""
         self.tunnel_host = ""
@@ -917,7 +999,7 @@ class App:
             try:
                 self.sync_tunnel()
             except Exception:  # the watch must outlive any one bad pass
-                self.log.error("tunnel watch: %s", trace())
+                self.log.error("%s", entry("tunnel-watch", trace=trace()))
 
     def serve(self):
         """Serve both listeners and watch the tunnel in threads; returns at once."""
