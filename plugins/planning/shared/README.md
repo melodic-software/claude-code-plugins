@@ -41,6 +41,7 @@ Every command prints one JSON line on stdout and diagnostics on stderr. On Windo
 | `list` | `--root '<memory_dir>'` (no `--dir`) | `{sessions: [{dir, title, running, guestUrl, round, ended}]}` |
 | `apply` | `--file F` | `{ok, results}`; deletes `F` once it applies. A missing `F` is a no-op, so `wake.sh` re-arms with nothing to write |
 | `lease` | `[--release]` | `{lease}` |
+| `logs` | `[--errors] [--since MINUTES]` | `{ok, lines}`: the newest 200 lines of `server.log` and its rotated files, oldest first; no server needed. `--errors` keeps refusals, server errors and client entries. See [Logs](#logs) |
 
 Exit codes: 0 done; 1 refused (bad arguments, a state file from a newer version, a failed
 migration, a `--guest-port`, `--import` or `--adopt-tunnel` on an existing session, an adopted pid
@@ -327,6 +328,35 @@ on their way from someone no longer in the session, and cuts a partial file back
 record counts. A state whose upload id, extension or received name is not one the server makes
 does not load.
 
+## Logs
+
+`server.log` holds one line per entry: the time, the level, then the entry's kind and `key=value`
+fields. A value is escaped like the path (`\x1b`, a double quote as `\x22`) and quoted when it holds
+a space. `method`, `route` and `status`, and a client entry's `pid` and `kind`, never hold one.
+
+| Kind | Level | Fields |
+|---|---|---|
+| `request` | INFO for 2xx/3xx, WARNING for 4xx, ERROR for 5xx | `method route status ms` and `pid` (the acting person's id, once known); a refusal adds `code field message` (its error body); a 5xx adds `trace`, the traceback's last 8000 characters |
+| `client` | WARNING | `pid kind message source route code ua`, as the page sent them |
+
+```text
+2026-10-17 13:21:56,794 WARNING request method=POST route=/api/person/role status=400 ms=0.5 pid=host code=bad-field field=role message="role must be one of leader, guest."
+2026-10-17 13:21:57,102 ERROR request method=POST route=/api/rename status=500 ms=1.2 pid=pidAnn001 code=state-invalid message="The server could not do that; nothing was written." trace="Traceback (most recent call last):\x0a  File \x22...\x22 ..."
+2026-10-17 13:21:58,330 WARNING client pid=pidAnn001 kind=api message="HTTP 409: Question Q1 is locked; suggest a change instead." route=/api/answer code=locked ua="chrome computer"
+```
+
+A pid is no credential. No entry holds a token, secret, guest key, owner link, request body, answer
+or chat text, or upload.
+
+`POST /api/client-log` (auth class person) is how a joined person's page reports what went wrong:
+a script error (`kind: "error"`, with `source` as `/file:line`), an unhandled rejection
+(`"rejection"`), or an action the server refused or never answered (`"api"`, `route` the API path,
+`code` its error code or `network`). Body: `{kind, message, source, route, code, ua}`, strings, at
+most 500 characters for `message`, 200 for `source` and `route`, 60 for `code` and `ua`; `kind` and
+`message` required. It answers `{ok: true}`, or 401 `unknown-session` without identity (a page that
+has not joined sends nothing), 413 `body-too-large` over 4096 bytes, 400 `bad-field` for another key
+or a wrong type, 400 `too-long`, and 429 `slow-down` past 20 reports a minute from one person.
+
 ## Data contract
 
 One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
@@ -344,7 +374,7 @@ One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
 | `.shared-ports.json` | server | 0600 | The guest and control ports, reused on every start |
 | `.shared-tunnel.json` | `tunnel.py` | 0600 | `{pid, url, port, startedAt, marker, adopted}` |
 | `cloudflared.log` | cloudflared | 0600 | Its output, where its address is read |
-| `server.log` (+ `.1`..`.3`) | server | 0600 | One line per request (method, path, status, time); rotated at 1 MB, 3 kept |
+| `server.log` (+ `.1`..`.3`) | server | 0600 | One entry per request and per page error report ([Logs](#logs)); rotated at 1 MB, 3 kept |
 | `.shared-server.err` | the server's stderr | 0600 | Why a start failed |
 | `.shared-reported` | `share.py` | 0600 | The guest link the last `ensure-running` printed (for `shareChanged`) |
 | `.watch-seq`, `.watch-replay` | `watch.sh` | | |
@@ -391,7 +421,8 @@ build reloads itself.
   'self'`, never `allow-same-origin`, and `X-Frame-Options: SAMEORIGIN` in place of `DENY`, so the
   prototype page can frame it and no other site can.
 - **The log.** `server.log` writes the request path, and a failure's traceback on one line, with
-  control characters escaped (`\x1b`, `\x0a`).
+  control characters escaped (`\x1b`, `\x0a`); never a header value, request body or upload
+  ([Logs](#logs)).
 - **What a visitor reads.** Without identity, `/api/state` is `{title, ended, joinNeedsKey,
   schemaVersion}` only; a removed person and an owner link from before a rotation read nothing.
   Results stay hidden from guests until the owner publishes them.

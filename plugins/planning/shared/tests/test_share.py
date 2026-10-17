@@ -8,6 +8,7 @@ and the planning amendments (the tunnel outlives a server restart; tokens never 
 from __future__ import annotations
 
 import contextlib
+import datetime
 import io
 import json
 import os
@@ -164,6 +165,45 @@ class TestStopStatusUrl(Running):
         self.assertEqual((code, out), (0, {"lease": None}))
         code, out, _ = share(self.d, "lease", "--release")
         self.assertEqual((code, out), (0, {"lease": None}))
+
+
+class TestLogs(unittest.TestCase):
+    """`logs [--errors] [--since MINUTES]` (README "Logs"): {"ok", "lines"}, oldest first across server.log and its
+    rotated files; --errors keeps request entries with a 4xx or 5xx status and client entries. The fixture lines are
+    written here in the format README "Logs" documents, not taken from a server."""
+
+    def setUp(self):
+        self.d = tmpdir(self)
+        now = datetime.datetime.now()
+        stamp = lambda minutes: (now - datetime.timedelta(minutes=minutes)).strftime("%Y-%m-%d %H:%M:%S,000")  # noqa: E731
+        self.old = f"{stamp(120)} WARNING request method=POST route=/api/vote status=409 ms=0.3 pid=pidAnn001 code=locked"
+        self.rotated = f"{stamp(5)} WARNING request method=POST route=/api/answer status=429 ms=0.1 pid=pidAnn001 code=slow-down"
+        self.ok = f"{stamp(1)} INFO request method=GET route=/api/state status=200 ms=0.4 pid=pidAnn001"
+        self.refusal = f'{stamp(1)} WARNING request method=POST route=/api/person/merge status=400 ms=0.5 pid=host code=bad-field field=pid message="pid must name a person."'
+        self.crash = f'{stamp(1)} ERROR request method=POST route=/api/rename status=500 ms=1.0 pid=pidAnn001 code=state-invalid trace="Traceback (most recent call last):\\x0a  boom"'
+        self.client = f'{stamp(1)} WARNING client pid=pidAnn001 kind=error message="TypeError: x is undefined status=500"'
+        self.notice = f"{stamp(1)} WARNING the owner-link rotation time 99 was ahead of the clock; set it to now"
+        (self.d / "server.log.1").write_text("\n".join([self.old, self.rotated]) + "\n", encoding="utf-8")
+        (self.d / "server.log").write_text("\n".join([self.ok, self.refusal, self.crash, self.client, self.notice]) + "\n", encoding="utf-8")
+
+    def test_logs_prints_the_tail_oldest_first_across_rotated_files(self):
+        code, out, err = share(self.d, "logs")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out, {"ok": True, "lines": [self.old, self.rotated, self.ok, self.refusal, self.crash, self.client, self.notice]})
+
+    def test_errors_keeps_only_refusals_server_errors_and_client_entries(self):
+        code, out, err = share(self.d, "logs", "--errors")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out["lines"], [self.old, self.rotated, self.refusal, self.crash, self.client])
+
+    def test_since_keeps_the_last_minutes(self):
+        code, out, err = share(self.d, "logs", "--errors", "--since", "30")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out["lines"], [self.rotated, self.refusal, self.crash, self.client])
+
+    def test_a_folder_with_no_log_prints_no_lines(self):
+        d = tmpdir(self)
+        self.assertEqual(share(d, "logs")[:2], (0, {"ok": True, "lines": []}))
 
 
 class TestApply(Running):

@@ -8,6 +8,7 @@
   share.py --dir DATA_DIR url [--owner]
   share.py --dir DATA_DIR apply --file F
   share.py --dir DATA_DIR lease [--release]
+  share.py --dir DATA_DIR logs [--errors] [--since MINUTES]
   share.py list --root MEMORY_DIR
 
 Each command prints one JSON line on stdout and diagnostics on stderr. Exit codes: 0 done;
@@ -22,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import datetime
 import html
 import http.client
 import json
@@ -56,6 +58,8 @@ SYNC_SECONDS = 5.0  # how long the server may take to pick up a new tunnel recor
 SERVER_MARKER = "python" if detached.WINDOWS else "server.py"
 OPEN_PAGE = ".owner-open-{}.html"  # the page --open hands the browser; it holds the owner link
 OPEN_SECONDS = 30.0  # judgment: a browser started cold has read the page well within this
+LOG = "server.log"
+LOG_TAIL = 200  # judgment: the most lines `logs` prints, the newest
 FORGET_PAGE = "import contextlib, os, sys, time\ntime.sleep(float(sys.argv[2]))\nwith contextlib.suppress(OSError):\n    os.unlink(sys.argv[1])\n"
 
 
@@ -457,6 +461,37 @@ def cmd_lease(d, a):
     return {"lease": bridge.watcher_lease(d, NAME)}
 
 
+def is_error(line):
+    """A request entry with a 4xx or 5xx status, or a client entry (README "Logs"). The fields before any free text
+    never hold a space, so they split on spaces."""
+    parts = line.split(" ", 7)
+    if len(parts) > 3 and parts[3] == "client":
+        return True
+    return len(parts) > 6 and parts[3] == "request" and parts[6][:8] in {"status=4", "status=5"}
+
+
+def logged_at(line):
+    try:
+        return datetime.datetime.strptime(line[:19], "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+
+
+def cmd_logs(d, a):
+    """The newest LOG_TAIL lines of server.log and its rotated files, oldest first; it needs no running server."""
+    rotated = sorted((f for f in d.glob(LOG + ".*") if f.suffix[1:].isdigit()), key=lambda f: int(f.suffix[1:]), reverse=True)
+    lines = []
+    for f in [*rotated, d / LOG]:
+        with contextlib.suppress(OSError):
+            lines += f.read_text(encoding="utf-8", errors="replace").splitlines()
+    if a.since is not None:
+        cut = datetime.datetime.now() - datetime.timedelta(minutes=a.since)
+        lines = [line for line in lines if (logged_at(line) or cut) >= cut]
+    if a.errors:
+        lines = [line for line in lines if is_error(line)]
+    return {"ok": True, "lines": lines[-LOG_TAIL:]}
+
+
 class Parser(argparse.ArgumentParser):
     def error(self, message):  # bad arguments are a refusal: exit 1, not argparse's 2
         self.print_usage(sys.stderr)
@@ -491,6 +526,10 @@ def parser():
     s = sub.add_parser("lease")
     s.add_argument("--release", action="store_true")
     s.set_defaults(fn=cmd_lease)
+    s = sub.add_parser("logs")
+    s.add_argument("--errors", action="store_true", help="only refusals (4xx), server errors (5xx) and the pages' error reports")
+    s.add_argument("--since", type=float, metavar="MINUTES", help="only the last MINUTES minutes")
+    s.set_defaults(fn=cmd_logs)
     return p
 
 
