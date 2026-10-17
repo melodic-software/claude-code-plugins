@@ -1775,7 +1775,9 @@
     function setChat(open) {
       ui.chatOpen = open; chat.hidden = !open; fab.setAttribute("aria-expanded", String(open));
       fab.setAttribute("aria-label", open ? "Close chat" : "Open chat");
-      if (open) { ui.bumped = false; closePop(); render(); mScroll.scrollTop = mScroll.scrollHeight; mInput.focus({ preventScroll: true }); }
+      // On a touch screen, focus goes to the close button, not the message box: focusing the box would raise the phone
+      // keyboard before anyone asked to type. The keyboard comes up when the box is tapped.
+      if (open) { ui.bumped = false; closePop(); render(); mScroll.scrollTop = mScroll.scrollHeight; (matchMedia("(pointer: coarse)").matches ? chatClose : mInput).focus({ preventScroll: true }); }
       else render();
       syncModal();
     }

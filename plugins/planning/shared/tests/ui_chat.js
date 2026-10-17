@@ -182,11 +182,18 @@ async function main() {
       const c = await p.context().newCDPSession(p);
       await c.send("Emulation.setSafeAreaInsetsOverride", { insets: { bottom: 34 } }).catch(() => null);
       await joinAs(p, name);
-      await p.evaluate(() => { document.querySelector(".vf-fab").click(); });
+      shell.push(...(await docScroll(p)).map(x => `${name}, default view: ${x}`));
+      await p.locator(".vf-fab").tap();
       await until(p, () => document.querySelectorAll(".vf-mlist .vf-msg").length >= 30 && [...document.querySelectorAll(".vf-mlist .vf-msg")].pop().textContent.includes("Later 9"), null, 5000);
       await p.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => null))));
+      const f = await p.evaluate(() => document.activeElement?.className || "");
+      if (/vf-minput/.test(f)) autoFocus.push(`${name}: opening the chat focused the message box`);
+      shell.push(...(await docScroll(p)).map(x => `${name}, chat open: ${x}`));
       return [p, c];
     };
+    // The page shell never scrolls: the document is no taller or wider than the viewport, and stays at 0.
+    const docScroll = p => p.evaluate(() => { const se = document.scrollingElement; return [...(se.scrollHeight > se.clientHeight || se.scrollWidth > se.clientWidth ? [`document ${se.scrollWidth}x${se.scrollHeight} in ${se.clientWidth}x${se.clientHeight}`] : []), ...(se.scrollTop || se.scrollLeft ? [`document scrolled to ${se.scrollLeft},${se.scrollTop}`] : [])]; });
+    const shell = [], autoFocus = [];
     const [sia, scdp] = await chatPhone(390, 844, "Sia");
     const stuck = [];
     for (const [kbUp, pan] of [[false, 0], [true, 0], [true, 40]]) {
@@ -216,14 +223,19 @@ async function main() {
       for (const kb of [300, 350, 400, 450]) {
         await cp.locator(".vf-minput").tap();
         await keyboard(cp, true, { kb });
+        // iOS can also scroll a scrollable document to bring the field into view; the shell must not move.
+        await cp.evaluate(() => new Promise(r => { window.scrollTo(0, 80); requestAnimationFrame(() => requestAnimationFrame(r)); }));
+        shell.push(...(await docScroll(cp)).map(x => `${w}x${h}, keyboard ${kb} up: ${x}`));
         const g = await cp.evaluate(() => { const f = document.querySelector(".vf-mform").getBoundingClientRect(), vv = visualViewport; return [f.bottom, vv.offsetTop + vv.height, f.top]; });
         if (Math.abs(g[0] - g[1]) > 2 || g[2] < 0) gaps.push(`keyboard ${kb}: composer bottom ${g[0].toFixed(0)}, keyboard top ${g[1].toFixed(0)}`);
         await keyboard(cp, false);
         await cp.evaluate(() => document.activeElement?.blur());
       }
-      ok(`${w}x${h}, keyboard 300 to 450 px: the chat composer's bottom edge sits within 2 px of the keyboard's top`, gaps.length === 0, gaps.join("; "));
+      ok(`${w}x${h}, keyboard 300 to 450 px: the chat composer's bottom edge sits within 2 px of the keyboard's top, even after a document scroll attempt`, gaps.length === 0, gaps.join("; "));
       await cp.context().close();
     }
+    ok("touch phones: opening the chat leaves the message box unfocused, so the keyboard waits for a tap", autoFocus.length === 0, autoFocus.join("; "));
+    ok("phones: the document never scrolls, in the default view, with the chat open, and with the keyboard up", shell.length === 0, shell.join("; "));
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     ok("no page error", rec.errors.filter(m => !/Failed to load resource/.test(m)).length === 0, rec.errors.slice(0, 3).join(" | "));

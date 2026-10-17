@@ -303,6 +303,8 @@ async function main() {
           await keyboard(sp, true, { kb, stale });
           const seen = await fieldSeen(sp, ".vf-apform .vf-asklabel", "#vf-ap-ta", ".vf-apform .vf-btn-primary");
           if (mode === "Ask") { const st = await sp.evaluate(() => document.querySelector(".vf-apscroll").scrollTop); if (st > 0.5) seen.push(`the sheet scrolled ${st.toFixed(0)} px from its top`); }
+          const doc = await sp.evaluate(() => new Promise(r => { window.scrollTo(0, 80); requestAnimationFrame(() => requestAnimationFrame(() => { const se = document.scrollingElement; r([se.scrollHeight - se.clientHeight, se.scrollTop]); })); }));
+          if (doc[0] > 0 || doc[1]) seen.push(`the document scrolls (${doc[0]} px more than the viewport, at ${doc[1]})`);
           const up = await parts();
           if (!up.inOrder) seen.push(`the form's parts are out of DOM order on screen: ${up.names.join(", ")}`);
           if (seen.length) bad.push(`keyboard ${kb}${stale ? " (offsetTop read 0)" : ""}: ${seen.join(", ")}`);
@@ -314,7 +316,7 @@ async function main() {
           const back = await parts();
           if (back.names.join() !== closed.names.join() || !back.inOrder) bad.push(`keyboard ${kb}${stale ? " (offsetTop read 0)" : ""}, closed again: the form shows ${back.names.join(", ")}, not ${closed.names.join(", ")}`);
         }
-        ok(`${w}x${h}, Ask Claude in ${mode}, keyboard ${kbs[0]} to ${kbs[kbs.length - 1]} px: the label, the field's first 3 lines and ${label} are seen above the keyboard${mode === "Ask" ? ", the sheet at its top" : ""}, the form in DOM order, every part back once it closes`, bad.length === 0, bad.join("; "));
+        ok(`${w}x${h}, Ask Claude in ${mode}, keyboard ${kbs[0]} to ${kbs[kbs.length - 1]} px: the label, the field's first 3 lines and ${label} are seen above the keyboard${mode === "Ask" ? ", the sheet at its top" : ""}, the form in DOM order, every part back once it closes, the document never scrolled`, bad.length === 0, bad.join("; "));
       }
       await sp.context().close();
     }
