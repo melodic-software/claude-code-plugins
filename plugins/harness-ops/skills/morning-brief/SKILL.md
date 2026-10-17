@@ -138,7 +138,19 @@ Upstream facts the script restates, each with its verification record:
 | Parked decisions | open issues with the decision label (default `status: needs-decision`) | Surfaces each one's RECOMMENDED line, the uppercase marker wins over an incidental lowercase mention; a case-insensitive fallback catches lowercase markers; pass `--decision-label` to pin |
 | Lane telemetry | the loop-lane telemetry issue's per-lane comments | Each lane's `last-cycle` age (marked `STALE` past `--stale-hours`, default 6) and any `flags:` |
 | Stranded findings | merged PRs whose unresolved review threads were **created after the merge** | One line per PR at its worst severity, with a finding count. The header prints the window: merges since the older of `--stranded-days` ago (default 3) and the repo's bookmark. Paging stops at that cutoff |
-| Lanes | the last 7 days of runs of each lane workflow (`actions/workflows/<file>/runs`), and the check-run annotations of their jobs | One row per lane: runs, failures by class (rate-limit, max-turns, auth, other), limit stops, restarts (a run on an item whose previous run was a limit stop), and items with 3+ limit stops. Then turns used (max, p90) against the cap, with `CHECK` and run links when a run hit max-turns or the p90 is at or above 80% of the cap. Classes, turns and cap come from the lane record's `class=`, `turns=` and `max-turns=` fields, else the SDK result's `num_turns` and the action's "exceeding the configured maximum of N" line; a turn-cap stop counts as max-turns even where the record says `other`. Lanes default to the Claude workflows the repo has; `--lane-workflows` pins them. Annotations are read for `--lane-read-limit` runs (default 200), failed first; past it the row says `unread` and the section `PARTIAL` |
+| Lanes | the last 7 days of runs of each lane workflow, and the check-run annotations of their jobs | One row per lane: runs, failures by class (rate-limit, max-turns, auth, other), limit stops, restarts (a run on an item whose previous run was a limit stop), and items with 3+ limit stops. Then turns used (max, p90) against the cap, with `CHECK` and run links when a run hit max-turns or the p90 is at or above 80% of the cap. Class, turns and cap come from the lane record when it carries them, else from the SDK result and the action's turn-cap annotation; a turn-cap stop counts as max-turns whatever class the record gives. Lanes default to the Claude workflows the repo has; `--lane-workflows` pins them. Annotations are read for `--lane-read-limit` runs (default 200), failed first; past it the row says `unread` and the section `PARTIAL` |
+
+The Lanes section parses text two upstream components write. When a row's classes or turns look
+wrong, read the current shapes live:
+
+- **Pointer**: the lane record and its classes, ci-workflows
+  [`report-lane-outcome/action.yml`](https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/report-lane-outcome/action.yml)
+  and [`classify.cjs`](https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/report-lane-outcome/classify.cjs);
+  the turn-cap annotation, claude-code-action
+  [`base-action/src/run-claude-sdk.ts`](https://github.com/anthropics/claude-code-action/blob/main/base-action/src/run-claude-sdk.ts).
+- **As of**: 2026-10-17
+- **Recheck trigger**: a ci-workflows release changes the lane record's fields or class names,
+  or a claude-code-action release changes its turn-cap message.
 
 The bookmark is one file per repo under the plugin data dir. After a full read of the section it
 moves to this run's `--stranded-days` floor; a failed or partial read leaves it where it was. A

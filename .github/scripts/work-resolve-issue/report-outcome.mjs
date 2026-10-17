@@ -41,6 +41,8 @@ import { join, posix } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
+import { paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+
 export const HOLD_LINE = "Hold: a human merges this";
 const EXITS = new Set(["done", "pushback", "stopped"]);
 // The subject allows no `#` or `/`, so the squash commit title cannot name an
@@ -61,7 +63,8 @@ const COMPARE_FILES_CAP = 300;
 // When a limit stop names no reset time, it is taken to reset this long after
 // the run: the shortest plan limit is a five-hour session window
 // (https://support.claude.com/en/articles/11145838).
-// TODO(C6): read limits.fallback-reset from pr-pipeline.yaml once that leaf exists.
+// Hard-coded until pr-pipeline.yaml has a limits.fallback-reset leaf:
+// https://github.com/melodic-software/claude-code-plugins/issues/7764
 export const FALLBACK_RESET_MS = 5 * 3_600_000;
 const HOUR_MS = 3_600_000;
 
@@ -443,12 +446,11 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       runId: /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "",
     });
     if (plan.action === "limited") {
-      // Once per run: a rerun of this report, within the day, finds its own
-      // marker and posts nothing.
+      // Once per run: a rerun of this report, however late, finds its own
+      // marker in the issue's whole comment history and posts nothing.
       const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
-      const since = encodeURIComponent(new Date(now - 86_400_000).toISOString());
-      const comments = await github("GET", `${repo}/issues/${issueNumber}/comments?per_page=100&since=${since}`);
-      const posted = (comments ?? []).some((comment) => {
+      const comments = await paginate(github, `${repo}/issues/${issueNumber}/comments`);
+      const posted = comments.some((comment) => {
         const marker = comment.user?.login === bot ? parseOutcomeMarker(comment.body) : null;
         return marker?.outcome === "limited" && plan.runId !== "" && marker.run === plan.runId;
       });

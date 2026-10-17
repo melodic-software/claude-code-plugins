@@ -12,11 +12,11 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { checkCloser, main as runMain } from "./label-unblocked.mjs";
+import { checkCloser, escalationComment, main as runMain } from "./label-unblocked.mjs";
 
 // resolve-issue's admission in docs/conventions/pr-pipeline.yaml; the
 // resolve-config live-config test checks the script's reader returns it.
-const ADMISSION = { classes: ["work-class: read-only", "work-class: mechanical"], ratified: true };
+const ADMISSION = { ratified: true };
 const main = (args) => runMain({ admission: ADMISSION, ...args });
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -221,18 +221,22 @@ test("a pull request blocker counts once merged, and not when closed unmerged", 
   }
 });
 
-test("a ratified issue with a work class resolve-issue does not admit stays unlabeled, even beside an admitted one", async () => {
-  for (const labels of [["work-class: feature"], ["work-class: mechanical", "Work-Class: Feature"]]) {
+// The live admission reads no work-class label: the marker alone admits.
+test("a ratified issue is labeled whatever its work-class label", async () => {
+  for (const labels of [["work-class: mechanical"], ["work-class: scoped"], ["Work-Class: Structural"]]) {
     const { github, calls } = oneDependent({ labels });
     assert.equal(await main({ env: envFor(), github }), 0);
-    assert.deepEqual(writes(calls), [], JSON.stringify(labels));
+    assert.deepEqual(writes(calls), [labeled(20)], JSON.stringify(labels));
   }
 });
 
-test("a ratified issue with an admitted work class is labeled", async () => {
-  const { github, calls } = oneDependent({ labels: ["work-class: mechanical"] });
-  assert.equal(await main({ env: envFor(), github }), 0);
-  assert.deepEqual(writes(calls), [labeled(20)]);
+test("under an admission with classes, a ratified issue with another class stays unlabeled", async () => {
+  const admission = { classes: ["work-class: read-only", "work-class: mechanical"], ratified: true };
+  for (const labels of [["work-class: feature"], ["work-class: mechanical", "Work-Class: Feature"]]) {
+    const { github, calls } = oneDependent({ labels });
+    assert.equal(await runMain({ admission, env: envFor(), github }), 0);
+    assert.deepEqual(writes(calls), [], JSON.stringify(labels));
+  }
 });
 
 test("an admitted work class without the marker stays unlabeled", async () => {
@@ -824,9 +828,22 @@ test("a third limit stop since a person added agent-ready adds needs-human with 
   const third = stopped({ comments: [marker(), ...stops] });
   assert.equal(await sweep({ github: third.github }), 0);
   const written = writes(third.calls);
-  assert.deepEqual(written.slice(0, 1), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
   assert.equal(written.length, 2);
-  assert.ok(written[1].startsWith(`POST /repos/${REPO}/issues/30/comments `), written[1]);
+  assert.ok(written[0].startsWith(`POST /repos/${REPO}/issues/30/comments `), written[0]);
+  assert.ok(written[0].includes("<!-- work-unblock escalated -->"), written[0]);
+  assert.deepEqual(written.slice(1), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
+  // The comment went out but the label did not: the next sweep adds only the
+  // label. The App's explanation from before a person's re-add does not count.
+  const explanation = (at) => ({ id: 40, body: escalationComment(3), user: LANES_BOT, created_at: at });
+  const retry = stopped({ comments: [marker(), ...stops, explanation("2026-10-16T06:30:00Z")] });
+  assert.equal(await sweep({ github: retry.github }), 0);
+  assert.deepEqual(writes(retry.calls), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
+  const stale = stopped({
+    comments: [marker(), explanation("2026-10-15T23:00:00Z"), ...stops],
+    events: [added("2026-10-15T22:00:00Z", OWNER), added("2026-10-15T23:30:00Z", OWNER)],
+  });
+  assert.equal(await sweep({ github: stale.github }), 0);
+  assert.equal(writes(stale.calls).length, 2);
   // A person adding agent-ready after the first stop starts the count again.
   const reset = stopped({ comments: [marker(), ...stops], events: [added("2026-10-16T00:00:00Z"), added("2026-10-16T01:00:00Z", OWNER)] });
   assert.equal(await sweep({ github: reset.github }), 0);

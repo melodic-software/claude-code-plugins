@@ -13,6 +13,7 @@ SCRIPT="$SELF_DIR/dependabot-plugin-bump.sh"
 . "$SELF_DIR/lib/fixture-tree.sh"
 
 repo=""
+base=""
 
 mk_repo() {
   local out="$1"
@@ -240,9 +241,10 @@ git -C "$repo" add -A && git -C "$repo" commit -qm "deps"
 extract="$repo/.git/extract"
 mkdir -p "$extract/lib"
 cp "$SCRIPT" "$extract/dependabot-plugin-bump.sh"
-for lib in changelog-fragments.sh read-list.sh dependabot-entry.sh; do
+for lib in changelog-fragments.sh read-list.sh dependabot-entry.sh changed-files.sh; do
   cp "$SELF_DIR/lib/$lib" "$extract/lib/$lib"
 done
+cp "$SELF_DIR/check-changelog-parity.sh" "$extract/check-changelog-parity.sh"
 rm "$repo/scripts/lib/changelog-fragments.sh"
 out="$(cd "$repo" && bash "$extract/dependabot-plugin-bump.sh" main 2>&1)"
 rc=$?
@@ -253,6 +255,138 @@ else
   fail "extracted base script: rc=$rc ver=$ver out='$out'"
 fi
 rm -rf "$repo"
+
+# --- run from main's checkout beside the PR, the bump executes none of the PR's scripts ---
+mk_repo repo
+mk_repo base
+mk_plugin "$repo" alpha 1.0.0
+init_git "$repo"
+begin_pr "$repo"
+marker="$repo/.git/pr-code-ran"
+for trap_file in check-changelog-parity.sh lib/changed-files.sh lib/dependabot-entry.sh; do
+  printf 'touch %q\nexit 1\n' "$marker" >"$repo/scripts/$trap_file"
+done
+echo y >>"$repo/plugins/alpha/server/package-lock.json"
+git -C "$repo" add -A && git -C "$repo" commit -qm "deps"
+out="$(cd "$repo" && bash "$base/scripts/dependabot-plugin-bump.sh" main 2>&1)"
+rc=$?
+ver="$(jq -r .version "$repo/plugins/alpha/.claude-plugin/plugin.json")"
+if [[ $rc -eq 0 && "$ver" == "1.0.1" && ! -e "$marker" ]]; then
+  ok "a bump run from main's scripts edits the PR tree and runs none of its scripts"
+else
+  fail "bump from a separate base checkout: rc=$rc ver=$ver marker=$([[ -e $marker ]] && echo present || echo absent) out='$out'"
+fi
+rm -rf "$repo" "$base"
+
+# --- run from main's checkout, a file missing there stops the bump; the PR's copy never runs ---
+for missing in lib/changed-files.sh lib/dependabot-entry.sh lib/changelog-fragments.sh check-changelog-parity.sh; do
+  mk_repo repo
+  mk_repo base
+  mk_plugin "$repo" alpha 1.0.0
+  init_git "$repo"
+  begin_pr "$repo"
+  marker="$repo/.git/pr-code-ran"
+  printf 'touch %q\nexit 1\n' "$marker" >"$repo/scripts/$missing"
+  echo y >>"$repo/plugins/alpha/server/package-lock.json"
+  git -C "$repo" add -A && git -C "$repo" commit -qm "deps"
+  rm "$base/scripts/$missing"
+  out="$(cd "$repo" && bash "$base/scripts/dependabot-plugin-bump.sh" main 2>&1)"
+  rc=$?
+  if [[ $rc -eq 2 && ! -e "$marker" && "$(jq -r .version "$repo/plugins/alpha/.claude-plugin/plugin.json")" == "1.0.0" ]]; then
+    ok "main's checkout without $missing exits 2 and runs none of the PR's copy"
+  else
+    fail "main's checkout without $missing: rc=$rc marker=$([[ -e $marker ]] && echo present || echo absent) out='$out'"
+  fi
+  rm -rf "$repo" "$base"
+done
+
+# --- run from main's checkout, a fragment list the PR plants does not exempt a plugin ---
+mk_repo repo
+mk_repo base
+mk_plugin "$repo" alpha 1.0.0
+init_git "$repo"
+begin_pr "$repo"
+printf 'alpha\n' >"$repo/scripts/fragment-plugins.txt"
+echo y >>"$repo/plugins/alpha/server/package-lock.json"
+git -C "$repo" add -A && git -C "$repo" commit -qm "deps"
+out="$(cd "$repo" && bash "$base/scripts/dependabot-plugin-bump.sh" main 2>&1)"
+rc=$?
+ver="$(jq -r .version "$repo/plugins/alpha/.claude-plugin/plugin.json")"
+if [[ $rc -eq 0 && "$ver" == "1.0.1" ]]; then
+  ok "a fragment list the PR plants is ignored; main's copy decides"
+else
+  fail "PR-planted fragment list: rc=$rc ver=$ver out='$out'"
+fi
+rm -rf "$repo" "$base"
+
+# --- run from main's checkout, a parity baseline the PR plants does not satisfy the self-check ---
+mk_repo repo
+mk_repo base
+mk_plugin "$repo" alpha 1.0.0
+init_git "$repo"
+begin_pr "$repo"
+# gamma: a versioned plugin with no CHANGELOG.md, which only the baseline grandfathers.
+mkdir -p "$repo/plugins/gamma/.claude-plugin"
+printf '{\n  "name": "gamma",\n  "version": "1.0.0"\n}\n' >"$repo/plugins/gamma/.claude-plugin/plugin.json"
+printf 'gamma\n' >"$repo/scripts/changelog-parity-baseline.txt"
+echo y >>"$repo/plugins/alpha/server/package-lock.json"
+git -C "$repo" add -A && git -C "$repo" commit -qm "deps"
+out="$(cd "$repo" && bash "$base/scripts/dependabot-plugin-bump.sh" main 2>&1)"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"MISSING CHANGELOG: plugins/gamma"* ]]; then
+  ok "a parity baseline the PR plants is ignored; main's copy decides"
+else
+  fail "PR-planted parity baseline: rc=$rc out='$out'"
+fi
+rm -rf "$repo" "$base"
+
+# --- run from main's checkout, a no-op list the PR plants does not satisfy the self-check ---
+mk_repo repo
+mk_repo base
+mk_plugin "$repo" alpha 1.0.0
+mk_plugin "$repo" beta 2.0.0
+init_git "$repo"
+begin_pr "$repo"
+# beta: a version-only re-release, which only an entry in the no-op list sanctions.
+jq '.version = "2.0.1"' "$repo/plugins/beta/.claude-plugin/plugin.json" >"$repo/.git/beta.json"
+mv "$repo/.git/beta.json" "$repo/plugins/beta/.claude-plugin/plugin.json"
+awk '/^## \[2\.0\.0\]/ { print "## [2.0.1] - 2026-01-02\n\n### Changed\n\n- Re-release.\n" } { print }' \
+  "$repo/plugins/beta/CHANGELOG.md" >"$repo/.git/beta.md"
+mv "$repo/.git/beta.md" "$repo/plugins/beta/CHANGELOG.md"
+printf 'beta@2.0.1\n' >"$repo/scripts/changelog-no-op-bumps.txt"
+echo y >>"$repo/plugins/alpha/server/package-lock.json"
+git -C "$repo" add -A && git -C "$repo" commit -qm "deps"
+out="$(cd "$repo" && bash "$base/scripts/dependabot-plugin-bump.sh" main 2>&1)"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"BUMP WITHOUT CHANGE: beta"* ]]; then
+  ok "a no-op list the PR plants is ignored; main's copy decides"
+else
+  fail "PR-planted no-op list: rc=$rc out='$out'"
+fi
+rm -rf "$repo" "$base"
+
+# --- a symlinked CHANGELOG.md or manifest is refused, and its target is untouched ---
+for linked in CHANGELOG.md .claude-plugin/plugin.json; do
+  mk_repo repo
+  mk_repo base
+  mk_plugin "$repo" alpha 1.0.0
+  outside="$base/outside-$(basename "$linked")"
+  cp "$repo/plugins/alpha/$linked" "$outside"
+  ln -sf "$outside" "$repo/plugins/alpha/$linked"
+  init_git "$repo"
+  begin_pr "$repo"
+  echo s >>"$repo/plugins/alpha/server/package-lock.json"
+  git -C "$repo" add -A && git -C "$repo" commit -qm "deps"
+  before="$(cksum <"$outside")"
+  out="$(cd "$repo" && bash scripts/dependabot-plugin-bump.sh main 2>&1)"
+  rc=$?
+  if [[ $rc -eq 1 && "$out" == *"symlink"* && "$(cksum <"$outside")" == "$before" ]]; then
+    ok "a symlinked $linked is refused and its target left alone"
+  else
+    fail "symlinked $linked: rc=$rc out='$out'"
+  fi
+  rm -rf "$repo" "$base"
+done
 
 # --- no plugin paths: no-op ---
 mk_repo repo

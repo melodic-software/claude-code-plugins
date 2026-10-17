@@ -5,8 +5,8 @@
 // Automation Lanes): open, every blocker closed as completed by a listed
 // human or a merge (a pull request blocker: merged), no hold label,
 // not already agent-ready, ratified by the owner's admission marker, and
-// admitted by resolve-issue's own admission rule (no work class outside its
-// classes). Every fact is read from the API now, never from the event
+// admitted by resolve-issue's own admission rule (when it lists classes, no
+// work class outside them). Every fact is read from the API now, never from the event
 // payload. No model.
 //
 // On `schedule` it sweeps instead: every issue closed in the last
@@ -57,7 +57,8 @@ import { clampReset, parseOutcomeMarker } from "../work-resolve-issue/report-out
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
-// TODO(C6): read limits.restarts-per-run from pr-pipeline.yaml once that leaf exists.
+// Hard-coded until pr-pipeline.yaml has a limits.restarts-per-run leaf:
+// https://github.com/melodic-software/claude-code-plugins/issues/7764
 export const RESTARTS_PER_RUN = 5;
 // Limit stops since a person last added agent-ready before the issue goes to
 // a person instead of another restart (judgment).
@@ -281,6 +282,12 @@ async function labelUnblocked({ github, repo, closed, sweep, ratifiers, admissio
   return failed;
 }
 
+// The hand-off to a person after MAX_LIMIT_STOPS limit stops. Its marker lets
+// a later sweep see the comment was posted.
+const ESCALATED = "<!-- work-unblock escalated -->";
+export const escalationComment = (stops) =>
+  `${ESCALATED}\nThe usage limit stopped the work-resolve-issue lane on this issue ${stops} times since a person last added \`${LABEL}\`, so work-unblock no longer restarts it. To try again, remove \`${HUMAN_LABEL}\`, then remove \`${LABEL}\` and add it back: adding it starts a new run and starts the count again. Removing \`${LABEL}\` by hand also means work-unblock never adds it to this issue again when its blockers close; from then on a person adds it.`;
+
 // Why a limit-stopped agent-ready issue is not restarted now, or null with the
 // time its limit reset. Every fact is read fresh from the API.
 async function restartRefusal({ github, repo, issue, ratifiers, admission, bot, now }) {
@@ -304,7 +311,11 @@ async function restartRefusal({ github, repo, issue, ratifiers, admission, bot, 
     .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
   const stops = markers.filter((item) => item.outcome === "limited" && item.at > since).length;
   if (stops >= MAX_LIMIT_STOPS) {
-    return { reason: `${stops} limit stops since a person last added ${LABEL}`, escalate: stops };
+    const explained = comments.some(
+      (comment) =>
+        comment.user?.login === bot && String(comment.body ?? "").startsWith(ESCALATED) && Date.parse(comment.created_at) > since,
+    );
+    return { reason: `${stops} limit stops since a person last added ${LABEL}`, escalate: stops, explained };
   }
   const resets = clampReset(marker.resets, marker.at);
   if (now < resets) {
@@ -342,13 +353,17 @@ async function restartLimited({ github, repo, ratifiers, admission, bot, now, ca
   }
   for (const issue of open) {
     try {
-      const { reason, resets, escalate } = await restartRefusal({ github, repo, issue, ratifiers, admission, bot, now });
+      const { reason, resets, escalate, explained } = await restartRefusal({ github, repo, issue, ratifiers, admission, bot, now });
       if (escalate) {
+        // The comment first and the label last: the label is a hold, so a
+        // sweep after a failed comment would never come back to post it. A
+        // failed label write is retried by the next sweep, which finds the
+        // comment and adds only the label.
         const base = `/repos/${repo}/issues/${issue.number}`;
+        if (!explained) {
+          await github("POST", `${base}/comments`, { body: escalationComment(escalate) });
+        }
         await github("POST", `${base}/labels`, { labels: [HUMAN_LABEL] });
-        await github("POST", `${base}/comments`, {
-          body: `The usage limit stopped the work-resolve-issue lane on this issue ${escalate} times since a person last added \`${LABEL}\`, so work-unblock stops restarting it. To try again, remove \`${HUMAN_LABEL}\`, then remove and add \`${LABEL}\`: adding it starts the lane now and resets this count. After a person removes \`${LABEL}\`, work-unblock never adds it back when a blocker closes, so add it yourself whenever this issue should run again.`,
-        });
         console.log(`label-unblocked: #${issue.number} handed to a person: ${reason}`);
         continue;
       }

@@ -101,6 +101,22 @@ test("admission with ratified also admits a ratified issue with no class, never 
   assert.deepEqual(factsFor({ admission: { classes: ["work-class: read-only"] } }).sort(), ["freshLabels", "labels"]);
 });
 
+// Merge-criterion plan, Design 5: with no classes the owner's marker alone admits.
+test("admission with no classes admits on the marker alone and ignores work-class labels", () => {
+  const admission = { ratified: true };
+  const issue = (labels, ratified) => ({ event: "labeled", labels, ratified });
+  // The ratified issues still carrying a held label (#5981, #6821, #6825, #6826, #6832).
+  for (const held of ["work-class: scoped", "Work-Class: Structural"]) {
+    assert.equal(applies({ admission }, issue(["agent-ready", held], true)).applies, true);
+  }
+  assert.equal(applies({ admission }, issue(["agent-ready"], true)).applies, true);
+  assert.equal(
+    applies({ admission }, issue(["agent-ready", "work-class: mechanical"], false)).skipReason,
+    "not-applicable",
+  );
+  assert.deepEqual(factsFor({ admission }).sort(), ["freshLabels", "labels", "ratified"]);
+});
+
 test("every listed key must match: a paths miss wins over another miss", () => {
   assert.equal(
     applies({ paths: ["src/**"], labels: ["security"] }, facts).skipReason,

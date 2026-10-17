@@ -1166,9 +1166,11 @@ assert_eq "paging: a next page without a cursor leaves the bookmark" "2026-07-10
 # of intake-triage run 39038437240, which classify marked class=other while
 # the action reported the turn cap. Turns 10, 16, 12 against a cap of 15:
 # nearest-rank p90 of three is the third, 16; 80% of 15 is 12, so runs 2 and
-# 3 are linked. work-resolve-issue: "Issue X" stops on the limit three times,
-# then succeeds, so three restarts and one repeat line; "Issue Y" fails on
-# auth and then with no annotations read.
+# 3 are linked. work-resolve-issue: the item whose titles end "#7" stops on
+# the limit three times, then succeeds, so three restarts and one repeat line,
+# its title changing midway; the one ending "#8", with the same first title,
+# fails on auth and then with no annotations read. pr-verify: three limit
+# stops on one head.
 cat >"$TMP/lane-runs.json" <<'EOF'
 {
   "intake-triage.yml": [
@@ -1179,12 +1181,17 @@ cat >"$TMP/lane-runs.json" <<'EOF'
     {"id": 5, "html_url": "http://x/runs/5", "event": "issues", "display_title": "Issue E", "head_sha": "m1", "status": "completed", "conclusion": "skipped", "created_at": "2026-07-19T12:00:00Z"}
   ],
   "work-resolve-issue.yml": [
-    {"id": 10, "html_url": "http://x/runs/10", "event": "issues", "display_title": "Issue X", "head_sha": "m1", "status": "completed", "conclusion": "failure", "created_at": "2026-07-15T00:00:00Z"},
-    {"id": 11, "html_url": "http://x/runs/11", "event": "issues", "display_title": "Issue X", "head_sha": "m2", "status": "completed", "conclusion": "failure", "created_at": "2026-07-15T06:00:00Z"},
-    {"id": 12, "html_url": "http://x/runs/12", "event": "issues", "display_title": "Issue X", "head_sha": "m3", "status": "completed", "conclusion": "failure", "created_at": "2026-07-16T00:00:00Z"},
-    {"id": 13, "html_url": "http://x/runs/13", "event": "issues", "display_title": "Issue X", "head_sha": "m3", "status": "completed", "conclusion": "success", "created_at": "2026-07-16T06:00:00Z"},
-    {"id": 14, "html_url": "http://x/runs/14", "event": "issues", "display_title": "Issue Y", "head_sha": "m3", "status": "completed", "conclusion": "failure", "created_at": "2026-07-17T00:00:00Z"},
-    {"id": 15, "html_url": "http://x/runs/15", "event": "issues", "display_title": "Issue Y", "head_sha": "m3", "status": "completed", "conclusion": "failure", "created_at": "2026-07-17T01:00:00Z"}
+    {"id": 10, "html_url": "http://x/runs/10", "event": "issues", "display_title": "Issue X #7", "head_sha": "m1", "status": "completed", "conclusion": "failure", "created_at": "2026-07-15T00:00:00Z"},
+    {"id": 11, "html_url": "http://x/runs/11", "event": "issues", "display_title": "Issue X #7", "head_sha": "m2", "status": "completed", "conclusion": "failure", "created_at": "2026-07-15T06:00:00Z"},
+    {"id": 12, "html_url": "http://x/runs/12", "event": "issues", "display_title": "Issue X, renamed #7", "head_sha": "m3", "status": "completed", "conclusion": "failure", "created_at": "2026-07-16T00:00:00Z"},
+    {"id": 13, "html_url": "http://x/runs/13", "event": "issues", "display_title": "Issue X, renamed #7", "head_sha": "m3", "status": "completed", "conclusion": "success", "created_at": "2026-07-16T06:00:00Z"},
+    {"id": 14, "html_url": "http://x/runs/14", "event": "issues", "display_title": "Issue X #8", "head_sha": "m3", "status": "completed", "conclusion": "failure", "created_at": "2026-07-17T00:00:00Z"},
+    {"id": 15, "html_url": "http://x/runs/15", "event": "issues", "display_title": "Issue X #8", "head_sha": "m3", "status": "completed", "conclusion": "failure", "created_at": "2026-07-17T01:00:00Z"}
+  ],
+  "pr-verify.yml": [
+    {"id": 20, "html_url": "http://x/runs/20", "event": "workflow_run", "display_title": "PR Z", "head_sha": "abcdef1234", "status": "completed", "conclusion": "failure", "created_at": "2026-07-15T00:00:00Z"},
+    {"id": 21, "html_url": "http://x/runs/21", "event": "workflow_run", "display_title": "PR Z", "head_sha": "abcdef1234", "status": "completed", "conclusion": "failure", "created_at": "2026-07-15T06:00:00Z"},
+    {"id": 22, "html_url": "http://x/runs/22", "event": "workflow_run", "display_title": "PR Z", "head_sha": "abcdef1234", "status": "completed", "conclusion": "failure", "created_at": "2026-07-16T00:00:00Z"}
   ]
 }
 EOF
@@ -1198,7 +1205,10 @@ cat >"$TMP/lane-annotations.json" <<'EOF'
   "11": "failure class=rate-limit",
   "12": "failure class=rate-limit",
   "13": "turns=4 max-turns=50",
-  "14": "failure class=auth"
+  "14": "failure class=auth",
+  "20": "failure class=rate-limit",
+  "21": "failure class=rate-limit",
+  "22": "failure class=rate-limit"
 }
 EOF
 OUT_LANES="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
@@ -1216,7 +1226,9 @@ assert_not_contains "lanes: a run before the window is not counted" "$LANES" "ht
 assert_contains "lanes: limit stops, restarts, auth and an unread failure" "$LANES" \
   "work-resolve-issue.yml  runs=6  failed=5 [rate-limit 3, max-turns 0, auth 1, other 0, unread 1]  limit-stops=3  restarts=3"
 assert_contains "lanes: headroom under 80% raises no CHECK" "$LANES" "    turns: max=4 p90=4 cap=50 (1 runs)"$'\n'
-assert_contains "lanes: three limit stops on one item are named" "$LANES" "3 limit stops on one head: Issue X"
+assert_contains "lanes: three limit stops on one issue are named, keyed by its number" "$LANES" "3 limit stops on one item: Issue X #7"
+assert_contains "lanes: three limit stops on one head are named with the head" "$LANES" "3 limit stops on one head: PR Z @ abcdef1"
+assert_contains "lanes: restarts on a pull request head" "$LANES" "pr-verify.yml  runs=3  failed=3 [rate-limit 3, max-turns 0, auth 0, other 0]  limit-stops=3  restarts=2"
 assert_exit "lanes: a fully read brief with lanes exits 0" 0 "$(
   bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" --decisions-json "$TMP/decisions.json" \
     --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
@@ -1224,7 +1236,9 @@ assert_exit "lanes: a fully read brief with lanes exits 0" 0 "$(
   echo $?
 )"
 printf '[1,2]\n' >"$TMP/lane-runs-bad.json"
-OUT_LANES_BAD="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --lane-runs-json "$TMP/lane-runs-bad.json" 2>&1)"
+OUT_LANES_BAD="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
+  --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
+  --lane-runs-json "$TMP/lane-runs-bad.json" 2>&1)"
 assert_contains "lanes: a runs file that is not an object is UNREADABLE" "$(section "$OUT_LANES_BAD" "== Lanes")" "UNREADABLE:"
 
 # --- Summary ------------------------------------------------------------------
