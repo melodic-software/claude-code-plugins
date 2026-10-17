@@ -364,9 +364,9 @@ human. Work classes are defined in
   where the lane resolved conflicts, needs a fresh verdict on that commit before the merge. The
   local babysit lane accepts only evidence bound to the pinned head SHA (below).
 - `merge.stack-landing` defaults to `manual`.
-- A repository has one merge authority. The one exception is
-  `.github/workflows/pr-automerge-dependabot.yml`, which merges Dependabot pull requests on its own
-  rules whatever `merge.authority` says.
+- A repository has one merge authority, Dependabot pull requests included: the pr-merge lane
+  merges tier `auto` ones, and tier `review` ones once the pr-unblock lane's review activity
+  leaves a merge verdict ([Dependabot pull requests](#dependabot-pull-requests), below).
 
 ### The local babysit lane
 
@@ -413,8 +413,8 @@ that fails counts as a refusal.
   the wrapper disarms it.
 - **One merge in flight.** The wrapper refuses while the identity has an entry in the merge queue,
   or while an earlier unattended merge has not passed its post-merge check.
-- **Dependabot.** A dependency-manager author is never eligible for an unattended merge. Those pull
-  requests stay with `pr-automerge-dependabot.yml`.
+- **Dependabot.** A dependency-manager author is never eligible for a local unattended merge. The
+  pr-merge lane owns Dependabot pull requests (below).
 
 A human here is a GitHub user, not the agent identity and not an automation login, with write or
 admin permission on the repository.
@@ -448,8 +448,67 @@ except six:
 - **Post-merge check and one merge in flight.** Only merges the agent identity enqueued count. A
   merge by a person or by another App, such as a release pull request, is not the lane's.
 
-While `merge.report-only` is true, the workflow starts no full CI run either; its summary says
-whether it would have.
+While `merge.report-only` is true and `merge.dependabot.mode` is not `enforce`, the workflow starts
+no full CI run either; its summary says whether it would have.
+
+### Dependabot pull requests
+
+No Dependabot pull request waits on a human
+([ADR 0073](../../adr/0073-merge-dependabot-pull-requests-in-the-pr-merge-lane.md)). The pr-merge
+lane is the one merge authority for both tiers. It lists Dependabot's open pull requests beside
+its own and judges each as its own class, in place of the eligibility above. Both lanes sort by
+the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-unblock):
+
+- **Tier `auto`.** Every update is non-major: the first numeric version component does not change,
+  and below 1.0 the second does not either. Every update on a `dependabot/github_actions/...`
+  branch comes from the `actions`, `github` or `anthropics` publisher. The newest `ci-status` run
+  on the head is not red (`failure`, `cancelled`, `timed_out`, `action_required`,
+  `startup_failure`). The updates come from the `updated-dependencies` metadata in Dependabot's
+  verified commit when it is there, and from the title (`bump <name> from <a> to <b>`) or a
+  group's body `Updates` lines otherwise; when both read, they must name the same dependencies and
+  agree on which are major.
+- **Tier `review`.** Anything else, including anything unreadable (a SHA version, an unparsed
+  title). The pr-unblock lane's review activity reviews it, and the pr-merge lane merges it only
+  when the newest round marker the lanes App posted on it
+  (`<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<id>-<attempt> -->`)
+  names the current head with `verdict=merge`. A marker from any other author is ignored.
+- **Commits.** Every commit is a GitHub-verified Dependabot commit, or the repository's
+  `[dependabot skip]` version-bump commit (authored by `github-actions[bot]`, verified, touching
+  only a plugin's `plugin.json` or `CHANGELOG.md`). On a reviewed pull request the lanes App's
+  verified `[dependabot skip]` fix commits count too. A commit's author is text whoever creates it
+  chooses, so two more checks bind the pull request to Dependabot:
+  - **Pushes.** The repository activity API for the head branch, read back to Dependabot's newest
+    branch creation or force push, shows every push by `dependabot[bot]`, or by
+    `github-actions[bot]` (or, after a review, the lanes App) pushing its own commit, and the
+    newest push is the head.
+  - **Content.** Every changed path, either side of a rename, is a manifest or lock file of an
+    ecosystem and directory `.github/dependabot.yml` lists at the base (npm `package.json`,
+    `package-lock.json` and the like; pip `requirements*.txt`/`.in`, `pyproject.toml`, `uv.lock`
+    and the like), or a workflow or action file of a `github-actions` entry whose diff changes only
+    `uses:` lines (`/` covers `.github/workflows/` and the action files under `.github/actions/`).
+    A directory holding `*` or `?` is a glob, read the same way in both lanes: `*` and `?` stay
+    inside one path segment, `**/` is zero or more whole segments (so `**/*` covers the root and
+    every layer below), any other `**` crosses segments, and everything else is literal. A path the version-bump or lanes App fix
+    commit touched counts as checked; a fix commit may not touch `.github/`, and one whose file
+    list cannot be read whole refuses. Anything else (a rebuilt bundle, a manifest outside a listed
+    directory) makes the pull request tier `review` with the reason `dependabot-content:<path>`,
+    so the AI review judges it; it is never left for a person. A failed push check, by contrast,
+    always refuses, verdict or not.
+- **Gate.** Either tier merges only once `ci-status` succeeded on its head, through the same gate
+  as the lane's own: mergeable, no `do-not-merge` label, no body hold, no blocking comment from a
+  human with write access, the rung (C2) and its cap, the kill switches, the post-merge check and
+  one merge in flight. No closing issue, denied-path rule or diff risk score applies: `ci-status`
+  (and, for tier `review`, the review verdict) is the gate, and a workflow pin bump touches
+  `.github/**` by definition.
+- **Switch.** `merge.dependabot.mode` decides it, not `merge.report-only`: `enforce` merges,
+  `report` reports and writes nothing, and `off` (the default) refuses every Dependabot pull
+  request and leaves them unlisted.
+
+The class is `babysit_dependabot.py` beside the wrapper. Auto-merge armed with `GITHUB_TOKEN` is not used: GitHub's
+[`GITHUB_TOKEN` page](https://docs.github.com/en/actions/concepts/security/github_token) says
+"events triggered by the `GITHUB_TOKEN` will not create a new workflow run" (`workflow_dispatch`,
+`repository_dispatch` and some `pull_request` events excepted, not `merge_group`), so the queue
+entry such an arm makes never gets its `ci-status` run and never lands (#6717, #7512).
 
 `.github/workflows/pr-merge.yml` runs the lane's `merge-pr` activity with no model and no head
 checkout. A label, body or ready change on a PR, a manual dispatch and a schedule every 15 minutes

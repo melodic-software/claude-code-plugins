@@ -419,6 +419,18 @@
         "stack-landing": {
           "enum": ["manual", "bottom-up"],
           "default": "manual"
+        },
+        "dependabot": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The pr-merge lane's Dependabot class: on verified Dependabot commits and a green ci-status, a tier auto pull request (every update non-major) merges, and a tier review one merges on the lanes App's verdict=merge marker at its head; no closing issue or denied-path rule (README.md, Dependabot pull requests).",
+          "properties": {
+            "mode": {
+              "enum": ["off", "report", "enforce"],
+              "default": "off",
+              "description": "enforce: merge Dependabot pull requests whatever merge.report-only says. report: report each decision and write nothing. off: refuse every Dependabot pull request and leave them unlisted."
+            }
+          }
         }
       }
     }

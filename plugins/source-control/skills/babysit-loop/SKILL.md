@@ -489,7 +489,7 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
   this plugin can remove it.
 - **Dependency-manager PRs stay held even at the C2 rung.** babysit-prs's cross-tier dependency
   hold-merge invariant survives this loop: a Dependabot/Renovate-class PR is never merged
-  autonomously regardless of work class. It lands on the merge-ready report instead; the C2-mechanical rung is a work-class ceiling, not a route around an owner invariant.
+  autonomously by this loop regardless of work class. It lands on the merge-ready report instead; the C2-mechanical rung is a work-class ceiling, not a route around an owner invariant. A repository whose pr-merge lane has its Dependabot class on merges those PRs there, not here.
 - **The grace window is an overlay, not a substitute.** Excluding recently-active PRs at cycle
   level does not relax babysit-prs's expected-head pins or HEAD assertions inside the cycle; both disciplines hold simultaneously.
 - **Drain counts issues, not just PRs.** 0 open PRs alone never exits a drain, the worker lane
