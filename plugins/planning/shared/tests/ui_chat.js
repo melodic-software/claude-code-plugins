@@ -10,16 +10,37 @@
 // Expected values come from the triage rows (badge, 3 messages, 2 s) and the messages this suite posts, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
-// An iPhone keyboard (336 px, 844 less the 508 px left above it, by judgment from an iPhone 13 with the suggestion bar)
-// shrinks visualViewport and leaves the layout viewport alone, so this stands in for it the same way: visualViewport's
-// height drops by KB and it fires resize. Shrinking the whole Chromium viewport instead would shrink innerHeight too.
+// The iOS Safari keyboard, as WebKit implements it. The layout viewport and innerHeight stay; visualViewport's height
+// drops by the keyboard (https://www.bram.us/2021/09/13/prevent-items-from-being-hidden-underneath-the-virtual-keyboard-by-means-of-the-virtualkeyboard-api/).
+// On an iPhone a focused text field always forces a reveal (WKContentViewInteraction.mm passes requiresAccessoryView as
+// forceScroll), which centers the field in the height left above the keyboard, clamped to the document, over 0.25 s
+// (WKWebViewIOS.mm _zoomToFocusRect): that pan is visualViewport.offsetTop. visualViewport fires resize along the way
+// and scroll only once the pan stops (https://bugs.webkit.org/show_bug.cgi?id=218465); a resize handler can read
+// offsetTop 0 that reads right a moment later (https://bugs.webkit.org/show_bug.cgi?id=237851), which `stale` makes
+// the last event. KB (336 px, by judgment from an iPhone 13 with the suggestion bar) is the default keyboard height.
 const KB = 336;
-const keyboard = (page, up) => page.evaluate(([up, kb]) => {
-  const vv = window.visualViewport;
-  if (up) Object.defineProperty(vv, "height", { configurable: true, get: () => innerHeight - kb }); else delete vv.height;
-  vv.dispatchEvent(new Event("resize"));
-  return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-}, [up, KB]);
+const keyboard = (page, up, { kb = KB, stale = false } = {}) => page.evaluate(async ([up, kb, stale]) => {
+  const vv = window.visualViewport, ih = innerHeight, h0 = vv.height, top0 = vv.offsetTop, h1 = up ? ih - kb : ih;
+  const set = (h, top) => { for (const [k, v] of [["height", h], ["offsetTop", top]]) Object.defineProperty(vv, k, { configurable: true, get: () => v }); };
+  let pan = 0;
+  const f = document.activeElement;
+  if (up && f && f !== document.body) {
+    const r = f.getBoundingClientRect(), space = (h1 - r.height) / 2;
+    pan = space > 0 ? r.top - space : Math.min(Math.max(top0, r.top - h1 / 2), r.top);
+    pan = Math.min(Math.max(0, pan), document.documentElement.scrollHeight - h1);
+  }
+  for (let i = 1; i <= 5; i++) {
+    set(h0 + (h1 - h0) * i / 5, i === 1 ? top0 : top0 + (pan - top0) * i / 5);
+    vv.dispatchEvent(new Event("resize"));
+    await new Promise(r => setTimeout(r, 50));
+  }
+  set(h1, pan); vv.dispatchEvent(new Event("scroll"));
+  if (stale) { set(h1, 0); vv.dispatchEvent(new Event("resize")); set(h1, pan); }
+  if (!up) { delete vv.height; delete vv.offsetTop; }
+  await new Promise(r => setTimeout(r, 100));
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  return pan;
+}, [up, kb, stale]);
 
 async function main() {
   const pw = loadPlaywright();
@@ -132,7 +153,7 @@ async function main() {
     await kia.locator(".vf-minput").tap();
     await keyboard(kia, true);
     ok("390x844, 20+ messages, at the newest: with the keyboard up the newest message is whole above the field", n20 && await newest("More 2"), await where());
-    if (process.env.KBD_SHOTS) await kia.screenshot({ path: require("node:path").join(process.env.KBD_SHOTS, "chat-390x844-keyboard.png"), clip: { x: 0, y: 0, width: 390, height: 844 - KB } });
+    if (process.env.KBD_SHOTS) { const vv = await kia.evaluate(() => [visualViewport.offsetTop, visualViewport.height]); await kia.screenshot({ path: require("node:path").join(process.env.KBD_SHOTS, "chat-390x844-keyboard.png"), clip: { x: 0, y: vv[0], width: 390, height: vv[1] } }); }
     await kia.keyboard.insertText("Line one\nLine two\nLine three");
     ok("390x844, keyboard up: typing 3 lines keeps the newest message in view", await newest("More 2"), await where());
     await gus.evaluate(() => window.Core.chat("Arrived with the keyboard up"));

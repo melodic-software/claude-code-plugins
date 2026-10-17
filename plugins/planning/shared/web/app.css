@@ -1911,7 +1911,18 @@
   /* the Ask Claude sheet takes all the room above the keyboard, and its Send or Propose row stays at the sheet's
      bottom edge while the form is in view */
   .app[data-kb] .vf-drawer { block-size: calc(100% - 8px); }
-  .app[data-kb] .vf-apform > .vf-crow { position: sticky; z-index: 1; inset-block-end: 0; padding-block: 6px; background: var(--pane); }
+  .app[data-kb] .vf-apform > .vf-crow { position: sticky; z-index: 1; inset-block-end: 0; padding-block: 4px; background: var(--pane); }
+  /* a keyboard can leave under 250 px: the title steps aside so the close button shares the mode switch's row, and
+     the form puts the label and the field first, About and the notes after them, so three lines of the field fit above
+     the sticky row */
+  .app[data-kb] .vf-drawer { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr); }
+  .app[data-kb] .vf-drawer > .vf-pp-head { grid-area: 1 / 2; padding: 4px 4px 0 0; }
+  .app[data-kb] .vf-ap-title { display: none; }
+  .app[data-kb] .vf-apmodes { grid-area: 1 / 1; margin: 4px 0 2px 12px; flex-wrap: nowrap; max-inline-size: 100%; }
+  .app[data-kb] .vf-apmodes .vf-seg-btn { flex: 0 1 auto; min-inline-size: 0; padding-inline: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app[data-kb] .vf-apscroll { grid-area: 2 / 1 / 3 / 3; padding-block-start: 4px; }
+  .app[data-kb] .vf-apform > :not(.vf-asklabel, .vf-ta, .vf-crow) { order: 1; }
+  .app[data-kb] .vf-apform > .vf-crow { order: 2; }
 }
 
 /* Dialogs: confirmations and the attach picker. Native modal dialogs, so they sit above every panel and sheet. */

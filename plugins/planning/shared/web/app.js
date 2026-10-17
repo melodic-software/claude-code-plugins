@@ -467,16 +467,41 @@
       // Triage 23: a field growing while I type stays in view, with its form's send button when the form fits.
       if (document.activeElement === t && !t.closest(".vf-composer-sheet")) reveal(t.closest("form") || t, t);
     }
-    /** Scroll the nearest scrolling ancestor (never #app or the page) so el is in view; if el does not fit, keep must in view. */
-    function reveal(el, must = el) {
-      let sc = must.parentElement;
+    /** The nearest scrolling ancestor of el, never #app or the page. */
+    function scroller(el) {
+      let sc = el.parentElement;
       while (sc && sc !== root && !(/auto|scroll/.test(getComputedStyle(sc).overflowY) && sc.scrollHeight > sc.clientHeight)) sc = sc.parentElement;
-      if (!sc || sc === root) return;
-      const S = sc.getBoundingClientRect(), vvBottom = window.visualViewport ? visualViewport.offsetTop + visualViewport.height : innerHeight;
-      const bottom = Math.min(S.bottom, vvBottom), fits = el.getBoundingClientRect().height <= bottom - S.top;
+      return sc && sc !== root ? sc : null;
+    }
+    /** The part of scroller sc a person sees: its box inside the visual viewport, less the sticky or fixed rows in it
+     *  that sit in keep's column without holding it or being held by it, since they cover what scrolls under them. */
+    function seenBand(sc, keep) {
+      const S = sc.getBoundingClientRect(), K = keep.getBoundingClientRect(), vv = window.visualViewport;
+      let top = Math.max(S.top, vv ? vv.offsetTop : 0), bottom = Math.min(S.bottom, vv ? vv.offsetTop + vv.height : innerHeight);
+      for (const s of sc.querySelectorAll("*")) {
+        const cs = getComputedStyle(s);
+        if ((cs.position !== "sticky" && cs.position !== "fixed") || keep.contains(s) || s.contains(keep)) continue;
+        const r = s.getBoundingClientRect(), h = r.height;
+        if (!h || r.right <= K.left || r.left >= K.right) continue;
+        if (cs.insetBlockEnd !== "auto") bottom -= h; else top += h;
+      }
+      return { top, bottom };
+    }
+    /** Scroll sc by the least that brings the range top..bottom inside band, its top first. */
+    function scrollInto(sc, top, bottom, band) {
+      if (top < band.top) sc.scrollTop -= band.top - top + 4;
+      else if (bottom > band.bottom) sc.scrollTop += Math.min(bottom - band.bottom + 4, top - band.top);
+    }
+    /** Scroll the nearest scrolling ancestor so el is in view; if el does not fit, keep must in view. Sticky rows count
+     *  as covering. */
+    function reveal(el, must = el) {
+      const sc = scroller(must);
+      if (!sc) return;
+      let band = seenBand(sc, el);
+      const fits = el.getBoundingClientRect().height <= band.bottom - band.top;
+      if (!fits) band = seenBand(sc, must);
       const r = (fits ? el : must).getBoundingClientRect();
-      if (r.bottom > bottom) sc.scrollTop += r.bottom - bottom + 4;
-      else if (r.top < S.top) sc.scrollTop -= S.top - r.top + 4;
+      scrollInto(sc, r.top, r.bottom, band);
     }
 
     // ---------- toast ----------
@@ -3199,13 +3224,23 @@
       const was = root.hasAttribute("data-kb"), now = "kb" in document.documentElement.dataset;
       root.toggleAttribute("data-kb", now);
       if (was !== now) { syncModal(); if (ui.mention) paintMention(); }
-      revealAskField();
+      revealAskField(now && !was);
     };
-    // In the Ask Claude sheet the field being typed in and its Send or Propose button stay in view as the keyboard
-    // comes and goes; the rest of the sheet scrolls.
-    const revealAskField = () => { const f = document.activeElement; if (f?.matches?.("textarea") && apForm.contains(f)) reveal(apForm, f); };
-    on(askPanel, "focusin", revealAskField);
-    if (window.visualViewport) { on(window.visualViewport, "resize", kbSync); on(window.visualViewport, "scroll", kbSync); }
+    // In the Ask Claude sheet, focusing its field or the keyboard coming up puts the sheet at its top: the label and the
+    // field first, the Send or Propose row sticky under them. After that, as the keyboard moves or the field grows, the
+    // label and the field's first 3 lines stay seen above that row; where even that does not fit, the field's top does.
+    const revealAskField = toTop => {
+      const f = document.activeElement;
+      if (!f?.matches?.("textarea") || !apForm.contains(f)) return;
+      if (toTop) apScroll.scrollTop = 0;
+      const band = seenBand(apScroll, f), cs = getComputedStyle(f), fr = f.getBoundingClientRect(), lr = apLabel.getBoundingClientRect();
+      const lines = parseFloat(cs.paddingTop) + parseFloat(cs.borderTopWidth) + 3 * (parseFloat(cs.lineHeight) || 1.5 * parseFloat(cs.fontSize));
+      const top = Math.min(lr.top, fr.top), bottom = Math.min(fr.bottom, fr.top + lines);
+      if (bottom - top <= band.bottom - band.top) scrollInto(apScroll, top, bottom, band);
+      else scrollInto(apScroll, fr.top, fr.top + band.bottom - band.top, band);
+    };
+    on(askPanel, "focusin", e => { if (e.target === apTa) revealAskField(true); });
+    on(window, "core-viewport", kbSync);
     const sysTheme = () => applyTheme();
     lightOS.addEventListener("change", sysTheme); offs.push(() => lightOS.removeEventListener("change", sysTheme));
 

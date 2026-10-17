@@ -857,20 +857,28 @@
 
   window.Core = Core;
   // Pin the app to the visual viewport: an on-screen keyboard (iOS ignores interactive-widget) shrinks the app
-  // from the bottom instead of covering the focused field, and the page never pans. --kb is the keyboard inset.
+  // from the bottom instead of covering the focused field, and the page never pans. --kb is the keyboard's height:
+  // what it takes from the layout viewport, whose innerHeight a keyboard leaves alone while it shrinks the visual
+  // viewport (https://developer.mozilla.org/en-US/docs/Web/API/VisualViewport). The pan iOS adds to reveal the field
+  // moves offsetTop, not the height, so it never counts against the keyboard; times scale, so a pinch-zoom is not one.
+  // Fires "core-viewport" on window once the app is refitted.
   const vv = window.visualViewport, docEl = document.documentElement;
   function fitViewport() {
     if (!vv) return;
-    const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+    const kb = Math.max(0, Math.round(window.innerHeight - vv.height * vv.scale));
     docEl.style.setProperty("--vv-top", vv.offsetTop + "px");
     docEl.style.setProperty("--vv-h", vv.height + "px");
     docEl.style.setProperty("--kb", kb + "px");
     if (kb > 80) docEl.dataset.kb = ""; else delete docEl.dataset.kb;
     if (window.scrollY || window.scrollX) window.scrollTo(0, 0);
+    window.dispatchEvent(new Event("core-viewport"));
   }
+  // iOS can hand a resize handler an offsetTop of 0 that reads right a moment later
+  // (https://bugs.webkit.org/show_bug.cgi?id=237851), and may send no event after it: measure again two frames on.
+  const refit = () => { fitViewport(); requestAnimationFrame(() => requestAnimationFrame(fitViewport)); };
   Core.fitViewport = fitViewport;
-  vv?.addEventListener("resize", fitViewport);
-  vv?.addEventListener("scroll", fitViewport);
+  vv?.addEventListener("resize", refit);
+  vv?.addEventListener("scroll", refit);
   fitViewport();
   /** A secret with no name beside it (a personal link, or a guest the import carried over): ask the server who it is.
    *  Only the server's refusal of the secret (401) forgets it, rejecting with 401; a removed person (403) keeps it and

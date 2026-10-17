@@ -8,8 +8,9 @@
 // 24 px below the question block (question text, options, and the hint and note lines around them). A new guest's
 // first view shows the goal, the host's ask and "Start here: question 1" in view (triage 3); the ten person colors
 // meet WCAG 2.2 AA in both themes (C40); editing a saved answer on a phone is a full-height sheet (triage 18). With
-// the phone keyboard up, Ask Claude keeps its field and Send request (or Propose) inside the visual viewport and
-// scrolls down to "Your requests"; at 320, 375, 390 and 430 px wide the page never scrolls sideways, in the default
+// an iOS keyboard of 300 to 600 px at 390x844 and 260 to 430 px at 375x667, Ask Claude shows the label, the field's
+// first 3 lines and Send request (or Propose) uncovered above it, Ask with the sheet at its top, and it scrolls down
+// to "Your requests"; at 320, 375, 390 and 430 px wide the page never scrolls sideways, in the default
 // view, with the chat open, or in Ask Claude with the keyboard up.
 //   node plugins/planning/shared/tests/ui_layout.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
@@ -25,16 +26,55 @@ const TOL = 1, MIN_HIT = 44, COMPOSER_GAP = 24;
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 };
 const CHOICE = "Which default payment method?", TEXT = "Where should the order summary sit?", GOAL = "Pick the checkout we launch with.";
 const q = (id, text, format) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format });
-// An iPhone keyboard (336 px, 844 less the 508 px left above it, by judgment from an iPhone 13 with the suggestion bar)
-// shrinks visualViewport and leaves the layout viewport alone, so this stands in for it the same way: visualViewport's
-// height drops by KB and it fires resize. Shrinking the whole Chromium viewport instead would shrink innerHeight too.
+// The iOS Safari keyboard, as WebKit implements it. The layout viewport and innerHeight stay; visualViewport's height
+// drops by the keyboard (https://www.bram.us/2021/09/13/prevent-items-from-being-hidden-underneath-the-virtual-keyboard-by-means-of-the-virtualkeyboard-api/).
+// On an iPhone a focused text field always forces a reveal (WKContentViewInteraction.mm passes requiresAccessoryView as
+// forceScroll), which centers the field in the height left above the keyboard, clamped to the document, over 0.25 s
+// (WKWebViewIOS.mm _zoomToFocusRect): that pan is visualViewport.offsetTop. visualViewport fires resize along the way
+// and scroll only once the pan stops (https://bugs.webkit.org/show_bug.cgi?id=218465); a resize handler can read
+// offsetTop 0 that reads right a moment later (https://bugs.webkit.org/show_bug.cgi?id=237851), which `stale` makes
+// the last event. KB (336 px, by judgment from an iPhone 13 with the suggestion bar) is the default keyboard height.
 const KB = 336;
-const keyboard = (page, up) => page.evaluate(([up, kb]) => {
-  const vv = window.visualViewport;
-  if (up) Object.defineProperty(vv, "height", { configurable: true, get: () => innerHeight - kb }); else delete vv.height;
-  vv.dispatchEvent(new Event("resize"));
-  return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-}, [up, KB]);
+const keyboard = (page, up, { kb = KB, stale = false } = {}) => page.evaluate(async ([up, kb, stale]) => {
+  const vv = window.visualViewport, ih = innerHeight, h0 = vv.height, top0 = vv.offsetTop, h1 = up ? ih - kb : ih;
+  const set = (h, top) => { for (const [k, v] of [["height", h], ["offsetTop", top]]) Object.defineProperty(vv, k, { configurable: true, get: () => v }); };
+  let pan = 0;
+  const f = document.activeElement;
+  if (up && f && f !== document.body) {
+    const r = f.getBoundingClientRect(), space = (h1 - r.height) / 2;
+    pan = space > 0 ? r.top - space : Math.min(Math.max(top0, r.top - h1 / 2), r.top);
+    pan = Math.min(Math.max(0, pan), document.documentElement.scrollHeight - h1);
+  }
+  for (let i = 1; i <= 5; i++) {
+    set(h0 + (h1 - h0) * i / 5, i === 1 ? top0 : top0 + (pan - top0) * i / 5);
+    vv.dispatchEvent(new Event("resize"));
+    await new Promise(r => setTimeout(r, 50));
+  }
+  set(h1, pan); vv.dispatchEvent(new Event("scroll"));
+  if (stale) { set(h1, 0); vv.dispatchEvent(new Event("resize")); set(h1, pan); }
+  if (!up) { delete vv.height; delete vv.offsetTop; }
+  await new Promise(r => setTimeout(r, 100));
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  return pan;
+}, [up, kb, stale]);
+/** What a person sees of the focused sheet's field: the label, the field's first 3 lines and its primary button must
+ *  each be the topmost element at their sample points, inside the visual viewport. Resolves to the problems found. */
+const fieldSeen = (page, label, field, button) => page.evaluate(([l, f, b]) => {
+  const vv = visualViewport, top = vv.offsetTop, bottom = vv.offsetTop + vv.height, out = [];
+  const probe = (what, el, x, y) => {
+    if (y < top + 0.5 || y > bottom - 0.5) return out.push(`${what} at y ${y.toFixed(0)} outside the visual viewport ${top.toFixed(0)}..${bottom.toFixed(0)}`);
+    const hit = document.elementFromPoint(x, y);
+    if (!el.contains(hit)) out.push(`${what} at y ${y.toFixed(0)} covered by ${hit ? `${hit.tagName.toLowerCase()}.${[...hit.classList].join(".")}` : "nothing"}`);
+  };
+  const L = document.querySelector(l), F = document.querySelector(f), B = document.querySelector(b);
+  if (!L || !F || !B) return [`missing ${[!L && l, !F && f, !B && b].filter(Boolean).join(", ")}`];
+  const lr = L.getBoundingClientRect(), fr = F.getBoundingClientRect(), br = B.getBoundingClientRect(), cs = getComputedStyle(F);
+  const lh = parseFloat(cs.lineHeight) || 1.5 * parseFloat(cs.fontSize), pad = parseFloat(cs.paddingTop) + parseFloat(cs.borderTopWidth);
+  probe("label", L, lr.left + Math.min(20, lr.width / 2), lr.top + lr.height / 2);
+  for (let i = 0; i < 3; i++) for (const x of [fr.left + 16, fr.right - 16]) probe(`field line ${i + 1}`, F, x, fr.top + pad + (i + 0.5) * lh);
+  probe(B.textContent.trim() || "button", B, br.left + br.width / 2, br.top + br.height / 2);
+  return [...new Set(out)];
+}, [label, field, button]);
 const settle = page => page.evaluate(() => Promise.all(document.getAnimations().filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished.catch(() => null))));
 
 /** Opens one view; resolves to "" or the reason it could not. Phone layouts use the tab bar, wider ones the view switch. */
@@ -228,7 +268,39 @@ async function main() {
       `${asked} ${connected} ${side.length}: ${side.slice(0, 8).join("; ")}`);
     await pia.keyboard.press("Escape");
 
-    // ---------- dogfood: the Ask Claude sheet with the phone keyboard up ----------
+    // ---------- dogfood: the Ask Claude sheet with an iOS keyboard of every plausible height ----------
+    // Keyboard heights from 300 to 600 px at 390x844 and 260 to 430 at 375x667 (a small iPhone), each with WebKit's
+    // centering pan, and one where the last resize reads offsetTop 0. In Ask and in Propose question the label, the
+    // field's first 3 lines and the primary button are seen above the keyboard and the sticky row; in Ask the sheet
+    // sits at its top.
+    const SWEEP = [[390, 844, [300, 350, 400, 450, 500, 550, 600], 450], [375, 667, [260, 310, 360, 410, 430], 360]];
+    for (const [w, h, kbs, staleKb] of SWEEP) {
+      const sp = await rec.open(A.localUrl, { context: { ...PHONE, viewport: { width: w, height: h } } });
+      await joinAs(sp, `Kb ${w}`);
+      await sp.evaluate(() => document.querySelector(".vf-asktop").click());
+      await until(sp, () => !!document.querySelector(".vf-drawer:not([hidden]) .vf-apform"));
+      await settle(sp);
+      for (const [mode, label] of [["Ask", "Send request"], ["Propose question", "Propose"]]) {
+        await sp.locator(".vf-apmodes .vf-seg-btn", { hasText: mode }).tap();
+        await until(sp, l => document.querySelector(".vf-apform .vf-btn-primary")?.textContent === l, label, 3000);
+        const bad = [];
+        for (const [kb, stale] of [...kbs.map(k => [k, false]), [staleKb, true]]) {
+          await sp.evaluate(() => { document.activeElement?.blur(); document.querySelector(".vf-apscroll").scrollTop = 0; });
+          await sp.locator("#vf-ap-ta").tap();
+          await keyboard(sp, true, { kb, stale });
+          const seen = await fieldSeen(sp, ".vf-apform .vf-asklabel", "#vf-ap-ta", ".vf-apform .vf-btn-primary");
+          if (mode === "Ask") { const st = await sp.evaluate(() => document.querySelector(".vf-apscroll").scrollTop); if (st > 0.5) seen.push(`the sheet scrolled ${st.toFixed(0)} px from its top`); }
+          if (seen.length) bad.push(`keyboard ${kb}${stale ? " (offsetTop read 0)" : ""}: ${seen.join(", ")}`);
+          if (process.env.KBD_SHOTS && kb === kbs[kbs.length - 1] && !stale) {
+            const vv = await sp.evaluate(() => [visualViewport.offsetTop, visualViewport.height]);
+            await sp.screenshot({ path: require("node:path").join(process.env.KBD_SHOTS, `${mode === "Ask" ? "ask" : "propose"}-${w}x${h}-kb${kb}.png`), clip: { x: 0, y: vv[0], width: w, height: vv[1] } });
+          }
+          await keyboard(sp, false);
+        }
+        ok(`${w}x${h}, Ask Claude in ${mode}, keyboard ${kbs[0]} to ${kbs[kbs.length - 1]} px: the label, the field's first 3 lines and ${label} are seen above the keyboard${mode === "Ask" ? ", the sheet at its top" : ""}`, bad.length === 0, bad.join("; "));
+      }
+      await sp.context().close();
+    }
     const ria = await rec.open(A.localUrl, { context: PHONE });
     await joinAs(ria, "Ria");
     for (const t of ["Which providers charge the least?", "Compare saved-card adoption", "What do returning customers pick?"]) await ria.evaluate(x => window.Core.request("Q1", "ask", x), t);
@@ -237,22 +309,6 @@ async function main() {
     await settle(ria);
     await ria.locator("#vf-ap-ta").tap();
     await keyboard(ria, true);
-    const inVV = (field, send) => ria.evaluate(([f, b]) => {
-      const vv = visualViewport, top = vv.offsetTop, bottom = vv.offsetTop + vv.height, out = [];
-      for (const [what, sel] of [["field", f], ["button", b]]) {
-        const el = document.querySelector(sel), r = el?.getBoundingClientRect();
-        if (!r?.height) out.push(`no ${what} ${sel}`);
-        else if (r.top < top - 0.5 || r.bottom > bottom + 0.5 || r.left < -0.5 || r.right > innerWidth + 0.5) out.push(`${what} ${el.textContent.trim() || sel} at ${r.top.toFixed(0)}..${r.bottom.toFixed(0)}, visual viewport ${top}..${bottom}`);
-      }
-      return out;
-    }, [field, send]);
-    for (const [mode, label] of [["Ask", "Send request"], ["Propose question", "Propose"]]) {
-      if (mode !== "Ask") { await ria.locator(".vf-apmodes .vf-seg-btn", { hasText: mode }).tap(); await ria.locator("#vf-ap-ta").focus(); }
-      await until(ria, l => document.querySelector(".vf-apform .vf-btn-primary")?.textContent === l, label, 3000);
-      const bad = await inVV("#vf-ap-ta", ".vf-apform .vf-btn-primary");
-      ok(`390x844, keyboard up, Ask Claude in ${mode}: the field and ${label} are both inside the visual viewport`, bad.length === 0, bad.join("; "));
-      if (process.env.KBD_SHOTS && mode === "Ask") await ria.screenshot({ path: require("node:path").join(process.env.KBD_SHOTS, "sheet-390x844-keyboard.png"), clip: { x: 0, y: 0, width: 390, height: 844 - KB } });
-    }
     const reqs = await ria.evaluate(() => {
       const sc = document.querySelector(".vf-apscroll"), head = [...sc.querySelectorAll(".vf-pop-sub")].find(h => h.textContent === "Your requests");
       sc.scrollTop += head.getBoundingClientRect().top - sc.getBoundingClientRect().top;
@@ -349,6 +405,51 @@ async function main() {
     await pia.keyboard.insertText(" Always.");
     await pia.locator(".vf-sheethead button", { hasText: "Cancel" }).tap();
     ok("390x844: Cancel closes the sheet and keeps the saved answer", await until(pia, () => !document.querySelector(".vf-composer-sheet") && document.querySelector("#vf-answer").value === "Below the total."));
+
+    // ---------- dogfood: a sideways swipe moves between questions and never works the control it starts on ----------
+    const swi = await rec.open(A.localUrl, { context: PHONE });
+    await joinAs(swi, "Swi");
+    const cdp = await swi.context().newCDPSession(swi);
+    const center = sel => swi.evaluate(s => { const r = document.querySelector(s).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, sel);
+    const swipe = async (sel, dx) => {
+      const [x, y] = await center(sel);
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+      for (let i = 1; i <= 6; i++) { await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x + dx * i / 6, y }] }); await swi.waitForTimeout(16); }
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await swi.waitForTimeout(400);
+    };
+    // What I picked, voted and wrote on Q1 and Q2, and what has focus.
+    const mine = () => swi.evaluate(() => JSON.stringify(["Q1", "Q2"].map(id => window.Core.answersFor(id).map(a => [a.id, a.pick || "", (a.votes || []).includes(window.Core.me.cid), a.cid === window.Core.me.cid ? a.text : ""]))));
+    const focused = () => swi.evaluate(() => { const a = document.activeElement; return a?.matches?.("input, textarea, select") ? `${a.tagName.toLowerCase()}#${a.id}` : ""; });
+    const qNow = () => swi.evaluate(() => document.querySelector(".vf-qtext")?.textContent);
+    const swiped = [];
+    await show(swi, "focus-choice");
+    let was = await mine();
+    await swipe(".vf-opt .vf-optchoose", -160);
+    if (await mine() !== was || await focused()) swiped.push(`from an option: ${await focused() || "the pick changed"}`);
+    if (await qNow() !== TEXT) swiped.push(`from an option it stayed on "${await qNow()}"`);
+    await until(swi, () => !!document.querySelector(".vf-vote"), null, 3000);
+    was = await mine();
+    await swipe(".vf-vote", 160);
+    if (await mine() !== was || await focused()) swiped.push(`from a vote button: ${await focused() || "the vote changed"}`);
+    if (await qNow() !== CHOICE) swiped.push(`from a vote button it stayed on "${await qNow()}"`);
+    await show(swi, "focus-text");
+    was = await mine();
+    await swipe("#vf-answer", -160);
+    if (await mine() !== was || await focused() || await swi.evaluate(() => !!document.querySelector(".vf-composer-sheet"))) swiped.push(`from the answer field: ${await focused() || "the field opened or changed"}`);
+    ok("390x844: a sideways swipe that starts on an option, a vote button or the answer field moves between questions without picking, voting or focusing the field", swiped.length === 0, swiped.join("; "));
+    const tapped = [];
+    await show(swi, "focus-choice");
+    await swi.locator(".vf-opt .vf-optchoose").first().tap();
+    if (!(await until(swi, () => !!window.Core.answersFor("Q1").find(a => a.cid === window.Core.me.cid && a.pick), null, 3000))) tapped.push("tapping an option did not pick it");
+    await show(swi, "focus-text");
+    await until(swi, () => !!document.querySelector(".vf-vote"), null, 3000);
+    await swi.locator(".vf-vote").first().tap();
+    if (!(await until(swi, () => window.Core.answersFor("Q2").some(a => (a.votes || []).includes(window.Core.me.cid)), null, 3000))) tapped.push("tapping a vote button did not vote");
+    await swi.locator("#vf-answer").tap();
+    if (await focused() !== "textarea#vf-answer") tapped.push(`tapping the answer field focused ${await focused() || "nothing"}`);
+    ok("390x844: a tap still picks an option, votes, and focuses the answer field", tapped.length === 0, tapped.join("; "));
+    await swi.context().close();
 
     // ---------- question numbers inside the list markers ----------
     // Expected values: Q1 shows 1 and Q12 shows 12 (the id, not the position, which is 3); a one-line row keeps its
