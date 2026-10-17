@@ -137,6 +137,7 @@ import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
 import babysit_review_evidence as review_evidence
 import babysit_risk
+import babysit_verify_evidence as verify_evidence
 import babysit_repo_config as repo_policy
 from babysit_state import resolve_state_dir, state_lock, write_state
 from babysit_checks import check_identity_key, classify_checks
@@ -2802,11 +2803,15 @@ def _head_file(repo: str, head: str) -> Callable[[str, str], str | None]:
                 gh_json(["api", f"repos/{repo}/compare/{original}...{head}"])
             ).get("files")
             # The comparison lists at most 300 files; a full page may hide one.
-            if not is_json_array(files) or len(files) >= 300 or not any(
-                is_json_object(item)
-                and item.get("filename") == path
-                and item.get("status") == "removed"
-                for item in files
+            if (
+                not is_json_array(files)
+                or len(files) >= 300
+                or not any(
+                    is_json_object(item)
+                    and item.get("filename") == path
+                    and item.get("status") == "removed"
+                    for item in files
+                )
             ):
                 raise RuntimeError(f"head-file-unproven:{path}")
             text = None
@@ -2893,6 +2898,19 @@ def score_unattended(
     reason = policy.reason or (
         None if risk.score is babysit_risk.Risk.LOW else f"risk:{risk.score.name}"
     )
+    # The pr-merge lane also needs a passing verifier verdict at the head; a
+    # refusal makes this pull request's own queued entry leave too.
+    if (
+        inputs.get("authority") == merge_policy.PR_MERGE
+        and config.require_verifier_verdict
+    ):
+        reader = verify_evidence.Reader(repo, str(inputs["branch"]))
+        verdict = reader.evidence(number, str(details["headSha"]), pr)
+        details["verify"] = verdict.report()
+        inputs["verify_reader"] = reader
+        if verdict.refusal:
+            inputs["own_refusal"] = inputs.get("own_refusal") or verdict.refusal
+        reason = reason or verdict.refusal
     return replace(policy, reason=reason, details=details, inputs=inputs)
 
 
@@ -3015,6 +3033,15 @@ def upsert_risk_comment(
     return outcome
 
 
+def _queued_verify_hold(verifier: verify_evidence.Reader, number: int) -> str | None:
+    """One queued entry's verifier hold. An unexpected error refuses that
+    entry, so it leaves the queue and the sweep goes on to the next."""
+    try:
+        return verifier.queued_hold(number)
+    except Exception:  # noqa: BLE001 -- any crash refuses this entry alone
+        return verify_evidence.UNREADABLE
+
+
 def unattended_writes(
     repo: str, number: int, policy: merge_policy.UnattendedPolicy
 ) -> dict[str, Any]:
@@ -3039,6 +3066,16 @@ def unattended_writes(
             numbers = None
         else:
             queued, _ = postmerge.identity_queue(repo, branch, identity)
+            # In the pr-merge lane a queued entry also leaves without a
+            # passing verifier verdict at its head now.
+            config = inputs.get("config")
+            verifier = inputs.get("verify_reader") or (
+                verify_evidence.Reader(repo, branch)
+                if inputs.get("authority") == merge_policy.PR_MERGE
+                and config is not None
+                and config.require_verifier_verdict
+                else None
+            )
             report["holds"] = {
                 n: hold
                 for n in queued
@@ -3049,6 +3086,11 @@ def unattended_writes(
                         identity,
                         self_logins=inputs.get("self_logins") or frozenset(),
                         permission=inputs.get("permission"),
+                    )
+                    or (
+                        _queued_verify_hold(verifier, n)
+                        if verifier is not None and n != number
+                        else None
                     )
                 )
             }

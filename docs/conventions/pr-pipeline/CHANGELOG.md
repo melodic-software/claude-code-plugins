@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## 1.21.0 - 2026-10-17
+
+`merge.require-verifier-verdict` and `merge.verifier-model` are new optional keys.
+`.github/workflows/pr-verify.yml` judges each pull request head that passes `pr-require-checks`
+and uploads a `pr-verify-<pr>-<head-sha>-<verdict>` artifact; with the first key true the pr-merge
+lane refuses a merge, and dequeues a queued entry, without an allowing verdict at the head: a
+counted `fail` under any pull request number or at an earlier head blocks, a pass needs every
+linked issue written and last edited by a trusted human other than the author and unchanged since
+the judgment, and a pull request older than 80 days goes to a human ("Verifier verdict" under
+"Merge authority"). pr-merge.yml grants its job `actions: read` for the verdict reads. `version`
+stays 1.
+
 ## 1.20.0 - 2026-10-16
 
 `merge.dependabot.mode` (`off`, `report`, `enforce`; absent is `off`) adds the pr-merge lane's

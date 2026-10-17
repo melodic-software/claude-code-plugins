@@ -214,6 +214,10 @@ merge:
   agent-identity: melodic-automation-lanes[bot]
   # Reports each decision and writes nothing until the owner sets false.
   report-only: true
+  # A PR merges only with a passing pr-verify.yml verdict at its head.
+  require-verifier-verdict: true
+  # The model pr-verify.yml judges with.
+  verifier-model: opus
   # Dependabot pull requests answer to this switch, not report-only: tier auto
   # (every update non-major, allowed Actions publishers) merges once ci-status
   # passes; tier review merges once the pr-unblock review leaves a merge
