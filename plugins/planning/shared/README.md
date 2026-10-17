@@ -304,7 +304,8 @@ the list, left out it is kept). While Uploads is off no upload control shows.
 
 Limits: 10 open files per person; 100 MB per guest, counted over every file of theirs not
 declined, withdrawn or failed, received ones included, so it is a total, not a per-file size; 5 GB
-per session on the same count. Previews keep at most 256,000 characters per person and 1,000,000 per
+per session over accepted files only (accepted, uploading or done), so offers alone never fill it,
+checked again when the owner accepts (`upload-too-large`, field `accept`). Previews keep at most 256,000 characters per person and 1,000,000 per
 session; past that an offer keeps none. Every piece read counts against the one-a-second throttle,
 damaged or not. Guests send pictures, PDF, text, CSV, RTF and Office files; the owner and trusted
 guests any kind. The first piece must start as its kind does (PNG, JPEG, GIF, WebP, PDF, RTF, OLE

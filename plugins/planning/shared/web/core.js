@@ -291,6 +291,7 @@
     "too-long:other": "Your own option is too long.",
     "too-long:comment": "That comment is too long.",
     "too-many-pending:file": "You have 10 files waiting already.",
+    "upload-too-large:accept": "This session holds 5 GB of files at most, and this one would pass that. Decline it, or a file still on its way.",
     "too-long:attachments": "An answer carries four files at most.",
     "file-type:file": "That file's contents are not what its name says.",
   };

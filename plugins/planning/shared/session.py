@@ -3067,8 +3067,9 @@ class Session:
     def offer_upload(self, pid, body):
         """POST /api/upload/offer: offer a file, which stays in the person's browser until the owner accepts it (the
         owner's own is accepted at once). Refused while uploads are off, past a cap (MAX_OPEN_UPLOADS open per
-        person, GUEST_UPLOAD_MAX per guest, SESSION_UPLOAD_MAX per session, counting every file not declined,
-        withdrawn or failed), or of a kind a guest may not send. The name is display text; the server names the file."""
+        person and GUEST_UPLOAD_MAX per guest, counting every file not declined, withdrawn or failed;
+        SESSION_UPLOAD_MAX per session, counting only accepted files, so offers alone never fill it), or of a kind a
+        guest may not send. The name is display text; the server names the file."""
         body = _body(body)
         name = _file_name(body)
         size = body.get("size")
@@ -3094,7 +3095,7 @@ class Session:
             mine = sum(u["size"] for u in held if u["pid"] == pid)
             if not owner and mine + size > GUEST_UPLOAD_MAX:
                 raise DomainError(413, "upload-too-large", "That is more than a guest can send.", max=GUEST_UPLOAD_MAX, left=max(0, GUEST_UPLOAD_MAX - mine))
-            total = sum(u["size"] for u in held)
+            total = self._session_upload_total()
             if total + size > SESSION_UPLOAD_MAX:
                 raise DomainError(413, "upload-too-large", "This session holds no more files.", max=SESSION_UPLOAD_MAX, left=max(0, SESSION_UPLOAD_MAX - total))
             uid = f"{self._next('U')}-{self.ids.hex(4)}"
@@ -3109,9 +3110,14 @@ class Session:
                 self._queue_note([HOST], pid)
             return {"id": uid, "status": rec["status"]["kind"], "chunks": rec["chunks"], "chunkSize": CHUNK_SIZE}
 
+    def _session_upload_total(self):
+        """Bytes the session has said yes to (accepted, uploading or done): what SESSION_UPLOAD_MAX bounds."""
+        return sum(u["size"] for u in self.state["uploads"] if u["status"]["kind"] in UPLOAD_ACCEPTED)
+
     def act_on_upload(self, pid, body):
-        """POST /api/upload/act: the owner accepts or declines an offered file, and its uploader withdraws it. Declining
-        or withdrawing deletes what arrived so far and takes the file off every answer; the browser deletes its copy."""
+        """POST /api/upload/act: the owner accepts or declines an offered file, and its uploader withdraws it. Accepting
+        is refused past SESSION_UPLOAD_MAX. Declining or withdrawing deletes what arrived so far and takes the file off
+        every answer; the browser deletes its copy."""
         action = _choice(body, "action", ("accept", "decline", "withdraw"))
         uid = _ident(body, "id")
         now = self.now()
@@ -3131,6 +3137,12 @@ class Session:
             if action == "accept":
                 if not self._active(u["pid"]):
                     raise DomainError(409, "wrong-status", "Its sender is no longer in the session.", status="removed")
+                total = self._session_upload_total()
+                if total + u["size"] > SESSION_UPLOAD_MAX:
+                    raise DomainError(
+                        413, "upload-too-large", "This session holds 5 GB of files at most, and this one would pass that. Decline it, or a file still on its way.",
+                        field="accept", max=SESSION_UPLOAD_MAX, left=max(0, SESSION_UPLOAD_MAX - total),
+                    )
                 u["status"] = {"kind": "accepted", "tmp": self.ids.hex(16)}
             else:
                 doomed = self._end_upload(u, {"kind": "declined" if action == "decline" else "withdrawn", "at": now})

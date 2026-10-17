@@ -4115,14 +4115,29 @@ class TestUploadLifecycle(UploadCase):
 
     def test_a_guest_holds_at_most_100_mb_and_the_session_5_gb(self):
         mb = 1024 * 1024
-        self.act("offer_upload", self.ann, {"file": "a.pdf", "size": 60 * mb, "type": ""})
+        a = self.act("offer_upload", self.ann, {"file": "a.pdf", "size": 60 * mb, "type": ""})["id"]
         e = self.refused("upload-too-large", "offer_upload", self.ann, {"file": "b.pdf", "size": 41 * mb, "type": ""})
         self.assertEqual((e.http, e.details["max"], e.details["left"]), (413, 100 * mb, 40 * mb))
-        self.act("offer_upload", self.ann, {"file": "b.pdf", "size": 40 * mb, "type": ""})
+        b = self.act("offer_upload", self.ann, {"file": "b.pdf", "size": 40 * mb, "type": ""})["id"]
+        for uid in (a, b):
+            self.act("act_on_upload", HOST, {"id": uid, "action": "accept"})
         gb = 1024 * mb
         self.act("offer_upload", HOST, {"file": "big.zip", "size": 5 * gb - 100 * mb, "type": ""})
         e = self.refused("upload-too-large", "offer_upload", HOST, {"file": "one.zip", "size": 1, "type": ""})
         self.assertEqual((e.details["max"], e.details["left"]), (5 * gb, 0))
+
+    def test_offers_alone_never_fill_the_session_and_accept_checks_the_5_gb_again(self):
+        mb = 1024 * 1024
+        gb = 1024 * mb
+        guests = self.people(*(f"G{i}" for i in range(52)))
+        offers = [self.act("offer_upload", g, {"file": "a.pdf", "size": 100 * mb, "type": ""})["id"] for g in guests]  # 5200 MB offered
+        self.assertEqual(self.act("offer_upload", HOST, {"file": "own.zip", "size": 5 * gb - 150 * mb, "type": ""})["status"], "accepted")
+        self.act("act_on_upload", HOST, {"id": offers[0], "action": "accept"})  # 5 GB - 50 MB accepted
+        e = self.refused("upload-too-large", "act_on_upload", HOST, {"id": offers[1], "action": "accept"}, http=413)
+        self.assertEqual((e.details["max"], e.details["left"]), (5 * gb, 50 * mb))
+        self.assertEqual(self.upload(offers[1])["status"]["kind"], "offered")
+        self.act("act_on_upload", HOST, {"id": offers[0], "action": "decline"})
+        self.assertEqual(self.act("act_on_upload", HOST, {"id": offers[1], "action": "accept"})["status"], "accepted")
 
     def test_chunks_arrive_in_order_and_the_last_writes_upload_received(self):
         uid = self.offered_and_accepted(self.ann)
