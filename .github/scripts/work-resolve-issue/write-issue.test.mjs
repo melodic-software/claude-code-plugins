@@ -45,7 +45,7 @@ const ISSUE = {
   labels: [{ name: "agent-ready" }, "work-class: mechanical"],
 };
 
-function fakeGitHub({ comments, edits = {}, users = {}, fail = "" }) {
+function fakeGitHub({ comments, edits = {}, issueEdits = {}, users = {}, fail = "" }) {
   return async (method, apiPath, body) => {
     const key = `${method} ${apiPath}`;
     if (key === fail) {
@@ -56,6 +56,11 @@ function fakeGitHub({ comments, edits = {}, users = {}, fail = "" }) {
     }
     if (key === `GET /repos/${REPO}/issues/6825/comments?per_page=100&page=1`) {
       return structuredClone(comments);
+    }
+    if (key === "POST /graphql" && body.variables.number === 6825) {
+      const { lastEditedAt = null, renamedAt } = issueEdits;
+      const nodes = renamedAt ? [{ createdAt: renamedAt }] : [];
+      return { data: { repository: { issue: { lastEditedAt, timelineItems: { nodes } } } } };
     }
     if (key === "POST /graphql") {
       return {
@@ -162,6 +167,46 @@ test("an edited decision ranks by its edit time", async () => {
     }),
   );
   assert.equal(issue.comments[0].decided_at, "2026-10-14T00:00:00.000Z");
+});
+
+test("a human's decision last edited by a listed bot is kept but no decision", async () => {
+  const { issue } = await run(
+    fakeGitHub({
+      comments: [comment(11, OWNER, "**Decision recorded.** → option 2")],
+      edits: { IC_11: { lastEditedAt: "2026-10-14T00:00:00Z", editor: { databaseId: CURSOR_AGENT.id } } },
+    }),
+  );
+  assert.deepEqual(summary(issue), [["kyle-sexton", "human", false]]);
+  assert.equal(issue.comments[0].decided_at, undefined);
+});
+
+test("a human's decision posted through a listed App is kept but no decision", async () => {
+  const { issue } = await run(
+    fakeGitHub({
+      comments: [comment(11, OWNER, "**Decision recorded.** → option 2", { performed_via_github_app: { slug: "cursor" } })],
+      users: { [`GET /users/${encodeURIComponent("cursor[bot]")}`]: { id: CURSOR_AGENT.id } },
+    }),
+  );
+  assert.deepEqual(summary(issue), [["kyle-sexton", "human", false]]);
+});
+
+test("on the lanes App's ratified label, a body or title changed after the newest marker writes no file", async () => {
+  for (const issueEdits of [{ lastEditedAt: "2026-10-14T00:00:00Z" }, { renamedAt: "2026-10-14T00:00:00Z" }]) {
+    const { code, issue } = await run(
+      fakeGitHub({ comments: [comment(13, OWNER, `Admitted.\n\n${MARKER}`)], issueEdits }),
+      { sender: String(LANES_BOT.id) },
+    );
+    assert.equal(code, 1);
+    assert.equal(issue, null);
+  }
+  const { code } = await run(
+    fakeGitHub({
+      comments: [comment(13, OWNER, `Admitted.\n\n${MARKER}`)],
+      issueEdits: { lastEditedAt: "2026-10-12T00:00:00Z", renamedAt: "2026-10-13T00:00:00Z" },
+    }),
+    { sender: String(LANES_BOT.id) },
+  );
+  assert.equal(code, 0);
 });
 
 test("drops a listed author's comment last edited by an unlisted account", async () => {

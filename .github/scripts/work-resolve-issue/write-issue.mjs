@@ -4,14 +4,16 @@
 // them as data). Comments go in only when select-trusted-text's author and
 // edit rules keep them, oldest first, each tagged with its author's kind from
 // the trusted-actor list. A human's comment whose first line is
-// `**Decision recorded.**` is marked `decision: true` with `decided_at`, its
-// latest create or edit time. The lanes App's own comments never go in: its
+// `**Decision recorded.**`, not posted through an App and never edited or last
+// edited by a human, is marked `decision: true` with `decided_at`, its latest
+// create or edit time. The lanes App's own comments never go in: its
 // pushback quotes the issue body. On any failure no file is left, so the
 // skill never reads a partial issue.
 //
 // When the lanes App applied the label (LABEL_SENDER_ID is LANES_APP_ID),
 // the trigger gate admitted the issue as it stood at the newest ratification
-// marker, so a comment created or edited after that marker is left out too.
+// marker, so a comment created or edited after that marker is left out too,
+// and a title or body changed since that marker fails the run.
 //
 // Environment:
 //   GITHUB_TOKEN          the lane token, which can read the issue
@@ -26,7 +28,12 @@ import { rmSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import {
+  createGitHub,
+  loadTrustedList,
+  readIssueEdits,
+  unchangedSince,
+} from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { findRatification } from "../../actions/resolve-config/ratification.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 
@@ -74,10 +81,14 @@ export async function main({ env = process.env, github, log = console.log } = {}
         throw new Error("the lanes App applied the label but no ratification marker is kept");
       }
       frozenAt = Math.max(...markers.map((comment) => timeOf(comment.created_at)));
+      // The gate checked this before the run; the author can edit since.
+      if (!unchangedSince(await readIssueEdits(client, repository, env.ISSUE_NUMBER), frozenAt)) {
+        throw new Error("the issue title or body changed after the newest ratification marker");
+      }
     }
 
     const comments = [];
-    for (const { comment, lastEditedAt } of kept) {
+    for (const { comment, lastEditedAt, lastEditorId } of kept) {
       if (comment.user.id === lanesAppId) {
         dropped["lanes-app"] += 1;
         continue;
@@ -90,7 +101,13 @@ export async function main({ env = process.env, github, log = console.log } = {}
         continue;
       }
       const human = humans.has(comment.user.id);
-      const decision = human && DECISION.test(firstLine(comment.body));
+      // A decision is a human's own text: not posted through an App, and
+      // never edited or last edited by a human.
+      const decision =
+        human &&
+        comment.performed_via_github_app == null &&
+        (lastEditedAt === null || humans.has(lastEditorId)) &&
+        DECISION.test(firstLine(comment.body));
       comments.push({
         author_login: comment.user.login,
         author_kind: human ? "human" : "bot",
