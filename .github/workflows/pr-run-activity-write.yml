@@ -724,10 +724,17 @@ jobs:
           }
           echo "labels=$labels" >>"$GITHUB_OUTPUT"
 
-      # Lanes keep sudo and docker (owner decision 2026-10-17, re-evaluated in
-      # the lanes audit). The head checkout replaces .base, so the base's
-      # scripts/setup-env.sh and the files it installs from are copied out
-      # first; a base that predates the script skips the install.
+      # Nothing after this step needs sudo or docker.
+      - name: Isolate the runner
+        if: steps.head-recheck.outputs.proceed == 'true'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: ${{ steps.config.outputs.kind == 'skill' }}
+
+      # Issue mode checks out the trusted base, the default branch tip.
+      # The head checkout replaces .base, so the base's scripts/setup-env.sh
+      # and the files it installs from are copied out first; a base that
+      # predates the script skips the install.
       - name: Copy the dependency setup from the base
         id: setup-env
         if: steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.kind == 'skill'
@@ -746,13 +753,6 @@ jobs:
           done
           echo "ready=true" >>"$GITHUB_OUTPUT"
 
-      - name: Isolate the runner
-        if: steps.head-recheck.outputs.proceed == 'true'
-        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
-        with:
-          install-subprocess-isolation: ${{ steps.config.outputs.kind == 'skill' }}
-
-      # Issue mode checks out the trusted base, the default branch tip.
       - name: Check out the PR head
         if: steps.head-recheck.outputs.proceed == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

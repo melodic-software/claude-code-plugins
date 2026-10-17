@@ -2,9 +2,8 @@
 
 ## 2.3.0 - 2026-10-17
 
-`pr-run-activity.md` run job step 10 no longer removes sudo and docker access: lanes keep them for
-now (owner decision, 2026-10-17), and the lanes audit re-evaluates that. Step 12 now sets up Python
-and runs the base's `scripts/setup-env.sh` before a skill activity, so the skill can run the
+`pr-run-activity.md` run job steps 11 and 12 now copy the base's `scripts/setup-env.sh` before the
+head checkout, then set up Python and run it before a skill activity, so the skill can run the
 repository's Python and Node tests. `version` stays 2.
 
 ## 2.2.0 - 2026-10-17
