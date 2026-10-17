@@ -169,6 +169,7 @@ concurrent subagent limit is shared with every subagent the session runs, includ
 runs and this run's own verifiers. A spawn the harness refuses for that limit is handled by the
 subagent-death ladder in [context/pipeline-hardening.md](context/pipeline-hardening.md#subagent-death--usage-limit-ladder),
 not retried at once and not collapsed into inline writing.
+
 - **Pointer**: <https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit>
 - **As of**: 2026-10-17
 - **Recheck trigger**: that section changes what the limit counts or what the refusal tells
