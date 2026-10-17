@@ -105,7 +105,8 @@ concurrency:
 # says what a job does: `lint` runs linters over source, `check` holds a
 # repository contract across files, `test` executes code. The domain says over
 # what: `repo`, `shell`, `plugins`, `skills`, or the ecosystem a test job runs
-# (`bash`, `python`, `node`). One resolver, `select-tests`, eight working jobs,
+# (`bash`, `python`, `node`). One marker, `mark-lanes`, one resolver,
+# `select-tests`, eight working jobs,
 # `lint-repo`, `lint-shell`, `check-plugins`, `check-skills`, `test-bash`,
 # `test-python`, `test-node` and `check-managed-files`, and one aggregate, `ci-status`, whose name,
 # like this workflow's and this file's, is what the org ci-gate ruleset and its
@@ -191,6 +192,51 @@ jobs:
   # The detector self-test runs first and is NOT `continue-on-error`, so a
   # broken detector turns this job red rather than resolving a scope nobody
   # verified.
+  # A FULL RUN MARKS ITS SHA IN FLIGHT AT ONCE. A contract-only run on this SHA
+  # reads the newest bot-written `ci-lanes` status once and passes only on
+  # `success`, so this `pending` makes it fail at once instead of carrying
+  # forward a verdict this run is about to replace (an earlier full run's on
+  # the same SHA, say). The red it leaves is replaced when this run's
+  # `ci-status` re-runs it after recording its own verdict. `ci-status` needs
+  # this job, so the marker always lands before that verdict, and a write that
+  # keeps failing fails this job and so `ci-status`: a missing marker is the
+  # one way a stale `success` could be carried.
+  #
+  # ITS OWN JOB, SO NO JOB THAT RUNS PULL REQUEST CODE HOLDS `statuses: write`.
+  # A local `./` action resolves from the checked-out head, so a job that
+  # checks out the pull request and runs one runs code the pull request
+  # controls with that job's token. This job checks out nothing and runs no
+  # local action; it is the only job here that needs to write a commit status
+  # besides `ci-status`, which runs no pull request code either.
+  mark-lanes:
+    # The contract-only gate, verbatim (see `select-tests`).
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      statuses: write
+    steps:
+      - name: Mark the lanes in flight
+        # Same repository by id, not full_name: the fleet governance verifier reads
+        # every head.repo.full_name expression as the contract-only predicate.
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.id == github.repository_id
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          for attempt in 1 2 3; do
+            if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+              -f state=pending -f context=ci-lanes \
+              -f description="full run $GITHUB_RUN_ID in flight" \
+              -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null; then
+              echo "Marked ci-lanes pending on $HEAD_SHA."
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          echo "::error::could not mark ci-lanes pending on $HEAD_SHA; a contract-only run could carry an older verdict forward while this run is in flight."
+          exit 1
+
   select-tests:
     # The contract-only gate, verbatim on every job but `ci-status` (see the
     # predicate spelled out under `on.pull_request.types`). It carries no
@@ -203,11 +249,10 @@ jobs:
     timeout-minutes: 3
     # The detect-changes action lists the pull request's files through the
     # API. Nothing else in this workflow needs that read, so it is granted here
-    # and nowhere else. `statuses: write` is for the in-flight marker below.
+    # and nowhere else. No write scope: this job runs pull request code.
     permissions:
       contents: read
       pull-requests: read
-      statuses: write
     outputs:
       run_full: ${{ steps.detect.outputs.docs_only != 'true' }}
       run_tests: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true }}
@@ -237,34 +282,6 @@ jobs:
       python_needs: ${{ steps.plan.outputs.python_needs }}
       node_packages: ${{ steps.plan.outputs.node_packages }}
     steps:
-      # A FULL RUN MARKS ITS SHA IN FLIGHT BEFORE ANYTHING ELSE. A contract-only
-      # run on this SHA reads the newest bot-written `ci-lanes` status once and
-      # passes only on `success`, so this `pending` makes it fail at once
-      # instead of carrying forward a verdict this run is about to replace (an
-      # earlier full run's on the same SHA, say). The red it leaves is
-      # replaced when this run's `ci-status` re-runs it after recording its own
-      # verdict. A write that keeps failing fails this job, and so the run: a
-      # missing marker is the one way a stale `success` could be carried.
-      - name: Mark the lanes in flight
-        # Same repository by id, not full_name: the fleet governance verifier reads
-        # every head.repo.full_name expression as the contract-only predicate.
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.id == github.repository_id
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          for attempt in 1 2 3; do
-            if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
-              -f state=pending -f context=ci-lanes \
-              -f description="full run $GITHUB_RUN_ID in flight" \
-              -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null; then
-              echo "Marked ci-lanes pending on $HEAD_SHA."
-              exit 0
-            fi
-            sleep $((attempt * 5))
-          done
-          echo "::error::could not mark ci-lanes pending on $HEAD_SHA; a contract-only run could carry an older verdict forward while this run is in flight."
-          exit 1
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -2887,6 +2904,7 @@ jobs:
 
   ci-status:
     needs:
+      - mark-lanes
       - select-tests
       - lint-repo
       - lint-shell
