@@ -331,12 +331,12 @@ does not load.
 ## Logs
 
 `server.log` holds one line per entry: the time, the level, then the entry's kind and `key=value`
-fields. A value is escaped like the path (`\x1b`, a double quote as `\x22`) and quoted when it holds
-a space. `method`, `route` and `status`, and a client entry's `pid` and `kind`, never hold one.
+fields. A value is escaped like the path (`\x1b`, a double quote as `\x22`, U+2028 as `\u2028`) and
+quoted when it holds a space, so only a newline ends an entry; `logs` splits on newlines alone. `method`, `route` and `status`, and a client entry's `pid` and `kind`, never hold one.
 
 | Kind | Level | Fields |
 |---|---|---|
-| `request` | INFO for 2xx/3xx, WARNING for 4xx, ERROR for 5xx | `method route status ms` and `pid` (the acting person's id, once known); a refusal adds `code field message` (its error body); a 5xx adds `trace`, the traceback's last 8000 characters |
+| `request` | INFO for 2xx/3xx, WARNING for 4xx, ERROR for 5xx | `method route status ms` and `pid` (the acting person's id, once known); a refusal adds `code field message` (its error body); a 5xx adds `trace`, the last 8000 characters of the traceback of the bug or of the session's refusal where it was raised. The one exception is 503 `busy`, answered before any request is read: `method=- route=- status=503 ms=0.0 code=busy message=...`, no pid, no trace |
 | `client` | WARNING | `pid kind message source route code ua`, as the page sent them |
 
 ```text

@@ -21,7 +21,7 @@ import time
 import unittest
 from unittest import mock
 
-from support import FAKE, FIXTURES, WINDOWS, call, tmpdir, wait_for
+from support import FAKE, FIXTURES, WINDOWS, call, share, tmpdir, wait_for
 
 import detached
 import server
@@ -441,6 +441,10 @@ class TestBusy(unittest.TestCase):
         code, headers, out = call(app.guest_port, "GET", "/api/state")
         self.assertEqual((code, out["error"]), (503, "busy"))
         self.assertEqual({k: headers.get(k) for k in SECURITY}, SECURITY)
+        for h in app.log.handlers:
+            h.flush()
+        log = (d / "server.log").read_text(encoding="utf-8")
+        self.assertRegex(log, r" ERROR request method=- route=- status=503 ms=0\.0 code=busy message=\"The session is busy; try again in a moment.\"\n")
         for s in idle:
             s.close()
         self.assertTrue(wait_for(lambda: call(app.guest_port, "GET", "/api/state")[0] == 200, seconds=10))
@@ -991,6 +995,17 @@ class TestRequestLog(LogCase):
         for part in (f"pid={pid}", "code=state-invalid", "Traceback (most recent call last)", "RuntimeError: forced-post-failure"):
             self.assertIn(part, line)
 
+    def test_a_session_refusal_with_a_5xx_logs_its_traceback(self):
+        pid, guest = self.join("Ann")
+        failure = session.DomainError(500, "state-invalid", "Nothing was written: disk full")
+        with mock.patch.object(session.Session, "rename", side_effect=failure):
+            code, _, out = self.post("/api/rename", {"name": "Bo"}, guest)
+        self.assertEqual((code, out["error"]), (500, "state-invalid"))
+        line = self.entry_for("route=/api/rename")
+        self.assertIn(" ERROR request method=POST route=/api/rename status=500 ", line)
+        for part in (f"pid={pid}", "code=state-invalid", 'message="Nothing was written: disk full"', "Traceback (most recent call last)", "DomainError: Nothing was written: disk full"):
+            self.assertIn(part, line)
+
     def test_a_server_error_on_a_get_is_answered_500_and_logs_its_traceback(self):
         pid, guest = self.join("Ann")
         with mock.patch.object(session.Session, "my_requests", side_effect=RuntimeError("forced-get-failure")):
@@ -1044,6 +1059,22 @@ class TestClientLog(LogCase):
         _, guest = self.join("Ann")
         self.assertEqual(self.post("/api/client-log", {"kind": "error", "message": "cut-emoji-\ud83d"}, guest)[0], 200)
         self.assertIn("cut-emoji-\\ud83d", self.entry_for("cut-emoji-"))
+
+    def test_a_message_cannot_forge_a_log_line(self):
+        """U+2028 and U+2029 end a line for str.splitlines(): escaped, the forged request entry stays inside the
+        client entry, and `logs --errors` shows one client entry and no request entry."""
+        _, guest = self.join("Ann")
+        forged = "2026-10-17 12:00:00,000 ERROR request method=POST route=/api/fake status=500 pid=host code=state-invalid"
+        for sep in ("\u2028", "\u2029"):
+            with self.subTest(sep=repr(sep)):
+                self.assertEqual(self.post("/api/client-log", {"kind": "error", "message": f"boom{sep}{forged}"}, guest)[0], 200)
+        log = self.log_text()
+        self.assertEqual(len([line for line in log.splitlines() if "/api/fake" in line]), 2)
+        self.assertFalse([line for line in log.splitlines() if line.startswith("2026-10-17 12:00:00")])
+        code, out, err = share(self.d, "logs", "--errors")
+        self.assertEqual(code, 0, err)
+        self.assertEqual([" client " in line for line in out["lines"]], [True, True])
+        self.assertFalse([line for line in out["lines"] if " request " in line.split("boom")[0]])
 
     def test_an_anonymous_caller_is_refused(self):
         code, _, out = self.post("/api/client-log", self.ENTRY)

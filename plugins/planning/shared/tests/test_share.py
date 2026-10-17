@@ -201,6 +201,14 @@ class TestLogs(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertEqual(out["lines"], [self.rotated, self.refusal, self.crash, self.client])
 
+    def test_a_line_holding_a_unicode_line_separator_stays_one_line(self):
+        """A log written before entry() escaped U+2028: only a newline ends an entry."""
+        line = self.client.replace("TypeError", "boom\u2028" + self.crash[:19] + " ERROR request method=POST route=/api/fake status=500")
+        (self.d / "server.log").write_text(line + "\n", encoding="utf-8")
+        (self.d / "server.log.1").unlink()
+        code, out, err = share(self.d, "logs", "--errors")
+        self.assertEqual((code, out["lines"]), (0, [line]), err)
+
     def test_a_folder_with_no_log_prints_no_lines(self):
         d = tmpdir(self)
         self.assertEqual(share(d, "logs")[:2], (0, {"ok": True, "lines": []}))

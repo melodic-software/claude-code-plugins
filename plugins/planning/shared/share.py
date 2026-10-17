@@ -70,7 +70,8 @@ class Refused(Exception):
 
 
 def emit(obj):
-    print(json.dumps(obj, ensure_ascii=False), flush=True)
+    """One JSON line; U+2028 and U+2029 escaped, since a reader splitting with str.splitlines() ends a line there."""
+    print(json.dumps(obj, ensure_ascii=False).replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"), flush=True)
 
 
 def read_json(path):
@@ -483,7 +484,7 @@ def cmd_logs(d, a):
     lines = []
     for f in [*rotated, d / LOG]:
         with contextlib.suppress(OSError):
-            lines += f.read_text(encoding="utf-8", errors="replace").splitlines()
+            lines += [line for line in f.read_text(encoding="utf-8", errors="replace").split("\n") if line]  # not splitlines(): only a newline ends an entry
     if a.since is not None:
         cut = datetime.datetime.now() - datetime.timedelta(minutes=a.since)
         lines = [line for line in lines if (logged_at(line) or cut) >= cut]

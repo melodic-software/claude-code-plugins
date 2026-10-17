@@ -98,12 +98,13 @@ SECURITY_HEADERS = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosn
 ERROR_CODES = {400: "bad-request", 408: "body-timeout", 414: "uri-too-long", 431: "headers-too-large", 501: "not-implemented", 505: "bad-version"}
 ASSET = re.compile(r"/assets/([0-9a-f]{16}\.(png|jpg|webp|svg|html))")
 ASSET_TYPES = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp", "svg": "image/svg+xml", "html": "text/html"}
-CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f-\x9f\\]")
+# Control characters, a backslash, and U+2028 and U+2029, which str.splitlines() also ends a line on.
+CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f-\x9f\\\u2028\u2029]")
 
 
 def loggable(text, limit=80):
-    """Request-derived text for one log line: cut to `limit`, control characters and backslashes as \\xNN."""
-    return CONTROL_CHARS.sub(lambda m: f"\\x{ord(m.group(0)):02x}", str(text)[:limit])
+    """Request-derived text for one log line: cut to `limit`, each CONTROL_CHARS character as \\xNN or \\uNNNN."""
+    return CONTROL_CHARS.sub(lambda m: f"\\x{ord(m.group(0)):02x}" if ord(m.group(0)) < 256 else f"\\u{ord(m.group(0)):04x}", str(text)[:limit])
 
 
 def trace():
@@ -513,7 +514,8 @@ class GuestServer(ThreadingHTTPServer):
     daemon_threads = True
     request_queue_size = 128
     allow_reuse_address = not detached.WINDOWS  # on Windows the option lets another bind steal the port
-    BUSY = raw_answer(503, "Service Unavailable", {"error": "busy", "message": "The session is busy; try again in a moment."})
+    BUSY_MESSAGE = "The session is busy; try again in a moment."
+    BUSY = raw_answer(503, "Service Unavailable", {"error": "busy", "message": BUSY_MESSAGE})
 
     def __init__(self, *args, **kwargs):
         self.slots = threading.BoundedSemaphore(session.MAX_HANDLERS)
@@ -526,6 +528,8 @@ class GuestServer(ThreadingHTTPServer):
 
     def process_request(self, request, client_address):
         if not self.slots.acquire(blocking=False):
+            # No request was read, so the entry has no method, route or pid, and no traceback: nothing failed.
+            self.app.log.error("%s", entry("request", method="-", route="-", status=503, ms="0.0", code="busy", message=self.BUSY_MESSAGE))
             with contextlib.suppress(OSError):
                 request.settimeout(1.0)
                 request.sendall(self.BUSY)
@@ -612,7 +616,10 @@ class GuestHandler(BaseHTTPRequestHandler):
         self.fail(DomainError(code, ERROR_CODES.get(code, "bad-request"), message or self.responses.get(code, ("Refused.",))[0]))
 
     def fail(self, exc, failure=None):
-        """Answer a refusal; `failure`, the traceback of a server error, goes to the log only."""
+        """Answer a refusal; `failure`, the traceback of a server error, goes to the log only. A 5xx DomainError with
+        none logs its own traceback, from where the session raised it."""
+        if exc.http >= 500 and failure is None:
+            failure = "".join(traceback.format_exception(exc))[-TRACE_LIMIT:]
         self.refusal, self.failure = exc, failure
         return self.send(exc.http, exc.body())
 
