@@ -473,8 +473,8 @@ except six:
   What is left with them off: a lane pull request may change the merge gate, the workflows and
   their tokens, these lane rules, skills, hooks, agent instructions and CI checks, at any size.
   The brakes that remain are the verifier verdict, the kill switch, the fork and Dependabot
-  refusals, lane authorship with one closing issue, the review evidence, the demotion stop and
-  `merge.report-only`. A verdict reads the diff only and runs no changed code, and a pull request
+  refusals, lane authorship with one closing issue, the review evidence and the demotion stop;
+  setting `merge.report-only` back to true stops every merge. A verdict reads the diff only and runs no changed code, and a pull request
   that weakens a later run's gate (this file, the gate, `pr-merge.yml`) is judged by the gate as
   it stood at its base.
 - **Kill switches.** The lane token cannot read Actions variables, so the workflow checks the
@@ -693,8 +693,8 @@ head:
 The trusted-spec rule trusts an account, not a person. An agent session that uses an owner's `gh`
 login posts as that owner, so until agent sessions have their own GitHub identity, an issue or an
 admission marker from a trusted account counts as the owner's authority, including when an agent
-acting as that account wrote it. Unattended merge stays off (`merge.report-only: true`) until that
-identity exists.
+acting as that account wrote it. The owner accepts that risk: unattended merge is on
+(`merge.report-only: false`) before that identity exists (#7711).
 
 `verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and `verify:untrusted-spec` need a
 human. While `merge.report-only` is false the lane escalates such a refusal on the pull request
