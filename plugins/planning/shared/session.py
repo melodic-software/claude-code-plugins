@@ -2509,19 +2509,24 @@ class Session:
                 raise DomainError(403, "owner-only", "Only the owner closes a poll.")
             if q["purpose"] == "gather":
                 raise DomainError(409, "wrong-purpose", "A gather question is not locked; its answers stand.")
+            poll = q["purpose"] == "poll"
+            if poll and ref is not None:
+                raise DomainError(409, "wrong-purpose", "A poll closes as a whole; no single answer is locked.")
             self._answerable(q)
             tally = self._tally(qid)
             most = max(tally.values(), default=0)
             if ref is not None:
                 self._card(qid, ref)
             if most == 0 and not (pid == HOST and ref is not None):
-                raise DomainError(409, "no-votes", "No answer has a vote yet; the owner's Lock this one still works.")
+                hint = "" if poll else "; the owner's Lock this one still works"
+                raise DomainError(409, "no-votes", f"No answer has a vote yet{hint}.")
             if ref is not None:
                 target = ref
             else:
                 tied = [r for r, n in tally.items() if n == most]
                 if len(tied) > 1:
-                    raise DomainError(409, "tie", "Answers are tied; the owner picks one.", tied=tied)
+                    pick = "a vote breaks the tie" if poll else "the owner picks one"
+                    raise DomainError(409, "tie", f"Answers are tied; {pick}.", tied=tied)
                 target = tied[0]
             if st["session"]["settings"]["signoff"] and not (pid == HOST and ref is not None):
                 here = self._present()

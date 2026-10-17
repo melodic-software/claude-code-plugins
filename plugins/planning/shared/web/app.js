@@ -1919,7 +1919,7 @@
     }
     function lockTopAnswer() {
       Core.lock(ui.cur).catch(e => {
-        if (e?.error !== "tie") return fail(e);
+        if (e?.error !== "tie" || qById(ui.cur)?.purpose === "poll") return fail(e); // a tied poll is not broken by one pick
         const by = Object.fromEntries(Core.answersFor(ui.cur).map(a => [a.cid, a]));
         tieList.replaceChildren(...e.tied.filter(c => by[c]).map(c => {
           const a = by[c], li = E("li", "vf-tieitem");
@@ -3705,7 +3705,8 @@
       if (k.goWith) {
         k.goWith.hidden = !s.voting || locked || ro || isMe(a.cid) || !Core.myAnswer(qid) || isChoice(q) || gather;
         // On a question with options, Lock this one sits on the option itself; a person's own option is a card, so it locks here.
-        k.lockThis.hidden = locked || !Core.canModerate() || (isChoice(q) && q.format !== "confirm" && !k.other) || gather || (q?.purpose === "poll" && !me.isOwner);
+        // A poll closes only as a whole (Close poll), never by locking one answer.
+        k.lockThis.hidden = locked || !Core.canModerate() || (isChoice(q) && q.format !== "confirm" && !k.other) || gather || q?.purpose === "poll";
         // Disagree: decide questions only, never on my own answer.
         const dis = Core.disagreementsOn(qid, k.ref);
         k.myDis = dis.find(d => d.cid && isMe(d.cid)) || null;
@@ -4184,7 +4185,7 @@
           li.classList.toggle("vf-opt-lead", lead === o.id && !lk);
           li.classList.toggle("vf-opt-locked", !!isLocked);
           // Lock this one never sits on "Something else…": a person's own option is locked from its card in Answers.
-          k.lockB.hidden = !!o.other || !!lk || !Core.canModerate() || q.purpose === "gather" || (q.purpose === "poll" && !Core.me.isOwner);
+          k.lockB.hidden = !!o.other || !!lk || !Core.canModerate() || q.purpose === "gather" || q.purpose === "poll";
         });
         const picked = optionsOf(q).find(o => o.id === rec?.pick);
         fmtHint.textContent = (optionsOf(q).some(o => o.image) ? "Tap a picture to see it bigger. " : "") + "Pick one option. You can change your pick later.";
@@ -5413,7 +5414,7 @@
         const agreeN = topA ? agreeing(topA) : 0;
         const blocked = s.signoff && topA && agreeN < here.length;
         lockBtn.setAttribute("aria-disabled", String(!anyVotes || !!blocked));
-        lockBtn.title = !anyVotes ? "No answer has a vote yet. Vote first, or use Lock this one on a card to pick one yourself."
+        lockBtn.title = !anyVotes ? (q.purpose === "poll" ? "No answer has a vote yet." : "No answer has a vote yet. Vote first, or use Lock this one on a card to pick one yourself.")
           : blocked ? "Everyone here has to vote for it first" : "Freeze the most voted answer";
         agreeTxt.textContent = s.signoff && !lk && topA ? `${agreeN} of ${here.length} agree` : "";
         agreeTxt.classList.toggle("vf-agree-all", !!topA && agreeN === here.length);

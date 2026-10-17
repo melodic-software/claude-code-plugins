@@ -176,6 +176,36 @@ class TestFromPrototype(unittest.TestCase):
     def test_a_text_question_with_claudes_cards_a_lock_or_votes_still_decides(self):
         self.assertEqual((self.q("Q1")["purpose"], self.q("Q4")["purpose"]), ("decide", "decide"))
 
+    def imported(self, question, answers, lock=None):
+        raw = json.loads(self.raw)
+        raw["questions"].append(question)
+        raw["answers"][question["id"]] = answers
+        if lock:
+            raw["locks"][question["id"]] = lock
+        doc = migrate.migrate(raw, [], NOW)
+        self.assertIsNone(schema.first_error(doc, STATE))
+        return next(q for q in doc["questions"] if q["id"] == question["id"])
+
+    def test_a_text_question_that_is_only_locked_decides(self):
+        q5 = self.imported(
+            {"id": "Q5", "text": "Which label goes on the pay button?", "round": 2},
+            {ANN: {"name": "Ann Example", "text": "Pay now", "ts": 2800.0, "votes": []}},
+            {"by": "Hana Host", "answerCid": ANN, "name": "Ann Example", "text": "Pay now", "ts": 2900.0},
+        )
+        self.assertEqual(q5["purpose"], "decide")
+
+    def test_a_text_question_that_only_carries_claudes_recommendation_decides(self):
+        claude = {"name": "Claude", "votes": [], "claude": True}
+        q5 = self.imported(
+            {"id": "Q5", "text": "Which label goes on the pay button?", "round": 2},
+            {
+                "claude": {**claude, "text": "Pay now", "ts": 2800.0, "rec": True},
+                "claude-2": {**claude, "text": "Continue", "ts": 2799.998},
+                "claude-3": {**claude, "text": "Place order", "ts": 2799.997},
+            },
+        )
+        self.assertEqual((q5["recommendation"], q5["purpose"]), ("Pay now", "decide"))
+
     def test_answers_picks_and_votes_keep_who_wrote_and_who_voted(self):
         cards = self.doc["cards"]
         self.assertEqual([card_key(c) for c in cards["Q1"]], ["c:rec", "c:a", "c:b", f"p:{ANN}", "p:host"])

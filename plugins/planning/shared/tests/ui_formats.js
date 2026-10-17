@@ -294,6 +294,7 @@ async function main() {
       q("Q1", "Which checkout layout looks right?", { kind: "choice", options: [{ id: "opt-1", label: "One column", image: pa }, { id: "opt-2", label: "Two columns", image: pb }] }),
       q("Q2", "Did you mean this button?", { kind: "confirm", image: phoneShot, rect: { x: 10, y: 83, w: 80, h: 7 } }),
       q("Q3", "Which default payment method?", { kind: "choice", options: [{ id: "opt-1", label: "Card" }, { id: "opt-2", label: "Saved method" }] }),
+      q("Q4", "Which shipping speed should be the default?", { kind: "choice", options: [{ id: "opt-1", label: "Standard" }, { id: "opt-2", label: "Express" }] }, { purpose: "poll" }),
     ] }]);
     const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 };
     const nia = await rec.open(B.localUrl, { context: PHONE });
@@ -325,6 +326,26 @@ async function main() {
     await until(nia, () => document.querySelector(".vf-qtext")?.textContent === "Which default payment method?");
     await nia.locator(".vf-opt .vf-optlabel", { hasText: "Saved method" }).tap();
     ok("tapping an option's name picks that option", await until(nia, p => (window.Core.snapshot()?.cards?.Q3?.find(c => c.ref === "o:opt-2")?.votes || []).includes(p), niaPid));
+    // A poll closes only as a whole: the owner sees Close poll and no Lock this one, on an option or on a person's own option.
+    await nia.evaluate(() => window.Core.pick("Q4", "other", undefined, { other: "Next day" }));
+    const bOwner = await rec.open(B.ownerUrl);
+    await until(bOwner, () => window.Core.snapshot()?.me?.role === "owner");
+    await bOwner.evaluate(() => window.Core.pick("Q4", "opt-1"));
+    await bOwner.locator(".vf-q", { hasText: "Which shipping speed should be the default?" }).first().click();
+    await until(bOwner, () => document.querySelector(".vf-qtext")?.textContent === "Which shipping speed should be the default?"
+      && [...document.querySelectorAll(".vf-alist .vf-card")].some(c => /Next day/.test(c.textContent)));
+    const pollLocks = () => bOwner.evaluate(() => [...document.querySelectorAll("button")].filter(b => b.offsetParent && b.textContent.trim() === "Lock this one").length);
+    const closePoll = bOwner.locator("button", { hasText: "Close poll" });
+    ok("poll, as the owner: Close poll shows and no Lock this one shows on any option or answer card",
+      await until(bOwner, () => [...document.querySelectorAll("button")].some(b => b.offsetParent && b.textContent.trim() === "Close poll")) && (await pollLocks()) === 0,
+      `${await pollLocks()} Lock this one visible`);
+    // Nia moves her pick to Standard so the poll has a clear top pick (a tie is not broken by one pick).
+    await nia.evaluate(() => window.Core.pick("Q4", "opt-1"));
+    await until(bOwner, () => window.Core.snapshot()?.cards?.Q4?.find(c => c.ref === "o:opt-1")?.votes?.length === 2);
+    await closePoll.click();
+    ok("poll, as the owner: Close poll closes it on the top pick, and Unlock reopens it",
+      await until(bOwner, () => window.Core.snapshot()?.locks?.Q4?.source?.card === "o:opt-1" && [...document.querySelectorAll("button")].some(b => b.offsetParent && b.textContent.trim() === "Unlock")));
+    await bOwner.close();
     // A state.json the 6579f21 build wrote can hold a pixel-sized rect (it took any number); it loads as it is and
     // the page clamps the mark into the picture.
     await nia.close();
