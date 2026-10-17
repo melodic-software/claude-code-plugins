@@ -1094,6 +1094,15 @@ class TestCardsAndVotes(SessionCase):
         self.act("vote", self.bo, {"qid": "Q2", "card": f"p:{self.ann}:computer", "on": True})
         self.assertEqual(self.s.state["votes"]["Q2"], {self.bo: f"p:{self.ann}:computer"})
 
+    def test_a_hidden_answer_stays_hidden_when_reposted_from_another_device(self):
+        self.act("answer", self.ann, {"qid": "Q2", "text": "Rude", "device": "phone", "view": "focus"})
+        self.act("hide_card", HOST, {"qid": "Q2", "card": f"p:{self.ann}:phone", "on": True})
+        self.act("answer", self.ann, {"qid": "Q2", "text": "Rude", "device": "computer", "view": "focus"})
+        (laptop,) = [c for c in self.s.state["cards"]["Q2"] if c.get("device") == "computer"]
+        self.assertIn("hidden", laptop)
+        shown = [c for c in self.s.snapshot(self.bo)["cards"].get("Q2", []) if c.get("pid") == self.ann]
+        self.assertEqual(shown, [])
+
     def test_device_info_keeps_only_kind_browser_and_a_rounded_screen(self):
         info = {"kind": "phone", "browser": "safari", "screen": {"w": 393, "h": 852}, "userAgent": "secret"}
         self.act("answer", self.ann, {"qid": "Q1", "text": "Mine", "view": "focus", "deviceInfo": info})
@@ -3051,6 +3060,15 @@ class TestChatReactions(SessionCase):
         self.assertEqual(err.details["max"], 20)
         self.react(people[1], spread[0])  # an emoji already on the message still takes more people
         self.assertEqual(len(self.disk()["chat"][0]["reactions"]), 20)
+
+    def test_one_persons_reactions_across_messages_are_limited_too(self):
+        other = self.act("chat", self.cy, {"text": "Or one?"})["id"]
+        self.react(self.bo, "👍")
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.react_chat(self.bo, {"id": other, "emoji": "👍", "on": True})
+        self.assertEqual(ctx.exception.http, 429)
+        self.clock.tick(0.31)
+        self.s.react_chat(self.bo, {"id": other, "emoji": "👍", "on": True})
 
     def test_one_person_puts_at_most_6_emoji_on_a_message(self):
         for emoji in session.CHAT_EMOJI[:6]:

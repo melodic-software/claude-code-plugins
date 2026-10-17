@@ -78,6 +78,7 @@ OFFLINE_AFTER = 90.0
 IDLE_AFTER = 300.0
 TYPING_TTL = 5.0
 WRITE_INTERVAL = 1.0
+CHAT_REACT_ANY = 0.3  # judgment: one person's reactions across all messages, at most ~3 writes a second
 HEARTBEAT_INTERVAL = 1.0  # judgment: the page beats every 2 s per tab, plus one on a visibility change
 MAX_TABS = 8  # judgment: tabs and devices tracked per person; a ninth forgets the least recent
 TAB_ID = re.compile(r"[A-Za-z0-9_-]{1,32}")  # the page sends 24 hex characters
@@ -1699,6 +1700,17 @@ class Session:
             lst[:] = [x for x in lst if self._cleared_ref(x) != card_ref(card)] + [t]
         self._drop_card(qid, card)
 
+    def _keep_hidden_across_devices(self, qid, pid, card):
+        """A person whose answer on qid the owner hid stays hidden on every device slot of qid, so a
+        repost from another slot is hidden too, until the owner shows it."""
+        if "hidden" in card:
+            return
+        held = [c for c in self._cards(qid) if c["kind"] == "person" and c["pid"] == pid]
+        held += [t for t in self.state.get("cleared", {}).get(qid, []) if t["pid"] == pid]
+        sib = next((c for c in held if c is not card and c.get("hidden")), None)
+        if sib:
+            card["hidden"] = copy.deepcopy(sib["hidden"])
+
     def _take_cleared(self, qid, pid, device):
         """The tombstone of pid's cleared answer on qid (for device), removed from `cleared`, or None."""
         by_q = self.state.get("cleared", {})
@@ -1788,6 +1800,7 @@ class Session:
                 if late:
                     card["late"] = late
                 self._carry(mine or self._take_cleared(qid, pid, device), card)
+                self._keep_hidden_across_devices(qid, pid, card)
                 if mine:
                     cards[cards.index(mine)] = card
                     if self._is_other(mine):
@@ -1855,6 +1868,7 @@ class Session:
                 if late:
                     card["late"] = late
                 self._carry(mine or self._take_cleared(qid, pid, device), card)
+                self._keep_hidden_across_devices(qid, pid, card)
                 if mine:
                     cards[cards.index(mine)] = card
                 else:
@@ -2414,6 +2428,7 @@ class Session:
         route = f"chat-react:{mid}"
         with self._tx() as st:
             self._writer(pid)
+            self._throttle(pid, "chat-react", now, CHAT_REACT_ANY)
             if not st["session"]["settings"]["chat"]:
                 raise DomainError(403, "chat-off", "Chat is off in this session.")
             self._throttle(pid, route, now)
@@ -2445,6 +2460,7 @@ class Session:
             if not reactions:
                 msg.pop("reactions")
         self._wrote(pid, route, now)
+        self._wrote(pid, "chat-react", now)
         return {"id": mid, "emoji": emoji, "on": on}
 
     def propose_from_chat(self, pid, body):
