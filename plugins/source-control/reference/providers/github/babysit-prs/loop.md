@@ -22,8 +22,9 @@ listing with `--author <login>` in place of `--author "@me"`.
 - Terminal check (spoke §5.0.3 step 1): `gh pr view <N> --json state -q '.state'`. The checklist's
   step A is the same read, `gh pr view <N> --json state`.
 - CI check, one-off read (§5.0.3 step 2): `gh pr checks <N> --json bucket -q '[.[] | .bucket] | unique'`.
-  A pending check is never waited on with `gh pr checks --watch`, which blocks the foreground. The
-  Monitor fallback (§5.1.1) is a 30s REST `gh api` poll instead.
+  A pending check is never waited on with `gh pr checks --watch`, which blocks the foreground and
+  re-queries GraphQL every 10 s. The Monitor fallback (§5.1.1) is a 60s REST `gh api` poll instead,
+  per the [API budget](../README.md#api-budget).
 - The comment fetch script derives owner/repo from the current directory via `gh repo view`.
 - The true PR head the checklist asserts against (§5.1.3): `gh pr view --json headRefOid`.
 - The readiness gate's exit 3 with `reason=identity-unresolved` means the `gh api user` identity

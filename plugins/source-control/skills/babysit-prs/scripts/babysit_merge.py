@@ -393,19 +393,19 @@ def rerun_rate_limited_reviews(
 
 # The async merge API (`PUT .../pulls/{n}/merge-async`) answers with a request
 # UUID and runs the merge in the background; the gate polls it to a terminal
-# status for at most this long. A request still pending past the bound is left
-# to GitHub: the next run's PUT returns 409 with the same UUID and polls again.
+# status for at most this long, at the API budget's 60-second wait cadence
+# (reference/providers/github/README.md#api-budget). A request still pending
+# past the bound is left to GitHub: the next run's PUT returns 409 with the
+# same UUID and polls again.
 ASYNC_MERGE_POLL_TIMEOUT_SECONDS = 60.0
-ASYNC_MERGE_POLL_INTERVAL_SECONDS = 3.0
+ASYNC_MERGE_POLL_INTERVAL_SECONDS = 60.0
 ASYNC_TERMINAL_STATUSES = frozenset({"merged", "enqueued", "failed"})
 ASYNC_UUID_RE = re.compile(r"[0-9A-Za-z-]{1,64}")
 # A `gh pr merge` the queue base took can read back as neither queued, armed,
-# nor merged for a moment. The run re-reads it at the poll interval, well inside
-# the async poll bound the same run already accepts. A result still unseen is
-# recorded unconfirmed. Later runs, at least one loop wake apart, hold it while
-# it stays unseen, and the QUEUE_UNCONFIRMED_LATER_READS-th such run calls it
-# dequeued.
-QUEUE_READ_BACK_ATTEMPTS = 4
+# nor merged for a moment. The run reads the GraphQL-only queue state once,
+# per the API budget; a result unseen is recorded unconfirmed. Later runs, at
+# least one loop wake apart, hold it while it stays unseen, and the
+# QUEUE_UNCONFIRMED_LATER_READS-th such run calls it dequeued.
 QUEUE_UNCONFIRMED_LATER_READS = 2
 
 
@@ -2026,38 +2026,6 @@ def read_merge_queue(repo: str, number: int) -> dict[str, Any]:
         "state": entry.get("state") if entry else None,
         "position": entry.get("position") if entry else None,
     }
-
-
-def queue_result_unseen(queue: dict[str, Any]) -> bool:
-    """A readable queue base on which the PR is neither queued, armed, nor merged."""
-    return (
-        not queue["readError"]
-        and queue["queueRequired"]
-        and not (queue["inQueue"] or queue["autoMergeArmed"] or queue["merged"])
-    )
-
-
-def read_merge_queue_after_merge(
-    repo: str,
-    number: int,
-    *,
-    attempts: int = QUEUE_READ_BACK_ATTEMPTS,
-    interval_seconds: float = ASYNC_MERGE_POLL_INTERVAL_SECONDS,
-    sleep: Callable[[float], None] | None = None,
-) -> dict[str, Any]:
-    """The queue standing after a successful `gh pr merge`, re-read while the
-    result is unseen. A failed re-read keeps the unseen read it followed, so a
-    transient error never turns an unseen result into a merge."""
-    sleep = sleep or _poll_sleep
-    queue = read_merge_queue(repo, number)
-    for _ in range(attempts - 1):
-        if not queue_result_unseen(queue):
-            break
-        sleep(interval_seconds)
-        again = read_merge_queue(repo, number)
-        if not again["readError"]:
-            queue = again
-    return queue
 
 
 def report_queue_routing(result: dict[str, Any], queue: dict[str, Any]) -> int:
@@ -4180,7 +4148,7 @@ def main() -> int:
     result["autoMergeEnabled"] = proc.returncode == 0 and arm_auto
     exit_code = 0 if proc.returncode == 0 else 10
     if proc.returncode == 0:
-        queue = read_merge_queue_after_merge(repo, number)
+        queue = read_merge_queue(repo, number)
         exit_code = report_queue_routing(result, queue)
         unconfirmed = bool(json_object(result.get("mergeQueue")).get("unconfirmed"))
         if pending_path is not None and (result.get("enqueued") or unconfirmed):
