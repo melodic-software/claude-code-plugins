@@ -218,6 +218,13 @@ merge:
   require-verifier-verdict: true
   # The model pr-verify.yml judges with.
   verifier-model: opus
+  # Dependabot pull requests answer to this switch, not report-only: tier auto
+  # (every update non-major, allowed Actions publishers) merges once ci-status
+  # passes; tier review merges once the pr-unblock review leaves a merge
+  # verdict at the head and ci-status passes. Owner decision: no Dependabot
+  # pull request waits on a human (docs/adr/0073).
+  dependabot:
+    mode: enforce
   diff-check:
     denied-paths:
       # Workflows and their scripts run with repository tokens and secrets.

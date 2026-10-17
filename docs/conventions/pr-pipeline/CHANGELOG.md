@@ -1,14 +1,38 @@
 # Changelog for the PR pipeline convention
 
-## 1.20.0 - 2026-10-16
+## 1.21.0 - 2026-10-17
 
 `merge.require-verifier-verdict` and `merge.verifier-model` are new optional keys.
 `.github/workflows/pr-verify.yml` judges each pull request head that passes `pr-require-checks`
 and uploads a `pr-verify-<pr>-<head-sha>-<verdict>` artifact; with the first key true the pr-merge
 lane refuses a merge, and dequeues a queued entry, without an allowing verdict at the head: a
-counted `fail` under any pull request number or at an earlier head blocks, a pass needs a linked
-issue a trusted human other than the author wrote, and a pull request older than 80 days goes to a
-human ("Verifier verdict" under "Merge authority"). `version` stays 1.
+counted `fail` under any pull request number or at an earlier head blocks, a pass needs every
+linked issue written and last edited by a trusted human other than the author and unchanged since
+the judgment, and a pull request older than 80 days goes to a human ("Verifier verdict" under
+"Merge authority"). pr-merge.yml grants its job `actions: read` for the verdict reads. `version`
+stays 1.
+
+## 1.20.0 - 2026-10-16
+
+`merge.dependabot.mode` (`off`, `report`, `enforce`; absent is `off`) adds the pr-merge lane's
+Dependabot class (ADR 0073), and the pr-merge lane becomes the one merge authority for every
+Dependabot pull request. The lane lists them unless the mode is `off`. Tier `auto` (every update
+non-major, where major is a first-component change or, below 1.0, a second-component change;
+Actions publishers `actions`, `github` or `anthropics` only; `ci-status` not red; read from the
+verified commit metadata, else the title or body `Updates` lines, which must agree when both read)
+merges on a green `ci-status`. Tier `review` merges only when the newest pr-unblock round marker
+the lanes App authored names the current head with `verdict=merge`, and then also on a green
+`ci-status`. Every commit must be a verified Dependabot commit, the `[dependabot skip]`
+version-bump commit, or, after a review, the lanes App's `[dependabot skip]` fix; every push to
+the head branch must be Dependabot's (or that commit's own pusher's), per the repository activity
+API; and every changed path a manifest or lock file `.github/dependabot.yml` covers or a
+`uses:`-only workflow or action repin; any other path makes the tier `review` with the reason
+`dependabot-content:<path>`, while a failed push check always refuses. Both go through
+the lane's gate as C2 with no closing issue, denied-path rule or diff risk score. The mode, not
+`merge.report-only`, decides whether a Dependabot pull request writes, and the workflow starts the
+post-merge full run when either can merge. `.github/workflows/pr-automerge-dependabot.yml` is
+removed, and "Merge authority" no longer names it as an exception to the single authority.
+`version` stays 1.
 
 ## 1.19.3 - 2026-10-16
 
