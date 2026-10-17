@@ -558,7 +558,10 @@ async function closingPulls(github, { owner, name, number }, maxPages = 50) {
       throw new Error("the issue's closing pull requests could not be read");
     }
     nodes.push(...refs.nodes);
-    if (refs.pageInfo?.hasNextPage !== true) {
+    if (typeof refs.pageInfo?.hasNextPage !== "boolean") {
+      throw new Error("the issue's closing pull requests answered no page information");
+    }
+    if (!refs.pageInfo.hasNextPage) {
       return nodes;
     }
     after = refs.pageInfo.endCursor;
@@ -597,7 +600,10 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
     const refs = matching
       .map((ref) => ({ name: String(ref.ref ?? "").replace(/^refs\/heads\//, ""), sha: ref.object?.sha }))
       .filter((ref) => shape.test(ref.name));
-    const base = refs.length ? (await github("GET", repo)).default_branch : "";
+    const base = refs.length ? (await github("GET", repo))?.default_branch : "";
+    if (refs.length && (typeof base !== "string" || base === "")) {
+      throw new Error("the repository's default branch could not be read");
+    }
     const legacy = markers.some((marker) => marker.run === "");
     const branches = [];
     for (const ref of refs) {
@@ -608,6 +614,9 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
       const pulls = await paginate(github, `${repo}/pulls?state=all&head=${encodeURIComponent(`${owner}:${ref.name}`)}`);
       // Only a marker naming no run needs the tip's time.
       const tipAt = legacy ? Date.parse((await github("GET", `${repo}/git/commits/${ref.sha}`))?.committer?.date) : Number.NaN;
+      if (legacy && !Number.isFinite(tipAt)) {
+        throw new Error(`the tip commit time of ${ref.name} could not be read`);
+      }
       branches.push({ name: ref.name, aheadBy: comparison.ahead_by, tipAt, pulls });
     }
     const prior = findPrior({ issueNumber, repo: env.GITHUB_REPOSITORY, bot, humans, branches, closing, markers });

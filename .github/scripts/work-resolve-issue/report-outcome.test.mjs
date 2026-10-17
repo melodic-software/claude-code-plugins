@@ -796,21 +796,33 @@ const TRUSTED_LIST = JSON.stringify({
     { id: 337595936, login: BOT, kind: "bot" },
   ],
 });
-const graphql = (nodes) => ({ data: { repository: { issue: { closedByPullRequestsReferences: { nodes } } } } });
+const graphql = (nodes, pageInfo = { hasNextPage: false, endCursor: null }) => ({
+  data: { repository: { issue: { closedByPullRequestsReferences: { nodes, pageInfo } } } },
+});
 const refOf = (name) => ({ ref: `refs/heads/${name}`, object: { sha: "a".repeat(40) } });
 
 // `graphqlPages`, when given, answers the closing-PR query by its `after`
 // cursor: page i is served for cursor `c<i>` (page 0 for none).
-async function runPrior({ comments = [], nodes = [], refs = [], pulls = [], comparison = { ahead_by: 2 }, graphqlPages }) {
+async function runPrior({
+  comments = [],
+  nodes = [],
+  closingAnswer = graphql(nodes),
+  refs = [],
+  pulls = [],
+  comparison = { ahead_by: 2 },
+  repoAnswer = { default_branch: "main" },
+  commitAnswer = { committer: { date: "2026-10-16T10:00:00Z" } },
+  graphqlPages,
+}) {
   return withAsyncDir({ "trusted.json": TRUSTED_LIST, output: "" }, async (dir) => {
     const fake = fakeFetch([
       ["GET", /\/issues\/77\/comments$/, 200, comments],
-      ["POST", /^\/graphql$/, 200, graphql(nodes)],
+      ["POST", /^\/graphql$/, 200, closingAnswer],
       ["GET", /\/git\/matching-refs\/heads\/work-resolve-issue\/issue-77-$/, 200, refs],
-      ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+      ["GET", /\/repos\/o\/r$/, 200, repoAnswer],
       ["GET", /\/compare\//, 200, comparison],
       ["GET", /\/pulls$/, 200, pulls],
-      ["GET", /\/git\/commits\//, 200, { committer: { date: "2026-10-16T10:00:00Z" } }],
+      ["GET", /\/git\/commits\//, 200, commitAnswer],
     ]);
     const { calls } = fake;
     const fetch = async (url, init = {}) => {
@@ -911,8 +923,44 @@ test("--find-prior fails on a pull request listing that is not a list", async ()
   }
 });
 
+// Each answer of the wrong shape fails the step with no outputs written.
+const failsClosed = async (label, facts) => {
+  const { code, output } = await runPrior(facts);
+  assert.equal(code, 1, label);
+  assert.equal(output, "", label);
+};
+
+test("--find-prior fails past the 50-page cap of closing PRs", async () => {
+  const pages = Array.from({ length: 51 }, (_, i) => [{ ...closer("User", `stranger${i}`, 1000 + i), number: 600 + i }]);
+  await failsClosed("51 pages", { graphqlPages: pages });
+});
+
+test("--find-prior fails on a closing-PR page with no page information", async () => {
+  const page = (pageInfo) => ({ data: { repository: { issue: { closedByPullRequestsReferences: { nodes: [], pageInfo } } } } });
+  for (const pageInfo of [undefined, {}, { hasNextPage: "false" }]) {
+    await failsClosed(JSON.stringify(pageInfo) ?? "no pageInfo", { closingAnswer: page(pageInfo) });
+  }
+});
+
+test("--find-prior fails on a lane-branch listing that is not a list", async () => {
+  await failsClosed("matching-refs object", { refs: { message: "odd" } });
+});
+
+test("--find-prior fails on a repository answer with no default branch", async () => {
+  for (const repoAnswer of [{}, { default_branch: "" }, { default_branch: 5 }]) {
+    await failsClosed(JSON.stringify(repoAnswer), { refs: [refOf(lane(400))], repoAnswer });
+  }
+});
+
+test("--find-prior fails on a tip commit with no readable time when a marker names no run", async () => {
+  const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped -->", created_at: "2026-10-16T11:00:00Z" }];
+  for (const commitAnswer of [{}, { committer: { date: "not a date" } }]) {
+    await failsClosed(JSON.stringify(commitAnswer), { comments, refs: [refOf(lane(400))], commitAnswer });
+  }
+});
+
 test("--find-prior fails on a comparison with no whole-number ahead_by", async () => {
-  for (const comparison of [{}, { ahead_by: "3" }, { ahead_by: null }, { ahead_by: 1.5 }]) {
+  for (const comparison of [{}, { ahead_by: "3" }, { ahead_by: null }, { ahead_by: 1.5 }, { ahead_by: -1 }]) {
     const { code, output } = await runPrior({ refs: [refOf(lane(400))], comparison });
     assert.equal(code, 1, JSON.stringify(comparison));
     assert.equal(output, "");
