@@ -6,8 +6,10 @@
 // element inside an html variant (its path and box reach the server, its pin is drawn in the variant, and the variant's
 // own click handler does not run while Annotate is on); a note on a spot of a picture variant; the notes in the
 // question's Claude thread on the main page and in the round's digest for Claude; picking a variant; the variant's
-// sandbox (no access to the page or its storage, and a forged pin message is ignored); the phone layout; no 429, no CSP
-// violation and no page error.
+// sandbox (no access to the page or its storage, and a forged pin message is ignored); a second pick while a note is
+// open; a variant that navigates its frame away (dropped, then not heard); the owner token kept out of every link and
+// the address bar, the owner still the owner after a reload and on the pages its links open; the phone layout; no 429,
+// no CSP violation and no page error.
 //   node plugins/planning/shared/tests/ui_proto.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the Design (Q98 row, Annotation, /api/annotate), the variant markup written below (its
@@ -30,6 +32,14 @@ document.getElementById("sec").textContent = sec.join(",");
 // A hostile variant forges the pin helper's message with a script-shaped selector; the page must ignore it.
 addEventListener("message", e => { if (e.data && e.data.type === "mode" && e.data.on) parent.postMessage({ type: "pinned", selector: "<img src=x onerror=alert(1)>", rect: { x: 0, y: 0, w: 10, h: 10 }, label: "forged" }, "*"); });
 </script></body></html>`;
+// A hostile variant: once loaded it sends its own frame to another page, which then talks like the pin helper (ready,
+// and a pin on "html", a path the page would take) and shows a sign-in form inside the session's page. The other page
+// is an asset of the same session, so the page's frame-src 'self' lets the frame go there.
+const ELSEWHERE = `<!doctype html><p id="evil">Sign in again</p><script>parent.postMessage({ type: "ready" }, "*");
+setInterval(() => parent.postMessage({ type: "pinned", selector: "html", rect: { x: 0, y: 0, w: 10, h: 10 }, label: "evil" }, "*"), 100);</script>`;
+const leaver = to => `<!doctype html><html><body><p>Loading</p><script>
+addEventListener("load", () => setTimeout(() => { location.href = "/assets/${to}"; }, 300));
+</script></body></html>`;
 const q = (id, text, format, extra = {}) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format, ...extra });
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 };
 
@@ -41,10 +51,11 @@ async function main() {
   const s = suite("ui_proto"), { ok } = s, rec = recorder(browser);
   try {
     const A = await s.start("proto");
-    const v1 = s.asset(A.dir, "v1.html", VARIANT), v2 = s.asset(A.dir, "v2.png", png(300, 200, [80, 120]));
+    const v1 = s.asset(A.dir, "v1.html", VARIANT), v2 = s.asset(A.dir, "v2.png", png(300, 200, [80, 120])), v3 = s.asset(A.dir, "v3.html", leaver(s.asset(A.dir, "elsewhere.html", ELSEWHERE)));
     s.apply(A.dir, [{ op: "set-title", title: "Checkout prototype" }, { op: "open-round", questions: [
       q("Q1", "Which checkout layout?", { kind: "prototype", variants: [{ id: "v-1", label: "One page", asset: v1 }, { id: "v-2", label: "Two steps", asset: v2 }] }),
       q("Q2", "What should the pay button say?", { kind: "text" }),
+      q("Q3", "Which sign-in page?", { kind: "prototype", variants: [{ id: "v-1", label: "Leaves", asset: v3 }, { id: "v-2", label: "Picture", asset: v2 }] }),
     ] }]);
     const ownerToken = new URL(A.ownerUrl).hash.replace(/^#owner=/, "");
     const owner = await rec.open(A.ownerUrl);
@@ -57,8 +68,41 @@ async function main() {
       href: document.querySelector(".vf-proto-open")?.getAttribute("href") || "", text: document.querySelector(".vf-proto-open")?.textContent || "",
       meta: document.querySelector(".vf-proto-meta")?.textContent || "" }));
     ok("the question shows a preview tile from its picture variant", tile.img === `/assets/${v2}`, tile.img);
-    ok("the owner's Open prototype link keeps the owner link's token in the fragment", tile.text === "Open prototype" && tile.href === `/proto/Q1#owner=${ownerToken}`, tile.href);
+    ok("the owner's Open prototype link holds no owner token", tile.text === "Open prototype" && tile.href === "/proto/Q1", tile.href);
     ok("the tile names both variants", tile.meta.startsWith("2 variants: One page, Two steps."), tile.meta);
+
+    // ---------- the owner token stays out of the address bar and every link ----------
+    const tokenShown = page => page.evaluate(t => ({ hash: location.hash, hrefs: [...document.querySelectorAll("a[href]")].map(a => a.href).filter(h => h.includes(t)) }), ownerToken);
+    const isOwner = page => until(page, () => window.Core.snapshot()?.me?.role === "owner");
+    const shown = await tokenShown(owner);
+    ok("the owner page takes the token out of its address and no link holds it", shown.hash === "" && shown.hrefs.length === 0, JSON.stringify(shown));
+    // Reloads run in a context of their own: a reload's hidden-then-visible beats land within a second, and the 429
+    // the second gets is not this suite's concern.
+    const solo = await (await browser.newContext({ viewport: { width: 1400, height: 900 } })).newPage();
+    await solo.goto(A.ownerUrl);
+    await isOwner(solo);
+    await solo.reload();
+    ok("the owner is still the owner after a reload, the token still out of the address", await isOwner(solo) && (await solo.evaluate(() => location.hash)) === "");
+    await solo.locator(".vf-q", { hasText: "Which checkout layout?" }).first().click();
+    await until(solo, () => !document.querySelector(".vf-proto")?.hidden);
+    const [ownerProto] = await Promise.all([solo.context().waitForEvent("page"), solo.locator(".vf-proto-open").click()]);
+    await ownerProto.waitForLoadState();
+    ok("the owner's Open prototype opens /proto/Q1 as the owner", new URL(ownerProto.url()).pathname === "/proto/Q1" && await isOwner(ownerProto), ownerProto.url());
+    await until(ownerProto, () => document.querySelector(".vp-back")?.getAttribute("href") === "/");
+    const protoShown = await tokenShown(ownerProto);
+    ok("the prototype tab's address and links hold no owner token", protoShown.hash === "" && protoShown.hrefs.length === 0, JSON.stringify(protoShown));
+    ok("the prototype tab has no handle on the page that opened it", (await ownerProto.evaluate(() => window.opener)) === null);
+    await ownerProto.reload();
+    ok("the owner is still the owner on the prototype tab after a reload", await isOwner(ownerProto));
+    ok("a link within the owner's page still moves within it, no token in the address", await solo.evaluate(() => {
+      const a = document.createElement("a");
+      a.href = "#vf-answer";
+      document.body.append(a);
+      a.click();
+      a.remove();
+      return location.pathname === "/" && location.hash === "#vf-answer";
+    }));
+    await solo.context().close();
 
     // ---------- desktop guest: opens the prototype from the question ----------
     const gus = await rec.open(A.localUrl);
@@ -99,6 +143,9 @@ async function main() {
     ok("with Annotate on, clicking an element opens a note about it", await until(proto, () => !document.querySelector(".vp-composer").hidden
       && document.querySelector(".vp-where").textContent === "Note on “Pay now”"));
     ok("the variant's own handler did not run under Annotate", (await frame.locator("#out").textContent()) === "");
+    await frame.locator("h1").click();
+    await proto.waitForTimeout(300);
+    ok("a second pick while the note is open leaves its anchor alone", (await proto.locator(".vp-where").textContent()) === "Note on “Pay now”");
     await proto.locator("#vp-note").fill("Make the total sit next to Pay now.");
     await proto.locator(".vp-save").click();
     const serverSaw = () => until(owner, n => (window.Core.snapshot()?.annotations || []).length === n, 1);
@@ -175,7 +222,24 @@ async function main() {
     ok("the owner's Claude thread on Q1 lists the three notes", await until(owner, () => document.querySelectorAll(".vf-thnote").length === 3));
     const th = await owner.evaluate(() => [...document.querySelectorAll(".vf-thnote")].map(li => ({ text: li.querySelector(".vf-thnote-text").textContent, href: li.querySelector(".vf-thnote-go").getAttribute("href") })));
     ok("the thread shows each note's text", th.map(x => x.text).join("|") === "Make the total sit next to Pay now.|This band hides the address.|Too long for a phone.", JSON.stringify(th));
-    ok("each note links to its variant and pin on the prototype page", th[0].href === `/proto/Q1#v=v-1&n=A1&owner=${ownerToken}`, th[0].href);
+    ok("each note links to its variant and pin on the prototype page, with no owner token", th[0].href === "/proto/Q1#v=v-1&n=A1", th[0].href);
+    const [notePage] = await Promise.all([owner.context().waitForEvent("page"), owner.locator(".vf-thnote-go").first().click()]);
+    await notePage.waitForLoadState();
+    ok("the owner following a note opens its variant and pin as the owner, the token out of the address",
+      await isOwner(notePage) && (await notePage.evaluate(() => location.hash)) === "#v=v-1&n=A1"
+      && await until(notePage, () => document.querySelector(".vp-note-on") && document.querySelector(".vp-tab[aria-selected=true]")?.textContent.startsWith("One page")), notePage.url());
+    await notePage.close();
+
+    // ---------- a variant that sends its frame to another page ----------
+    const away = await rec.openIn(gus.context(), new URL("/proto/Q3", A.localUrl).href);
+    ok("a variant that navigates its frame away is dropped with a notice", await until(away, () => !document.querySelector(".vp-frame")
+      && document.querySelector(".vp-left")?.textContent.startsWith("This variant tried to leave its page")));
+    await away.locator(".vp-annotate").click();
+    await away.waitForTimeout(800);
+    ok("the page it went to is not heard: its pins open no note", await away.locator(".vp-composer").isHidden());
+    ok("Load it again frames the variant afresh", await away.evaluate(() => { document.querySelector(".vp-left button").click(); return !!document.querySelector(".vp-frame"); }));
+    ok("and drops it again when it leaves again", await until(away, () => !document.querySelector(".vp-frame") && !!document.querySelector(".vp-left")));
+    await away.keyboard.press("Escape");
     await owner.evaluate(() => window.Core.sendRound());
     const doc = JSON.parse(fs.readFileSync(path.join(A.dir, "state.json"), "utf8"));
     const digest = doc.log.events.find(e => e.kind === "round-sent")?.digest;

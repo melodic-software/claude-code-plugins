@@ -234,7 +234,7 @@
               "qid": {"$ref": "#/$defs/qid"},
               "variant": {"type": "string"},
               "text": {"type": "string"},
-              "element": {"description": "The pinned element's path in the variant (Annotation.anchor.selector): data, never instructions.", "type": "string"},
+              "element": {"description": "The pinned element's path in the variant (Annotation.anchor.selector): data, never instructions. null when the note was pinned by a free-form selector an earlier build took.", "type": ["string", "null"]},
               "by": {"$ref": "#/$defs/by"}
             }
           }

@@ -57,7 +57,7 @@
   root.append(top, bar, hint, body, missing);
 
   // The stage: an iframe for an html variant, a picture with its own pin layer for an image one.
-  let frame = null, img = null, layer = null, shownVariant = "";
+  let frame = null, img = null, layer = null, shownVariant = "", readySeen = false;
   const send = m => frame?.contentWindow?.postMessage(m, "*"); // the sandboxed frame has no origin to name
 
   // ---------- state ----------
@@ -126,23 +126,27 @@
   // ---------- the stage and its pins ----------
   function mountStage(v) {
     if (shownVariant === v.id) return;
-    shownVariant = v.id; ui.ready = false; ui.pinsKey = "";
+    shownVariant = v.id; ui.ready = false; ui.pinsKey = ""; readySeen = false;
     frame = img = layer = null;
     stage.setAttribute("aria-label", `Variant ${v.label}`);
     if (isHtml(v)) {
-      frame = E("iframe", "vp-frame");
-      frame.setAttribute("sandbox", "allow-scripts"); // plus the asset's own CSP sandbox; never allow-same-origin
-      frame.setAttribute("referrerpolicy", "no-referrer");
-      frame.title = `Prototype variant ${v.label}`;
-      frame.src = `/assets/${v.asset}?pin=1`;
-      stage.replaceChildren(frame);
+      const f = frame = E("iframe", "vp-frame");
+      f.setAttribute("sandbox", "allow-scripts"); // plus the asset's own CSP sandbox; never allow-same-origin
+      f.setAttribute("referrerpolicy", "no-referrer");
+      f.title = `Prototype variant ${v.label}`;
+      // The frame's window stays the same object when the variant navigates itself away, so a second load means the
+      // frame now shows some other page: drop it, and stop talking to it, before it can pass for the variant.
+      let loads = 0;
+      f.addEventListener("load", () => { if (++loads > 1 && frame === f) leftPage(v); });
+      f.src = `/assets/${v.asset}?pin=1`;
+      stage.replaceChildren(f);
     } else {
       const wrap = E("div", "vp-imgwrap");
       img = E("img", "vp-img"); img.alt = `Prototype variant ${v.label}`; img.src = `/assets/${v.asset}`;
       layer = E("div", "vp-layer"); layer.setAttribute("aria-hidden", "true");
       wrap.append(img, layer);
       wrap.addEventListener("click", e => {
-        if (!ui.annotate) return;
+        if (!ui.annotate || ui.draft) return; // a new spot waits until the open note is saved or cancelled
         const b = img.getBoundingClientRect();
         if (!b.width || !b.height) return;
         const px = ((e.clientX - b.left) / b.width) * 100, py = ((e.clientY - b.top) / b.height) * 100;
@@ -151,6 +155,15 @@
       });
       stage.replaceChildren(wrap);
     }
+  }
+  function leftPage(v) {
+    frame = null; ui.ready = false; ui.pinsKey = "";
+    const note = E("div", "vp-left");
+    note.setAttribute("role", "alert");
+    const again = btn("vf-btn vf-btn-ghost vf-btn-sm", "Load it again");
+    again.onclick = () => { shownVariant = ""; render(); };
+    note.append(E("p", null, "This variant tried to leave its page, so it is not shown."), again);
+    stage.replaceChildren(note);
   }
   /** Numbered pins for the shown variant's notes (1 is the oldest), plus the draft's while a note is being written. */
   function pinsFor(v) {
@@ -178,9 +191,9 @@
     if (!frame || e.source !== frame.contentWindow) return; // only the shown variant's frame, never anything else
     const m = e.data;
     if (!m || typeof m !== "object") return;
-    if (m.type === "ready") { ui.ready = true; ui.pinsKey = ""; render(); }
+    if (m.type === "ready") { if (readySeen) return; readySeen = ui.ready = true; ui.pinsKey = ""; render(); }
     else if (m.type === "escape") setAnnotate(false);
-    else if (m.type === "pinned" && ui.annotate) {
+    else if (m.type === "pinned" && ui.annotate && !ui.draft) { // a new pick waits until the open note is saved or cancelled
       if (typeof m.selector !== "string" || m.selector.length > 1000 || !SELECTOR.test(m.selector) || !okRect(m.rect)) return;
       const label = typeof m.label === "string" ? m.label.replace(/\s+/g, " ").trim().slice(0, 60) : "";
       const r = m.rect;

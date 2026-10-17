@@ -1147,6 +1147,12 @@ class TestPrototypePage(ServerCase):
         self.assertEqual(body[len(self.VARIANT_HTML):], b"\n<script>" + helper + b"</script>\n")
         self.assertEqual(self.get(f"/assets/{self.png}?pin=1")[2], PNG)
 
+    def test_a_pin_helper_that_could_end_or_hide_its_script_element_is_refused(self):
+        for text in ("x</script>", "x</SCRIPT >", "x<!-- y", "x<script>", "x<ScRiPt src=a>"):
+            with self.subTest(text=text), self.assertRaises(RuntimeError):
+                server.pin_helper(text)
+        self.assertEqual(server.pin_helper("post({ type: 'ready' });"), "post({ type: 'ready' });")
+
     def test_annotate_is_a_person_route_under_the_json_cap_and_rate_rules(self):
         note = {"qid": "Q1", "variant": "v-1", "text": "Hard to find", "anchor": {"selector": "html > body:nth-of-type(1)", "rect": {"x": 0, "y": 0, "w": 50, "h": 10}}}
         code, _, out = self.post("/api/annotate", note)

@@ -2184,6 +2184,7 @@
 .vp-app .vp-note-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vp-app .vp-note-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .vp-app .vp-missing { margin: 24px; }
+.vp-app .vp-left { display: grid; gap: 12px; justify-items: start; padding: 24px; }
 @media (max-width: 760px) {
   .vp-app .vp-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 58fr) minmax(0, 42fr); }
   .vp-app .vp-side { border-inline-start: 0; border-block-start: 1px solid var(--line); }

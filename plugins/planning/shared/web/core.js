@@ -14,15 +14,29 @@
   // keeps their identity after the cutover reload. It leaves this browser only as a header.
   let secret = get("secret") || "";
   const hashParams = new URLSearchParams(location.hash.slice(1));
-  const ownerToken = hashParams.get("owner") || "";
+  const unhash = key => {
+    hashParams.delete(key);
+    history.replaceState(null, "", location.pathname + location.search + (hashParams.toString() ? "#" + hashParams : ""));
+  };
   const joinKey = hashParams.get("join") || "";
-  // A personal link ("Use on another device") carries the person's secret in the fragment; adopt it,
-  // then take it out of the address bar.
+  // A personal link ("Use on another device") carries the person's secret in the fragment.
   const adopt = hashParams.get("me") || "";
+  // The owner link carries the owner token in the fragment. This tab keeps it in sessionStorage and takes it out of
+  // the address bar, so a reload or Back in this tab finds it again; a page opened fresh without it is a guest's.
+  const ownerToken = (() => {
+    const tab = (() => { try { return window.sessionStorage; } catch { return null; } })();
+    const fromHash = hashParams.get("owner") || "";
+    if (fromHash) {
+      try { tab.setItem("owner", fromHash); if (tab.getItem("owner") === fromHash) unhash("owner"); } catch { /* no storage: it stays in the address */ }
+      return fromHash;
+    }
+    const nav = performance.getEntriesByType?.("navigation")?.[0]?.type;
+    if (adopt || (nav !== "reload" && nav !== "back_forward")) return "";
+    try { return tab.getItem("owner") || ""; } catch { return ""; }
+  })();
   if (adopt && !ownerToken) {
     secret = adopt; put("secret", adopt); drop("pid"); drop("name");
-    hashParams.delete("me");
-    history.replaceState(null, "", location.pathname + location.search + (hashParams.toString() ? "#" + hashParams : ""));
+    unhash("me");
   }
   if (ownerToken) secret = ""; // the owner link is the owner's only credential
 
@@ -214,6 +228,7 @@
     removed: "The host removed you from this session.",
     waiting: "The host has not let you in yet. This page opens by itself once they do.",
     "reaction-cap": "That message has as many reactions as it takes.",
+    "notes-full": "This session holds as many notes as it takes, so this one was not pinned.",
     ended: "This session has ended.",
     "bad-guest-key": "This invite link is no longer valid. Ask the host for the new one.",
     "owner-only": "Only the host can do that.",
@@ -408,11 +423,10 @@
     },
     /** Q98: a note pinned to an element of one prototype variant. anchor is {selector, rect} from the pin helper. */
     annotate: (qid, variant, anchor, text) => act("/api/annotate", { qid, variant, anchor, text }),
-    /** A page of this session in this tab's identity: the owner's link carries the owner token in the fragment, as
-     *  the owner link does; a guest's secret stays in this browser's storage. `params` go in the fragment too. */
+    /** A page of this session, `params` in the fragment. It never holds a credential: a guest's secret stays in this
+     *  browser's storage, and the owner's token joins the address only when the owner follows the link. */
     pageLink: (path, params = {}) => {
       const h = new URLSearchParams(params);
-      if (ownerToken) h.set("owner", ownerToken);
       return path + (h.toString() ? "#" + h : "");
     },
     /** The guest link to share: the tunnel base, plus the join key once the owner made a new guest link. */
@@ -432,6 +446,24 @@
 
   const json = body => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const ident = () => (ownerToken ? { "X-Owner-Token": ownerToken } : secret ? { "X-Session-Secret": secret } : {});
+
+  // The owner following a link to another page of this session (pageLink): the token goes in the fragment of the
+  // address opened, never in the link, and a new tab gets no handle on this one. A link within this page (a skip
+  // link) is left alone.
+  const SESSION_PAGE = /^\/(?:proto\/Q[1-9][0-9]{0,5})?$/;
+  function followAsOwner(e) {
+    if (!ownerToken || e.defaultPrevented || e.button !== (e.type === "auxclick" ? 1 : 0)) return;
+    const a = e.target.closest?.("a[href]"), u = a && new URL(a.href);
+    if (!u || u.origin !== location.origin || !SESSION_PAGE.test(u.pathname) || (u.pathname === location.pathname && a.target !== "_blank")) return;
+    e.preventDefault();
+    const h = new URLSearchParams(u.hash.slice(1));
+    h.set("owner", ownerToken);
+    const url = `${u.pathname}#${h}`;
+    if (a.target === "_blank" || e.type === "auxclick" || e.ctrlKey || e.metaKey || e.shiftKey) window.open(url, "_blank", "noopener");
+    else location.assign(url);
+  }
+  document.addEventListener("click", followAsOwner);
+  document.addEventListener("auxclick", followAsOwner);
 
   /** Get a fresh {pid, secret}. Concurrent callers share one request. The owner never joins: the link is the identity. */
   function join(name = Core.me.name) {

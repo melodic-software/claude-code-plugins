@@ -1711,15 +1711,21 @@ class TestWriteLimits(SessionCase):
             ids = [self.act("chat", self.ann, {"text": f"Message {i}"})["id"] for i in range(5)]
         self.assertEqual([m["id"] for m in self.s.state["chat"]], ids[-3:])
 
-    def test_notes_keep_the_newest(self):
+    def test_at_the_session_cap_a_new_note_is_refused_and_no_one_s_notes_are_dropped(self):
         variants = [{"id": "v-1", "label": "A", "asset": HTML}, {"id": "v-2", "label": "B", "asset": PNG}]
         self.send()
         self.ack(1)
         self.open_round({**text_q("Q4", rec=False), "purpose": "gather", "format": {"kind": "prototype", "variants": variants}})
         anchor = {"selector": "html > body:nth-of-type(1)", "rect": {"x": 0, "y": 0, "w": 10, "h": 10}}
+
+        def body(text):
+            return {"qid": "Q4", "variant": "v-1", "text": text, "anchor": anchor}
+
         with mock.patch.object(session, "MAX_ANNOTATIONS", 2):
-            ids = [self.act("annotate", self.ann, {"qid": "Q4", "variant": "v-1", "text": f"Note {i}", "anchor": anchor})["id"] for i in range(4)]
-        self.assertEqual([a["id"] for a in self.s.state["annotations"]], ids[-2:])
+            ids = [self.act("annotate", self.ann, body("Ann's note"))["id"], self.act("annotate", self.bo, body("Bo's note"))["id"]]
+            err = self.refused("notes-full", "annotate", self.ann, body("One too many"), http=409)
+        self.assertEqual(err.details["max"], 2)
+        self.assertEqual([(a["id"], a["text"]) for a in self.s.state["annotations"]], [(ids[0], "Ann's note"), (ids[1], "Bo's note")])
 
     def test_suggestions_keep_the_newest_and_drop_votes_on_the_dropped(self):
         self.act("lock", HOST, {"qid": "Q1", "card": "c:rec"})
@@ -3295,6 +3301,19 @@ class TestAnnotations(SessionCase):
             self.s.annotate(self.ann, {"qid": "Q1", "variant": "v-1", "text": "Again", "anchor": {"selector": "html", "rect": self.AREA}})
         self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
 
+    def test_the_digest_names_an_element_only_when_it_is_an_element_path(self):
+        self.note(self.ann)
+        self.clock.tick()
+        self.note(self.bo, "Whole page.", selector="html")
+        legacy = {**self.s.state["annotations"][0], "id": "A9", "text": "Legacy note.", "anchor": {"selector": "#pay > b<i>", "rect": self.AREA}}
+        self.s.state["annotations"].append(legacy)  # a selector an earlier build took, loaded as it was
+        self.send()
+        (ev,) = self.events("round-sent")
+        self.assertEqual(
+            [(a["text"], a["element"]) for a in ev["digest"]["annotations"]],
+            [("The total is hard to find.", self.BUTTON), ("Whole page.", "html"), ("Legacy note.", None)],
+        )
+
     def test_is_prototype_names_only_prototype_questions(self):
         self.assertEqual([self.s.is_prototype(q) for q in ("Q1", "Q2", "Q9")], [True, False, False])
 
@@ -3603,6 +3622,32 @@ class TestStateFrom3f9006c(StateFixtureCase):
         self.assertIsNone(session.document_error(json.loads(s.path.read_text(encoding="utf-8"))))
         reloaded = session.Session.load(s.path, validate_writes=True)
         self.assertEqual([a["anchor"]["selector"] for a in reloaded.state["annotations"]], ["#pay", "img"])
+
+
+class TestStateFromf6f1318(StateFixtureCase):
+    """state-written-f6f1318.json was written by f6f1318's own session.py: three notes on prototype Q1 (A1 on a
+    button's path, A2 on "html", A3 on "img") and round 1 sent, its digest naming each note's element. It loads
+    unchanged and takes new notes; the earlier builds' files still load."""
+
+    BUTTON = "html > body:nth-of-type(1) > main:nth-of-type(1) > button:nth-of-type(2)"
+
+    def test_the_earlier_fixtures_load_unchanged(self):
+        for name in ("state-v1.json", "state-written-0bbffb3.json", "state-written-3153973.json", "state-written-6579f21.json", "state-written-3f9006c.json"):
+            with self.subTest(name):
+                self.load(name)
+
+    def test_a_state_f6f1318_wrote_loads_unchanged_and_takes_new_notes(self):
+        s = self.load("state-written-f6f1318.json")
+        ann = next(p for p, v in s.state["people"].items() if v["name"] == "Ann")
+        self.assertEqual([a["anchor"]["selector"] for a in s.snapshot(ann)["annotations"]], [self.BUTTON, "html", "img"])
+        (sent,) = [e for e in s.state["log"]["events"] if e["kind"] == "round-sent"]
+        self.assertEqual([a["element"] for a in sent["digest"]["annotations"]], [self.BUTTON, "html", "img"])
+        self.assertTrue(s.is_prototype("Q1"))
+        body = {"qid": "Q1", "variant": "v-1", "text": "Pay now sits too low.", "anchor": {"selector": self.BUTTON, "rect": {"x": 1, "y": 1, "w": 5, "h": 5}}}
+        self.assertEqual(s.annotate(ann, body)["id"], "A4")
+        self.assertIsNone(session.document_error(json.loads(s.path.read_text(encoding="utf-8"))))
+        reloaded = session.Session.load(s.path, validate_writes=True)
+        self.assertEqual([a["id"] for a in reloaded.state["annotations"]], ["A1", "A2", "A3", "A4"])
 
 
 if __name__ == "__main__":

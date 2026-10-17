@@ -191,8 +191,10 @@ A `prototype` question shows a preview tile and an "Open prototype" link to `GET
 (`web/proto.html`, `proto.js`; 404 for any other question). The page switches between the
 variants, picks one, and with Annotate on pins a note to a part of a variant:
 `POST /api/annotate {qid, variant, anchor: {selector, rect}, text}` (any person, once the
-question's round has opened; 30 notes per person per question). Notes show on the page, in the
-question's Claude thread, and in the round's digest as `{qid, variant, text, element}`.
+question's round has opened; 30 notes per person per question; 2000 in the session, after which a
+new note gets 409 `notes-full` and none is dropped). Notes show on the page, in the question's
+Claude thread, and in the round's digest as `{qid, variant, text, element}`; `element` is `null`
+for a free-form selector an earlier build took.
 
 - **Anchor.** `selector` is the element's path from the variant's root, such as
   `html > body:nth-of-type(1) > main:nth-of-type(1)` (tag names only, each below the root with
@@ -205,7 +207,15 @@ question's Claude thread, and in the round's digest as `{qid, variant, text, ele
   and the asset's own CSP sandbox, never `allow-same-origin`, so it reaches no cookie, storage or
   session route. `?pin=1` appends `web/proto-pin.js` as an inline script; it answers the page by
   `postMessage` with an element's path, box and up to 60 characters of its label, and
-  `proto.js` checks every message (its source frame, the selector and the rect) before use.
+  `proto.js` checks every message (its source frame, the selector and the rect) before use, and
+  takes the first `ready` only. A variant that navigates its own frame (a second `load`) is
+  dropped: the page stops posting to it, ignores it, and says it tried to leave its page. The
+  page's `frame-src 'self'` already refuses a page from another site in the frame.
+  `server.py` refuses to start when the helper holds `</script`, `<script` or `<!--`.
+- **Owner token.** Links to session pages (`Core.pageLink`) never hold it. The page keeps it in
+  the tab's `sessionStorage`, takes it out of the address bar, and uses it again only on a reload
+  or Back in that tab; when the owner follows a session link, `core.js` opens the page with
+  `#owner=` in its fragment (a new tab with `noopener`), and that page takes it out in turn.
 
 ## Data contract
 
@@ -257,7 +267,7 @@ build reloads itself.
   | Joins | 30 a minute per address and guest key; 60 per 10 minutes per guest key across all addresses (rotating the guest link starts a new count) |
   | Writes | 1 a second per person per route, on every route that writes (answer, pick, vote, react, disagree, go-with, rename, color, prefs, about-you, notifications/read, chat, propose, suggest, request, annotate, merge-request) |
   | Heartbeat | 1 a second per person and tab (429 otherwise), except a beat that changes `visible` or `away` |
-  | Stored chat, notes, suggestions | the newest 2000 messages; 2000 notes; 200 suggestions per question, with votes on a dropped one dropped too |
+  | Stored chat, notes, suggestions | the newest 2000 messages; 2000 notes, then a new one is refused (409 `notes-full`); 200 suggestions per question, with votes on a dropped one dropped too |
   | Connections served at once | 64; one more is answered 503 `busy` |
 
 - **Headers.** Every answer, http.server's own refusals (414, 501 and the like) included:
@@ -293,7 +303,7 @@ Where each token can be seen:
 
 | Token | Exposure paths |
 |---|---|
-| Owner token | `.shared-secrets.json` and `.owner-link` (0600); for an imported session, `state.v0.json` (0600) and the prototype's own state file; for 30 s after `--open`, the `.owner-open-<hex>.html` page (0600) the browser is handed, whose path, not the token, is on the opener's command line; the owner's browser (the link's fragment, never sent to the server, and its history); the transcript when the owner asks for `url --owner` |
+| Owner token | `.shared-secrets.json` and `.owner-link` (0600); for an imported session, `state.v0.json` (0600) and the prototype's own state file; for 30 s after `--open`, the `.owner-open-<hex>.html` page (0600) the browser is handed, whose path, not the token, is on the opener's command line; the owner's browser (the link's fragment, never sent to the server, and its history; the tab's `sessionStorage` once a page took it out of the address bar); the transcript when the owner asks for `url --owner` |
 | Guest secret | The guest's browser storage and personal link (`#me=` fragment); for an imported session, `state.v0.json` (0600); the `X-Session-Secret` header, which Cloudflare's edge sees because the tunnel terminates TLS there |
 | Control token | `.shared-secrets.json`, `.shared-session.json`, `.shared-session.env` (0600); the `curl` command line `watch.sh` runs (the generated session-bridge watcher puts the header on argv). A command line is readable by other local users on Linux without `hidepid` and on macOS, not only by the same user; moving that token off argv is tracked in #7693 |
 

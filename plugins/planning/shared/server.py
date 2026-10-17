@@ -83,9 +83,16 @@ HTML_ASSET_CSP = (
 PROTO = re.compile(r"/proto/(Q[1-9][0-9]{0,5})")
 # The pin helper (web/proto-pin.js) the prototype page asks for with /assets/<id>.html?pin=1: appended to the
 # variant as an inline script, the only kind its CSP runs. It talks to the page by postMessage alone.
-PIN_HELPER = (WEB / "proto-pin.js").read_text(encoding="utf-8")
-if "</script" in PIN_HELPER.lower():
-    raise RuntimeError("web/proto-pin.js must not contain a closing script tag")
+def pin_helper(text):
+    """The pin helper's text, refused when it holds `</script`, `<script` or `<!--`: inside a script element any of
+    them could end it early or hide its end from the parser."""
+    low = text.lower()
+    if any(s in low for s in ("</script", "<script", "<!--")):
+        raise RuntimeError("web/proto-pin.js must not contain </script, <script or <!--")
+    return text
+
+
+PIN_HELPER = pin_helper((WEB / "proto-pin.js").read_text(encoding="utf-8"))
 SECURITY_HEADERS = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer"}
 ERROR_CODES = {400: "bad-request", 408: "body-timeout", 414: "uri-too-long", 431: "headers-too-large", 501: "not-implemented", 505: "bad-version"}
 ASSET = re.compile(r"/assets/([0-9a-f]{16}\.(png|jpg|webp|svg|html))")

@@ -87,7 +87,7 @@ JOINS_PER_WINDOW = 30
 JOIN_KEY_WINDOW = 600.0
 JOINS_PER_KEY = 60  # judgment: per guest key across all addresses, above JOINS_PER_WINDOW so one office NAT joins at once
 MAX_CHAT = 2000  # the newest messages kept, so chat cannot grow state.json without bound
-MAX_ANNOTATIONS = 2000  # judgment: notes kept across all prototype questions, oldest dropped first
+MAX_ANNOTATIONS = 2000  # judgment: notes across all prototype questions; at the cap a new one is refused, none dropped
 MAX_MY_NOTES = 30  # judgment: notes one person pins on one prototype question
 MAX_SELECTOR = 1000  # judgment: characters in a note's element path; 32 levels of tag:nth-of-type(n) fit
 MAX_SUGGESTIONS = 200  # judgment: suggestions kept per question, oldest dropped first
@@ -149,6 +149,13 @@ VARIANT = re.compile(r"v-[1-9][0-9]?")
 # it with querySelector.
 _SEL_STEP = r"[a-z][a-z0-9]{0,15}(?:-[a-z0-9]{1,15}){0,3}(?::nth-of-type\([1-9][0-9]{0,3}\))?"
 SELECTOR = re.compile(rf"{_SEL_STEP}(?: > {_SEL_STEP}){{0,31}}")
+
+
+def _element(selector):
+    """A note's element path for Claude's digest; a free-form selector an earlier build took is None."""
+    return selector if len(selector) <= MAX_SELECTOR and SELECTOR.fullmatch(selector) else None
+
+
 URL = migrate.URL
 PREF_ROUND = re.compile(r"all|[1-9][0-9]{0,3}")
 
@@ -2520,11 +2527,12 @@ class Session:
                 raise DomainError(409, "round-not-open", f"Round {q['round']} has not opened yet.")
             if sum(1 for a in st["annotations"] if a["pid"] == pid and a["qid"] == q["id"]) >= MAX_MY_NOTES:
                 raise DomainError(400, "too-long", f"You can pin at most {MAX_MY_NOTES} notes on one prototype.", field="annotations", max=MAX_MY_NOTES)
+            if len(st["annotations"]) >= MAX_ANNOTATIONS:
+                raise DomainError(409, "notes-full", f"This session holds at most {MAX_ANNOTATIONS} notes.", max=MAX_ANNOTATIONS)
             aid = self._next("A")
             st["annotations"].append(
                 {"id": aid, "pid": pid, "qid": q["id"], "variant": variant, "at": now, "text": text, "anchor": {"selector": anchor["selector"], "rect": rect}}
             )
-            del st["annotations"][:-MAX_ANNOTATIONS]
             self._notify_mentions(text, pid, f"in a note on question {q['id']}", qid=q["id"])
         self._wrote(pid, "annotate", now)
         return {"id": aid}
@@ -2931,7 +2939,7 @@ class Session:
         ]
         proposals = [{"id": p["id"], "text": p["text"], **by(p["pid"])} for p in st["proposals"] if p["status"]["kind"] == "new" and self._active(p["pid"])]
         notes = [
-            {"qid": a["qid"], "variant": a["variant"], "text": a["text"], "element": a["anchor"]["selector"], **by(a["pid"])}
+            {"qid": a["qid"], "variant": a["variant"], "text": a["text"], "element": _element(a["anchor"]["selector"]), **by(a["pid"])}
             for a in st["annotations"]
             if a["at"] > prev and self._active(a["pid"])
         ]
