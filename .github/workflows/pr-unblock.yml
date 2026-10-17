@@ -17,8 +17,8 @@ name: pr-unblock
 # trusts the default branch tip, since a conflicting PR's base SHA is stale and
 # the dispatchers run from the tip.
 
-# pr-feedback-dispatch.mjs reads this title to skip a second dispatch while
-# one for the same activity and PR is still queued or going.
+# feedback-dispatch.mjs and dispatch.mjs read this title to skip a second
+# dispatch while one for the same activity and PR is still queued or going.
 # Quoted: unquoted, " #" would start a YAML comment and drop the PR number.
 run-name: "pr-unblock ${{ inputs.activity }} #${{ inputs.pr-number }}"
 
