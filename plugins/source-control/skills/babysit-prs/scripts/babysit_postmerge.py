@@ -17,7 +17,10 @@ run on such a SHA, and a matching read-back all exist, and no red full run or
 canary run counted against it first. Only an enqueue by the identity has a
 pinned SHA to read back; any other enqueue verifies on the dispatch and canary
 runs alone. A red full run is attributed after one `rerun-failed-jobs` the
-wrapper triggers: red again is a failure, green is a flake.
+wrapper triggers: red again is a failure, green is a flake. It counts only
+for checks that were not already failing on the newest completed run of the
+same event before the merge (`_Context.regressions`); with none left it is
+reported as unattributed and passes like a green run.
 
 `remediate()` acts on failures in order: dequeue the identity's merge-queue
 entries, file or comment on the demotion issue, then record the telemetry
@@ -76,11 +79,29 @@ TRACKER_CONFIG = ".work-item-tracker.json"
 FAILURE_NOTE = "The post-merge check found this failure again: "
 MERGED_PAGE_SIZE = 100
 MERGED_PAGE_LIMIT = 30
+# A red full run counts against a merge only for a check that was not already
+# failing on the branch's newest completed run of the same event before it.
+# A check is a failed job, or one gate the hygiene aggregator step names in a
+# titled failure annotation (`<gate> failed`). The lane aggregator job is red
+# whenever another job is, so beside one it adds nothing; the gitleaks gate
+# scans every fetched branch on these events, so no merge into the branch can
+# turn it red. post-merge-demotion-alert.yml applies the same rule.
+FAILED_CONCLUSIONS = (
+    "failure",
+    "timed_out",
+    "cancelled",
+    "startup_failure",
+    "action_required",
+)
+LANE_AGGREGATE_JOB = "ci-status"
+HYGIENE_AGGREGATE_STEP = "Aggregate hygiene results"
+UNATTRIBUTABLE_GATES = frozenset({"gitleaks failed"})
 
 SIGNAL_SCHEDULE = "schedule"
 SIGNAL_DISPATCH = "dispatch"
 SIGNAL_CANARY = "canary"
 SIGNAL_READ_BACK = "read-back"
+FULL_RUN_EVENTS = {SIGNAL_SCHEDULE: "schedule", SIGNAL_DISPATCH: "workflow_dispatch"}
 
 GREEN, FLAKE, RED, RERUN, PENDING = "green", "flake", "red", "rerun", "pending"
 
@@ -141,6 +162,9 @@ class PostMergeVerdict:
     failures: tuple[Failure, ...] = ()
     reruns: tuple[Rerun, ...] = ()
     flakes: tuple[str, ...] = ()
+    # Red full runs charged to no merge: every failing check was already
+    # failing before the merge, or is one no merge can cause.
+    unattributed: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
     # The branch judged: the caller's, or the repository's default branch.
     branch: str | None = None
@@ -196,6 +220,7 @@ class PostMergeVerdict:
                 for r in self.reruns
             ],
             "flakes": list(self.flakes),
+            "unattributed": list(self.unattributed),
             "needsDispatch": self.needs_dispatch,
             "warnings": list(self.warnings),
             "branch": self.branch,
@@ -463,6 +488,116 @@ class _Context:
     red_on_rerun: set[int] = field(default_factory=set)
     branch: str = ""
     lane_cache: dict[int, bool] = field(default_factory=dict)
+    checks_cache: dict[tuple[int, int], frozenset[str]] = field(default_factory=dict)
+    baseline_cache: dict[tuple[str, datetime], frozenset[str] | None] = field(
+        default_factory=dict
+    )
+
+    def regressions(self, signal: str, run: Run, merged_at: datetime) -> frozenset[str]:
+        """The checks failing on red full run `run` that were not failing on
+        the newest completed run of the same event before the merge. With no
+        such run, every failing check counts, as before the baseline existed."""
+        failing = self.failing_checks(run.id, 2 if run.id in self.red_on_rerun else 1)
+        baseline = self._baseline(signal, merged_at) if failing else None
+        return failing if baseline is None else failing - baseline
+
+    def _baseline(self, signal: str, before: datetime) -> frozenset[str] | None:
+        key = (signal, before)
+        if key not in self.baseline_cache:
+            created = quote(
+                f"<{before.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}", safe=""
+            )
+            listing = _read(
+                [
+                    "api",
+                    f"repos/{self.owner}/{self.name}/actions/workflows/{FULL_RUN_WORKFLOW}"
+                    f"/runs?event={FULL_RUN_EVENTS[signal]}&branch={quote(self.branch, safe='')}"
+                    f"&status=completed&created={created}&per_page=20",
+                ],
+                f"{FULL_RUN_WORKFLOW} {signal} baseline",
+            )
+            runs = [
+                r
+                for r in map(
+                    Run.from_api, json_array(json_object(listing).get("workflow_runs"))
+                )
+                if r.created_at < before
+                and r.head_branch == self.branch
+                and r.status == "completed"
+            ]
+            newest = max(runs, key=lambda r: r.created_at, default=None)
+            self.baseline_cache[key] = (
+                None
+                if newest is None
+                else frozenset()
+                if newest.conclusion == "success"
+                else self.failing_checks(newest.id, newest.attempt)
+            )
+        return self.baseline_cache[key]
+
+    def failing_checks(self, run_id: int, attempt: int) -> frozenset[str]:
+        """The checks one attempt of a full run failed (see FAILED_CONCLUSIONS)."""
+        key = (run_id, attempt)
+        if key not in self.checks_cache:
+            jobs = [
+                j
+                for j in _paginated(
+                    f"repos/{self.owner}/{self.name}/actions/runs/{run_id}"
+                    f"/attempts/{attempt}/jobs?per_page=100",
+                    f"run {run_id} attempt {attempt} jobs",
+                    "jobs",
+                )
+                if j.get("conclusion") in FAILED_CONCLUSIONS
+            ]
+            # A red run with no failed job (a workflow file that does not
+            # load) is one check of its own, never excused.
+            checks: set[str] = (
+                set() if jobs else {f"{FULL_RUN_WORKFLOW}: no failed jobs"}
+            )
+            for job in jobs:
+                name = str(job.get("name") or "")
+                if name == LANE_AGGREGATE_JOB and len(jobs) > 1:
+                    continue
+                gates = self._failed_gates(job.get("id"))
+                steps = {
+                    str(s.get("name") or "")
+                    for s in map(json_object, json_array(job.get("steps")))
+                    if s.get("conclusion") in FAILED_CONCLUSIONS
+                }
+                if not gates or steps - {HYGIENE_AGGREGATE_STEP}:
+                    checks.add(name)
+                checks |= {f"{name}: {g}" for g in gates - UNATTRIBUTABLE_GATES}
+            self.checks_cache[key] = frozenset(checks)
+        return self.checks_cache[key]
+
+    def _failed_gates(self, job_id: Any) -> frozenset[str]:
+        """The titles of a job's failure annotations. A job id is its check
+        run id; an annotation read the token may not make (403, 404) yields
+        none, so the whole job stays one check and nothing is excused."""
+        args = [
+            "api",
+            f"repos/{self.owner}/{self.name}/check-runs/{job_id}/annotations?per_page=100",
+        ]
+        try:
+            proc = gh_capture(args)
+        except (RuntimeError, ValueError, OSError) as exc:
+            raise PostMergeReadError(f"job {job_id} annotations: {exc}") from exc
+        if proc.returncode != 0:
+            if gh_http_status(proc.stderr or "") in (403, 404):
+                return frozenset()
+            raise PostMergeReadError(
+                f"job {job_id} annotations: {(proc.stderr or '').strip()}"
+            )
+        try:
+            items = json_array(json.loads(proc.stdout or "[]"))
+        except ValueError as exc:
+            raise PostMergeReadError(f"job {job_id} annotations: {exc}") from exc
+        return frozenset(
+            str(a.get("title")).strip()
+            for a in map(json_object, items)
+            if a.get("annotation_level") == "failure"
+            and str(a.get("title") or "").strip()
+        )
 
     def lane_dispatched(self, run: Run) -> bool:
         """Whether the pr-merge lane sent this github-actions[bot] dispatch:
@@ -550,7 +685,14 @@ class _Context:
         second = self._attempt(run, 2) if run.attempt >= 2 else None
         if second is None:
             return RERUN, f"attempt 1 {first.conclusion}; awaiting the wrapper's re-run"
-        if second.triggering_actor != self.identity:
+        # A re-run by anyone else (a person re-running until green) cannot
+        # clear a red attempt 1. The one other re-run that can is
+        # post-merge-demotion-alert.yml's single re-run under GITHUB_TOKEN,
+        # and that workflow re-runs no run the bot started.
+        if second.triggering_actor != self.identity and not (
+            second.triggering_actor == LANE_DISPATCH_ACTOR
+            and first.triggering_actor != LANE_DISPATCH_ACTOR
+        ):
             return (
                 RED,
                 f"attempt 1 {first.conclusion}; attempt 2 not triggered by the agent identity",
@@ -558,7 +700,7 @@ class _Context:
         if second.status != "completed":
             return PENDING, "re-run-in-progress"
         if second.conclusion == "success":
-            return FLAKE, "attempt 1 failed, the wrapper's re-run passed"
+            return FLAKE, "attempt 1 failed, the one re-run passed"
         self.red_on_rerun.add(run.id)
         return RED, f"attempt 1 {first.conclusion}; re-run {second.conclusion}"
 
@@ -582,6 +724,7 @@ class _Tally:
     failures: list[Failure] = field(default_factory=list)
     reruns: dict[int, Rerun] = field(default_factory=dict)
     flakes: dict[str, None] = field(default_factory=dict)
+    unattributed: dict[str, None] = field(default_factory=dict)
 
 
 def _judge(
@@ -613,9 +756,14 @@ def _judge(
         if signal == SIGNAL_DISPATCH
         and (run.actor == ctx.identity or ctx.lane_dispatched(run))
     ]
-    green_dispatch = [
-        r for r in own if ctx.outcome(r, attributable=True)[0] in (GREEN, FLAKE)
-    ]
+
+    def passes(run: Run) -> bool:
+        state = ctx.outcome(run, attributable=True)[0]
+        return state in (GREEN, FLAKE) or (
+            state == RED and not ctx.regressions(SIGNAL_DISPATCH, run, merged_at)
+        )
+
+    green_dispatch = [r for r in own if passes(r)]
     green_canary = [
         r for r in canaries if ctx.outcome(r, attributable=False)[0] == GREEN
     ]
@@ -666,7 +814,18 @@ def _judge(
             continue
         state, detail = ctx.outcome(run, attributable=True)
         if state == RED:
-            failures.append(Failure(signal, merge, ctx.sighting(run), detail))
+            new = ctx.regressions(signal, run, merged_at)
+            if new:
+                failures.append(
+                    Failure(
+                        signal,
+                        merge,
+                        ctx.sighting(run),
+                        f"{detail}; newly failing: {', '.join(sorted(new))}",
+                    )
+                )
+            else:
+                tally.unattributed[ctx.sighting(run)] = None
         elif state == RERUN:
             tally.reruns[run.id] = Rerun(run.id, run.url, signal)
             pending.append(f"attribution-pending:{run.id}")
@@ -786,6 +945,7 @@ def check(
         failures=tuple(tally.failures),
         reruns=tuple(tally.reruns.values()),
         flakes=tuple(tally.flakes),
+        unattributed=tuple(tally.unattributed),
         warnings=tuple(warnings),
         branch=branch,
     )
@@ -815,9 +975,21 @@ def dispatch_full_run(repo: str, *, ref: str) -> None:
 
 
 def attribute(repo: str, verdict: PostMergeVerdict) -> list[int]:
-    """Trigger the one `rerun-failed-jobs` on each red full run awaiting it."""
+    """Trigger the one `rerun-failed-jobs` on each red full run awaiting it,
+    unless another re-run (post-merge-demotion-alert.yml's) started since."""
     owner, name = _split_repo(repo)
+    triggered: list[int] = []
     for rerun in verdict.reruns:
+        current = json_object(
+            _call(
+                ["api", f"repos/{owner}/{name}/actions/runs/{rerun.run_id}"],
+                f"run {rerun.run_id}",
+                PostMergeWriteError,
+            )
+        ).get("run_attempt")
+        if not isinstance(current, int) or current >= 2:
+            continue
+        triggered.append(rerun.run_id)
         _write(
             [
                 "api",
@@ -827,7 +999,7 @@ def attribute(repo: str, verdict: PostMergeVerdict) -> list[int]:
             ],
             f"re-run {rerun.run_id}",
         )
-    return [r.run_id for r in verdict.reruns]
+    return triggered
 
 
 def _role_label(owner: str, name: str) -> str:
