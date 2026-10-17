@@ -595,10 +595,12 @@ identity exists.
 
 `verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and `verify:untrusted-spec` need a
 human. While `merge.report-only` is false the lane escalates such a refusal on the pull request
-([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it adds the tracker's human-gated
-role label (`needs-human` unless `.work-item-tracker.json` maps it) when absent, and keeps one
+([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it keeps one
 `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, rewritten only
-when either changes, so a rerun writes nothing. While it is true the refusal is only reported. The
+when either changes, then adds the tracker's human-gated role label (`needs-human` unless
+`.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,
+so a label never stands unexplained, and a failed label is added by the next run; a rerun that
+finds both writes nothing. While it is true the refusal is only reported. The
 lane token's `issues: write` and `pull-requests: write` cover both writes. A human clears them
 by merging in person: the verdict is not a check run and stays out of `ci-status` and the required
 checks (github-iac ADR 0011), so a human merge needs `ci-status` alone. A queued entry without an

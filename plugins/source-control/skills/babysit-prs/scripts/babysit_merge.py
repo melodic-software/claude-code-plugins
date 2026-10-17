@@ -3055,24 +3055,14 @@ def escalate_verify(
     repo: str, number: int, identity: str, refusal: str, inputs: Mapping[str, Any]
 ) -> dict[str, Any]:
     """The escalation contract for a needs-human verifier refusal (loop-lane
-    README §2): the tracker's human-gated role label on the pull request,
-    added only when absent, and one marked comment naming the refusal and the
-    head. Raises `RuntimeError` on a failed write."""
+    README §2): one marked comment naming the refusal and the head, then the
+    tracker's human-gated role label on the pull request, added only when no
+    label matches it case-insensitively. The comment goes first so a label
+    never stands unexplained; a failed label is retried by the next run,
+    which finds the comment unchanged. Raises `RuntimeError` on a failed
+    write."""
     pr = json_object(inputs.get("pr"))
     head = str(json_object(pr.get("head")).get("sha"))
-    owner, name = repo.split("/", 1)
-    label = postmerge._role_label(owner, name)
-    labels = pr.get("labels")
-    present = is_json_array(labels) and any(
-        json_object(item).get("name") == label for item in labels
-    )
-    if not present:
-        proc = gh_capture(
-            ["api", "-X", "POST", f"repos/{repo}/issues/{number}/labels"]
-            + ["-f", f"labels[]={label}"]
-        )
-        if proc.returncode != 0:
-            raise RuntimeError(f"label {label}: {proc.stderr.strip()}")
     comment = upsert_marker_comment(
         repo,
         number,
@@ -3081,6 +3071,20 @@ def escalate_verify(
         inputs.get("comments"),
         marker=VERIFY_ESCALATION_MARKER,
     )
+    owner, name = repo.split("/", 1)
+    label = postmerge._role_label(owner, name)
+    labels = pr.get("labels")
+    present = is_json_array(labels) and any(
+        str(json_object(item).get("name") or "").casefold() == label.casefold()
+        for item in labels
+    )
+    if not present:
+        proc = gh_capture(
+            ["api", "-X", "POST", f"repos/{repo}/issues/{number}/labels"]
+            + ["-f", f"labels[]={label}"]
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"label {label}: {proc.stderr.strip()}")
     return {"label": "present" if present else "added", "comment": comment}
 
 

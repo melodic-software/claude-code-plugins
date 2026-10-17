@@ -917,8 +917,71 @@ class LaneRequiresAVerdict(unattended.Unattended):
         patcher.start()
         self.addCleanup(patcher.stop)
 
+        # Writes whose argv holds one of these fail (HTTP 502).
+        self.failing: set[str] = set()
+
     def _evidence(self, number: int, head: str, pr: Any = None) -> ve.Evidence:
         return self.read(number, head)
+
+    def _capture(self, args: list[str]) -> Any:
+        if any(f in a for f in self.failing for a in args):
+            self.log.append("failed:" + " ".join(args))
+            return subprocess.CompletedProcess(args, 1, "", "gh: boom (HTTP 502)")
+        return super()._capture(args)
+
+    def escalation_comment(self) -> dict[str, Any]:
+        return {
+            "id": 90,
+            "user": {"login": unattended.IDENTITY, "type": "Bot"},
+            "created_at": "2026-10-12T10:00:00Z",
+            "body": merge.verify_escalation_body("verify:too-old", unattended.HEAD),
+        }
+
+    def test_a_failed_comment_adds_no_label(self) -> None:
+        self.verdicts[unattended.PR] = evidence("verify:too-old")
+        self.failing = {merge.VERIFY_ESCALATION_MARKER}
+        _, out = self.lane()
+        self.assertFalse(
+            any("/labels" in a for w in self.escalation_writes() for a in w)
+        )
+        self.assertNotIn("escalation", out["unattended"]["writes"])
+        self.assertTrue(
+            any(
+                e.startswith("escalation:")
+                for e in out["unattended"]["writes"]["errors"]
+            )
+        )
+
+    def test_a_failed_label_is_added_on_the_next_run_without_a_second_comment(
+        self,
+    ) -> None:
+        self.verdicts[unattended.PR] = evidence("verify:too-old")
+        self.failing = {"/labels"}
+        _, out = self.lane()
+        self.assertTrue(
+            any(
+                e.startswith("escalation:")
+                for e in out["unattended"]["writes"]["errors"]
+            )
+        )
+        # The next run reads the comment the first one posted.
+        self.failing = set()
+        self.comments = [self.escalation_comment()]
+        _, out = self.lane()
+        (label,) = self.escalation_writes()
+        self.assertIn("labels[]=needs-human", label)
+        self.assertEqual(
+            out["unattended"]["writes"]["escalation"],
+            {"label": "added", "comment": "unchanged"},
+        )
+
+    def test_a_label_differing_only_in_case_is_not_added_again(self) -> None:
+        self.verdicts[unattended.PR] = evidence("verify:too-old")
+        self.pr_labels = [{"name": "Needs-Human"}]
+        self.comments = [self.escalation_comment()]
+        _, out = self.lane()
+        self.assertEqual(self.escalation_writes(), [])
+        self.assertEqual(out["unattended"]["writes"]["escalation"]["label"], "present")
 
     def escalation_writes(self) -> list[list[str]]:
         return [
@@ -935,7 +998,8 @@ class LaneRequiresAVerdict(unattended.Unattended):
                 self.verdicts[unattended.PR] = evidence(refusal)
                 code, out = self.lane()
                 self.assert_no_merge(code)
-                label, comment = self.escalation_writes()
+                # The comment explains the label, so it is written first.
+                comment, label = self.escalation_writes()
                 self.assertEqual(
                     label[-4:],
                     ["POST", f"repos/owner/repo/issues/{unattended.PR}/labels"]
@@ -955,7 +1019,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.role_label.return_value = "status: needs-decision"
         self.verdicts[unattended.PR] = evidence("verify:too-old")
         self.lane()
-        self.assertIn("labels[]=status: needs-decision", self.escalation_writes()[0])
+        self.assertIn("labels[]=status: needs-decision", self.escalation_writes()[-1])
 
     def test_another_label_does_not_stand_in_for_the_role_label(self) -> None:
         self.verdicts[unattended.PR] = evidence("verify:earlier-fail")
