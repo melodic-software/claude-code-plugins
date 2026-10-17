@@ -79,10 +79,10 @@
     {
       "id": 8,
       "name": "artifact-is-the-default-medium",
-      "prompt": "Explain PR 30. The policy script printed action build and medium {\"value\": \"artifact\", \"source\": \"default\"}. The view facts report visibility PUBLIC and the publish gate printed medium artifact.",
-      "expected_output": "With no layer setting medium, the skill checks the repository's visibility and runs the publish gate over the diff first. The gate allows it, so the skill says it is publishing as a private Artifact on claude.ai, then publishes the builder's page with the Artifact tool. If the tool is unavailable, the skill gives the local path and says why.",
+      "prompt": "Explain PR 30. The policy script printed action build and medium {\"value\": \"artifact\", \"source\": \"default\"}. The publish gate looked up the repository as PUBLIC and printed medium artifact.",
+      "expected_output": "With no layer setting medium, the skill runs the publish gate, which looks up the repository's visibility itself, over the diff first. The gate allows it, so the skill says it is publishing as a private Artifact on claude.ai, then publishes the builder's page with the Artifact tool. If the tool is unavailable, the skill gives the local path and says why.",
       "expectations": [
-        "Output takes visibility from the view facts and runs the --publish-gate check over the saved diff before publishing",
+        "Output runs the --publish-gate check with --repo over the saved diff before publishing, and passes no visibility itself",
         "Output says the page is being published as a private Artifact on claude.ai before publishing",
         "Output does not hand-write the page or publish a page the builder did not make"
       ]
@@ -91,7 +91,7 @@
       "id": 9,
       "name": "default-artifact-falls-back-to-file",
       "narration": true,
-      "prompt": "Explain PR 31. The policy script printed action build and medium {\"value\": \"artifact\", \"source\": \"default\"}. The view facts report visibility PRIVATE.",
+      "prompt": "Explain PR 31. The policy script printed action build and medium {\"value\": \"artifact\", \"source\": \"default\"}. The publish gate looked up the repository as PRIVATE.",
       "expected_output": "The medium is the shipped default and the repository is not public, so the publish gate returns medium file. The skill does not call the Artifact tool. It gives the local path, the reason (visibility PRIVATE), and how to opt in: medium: artifact in ~/.claude/rendered-views.md.",
       "expectations": [
         "Output does not publish the page with the Artifact tool",

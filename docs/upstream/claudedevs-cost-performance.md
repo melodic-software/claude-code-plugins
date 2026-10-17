@@ -178,7 +178,7 @@ docs page lists hillclimb and build-eval).
 
 Mostly covered: PLUGIN-PHILOSOPHY "Effort tiers" lane rules, catalog rows I21/I22/I27,
 model-adaptation chapters (opus-5 "move down liberally", fable-5-1 "recall at low effort"),
-`${CLAUDE_EFFORT}` consumed by 7 skills, and every named agent's effort pin, `high` or `medium`
+`${CLAUDE_EFFORT}` consumed by 7 skills, and the effort pin, `high` or `medium`, of every named agent that sets its own model
 (see the pinned-agents record under [Effort tiers](../plugin-philosophy.md#effort-tiers) and the
 [Effort floor](../plugin-philosophy.md#effort-floor)). Missing: cross-model economics and sweep
 tooling.

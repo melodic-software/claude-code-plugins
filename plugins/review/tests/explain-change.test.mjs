@@ -447,36 +447,61 @@ describe("publish gate: the default artifact medium publishes only a public, cre
     assert.equal(result.medium, "artifact");
     assert.equal(result.destination, "a private Artifact on claude.ai");
   });
-  test("the CLI takes no visibility from its arguments, only from --facts", () => {
+  test("the CLI takes no visibility from its arguments, only a --repo it looks up", () => {
     const gate = (args, input) => spawnSync(process.execPath, [POLICY, "--publish-gate", ...args], { input, encoding: "utf8" });
-    for (const args of [["public"], ["PUBLIC"], ["PUBLIC", "--explicit"], ["PUBLIC", "--facts"], ["--explicit"], []]) {
+    for (const args of [["public"], ["PUBLIC"], ["PUBLIC", "--explicit"], ["--facts", "x.json"], ["--repo"], ["--repo", "acme"], ["--repo", "10.0.0.1/acme/app"], ["--explicit"], []]) {
       const run = gate(args, clean);
       assert.equal(run.status, 2, `${JSON.stringify(args)} is refused`);
       assert.equal(run.stdout, "");
     }
+    assert.equal(gate(["--repo", "acme/app", "--force"], clean).status, 2);
   });
-  test("--facts takes the visibility from the saved facts, and anything else gates private", () => {
-    const gate = (args, input) => spawnSync(process.execPath, [POLICY, "--publish-gate", ...args], { input, encoding: "utf8" });
-    const facts = (name, body) => {
-      const file = join(scratch, name);
-      writeFileSync(file, body);
-      return file;
-    };
-    assert.equal(JSON.parse(gate(["--facts", facts("public.json", '{"visibility":"PUBLIC","title":"x"}')], clean).stdout).medium, "artifact");
-    assert.equal(JSON.parse(gate(["--facts", facts("none.json", '{"title":"visibility PUBLIC"}')], clean).stdout).medium, "file");
-    assert.equal(JSON.parse(gate(["--facts", facts("bad.json", "not json")], clean).stdout).medium, "file");
-    assert.equal(JSON.parse(gate(["--facts", join(scratch, "missing.json")], clean).stdout).medium, "file");
-    assert.equal(JSON.parse(gate(["--facts", facts("lower.json", '{"visibility":"public"}')], clean).stdout).medium, "artifact");
-    assert.equal(JSON.parse(gate(["--facts", facts("private.json", '{"visibility":"PRIVATE"}')], clean).stdout).medium, "file");
-    assert.equal(JSON.parse(gate(["--facts", facts("private.json", '{"visibility":"PRIVATE"}'), "--explicit"], clean).stdout).medium, "artifact");
-    assert.equal(gate(["--facts"], clean).status, 2);
-    assert.equal(gate(["--facts", facts("public.json", '{"visibility":"PUBLIC"}'), "--force"], clean).status, 2);
+  const fakeGh = join(scratch, "gate-bin");
+  const ghCalls = join(scratch, "gate-gh.log");
+  mkdirSync(fakeGh, { recursive: true });
+  writeFileSync(
+    join(fakeGh, "gh"),
+    `#!/usr/bin/env node
+const argv = process.argv.slice(2);
+require("node:fs").appendFileSync(process.env.FAKE_GH_LOG, JSON.stringify(argv) + "\\n");
+if (argv[0] === "auth") process.exit((process.env.FAKE_GH_AUTHED || "").split(",").includes(argv[3]) ? 0 : 1);
+process.stdout.write(process.env.FAKE_GH_OUT + "\\n");
+process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
+`,
+  );
+  chmodSync(join(fakeGh, "gh"), 0o755);
+  const fakeRuns = { skip: process.platform === "win32" && "the fake gh is a script, which a shell-less spawn on Windows cannot run" };
+  const lookedUp = (repo, { out = "public", exit = 0, authed = "", extra = [] } = {}) => {
+    rmSync(ghCalls, { force: true });
+    const run = spawnSync(process.execPath, [POLICY, "--publish-gate", "--repo", repo, ...extra], {
+      input: clean,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${fakeGh}${delimiter}${process.env.PATH}`, FAKE_GH_LOG: ghCalls, FAKE_GH_OUT: out, FAKE_GH_EXIT: String(exit), FAKE_GH_AUTHED: authed },
+    });
+    const calls = existsSync(ghCalls) ? readFileSync(ghCalls, "utf8").trim().split("\n").map((l) => JSON.parse(l)) : [];
+    return { medium: JSON.parse(run.stdout).medium, calls };
+  };
+  test("--repo is looked up through the REST API and only a public answer publishes", fakeRuns, () => {
+    const found = lookedUp("acme/app");
+    assert.equal(found.medium, "artifact");
+    assert.deepEqual(found.calls, [["api", "repos/acme/app", "--jq", ".visibility"]]);
+    for (const out of ["private", "internal", "", "garbage"]) assert.equal(lookedUp("acme/app", { out }).medium, "file", `answer ${JSON.stringify(out)}`);
+    assert.equal(lookedUp("acme/app", { exit: 1 }).medium, "file", "a failed lookup gates as UNKNOWN");
+    assert.equal(lookedUp("acme/app", { out: "private", extra: ["--explicit"] }).medium, "artifact");
+  });
+  test("a host gh is not logged in to is never asked, and a logged-in host is", fakeRuns, () => {
+    const cold = lookedUp("ghe.example.com/acme/app");
+    assert.equal(cold.medium, "file");
+    assert.deepEqual(cold.calls, [["auth", "status", "--hostname", "ghe.example.com"]]);
+    const warm = lookedUp("ghe.example.com/acme/app", { authed: "ghe.example.com" });
+    assert.equal(warm.medium, "artifact");
+    assert.deepEqual(warm.calls[1], ["api", "--hostname", "ghe.example.com", "repos/acme/app", "--jq", ".visibility"]);
   });
   test("SKILL.md runs the gate before publishing and names the destination", () => {
     const skill = readFileSync(join(SKILL, "SKILL.md"), "utf8");
     assert.match(skill, /`\/source-control:pull-request view <n> \[--repo <owner\/repo>\] --out <dir>\/facts\.json`/);
     assert.match(skill, /`\/source-control:pull-request view <n> --diff --out <dir>\/pr\.diff`/);
-    assert.match(skill, /--publish-gate --facts <dir>\/facts\.json \[--explicit\] < <dir>\/pr\.diff/);
+    assert.match(skill, /--publish-gate --repo <owner\/repo> \[--explicit\] < <dir>\/pr\.diff/);
     assert.match(skill, /publishing as a private Artifact on claude\.ai/);
     assert.match(skill, /`offer`:.*a private Artifact on claude\.ai/);
     assert.match(skill, /`medium: artifact` in `~\/\.claude\/rendered-views\.md`/);

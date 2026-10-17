@@ -89,10 +89,10 @@ The page filters files, collapses hunks, and lets the reader tick files reviewed
 This skill never relies on a permission prompt to stop an Artifact publish: the gate below decides before anything leaves the machine. When `medium` is `artifact`, run:
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" --publish-gate --facts <dir>/facts.json [--explicit] < <dir>/pr.diff
+"${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" --publish-gate --repo <owner/repo> [--explicit] < <dir>/pr.diff
 ```
 
-The gate takes no visibility argument: it reads the visibility the `view` action looked up from `facts.json` itself, never retyped from the facts, whose title and paths the pull request's author wrote; a missing or unreadable value gates as `UNKNOWN`. Pass `--explicit` only when step 1's `medium.source` is not `default`, that is, a layer set `medium: artifact`. The gate prints the `medium` to use and why:
+The gate takes no visibility argument: it looks up the repository's visibility itself, the way `publish-hosted.mjs` does, and no value from the facts file or the model reaches it; a failed lookup gates as `UNKNOWN`. When the pull request's URL names a host other than `github.com`, pass `--repo <host>/<owner>/<repo>`; the gate asks that host only when this machine is already logged in to it, and otherwise gates as `UNKNOWN`. Pass `--explicit` only when step 1's `medium.source` is not `default`, that is, a layer set `medium: artifact`. The gate prints the `medium` to use and why:
 
 - `artifact`: say "publishing as a private Artifact on claude.ai" before publishing, then publish that file with the Artifact tool. Who can see a published Artifact is read at [artifacts: create an artifact](https://code.claude.com/docs/en/artifacts#create-an-artifact); as of 2026-10-11; recheck trigger: that section stops saying a published artifact stays private until shared, and then drop "private" from the line above. When the tool is unavailable or refused, give the path and say why.
 - `file`: the shipped default met a repository that is not `PUBLIC`, or a hunk shaped like a credential. Do not publish. Give the path, the gate's `reason`, and its `opt_in`: `medium: artifact` in `~/.claude/rendered-views.md` publishes such pages anyway.
