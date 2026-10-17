@@ -1,0 +1,16 @@
+// good-for: rule-inert-assertion
+// A runtime GetType() operand can differ from the typeof one, so these can fail.
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class OrderRuntimeTypeAreEqualTests
+{
+    [TestMethod]
+    public void Create_ReturnsAnOrder()
+    {
+        var sut = OrderFactory.Create();
+        Assert.AreEqual(typeof(Order), sut.GetType());
+        Assert.AreSame(sut.GetType(), typeof(Order));
+        Assert.AreEqual(1, sut.Lines.Count);
+    }
+}

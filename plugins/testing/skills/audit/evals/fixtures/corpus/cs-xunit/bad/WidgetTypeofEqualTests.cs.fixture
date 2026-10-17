@@ -1,0 +1,12 @@
+// expect: rule-inert-assertion
+// Two typeof operands are settled at compile time, so Equal cannot fail.
+using Xunit;
+
+public class WidgetTypeofEqualTests
+{
+    [Fact]
+    public void Widget_IsItself()
+    {
+        Assert.Equal(typeof(Widget), typeof(Gadget));
+    }
+}

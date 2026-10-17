@@ -1,0 +1,12 @@
+// expect: rule-inert-assertion
+// Two typeof operands are settled at compile time, so NotEqual cannot fail.
+using Xunit;
+
+public class WidgetTypeofNotEqualTests
+{
+    [Fact]
+    public void Widget_IsNotGadget()
+    {
+        Assert.NotEqual(typeof(Widget), typeof(Gadget));
+    }
+}

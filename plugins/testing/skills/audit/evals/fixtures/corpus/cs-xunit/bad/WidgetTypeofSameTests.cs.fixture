@@ -1,0 +1,12 @@
+// expect: rule-inert-assertion
+// Two typeof operands are settled at compile time, so Same cannot fail.
+using Xunit;
+
+public class WidgetTypeofSameTests
+{
+    [Fact]
+    public void Widget_IsItself()
+    {
+        Assert.Same(typeof(Widget), typeof(Gadget));
+    }
+}

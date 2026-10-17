@@ -43,11 +43,14 @@ assertion:
   # .Should() with no matcher chained, as a whole statement. A literal
   # condition always passes. typeof, nameof and a type's Name are never null
   # (Namespace and FullName can be), and comparing
-  # two of them is settled at compile time. cs-nunit inherits these.
+  # two of them is settled at compile time, and so is Equal, NotEqual or Same
+  # (AreEqual, AreNotEqual or AreSame in NUnit) on two typeof operands; a
+  # runtime GetType() operand is not. cs-nunit inherits these.
   inert:
     - '[^=;]*\.[[:space:]]*Should[[:space:]]*\([[:space:]]*\)[[:space:]]*;$'
     - 'Assert[[:space:]]*\.[[:space:]]*(True[[:space:]]*\([[:space:]]*true|False[[:space:]]*\([[:space:]]*false)[[:space:]]*[,)]'
     - 'Assert[[:space:]]*\.[[:space:]]*NotNull[[:space:]]*\([[:space:]]*(typeof|nameof)[[:space:]]*\([^()]*\)(\.Name)?[[:space:]]*\)'
+    - 'Assert[[:space:]]*\.[[:space:]]*(Equal|NotEqual|Same|AreEqual|AreNotEqual|AreSame)[[:space:]]*\([[:space:]]*typeof[[:space:]]*\([^()]*\)[[:space:]]*,[[:space:]]*typeof[[:space:]]*\([^()]*\)[[:space:]]*[,)]'
     - 'Assert[[:space:]]*\.[[:space:]]*(True|False)[[:space:]]*\([[:space:]]*(typeof|nameof)[[:space:]]*\([^()]*\)(\.(Name|FullName|Namespace))?[[:space:]]*(==|!=)[[:space:]]*(typeof|nameof)[[:space:]]*\([^()]*\)(\.(Name|FullName|Namespace))?[[:space:]]*[,)]'
   # Not null, and a throw of any exception. cs-nunit and cs-mstest inherit these.
   weak:

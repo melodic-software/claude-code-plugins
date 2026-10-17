@@ -1,0 +1,13 @@
+// expect: rule-inert-assertion
+// Two typeof operands are settled at compile time, so the comparison cannot fail.
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class OrderTypeofAreEqualTests
+{
+    [TestMethod]
+    public void Order_IsItself()
+    {
+        Assert.AreEqual(typeof(Order), typeof(Invoice));
+    }
+}
