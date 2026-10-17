@@ -2237,9 +2237,12 @@ MARKER = (
     "<!-- admission: admitted when unblocked, owner batch ratification 2026-10-16 -->"
 )
 OWNER_ID = 153232337
+# The trusted list is read at the default branch's current head, never at a
+# pull request's base.
+DEFAULT_HEAD = "d" * 40
 TRUSTED_LIST = (
     f"repos/{REPO}/contents/.github/standards/trusted-actors/trusted-actors.json"
-    f"?ref={SHA}"
+    f"?ref={DEFAULT_HEAD}"
 )
 TRUSTED = {
     "version": 1,
@@ -2347,13 +2350,18 @@ class LaneEligibility(unittest.TestCase):
         number: int = 41,
         labels: list[str] | None = None,
         repository: str = REPO,
+        edited: Any = None,
+        renamed: Any = None,
     ) -> dict[str, Any]:
         names = [] if labels is None else labels
         return {
             "number": number,
-            "lastEditedAt": None,
+            "lastEditedAt": edited,
             "repository": {"nameWithOwner": repository},
             "labels": {"totalCount": len(names), "nodes": [{"name": n} for n in names]},
+            "timelineItems": {
+                "nodes": [] if renamed is None else [{"createdAt": renamed}]
+            },
         }
 
     def fake(
@@ -2365,14 +2373,24 @@ class LaneEligibility(unittest.TestCase):
         closing: list[dict[str, Any]] | None = None,
         author: dict[str, str] | None = None,
         comments: Any = None,
+        base_ref: str = "main",
     ) -> GhFake:
         issues = [self.issue_node(labels=labels)] if closing is None else closing
         names = pr_labels or []
         gh = GhFake().install(self)
+        gh.rest[f"repos/{REPO}"] = {"default_branch": "main"}
+        gh.rest[f"repos/{REPO}/commits/main"] = {"sha": DEFAULT_HEAD}
+        # Each closing issue's body-edit and title-change times, read fresh.
+        gh.graphql["PolicyIssueEdits"] = lambda v: {
+            "repository": {
+                "issue": next((i for i in issues if str(i["number"]) == v["n"]), None)
+            }
+        }
         gh.graphql["PolicyEligibility"] = {
             "repository": {
                 "pullRequest": {
                     "number": 7,
+                    "baseRefName": base_ref,
                     "createdAt": PR_CREATED,
                     "lastEditedAt": "2026-10-12T13:00:00Z",
                     "isCrossRepository": False,
@@ -2569,30 +2587,82 @@ class LaneEligibility(unittest.TestCase):
         gh = self.fake()
         gh.rest[TRUSTED_LIST] = file_payload('{"version": 2, "actors": []}')
         self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
-        # The list is read at the pull request's base, so no base refuses.
-        self.fake()
-        result = policy.lane_eligibility(
-            REPO,
-            7,
-            pr={"number": 7, "changed_files": 1},
-            denied_paths=LANE_DENIED,
-            agent_identity=IDENTITY,
+        # The list is read at the default branch's head: no head, no read.
+        gh = self.fake()
+        gh.rest[f"repos/{REPO}/commits/main"] = 502
+        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
+        gh = self.fake()
+        gh.rest[f"repos/{REPO}"] = 502
+        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
+
+    def test_the_trusted_list_is_read_at_the_default_branch_head(self) -> None:
+        # #7725 review: a human removed from the list on main no longer
+        # ratifies an older pull request whose base still lists them.
+        gh = self.fake()
+        gh.rest[TRUSTED_LIST] = file_payload(
+            json.dumps({"version": 1, "actors": TRUSTED["actors"][1:]})
         )
-        self.assertTrue(result.reason.startswith("unreadable:"))
+        gh.rest[TRUSTED_LIST.replace(DEFAULT_HEAD, SHA)] = file_payload(
+            json.dumps(TRUSTED)
+        )
+        self.assertEqual(self.eligibility().reason, "not-ratified")
+
+    def test_a_pr_into_another_branch_refuses(self) -> None:
+        self.fake(base_ref="release")
+        self.assertEqual(self.eligibility().reason, "base-not-default:release")
+        self.assertEqual(
+            policy.recheck_lane_issue(REPO, 7, issue=41), "base-not-default:release"
+        )
+
+    def test_a_denied_actor_does_not_ratify(self) -> None:
+        # check-trusted-trigger.mjs: DENIED_ACTOR_IDS leave the ratifiers.
+        self.fake()
+        env = {policy.DENIED_ACTOR_IDS_ENV: f"1, {OWNER_ID}"}
+        with mock.patch.dict(policy.os.environ, env):
+            self.assertEqual(self.eligibility().reason, "not-ratified")
+        with mock.patch.dict(policy.os.environ, {policy.DENIED_ACTOR_IDS_ENV: "x"}):
+            self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
+        with mock.patch.dict(policy.os.environ, {policy.DENIED_ACTOR_IDS_ENV: "5"}):
+            self.assertTrue(self.eligibility().eligible)
+
+    def test_an_issue_edit_after_the_newest_ratification_refuses(self) -> None:
+        # The owner ratified the title and body as they stood then.
+        after, before = "2026-10-16T12:05:00Z", "2026-10-16T11:00:00Z"
+        for node, eligible in (
+            (self.issue_node(edited=after), False),
+            (self.issue_node(renamed=after), False),
+            (self.issue_node(edited="not a time"), False),
+            (self.issue_node(edited=before, renamed=before), True),
+            (self.issue_node(edited="2026-10-16T12:00:00Z"), True),
+        ):
+            with self.subTest(node=node):
+                self.fake(closing=[node])
+                result = self.eligibility()
+                self.assertIs(result.eligible, eligible, result.reason)
+                if not eligible:
+                    self.assertEqual(result.reason, "not-ratified")
+        # A later marker re-ratifies an edit made after the first.
+        later = ratification(
+            id=5, created_at="2026-10-16T13:00:00Z", updated_at="2026-10-16T13:00:00Z"
+        )
+        self.fake(
+            closing=[self.issue_node(edited=after)], comments=[ratification(), later]
+        )
+        self.assertTrue(self.eligibility().eligible)
 
     def test_the_enqueue_recheck_reads_the_ratification_again(self) -> None:
         self.fake(comments=[])
-        self.assertEqual(
-            policy.recheck_lane_issue(REPO, 7, issue=41, ref=SHA), "not-ratified"
-        )
+        self.assertEqual(policy.recheck_lane_issue(REPO, 7, issue=41), "not-ratified")
+        self.fake(closing=[self.issue_node(renamed="2026-10-17T00:00:00Z")])
+        self.assertEqual(policy.recheck_lane_issue(REPO, 7, issue=41), "not-ratified")
         gh = self.fake()
         gh.rest[self.COMMENTS] = 502
-        reason = policy.recheck_lane_issue(REPO, 7, issue=41, ref=SHA)
+        reason = policy.recheck_lane_issue(REPO, 7, issue=41)
         self.assertTrue(str(reason).startswith("unreadable:"))
 
     def test_the_enqueue_recheck_reads_the_closing_issue_again(self) -> None:
         def recheck(issue: int | None = 41) -> str | None:
-            return policy.recheck_lane_issue(REPO, 7, issue=issue, ref=SHA)
+            return policy.recheck_lane_issue(REPO, 7, issue=issue)
 
         self.fake()
         self.assertIsNone(recheck())

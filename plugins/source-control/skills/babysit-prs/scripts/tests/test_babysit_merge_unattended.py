@@ -728,8 +728,7 @@ class LaneMode(Unattended):
     def test_the_enqueue_recheck_reads_the_eligible_issue(self) -> None:
         self.lane()
         self.assertEqual(len(self.lane_recheck_kwargs), 1)
-        self.assertEqual(self.lane_recheck_kwargs[0].get("issue"), 41)
-        self.assertEqual(self.lane_recheck_kwargs[0].get("ref"), BASE)
+        self.assertEqual(self.lane_recheck_kwargs[0], {"issue": 41})
 
     def test_a_ratification_gone_before_the_enqueue_refuses(self) -> None:
         # #7725: a marker deleted or edited after the eligibility read.
@@ -740,8 +739,11 @@ class LaneMode(Unattended):
         self.assertIn(
             "unattended merge refused: ineligible:not-ratified", out["blockers"]
         )
-        # Read fresh at the recheck, on the closing issue, at the base.
-        self.assertEqual(self.ratification_reads, [("owner", "repo", 41, BASE)])
+        # Read fresh at the recheck, on the closing issue.
+        self.assertEqual(
+            [(o, n, issue["number"]) for o, n, _, issue in self.ratification_reads],
+            [("owner", "repo", 41)],
+        )
 
     def test_an_ineligible_pr_is_refused(self) -> None:
         self.lane_eligible = policy.Eligibility(False, "denied-path:.github/x.yml")

@@ -1040,10 +1040,17 @@ def credential_refusal(identity: str) -> str | None:
 
 ELIGIBILITY = (
     "query PolicyEligibility($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
-    "pullRequest(number:$n){number createdAt lastEditedAt isCrossRepository "
+    "pullRequest(number:$n){number createdAt lastEditedAt isCrossRepository baseRefName "
     "author{__typename login} headRepositoryOwner{login} labels(first:100){totalCount nodes{name}} "
     "closingIssuesReferences(first:10){totalCount nodes{number lastEditedAt "
     "repository{nameWithOwner} labels(first:100){totalCount nodes{name}}}}}}}"
+)
+# When an issue's body was last edited and its title last changed
+# (check-trusted-trigger.mjs ISSUE_EDITS_QUERY).
+ISSUE_EDITS = (
+    "query PolicyIssueEdits($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    "issue(number:$n){lastEditedAt timelineItems(itemTypes:[RENAMED_TITLE_EVENT],last:1)"
+    "{nodes{... on RenamedTitleEvent{createdAt}}}}}}"
 )
 
 
@@ -1424,18 +1431,120 @@ def _trusted_humans(owner: str, name: str, ref: str) -> frozenset[int]:
     return frozenset(humans)
 
 
-def _ratification_refusal(owner: str, name: str, issue: int, ref: Any) -> str | None:
-    """`not-ratified` unless the closing issue carries the owner's marker now,
-    read fresh from its comments and the trusted list at the pull request's
-    base `ref`. A failed read raises, which refuses."""
-    if not isinstance(ref, str) or not SHA_RE.fullmatch(ref):
-        raise PolicyReadError(f"base SHA for the trusted list: {ref!r}")
+# The ECMAScript date time string format with an explicit offset, or a bare
+# date (UTC). JavaScript also reads other forms, some as local time; this
+# port reads none of them, so such a time refuses.
+_ES_TIME = re.compile(
+    r"([+-][0-9]{6}|[0-9]{4})(?:-([0-9]{2})(?:-([0-9]{2}))?)?"
+    r"(?:T([0-9]{2}):([0-9]{2})(?::([0-9]{2})(?:\.([0-9]{1,3})[0-9]*)?)?"
+    r"(Z|[+-][0-9]{2}:[0-9]{2}))?"
+)
+_NAN = float("nan")
+
+
+def _time_of(value: Any) -> float:
+    """Milliseconds since the epoch, as check-trusted-trigger.mjs `timeOf`
+    (`Date.parse` on a string), or NaN for anything it does not read."""
+    match = _ES_TIME.fullmatch(value) if isinstance(value, str) else None
+    if match is None or value.startswith("-000000"):
+        return _NAN
+    year, month, day, hour, minute, second, millis, zone = match.groups()
+    if hour is not None and zone is None:
+        return _NAN  # JavaScript reads it as local time
+    try:
+        at = datetime(
+            int(year),
+            int(month or 1),
+            int(day or 1),
+            int(hour or 0),
+            int(minute or 0),
+            int(second or 0),
+            int((millis or "0").ljust(3, "0")) * 1000,
+            tzinfo=UTC,
+        )
+    except ValueError:
+        return _NAN
+    offset = 0
+    if zone not in (None, "Z"):
+        hours, minutes = int(zone[1:3]), int(zone[4:6])
+        if hours > 23 or minutes > 59:
+            return _NAN
+        offset = (hours * 60 + minutes) * (1 if zone[0] == "+" else -1)
+    epoch = datetime(1970, 1, 1, tzinfo=UTC)
+    return ((at - epoch).total_seconds() - offset * 60) * 1000
+
+
+def ratified(
+    comments: Sequence[Any],
+    humans: Collection[int],
+    denied: Collection[int],
+    issue: Any,
+) -> bool:
+    """Whether the issue stands ratified, as check-trusted-trigger.mjs
+    `checkRatifiedAppLabel` decides it at resolve-issue's start: a comment
+    `find_ratification` accepts from a listed human outside `denied`, and no
+    body edit (`lastEditedAt`) or title change (the newest
+    `RenamedTitleEvent`) after the newest such comment. An unreadable time
+    refuses."""
+    ratifiers = frozenset(humans) - frozenset(denied)
+    newest = None
+    for comment in comments:
+        if find_ratification([comment], ratifiers) is None:
+            continue
+        if newest is None or _time_of(comment.get("created_at")) > _time_of(
+            newest.get("created_at")
+        ):
+            newest = comment
+    if newest is None or not isinstance(issue, dict):
+        return False
+    at = _time_of(newest.get("created_at"))
+    timeline = issue.get("timelineItems")
+    nodes = timeline.get("nodes") if isinstance(timeline, dict) else None
+    edits = [issue.get("lastEditedAt")] + [
+        node.get("createdAt") if isinstance(node, dict) else None
+        for node in (nodes if isinstance(nodes, list) else [])
+    ]
+    return all(edit is None or _time_of(edit) <= at for edit in edits)
+
+
+DENIED_ACTOR_IDS_ENV = "BABYSIT_DENIED_ACTOR_IDS"
+
+
+def _denied_actor_ids() -> frozenset[int]:
+    """`BABYSIT_DENIED_ACTOR_IDS`, parsed as check-trusted-trigger.mjs
+    `parseDeniedIds`: comma- or space-separated positive ids; anything else
+    raises, so a malformed denial never reads as an empty one."""
+    tokens = [
+        t for t in re.split(r"[\s,]+", os.environ.get(DENIED_ACTOR_IDS_ENV, "")) if t
+    ]
+    if not all(re.fullmatch(r"[1-9][0-9]{0,15}", t) for t in tokens):
+        raise PolicyReadError(f"{DENIED_ACTOR_IDS_ENV} must list positive integer ids")
+    return frozenset(int(t) for t in tokens)
+
+
+def _ratification_refusal(
+    owner: str, name: str, node: Mapping[str, Any], issue: Mapping[str, Any]
+) -> str | None:
+    """Why the closing issue does not stand ratified now: the pull request's
+    base is not the default branch (`base-not-default:<ref>`), or `ratified`
+    says no (`not-ratified`), over its comments and edit times read fresh and
+    the trusted list at the default branch's current head. A failed read
+    raises, which refuses."""
+    branch, head = _default_branch_head(f"{owner}/{name}")
+    base = node.get("baseRefName")
+    if base != branch:
+        return f"base-not-default:{base}"
+    number = issue["number"]
     comments = _paginated(
-        f"repos/{owner}/{name}/issues/{issue}/comments?per_page=100",
-        f"#{issue} comments",
+        f"repos/{owner}/{name}/issues/{number}/comments?per_page=100",
+        f"#{number} comments",
     )
-    humans = _trusted_humans(owner, name, ref)
-    return None if find_ratification(comments, humans) else "not-ratified"
+    data = _graphql(ISSUE_EDITS, f"#{number} edits", o=owner, r=name, n=number)
+    edits = json_object(data.get("repository")).get("issue")
+    humans = _trusted_humans(owner, name, head)
+    if ratified(comments, humans, _denied_actor_ids(), edits):
+        return None
+    return "not-ratified"
 
 
 def _denied_path_refusal(
@@ -1499,8 +1608,7 @@ def lane_eligibility(
         issue, refusal = _closing_issue(node, repo)
         if refusal is None:
             issue_number = issue["number"]
-            base = json_object(pr.get("base")).get("sha")
-            refusal = _ratification_refusal(owner, name, issue_number, base)
+            refusal = _ratification_refusal(owner, name, node, issue)
         if refusal is None:
             refusal = _denied_path_refusal(
                 owner, name, number, pr.get("changed_files"), denied_paths
@@ -1789,13 +1897,11 @@ def dependabot_eligibility(
     return Eligibility(True, None, "C2", dependabot=tier)
 
 
-def recheck_lane_issue(
-    repo: str, number: int, *, issue: int | None, ref: Any = None
-) -> str | None:
+def recheck_lane_issue(repo: str, number: int, *, issue: int | None) -> str | None:
     """The closing issue read again right before the enqueue: it must still
     be the one, in this repository, that the eligibility read found (`issue`),
-    since the verifier verdict binds to it, and still carry the owner's
-    ratification, read fresh at the base `ref`."""
+    since the verifier verdict binds to it, and still stand ratified
+    (`_ratification_refusal`, read fresh)."""
     owner, name = _split_repo(repo)
     try:
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
@@ -1807,7 +1913,7 @@ def recheck_lane_issue(
             return refusal
         if found["number"] != issue:
             return f"closing-issue-changed:{issue}>{found['number']}"
-        return _ratification_refusal(owner, name, found["number"], ref)
+        return _ratification_refusal(owner, name, node, found)
     except PolicyReadError as exc:
         return f"unreadable: {exc}"
 
