@@ -246,10 +246,13 @@ class Reader:
             try:
                 return self._actions(args, "repository artifacts", timeout)
             except _Transient:
-                timeout = deadline - _listing_clock() - wait
-                if timeout <= 0:
+                if deadline - _listing_clock() - wait <= 0:
                     raise
                 _listing_sleep(wait)
+                # Recomputed after the sleep, which may return late.
+                timeout = deadline - _listing_clock()
+                if timeout <= 0:
+                    raise
         return self._actions(args, "repository artifacts", timeout)
 
     def _env(self) -> dict[str, str] | None:

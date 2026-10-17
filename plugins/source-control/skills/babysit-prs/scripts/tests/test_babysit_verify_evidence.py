@@ -1002,9 +1002,19 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         return fake
 
     def test_the_retries_share_one_read_timeout(self) -> None:
-        # Deadline 0 + 60; a retry gets what is left after its wait.
-        fake = self.timed([0.0, 1.0, 20.0])
-        self.assertEqual(fake.timeouts, [None, 60.0 - 1.0 - 2.0, 60.0 - 20.0 - 4.0])
+        # Deadline 0 + 60; each retry gets what is left after its wait ends.
+        fake = self.timed([0.0, 1.0, 3.0, 20.0, 24.0])
+        self.assertEqual(fake.timeouts, [None, 60.0 - 3.0, 60.0 - 24.0])
+
+    def test_a_late_sleep_shortens_the_retry_timeout(self) -> None:
+        # The 2s sleep returned at 30s: the retry gets 30s, not 57s.
+        fake = self.timed([0.0, 1.0, 30.0, 59.0])
+        self.assertEqual(fake.timeouts, [None, 30.0])
+
+    def test_no_retry_when_the_sleep_ends_past_the_deadline(self) -> None:
+        fake = self.timed([0.0, 1.0, 61.0])
+        self.assertEqual(fake.timeouts, [None])
+        self.assertEqual(fake.listings(), 1)
 
     def test_no_retry_once_the_timeout_is_spent(self) -> None:
         fake = self.timed([0.0, 58.5])
