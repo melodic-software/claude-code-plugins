@@ -365,11 +365,17 @@ fm_rule "$fm_repo" alias '---\npaths: **/*.ts\n---\n\n# A\n'
 fm_rule "$fm_repo" listalias '---\npaths:\n  - **/*.ts\n---\n\n# B\n'
 fm_rule "$fm_repo" colon '---\ndescription: Use when: editing\npaths:\n  - "src/**/*.ts"\n---\n\n# C\n'
 fm_rule "$fm_repo" tab '---\npaths:\n\t- "src/**/*.ts"\n---\n\n# D\n'
+fm_rule "$fm_repo" reserved '---\ndescription: @owner rules\npaths:\n  - "src/**/*.ts"\n---\n\n# E\n'
+fm_rule "$fm_repo" trailcolon '---\ndescription: Use when:\npaths:\n  - "src/**/*.ts"\n---\n\n# F\n'
+# A `#` inside a closed quoted value is text, not a comment, so the screen keeps reading.
+fm_rule "$fm_repo" hashquote '---\ndescription: "Rules for #tags"\npaths: **/*.ts\n---\n\n# G\n'
 commit_all "$fm_repo" fm
 out="$(run rules --root "$fm_repo")"
 fm_count="$(printf '%s\n' "$out" | awk -F'\t' '$1=="FRONTMATTER" && $5=="unparsable"' | grep -c . || true)"
-assert_eq "each unparsable frontmatter is reported" "4" "$fm_count"
+assert_eq "each unparsable frontmatter is reported" "7" "$fm_count"
 assert_contains "the unquoted glob is named as an alias" "$out" "YAML alias"
+assert_contains "a glob after a quoted value holding # is still screened" "$out" \
+  "$(printf 'FRONTMATTER\t.claude/rules/hashquote.md\t3\t')"
 run rules --root "$fm_repo" >/dev/null 2>&1
 assert_eq "unparsable frontmatter fails the gate" "1" "$?"
 

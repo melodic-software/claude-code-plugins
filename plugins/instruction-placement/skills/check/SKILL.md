@@ -42,8 +42,8 @@ Wire it into CI beside the linters. It is fast, deterministic, and has no judgme
 
 | Check | Mechanism | Failure means |
 |---|---|---|
-| Frontmatter parses | same (`FRONTMATTER` row) | Claude Code ignores the frontmatter and loads the rule unscoped, in every session |
 | Glob resolves | `glob-tools.sh rules` | The rule never fires for any file in the repository |
+| Frontmatter parses | same (`FRONTMATTER` row) | Claude Code ignores the frontmatter and loads the rule unscoped, in every session |
 | Bracket expressions valid | same | The pattern silently matches nothing |
 | Brace budget respected | same | The pattern is used unexpanded; its braces match nothing |
 | Glob not over-broad | same | Advisory. The rule loads so often it saves nothing |
@@ -140,8 +140,10 @@ SUMMARY <tab> tracked <tab> patterns <tab> invalid <tab> overbroad <tab> verdict
 ```
 
 A `FRONTMATTER` row counts toward `invalid`. It is a static screen, not a YAML parser, so a green
-gate does not prove the YAML is valid; `claude --debug` prints the parser's own error
-(<https://code.claude.com/docs/en/memory#rules-frontmatter-reference>, read 2026-10-17).
+gate does not prove the YAML is valid. To see the parser's own error, follow the
+[rule frontmatter reference](https://code.claude.com/docs/en/memory#rules-frontmatter-reference)
+(read 2026-10-17; recheck trigger: that section changing how an unparsable frontmatter is
+reported or loaded).
 
 Report per failing pattern: the rule file, the pattern, the status, and **what the operator should
 do about it**. The three failure statuses have different fixes and saying "invalid" helps nobody.

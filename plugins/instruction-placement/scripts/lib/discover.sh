@@ -144,7 +144,7 @@ ip_parse_paths() {
 #
 # Flagged: a tab in indentation; a plain value starting with `*` (an alias, the
 # classic unquoted `paths: **/*.ts`), `@` or a backtick; a plain value holding
-# `: `, which YAML reads as a nested mapping.
+# `: ` or ending in `:`, which YAML reads as a nested mapping.
 # ---------------------------------------------------------------------------
 ip_frontmatter_problem() {
   local file="${1:-}"
@@ -181,10 +181,10 @@ ip_frontmatter_problem() {
         if (match(v, /^[A-Za-z0-9_.-]+:([[:space:]]+|$)/)) v = substr(v, RLENGTH + 1)
       } else if (match($0, /^[[:space:]]*[A-Za-z0-9_.-]+:([[:space:]]+|$)/)) v = substr($0, RLENGTH + 1)
       else next
-      sub(/[[:space:]]+#.*$/, "", v); sub(/[[:space:]]+$/, "", v)
-      if (v == "") next
+      sub(/[[:space:]]+$/, "", v)
       # An anchor or tag may precede the value: `&a |`, `!!str text`.
       while (match(v, /^[&!][^[:space:]]*[[:space:]]+/)) v = substr(v, RLENGTH + 1)
+      if (v == "" || v ~ /^#/) next
       c = substr(v, 1, 1)
       if (c == "|" || c == ">") { block = ind; next }
       if (c == "\"" || c == "'"'"'") {
@@ -196,9 +196,12 @@ ip_frontmatter_problem() {
         if (depth > 0) open = "F"
         next
       }
+      # Only a plain value takes a trailing comment off here: in a quoted or flow
+      # value a `#` can be text.
+      sub(/[[:space:]]+#.*$/, "", v)
       if (c == "*") bad("plain value starts with * (a YAML alias); quote the glob")
       if (c == "@" || c == "`") bad("plain value starts with a reserved indicator " c "; quote it")
-      if (v ~ /: / || v ~ /:$/) bad("plain value contains a colon followed by a space; quote it")
+      if (v ~ /: / || v ~ /:$/) bad("plain value contains a colon followed by a space or at its end; quote it")
     }
     BEGIN { block = -1; open = ""; depth = 0 }
   ' "$file" 2>/dev/null
