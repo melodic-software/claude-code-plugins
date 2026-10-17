@@ -3,6 +3,26 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.11.0] - 2026-10-17
+
+### Added
+
+- The pr-merge lane escalates a verifier refusal that needs a human (`verify:earlier-fail`, `verify:too-old`, `verify:untrusted-spec`, `verify:spec-changed`) once `merge.report-only` is false: it adds the tracker's human-gated role label to the pull request when absent and keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, so a rerun writes nothing. While report-only holds it only reports.
+
+### Fixed
+
+- The verdict reader keeps a failed artifact listing for the gate run, so an outage refuses every queued entry `verify:unreadable` without paging the listing again for each.
+- With several pass verdicts at one head, each is checked and all must allow, rather than only the first the listing returned.
+- The dependency-manager exemption for a queued entry requires a `Bot` account, not only a dependency manager's login; pr-verify's resolver skips on the same rule.
+
+- Dependabot merge classifier: read a quoted `dependency-name` (a scoped npm package such as `@anthropic-ai/claude-code`), so a patch or minor npm bump is no longer sent to review as `sources-disagree`.
+
+### Security
+
+- The pr-merge lane sends every Dependabot update to a dependency the standards Dependabot policy lists under `autoMerge.reviewOnly` to the review tier (`review-only:<dependency>`), whatever its version change, and every Dependabot pull request to review (`dependabot-policy-unreadable`) when `.github/standards/dependabot-policy/policy.json` does not read at the base. An entry's `directory` covers a changed path in it, and a `github-actions` entry also covers the workflow and action files the content rule gives that directory (`/` covers `.github/workflows/` and `.github/actions/`).
+- The pr-merge lane sends an otherwise auto-merged npm or pip Dependabot update to the review tier when its registry provenance changed since the newest earlier version that had one (`provenance-changed:<name>`), was dropped (`provenance-missing:<name>`), or cannot be read within 10 seconds and 20 registry reads (`provenance-unreadable:<name>`). The identity is the npm SLSA provenance's workflow repository and path (never the ref), else the npm trusted publisher with any `oidc:` prefix stripped, or the PyPI PEP 740 publisher.
+- The `dependency --ci` review requires a `merge` verdict on a review-only dependency to quote each matched entry's `control` verbatim in `evidence` and state what it checked; the verdict job checks the quote by script and escalates a merge that lacks one.
+
 ## [1.10.0] - 2026-10-17
 
 ### Added

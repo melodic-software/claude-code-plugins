@@ -15,12 +15,15 @@ const OTHER = "b".repeat(40);
 const APP = 337595936;
 const DEPENDABOT = 49699333;
 
+// GitHub verified and committed it, as it does Dependabot's commits.
+const SIGNED = { committer: { email: "noreply@github.com" }, verification: { verified: true, reason: "valid" } };
 const dependabotCommit = (sha, message = "bump") => ({
   sha,
-  commit: { message, author: { name: "dependabot[bot]", email: "49699333+dependabot[bot]@users.noreply.github.com" } },
+  commit: { message, author: { name: "dependabot[bot]", email: "49699333+dependabot[bot]@users.noreply.github.com" }, ...SIGNED },
 });
 
 function fakeApi({ pull = {}, comments = [], ciRuns = [], files = [], modelRuns = {}, commits = null, commitFiles = {} } = {}) {
+  const listed = commits ?? [HEAD, ...Object.keys(modelRuns).filter((sha) => sha !== HEAD)].map((sha) => dependabotCommit(sha));
   return {
     getCommit: async (sha) => ({ sha, files: (commitFiles[sha] ?? []).map((filename) => ({ filename })) }),
     getPull: async () => ({
@@ -31,11 +34,12 @@ function fakeApi({ pull = {}, comments = [], ciRuns = [], files = [], modelRuns 
       body: "Bumps x from 1.4.0 to 2.0.0.",
       labels: [{ name: "dependencies" }],
       changed_files: files.length,
+      commits: listed.length,
       ...pull,
     }),
     listIssueComments: async () => comments,
     listPullFiles: async () => files,
-    listPullCommits: async () => commits ?? Object.keys(modelRuns).map((sha) => dependabotCommit(sha)),
+    listPullCommits: async () => listed,
     listCheckRuns: async (sha, name) => (name === "ci-status" ? ciRuns : (modelRuns[sha] ?? [])),
   };
 }
@@ -72,6 +76,19 @@ test("select skips a pull request Dependabot did not open", async () => {
   });
   assert.equal(result.decision, "skip");
   assert.equal(result.skipReason, "not-applicable");
+});
+
+test("select skips a pull request whose head moved since the gate", async () => {
+  const args = { pr: 7, appId: APP, dependabotId: DEPENDABOT, config: [] };
+  const result = await select({ api: fakeApi({ pull: { head: { ref: "dependabot/npm_and_yarn/x-2.0.0", sha: OTHER } } }), headSha: HEAD, ...args });
+  assert.deepEqual([result.decision, result.skipReason, result.file], ["skip", "superseded-sha", undefined]);
+});
+
+test("select marks a files listing at the REST cap as truncated", async () => {
+  const files = Array.from({ length: 3000 }, (_, i) => ({ filename: `f${i}`, status: "modified", additions: 1, deletions: 0, patch: "" }));
+  const args = { pr: 7, headSha: HEAD, appId: APP, dependabotId: DEPENDABOT, config: [] };
+  assert.equal((await select({ api: fakeApi({ files }), ...args })).file.files_truncated, true);
+  assert.equal((await select({ api: fakeApi({ files: files.slice(0, 2999) }), ...args })).file.files_truncated, false);
 });
 
 test("select skips an auto-tier bump, which pr-merge owns", async () => {
@@ -208,6 +225,16 @@ test("select applies the content rule from the base's dependabot.yml", async () 
   assert.deepEqual(odd.file.classification.reasons, ["dependabot-content:dist/x.js"]);
 });
 
+test("select sorts a patch bump review when the commits listing is short of the pull request's total", async () => {
+  const args = { pr: 7, headSha: HEAD, appId: APP, dependabotId: DEPENDABOT, config: [["npm", "/"]] };
+  const files = [{ filename: "package-lock.json", patch: "" }];
+  const whole = await select({ api: fakeApi({ pull: { title: "bump x from 1.4.0 to 1.4.1" }, files }), ...args });
+  assert.equal(whole.decision, "skip");
+  const capped = await select({ api: fakeApi({ pull: { title: "bump x from 1.4.0 to 1.4.1", commits: 251 }, files }), ...args });
+  assert.equal(capped.decision, "proceed");
+  assert.deepEqual(capped.file.classification.reasons, ["commits-listed:1-of:251"]);
+});
+
 test("select reads the metadata in Dependabot's commits, and not in another author's", async () => {
   const message = [
     "bump x",
@@ -223,9 +250,13 @@ test("select reads the metadata in Dependabot's commits, and not in another auth
   const disagree = await select({ api: fakeApi({ pull, commits: [dependabotCommit(HEAD, message)] }), ...args });
   assert.equal(disagree.decision, "proceed");
   assert.deepEqual(disagree.file.classification.reasons, ["sources-disagree"]);
-  const other = { sha: HEAD, commit: { message, author: { name: "someone", email: "someone@example.test" } } };
+  const other = { sha: HEAD, commit: { message, author: { name: "someone", email: "someone@example.test" }, ...SIGNED } };
   const ignored = await select({ api: fakeApi({ pull, commits: [other] }), ...args });
-  assert.equal(ignored.decision, "skip", "another author's commit touched nothing, so its paths and metadata add nothing");
+  assert.deepEqual(
+    ignored.file.classification.reasons,
+    [`commit-not-dependabot:${HEAD.slice(0, 12)}`],
+    "another author's commit is review, and its metadata is not read",
+  );
 });
 
 test("select counts a version-bump commit's paths as checked", async () => {
@@ -234,6 +265,7 @@ test("select counts a version-bump commit's paths as checked", async () => {
     commit: {
       message: "chore: bump [dependabot skip]",
       author: { name: "github-actions[bot]", email: "41898282+github-actions[bot]@users.noreply.github.com" },
+      ...SIGNED,
     },
   };
   const files = [{ filename: "package-lock.json" }, { filename: "plugins/x/CHANGELOG.md" }];
@@ -307,6 +339,7 @@ test("main writes the outputs and the file, and the security flag", async () => 
   assert.match(out, /^escalation-reason=$/m);
   assert.match(out, /^security=true$/m);
   assert.match(out, /^config-unreadable=true$/m, "the main test points at no config file");
+  assert.match(out, /^files-truncated=false$/m);
   assert.match(out, /^controls=\[\]$/m);
   assert.equal(JSON.parse(readFileSync(env.DEPENDENCY_FILE, "utf8")).pr, 7);
 });

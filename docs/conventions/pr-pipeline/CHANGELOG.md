@@ -29,6 +29,21 @@ resolve-issue now admits on `{ratified: true}` alone, so an issue labeled read-o
 with no marker no longer starts the lane, and a ratified issue carrying another class now does
 ("Merge authority", "Activities"). `version` stays 1.
 
+## 1.25.1 - 2026-10-17
+
+The review-dependency activity checks commit provenance
+([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review)). Its classifier applies the
+pr-merge lane's commit check as review reasons, so an unverified commit, one GitHub did not
+commit, or one that is neither Dependabot's nor the version-bump commit sorts `review`, never
+`auto`, and so does a commits listing short of the pull request's commit count
+(`commits-listed:<listed>-of:<total>`). The select step skips `superseded-sha` when the head
+moved since the gate, and records its start time before any model turn. The verdict job accepts
+a `fix` only from commits GitHub signed for the lanes App during the run (author, committer
+`web-flow`, a valid signature, a commit date no earlier than that start time) in a comparison
+listed whole, else `dependency-invalid` or `superseded-sha`; it reads no Actions API. `run.json`
+gains `files_truncated` and `started_at`, and a `merge` verdict on a truncated files listing
+escalates the new reason `dependency-files-truncated`. `version` stays 1.
+
 ## 1.25.0 - 2026-10-17
 
 Both Dependabot classifiers read the standards Dependabot policy at the base and make every update

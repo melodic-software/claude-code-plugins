@@ -1,9 +1,10 @@
 // Sorts an open Dependabot pull request into a review tier, with no model, by
 // the rules the pr-merge lane applies: a line-for-line port of
 // plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py
-// (`classify`, `parse_metadata`, `parse_title`, `is_major`, `parse_config`,
-// `glob_regex`, `content_refusal`) and its caller's content step
-// (`_dependabot_content` in babysit_merge_policy.py). Contract:
+// (`classify`, `parse_metadata`, `parse_title`, `is_major`, `commit_refusal`,
+// `commits_refusal`, `parse_config`, `glob_regex`, `content_refusal`) and its
+// caller's commit and content steps (`dependabot_eligibility` and
+// `_dependabot_content` in babysit_merge_policy.py). Contract:
 // docs/conventions/pr-pipeline/README.md, "Dependabot pull requests".
 //
 //   auto    every update is non-major (the first numeric version component
@@ -21,12 +22,18 @@
 // commits when there is any, and from the title (`bump <name> from <a> to
 // <b>`) or a group's body `Updates` lines at the start of a line otherwise
 // (release notes are quoted, so they never start one); when both read they
-// must name the same dependencies and agree on which are major.
+// must name the same dependencies and agree on which are major. A commit the
+// pr-merge lane refuses (not GitHub-verified, not committed by GitHub, or
+// neither Dependabot's nor the version-bump commit) is a review reason here,
+// so the AI review owns the pull request; it never sorts `auto`.
 
 export const DEPENDABOT_LOGIN = "dependabot[bot]";
 export const DEPENDABOT_AUTHOR = Object.freeze(["dependabot[bot]", "49699333+dependabot[bot]@users.noreply.github.com"]);
 export const ACTIONS_AUTHOR = Object.freeze(["github-actions[bot]", "41898282+github-actions[bot]@users.noreply.github.com"]);
 export const ACTIONS_PUBLISHERS = Object.freeze(["actions", "github", "anthropics"]);
+export const GITHUB_COMMITTER_EMAIL = "noreply@github.com";
+export const SKIP_MARKER = "[dependabot skip]";
+const BUMP_PATH = /^plugins\/[A-Za-z0-9._-]+\/(\.claude-plugin\/plugin\.json|CHANGELOG\.md)$/;
 const RED = new Set(["failure", "cancelled", "timed_out", "action_required", "startup_failure"]);
 
 const PREFIX = /^[a-z]+(\([^)]*\))?!?:\s*/i;
@@ -35,8 +42,9 @@ const GROUP = /\bbump the \S+ group\b.*\bwith (\d+) updates?\s*$/i;
 const UPDATE_LINE = /^Updates `([^`\s]+)` from (\S+) to (\S+?)\.?$/gm;
 const VERSION = /^v?(\d+)(?:\.(\d+))?(?:\.\d+)*(?:[-+.][0-9A-Za-z.+-]*)?$/;
 const ECOSYSTEM = /^dependabot\/([^/]+)\//;
-const ENTRY = /^-\s+dependency-name:\s*(\S+)\s*$/;
-const FIELD = /^\s+(dependency-version|update-type):\s*(\S+)\s*$/;
+// Dependabot quotes a value YAML would misread, such as a scoped npm name.
+const ENTRY = /^-\s+dependency-name:\s*(["']?)([^"'\s]+)\1\s*$/;
+const FIELD = /^\s+(dependency-version|update-type):\s*(["']?)([^"'\s]+)\2\s*$/;
 
 function versionParts(version) {
   const found = VERSION.exec(String(version));
@@ -74,9 +82,9 @@ export function parseMetadata(message) {
     const entry = ENTRY.exec(line);
     const field = FIELD.exec(line);
     if (entry) {
-      entries.push({ name: entry[1] });
+      entries.push({ name: entry[2] });
     } else if (field && entries.length > 0) {
-      entries.at(-1)[field[1]] = field[2];
+      entries.at(-1)[field[1]] = field[3];
     }
   }
   return entries.map((entry) => {
@@ -111,6 +119,47 @@ const signed = (item) => [item?.commit?.author?.name, item?.commit?.author?.emai
 const isAuthor = (item, author) => signed(item)[0] === author[0] && signed(item)[1] === author[1];
 export const isDependabotCommit = (item) => isAuthor(item, DEPENDABOT_AUTHOR);
 export const isActionsCommit = (item) => isAuthor(item, ACTIONS_AUTHOR);
+
+// Why one REST pull-request commit may not merge, or null: it is
+// GitHub-verified, committed by GitHub, and Dependabot's or the repository's
+// `[dependabot skip]` version-bump commit (github-actions[bot], touching only a
+// plugin's plugin.json or CHANGELOG.md). `files(sha)` lists a commit's paths,
+// or null when unreadable. The pr-merge lane's lanes App admission is left
+// out: a lanes App fix commit keeps the pull request `review`, which pr-merge
+// merges only on a round marker.
+export function commitRefusal(item, files) {
+  const commit = item?.commit ?? {};
+  const sha = String(item?.sha || "?").slice(0, 12);
+  if (commit.verification?.verified !== true) {
+    return `commit-unverified:${sha}`;
+  }
+  if (commit.committer?.email !== GITHUB_COMMITTER_EMAIL) {
+    return `commit-not-committed-by-github:${sha}`;
+  }
+  if (isDependabotCommit(item)) {
+    return null;
+  }
+  if (!isActionsCommit(item) || !String(commit.message ?? "").includes(SKIP_MARKER)) {
+    return `commit-not-dependabot:${sha}`;
+  }
+  const paths = files(String(item?.sha ?? ""));
+  if (!paths?.length || paths.some((path) => !BUMP_PATH.test(path))) {
+    return `commit-not-version-bump:${sha}`;
+  }
+  return null;
+}
+
+// The first commit that may not merge, or `commits-missing`.
+export function commitsRefusal(commits, files) {
+  if (!commits.length) {
+    return "commits-missing";
+  }
+  for (const item of commits) {
+    const refusal = commitRefusal(item, files);
+    if (refusal) return refusal;
+  }
+  return null;
+}
 
 // The content rule: every changed path is a manifest or lock file of an
 // ecosystem and directory .github/dependabot.yml lists at the base, or a
@@ -327,9 +376,10 @@ export function isSecurityUpdate({ labels = [], body = "" }) {
 // pr: { author, headRef, title, body, labels, ciStatus, commits }, where
 // ciStatus is the newest ci-status check run's conclusion (pending or empty
 // while none completed) and commits is the REST pull-request commits listing.
-// With `files` (the REST files listing, patches included), `config`
+// With `files` (the REST files listing, patches included), `totalCommits`
+// (the pull request's own commit count), `config`
 // (parseConfig of the base's .github/dependabot.yml), `changedFiles` and
-// `commitFiles`, the content step applies too. Returns null for a pull
+// `commitFiles`, the commit and content steps apply too. Returns null for a pull
 // request Dependabot did not open.
 export function classify(pr) {
   if (pr.author !== DEPENDABOT_LOGIN) {
@@ -372,6 +422,13 @@ export function classify(pr) {
     reasons.push("ci-status-red");
   }
   if (Array.isArray(pr.files)) {
+    // The commits listing stops at 250, so a prefix is never read as all.
+    const listed = (pr.commits ?? []).length;
+    if (!Number.isInteger(pr.totalCommits) || pr.totalCommits !== listed) {
+      reasons.push(`commits-listed:${listed}-of:${pr.totalCommits}`);
+    }
+    const refusal = commitsRefusal(pr.commits ?? [], pr.commitFiles ?? (() => null));
+    if (refusal) reasons.push(refusal);
     const content = contentStep(pr);
     if (content) reasons.push(content);
   }

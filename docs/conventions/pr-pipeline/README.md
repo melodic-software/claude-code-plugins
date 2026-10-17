@@ -515,7 +515,9 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
 - **Commits.** Every commit is a GitHub-verified Dependabot commit, or the repository's
   `[dependabot skip]` version-bump commit (authored by `github-actions[bot]`, verified, touching
   only a plugin's `plugin.json` or `CHANGELOG.md`). On a reviewed pull request the lanes App's
-  verified `[dependabot skip]` fix commits count too. A commit's author is text whoever creates it
+  verified `[dependabot skip]` fix commits count too. The commits listing must hold the pull
+  request's whole commit count, else the reason is `commits-listed:<listed>-of:<total>` (the
+  listing stops at 250). A commit's author is text whoever creates it
   chooses, so two more checks bind the pull request to Dependabot:
   - **Pushes.** The repository activity API for the head branch, read back to Dependabot's newest
     branch creation or force push, shows every push by `dependabot[bot]`, or by
