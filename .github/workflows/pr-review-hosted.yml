@@ -71,7 +71,8 @@ concurrency:
 jobs:
   # The review's model, turns and effort: the review-code route of the models
   # block in docs/conventions/pr-pipeline.yaml, read from the default branch,
-  # never the PR head, so a PR cannot choose the model that reviews it. When
+  # never the PR head, so a PR cannot choose the model through its own
+  # pr-pipeline.yaml (an edit to this file still shows in its diff). When
   # this job fails, the review still runs on the reusable's own defaults.
   resolve-model:
     if: github.event.pull_request.draft == false
