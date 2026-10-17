@@ -549,8 +549,11 @@ other artifact with such a name is ignored. At the pull request's vetted head:
   cannot be read is ignored. One unreadable record of an untied `fail` therefore blocks every pull
   request until it can be read, expires or is deleted;
 - a counted `pass` or `pass-notes` for this pull request refuses (`verify:spec-changed`) unless the
-  pull request's closing issues in this repository now are the ones its verdict recorded and none
-  was edited after the verdict's run started, and then allows the merge only when every linked
+  pull request's closing issues in this repository now are the ones its verdict recorded, none
+  was edited after the verdict's run started, and each issue's spec comments (written, and last
+  edited if ever, by a `User` on the trusted-actor list's humans other than the pull request's
+  author) are the ones it recorded by id and update time, none added, edited or deleted; a partial
+  comment read refuses `verify:unreadable`. It then allows the merge only when every linked
   issue it records was written, and its body last edited if ever, by a `User` on the trusted-actor
   list's humans other than the pull request's author (otherwise `verify:untrusted-spec`). The
   model's spec text holds only what such accounts wrote;

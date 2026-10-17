@@ -22,7 +22,13 @@ const SHA = /^[0-9a-f]{40}$/;
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
 const REF = /^[A-Za-z0-9._/-]+$/;
-const ISSUE_KEYS = "author_id,author_login,author_type,editor_id,editor_login,editor_type,last_edited_at,number";
+const ISSUE_KEYS = "author_id,author_login,author_type,editor_id,editor_login,editor_type,last_edited_at,number,spec_comments";
+// Each spec comment the model got: its id and update time, exactly.
+const specComment = (comment) =>
+  isObject(comment) &&
+  Object.keys(comment).sort().join() === "id,updated_at" &&
+  Number.isSafeInteger(comment.id) &&
+  typeof comment.updated_at === "string";
 const stringOrNull = (value) => value === null || typeof value === "string";
 const idOrNull = (value) => value === null || Number.isSafeInteger(value);
 
@@ -40,7 +46,9 @@ function checkIssues(issues) {
         ["author", "editor"].every(
           (role) => stringOrNull(issue[`${role}_login`]) && idOrNull(issue[`${role}_id`]) && stringOrNull(issue[`${role}_type`]),
         ) &&
-        stringOrNull(issue.last_edited_at),
+        stringOrNull(issue.last_edited_at) &&
+        Array.isArray(issue.spec_comments) &&
+        issue.spec_comments.every(specComment),
     )
   ) {
     throw new Error("the linked issues do not match their schema");

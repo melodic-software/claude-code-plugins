@@ -28,9 +28,11 @@ from a completed, successful one. Any other artifact is ignored.
   is readable, expires or is deleted;
 - a counted PASS or PASS-NOTES at the head of this pull request: refused
   `verify:spec-changed` unless the pull request's closing issues now are the
-  ones its verdict recorded, then allowed only when it records a linked issue
-  written by a User on the trusted list's humans other than the pull
-  request's author, else `verify:untrusted-spec`;
+  ones its verdict recorded, none was edited after its run started, and each
+  issue's trusted comments (`_spec_comments`) are the recorded ones by id and
+  update time; then allowed only when every linked issue it records was
+  written, and last edited if ever, by a User on the trusted list's humans
+  other than the pull request's author, else `verify:untrusted-spec`;
 - otherwise `verify:missing`.
 
 `verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and
@@ -79,7 +81,11 @@ NEEDS_HUMAN = (EARLIER_FAIL, TOO_OLD, UNTRUSTED_SPEC, SPEC_CHANGED)
 CLOSING_QUERY = (
     "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
     "pullRequest(number:$n){closingIssuesReferences(first:10){totalCount "
-    "nodes{number lastEditedAt repository{nameWithOwner}}}}}}"
+    "nodes{number lastEditedAt repository{nameWithOwner} "
+    "comments(first:100){totalCount nodes{databaseId updatedAt lastEditedAt "
+    "author{...actor} editor{...actor}}}}}}}}"
+    "fragment actor on Actor{__typename login "
+    "... on User{databaseId} ... on Bot{databaseId}}"
 )
 
 # A run's standing: unreadable, foreign (not of verifier origin), origin (of
@@ -287,18 +293,58 @@ class Reader:
             self._humans = humans
         return humans
 
+    def _trusted_actor(self, kind: Any, actor_id: Any, login: Any, author: str) -> bool:
+        """The one spec-author filter (resolve-pr.mjs `trusted` is its
+        twin): a User on the trusted list's humans other than the PR author."""
+        return (
+            kind == "User"
+            and actor_id in self._trusted_humans()
+            and author != ""
+            and str(login or "").casefold() != author.casefold()
+        )
+
+    def _spec_comments(self, comments: list[Any], author: str) -> set[tuple[Any, Any]]:
+        """The trusted comments, by id and update time: written, and last
+        edited if ever, by a trusted actor (`_trusted_actor`)."""
+
+        def by(actor: Any) -> bool:
+            actor = json_object(actor)
+            return self._trusted_actor(
+                actor.get("__typename"),
+                actor.get("databaseId"),
+                actor.get("login"),
+                author,
+            )
+
+        return {
+            (c.get("databaseId"), c.get("updatedAt"))
+            for c in map(json_object, comments)
+            if by(c.get("author"))
+            and (c.get("lastEditedAt") is None or by(c.get("editor")))
+        }
+
+    def _recorded_comments(self, issue: dict[str, Any]) -> set[tuple[Any, Any]]:
+        recorded = issue.get("spec_comments")
+        if not is_json_array(recorded) or not all(
+            is_json_object(c)
+            and sorted(c) == ["id", "updated_at"]
+            and isinstance(c["id"], int)
+            and isinstance(c["updated_at"], str)
+            for c in recorded
+        ):
+            raise _Unreadable(f"#{issue.get('number')}: no spec comment record")
+        return {(c["id"], c["updated_at"]) for c in recorded}
+
     def _trusted_spec(self, record: dict[str, Any], author: str) -> bool:
         """Every linked issue was written, and its body last edited if ever,
         by a User on the trusted list's humans other than the PR author."""
-        humans = self._trusted_humans()
 
         def trusted(issue: dict[str, Any], role: str) -> bool:
-            return (
-                issue.get(f"{role}_type") == "User"
-                and issue.get(f"{role}_id") in humans
-                and str(issue.get(f"{role}_login") or "").casefold()
-                != author.casefold()
-                and author != ""
+            return self._trusted_actor(
+                issue.get(f"{role}_type"),
+                issue.get(f"{role}_id"),
+                issue.get(f"{role}_login"),
+                author,
             )
 
         issues = [
@@ -336,12 +382,21 @@ class Reader:
             or refs.get("totalCount") != len(nodes)
         ):
             raise _Unreadable(f"#{number}: the closing issues could not be read")
-        return {
-            json_object(node).get("number"): json_object(node).get("lastEditedAt")
+        live = {
+            json_object(node).get("number"): json_object(node)
             for node in nodes
             if json_object(json_object(node).get("repository")).get("nameWithOwner")
             == self.repo
         }
+        for issue in live.values():
+            comments = json_object(issue.get("comments"))
+            if not is_json_array(comments.get("nodes")) or comments.get(
+                "totalCount"
+            ) != len(comments["nodes"]):
+                raise _Unreadable(
+                    f"#{issue.get('number')}: its comments could not be read"
+                )
+        return live
 
     def _commits(self, number: int) -> set[str]:
         try:
@@ -442,14 +497,19 @@ class Reader:
             recorded = record.get("linked_issues")
             if not is_json_array(recorded):
                 raise _Unreadable(f"artifact {name} records no linked issues")
-            judged = {json_object(issue).get("number") for issue in recorded}
+            issues = {json_object(i).get("number"): json_object(i) for i in recorded}
             live = self._closing_issues(number)
             # An edit after the judgment started is a spec the model never
             # read. An unparsable time refuses (PostMergeReadError).
             started = postmerge._time(self._started.get(run_id))
-            if set(live) != judged or any(
-                edited is not None and postmerge._time(edited) > started
-                for edited in live.values()
+            if set(live) != set(issues) or any(
+                (edited := node.get("lastEditedAt")) is not None
+                and postmerge._time(edited) > started
+                or self._spec_comments(
+                    json_array(json_object(node.get("comments")).get("nodes")), author
+                )
+                != self._recorded_comments(issues[n])
+                for n, node in live.items()
             ):
                 refusal = SPEC_CHANGED
             elif self._trusted_spec(record, author):

@@ -22,6 +22,7 @@ const ISSUE = {
   editor_login: null,
   editor_id: null,
   editor_type: null,
+  spec_comments: [{ id: 1, updated_at: "2026-10-12T00:00:00Z" }],
 };
 const ids = { pr: "41", headSha: HEAD, baseSha: BASE, runId: "9001", headRef: "feat/x", linkedIssues: [ISSUE] };
 const ok = JSON.stringify({ verdict: "pass", summary: "s", notes: [] });
@@ -78,6 +79,10 @@ test("linked issues outside their schema throw", () => {
     [{ ...ISSUE, editor_id: "200" }],
     [{ ...ISSUE, editor_type: false }],
     [{ ...ISSUE, last_edited_at: 0 }],
+    [{ ...ISSUE, spec_comments: null }],
+    [{ ...ISSUE, spec_comments: [{ id: "1", updated_at: "t" }] }],
+    [{ ...ISSUE, spec_comments: [{ id: 1, updated_at: null }] }],
+    [{ ...ISSUE, spec_comments: [{ id: 1, updated_at: "t", body: "x" }] }],
     [{ ...ISSUE, extra: 1 }],
     [{ number: 7, author_login: "m", author_id: 1 }],
   ]) {

@@ -38,6 +38,7 @@ const LINKED = {
   editor_login: null,
   editor_id: null,
   editor_type: null,
+  spec_comments: [],
 };
 const HUMANS = new Set([100]);
 
@@ -211,7 +212,11 @@ test("the spec text keeps only what trusted humans other than the PR author wrot
   const human = { __typename: "User", login: "maintainer", databaseId: 100 };
   const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
   const stranger = { __typename: "User", login: "stranger", databaseId: 999 };
-  const comment = (body, author, extra = {}) => ({ body, author, lastEditedAt: null, editor: null, ...extra });
+  let next = 0;
+  const comment = (body, author, extra = {}) => {
+    next += 1;
+    return { databaseId: next, updatedAt: `2026-10-1${next}T00:00:00Z`, body, author, lastEditedAt: null, editor: null, ...extra };
+  };
   const issue = {
     ...ISSUE,
     comments: {
@@ -229,6 +234,13 @@ test("the spec text keeps only what trusted humans other than the PR author wrot
   assert.deepEqual((await resolve({ issues: [issue] })).specText, [
     { number: 7, body: "the spec", comments: ["kept", "edited by the human"] },
   ]);
+  // The gate re-reads the same comments with the same filter, by id and update time.
+  assert.deepEqual((await resolve({ issues: [issue] })).linkedIssues[0].spec_comments, [
+    { id: 1, updated_at: "2026-10-11T00:00:00Z" },
+    { id: 6, updated_at: "2026-10-16T00:00:00Z" },
+  ]);
+  const byAuthorRecord = (await resolve({ issues: [issue], pulls: [pull({ user: { id: 100, login: "Maintainer" } })] })).linkedIssues[0];
+  assert.deepEqual(byAuthorRecord.spec_comments, [], "the PR author's comments");
   const editedBody = { ...issue, lastEditedAt: "2026-10-14T00:00:00Z", editor: lanes };
   assert.equal((await resolve({ issues: [editedBody] })).specText[0].body, null, "a body the lanes App last edited");
   const byAuthor = (await resolve({ issues: [issue], pulls: [pull({ user: { id: 100, login: "Maintainer" } })] })).specText[0];

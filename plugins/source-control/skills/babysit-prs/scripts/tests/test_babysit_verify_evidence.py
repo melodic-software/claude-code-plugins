@@ -59,7 +59,28 @@ TRUSTED_ISSUE = {
     "editor_login": None,
     "editor_id": None,
     "editor_type": None,
+    "spec_comments": [],
 }
+HUMAN = {"__typename": "User", "login": "maintainer", "databaseId": 100}
+LANES_ACTOR = {"__typename": "Bot", "login": "agent-lanes", "databaseId": 200}
+
+
+def comment(
+    cid: int,
+    author: dict[str, Any],
+    updated: str = "2026-10-12T00:00:00Z",
+    **extra: Any,
+) -> dict[str, Any]:
+    return {
+        "databaseId": cid,
+        "updatedAt": updated,
+        "lastEditedAt": None,
+        "author": author,
+        "editor": None,
+        **extra,
+    }
+
+
 RUN_STARTED = "2026-10-15T00:00:00Z"
 
 
@@ -153,6 +174,9 @@ class FakeGitHub:
         self.closing_total: int | None = None
         # Each closing issue's body lastEditedAt now, by number.
         self.closing_edited: dict[int, str | None] = {}
+        # Each closing issue's comments now, and a totalCount that cuts them.
+        self.closing_comments: dict[int, list[dict[str, Any]]] = {}
+        self.comments_total: dict[int, int] = {}
 
     def __call__(
         self, args: list[str], **kwargs: Any
@@ -174,6 +198,12 @@ class FakeGitHub:
                     "number": n,
                     "lastEditedAt": self.closing_edited.get(n),
                     "repository": {"nameWithOwner": repo},
+                    "comments": {
+                        "totalCount": self.comments_total.get(
+                            n, len(self.closing_comments.get(n, []))
+                        ),
+                        "nodes": self.closing_comments.get(n, []),
+                    },
                 }
                 for n, repo in self.closing
             ]
@@ -555,6 +585,79 @@ class TheSpecMustBeTrusted(unittest.TestCase):
         fake = passing()
         del fake.records[named(HEAD, "pass")]
         self.assertEqual(read(fake).refusal, "verify:unreadable")
+
+
+class TheSpecCommentsMustBeTheJudgedOnes(unittest.TestCase):
+    """The trusted comments on each linked issue now (by a User on the
+    trusted list's humans other than the PR author, last edited if ever by
+    one) must be the ones the verdict recorded, by id and update time."""
+
+    RECORDED = [{"id": 1, "updated_at": "2026-10-12T00:00:00Z"}]
+
+    def judge(
+        self, live: list[dict[str, Any]], recorded: Any = None, **pr: Any
+    ) -> str | None:
+        fake = passing()
+        issue = {
+            **TRUSTED_ISSUE,
+            "spec_comments": self.RECORDED if recorded is None else recorded,
+        }
+        fake.records[named(HEAD, "pass")] = record(linked_issues=[issue])
+        fake.closing_comments = {7: live}
+        return read(fake, pull(**pr)).refusal
+
+    def test_the_same_trusted_comments_allow(self) -> None:
+        self.assertIsNone(self.judge([comment(1, HUMAN)]))
+
+    def test_an_added_edited_or_deleted_trusted_comment_refuses(self) -> None:
+        cases = {
+            "added": [comment(1, HUMAN), comment(2, HUMAN)],
+            "edited": [comment(1, HUMAN, "2026-10-13T00:00:00Z")],
+            "deleted": [],
+            "edited by the lanes App": [
+                comment(
+                    1, HUMAN, lastEditedAt="2026-10-12T00:00:00Z", editor=LANES_ACTOR
+                )
+            ],
+        }
+        for label, live in cases.items():
+            with self.subTest(label):
+                self.assertEqual(self.judge(live), "verify:spec-changed")
+
+    def test_untrusted_comments_are_not_part_of_the_spec(self) -> None:
+        stranger = {"__typename": "User", "login": "stranger", "databaseId": 999}
+        bot_with_human_id = {**HUMAN, "__typename": "Bot"}
+        live = [
+            comment(1, HUMAN),
+            comment(3, LANES_ACTOR),
+            comment(4, stranger),
+            comment(5, bot_with_human_id),
+        ]
+        self.assertIsNone(self.judge(live))
+
+    def test_the_pr_authors_comments_are_not_part_of_the_spec(self) -> None:
+        other = {**TRUSTED_ISSUE, "author_login": "other", "author_id": 101}
+        fake = passing()
+        fake.actors["actors"].append({"id": 101, "login": "other", "kind": "human"})
+        fake.records[named(HEAD, "pass")] = record(
+            linked_issues=[{**other, "spec_comments": []}]
+        )
+        fake.closing_comments = {7: [comment(1, HUMAN)]}
+        self.assertIsNone(read(fake, pull(user={"login": "maintainer"})).refusal)
+
+    def test_a_partial_comment_read_or_a_malformed_record_refuses(self) -> None:
+        fake = passing()
+        fake.records[named(HEAD, "pass")] = record(
+            linked_issues=[{**TRUSTED_ISSUE, "spec_comments": self.RECORDED}]
+        )
+        fake.closing_comments = {7: [comment(1, HUMAN)]}
+        fake.comments_total = {7: 101}
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
+        for recorded in ("x", [{"id": "1", "updated_at": "t"}], [{"id": 1}]):
+            with self.subTest(recorded):
+                self.assertEqual(
+                    self.judge([comment(1, HUMAN)], recorded), "verify:unreadable"
+                )
 
 
 class TheSpecMustBeTheJudgedOne(unittest.TestCase):

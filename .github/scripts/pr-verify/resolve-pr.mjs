@@ -43,7 +43,7 @@ const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
         nodes {
           number repository { nameWithOwner } body lastEditedAt
           author { ...actor } editor { ...actor }
-          comments(first: 100) { totalCount nodes { body lastEditedAt author { ...actor } editor { ...actor } } }
+          comments(first: 100) { totalCount nodes { databaseId updatedAt body lastEditedAt author { ...actor } editor { ...actor } } }
         }
       }
     }
@@ -156,6 +156,11 @@ async function linkedIssues(github, repository, number, humans, prAuthor) {
       ...actorFields(issue.author, "author"),
       last_edited_at: typeof issue.lastEditedAt === "string" ? issue.lastEditedAt : null,
       ...actorFields(issue.editor, "editor"),
+      // The spec comments the model gets, which the gate recomputes with the
+      // same filter (babysit_verify_evidence._spec_comments).
+      spec_comments: issue.comments.nodes
+        .filter(written)
+        .map((comment) => ({ id: comment.databaseId, updated_at: comment.updatedAt })),
     })),
     specText: issues.map((issue) => ({
       number: issue.number,
