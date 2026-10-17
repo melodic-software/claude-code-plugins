@@ -58,6 +58,51 @@ async function main() {
       return document.querySelector(".vf-mnew").hidden && sc.scrollHeight - sc.scrollTop - sc.clientHeight < 40;
     }));
 
+    // ---------- dogfood: reactions show only when present; add on hover or focus, React in the long-press menu ----------
+    const addOf = (page, text) => page.locator(".vf-msg", { hasText: text }).locator(".vf-mreact-add");
+    const shown = el => !!el && getComputedStyle(el).opacity !== "0" && el.getBoundingClientRect().height > 0;
+    const rowH = (text) => { const li = [...document.querySelectorAll(".vf-mlist .vf-msg")].find(m => m.textContent.includes(text)); const r = li?.querySelector(".vf-mreacts"); return r ? r.getBoundingClientRect().height : 0; };
+    ok("a message with no reactions has no reaction row", await owner.evaluate(rowH, "New B") === 0, `row height ${await owner.evaluate(rowH, "New B")}`);
+    await owner.mouse.move(1, 1);
+    await owner.evaluate(() => document.activeElement?.blur());
+    const addB = addOf(owner, "New B");
+    const hiddenIdle = !(await addB.evaluate(shown));
+    await owner.locator(".vf-msg", { hasText: "New B" }).locator(".vf-bubble").hover();
+    ok("on a desktop pointer the add control is hidden until the message is hovered", hiddenIdle && await addB.evaluate(shown), `hidden idle ${hiddenIdle}`);
+    await owner.mouse.move(1, 1);
+    await owner.locator(".vf-msg", { hasText: "New A" }).locator(".vf-msgmore").focus();
+    const hiddenBeforeTab = !(await addB.evaluate(shown));
+    let tabs = 0;
+    while (tabs < 8 && !(await addB.evaluate(el => document.activeElement === el))) { await owner.keyboard.press("Tab"); tabs++; }
+    ok("Tab reaches the add control and focus shows it", hiddenBeforeTab && await addB.evaluate(el => document.activeElement === el) && await addB.evaluate(shown), `hidden before ${hiddenBeforeTab}, ${tabs} tabs`);
+
+    const pia = await rec.open(A.localUrl, { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 } });
+    await joinAs(pia, "Pia");
+    await pia.evaluate(() => { document.querySelector(".vf-fab").click(); });
+    await until(pia, () => [...document.querySelectorAll(".vf-mlist .vf-msg")].some(m => m.textContent.includes("New C")));
+    ok("at 390x844 no add pill renders under any message, and an unreacted message has no row", await pia.evaluate(rowH, "New C") === 0
+      && await pia.evaluate(() => [...document.querySelectorAll(".vf-mlist .vf-mreact-add")].every(b => b.getBoundingClientRect().height === 0)));
+    const bub = pia.locator(".vf-msg", { hasText: "New C" }).locator(".vf-bubble");
+    await bub.scrollIntoViewIfNeeded();
+    const bb = await bub.boundingBox();
+    const tcdp = await pia.context().newCDPSession(pia);
+    const pt = [{ x: Math.round(bb.x + bb.width / 2), y: Math.round(bb.y + bb.height / 2) }];
+    await tcdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pt });
+    await pia.waitForTimeout(700);
+    await tcdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    const reactItem = pia.locator(".vf-msgmenu [role=menuitem]", { hasText: /React$/ });
+    ok("at 390x844 a long-press opens the message menu with React", await until(pia, () => { const m = document.querySelector(".vf-msgmenu"); return !m.hidden && [...m.querySelectorAll("[role=menuitem]")].some(b => !b.hidden && /React$/.test(b.textContent)); }));
+    if (await reactItem.count()) {
+      await reactItem.tap();
+      await until(pia, () => !document.querySelector(".vf-reactpop").hidden);
+      await pia.locator(".vf-rp-quick .vf-rp-e", { hasText: "👍" }).tap();
+    }
+    const chipOn = page => until(page, () => { const li = [...document.querySelectorAll(".vf-mlist .vf-msg")].find(m => m.textContent.includes("New C")); const c = li?.querySelector(".vf-mreact"); return !!c && c.textContent === "👍1" && c.getBoundingClientRect().height > 0; });
+    ok("React's quick row adds 👍, and the chip appears for the reactor and the host", await chipOn(pia) && await chipOn(owner));
+    if (await pia.locator(".vf-msg", { hasText: "New C" }).locator(".vf-mreact").count()) await pia.locator(".vf-msg", { hasText: "New C" }).locator(".vf-mreact").tap();
+    const rowGone = page => until(page, () => { const li = [...document.querySelectorAll(".vf-mlist .vf-msg")].find(m => m.textContent.includes("New C")); const r = li?.querySelector(".vf-mreacts"); return !!li && !li.querySelector(".vf-mreact") && (!r || r.getBoundingClientRect().height === 0); });
+    ok("tapping the chip takes the reaction back and the row goes away", await rowGone(pia) && await rowGone(owner));
+
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     ok("no page error", rec.errors.filter(m => !/Failed to load resource/.test(m)).length === 0, rec.errors.slice(0, 3).join(" | "));
   } catch (e) {

@@ -127,7 +127,7 @@ async function main() {
     await gus.evaluate(() => window.Core.chat("Lunch at noon?"));
     await pia.evaluate(() => { document.querySelector(".vf-fab").click(); });
     await until(pia, () => [...document.querySelectorAll(".vf-mlist .vf-msg")].some(m => m.textContent.includes("Lunch at noon?")));
-    await pia.locator(".vf-msg", { hasText: "Lunch at noon?" }).locator(".vf-mreact-add").tap();
+    await pia.locator(".vf-msg", { hasText: "Lunch at noon?" }).locator(".vf-msgmore").tap(); await pia.locator(".vf-msgmenu [role=menuitem]", { hasText: /React$/ }).tap();
     ok("+ opens the quick row of six", await until(pia, () => { const p = document.querySelector(".vf-reactpop"); return !p.hidden && [...p.querySelectorAll(".vf-rp-quick .vf-rp-e")].map(b => b.textContent).join("") === "👍👎😂❤️🎉😮"; }));
     await pia.locator(".vf-rp-more").tap();
     ok("More opens the larger set", await until(pia, () => { const g = document.querySelector(".vf-rp-grid"); return !g.hidden && g.querySelectorAll(".vf-rp-e").length >= 74; }));

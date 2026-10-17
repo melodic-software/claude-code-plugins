@@ -2125,15 +2125,25 @@
 .app :is(.vf-hintro, .vf-hintro-l)[hidden] { display: none; }
 .app .vf-mreacts { grid-column: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding-inline: 2px; }
 .app .vf-msg-mine .vf-mreacts { grid-column: 1; justify-content: flex-end; }
-.app .vf-mreact-chips { display: contents; }
-.app :is(.vf-mreact, .vf-mreact-add) {
+.app .vf-mreact {
   display: inline-flex; align-items: center; gap: 3px; min-block-size: 28px; min-inline-size: 36px; padding-inline: 7px;
   border: 1px solid var(--line-strong); border-radius: 14px; color: var(--muted); font-size: 12px; font-weight: 600; background: none;
 }
 .app .vf-mreact[aria-pressed="true"] { color: var(--accent-text); border-color: color-mix(in oklch, var(--accent) 60%, transparent); background: var(--accent-soft); }
-.app .vf-mreact-e, .app .vf-mreact-face { font-size: 14px; line-height: 1; }
-.app .vf-mreact-add { color: var(--faint); }
-.app .vf-mreact-add[hidden] { display: none; }
+.app .vf-mreact-e, .app .vf-mreact-face, .app .vf-mm-face { font-size: 14px; line-height: 1; }
+.app .vf-mm-face { inline-size: 16px; flex: none; text-align: center; }
+/* Add sits beside ⋯ and, like it, shows on hover or focus; touch reaches it through React in the long-press menu. */
+.app .vf-mreact-add {
+  all: unset; box-sizing: border-box; cursor: pointer; flex: none; display: none; align-items: center; justify-content: center; gap: 1px;
+  min-inline-size: 28px; block-size: 28px; padding-inline: 4px; border-radius: var(--r-sm); color: var(--faint); font-size: 12px; font-weight: 600;
+}
+.app .vf-mreact-add:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+.app .vf-mreact-add[aria-expanded="true"] { background: var(--raise); color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+  .app .vf-mreact-add { display: inline-flex; }
+  .app .vf-msg:not(:hover, :focus-within) .vf-mreact-add:not([aria-expanded="true"]) { opacity: 0; }
+  .app .vf-mreact-add:hover { background: var(--raise); color: var(--text); }
+}
 .app .vf-reactpop { inline-size: min(320px, calc(100vw - 24px)); }
 .app :is(.vf-rp-quick, .vf-rp-grid) { display: flex; flex-wrap: wrap; gap: 4px; }
 .app .vf-rp-grid { margin-block-start: 8px; max-block-size: 200px; overflow: auto; }
@@ -2143,7 +2153,8 @@
 .app .vf-rp-more { block-size: 40px; }
 @media (max-width: 720px) {
   .app .vf-rp-e { inline-size: 44px; block-size: 44px; }
-  .app :is(.vf-mreact, .vf-mreact-add) { min-block-size: 32px; }
+  .app .vf-mreact { min-block-size: 32px; }
+  .app .vf-mreact-add { block-size: 36px; }
 }
 
 /* ---------- Q98: a prototype question's preview tile, its notes in the Claude thread, and the prototype page ---------- */
