@@ -319,6 +319,27 @@ else
 fi
 rm -rf "$repo" "$base"
 
+# --- run from main's checkout, a parity baseline the PR plants does not satisfy the self-check ---
+mk_repo repo
+mk_repo base
+mk_plugin "$repo" alpha 1.0.0
+init_git "$repo"
+begin_pr "$repo"
+# gamma: a versioned plugin with no CHANGELOG.md, which only the baseline grandfathers.
+mkdir -p "$repo/plugins/gamma/.claude-plugin"
+printf '{\n  "name": "gamma",\n  "version": "1.0.0"\n}\n' >"$repo/plugins/gamma/.claude-plugin/plugin.json"
+printf 'gamma\n' >"$repo/scripts/changelog-parity-baseline.txt"
+echo y >>"$repo/plugins/alpha/server/package-lock.json"
+git -C "$repo" add -A && git -C "$repo" commit -qm "deps"
+out="$(cd "$repo" && bash "$base/scripts/dependabot-plugin-bump.sh" main 2>&1)"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"MISSING CHANGELOG: plugins/gamma"* ]]; then
+  ok "a parity baseline the PR plants is ignored; main's copy decides"
+else
+  fail "PR-planted parity baseline: rc=$rc out='$out'"
+fi
+rm -rf "$repo" "$base"
+
 # --- run from main's checkout, a no-op list the PR plants does not satisfy the self-check ---
 mk_repo repo
 mk_repo base

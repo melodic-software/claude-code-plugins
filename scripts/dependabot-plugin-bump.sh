@@ -55,6 +55,7 @@ fi
 # The self-check below runs in a child process, so it reads these too.
 export CF_LIST="$SELF_DIR/fragment-plugins.txt"
 export CHANGELOG_NO_OP_BUMPS="$SELF_DIR/changelog-no-op-bumps.txt"
+export CHANGELOG_PARITY_BASELINE="$SELF_DIR/changelog-parity-baseline.txt"
 
 usage() {
   echo "usage: $(basename "$0") <base-ref> [--pr <n>] [--title <text>]" >&2
