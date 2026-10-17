@@ -643,6 +643,8 @@
     const body = { kind, message: cut(message || kind, 500), route: cut(location.pathname, 200), ua: `${browserKind()} ${deviceKind()}`, ...extra };
     fetch("/api/client-log", { method: "POST", headers: { "Content-Type": "application/json", ...ident() }, body: JSON.stringify(body), keepalive: true }).catch(() => {});
   }
+  /** A layout readout (kind layout) as one `name=value` line: numbers and CSS values only, never text anyone wrote. */
+  Core.reportLayout = fields => reportError("layout", Object.entries(fields).map(([k, v]) => `${k}=${String(v).replace(/\s+/g, "")}`).join(" "));
   addEventListener("error", e => reportError("error", e.message, e.filename ? { source: cut(`${new URL(e.filename, location.href).pathname}:${e.lineno}`, 200) } : {}));
   addEventListener("unhandledrejection", e => reportError("rejection", e.reason?.message || e.reason?.error || String(e.reason)));
 

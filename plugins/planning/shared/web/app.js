@@ -1782,6 +1782,7 @@
       if (!ui.pop) return;
       if (ui.pop === pcard) { ui.pcard = null; ui.renaming = false; }
       ui.pop.hidden = true; ui.pop._anchor?.setAttribute?.("aria-expanded", "false");
+      ui.pop._kbRead = false; // the next open logs its keyboard readout again
       ui.pop = null;
       syncModal();
     }
@@ -3257,7 +3258,23 @@
       root.toggleAttribute("data-kb", now);
       if (was !== now) { syncModal(); if (ui.mention) paintMention(); }
       revealAskField(now && !was);
+      if (now && !was && ui.pop && !ui.pop._kbRead && coarse.matches) { ui.pop._kbRead = true; kbReadout(ui.pop); }
     };
+    // Once per sheet open, the keyboard coming up on a touch device logs where the viewport, the app and the sheet
+    // sit (server.log, kind layout), so a gap seen on a real phone can be measured.
+    function kbReadout(sheet) {
+      const vv = window.visualViewport, de = document.documentElement, dcs = getComputedStyle(de), cs = getComputedStyle(sheet), r = sheet.getBoundingClientRect();
+      const probe = E("div"); probe.style.cssText = "position:fixed;visibility:hidden;padding-bottom:env(safe-area-inset-bottom,0px)";
+      document.body.append(probe);
+      const safe = getComputedStyle(probe).paddingBottom;
+      probe.remove();
+      const n = v => Math.round(v * 100) / 100;
+      Core.reportLayout({ sheet: [...sheet.classList].find(c => c !== "vf-pop") || "pop", innerWidth: innerWidth, innerHeight: innerHeight,
+        vvWidth: n(vv?.width), vvHeight: n(vv?.height), vvOffsetTop: n(vv?.offsetTop), vvPageTop: n(vv?.pageTop), vvScale: n(vv?.scale),
+        clientHeight: de.clientHeight, kb: dcs.getPropertyValue("--kb").trim(), vvTop: dcs.getPropertyValue("--vv-top").trim(), vvH: dcs.getPropertyValue("--vv-h").trim(),
+        dataKb: "kb" in de.dataset, sheetTop: n(r.top), sheetBottom: n(r.bottom), sheetHeight: n(r.height), paddingBottom: cs.paddingBottom,
+        marginBottom: cs.marginBottom, bottom: cs.bottom, transform: cs.transform, safeBottom: safe, screenHeight: screen.height });
+    }
     // In the Ask Claude sheet, focusing its field or the keyboard coming up puts the sheet at its top: the label and the
     // field first, the Send row sticky under them. After that, as the keyboard moves or the field grows, the
     // label and the field's first 3 lines stay seen above that row; where even that does not fit, the field's top does.

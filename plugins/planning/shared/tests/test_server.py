@@ -1055,6 +1055,15 @@ class TestClientLog(LogCase):
         want = f'client pid={pid} kind=error message="TypeError: x is undefined" source=/app.js:12 route=/ ua="chrome computer"'
         self.assertTrue(line.endswith(want), line)
 
+    def test_a_layout_readout_is_logged_as_a_client_entry_and_other_kinds_are_refused(self):
+        pid, guest = self.join("Ann")
+        readout = "sheet=vf-proposepop innerHeight=844 vvHeight=500 kb=344px dataKb=true sheetBottom=500 safeBottom=34px screenHeight=844"
+        code, _, out = self.post("/api/client-log", {"kind": "layout", "message": readout, "ua": "safari phone"}, guest)
+        self.assertEqual((code, out), (200, {"ok": True}))
+        self.assertTrue(self.entry_for(" kind=layout ").endswith(f'client pid={pid} kind=layout message="{readout}" ua="safari phone"'))
+        code, _, out = self.post("/api/client-log", {"kind": "debug", "message": readout}, guest)
+        self.assertEqual((code, out["error"]), (400, "bad-field"))
+
     def test_a_lone_surrogate_in_a_message_still_reaches_the_log(self):
         _, guest = self.join("Ann")
         self.assertEqual(self.post("/api/client-log", {"kind": "error", "message": "cut-emoji-\ud83d"}, guest)[0], 200)
