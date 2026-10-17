@@ -62,7 +62,14 @@
 # inside `$(...)`; a GraphQL mutation read from a file (`--input`), whose name
 # never appears in the command; only the first merge in one command string is
 # checked; past 100 reviews or check runs the rest are not read; more than 100
-# review threads with none unresolved in the first 100 is reported as unchecked.
+# review threads with none unresolved in the first 100 is reported as unchecked;
+# a cancelled run `<name>` is cleared by a newer successful `<name> (...)` run
+# of the same app in another check suite even when that run belongs to an unrelated
+# workflow, which the check-runs payload cannot tell apart from a matrix leg;
+# an ignored check (merge_guard_ignored_checks) is matched by app slug and
+# name only, so every GitHub Actions job named `merge` is ignored by the
+# default, not just the pr-merge lane's, because a check run does not name its
+# workflow.
 #
 # THE CLOUD ROUTES. Basis: the HTTP 403 body GitHub GraphQL returns inside a
 # Claude Code cloud session names `GET pulls/{n}/ccr/review_threads` (an array
@@ -81,6 +88,9 @@
 # Escape: the `block_unresolved_pr_merge_enabled` userConfig option (true or
 # false; any other value keeps the guard on and says so). userConfig resolves
 # at plugin-enable time, so an inline env prefix on the command cannot change it.
+# `merge_guard_ignored_checks` (comma list of `<app slug>:<check name>`,
+# default `github-actions:merge`, the pr-merge lane's own job) names check runs
+# the guard never judges; set it empty to judge every check.
 #
 # BLOCKING: exits 2 with the list of what is unresolved.
 
@@ -529,14 +539,26 @@ _bupm_changes="$BUPM_OUT"
 # finish later and a caller can set them. A skipped or neutral run never
 # supersedes a completed run with a real conclusion, so a later event that
 # skips a job cannot clear its failure; it does supersede a pending run and a
-# cancelled one, which stopped before reaching a conclusion (#7549).
+# cancelled one, which stopped before reaching a conclusion (#7549). A
+# cancelled run is superseded by a newer successful run of the same app, in
+# another check suite, named `<name> (...)`, because a matrix job cancelled before it
+# expanded reports under its bare name while its legs report as `<name> (<leg>)`.
+# A run whose `<app slug>:<name>` is listed in merge_guard_ignored_checks is
+# dropped first: it neither counts nor supersedes. jq -c escapes each entry, so
+# the array is a safe jq literal.
+_bupm_ignored="$(jq -cn --arg s "${CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS-github-actions:merge}" \
+  '$s | split(",") | map(gsub("^ +| +$"; "") | select(length > 0))')" || _bupm_ignored='[]'
 # shellcheck disable=SC2016
-_bupm_api "repos/$BUPM_REPO/commits/$_bupm_sha/check-runs?per_page=100" --jq '
-  [.check_runs | group_by([.name, (.app.id // 0)])[]
+_bupm_api "repos/$BUPM_REPO/commits/$_bupm_sha/check-runs?per_page=100" --jq "$_bupm_ignored"' as $ign
+  | [.check_runs[] | select(("\(.app.slug // ""):\(.name)") | IN($ign[]) | not)] as $all
+  | [$all | group_by([.name, (.app.id // 0)])[]
     | max_by(.id) as $n
     | if ($n.conclusion | IN("skipped","neutral"))
       then (map(select(.status == "completed" and (.conclusion | IN("skipped","neutral","cancelled") | not))) | max_by(.id)) // $n
-      else $n end] as $runs
+      else $n end
+    | select(. as $c | $c.conclusion == "cancelled"
+        and any($all[]; (.app.id // 0) == ($c.app.id // 0) and .id > $c.id and .check_suite.id != $c.check_suite.id
+          and .status == "completed" and .conclusion == "success" and (.name | startswith($c.name + " ("))) | not)] as $runs
   | [$runs[] | select(.status == "completed" and (.conclusion | IN("failure","timed_out","cancelled","action_required","startup_failure","stale"))) | .name] as $f
   | [$runs[] | select(.status != "completed") | .name] as $p
   | "\($f | join(", "))\u001f\($p | join(", "))"' ||
