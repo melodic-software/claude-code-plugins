@@ -118,6 +118,19 @@
         "A queued row carries proposed recorded-pages entry text, writes it nowhere, and leaves the page as a separate one-page run",
         "Any map-corpus suggestion is seeded with the origin and is not started by this run"
       ]
+    },
+    {
+      "id": 11,
+      "name": "concurrency-refusal-waits-not-retries",
+      "prompt": "During /knowledge:docpage-digest Phase 3 on a 6-unit page, the run dispatches one subagent per unit. Every spawn is refused with 'Concurrent subagent limit reached. Do not retry.' because five sibling runs fill the session's slots. This run has no agents of its own running.",
+      "expected_output": "Treats the refusal as a full session, not a subagent death. Does not re-dispatch at once (rung 1) and does not write the digests inline. Waits (agent-free phase work or a bounded Monitor wait, never a foreground sleep), records each wait and refusal on the checklist, then dispatches the refused units once more. Only a unit refused again falls to inline-with-disclosure, with the refusals recorded; and if the profile maps the unit to a model other than the orchestrator's, it skips inline and writes the degraded marker instead.",
+      "expectations": [
+        "Does not retry the refused spawn immediately",
+        "Does not collapse Phase 3 into inline writing after the first refusal",
+        "Waits, records the waits and refusals, then dispatches the refused units once more",
+        "A second refusal is the only route to inline-with-disclosure, and it records the refusals",
+        "Does not take the inline rung for a unit the profile maps to a different model"
+      ]
     }
   ]
 }

@@ -143,7 +143,7 @@ Before monitoring work on each PR, arm event delivery, in order:
    filter for `<N>` (health checks + arming per
    [pull-request monitor.md](../../pull-request/reference/monitor.md) §3.0.05)
 3. **Monitor-tool fallback:** channel absent/unhealthy → arm a Monitor watch, re-armed at each
-   deadline (30s REST poll, never a blocking checks watch
+   deadline (60s REST poll, never a blocking checks watch
    ([GitHub](../../../reference/providers/github/babysit-prs/loop.md#per-pr-rescan-reads)); arming pattern per
    [pull-request monitor.md](../../pull-request/reference/monitor.md) §3.0.1)
 4. Proceed to the §5.1.3 checklist

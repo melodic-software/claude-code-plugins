@@ -18,14 +18,13 @@ const WORK_CLASS = /^\s*work-class\s*:\s*/i;
 const normalClass = (label) => `work-class: ${label.replace(WORK_CLASS, "").trim().toLowerCase()}`;
 
 // An issue carrying a work-class label outside `classes` is refused, even
-// beside a listed one. Otherwise it is admitted by a listed class or, with
-// `ratified`, by the owner's ratification marker (the `ratified` fact).
-export function admits({ classes, ratified }, labels, facts) {
+// beside a listed one; otherwise a listed class admits.
+export function admits({ classes }, labels) {
   const allowed = new Set(classes.map(normalClass));
   if (labels.some((label) => WORK_CLASS.test(label) && !allowed.has(normalClass(label)))) {
     return false;
   }
-  return classes.some((cls) => labels.includes(cls)) || (ratified === true && facts.ratified);
+  return classes.some((cls) => labels.includes(cls));
 }
 
 // Predicate key, the fact it reads, and whether the listed values match the
@@ -109,9 +108,6 @@ export function factsFor(predicate) {
   if (predicate?.["labels-absent"] !== undefined || predicate?.admission !== undefined) {
     facts.push("freshLabels");
   }
-  if (predicate?.admission?.ratified === true) {
-    facts.push("ratified");
-  }
   return [...new Set(facts)];
 }
 
@@ -125,10 +121,7 @@ export function applies(predicate, facts) {
     if (facts[fact] === undefined) {
       throw new MissingFact(fact);
     }
-    if (key === "admission" && listed.ratified === true && facts.ratified === undefined) {
-      throw new MissingFact("ratified");
-    }
-    if (!matches(listed, facts[fact], facts)) {
+    if (!matches(listed, facts[fact])) {
       if (key === "paths") {
         return { applies: false, skipReason: "not-applicable-paths" };
       }

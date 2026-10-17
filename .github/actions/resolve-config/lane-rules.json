@@ -7,7 +7,7 @@
   "work-unblock": {
     "stage": "work",
     "forbidden-effects": ["mutate-branch", "publish-artifact", "merge"],
-    "never": "Writes to a branch, or labels an issue the owner has not ratified"
+    "never": "Writes to a branch, or labels an issue that carries a hold label"
   },
   "pr-refine": {
     "stage": "refine",
@@ -58,7 +58,7 @@
   "pr-merge": {
     "stage": "merge",
     "forbidden-effects": [],
-    "never": "Merges above the rung, past a hold, or a PR that touches a trust-root path"
+    "never": "Merges above the rung, past a hold, or a PR that touches a denied path"
   },
   "post-merge-verify": {
     "stage": "post-merge",

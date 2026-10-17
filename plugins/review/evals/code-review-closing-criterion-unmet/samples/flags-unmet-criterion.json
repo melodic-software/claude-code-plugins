@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | Blocking | Closing issue #20 criterion 2 is unmet: \"`GET /export` rejects a date range longer than 90 days with HTTP 400.\" src/export.js:9 passes from and to straight to listOrders with no range check, so a 200-day range returns 200. No test covers it. | src/export.js:9 |\n\nSummary: the CSV criterion is met and tested; the 90-day/400 criterion is not implemented, so this PR cannot close #20.",
+      "why": "blocking, quotes criterion 2, leaves criterion 1 met"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No blocking findings. The CSV branch is clean and tested. Consider adding a date-range limit at some point.",
+      "why": "date range only as optional advice"
+    },
+    {
+      "answer": "Blocking: criterion 1 is unmet because the CSV header row is missing a column.",
+      "why": "reports the met criterion as unmet and misses criterion 2"
+    }
+  ]
+}

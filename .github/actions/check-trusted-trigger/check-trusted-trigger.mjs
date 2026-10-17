@@ -10,7 +10,6 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
-import { findRatification } from "../resolve-config/ratification.mjs";
 
 const ACTOR_KEYS = ["id", "kind", "login"];
 const KINDS = new Set(["human", "bot"]);
@@ -459,59 +458,17 @@ function checkDispatchedRerunner({ ids }, deniedIds, own) {
   }
 }
 
-// When an issue's body was last edited and its title last changed.
-const ISSUE_EDITS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) {
-    issue(number: $number) {
-      lastEditedAt
-      timelineItems(itemTypes: [RENAMED_TITLE_EVENT], last: 1) { nodes { ... on RenamedTitleEvent { createdAt } } }
-    }
-  }
-}`;
-
-// ratified-app-label: the lanes App applying exactly that label to an issue
-// starts the lane only while the issue carries the owner's ratification marker
-// (findRatification), read now; any other App event, or a failed read, stops.
-// The re-runner is the App itself or a listed human.
-async function checkRatifiedAppLabel({ event, repository, list, deniedIds, triggeringActor, lanesAppId, ratifiedAppLabel, github }) {
-  if (event.action !== "labeled" || event.label?.name !== ratifiedAppLabel) {
+// app-label: the lanes App applying exactly that label to an issue starts the
+// lane; the label alone admits the issue. Any other App event stops. The
+// re-runner is the App itself or a listed human.
+function checkAppLabel({ event, list, deniedIds, triggeringActor, lanesAppId, appLabel }) {
+  if (event.action !== "labeled" || event.label?.name !== appLabel) {
     throw new Stop("bot-actor");
   }
-  const number = String(event.issue?.number ?? "");
-  if (!PR_NUMBER.test(number)) {
+  if (!PR_NUMBER.test(String(event.issue?.number ?? ""))) {
     throw new Stop("untrusted-actor");
   }
-  let comments;
-  try {
-    comments = await paginate(github, `/repos/${repository}/issues/${number}/comments`);
-  } catch {
-    throw new Stop("untrusted-actor");
-  }
-  const ratifiers = new Set([...list.humans].filter((id) => !deniedIds.has(id)));
-  // The newest ratifying comment: the owner ratified the title and body as they
-  // stood then, and the run reads them, so an edit since stops the run.
-  const ratifying = comments
-    .filter((comment) => findRatification([comment], ratifiers) !== undefined)
-    .reduce((newest, comment) => (newest === undefined || timeOf(comment.created_at) > timeOf(newest.created_at) ? comment : newest), undefined);
-  if (ratifying === undefined) {
-    throw new Stop("untrusted-actor");
-  }
-  const [owner, name] = repository.split("/");
-  let issue;
-  try {
-    ({ issue } = (await github("POST", "/graphql", { query: ISSUE_EDITS_QUERY, variables: { owner, name, number: Number(number) } })).data.repository);
-  } catch {
-    throw new Stop("untrusted-actor");
-  }
-  const ratifiedAt = timeOf(ratifying.created_at);
-  const editedAt = [issue?.lastEditedAt, ...(issue?.timelineItems?.nodes ?? []).map((node) => node?.createdAt)];
-  // Comparisons with NaN are false, so an unparseable time stops too.
-  if (!isPlainObject(issue) || !editedAt.every((time) => time == null || timeOf(time) <= ratifiedAt)) {
-    throw new Stop("untrusted-actor");
-  }
-  console.log(
-    `check-trusted-trigger: ${ratifiedAppLabel} from the lanes App, ratified by comment ${Number(ratifying.id)}`,
-  );
+  console.log(`check-trusted-trigger: ${appLabel} from the lanes App`);
   const rerunnerId = list.logins.get(String(triggeringActor).toLowerCase());
   if (rerunnerId !== lanesAppId && (!list.humans.has(rerunnerId) || deniedIds.has(rerunnerId))) {
     throw new Stop("untrusted-rerunner");
@@ -523,18 +480,18 @@ async function checkRatifiedAppLabel({ event, repository, list, deniedIds, trigg
 // (on issues, the account that applied the label) and the triggering actor, a
 // push only the triggering actor; no PR is read. require-kind human narrows
 // both to actors listed as human.
-async function evaluateActors({ eventName, event, repository, list, deniedIds, triggeringActor, requireKind, lanesAppId, ratifiedAppLabel, github }) {
+function evaluateActors({ eventName, event, list, deniedIds, triggeringActor, requireKind, lanesAppId, appLabel }) {
   if (eventName !== "workflow_dispatch" && eventName !== "issues" && eventName !== "push") {
     throw new Stop("no-pr");
   }
   if (
     eventName === "issues" &&
     requireKind === "human" &&
-    ratifiedAppLabel !== "" &&
+    appLabel !== "" &&
     lanesAppId !== null &&
     event.sender?.id === lanesAppId
   ) {
-    return checkRatifiedAppLabel({ event, repository, list, deniedIds, triggeringActor, lanesAppId, ratifiedAppLabel, github });
+    return checkAppLabel({ event, list, deniedIds, triggeringActor, lanesAppId, appLabel });
   }
   const pool = requireKind === "human" ? list.humans : list.ids;
   if (eventName !== "push") {
@@ -565,7 +522,7 @@ export async function evaluateTrigger({
   lanesAppId = null,
   requirePr = "true",
   requireKind = "",
-  ratifiedAppLabel = "",
+  appLabel = "",
   runId = "",
   dispatchedWorkflow = "",
   github,
@@ -579,7 +536,7 @@ export async function evaluateTrigger({
     throw new Stop("no-pr");
   }
   if (requirePr === "false") {
-    return evaluateActors({ eventName, event, repository, list, deniedIds, triggeringActor, requireKind, lanesAppId, ratifiedAppLabel, github });
+    return evaluateActors({ eventName, event, list, deniedIds, triggeringActor, requireKind, lanesAppId, appLabel });
   }
   if (requirePr !== "true") {
     throw new Stop("no-pr");
@@ -707,7 +664,7 @@ export async function main({ env = process.env, github, sleep = defaultSleep } =
       lanesAppId: /^[1-9][0-9]{0,14}$/.test(env.LANES_APP_ID ?? "") ? Number(env.LANES_APP_ID) : null,
       requirePr: env.REQUIRE_PR ?? "true",
       requireKind: env.REQUIRE_KIND ?? "",
-      ratifiedAppLabel: env.RATIFIED_APP_LABEL ?? "",
+      appLabel: env.APP_LABEL ?? "",
       dispatchedWorkflow: env.DISPATCHED_WORKFLOW ?? "",
       runId: env.GITHUB_RUN_ID ?? "",
       github: github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),

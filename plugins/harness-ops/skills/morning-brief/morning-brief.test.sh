@@ -58,6 +58,8 @@ section() {
 NOW="2026-07-20T08:00Z"
 FIXTURE_REPO="example/test-repo"
 
+printf '{}\n' >"$TMP/lanes-empty.json"
+
 cat >"$TMP/counts.json" <<'EOF'
 {"needs-triage": 28, "status: ready": 44, "status: needs-decision": 3, "needs-human": 7}
 EOF
@@ -587,7 +589,7 @@ OUT_ERR="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
 assert_not_contains "stranded: an API error is NEVER reported as clear" "$OUT_ERR" "every merged PR in the window is clear"
 assert_contains "stranded: an API error renders the section UNREADABLE" "$OUT_ERR" "UNREADABLE: API rate limit"
 assert_contains "stranded: the API error message is surfaced" "$OUT_ERR" "rate limit already exceeded"
-assert_contains "stranded: the header counts the unreadable section" "$OUT_ERR" "1 of 5 sections unreadable: stranded"
+assert_contains "stranded: the header counts the unreadable section" "$OUT_ERR" "1 of 6 sections unreadable: stranded"
 
 # --- Severity classification and ranking -------------------------------------
 OUT_SEV="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
@@ -749,7 +751,8 @@ run_stub() {
 OUT_BLOCKED="$(run_stub blocked)"
 RC_BLOCKED=$?
 assert_exit "blocked: every live section unreadable exits 5" 5 "$RC_BLOCKED"
-assert_contains "blocked: header counts every section" "$OUT_BLOCKED" "5 of 5 sections unreadable"
+assert_contains "blocked: header counts every section" "$OUT_BLOCKED" "6 of 6 sections unreadable"
+assert_contains "blocked: lanes are UNREADABLE" "$(section "$OUT_BLOCKED" "== Lanes")" "UNREADABLE:"
 assert_contains "blocked: queues are UNREADABLE" "$(section "$OUT_BLOCKED" "== Queues")" "UNREADABLE:"
 assert_contains "blocked: merge-ready is UNREADABLE" "$(section "$OUT_BLOCKED" "== Merge-ready")" "UNREADABLE:"
 assert_contains "blocked: decisions are UNREADABLE" "$(section "$OUT_BLOCKED" "== Parked")" "UNREADABLE:"
@@ -777,10 +780,11 @@ OUT_ONE="$(run_stub blocked \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/pr.json" \
   --decisions-json "$TMP/decisions.json" \
-  --telemetry-json "$TMP/telemetry.json")"
+  --telemetry-json "$TMP/telemetry.json" \
+  --lane-runs-json "$TMP/lanes-empty.json")"
 RC_ONE=$?
 assert_exit "partial: one unreadable section among fixtures exits 6" 6 "$RC_ONE"
-assert_contains "partial: header names the lost section" "$OUT_ONE" "1 of 5 sections unreadable: stranded"
+assert_contains "partial: header names the lost section" "$OUT_ONE" "1 of 6 sections unreadable: stranded"
 assert_contains "partial: the fixture sections still render" "$OUT_ONE" "#10 clean pr"
 
 # A `message`-shaped error body (the REST/403 shape, no `errors` key) fed as a
@@ -809,10 +813,10 @@ if have git; then
     --pr-json "$TMP/pr.json" \
     --decisions-json "$TMP/decisions.json" 2>&1)"
   RC_REMOTE=$?
-  assert_exit "git remote fallback: renders (exit 6, two of five unreadable)" 6 "$RC_REMOTE"
+  assert_exit "git remote fallback: renders (exit 6, three of six unreadable)" 6 "$RC_REMOTE"
   assert_contains "git remote fallback: owner/repo taken from origin" "$OUT_REMOTE" "Morning brief — $FIXTURE_REPO —"
   assert_contains "git remote fallback: the header names the source" "$OUT_REMOTE" "repo resolved from the git origin remote"
-  assert_contains "git remote fallback: live sections still degrade honestly" "$OUT_REMOTE" "2 of 5 sections unreadable: telemetry stranded"
+  assert_contains "git remote fallback: live sections still degrade honestly" "$OUT_REMOTE" "3 of 6 sections unreadable: telemetry stranded lanes"
 fi
 
 # --- REST fallback: sections 1-4 from repository-scoped endpoints -------------
@@ -864,9 +868,41 @@ EOF
 cat >"$REST/$(rest_key "$R/issues/50/comments?per_page=100").json" <<'EOF'
 [{"body": "<!-- harness-ops:lane-telemetry marker=lane:babysit -->\n- lane: babysit\n- last-cycle: 2026-07-20T06:30Z\n- flags: none"}]
 EOF
+# Lanes, live: only intake-triage.yml of the default lane set exists; one run
+# in the window, failed on the limit, read through its job's annotations.
+cat >"$REST/$(rest_key "$R/actions/workflows?per_page=100").json" <<'EOF'
+{"total_count": 3, "workflows": [{"path": ".github/workflows/intake-triage.yml"}, {"path": ".github/workflows/ci.yml"}, {"path": ".github/workflows/pr-unblock.yml"}]}
+EOF
+# pr-unblock: one run whose first job, a reusable-workflow job with no
+# annotations, must not name the activity; the second job carries the record.
+cat >"$REST/$(rest_key "$R/actions/workflows/pr-unblock.yml/runs?created=>=2026-07-13&per_page=100").json" <<'EOF'
+{"total_count": 1, "workflow_runs": [{"id": 88, "html_url": "http://x/runs/88", "event": "pull_request", "display_title": "PR R", "head_sha": "r1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T00:00:00Z"}]}
+EOF
+cat >"$REST/$(rest_key "$R/actions/runs/88/jobs?per_page=100").json" <<'EOF'
+{"total_count": 2, "jobs": [{"id": 881, "name": "publish-feedback / run"}, {"id": 880, "name": "resolve-conflicts / run"}]}
+EOF
+cat >"$REST/$(rest_key "$R/check-runs/881/annotations?per_page=100").json" <<'EOF'
+[]
+EOF
+cat >"$REST/$(rest_key "$R/check-runs/880/annotations?per_page=100").json" <<'EOF'
+[{"message": "pr-unblock completed: turns=7 max-turns=40 models=claude-sonnet-5. Findings (if any) are in the PR comments."}]
+EOF
+cat >"$REST/$(rest_key "$R/actions/workflows/intake-triage.yml/runs?created=>=2026-07-13&per_page=100").json" <<'EOF'
+{"total_count": 1, "workflow_runs": [{"id": 77, "html_url": "http://x/runs/77", "event": "issues", "display_title": "Issue R", "head_sha": "m1", "status": "completed", "conclusion": "failure", "created_at": "2026-07-19T00:00:00Z"}]}
+EOF
+cat >"$REST/$(rest_key "$R/actions/runs/77/jobs?per_page=100").json" <<'EOF'
+{"total_count": 1, "jobs": [{"id": 770}]}
+EOF
+cat >"$REST/$(rest_key "$R/check-runs/770/annotations?per_page=100").json" <<'EOF'
+[{"message": "Process completed with exit code 1."}, {"message": "failure class=rate-limit"}]
+EOF
 
 OUT_REST="$(run_stub rest)"
 RC_REST=$?
+assert_contains "rest: lanes read live, keeping only lane workflows that exist" "$(section "$OUT_REST" "== Lanes")" \
+  "intake-triage.yml  runs=1  failed=1 [rate-limit 1, max-turns 0, auth 0, other 0]  limit-stops=1  restarts=0"
+assert_contains "rest: the activity comes from the caller job of the job that carries the record" "$(section "$OUT_REST" "== Lanes")" \
+  "    pr-unblock / resolve-conflicts  profile=unknown  runs=1  pass=1/1  median-turns=7  max-turns-hits=0  models=claude-sonnet-5"
 assert_exit "rest: renders with the stranded section unreadable (exit 6)" 6 "$RC_REST"
 assert_contains "rest: the header names the transport" "$OUT_REST" "transport: REST"
 assert_contains "rest: queue count excludes pull requests" "$(section "$OUT_REST" "== Queues")" "status: ready            2"
@@ -882,7 +918,7 @@ assert_contains "rest: decision RECOMMENDED line is extracted" "$OUT_REST" "RECO
 assert_contains "rest: telemetry issue found by title" "$OUT_REST" "source: issue #50"
 assert_contains "rest: telemetry lane age computed" "$OUT_REST" "babysit    last-cycle=2026-07-20T06:30Z  age=1h 30m"
 assert_contains "rest: stranded is UNREADABLE, never clear" "$(section "$OUT_REST" "== Findings stranded")" "UNREADABLE: review threads need GraphQL"
-assert_contains "rest: header counts the one lost section" "$OUT_REST" "1 of 5 sections unreadable: stranded"
+assert_contains "rest: header counts the one lost section" "$OUT_REST" "1 of 6 sections unreadable: stranded"
 
 # The same data through the gh-shaped fixtures.
 cat >"$TMP/same-counts.json" <<'EOF'
@@ -972,7 +1008,7 @@ OUT_BAD="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" \
   --telemetry-json "$TMP/garbage.json" --merged-json "$TMP/garbage.json" 2>&1)"
 RC_BAD=$?
 assert_exit "unparsable: a brief with unreadable sections exits 6" 6 "$RC_BAD"
-assert_contains "unparsable: the header counts the four lost sections" "$OUT_BAD" "4 of 5 sections unreadable: merge-ready decisions telemetry stranded"
+assert_contains "unparsable: the header counts the four lost sections" "$OUT_BAD" "4 of 6 sections unreadable: merge-ready decisions telemetry stranded"
 assert_contains "unparsable: merge-ready is UNREADABLE" "$(section "$OUT_BAD" "== Merge-ready")" "UNREADABLE: could not parse the PR list"
 assert_not_contains "unparsable: merge-ready never renders as none clean" "$OUT_BAD" "(none clean right now)"
 assert_contains "unparsable: decisions are UNREADABLE" "$(section "$OUT_BAD" "== Parked")" "UNREADABLE: could not parse the decision issues"
@@ -1007,7 +1043,7 @@ jq -n '[range(150) | {number: (. + 1000)}]' >"$CAPS/issue-list-search.json"
 cat >"$CAPS/issue-view-1000.json" <<'EOF'
 {"comments": [{"body": "<!-- harness-ops:lane-telemetry marker=lane:babysit -->\n- lane: babysit\n- last-cycle: 2026-07-20T06:30Z\n- flags: none"}]}
 EOF
-OUT_CAPS="$(MB_GH_FIXTURES="$CAPS" run_stub gql --merged-json "$TMP/merged-clean.json")"
+OUT_CAPS="$(MB_GH_FIXTURES="$CAPS" run_stub gql --merged-json "$TMP/merged-clean.json" --lane-runs-json "$TMP/lanes-empty.json")"
 RC_CAPS=$?
 assert_exit "caps: a capped but readable brief exits 0" 0 "$RC_CAPS"
 QUEUES_CAPS="$(section "$OUT_CAPS" "== Queues")"
@@ -1058,7 +1094,7 @@ cat >"$STR/api-graphql-c2.json" <<'EOF'
    "mergedAt": "2026-07-01T10:00:00Z", "updatedAt": "2026-07-01T10:00:00Z", "reviewThreads": {"nodes": []}}
 ]}}}}
 EOF
-FIX_ARGS=(--counts-json "$TMP/counts.json" --pr-json "$TMP/empty.json" --decisions-json "$TMP/empty.json" --telemetry-json "$TMP/empty.json")
+FIX_ARGS=(--counts-json "$TMP/counts.json" --pr-json "$TMP/empty.json" --decisions-json "$TMP/empty.json" --telemetry-json "$TMP/empty.json" --lane-runs-json "$TMP/lanes-empty.json")
 bookmark_of() { cat "$1/morning-brief/$FIXTURE_REPO/stranded-cutoff" 2>/dev/null; }
 
 OUT_PAGE="$(MB_GH_FIXTURES="$STR" MB_GH_LOG="$TMP/log-page" MB_DATA_DIR="$TMP/data-page" run_stub gql "${FIX_ARGS[@]}")"
@@ -1139,6 +1175,156 @@ STR_NOCURSOR="$(section "$OUT_NOCURSOR" "== Findings stranded")"
 assert_contains "paging: a next page without a cursor is UNREADABLE" "$STR_NOCURSOR" "UNREADABLE: a merged-PR page reported more results but no cursor to them"
 assert_not_contains "paging: a next page without a cursor never reads as clear" "$STR_NOCURSOR" "every merged PR in the window is clear"
 assert_eq "paging: a next page without a cursor leaves the bookmark" "2026-07-10T08:00Z" "$(bookmark_of "$TMP/data-nocursor")"
+
+# --- Lanes: failures by class, limit stops, restarts, turn headroom -----------
+# The window is 2026-07-13T08:00Z to NOW. intake-triage: three runs in the
+# window (a fourth is older, a fifth skipped); run 2 carries the annotations
+# of intake-triage run 39038437240, which classify marked class=other while
+# the action reported the turn cap. Turns 10, 16, 12 against a cap of 15:
+# nearest-rank p90 of three is the third, 16; 80% of 15 is 12, so runs 2 and
+# 3 are linked. work-resolve-issue: the item whose titles end "#7" stops on
+# the limit three times, then succeeds, so three restarts and one repeat line,
+# its title changing midway; the one ending "#8", with the same first title,
+# fails on auth and then with no annotations read. pr-verify: three limit
+# stops on one head.
+cat >"$TMP/lane-runs.json" <<'EOF'
+{
+  "intake-triage.yml": [
+    {"id": 1, "html_url": "http://x/runs/1", "event": "issues", "display_title": "Issue A", "head_sha": "m1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"},
+    {"id": 2, "html_url": "http://x/runs/2", "event": "issues", "display_title": "Issue B", "head_sha": "m1", "status": "completed", "conclusion": "failure", "created_at": "2026-07-19T11:00:00Z"},
+    {"id": 3, "html_url": "http://x/runs/3", "event": "issues", "display_title": "Issue C", "head_sha": "m1", "status": "completed", "conclusion": "success", "created_at": "2026-07-18T00:00:00Z"},
+    {"id": 4, "html_url": "http://x/runs/4", "event": "issues", "display_title": "Issue D", "head_sha": "m1", "status": "completed", "conclusion": "failure", "created_at": "2026-07-01T00:00:00Z"},
+    {"id": 5, "html_url": "http://x/runs/5", "event": "issues", "display_title": "Issue E", "head_sha": "m1", "status": "completed", "conclusion": "skipped", "created_at": "2026-07-19T12:00:00Z"}
+  ],
+  "work-resolve-issue.yml": [
+    {"id": 10, "html_url": "http://x/runs/10", "event": "issues", "display_title": "Issue X #7", "head_sha": "m1", "status": "completed", "conclusion": "failure", "created_at": "2026-07-15T00:00:00Z"},
+    {"id": 11, "html_url": "http://x/runs/11", "event": "issues", "display_title": "Issue X #7", "head_sha": "m2", "status": "completed", "conclusion": "failure", "created_at": "2026-07-15T06:00:00Z"},
+    {"id": 12, "html_url": "http://x/runs/12", "event": "issues", "display_title": "Issue X, renamed #7", "head_sha": "m3", "status": "completed", "conclusion": "failure", "created_at": "2026-07-16T00:00:00Z"},
+    {"id": 13, "html_url": "http://x/runs/13", "event": "issues", "display_title": "Issue X, renamed #7", "head_sha": "m3", "status": "completed", "conclusion": "success", "created_at": "2026-07-16T06:00:00Z"},
+    {"id": 14, "html_url": "http://x/runs/14", "event": "issues", "display_title": "Issue X #8", "head_sha": "m3", "status": "completed", "conclusion": "failure", "created_at": "2026-07-17T00:00:00Z"},
+    {"id": 15, "html_url": "http://x/runs/15", "event": "issues", "display_title": "Issue X #8", "head_sha": "m3", "status": "completed", "conclusion": "failure", "created_at": "2026-07-17T01:00:00Z"}
+  ],
+  "pr-verify.yml": [
+    {"id": 20, "html_url": "http://x/runs/20", "event": "workflow_run", "display_title": "PR Z", "head_sha": "abcdef1234", "status": "completed", "conclusion": "failure", "created_at": "2026-07-15T00:00:00Z"},
+    {"id": 21, "html_url": "http://x/runs/21", "event": "workflow_run", "display_title": "PR Z", "head_sha": "abcdef1234", "status": "completed", "conclusion": "failure", "created_at": "2026-07-15T06:00:00Z"},
+    {"id": 22, "html_url": "http://x/runs/22", "event": "workflow_run", "display_title": "PR Z", "head_sha": "abcdef1234", "status": "completed", "conclusion": "failure", "created_at": "2026-07-16T00:00:00Z"}
+  ]
+}
+EOF
+cat >"$TMP/lane-annotations.json" <<'EOF'
+{
+  "1": "lane outcome class=success turns=10 max-turns=15",
+  "2": "failure-class=other job=success; read the job log.\nClaude intake triage exited with: failure class=other (infrastructure error, not a code-quality signal — e.g. usage limit, OIDC failure, SDK crash, is_error result, or max-turns exhaustion). Last SDK result: {\"subtype\":\"success\",\"is_error\":false,\"num_turns\":16,\"class\":\"other\"}\nClaude reported a successful result after 16 turns, exceeding the configured maximum of 15",
+  "3": "turns=12 max-turns=15",
+  "4": "class=rate-limit",
+  "10": "failure class=rate-limit resets=2026-07-15T05:00:00Z",
+  "11": "failure class=rate-limit",
+  "12": "failure class=rate-limit",
+  "13": "turns=4 max-turns=50",
+  "14": "failure class=auth",
+  "20": "failure class=rate-limit",
+  "21": "failure class=rate-limit",
+  "22": "failure class=rate-limit"
+}
+EOF
+OUT_LANES="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
+  --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
+  --lane-runs-json "$TMP/lane-runs.json" --lane-annotations-json "$TMP/lane-annotations.json" 2>&1)"
+LANES="$(section "$OUT_LANES" "== Lanes")"
+assert_contains "lanes: a turn-cap stop that classify called other counts as max-turns" "$LANES" \
+  "intake-triage.yml  runs=3  failed=1 [rate-limit 0, max-turns 1, auth 0, other 0]  limit-stops=0  restarts=0"
+assert_contains "lanes: turn headroom flags a max-turns failure and a p90 at 80% of the cap" "$LANES" \
+  "turns: max=16 p90=16 cap=15 (3 runs)  CHECK: 1 max-turns failure(s); p90 at or above 80% of the cap"
+assert_contains "lanes: the max-turns run is linked" "$LANES" "      http://x/runs/2"
+assert_contains "lanes: a run at 80% of the cap is linked" "$LANES" "      http://x/runs/3"
+assert_not_contains "lanes: a run under 80% of the cap is not linked" "$LANES" "http://x/runs/1"
+assert_not_contains "lanes: a run before the window is not counted" "$LANES" "http://x/runs/4"
+assert_contains "lanes: limit stops, restarts, auth and an unread failure" "$LANES" \
+  "work-resolve-issue.yml  runs=6  failed=5 [rate-limit 3, max-turns 0, auth 1, other 0, unread 1]  limit-stops=3  restarts=3"
+assert_contains "lanes: headroom under 80% raises no CHECK" "$LANES" "    turns: max=4 p90=4 cap=50 (1 runs)"$'\n'
+assert_contains "lanes: three limit stops on one issue are named, keyed by its number" "$LANES" "3 limit stops on one item: Issue X #7"
+assert_contains "lanes: three limit stops on one head are named with the head" "$LANES" "3 limit stops on one head: PR Z @ abcdef1"
+assert_contains "lanes: restarts on a pull request head" "$LANES" "pr-verify.yml  runs=3  failed=3 [rate-limit 3, max-turns 0, auth 0, other 0]  limit-stops=3  restarts=2"
+assert_exit "lanes: a fully read brief with lanes exits 0" 0 "$(
+  bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" --decisions-json "$TMP/decisions.json" \
+    --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
+    --lane-runs-json "$TMP/lane-runs.json" --lane-annotations-json "$TMP/lane-annotations.json" >/dev/null 2>&1
+  echo $?
+)"
+printf '[1,2]\n' >"$TMP/lane-runs-bad.json"
+OUT_LANES_BAD="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
+  --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
+  --lane-runs-json "$TMP/lane-runs-bad.json" 2>&1)"
+assert_contains "lanes: a runs file that is not an object is UNREADABLE" "$(section "$OUT_LANES_BAD" "== Lanes")" "UNREADABLE:"
+assert_contains "models: a lane whose records carry no models= still gets a row" "$LANES" \
+  "    pr-verify  profile=unknown  runs=3  pass=0/3  median-turns=-  max-turns-hits=0  models=none recorded"
+
+# --- Lanes: model usage by activity and profile ---------------------------------
+# pr-unblock runs 30-36: resolve-conflicts with no profile= runs 30, 31, 34 and
+# 36 (two pass, two max-turns failures, turns 8, 40, 40, 10, so the median is
+# (10 + 40) / 2 = 25); run 32 carries profile=standard; run 33 is
+# address-feedback; run 35 has no annotations read, and cancelled run 37's
+# annotations carry no lane record. intake-triage run 40 has no
+# activity= and so is its own activity.
+cat >"$TMP/model-runs.json" <<'EOF'
+{
+  "pr-unblock.yml": [
+    {"id": 30, "html_url": "http://x/runs/30", "event": "pull_request", "display_title": "PR A", "head_sha": "a1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"},
+    {"id": 31, "html_url": "http://x/runs/31", "event": "pull_request", "display_title": "PR A", "head_sha": "a2", "status": "completed", "conclusion": "failure", "created_at": "2026-07-19T11:00:00Z"},
+    {"id": 32, "html_url": "http://x/runs/32", "event": "pull_request", "display_title": "PR B", "head_sha": "b1", "status": "completed", "conclusion": "success", "created_at": "2026-07-18T10:00:00Z"},
+    {"id": 33, "html_url": "http://x/runs/33", "event": "pull_request", "display_title": "PR C", "head_sha": "c1", "status": "completed", "conclusion": "success", "created_at": "2026-07-18T11:00:00Z"},
+    {"id": 34, "html_url": "http://x/runs/34", "event": "pull_request", "display_title": "PR D", "head_sha": "d1", "status": "completed", "conclusion": "failure", "created_at": "2026-07-17T10:00:00Z"},
+    {"id": 35, "html_url": "http://x/runs/35", "event": "pull_request", "display_title": "PR E", "head_sha": "e1", "status": "completed", "conclusion": "failure", "created_at": "2026-07-17T11:00:00Z"},
+    {"id": 36, "html_url": "http://x/runs/36", "event": "pull_request", "display_title": "PR F", "head_sha": "f1", "status": "completed", "conclusion": "success", "created_at": "2026-07-16T10:00:00Z"},
+    {"id": 37, "html_url": "http://x/runs/37", "event": "pull_request", "display_title": "PR G", "head_sha": "g1", "status": "completed", "conclusion": "cancelled", "created_at": "2026-07-16T11:00:00Z"}
+  ],
+  "intake-triage.yml": [
+    {"id": 40, "html_url": "http://x/runs/40", "event": "issues", "display_title": "Issue Q", "head_sha": "m1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T09:00:00Z"}
+  ]
+}
+EOF
+cat >"$TMP/model-annotations.json" <<'EOF'
+{
+  "30": "pr-unblock completed: turns=8 max-turns=40 models=claude-sonnet-5. Findings (if any) are in the PR comments.\nactivity=resolve-conflicts",
+  "31": "pr-unblock exited with: failure class=max-turns turns=40 max-turns=40 models=claude-sonnet-5,claude-haiku-5 (infrastructure error)\nactivity=resolve-conflicts",
+  "32": "pr-unblock completed: turns=12 max-turns=40 profile=standard models=claude-opus-5. Findings (if any) are in the PR comments.\nactivity=resolve-conflicts",
+  "33": "activity=address-feedback\npr-unblock completed: turns=5 max-turns=40 models=claude-sonnet-5.",
+  "34": "pr-unblock exited with: failure class=max-turns turns=40 max-turns=40 models=claude-sonnet-5\nactivity=resolve-conflicts",
+  "36": "pr-unblock completed: turns=10 max-turns=40 models=claude-sonnet-5.\nactivity=resolve-conflicts",
+  "37": "The run was canceled by @someone.\nactivity=resolve-conflicts",
+  "40": "Claude intake triage completed: turns=3 max-turns=10 models=claude-sonnet-5. Findings (if any) are in the PR comments."
+}
+EOF
+models_brief() {
+  bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
+    --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
+    --lane-runs-json "$TMP/model-runs.json" --lane-annotations-json "$TMP/model-annotations.json" "$@" 2>&1
+}
+MODELS="$(section "$(models_brief)" "== Lanes")"
+assert_contains "models: a lane with no activity= is its own activity" "$MODELS" \
+  "    intake-triage  profile=unknown  runs=1  pass=1/1  median-turns=3  max-turns-hits=0  models=claude-sonnet-5"
+assert_contains "models: a pipeline activity gets its own row" "$MODELS" \
+  "    pr-unblock / address-feedback  profile=unknown  runs=1  pass=1/1  median-turns=5  max-turns-hits=0  models=claude-sonnet-5"
+assert_contains "models: a profile= token splits the activity's row" "$MODELS" \
+  "    pr-unblock / resolve-conflicts  profile=standard  runs=1  pass=1/1  median-turns=12  max-turns-hits=0  models=claude-opus-5"
+assert_contains "models: pass count, even-count median, max-turns hits and the union of models" "$MODELS" \
+  "    pr-unblock / resolve-conflicts  profile=unknown  runs=4  pass=2/4  median-turns=25  max-turns-hits=2  models=claude-haiku-5,claude-sonnet-5"
+assert_contains "models: runs with no lane record read, unread or recordless, are left out and counted" "$MODELS" \
+  "    2 run(s) left out: no lane record was read"
+assert_contains "models: no threshold set prints no RECOMMENDED line" "$MODELS" \
+  "    no threshold set: pass --max-turns-hits N for RECOMMENDED lines"
+assert_not_contains "models: no RECOMMENDED line without a threshold" "$MODELS" "RECOMMENDED:"
+MODELS_T1="$(section "$(models_brief --max-turns-hits 1)" "== Lanes")"
+assert_contains "models: hits over the threshold print RECOMMENDED for that cell" "$MODELS_T1" \
+  "    RECOMMENDED: pr-unblock / resolve-conflicts profile=unknown hit max-turns 2 times, over the threshold of 1;"
+assert_eq "models: only the cell over the threshold is RECOMMENDED" "1" "$(grep -c "RECOMMENDED:" <<<"$MODELS_T1")"
+assert_not_contains "models: a set threshold drops the no-threshold line" "$MODELS_T1" "no threshold set"
+MODELS_T2="$(section "$(models_brief --max-turns-hits 2)" "== Lanes")"
+assert_not_contains "models: hits equal to the threshold do not exceed it" "$MODELS_T2" "RECOMMENDED:"
+assert_exit "models: a non-numeric threshold is an invalid argument" 3 "$(
+  models_brief --max-turns-hits many >/dev/null
+  echo $?
+)"
 
 # --- Summary ------------------------------------------------------------------
 echo

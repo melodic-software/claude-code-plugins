@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Blocking: #20 requires rejecting a date range longer than 90 days with HTTP 400, and handleExport has no such check.",
+      "why": "names 90 days"
+    },
+    {
+      "answer": "The 90-day limit from the closing issue is not enforced.",
+      "why": "names 90-day"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "No issues found. The CSV export looks good.",
+      "why": "approves without the criterion"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}

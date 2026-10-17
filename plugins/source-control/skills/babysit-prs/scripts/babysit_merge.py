@@ -95,8 +95,10 @@ Contract enforced here (encoded as code, not convention):
   the flag the gate is unchanged, except that plain `--merge` refuses at exit 10 when the token's
   acting login is the policy's configured agent identity, or cannot be read
   while one is configured. `--authority pr-merge` runs it as the CI pr-merge
-  lane: `merge.authority` must read pr-merge, eligibility is a C2 class label
-  the identity's App applied on a diff off `merge.diff-check.denied-paths`, no
+  lane: `merge.authority` must read pr-merge, a pull request the identity
+  opened with one closing issue, on a diff off `merge.diff-check.denied-paths`,
+  is class C2 with no `work-class:` label read, `merge.require-verifier-verdict`
+  must be true (`verifier-verdict-not-required` otherwise), no
   promotion evidence is read, the kill switch is the workflow's own check
   passed as `--lane-kill-switch proceed` (missing or any other value stops),
   the rung cap is the workflow's `--lane-rung-cap` (empty is no cap),
@@ -391,19 +393,19 @@ def rerun_rate_limited_reviews(
 
 # The async merge API (`PUT .../pulls/{n}/merge-async`) answers with a request
 # UUID and runs the merge in the background; the gate polls it to a terminal
-# status for at most this long. A request still pending past the bound is left
-# to GitHub: the next run's PUT returns 409 with the same UUID and polls again.
+# status for at most this long, at the API budget's 60-second wait cadence
+# (reference/providers/github/README.md#api-budget). A request still pending
+# past the bound is left to GitHub: the next run's PUT returns 409 with the
+# same UUID and polls again.
 ASYNC_MERGE_POLL_TIMEOUT_SECONDS = 60.0
-ASYNC_MERGE_POLL_INTERVAL_SECONDS = 3.0
+ASYNC_MERGE_POLL_INTERVAL_SECONDS = 60.0
 ASYNC_TERMINAL_STATUSES = frozenset({"merged", "enqueued", "failed"})
 ASYNC_UUID_RE = re.compile(r"[0-9A-Za-z-]{1,64}")
 # A `gh pr merge` the queue base took can read back as neither queued, armed,
-# nor merged for a moment. The run re-reads it at the poll interval, well inside
-# the async poll bound the same run already accepts. A result still unseen is
-# recorded unconfirmed. Later runs, at least one loop wake apart, hold it while
-# it stays unseen, and the QUEUE_UNCONFIRMED_LATER_READS-th such run calls it
-# dequeued.
-QUEUE_READ_BACK_ATTEMPTS = 4
+# nor merged for a moment. The run reads the GraphQL-only queue state once,
+# per the API budget; a result unseen is recorded unconfirmed. Later runs, at
+# least one loop wake apart, hold it while it stays unseen, and the
+# QUEUE_UNCONFIRMED_LATER_READS-th such run calls it dequeued.
 QUEUE_UNCONFIRMED_LATER_READS = 2
 
 
@@ -2026,38 +2028,6 @@ def read_merge_queue(repo: str, number: int) -> dict[str, Any]:
     }
 
 
-def queue_result_unseen(queue: dict[str, Any]) -> bool:
-    """A readable queue base on which the PR is neither queued, armed, nor merged."""
-    return (
-        not queue["readError"]
-        and queue["queueRequired"]
-        and not (queue["inQueue"] or queue["autoMergeArmed"] or queue["merged"])
-    )
-
-
-def read_merge_queue_after_merge(
-    repo: str,
-    number: int,
-    *,
-    attempts: int = QUEUE_READ_BACK_ATTEMPTS,
-    interval_seconds: float = ASYNC_MERGE_POLL_INTERVAL_SECONDS,
-    sleep: Callable[[float], None] | None = None,
-) -> dict[str, Any]:
-    """The queue standing after a successful `gh pr merge`, re-read while the
-    result is unseen. A failed re-read keeps the unseen read it followed, so a
-    transient error never turns an unseen result into a merge."""
-    sleep = sleep or _poll_sleep
-    queue = read_merge_queue(repo, number)
-    for _ in range(attempts - 1):
-        if not queue_result_unseen(queue):
-            break
-        sleep(interval_seconds)
-        again = read_merge_queue(repo, number)
-        if not again["readError"]:
-            queue = again
-    return queue
-
-
 def report_queue_routing(result: dict[str, Any], queue: dict[str, Any]) -> int:
     """Correct a successful `gh pr merge` report for a base with a merge queue,
     returning the exit code.
@@ -2865,6 +2835,18 @@ def score_unattended(
         files, complete = merge_policy.changed_files(repo, pr)
     except merge_policy.PolicyReadError:
         files, complete = (), False
+    # The pr-merge lane's switches (owner decision Q624); the local lane
+    # keeps the floor, both caps and the C2 contradictions.
+    lane_switches = (
+        {
+            "high_floor": config.high_path_floor,
+            "c2_contradictions": config.c2_contradictions,
+            "max_changed_files": config.max_changed_files,
+            "lines_optional": True,
+        }
+        if inputs.get("authority") == merge_policy.PR_MERGE
+        else {}
+    )
     risk = babysit_risk.score(
         babysit_risk.RiskInput(
             work_class=eligible.work_class,
@@ -2875,6 +2857,7 @@ def score_unattended(
             high_paths=config.denied_paths,
             lanes=lanes,
             blast_radius=None,
+            **lane_switches,
         )
     )
     details = {
@@ -2925,10 +2908,11 @@ def assess_unattended(
     authority: str = merge_policy.LOCAL_BABYSIT,
     lane_kill_switch: str | None = None,
     lane_rung_cap: str | None = None,
+    shared: merge_policy.SharedPostMerge | None = None,
 ) -> merge_policy.UnattendedPolicy:
     """The unattended decision for one pull request, in the wiring order:
     identity, the credential chokepoint, the kill switch, a default-branch
-    base, the post-merge check, demotion and cap, in flight, promotion evidence, eligibility, then
+    base, the post-merge check (or the run's `shared` answer), demotion and cap, in flight, promotion evidence, eligibility, then
     the review evidence and the score. Raises `PolicyReadError` when the
     pull request or its pipeline config cannot be read."""
 
@@ -2941,14 +2925,7 @@ def assess_unattended(
             pinned_sha=postmerge.pin_reader(repo, identity),
             lane_merges_only=authority == merge_policy.PR_MERGE,
         )
-        refusal = None
-        if not verdict.ok:
-            refusal = verdict.reason or "failure:" + ",".join(
-                f"{f.signal}#{f.merge.number}" for f in verdict.failures
-            )
-        return merge_policy.PostMergeGate(
-            refusal, verdict.report(), verdict.is_verified
-        )
+        return postmerge.gate_from_report(verdict.report())
 
     def promotion(window_start: datetime | None) -> merge_policy.Promotion:
         return merge_policy.read_promotion(
@@ -2965,6 +2942,7 @@ def assess_unattended(
         authority=authority,
         lane_kill_switch=lane_kill_switch,
         lane_rung_cap=lane_rung_cap,
+        shared=shared,
     )
     return score_unattended(repo, number, policy, self_logins)
 
@@ -3298,9 +3276,9 @@ def unattended_enqueue(
         except (postmerge.PostMergeReadError, postmerge.PostMergeWriteError) as exc:
             step["dequeueError"] = str(exc)
         return hold(f"kill-switch:{kill.reason}")
-    # The opt-in (the pr-merge lane's class label), like the kill switch, is
-    # read again here: a removal (or a removal and a non-human re-add) since
-    # the eligibility read refuses.
+    # The opt-in, like the kill switch, is read again here: for the local
+    # lane a removal (or a removal and a non-human re-add) since the
+    # eligibility read refuses; for the pr-merge lane a changed closing issue.
     eligible = inputs.get("eligibility")
     if getattr(eligible, "dependabot", None) is not None:
         # The Dependabot class is read again whole: a human blocking comment
@@ -3309,12 +3287,8 @@ def unattended_enqueue(
             repo, number, pr=inputs["pr"], agent_identity=identity
         ).reason
     elif inputs.get("authority") == merge_policy.PR_MERGE:
-        opt_in = merge_policy.recheck_lane_class(
-            repo,
-            number,
-            agent_identity=identity,
-            self_logins=inputs.get("self_logins") or frozenset(),
-            permission=inputs.get("permission"),
+        opt_in = merge_policy.recheck_lane_issue(
+            repo, number, issue=getattr(eligible, "issue", None)
         )
     else:
         opt_in = merge_policy.recheck_opt_in(
@@ -3608,6 +3582,16 @@ def main() -> int:
             "or any other value holds the rung at off"
         ),
     )
+    parser.add_argument(
+        "--postmerge-result",
+        default=None,
+        help=(
+            "with --authority pr-merge, this run's babysit_postmerge.py report: "
+            "its demotion, floor and post-merge verdict stand in for this pull "
+            "request's own reads when bound to the current default-branch head "
+            "and config; unreadable or unbound, they are read as without it"
+        ),
+    )
     args = parser.parse_args()
 
     def _refuse(message: str, code: int, **envelope: object) -> int:
@@ -3733,11 +3717,13 @@ def main() -> int:
     if args.authority is not None and not args.unattended:
         return _refuse("--authority is only meaningful with --unattended", 2)
     if args.authority != merge_policy.PR_MERGE and (
-        args.lane_kill_switch is not None or args.lane_rung_cap is not None
+        args.lane_kill_switch is not None
+        or args.lane_rung_cap is not None
+        or args.postmerge_result is not None
     ):
         return _refuse(
-            "--lane-kill-switch and --lane-rung-cap are only meaningful with "
-            "--authority pr-merge",
+            "--lane-kill-switch, --lane-rung-cap and --postmerge-result are only "
+            "meaningful with --authority pr-merge",
             2,
         )
 
@@ -3786,6 +3772,11 @@ def main() -> int:
             for token in (args.self_logins or "").split(",")
             if token.strip().casefold().endswith("[bot]")
         )
+        shared = (
+            postmerge.read_shared(args.postmerge_result)
+            if args.postmerge_result is not None
+            else None
+        )
         try:
             unattended = assess_unattended(
                 repo,
@@ -3794,9 +3785,18 @@ def main() -> int:
                 authority=args.authority or merge_policy.LOCAL_BABYSIT,
                 lane_kill_switch=args.lane_kill_switch,
                 lane_rung_cap=args.lane_rung_cap,
+                shared=shared,
             )
         except (RuntimeError, ValueError, OSError) as exc:
             return _refuse(f"unattended merge policy unreadable: {exc}", 10)
+        if args.postmerge_result is not None and shared is None:
+            unattended = replace(
+                unattended,
+                details={
+                    **(unattended.details or {}),
+                    "postMergeShared": "unused:unreadable",
+                },
+            )
         # Report-only: the decision is reported and nothing is written, so
         # `--merge` runs as a check.
         if (unattended.details or {}).get("reportOnly"):
@@ -4169,7 +4169,7 @@ def main() -> int:
     result["autoMergeEnabled"] = proc.returncode == 0 and arm_auto
     exit_code = 0 if proc.returncode == 0 else 10
     if proc.returncode == 0:
-        queue = read_merge_queue_after_merge(repo, number)
+        queue = read_merge_queue(repo, number)
         exit_code = report_queue_routing(result, queue)
         unconfirmed = bool(json_object(result.get("mergeQueue")).get("unconfirmed"))
         if pending_path is not None and (result.get("enqueued") or unconfirmed):

@@ -33,6 +33,16 @@ const marker = (lane, sha = HEAD, user = ACTIONS_BOT) => ({
   user,
   body: `<!-- claude-lane-reviewed-head lane=${lane} sha=${sha} -->\n${lane} has reviewed this pull request through ${sha}.`,
 });
+// A failed address-feedback run; `line` is the lane record report-check-run
+// writes on the first line of its summary, or null for none.
+const failedRun = (line, completed = "2026-10-17T10:00:00Z") => ({
+  id: 7,
+  name: "pr-unblock / address-feedback",
+  status: "completed",
+  conclusion: "failure",
+  completed_at: completed,
+  output: { title: "Failed", summary: line === null ? "The activity step failed." : `${line}\n\nThe activity step failed.` },
+});
 const thread = (authors, isResolved = false) => ({
   isResolved,
   comments: { nodes: authors.map((author) => ({ author })), pageInfo: { hasNextPage: false } },
@@ -249,6 +259,61 @@ test("the gate's untrusted-trigger skip on the head does not block a dispatch", 
     ],
   });
   assert.equal((await decide(api)).result.number, 42);
+});
+
+// FINAL-DESIGN C5: a limit-stopped address-feedback run holds the head only
+// until its limit resets; the next review completion then dispatches again.
+test("a limit-stopped check on the head blocks a dispatch only until its reset", async () => {
+  for (const [resets, expected] of [
+    ["2026-10-17T11:00:00Z", 42],
+    ["2026-10-17T13:00:00Z", undefined],
+  ]) {
+    const stopped = failedRun(`lane=pr-unblock activity=address-feedback class=rate-limit resets=${resets}`);
+    const api = fakeApi({ checkRuns: [stopped] });
+    const result = await dispatchFeedback({
+      api,
+      repository: REPOSITORY,
+      runId: RUN_ID,
+      upstreamRunId: UPSTREAM_RUN_ID,
+      appSenderId: APP_ID,
+      resolveSlot: async () => resolvedLane(),
+      log: () => {},
+      now: Date.parse("2026-10-17T12:00:00Z"),
+    });
+    assert.equal(result?.number, expected, resets);
+  }
+});
+
+// The restart keys on the current threads and head, never on an earlier run's
+// branch: once the reviewer-bot threads are resolved there is nothing to redo,
+// and a head that moved past the stopped run's review is not dispatched for it.
+test("a reset limit stop does not dispatch once no reviewer-bot thread is open, or once the head moved", async () => {
+  const stopped = failedRun("lane=pr-unblock activity=address-feedback class=rate-limit resets=2026-10-17T11:00:00Z");
+  for (const [label, options] of [
+    ["threads resolved", { threads: [thread([CLAUDE], true)] }],
+    ["head moved", { pulls: pull({ head: { sha: OLD_HEAD, repo: { full_name: REPOSITORY } } }) }],
+  ]) {
+    const api = fakeApi({ checkRuns: [stopped], ...options });
+    const result = await dispatchFeedback({
+      api,
+      repository: REPOSITORY,
+      runId: RUN_ID,
+      upstreamRunId: UPSTREAM_RUN_ID,
+      appSenderId: APP_ID,
+      resolveSlot: async () => resolvedLane(),
+      log: () => {},
+      now: Date.parse("2026-10-17T12:00:00Z"),
+    });
+    assert.equal(result, null, label);
+    assert.deepEqual(api.calls.dispatch, [], label);
+  }
+});
+
+test("a failed check on the head that is not a limit stop blocks a dispatch", async () => {
+  for (const line of ["lane=pr-unblock activity=address-feedback class=other", null]) {
+    const api = fakeApi({ checkRuns: [failedRun(line, "2026-10-01T00:00:00Z")] });
+    assert.equal((await decide(api)).result, null, String(line));
+  }
 });
 
 test("a dispatch with no usable run id throws", async () => {

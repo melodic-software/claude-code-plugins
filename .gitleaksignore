@@ -53,3 +53,18 @@ plugins/planning/shared/tests/fixtures/state-written-740e8da.json:generic-api-ke
 plugins/planning/shared/tests/fixtures/state-written-b5ed34f.json:generic-api-key:1
 plugins/planning/shared/tests/fixtures/state-written-e27acc5.json:generic-api-key:1
 plugins/planning/shared/tests/fixtures/state-written-f6f1318.json:generic-api-key:1
+# sha256 test hashes (tokenHash) in the planning fixtures on PR #7670's unmerged branches,
+# not secrets. Remove once those commits are unreachable.
+5bf1009844f8502e9bea9ed497c53920a89e4057:plugins/planning/shared/tests/fixtures/state-written-b5ed34f.json:generic-api-key:1
+b5ed34f8caf0ada4bcf9bf6628ff1a6625df05b6:plugins/planning/shared/tests/fixtures/state-written-e27acc5.json:generic-api-key:1
+e27acc51075918200338e17aba87fe866a41f7ea:plugins/planning/shared/tests/fixtures/state-written-62d8520.json:generic-api-key:1
+62d8520d9269bea0d0f2abd03aee1d197c123310:plugins/planning/shared/tests/fixtures/state-written-740e8da.json:generic-api-key:1
+2deb1fff665046bee45e1ac3722ea5dee68a1562:plugins/planning/shared/tests/fixtures/state-written-08ff888.json:generic-api-key:1
+08ff8884dfb7ba1f9adcf22390c7731e7657a5e2:plugins/planning/shared/tests/fixtures/state-written-f6f1318.json:generic-api-key:1
+f6f13186086bf7cc0696533841de8d6a691bc770:plugins/planning/shared/tests/fixtures/state-written-3f9006c.json:generic-api-key:1
+3f9006c34de617f59ecd3768c671b1857553ec04:plugins/planning/shared/tests/fixtures/state-written-6579f21.json:generic-api-key:1
+f9f01a3ed7d459eb698cb5de035b4f127559edde:plugins/planning/shared/tests/fixtures/state-written-3153973.json:generic-api-key:1
+3153973cf184fde263bea7b552bb64cef428dc7d:plugins/planning/shared/tests/fixtures/state-written-0bbffb3.json:generic-api-key:1
+429f41259294aa09a543326984f950167291b273:plugins/planning/shared/tests/fixtures/state-v0-prototype.json:generic-api-key:73
+ab2def117acf8a6b4024624d34962cd314c9abd7:plugins/planning/shared/tests/fixtures/invalid-state-duplicate-flag.json:generic-api-key:33
+21abba1caca8265c97da29da3befcd5d9e7c18b7:plugins/planning/shared/tests/fixtures/state-v1.json:generic-api-key:33

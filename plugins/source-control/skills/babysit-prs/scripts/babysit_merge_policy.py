@@ -420,6 +420,14 @@ class PipelineConfig:
     # `report` reports it and writes nothing, and `enforce` merges it
     # whatever `merge.report-only` says.
     dependabot_mode: str = "off"
+    # The pr-merge lane's risk switches under `merge.diff-check` (owner
+    # decision Q624): absent, the HIGH path floor and the C2 contradictions
+    # are off and there is no file cap (`max_changed_lines` None: no line
+    # cap); a value other than true or false turns a switch on. The local
+    # babysit lane ignores them and keeps every check.
+    high_path_floor: bool = False
+    c2_contradictions: bool = False
+    max_changed_files: int | None = None
 
 
 LOCAL_BABYSIT = "local-babysit"
@@ -490,25 +498,35 @@ def _loop_merge(text: str) -> str | None:
     return values[0] if len(values) == 1 and values[0] else None
 
 
-def read_config_at(repo: str, base_sha: str) -> PipelineConfig:
+def read_config_at(
+    repo: str,
+    base_sha: str,
+    file_at: Callable[[str, str], str | None] | None = None,
+) -> PipelineConfig:
     """`merge:` from `docs/conventions/pr-pipeline.yaml` and `babysit_loop_merge`
-    from `.claude/source-control.md`, both read at `base_sha` through the
-    contents API. A pipeline file the shared reader rejects is off; an absent
-    one has no merge block (rung off, authority unset). Raises
-    `PolicyReadError` when the pipeline file cannot be read.
+    from `.claude/source-control.md`, both read at `base_sha` through
+    `file_at(path, sha)` (text, or None when absent), by default the contents
+    API. A pipeline file the shared reader rejects is off; an absent one has
+    no merge block (rung off, authority unset). Raises `PolicyReadError` when
+    the pipeline file cannot be read.
     """
     owner, name = _split_repo(repo)
     if not SHA_RE.fullmatch(base_sha or ""):
         raise PolicyReadError(f"base SHA is not a 40-hex commit id: {base_sha!r}")
+    if file_at is None:
+
+        def file_at(path: str, sha: str) -> str | None:
+            return _file_at(owner, name, path, sha)
+
     notes: list[str] = []
     try:
-        source = _file_at(owner, name, SOURCE_CONTROL_PATH, base_sha)
+        source = file_at(SOURCE_CONTROL_PATH, base_sha)
     except PolicyReadError as exc:
         source = None
         notes.append(f"{SOURCE_CONTROL_PATH} unreadable: {exc}")
     loop_merge = _loop_merge(source) if source is not None else None
 
-    text = _file_at(owner, name, CONFIG_PATH, base_sha)
+    text = file_at(CONFIG_PATH, base_sha)
     off = PipelineConfig(base_sha, "off", None, None, None, (), loop_merge)
     if text is None:
         return off
@@ -519,6 +537,9 @@ def read_config_at(repo: str, base_sha: str) -> PipelineConfig:
             ("merge.authority", False),
             ("merge.agent-identity", False),
             ("merge.diff-check.max-changed-lines", False),
+            ("merge.diff-check.max-changed-files", False),
+            ("merge.diff-check.high-path-floor", False),
+            ("merge.diff-check.c2-contradictions", False),
             ("merge.diff-check.denied-paths", True),
             ("merge.report-only", False),
             ("merge.require-verifier-verdict", False),
@@ -542,6 +563,20 @@ def read_config_at(repo: str, base_sha: str) -> PipelineConfig:
     if lines is not None and not re.fullmatch(r"[0-9]+", lines):
         notes.append(f"merge.diff-check.max-changed-lines {lines!r} is not a count")
         rung, lines = "off", None
+    files = scalar("merge.diff-check.max-changed-files")
+    if files is not None and not re.fullmatch(r"[0-9]+", files):
+        notes.append(f"merge.diff-check.max-changed-files {files!r} is not a count")
+        rung, files = "off", None
+
+    def switch(key: str) -> bool:
+        value = scalar(key)
+        if value not in (None, "true", "false"):
+            notes.append(f"{key} {value!r} is not true or false")
+        return value not in (None, "false")
+
+    high_path_floor = switch("merge.diff-check.high-path-floor")
+    c2_contradictions = switch("merge.diff-check.c2-contradictions")
+
     report_only = scalar("merge.report-only")
     if report_only not in (None, "true", "false"):
         notes.append(f"merge.report-only {report_only!r} is not true or false")
@@ -566,6 +601,9 @@ def read_config_at(repo: str, base_sha: str) -> PipelineConfig:
         report_only=report_only not in (None, "false"),
         require_verifier_verdict=verdict not in (None, "false"),
         dependabot_mode=dependabot_mode,
+        high_path_floor=high_path_floor,
+        c2_contradictions=c2_contradictions,
+        max_changed_files=int(files) if files else None,
     )
 
 
@@ -1012,7 +1050,7 @@ def credential_refusal(identity: str) -> str | None:
 
 ELIGIBILITY = (
     "query PolicyEligibility($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
-    "pullRequest(number:$n){number createdAt lastEditedAt isCrossRepository "
+    "pullRequest(number:$n){number createdAt lastEditedAt isCrossRepository baseRefName "
     "author{__typename login} headRepositoryOwner{login} labels(first:100){totalCount nodes{name}} "
     "closingIssuesReferences(first:10){totalCount nodes{number lastEditedAt "
     "repository{nameWithOwner} labels(first:100){totalCount nodes{name}}}}}}}"
@@ -1315,100 +1353,28 @@ def _foreign_refusal(pr: dict[str, Any], owner: str) -> str | None:
 # --- Eligibility in the pr-merge lane -----------------------------------------------------
 
 
-def _lane_class(
-    owner: str,
-    name: str,
-    issue: dict[str, Any],
-    identity: str | None,
-    human: Callable[[Any], bool],
-) -> tuple[str | None, str | None]:
-    """(work class, refusal) from the closing issue's `work-class:` labels.
-    The class lives on the issue only; a label on the pull request never
-    counts (D30).
-
-    Label events are replayed from two trusted actors: the lane identity's
-    App, and a human acting in person (`is_human`, no
-    `performed_via_github_app`), the provenance `eligibility` accepts. Any
-    other actor's are ignored, such as another bot's, since a workflow on a
-    branch an agent pushed labels as `github-actions`. A label present now or
-    standing in that replay can only make the class stricter. The strictest
-    class must be C2, present now and standing in the replay, and a human's
-    application must not predate an edit of the issue body."""
-    labels = _label_names(issue)
-    if labels is None:
-        return None, "class-labels-unreadable"
-    events = sorted(
-        (
-            e
-            for e in _timeline(owner, name, issue["number"], {})
-            if e.get("event") in ("labeled", "unlabeled")
-            and str(json_object(e.get("label")).get("name") or "")
-            .casefold()
-            .startswith(WORK_CLASS_PREFIX)
-        ),
-        key=lambda e: _time(e.get("created_at")),
-    )
-    # Each trusted label, with the time a human applied it (None for the App).
-    trusted: dict[str, datetime | None] = {}
-    for event in events:
-        actor = _rest_actor(event.get("actor"))
-        by_app = bool(identity) and actor_key(actor) == str(identity).strip().casefold()
-        if not by_app and (
-            event.get("performed_via_github_app") is not None or not human(actor)
-        ):
-            continue
-        # GitHub label names are case-insensitive.
-        label = str(json_object(event.get("label")).get("name")).casefold()
-        if event.get("event") == "labeled":
-            trusted[label] = None if by_app else _time(event.get("created_at"))
-        else:
-            trusted.pop(label, None)
-    folded = (label.casefold() for label in labels)
-    current = {label for label in folded if label.startswith(WORK_CLASS_PREFIX)}
-    seen = current | set(trusted)
-    if not seen:
-        return None, "class-missing"
-    if any(label not in WORK_CLASS_LABELS for label in seen):
-        return None, "class-unknown"
-    strictest = max(seen, key=lambda label: int(WORK_CLASS_LABELS[label][1]))
-    work_class = WORK_CLASS_LABELS[strictest]
-    if work_class != "C2":
-        return work_class, f"class-not-mechanical:{work_class}"
-    if strictest not in current:
-        return work_class, "class-label-removed"
-    if strictest not in trusted:
-        return work_class, "class-label-untrusted"
-    applied = trusted[strictest]
-    edited = issue.get("lastEditedAt")
-    if applied is not None and edited and _time(edited) > applied:
-        return work_class, "class-provenance:body-edited-after-label"
-    return work_class, None
+# Every lane pull request's class, as Dependabot's is: no `work-class:` label
+# is read. The diff-derived C2 checks in the risk score still apply.
+LANE_CLASS = "C2"
 
 
-def _lane_human(
-    repo: str,
-    agent_identity: str | None,
-    self_logins: Collection[str],
-    permission: Permission | None,
-) -> Callable[[Any], bool]:
-    permission = permission or permission_reader(repo)
-    return lambda actor: is_human(
-        actor,
-        repo=repo,
-        agent_identity=agent_identity,
-        self_logins=self_logins,
-        permission=permission,
-    )
+def _base_refusal(owner: str, name: str, node: Mapping[str, Any]) -> str | None:
+    """`base-not-default:<ref>` when the pull request's base is not the
+    default branch, read fresh. A failed read raises, which refuses."""
+    branch = _default_branch(f"{owner}/{name}")
+    base = node.get("baseRefName")
+    return None if base == branch else f"base-not-default:{base}"
 
 
 def _denied_path_refusal(
     owner: str, name: str, number: int, changed: Any, denied: Collection[str]
 ) -> str | None:
-    """Why the diff may not merge in the lane: no denied paths configured, a
-    file listing short of the pull request's changed-file count, or a path
-    (either side of a rename) matching a denied glob."""
+    """Why the diff may not merge in the lane: a file listing short of the
+    pull request's changed-file count, or a path (either side of a rename)
+    matching a denied glob. No denied paths configured denies none (owner
+    decision Q624)."""
     if not denied:
-        return "denied-paths-unset"
+        return None
     listing = _paginated(
         f"repos/{owner}/{name}/pulls/{number}/files?per_page=100", f"#{number} files"
     )
@@ -1436,16 +1402,15 @@ def lane_eligibility(
     self_logins: Collection[str] = frozenset(),
     permission: Permission | None = None,
 ) -> Eligibility:
-    """Whether the pr-merge lane may consider a pull request (plan Design
-    "Eligibility"): not a fork or a dependency manager's, opened by the agent
-    identity, exactly one closing
-    issue in this repository whose class `_lane_class` reads as C2, and a
-    diff touching no `merge.diff-check.denied-paths`.
+    """Whether the pr-merge lane may consider a pull request: not a fork or a
+    dependency manager's, opened by the agent identity, exactly one closing
+    issue in this repository (the verifier verdict binds to it), and a diff
+    touching no `merge.diff-check.denied-paths`. Such a pull request is
+    class `LANE_CLASS`; no `work-class:` label is read.
     `pr` is the REST record, whose `changed_files` the file listing must
-    reach. Holds (the `do-not-merge` label, a `Hold:` line) are the gate's."""
+    reach. Holds (the `do-not-merge` label, a `Hold:` line) are the gate's.
+    `self_logins` and `permission` are unused: no human read remains."""
     owner, name = _split_repo(repo)
-    human = _lane_human(repo, agent_identity, self_logins, permission)
-    work_class = None
     issue_number = None
     try:
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
@@ -1455,21 +1420,21 @@ def lane_eligibility(
         foreign = _foreign_refusal(node, owner)
         if foreign:
             return Eligibility(False, foreign)
-        # The class sits on the issue, so anyone could name a mechanical
-        # issue in `Closes #N`; only a pull request the lane opened counts.
+        # Anyone could name an issue in `Closes #N`; only a pull request the
+        # lane opened counts.
         if not _lane_authored(node, agent_identity):
             return Eligibility(False, "not-lane-authored")
         issue, refusal = _closing_issue(node, repo)
         if refusal is None:
             issue_number = issue["number"]
-            work_class, refusal = _lane_class(owner, name, issue, agent_identity, human)
+            refusal = _base_refusal(owner, name, node)
         if refusal is None:
             refusal = _denied_path_refusal(
                 owner, name, number, pr.get("changed_files"), denied_paths
             )
     except PolicyReadError as exc:
         return Eligibility(False, f"unreadable: {exc}")
-    return Eligibility(refusal is None, refusal, work_class, issue_number)
+    return Eligibility(refusal is None, refusal, LANE_CLASS, issue_number)
 
 
 # A commit's file list stops at this many entries, so a full one may hide more.
@@ -1751,28 +1716,23 @@ def dependabot_eligibility(
     return Eligibility(True, None, "C2", dependabot=tier)
 
 
-def recheck_lane_class(
-    repo: str,
-    number: int,
-    *,
-    agent_identity: str | None,
-    self_logins: Collection[str] = frozenset(),
-    permission: Permission | None = None,
-) -> str | None:
-    """The lane's class read again from the closing issue right before the
-    enqueue: a label removed or made stricter, or a closing issue changed,
-    since the eligibility read refuses."""
+def recheck_lane_issue(repo: str, number: int, *, issue: int | None) -> str | None:
+    """The closing issue read again right before the enqueue: it must still
+    be the one, in this repository, that the eligibility read found (`issue`),
+    since the verifier verdict binds to it, and the base must still be the
+    default branch (`_base_refusal`, read fresh)."""
     owner, name = _split_repo(repo)
-    human = _lane_human(repo, agent_identity, self_logins, permission)
     try:
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
         node = json_object(json_object(data.get("repository")).get("pullRequest"))
         if not node:
             return "pull-request-unreadable"
-        issue, refusal = _closing_issue(node, repo)
+        found, refusal = _closing_issue(node, repo)
         if refusal:
             return refusal
-        return _lane_class(owner, name, issue, agent_identity, human)[1]
+        if found["number"] != issue:
+            return f"closing-issue-changed:{issue}>{found['number']}"
+        return _base_refusal(owner, name, node)
     except PolicyReadError as exc:
         return f"unreadable: {exc}"
 
@@ -2175,9 +2135,80 @@ def pull_request(repo: str, number: int) -> dict[str, Any]:
 
 # --- The post-merge floor -----------------------------------------------------------------------
 
-# The pipeline file's commits read for the enabling commit: one page. A run of
-# enabled commits longer than that has no readable start, which refuses.
+# The pipeline file's commits the contents-API fallback reads for the enabling
+# commit: one page. A run of enabled commits longer than that has no readable
+# start, which refuses. The local git history has no such limit.
 CONFIG_HISTORY_LIMIT = 100
+
+
+def _history_checkouts() -> list[Path]:
+    """Where a local clone may hold the pipeline file's history: this
+    script's own checkout (the pr-merge lane runs it from a checkout of main)
+    and the working directory's (a local babysit run from a clone)."""
+    return [Path(__file__).resolve().parent, Path.cwd()]
+
+
+def _git(root: Path, *args: str) -> str | None:
+    """The stdout of `git` run in `root`, or None when it fails."""
+    try:
+        proc = run_command(
+            ["git", "--no-replace-objects", "-C", str(root), *args],
+            allowed_executables=("git",),
+            check=False,
+        )
+    except (RuntimeError, ValueError, OSError):
+        return None
+    return proc.stdout if proc.returncode == 0 else None
+
+
+def _git_file_at(root: Path, path: str, sha: str) -> str | None:
+    """The file's text at `sha` in the clone at `root`, or None when absent
+    from a readable tree."""
+    entry = _git(root, "ls-tree", "-z", sha, "--", path)
+    if entry is None:
+        raise PolicyReadError(f"the tree at {sha} could not be read")
+    if not entry:
+        return None
+    mode, kind = entry.split(" ", 2)[:2]
+    if kind != "blob" or mode == "120000":
+        raise PolicyReadError(f"{path} at {sha} is not a file")
+    text = _git(root, "cat-file", "blob", f"{sha}:{path}")
+    if text is None:
+        raise PolicyReadError(f"{path} at {sha} is unreadable")
+    return text
+
+
+def _local_history(base_sha: str) -> tuple[Path, list[tuple[str, str]]] | None:
+    """The pipeline file's commits from `base_sha`, newest first, as (SHA,
+    committer date), from the first clone in `_history_checkouts` that holds
+    `base_sha` with its whole history (not shallow); None when none does.
+    A commit id names its whole ancestry, so any clone holding it answers
+    for the repository."""
+    for checkout in _history_checkouts():
+        # Pathspecs resolve against the working directory, so run at the top.
+        top = _git(checkout, "rev-parse", "--show-toplevel")
+        if not top or not top.strip():
+            continue
+        root = Path(top.strip())
+        if _git(root, "rev-parse", "--is-shallow-repository") != "false\n":
+            continue
+        if _git(root, "cat-file", "-e", f"{base_sha}^{{commit}}") is None:
+            continue
+        log = _git(
+            root,
+            "-c",
+            "log.follow=false",
+            "log",
+            "--no-show-signature",
+            "--format=%H %cI",
+            base_sha,
+            "--",
+            CONFIG_PATH,
+        )
+        if log is not None:
+            pairs = [line.partition(" ") for line in log.splitlines()]
+            return root, [(sha, date) for sha, _, date in pairs]
+    return None
 
 
 def enabled_since(repo: str, base_sha: str, authority: str | None = None) -> datetime:
@@ -2188,32 +2219,62 @@ def enabled_since(repo: str, base_sha: str, authority: str | None = None) -> dat
     enables). A later edit that keeps it enabled does not move the floor, so
     no merge since enabling escapes the check. Commits reach the default
     branch through the merge queue, whose squash commits GitHub dates.
+
+    The history and each config come from a local clone holding `base_sha`
+    (`_local_history`), else from the commits and contents APIs.
     Raises `PolicyReadError` when no start can be read."""
-    owner, name = _split_repo(repo)
-    status, commits = _get(
-        f"repos/{owner}/{name}/commits?sha={base_sha}"
-        f"&path={quote(CONFIG_PATH, safe='')}&per_page={CONFIG_HISTORY_LIMIT}"
-    )
-    if status != 200 or not is_json_array(commits) or not commits:
+    local = _local_history(base_sha)
+    if local is not None:
+        root, commits = local
+        complete = True
+
+        def read(sha: str) -> PipelineConfig:
+            return read_config_at(
+                repo, sha, lambda path, ref: _git_file_at(root, path, ref)
+            )
+
+    else:
+        owner, name = _split_repo(repo)
+        status, payload = _get(
+            f"repos/{owner}/{name}/commits?sha={base_sha}"
+            f"&path={quote(CONFIG_PATH, safe='')}&per_page={CONFIG_HISTORY_LIMIT}"
+        )
+        if status != 200 or not is_json_array(payload):
+            raise PolicyReadError(f"{CONFIG_PATH} history could not be read")
+        commits = [
+            (
+                str(commit.get("sha")),
+                str(
+                    json_object(json_object(commit.get("commit")).get("committer")).get(
+                        "date"
+                    )
+                ),
+            )
+            for commit in map(json_object, payload)
+        ]
+        complete = len(commits) < CONFIG_HISTORY_LIMIT
+
+        def read(sha: str) -> PipelineConfig:
+            return read_config_at(repo, sha)
+
+    if not commits:
         raise PolicyReadError(f"{CONFIG_PATH} history could not be read")
-    start: dict[str, Any] | None = None
-    for commit in map(json_object, commits):
-        sha = str(commit.get("sha"))
-        config = read_config_at(repo, sha)
+    start: str | None = None
+    for sha, date in commits:
+        config = read(sha)
         enabled = None if config.error else enabled_authority(config)
         authority = authority or enabled
         if enabled is None or enabled != authority:
             break
-        start = commit
+        start = date
     else:
-        if len(commits) >= CONFIG_HISTORY_LIMIT:
+        if not complete:
             raise PolicyReadError(
                 f"more than {CONFIG_HISTORY_LIMIT} enabled {CONFIG_PATH} commits"
             )
     if start is None:
         raise PolicyReadError(f"{CONFIG_PATH} at {base_sha} does not enable the path")
-    committer = json_object(json_object(start.get("commit")).get("committer"))
-    return _time(str(committer.get("date")).replace("Z", "+00:00"))
+    return _time(start.replace("Z", "+00:00")).astimezone(UTC)
 
 
 def merged_since_floor(
@@ -2477,6 +2538,95 @@ class PostMergeGate:
     verified: Callable[[AutoMerge], bool] | None
 
 
+# How old a shared post-merge answer may be: the pr-merge job's timeout.
+SHARED_MAX_AGE = timedelta(minutes=30)
+
+
+@dataclass(frozen=True)
+class SharedPostMerge:
+    """The repo-wide part of `assess` (demotion, floor, post-merge answer),
+    computed once per pr-merge run at the default branch head by
+    `babysit_postmerge.py` and handed to each candidate, bound to what it was
+    computed from (`shared_refusal`)."""
+
+    main_sha: str
+    config_sha: str
+    identity: str
+    self_logins: frozenset[str]
+    lane_merges_only: bool
+    computed_at: datetime
+    demotion: Demotion
+    floor: datetime
+    gate: PostMergeGate
+
+
+def newest_config_commit(repo: str, sha: str) -> str:
+    """The newest commit at or before `sha` that changed the pipeline file,
+    where `enabled_since` starts its walk: two SHAs on the (linear, merge
+    queue) default branch that share it share the floor. Read from the same
+    source: a local clone (`_local_history`), else the commits API. Raises
+    `PolicyReadError`."""
+    local = _local_history(sha)
+    if local is not None:
+        newest = local[1][0][0] if local[1] else ""
+    else:
+        owner, name = _split_repo(repo)
+        status, commits = _get(
+            f"repos/{owner}/{name}/commits?sha={sha}"
+            f"&path={quote(CONFIG_PATH, safe='')}&per_page=1"
+        )
+        newest = (
+            str(json_object(commits[0]).get("sha"))
+            if status == 200 and is_json_array(commits) and commits
+            else ""
+        )
+    if not SHA_RE.fullmatch(newest):
+        raise PolicyReadError(f"{CONFIG_PATH} history at {sha} could not be read")
+    return newest
+
+
+def shared_refusal(
+    repo: str,
+    shared: SharedPostMerge,
+    *,
+    branch: str,
+    base_sha: str,
+    identity: str,
+    self_logins: Collection[str],
+    lane: bool,
+    now: datetime | None = None,
+) -> str | None:
+    """Why `shared` may not stand in for this pull request's own reads, or
+    None: it must name the same identity, self logins and lane, be no older
+    than `SHARED_MAX_AGE`, have been computed at `branch`'s current head, and
+    share this base's newest pipeline-config commit (so the same floor)."""
+    age = (now or datetime.now(UTC)) - shared.computed_at
+    owner, name = _split_repo(repo)
+    checks = (
+        (_login_key(shared.identity) != _login_key(identity), "identity-differs"),
+        (
+            {_login_key(s) for s in shared.self_logins}
+            != {_login_key(s) for s in self_logins},
+            "self-logins-differ",
+        ),
+        (shared.lane_merges_only != lane, "lane-differs"),
+        (not timedelta(0) <= age <= SHARED_MAX_AGE, "stale"),
+    )
+    refusal = next((text for refused, text in checks if refused), None)
+    if refusal:
+        return refusal
+    status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
+    head = payload.get("sha") if status == 200 and is_json_object(payload) else None
+    if head != shared.main_sha:
+        return "main-moved"
+    try:
+        if newest_config_commit(repo, base_sha) != shared.config_sha:
+            return "config-differs"
+    except PolicyReadError:
+        return "config-unreadable"
+    return None
+
+
 def assess(
     repo: str,
     number: int,
@@ -2488,6 +2638,7 @@ def assess(
     authority: str = LOCAL_BABYSIT,
     lane_kill_switch: str | None = None,
     lane_rung_cap: str | None = None,
+    shared: SharedPostMerge | None = None,
 ) -> UnattendedPolicy:
     """The policy readers for one pull request, in the wiring order.
 
@@ -2511,6 +2662,8 @@ def assess(
 
     `post_merge(floor, identity)` runs the post-merge check from the floor
     (`merged_since_floor`) and must be given: without it the path refuses.
+    `shared`, the run's one answer for every candidate, replaces the
+    demotion, floor and post-merge reads when `shared_refusal` passes it.
     `promotion(window_start)` reads the promotion evidence with the newest
     demotion record's creation as the window restart; without it nothing is
     promoted. `self_logins` names only lane or bot self identities (see
@@ -2584,19 +2737,39 @@ def assess(
         "permission": permission,
     }
     inputs.update(permission=permission, self_logins=self_logins)
-    demotion = read_demotion(repo, **readers)
+    # The run's shared answer stands in for the demotion, floor and post-merge
+    # reads when it is bound to this run; otherwise they are read here.
+    reuse = None
+    if shared is not None:
+        unusable = shared_refusal(
+            repo,
+            shared,
+            branch=default,
+            base_sha=base_sha,
+            identity=resolved.login,
+            self_logins=self_logins,
+            lane=lane,
+        )
+        details["postMergeShared"] = f"unused:{unusable}" if unusable else "used"
+        reuse = None if unusable else shared
+    demotion = reuse.demotion if reuse else read_demotion(repo, **readers)
     details["demotion"] = {
         "active": demotion.active,
         "reason": demotion.reason,
         "records": list(demotion.records),
     }
-    try:
-        floor = merged_since_floor(repo, base_sha, demotion, authority)
-    except PolicyReadError as exc:
-        return replace(stopped, reason=f"post-merge:floor-unreadable: {exc}")
+    if reuse:
+        floor = reuse.floor
+    else:
+        try:
+            floor = merged_since_floor(repo, base_sha, demotion, authority)
+        except PolicyReadError as exc:
+            return replace(stopped, reason=f"post-merge:floor-unreadable: {exc}")
     details["mergedSince"] = floor.isoformat()
     gate = (
-        post_merge(floor, resolved.login)
+        reuse.gate
+        if reuse
+        else post_merge(floor, resolved.login)
         if post_merge is not None
         else PostMergeGate("unchecked", {}, None)
     )
@@ -2668,6 +2841,15 @@ def assess(
     # What refuses this pull request itself, whatever else does: its own
     # queued entry leaves the queue on it.
     own = (
+        # No class is read in the lane, so the verifier verdict is its merge
+        # criterion: a lane that does not require one would merge on none.
+        (
+            lane
+            and not dependabot_pr
+            and config.rung != "off"
+            and not config.require_verifier_verdict,
+            "verifier-verdict-not-required",
+        ),
         (not eligible.eligible, f"ineligible:{eligible.reason}"),
         # The rung is a work-class ceiling: C4 and C5 never merge unattended.
         (

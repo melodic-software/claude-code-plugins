@@ -150,6 +150,18 @@ def test_crlf_and_lf_files_read_the_same(tmp_path):
     assert crlf_stats == lf_stats == {"records": 2, "bad_lines": 1, "incomplete": 0, "unknown": 0}
 
 
+def test_decode_line_returns_objects_and_counts_the_rest():
+    stats: dict[str, int] = {}
+
+    decoded = [
+        transcript_reader.decode_line(line, stats)
+        for line in ('{"type": "user"}\n', '{"type": "mystery"}\n', "\n", "{nope\n", "[1]\n", '{"type": "us')
+    ]
+
+    assert decoded == [{"type": "user"}, {"type": "mystery"}, None, None, None, None]
+    assert stats == {"records": 2, "bad_lines": 2, "incomplete": 1, "unknown": 1}
+
+
 def test_invalid_utf8_is_replaced_not_raised(tmp_path):
     session = tmp_path / "bytes.jsonl"
     session.write_bytes(b'{"type": "user", "uuid": "b-01", "message": {"content": "data\xff"}}\n')

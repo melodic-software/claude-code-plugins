@@ -423,6 +423,52 @@ else
   bad "watcher id and release: not run (no lease server)"
 fi
 
+# (m2) round.sh lease --takeover after /clear: one command releases the old holder's lease and arms
+# watch.sh for the new session. The old watcher exits 3 with a handed-over message and no delivery;
+# the next event reaches the new session only.
+if [[ -n "${lport:-}" ]]; then
+  bash "$here/round.sh" --dir "$ld" lease --release >/dev/null
+  WATCH_ID=old bash "$here/watch.sh" "$ld" >"$tmp/to.out" 2>"$tmp/to.err" &
+  topid=$!
+  until_waiting "$lport"
+  WATCH_ID=new bash "$here/round.sh" --dir "$ld" lease --takeover >"$tmp/tn.out" 2>"$tmp/tn.err" &
+  tnpid=$!
+  end=$((SECONDS + 10))
+  while kill -0 "$topid" 2>/dev/null && [[ "$SECONDS" -lt "$end" ]]; do sleep 0.1; done
+  if kill -0 "$topid" 2>/dev/null; then
+    kill "$topid" 2>/dev/null
+    rc=124
+  else
+    wait "$topid"
+    rc=$?
+  fi
+  if [[ "$rc" -eq 3 && ! -s "$tmp/to.out" ]] && grep -q "^handed over, not a failure" "$tmp/to.err"; then
+    ok "a takeover ends the old watcher with exit 3 and a handed-over message"
+  else
+    bad "takeover, old watcher: rc=$rc out=$(cat "$tmp/to.out") err=$(cat "$tmp/to.err")"
+  fi
+  until_waiting "$lport"
+  holder=$(bash "$here/round.sh" --dir "$ld" lease)
+  if [[ "$holder" == "lease held by new since "* ]]; then
+    ok "a takeover leaves the new session holding the lease"
+  else
+    bad "takeover lease: [$holder] err=$(cat "$tmp/tn.err")"
+  fi
+  curl -s -o /dev/null --max-time 10 -H "X-Interview-Token: $ltoken" -H 'Content-Type: application/json' \
+    --data '{"kind": "note", "text": "after takeover"}' "http://127.0.0.1:$lport/api/answer"
+  end=$((SECONDS + 15))
+  while kill -0 "$tnpid" 2>/dev/null && [[ "$SECONDS" -lt "$end" ]]; do sleep 0.1; done
+  kill "$tnpid" 2>/dev/null
+  wait "$tnpid" 2>/dev/null
+  if grep -q '"after takeover"' "$tmp/tn.out" && ! grep -q 'after takeover' "$tmp/to.out"; then
+    ok "the next event after a takeover reaches the new session only"
+  else
+    bad "after takeover: new=$(cat "$tmp/tn.out") old=$(cat "$tmp/to.out")"
+  fi
+else
+  bad "takeover: not run (no lease server)"
+fi
+
 # (n) item 15 AC3: round.sh stop ends this data dir's watch.sh within 10 s, and a process that is
 # not a watch.sh survives it (a lease pid is never trusted without the command line).
 bash "$here/watch.sh" "$d" >"$tmp/n.out" 2>"$tmp/n.err" &

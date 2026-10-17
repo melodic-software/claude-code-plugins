@@ -61,7 +61,7 @@ We pass the background-command maximum on every fallback poll and treat the stop
 - Process channel event arrivals per §3.1 (each event triggers a single iteration; zero polling between events)
 - Continue to honor §3.0.5 loop-aware self-termination. Channel mode does not change merge gating
 
-**If the environment has no such channel, or any check fails and can't be remediated → fall through to §3.0.1 Monitor watch** with a one-line note: `Push notifications unavailable — using Monitor tool (30s poll).`
+**If the environment has no such channel, or any check fails and can't be remediated → fall through to §3.0.1 Monitor watch** with a one-line note: `Push notifications unavailable — using Monitor tool (60s poll).`
 
 ## 3.0.1 Auto-watch setup (Monitor tool)
 
@@ -102,17 +102,21 @@ We pass the background-command maximum on every fallback poll and treat the stop
 
    The poll script, passed inline in the `command` parameter, is the REST poll in the provider
    reference ([GitHub](../../../reference/providers/github/pull-request/monitor.md#poll-checks-over-rest)).
-   Set `PR_NUMBER=<N>` at its top; it resolves `OWNER` and `REPO` itself. Its contract:
+   Set `PR_NUMBER=<N>` at its top, and `INTERVAL` above its default 60 when other watchers run,
+   per the [API budget](../../../reference/providers/github/README.md#api-budget); it resolves
+   `OWNER` and `REPO` itself. Its contract:
 
-   - Polls every 30 seconds and exits 0 with `PR #<N> <state> — watch complete` once the PR is
+   - Polls every `INTERVAL` seconds and exits 0 with `PR #<N> <state> — watch complete` once the PR is
      merged or closed.
+   - Exits 2 with a `RATE-LIMITED` line on a rate-limit error. Re-arm only after the wait the
+     [API budget](../../../reference/providers/github/README.md#api-budget) sets.
    - Emits one `name: bucket` line for each check that newly reaches `pass`, `fail`, `skipping` or
      `cancel`, from a REST read that reports the same rows and buckets as the CLI's checks list,
      commit statuses included.
    - Emits a `COMMENT`, `INLINE-COMMENT` or `REVIEW` line for each new item on all three review
      surfaces (issue-level comments, inline review comments, review bodies), and advances its
      watermark only when every fetch succeeded, so a transient failure never skips a comment.
-   - Every 4th poll (about 2 minutes) runs the Gate 7 thread read through
+   - Every 4th poll (about 4 minutes) runs the Gate 7 thread read through
      `<scripts-dir>/source-control-review-threads` and emits `REVIEW-THREADS unresolved=<n>` when
      the unresolved count, or `THREADS_UNPROVEN`, changes. Resolving a thread moves no check and
      posts no comment, so the other reads never see it.
@@ -198,7 +202,7 @@ the values you mean, never on the complement:
 After each push, run this loop until convergence (**every** check in a terminal state + all comments addressed):
 
 1. **Mergeable pre-check (MANDATORY before polling):** read the PR's `mergeable` and `mergeStateStatus` FIRST ([GitHub](../../../reference/providers/github/pull-request/monitor.md#read-mergeability)). If `mergeable == "CONFLICTING"`, GitHub will NOT trigger workflows. Integrate the default branch (merge-forward first, per the stale-branch recovery rule in §3.2), resolve conflicts, push, and restart the loop. Only proceed to CI polling when `mergeable == "MERGEABLE"`. **Never blame the platform for missing CI runs before checking this.**
-2. **Poll CI:** wait on the §3.0.1 Monitor watch (30s, the standard monitor cadence), or in a cloud session on the §3.0.0 background poll, and act when it emits. Never wait in a foreground `sleep` or `until` loop. The CLI's checks list is for a one-off read only, never a loop ("Polling CI from more than one worker" below). Never a blocking checks watch; before the first wait, report each pending job as queued or running per "Waiting on a pending check" below. **Wait for ALL checks to reach a terminal state** (pass/fail/skipped) before suggesting merge, no exceptions, regardless of PR type. Never merge while any check is still pending or in_progress
+2. **Poll CI:** wait on the §3.0.1 Monitor watch (60s, the standard monitor cadence), or in a cloud session on the §3.0.0 background poll, and act when it emits. Never wait in a foreground `sleep` or `until` loop. The CLI's checks list is for a one-off read only, never a loop ("Polling CI from more than one worker" below). Never a blocking checks watch; before the first wait, report each pending job as queued or running per "Waiting on a pending check" below. **Wait for ALL checks to reach a terminal state** (pass/fail/skipped) before suggesting merge, no exceptions, regardless of PR type. Never merge while any check is still pending or in_progress
 3. **Check for new comments:** on each poll, also fetch new review comments (the inline review-comment surface, paginated; [GitHub](../../../reference/providers/github/README.md#review-surfaces))
 4. **Process comments immediately:** if a bot comments while CI is still running, start evaluating/researching that comment now. Don't wait for CI
 5. **On CI failure:** route to 3.2 (research-driven fix)
@@ -237,7 +241,7 @@ until every check settles
 ([GitHub](../../../reference/providers/github/pull-request/monitor.md#wait-on-a-pending-check)), so its cost grows with how long the wait lasts, not with how much
 changes. A single session that watched a job sitting in a saturated self-hosted queue exhausted the
 account's GraphQL limit before the job had started. Poll with the §3.0.1 REST read at the monitor
-cadence: 30s in the Monitor watch, 60-90s in the cloud background poll (§3.0.0), and never faster while every
+cadence: 60s in the Monitor watch, 60-90s in the cloud background poll (§3.0.0), and never faster while every
 pending check is queued.
 
 Before the first wait, split `pending` into **queued** and **running**. The bucket cannot tell them
