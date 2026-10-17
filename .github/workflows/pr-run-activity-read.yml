@@ -284,6 +284,27 @@ jobs:
         with:
           install-subprocess-isolation: ${{ steps.config.outputs.kind == 'skill' }}
 
+      # The head checkout replaces .base, so the base's scripts/setup-env.sh
+      # and the files it installs from are copied out first; a base that
+      # predates the script skips the install.
+      - name: Copy the dependency setup from the base
+        id: setup-env
+        if: steps.config.outputs.applies == 'true' && steps.config.outputs.kind == 'skill'
+        env:
+          DEST: ${{ runner.temp }}/setup-env
+        run: |
+          if [ ! -f .base/scripts/setup-env.sh ]; then
+            echo "::notice::the base has no scripts/setup-env.sh; the skill runs without its dependencies"
+            exit 0
+          fi
+          policy=.github/standards/runner-policy
+          mkdir -p "$DEST/scripts" "$DEST/$policy"
+          for file in scripts/setup-env.sh .python-version .github/requirements-ci.txt \
+            package.json package-lock.json "$policy/package.json" "$policy/package-lock.json"; do
+            cp ".base/$file" "$DEST/$file"
+          done
+          echo "ready=true" >>"$GITHUB_OUTPUT"
+
       - name: Check out the PR head
         if: steps.config.outputs.applies == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -301,6 +322,30 @@ jobs:
             echo "::error::the checked-out head is not the gated head SHA"
             exit 1
           fi
+
+      - name: Set up Python for the skill
+        if: steps.setup-env.outputs.ready == 'true'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: ${{ runner.temp }}/setup-env/.python-version
+
+      # The install reads only the base copies, so no head code runs before
+      # the skill's own Bash; a skill that needs the head's own packages runs
+      # npm ci there.
+      - name: Install the skill's dependencies
+        if: steps.setup-env.outputs.ready == 'true'
+        env:
+          SETUP_ENV_VENV: ${{ runner.temp }}/setup-env-venv
+        run: |
+          bash "$RUNNER_TEMP/setup-env/scripts/setup-env.sh" --root "$RUNNER_TEMP/setup-env"
+          # Node resolves a package from the importing file's directory, so the
+          # base-built trees are copied into the checkout, where node_modules
+          # is ignored.
+          for dir in . .github/standards/runner-policy; do
+            [ -d "$GITHUB_WORKSPACE/$dir" ] || continue
+            rm -rf "${GITHUB_WORKSPACE:?}/$dir/node_modules"
+            cp -R "$RUNNER_TEMP/setup-env/$dir/node_modules" "$GITHUB_WORKSPACE/$dir/"
+          done
 
       - name: Run the skill activity
         id: act-skill

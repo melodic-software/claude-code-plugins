@@ -12,6 +12,14 @@ name: post-merge-demotion-alert
 # record from each filer; both hold the rung off. This workflow merges,
 # reverts and dequeues nothing.
 #
+# A red full run files only after one re-run of its failed jobs, which the
+# job waits up to 20 minutes for, fails again or does not finish, and only for checks that were not already failing on main's newest
+# completed run of the same event at an earlier SHA (babysit_postmerge.py
+# applies the same rule). A check is a failed job, or one gate the hygiene
+# aggregator names in a titled annotation; the lane aggregator ci-status adds
+# nothing beside another failed job, and the gitleaks gate, which scans every
+# branch on these events, counts against no merge.
+#
 # Test: scripts/post-merge-demotion-alert.test.sh runs the step body.
 
 on:
@@ -30,9 +38,11 @@ jobs:
   alert:
     name: File the demotion issue
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 30 # up to 20 minutes waiting on the re-run
     permissions:
       issues: write # file the demotion issue or comment on it
+      actions: write # re-run a red full run's failed jobs; read jobs and runs
+      checks: read # read the hygiene aggregator's annotations
     # One group per signal and SHA, so two attempts of one run cannot both
     # find no record and file two.
     concurrency:
@@ -49,7 +59,11 @@ jobs:
           RUN_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
           RUN_SHA: ${{ github.event.workflow_run.head_sha }}
           RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_WORKFLOW_ID: ${{ github.event.workflow_run.workflow_id }}
+          RUN_CREATED: ${{ github.event.workflow_run.created_at }}
           RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          RUN_TRIGGERING_ACTOR: ${{ github.event.workflow_run.triggering_actor.login }}
           RUN_COMMIT_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
         run: |
           case "$RUN_WORKFLOW:$RUN_EVENT" in
@@ -89,6 +103,90 @@ jobs:
           if [[ ! "$RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::run attempt '$RUN_ATTEMPT' is not a positive integer"
             exit 1
+          fi
+          newly=''
+          if [[ -z "$passed" && "$signal" != canary ]]; then
+            # Re-run the failed jobs once and wait here for that attempt: a
+            # re-run this token starts raises no workflow_run event of its own.
+            # babysit_postmerge.py credits this re-run only on a run the bot
+            # did not start, so a run the bot started (a pr-merge dispatch) is
+            # left to the wrapper's own re-run. When the wrapper re-ran first,
+            # the POST fails and the wait reads its attempt instead. A re-run
+            # that does not finish within 20 minutes leaves attempt 1 judged.
+            if [[ "$RUN_ATTEMPT" -eq 1 && "$RUN_TRIGGERING_ACTOR" != 'github-actions[bot]' ]]; then
+              if ! gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/rerun-failed-jobs" >/dev/null; then
+                echo "::warning::could not re-run $RUN_URL; waiting for any re-run already started"
+              fi
+              for _ in $(seq 20); do
+                sleep "${POLL_SECONDS:-60}"
+                latest="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" \
+                  --jq '[.run_attempt, .status, (.conclusion // "")] | @tsv')" || continue
+                IFS=$'\t' read -r attempt status conclusion <<<"$latest"
+                if [[ "$attempt" =~ ^[0-9]+$ && "$attempt" -ge 2 && "$status" == completed ]]; then
+                  if [[ "$conclusion" == success ]]; then
+                    echo "attempt $attempt, the re-run of the failed jobs, passed: nothing to file"
+                    exit 0
+                  fi
+                  RUN_ATTEMPT="$attempt"
+                  break
+                fi
+              done
+              if [[ "$RUN_ATTEMPT" -eq 1 ]]; then
+                echo "::warning::the re-run of $RUN_URL did not finish: judging attempt 1"
+              fi
+            fi
+            # failing_checks <run id> <attempt>: one check per line.
+            failing_checks() {
+              local jobs count id name other gates gate
+              jobs="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$1/attempts/$2/jobs?per_page=100" \
+                --jq '.jobs[] | select(.conclusion | IN("failure", "timed_out", "cancelled", "startup_failure", "action_required"))
+                  | [.id, .name, ([.steps[]? | select(.conclusion | IN("failure", "timed_out", "cancelled"))
+                      | select(.name != "Aggregate hygiene results")] | length)] | @tsv')"
+              count="$(awk 'NF' <<<"$jobs" | wc -l)"
+              # A red run with no failed job (a workflow file that does not
+              # load) is one check of its own, never excused.
+              if [[ "$count" -eq 0 ]]; then
+                echo 'pr-require-checks.yml: no failed jobs'
+              fi
+              while IFS=$'\t' read -r id name other; do
+                if [[ -z "$id" || ("$name" == ci-status && "$count" -gt 1) ]]; then
+                  continue
+                fi
+                gates="$(gh api "repos/$GITHUB_REPOSITORY/check-runs/$id/annotations?per_page=100" \
+                  --jq '.[] | select(.annotation_level == "failure" and ((.title // "") | length) > 0) | .title')"
+                if [[ -z "$gates" || "$other" -gt 0 ]]; then
+                  echo "$name"
+                fi
+                while IFS= read -r gate; do
+                  if [[ -n "$gate" && "$gate" != 'gitleaks failed' ]]; then
+                    echo "$name: $gate"
+                  fi
+                done <<<"$gates"
+              done <<<"$jobs"
+            }
+            now="$(mktemp)"
+            failing_checks "$RUN_ID" "$RUN_ATTEMPT" >"$now"
+            if [[ ! -s "$now" ]]; then
+              echo "::warning::$RUN_URL failed only on checks no merge can cause (the all-branches gitleaks scan): not a demotion"
+              exit 0
+            fi
+            baseline="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?event=$RUN_EVENT&branch=main&status=completed&created=%3C$RUN_CREATED&per_page=20" \
+              --jq '[.workflow_runs[] | select(.head_branch == "main" and .head_sha != env.RUN_SHA and .created_at < env.RUN_CREATED)]
+                | max_by(.created_at) // empty | [.id, .run_attempt, .conclusion] | @tsv')"
+            if [[ -n "$baseline" ]]; then
+              IFS=$'\t' read -r base_id base_attempt base_conclusion <<<"$baseline"
+              before="$(mktemp)"
+              if [[ "$base_conclusion" != success ]]; then
+                failing_checks "$base_id" "$base_attempt" >"$before"
+              fi
+              grep -vxFf "$before" "$now" >"$now.new" || true
+              mv "$now.new" "$now"
+              if [[ ! -s "$now" ]]; then
+                echo "::warning::$RUN_URL failed only on checks already failing before ${RUN_SHA:0:12} (run $base_id): not a demotion"
+                exit 0
+              fi
+            fi
+            newly="$(paste -sd ';' "$now" | sed 's/;/, /g')"
           fi
           # A run's URL names no attempt, so every sighting names its attempt:
           # a later failing attempt of a recorded run is a new sighting.
@@ -172,7 +270,8 @@ jobs:
 
           - Pull request: $pr
           - $sha_label: \`$RUN_SHA\`
-          - Failing run: $sighting
+          - Failing run: $sighting${newly:+
+          - Newly failing: $newly}
 
           To revert the merge, a human runs:
 
