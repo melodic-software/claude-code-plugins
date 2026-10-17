@@ -72,6 +72,12 @@
       "description": "Blocks a pull-request merge (gh pr merge, REST, GraphQL or an MCP merge tool) while the PR has unresolved review threads, a changes-requested review, or failing checks. Fails open, visibly, when the PR state cannot be read. On by default.",
       "default": true
     },
+    "merge_guard_ignored_checks": {
+      "type": "string",
+      "title": "Block-unresolved-PR-merge ignored checks",
+      "description": "Comma-separated <app slug>:<check name> pairs block-unresolved-pr-merge never judges as pending or failing. The default, github-actions:merge, is the pr-merge lane's own merge job, which runs as the merger rather than as a gate. Empty judges every check.",
+      "default": "github-actions:merge"
+    },
     "block_windows_drive_tmp_enabled": {
       "type": "boolean",
       "title": "Block-Windows-drive-tmp guard",

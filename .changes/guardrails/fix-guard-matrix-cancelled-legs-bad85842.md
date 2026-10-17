@@ -1,6 +1,10 @@
 ---
-bump: patch
+bump: minor
 ---
+
+### Added
+
+- **`merge_guard_ignored_checks` option: `block-unresolved-pr-merge` no longer waits on the pr-merge lane's own `merge` check.** That job is the merger, not a gate on the PR, and the lane queues serially, so a manual guarded merge waited behind the whole queue with "Pending checks: merge". The option is a comma list of `<app slug>:<check name>` pairs the guard never judges as pending or failing; the default is `github-actions:merge`, and empty judges every check. A check run does not name its workflow, so the default ignores every GitHub Actions job named `merge`; a `merge` check from another app is still judged.
 
 ### Fixed
 
