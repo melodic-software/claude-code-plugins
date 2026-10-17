@@ -1,11 +1,14 @@
 // Checks the verifier's structured output and writes the verdict file that
 // pr-verify.yml uploads as pr-verify-<pr>-<head-sha>-<verdict>. The output
 // must be exactly {verdict, summary, notes}: verdict pass, pass-notes or fail,
-// summary a string, notes an array of strings. Anything else, or a malformed
-// PR number, SHA or run id, throws, so the job fails and uploads nothing.
-// Model text is cut to fixed lengths (judgment) and never reaches a shell.
+// summary a string, notes an array of strings. The file also records the head
+// branch and the linked issues with their authors, as the resolver read them
+// ({number, author_login, author_id, author_type} each), which the pr-merge
+// lane's reader checks. Anything malformed throws, so the job fails and
+// uploads nothing. Model text is cut to fixed lengths (judgment) and never
+// reaches a shell.
 
-import { mkdirSync, appendFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -17,12 +20,39 @@ const NOTES_MAX = 30;
 const SHA = /^[0-9a-f]{40}$/;
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
+const REF = /^[A-Za-z0-9._/-]+$/;
+const ISSUE_KEYS = "author_id,author_login,author_type,number";
 
 const isObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 
-export function buildVerdict({ output, pr, headSha, baseSha, runId }) {
-  if (!NUMBER.test(String(pr)) || !SHA.test(headSha ?? "") || !SHA.test(baseSha ?? "") || !RUN_ID.test(String(runId))) {
-    throw new Error("the PR number, a SHA or the run id is malformed");
+function checkIssues(issues) {
+  if (
+    !Array.isArray(issues) ||
+    !issues.every(
+      (issue) =>
+        isObject(issue) &&
+        Object.keys(issue).sort().join() === ISSUE_KEYS &&
+        Number.isSafeInteger(issue.number) &&
+        issue.number > 0 &&
+        typeof issue.author_login === "string" &&
+        (issue.author_id === null || Number.isSafeInteger(issue.author_id)) &&
+        typeof issue.author_type === "string",
+    )
+  ) {
+    throw new Error("the linked issues do not match their schema");
+  }
+  return issues;
+}
+
+export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, linkedIssues }) {
+  if (
+    !NUMBER.test(String(pr)) ||
+    !SHA.test(headSha ?? "") ||
+    !SHA.test(baseSha ?? "") ||
+    !RUN_ID.test(String(runId)) ||
+    !REF.test(headRef ?? "")
+  ) {
+    throw new Error("the PR number, a SHA, the run id or the head branch is malformed");
   }
   let parsed = output;
   if (typeof output === "string") {
@@ -46,6 +76,8 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId }) {
     pr: Number(pr),
     head_sha: headSha,
     base_sha: baseSha,
+    head_ref: headRef,
+    linked_issues: checkIssues(linkedIssues),
     verdict: parsed.verdict,
     summary: parsed.summary.slice(0, SUMMARY_MAX),
     notes: parsed.notes.slice(0, NOTES_MAX).map((note) => note.slice(0, NOTE_MAX)),
@@ -56,10 +88,26 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId }) {
 export const artifactName = (verdict) => `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}`;
 
 export function main(env = process.env) {
-  for (const key of ["STRUCTURED_OUTPUT", "PR_NUMBER", "HEAD_SHA", "BASE_SHA", "GITHUB_RUN_ID", "VERDICT_DIR", "GITHUB_OUTPUT"]) {
+  for (const key of [
+    "STRUCTURED_OUTPUT",
+    "PR_NUMBER",
+    "HEAD_SHA",
+    "BASE_SHA",
+    "HEAD_REF",
+    "SPEC_FILE",
+    "GITHUB_RUN_ID",
+    "VERDICT_DIR",
+    "GITHUB_OUTPUT",
+  ]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
     }
+  }
+  let linkedIssues;
+  try {
+    linkedIssues = JSON.parse(readFileSync(env.SPEC_FILE, "utf8"));
+  } catch {
+    throw new Error("the linked issues file is unreadable");
   }
   const verdict = buildVerdict({
     output: env.STRUCTURED_OUTPUT,
@@ -67,6 +115,8 @@ export function main(env = process.env) {
     headSha: env.HEAD_SHA,
     baseSha: env.BASE_SHA,
     runId: env.GITHUB_RUN_ID,
+    headRef: env.HEAD_REF,
+    linkedIssues,
   });
   mkdirSync(env.VERDICT_DIR, { recursive: true });
   writeFileSync(path.join(env.VERDICT_DIR, "verdict.json"), `${JSON.stringify(verdict, null, 2)}\n`);

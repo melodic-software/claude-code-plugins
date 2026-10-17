@@ -465,25 +465,38 @@ same-repository, non-draft pull request into main. It never runs the pull reques
 (`merge.verifier-model`) reads the diff, the trusted pull request text and its linked issues as
 data, and judges whether the diff delivers the issue's intent correctly and safely. The run
 uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON
-(`pr`, `head_sha`, `base_sha`, `verdict`, `summary`, `notes`, `run_id`). The head SHA is the one
-`pr-require-checks` ran on, never the pull request's live head. A model error or an output that
-fails the schema uploads nothing.
+(`pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
+account type, `verdict`, `summary`, `notes`, `run_id`). The head SHA is the one `pr-require-checks`
+ran on, never the pull request's live head. A model error or an output that fails the schema
+uploads nothing. A head that already has a counted verdict from a completed run (a `fail` under any
+pull request number) is not judged again. Runs share one concurrency group per pull request and
+head and never cancel a running judgment.
 
-With `merge.require-verifier-verdict: true` the pr-merge lane counts an artifact only when its run
-is `pr-verify.yml`, event `workflow_run`, on main, concluded success, in this repository with a
-head on main: only steps of that run can upload its artifacts. Any other artifact with such a name
-is ignored. At the pull request's vetted head:
+With `merge.require-verifier-verdict: true` the pr-merge lane reads the artifacts through their
+run records, since only steps of a run can upload its artifacts. A run is of verifier origin when
+it is `pr-verify.yml`, event `workflow_run`, on main, in this repository with a head on main. A
+`fail` counts from any such run, whatever its conclusion, because the upload comes before the
+run's later steps; a `pass` or `pass-notes` counts only from one that completed with success. Any
+other artifact with such a name is ignored. At the pull request's vetted head:
 
-- a counted `pass` or `pass-notes` allows the merge;
-- a counted `fail` refuses (`verify:fail`);
-- no counted verdict refuses (`verify:missing`);
-- a counted `fail` at any other head of the pull request refuses (`verify:earlier-fail`), and a
-  human decides.
+- created more than 80 days ago refuses (`verify:too-old`): artifacts last at most 90 days in this
+  repository (the retention maximum and its setting), so an older verdict may be gone;
+- a counted `fail` at the head, under any pull request number, refuses (`verify:fail`);
+- a counted `fail` at another head of the pull request (its number, one of its commits, or a
+  verdict recording its head branch) refuses (`verify:earlier-fail`);
+- a `fail` artifact tied to it whose run or record cannot be read, or any other failed read,
+  refuses (`verify:unreadable`);
+- a counted `pass` or `pass-notes` for this pull request allows the merge only when its verdict
+  records a linked issue a `User` on the trusted-actor list's humans wrote, other than the pull
+  request's author, and otherwise refuses (`verify:untrusted-spec`);
+- no counted verdict refuses (`verify:missing`).
 
-A queued entry without a passing verdict at its head leaves the queue. A dependency manager's pull
-request is refused before the verdict is read, so it needs none. The verdict is not a check run
-and stays out of `ci-status` and the required checks (github-iac ADR 0011), so a human merge needs
-`ci-status` alone.
+`verify:too-old`, `verify:earlier-fail` and `verify:untrusted-spec` need a human, who clears them
+by merging in person: the verdict is not a check run and stays out of `ci-status` and the required
+checks (github-iac ADR 0011), so a human merge needs `ci-status` alone. A queued entry without an
+allowing verdict at its live head leaves the queue. A dependency manager's pull request is refused
+before the verdict is read, so it needs none. The gate lists every repository artifact once per
+candidate run, since pr-merge.yml runs the gate once per candidate.
 
 ## Trust-root paths
 

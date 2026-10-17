@@ -3,44 +3,77 @@
 
 `.github/workflows/pr-verify.yml` judges each pull request head that passes
 PR Require Checks and uploads an artifact named
-`pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`. Only that workflow's run
-on main can produce a counted one: an artifact counts when its run is that
-file, event `workflow_run`, on the branch, concluded `success`, in this
-repository with a head in this repository, and its head SHA is on the branch.
-Any other artifact with such a name is ignored, never counted as a pass or a
-fail. Only steps of a run can upload its artifacts, so the run record
-authenticates the name.
+`pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>` holding `verdict.json`.
+Only steps of a run can upload its artifacts, so the run record authenticates
+the name. An artifact's run is of verifier origin when it is that file, event
+`workflow_run`, on the branch, in this repository with a head in this
+repository, and its head SHA is a full SHA on the branch. A FAIL counts from
+any run of verifier origin, whatever its status or conclusion, since the
+upload comes before the run's later steps; a PASS or PASS-NOTES counts only
+from a completed, successful one. Any other artifact is ignored.
 
-`Reader.evidence` decides one pull request at its vetted head:
+`Reader.evidence` decides one pull request at its vetted head, in this order:
 
-- an authenticated FAIL at the head: `verify:fail`;
-- an authenticated FAIL at any other head of the pull request:
-  `verify:earlier-fail`, which a human must clear (`needs_human`);
-- an authenticated PASS or PASS-NOTES at the head: no refusal;
-- otherwise `verify:missing`, and `verify:unreadable` when the listing cannot
-  be read.
+- the pull request was created more than `TOO_OLD_DAYS` ago:
+  `verify:too-old`, since a verdict may already have expired;
+- a counted FAIL at the head, under any pull request number: `verify:fail`;
+- a counted FAIL at another head of this pull request: its number, one of its
+  commits (`pulls/<n>/commits`), or a verdict recording its head branch:
+  `verify:earlier-fail`;
+- a FAIL-named artifact tied to this pull request by number or SHA whose run,
+  or whose recorded head branch, cannot be read: `verify:unreadable`;
+- a counted PASS or PASS-NOTES at the head of this pull request: allowed only
+  when its verdict records a linked issue written by a User on the trusted
+  list's humans other than the pull request's author, else
+  `verify:untrusted-spec`;
+- otherwise `verify:missing`.
 
-The repository's artifacts are listed once per `Reader`, every page, and
-filtered on the name here: the API's name filter matches whole names only.
+`verify:too-old`, `verify:earlier-fail` and `verify:untrusted-spec` need a
+human, who merges in person. Any read that fails refuses
+(`verify:unreadable`). The repository's artifacts are listed once per
+`Reader`, which pr-merge.yml builds once per candidate gate run, every page,
+and filtered on the name here: the API's name filter matches whole names only.
 """
 
 from __future__ import annotations
 
+import json
 import re
+import tempfile
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
-from babysit_util import json_object
+from babysit_util import is_json_array, is_json_object, json_array, json_object
 
 WORKFLOW_PATH = ".github/workflows/pr-verify.yml"
+TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 NAME_RE = re.compile(r"pr-verify-([1-9][0-9]*)-([0-9a-f]{40})-(pass|pass-notes|fail)")
 PASSES = ("pass", "pass-notes")
+# Artifacts last at most 90 days in this repository (the retention maximum,
+# and the repository's setting), so a verdict on an older pull request may be
+# gone. 80 leaves ten days of margin (judgment).
+TOO_OLD_DAYS = 80
+# `GET /pulls/{n}/commits` lists at most 250 commits.
+COMMITS_CAP = 250
 FAIL = "verify:fail"
 EARLIER_FAIL = "verify:earlier-fail"
 MISSING = "verify:missing"
 UNREADABLE = "verify:unreadable"
+TOO_OLD = "verify:too-old"
+UNTRUSTED_SPEC = "verify:untrusted-spec"
+NEEDS_HUMAN = (EARLIER_FAIL, TOO_OLD, UNTRUSTED_SPEC)
+
+# A run's standing: unreadable, foreign (not of verifier origin), origin (of
+# verifier origin, not a completed success), or counted (both).
+UNREAD, FOREIGN, ORIGIN, COUNTED = "unreadable", "foreign", "origin", "counted"
+
+
+class _Unreadable(Exception):
+    pass
 
 
 @dataclass(frozen=True)
@@ -60,7 +93,7 @@ class Evidence:
 
     @property
     def needs_human(self) -> bool:
-        return self.refusal == EARLIER_FAIL
+        return self.refusal in NEEDS_HUMAN
 
     def report(self) -> dict[str, Any]:
         return {
@@ -80,40 +113,64 @@ class Evidence:
         }
 
 
+def _read(args: list[str], label: str) -> Any:
+    try:
+        return postmerge._read(args, label)
+    except postmerge.PostMergeReadError as exc:
+        raise _Unreadable(str(exc)) from exc
+
+
 @dataclass
 class Reader:
     repo: str
     branch: str
+    now: datetime | None = None
     _artifacts: list[dict[str, Any]] | None = None
-    _runs: dict[int, bool] = field(default_factory=dict)
-    _context: postmerge._Context | None = None
+    _runs: dict[int, str] = field(default_factory=dict)
+    _on_branch: dict[str, bool] = field(default_factory=dict)
+    _records: dict[tuple[int, str], dict[str, Any]] = field(default_factory=dict)
+    _humans: frozenset[int] | None = None
 
     def _listing(self) -> list[dict[str, Any]]:
-        if self._artifacts is None:
-            self._artifacts = postmerge._paginated(
-                f"repos/{self.repo}/actions/artifacts?per_page=100",
-                "repository artifacts",
-                "artifacts",
-            )
-        return self._artifacts
+        listing = self._artifacts
+        if listing is None:
+            try:
+                listing = postmerge._paginated(
+                    f"repos/{self.repo}/actions/artifacts?per_page=100",
+                    "repository artifacts",
+                    "artifacts",
+                )
+            except postmerge.PostMergeReadError as exc:
+                raise _Unreadable(str(exc)) from exc
+            self._artifacts = listing
+        return listing
 
-    def _authentic(self, run_id: int) -> bool:
+    def _contains(self, sha: str) -> bool:
+        if sha not in self._on_branch:
+            compare = json_object(
+                _read(
+                    ["api", f"repos/{self.repo}/compare/{sha}...{self.branch}"],
+                    f"compare {sha[:12]}...{self.branch}",
+                )
+            )
+            self._on_branch[sha] = compare.get("status") in ("ahead", "identical")
+        return self._on_branch[sha]
+
+    def _run_state(self, run_id: int) -> str:
         if run_id not in self._runs:
             try:
                 record = json_object(
-                    postmerge._read(
+                    _read(
                         ["api", f"repos/{self.repo}/actions/runs/{run_id}"],
                         f"run {run_id}",
                     )
                 )
                 head = record.get("head_sha")
-                self._runs[run_id] = (
+                origin = (
                     record.get("id") == run_id
                     and record.get("path") == WORKFLOW_PATH
                     and record.get("event") == "workflow_run"
                     and record.get("head_branch") == self.branch
-                    and record.get("status") == "completed"
-                    and record.get("conclusion") == "success"
                     and json_object(record.get("repository")).get("full_name")
                     == self.repo
                     and json_object(record.get("head_repository")).get("full_name")
@@ -122,48 +179,176 @@ class Reader:
                     and merge_policy.SHA_RE.fullmatch(head) is not None
                     and self._contains(head)
                 )
-            except postmerge.PostMergeReadError:
-                self._runs[run_id] = False
+                done = (
+                    record.get("status") == "completed"
+                    and record.get("conclusion") == "success"
+                )
+                self._runs[run_id] = (
+                    FOREIGN if not origin else COUNTED if done else ORIGIN
+                )
+            except _Unreadable:
+                self._runs[run_id] = UNREAD
         return self._runs[run_id]
 
-    def _contains(self, head: str) -> bool:
-        if self._context is None:
-            owner, _, name = self.repo.partition("/")
-            self._context = postmerge._Context(owner, name, "")
-        return self._context.contains(head, self.branch)
+    def _record(self, run_id: int, name: str) -> dict[str, Any]:
+        """The artifact's verdict.json, downloaded once."""
+        key = (run_id, name)
+        if key not in self._records:
+            with tempfile.TemporaryDirectory() as tmp:
+                args = ["run", "download", str(run_id), "-R", self.repo]
+                proc = postmerge.gh_capture([*args, "-n", name, "-D", tmp])
+                path = Path(tmp) / "verdict.json"
+                if proc.returncode != 0 or not path.is_file():
+                    raise _Unreadable(f"artifact {name} of run {run_id}")
+                try:
+                    record = json.loads(path.read_text(encoding="utf-8"))
+                except ValueError as exc:
+                    raise _Unreadable(f"artifact {name}: {exc}") from exc
+            if not is_json_object(record):
+                raise _Unreadable(f"artifact {name}: not an object")
+            self._records[key] = record
+        return self._records[key]
 
-    def evidence(self, number: int, head: str) -> Evidence:
+    def _trusted_humans(self) -> frozenset[int]:
+        humans = self._humans
+        if humans is None:
+            listing = json_object(
+                _read(
+                    [
+                        "api",
+                        "-H",
+                        "Accept: application/vnd.github.raw",
+                        f"repos/{self.repo}/contents/{TRUSTED_ACTORS_PATH}?ref={self.branch}",
+                    ],
+                    "trusted-actor list",
+                )
+            )
+            actors = listing.get("actors")
+            if listing.get("version") != 1 or not is_json_array(actors):
+                raise _Unreadable("trusted-actor list does not match its schema")
+            humans = frozenset(
+                a["id"]
+                for a in map(json_object, actors)
+                if a.get("kind") == "human" and isinstance(a.get("id"), int)
+            )
+            self._humans = humans
+        return humans
+
+    def _trusted_spec(self, record: dict[str, Any], author: str) -> bool:
+        humans = self._trusted_humans()
+        return any(
+            issue.get("author_type") == "User"
+            and issue.get("author_id") in humans
+            and str(issue.get("author_login") or "").casefold() != author.casefold()
+            and author != ""
+            for issue in map(json_object, json_array(record.get("linked_issues")))
+        )
+
+    def _commits(self, number: int) -> set[str]:
         try:
-            listing = self._listing()
+            commits = postmerge._paginated(
+                f"repos/{self.repo}/pulls/{number}/commits?per_page=100",
+                f"#{number} commits",
+            )
         except postmerge.PostMergeReadError as exc:
+            raise _Unreadable(str(exc)) from exc
+        if len(commits) >= COMMITS_CAP:
+            raise _Unreadable(f"#{number} lists {len(commits)} commits, the API cap")
+        return {str(c.get("sha")) for c in commits}
+
+    def evidence(
+        self, number: int, head: str, pr: dict[str, Any] | None = None
+    ) -> Evidence:
+        try:
+            return self._evidence(number, head, pr)
+        except (_Unreadable, postmerge.PostMergeReadError) as exc:
             return Evidence(UNREADABLE, head, (), 0, str(exc))
+
+    def _evidence(self, number: int, head: str, pr: dict[str, Any] | None) -> Evidence:
+        if pr is None:
+            try:
+                pr = merge_policy.pull_request(self.repo, number)
+            except merge_policy.PolicyReadError as exc:
+                raise _Unreadable(str(exc)) from exc
+        created = postmerge._time(pr.get("created_at"))
+        now = self.now or datetime.now(UTC)
+        if now - created > timedelta(days=TOO_OLD_DAYS):
+            return Evidence(TOO_OLD, head, (), 0, f"created {created.isoformat()}")
+        head_ref = str(json_object(pr.get("head")).get("ref") or "")
+        author = str(json_object(pr.get("user")).get("login") or "")
+        commits = self._commits(number) | {head}
         verdicts: list[Verdict] = []
+        passes: list[tuple[int, str]] = []
         ignored = 0
-        for item in map(json_object, listing):
-            match = NAME_RE.fullmatch(str(item.get("name") or ""))
-            if not match or int(match[1]) != number or item.get("expired") is not False:
+        unreadable: str | None = None
+        for item in map(json_object, self._listing()):
+            name = str(item.get("name") or "")
+            match = NAME_RE.fullmatch(name)
+            if not match or item.get("expired") is not False:
                 continue
+            pr_n, sha, verdict = int(match[1]), match[2], match[3]
             run_id = json_object(item.get("workflow_run")).get("id")
-            if isinstance(run_id, int) and self._authentic(run_id):
-                verdicts.append(Verdict(match[2], match[3], run_id))
-            else:
+            if not isinstance(run_id, int) or isinstance(run_id, bool):
+                # The API always names the uploading run; without one the
+                # artifact has no run record to authenticate it.
                 ignored += 1
-        at_head = {v.verdict for v in verdicts if v.sha == head}
-        if "fail" in at_head:
-            refusal: str | None = FAIL
-        elif any(v.verdict == "fail" for v in verdicts):
+                continue
+            tied = pr_n == number or sha in commits
+            if verdict in PASSES:
+                if pr_n != number or sha != head:
+                    continue
+                if self._run_state(run_id) == COUNTED:
+                    verdicts.append(Verdict(sha, verdict, run_id))
+                    passes.append((run_id, name))
+                else:
+                    ignored += 1
+                continue
+            state = self._run_state(run_id)
+            if state == FOREIGN:
+                ignored += 1
+                continue
+            if state == UNREAD:
+                if tied:
+                    unreadable = unreadable or f"run of {name}"
+                else:
+                    ignored += 1
+                continue
+            if not tied:
+                try:
+                    recorded = self._record(run_id, name).get("head_ref")
+                except _Unreadable:
+                    unreadable = unreadable or f"record of {name}"
+                    continue
+                if not head_ref or recorded != head_ref:
+                    continue
+            verdicts.append(Verdict(sha, verdict, run_id))
+        fails = [v for v in verdicts if v.verdict == "fail"]
+        refusal: str | None
+        detail = unreadable
+        if any(v.sha == head for v in fails):
+            refusal = FAIL
+        elif fails:
             refusal = EARLIER_FAIL
-        elif at_head & set(PASSES):
-            refusal = None
+        elif unreadable:
+            refusal = UNREADABLE
+        elif passes:
+            run_id, name = passes[0]
+            record = self._record(run_id, name)
+            if record.get("pr") != number or record.get("head_sha") != head:
+                raise _Unreadable(
+                    f"artifact {name} records another pull request or head"
+                )
+            refusal = None if self._trusted_spec(record, author) else UNTRUSTED_SPEC
         else:
             refusal = MISSING
-        return Evidence(refusal, head, tuple(verdicts), ignored)
+        return Evidence(refusal, head, tuple(verdicts), ignored, detail)
 
     def queued_hold(self, number: int) -> str | None:
-        """Why a queued entry must leave: no passing verdict at its head now.
-        An unreadable pull request is a hold."""
+        """Why a queued entry must leave: no allowing verdict at its live
+        head now. An unreadable pull request is a hold."""
         try:
-            head = json_object(merge_policy.pull_request(self.repo, number).get("head"))
+            pr = merge_policy.pull_request(self.repo, number)
         except merge_policy.PolicyReadError:
             return UNREADABLE
-        return self.evidence(number, str(head.get("sha"))).refusal
+        head = str(json_object(pr.get("head")).get("sha"))
+        return self.evidence(number, head, pr).refusal

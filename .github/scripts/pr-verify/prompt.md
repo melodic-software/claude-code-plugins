@@ -13,6 +13,10 @@ The files, which you may read with the Read tool and nothing else:
 - `CONTEXT_FILE`: JSON with `pr` (number, title, body, head and base SHA) and `items`, the
   comments, reviews and linked issues (`kind` `linked-issue`) written by trusted accounts.
 - `PR_FILE`: JSON with the pull request number and the head and base SHA being judged.
+- `SPEC_FILE`: JSON listing each issue the pull request closes with its author's login, id and
+  account type (`User` or `Bot`). An issue the pull request's own author or a bot wrote is a weaker
+  spec: say so in a note. A linked issue missing from `CONTEXT_FILE` was dropped because an
+  untrusted account wrote or edited it.
 
 Judge in this order:
 

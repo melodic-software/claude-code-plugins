@@ -26,11 +26,16 @@ on:
 
 permissions: {}
 
-# A newer head of the same PR supersedes a judgment still running. The head
-# SHA stands in when the payload names no PR, so the expression never fails.
+# One judgment per PR and head at a time, never cancelled once running: a
+# later run for the same head (a label or body edit re-runs pr-require-checks)
+# queues behind it and then skips the judged head. GitHub still cancels an
+# older run while it is pending when a newer one queues; nothing uploads
+# before the judge step, so a run cancelled then leaves no verdict
+# (workflow.test.mjs). "none" stands in when the payload names no PR, so the
+# expression never fails.
 concurrency:
-  group: pr-verify-${{ github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.head_sha }}
-  cancel-in-progress: true
+  group: pr-verify-${{ github.event.workflow_run.pull_requests[0].number || 'none' }}-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
 
 defaults:
   run:
@@ -93,7 +98,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
-        run: node .base/.github/scripts/pr-verify/resolve-pr.mjs
+          SPEC_FILE: ${{ runner.temp }}/pr-verify-data/spec.json
+        run: |
+          mkdir -p "$(dirname "$SPEC_FILE")"
+          node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
       # The gate and the resolver read the PR separately; both must name the
       # same PR at the run's head, or nothing is judged.
@@ -158,9 +166,15 @@ jobs:
           prompt=${prompt//DIFF_FILE/$DATA/diff.patch}
           prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
           prompt=${prompt//PR_FILE/$DATA/pr.json}
+          prompt=${prompt//SPEC_FILE/$DATA/spec.json}
           schema='{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}'
-          # A rule path starting `//` is absolute.
-          args="--max-turns 60 --allowedTools \"Read(/$DATA/**)\" --disallowedTools \"Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent\" --json-schema '$schema'"
+          # A rule path starting `//` is absolute. In agent mode the action
+          # adds no tool or MCP server of its own for these inputs
+          # (claude-code-action src/mcp/install-mcp-server.ts:114, :131, :177,
+          # :213 at the pinned SHA); the denials below hold if that changes.
+          denied="Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent"
+          denied="$denied,mcp__github,mcp__github_comment,mcp__github_file_ops,mcp__github_ci,mcp__github_inline_comment"
+          args="--max-turns 60 --allowedTools \"Read(/$DATA/**)\" --disallowedTools \"$denied\" --json-schema '$schema'"
           if [ -n "$model" ]; then
             args="$args --model $model"
           fi
@@ -212,6 +226,8 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
           BASE_SHA: ${{ steps.pr.outputs.base-sha }}
+          HEAD_REF: ${{ steps.pr.outputs.head-ref }}
+          SPEC_FILE: ${{ runner.temp }}/pr-verify-data/spec.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 

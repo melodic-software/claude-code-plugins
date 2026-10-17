@@ -2885,7 +2885,7 @@ def score_unattended(
         and config.require_verifier_verdict
     ):
         reader = verify_evidence.Reader(repo, str(inputs["branch"]))
-        verdict = reader.evidence(number, str(details["headSha"]))
+        verdict = reader.evidence(number, str(details["headSha"]), pr)
         details["verify"] = verdict.report()
         inputs["verify_reader"] = reader
         if verdict.refusal:

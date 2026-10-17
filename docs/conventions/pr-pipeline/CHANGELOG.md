@@ -5,8 +5,10 @@
 `merge.require-verifier-verdict` and `merge.verifier-model` are new optional keys.
 `.github/workflows/pr-verify.yml` judges each pull request head that passes `pr-require-checks`
 and uploads a `pr-verify-<pr>-<head-sha>-<verdict>` artifact; with the first key true the pr-merge
-lane refuses a merge, and dequeues a queued entry, without a passing verdict at the head ("Verifier
-verdict" under "Merge authority"). `version` stays 1.
+lane refuses a merge, and dequeues a queued entry, without an allowing verdict at the head: a
+counted `fail` under any pull request number or at an earlier head blocks, a pass needs a linked
+issue a trusted human other than the author wrote, and a pull request older than 80 days goes to a
+human ("Verifier verdict" under "Merge authority"). `version` stays 1.
 
 ## 1.19.3 - 2026-10-16
 
