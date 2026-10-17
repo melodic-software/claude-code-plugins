@@ -1435,14 +1435,104 @@ def verdict_exit(verdict: PostMergeVerdict) -> int:
     return 0
 
 
-def default_floor(repo: str, identity: str, self_logins: Collection[str]) -> datetime:
+def default_floor(
+    repo: str, identity: str, self_logins: Collection[str]
+) -> tuple[datetime, dict[str, Any]]:
     """The merge gate's floor at the default branch head
-    (`babysit_merge_policy.merged_since_floor`). Raises `PolicyReadError`."""
+    (`babysit_merge_policy.merged_since_floor`), and what it was read from:
+    the head, its newest pipeline-config commit and the demotion record
+    (`shared` in the report, `read_shared`). Raises `PolicyReadError`."""
     _, head = policy._default_branch_head(repo)
+    config = policy.newest_config_commit(repo, head)
     demotion = policy.read_demotion(
         repo, agent_identity=identity, self_logins=self_logins
     )
-    return policy.merged_since_floor(repo, head, demotion)
+    floor = policy.merged_since_floor(repo, head, demotion)
+    times = (demotion.newest_created, demotion.cleared_at)
+    newest, cleared = (t.isoformat() if t else None for t in times)
+    return floor, {
+        "mainSha": head,
+        "configSha": config,
+        "demotion": {
+            "active": demotion.active,
+            "reason": demotion.reason,
+            "records": list(demotion.records),
+            "newestCreated": newest,
+            "clearedAt": cleared,
+        },
+    }
+
+
+def gate_from_report(report: dict[str, Any]) -> policy.PostMergeGate:
+    """The merge gate's view of a verdict's `report()`: a refusal unless ok,
+    and the merges it verified. One derivation for a fresh verdict and a
+    shared one, so both decide alike."""
+    ok = report.get("ok") is True
+    refusal = None
+    if not ok:
+        refusal = report.get("reason") or "failure:" + ",".join(
+            f"{f.get('signal')}#{f.get('number')}"
+            for f in map(json_object, json_array(report.get("failures")))
+        )
+    verified = frozenset(
+        m.get("number")
+        for m in map(json_object, json_array(report.get("autoMerges")))
+        if ok and m.get("verified") is True
+    )
+    return policy.PostMergeGate(
+        refusal, report, lambda merge: getattr(merge, "number", None) in verified
+    )
+
+
+def read_shared(path: str) -> policy.SharedPostMerge | None:
+    """The run's shared answer from this script's own report at `path`, or
+    None when it is missing, malformed, unreadable as a verdict, or has no
+    `shared` binding (a `--since` or `--branch` run)."""
+    try:
+        with open(path, encoding="utf-8") as handle:
+            payload = json_object(json.load(handle))
+        shared = json_object(payload.get("shared"))
+        record = json_object(shared.get("demotion"))
+        times = [record.get("newestCreated"), record.get("clearedAt")]
+        newest, cleared = (None if t is None else policy._time(t) for t in times)
+        records = json_array(record.get("records"))
+        selves = json_array(shared.get("selfLogins"))
+        fields = (
+            shared.get("mainSha"),
+            shared.get("configSha"),
+            shared.get("identity"),
+            record.get("reason"),
+        )
+        if not (
+            payload.get("readable") is True
+            and all(isinstance(r, int) for r in records)
+            and all(isinstance(s, str) for s in selves)
+            and isinstance(record.get("active"), bool)
+            and isinstance(shared.get("laneMergesOnly"), bool)
+            and policy.SHA_RE.fullmatch(str(fields[0]))
+            and policy.SHA_RE.fullmatch(str(fields[1]))
+            and isinstance(fields[2], str)
+            and fields[2]
+            and (fields[3] is None or isinstance(fields[3], str))
+        ):
+            return None
+        demotion = policy.Demotion(
+            record["active"], fields[3], tuple(records), newest, cleared
+        )
+        report = {k: v for k, v in payload.items() if k not in ("since", "shared")}
+        return policy.SharedPostMerge(
+            main_sha=fields[0],
+            config_sha=fields[1],
+            identity=fields[2],
+            self_logins=frozenset(selves),
+            lane_merges_only=shared["laneMergesOnly"],
+            computed_at=policy._time(shared.get("computedAt")),
+            demotion=demotion,
+            floor=policy._time(payload.get("since")),
+            gate=gate_from_report(report),
+        )
+    except (OSError, ValueError, policy.PolicyReadError):
+        return None
 
 
 def _since(value: str) -> datetime:
@@ -1570,9 +1660,23 @@ def main(argv: list[str] | None = None) -> int:
 
     is_human = _default_is_human(args.repo, args.agent_identity, args.self_login)
     since = args.since
+    shared: dict[str, Any] | None = None
     if since is None:
+        computed_at = datetime.now(UTC)
         try:
-            since = default_floor(args.repo, args.agent_identity, args.self_login)
+            since, read_from = default_floor(
+                args.repo, args.agent_identity, args.self_login
+            )
+            # The merge gate's `--postmerge-result` reuses this report only
+            # for the default branch it judges (`policy.shared_refusal`).
+            if args.branch is None and not args.remediate:
+                shared = {
+                    **read_from,
+                    "identity": args.agent_identity,
+                    "selfLogins": list(args.self_login),
+                    "laneMergesOnly": args.lane_merges_only,
+                    "computedAt": computed_at.isoformat(),
+                }
         except policy.PolicyReadError as exc:
             json.dump({"ok": False, "error": f"floor unreadable: {exc}"}, sys.stdout)
             sys.stdout.write("\n")
@@ -1588,6 +1692,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     report = verdict.report()
     report["since"] = since.isoformat()
+    if shared is not None:
+        report["shared"] = shared
     code = verdict_exit(verdict)
     branch = verdict.branch
     if verdict.readable and not branch:
