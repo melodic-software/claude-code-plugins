@@ -52,12 +52,16 @@ import { createGitHub, loadTrustedList, paginate } from "../../actions/check-tru
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admits } from "../../actions/resolve-config/predicate.mjs";
 import { findRatification } from "../../actions/resolve-config/ratification.mjs";
-import { FALLBACK_RESET_MS, parseOutcomeMarker } from "../work-resolve-issue/report-outcome.mjs";
+import { clampReset, parseOutcomeMarker } from "../work-resolve-issue/report-outcome.mjs";
 
 const LABEL = "agent-ready";
+const HUMAN_LABEL = "needs-human";
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 // TODO(C6): read limits.restarts-per-run from pr-pipeline.yaml once that leaf exists.
 export const RESTARTS_PER_RUN = 5;
+// Limit stops since a person last added agent-ready before the issue goes to
+// a person instead of another restart (judgment).
+export const MAX_LIMIT_STOPS = 3;
 // A person decides these; the lane never starts on them.
 const HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "needs-human"]);
 const NUMBER = /^[1-9][0-9]{0,9}$/;
@@ -91,10 +95,19 @@ const appMarkers = (comments, bot) =>
     .map((comment) => ({ ...parseOutcomeMarker(comment.body), at: Date.parse(comment.created_at) }))
     .filter((marker) => marker.outcome !== undefined && Number.isFinite(marker.at));
 
-// A removal of agent-ready by the App after one of its own limited markers is
-// a restart, which the App re-adds; any other removal stops the lane.
-const isRestart = (event, limitedAt, bot) =>
-  event.actor?.login === bot && limitedAt.some((at) => at <= Date.parse(event.created_at));
+// A removal of agent-ready is a restart, not a stop, only when the App made
+// it, the App's newest marker before it is `limited`, and the next agent-ready
+// event after it is the App adding the label back. Any other removal stops the
+// lane, a pushback after a restart included.
+function isRestart(events, index, markers, bot) {
+  const removal = events[index];
+  const at = Date.parse(removal.created_at);
+  if (removal.actor?.login !== bot || markers.filter((marker) => marker.at <= at).at(-1)?.outcome !== "limited") {
+    return false;
+  }
+  const next = events.slice(index + 1).find((event) => isLabel(event, "labeled") || isLabel(event, "unlabeled"));
+  return next !== undefined && isLabel(next, "labeled") && next.actor?.login === bot;
+}
 
 // Why `number` is not promoted, or null when it is ready.
 async function refusal({ github, repo, number, ratifiers, admission, closes, bot = DEFAULT_BOT }) {
@@ -144,11 +157,9 @@ async function refusal({ github, repo, number, ratifiers, admission, closes, bot
   }
   // Removing the label by hand stops the lane; a person adds it to restart.
   const comments = await paginate(github, `${base}/comments`);
-  const limitedAt = appMarkers(comments, bot)
-    .filter((marker) => marker.outcome === "limited")
-    .map((marker) => marker.at);
+  const markers = appMarkers(comments, bot);
   const events = await paginate(github, `${base}/events`);
-  if (events.some((event) => isLabel(event, "unlabeled") && !isRestart(event, limitedAt, bot))) {
+  if (events.some((event, index) => isLabel(event, "unlabeled") && !isRestart(events, index, markers, bot))) {
     return `${LABEL} was removed before`;
   }
   const ratifying = findRatification(comments, ratifiers);
@@ -280,11 +291,22 @@ async function restartRefusal({ github, repo, issue, ratifiers, admission, bot, 
     return { reason: `held by ${held}` };
   }
   const comments = await paginate(github, `${base}/comments`);
-  const marker = appMarkers(comments, bot).at(-1);
+  const markers = appMarkers(comments, bot);
+  const marker = markers.at(-1);
   if (marker?.outcome !== "limited") {
     return { reason: "no limit stop is its newest lane outcome" };
   }
-  const resets = marker.resets ?? marker.at + FALLBACK_RESET_MS;
+  const events = await paginate(github, `${base}/events`);
+  // A limit that keeps stopping the lane goes to a person: count the limit
+  // stops since a person last added agent-ready.
+  const since = events
+    .filter((event) => isLabel(event, "labeled") && event.actor?.login !== bot)
+    .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
+  const stops = markers.filter((item) => item.outcome === "limited" && item.at > since).length;
+  if (stops >= MAX_LIMIT_STOPS) {
+    return { reason: `${stops} limit stops since a person last added ${LABEL}`, escalate: stops };
+  }
+  const resets = clampReset(marker.resets, marker.at);
   if (now < resets) {
     return { reason: `waiting for the limit to reset at ${new Date(resets).toISOString()}` };
   }
@@ -292,7 +314,6 @@ async function restartRefusal({ github, repo, issue, ratifiers, admission, bot, 
   // it, so a label added after the newest marker is a run since the stop:
   // still going, or one that left no marker (a PR opened, or the reporter
   // failed). Either way this pass leaves it.
-  const events = await paginate(github, `${base}/events`);
   if (events.some((event) => isLabel(event, "labeled") && Date.parse(event.created_at) > marker.at)) {
     return { reason: `${LABEL} was added after the limit stop` };
   }
@@ -321,7 +342,16 @@ async function restartLimited({ github, repo, ratifiers, admission, bot, now, ca
   }
   for (const issue of open) {
     try {
-      const { reason, resets } = await restartRefusal({ github, repo, issue, ratifiers, admission, bot, now });
+      const { reason, resets, escalate } = await restartRefusal({ github, repo, issue, ratifiers, admission, bot, now });
+      if (escalate) {
+        const base = `/repos/${repo}/issues/${issue.number}`;
+        await github("POST", `${base}/labels`, { labels: [HUMAN_LABEL] });
+        await github("POST", `${base}/comments`, {
+          body: `The usage limit stopped the work-resolve-issue lane on this issue ${escalate} times since a person last added \`${LABEL}\`, so work-unblock stops restarting it. To try again, remove \`${HUMAN_LABEL}\`, then remove and add \`${LABEL}\`.`,
+        });
+        console.log(`label-unblocked: #${issue.number} handed to a person: ${reason}`);
+        continue;
+      }
       if (reason !== null) {
         console.log(`label-unblocked: #${issue.number} not restarted: ${reason}`);
         continue;
@@ -339,11 +369,20 @@ async function restartLimited({ github, repo, ratifiers, admission, bot, now, ca
   for (const { number } of ready.slice(0, cap)) {
     try {
       await github("DELETE", `/repos/${repo}/issues/${number}/labels/${LABEL}`);
-      await github("POST", `/repos/${repo}/issues/${number}/labels`, { labels: [LABEL] });
-      console.log(`label-unblocked: #${number} restarted after its limit stop`);
     } catch (error) {
       failed += 1;
       reportError(number, error);
+      continue;
+    }
+    // The label is off now; one failed re-add would leave the issue out of
+    // the lane with nothing saying so, so it is tried twice and then named.
+    const add = () => github("POST", `/repos/${repo}/issues/${number}/labels`, { labels: [LABEL] });
+    try {
+      await add().catch(add);
+      console.log(`label-unblocked: #${number} restarted after its limit stop`);
+    } catch (error) {
+      failed += 1;
+      reportError(number, new Error(`${LABEL} was removed for a restart but not added back: ${error?.message ?? error}`));
     }
   }
   return failed;

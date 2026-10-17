@@ -771,22 +771,91 @@ test("a run restarts at most five issues, the longest-waiting first", async () =
   assert.deepEqual(writes(calls), [32, 33, 34, 35, 36].flatMap(restarted));
 });
 
-test("the App's own removal after its limited marker does not stop unblocking, a person's does", async () => {
+// A removal of agent-ready is a restart only when the App made it, the App's
+// newest marker before it is `limited`, and the next agent-ready event is the
+// App adding it back. A person's removal, a removal before the stop, one never
+// added back, or one after a later pushback stops the lane for good.
+test("only the App's remove-and-re-add right after a limit stop is a restart; any other removal stops unblocking", async () => {
   const unlabeled = (actor, at) => ({ event: "unlabeled", label: { name: "agent-ready" }, actor, created_at: at });
-  for (const [events, expected] of [
-    [[unlabeled(LANES_BOT, "2026-10-16T07:00:00Z")], [labeled(20)]],
-    [[unlabeled(LANES_BOT, "2026-10-16T05:00:00Z")], []],
-    [[unlabeled(OWNER, "2026-10-16T07:00:00Z")], []],
+  const limited = limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z");
+  const pushback = { id: 31, body: "<!-- work-resolve-issue outcome=pushback run=8 -->\nUnclear.", user: LANES_BOT, created_at: "2026-10-16T08:00:00Z" };
+  for (const [name, notes, events, expected] of [
+    ["restart", [limited], [unlabeled(LANES_BOT, "2026-10-16T07:00:00Z"), added("2026-10-16T07:00:01Z")], [labeled(20)]],
+    ["never added back", [limited], [unlabeled(LANES_BOT, "2026-10-16T07:00:00Z")], []],
+    ["added back by a person", [limited], [unlabeled(LANES_BOT, "2026-10-16T07:00:00Z"), added("2026-10-16T07:00:01Z", OWNER)], []],
+    ["before the stop", [limited], [unlabeled(LANES_BOT, "2026-10-16T05:00:00Z"), added("2026-10-16T05:00:01Z")], []],
+    ["by a person", [limited], [unlabeled(OWNER, "2026-10-16T07:00:00Z"), added("2026-10-16T07:00:01Z")], []],
+    [
+      "pushback after a restart",
+      [limited, pushback],
+      [unlabeled(LANES_BOT, "2026-10-16T07:00:00Z"), added("2026-10-16T07:00:01Z"), unlabeled(LANES_BOT, "2026-10-16T08:00:05Z")],
+      [],
+    ],
   ]) {
     const { github, calls } = world({
       blocking: [issue(20)],
       issues: { 20: issue(20) },
       blockedBy: { 20: [issue(10, { state: "closed" })] },
-      comments: { 20: [marker(), limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z")] },
+      comments: { 20: [marker(), ...notes] },
       events: { 20: events },
     });
     assert.equal(await main({ env: envFor(), github }), 0);
-    assert.deepEqual(writes(calls), expected, JSON.stringify(events));
+    assert.deepEqual(writes(calls), expected, name);
+  }
+});
+
+test("a stated reset in the past still waits an hour from the stop", async () => {
+  const early = stopped({ resets: "2026-10-16T09:00:00Z", at: "2026-10-16T11:30:00Z" });
+  assert.equal(await sweep({ github: early.github }), 0);
+  assert.deepEqual(writes(early.calls), []);
+  const late = stopped({ resets: "2026-10-16T09:00:00Z", at: "2026-10-16T10:30:00Z" });
+  assert.equal(await sweep({ github: late.github }), 0);
+  assert.deepEqual(writes(late.calls), restarted(30));
+});
+
+// Three limit stops since a person last added agent-ready hand the issue to a
+// person: needs-human and a comment, no restart.
+test("a third limit stop since a person added agent-ready adds needs-human with a comment instead of restarting", async () => {
+  const stops = [
+    limitedNote("2026-10-16T01:00:00Z", "2026-10-16T00:30:00Z"),
+    limitedNote("2026-10-16T03:00:00Z", "2026-10-16T02:30:00Z"),
+    limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z"),
+  ];
+  const third = stopped({ comments: [marker(), ...stops] });
+  assert.equal(await sweep({ github: third.github }), 0);
+  const written = writes(third.calls);
+  assert.deepEqual(written.slice(0, 1), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
+  assert.equal(written.length, 2);
+  assert.ok(written[1].startsWith(`POST /repos/${REPO}/issues/30/comments `), written[1]);
+  // A person adding agent-ready after the first stop starts the count again.
+  const reset = stopped({ comments: [marker(), ...stops], events: [added("2026-10-16T00:00:00Z"), added("2026-10-16T01:00:00Z", OWNER)] });
+  assert.equal(await sweep({ github: reset.github }), 0);
+  assert.deepEqual(writes(reset.calls), restarted(30));
+});
+
+// After the DELETE, a failed re-add is tried once more; a second failure is an
+// ::error naming the issue and fails the run.
+test("a failed re-add after the removal is retried once, then reported", async (t) => {
+  for (const [failures, code] of [[1, 0], [2, 1]]) {
+    const { github: base, calls } = stopped();
+    let left = failures;
+    const github = async (method, path, body) => {
+      if (method === "POST" && path.endsWith("/issues/30/labels") && left > 0) {
+        left -= 1;
+        calls.push(`${method} ${path} ${JSON.stringify(body)}`);
+        throw new Error("POST failed with status 502");
+      }
+      return base(method, path, body);
+    };
+    const log = t.mock.method(console, "log", () => {});
+    assert.equal(await sweep({ github }), code, `${failures} failures`);
+    assert.deepEqual(writes(calls), [...restarted(30), labeled(30)], `${failures} failures`);
+    const errors = log.mock.calls.map((call) => String(call.arguments[0])).filter((line) => line.startsWith("::error"));
+    assert.equal(errors.length, code, `${failures} failures`);
+    if (code) {
+      assert.match(errors[0], /#30: agent-ready was removed for a restart but not added back/);
+    }
+    log.mock.restore();
   }
 });
 

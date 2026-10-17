@@ -8,6 +8,12 @@ import { createGitHubApi, dispatchConflicting, main } from "./dispatch.mjs";
 
 const CHECK_NAME = "pr-unblock / resolve-conflicts";
 const SUCCESS_RUN = { status: "completed", conclusion: "success", output: { title: "Resolved" } };
+// The lane record report-lane-outcome (ci-workflows) writes on a limit stop.
+const limitRecord = (tokens = "") => ({
+  annotation_level: "failure",
+  title: "",
+  message: `pr-unblock skipped: usage limit reached; re-run after it resets (pr-unblock exited with: failure class=rate-limit${tokens}). Last SDK result: {}`,
+});
 const UNTRUSTED_SKIP = {
   status: "completed",
   conclusion: "neutral",
@@ -254,10 +260,10 @@ test("a limit-stopped run counts as handled only until its limit resets", async 
         [fallbackFuture.headRefOid, [stop(4, "2026-10-17T08:00:00Z")]],
       ]),
       annotations: new Map([
-        [1, [{ message: "Process completed with exit code 1." }, { message: "class=rate-limit resets=2026-10-17T11:00:00Z" }]],
-        [2, [{ message: "class=rate-limit resets=2026-10-17T13:00:00Z" }]],
-        [3, [{ message: "class=rate-limit" }]],
-        [4, [{ message: "class=rate-limit" }]],
+        [1, [{ annotation_level: "failure", message: "Process completed with exit code 1." }, limitRecord(" resets=2026-10-17T11:00:00Z turns=3")]],
+        [2, [limitRecord(" resets=2026-10-17T13:00:00Z resets-window=five_hour")]],
+        [3, [limitRecord()]],
+        [4, [limitRecord(" turns=2")]],
       ]),
     },
     { now, maxDispatch: 10 },

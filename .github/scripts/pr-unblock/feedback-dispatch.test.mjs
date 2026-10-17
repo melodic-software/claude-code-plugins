@@ -33,6 +33,12 @@ const marker = (lane, sha = HEAD, user = ACTIONS_BOT) => ({
   user,
   body: `<!-- claude-lane-reviewed-head lane=${lane} sha=${sha} -->\n${lane} has reviewed this pull request through ${sha}.`,
 });
+// The lane record report-lane-outcome (ci-workflows) writes on a limit stop.
+const limitRecord = (tokens = "") => ({
+  annotation_level: "failure",
+  title: "",
+  message: `pr-unblock skipped: usage limit reached; re-run after it resets (pr-unblock exited with: failure class=rate-limit${tokens}). Last SDK result: {}`,
+});
 const thread = (authors, isResolved = false) => ({
   isResolved,
   comments: { nodes: authors.map((author) => ({ author })), pageInfo: { hasNextPage: false } },
@@ -261,7 +267,7 @@ test("a limit-stopped check on the head blocks a dispatch only until its reset",
     ["2026-10-17T11:00:00Z", 42],
     ["2026-10-17T13:00:00Z", undefined],
   ]) {
-    const api = fakeApi({ checkRuns: stopped, annotations: [{ message: `class=rate-limit resets=${resets}` }] });
+    const api = fakeApi({ checkRuns: stopped, annotations: [limitRecord(` resets=${resets}`)] });
     const result = await dispatchFeedback({
       api,
       repository: REPOSITORY,
@@ -279,7 +285,7 @@ test("a limit-stopped check on the head blocks a dispatch only until its reset",
 test("a failed check on the head that is not a limit stop blocks a dispatch", async () => {
   const api = fakeApi({
     checkRuns: [{ id: 7, status: "completed", conclusion: "failure", completed_at: "2026-10-01T00:00:00Z", output: { title: "x" } }],
-    annotations: [{ message: "class=other" }],
+    annotations: [{ annotation_level: "failure", title: "", message: "pr-unblock exited with: failure class=other (infrastructure error)" }],
   });
   assert.equal((await decide(api)).result, null);
 });

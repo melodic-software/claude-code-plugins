@@ -63,6 +63,14 @@ const COMPARE_FILES_CAP = 300;
 // (https://support.claude.com/en/articles/11145838).
 // TODO(C6): read limits.fallback-reset from pr-pipeline.yaml once that leaf exists.
 export const FALLBACK_RESET_MS = 5 * 3_600_000;
+const HOUR_MS = 3_600_000;
+
+// When a limit stop at `from` may restart: its stated reset (else the
+// fallback), held between one hour and seven days after the stop, so a reset
+// in the past cannot start a tight restart loop and one far off cannot park
+// the issue.
+export const clampReset = (resets, from) =>
+  Math.min(Math.max(resets ?? from + FALLBACK_RESET_MS, from + HOUR_MS), from + 7 * 24 * HOUR_MS);
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/;
 const MARKER = /^<!-- work-resolve-issue outcome=([a-z]+)(?: resets=(\S+))?(?: run=(\d+))? -->/;
 
@@ -259,7 +267,7 @@ export function decide({
 }) {
   outcome = { changes: [], verification: [], notDone: [], ...outcome };
   if (limit && outcome.exit !== "pushback" && !(outcome.exit === "done" && branch)) {
-    const resets = new Date(limit.resets ?? now + FALLBACK_RESET_MS).toISOString().replace(/\.\d+Z$/, "Z");
+    const resets = new Date(clampReset(limit.resets, now)).toISOString().replace(/\.\d+Z$/, "Z");
     return limitedPlan({ issueNumber, branch, resets, runId, runUrl });
   }
   if (outcome.exit === "done" && !branch) {
