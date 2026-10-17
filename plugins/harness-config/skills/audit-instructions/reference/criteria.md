@@ -1,6 +1,6 @@
 ---
-version: 1.30.0
-last-updated: 2026-10-10
+version: 1.31.0
+last-updated: 2026-10-17
 ---
 
 # Instruction-Audit Criteria
@@ -1703,7 +1703,21 @@ not a `Model scope` annotation**, for the reason I17 states.
   the excluded one: written where `high` was the no-op default and then carried to a model whose
   default differs, it silently becomes a step nobody measured, which is this row's subject exactly. A resolved target
   always exists, because the skill body aborts rather than run against an unresolved one, so this
-  fence never has to guess which side of it a surface falls on. **The exemption speaks to
+  fence never has to guess which side of it a surface falls on. **When the pin targets subagents,
+  the target is the model each subagent runs on, not the session's.** A subagent's model is the
+  first of the per-invocation `model`, its definition's `model` field (where `inherit` selects the
+  session's model), `CLAUDE_CODE_SUBAGENT_MODEL`, then the session's model, so a subagent can run
+  on a model whose default is not `high` while the session's is. The level the subagent runs at is
+  the `effort` its definition sets, which overrides the session's level, else the default of the
+  model it runs on; the exemption holds only when that level is `high`. A model or `effort` counts
+  when the audited text states it or a subagent definition in scope sets it, and reading a
+  definition's `effort` as evidence does not make that frontmatter value a finding (the
+  `effort:` fence below still applies). Where nothing names a different model or effort for the
+  subagents, they run on the session's resolved target, which stays the fallback.
+  Pointer: [Choose the subagent's model](https://code.claude.com/docs/en/sub-agents#choose-a-model)
+  and [Choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level)
+  (as of 2026-10-17; recheck when that order gains a source or `effort` stops overriding the
+  session's level). **The exemption speaks to
   calibration staleness only, never to level adequacy:** a model guide may recommend running above
   the default for named lanes, as the Opus 4.8 guide does when it recommends `xhigh` for coding and
   agentic use, and whether a `high` pin under-serves such a lane is that surface's sizing decision,
@@ -1731,9 +1745,12 @@ not a `Model scope` annotation**, for the reason I17 states.
   no model qualifier, and the whole basis for the check) and "Adjust effort level" (the resolution
   order and the per-model defaults this row keeps as its own settings above). Effort, "How effort
   works" and its per-model sections, supplies the remediation and the equivalence of the default
-  to omitting the parameter.
+  to omitting the parameter. Subagents, "Choose a model" and "Choose an effort level", supply the
+  order that decides which model a subagent runs on and the `effort` field that overrides the
+  session's level (read 2026-10-17 as raw markdown).
 - **As of 2026-09-28** (our probe: both pages read as raw markdown, model configuration 109,848
-  bytes; effort 39,458 bytes). **Recheck trigger:** the calibration property being restated as
+  bytes; effort 39,458 bytes). **Recheck trigger:** the subagent model order gaining a source or
+  `effort` ceasing to override the session's level, the calibration property being restated as
   cross-model-stable, a first-run effort hold returning to the model-config page, the resolution
   order or the `effortLevel` user-settings exemption for Opus 5.5 changing, or `high` ceasing to be
   the general default.
