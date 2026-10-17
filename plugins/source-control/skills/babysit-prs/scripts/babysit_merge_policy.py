@@ -32,7 +32,7 @@ import re
 import sys
 import tempfile
 import urllib.request
-from collections.abc import Callable, Collection, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -498,25 +498,35 @@ def _loop_merge(text: str) -> str | None:
     return values[0] if len(values) == 1 and values[0] else None
 
 
-def read_config_at(repo: str, base_sha: str) -> PipelineConfig:
+def read_config_at(
+    repo: str,
+    base_sha: str,
+    file_at: Callable[[str, str], str | None] | None = None,
+) -> PipelineConfig:
     """`merge:` from `docs/conventions/pr-pipeline.yaml` and `babysit_loop_merge`
-    from `.claude/source-control.md`, both read at `base_sha` through the
-    contents API. A pipeline file the shared reader rejects is off; an absent
-    one has no merge block (rung off, authority unset). Raises
-    `PolicyReadError` when the pipeline file cannot be read.
+    from `.claude/source-control.md`, both read at `base_sha` through
+    `file_at(path, sha)` (text, or None when absent), by default the contents
+    API. A pipeline file the shared reader rejects is off; an absent one has
+    no merge block (rung off, authority unset). Raises `PolicyReadError` when
+    the pipeline file cannot be read.
     """
     owner, name = _split_repo(repo)
     if not SHA_RE.fullmatch(base_sha or ""):
         raise PolicyReadError(f"base SHA is not a 40-hex commit id: {base_sha!r}")
+    if file_at is None:
+
+        def file_at(path: str, sha: str) -> str | None:
+            return _file_at(owner, name, path, sha)
+
     notes: list[str] = []
     try:
-        source = _file_at(owner, name, SOURCE_CONTROL_PATH, base_sha)
+        source = file_at(SOURCE_CONTROL_PATH, base_sha)
     except PolicyReadError as exc:
         source = None
         notes.append(f"{SOURCE_CONTROL_PATH} unreadable: {exc}")
     loop_merge = _loop_merge(source) if source is not None else None
 
-    text = _file_at(owner, name, CONFIG_PATH, base_sha)
+    text = file_at(CONFIG_PATH, base_sha)
     off = PipelineConfig(base_sha, "off", None, None, None, (), loop_merge)
     if text is None:
         return off
@@ -1045,13 +1055,6 @@ ELIGIBILITY = (
     "closingIssuesReferences(first:10){totalCount nodes{number lastEditedAt "
     "repository{nameWithOwner} labels(first:100){totalCount nodes{name}}}}}}}"
 )
-# When an issue's body was last edited and its title last changed
-# (check-trusted-trigger.mjs ISSUE_EDITS_QUERY).
-ISSUE_EDITS = (
-    "query PolicyIssueEdits($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
-    "issue(number:$n){lastEditedAt timelineItems(itemTypes:[RENAMED_TITLE_EVENT],last:1)"
-    "{nodes{... on RenamedTitleEvent{createdAt}}}}}}"
-)
 
 
 @dataclass(frozen=True)
@@ -1354,197 +1357,13 @@ def _foreign_refusal(pr: dict[str, Any], owner: str) -> str | None:
 # is read. The diff-derived C2 checks in the risk score still apply.
 LANE_CLASS = "C2"
 
-# The owner's ratification of an issue's admission, ported from
-# .github/actions/resolve-config/ratification.mjs (tests/test_ratification_sync.py
-# runs both): the marker on a line of its own, where a line ends at any
-# JavaScript line terminator and the date's digits are ASCII.
-TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
-RATIFICATION_LINE = re.compile(
-    r"<!-- admission: admitted when unblocked, owner batch ratification "
-    r"[0-9]{4}-[0-9]{2}-[0-9]{2} -->"
-)
-_JS_LINE_BREAK = re.compile("[\n\r  ]")
 
-
-def find_ratification(
-    comments: Sequence[Any], ratifiers: Collection[int]
-) -> dict[str, Any] | None:
-    """The first comment that ratifies the issue, or None (`findRatification`):
-    the marker line, a listed human's id, not through a GitHub App, and never
-    edited (`updated_at` equals a string `created_at`)."""
-    for comment in comments:
-        if not isinstance(comment, dict):
-            continue
-        body = comment.get("body")
-        user = comment.get("user")
-        user_id = user.get("id") if isinstance(user, dict) else None
-        created = comment.get("created_at")
-        if (
-            isinstance(body, str)
-            and any(
-                RATIFICATION_LINE.fullmatch(line) for line in _JS_LINE_BREAK.split(body)
-            )
-            and isinstance(user_id, int)
-            and not isinstance(user_id, bool)
-            and user_id in ratifiers
-            and comment.get("performed_via_github_app") is None
-            and isinstance(created, str)
-            and comment.get("updated_at") == created
-        ):
-            return comment
-    return None
-
-
-def _trusted_humans(owner: str, name: str, ref: str) -> frozenset[int]:
-    """The trusted-actor list's human ids at `ref`, under the shape
-    check-trusted-trigger.mjs `loadTrustedList` enforces; any other shape, or
-    no list, raises."""
-    text = _file_at(owner, name, TRUSTED_ACTORS_PATH, ref)
-    try:
-        listing = json.loads(text) if text is not None else None
-    except ValueError as exc:
-        raise PolicyReadError(f"trusted-actor list unreadable: {exc}") from exc
-    actors = listing.get("actors") if isinstance(listing, dict) else None
-    if (
-        not isinstance(listing, dict)
-        or sorted(listing) != ["actors", "version"]
-        or listing.get("version") != 1
-        or isinstance(listing.get("version"), bool)
-        or not isinstance(actors, list)
-    ):
-        raise PolicyReadError("trusted-actor list does not match its schema")
-    humans = set()
-    for actor in actors:
-        actor_id = actor.get("id") if isinstance(actor, dict) else None
-        if (
-            not isinstance(actor, dict)
-            or sorted(actor) != ["id", "kind", "login"]
-            or not isinstance(actor_id, int)
-            or isinstance(actor_id, bool)
-            or actor_id < 1
-            or not isinstance(actor.get("login"), str)
-            or actor.get("kind") not in ("human", "bot")
-        ):
-            raise PolicyReadError("trusted-actor entry does not match its schema")
-        if actor["kind"] == "human":
-            humans.add(actor_id)
-    return frozenset(humans)
-
-
-# The ECMAScript date time string format with an explicit offset, or a bare
-# date (UTC). JavaScript also reads other forms, some as local time; this
-# port reads none of them, so such a time refuses.
-_ES_TIME = re.compile(
-    r"([+-][0-9]{6}|[0-9]{4})(?:-([0-9]{2})(?:-([0-9]{2}))?)?"
-    r"(?:T([0-9]{2}):([0-9]{2})(?::([0-9]{2})(?:\.([0-9]{1,3})[0-9]*)?)?"
-    r"(Z|[+-][0-9]{2}:[0-9]{2}))?"
-)
-_NAN = float("nan")
-
-
-def _time_of(value: Any) -> float:
-    """Milliseconds since the epoch, as check-trusted-trigger.mjs `timeOf`
-    (`Date.parse` on a string), or NaN for anything it does not read."""
-    match = _ES_TIME.fullmatch(value) if isinstance(value, str) else None
-    if match is None or value.startswith("-000000"):
-        return _NAN
-    year, month, day, hour, minute, second, millis, zone = match.groups()
-    if hour is not None and zone is None:
-        return _NAN  # JavaScript reads it as local time
-    try:
-        at = datetime(
-            int(year),
-            int(month or 1),
-            int(day or 1),
-            int(hour or 0),
-            int(minute or 0),
-            int(second or 0),
-            int((millis or "0").ljust(3, "0")) * 1000,
-            tzinfo=UTC,
-        )
-    except ValueError:
-        return _NAN
-    offset = 0
-    if zone not in (None, "Z"):
-        hours, minutes = int(zone[1:3]), int(zone[4:6])
-        if hours > 23 or minutes > 59:
-            return _NAN
-        offset = (hours * 60 + minutes) * (1 if zone[0] == "+" else -1)
-    epoch = datetime(1970, 1, 1, tzinfo=UTC)
-    return ((at - epoch).total_seconds() - offset * 60) * 1000
-
-
-def ratified(
-    comments: Sequence[Any],
-    humans: Collection[int],
-    denied: Collection[int],
-    issue: Any,
-) -> bool:
-    """Whether the issue stands ratified, as check-trusted-trigger.mjs
-    `checkRatifiedAppLabel` decides it at resolve-issue's start: a comment
-    `find_ratification` accepts from a listed human outside `denied`, and no
-    body edit (`lastEditedAt`) or title change (the newest
-    `RenamedTitleEvent`) after the newest such comment. An unreadable time
-    refuses."""
-    ratifiers = frozenset(humans) - frozenset(denied)
-    newest = None
-    for comment in comments:
-        if find_ratification([comment], ratifiers) is None:
-            continue
-        if newest is None or _time_of(comment.get("created_at")) > _time_of(
-            newest.get("created_at")
-        ):
-            newest = comment
-    if newest is None or not isinstance(issue, dict):
-        return False
-    at = _time_of(newest.get("created_at"))
-    timeline = issue.get("timelineItems")
-    nodes = timeline.get("nodes") if isinstance(timeline, dict) else None
-    edits = [issue.get("lastEditedAt")] + [
-        node.get("createdAt") if isinstance(node, dict) else None
-        for node in (nodes if isinstance(nodes, list) else [])
-    ]
-    return all(edit is None or _time_of(edit) <= at for edit in edits)
-
-
-DENIED_ACTOR_IDS_ENV = "BABYSIT_DENIED_ACTOR_IDS"
-
-
-def _denied_actor_ids() -> frozenset[int]:
-    """`BABYSIT_DENIED_ACTOR_IDS`, parsed as check-trusted-trigger.mjs
-    `parseDeniedIds`: comma- or space-separated positive ids; anything else
-    raises, so a malformed denial never reads as an empty one."""
-    tokens = [
-        t for t in re.split(r"[\s,]+", os.environ.get(DENIED_ACTOR_IDS_ENV, "")) if t
-    ]
-    if not all(re.fullmatch(r"[1-9][0-9]{0,15}", t) for t in tokens):
-        raise PolicyReadError(f"{DENIED_ACTOR_IDS_ENV} must list positive integer ids")
-    return frozenset(int(t) for t in tokens)
-
-
-def _ratification_refusal(
-    owner: str, name: str, node: Mapping[str, Any], issue: Mapping[str, Any]
-) -> str | None:
-    """Why the closing issue does not stand ratified now: the pull request's
-    base is not the default branch (`base-not-default:<ref>`), or `ratified`
-    says no (`not-ratified`), over its comments and edit times read fresh and
-    the trusted list at the default branch's current head. A failed read
-    raises, which refuses."""
-    branch, head = _default_branch_head(f"{owner}/{name}")
+def _base_refusal(owner: str, name: str, node: Mapping[str, Any]) -> str | None:
+    """`base-not-default:<ref>` when the pull request's base is not the
+    default branch, read fresh. A failed read raises, which refuses."""
+    branch = _default_branch(f"{owner}/{name}")
     base = node.get("baseRefName")
-    if base != branch:
-        return f"base-not-default:{base}"
-    number = issue["number"]
-    comments = _paginated(
-        f"repos/{owner}/{name}/issues/{number}/comments?per_page=100",
-        f"#{number} comments",
-    )
-    data = _graphql(ISSUE_EDITS, f"#{number} edits", o=owner, r=name, n=number)
-    edits = json_object(data.get("repository")).get("issue")
-    humans = _trusted_humans(owner, name, head)
-    if ratified(comments, humans, _denied_actor_ids(), edits):
-        return None
-    return "not-ratified"
+    return None if base == branch else f"base-not-default:{base}"
 
 
 def _denied_path_refusal(
@@ -1608,7 +1427,7 @@ def lane_eligibility(
         issue, refusal = _closing_issue(node, repo)
         if refusal is None:
             issue_number = issue["number"]
-            refusal = _ratification_refusal(owner, name, node, issue)
+            refusal = _base_refusal(owner, name, node)
         if refusal is None:
             refusal = _denied_path_refusal(
                 owner, name, number, pr.get("changed_files"), denied_paths
@@ -1900,8 +1719,8 @@ def dependabot_eligibility(
 def recheck_lane_issue(repo: str, number: int, *, issue: int | None) -> str | None:
     """The closing issue read again right before the enqueue: it must still
     be the one, in this repository, that the eligibility read found (`issue`),
-    since the verifier verdict binds to it, and still stand ratified
-    (`_ratification_refusal`, read fresh)."""
+    since the verifier verdict binds to it, and the base must still be the
+    default branch (`_base_refusal`, read fresh)."""
     owner, name = _split_repo(repo)
     try:
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
@@ -1913,7 +1732,7 @@ def recheck_lane_issue(repo: str, number: int, *, issue: int | None) -> str | No
             return refusal
         if found["number"] != issue:
             return f"closing-issue-changed:{issue}>{found['number']}"
-        return _ratification_refusal(owner, name, node, found)
+        return _base_refusal(owner, name, node)
     except PolicyReadError as exc:
         return f"unreadable: {exc}"
 
@@ -2316,9 +2135,80 @@ def pull_request(repo: str, number: int) -> dict[str, Any]:
 
 # --- The post-merge floor -----------------------------------------------------------------------
 
-# The pipeline file's commits read for the enabling commit: one page. A run of
-# enabled commits longer than that has no readable start, which refuses.
+# The pipeline file's commits the contents-API fallback reads for the enabling
+# commit: one page. A run of enabled commits longer than that has no readable
+# start, which refuses. The local git history has no such limit.
 CONFIG_HISTORY_LIMIT = 100
+
+
+def _history_checkouts() -> list[Path]:
+    """Where a local clone may hold the pipeline file's history: this
+    script's own checkout (the pr-merge lane runs it from a checkout of main)
+    and the working directory's (a local babysit run from a clone)."""
+    return [Path(__file__).resolve().parent, Path.cwd()]
+
+
+def _git(root: Path, *args: str) -> str | None:
+    """The stdout of `git` run in `root`, or None when it fails."""
+    try:
+        proc = run_command(
+            ["git", "--no-replace-objects", "-C", str(root), *args],
+            allowed_executables=("git",),
+            check=False,
+        )
+    except (RuntimeError, ValueError, OSError):
+        return None
+    return proc.stdout if proc.returncode == 0 else None
+
+
+def _git_file_at(root: Path, path: str, sha: str) -> str | None:
+    """The file's text at `sha` in the clone at `root`, or None when absent
+    from a readable tree."""
+    entry = _git(root, "ls-tree", "-z", sha, "--", path)
+    if entry is None:
+        raise PolicyReadError(f"the tree at {sha} could not be read")
+    if not entry:
+        return None
+    mode, kind = entry.split(" ", 2)[:2]
+    if kind != "blob" or mode == "120000":
+        raise PolicyReadError(f"{path} at {sha} is not a file")
+    text = _git(root, "cat-file", "blob", f"{sha}:{path}")
+    if text is None:
+        raise PolicyReadError(f"{path} at {sha} is unreadable")
+    return text
+
+
+def _local_history(base_sha: str) -> tuple[Path, list[tuple[str, str]]] | None:
+    """The pipeline file's commits from `base_sha`, newest first, as (SHA,
+    committer date), from the first clone in `_history_checkouts` that holds
+    `base_sha` with its whole history (not shallow); None when none does.
+    A commit id names its whole ancestry, so any clone holding it answers
+    for the repository."""
+    for checkout in _history_checkouts():
+        # Pathspecs resolve against the working directory, so run at the top.
+        top = _git(checkout, "rev-parse", "--show-toplevel")
+        if not top or not top.strip():
+            continue
+        root = Path(top.strip())
+        if _git(root, "rev-parse", "--is-shallow-repository") != "false\n":
+            continue
+        if _git(root, "cat-file", "-e", f"{base_sha}^{{commit}}") is None:
+            continue
+        log = _git(
+            root,
+            "-c",
+            "log.follow=false",
+            "log",
+            "--no-show-signature",
+            "--format=%H %cI",
+            base_sha,
+            "--",
+            CONFIG_PATH,
+        )
+        if log is not None:
+            pairs = [line.partition(" ") for line in log.splitlines()]
+            return root, [(sha, date) for sha, _, date in pairs]
+    return None
 
 
 def enabled_since(repo: str, base_sha: str, authority: str | None = None) -> datetime:
@@ -2329,32 +2219,62 @@ def enabled_since(repo: str, base_sha: str, authority: str | None = None) -> dat
     enables). A later edit that keeps it enabled does not move the floor, so
     no merge since enabling escapes the check. Commits reach the default
     branch through the merge queue, whose squash commits GitHub dates.
+
+    The history and each config come from a local clone holding `base_sha`
+    (`_local_history`), else from the commits and contents APIs.
     Raises `PolicyReadError` when no start can be read."""
-    owner, name = _split_repo(repo)
-    status, commits = _get(
-        f"repos/{owner}/{name}/commits?sha={base_sha}"
-        f"&path={quote(CONFIG_PATH, safe='')}&per_page={CONFIG_HISTORY_LIMIT}"
-    )
-    if status != 200 or not is_json_array(commits) or not commits:
+    local = _local_history(base_sha)
+    if local is not None:
+        root, commits = local
+        complete = True
+
+        def read(sha: str) -> PipelineConfig:
+            return read_config_at(
+                repo, sha, lambda path, ref: _git_file_at(root, path, ref)
+            )
+
+    else:
+        owner, name = _split_repo(repo)
+        status, payload = _get(
+            f"repos/{owner}/{name}/commits?sha={base_sha}"
+            f"&path={quote(CONFIG_PATH, safe='')}&per_page={CONFIG_HISTORY_LIMIT}"
+        )
+        if status != 200 or not is_json_array(payload):
+            raise PolicyReadError(f"{CONFIG_PATH} history could not be read")
+        commits = [
+            (
+                str(commit.get("sha")),
+                str(
+                    json_object(json_object(commit.get("commit")).get("committer")).get(
+                        "date"
+                    )
+                ),
+            )
+            for commit in map(json_object, payload)
+        ]
+        complete = len(commits) < CONFIG_HISTORY_LIMIT
+
+        def read(sha: str) -> PipelineConfig:
+            return read_config_at(repo, sha)
+
+    if not commits:
         raise PolicyReadError(f"{CONFIG_PATH} history could not be read")
-    start: dict[str, Any] | None = None
-    for commit in map(json_object, commits):
-        sha = str(commit.get("sha"))
-        config = read_config_at(repo, sha)
+    start: str | None = None
+    for sha, date in commits:
+        config = read(sha)
         enabled = None if config.error else enabled_authority(config)
         authority = authority or enabled
         if enabled is None or enabled != authority:
             break
-        start = commit
+        start = date
     else:
-        if len(commits) >= CONFIG_HISTORY_LIMIT:
+        if not complete:
             raise PolicyReadError(
                 f"more than {CONFIG_HISTORY_LIMIT} enabled {CONFIG_PATH} commits"
             )
     if start is None:
         raise PolicyReadError(f"{CONFIG_PATH} at {base_sha} does not enable the path")
-    committer = json_object(json_object(start.get("commit")).get("committer"))
-    return _time(str(committer.get("date")).replace("Z", "+00:00"))
+    return _time(start.replace("Z", "+00:00")).astimezone(UTC)
 
 
 def merged_since_floor(
@@ -2618,6 +2538,95 @@ class PostMergeGate:
     verified: Callable[[AutoMerge], bool] | None
 
 
+# How old a shared post-merge answer may be: the pr-merge job's timeout.
+SHARED_MAX_AGE = timedelta(minutes=30)
+
+
+@dataclass(frozen=True)
+class SharedPostMerge:
+    """The repo-wide part of `assess` (demotion, floor, post-merge answer),
+    computed once per pr-merge run at the default branch head by
+    `babysit_postmerge.py` and handed to each candidate, bound to what it was
+    computed from (`shared_refusal`)."""
+
+    main_sha: str
+    config_sha: str
+    identity: str
+    self_logins: frozenset[str]
+    lane_merges_only: bool
+    computed_at: datetime
+    demotion: Demotion
+    floor: datetime
+    gate: PostMergeGate
+
+
+def newest_config_commit(repo: str, sha: str) -> str:
+    """The newest commit at or before `sha` that changed the pipeline file,
+    where `enabled_since` starts its walk: two SHAs on the (linear, merge
+    queue) default branch that share it share the floor. Read from the same
+    source: a local clone (`_local_history`), else the commits API. Raises
+    `PolicyReadError`."""
+    local = _local_history(sha)
+    if local is not None:
+        newest = local[1][0][0] if local[1] else ""
+    else:
+        owner, name = _split_repo(repo)
+        status, commits = _get(
+            f"repos/{owner}/{name}/commits?sha={sha}"
+            f"&path={quote(CONFIG_PATH, safe='')}&per_page=1"
+        )
+        newest = (
+            str(json_object(commits[0]).get("sha"))
+            if status == 200 and is_json_array(commits) and commits
+            else ""
+        )
+    if not SHA_RE.fullmatch(newest):
+        raise PolicyReadError(f"{CONFIG_PATH} history at {sha} could not be read")
+    return newest
+
+
+def shared_refusal(
+    repo: str,
+    shared: SharedPostMerge,
+    *,
+    branch: str,
+    base_sha: str,
+    identity: str,
+    self_logins: Collection[str],
+    lane: bool,
+    now: datetime | None = None,
+) -> str | None:
+    """Why `shared` may not stand in for this pull request's own reads, or
+    None: it must name the same identity, self logins and lane, be no older
+    than `SHARED_MAX_AGE`, have been computed at `branch`'s current head, and
+    share this base's newest pipeline-config commit (so the same floor)."""
+    age = (now or datetime.now(UTC)) - shared.computed_at
+    owner, name = _split_repo(repo)
+    checks = (
+        (_login_key(shared.identity) != _login_key(identity), "identity-differs"),
+        (
+            {_login_key(s) for s in shared.self_logins}
+            != {_login_key(s) for s in self_logins},
+            "self-logins-differ",
+        ),
+        (shared.lane_merges_only != lane, "lane-differs"),
+        (not timedelta(0) <= age <= SHARED_MAX_AGE, "stale"),
+    )
+    refusal = next((text for refused, text in checks if refused), None)
+    if refusal:
+        return refusal
+    status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
+    head = payload.get("sha") if status == 200 and is_json_object(payload) else None
+    if head != shared.main_sha:
+        return "main-moved"
+    try:
+        if newest_config_commit(repo, base_sha) != shared.config_sha:
+            return "config-differs"
+    except PolicyReadError:
+        return "config-unreadable"
+    return None
+
+
 def assess(
     repo: str,
     number: int,
@@ -2629,6 +2638,7 @@ def assess(
     authority: str = LOCAL_BABYSIT,
     lane_kill_switch: str | None = None,
     lane_rung_cap: str | None = None,
+    shared: SharedPostMerge | None = None,
 ) -> UnattendedPolicy:
     """The policy readers for one pull request, in the wiring order.
 
@@ -2652,6 +2662,8 @@ def assess(
 
     `post_merge(floor, identity)` runs the post-merge check from the floor
     (`merged_since_floor`) and must be given: without it the path refuses.
+    `shared`, the run's one answer for every candidate, replaces the
+    demotion, floor and post-merge reads when `shared_refusal` passes it.
     `promotion(window_start)` reads the promotion evidence with the newest
     demotion record's creation as the window restart; without it nothing is
     promoted. `self_logins` names only lane or bot self identities (see
@@ -2725,19 +2737,39 @@ def assess(
         "permission": permission,
     }
     inputs.update(permission=permission, self_logins=self_logins)
-    demotion = read_demotion(repo, **readers)
+    # The run's shared answer stands in for the demotion, floor and post-merge
+    # reads when it is bound to this run; otherwise they are read here.
+    reuse = None
+    if shared is not None:
+        unusable = shared_refusal(
+            repo,
+            shared,
+            branch=default,
+            base_sha=base_sha,
+            identity=resolved.login,
+            self_logins=self_logins,
+            lane=lane,
+        )
+        details["postMergeShared"] = f"unused:{unusable}" if unusable else "used"
+        reuse = None if unusable else shared
+    demotion = reuse.demotion if reuse else read_demotion(repo, **readers)
     details["demotion"] = {
         "active": demotion.active,
         "reason": demotion.reason,
         "records": list(demotion.records),
     }
-    try:
-        floor = merged_since_floor(repo, base_sha, demotion, authority)
-    except PolicyReadError as exc:
-        return replace(stopped, reason=f"post-merge:floor-unreadable: {exc}")
+    if reuse:
+        floor = reuse.floor
+    else:
+        try:
+            floor = merged_since_floor(repo, base_sha, demotion, authority)
+        except PolicyReadError as exc:
+            return replace(stopped, reason=f"post-merge:floor-unreadable: {exc}")
     details["mergedSince"] = floor.isoformat()
     gate = (
-        post_merge(floor, resolved.login)
+        reuse.gate
+        if reuse
+        else post_merge(floor, resolved.login)
         if post_merge is not None
         else PostMergeGate("unchecked", {}, None)
     )

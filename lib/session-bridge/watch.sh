@@ -103,7 +103,7 @@ while :; do
     exit 3
   fi
   if [[ "$code" == 409 && "$out" == *'"lease released"'* ]]; then
-    echo "this watcher's lease was released while it waited ($CONTROL lease --release); another session may hold it now; run $CONTROL lease to see, and re-arm only if this session should watch" >&2
+    echo "handed over, not a failure: this watcher's lease was released while it waited ($CONTROL lease --release or --takeover); another session holds or may hold it now; run $CONTROL lease to see, and re-arm only if this session should watch" >&2
     exit 3
   fi
   case "$code" in

@@ -14,9 +14,11 @@ inputs:
     default: ""
   model-route:
     description: >
-      A run that is no lane activity (verify-pr, for pr-verify.yml): resolve
-      only its model profile, for the profile, claude-args, settings-json and
-      max-turns outputs. Set it or lane, not both.
+      A run that is no lane activity (verify-pr for pr-verify.yml,
+      review-code for pr-review-hosted.yml, review-security for
+      pr-review-security-hosted.yml, triage-issue for intake-triage.yml):
+      resolve only its model profile, for the profile, claude-args,
+      settings-json and max-turns outputs. Set it or lane, not both.
     required: false
     default: ""
   activity:

@@ -1,5 +1,56 @@
 # Changelog for the PR pipeline convention
 
+## 2.5.0 - 2026-10-17
+
+`scripts/run-test-file.sh` runs a `*.test.js` or `*.test.ts` file that imports `vitest` with the
+package's locked vitest (`npx --no-install vitest run`, from the nearest `package.json` inside the
+checkout), under the same checkout-path guard, after `npm ci --ignore-scripts` there when the
+package has a `package-lock.json` and no `node_modules`. When it is a verify-script, the system prompt names
+its wrapper as the test entry and says a compound `cd <dir>; <command>` is refused
+([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). `version` stays 2.
+
+## 2.4.0 - 2026-10-17
+
+`models.routes` and `resolve-config`'s `model-route` take a fifth run route, `summarize-reuse`
+([README.md, Models](README.md#models)); this repository maps it to a new `summary` profile
+(`sonnet`, effort `medium`, 10 turns). When work-resolve-issue reuses a lane branch, the write
+file's new summary job, which holds only `contents: read`, runs a read-only summary pass
+([pr-run-activity.md, The summary job](pr-run-activity.md#the-summary-job)), and `report-outcome`
+writes its summary and changes into the PR body when the summary names the issue, the branch and
+its current tip. Every reuse PR lists the files the branch changes, denied paths marked, and
+still carries the hold line. `version` stays 2.
+
+## 2.3.0 - 2026-10-17
+
+`pr-run-activity.md` run job steps 11 and 12 now copy the base's `scripts/setup-env.sh` before the
+head checkout, then set up Python and run it before a skill activity, so the skill can run the
+repository's Python and Node tests. `version` stays 2.
+
+## 2.2.0 - 2026-10-17
+
+`models.routes` and `resolve-config`'s `model-route` take three more run routes: `review-code` and
+`review-security` for the code and security review lanes, and `triage-issue` for intake triage
+([README.md, Models](README.md#models)). This repository adds two profiles, `pr-review` (`sonnet`,
+effort `high`, 75 turns) for both review routes and `triage` (`sonnet`, effort `medium`, 30 turns)
+for triage. No caller resolves these routes yet, so no run changes.
+
+## 2.1.0 - 2026-10-17
+
+The issue lane admits on the `agent-ready` label alone (owner decision, 2026-10-17), whoever added
+it: a listed human, or the lanes App through work-unblock. The owner's ratification marker comment
+is retired everywhere. `admission` loses `ratified` and now requires `classes`; resolve-issue sets
+no `admission` and holds an issue labeled `needs-human`, `needs-owner-decision` or
+`status: needs-decision` through `labels-absent`. The write runner's and check-trusted-trigger's
+`ratified-app-label` input is renamed `app-label`, and the gate reads no comment or edit history
+for the App's label. `write-issue.mjs` freezes the issue for every run when the account that
+applied the label added it in the event that started the run (its newest `labeled` event no
+later than the payload's issue `updated_at`; a limit-stop restart anchors at the label it
+restarted), leaving out later comments and failing on a later title or body change.
+resolve-issue also requires `agent-ready` on the issue when the run starts (`labels`), so removing
+it stops a waiting run. label-unblocked no longer reads the marker or
+resolve-issue's admission, and the pr-merge lane no longer refuses `not-ratified`. `version`
+stays 2.
+
 ## 2.0.0 - 2026-10-17
 
 A `models` block sets each model run's model, effort and turn budget as named profiles, with

@@ -263,11 +263,11 @@ Each leaf declares:
   read from the PR at the gated head SHA only; unknown mergeability never matches. `labels-absent`
   matches only when none of its labels is on the PR. `labeled-after`, a UTC time, is an issues
   lane's go-live time: it matches only an issue labeled after it. `admission` is an issues lane's
-  admission rule. With no `classes` only the owner's batch-ratification marker comment admits
-  (`ratified: true`) and no `work-class:` label is read; this repository's resolve-issue uses that
-  form. With `classes`, an issue carrying a `work-class:` label outside them is refused, even
-  beside a listed one; otherwise a listed class admits it, or, with `ratified: true`, the marker
-  does. A lane never admits on its own judgment.
+  work-class rule: an issue carrying a `work-class:` label outside `classes` is refused, even
+  beside a listed one; otherwise a listed class admits it. With no `admission`, the triggering
+  label alone admits the issue; this repository's resolve-issue sets none, so `agent-ready`
+  added by a listed human or the lanes App admits, and its `labels-absent` holds keep an issue a
+  person must decide.
 
 An activity is idempotent: a rerun on the same commit gives the same verdict or reuses it, a
 mutating activity with nothing to change makes no commit, and each commit it makes names the
@@ -448,13 +448,9 @@ except six:
   and the diff-derived C2 checks of the risk score still apply. No opt-in label or lane claim is
   read. No closing issue, or more than one, refuses (`linked-issues:<n>`); right before the
   enqueue the closing issue is read again and a different one refuses
-  (`closing-issue-changed:<was>><now>`). The closing issue must also stand ratified under
-  resolve-issue's own start rule (`ratification.mjs` and check-trusted-trigger's
-  `checkRatifiedAppLabel`): a marker comment by a human on the trusted-actor list at the default
-  branch's current head, not one of `pr-merge.yml`'s denied actor ids, not through an App, never
-  edited, with no body edit or title change after the newest such comment. It is read fresh at
-  eligibility and again before the enqueue; otherwise `not-ratified`, and any read that fails
-  refuses. A pull request into any branch but the default refuses `base-not-default:<ref>`.
+  (`closing-issue-changed:<was>><now>`). A pull request into any branch but the default refuses
+  `base-not-default:<ref>`, read at eligibility and again before the enqueue; any read that fails
+  refuses.
 - **Verdict criterion.** No promotion evidence is read. The merge criterion is the pr-verify
   verdict at the head ([Verifier verdict](#verifier-verdict)), which binds to that one closing
   issue and its trusted spec, so with a rung above off the gate refuses
@@ -691,7 +687,7 @@ head:
 
 The trusted-spec rule trusts an account, not a person. An agent session that uses an owner's `gh`
 login posts as that owner, so until agent sessions have their own GitHub identity, an issue or an
-admission marker from a trusted account counts as the owner's authority, including when an agent
+`agent-ready` label from a trusted account counts as the owner's authority, including when an agent
 acting as that account wrote it. The owner accepts that risk: unattended merge is on
 (`merge.report-only: false`) before that identity exists (#7711).
 
@@ -796,17 +792,22 @@ Each profile under `models.profiles` names:
   definition's still win.
 - `max-turns`: the turn budget, passed as `--max-turns`.
 
-`models.routes` maps a run to a profile: a skill activity by its name, and `verify-pr` for the
-[verifier](#verifier-verdict). A run no route names takes `models.default-profile`. The config
-reader rejects a route or default naming an undefined profile, and a route that is neither a skill
-activity nor `verify-pr`. A config with no `models` block gives every run the built-in `standard`
+`models.routes` maps a run to a profile: a skill activity by its name, and a run that is no
+activity by its run route: `verify-pr` for the [verifier](#verifier-verdict), `review-code` and
+`review-security` for the code and security review lanes, `triage-issue` for intake triage, and
+`summarize-reuse` for the read-only pass that describes a lane branch work-resolve-issue reuses
+([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)). A run no route names takes `models.default-profile`. The config reader rejects a route or default
+naming an undefined profile, and a route that is neither a skill activity nor a run route. A config with no `models` block gives every run the built-in `standard`
 profile: model `default` and 75 turns. `resolve-config` turns the run's profile into its
 `claude-args` and `settings-json` outputs, which the runners pass to claude-code-action as
 `claude_args` and `settings`; the values come only from this file on the base, never from text the
 run reads.
 
-This repository's block has two profiles: `standard` (model `default`, 75 turns), every skill
-activity's, and `review` (`opus`, 60 turns), the verifier's. Neither sets effort.
+This repository's block has five profiles: `standard` (model `default`, 75 turns, no effort),
+every skill activity's; `review` (`opus`, 60 turns, no effort), the verifier's; `pr-review`
+(`sonnet`, effort `high`, 75 turns), both review lanes'; `triage` (`sonnet`, effort `medium`,
+30 turns), intake triage's; and `summary` (`sonnet`, effort `medium`, 10 turns), the reuse
+summary pass's.
 
 ## Loop caps
 

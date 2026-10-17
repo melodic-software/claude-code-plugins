@@ -483,3 +483,12 @@ lib/git-hooks/check-lib.sh plugins/powershell-format/lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh plugins/actionlint/lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh plugins/guardrails/lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh plugins/instruction-placement/lib/git-hooks/check-lib.sh
+lib/git-hooks/git-hook-decisions.md plugins/typos-format/skills/setup/reference/git-hook-decisions.md
+lib/git-hooks/git-hook-decisions.md plugins/ruff-format/skills/setup/reference/git-hook-decisions.md
+lib/git-hooks/git-hook-decisions.md plugins/bash-format/skills/setup/reference/git-hook-decisions.md
+lib/git-hooks/git-hook-decisions.md plugins/biome-format/skills/setup/reference/git-hook-decisions.md
+lib/git-hooks/git-hook-decisions.md plugins/go-format/skills/setup/reference/git-hook-decisions.md
+lib/git-hooks/git-hook-decisions.md plugins/markdown-format/skills/setup/reference/git-hook-decisions.md
+lib/git-hooks/git-hook-decisions.md plugins/powershell-format/skills/setup/reference/git-hook-decisions.md
+lib/git-hooks/git-hook-decisions.md plugins/actionlint/skills/setup/reference/git-hook-decisions.md
+lib/git-hooks/git-hook-decisions.md plugins/instruction-placement/skills/setup/reference/git-hook-decisions.md

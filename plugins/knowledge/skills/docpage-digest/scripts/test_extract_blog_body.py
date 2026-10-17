@@ -17,6 +17,7 @@ import sys
 import tempfile
 import unittest
 
+sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
 HERE = os.path.dirname(os.path.abspath(__file__))
 EXTRACTOR = os.path.join(HERE, "extract_blog_body.py")
 FIXTURE = os.path.join(HERE, "fixtures", "blog-body.html")

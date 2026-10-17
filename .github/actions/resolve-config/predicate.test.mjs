@@ -86,35 +86,8 @@ test("admission refuses a held class however its label is cased or spaced", () =
   assert.equal(applies({ admission }, { labels: ["work-class: mechanical", "Work-Class:mechanical"] }).applies, true);
 });
 
-test("admission with ratified also admits a ratified issue with no class, never one with a held class", () => {
-  const admission = { classes: ["work-class: read-only"], ratified: true };
-  const issue = (labels, ratified) => ({ event: "labeled", labels, ratified });
-  assert.equal(applies({ admission }, issue(["agent-ready"], true)).applies, true);
-  assert.equal(applies({ admission }, issue(["agent-ready"], false)).skipReason, "not-applicable");
-  assert.equal(
-    applies({ admission }, issue(["agent-ready", "work-class: scoped"], true)).skipReason,
-    "not-applicable",
-  );
-  assert.throws(() => applies({ admission }, { event: "labeled", labels: [] }), MissingFact);
-  // Labels are read now, so a held class added while the run waits still refuses it.
-  assert.deepEqual(factsFor({ admission }).sort(), ["freshLabels", "labels", "ratified"]);
+test("admission reads labels now, so a held class added while the run waits still refuses it", () => {
   assert.deepEqual(factsFor({ admission: { classes: ["work-class: read-only"] } }).sort(), ["freshLabels", "labels"]);
-});
-
-// Merge-criterion plan, Design 5: with no classes the owner's marker alone admits.
-test("admission with no classes admits on the marker alone and ignores work-class labels", () => {
-  const admission = { ratified: true };
-  const issue = (labels, ratified) => ({ event: "labeled", labels, ratified });
-  // The ratified issues still carrying a held label (#5981, #6821, #6825, #6826, #6832).
-  for (const held of ["work-class: scoped", "Work-Class: Structural"]) {
-    assert.equal(applies({ admission }, issue(["agent-ready", held], true)).applies, true);
-  }
-  assert.equal(applies({ admission }, issue(["agent-ready"], true)).applies, true);
-  assert.equal(
-    applies({ admission }, issue(["agent-ready", "work-class: mechanical"], false)).skipReason,
-    "not-applicable",
-  );
-  assert.deepEqual(factsFor({ admission }).sort(), ["freshLabels", "labels", "ratified"]);
 });
 
 test("every listed key must match: a paths miss wins over another miss", () => {
