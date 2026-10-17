@@ -168,6 +168,11 @@ classification rejects. Everything else, whether bot-check, auth, network, or un
 **A 0-video X post enqueues.** Sources declaring media-optional results have preflight pass
 `--ignore-no-formats-error`, so a post with no video reports metadata instead of erroring and
 takes the `enqueue` / `ok` row like any other. Its `title` / `channel` cells may be blank for a
-link post, whose text is not recoverable. See `../reference/sources/x.md`.
+link post, whose text is not recoverable; a link post's `note` reads `link post, no video (empty media)`,
+so copy it into `notes`. A removed or nonexistent status (probe succeeds, but no uploader, description or
+counts) is the `reject` / `unavailable` row. Acquisition also fails such a post as
+`X post unavailable`, which is permanent: mark the row failed instead of retrying. A deleted post was not
+probed and may fail as `X acquisition degraded`; stop retrying one id after 3 such degraded failures.
+See `../reference/sources/x.md`.
 
 `displayTitle` / `displayChannel` are already markdown-escaped (`|` → `\|`) and title-capped, so paste them directly. Dedupe by `videoId` against existing rows. CLI exit code is `2` when any URL resolved to `reject`.

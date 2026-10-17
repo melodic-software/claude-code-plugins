@@ -607,6 +607,31 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     expect(result.data.metadata["source:snowflakeAliasing"]).toBeUndefined();
   });
 
+  it("nonexistent post (null uploader, description and counts) fails permanently, not as retry-later", async () => {
+    const { deps } = createFixtureDeps(workDir, [
+      {
+        addFiles: {
+          [`${TWID}.info.json`]: twitterInfoJson({
+            id: TWID,
+            formats: [],
+            title: `twitter video #${TWID}`,
+            description: null,
+            uploader: null,
+            uploader_id: null,
+            like_count: null,
+            repost_count: null,
+            comment_count: null,
+          }),
+        },
+      },
+    ]);
+    const result = await acquireXMedia(STATUS_URL, { workDir, mode: "full", deps });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("X post unavailable");
+    expect(result.error).not.toContain("retry later");
+  });
+
   it("both 0-cases produce a text-only digest with populated provenance", async () => {
     const cases = [
       {
@@ -881,6 +906,44 @@ describe("canonicalization reaches every entry path by construction", () => {
     // metadata-only and enqueues (text-only digest downstream).
     expect(args).toContain("--ignore-no-formats-error");
     expect(result.title).toBe("Fixture Post");
+  });
+
+  it("queue entry: an empty post shell (no uploader, description or counts) is rejected as unavailable", async () => {
+    const spawn = vi.fn(async () =>
+      spawnResult({
+        stdout: `${[TWID, `twitter video #${TWID}`, "NA", "NA", "", "NA", "NA", "NA"].join(PREFLIGHT_FIELD_SEP)}\n`,
+      }),
+    );
+    const result = await preflightVideo(RAW_URL, { spawn, env: {} });
+
+    expect(result.status).toBe("unavailable");
+    expect(result.action).toBe("reject");
+  });
+
+  it("queue entry: a real post with counts but no video still enqueues as ok", async () => {
+    const spawn = vi.fn(async () =>
+      spawnResult({
+        stdout: `${[TWID, "Text post", "Some User", "@someuser", "D", "3", "NA", "NA"].join(PREFLIGHT_FIELD_SEP)}\n`,
+      }),
+    );
+    const result = await preflightVideo(RAW_URL, { spawn, env: {} });
+
+    expect(result.status).toBe("ok");
+    expect(result.action).toBe("enqueue");
+  });
+
+  it("queue entry: a link post's delegation refusal takes the ok/enqueue row with an empty-media note", async () => {
+    const spawn = vi.fn(async () =>
+      spawnResult({
+        success: false,
+        stderr: "ERROR: No suitable extractor found for URL https://youtu.be/dQw4w9WgXcQ\n",
+      }),
+    );
+    const result = await preflightVideo(RAW_URL, { spawn, env: {} });
+
+    expect(result.status).toBe("ok");
+    expect(result.action).toBe("enqueue");
+    expect(result.note).toContain("empty media");
   });
 
   it("queue entry: a non-status X URL is rejected by the adapter gate", async () => {
