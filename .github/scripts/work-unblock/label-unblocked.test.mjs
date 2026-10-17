@@ -713,6 +713,23 @@ test("only the newest lanes-App marker counts, and only the App's", async () => 
   }
 });
 
+// Hand-back markers name their run, so a reuse check can match a branch to
+// its report; the run id must not change how the restart reads them.
+test("a hand-back marker naming its run, newer than the limit stop, still stops the restart", async () => {
+  const later = { ...limitedNote("", "2026-10-16T07:00:00Z"), body: "<!-- work-resolve-issue outcome=stopped run=9 -->" };
+  const { github, calls } = stopped({ comments: [note(), limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z"), later] });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+// A run that skipped the model for earlier work posts no marker; the App's own
+// agent-ready after the stop still means a run started since.
+test("agent-ready the App added after the stop, by a run that left no marker, means no second restart", async () => {
+  const { github, calls } = stopped({ events: [added("2026-10-16T05:00:00Z"), added("2026-10-16T11:30:00Z")] });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
 test("a held limit-stopped issue is not restarted; one with no other comment is", async () => {
   for (const hold of ["needs-human", "needs-owner-decision", "status: needs-decision"]) {
     const held = stopped({ labels: [hold] });

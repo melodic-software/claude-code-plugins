@@ -11,6 +11,9 @@
 //   GITHUB_REPOSITORY   owner/repo
 //   ISSUE_NUMBER        the issue the lane worked
 //   WORK_OUTCOME_DIR    holds work-outcome.json and lane.json
+//   REUSE_BRANCH        the lane branch an earlier run left that resolve-issue
+//                       reused instead of running the model, or empty; its
+//                       outcome counts only when lane.json names it
 //   RESOLVE_RESULT      the resolve-issue job's result
 //   REPORT_RESULT       the report-outcome job's result
 //   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID
@@ -18,7 +21,7 @@ import { join } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { readBranch, readOutcome } from "./report-outcome.mjs";
+import { isLaneBranch, readBranch, readOutcome } from "./report-outcome.mjs";
 
 const PREP_STEPS = new Set(["review", "verify", "checks"]);
 const STEP_STATES = { pass: "success", fail: "failure" };
@@ -31,10 +34,17 @@ const DESCRIPTION = {
   error: "Did not finish, or was not reported, in the work lane run.",
 };
 
-// The statuses to post, in order; none without a lane branch.
+// The statuses to post, in order; none without a lane branch. A null outcome
+// is a reused branch whose run's report this run never read: only this run's
+// report-outcome posts, so the statuses the earlier run posted on the same
+// head stand.
 export function plan({ outcome, branch, resolveResult, reportResult }) {
   if (!branch) {
     return [];
+  }
+  if (outcome === null) {
+    const state = jobState(reportResult);
+    return [{ context: "pipeline/report-outcome", state, description: DESCRIPTION[state] }];
   }
   const resolve = jobState(resolveResult);
   const states = new Map([
@@ -96,10 +106,18 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
     if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
     }
+    const reuse = env.REUSE_BRANCH ?? "";
+    if (reuse && !isLaneBranch(reuse, Number(env.ISSUE_NUMBER))) {
+      throw new Error("REUSE_BRANCH is not this issue's lane branch");
+    }
     const dir = env.WORK_OUTCOME_DIR ?? "";
-    const branch = readBranch(dir, Number(env.ISSUE_NUMBER));
+    const ran = readBranch(dir, Number(env.ISSUE_NUMBER));
+    const branch = reuse || ran;
+    // On a reuse, an outcome this run cannot read counts as none, as in
+    // report-outcome: the earlier run's statuses on the branch stand.
+    const own = reuse && ran !== reuse ? null : readOutcome(join(dir, "work-outcome.json"));
     const statuses = plan({
-      outcome: readOutcome(join(dir, "work-outcome.json")),
+      outcome: reuse && own?.unread ? null : own,
       branch,
       resolveResult: env.RESOLVE_RESULT,
       reportResult: env.REPORT_RESULT,
