@@ -264,9 +264,11 @@ Each leaf declares:
   read from the PR at the gated head SHA only; unknown mergeability never matches. `labels-absent`
   matches only when none of its labels is on the PR. `labeled-after`, a UTC time, is an issues
   lane's go-live time: it matches only an issue labeled after it. `admission` is an issues lane's
-  admission rule: an issue carrying a `work-class:` label outside its `classes` is refused, even
-  beside a listed one; otherwise a listed class admits it, or, with `ratified: true`, the owner's
-  batch-ratification marker comment does. A lane never admits on its own judgment.
+  admission rule. With no `classes` only the owner's batch-ratification marker comment admits
+  (`ratified: true`) and no `work-class:` label is read; this repository's resolve-issue uses that
+  form. With `classes`, an issue carrying a `work-class:` label outside them is refused, even
+  beside a listed one; otherwise a listed class admits it, or, with `ratified: true`, the marker
+  does. A lane never admits on its own judgment.
 
 An activity is idempotent: a rerun on the same commit gives the same verdict or reuses it, a
 mutating activity with nothing to change makes no commit, and each commit it makes names the
@@ -441,17 +443,40 @@ except six:
 
 - **Eligibility.** Not a fork or a dependency manager's pull request, opened by
   `merge.agent-identity` (the lanes App; refused `not-lane-authored` otherwise), exactly one closing issue
-  (`closingIssuesReferences`) in this repository whose class is `work-class: mechanical`, and a
-  diff where no path, either side of a rename, matches `merge.diff-check.denied-paths`. The class
-  lives on the issue only: a `work-class:` label on the pull request is never read. No opt-in label
-  or lane claim is read. No closing issue, or more than one, refuses (`linked-issues:<n>`).
-- **Who labels.** A class label event on the issue counts when `merge.agent-identity` (the lanes
-  App) made it, or a human acting in person (write or admin, not through an App) with no edit of
-  the issue body after it. Another bot's events are ignored, since a workflow on a pushed branch
-  labels as `github-actions[bot]`. A class label anyone adds can still only make the class
-  stricter.
-- **Promotion.** No promotion evidence is read. The lane starts with `merge.report-only: true`;
-  the owner reads its reports and sets `false` to let it merge.
+  (`closingIssuesReferences`) in this repository, and a diff where no path, either side of a
+  rename, matches `merge.diff-check.denied-paths`. Such a pull request is class C2, as a
+  Dependabot pull request is: no `work-class:` label is read, on the issue or the pull request,
+  and the diff-derived C2 checks of the risk score still apply. No opt-in label or lane claim is
+  read. No closing issue, or more than one, refuses (`linked-issues:<n>`); right before the
+  enqueue the closing issue is read again and a different one refuses
+  (`closing-issue-changed:<was>><now>`). The closing issue must also stand ratified under
+  resolve-issue's own start rule (`ratification.mjs` and check-trusted-trigger's
+  `checkRatifiedAppLabel`): a marker comment by a human on the trusted-actor list at the default
+  branch's current head, not one of `pr-merge.yml`'s denied actor ids, not through an App, never
+  edited, with no body edit or title change after the newest such comment. It is read fresh at
+  eligibility and again before the enqueue; otherwise `not-ratified`, and any read that fails
+  refuses. A pull request into any branch but the default refuses `base-not-default:<ref>`.
+- **Verdict criterion.** No promotion evidence is read. The merge criterion is the pr-verify
+  verdict at the head ([Verifier verdict](#verifier-verdict)), which binds to that one closing
+  issue and its trusted spec, so with a rung above off the gate refuses
+  `verifier-verdict-not-required` unless `merge.require-verifier-verdict` is true, and the schema
+  rejects such a config. The lane starts with `merge.report-only: true`; the owner reads its
+  reports and sets `false` to let it merge.
+- **Risk switches.** Each check below is a `merge.diff-check` setting that is off when absent, and
+  this repository leaves every one off (owner decision, 2026-10-17): `denied-paths` (an empty
+  list denies no path), `high-path-floor` (true scores the scorer's fixed HIGH path set HIGH),
+  `c2-contradictions` (true scores a removed, renamed or copied file, a schema change or more
+  than one plugin MED), `max-changed-files` and `max-changed-lines` (absent is no cap). The local
+  babysit lane ignores these switches and keeps every check. The review evidence and the
+  security lane's findings still count.
+
+  What is left with them off: a lane pull request may change the merge gate, the workflows and
+  their tokens, these lane rules, skills, hooks, agent instructions and CI checks, at any size.
+  The brakes that remain are the verifier verdict, the kill switch, the fork and Dependabot
+  refusals, lane authorship with one closing issue, the review evidence, the demotion stop and
+  `merge.report-only`. A verdict reads the diff only and runs no changed code, and a pull request
+  that weakens a later run's gate (this file, the gate, `pr-merge.yml`) is judged by the gate as
+  it stood at its base.
 - **Kill switches.** The lane token cannot read Actions variables, so the workflow checks the
   switches itself and passes `--lane-kill-switch proceed`. A missing value or any other value
   stops the lane. The value is read once per run, and a stopped run cannot dequeue: to stop at
@@ -754,10 +779,9 @@ The paths `.github/CODEOWNERS` lists with no owner are the eight synced data fil
 vocabulary, pyright and runner-policy data files) and the three synced hosted caller workflows
 (`pr-check-managed-files-hosted.yml`, `pr-review-hosted.yml`, `pr-review-security-hosted.yml`).
 The required `check-managed-files` job in `ci-status` fails any hand edit or deletion of them.
-`pr-merge` never merges a PR that
-touches a trust-root path, whatever its rung, and leaves it for a human. That refusal is recorded
-here and in `pr-merge`'s `never` rule in `lane-rules.json`; the merge activity enforces it when
-`pr-merge` is built.
+`pr-merge` refuses a PR that touches a path `merge.diff-check.denied-paths` lists and leaves it
+for a human. This repository lists none, so a lane PR touching a trust-root path merges on a
+passing verdict like any other (see the switches above).
 
 ## Loop caps
 

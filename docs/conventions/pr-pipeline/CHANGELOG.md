@@ -1,5 +1,34 @@
 # Changelog for the PR pipeline convention
 
+## 1.27.0 - 2026-10-17
+
+`merge.diff-check` gains three optional pr-merge lane switches, each off when absent:
+`high-path-floor`, `c2-contradictions` and `max-changed-files`. In the pr-merge lane an absent
+`max-changed-lines` is now no cap, and an empty `denied-paths` denies no path instead of refusing
+`denied-paths-unset`. The schema asks for `denied-paths` and `max-changed-lines` only under
+authority `local-babysit`, which keeps every check whatever the switches say. This repository
+empties `denied-paths` and drops `max-changed-lines: 400` (owner decision, 2026-10-17), so a lane
+pull request may touch any path at any size; the residual risk is in "The pr-merge lane", "Risk
+switches". `version` stays 1.
+
+## 1.26.0 - 2026-10-17
+
+The pr-merge lane reads no `work-class:` label. A pull request the lanes App opened, not a fork or
+a dependency manager's, with exactly one closing issue in this repository and no denied path, is
+class C2, and the diff-derived C2 checks of the risk score still apply. The pr-verify verdict is
+the merge criterion: with a rung above off the gate refuses `verifier-verdict-not-required` unless
+`merge.require-verifier-verdict` is true, and the schema rejects an enabled pr-merge lane
+(`agent-identity` set, authority absent or `pr-merge`) at C2 or C3 without it. Right before the
+enqueue the closing issue is read again, and a different one refuses
+(`closing-issue-changed:<was>><now>`); a class label removed meanwhile no longer refuses. The
+closing issue must carry the owner's ratification marker under resolve-issue's rule, read fresh
+at eligibility and before the enqueue (`not-ratified`).
+`admission.classes` is now optional: without it only the owner's ratification marker admits and no
+`work-class:` label is read, and an `admission` must set `classes` or `ratified`. This repository's
+resolve-issue now admits on `{ratified: true}` alone, so an issue labeled read-only or mechanical
+with no marker no longer starts the lane, and a ratified issue carrying another class now does
+("Merge authority", "Activities"). `version` stays 1.
+
 ## 1.25.1 - 2026-10-17
 
 The review-dependency activity checks commit provenance

@@ -95,8 +95,10 @@ Contract enforced here (encoded as code, not convention):
   the flag the gate is unchanged, except that plain `--merge` refuses at exit 10 when the token's
   acting login is the policy's configured agent identity, or cannot be read
   while one is configured. `--authority pr-merge` runs it as the CI pr-merge
-  lane: `merge.authority` must read pr-merge, eligibility is a C2 class label
-  the identity's App applied on a diff off `merge.diff-check.denied-paths`, no
+  lane: `merge.authority` must read pr-merge, a pull request the identity
+  opened with one closing issue, on a diff off `merge.diff-check.denied-paths`,
+  is class C2 with no `work-class:` label read, `merge.require-verifier-verdict`
+  must be true (`verifier-verdict-not-required` otherwise), no
   promotion evidence is read, the kill switch is the workflow's own check
   passed as `--lane-kill-switch proceed` (missing or any other value stops),
   the rung cap is the workflow's `--lane-rung-cap` (empty is no cap),
@@ -2865,6 +2867,18 @@ def score_unattended(
         files, complete = merge_policy.changed_files(repo, pr)
     except merge_policy.PolicyReadError:
         files, complete = (), False
+    # The pr-merge lane's switches (owner decision Q624); the local lane
+    # keeps the floor, both caps and the C2 contradictions.
+    lane_switches = (
+        {
+            "high_floor": config.high_path_floor,
+            "c2_contradictions": config.c2_contradictions,
+            "max_changed_files": config.max_changed_files,
+            "lines_optional": True,
+        }
+        if inputs.get("authority") == merge_policy.PR_MERGE
+        else {}
+    )
     risk = babysit_risk.score(
         babysit_risk.RiskInput(
             work_class=eligible.work_class,
@@ -2875,6 +2889,7 @@ def score_unattended(
             high_paths=config.denied_paths,
             lanes=lanes,
             blast_radius=None,
+            **lane_switches,
         )
     )
     details = {
@@ -3298,9 +3313,9 @@ def unattended_enqueue(
         except (postmerge.PostMergeReadError, postmerge.PostMergeWriteError) as exc:
             step["dequeueError"] = str(exc)
         return hold(f"kill-switch:{kill.reason}")
-    # The opt-in (the pr-merge lane's class label), like the kill switch, is
-    # read again here: a removal (or a removal and a non-human re-add) since
-    # the eligibility read refuses.
+    # The opt-in, like the kill switch, is read again here: for the local
+    # lane a removal (or a removal and a non-human re-add) since the
+    # eligibility read refuses; for the pr-merge lane a changed closing issue.
     eligible = inputs.get("eligibility")
     if getattr(eligible, "dependabot", None) is not None:
         # The Dependabot class is read again whole: a human blocking comment
@@ -3309,12 +3324,8 @@ def unattended_enqueue(
             repo, number, pr=inputs["pr"], agent_identity=identity
         ).reason
     elif inputs.get("authority") == merge_policy.PR_MERGE:
-        opt_in = merge_policy.recheck_lane_class(
-            repo,
-            number,
-            agent_identity=identity,
-            self_logins=inputs.get("self_logins") or frozenset(),
-            permission=inputs.get("permission"),
+        opt_in = merge_policy.recheck_lane_issue(
+            repo, number, issue=getattr(eligible, "issue", None)
         )
     else:
         opt_in = merge_policy.recheck_opt_in(

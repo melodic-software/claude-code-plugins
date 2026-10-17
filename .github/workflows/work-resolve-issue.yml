@@ -15,6 +15,11 @@ name: work-resolve-issue
 # issue the owner ratified) and the token broker run inside
 # pr-run-activity-write.yml.
 
+# The morning brief's Lanes section groups runs by the issue number that ends
+# this title, so a retitled issue stays one item and two issues with one
+# title stay two. Quoted: unquoted, " #" would start a YAML comment.
+run-name: "${{ github.event.issue.title }} #${{ github.event.issue.number }}"
+
 on:
   issues:
     types: [labeled]

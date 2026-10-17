@@ -16,7 +16,8 @@
 //   github-actions[bot], name that head;
 // - an unresolved review thread exists whose every comment is the reviewer
 //   bot's;
-// - that head has no pr-unblock / address-feedback check run yet, and no
+// - that head has no pr-unblock / address-feedback check run yet (one the
+//   usage limit stopped stops counting once its limit resets), and no
 //   pr-unblock.yml address-feedback run for the PR is still queued or going;
 // - the base config's pr-unblock lane is enabled, holds enabled
 //   address-feedback and publish-feedback slots, and address-feedback applies
@@ -26,6 +27,8 @@
 
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+
+import { anyHandles } from "./limit-stop.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -77,16 +80,6 @@ export function hasBotThread(threads, reviewerId = DEFAULTS.reviewerId) {
 // pr-unblock.yml's run-name, which names the activity and the PR.
 export const runTitle = (activity, number) => `pr-unblock ${activity} #${number}`;
 
-// A check run handles the head unless it is the gate's completed neutral skip
-// for an untrusted trigger.
-function handles(run) {
-  return !(
-    run.status === "completed" &&
-    run.conclusion === "neutral" &&
-    String(run.output?.title ?? "").startsWith("Skipped: untrusted-trigger")
-  );
-}
-
 export async function dispatchFeedback({
   api,
   repository,
@@ -96,6 +89,7 @@ export async function dispatchFeedback({
   resolveSlot,
   log,
   settings = DEFAULTS,
+  now = Date.now(),
 }) {
   const skip = (why) => {
     log(`skip: ${why}`);
@@ -151,7 +145,7 @@ export async function dispatchFeedback({
     return skip(`#${number} has no unresolved thread left only by the reviewer bot`);
   }
   const existing = await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId });
-  if (existing.some(handles)) {
+  if (await anyHandles(existing, { listAnnotations: api.listAnnotations, now })) {
     return skip(`#${number}: head ${head} already has a ${settings.checkName} check run`);
   }
   // Both review lanes finish on one head, and their dispatchers queue in one
@@ -277,6 +271,8 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
       });
       return (await request(`${repo}/commits/${sha}/check-runs?${query}`)).check_runs;
     },
+    // A limit stop's annotations are a handful, well inside one page.
+    listAnnotations: (checkRunId) => request(`${repo}/check-runs/${Number(checkRunId)}/annotations?per_page=100`),
     // The newest workflow_dispatch runs: a run still queued or going is
     // among them, since a dispatcher waits at most minutes behind it.
     async listWorkflowRuns(workflow) {

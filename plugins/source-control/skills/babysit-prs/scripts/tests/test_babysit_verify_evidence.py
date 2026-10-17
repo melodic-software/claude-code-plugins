@@ -1028,6 +1028,13 @@ def evidence(refusal: str | None) -> ve.Evidence:
     return ve.Evidence(refusal=refusal, head=unattended.HEAD, verdicts=(), ignored=0)
 
 
+def changed(path: str, additions: int = 1) -> unattended.ChangedFile:
+    """A modified regular file in the diff."""
+    return unattended.ChangedFile(
+        path, None, "modified", additions, 1, True, "100644", "100644"
+    )
+
+
 class LaneRequiresAVerdict(unattended.Unattended):
     """`merge.require-verifier-verdict: true` in the pr-merge lane. The lane
     harness is borrowed, not inherited, so its tests do not run twice."""
@@ -1306,11 +1313,85 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.assertIs(graphql.call_args.args[0], policy.ELIGIBILITY)
         self.read.assert_not_called()
 
-    def test_the_lane_without_the_key_reads_no_verdict(self) -> None:
+    def test_the_lane_without_the_key_refuses(self) -> None:
+        # Design 3: the verdict is the lane's only merge criterion.
         self.config = dataclasses.replace(self.config, require_verifier_verdict=False)
         code, out = self.lane()
-        self.assertEqual(code, 0, out["blockers"])
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "verifier-verdict-not-required")
         self.read.assert_not_called()
+
+    def test_a_lane_pr_touching_the_merge_gate_merges_on_a_pass(self) -> None:
+        # Owner decision Q624: no denied path, no HIGH floor, no size caps and
+        # no C2 contradictions in the lane by default; the verdict still gates.
+        self.config = dataclasses.replace(
+            self.config, denied_paths=(), max_changed_lines=None
+        )
+        self.unlabeled_lane_pr(real_denied_paths=True)
+        gate = "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py"
+        paths = (gate, ".github/workflows/x.yml", *(f"lib/f{i}.sh" for i in range(8)))
+        self.files = (tuple(changed(path, 300) for path in paths), True)
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
+        self.assertEqual(self.log, ["pin", f"enqueue:{unattended.HEAD}:merge_queue"])
+        # The verdict still decides: a missing one refuses the same pull request.
+        self.verdicts[unattended.PR] = evidence("verify:missing")
+        self.log = []
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "verify:missing")
+
+    def test_the_lane_switches_turned_on_restore_the_refusals(self) -> None:
+        self.config = dataclasses.replace(
+            self.config, high_path_floor=True, max_changed_files=8,
+            c2_contradictions=True,
+        )  # fmt: skip
+        self.files = ((changed(".github/x.yml"),), True)
+        _, out = self.lane()
+        self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
+
+    def unlabeled_lane_pr(self, real_denied_paths: bool = False) -> None:
+        """The real lane eligibility over a lanes-App pull request whose one
+        closing issue carries no `work-class:` label."""
+        self.lane_eligible = None
+        issue = {
+            "number": 41,
+            "repository": {"nameWithOwner": "owner/repo"},
+            "labels": {"totalCount": 0, "nodes": []},
+        }
+        node = {
+            "number": unattended.PR,
+            "isCrossRepository": False,
+            "headRepositoryOwner": {"login": "owner"},
+            "author": {"__typename": "Bot", "login": "agent-lanes"},
+            "closingIssuesReferences": {"totalCount": 1, "nodes": [issue]},
+        }
+        reads = [
+            ("_graphql", {"repository": {"pullRequest": node}}),
+            ("_ratification_refusal", None),
+        ]
+        if not real_denied_paths:
+            reads.append(("_denied_path_refusal", None))
+        for name, answer in reads:
+            patcher = mock.patch.object(policy, name, return_value=answer)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_an_unlabeled_issue_merges_on_a_pass_as_c2(self) -> None:
+        self.unlabeled_lane_pr()
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(out["unattended"]["eligibility"]["workClass"], "C2")
+        self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
+
+    def test_a_missing_verdict_refuses_even_at_low_risk(self) -> None:
+        self.unlabeled_lane_pr()
+        self.verdicts[unattended.PR] = evidence("verify:missing")
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
+        self.assertEqual(out["unattended"]["reason"], "verify:missing")
 
 
 class LocalBabysitReadsNoVerdict(unattended.Unattended):
@@ -1320,6 +1401,17 @@ class LocalBabysitReadsNoVerdict(unattended.Unattended):
             code, out = self.run_main()
         self.assertEqual(code, 0, out["blockers"])
         read.assert_not_called()
+
+    def test_the_lane_switches_do_not_reach_the_local_path(self) -> None:
+        # Q624 turns the floor and caps off for the pr-merge lane only.
+        self.config = dataclasses.replace(
+            self.config, high_path_floor=False, max_changed_files=None,
+            c2_contradictions=False,
+        )  # fmt: skip
+        self.files = ((changed(".github/x.yml"),), True)
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
 
 
 class TheConfigKey(unittest.TestCase):
