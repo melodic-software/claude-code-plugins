@@ -585,30 +585,25 @@ jobs:
         run: python -m pip install --only-binary ':all:' --require-hashes --requirement .base/.github/requirements-ci.txt
 
       # Issue mode: the skill reads the issue from its scratch directory, so it
-      # needs no shell or API access. Title, body and labels only: comments
-      # are left out. The text is untrusted data the skill evaluates.
+      # needs no shell or API access. Title, body and labels as written, which
+      # the skill evaluates as untrusted data, plus only the comments
+      # select-trusted-text's author and edit rules keep, so a listed
+      # maintainer's recorded decision reaches the skill. The lanes App's own
+      # comments are left out, and on its ratified label so is any comment
+      # created or edited after the ratification marker. Runs from the base
+      # copy before the checkout below replaces it.
       - name: Write the issue for the skill
         if: >-
           steps.head-recheck.outputs.proceed == 'true' && inputs.issue-number != ''
           && steps.config.outputs.kind == 'skill'
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
+          GITHUB_TOKEN: ${{ steps.lane-token.outputs.token }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           ISSUE_FILE: ${{ runner.temp }}/lane-scratch/issue.json
-        with:
-          github-token: ${{ steps.lane-token.outputs.token }}
-          retries: 0
-          script: |
-            const fs = require('fs');
-            const { ISSUE_NUMBER, ISSUE_FILE } = process.env;
-            const { data } = await github.rest.issues.get({ ...context.repo, issue_number: Number(ISSUE_NUMBER) });
-            const issue = {
-              number: data.number,
-              title: data.title,
-              body: data.body ?? '',
-              labels: (data.labels ?? []).map((label) => (typeof label === 'string' ? label : label.name)),
-            };
-            fs.writeFileSync(ISSUE_FILE, `${JSON.stringify(issue, null, 2)}\n`);
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          LABEL_SENDER_ID: ${{ format('{0}', github.event.sender.id) }}
+        run: node .base/.github/scripts/work-resolve-issue/write-issue.mjs
 
       # A script reads the base's work-item tracker config (report-escalation's
       # human-gated role label), which the head checkout would replace. Its

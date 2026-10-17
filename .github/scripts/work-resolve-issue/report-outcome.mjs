@@ -3,8 +3,12 @@
 // what the resolve-issue run left and acts on the issue, with no model:
 //
 //   done      opens a ready PR from the run's branch: the body starts
-//             `Closes #<issue>`, the title is the run's when it is Conventional
-//             Commits (else `chore: work on #<issue>`), and the body carries
+//             `Closes #<issue>`, or `Refs: #<issue>` when the run reports
+//             `"link": "refs"` (a recorded decision keeps the issue open),
+//             which also holds the PR for a human, since the merge gate
+//             reads the work class from a closing issue. The title is the
+//             run's when it is Conventional Commits (else
+//             `chore: work on #<issue>`), and the body carries
 //             the hold line when a human must merge it. The PR gets no label:
 //             the work class lives on the issue only, and the merge gate reads
 //             it from the PR's closing issue. The body fills the PR body contract's
@@ -154,6 +158,7 @@ export function readOutcome(path) {
     verification: list(parsed.verification),
     notDone: notDoneList(parsed.not_done),
     steps: stepList(parsed.steps),
+    link: parsed.link === "refs" ? "refs" : "closes",
   };
 }
 
@@ -302,7 +307,9 @@ export function decide({
       runUrl,
     });
   }
+  const refs = outcome.link === "refs";
   const hold =
+    refs ||
     issueLabels.some((name) => HOLD_CLASSES.has(name)) ||
     changedFiles.length >= COMPARE_FILES_CAP ||
     holdPaths === null ||
@@ -311,7 +318,7 @@ export function decide({
   // in the org PR template's order, with the run's gaps above the work.
   const gaps = outcome.notDone.map(({ what }) => what);
   const body = [
-    `Closes #${issueNumber}`,
+    refs ? `Refs: #${issueNumber}` : `Closes #${issueNumber}`,
     ...(hold ? ["", HOLD_LINE] : []),
     "",
     "## Summary",
