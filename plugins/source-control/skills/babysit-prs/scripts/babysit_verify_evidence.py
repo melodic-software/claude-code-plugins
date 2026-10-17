@@ -26,7 +26,9 @@ from a completed, successful one. Any other artifact is ignored.
   whose recorded head branch (its verdict.json) cannot be read is
   `verify:unreadable`, so one such artifact blocks every pull request until it
   is readable, expires or is deleted;
-- a counted PASS or PASS-NOTES at the head of this pull request: refused
+- counted PASS or PASS-NOTES verdicts at the head of this pull request, each
+  checked, so any one that refuses refuses (`verify:spec-changed` before
+  `verify:untrusted-spec`, whatever the listing order): each is refused
   `verify:spec-changed` unless the pull request's closing issues now are the
   ones its verdict recorded, none was edited after its run started, and each
   issue's trusted comments (`_spec_comments`) are the recorded ones by id and
@@ -496,37 +498,51 @@ class Reader:
         elif unreadable:
             refusal = UNREADABLE
         elif passes:
-            run_id, name = passes[0]
-            record = self._record(run_id, name)
-            if record.get("pr") != number or record.get("head_sha") != head:
-                raise _Unreadable(
-                    f"artifact {name} records another pull request or head"
-                )
-            recorded = record.get("linked_issues")
-            if not is_json_array(recorded):
-                raise _Unreadable(f"artifact {name} records no linked issues")
-            issues = {json_object(i).get("number"): json_object(i) for i in recorded}
+            # Every pass at the head must allow, so listing order decides
+            # nothing; any unreadable one refuses (`_Unreadable`).
             live = self._closing_issues(number)
-            # An edit after the judgment started is a spec the model never
-            # read. An unparsable time refuses (PostMergeReadError).
-            started = postmerge._time(self._started.get(run_id))
-            if set(live) != set(issues) or any(
-                (edited := node.get("lastEditedAt")) is not None
-                and postmerge._time(edited) > started
-                or self._spec_comments(
-                    json_array(json_object(node.get("comments")).get("nodes")), author
-                )
-                != self._recorded_comments(issues[n])
-                for n, node in live.items()
-            ):
-                refusal = SPEC_CHANGED
-            elif self._trusted_spec(record, author):
-                refusal = None
-            else:
-                refusal = UNTRUSTED_SPEC
+            refusals = {
+                self._pass_refusal(run_id, name, number, head, author, live)
+                for run_id, name in passes
+            }
+            refusal = next(
+                (r for r in (SPEC_CHANGED, UNTRUSTED_SPEC) if r in refusals), None
+            )
         else:
             refusal = MISSING
         return Evidence(refusal, head, tuple(verdicts), ignored, detail)
+
+    def _pass_refusal(
+        self,
+        run_id: int,
+        name: str,
+        number: int,
+        head: str,
+        author: str,
+        live: dict[Any, Any],
+    ) -> str | None:
+        """One counted pass at the head against the live closing issues."""
+        record = self._record(run_id, name)
+        if record.get("pr") != number or record.get("head_sha") != head:
+            raise _Unreadable(f"artifact {name} records another pull request or head")
+        recorded = record.get("linked_issues")
+        if not is_json_array(recorded):
+            raise _Unreadable(f"artifact {name} records no linked issues")
+        issues = {json_object(i).get("number"): json_object(i) for i in recorded}
+        # An edit after the judgment started is a spec the model never
+        # read. An unparsable time refuses (PostMergeReadError).
+        started = postmerge._time(self._started.get(run_id))
+        if set(live) != set(issues) or any(
+            (edited := node.get("lastEditedAt")) is not None
+            and postmerge._time(edited) > started
+            or self._spec_comments(
+                json_array(json_object(node.get("comments")).get("nodes")), author
+            )
+            != self._recorded_comments(issues[n])
+            for n, node in live.items()
+        ):
+            return SPEC_CHANGED
+        return None if self._trusted_spec(record, author) else UNTRUSTED_SPEC
 
     def queued_hold(self, number: int) -> str | None:
         """Why a queued entry must leave: no allowing verdict at its live

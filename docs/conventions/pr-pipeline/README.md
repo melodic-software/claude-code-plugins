@@ -569,7 +569,9 @@ other artifact with such a name is ignored. At the pull request's vetted head:
   downloaded, or any other failed read, refuses (`verify:unreadable`). An untied `fail` whose run
   cannot be read is ignored. One unreadable record of an untied `fail` therefore blocks every pull
   request until it can be read, expires or is deleted;
-- a counted `pass` or `pass-notes` for this pull request refuses (`verify:spec-changed`) unless the
+- every counted `pass` or `pass-notes` for this pull request at the head is checked, whatever order
+  the listing returns them in, and the merge is allowed only when each allows (a changed spec is
+  reported before an untrusted one). Each refuses (`verify:spec-changed`) unless the
   pull request's closing issues in this repository now are the ones its verdict recorded, none
   was edited after the verdict's run started, and each issue's spec comments (written, and last
   edited if ever, by a `User` on the trusted-actor list's humans other than the pull request's

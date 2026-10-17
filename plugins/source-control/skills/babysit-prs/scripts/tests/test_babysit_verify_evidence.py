@@ -292,6 +292,78 @@ class VerdictAtTheCurrentHead(unittest.TestCase):
         self.assertEqual(read(FakeGitHub([], {})).refusal, "verify:missing")
 
 
+class EveryPassAtTheHeadIsChecked(unittest.TestCase):
+    """Several passes at one head are equivalent: each must allow, whatever
+    order the listing returns them in, and a FAIL there still blocks."""
+
+    def judge(self, second: dict[str, Any], *, reverse: bool) -> ve.Evidence:
+        """A pass (run 1) and a pass-notes (run 2) whose record or run start
+        is `second`'s, listed in that order or reversed."""
+        items = [
+            artifact(named(HEAD, "pass"), 1),
+            artifact(named(HEAD, "pass-notes"), 2),
+        ]
+        fake = FakeGitHub(
+            items[::-1] if reverse else items,
+            {1: run(1), 2: run(2, **second.get("run", {}))},
+            {
+                named(HEAD, "pass"): record(),
+                named(HEAD, "pass-notes"): record(**second.get("record", {})),
+            },
+        )
+        fake.closing_edited = second.get("edited", {})
+        return read(fake)
+
+    def each_order(self, second: dict[str, Any]) -> set[str | None]:
+        return {self.judge(second, reverse=r).refusal for r in (False, True)}
+
+    def test_two_allowing_passes_allow(self) -> None:
+        self.assertEqual(self.each_order({}), {None})
+
+    def test_one_judged_before_a_spec_edit_refuses_either_way(self) -> None:
+        # Run 2 started before the issue's edit; run 1 after it.
+        second = {
+            "run": {"run_started_at": "2026-10-13T00:00:00Z"},
+            "edited": {7: "2026-10-14T00:00:00Z"},
+        }
+        self.assertEqual(self.each_order(second), {"verify:spec-changed"})
+
+    def test_one_recording_an_untrusted_spec_refuses_either_way(self) -> None:
+        bot = {**TRUSTED_ISSUE, "author_type": "Bot", "author_id": 200}
+        second = {"record": {"linked_issues": [bot]}}
+        self.assertEqual(self.each_order(second), {"verify:untrusted-spec"})
+
+    def test_a_changed_spec_is_reported_before_an_untrusted_one(self) -> None:
+        # The README's order: the spec must be the judged one before its
+        # authors are weighed. Run 2 records an untrusted spec and run 1
+        # (started first) predates the issue's edit.
+        bot = {**TRUSTED_ISSUE, "author_type": "Bot", "author_id": 200}
+        second = {
+            "record": {"linked_issues": [bot]},
+            "run": {"run_started_at": "2026-10-15T12:00:00Z"},
+            "edited": {7: "2026-10-15T06:00:00Z"},
+        }
+        self.assertEqual(self.each_order(second), {"verify:spec-changed"})
+
+    def test_a_fail_beside_two_passes_blocks(self) -> None:
+        for reverse in (False, True):
+            with self.subTest(reverse=reverse):
+                items = [
+                    artifact(named(HEAD, "pass"), 1),
+                    artifact(named(HEAD, "fail"), 3),
+                    artifact(named(HEAD, "pass-notes"), 2),
+                ]
+                fake = FakeGitHub(
+                    items[::-1] if reverse else items,
+                    {1: run(1), 2: run(2), 3: run(3)},
+                    {
+                        named(HEAD, "pass"): record(),
+                        named(HEAD, "pass-notes"): record(),
+                    },
+                )
+                self.assertEqual(read(fake).refusal, "verify:fail")
+
+
 class AVerdictForAnotherShaDoesNotCount(unittest.TestCase):
     def test_a_pass_at_an_earlier_head_is_missing_at_the_current_one(self) -> None:
         fake = FakeGitHub([artifact(named(EARLIER, "pass"), 1)], {1: run(1)})
