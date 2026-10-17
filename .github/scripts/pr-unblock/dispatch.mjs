@@ -116,7 +116,7 @@ export async function dispatchConflicting({
     let handled;
     try {
       const existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
-      handled = await anyHandles(existing, { listAnnotations: api.listAnnotations, now });
+      handled = anyHandles(existing, { now });
     } catch (error) {
       failed += 1;
       log(
@@ -253,7 +253,6 @@ export function createGitHubApi({
       );
       return result.check_runs;
     },
-    listAnnotations: (checkRunId) => paginate(`check-runs/${Number(checkRunId)}/annotations`),
     async dispatchWorkflow({ workflow, ref, inputs }) {
       const result = await request(
         `${apiUrl}/repos/${owner}/${name}/actions/workflows/${workflow}/dispatches`,
