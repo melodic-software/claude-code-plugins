@@ -172,6 +172,15 @@ const TIERS =
 const DATED =
   ' Dates are YYYY, YYYY-MM or YYYY-MM-DD as the page states them, or "undated". applies_to is ' +
   '"version-independent" or "<product> <range>" where a range is <v>, <v>-<v> or <v>+.'
+// A reader dates a living page that prints no date by the family method, and
+// names it in dated_by. A serve-time header is never a publication date.
+const DATED_BY =
+  ' When the page prints no date, derive one the publisher or its source repository attaches to the content ' +
+  'and name the method in dated_by: sitemap-lastmod (the lastmod beside the page\'s loc in the sitemap at ' +
+  'the origin\'s /sitemap.xml, which you request through requests; code.claude.com /docs/en/ pages), ' +
+  'ms-date (the page\'s ms.date metadata, Microsoft Learn), or source-commit (the last commit on the ' +
+  'page\'s source file, when its repository is public). Leave dated_by out when the page prints the date. ' +
+  'Never use a Last-Modified, Date or ETag header: when no method yields a date, return "undated".'
 
 // ---- Fetch stage ----
 // A reader or skeptic judges from raw slices of its pages, which a docs-fetcher
@@ -199,9 +208,19 @@ const SLICE_RULE =
   'For a section of a mapped page, name it in requests as {url, sections: [ids]}, at most ' + REQUEST_CAP +
   ', and return your result as far as the slices take you; you are then asked once more with them. Use ' +
   'WebFetch only for a page the slices do not cover (not listed, unread or omitted).'
+// Serve-time headers record when a page was served; mirrors check-source-applicability.py.
+const SERVE_TIME = /^(?:http[ _-]*)?(?:last[ _-]*modified|date|headers?|etag)(?:[ _-]*headers?)?$|last[ _-]*modified|\betag\b|^http[ _-]|\bdate[ _-]*headers?\b|\b(?:response|http)[ _-]+date\b|\bdate\s*:/i
+const datingOf = r => {
+  const by = typeof r.dated_by === 'string' ? r.dated_by.trim() : ''
+  if (!by) return { published: r.published || 'undated' }
+  if (SERVE_TIME.test(by)) return { published: 'undated' }
+  return { published: r.published || 'undated', dated_by: by }
+}
 const FINAL_ROUND = ' This is your last round: the slices now hold what you requested, and requests are ignored. For a section you still need that the slices lack, use WebFetch on that page.'
 
 const pageOf = u => String(u).split('#')[0]
+// The one other address a reader may request: the sitemap at its page's origin, to date the page.
+const sitemapOf = u => { try { return new URL('/sitemap.xml', pageOf(u)).href } catch { return null } }
 const rawable = u => isPublicUrl(u) && /^https:/.test(u) && !/['"\\]/.test(u)
 const idsOf = v => [...new Set((Array.isArray(v) ? v : []).filter(n => Number.isInteger(n) && n >= 1 && n <= 999999))]
   .sort((a, b) => a - b).slice(0, 20)
@@ -336,6 +355,7 @@ const READ_SCHEMA = {
     pool: { type: 'string' },
     tier: { type: 'integer', minimum: 0, maximum: 3 },
     published: { type: 'string' },
+    dated_by: { type: 'string' },
     applies_to: { type: 'string' },
     claims: {
       type: 'array',
@@ -406,6 +426,7 @@ const CITED = {
     tier: { type: 'integer', minimum: 0, maximum: 3 },
     pool: { type: 'string' },
     published: { type: 'string' },
+    dated_by: { type: 'string' },
     applies_to: { type: 'string' },
     role: { type: 'string', enum: ['primary', 'corroborator'] },
     measures: { type: 'string' },
@@ -508,10 +529,10 @@ const reads = await inWaves(readers.map(r => () => judged(extra =>
   'population, version, era), the product and versions the claim applies to, and every hedge or ' +
   'scope limit the source attaches to it. Name the publisher and its pool (the organization whose ' +
   'content this is; two pages from one organization are one pool). Do not add claims the page does ' +
-  'not make, and fetch no other address.' + TIERS + DATED +
+  'not make, and fetch no other address than the sitemap at its origin.' + TIERS + DATED + DATED_BY +
   fence('question', QUESTION) + fence('source-url', r.src.url) + extra,
   { label: r.label, phase: 'Read', schema: READ_SCHEMA, ...opts(R.worker.fanout) },
-  [r.src.url], u => u === pageOf(r.src.url),
+  [r.src.url], u => u === pageOf(r.src.url) || u === sitemapOf(r.src.url),
 )), MAX_CONCURRENT)
 
 readers.forEach((r, i) => { if (reads[i] == null) nulls.push(r.label) })
@@ -534,7 +555,7 @@ phase('Consolidate')
 let claims = []
 if (readOk.length) {
   const evidence = readOk.map(r => ({
-    url: r.url, tier: r.tier, pool: r.pool || 'unknown', published: r.published || 'undated',
+    url: r.url, tier: r.tier, pool: r.pool || 'unknown', ...datingOf(r),
     claims: r.claims.map(c => ({ claim: c.claim, quote: c.quote, measures: c.measures || 'unstated', applies_to: c.applies_to || 'unstated', qualifiers: c.qualifiers || [] })),
   }))
   const merged = await agentRetry(
@@ -635,7 +656,7 @@ if (survived.length || refuted.length || unverified.length) {
     sources: t.c.urls.map(u => {
       const r = readIndex.get(u)
       return {
-        url: u, tier: r.tier, pool: r.pool || 'unknown', published: r.published || 'undated', applies_to: r.applies_to || 'unstated',
+        url: u, tier: r.tier, pool: r.pool || 'unknown', ...datingOf(r), applies_to: r.applies_to || 'unstated',
         extracted: r.claims.map(c => ({ claim: c.claim, quote: c.quote, measures: c.measures || 'unstated', applies_to: c.applies_to || 'unstated' })),
       }
     }),
@@ -646,7 +667,8 @@ if (survived.length || refuted.length || unverified.length) {
     'surviving claim, keyed by its id: the claim as the sources support it, a confidence (HIGH only ' +
     'when at least two independent pools back it with a dated primary), what it applies to, one line ' +
     'of inference on why it follows from its sources jointly, every qualifier, and its sources with ' +
-    'exactly one marked primary. Each source\'s measures comes from what its reader extracted for ' +
+    'exactly one marked primary, each carrying its published and, when the survived list gives one, its ' +
+    'dated_by as written. Each source\'s measures comes from what its reader extracted for ' +
     'that page (the extracted list); write "unstated" when the reader recorded none, never a guess. ' +
     'Do not add claims that are not listed. Then list dissent: skeptic ' +
     'objections that did not carry, sources that disagree, and the refuted claims. Write a summary of ' +

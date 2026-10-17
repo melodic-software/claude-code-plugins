@@ -483,3 +483,48 @@ test('string args are parsed as JSON', async () => {
   const { result } = await run(JSON.stringify({ question: 'q' }))
   assert.equal(result.question, 'q')
 })
+
+test('a reader may request its origin sitemap to date an undated page, and dated_by reaches consolidation and synthesis', async () => {
+  const reply = (p, o, d) => {
+    if (o.label.startsWith('fetch:')) return { output: rawPage(data(p, 'url'), 'text of ' + data(p, 'url')) }
+    if (o.label === 'read:1' || o.label === 'read:1:r2') {
+      const base = d(p, o)
+      if (!p.includes('last round')) return { ...base, published: 'undated', requests: [{ url: new URL('/sitemap.xml', sourceUrl(p)).href }] }
+      return { ...base, published: '2026-09-30', dated_by: 'sitemap-lastmod' }
+    }
+    return d(p, o)
+  }
+  const { calls } = await run({ question: 'q' }, { reply })
+  const sitemap = new URL('/sitemap.xml', sourceUrl(one(calls, 'read:1').prompt)).href
+  assert.ok(by(calls, 'fetch:').some(c => data(c.prompt, 'url') === sitemap), 'the origin sitemap is fetched for the reader')
+  assert.ok(data(one(calls, 'read:1:r2').prompt, 'slices').some(s => s.url === sitemap))
+  assert.ok(one(calls, 'read:1').prompt.includes('sitemap-lastmod'), 'the read prompt names the dating methods')
+  const own = sourceUrl(one(calls, 'read:1').prompt)
+  assert.equal(data(one(calls, 'consolidate').prompt, 'evidence').find(e => e.url === own).dated_by, 'sitemap-lastmod')
+  const brief = data(one(calls, 'synthesize').prompt, 'survived').flatMap(c => c.sources)
+  assert.ok(brief.some(s => s.url === own ? s.dated_by === 'sitemap-lastmod' : true) && brief.some(s => s.dated_by === 'sitemap-lastmod'))
+})
+
+test('a dated_by naming a serve-time header is dropped and the source stays undated', async () => {
+  const reply = (p, o, d) => (o.label === 'read:1'
+    ? { ...d(p, o), published: '2026-09-30', dated_by: 'Last-Modified header' }
+    : d(p, o))
+  const { calls } = await run({ question: 'q' }, { reply })
+  const evidence = data(one(calls, 'consolidate').prompt, 'evidence')
+  const got = evidence.find(e => e.url === sourceUrl(one(calls, 'read:1').prompt))
+  assert.equal(got.published, 'undated')
+  assert.ok(!('dated_by' in got))
+})
+
+test('a reader may not request a sitemap on another origin', async () => {
+  const reply = (p, o, d) => (o.label === 'read:1'
+    ? { ...d(p, o), requests: [{ url: 'https://other.example/sitemap.xml' }] }
+    : d(p, o))
+  const { calls } = await run({ question: 'q' }, { reply })
+  assert.ok(!by(calls, 'fetch:').some(c => data(c.prompt, 'url') === 'https://other.example/sitemap.xml'))
+})
+
+test('the finding source schema carries an optional dated_by', () => {
+  assert.match(source, /dated_by: \{ type: 'string' \}/)
+  assert.ok(!/required: \[[^\]]*dated_by/.test(source), 'dated_by stays optional')
+})
