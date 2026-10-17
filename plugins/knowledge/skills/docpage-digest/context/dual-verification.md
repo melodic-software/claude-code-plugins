@@ -33,6 +33,12 @@ Two independent verifiers over the full digest set, fresh context, production ra
   live-doc check it could not replay. That arm is degraded for those checks only, under the
   fallback rule below. Granting it network access instead is the operator's configuration call,
   recorded in the header when made.
+  - **The live-doc checks** are these three: the re-fetched channel bytes match `source.*`; each
+    anchor `SOURCES.md` cites exists on the live page; each positive-tag live-doc citation holds
+    as the publisher profile defines it (for the Anthropic profile, the live-doc citation rule
+    in [anthropic-docs-profile.md](anthropic-docs-profile.md)). When Verifier B has no network,
+    Verifier A owns them and records in its header that it replayed them in B's place. No
+    substitute arm is dispatched for them.
   - **Pointer**: for a Codex sandbox's network default and how to enable it, see
     <https://learn.chatgpt.com/docs/agent-approvals-security#network-access>.
   - **As of**: 2026-10-01
@@ -149,13 +155,8 @@ adversarial refuter, and RECORD the degradation and its reason in the verdict fi
 verification record that hides its degraded provenance is worse than a missing one. That rule
 covers a *missing* cross-vendor arm, not a session that cannot spawn.
 
-**Subagent-death / usage-limit ladder** (dominant failure mode, ahead of content defects. Lost
-agents, killed completion reports, mid-audit kills, slot exhaustion, refused fan-out):
-
-1. **Retry window**. Re-dispatch the same brief once; record the death and the retry.
-2. **Inline-with-disclosure**, if the retry also dies, complete that unit inline and record
-   `inline-with-disclosure` naming the dead slot and the unit.
-3. **Degraded marker + re-run trigger**, if inline is impossible, write the marker and name the
-   unfinished units; do not tick the phase complete.
-
-Silence is not a rung. Detail: [pipeline-hardening.md](pipeline-hardening.md).
+**Subagent-death / usage-limit ladder.** The one ladder text, including how a concurrency
+refusal is handled and what the inline rung may not do, is in
+[pipeline-hardening.md](pipeline-hardening.md#subagent-death--usage-limit-ladder). It governs a
+dead or refused Verifier A, Verifier B or correction agent the same way it governs a digest
+agent. Silence is not a rung.

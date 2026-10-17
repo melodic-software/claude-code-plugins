@@ -92,6 +92,9 @@ export const X_SYNDICATION_DEGRADATION_WARNING =
 /** Prefix of the failure detail this adapter emits for degraded acquisitions. */
 export const X_DEGRADED_ACQUISITION_PREFIX = "X acquisition degraded";
 
+/** Failure prefix for a removed or nonexistent post: permanent, never retried. */
+export const X_UNAVAILABLE_ACQUISITION_PREFIX = "X post unavailable";
+
 /**
  * The three observed X failure signatures that are post-content facts —
  * reject, do not retry. (With `--ignore-no-formats-error` on the acquisition
@@ -370,6 +373,27 @@ export function detectSyndicationDegradation({
     entryCount,
     possibleMultiMediaCollapse: entryCount === 1,
   };
+}
+
+/**
+ * Whether a post-level payload is the empty shell yt-dlp returns for a removed
+ * or nonexistent status: no uploader, no description and no counts together.
+ * A real post (with or without video) always carries an uploader, so a rate-limit
+ * fallback that merely drops counts does not match. Deleted (as opposed to
+ * never-existing) posts were not probed; callers bound retries per id.
+ *
+ * @param {Record<string, unknown>} postInfo
+ * @returns {boolean}
+ */
+export function isRemovedPostPayload(postInfo) {
+  return (
+    postInfo.uploader == null &&
+    postInfo.uploader_id == null &&
+    !postInfo.description &&
+    postInfo.repost_count == null &&
+    postInfo.comment_count == null &&
+    postInfo.like_count == null
+  );
 }
 
 /**
@@ -757,7 +781,21 @@ export async function acquireXMedia(url, context) {
       entryCount: inspected.twitterVideos.length,
       countsAuthoritative: post.countsAuthoritative,
     });
-    return degradation ? failDegraded(degradation) : null;
+    if (!degradation) {
+      return null;
+    }
+    // Missing counts without the fallback warning on an otherwise empty shell
+    // is a removed or nonexistent post: permanent, not a retry-later case.
+    if (
+      !degradation.warningSeen &&
+      post.countsAuthoritative &&
+      isRemovedPostPayload(post.info)
+    ) {
+      return failX(
+        `${X_UNAVAILABLE_ACQUISITION_PREFIX} (post removed or nonexistent: no uploader, description or counts): ${JSON.stringify(degradation)}`,
+      );
+    }
+    return failDegraded(degradation);
   };
 
   let gated = await inspectAndGate();

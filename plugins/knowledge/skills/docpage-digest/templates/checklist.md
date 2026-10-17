@@ -26,7 +26,8 @@ collision check reads them to tell a resume from a slug collision.
 - [ ] Phase 2: Inventory, with `SOURCES.md` written (headings, themes, digest map, status rows,
       relied-on links read from the snapshot)
 - [ ] Phase 3: Digest fan-out, one agent per digest unit → `digests/NN-slug.md` (fixed
-      structure; verbatim quotes in column-0 fences under bold `**CN.**` labels)
+      structure; verbatim quotes in column-0 fences under bold `**CN.**` labels; each unit's
+      model recorded as mapped and actual; refusals and waits recorded)
 - [ ] Phase 4: Dual verification: pin-manifest written on agent-reported completion; standing
       gates (`check-fences-exact.py`, `check-snippets.py`, and `check-html-rows.py` when digests
       carry `**FN.**` rows quoted from `source.html`) PASS; Verifier A (same-vendor) +
@@ -39,8 +40,10 @@ collision check reads them to tell a resume from a slug collision.
 
 ## Skip criteria
 
-- Phase 4 Verifier B: degrade per SKILL.md only when the cross-vendor verifier is genuinely
-  unavailable; record reason in the verdict header
-- Phase 3/4 subagent death: SKILL.md ladder (retry window → inline-with-disclosure → degraded
-  marker + re-run trigger); do not tick the phase complete on a degraded marker
+- Phase 4 Verifier B: degrade per `context/dual-verification.md` only when the cross-vendor
+  verifier is genuinely unavailable; record reason in the verdict header
+- Phase 3/4 subagent death or refusal: the ladder in `context/pipeline-hardening.md` (a
+  concurrency refusal waits, then one more dispatch → retry window → inline-with-disclosure, never
+  for a unit the profile maps to another model → degraded marker + re-run trigger); do not tick
+  the phase complete on a degraded marker
 - Phase 5 interview invocation: skip (present artifact only) when the planning plugin is absent
