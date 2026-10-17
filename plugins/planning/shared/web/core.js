@@ -382,8 +382,6 @@
     readNotifications: ids => act("/api/notifications/read", ids === "all" ? { all: true } : { ids }),
     addReference: (qid, reference) => act("/api/question/reference", { qid, reference }),
     removeReference: (qid, index) => act("/api/question/reference", { qid, remove: index }),
-    // TODO(Phase 9): the owner's own image reference; until then images come from Claude's add-asset.
-    uploadAsset: () => Promise.reject({ error: "uploads-off", message: "Picture references come from Claude for now." }),
     forward: id => act("/api/chat/propose", { id }),
     /** One of my emoji on a chat message, on or off (the server takes only its fixed set). */
     chatReact: (id, emoji, on) => act("/api/chat/react", { id, emoji, on }),
