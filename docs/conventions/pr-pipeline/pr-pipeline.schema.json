@@ -361,12 +361,15 @@
     "merge": {
       "type": "object",
       "additionalProperties": false,
-      "description": "How far the repository's merge authority may merge without a human. A lane-power setting: raised only by a merged change to this file. Any rung above off requires a diff-check with denied paths; authority local-babysit requires an agent-identity.",
+      "description": "How far the repository's merge authority may merge without a human. A lane-power setting: raised only by a merged change to this file. Authority local-babysit requires an agent-identity and, at a rung above off, a diff-check with denied paths and a line cap; the pr-merge lane needs neither, and above off with an agent-identity it requires the verifier verdict.",
       "allOf": [
         {
           "if": {
-            "required": ["rung"],
-            "properties": { "rung": { "enum": ["C2", "C3"] } }
+            "required": ["rung", "authority"],
+            "properties": {
+              "rung": { "enum": ["C2", "C3"] },
+              "authority": { "const": "local-babysit" }
+            }
           },
           "then": {
             "required": ["diff-check"],
@@ -445,9 +448,28 @@
             "denied-paths": {
               "type": "array",
               "items": { "type": "string", "minLength": 1 },
-              "description": "Globs a lane-merged diff may not touch."
+              "description": "Globs a lane-merged diff may not touch. Empty: the pr-merge lane denies no path (README.md, The pr-merge lane)."
             },
-            "max-changed-lines": { "type": "integer", "minimum": 1 }
+            "max-changed-lines": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Changed lines above which the diff scores MED. Absent: no cap in the pr-merge lane; the local babysit lane requires it."
+            },
+            "max-changed-files": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "pr-merge lane only: changed files above which the diff scores MED. Absent: no cap. The local babysit lane always caps at 8."
+            },
+            "high-path-floor": {
+              "type": "boolean",
+              "default": false,
+              "description": "pr-merge lane only: true scores a diff touching the risk scorer's fixed HIGH path floor HIGH. Absent or false: only denied-paths count. The local babysit lane always applies the floor."
+            },
+            "c2-contradictions": {
+              "type": "boolean",
+              "default": false,
+              "description": "pr-merge lane only: true scores a C2 diff that removes, renames or copies a file, changes a schema, or spans plugins MED. Absent or false: not checked. The local babysit lane always checks."
+            }
           }
         },
         "stack-landing": {

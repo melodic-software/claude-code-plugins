@@ -420,6 +420,14 @@ class PipelineConfig:
     # `report` reports it and writes nothing, and `enforce` merges it
     # whatever `merge.report-only` says.
     dependabot_mode: str = "off"
+    # The pr-merge lane's risk switches under `merge.diff-check` (owner
+    # decision Q624): absent, the HIGH path floor and the C2 contradictions
+    # are off and there is no file cap (`max_changed_lines` None: no line
+    # cap); a value other than true or false turns a switch on. The local
+    # babysit lane ignores them and keeps every check.
+    high_path_floor: bool = False
+    c2_contradictions: bool = False
+    max_changed_files: int | None = None
 
 
 LOCAL_BABYSIT = "local-babysit"
@@ -519,6 +527,9 @@ def read_config_at(repo: str, base_sha: str) -> PipelineConfig:
             ("merge.authority", False),
             ("merge.agent-identity", False),
             ("merge.diff-check.max-changed-lines", False),
+            ("merge.diff-check.max-changed-files", False),
+            ("merge.diff-check.high-path-floor", False),
+            ("merge.diff-check.c2-contradictions", False),
             ("merge.diff-check.denied-paths", True),
             ("merge.report-only", False),
             ("merge.require-verifier-verdict", False),
@@ -542,6 +553,20 @@ def read_config_at(repo: str, base_sha: str) -> PipelineConfig:
     if lines is not None and not re.fullmatch(r"[0-9]+", lines):
         notes.append(f"merge.diff-check.max-changed-lines {lines!r} is not a count")
         rung, lines = "off", None
+    files = scalar("merge.diff-check.max-changed-files")
+    if files is not None and not re.fullmatch(r"[0-9]+", files):
+        notes.append(f"merge.diff-check.max-changed-files {files!r} is not a count")
+        rung, files = "off", None
+
+    def switch(key: str) -> bool:
+        value = scalar(key)
+        if value not in (None, "true", "false"):
+            notes.append(f"{key} {value!r} is not true or false")
+        return value not in (None, "false")
+
+    high_path_floor = switch("merge.diff-check.high-path-floor")
+    c2_contradictions = switch("merge.diff-check.c2-contradictions")
+
     report_only = scalar("merge.report-only")
     if report_only not in (None, "true", "false"):
         notes.append(f"merge.report-only {report_only!r} is not true or false")
@@ -566,6 +591,9 @@ def read_config_at(repo: str, base_sha: str) -> PipelineConfig:
         report_only=report_only not in (None, "false"),
         require_verifier_verdict=verdict not in (None, "false"),
         dependabot_mode=dependabot_mode,
+        high_path_floor=high_path_floor,
+        c2_contradictions=c2_contradictions,
+        max_changed_files=int(files) if files else None,
     )
 
 
@@ -1323,11 +1351,12 @@ LANE_CLASS = "C2"
 def _denied_path_refusal(
     owner: str, name: str, number: int, changed: Any, denied: Collection[str]
 ) -> str | None:
-    """Why the diff may not merge in the lane: no denied paths configured, a
-    file listing short of the pull request's changed-file count, or a path
-    (either side of a rename) matching a denied glob."""
+    """Why the diff may not merge in the lane: a file listing short of the
+    pull request's changed-file count, or a path (either side of a rename)
+    matching a denied glob. No denied paths configured denies none (owner
+    decision Q624)."""
     if not denied:
-        return "denied-paths-unset"
+        return None
     listing = _paginated(
         f"repos/{owner}/{name}/pulls/{number}/files?per_page=100", f"#{number} files"
     )

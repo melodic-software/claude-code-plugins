@@ -1,5 +1,16 @@
 # Changelog for the PR pipeline convention
 
+## 1.27.0 - 2026-10-17
+
+`merge.diff-check` gains three optional pr-merge lane switches, each off when absent:
+`high-path-floor`, `c2-contradictions` and `max-changed-files`. In the pr-merge lane an absent
+`max-changed-lines` is now no cap, and an empty `denied-paths` denies no path instead of refusing
+`denied-paths-unset`. The schema asks for `denied-paths` and `max-changed-lines` only under
+authority `local-babysit`, which keeps every check whatever the switches say. This repository
+empties `denied-paths` and drops `max-changed-lines: 400` (owner decision, 2026-10-17), so a lane
+pull request may touch any path at any size; the residual risk is in "The pr-merge lane", "Risk
+switches". `version` stays 1.
+
 ## 1.26.0 - 2026-10-17
 
 The pr-merge lane reads no `work-class:` label. A pull request the lanes App opened, not a fork or

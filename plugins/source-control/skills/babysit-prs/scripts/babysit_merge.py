@@ -2867,6 +2867,18 @@ def score_unattended(
         files, complete = merge_policy.changed_files(repo, pr)
     except merge_policy.PolicyReadError:
         files, complete = (), False
+    # The pr-merge lane's switches (owner decision Q624); the local lane
+    # keeps the floor, both caps and the C2 contradictions.
+    lane_switches = (
+        {
+            "high_floor": config.high_path_floor,
+            "c2_contradictions": config.c2_contradictions,
+            "max_changed_files": config.max_changed_files,
+            "lines_optional": True,
+        }
+        if inputs.get("authority") == merge_policy.PR_MERGE
+        else {}
+    )
     risk = babysit_risk.score(
         babysit_risk.RiskInput(
             work_class=eligible.work_class,
@@ -2877,6 +2889,7 @@ def score_unattended(
             high_paths=config.denied_paths,
             lanes=lanes,
             blast_radius=None,
+            **lane_switches,
         )
     )
     details = {

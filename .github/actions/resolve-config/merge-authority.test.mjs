@@ -144,8 +144,38 @@ test("an enabled pr-merge lane with a required verdict, or at rung off, validate
   );
 });
 
-test("rung C2 without diff-check still fails the schema", () => {
-  rejectedFor(withMerge({ rung: "C2" }), /required property 'diff-check'/);
+// Owner decision Q624: the pr-merge lane needs no denied path or size cap;
+// each check is a diff-check setting.
+test("a pr-merge rung C2 with no diff-check, or an empty one, validates", () => {
+  assert.doesNotThrow(() => run(withMerge({ rung: "C2" })));
+  assert.doesNotThrow(() =>
+    run(withMerge({ ...LANE, "require-verifier-verdict": true, "diff-check": { "denied-paths": [] } })),
+  );
+  assert.doesNotThrow(() =>
+    run(
+      withMerge({
+        ...LANE,
+        "require-verifier-verdict": true,
+        "diff-check": {
+          "denied-paths": [".github/**"],
+          "max-changed-lines": 400,
+          "max-changed-files": 8,
+          "high-path-floor": true,
+          "c2-contradictions": true,
+        },
+      }),
+    ),
+  );
+  rejectedFor(withMerge({ ...LANE, "diff-check": { "high-path-floor": "yes" } }), /high-path-floor/);
+});
+
+test("a local-babysit rung C2 still needs denied paths and a line cap", () => {
+  const local = { rung: "C2", authority: "local-babysit", "agent-identity": IDENTITY };
+  rejectedFor(withMerge({ ...local, "diff-check": { "denied-paths": [] } }), /max-changed-lines/);
+  rejectedFor(
+    withMerge({ ...local, "diff-check": { "denied-paths": [], "max-changed-lines": 200 } }),
+    /denied-paths/,
+  );
 });
 
 test("rung C2 with authority local-babysit and an identity but no diff-check fails the schema", () => {

@@ -257,8 +257,7 @@ loop:
 merge:
   # The lane treats every PR the lanes App opened for one closing issue as
   # class C2 (plugins/autonomy/reference/guardrails/work-classes.md) and reads
-  # no `work-class:` label; the diff-derived C2 checks still apply. Its merge
-  # criterion is the verifier verdict below.
+  # no `work-class:` label. Its merge criterion is the verifier verdict below.
   rung: C2
   authority: pr-merge
   agent-identity: melodic-automation-lanes[bot]
@@ -279,34 +278,12 @@ merge:
   # pull request waits on a human (docs/adr/0073).
   dependabot:
     mode: enforce
+  # Owner decision Q624: the lane denies no path and applies no HIGH path
+  # floor, size cap or C2 contradiction check; the verifier verdict, the kill
+  # switch, the fork and Dependabot refusals, lane-author and single-closing-
+  # issue eligibility, the demotion stop and report-only still hold. Each
+  # removed check comes back by setting it here: list denied-paths, set
+  # `high-path-floor: true` or `c2-contradictions: true`, or set
+  # `max-changed-files` or `max-changed-lines` (the earlier 8 and 400).
   diff-check:
-    denied-paths:
-      # Workflows and their scripts run with repository tokens and secrets.
-      - ".github/**"
-      # The lane rules, this file included: a change here changes what the lanes may do.
-      - "docs/conventions/**"
-      # The merge gate itself.
-      - "plugins/source-control/skills/babysit-prs/**"
-      # The gate's wrapper, which pr-merge.yml runs under the lane token.
-      - "plugins/source-control/scripts/**"
-      # Project settings, rules and hooks every session in this repository loads.
-      - ".claude/**"
-      # Skill text agents follow, including the lanes' own skills.
-      - "plugins/*/skills/**"
-      # Agent definitions: their tools, models and instructions.
-      - "plugins/*/agents/**"
-      # Hooks run code on every tool call and enforce the guardrails.
-      - "plugins/*/hooks/**"
-      # Plugin manifests decide what each plugin loads and grants.
-      - "plugins/*/.claude-plugin/**"
-      # Repository scripts CI runs as checks, so a change could weaken a check.
-      - "scripts/**"
-      # The marketplace manifest, which decides which plugins the lanes load.
-      - ".claude-plugin/**"
-      # Agent instructions every session loads.
-      - "**/AGENTS.md"
-      # Agent instructions every session loads.
-      - "**/CLAUDE.md"
-      # The review criteria the AI review lanes apply.
-      - "**/REVIEW.md"
-    max-changed-lines: 400
+    denied-paths: []

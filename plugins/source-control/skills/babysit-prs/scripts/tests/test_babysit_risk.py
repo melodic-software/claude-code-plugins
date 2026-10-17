@@ -896,6 +896,59 @@ class MalformedInputTests(unittest.TestCase):
                 self.assertIn(f"high-path:{glob}", _codes(result))
 
 
+class LaneSwitchTests(unittest.TestCase):
+    """Owner decision Q624: in the pr-merge lane the HIGH path floor, the
+    file and line caps and the C2 contradictions are each a setting the
+    caller turns off. Off, the same diff that scored above LOW is LOW."""
+
+    def test_the_floor_off_leaves_floor_paths_low(self):
+        files = (_file(".github/workflows/x.yml"),)
+        self.assertEqual(score(_input(files=files)).score, Risk.HIGH)
+        result = score(_input(files=files, high_floor=False))
+        self.assertEqual(result.score, Risk.LOW, _codes(result))
+
+    def test_the_floor_off_still_honors_configured_paths(self):
+        files = (_file(".github/workflows/x.yml"),)
+        result = score(
+            _input(files=files, high_floor=False, high_paths=(".github/**",))
+        )
+        self.assertEqual(_codes(result), ("high-path:.github/**",))
+
+    def test_the_floor_off_still_refuses_unsafe_paths(self):
+        result = score(_input(files=(_file("../x"),), high_floor=False))
+        self.assertIn("high-path:**", _codes(result))
+
+    def test_contradictions_off_leave_a_structural_diff_low(self):
+        files = (
+            _file("plugins/a/x.md", status="removed", previous_mode=None),
+            _file("plugins/b/y.schema.json"),
+        )
+        self.assertIn("class-contradicted", _codes(score(_input(files=files))))
+        result = score(_input(files=files, c2_contradictions=False))
+        self.assertEqual(result.score, Risk.LOW, _codes(result))
+
+    def test_no_file_cap_leaves_many_files_low(self):
+        files = tuple(
+            _file(f"plugins/foo/f{i}.md", additions=1, deletions=0) for i in range(9)
+        )
+        self.assertIn("files-over", _codes(score(_input(files=files))))
+        result = score(_input(files=files, max_changed_files=None))
+        self.assertEqual(result.score, Risk.LOW, _codes(result))
+        capped = score(_input(files=files, max_changed_files=3))
+        self.assertIn(
+            ("files-over", "9 > 3"), [(r.code, r.detail) for r in capped.reasons]
+        )
+
+    def test_no_line_cap_leaves_a_large_diff_low(self):
+        files = (_file("plugins/foo/a.md", additions=5000, deletions=0),)
+        unread = score(_input(files=files, max_changed_lines=None))
+        self.assertIn("lines-over", _codes(unread))
+        result = score(_input(files=files, max_changed_lines=None, lines_optional=True))
+        self.assertEqual(result.score, Risk.LOW, _codes(result))
+        capped = score(_input(files=files, max_changed_lines=10, lines_optional=True))
+        self.assertIn("lines-over", _codes(capped))
+
+
 class NeverRaisesTests(unittest.TestCase):
     def _assert_high_any_path(self, result):
         self.assertEqual(result.score, Risk.HIGH)

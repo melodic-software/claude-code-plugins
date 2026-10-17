@@ -439,7 +439,7 @@ admin permission on the repository.
 
 The same wrapper run with `--unattended --authority pr-merge` is the pr-merge lane's gate. It needs
 `merge.authority: pr-merge` and `merge.agent-identity` at the base, and keeps every read above
-except five:
+except six:
 
 - **Eligibility.** Not a fork or a dependency manager's pull request, opened by
   `merge.agent-identity` (the lanes App; refused `not-lane-authored` otherwise), exactly one closing issue
@@ -456,6 +456,21 @@ except five:
   `verifier-verdict-not-required` unless `merge.require-verifier-verdict` is true, and the schema
   rejects such a config. The lane starts with `merge.report-only: true`; the owner reads its
   reports and sets `false` to let it merge.
+- **Risk switches.** Each check below is a `merge.diff-check` setting that is off when absent, and
+  this repository leaves every one off (owner decision, 2026-10-17): `denied-paths` (an empty
+  list denies no path), `high-path-floor` (true scores the scorer's fixed HIGH path set HIGH),
+  `c2-contradictions` (true scores a removed, renamed or copied file, a schema change or more
+  than one plugin MED), `max-changed-files` and `max-changed-lines` (absent is no cap). The local
+  babysit lane ignores these switches and keeps every check. The review evidence and the
+  security lane's findings still count.
+
+  What is left with them off: a lane pull request may change the merge gate, the workflows and
+  their tokens, these lane rules, skills, hooks, agent instructions and CI checks, at any size.
+  The brakes that remain are the verifier verdict, the kill switch, the fork and Dependabot
+  refusals, lane authorship with one closing issue, the review evidence, the demotion stop and
+  `merge.report-only`. A verdict reads the diff only and runs no changed code, and a pull request
+  that weakens a later run's gate (this file, the gate, `pr-merge.yml`) is judged by the gate as
+  it stood at its base.
 - **Kill switches.** The lane token cannot read Actions variables, so the workflow checks the
   switches itself and passes `--lane-kill-switch proceed`. A missing value or any other value
   stops the lane. The value is read once per run, and a stopped run cannot dequeue: to stop at

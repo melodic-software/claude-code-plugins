@@ -2248,6 +2248,56 @@ class LaneConfig(unittest.TestCase):
         )
         self.assertIs(policy.read_config_at(REPO, SHA).report_only, True)
 
+    def diff_check(self, lines: str) -> Any:
+        text = LANE_PIPELINE.replace(
+            "    max-changed-lines: 200\n", "".join(f"    {x}\n" for x in lines)
+        )
+        config_fake(self, text)
+        return policy.read_config_at(REPO, SHA)
+
+    def test_the_lane_switches_default_to_off(self) -> None:
+        # Owner decision Q624: absent, the floor, the C2 contradictions and
+        # both size caps are off.
+        config = self.diff_check([])
+        self.assertEqual(
+            (
+                config.high_path_floor,
+                config.c2_contradictions,
+                config.max_changed_files,
+                config.max_changed_lines,
+                config.rung,
+            ),
+            (False, False, None, None, "C2"),
+        )
+
+    def test_the_lane_switches_are_read(self) -> None:
+        config = self.diff_check(
+            [
+                "high-path-floor: true",
+                "c2-contradictions: true",
+                "max-changed-files: 8",
+                "max-changed-lines: 400",
+            ]
+        )
+        self.assertEqual(
+            (
+                config.high_path_floor,
+                config.c2_contradictions,
+                config.max_changed_files,
+                config.max_changed_lines,
+            ),
+            (True, True, 8, 400),
+        )
+
+    def test_an_unreadable_switch_is_on_and_a_bad_cap_is_off(self) -> None:
+        config = self.diff_check(["high-path-floor: maybe", "c2-contradictions: 1"])
+        self.assertEqual(
+            (config.high_path_floor, config.c2_contradictions), (True, True)
+        )
+        self.assertEqual(len(config.notes), 2)
+        config = self.diff_check(["max-changed-files: lots"])
+        self.assertEqual((config.rung, config.max_changed_files), ("off", None))
+
 
 class LaneEligibility(unittest.TestCase):
     """The pr-merge lane's eligibility (merge-criterion plan, Design 1 and 2):
@@ -2380,14 +2430,16 @@ class LaneEligibility(unittest.TestCase):
                 self.assertFalse(result.eligible)
                 self.assertEqual(result.reason, f"denied-path:{path}")
 
-    def test_the_live_config_denies_each_owner_approved_path(self) -> None:
-        # Plan D17 plus the owner's three additions on #7467.
+    def test_the_live_config_denies_no_path(self) -> None:
+        # Owner decision Q624: the live denied-path list is empty, so a lane
+        # PR touching the paths it used to deny is eligible.
         live = pathlib.Path(__file__).resolve().parents[6] / policy.CONFIG_PATH
         values = policy._concern_values(
             live.read_text(encoding="utf-8"),
             [("merge.diff-check.denied-paths", True)],
         )
         denied = tuple((values or {}).get("merge.diff-check.denied-paths", ()))
+        self.assertEqual(denied, ())
         for path in (
             ".github/workflows/x.yml",
             "docs/conventions/pr-pipeline.yaml",
@@ -2410,7 +2462,8 @@ class LaneEligibility(unittest.TestCase):
                     denied_paths=denied,
                     agent_identity=IDENTITY,
                 )
-                self.assertEqual(result.reason, f"denied-path:{path}")
+                self.assertTrue(result.eligible, result.reason)
+                self.assertEqual(result.work_class, "C2")
 
     def test_a_renamed_file_from_a_denied_path_refuses(self) -> None:
         gh = self.fake()
@@ -2425,8 +2478,9 @@ class LaneEligibility(unittest.TestCase):
             self.eligibility(changed=3001).reason, "changed-files-incomplete"
         )
 
-    def test_no_denied_paths_configured_refuses(self) -> None:
-        self.fake()
+    def test_no_denied_paths_configured_allows_any_path(self) -> None:
+        # Owner decision Q624: an empty list is the permissive default.
+        self.fake(files=["plugins/source-control/skills/babysit-prs/scripts/x.py"])
         result = policy.lane_eligibility(
             REPO,
             7,
@@ -2434,7 +2488,7 @@ class LaneEligibility(unittest.TestCase):
             denied_paths=(),
             agent_identity=IDENTITY,
         )
-        self.assertEqual(result.reason, "denied-paths-unset")
+        self.assertTrue(result.eligible, result.reason)
 
     def test_no_identity_trusts_no_author(self) -> None:
         self.fake()
