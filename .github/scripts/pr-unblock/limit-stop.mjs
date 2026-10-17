@@ -7,8 +7,8 @@
 // A limit stop is read only from a failed run's lane record, which
 // report-check-run writes from runner-computed outputs. The record is the first
 // line of the run's output.summary, matched whole: `lane=<lane>
-// activity=<activity>` naming the run itself, then class, resets, turns and
-// max-turns in that order, each optional. A failed run with no such line is
+// activity=<activity>` naming the run itself, then class, resets, turns,
+// max-turns, models and profile in that order, each optional. A failed run with no such line is
 // no limit stop.
 
 // When a limit stop names no `resets=` time, it is taken to reset this long
@@ -23,9 +23,11 @@ const HOUR_MS = 3_600_000;
 export const MAX_LIMIT_STOPS = 3;
 const ISO = String.raw`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?Z`;
 const NAME = "[a-z][a-z0-9]*(?:-[a-z0-9]+)*";
+const MODEL = String.raw`[A-Za-z0-9][A-Za-z0-9._[\]-]{0,63}`;
 const SUMMARY_RECORD = new RegExp(
   `^lane=(${NAME}) activity=(${NAME})(?: class=([a-z-]+))?(?: resets=(${ISO}))?` +
-    "(?: turns=(?:0|[1-9][0-9]{0,5}))?(?: max-turns=(?:0|[1-9][0-9]{0,5}))?$",
+    "(?: turns=(?:0|[1-9][0-9]{0,5}))?(?: max-turns=(?:0|[1-9][0-9]{0,5}))?" +
+    `(?: models=${MODEL}(?:,${MODEL}){0,7})?(?: profile=${NAME})?$`,
 );
 
 // The lane record on the first line of `run`'s output.summary, or null when

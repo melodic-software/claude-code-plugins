@@ -54,8 +54,6 @@ permissions, and passes no App key.
 | `activity` | required | The activity, one of the lane's slots |
 | `config-path` | `docs/conventions/pr-pipeline.yaml` | For test callers only (below) |
 | `pr-number` | `''` | The PR on `workflow_dispatch` |
-| `default-model` | `''` | The model when the activity sets none; empty omits `--model` |
-| `default-max-turns` | `75` | The turn budget when the activity sets none |
 | `timeout-minutes` | `30` | The run job's timeout; the report job's is fixed at 10 |
 | `dispatcher-run-id` | `''` | Write file only: the `pr-unblock-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
 | `trusted-base` | `pr-base` | Write file only: `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
@@ -253,11 +251,13 @@ after the skill.
 
 The write file also outputs the lane record of a skill run: `lane-class` and `lane-resets`, the
 failure class and usage-limit reset that ci-workflows' `report-lane-outcome` reads from the
-execution file's structured fields, and `lane-turns` and `lane-max-turns`, the turns taken and the
-cap. They come from steps after the skill. The report job passes them to `report-check-run`, which
-checks each against a fixed shape and writes them into the posted check run: as the first line of
-`output.summary`, `lane=<lane> activity=<activity>` then `class`, `resets`, `turns` and `max-turns`
-in that order, each omitted when absent; as one JSON block in `output.text`; and as
+execution file's structured fields, `lane-turns` and `lane-max-turns`, the turns taken and the
+cap, `lane-models`, the comma list of model IDs the result's `modelUsage` names, and
+`lane-profile`, the models profile `resolve-config` gave the skill. They come from steps after the
+skill. The report job passes them to `report-check-run`, which checks each against a fixed shape
+and writes them into the posted check run: as the first line of `output.summary`,
+`lane=<lane> activity=<activity>` then `class`, `resets`, `turns`, `max-turns`, `models` and
+`profile` in that order, each omitted when absent; as one JSON block in `output.text`; and as
 `external_id` `<lane>:<activity>:<run id>:<run attempt>`. A failed run whose record says `class=rate-limit`
 is the limit stop the pr-unblock dispatchers read from the check-run list they already fetch; a
 failed run with no record line is not one. In issue mode the
@@ -289,7 +289,10 @@ known residual. The skill gets the App token as `github_token` in the write file
 read-only `GITHUB_TOKEN` in the read file. `claude_args` passes `--setting-sources user`, so no
 project or local settings, hooks, `CLAUDE.md`, `AGENTS.md` or `.mcp.json` from the PR head load;
 `--permission-mode dontAsk`; `--allowedTools "Skill(<plugin>:<skill>)"`, so the skill's own
-`allowed-tools` decide what else it may use; `--max-turns`; and `--model` when one is set. The
+`allowed-tools` decide what else it may use; and `resolve-config`'s `claude-args` for the
+activity's models profile (`--max-turns`, `--model` unless the model is `default`, `--effort` when
+set), with its `settings-json` as the action's `settings`
+([README.md, Models](README.md#models)). The
 plugin installs only from `$RUNNER_TEMP/base-marketplace` and loads from there, outside the working
 directory, so `--allowedTools` also carries `Read(/$RUNNER_TEMP/base-marketplace/**)`: without
 it the skill cannot read its own reference files. Commits go through the API, signed
@@ -843,7 +846,7 @@ The request is `POST <LANES_BROKER_URL>` with `Authorization: Bearer <OIDC token
 body `{"lane": "<lane>", "activity": "<activity>", "pr_number": <n>, "dispatcher_run_id": <id>}`;
 `pr_number` is the gate's PR and is required on `workflow_dispatch` and `workflow_run`. An `issues` request,
 allowed only from `work-resolve-issue.yml`, sends `issue_number` (the `issue-number` input)
-instead, and neither of the other two; its actor, the labeler, must be a listed human, or the lanes App on an issue the owner ratified (the broker re-checks the marker). A `merge` request from `pr-merge.yml` names no pull request either; its actor must be a listed human, except on a `schedule` run on `refs/heads/main`, whose actor is whoever last edited the workflow file and is not checked. A re-run of a scheduled run must be started by a listed human. `dispatcher_run_id`, a positive
+instead, and neither of the other two; its actor, the labeler, must be a listed human, or the lanes App. The broker (azure-iac's `lanes-token-broker`) still re-checks the retired ratification marker for the App, so until it drops that check an App-labeled issue without the marker gets no token and the run fails closed. A `merge` request from `pr-merge.yml` names no pull request either; its actor must be a listed human, except on a `schedule` run on `refs/heads/main`, whose actor is whoever last edited the workflow file and is not checked. A re-run of a scheduled run must be started by a listed human. `dispatcher_run_id`, a positive
 JSON integer, is the `dispatcher-run-id` input, sent only when set. The broker reads it only when
 the OIDC actor is `github-actions[bot]`: such a run mints only when the `pr-unblock-dispatch.yml`
 run it names passes the checks the trusted-trigger gate applies. That run must be on `main`,
@@ -934,24 +937,44 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
 `report-outcome` (a script) in a second run job. What changes from the PR flow:
 
 - Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
-  `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty.
+  `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty, and unless a
+  non-empty `reuse-branch` is this issue's `work-resolve-issue/issue-<n>-<run id>-<attempt>`.
 - The trigger gate runs with `require-pr: false` and `require-kind: human`: the account that
   applied the label, and any re-runner, must be listed as a human. The one exception is the
-  caller's `ratified-app-label` (`agent-ready` for `work-resolve-issue.yml`): the lanes App may
-  apply it while the issue carries the owner's ratification marker, re-read from the API when the
-  run starts (a listed human's comment, never edited, not posted through an App), with no body
-  edit or title change since the newest such comment; the re-runner
-  is then the App or a listed human. The App's other labels never start a run. `check-trusted-base` trusts the
+  caller's `app-label` (`agent-ready` for `work-resolve-issue.yml`): the lanes App may apply it,
+  and the label alone admits the issue; the re-runner is then the App or a listed human. The
+  App's other labels never start a run, and no step of the lane adds `agent-ready`. `check-trusted-base` trusts the
   default branch tip, and that commit is the head the job checks out.
-- `resolve-config` decides the issue's labels from the event payload and `labeled-after`, the
+- `resolve-config` reads the issue's labels now, for the hold labels, and `labeled-after`, the
   lane's go-live time, from the issue's update time. The token request sends `issue_number`.
+- Each issue is worked once. In a skill run, the `issue-prior` step (`report-outcome.mjs
+  --find-prior`) runs after `resolve-config` and before the mint, with the job's read-only
+  `GITHUB_TOKEN`, and reads the issue's lane branches (`git/matching-refs` on
+  `work-resolve-issue/issue-<n>-`), their PRs, their tip commits, their commits ahead of the
+  default branch, the issue's open closing PRs and the lanes App's outcome markers on it. It skips
+  the run `not-applicable`, with no lane token, no model and no comment, when a lanes-App PR from a
+  lane branch is open, or when an open PR in this repository closes the issue and the lanes App or
+  a listed human (`trusted-actors.json`) opened it; anyone's other closing PR is ignored. It also
+  skips `not-applicable` and sets the `reuse-branch` output to the first lane branch, newest run
+  and attempt first, that has commits ahead, a tip commit GitHub verified whose author is the
+  lanes App bot and whose committer is `web-flow`, as the App's API commits are (a branch name
+  alone proves nothing, and anyone can sign a commit naming the App as author), no lanes-App PR in any state (a
+  closed one was rejected or merged) and no lanes-App outcome marker for its run: the work was
+  made and its report never posted. Branches that fail any of these are passed over, not stopped at, so an older unreported
+  branch is reused even when a newer branch's run was handed back or limit-stopped. A branch whose
+  own run posted a hand-back or limited marker is never reused. Any failed read, or an answer of
+  the wrong shape, fails the step, so nothing is minted.
 - Before the skill, the runner writes the issue's number, title, body and labels to `issue.json`
   in the skill's scratch directory, with only the comments `select-trusted-text`'s author and edit
   rules keep (`write-issue.mjs`), oldest first, so a listed maintainer's recorded decision reaches
   the skill. The lanes App's own comments are left out, a listed human's comment whose first line
   is `**Decision recorded.**` is marked `decision: true`, and comments other than decisions are
-  capped at the newest 20. When the lanes App applied the label, a comment created or edited
-  after the newest ratification marker is left out, matching the gate's frozen title and body. The skill commits to a new branch,
+  capped at the newest 20. The issue is frozen at the `labeled` event that started this run (the
+  labeler's newest such event no later than the payload's issue `updated_at`; a later label event
+  by anyone never moves it, and the lanes App's remove-and-re-add after a limit stop anchors at
+  the label it restarted): a
+  comment created or edited after that is left out, and a title or body changed since fails the
+  step, so text edited after admission does not steer the run. The skill commits to a new branch,
   `<lane>/issue-<n>-<run id>-<attempt>`, which is kept only when it holds commits. The skill's
   `work-outcome.json` and the runner's `lane.json` (the kept branch, or empty) are uploaded as the
   `work-outcome-<n>` artifact, and the job output `issue-run-started` is `true` once the token
@@ -965,7 +988,17 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
   show whole. The run's own summary is quoted with issue references broken, so
   squash-merging the PR closes only `#<n>`. On `pushback` or `stopped`, and when the outcome file is missing
   or invalid, it labels the issue with the human-gated role label and comments why; pushback also
-  removes `agent-ready`.
+  removes `agent-ready`. Each comment opens with the marker
+  `<!-- work-resolve-issue outcome=<exit> run=<run id> -->`, which `issue-prior` matches to the
+  branches of that run (a marker naming no run covers every branch whose tip is older than it).
+- A non-empty `reuse-branch` also starts `report-outcome` and `report-statuses`, and reaches the
+  script as `REUSE_BRANCH`. The downloaded outcome counts only when its `lane.json` names that
+  branch (a re-run attempt of the run that made it). Otherwise, and when that outcome cannot be
+  read, `report-outcome` opens a held PR from the branch with fixed text naming the earlier run and
+  none of the model's text, ignoring any limit record; the earlier run's artifact would need
+  `actions: read`, which no lane token holds. `report-statuses` then posts only
+  `pipeline/report-outcome` on that branch, so any statuses the earlier run posted on the same
+  head stand.
 - No check run is posted: there is no PR head. The lane's `report-statuses` job (in
   `work-resolve-issue.yml`, the lane's only `statuses: write`, on its own `GITHUB_TOKEN`) posts a
   `pipeline/<activity>` commit status on the lane branch's head for `resolve-issue` and
