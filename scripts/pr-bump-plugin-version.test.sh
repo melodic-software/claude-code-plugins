@@ -21,6 +21,8 @@ ALLOWED_RUN_BLOCKS=(
   4d224f92decf5efabf8b5a538f5501cc7bebc6ea9ed3e5286b0e813a943801ca # Commit release metadata
 )
 ALLOWED_ENV=(BASE_REF PR_NUMBER PR_TITLE GH_TOKEN HEAD_REF)
+# Characters that chain, substitute or redirect a second command in a run line.
+CHAINING=';&|<>()`'
 
 contains() {
   local needle=$1 item
@@ -87,7 +89,7 @@ audit() {
     run)
       if contains "$value" "${ALLOWED_RUN_LINES[@]}"; then
         :
-      elif [[ "$value" =~ ^bash\ \.base/scripts/[A-Za-z0-9_-]+\.sh(\ |$) && "$value" != *..* && ! "$value" =~ [\;\&\|\`\<\>] && "$value" != *"\$("* ]]; then
+      elif [[ "$value" =~ ^bash\ \.base/scripts/[A-Za-z0-9_-]+\.sh(\ |$) && "$value" != *..* && "$value" != *["$CHAINING"]* ]]; then
         :
       else
         echo "$id: run '$value' is neither bash on a .base script nor a listed line"
@@ -139,6 +141,7 @@ mutants=(
   "      - run: bash \"\$GITHUB_WORKSPACE/scripts/x.sh\""
   "      - working-directory: plugins/x"$'\n'"        run: bash build.sh"
   "      - run: bash .base/scripts/x.sh; npm ci"
+  "      - run: bash .base/scripts/x.sh \$(npm ci)"
   "      - env:"$'\n'"          BASH_ENV: scripts/x.sh"$'\n'"        run: bash .base/scripts/x.sh"
   "      - run: |"$'\n'"          bash scripts/x.sh"
 )
