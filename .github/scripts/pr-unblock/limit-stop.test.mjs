@@ -51,3 +51,53 @@ test("reset limit stops stop handling a head until three of them stand on it", a
   assert.equal(await anyHandles([run(1), run(2)], { listAnnotations, now }), false);
   assert.equal(await anyHandles([run(1), run(2), run(3)], { listAnnotations, now }), true);
 });
+
+// The summary record report-check-run writes on the first line of a posted
+// check run named `<lane> / <activity>`.
+const posted = (line, extra = {}) => ({
+  ...run(),
+  name: "pr-unblock / resolve-conflicts",
+  output: { title: "Failed", summary: `${line}\n\nThe activity step failed.` },
+  ...extra,
+});
+const LIMIT_LINE = "lane=pr-unblock activity=resolve-conflicts class=rate-limit resets=2026-10-17T13:00:00Z turns=4 max-turns=30";
+
+test("the summary record is read first: its reset, and its class over any annotation", () => {
+  assert.equal(limitResetsAt(posted(LIMIT_LINE), []), Date.parse("2026-10-17T13:00:00Z"));
+  assert.equal(limitResetsAt(posted("lane=pr-unblock activity=resolve-conflicts class=rate-limit")), ended + 5 * HOUR);
+  const other = posted("lane=pr-unblock activity=resolve-conflicts class=other turns=3");
+  assert.equal(limitResetsAt(other, [record(" resets=2026-10-17T13:00:00Z")]), null);
+});
+
+test("a summary record skips the annotations read; a run without one falls back to it", async () => {
+  const now = ended + 6 * HOUR;
+  const read = [];
+  const listAnnotations = async (id) => {
+    read.push(id);
+    return [record()];
+  };
+  const runs = [posted(LIMIT_LINE, { id: 1 }), run(2), posted(LIMIT_LINE, { id: 3 })];
+  assert.equal(await anyHandles(runs, { listAnnotations, now }), true);
+  assert.deepEqual(read, [2]);
+});
+
+test("a summary line that is not the record is not read as one", () => {
+  const notRecords = [
+    // the record below the first line
+    posted(`Failed.\n${LIMIT_LINE}`),
+    // embedded in other text, or with a token out of order or unknown
+    posted(`Model said: ${LIMIT_LINE}`),
+    posted("lane=pr-unblock activity=resolve-conflicts resets=2026-10-17T13:00:00Z class=rate-limit"),
+    posted(`${LIMIT_LINE} note=x`),
+    // a record naming another check run
+    posted(LIMIT_LINE.replace("resolve-conflicts", "address-feedback")),
+  ];
+  for (const forged of notRecords) {
+    assert.equal(limitResetsAt(forged, []), null, forged.output.summary);
+  }
+});
+
+test("a run that did not fail is no limit stop, whatever its summary or annotations say", () => {
+  assert.equal(limitResetsAt(posted(LIMIT_LINE, { conclusion: "success" })), null);
+  assert.equal(limitResetsAt({ ...run(), conclusion: "neutral" }, [record()]), null);
+});
