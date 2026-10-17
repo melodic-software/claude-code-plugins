@@ -65,7 +65,12 @@ RUNS = {
 
 def resolver(users: list[Any], runs: list[dict[str, Any]]) -> dict[str, Any]:
     script = NODE % json.dumps(RESOLVER.as_uri())
-    payload = {"users": users, "runs": runs, "repo": gate.REPO, "onMain": [gate.MAIN_SHA]}
+    payload = {
+        "users": users,
+        "runs": runs,
+        "repo": gate.REPO,
+        "onMain": [gate.MAIN_SHA],
+    }
     proc = subprocess.run(
         ["node", "--input-type=module", "-e", script, json.dumps(payload)],
         capture_output=True,

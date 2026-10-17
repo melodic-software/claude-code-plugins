@@ -924,7 +924,9 @@ class LaneRequiresAVerdict(unattended.Unattended):
         return [
             c.args[0]
             for c in self.capture.call_args_list
-            if any("/labels" in a or merge.VERIFY_ESCALATION_MARKER in a for a in c.args[0])
+            if any(
+                "/labels" in a or merge.VERIFY_ESCALATION_MARKER in a for a in c.args[0]
+            )
         ]
 
     def test_a_needs_human_refusal_labels_the_pr_and_comments_once(self) -> None:

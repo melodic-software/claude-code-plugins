@@ -128,7 +128,7 @@ import argparse
 import json
 import re
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -3052,7 +3052,7 @@ def verify_escalation_body(refusal: str, head: str) -> str:
 
 
 def escalate_verify(
-    repo: str, number: int, identity: str, refusal: str, inputs: dict[str, Any]
+    repo: str, number: int, identity: str, refusal: str, inputs: Mapping[str, Any]
 ) -> dict[str, Any]:
     """The escalation contract for a needs-human verifier refusal (loop-lane
     README §2): the tracker's human-gated role label on the pull request,

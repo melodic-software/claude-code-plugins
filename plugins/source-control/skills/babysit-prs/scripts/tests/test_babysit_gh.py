@@ -26,7 +26,7 @@ class GhCaptureTests(unittest.TestCase):
     `env_overrides` onto the inherited environment for that call alone
     (`babysit_util.run_command`); with none the child inherits it as is."""
 
-    def capture(self, **kwargs: Any) -> tuple[Any, dict[str, Any]]:
+    def capture(self, **kwargs: Any) -> tuple[Any, Any]:
         failed = subprocess.CompletedProcess(["gh"], 1, "", "gh: boom (HTTP 502)")
         with (
             mock.patch.object(util.shutil, "which", return_value="/bin/gh"),
