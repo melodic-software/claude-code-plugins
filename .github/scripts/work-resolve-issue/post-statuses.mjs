@@ -35,17 +35,16 @@ const DESCRIPTION = {
 };
 
 // The statuses to post, in order; none without a lane branch. A null outcome
-// is a reused branch whose run's report this run never read: every step but
-// report-outcome posts error.
+// is a reused branch whose run's report this run never read: only this run's
+// report-outcome posts, so the statuses the earlier run posted on the same
+// head stand.
 export function plan({ outcome, branch, resolveResult, reportResult }) {
   if (!branch) {
     return [];
   }
   if (outcome === null) {
-    return ["resolve-issue", "report-outcome", ...PREP_STEPS].map((activity) => {
-      const state = activity === "report-outcome" ? jobState(reportResult) : "error";
-      return { context: `pipeline/${activity}`, state, description: DESCRIPTION[state] };
-    });
+    const state = jobState(reportResult);
+    return [{ context: "pipeline/report-outcome", state, description: DESCRIPTION[state] }];
   }
   const resolve = jobState(resolveResult);
   const states = new Map([

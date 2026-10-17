@@ -176,19 +176,18 @@ test("main posts nothing when lane.json names no lane branch of this issue", asy
 });
 
 // A branch resolve-issue reused from an earlier run whose report this run never
-// read: no prep step was reported, so each fails closed as error, and so does
-// resolve-issue, whose skipped run says nothing of the work.
+// read: the earlier run may already have posted its statuses on this head
+// (its report-statuses ran, its report-outcome failed), and a later status
+// with the same context replaces an earlier one, so this run posts only its
+// own report-outcome. Its PR carries the hold line, so a human merges it.
 const REUSED = "work-resolve-issue/issue-77-400-1";
-const UNREPORTED = {
-  "pipeline/resolve-issue": "error",
-  "pipeline/report-outcome": "success",
-  "pipeline/review": "error",
-  "pipeline/verify": "error",
-  "pipeline/checks": "error",
-};
+const UNREPORTED = { "pipeline/report-outcome": "success" };
 
-test("a reused branch with no report of its own posts error for every step but report-outcome", () => {
-  assert.deepEqual(byContext(plan({ outcome: null, branch: REUSED, resolveResult: "success", reportResult: "success" })), UNREPORTED);
+test("a reused branch with no report of its own posts only report-outcome, leaving the earlier run's statuses", () => {
+  for (const reportResult of ["success", "failure"]) {
+    const statuses = plan({ outcome: null, branch: REUSED, resolveResult: "success", reportResult });
+    assert.deepEqual(byContext(statuses), { "pipeline/report-outcome": reportResult }, reportResult);
+  }
 });
 
 test("main posts on the reused branch when lane.json names no branch, or another one", async () => {
