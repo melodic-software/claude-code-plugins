@@ -913,8 +913,9 @@ class Session:
 
     def heartbeat(self, pid, body):
         """POST /api/heartbeat (wire.schema.json `heartbeat`): memory only; allowed while the session
-        is ended. A beat that changes `visible` or `away` is taken at once, inside the one-a-second
-        limit, since the page sends one the moment its visibility changes."""
+        is ended. A beat that changes `visible` or `away` is taken at once, outside the one-a-second
+        limit, since the page sends one the moment its visibility changes; such changes have their
+        own one-a-second limit, so flipping visibility cannot flood."""
         body = _body(body)
         err = wire_error(body, "heartbeat")
         if err:
@@ -929,8 +930,9 @@ class Session:
             now = self.now()
             old = self._presence.get(pid)
             changed = old is not None and (old.get("visible", True) != visible or (old.get("awayAt") is not None) != away)
-            if not changed:
-                self._throttle(pid, "heartbeat", now, HEARTBEAT_INTERVAL)
+            self._throttle(pid, "heartbeat-change" if changed else "heartbeat", now, HEARTBEAT_INTERVAL)
+            if changed:
+                self._wrote(pid, "heartbeat-change", now)
             old = old or {}
             beat = {
                 "q": (body.get("q") or "")[:16],

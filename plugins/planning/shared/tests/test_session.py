@@ -2675,6 +2675,17 @@ class TestPresenceStates(SessionCase):
             self.beat(self.ann, visible=False)
         self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
 
+    def test_flipping_visibility_is_limited_to_one_change_a_second(self):
+        self.beat(self.ann, visible=True)
+        self.clock.tick(2)
+        self.beat(self.ann, visible=False)
+        with self.assertRaises(session.DomainError) as ctx:
+            self.beat(self.ann, visible=True)
+        self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
+        self.clock.tick(1)
+        self.beat(self.ann, visible=True)
+        self.assertEqual(self.state_of(self.ann)["state"], "active")
+
     def test_manual_away_lasts_while_sent_and_ends_with_the_next_input_beat(self):
         self.beat(self.ann, away=True)
         set_at = self.clock.t
