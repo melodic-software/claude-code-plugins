@@ -106,7 +106,9 @@ move into the classifiers and the verdict job, with no model
   thief who can also publish from the project's own release workflow. A package that never
   published provenance is unchanged: the cooldown and CI still bound it.
 - **Control citation.** A `merge` verdict on a review-only dependency must quote each matched
-  entry's `control`; the verdict job checks the string, not the model.
+  entry's `control`; the verdict job checks the string, not the model. It catches a verdict
+  that skipped the review-only procedure, not a model that release text steered, since any
+  text the model can see it can also quote.
 - **Classifier gaps.** A pull request sent to review only by a read failure is logged as a
   classifier gap, so parse bugs are fixed instead of being paid for in AI reviews.
 

@@ -561,7 +561,11 @@ Dependabot policy's `autoMerge.reviewOnly` (melodic-software/standards
   release adds that its changelog does not explain. Anything it cannot check is `escalate`.
 - **Citation check.** The verdict job checks that by script: a `merge` verdict whose `evidence`
   does not hold each matched entry's `control` string verbatim (as a substring of one entry)
-  posts no merge marker and escalates `dependency-control-uncited`.
+  posts no merge marker and escalates `dependency-control-uncited`. This proves only that the
+  verdict followed the review-only procedure, not that the model checked anything: the control
+  string is public, and a model steered by release text can quote it as easily as one that did
+  the work. The deterministic defenses are the routing to review and the registry provenance
+  gate below; against steering text the review relies on the model escalating it.
 
 #### Registry provenance
 
