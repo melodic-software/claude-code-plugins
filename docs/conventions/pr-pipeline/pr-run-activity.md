@@ -191,6 +191,9 @@ the broker request, and no other permission; it never holds `checks: write` or `
    then re-reads the PR branch from `GET git/ref/heads/<head ref>` (`GET /pulls` can lag a push);
    when it no longer points at the gated head the activity skips with `superseded-sha`, mints
    nothing and runs no model turn. Other effects never write the branch and keep the gated head.
+   In issue mode a skill run's `issue-prior` step then checks for an earlier run's work
+   ([Issue mode](#issue-mode)); when it reuses a branch it skips the rest of the run, mints
+   nothing and runs no model turn in this job, and the [summary job](#the-summary-job) runs next.
 6. Write file only:
    [`request-lane-token`](../../../.github/actions/request-lane-token/README.md) gets the lane
    token from the broker ([below](#the-lane-token-broker)), before `select-trusted-text` and before
@@ -730,6 +733,36 @@ warns of a [classifier gap](README.md#classifier-gaps).
 
    The runner accepts only those six reasons, and only with `dependency-verdict`.
 
+## The summary job
+
+Write file, issue mode only: runs after the run job, unless the run was cancelled, when the run
+job's `reuse-branch` output is not empty. It holds `contents: read` and nothing else, so no model
+turn runs where `id-token: write` is granted, and it times out after 20 minutes. Every step is
+`continue-on-error` and runs only when the one before it succeeded, so a failed or limit-stopped
+pass turns no job red and leaves no summary. In order:
+
+1. Checks out the run job's `base-sha` to `.base` with `persist-credentials: false`, and sets up
+   Node.
+2. Fails unless the issue number, base SHA and `reuse-branch` have their runner shapes (the branch
+   is this issue's lane branch). With the job's `GITHUB_TOKEN`, `write-issue.mjs` writes the issue,
+   frozen as the skill would get it. A blobless fetch of the base and the branch into a repository
+   outside the workspace, with `GIT_CONFIG_GLOBAL=/dev/null` and no system config, writes the
+   branch's diff (`git diff --no-ext-diff --no-textconv`, cut at 1 MB) and `branch.json`, so
+   nothing on the branch is checked out or run. The fetch carries no credentials, so the pass
+   needs a public repository; in a private one this step fails and the PR keeps the fixed text.
+3. `resolve-config` with `model-route: summarize-reuse` ([Models](README.md#models)), then builds
+   the prompt and the `--allowedTools "Read(<data directory>/**)"`, `--disallowedTools` and
+   `--json-schema` arguments, passing the prompt through a random heredoc delimiter.
+4. `setup-runner-isolation` with subprocess isolation (steps 9 and 10 of the run job).
+5. `claude-code-action` with the job's `GITHUB_TOKEN`, no plugins and no commit signing, under
+   `--permission-mode dontAsk`, returning `title`, `summary` and `changes` as structured output.
+6. Writes `reuse-summary.json` with `jq`: the issue, branch and diffed tip from the runner's own
+   steps beside the structured output, read through `env` and parsed (null when it does not
+   parse), and uploads it as the `reuse-summary-<n>` artifact.
+
+The caller's `report-outcome` job needs the whole `resolve-issue` call, this job included, and
+runs with `!cancelled()`, so it opens the PR whether this job succeeded, failed or skipped.
+
 ## The report job
 
 Runs after the run job whatever its result, with `checks: write`, `contents: read` and
@@ -1008,14 +1041,22 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
   removes `agent-ready`. Each comment opens with the marker
   `<!-- work-resolve-issue outcome=<exit> run=<run id> -->`, which `issue-prior` matches to the
   branches of that run (a marker naming no run covers every branch whose tip is older than it).
+- On a reuse the skill run mints nothing, and the [summary job](#the-summary-job) has a read-only
+  model pass describe the branch from its diff and the issue, as the `reuse-summary-<n>` artifact.
 - A non-empty `reuse-branch` also starts `report-outcome` and `report-statuses`, and reaches the
-  script as `REUSE_BRANCH`. The downloaded outcome counts only when its `lane.json` names that
-  branch (a re-run attempt of the run that made it). Otherwise, and when that outcome cannot be
-  read, `report-outcome` opens a held PR from the branch with fixed text naming the earlier run and
-  none of the model's text, ignoring any limit record; the earlier run's artifact would need
-  `actions: read`, which no lane token holds. `report-statuses` then posts only
-  `pipeline/report-outcome` on that branch, so any statuses the earlier run posted on the same
-  head stand.
+  script as `REUSE_BRANCH`; `report-outcome` also downloads `reuse-summary-<n>`. The downloaded
+  outcome counts only when its `lane.json` names that branch (a re-run attempt of the run that
+  made it). Otherwise, and when that outcome cannot be read, `report-outcome` opens a held PR from
+  the branch, ignoring any limit record: the earlier run's artifact would need `actions: read`,
+  which no lane token holds. When the summary names this issue and branch, the branch is still at
+  its tip, and its `summary` is not empty, the PR carries the summary and its changes, quoted as
+  model text. Otherwise the PR has fixed text naming the earlier run and none of the model's text.
+  Either way its Fix section lists the files `GET /compare` names, those on a
+  `merge.diff-check.denied-paths` glob marked and listed first; a failed compare says the list is
+  unavailable and still opens the PR.
+  The summary never reaches a status or the hold line, which every reuse PR carries:
+  `report-statuses` then posts only `pipeline/report-outcome` on that branch, so any statuses the
+  earlier run posted on the same head stand.
 - No check run is posted: there is no PR head. The lane's `report-statuses` job (in
   `work-resolve-issue.yml`, the lane's only `statuses: write`, on its own `GITHUB_TOKEN`) posts a
   `pipeline/<activity>` commit status on the lane branch's head for `resolve-issue` and

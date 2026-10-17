@@ -218,7 +218,11 @@ jobs:
       # Swaps this job's GitHub identity proof for a short-lived token of the
       # lanes App, with exactly the permissions resolved above. The broker
       # re-checks everything itself (main only, this file unchanged from main,
-      # kill switch, a listed human) and hands out one token per job.
+      # kill switch, a listed human) and hands out one token per job. A queued
+      # run that a change to this file on main superseded is refused
+      # `workflow-modified`; it ends green with a warning and no token, so the
+      # steps below skip and no stale failed `merge` check lands on a PR. The
+      # newer run checks every PR.
       - name: Request the lane token
         id: lane-token
         if: steps.config.outcome == 'success'
@@ -232,6 +236,7 @@ jobs:
           contents: ${{ steps.config.outputs.contents }}
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
+          superseded-ok: true
 
       # Candidates: open, non-draft PRs into main that the lanes App
       # (merge.agent-identity on main) opened, plus Dependabot's unless
@@ -264,6 +269,33 @@ jobs:
             jq -cs '[add[] | select(.isDraft | not)
               | {number, head: .headRefOid, updatedAt}] | unique_by(.number)' >"$RUNNER_TEMP/candidates.json"
           echo "count=$(jq length "$RUNNER_TEMP/candidates.json")" >>"$GITHUB_OUTPUT"
+
+      # The post-merge check, read-only, on every run whether or not any PR is
+      # a candidate: after the queue lands the last lane PR there is none, yet
+      # that merge still needs its full CI run to be verified. It looks only
+      # at PRs this lane put in the merge queue itself; merges by a person or
+      # by another App (a release PR, say) are not the lane's to check.
+      # It runs before the gate, which reuses its answer for every candidate
+      # while main's head and config are unchanged (--postmerge-result); a PR
+      # that merges during the run is in the gate's own `dispatch` output.
+      - name: Check earlier lane merges
+        id: post-merge
+        if: steps.lane-token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          code=0
+          python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
+            --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
+            </dev/null >"$RUNNER_TEMP/post-merge.json" || code=$?
+          echo "::group::post-merge check: exit $code"
+          cat "$RUNNER_TEMP/post-merge.json"
+          echo "::endgroup::"
+          needs=$(jq '.needsDispatch == true' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || echo false)
+          echo "needs-dispatch=$needs" >>"$GITHUB_OUTPUT"
 
       # The gate itself, once per candidate, using the lane App's token. It is
       # the same script the local babysit loop uses, run as the pr-merge lane:
@@ -305,6 +337,7 @@ jobs:
             code=0
             ".base/$SCRIPT" "${args[@]}" --allowed-owners "$OWNER" \
               --lane-kill-switch "$KILL_SWITCH" --lane-rung-cap "$RUNG_CAP" \
+              --postmerge-result "$RUNNER_TEMP/post-merge.json" \
               --expected-head "$head" "$REPO#$number" </dev/null >"$out" || code=$?
             echo "::group::PR #$number at $head: exit $code"
             cat "$out"
@@ -322,30 +355,6 @@ jobs:
           jq -s . "$results" >"$RUNNER_TEMP/pr-merge-summary.json"
           dispatch=$(jq 'any(.[]; .merged and .dispatched != true)' "$RUNNER_TEMP/pr-merge-summary.json")
           echo "dispatch=$dispatch" >>"$GITHUB_OUTPUT"
-
-      # The post-merge check, read-only, on every run whether or not any PR is
-      # a candidate: after the queue lands the last lane PR there is none, yet
-      # that merge still needs its full CI run to be verified. It looks only
-      # at PRs this lane put in the merge queue itself; merges by a person or
-      # by another App (a release PR, say) are not the lane's to check.
-      - name: Check earlier lane merges
-        id: post-merge
-        if: steps.lane-token.outputs.token != ''
-        env:
-          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-          REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
-          code=0
-          python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
-            --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
-            </dev/null >"$RUNNER_TEMP/post-merge.json" || code=$?
-          echo "::group::post-merge check: exit $code"
-          cat "$RUNNER_TEMP/post-merge.json"
-          echo "::endgroup::"
-          needs=$(jq '.needsDispatch == true' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || echo false)
-          echo "needs-dispatch=$needs" >>"$GITHUB_OUTPUT"
 
       # The run's report: every candidate with its verdict, whether a full CI
       # run is started (or, in report-only mode, would have been), then the

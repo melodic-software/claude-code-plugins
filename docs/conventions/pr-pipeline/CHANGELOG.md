@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 2.4.0 - 2026-10-17
+## 2.5.0 - 2026-10-17
 
 `scripts/run-test-file.sh` runs a `*.test.js` or `*.test.ts` file that imports `vitest` with the
 package's locked vitest (`npx --no-install vitest run`, from the nearest `package.json` inside the
@@ -8,6 +8,17 @@ checkout), under the same checkout-path guard, after `npm ci --ignore-scripts` t
 package has a `package-lock.json` and no `node_modules`. When it is a verify-script, the system prompt names
 its wrapper as the test entry and says a compound `cd <dir>; <command>` is refused
 ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). `version` stays 2.
+
+## 2.4.0 - 2026-10-17
+
+`models.routes` and `resolve-config`'s `model-route` take a fifth run route, `summarize-reuse`
+([README.md, Models](README.md#models)); this repository maps it to a new `summary` profile
+(`sonnet`, effort `medium`, 10 turns). When work-resolve-issue reuses a lane branch, the write
+file's new summary job, which holds only `contents: read`, runs a read-only summary pass
+([pr-run-activity.md, The summary job](pr-run-activity.md#the-summary-job)), and `report-outcome`
+writes its summary and changes into the PR body when the summary names the issue, the branch and
+its current tip. Every reuse PR lists the files the branch changes, denied paths marked, and
+still carries the hold line. `version` stays 2.
 
 ## 2.3.0 - 2026-10-17
 

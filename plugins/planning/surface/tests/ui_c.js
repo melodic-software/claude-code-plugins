@@ -472,7 +472,7 @@ async page => {
     await page.setViewportSize({width: 1400, height: 860});
     await page.goto(base);
     await page.waitForFunction(() => /Not listening/.test(document.getElementById("pill").textContent), null, {timeout: 5000}).catch(() => {});
-    const pill = await page.evaluate(() => { const p = document.getElementById("pill"); return {cls: p.className, text: p.textContent, code: (p.querySelector("code") || {}).textContent, line: document.getElementById("claudeLine").textContent}; });
+    const pill = await page.evaluate(() => { const p = document.getElementById("pill"); return {cls: p.className, text: p.textContent, code: (p.querySelector("code") || {}).textContent, line: document.getElementById("workLine").textContent}; });
     ok("SPEC 2.4 rung 5: a delivery unhandled for 10 minutes with no watcher waiting says to type next", /type next$/.test(pill.text) && pill.code === "next" && pill.cls === "pill idle" && /D1/.test(pill.line), JSON.stringify(pill));
     // No watcher has polled this server, as on a first wake held by a permission prompt: the pill names the prompt too.
     ok("with no watcher ever polled, the pill says to approve any prompt in the terminal, or type next", pill.text === "Not listening: approve any prompt in the terminal, or type next" && /permission prompt/.test(await page.getAttribute("#pill", "title")), pill.text);
@@ -511,8 +511,8 @@ async page => {
     ok("a fresh answer, with no watcher silent for 30 s yet, reads Sent to Claude", /Sent to Claude/.test(await chip()), await chip());
     const quiet = await page.waitForFunction(() => /No session is listening; type next in the terminal/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 45000}).then(() => true).catch(() => false);
     ok("with no watcher holding the lease, an unhandled answer reads as not delivered", quiet && !/Sent to Claude/.test(await chip()), await chip());
-    const line = await page.waitForFunction(() => /No session is listening/.test(document.getElementById("claudeLine").textContent), null, {timeout: 5000}).then(() => true).catch(() => false);
-    ok("the receipt line says the same", line, await page.textContent("#claudeLine"));
+    const line = await page.waitForFunction(() => /No session is listening/.test(document.getElementById("workLine").textContent), null, {timeout: 5000}).then(() => true).catch(() => false);
+    ok("the receipt line says the same", line, await page.textContent("#workLine"));
     // The watcher claims the lease; the shell handles the event a few seconds later.
     const r = await page.request.get(base + "api/wait?after=handled&timeout=1&watcher=w1", {headers: {"X-Interview-Token": await token()}});
     const back = await page.waitForFunction(() => /Sent to Claude/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 12000}).then(() => true).catch(() => false);

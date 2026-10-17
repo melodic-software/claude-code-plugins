@@ -2319,6 +2319,14 @@ class LocalEnabledSince(unittest.TestCase):
         )
         self.assertEqual(policy.enabled_since(REPO, base), expected)
 
+    def test_the_newest_config_commit_comes_from_the_same_clone(self) -> None:
+        self.pipeline(PIPELINE, "2026-10-11T00:00:00Z")
+        newest = self.pipeline(PIPELINE + "# edit\n", "2026-10-12T00:00:00Z")
+        base = self.commit("README.md", "unrelated", "2026-10-13T00:00:00Z")
+        gh = self.local()
+        self.assertEqual(policy.newest_config_commit(REPO, base), newest)
+        self.assertEqual(gh.calls, [])
+
     def test_a_deleted_pipeline_file_ends_the_enabled_run(self) -> None:
         self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
         self.pipeline(None, "2026-10-05T00:00:00Z")
@@ -2924,6 +2932,127 @@ class LaneAssess(unittest.TestCase):
     def test_local_babysit_refuses_a_pr_merge_config(self) -> None:
         self.readable()
         self.assertEqual(self.assess().reason, "authority-unconfigured")
+
+
+MAIN_SHA = "c" * 40
+CONFIG_SHA = "d" * 40
+NEWEST_CONFIG = (
+    f"repos/{REPO}/commits?sha={SHA}"
+    "&path=docs%2Fconventions%2Fpr-pipeline.yaml&per_page=1"
+)
+
+
+class SharedPostMergeAnswer(unittest.TestCase):
+    """`assess(shared=...)`: the pr-merge run's one demotion, floor and
+    post-merge answer stands in for each candidate's own reads only while it
+    is bound to the default branch head, the base's pipeline-config commit,
+    the identity, self logins and lane, and is fresh. The expected decisions
+    are the fresh path's own (a pin of the reads it replaces)."""
+
+    readable = LaneAssess.readable
+    fake = Assess.fake
+    assess = Assess.assess
+    lane_assess = LaneAssess.lane_assess
+
+    def bound(self) -> GhFake:
+        gh = self.readable()
+        gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": MAIN_SHA}
+        gh.rest[NEWEST_CONFIG] = [{"sha": CONFIG_SHA}]
+        return gh
+
+    def shared(self, gate_: policy.PostMergeGate, **overrides: Any) -> Any:
+        fields: dict[str, Any] = {
+            "main_sha": MAIN_SHA,
+            "config_sha": CONFIG_SHA,
+            "identity": IDENTITY,
+            "self_logins": frozenset(),
+            "lane_merges_only": True,
+            "computed_at": policy.datetime.now(policy.UTC),
+            "demotion": policy.Demotion(False, None, ()),
+            "floor": policy.datetime.fromisoformat(ENABLED_AT),
+            "gate": gate_,
+        }
+        return policy.SharedPostMerge(**{**fields, **overrides})
+
+    def flight(self) -> mock.Mock:
+        patcher = mock.patch.object(
+            policy, "in_flight", return_value=policy.InFlight(True, None)
+        )
+        self.addCleanup(patcher.stop)
+        flight = patcher.start()
+        lane = mock.patch.object(
+            policy,
+            "lane_eligibility",
+            return_value=policy.Eligibility(True, None, "C2"),
+        )
+        lane.start()
+        self.addCleanup(lane.stop)
+        return flight
+
+    def decided(self, result: policy.UnattendedPolicy) -> tuple[Any, ...]:
+        details = {
+            k: v for k, v in (result.details or {}).items() if k != "postMergeShared"
+        }
+        return result.reason, result.enabled, result.promoted, details
+
+    def test_a_bound_answer_decides_as_the_fresh_reads_do(self) -> None:
+        verified = lambda merge: True  # noqa: E731
+        for answer in (gate("failure:canary#7708"), gate(verified=verified)):
+            with self.subTest(refusal=answer.refusal):
+                self.bound()
+                self.flight()
+                fresh = self.lane_assess(post_merge=lambda floor, who: answer)
+                self.bound()
+                flight = self.flight()
+                never = mock.Mock(side_effect=AssertionError("read fresh"))
+                with (
+                    mock.patch.object(policy, "read_demotion", never),
+                    mock.patch.object(policy, "enabled_since", never),
+                ):
+                    reused = self.lane_assess(
+                        post_merge=never, shared=self.shared(answer)
+                    )
+                self.assertEqual(self.decided(reused), self.decided(fresh))
+                self.assertEqual(reused.details["postMergeShared"], "used")
+                if answer.refusal is None:
+                    self.assertIs(flight.call_args.kwargs["verified"], verified)
+
+    def test_an_unbound_answer_is_not_used(self) -> None:
+        late = policy.datetime.now(policy.UTC) - policy.timedelta(minutes=31)
+        for overrides, rest, reason in (
+            ({}, {f"repos/{REPO}/commits/trunk": {"sha": "f" * 40}}, "main-moved"),
+            ({}, {f"repos/{REPO}/commits/trunk": 502}, "main-moved"),
+            ({}, {NEWEST_CONFIG: [{"sha": "f" * 40}]}, "config-differs"),
+            ({}, {NEWEST_CONFIG: 404}, "config-unreadable"),
+            ({"identity": "other[bot]"}, {}, "identity-differs"),
+            ({"self_logins": frozenset({"x[bot]"})}, {}, "self-logins-differ"),
+            ({"lane_merges_only": False}, {}, "lane-differs"),
+            ({"computed_at": late}, {}, "stale"),
+        ):
+            with self.subTest(reason=reason, rest=rest):
+                gh = self.bound()
+                gh.rest.update(rest)
+                self.flight()
+                seen: list[Any] = []
+                shared = self.shared(gate("failure:canary#1"), **overrides)
+                result = self.lane_assess(
+                    post_merge=lambda floor, who: seen.append(floor) or gate(),
+                    shared=shared,
+                )
+                self.assertEqual(result.details["postMergeShared"], f"unused:{reason}")
+                self.assertEqual(seen, [policy.datetime.fromisoformat(ENABLED_AT)])
+                self.assertIsNone(result.reason)
+
+    def test_without_an_answer_the_reads_run_as_before(self) -> None:
+        self.readable()
+        self.flight()
+        seen: list[Any] = []
+        result = self.lane_assess(
+            post_merge=lambda floor, who: seen.append(floor) or gate()
+        )
+        self.assertNotIn("postMergeShared", result.details)
+        self.assertEqual(seen, [policy.datetime.fromisoformat(ENABLED_AT)])
+        self.assertIsNone(result.reason)
 
 
 class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):

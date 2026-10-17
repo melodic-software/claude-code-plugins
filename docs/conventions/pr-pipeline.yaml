@@ -259,12 +259,15 @@ models:
     review: { model: opus, max-turns: 60 }
     pr-review: { model: sonnet, effort: high, max-turns: 75 }
     triage: { model: sonnet, effort: medium, max-turns: 30 }
+    summary: { model: sonnet, effort: medium, max-turns: 10 }
   default-profile: standard
   routes:
     verify-pr: review
     review-code: pr-review
     review-security: pr-review
     triage-issue: triage
+    # work-resolve-issue's read-only pass that describes a reused lane branch.
+    summarize-reuse: summary
 
 loop:
   review-rounds: 3

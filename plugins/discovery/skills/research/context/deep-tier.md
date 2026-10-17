@@ -126,7 +126,9 @@ the artifact. The bundled `deep-research` workflow is offered to the person, nev
 5. **Write the artifact from the result**, to the shape in [artifact-shape.md](artifact-shape.md).
    `findings` become the claims of a findings sidecar, whose header is that file's sidecar schema:
    each finding's `applies_to` is its claim's `applies_to:`, and each of its `sources` keeps `url`
-   (first), `tier`, `pool`, `measures`, `role`, `published` and `applies_to` as written. Add each
+   (first), `tier`, `pool`, `measures`, `role`, `published`, `dated_by` (when the source has one)
+   and `applies_to` as written. A source from a living page that printed no date arrives with the
+   method the reader used, so it can pass criterion 13. Add each
    source's `standing:`, derived as that file says, never copied. `check-source-applicability.py`
    fails a header missing any of these. A value the result leaves `unstated` is not guessed; the
    gate fails it. A MEDIUM or LOW finding goes to Gaps. Each finding's `consensus` count goes

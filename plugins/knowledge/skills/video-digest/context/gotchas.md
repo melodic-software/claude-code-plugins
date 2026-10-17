@@ -21,6 +21,10 @@ Acquisition applies yt-dlp `--retries`, `--sleep-requests`, `--sleep-subtitles` 
 
 A caption download still throttled after that backoff fails the run with a rate-limit error naming the yt-dlp message, not "No English captions found": the captions may exist. Wait several minutes and re-run. When another track already landed a usable English caption, the run continues on it and records the failed track's `ERROR:` line in `transcriptDegradation`.
 
+## Companion found after vision
+
+Phase 0b normally runs before bootstrap, but a companion source (a longer talk, an essay) can surface during research or after `close`. Run a late Phase 0b ("Late Phase 0b" in `context/companion-primary-sources.md`) that writes `source/companion-digest/`. Companion subagents that write `analysis/companion/*.md` put output in a lane the output contract does not list.
+
 ## Temp-session expiry
 
 Bulk frames and contact sheets stay in OS `tempSession` dirs, not the repo. When those dirs have been reaped, `run-state/watch.json` `tempSession` paths are stale, so **re-run `run-watch.js`** before vision. `resume` checks those dirs, reports `tempSessionPresent` and `missingTempDirs`, and exits 1 with that instruction when the next phase is vision and a dir is gone.

@@ -2,10 +2,14 @@
 // Build the illustrate explainer from one JSON model: the markdown record, and
 // optionally the interactive page view of it.
 //
+//   build-explainer.mjs --out-dir <dir> [--format page|markdown] --model <model.json>
 //   build-explainer.mjs --record <out.md> [--page <out.html>] [--model <model.json>]
 //   build-explainer.mjs --check <page.html>
 //
-// The model is read from --model when given, else from stdin.
+// The model is read from --model when given, else from stdin. With --out-dir the
+// model's "slug" (lowercase letters, digits and hyphens, else exit 2) names the
+// outputs: <dir>/records/<slug>.md and, unless --format markdown, <dir>/views/<slug>.html,
+// so the caller's command never carries a model-chosen string.
 //
 // The page comes only from the checked-in template plus the model as JSON data,
 // through the shared view builder's interactive profile, so no model text is
@@ -26,6 +30,8 @@ const TEMPLATE = new URL("../templates/explainer.html", import.meta.url);
 const FLOW_ROW_MAX = 4;
 const LABEL_MAX = 40;
 const KINDS = ["flow", "stack", "hub", "timeline", "compare", "before-after"];
+// A model-chosen slug names output files, so it is held to a path-safe set.
+const SLUG = /^[a-z0-9-]+$/;
 const COMPARE_MIN = 2;
 const COMPARE_MAX = 4;
 
@@ -286,10 +292,10 @@ function write(path, text) {
 
 function main(args) {
   const usage =
-    "usage: build-explainer.mjs --record <out.md> [--page <out.html>] [--model <model.json> | < model.json] | --check <page.html>";
+    "usage: build-explainer.mjs --out-dir <dir> [--format page|markdown] --model <model.json> | --record <out.md> [--page <out.html>] [--model <model.json> | < model.json] | --check <page.html>";
   const opts = {};
   for (let i = 0; i < args.length; i += 2) {
-    if (!["--record", "--page", "--check", "--model"].includes(args[i]) || !args[i + 1]) return [2, "", usage];
+    if (!["--record", "--page", "--check", "--model", "--out-dir", "--format"].includes(args[i]) || !args[i + 1]) return [2, "", usage];
     opts[args[i].slice(2)] = args[i + 1];
   }
   if (opts.check) {
@@ -303,7 +309,9 @@ function main(args) {
     const verdict = validateView(html);
     return verdict.ok ? [0, "ok\n", ""] : [1, "", verdict.failures.join(",")];
   }
-  if (!opts.record) return [2, "", usage];
+  if (opts["out-dir"] ? opts.record || opts.page : opts.format) return [2, "", usage];
+  if (opts.format && !["page", "markdown"].includes(opts.format)) return [2, "", usage];
+  if (!opts.record && !opts["out-dir"]) return [2, "", usage];
   let model;
   try {
     model = JSON.parse(readFileSync(opts.model ?? 0, "utf8"));
@@ -312,6 +320,14 @@ function main(args) {
   }
   if (!model || typeof model !== "object" || Array.isArray(model)) {
     return [2, "", "JSON root must be an object"];
+  }
+  if (opts["out-dir"]) {
+    const slug = model.slug;
+    if (typeof slug !== "string" || !SLUG.test(slug)) {
+      return [2, "", "the model's slug must match ^[a-z0-9-]+$ (lowercase letters, digits and hyphens)"];
+    }
+    opts.record = join(opts["out-dir"], "records", `${slug}.md`);
+    if (opts.format !== "markdown") opts.page = join(opts["out-dir"], "views", `${slug}.html`);
   }
   if (opts.page && dirname(realTarget(opts.record)) === dirname(realTarget(opts.page))) {
     return [2, "", "--page and --record must not share a directory; keep HTML views away from the markdown record"];
