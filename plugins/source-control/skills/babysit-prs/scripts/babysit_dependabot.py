@@ -41,7 +41,6 @@ those other commits touched; the caller makes such a pull request tier
 
 from __future__ import annotations
 
-import fnmatch
 import posixpath
 import re
 from collections.abc import Callable, Collection, Sequence
@@ -348,71 +347,75 @@ def is_actions_commit(item: Any) -> bool:
     return _signed(item) == ACTIONS_AUTHOR
 
 
-Location = tuple[str, str, bool]  # (ecosystem, directory, is a `directories` glob)
-
-
-def parse_config(text: str) -> list[Location] | None:
-    """(ecosystem, directory, glob) for each directory of each `updates`
-    entry of a dependabot.yml; None when no entry reads. Only a `directories`
-    item is a glob: the `directory` key supports no globbing or wildcard."""
-    found: list[Location] = []
+def parse_config(text: str) -> list[tuple[str, str]] | None:
+    """(ecosystem, directory) for each directory of each `updates` entry of a
+    dependabot.yml (`directory` or each `directories` item); None when no
+    entry reads."""
+    found: list[tuple[str, str]] = []
     ecosystem: str | None = None
     in_dirs = False
     for line in str(text).replace("\r\n", "\n").split("\n"):
         if entry := _CONFIG_ENTRY.match(line):
             ecosystem, in_dirs = entry.group(1), False
         elif ecosystem and (single := _CONFIG_DIR.match(line)):
-            found.append((ecosystem, single.group(1), False))
+            found.append((ecosystem, single.group(1)))
             in_dirs = False
         elif ecosystem and _CONFIG_DIRS.match(line):
             in_dirs = True
         elif in_dirs and (item := _CONFIG_ITEM.match(line)):
-            found.append((ecosystem, item.group(1), True))
+            found.append((ecosystem, item.group(1)))
         elif line.strip() and not line.lstrip().startswith("#"):
             in_dirs = False
     return found or None
 
 
-def _segments(names: list[str], pattern: list[str]) -> bool:
-    """Glob match by path segment: `**` is zero or more segments, and any
-    other segment (`*`, `lib-*`) matches exactly one, never across a `/`."""
-    if not pattern:
-        return not names
-    head, rest = pattern[0], pattern[1:]
-    if head == "**":
-        return any(_segments(names[i:], rest) for i in range(len(names) + 1))
-    return (
-        bool(names)
-        and fnmatch.fnmatchcase(names[0], head)
-        and _segments(names[1:], rest)
-    )
+def glob_regex(pattern: str) -> re.Pattern[str]:
+    """A `directories` glob as one regex, the same rule as the pr-unblock
+    lane's `globRegex` (`.github/scripts/pr-unblock/dependency-classify.mjs`):
+    `*` and `?` stay inside one path segment, `**/` is zero or more whole
+    segments (so `**/*` covers the root and every layer below), any other
+    `**` crosses segments, and everything else is literal. Basis: the
+    Dependabot options reference `directories` note and the "Defining
+    multiple locations for manifest files" examples (`/lib-*`, `**/*`)."""
+    out, i = "", 0
+    while i < len(pattern):
+        if pattern.startswith("**/", i):
+            out, i = out + "(?:[^/]*/)*", i + 3
+        elif pattern.startswith("**", i):
+            out, i = out + ".*", i + 2
+        elif pattern[i] == "*":
+            out, i = out + "[^/]*", i + 1
+        elif pattern[i] == "?":
+            out, i = out + "[^/]", i + 1
+        else:
+            out, i = out + re.escape(pattern[i]), i + 1
+    return re.compile(f"^{out}$")
 
 
-def _directory(path: str, directory: str, glob: bool) -> bool:
-    """Whether `path` sits directly in `directory`, a repository-root-relative
-    folder, or for a `directories` glob in a folder it matches. A pattern of
-    only `**` and `*` segments with a `**` (the documented `**/*`, "the
-    current layer and below recursively") covers the root as well."""
-    folder = [s for s in posixpath.dirname(path).split("/") if s]
-    want = [s for s in directory.split("/") if s]
-    if not glob:
-        return folder == want
-    if want and "**" in want and set(want) <= {"**", "*"}:
-        return True
-    return _segments(folder, want)
+def _directory(path: str, directory: str) -> bool:
+    """Whether `path` sits directly in `directory` (leading and trailing `/`
+    stripped), or, when it holds `*` or `?`, in a folder its glob matches."""
+    folder = posixpath.dirname(path)
+    want = directory.strip("/")
+    if "*" in want or "?" in want:
+        return glob_regex(want).fullmatch(folder) is not None
+    return folder == want
 
 
-def _actions_file(path: str, config: Sequence[Location]) -> bool:
+def _actions_file(path: str, config: Sequence[tuple[str, str]]) -> bool:
     """A workflow or action file a `github-actions` entry covers: directory
-    `/` covers `.github/workflows/` and the root `action.yml`, any other the
-    `action.yml` in the directory (or the directories a glob matches)."""
-    for eco, folder, glob in config:
+    `/` covers `.github/workflows/` and the action files under
+    `.github/actions/`, any other the `action.yml` in the directory (or the
+    directories its glob matches)."""
+    for eco, folder in config:
         if eco != "github-actions":
             continue
         if not folder.strip("/"):
-            if _WORKFLOW.match(path) or path in ("action.yml", "action.yaml"):
+            if _WORKFLOW.match(path) or (
+                path.startswith(".github/actions/") and _ACTION.match(path)
+            ):
                 return True
-        elif _ACTION.match(path) and _directory(path, folder, glob):
+        elif _ACTION.match(path) and _directory(path, folder):
             return True
     return False
 
@@ -429,7 +432,7 @@ def uses_only(patch: Any) -> bool:
 
 def content_refusal(
     files: Sequence[Any],
-    config: Sequence[Location],
+    config: Sequence[tuple[str, str]],
     extra: Collection[str] = (),
 ) -> str | None:
     """`dependabot-content:<path>` for the first changed path (either side of
@@ -448,8 +451,8 @@ def content_refusal(
             manifest = any(
                 eco in MANIFESTS
                 and MANIFESTS[eco].match(name)
-                and _directory(path, folder, glob)
-                for eco, folder, glob in config
+                and _directory(path, folder)
+                for eco, folder in config
             )
             if manifest or (
                 _actions_file(path, config) and uses_only(entry.get("patch"))

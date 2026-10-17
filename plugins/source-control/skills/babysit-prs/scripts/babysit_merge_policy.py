@@ -1530,7 +1530,7 @@ def _dependabot_content(
         _file_at(owner, name, DEPENDABOT_CONFIG, base_sha) or ""
     )
     if config is None:
-        return "dependabot-content:config-unreadable", None
+        return "dependabot-config-unreadable", None
     listing = _paginated(
         f"repos/{owner}/{name}/pulls/{number}/files?per_page=100", f"#{number} files"
     )
