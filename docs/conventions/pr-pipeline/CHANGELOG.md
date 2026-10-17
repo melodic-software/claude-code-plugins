@@ -1,5 +1,22 @@
 # Changelog for the PR pipeline convention
 
+## 2.1.0 - 2026-10-17
+
+The issue lane admits on the `agent-ready` label alone (owner decision, 2026-10-17), whoever added
+it: a listed human, or the lanes App through work-unblock. The owner's ratification marker comment
+is retired everywhere. `admission` loses `ratified` and now requires `classes`; resolve-issue sets
+no `admission` and holds an issue labeled `needs-human`, `needs-owner-decision` or
+`status: needs-decision` through `labels-absent`. The write runner's and check-trusted-trigger's
+`ratified-app-label` input is renamed `app-label`, and the gate reads no comment or edit history
+for the App's label. `write-issue.mjs` freezes the issue for every run when the account that
+applied the label added it in the event that started the run (its newest `labeled` event no
+later than the payload's issue `updated_at`; a limit-stop restart anchors at the label it
+restarted), leaving out later comments and failing on a later title or body change.
+resolve-issue also requires `agent-ready` on the issue when the run starts (`labels`), so removing
+it stops a waiting run. label-unblocked no longer reads the marker or
+resolve-issue's admission, and the pr-merge lane no longer refuses `not-ratified`. `version`
+stays 2.
+
 ## 2.0.0 - 2026-10-17
 
 A `models` block sets each model run's model, effort and turn budget as named profiles, with

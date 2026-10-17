@@ -78,15 +78,8 @@ the event still holds a queued run.
 
 On an `issues` event there is no PR: `labeled` maps to the `labeled` event, labels come from the
 issue in the payload (a `labels-absent` or `admission` predicate reads `GET /issues/{n}` instead), and
-`labeled-after` compares its time with the issue's `updated_at`. An `admission` predicate with
-`ratified: true` reads `GET /issues/{n}/comments` for the owner's ratification marker, a line
-`<!-- admission: admitted when unblocked, owner batch ratification YYYY-MM-DD -->` in a comment
-whose author is a human on the base's trusted-actor list, posted through no GitHub App and never
-edited (`updated_at` equals `created_at`). A lane never admits work on its own, so no bot
-ratifies. The check cannot tell the owner typing a comment from a local agent posting one with the
-owner's own token: it guarantees only that no App or Actions bot can self-admit an issue. A
-comments read the API refuses fails the step, so nothing is admitted. A `labeled-after` predicate, or an `admission` predicate with `ratified: true`,
-off an `issues` event cannot be decided and fails the step.
+`labeled-after` compares its time with the issue's `updated_at`. A `labeled-after` predicate off
+an `issues` event cannot be decided and fails the step.
 
 ## Output
 

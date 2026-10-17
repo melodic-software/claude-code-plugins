@@ -1,12 +1,9 @@
 #!/usr/bin/env node
 // label-unblocked.mjs: when an issue closes, labels `agent-ready` each issue
-// it blocked that is now ready for the resolve-issue lane (the label starts
-// that lane once resolve-issue accepts App-added labels, a follow-up by
-// Automation Lanes): open, every blocker closed as completed by a listed
-// human or a merge (a pull request blocker: merged), no hold label,
-// not already agent-ready, ratified by the owner's admission marker, and
-// admitted by resolve-issue's own admission rule (when it lists classes, no
-// work class outside them). Every fact is read from the API now, never from the event
+// it blocked that is now ready for the resolve-issue lane, which the label
+// starts: open, every blocker closed as completed by a listed human or a
+// merge (a pull request blocker: merged), no hold label, and not already
+// agent-ready. Every fact is read from the API now, never from the event
 // payload. No model.
 //
 // On `schedule` it sweeps instead: every issue closed in the last
@@ -21,7 +18,7 @@
 // The sweep also restarts issues the usage limit stopped: an open agent-ready
 // issue whose newest lanes-App outcome marker is `limited`, past its reset,
 // with no agent-ready label added since (so no lane run started after the
-// stop), no hold label, ratified and admitted, gets agent-ready removed and
+// stop), and no hold label gets agent-ready removed and
 // added again by the App, which starts the lane. At most RESTARTS_PER_RUN
 // issues per run, longest-waiting first.
 //
@@ -38,8 +35,6 @@
 //                          (`issues` only)
 //   TRIGGERING_ACTOR       who started this run (a re-runner may differ);
 //                          must be a listed human (`issues` only)
-//   BASE_PATH              the default branch checkout (default `.base`), whose
-//                          pr-pipeline.yaml holds resolve-issue's admission
 //   LANES_BOT_LOGIN        the lanes App bot login, the only author of a marker
 //                          and actor of a restart this trusts (default
 //                          melodic-automation-lanes[bot])
@@ -50,8 +45,6 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { admits } from "../../actions/resolve-config/predicate.mjs";
-import { findRatification } from "../../actions/resolve-config/ratification.mjs";
 import { clampReset, parseOutcomeMarker } from "../work-resolve-issue/report-outcome.mjs";
 
 const LABEL = "agent-ready";
@@ -111,7 +104,7 @@ function isRestart(events, index, markers, bot) {
 }
 
 // Why `number` is not promoted, or null when it is ready.
-async function refusal({ github, repo, number, ratifiers, admission, closes, bot = DEFAULT_BOT }) {
+async function refusal({ github, repo, number, humans, closes, bot = DEFAULT_BOT }) {
   const base = `/repos/${repo}/issues/${number}`;
   const current = await github("GET", base);
   if (current.state !== "open") {
@@ -149,7 +142,7 @@ async function refusal({ github, repo, number, ratifiers, admission, closes, bot
     }
   }
   for (const blocker of pending === 0 ? issues : []) {
-    if (!(await trustedClose({ github, repo, number: blocker, ratifiers, closes }))) {
+    if (!(await trustedClose({ github, repo, number: blocker, humans, closes }))) {
       pending += 1;
     }
   }
@@ -163,19 +156,7 @@ async function refusal({ github, repo, number, ratifiers, admission, closes, bot
   if (events.some((event, index) => isLabel(event, "unlabeled") && !isRestart(events, index, markers, bot))) {
     return `${LABEL} was removed before`;
   }
-  const ratifying = findRatification(comments, ratifiers);
-  if (ratifying === undefined) {
-    return "no admission marker from a listed human";
-  }
-  return admits(admission, labels, { ratified: true }) ? null : "a work class resolve-issue does not admit";
-}
-
-// resolve-issue's admission, from the validated config on the default branch.
-// Imported here, not at the top: the resolver's dependencies are installed by
-// the resolve-config step that runs before this one.
-async function loadAdmission(env) {
-  const { readAdmission } = await import("../../actions/resolve-config/resolve-config.mjs");
-  return readAdmission({ basePath: env.BASE_PATH || ".base", activity: "resolve-issue" });
+  return null;
 }
 
 // The issues closed at or after `since`. The listing's `since` filters on the
@@ -210,16 +191,16 @@ const CLOSER_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
 }`;
 // One answer per issue per run: a swept close is also its dependents'
 // blocker, and a blocker can block several dependents.
-function trustedClose({ github, repo, number, ratifiers, closes }) {
+function trustedClose({ github, repo, number, humans, closes }) {
   if (!closes.has(number)) {
-    closes.set(number, (async () => isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${number}`), ratifiers))());
+    closes.set(number, (async () => isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${number}`), humans))());
   }
   return closes.get(number);
 }
 
-async function isTrustedClose(github, repo, closedIssue, ratifiers) {
+async function isTrustedClose(github, repo, closedIssue, humans) {
   const closer = closedIssue?.closed_by;
-  if (ratifiers.has(closer?.id)) {
+  if (humans.has(closer?.id)) {
     return true;
   }
   if (closedIssue?.state !== "closed" || !NUMBER.test(String(closedIssue.number))) {
@@ -237,14 +218,14 @@ async function isTrustedClose(github, repo, closedIssue, ratifiers) {
 
 // Labels each issue `closed` blocked that is ready, each at most once per run.
 // Returns how many reads or writes failed.
-async function labelUnblocked({ github, repo, closed, sweep, ratifiers, admission, bot }) {
+async function labelUnblocked({ github, repo, closed, sweep, humans, bot }) {
   const seen = new Set();
   const closes = new Map();
   let failed = 0;
   for (const source of closed) {
     let blocked;
     try {
-      if (sweep && !(await trustedClose({ github, repo, number: source, ratifiers, closes }))) {
+      if (sweep && !(await trustedClose({ github, repo, number: source, humans, closes }))) {
         console.log(`label-unblocked: #${source} was closed by neither a listed human nor a merge; skipped`);
         continue;
       }
@@ -266,7 +247,7 @@ async function labelUnblocked({ github, repo, closed, sweep, ratifiers, admissio
       }
       seen.add(number);
       try {
-        const reason = await refusal({ github, repo, number, ratifiers, admission, closes, bot });
+        const reason = await refusal({ github, repo, number, humans,closes, bot });
         if (reason !== null) {
           console.log(`label-unblocked: #${number} not labeled: ${reason}`);
           continue;
@@ -290,7 +271,7 @@ export const escalationComment = (stops) =>
 
 // Why a limit-stopped agent-ready issue is not restarted now, or null with the
 // time its limit reset. Every fact is read fresh from the API.
-async function restartRefusal({ github, repo, issue, ratifiers, admission, bot, now }) {
+async function restartRefusal({ github, repo, issue, bot, now }) {
   const base = `/repos/${repo}/issues/${issue.number}`;
   const labels = (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label.name));
   const held = labels.map((label) => String(label).toLowerCase()).find((label) => HOLDS.has(label));
@@ -328,18 +309,12 @@ async function restartRefusal({ github, repo, issue, ratifiers, admission, bot, 
   if (events.some((event) => isLabel(event, "labeled") && Date.parse(event.created_at) > marker.at)) {
     return { reason: `${LABEL} was added after the limit stop` };
   }
-  if (findRatification(comments, ratifiers) === undefined) {
-    return { reason: "no admission marker from a listed human" };
-  }
-  if (!admits(admission, labels, { ratified: true })) {
-    return { reason: "a work class resolve-issue does not admit" };
-  }
   return { reason: null, resets };
 }
 
 // Restarts up to `cap` limit-stopped issues, longest-waiting first. Returns
 // how many reads or writes failed.
-async function restartLimited({ github, repo, ratifiers, admission, bot, now, cap = RESTARTS_PER_RUN }) {
+async function restartLimited({ github, repo, bot, now, cap = RESTARTS_PER_RUN }) {
   let failed = 0;
   const ready = [];
   let open;
@@ -353,7 +328,7 @@ async function restartLimited({ github, repo, ratifiers, admission, bot, now, ca
   }
   for (const issue of open) {
     try {
-      const { reason, resets, escalate, explained } = await restartRefusal({ github, repo, issue, ratifiers, admission, bot, now });
+      const { reason, resets, escalate, explained } = await restartRefusal({ github, repo, issue, bot, now });
       if (escalate) {
         // The comment first and the label last: the label is a hold, so a
         // sweep after a failed comment would never come back to post it. A
@@ -403,7 +378,7 @@ async function restartLimited({ github, repo, ratifiers, admission, bot, now, ca
   return failed;
 }
 
-export async function main({ env = process.env, github, admission, now = Date.now() } = {}) {
+export async function main({ env = process.env, github, now = Date.now() } = {}) {
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
@@ -430,8 +405,7 @@ export async function main({ env = process.env, github, admission, now = Date.no
       }
     }
     const repo = env.GITHUB_REPOSITORY;
-    const ratifiers = loadTrustedList(env.TRUSTED_ACTORS_PATH).humans;
-    admission ??= await loadAdmission(env);
+    const humans = loadTrustedList(env.TRUSTED_ACTORS_PATH).humans;
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     const closed = sweep
       ? await closedSince(github, repo, new Date(now - LOOKBACK_HOURS * 3_600_000))
@@ -440,9 +414,9 @@ export async function main({ env = process.env, github, admission, now = Date.no
       console.log(`label-unblocked: ${closed.length} issue(s) closed in the last ${LOOKBACK_HOURS} hours`);
     }
     const bot = env.LANES_BOT_LOGIN || DEFAULT_BOT;
-    let failed = await labelUnblocked({ github, repo, closed, sweep, ratifiers, admission, bot });
+    let failed = await labelUnblocked({ github, repo, closed, sweep, humans, bot });
     if (sweep) {
-      failed += await restartLimited({ github, repo, ratifiers, admission, bot, now });
+      failed += await restartLimited({ github, repo, bot, now });
     }
     return failed === 0 ? 0 : 1;
   } catch (error) {
