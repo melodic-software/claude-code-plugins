@@ -124,6 +124,8 @@ the refused op's index).
 | `fail-request` | `request`, `reason` | `running` -> `failed` |
 | `add-reference`, `remove-reference` | `qid`, `reference` / `index` | |
 | `add-asset` | `path`, `as?`, `scale?` | Copies a PNG, JPEG, WebP, SVG or HTML file (by its bytes, at most 10 MB) from the data folder, where captures go in `staging/`, into `assets/<16 hex>.<ext>`, named by its content; returns `{id, kind, bytes, at, scale}`. Usable from the next apply; a refused apply removes the files it copied and puts back any sidecar it rewrote |
+| `set-purpose` | `qid`, `purpose` | The owner's `/api/question/purpose` rules |
+| `set-for` | `qid`, `for` | Who must answer, by name or pid; `[]` asks everyone. The owner's `/api/question/for` takes the same body. A question in `open-round` takes `for` too |
 | `make-question-from` | `proposal`, `question` | |
 | `handle` | `seqs` | Marks events handled |
 
@@ -152,9 +154,27 @@ How people answer each `format` through `POST /api/pick` (`{qid, view, device?, 
   {qid, card, reaction, on}` turns one on or off; a person holds any number at once, kept as a list
   (`reactions` is `{qid: {card: {pid: [reaction]}}}`), never one twice and never both `thumbs` and
   `down`: turning one of those on turns the other off. `reaction: null` clears all of theirs.
+- **Pass.** `POST /api/pass {qid, reason?, on}` on any purpose records that the person gives no
+  view (`passes` is `{qid: {pid: {reason?, ts}}}`); `on: false` takes it back, and their own
+  answer, pick or vote replaces it. The reason is up to 200 characters, required (400 `empty`,
+  `field: reason`) of a person the question is `for`. A pass is no pick, so a poll's results still
+  wait for one.
+- **Taking part.** One rule, `session._took_part`, mirrored by `Core.tookPart`: an own card, a vote,
+  a back, any reaction, a Disagree or a Pass. For a person the question is `for`, only an own card,
+  a vote or back, or a Pass counts. A question still asks a person (`_owes`) while they have not
+  taken part and it is `for` them or no one else has answered it; once one other person has, it is
+  optional for the rest. The Host view's `behind` and the page's counts count `_owes`; the digest's
+  `people.answered` counts who took part.
+- **Late acts.** A vote, back, reaction, Disagree or Pass on a closed round's question is stamped in
+  `lateActs` (`{qid: {pid: {round, at}}}`), and the next digest's `late` lists what that person
+  holds there, each with `act`.
 - **Digest.** `multi` reports picks per option; `scale` the count per value, the mean (two places)
   and the median; `rank` Borda totals (with n options a first place scores n-1, a last 0) and how
   many gave each full order. Each lists people's own options with their backers, and the comments.
+  Every question carries `passed` (`{by?, reason?}`; `by` with `digestNames`, and always for a
+  person it is `for`) and `silent` (active guests with no signal); one `for` named people adds
+  `for` and `missing`, by name. A `gathered` answer carries `endorsedBy`, the 👍 and ❤️ givers:
+  names with `digestNames`, else a count.
 - **Presence.** The heartbeat (`schema/wire.schema.json`) carries `visible`, `lastInput` (seconds
   since the last key, pointer or touch) and `away` (the person's own snooze, sent until their next
   input), and `tab`, an id each browser tab keeps for its life (in `sessionStorage`). The server

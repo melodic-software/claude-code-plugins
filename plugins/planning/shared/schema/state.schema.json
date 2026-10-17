@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state",
   "title": "Shared interview session file",
-  "description": "state.json of one shared interview session. Sum types are objects tagged by a one-value `kind` enum. Maps keyed by person id (`pid`), question id (`Q<N>`) or card ref are objects. Times (`at`, `Ts`) are float epoch seconds from the server clock. Rules that compare fields (dependsOn names earlier ids, one review flag per because and why, at most 8 questions per round, one vote per person, at most one `other` option per question, how many options each format takes from Claude) are checked by session.py, not here. `disagreements` and `reports` are optional: a file written before them has none. `reactions` maps qid -> card ref -> pid -> the reactions that person holds on that answer (several at once; never one twice, nor both thumbs and down, which session.py checks).",
+  "description": "state.json of one shared interview session. Sum types are objects tagged by a one-value `kind` enum. Maps keyed by person id (`pid`), question id (`Q<N>`) or card ref are objects. Times (`at`, `Ts`) are float epoch seconds from the server clock. Rules that compare fields (dependsOn names earlier ids, one review flag per because and why, at most 8 questions per round, one vote per person, at most one `other` option per question, how many options each format takes from Claude) are checked by session.py, not here. `disagreements`, `reports`, `passes`, `lateActs` and a question's `for` are optional: a file written before them has none. `reactions` maps qid -> card ref -> pid -> the reactions that person holds on that answer (several at once; never one twice, nor both thumbs and down, which session.py checks).",
   "type": "object",
   "required": [
     "schemaVersion", "pluginVersion", "writtenBy", "rev", "session", "people", "credentials", "rounds",
@@ -54,6 +54,32 @@
       "description": "Problem reports, report id (F<N>) -> report; only the owner reads them. Optional: a file written before them has none.",
       "type": "object",
       "additionalProperties": {"$ref": "#/$defs/problemReport"}
+    },
+    "passes": {
+      "description": "qid -> pid -> that person's Pass on the question: no view given, on any purpose, with an optional reason (required of a person the question is `for`). Optional: a file written before them has none.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "required": ["ts"],
+          "additionalProperties": false,
+          "properties": {"reason": {"$ref": "#/$defs/note"}, "ts": {"$ref": "#/$defs/ts"}}
+        }
+      }
+    },
+    "lateActs": {
+      "description": "qid -> pid -> when that person last voted, backed, reacted, disagreed or passed on the question after its round closed, and that round: the digest's `late` lists what they hold. Optional: a file written before them has none.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "required": ["round", "at"],
+          "additionalProperties": false,
+          "properties": {"round": {"type": "integer", "minimum": 1}, "at": {"$ref": "#/$defs/ts"}}
+        }
+      }
     },
     "backs": {
       "description": "Multi questions: qid -> pid -> the other people's own Something else options that person backs, any number of them (votes keeps one per person).",
@@ -475,7 +501,8 @@
         "references": {"$ref": "#/$defs/references"},
         "origin": {"$ref": "#/$defs/origin"},
         "lockedText": {"type": "string"},
-        "needsReview": {"type": "array", "items": {"$ref": "#/$defs/reviewFlag"}}
+        "needsReview": {"type": "array", "items": {"$ref": "#/$defs/reviewFlag"}},
+        "for": {"description": "Who must answer, as pids, each once (session.py checks): optional; absent asks everyone.", "type": "array", "minItems": 1, "items": {"$ref": "#/$defs/pid"}}
       }
     },
     "deviceKind": {"enum": ["phone", "tablet", "computer"]},

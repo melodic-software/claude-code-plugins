@@ -2545,7 +2545,7 @@ class TestDigest(SessionCase):
         self.act("react", self.bo, {"qid": "Q1", "card": f"p:{self.ann}", "reaction": "thumbs"})
         self.act("react", self.cy, {"qid": "Q1", "card": f"p:{self.ann}", "reaction": "idea"})
         out = self.by_id(self.digest())["Q1"]["outcome"]
-        self.assertEqual(out, {"kind": "gathered", "answers": [{"text": "Address form", "reactions": {"thumbs": 1, "down": 0, "heart": 0, "idea": 1}}]})
+        self.assertEqual(out, {"kind": "gathered", "answers": [{"text": "Address form", "reactions": {"thumbs": 1, "down": 0, "heart": 0, "idea": 1}, "endorsedBy": 1}]})
 
     def test_one_persons_combined_reactions_each_count_in_the_digest(self):
         """Endorsement reads 👍 and ❤️: one person who gives both counts in each, beside their 💡."""
@@ -3168,7 +3168,7 @@ class TestDisagree(FormatCase):
         self.act("answer", self.ann, {"qid": "Q6", "text": "Slow form", "view": "focus"})
         self.act("react", self.bo, {"qid": "Q6", "card": f"p:{self.ann}", "reaction": "down"})
         answers = self.outcome("Q6")["outcome"]["answers"]
-        self.assertEqual(answers, [{"text": "Slow form", "reactions": {"thumbs": 0, "down": 1, "heart": 0, "idea": 0}}])
+        self.assertEqual(answers, [{"text": "Slow form", "reactions": {"thumbs": 0, "down": 1, "heart": 0, "idea": 0}, "endorsedBy": 0}])
 
 
 class TestDiagramReference(SessionCase):
@@ -5001,6 +5001,158 @@ class TestReportsOnAnOlderFile(StateFixtureCase):
         guest = next(p for p in s.state["people"] if p != HOST and s.state["people"][p]["status"]["kind"] == "active")
         self.assertEqual(s.report(guest, {"text": "Broken", "ctx": {**CTX, "qid": None}})["id"], "F1")
         self.assertEqual(session.Session.load(tmp / "state.json", validate_writes=True).state["session"]["seq"]["F"], 1)
+
+
+class TestTakingPart(SessionCase):
+    """Triage row 42: one rule for taking part (an own card, a vote, a back, any reaction, a Disagree or a
+    Pass) behind the Host view's behind count and the digest's people count; one other person's answer makes
+    an untargeted question optional; `for` names who must answer. Expected values come from that row."""
+
+    def setUp(self):
+        super().setUp()
+        self.ann, self.bo, self.cy = self.people("Ann", "Bo", "Cy")
+
+    def behind(self):
+        return self.s.snapshot(HOST)["behind"]
+
+    def digest(self):
+        self.send()
+        return {q["id"]: q for q in self.events("round-sent")[-1]["digest"]["questions"]}, self.events("round-sent")[-1]["digest"]
+
+    def test_a_reaction_alone_takes_part_in_behind_and_the_digest(self):
+        """Q8: Bo only gave Ann's answer a 👍. He is not behind on it, and the digest counts him as taking part."""
+        self.open_round(text_q("Q1", purpose="gather", rec=False), text_q("Q2"))
+        self.act("answer", self.ann, {"qid": "Q1", "text": "Keep the saved card", "view": "focus"})
+        self.act("react", self.bo, {"qid": "Q1", "card": f"p:{self.ann}", "reaction": "thumbs"})
+        self.assertEqual(self.behind(), {self.ann: 1, self.bo: 1, self.cy: 1})  # Q2 for everyone; Q1 is optional for Cy now
+        _, d = self.digest()
+        self.assertEqual(d["people"]["answered"], 2)
+
+    def test_a_vote_and_a_disagree_each_take_part(self):
+        self.open_round(text_q("Q1"), text_q("Q2"))
+        self.act("vote", self.bo, {"qid": "Q1", "card": "c:rec", "on": True})
+        self.act("disagree", self.cy, {"qid": "Q2", "card": "c:a", "reason": "Too slow"})
+        self.assertEqual(self.behind(), {self.ann: 2, self.bo: 1, self.cy: 1})
+
+    def test_one_other_answer_makes_an_untargeted_question_optional(self):
+        self.open_round(text_q("Q1"))
+        self.assertEqual(self.behind(), {self.ann: 1, self.bo: 1, self.cy: 1})
+        self.act("answer", self.ann, {"qid": "Q1", "text": "Right column", "view": "focus"})
+        self.assertEqual(self.behind(), {self.ann: 0, self.bo: 0, self.cy: 0})
+
+    def test_a_targeted_question_stays_open_for_its_people_and_a_reaction_does_not_clear_it(self):
+        self.open_round(text_q("Q1", purpose="gather", rec=False, **{"for": ["Bo"]}))
+        self.assertEqual(self.question("Q1")["for"], [self.bo])
+        self.act("answer", self.ann, {"qid": "Q1", "text": "Keep the saved card", "view": "focus"})
+        self.act("react", self.bo, {"qid": "Q1", "card": f"p:{self.ann}", "reaction": "heart"})
+        self.assertEqual(self.behind(), {self.ann: 0, self.bo: 1, self.cy: 0})
+        self.act("pass_", self.bo, {"qid": "Q1", "reason": "Levi owns payments"})
+        self.assertEqual(self.behind()[self.bo], 0)
+
+    def test_a_targeted_person_passes_only_with_a_reason(self):
+        self.open_round(text_q("Q1", **{"for": [self.bo]}))
+        self.assertEqual(self.refused("empty", "pass_", self.bo, {"qid": "Q1"}, http=400).details["field"], "reason")
+        self.refused("empty", "pass_", self.bo, {"qid": "Q1", "reason": "  "}, http=400)
+        self.act("pass_", self.cy, {"qid": "Q1"})  # anyone else passes freely
+        self.assertEqual(self.s.state["passes"]["Q1"], {self.cy: {"ts": self.clock.t}})
+
+    def test_a_pass_works_on_every_purpose_and_undoes(self):
+        self.open_round(text_q("Q1"), text_q("Q2", purpose="gather", rec=False), choice_q("Q3"))
+        for qid in ("Q1", "Q2", "Q3"):
+            self.assertEqual(self.act("pass_", self.bo, {"qid": qid, "reason": "Not my area"}), {"pass": True})
+        self.assertEqual(self.behind()[self.bo], 0)
+        self.assertEqual(self.s.snapshot(self.bo)["me"]["passes"]["Q3"], {"reason": "Not my area", "ts": self.clock.t})
+        self.assertEqual(self.act("pass_", self.bo, {"qid": "Q1", "on": False}), {"pass": False})
+        self.assertEqual(sorted(self.s.state["passes"]), ["Q2", "Q3"])
+        self.assertEqual(self.behind()[self.bo], 1)
+
+    def test_a_pass_on_a_poll_is_no_pick(self):
+        self.open_round(choice_q("Q1"))
+        self.act("pass_", self.bo, {"qid": "Q1"})
+        self.assertNotIn(self.bo, self.s.state["votes"].get("Q1", {}))
+        by_id, _ = self.digest()
+        self.assertEqual([c["votes"] for c in by_id["Q1"]["outcome"]["counts"]], [0, 0, 0])
+
+    def test_a_pass_takes_the_same_round_and_lock_checks_as_a_reaction(self):
+        self.open_round(text_q("Q1"), text_q("Q2"))
+        self.act("lock", HOST, {"qid": "Q1", "card": "c:rec"})
+        self.refused("locked", "pass_", self.bo, {"qid": "Q1"}, http=409)
+        self.send()
+        self.refused("round-sent", "pass_", self.bo, {"qid": "Q2"}, http=409)
+        self.refused("too-long", "pass_", self.cy, {"qid": "Q2", "reason": "x" * 201})
+
+    def test_an_answer_replaces_the_persons_pass(self):
+        self.open_round(text_q("Q1"))
+        self.act("pass_", self.bo, {"qid": "Q1"})
+        self.act("answer", self.bo, {"qid": "Q1", "text": "On reflection, the right column", "view": "focus"})
+        self.assertNotIn("passes", self.s.state)
+
+    def test_the_digest_carries_passes_silence_endorsements_and_who_is_missing(self):
+        self.act("update_settings", HOST, {"digestNames": True})
+        self.open_round(text_q("Q1", purpose="gather", rec=False, **{"for": ["Ann", "Cy"]}))
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Keep the saved card", "view": "focus"})
+        self.act("react", self.ann, {"qid": "Q1", "card": f"p:{self.bo}", "reaction": "thumbs"})
+        self.act("react", HOST, {"qid": "Q1", "card": f"p:{self.bo}", "reaction": "idea"})
+        self.act("pass_", self.cy, {"qid": "Q1", "reason": "Ask finance"})
+        by_id, d = self.digest()
+        q = by_id["Q1"]
+        self.assertEqual(q["outcome"]["answers"][0]["endorsedBy"], ["Ann"])
+        self.assertEqual((q["passed"], q["silent"], q["for"], q["missing"]), ([{"by": "Cy", "reason": "Ask finance"}], 0, ["Ann", "Cy"], ["Ann"]))
+        self.assertIsNone(support_event_error(self.events("round-sent")[-1]))
+
+    def test_without_digest_names_a_pass_names_only_a_targeted_person(self):
+        self.open_round(text_q("Q1", **{"for": ["Bo"]}))
+        self.act("pass_", self.bo, {"qid": "Q1", "reason": "On leave"})
+        self.act("pass_", self.cy, {"qid": "Q1"})
+        by_id, _ = self.digest()
+        self.assertEqual((by_id["Q1"]["passed"], by_id["Q1"]["silent"]), ([{"by": "Bo", "reason": "On leave"}, {}], 1))
+
+    def test_late_votes_reactions_and_passes_reach_the_next_digest(self):
+        self.open_round(text_q("Q1"), text_q("Q2", purpose="gather", rec=False))
+        self.act("answer", self.ann, {"qid": "Q2", "text": "Slow form", "view": "focus"})
+        self.send()
+        self.ack(1)
+        self.open_round(text_q("Q3"))
+        self.act("vote", self.bo, {"qid": "Q1", "card": "c:a", "on": True})
+        self.act("react", self.cy, {"qid": "Q2", "card": f"p:{self.ann}", "reaction": "thumbs"})
+        self.act("pass_", self.cy, {"qid": "Q1", "reason": "Missed it"})
+        _, d = self.digest()
+        self.assertEqual(d["late"], [
+            {"id": "Q1", "round": 1, "act": "vote", "text": "Alternative A for Q1."},
+            {"id": "Q1", "round": 1, "act": "pass", "text": "", "reason": "Missed it"},
+            {"id": "Q2", "round": 1, "act": "reaction", "text": "Slow form", "reactions": ["thumbs"]},
+        ])
+        self.assertIsNone(support_event_error(self.events("round-sent")[-1]))
+
+    def test_claude_and_the_owner_set_for_by_name_and_clear_it(self):
+        self.open_round(text_q("Q1"))
+        self.assertEqual(self.apply({"op": "set-for", "qid": "Q1", "for": ["bo", self.cy, "Bo"]})["results"], [{"qid": "Q1", "for": [self.bo, self.cy]}])
+        self.refused("owner-only", "set_for", self.ann, {"qid": "Q1", "for": []})
+        self.refused("no-such-person", "set_for", HOST, {"qid": "Q1", "for": ["Levi"]}, http=404)
+        self.assertEqual(self.act("set_for", HOST, {"qid": "Q1", "for": []}), {"qid": "Q1", "for": []})
+        self.assertNotIn("for", self.question("Q1"))
+
+    def test_a_merge_moves_the_pass_and_the_target(self):
+        self.open_round(text_q("Q1", **{"for": ["Cy"]}))
+        self.act("pass_", self.cy, {"qid": "Q1", "reason": "Away"})
+        self.act("merge_people", HOST, {"from": self.cy, "to": self.bo})
+        self.assertEqual((list(self.s.state["passes"]["Q1"]), self.question("Q1")["for"]), ([self.bo], [self.bo]))
+
+
+class TestTakingPartOnAnOlderFile(StateFixtureCase):
+    """A schemaVersion 2 file from before passes and `for` (state-v2.json) loads unchanged and takes both."""
+
+    def test_a_v2_state_loads_and_takes_a_pass_and_a_target(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        shutil.copy(FIXTURES / "state-v2.json", tmp / "state.json")
+        raw = json.loads((tmp / "state.json").read_text(encoding="utf-8"))
+        self.assertFalse({"passes", "lateActs"} & set(raw) or any("for" in q for q in raw["questions"]))
+        s = session.Session.load(tmp / "state.json", clock=Clock(1_760_700_000.0), ids=Ids(), validate_writes=True)
+        self.assertEqual(s.state, raw)
+        s.set_for(HOST, {"qid": "Q5", "for": ["Ann"]})
+        self.assertEqual(s.pass_("aB3dE5fG7hJ9", {"qid": "Q5", "reason": "Not mine"}), {"pass": True})
+        self.assertEqual(session.Session.load(tmp / "state.json", validate_writes=True).state["passes"]["Q5"]["aB3dE5fG7hJ9"]["reason"], "Not mine")
 
 
 def support_event_error(ev):

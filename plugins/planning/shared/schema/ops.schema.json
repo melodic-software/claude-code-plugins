@@ -23,6 +23,7 @@
           {"$ref": "#/$defs/add-reference"},
           {"$ref": "#/$defs/remove-reference"},
           {"$ref": "#/$defs/set-purpose"},
+          {"$ref": "#/$defs/set-for"},
           {"$ref": "#/$defs/add-asset"},
           {"$ref": "#/$defs/make-question-from"},
           {"$ref": "#/$defs/handle"}
@@ -126,6 +127,18 @@
         "purpose": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/purpose"}
       }
     },
+    "set-for": {
+      "description": "Sets who must answer an existing question under the same rules as the owner's route; [] asks everyone again.",
+      "type": "object",
+      "required": ["op", "qid", "for"],
+      "additionalProperties": false,
+      "properties": {"op": {"enum": ["set-for"]}, "qid": {"$ref": "#/$defs/qid"}, "for": {"$ref": "#/$defs/for"}}
+    },
+    "for": {
+      "description": "The people who must answer, each by the name the session shows or by id. Claude sets it when the owner's intent names someone (\"@Levi\", \"Levi, ...\").",
+      "type": "array",
+      "items": {"type": "string", "maxLength": 100}
+    },
     "add-asset": {
       "type": "object",
       "required": ["op", "path"],
@@ -174,7 +187,8 @@
         "purpose": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/purpose"},
         "format": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/format"},
         "answerScope": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/answerScope"},
-        "references": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/references"}
+        "references": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/references"},
+        "for": {"$ref": "#/$defs/for"}
       }
     },
     "placements": {"type": "array", "items": {"$ref": "#/$defs/placement"}},

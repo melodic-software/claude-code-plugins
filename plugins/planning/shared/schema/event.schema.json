@@ -181,7 +181,10 @@
             "properties": {
               "id": {"$ref": "#/$defs/qid"},
               "round": {"type": "integer", "minimum": 1},
-              "text": {"type": "string"},
+              "text": {"type": "string", "description": "The late answer or pick; with `act`, the answer the act is on (empty for a pass)."},
+              "act": {"enum": ["vote", "back", "reaction", "disagree", "pass"], "description": "Absent for a late answer or pick; else what the person did late on someone's answer, or a pass."},
+              "reactions": {"type": "array", "items": {"enum": ["thumbs", "down", "heart", "idea"]}},
+              "reason": {"type": "string"},
               "by": {"$ref": "#/$defs/by"},
               "edited": {"$ref": "#/$defs/edited"}
             }
@@ -296,6 +299,18 @@
         "scope": {"type": "string"},
         "purpose": {"enum": ["decide", "gather", "poll"]},
         "format": {"enum": ["text", "choice", "multi", "scale", "rank", "confirm", "prototype"]},
+        "passed": {
+          "description": "Who passed (gave no view), with their reason; `by` with digestNames, and always for a person the question is `for`. A pass is never agreement.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {"by": {"$ref": "#/$defs/by"}, "reason": {"type": "string"}}
+          }
+        },
+        "silent": {"description": "Active guests who did nothing on the question: no signal.", "type": "integer", "minimum": 0},
+        "for": {"description": "The people the question asks, by name.", "type": "array", "items": {"type": "string"}},
+        "missing": {"description": "Of `for`, who has not taken part (an own answer, a vote or pick, or a pass).", "type": "array", "items": {"type": "string"}},
         "disagreements": {
           "description": "Decide questions: who disagreed with which answer and why; vote counts do not change.",
           "type": "array",
@@ -360,6 +375,10 @@
                     "properties": {
                       "text": {"type": "string"},
                       "reactions": {"$ref": "#/$defs/reactionCounts"},
+                      "endorsedBy": {
+                        "description": "Who gave the answer a 👍 or ❤️ (weak agreement): their names with digestNames, else how many.",
+                        "oneOf": [{"type": "array", "items": {"type": "string"}}, {"type": "integer", "minimum": 0}]
+                      },
                       "by": {"$ref": "#/$defs/by"},
                       "edited": {"$ref": "#/$defs/edited"}
                     }
