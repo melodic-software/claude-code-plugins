@@ -1014,13 +1014,12 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
 - A non-empty `reuse-branch` also starts `report-outcome` and `report-statuses`, and reaches the
   script as `REUSE_BRANCH`; `report-outcome` also downloads `reuse-summary-<n>`. The downloaded
   outcome counts only when its `lane.json` names that branch (a re-run attempt of the run that
-  made it). Otherwise, and when that outcome cannot be read, `report-outcome` opens a PR from the
-  branch, ignoring any limit record: the earlier run's artifact would need `actions: read`, which
-  no lane token holds. When the summary names this issue and branch, the branch is still at its
-  tip, and its `summary` is not empty, the PR carries the summary and its changes, quoted as model
-  text, and the hold line only where a `done` PR would carry it, so it goes through review and the
-  merge lane like any lane PR. Otherwise the PR has fixed text naming the earlier run, none of the
-  model's text, and the hold line. The summary never reaches a status or the hold decision:
+  made it). Otherwise, and when that outcome cannot be read, `report-outcome` opens a held PR from
+  the branch, ignoring any limit record: the earlier run's artifact would need `actions: read`,
+  which no lane token holds. When the summary names this issue and branch, the branch is still at
+  its tip, and its `summary` is not empty, the PR carries the summary and its changes, quoted as
+  model text. Otherwise the PR has fixed text naming the earlier run and none of the model's text.
+  The summary never reaches a status or the hold line, which every reuse PR carries:
   `report-statuses` then posts only `pipeline/report-outcome` on that branch, so any statuses the
   earlier run posted on the same head stand.
 - No check run is posted: there is no PR head. The lane's `report-statuses` job (in

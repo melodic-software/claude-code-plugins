@@ -27,11 +27,10 @@
 //   reused    the resolve-issue run skipped the work for a lane branch an
 //             earlier run left with commits and no report (REUSE_BRANCH):
 //             the earlier outcome counts only when this run's artifact names
-//             that branch (a re-run attempt); with none readable, a PR opens
-//             from it, whatever the limit record. It carries the read-only
-//             summary pass's summary, held only as a done PR would be, when
-//             the summary names this issue, the branch and its current tip;
-//             else fixed text only and the hold line.
+//             that branch (a re-run attempt); with none readable, a held PR
+//             opens from it, whatever the limit record. It carries the
+//             read-only summary pass's summary when the summary names this
+//             issue, the branch and its current tip; else fixed text only.
 //
 // Run from the base copy. It reads only the outcome directory and the GitHub
 // API, and never writes to a branch.
@@ -314,16 +313,6 @@ function limitedPlan({ issueNumber, branch, resets, runId, runUrl }) {
   return { action: "limited", exit: "limited", issueNumber, resets, runId, comment: lines.join("\n"), addLabels: [], removeLabels: [] };
 }
 
-// Whether a lane PR carries the hold line, from runner facts only: a refs
-// link, a held work class on the issue, a diff the compare listing may have
-// cut short, unreadable hold paths, or a changed file on one.
-const held = ({ refs = false, issueLabels, changedFiles, holdPaths }) =>
-  refs ||
-  issueLabels.some((name) => HOLD_CLASSES.has(name)) ||
-  changedFiles.length >= COMPARE_FILES_CAP ||
-  holdPaths === null ||
-  changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob)));
-
 // The summary pass's file for a reused branch, or null unless it is bound to
 // this issue and branch, names the tip it read, and holds a non-empty summary.
 // issue, branch and tip are runner values; output is the model's, read as data.
@@ -351,20 +340,9 @@ export function readSummary(dir, { issueNumber, branch }) {
 }
 
 // A lane branch an earlier run left with commits and no report, whose outcome
-// this run cannot read. With the summary pass's summary, a lane PR held only
-// where decide() would hold one; without it, a PR a human merges, titled from
-// the issue, with no model text.
-export function reusePlan({
-  issueNumber,
-  issueTitle = "",
-  branch,
-  runUrl = "",
-  earlierRunUrl = "",
-  summary = null,
-  issueLabels = [],
-  changedFiles = [],
-  holdPaths = null,
-}) {
+// this run cannot read: a PR a human merges. With the summary pass's summary
+// it carries that text; without it, titled from the issue, no model text.
+export function reusePlan({ issueNumber, issueTitle = "", branch, runUrl = "", earlierRunUrl = "", summary = null }) {
   const runs = [
     earlierRunUrl ? `- The earlier lane run: ${earlierRunUrl}` : "- The earlier lane run.",
     runUrl ? `- This lane run: ${runUrl}` : "- This lane run.",
@@ -372,7 +350,8 @@ export function reusePlan({
   if (summary) {
     const body = [
       `Closes #${issueNumber}`,
-      ...(held({ issueLabels, changedFiles, holdPaths }) ? ["", HOLD_LINE] : []),
+      "",
+      HOLD_LINE,
       "",
       "## Summary",
       "",
@@ -390,7 +369,7 @@ export function reusePlan({
       "",
       ...runs,
       "",
-      "Left out: every check the earlier run would have reported.",
+      "Left out: every check the earlier run would have reported; a person reviews the diff before merging.",
       "",
       "## Related",
       "",
@@ -485,7 +464,12 @@ export function decide({
     });
   }
   const refs = outcome.link === "refs";
-  const hold = held({ refs, issueLabels, changedFiles, holdPaths });
+  const hold =
+    refs ||
+    issueLabels.some((name) => HOLD_CLASSES.has(name)) ||
+    changedFiles.length >= COMPARE_FILES_CAP ||
+    holdPaths === null ||
+    changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob)));
   // The sections of the PR body contract (.claude/rules/pr-body-contract.md),
   // in the org PR template's order, with the run's gaps above the work.
   const gaps = outcome.notDone.map(({ what }) => what);
@@ -818,7 +802,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const issue = await github("GET", `${repo}/issues/${issueNumber}`);
     const unreported = reuse && (outcome === null || outcome.unread);
     // The summary counts only while the branch is still at the tip it read; a
-    // tip that cannot be read keeps the fixed text and the hold.
+    // tip that cannot be read keeps the fixed text.
     let summary = unreported && env.REUSE_SUMMARY_DIR ? readSummary(env.REUSE_SUMMARY_DIR, { issueNumber, branch: reuse }) : null;
     if (summary) {
       const ref = reuse.split("/").map(encodeURIComponent).join("/");
@@ -833,35 +817,26 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     }
     let changedFiles = [];
     let base = "";
-    if ((outcome?.exit === "done" || summary) && branch) {
+    if (outcome?.exit === "done" && branch) {
       base = (await github("GET", repo)).default_branch;
       const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(branch)}`);
       changedFiles = (comparison.files ?? []).flatMap((file) =>
         file.previous_filename ? [file.filename, file.previous_filename] : [file.filename],
       );
     }
-    const issueLabels = (issue.labels ?? []).map((label) => label.name);
-    const holdPaths = () => readHoldPaths(env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json"));
     // A reuse whose outcome cannot be read never takes the limit record: the
     // skipped run hit no limit, and a limited marker would loop restarts.
     const issueTitle = typeof issue.title === "string" ? issue.title : "";
     const plan = unreported
-      ? reusePlan({
-          issueNumber,
-          issueTitle,
-          branch,
-          runUrl,
-          earlierRunUrl: runUrlOf(reused[1]),
-          ...(summary ? { summary, issueLabels, changedFiles, holdPaths: holdPaths() } : {}),
-        })
+      ? reusePlan({ issueNumber, issueTitle, branch, runUrl, earlierRunUrl: runUrlOf(reused[1]), summary })
       : decide({
           outcome,
           issueNumber,
-          issueLabels,
+          issueLabels: (issue.labels ?? []).map((label) => label.name),
           issueTitle,
           branch,
           changedFiles,
-          holdPaths: holdPaths(),
+          holdPaths: readHoldPaths(env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json")),
           humanLabel: humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json"),
           runUrl,
           limit,

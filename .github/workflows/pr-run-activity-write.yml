@@ -872,7 +872,7 @@ jobs:
       # skipped the run, so no lane token was minted: the action gets the job's
       # read-only GITHUB_TOKEN, no plugins and no commit signing, and the model
       # reads the data files and nothing else. A failed or limit-stopped pass
-      # leaves no summary, and report-outcome keeps the fixed text and the hold.
+      # leaves no summary, and report-outcome keeps the fixed text.
       - name: Summarize the reused branch
         id: summary-run
         if: steps.summary-prompt.outcome == 'success'
@@ -1854,8 +1854,7 @@ jobs:
           path: ${{ runner.temp }}/work-outcome
 
       # Issue mode, reuse: the summary pass's file, if it left one. A missing
-      # artifact leaves the directory empty, which keeps the fixed text and
-      # the hold.
+      # artifact leaves the directory empty, which keeps the fixed text.
       - name: Download the reused branch's summary
         if: >-
           steps.head-recheck.outputs.proceed == 'true' && inputs.issue-number != ''
