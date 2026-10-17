@@ -328,7 +328,36 @@
     /** My answer record: text, or a pick on a choice question, or both. */
     const myRec = qid => Core.answersFor(qid).find(a => a.cid === Core.me.cid && !a.option && !a.claude);
     const hasAnswered = qid => !!myRec(qid);
-    const isOpenForMe = id => { const q = qById(id); return !!q && !hasAnswered(id) && !Core.lockOf(id) && !readOnly(q); };
+    const askedOfMe = qid => Core.askedOf(qid).includes(Core.me.cid);
+    /** Someone else's answer (not Claude's, not an option): one makes a question not asked of me by name optional. */
+    const otherAnswer = qid => Core.answersFor(qid).find(a => !a.claude && !a.option && a.cid !== Core.me.cid);
+    /** Where a question stands for me (triage row 42): answered (my own answer), took (I voted, reacted, disagreed or
+     *  passed: Core.tookPart), soft (someone else answered and it is not asked of me, so it is optional), or open. Only
+     *  open counts as not answered, as the server's behind count does (session.py _owes). */
+    function myState(qid) {
+      if (hasAnswered(qid)) return "answered";
+      if (Core.tookPart(qid)) return "took";
+      return !askedOfMe(qid) && otherAnswer(qid) ? "soft" : "open";
+    }
+    const isOpenForMe = id => { const q = qById(id); return !!q && myState(id) === "open" && !Core.lockOf(id) && !readOnly(q); };
+    /** Triage row 43 (Q100): the earliest closed round with unlocked questions I have not taken part in, and those
+     *  questions; answers there still go to Claude, marked late. Null when there is none, or for the owner. */
+    function catchUp() {
+      const S = Core.state;
+      if (Core.me.isOwner || !S.me || S.ended || S.youRemoved) return null;
+      const behind = S.questions.filter(q => roundStatus(roundOf(q)) === "closed" && !Core.lockOf(q.id) && ["open", "soft"].includes(myState(q.id)));
+      if (!behind.length) return null;
+      const n = Math.min(...behind.map(roundOf)), qs = behind.filter(q => roundOf(q) === n);
+      return { n, qs, text: `Round ${n} has ${qs.length} question${qs.length === 1 ? "" : "s"} you haven't answered. Answers there still go to Claude, marked late.` };
+    }
+    /** The catch-up line: what is behind, and a link that opens its first question. */
+    function catchUpEl(onGo) {
+      const p = E("p", "vf-catchup"), t = E("span", "vf-catchup-t"), go = btn("vf-linkbtn vf-catchup-go");
+      p.append(t, " ", go);
+      go.onclick = () => { const id = p._q; if (!id) return; onGo?.(); focusQuestion(id); };
+      p._paint = cu => { p.hidden = !cu; if (!cu) return; t.textContent = cu.text; go.textContent = `Catch up on round ${cu.n}`; p._q = cu.qs[0].id; };
+      return p;
+    }
     const optionsOf = q => q?.options || [];
     /** A question that takes a pick (its options are the vote), not a written answer. */
     const isChoice = q => ["choice", "confirm", "multi", "scale", "rank"].includes(q?.format);
@@ -799,7 +828,7 @@
     /** Questions in round order, filtered, and sorted inside each round as the toolbar says. */
     function shownQuestions() {
       const t = tb(), qs = Core.state.questions.filter(passes), pos = new Map(Core.state.questions.map((q, i) => [q.id, i]));
-      const key = q => simpleView() ? 0 : t.sort === "votes" ? -totalVotes(q.id) : t.sort === "unanswered" ? +hasAnswered(q.id) : 0;
+      const key = q => simpleView() ? 0 : t.sort === "votes" ? -totalVotes(q.id) : t.sort === "unanswered" ? +(myState(q.id) !== "open") : 0;
       return qs.sort((a, b) => roundOf(a) - roundOf(b) || key(a) - key(b) || pos.get(a.id) - pos.get(b.id));
     }
     const barInfo = E("span", "vf-meta");
@@ -829,7 +858,14 @@
     const purposeSel = selWrap("Purpose", Object.entries(PURPOSE).map(([k, [l]]) => [k, l]));
     purposeSel.w.classList.add("vf-purposesel");
     purposeSel.s.onchange = () => Core.setPurpose(ui.cur, purposeSel.s.value).then(() => flash(`${qById(ui.cur)?.id} is now a ${PURPOSE[purposeSel.s.value][0]} question.`)).catch(e => { fail(e); render(); });
-    qMeta.append(qPos, qPurpose, purposeSel.w, qFrom, qDeps, qSug, qHost);
+    // Triage row 42: who a question is asked of (`for`). Claude sets it from "@name"; the owner changes it here, as the purpose.
+    const qFor = E("span", "vf-chip vf-chip-brass vf-forchip");
+    const forBtn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-forbtn"); forBtn.setAttribute("aria-expanded", "false");
+    const forBox = E("fieldset", "vf-forbox"); forBox.hidden = true; forBox.id = "vf-forbox"; forBtn.setAttribute("aria-controls", forBox.id);
+    const forLegend = E("legend", null, "Who must answer (no one ticked asks everyone)"), forList = E("div", "vf-forlist");
+    forBox.append(forLegend, forList);
+    forBtn.onclick = () => { ui.forOpen = ui.forOpen === ui.cur ? "" : ui.cur; render(); };
+    qMeta.append(qPos, qPurpose, purposeSel.w, qFor, forBtn, qFrom, qDeps, qSug, qHost);
     const qText = E("h1", "vf-qtext"); qText.tabIndex = -1;
     const reviewRow = E("div", "vf-reviewrow");
     const reviewTag = E("span", "vf-review"); const reviewTxt = E("span");
@@ -853,7 +889,8 @@
     orWhy.append(orIntro, orHow);
     orRow.append(orStart, orWhyBtn, orTour);
     const orHide = ibtn("vf-tbtn vf-icon-btn vf-orient-x", "x", "Hide this introduction");
-    orient.append(orHide, orH, orGoal, orAsk, orRow, orWhy);
+    const orCatch = catchUpEl(() => { ui.orientHidden = true; });
+    orient.append(orHide, orH, orGoal, orAsk, orCatch, orRow, orWhy);
     orWhyBtn.onclick = () => { ui.introOpen = !introOpen(); render(); };
     orHide.onclick = () => { ui.orientHidden = true; render(); qText.focus({ preventScroll: true }); };
     const introOpen = () => !!ui.introOpen;
@@ -1052,8 +1089,35 @@
     const citePop = E("div", "vf-pop vf-citepop"); citePop.setAttribute("role", "dialog"); citePop.setAttribute("aria-label", "Cite a result"); citePop.hidden = true;
     const citeList = E("ul", "vf-citelist"); citeList.setAttribute("role", "list");
     citePop.append(E("h2", "vf-pop-title", "Cite a result"), E("p", "vf-pop-note", "Your answer links to it, and the result shows who cited it."), citeList);
+    // Triage row 42: once someone else answered a question not asked of me by name, a line says so (optional now), and
+    // Pass, on every purpose, says I have no view to give. Pass is a quiet button under the answer box, never the default.
+    const passBox = E("div", "vf-passbox");
+    const passNote = E("p", "vf-passnote"), passWho = E("p", "vf-passwho");
+    const passBtn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-passbtn", "Pass"); passBtn.setAttribute("aria-expanded", "false");
+    const passUndo = btn("vf-btn vf-btn-ghost vf-btn-sm vf-passundo", "Undo pass");
+    const passForm = E("form", "vf-passform"); passForm.hidden = true; passForm.id = "vf-passform"; passBtn.setAttribute("aria-controls", passForm.id);
+    const passLbl = E("label", "vf-passlbl"), passIn = E("input", "vf-input vf-passin");
+    passIn.id = "vf-pass-reason"; passIn.maxLength = 200; passLbl.htmlFor = passIn.id;
+    const passSave = E("button", "vf-btn vf-btn-ghost vf-btn-sm", "Pass"); passSave.type = "submit";
+    const passCancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel");
+    const passErr = E("p", "vf-passerr"); passErr.setAttribute("role", "alert");
+    const passRow = E("div", "vf-passrow"); passRow.append(passIn, passSave, passCancel);
+    passForm.append(passLbl, passRow, passErr);
+    const passLine = E("div", "vf-passline"); passLine.append(passNote, passBtn, passUndo);
+    passBox.append(passLine, passForm, passWho);
+    passBtn.onclick = () => { ui.passOpen = ui.cur; passErr.textContent = ""; render(); passIn.focus(); };
+    passCancel.onclick = () => { ui.passOpen = ""; render(); passBtn.focus(); };
+    passForm.onsubmit = e => {
+      e.preventDefault();
+      const qid = ui.cur, reason = passIn.value.trim();
+      if (!reason && askedOfMe(qid)) { passErr.textContent = "This question is asked of you: say why you pass."; passIn.focus(); return; }
+      passSave.disabled = true;
+      Core.pass(qid, reason).then(() => { ui.passOpen = ""; passIn.value = ""; flash("You passed. Undo it while the round is open."); })
+        .catch(x => { passErr.textContent = `Not passed: ${Core.errorText(x)}`; }).finally(() => { passSave.disabled = false; render(); });
+    };
+    passUndo.onclick = () => Core.pass(ui.cur, "", false).then(() => flash("Pass taken back.")).catch(fail);
     // Triage 13: the answer box sits right under the question and its options, never at the pane's foot.
-    scroll.append(orient, qMeta, qText, refBox, reviewRow, onIt, fmtBox, composer, splitTabs, split);
+    scroll.append(orient, qMeta, forBox, qText, refBox, reviewRow, onIt, fmtBox, composer, passBox, splitTabs, split);
     focusV.append(scroll);
 
     // Compare view
@@ -5221,9 +5285,9 @@
       if (!S.ended) ui.endedShown = false;
 
       // rail
-      const answered = S.questions.filter(q => hasAnswered(q.id) || Core.lockOf(q.id)).length;
-      railMeta.textContent = `${S.questions.filter(q => hasAnswered(q.id)).length} of ${S.questions.length} answered`;
-      const byRound = new Map(), shownQs = shownQuestions();
+      const answered = S.questions.filter(q => myState(q.id) !== "open" || Core.lockOf(q.id)).length;
+      railMeta.textContent = `${S.questions.filter(q => myState(q.id) !== "open").length} of ${S.questions.length} answered`;
+      const byRound = new Map(), shownQs = shownQuestions(), cuNow = catchUp();
       for (const x of shownQs) { const r = roundOf(x); if (!byRound.has(r)) byRound.set(r, []); byRound.get(r).push(x); }
       const roundNums = [...new Set([...qs.map(roundOf), cur])].sort((a, b) => a - b);
       const railNums = roundNums.filter(n => byRound.has(n) || (n === cur && (tb().round === "all" || tb().round === String(n))));
@@ -5247,18 +5311,20 @@
         head.append(toggle, curHead);
         const ul = E("ul", "vf-qlist"); ul.setAttribute("role", "list");
         if (ui.freshRound === n) ul._primed = true; // a round that opened while we watched animates its questions in
-        g.append(head, ul);
-        g._k = { toggle, tLabel, check, curHead, name, meta, prog, send, readyNote, ul };
+        const cu = catchUpEl(); // shown above the current round only
+        g.append(cu, head, ul);
+        g._k = { toggle, tLabel, check, curHead, name, meta, prog, send, readyNote, ul, cu };
         return g;
       }, (g, n) => {
         const k = g._k, list = byRound.get(n) || [], isCur = n === cur, inRound = qs.filter(x => roundOf(x) === n);
         const decided = inRound.filter(x => Core.lockOf(x.id)).length, all = inRound.length > 0 && decided === inRound.length;
         const expanded = isCur || openRounds().has(n);
         g.classList.toggle("vf-round-cur", isCur);
+        k.cu._paint(isCur ? cuNow : null);
         k.toggle.hidden = isCur; k.curHead.hidden = !isCur;
         k.toggle.setAttribute("aria-expanded", String(expanded));
         // ux-review-2 #7: guests count what they answered; "decided" is the moderators' word.
-        const done = mod ? decided : inRound.filter(x => hasAnswered(x.id)).length, word = mod ? "decided" : "answered";
+        const done = mod ? decided : inRound.filter(x => myState(x.id) !== "open").length, word = mod ? "decided" : "answered";
         k.tLabel.textContent = n > cur ? `Round ${n}, opens after round ${cur}` : `Round ${n}, ${done} of ${inRound.length} ${word}`;
         k.check.hidden = !done;
         k.name.textContent = `Round ${n}`;
@@ -5388,11 +5454,12 @@
       }
       function fillQ(li, q) {
         const b = li.firstChild, [, mid, side] = b.children;
-        const done = hasAnswered(q.id), lk = Core.lockOf(q.id), others = Core.others(q.id), typing = others.some(p => p.typing);
+        const mine = myState(q.id), lk = Core.lockOf(q.id), others = Core.others(q.id), typing = others.some(p => p.typing);
         const nSug = openSugs(q.id).length;
         b.classList.toggle("vf-q-cur", q.id === ui.cur);
         b.setAttribute("aria-current", q.id === ui.cur ? "true" : "false");
-        b.dataset.stat = lk ? "locked" : done ? "done" : "";
+        b.dataset.stat = lk ? "locked" : { answered: "done", took: "took", soft: "soft" }[mine] || "";
+        b.title = lk ? "Locked" : { answered: "Answered", took: "Took part", soft: "Optional: someone answered" }[mine] || "Open";
         mid.children[0].textContent = q.text;
         mid.children[1].textContent = mod && lk && nSug ? `${nSug} suggestion${nSug > 1 ? "s" : ""}` : "";
         mid.children[1].hidden = !mid.children[1].textContent;
@@ -5404,7 +5471,7 @@
         const fresh = q.id !== ui.cur && seenTs != null && Core.answersFor(q.id).some(a => a.ts > seenTs && !isMe(a.cid));
         side.lastChild.hidden = !fresh;
         const qt = q.text.trim(), qEnd = /[.?!]$/.test(qt) ? "" : ".";
-        b.setAttribute("aria-label", `Question ${q.id.slice(1)}: ${qt}${qEnd} ${lk ? "Locked." : done ? "You answered." : "Not answered."}${rv ? " " + rv + "." : ""}${fresh ? " New answers." : ""}${others.length ? " " + names(others) + " here." : ""}${typing ? " Someone is typing." : ""}`);
+        b.setAttribute("aria-label", `Question ${q.id.slice(1)}: ${qt}${qEnd} ${lk ? "Locked." : { answered: "You answered.", took: "You took part.", soft: "Optional: someone answered." }[mine] || "Not answered."}${rv ? " " + rv + "." : ""}${fresh ? " New answers." : ""}${others.length ? " " + names(others) + " here." : ""}${typing ? " Someone is typing." : ""}`);
       }
 
       // center bar
@@ -5447,7 +5514,7 @@
       railEmpty.hidden = qs.length > 0;
       if (!qs.length) renderEmpty(S);
       // Triage 3: until a guest answers anything, the Focus view opens with the goal, the host's ask and where to start.
-      orient.hidden = !q || me.isOwner || !S.me || !!S.ended || !!S.youRemoved || !!ui.orientHidden || S.questions.some(x => hasAnswered(x.id));
+      orient.hidden = !q || me.isOwner || !S.me || !!S.ended || !!S.youRemoved || !!ui.orientHidden || S.questions.some(x => ["answered", "took"].includes(myState(x.id)));
       introBtn.hidden = !S.intro && !me.isOwner; msIntro.hidden = helpIntro.hidden = introBtn.hidden;
       if (!orient.hidden) {
         const inCur = S.questions.filter(x => roundOf(x) === cur), target = inCur.find(x => isOpenForMe(x.id)) || inCur[0] || S.questions[0];
@@ -5458,6 +5525,7 @@
         // On a phone the how-to sentence folds in with the intro, so the card stays short.
         orAsk.textContent = `${hostName} asks you to answer ${nQ} question${nQ === 1 ? "" : "s"}.${phone.matches ? "" : " " + how}`;
         orStart.textContent = `Start here: question ${Math.max(1, inCur.indexOf(target) + 1)}`; orStart._q = target?.id;
+        orCatch._paint(catchUp());
         if (ui.introOpen == null) { ui.introOpen = !phone.matches && !store.get(INTRO_SEEN(), false); store.put(INTRO_SEEN(), true); }
         const hasWhy = !!S.intro || phone.matches;
         orIntro.textContent = S.intro; orIntro.hidden = !S.intro;
@@ -5482,6 +5550,39 @@
         purposeSel.w.hidden = !me.isOwner;
         if (purposeSel.s.value !== q.purpose && document.activeElement !== purposeSel.s) purposeSel.s.value = q.purpose || "decide";
         purposeSel.s.title = pur[1];
+        const asked = Core.askedOf(q.id).filter(p => S.people[p] && !(S.removed || []).includes(p));
+        const askedNames = asked.map(p => (isMe(p) ? "you" : disp(nameOf(p))));
+        qFor.textContent = asked.length ? `Asked of ${askedNames.join(", ")}` : ""; qFor.hidden = !asked.length;
+        forBtn.hidden = !me.isOwner || readOnly(q);
+        forBtn.textContent = asked.length ? "Change who" : "Ask someone";
+        forBtn.setAttribute("aria-expanded", String(ui.forOpen === q.id));
+        forBox.hidden = forBtn.hidden || ui.forOpen !== q.id;
+        if (!forBox.hidden) {
+          const people = Object.keys(S.people).filter(p => !(S.removed || []).includes(p));
+          sync(forList, people, p => p, p => {
+            const l = E("label"), cb = E("input"); cb.type = "checkbox";
+            cb.onchange = () => {
+              const now = Core.askedOf(ui.cur).filter(x => x !== p);
+              Core.setFor(ui.cur, cb.checked ? [...now, p] : now).catch(e => { fail(e); render(); });
+            };
+            l.append(cb, E("span")); l._cb = cb; return l;
+          }, (l, p) => { l._cb.checked = asked.includes(p); l.lastChild.textContent = isMe(p) ? `${disp(nameOf(p))} (you)` : disp(nameOf(p)); });
+        }
+        // Pass, and the optional line once someone else answered (myState soft); only open counts as not answered.
+        const mineNow = myState(q.id), myPass = Core.myPass(q.id), canPass = !readOnly(q) && !lk, other = otherAnswer(q.id);
+        passNote.textContent = myPass ? `You passed${myPass.reason ? `: ${myPass.reason}` : "."}`
+          : !canPass ? ""
+          : mineNow === "soft" ? (q.purpose === "poll" ? `${disp(other.name)} answered. Pick if you have a view, or Pass.` : `${disp(other.name)} answered. 👍 if you agree, or Pass.`)
+          : mineNow === "open" && askedOfMe(q.id) ? "This question is asked of you." : "";
+        passBtn.hidden = !canPass || !!myPass || mineNow === "answered" || mineNow === "took";
+        passUndo.hidden = !canPass || !myPass;
+        passForm.hidden = passBtn.hidden || ui.passOpen !== q.id;
+        passBtn.setAttribute("aria-expanded", String(!passForm.hidden));
+        passLbl.textContent = askedOfMe(q.id) ? "Why you pass (needed: it is asked of you)" : "Why you pass (optional)";
+        const passed = me.isOwner ? Object.entries(S.passes[q.id] || {}) : [];
+        passWho.textContent = passed.length ? `Passed: ${passed.map(([p, r]) => disp(nameOf(p)) + (r.reason ? ` (${r.reason})` : "")).join(", ")}` : "";
+        passWho.hidden = !passed.length;
+        passBox.hidden = !passNote.textContent && passBtn.hidden && passUndo.hidden && passWho.hidden;
         qDeps.textContent = q.dependsOn?.length ? `Depends on ${q.dependsOn.join(", ")}` : ""; qDeps.hidden = !qDeps.textContent;
         const nSug = openSugs(q.id).length;
         qSug.textContent = mod && lk && nSug ? `${nSug} suggestion${nSug > 1 ? "s" : ""}` : ""; qSug.hidden = !qSug.textContent;
@@ -5638,6 +5739,7 @@
         agreeTxt.classList.toggle("vf-agree-all", !!topA && agreeN === here.length);
       } else {
         qPos.textContent = qFrom.textContent = ""; qSug.hidden = qDeps.hidden = qHost.hidden = closedBox.hidden = qPurpose.hidden = purposeSel.w.hidden = true; qText.textContent = "No questions yet";
+        qFor.hidden = forBtn.hidden = forBox.hidden = passBox.hidden = true;
         onItTxt.textContent = ""; ansCount.textContent = ""; aEmpty.hidden = true; lockBox.hidden = true; lockBtn.hidden = true;
         reviewRow.hidden = true; tools.hidden = true; fmtBox.hidden = true; split.hidden = splitTabs.hidden = true; claudeBar.hidden = true; refBox.hidden = true;
       }

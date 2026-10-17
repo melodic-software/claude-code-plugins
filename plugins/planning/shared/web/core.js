@@ -47,7 +47,7 @@
     questions: [], answers: {}, ideas: [], presence: [], locks: {}, disagreements: {}, suggestions: {}, chat: [], leaders: [], trusted: [],
     round: { current: 1, status: "open" }, rounds: [], title: "", people: {}, research: {}, requestCounts: { open: 0, byQ: {} }, requests: [],
     myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], cleared: [], guestKey: "", shareChanged: false, shareUrl: "",
-    goal: "", intro: "", annotations: [], uploads: [], reports: [], myUploads: [], files: {}, mergeRequests: [], myMergeRequests: [], me: null, joinNeedsKey: false,
+    goal: "", intro: "", annotations: [], uploads: [], reports: [], passes: {}, myUploads: [], files: {}, mergeRequests: [], myMergeRequests: [], me: null, joinNeedsKey: false,
     settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true },
   };
 
@@ -216,6 +216,8 @@
     // Problem reports (owner only): the picture itself comes from Core.reportImage when the owner opens one.
     view.reports = (s.reports || []).map(r => ({ id: r.id, cid: r.by, name: nameOf(r.by), text: r.text, ctx: r.ctx, image: r.image, status: r.status, ts: r.ts }));
     view.files = s.files || {};
+    // Passes and their reasons (owner only): qid -> pid -> {reason?, ts}.
+    view.passes = s.passes || {};
     // Present people are active or away (with since when); a person with no heartbeat for a while is absent: offline.
     view.presence = (s.presence || []).map(p => ({ cid: p.pid, name: nameOf(p.pid), q: p.q, typing: p.typing, chatTyping: p.chatTyping,
       away: p.state === "away", ...(p.state === "away" ? { awaySince: p.since } : {}),
@@ -241,6 +243,7 @@
     "unknown-session": "The session no longer knows this browser. Join again.",
     "merged-into-owner": "This browser was merged into the owner. Open your owner link here.",
     removed: "The host removed you from this session.",
+    "no-such-person": "That person is not in this session.",
     waiting: "The host has not let you in yet. This page opens by itself once they do.",
     "reaction-cap": "That message has as many reactions as it takes.",
     "notes-full": "This session holds as many notes as it takes, so this one was not pinned.",
@@ -411,6 +414,28 @@
       } });
     },
     disagreementsOn: (qid, ref) => (Core.state.disagreements[qid] || []).filter(d => d.card === ref),
+    /** Pass on a question, any purpose: no view to give. The reason is optional (0..200), required when it is asked of me;
+     *  on=false takes it back. */
+    pass: (qid, reason, on = true) => act("/api/pass", { qid, on, ...(on && reason ? { reason } : {}) }, { key: "pass:" + qid, patch: s => {
+      s.me.passes ||= {};
+      if (on) s.me.passes[qid] = { ...(reason ? { reason } : {}), ts: s.serverTime }; else delete s.me.passes[qid];
+    } }),
+    myPass: qid => Core.state.me?.passes?.[qid] || null,
+    /** The people a question is asked of (its `for`), as pids; empty asks everyone. */
+    askedOf: qid => qOf(Core.state.questions, qid)?.for || [],
+    /** The server's one rule for taking part (session.py _took_part): my own answer, a vote, a back, any reaction, a
+     *  Disagree or a Pass. On a question asked of me only my answer, a vote or a Pass counts. */
+    tookPart: qid => {
+      const me = Core.state.me, pid = Core.me.cid;
+      if (!me || !pid) return false;
+      const answers = Core.answersFor(qid);
+      if (answers.some(a => a.cid === pid && !a.claude && !a.option && !a.hidden) || answers.some(a => (a.votes || []).includes(pid))) return true;
+      if (qid in (me.votes || {}) || qid in (me.backs || {}) || qid in (me.passes || {})) return true;
+      if (Core.askedOf(qid).includes(pid)) return false;
+      return Object.keys(me.reactions?.[qid] || {}).length > 0 || (Core.state.disagreements[qid] || []).some(d => d.cid === pid);
+    },
+    /** Who owns the answer: the owner sets the people a question is asked of ([] asks everyone). */
+    setFor: (qid, pids) => act("/api/question/for", { qid, for: pids }),
     goWith: (qid, target) => act("/api/go-with", { qid, card: refOf(qid, target) }),
     lock: (qid, target) => act("/api/lock", { qid, ...(target ? { card: refOf(qid, target) } : {}) }).catch(e => {
       throw e?.error === "tie" ? { ...e, tied: (e.tied || []).map(cidOf) } : e;
@@ -597,7 +622,7 @@
   // second after the last answer came back: the server stamps a write before it answers, so that gap is never shorter
   // than a second there.
   const SPACED = new Set(["/api/answer", "/api/pick", "/api/propose", "/api/chat", "/api/suggest", "/api/request", "/api/merge-request",
-    "/api/annotate", "/api/rename", "/api/color", "/api/prefs", "/api/about-you", "/api/vote", "/api/react", "/api/disagree",
+    "/api/annotate", "/api/rename", "/api/color", "/api/prefs", "/api/about-you", "/api/vote", "/api/react", "/api/disagree", "/api/pass",
     "/api/go-with", "/api/notifications/read", "/api/chat/react", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail",
     "/api/upload/offer", "/api/upload/act", "/api/upload/chunk"]);
   const GAP = 1050; // ms: the server's one-a-second limit, plus a margin for clock rounding
