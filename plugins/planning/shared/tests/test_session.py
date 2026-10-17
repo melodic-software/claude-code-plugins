@@ -745,8 +745,23 @@ class TestOwnerMerge(SessionCase):
         self.assertNotIn(HOST, st["credentials"]["secrets"].values())
         with self.assertRaises(session.DomainError) as ctx:
             self.s.resolve(secret=self.twin_secret)
-        self.assertEqual((ctx.exception.http, ctx.exception.code), (401, "unknown-session"))
+        self.assertEqual((ctx.exception.http, ctx.exception.code), (401, "merged-into-owner"))
         self.assertEqual(session.cross_field_errors(st), [])
+
+    def test_a_browser_merged_into_the_owner_is_told_to_open_the_owner_link_not_to_join_again(self):
+        self.act("merge_people", HOST, {"from": self.twin, "to": HOST})
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.resolve(secret=self.twin_secret)
+        err = ctx.exception
+        self.assertEqual((err.http, err.code, err.message), (401, "merged-into-owner", "This browser was merged into the owner. Open your owner link here."))
+        self.assertNotIn(HOST, self.s.state["credentials"]["secrets"].values())
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.resolve(secret="a secret nobody was given")
+        self.assertEqual(ctx.exception.code, "unknown-session")
+
+    def test_a_guest_merged_into_a_guest_keeps_working_as_the_kept_person(self):
+        self.act("merge_people", HOST, {"from": self.twin, "to": self.ann})
+        self.assertEqual(self.s.resolve(secret=self.twin_secret), self.ann)
 
     def test_where_both_answered_or_voted_the_newer_answer_and_the_owners_vote_win(self):
         self.act("answer", HOST, {"qid": "Q1", "text": "Owner's first", "view": "focus"})

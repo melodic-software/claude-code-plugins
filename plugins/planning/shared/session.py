@@ -817,6 +817,7 @@ class Session:
         self._saved = json.dumps(state, ensure_ascii=False)
         self._presence = {}  # pid -> {"at": join time, "device"?, "tabs": tab -> beat, least recent first}; never persisted
         self._presence_rev = 0
+        self._merged_into_owner = set()  # sha256 of the secrets a merge into the owner dropped; never persisted
         self._last_write = collections.OrderedDict()  # (pid, route) -> time of the last accepted write, oldest first
         self._joins = collections.OrderedDict()  # (guest key, address) -> times of recent joins, least recent first
         self._key_joins = {}  # guest key -> times of recent joins from any address
@@ -999,10 +1000,13 @@ class Session:
                     return HOST
                 raise DomainError(401, "unknown-session", "This owner link is no longer valid.")
             if secret:
-                pid = creds["secrets"].get(sha256(secret))
+                h = sha256(secret)
+                pid = creds["secrets"].get(h)
                 if pid:
                     self._person(pid)
                     return pid
+                if h in self._merged_into_owner:
+                    raise DomainError(401, "merged-into-owner", "This browser was merged into the owner. Open your owner link here.")
             raise DomainError(401, "unknown-session", "Join the session again.")
 
     def _person(self, pid):
@@ -1600,8 +1604,9 @@ class Session:
         secrets = st["credentials"]["secrets"]
         for h, p in list(secrets.items()):
             if p == src:
-                if dst == HOST:
+                if dst == HOST:  # owner rights stay with the owner link: the device is told to open it
                     secrets.pop(h)
+                    self._merged_into_owner.add(h)
                 else:
                     secrets[h] = dst
         self._drop_watcher(src)  # a watcher key never gains another person's requests

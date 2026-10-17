@@ -53,12 +53,30 @@ async function main() {
     await owner.click('.vf-pcard [data-k="m:host"]');
     ok("the confirm button reads \"Merge into me (owner)\"", await until(owner, () => document.querySelector('.vf-pcard [data-k="mg"]')?.textContent === "Merge into me (owner)"));
     await owner.click('.vf-pcard [data-k="mg"]');
+    const twinJoins = [];
+    twin.on("request", r => { if (new URL(r.url()).pathname === "/api/join") twinJoins.push(r.method()); });
     await owner.click(".vf-cdlg .vf-btn-danger-solid");
     ok("the merge succeeds and says so", await until(owner, () => document.querySelector(".vf-toast")?.textContent === "Merged Admin 2 into me (owner)."),
       await owner.evaluate(() => document.querySelector(".vf-toast")?.textContent));
     ok("Admin 2 leaves the people list", await until(owner, p => !document.querySelector(`.vf-hperson:has([data-pid="${p}"])`) && !window.Core.snapshot().people.some(x => x.pid === p), twinPid));
     ok("Admin 2's chat is the owner's now", await until(owner, () => window.Core.snapshot().chat.map(m => [m.pid, m.text]).join() === "host,Hi from my phone"));
     ok("the owner is still the owner", await owner.evaluate(() => window.Core.snapshot().me.role === "owner"));
+
+    // ---------- the merged browser: told to open the owner link, never joined again ----------
+    const NOTICE = "This browser was merged into the owner. Open your owner link here."; // triage row 39's sentence
+    const banner = () => document.querySelector(".vf-banner:not([hidden])")?.textContent || "";
+    ok("the merged browser shows the merged-into-owner notice", await until(twin, n => (document.querySelector(".vf-banner:not([hidden])")?.textContent || "").includes(n), NOTICE, 10000),
+      await twin.evaluate(banner));
+    ok("  and forgot its guest secret", await twin.evaluate(() => !localStorage.getItem("secret") && !localStorage.getItem("pid")));
+    await twin.evaluate(() => window.Core.chat("Still me?").catch(() => {}));
+    await twin.waitForTimeout(3500); // two polls and a beat
+    ok("  and neither joined again nor asked for a name", twinJoins.length === 0 && !(await twin.evaluate(() => !!document.querySelector("dialog.core-name"))),
+      `${twinJoins.length} joins`);
+    await twin.reload();
+    await twin.waitForTimeout(2500);
+    ok("  reloaded, it still shows the notice and asks for no name", (await twin.evaluate(banner)).includes(NOTICE) && !(await twin.evaluate(() => !!document.querySelector("dialog.core-name"))) && twinJoins.length === 0,
+      `${await twin.evaluate(banner)} | ${twinJoins.length} joins`);
+    ok("  and the owner's people list does not get Admin 2 back", await owner.evaluate(() => window.Core.snapshot().people.every(p => p.name !== "Admin 2")));
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));

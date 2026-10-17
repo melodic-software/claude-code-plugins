@@ -1281,8 +1281,13 @@ class TestModerationRoutes(ServerCase):
         snap = self.state(self.owner)
         self.assertNotIn(self.bo_pid, [p["pid"] for p in snap["people"]])
         self.assertEqual([m["pid"] for m in snap["chat"]], ["host"])
-        code, _, out = self.get("/api/state?since=0", self.bo)
-        self.assertEqual((code, out["error"]), (401, "unknown-session"))
+        for code, _, out in (self.get("/api/state?since=0", self.bo), self.post("/api/heartbeat", {"visible": True}, self.bo)):
+            self.assertEqual((code, out["error"], out["message"]), (401, "merged-into-owner", "This browser was merged into the owner. Open your owner link here."))
+
+    def test_a_guest_merged_into_a_guest_reads_the_session_as_the_kept_person(self):
+        code, _, out = self.post("/api/person/merge", {"from": self.bo_pid, "to": self.ann_pid}, self.owner)
+        self.assertEqual(code, 200, out)
+        self.assertEqual(self.state(self.bo)["me"]["pid"], self.ann_pid)
 
     def test_merging_the_owner_into_anyone_is_refused(self):
         code, _, out = self.post("/api/person/merge", {"from": "host", "to": self.ann_pid}, self.owner)

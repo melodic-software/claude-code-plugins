@@ -237,6 +237,7 @@
     "no-such-option": "That option is gone. Reload the page.",
     "cannot-vote-own": "You cannot vote for your own answer.",
     "unknown-session": "The session no longer knows this browser. Join again.",
+    "merged-into-owner": "This browser was merged into the owner. Open your owner link here.",
     removed: "The host removed you from this session.",
     waiting: "The host has not let you in yet. This page opens by itself once they do.",
     "reaction-cap": "That message has as many reactions as it takes.",
@@ -599,11 +600,13 @@
   /** POST as me: the owner token or secret goes in a header, never the body. Re-joins once if the server forgot me. */
   function send(path, body) {
     return spaced(path, async () => {
+      if (!ownerToken && !secret && merged) throw { status: 401, error: "merged-into-owner" };
       if (!ownerToken && !secret) await join();
       const go = () => fetch(path, { method: "POST", headers: { "Content-Type": "application/json", ...ident() }, body: JSON.stringify(body) });
       let r;
       try {
         r = await go();
+        if (r.status === 401 && !ownerToken && await mergedIntoOwner(r)) return r;
         if (r.status === 401 && !ownerToken) { forget(); await join(); r = await go(); }
       } catch (e) {
         if (e instanceof TypeError) reportError("api", e.message, { route: path, code: "network" });
@@ -614,6 +617,21 @@
     });
   }
   function forget() { secret = ""; drop("secret"); drop("pid"); Core.me.cid = ""; }
+  /** A merge into the owner ended this browser's guest identity: forget it and say so, never joining again (owner
+   *  rights come only with the owner link). Kept across reloads; the owner link clears it. */
+  let merged = !ownerToken && get("merged") === "1";
+  if (ownerToken) drop("merged");
+  function markMerged() {
+    forget(); merged = true; put("merged", "1");
+    Core.state = { ...Core.state, youMerged: true };
+    emit();
+  }
+  async function mergedIntoOwner(r) {
+    const j = await r.clone().json().catch(() => ({}));
+    if (j.error !== "merged-into-owner") return false;
+    markMerged();
+    return true;
+  }
 
   // ---------- error reports: what went wrong in this page reaches server.log as a client entry (README "Logs") ----------
   // Script errors, unhandled rejections, and every action the server refused or never answered (send above). Only once
@@ -735,6 +753,7 @@
       if (r.status === 403 && s.error === "removed") { Core.state = { ...Core.state, youRemoved: true, youWaiting: false }; lastOk = Date.now(); return; }
       // Approve new joins: the person waits until the owner lets them in; the poll keeps asking.
       if (r.status === 403 && s.error === "waiting") { Core.state = { ...structuredClone(DEFAULTS), title: Core.state.title, youWaiting: true }; lastOk = Date.now(); return; }
+      if (r.status === 401 && !ownerToken && s.error === "merged-into-owner") { etag = ""; markMerged(); return; }
       if (r.status === 401 && !ownerToken) { forget(); etag = ""; askName(errorText(s)); return; }
       if (!r.ok) return;
       if (s.outdated || (s.schemaVersion != null && s.schemaVersion !== SCHEMA_VERSION)) return reload("version");
@@ -742,10 +761,11 @@
       etag = r.headers.get("ETag") || "";
       lastOk = Date.now();
       if (!s.me) { // anonymous: only what the join dialog needs
-        Core.state = { ...structuredClone(DEFAULTS), title: s.title || "", ended: !!s.ended, joinNeedsKey: !!s.joinNeedsKey };
+        Core.state = { ...structuredClone(DEFAULTS), title: s.title || "", ended: !!s.ended, joinNeedsKey: !!s.joinNeedsKey, youMerged: merged };
         return;
       }
       snap = s; rev = s.rev;
+      if (merged) { merged = false; drop("merged"); } // a working identity again (a personal link of someone else)
       settle(seq);
       Core.state = toView(withPending(s));
       Core.me.cid = s.me.pid; Core.me.name = s.me.name;
@@ -918,6 +938,7 @@
         const r = await fetch("/api/heartbeat", { method: "POST", headers: { "Content-Type": "application/json", "X-Session-Secret": secret },
           body: JSON.stringify({ visible, tab: TAB }) }).catch(() => null);
         HB.done = Date.now();
+        if (r?.status === 401 && await mergedIntoOwner(r)) throw "merged";
         if (r?.status === 401 || r?.status === 403) throw r.status;
         const j = r?.ok ? await r.json().catch(() => ({})) : {};
         if (j.pid) {
@@ -938,7 +959,7 @@
         forget(); drop("name"); Core.me.name = "";
         askName(adopt ? "That personal link no longer works. Join with your name; the host can merge you with your earlier self." : "");
       });
-    } else if (!ownerToken && !secret) askName();
+    } else if (!ownerToken && !secret && !merged) askName();
     else beat();
     poll();
     setInterval(poll, 1500); setInterval(beat, 2000);

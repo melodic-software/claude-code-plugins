@@ -5067,7 +5067,8 @@
       }, (li, p) => { li.firstChild.textContent = disp(nameOf(p)); li.lastChild.setAttribute("aria-label", `Restore ${disp(nameOf(p))}`); });
 
       // session banner: removed, ended, or a link to share again
-      const bn = S.youWaiting ? ["Waiting for the host to let you in.", null]
+      const bn = S.youMerged ? ["This browser was merged into the owner. Open your owner link here.", null]
+        : S.youWaiting ? ["Waiting for the host to let you in.", null]
         : S.youRemoved ? ["The host removed you from this session. You can still read it.", null]
         : S.ended ? [me.isOwner ? "You ended this session. Guests see it read-only, with the final tree." : "This session has ended. Here is what it decided.",
           me.isOwner ? ["Reopen", () => Core.endSession(false).catch(fail)] : ["Show the tree", () => setMode("tree")]]
