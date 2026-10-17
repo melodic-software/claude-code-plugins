@@ -1227,7 +1227,10 @@ class LaneRequiresAVerdict(unattended.Unattended):
             "author": {"__typename": "Bot", "login": "agent-lanes"},
             "closingIssuesReferences": {"totalCount": 1, "nodes": [issue]},
         }
-        reads = [("_graphql", {"repository": {"pullRequest": node}})]
+        reads = [
+            ("_graphql", {"repository": {"pullRequest": node}}),
+            ("_ratification_refusal", None),
+        ]
         if not real_denied_paths:
             reads.append(("_denied_path_refusal", None))
         for name, answer in reads:

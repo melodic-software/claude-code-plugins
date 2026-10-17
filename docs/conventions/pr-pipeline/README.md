@@ -449,7 +449,11 @@ except six:
   and the diff-derived C2 checks of the risk score still apply. No opt-in label or lane claim is
   read. No closing issue, or more than one, refuses (`linked-issues:<n>`); right before the
   enqueue the closing issue is read again and a different one refuses
-  (`closing-issue-changed:<was>><now>`).
+  (`closing-issue-changed:<was>><now>`). The closing issue must also carry the owner's
+  ratification marker under resolve-issue's own rule (`ratification.mjs`: the marker line, by a
+  human on the trusted-actor list at the pull request's base, not through an App, never edited),
+  read fresh at eligibility and again before the enqueue; otherwise `not-ratified`, and a
+  comments or list read that fails refuses.
 - **Verdict criterion.** No promotion evidence is read. The merge criterion is the pr-verify
   verdict at the head ([Verifier verdict](#verifier-verdict)), which binds to that one closing
   issue and its trusted spec, so with a rung above off the gate refuses

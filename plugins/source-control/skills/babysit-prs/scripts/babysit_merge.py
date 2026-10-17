@@ -3325,7 +3325,10 @@ def unattended_enqueue(
         ).reason
     elif inputs.get("authority") == merge_policy.PR_MERGE:
         opt_in = merge_policy.recheck_lane_issue(
-            repo, number, issue=getattr(eligible, "issue", None)
+            repo,
+            number,
+            issue=getattr(eligible, "issue", None),
+            ref=json_object(inputs["pr"].get("base")).get("sha"),
         )
     else:
         opt_in = merge_policy.recheck_opt_in(

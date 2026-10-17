@@ -32,7 +32,7 @@ import re
 import sys
 import tempfile
 import urllib.request
-from collections.abc import Callable, Collection, Mapping
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -1347,6 +1347,96 @@ def _foreign_refusal(pr: dict[str, Any], owner: str) -> str | None:
 # is read. The diff-derived C2 checks in the risk score still apply.
 LANE_CLASS = "C2"
 
+# The owner's ratification of an issue's admission, ported from
+# .github/actions/resolve-config/ratification.mjs (tests/test_ratification_sync.py
+# runs both): the marker on a line of its own, where a line ends at any
+# JavaScript line terminator and the date's digits are ASCII.
+TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
+RATIFICATION_LINE = re.compile(
+    r"<!-- admission: admitted when unblocked, owner batch ratification "
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2} -->"
+)
+_JS_LINE_BREAK = re.compile("[\n\r  ]")
+
+
+def find_ratification(
+    comments: Sequence[Any], ratifiers: Collection[int]
+) -> dict[str, Any] | None:
+    """The first comment that ratifies the issue, or None (`findRatification`):
+    the marker line, a listed human's id, not through a GitHub App, and never
+    edited (`updated_at` equals a string `created_at`)."""
+    for comment in comments:
+        if not isinstance(comment, dict):
+            continue
+        body = comment.get("body")
+        user = comment.get("user")
+        user_id = user.get("id") if isinstance(user, dict) else None
+        created = comment.get("created_at")
+        if (
+            isinstance(body, str)
+            and any(
+                RATIFICATION_LINE.fullmatch(line) for line in _JS_LINE_BREAK.split(body)
+            )
+            and isinstance(user_id, int)
+            and not isinstance(user_id, bool)
+            and user_id in ratifiers
+            and comment.get("performed_via_github_app") is None
+            and isinstance(created, str)
+            and comment.get("updated_at") == created
+        ):
+            return comment
+    return None
+
+
+def _trusted_humans(owner: str, name: str, ref: str) -> frozenset[int]:
+    """The trusted-actor list's human ids at `ref`, under the shape
+    check-trusted-trigger.mjs `loadTrustedList` enforces; any other shape, or
+    no list, raises."""
+    text = _file_at(owner, name, TRUSTED_ACTORS_PATH, ref)
+    try:
+        listing = json.loads(text) if text is not None else None
+    except ValueError as exc:
+        raise PolicyReadError(f"trusted-actor list unreadable: {exc}") from exc
+    actors = listing.get("actors") if isinstance(listing, dict) else None
+    if (
+        not isinstance(listing, dict)
+        or sorted(listing) != ["actors", "version"]
+        or listing.get("version") != 1
+        or isinstance(listing.get("version"), bool)
+        or not isinstance(actors, list)
+    ):
+        raise PolicyReadError("trusted-actor list does not match its schema")
+    humans = set()
+    for actor in actors:
+        actor_id = actor.get("id") if isinstance(actor, dict) else None
+        if (
+            not isinstance(actor, dict)
+            or sorted(actor) != ["id", "kind", "login"]
+            or not isinstance(actor_id, int)
+            or isinstance(actor_id, bool)
+            or actor_id < 1
+            or not isinstance(actor.get("login"), str)
+            or actor.get("kind") not in ("human", "bot")
+        ):
+            raise PolicyReadError("trusted-actor entry does not match its schema")
+        if actor["kind"] == "human":
+            humans.add(actor_id)
+    return frozenset(humans)
+
+
+def _ratification_refusal(owner: str, name: str, issue: int, ref: Any) -> str | None:
+    """`not-ratified` unless the closing issue carries the owner's marker now,
+    read fresh from its comments and the trusted list at the pull request's
+    base `ref`. A failed read raises, which refuses."""
+    if not isinstance(ref, str) or not SHA_RE.fullmatch(ref):
+        raise PolicyReadError(f"base SHA for the trusted list: {ref!r}")
+    comments = _paginated(
+        f"repos/{owner}/{name}/issues/{issue}/comments?per_page=100",
+        f"#{issue} comments",
+    )
+    humans = _trusted_humans(owner, name, ref)
+    return None if find_ratification(comments, humans) else "not-ratified"
+
 
 def _denied_path_refusal(
     owner: str, name: str, number: int, changed: Any, denied: Collection[str]
@@ -1409,6 +1499,9 @@ def lane_eligibility(
         issue, refusal = _closing_issue(node, repo)
         if refusal is None:
             issue_number = issue["number"]
+            base = json_object(pr.get("base")).get("sha")
+            refusal = _ratification_refusal(owner, name, issue_number, base)
+        if refusal is None:
             refusal = _denied_path_refusal(
                 owner, name, number, pr.get("changed_files"), denied_paths
             )
@@ -1696,10 +1789,13 @@ def dependabot_eligibility(
     return Eligibility(True, None, "C2", dependabot=tier)
 
 
-def recheck_lane_issue(repo: str, number: int, *, issue: int | None) -> str | None:
+def recheck_lane_issue(
+    repo: str, number: int, *, issue: int | None, ref: Any = None
+) -> str | None:
     """The closing issue read again right before the enqueue: it must still
     be the one, in this repository, that the eligibility read found (`issue`),
-    since the verifier verdict binds to it."""
+    since the verifier verdict binds to it, and still carry the owner's
+    ratification, read fresh at the base `ref`."""
     owner, name = _split_repo(repo)
     try:
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
@@ -1711,7 +1807,7 @@ def recheck_lane_issue(repo: str, number: int, *, issue: int | None) -> str | No
             return refusal
         if found["number"] != issue:
             return f"closing-issue-changed:{issue}>{found['number']}"
-        return None
+        return _ratification_refusal(owner, name, found["number"], ref)
     except PolicyReadError as exc:
         return f"unreadable: {exc}"
 

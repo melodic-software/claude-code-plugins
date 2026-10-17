@@ -2231,6 +2231,36 @@ LANE_DENIED = (
 )
 
 
+# The owner's ratification (resolve-config's ratification.mjs): the marker on
+# a line of its own, by a listed human, not through an App, never edited.
+MARKER = (
+    "<!-- admission: admitted when unblocked, owner batch ratification 2026-10-16 -->"
+)
+OWNER_ID = 153232337
+TRUSTED_LIST = (
+    f"repos/{REPO}/contents/.github/standards/trusted-actors/trusted-actors.json"
+    f"?ref={SHA}"
+)
+TRUSTED = {
+    "version": 1,
+    "actors": [
+        {"id": OWNER_ID, "login": "kyle-sexton", "kind": "human"},
+        {"id": 337595936, "login": "melodic-automation-lanes[bot]", "kind": "bot"},
+    ],
+}
+
+
+def ratification(**changes: Any) -> dict[str, Any]:
+    return {
+        "id": 4242,
+        "body": f"Ratified.\n{MARKER}\n",
+        "user": {"id": OWNER_ID, "login": "kyle-sexton"},
+        "performed_via_github_app": None,
+        "created_at": "2026-10-16T12:00:00Z",
+        "updated_at": "2026-10-16T12:00:00Z",
+    } | changes
+
+
 class LaneConfig(unittest.TestCase):
     """`merge.report-only` (plan Phase 1): the lane starts report-only and the
     owner flips it live (D16); anything but true or false keeps it report-only."""
@@ -2310,6 +2340,7 @@ class LaneEligibility(unittest.TestCase):
     ISSUE = 41
     TIMELINE = f"repos/{REPO}/issues/41/timeline?per_page=100"
     FILES = f"repos/{REPO}/pulls/7/files?per_page=100"
+    COMMENTS = f"repos/{REPO}/issues/41/comments?per_page=100"
 
     def issue_node(
         self,
@@ -2333,6 +2364,7 @@ class LaneEligibility(unittest.TestCase):
         pr_labels: list[str] | None = None,
         closing: list[dict[str, Any]] | None = None,
         author: dict[str, str] | None = None,
+        comments: Any = None,
     ) -> GhFake:
         issues = [self.issue_node(labels=labels)] if closing is None else closing
         names = pr_labels or []
@@ -2359,11 +2391,15 @@ class LaneEligibility(unittest.TestCase):
         }
         self.paths = ["docs/guide.md"] if files is None else files
         gh.rest[self.FILES] = [{"filename": p} for p in self.paths]
+        # The owner's ratification marker on the closing issue (#7725).
+        gh.rest[self.COMMENTS] = [ratification()] if comments is None else comments
+        gh.rest[TRUSTED_LIST] = file_payload(json.dumps(TRUSTED))
         return gh
 
     def eligibility(self, changed: int | None = None) -> Any:
         pr = {
             "number": 7,
+            "base": {"sha": SHA},
             "changed_files": len(self.paths) if changed is None else changed,
         }
         return policy.lane_eligibility(
@@ -2458,7 +2494,7 @@ class LaneEligibility(unittest.TestCase):
                 result = policy.lane_eligibility(
                     REPO,
                     7,
-                    pr={"number": 7, "changed_files": 2},
+                    pr={"number": 7, "base": {"sha": SHA}, "changed_files": 2},
                     denied_paths=denied,
                     agent_identity=IDENTITY,
                 )
@@ -2484,7 +2520,7 @@ class LaneEligibility(unittest.TestCase):
         result = policy.lane_eligibility(
             REPO,
             7,
-            pr={"number": 7, "changed_files": 1},
+            pr={"number": 7, "base": {"sha": SHA}, "changed_files": 1},
             denied_paths=(),
             agent_identity=IDENTITY,
         )
@@ -2495,15 +2531,68 @@ class LaneEligibility(unittest.TestCase):
         result = policy.lane_eligibility(
             REPO,
             7,
-            pr={"number": 7, "changed_files": 1},
+            pr={"number": 7, "base": {"sha": SHA}, "changed_files": 1},
             denied_paths=LANE_DENIED,
             agent_identity=None,
         )
         self.assertEqual(result.reason, "not-lane-authored")
 
+    def test_a_ratified_closing_issue_is_eligible(self) -> None:
+        self.fake()
+        self.assertTrue(self.eligibility().eligible)
+
+    def test_an_issue_the_owner_did_not_ratify_refuses(self) -> None:
+        # Each rule of ratification.mjs `findRatification`, one at a time.
+        for name, comments in (
+            ("no comment", []),
+            ("no marker", [ratification(body="Ratified.")]),
+            ("a quoted marker", [ratification(body=f"> {MARKER}")]),
+            ("edited", [ratification(updated_at="2026-10-16T12:05:00Z")]),
+            ("through an App", [ratification(performed_via_github_app={"id": 1})]),
+            ("an unlisted human", [ratification(user={"id": 1, "login": "x"})]),
+            ("a listed bot", [ratification(user={"id": 337595936})]),
+        ):
+            with self.subTest(name):
+                self.fake(comments=comments)
+                result = self.eligibility()
+                self.assertFalse(result.eligible)
+                self.assertEqual(result.reason, "not-ratified")
+
+    def test_one_ratifying_comment_among_others_is_enough(self) -> None:
+        self.fake(comments=[ratification(body="hi"), ratification(id=7)])
+        self.assertTrue(self.eligibility().eligible)
+
+    def test_unreadable_comments_or_trusted_list_refuse(self) -> None:
+        gh = self.fake()
+        gh.rest[self.COMMENTS] = 502
+        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
+        gh = self.fake()
+        gh.rest[TRUSTED_LIST] = file_payload('{"version": 2, "actors": []}')
+        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
+        # The list is read at the pull request's base, so no base refuses.
+        self.fake()
+        result = policy.lane_eligibility(
+            REPO,
+            7,
+            pr={"number": 7, "changed_files": 1},
+            denied_paths=LANE_DENIED,
+            agent_identity=IDENTITY,
+        )
+        self.assertTrue(result.reason.startswith("unreadable:"))
+
+    def test_the_enqueue_recheck_reads_the_ratification_again(self) -> None:
+        self.fake(comments=[])
+        self.assertEqual(
+            policy.recheck_lane_issue(REPO, 7, issue=41, ref=SHA), "not-ratified"
+        )
+        gh = self.fake()
+        gh.rest[self.COMMENTS] = 502
+        reason = policy.recheck_lane_issue(REPO, 7, issue=41, ref=SHA)
+        self.assertTrue(str(reason).startswith("unreadable:"))
+
     def test_the_enqueue_recheck_reads_the_closing_issue_again(self) -> None:
         def recheck(issue: int | None = 41) -> str | None:
-            return policy.recheck_lane_issue(REPO, 7, issue=issue)
+            return policy.recheck_lane_issue(REPO, 7, issue=issue, ref=SHA)
 
         self.fake()
         self.assertIsNone(recheck())

@@ -20,7 +20,9 @@ the merge criterion: with a rung above off the gate refuses `verifier-verdict-no
 `merge.require-verifier-verdict` is true, and the schema rejects an enabled pr-merge lane
 (`agent-identity` set, authority absent or `pr-merge`) at C2 or C3 without it. Right before the
 enqueue the closing issue is read again, and a different one refuses
-(`closing-issue-changed:<was>><now>`); a class label removed meanwhile no longer refuses.
+(`closing-issue-changed:<was>><now>`); a class label removed meanwhile no longer refuses. The
+closing issue must carry the owner's ratification marker under resolve-issue's rule, read fresh
+at eligibility and before the enqueue (`not-ratified`).
 `admission.classes` is now optional: without it only the owner's ratification marker admits and no
 `work-class:` label is read, and an `admission` must set `classes` or `ratified`. This repository's
 resolve-issue now admits on `{ratified: true}` alone, so an issue labeled read-only or mechanical

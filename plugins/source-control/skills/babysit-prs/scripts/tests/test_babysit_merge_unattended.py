@@ -355,6 +355,9 @@ class Unattended(unittest.TestCase):
         self.lane_recheck_kwargs: list[dict[str, Any]] = []
         # True runs the real re-read over a stubbed `_graphql`.
         self.real_lane_recheck = False
+        # The owner's ratification read (comments and the trusted list).
+        self.ratification_now: str | None = None
+        self.ratification_reads: list[tuple[Any, ...]] = []
         # The pull request's REST author, and the Dependabot class's reads:
         # the assessment's, then the re-read before the enqueue.
         self.pr_user = {"login": IDENTITY, "type": "Bot"}
@@ -475,6 +478,13 @@ class Unattended(unittest.TestCase):
                 ]
                 if self.lane_eligible is not None
                 else []
+            ),
+            mock.patch.object(
+                policy,
+                "_ratification_refusal",
+                side_effect=lambda *a: (
+                    self.ratification_reads.append(a) or self.ratification_now
+                ),
             ),
             *(
                 []
@@ -719,6 +729,19 @@ class LaneMode(Unattended):
         self.lane()
         self.assertEqual(len(self.lane_recheck_kwargs), 1)
         self.assertEqual(self.lane_recheck_kwargs[0].get("issue"), 41)
+        self.assertEqual(self.lane_recheck_kwargs[0].get("ref"), BASE)
+
+    def test_a_ratification_gone_before_the_enqueue_refuses(self) -> None:
+        # #7725: a marker deleted or edited after the eligibility read.
+        self.closing_issue_now([])
+        self.ratification_now = "not-ratified"
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertIn(
+            "unattended merge refused: ineligible:not-ratified", out["blockers"]
+        )
+        # Read fresh at the recheck, on the closing issue, at the base.
+        self.assertEqual(self.ratification_reads, [("owner", "repo", 41, BASE)])
 
     def test_an_ineligible_pr_is_refused(self) -> None:
         self.lane_eligible = policy.Eligibility(False, "denied-path:.github/x.yml")
