@@ -227,10 +227,10 @@ the broker request, and no other permission; it never holds `checks: write` or `
     SHA. This replaces `.base`.
 12. For a skill, sets up Python from the copied `.python-version` and runs the copied
     `setup-env.sh`, which installs the hash-pinned wheels in `.github/requirements-ci.txt` into a
-    venv under `$RUNNER_TEMP` and the locked Node packages, and puts both on `PATH`. The read file
-    installs from the head's lock files into the checkout; the write file, whose skill runs no
-    head code, installs from the base copies in `$RUNNER_TEMP/setup-env`. Then runs the activity
-    (below) and, in the read file, records whether the tree is dirty.
+    venv under `$RUNNER_TEMP` and the locked Node packages, and puts both on `PATH`. Both files
+    install from the base copies in `$RUNNER_TEMP/setup-env`, so no head code runs outside the
+    skill's sandboxed Bash; a read skill that needs the head's own packages runs `npm ci` there.
+    Then runs the activity (below) and, in the read file, records whether the tree is dirty.
 13. Writes `verdict.json` with `jq` (`if: always()`) and uploads it as
     `verdict-<lane>-<activity>-<run_attempt>`, unique per activity and attempt.
 14. Write file only, `if: always()` whenever step 6 output a token: `actions/github-script`,

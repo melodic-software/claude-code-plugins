@@ -341,13 +341,14 @@ jobs:
         with:
           python-version-file: ${{ runner.temp }}/setup-env/.python-version
 
-      # The base script installs from the head's lock files into the
-      # checkout, so the head's tests resolve their packages.
+      # The install reads only the base copies, so no head code runs outside
+      # the skill's sandboxed Bash; a skill that needs the head's own packages
+      # runs npm ci there.
       - name: Install the skill's dependencies
         if: steps.setup-env.outputs.ready == 'true'
         env:
           SETUP_ENV_VENV: ${{ runner.temp }}/setup-env-venv
-        run: bash "$RUNNER_TEMP/setup-env/scripts/setup-env.sh" --root "$GITHUB_WORKSPACE"
+        run: bash "$RUNNER_TEMP/setup-env/scripts/setup-env.sh" --root "$RUNNER_TEMP/setup-env"
 
       - name: Run the skill activity
         id: act-skill

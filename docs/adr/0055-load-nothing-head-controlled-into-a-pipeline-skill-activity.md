@@ -146,7 +146,8 @@ default-branch workflow at each commit named.
   holds.
 - Accepted residual: the isolation step sets `kernel.apparmor_restrict_unprivileged_userns=0` for
   the whole runner, which re-enables unprivileged user namespaces for head code too. A user
-  namespace local-root exploit would restore the runner memory route. Trying the
+  namespace local-root exploit would also reach the runner memory route, which sudo and docker
+  already open while lanes keep them (item 6). Trying the
   `bwrap-userns-restrict` AppArmor profile instead is a follow-up.
 - Accepted residual, decided and not built: the App private key and the OAuth token are in the run
   job's secret set even for `read` jobs, because a step-level `if:` is evaluated after the job

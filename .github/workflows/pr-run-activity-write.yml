@@ -896,8 +896,8 @@ jobs:
         with:
           python-version-file: ${{ runner.temp }}/setup-env/.python-version
 
-      # A write skill runs no head code, so the install reads only the base
-      # copies: pytest and the Node tools land on PATH for the base wrappers.
+      # The install reads only the base copies, so no head code runs: pytest
+      # and the Node tools land on PATH for the base wrappers.
       - name: Install the skill's dependencies
         if: >-
           steps.setup-env.outputs.ready == 'true'

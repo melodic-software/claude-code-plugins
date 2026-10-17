@@ -50,7 +50,9 @@ function run(args = [], env = {}) {
 	});
 	return {
 		...result,
-		calls: readFileSync(log, "utf8").split("\n").filter(Boolean),
+		calls: readFileSync(log, "utf8")
+			.split("\n")
+			.filter((c) => c && !/ -c /.test(c)),
 	};
 }
 
@@ -74,10 +76,10 @@ beforeEach(() => {
 	);
 	stub(
 		"python3.99",
-		`if [ "$1" = -m ] && [ "$2" = venv ]; then
-  mkdir -p "$4/bin"
-  printf '#!/usr/bin/env bash\\necho "venv-python $*" >>"${log}"\\n' >"$4/bin/python"
-  chmod +x "$4/bin/python"
+		`if [ "$2" = -m ] && [ "$3" = venv ]; then
+  mkdir -p "$5/bin"
+  printf '#!/usr/bin/env bash\\necho "venv-python $*" >>"${log}"\\n' >"$5/bin/python"
+  chmod +x "$5/bin/python"
 fi`,
 	);
 	stub("npm", 'mkdir -p "$3/node_modules"');
@@ -91,9 +93,8 @@ test("a first run installs the pinned wheels into a venv and runs npm ci in both
 	const r = run();
 	assert.equal(r.status, 0, r.stderr);
 	assert.deepEqual(r.calls, [
-		`python3.99 -c import sys; sys.exit('%d.%d' % sys.version_info[:2] != '3.99')`,
-		`python3.99 -m venv --clear ${root}/.work/venv`,
-		"venv-python -m pip install --quiet --only-binary=:all: --require-hashes --requirement .github/requirements-ci.txt",
+		`python3.99 -I -m venv --clear ${root}/.work/venv`,
+		"venv-python -I -m pip install --quiet --only-binary=:all: --require-hashes --requirement .github/requirements-ci.txt",
 		"npm ci --prefix .",
 		"npm ci --prefix .github/standards/runner-policy",
 	]);
@@ -162,4 +163,55 @@ test("an unknown argument is a usage error", () => {
 	const r = run(["--bogus"]);
 	assert.equal(r.status, 2);
 	assert.match(r.stderr, /unknown argument: --bogus/);
+});
+
+test("a changed requirements file rebuilds the venv", () => {
+	run();
+	writeFileSync(
+		join(root, ".github/requirements-ci.txt"),
+		"pytest==9.1.2 --hash=sha256:bb\n",
+	);
+	const r = run();
+	assert.deepEqual(r.calls, [
+		`python3.99 -I -m venv --clear ${root}/.work/venv`,
+		"venv-python -I -m pip install --quiet --only-binary=:all: --require-hashes --requirement .github/requirements-ci.txt",
+	]);
+});
+
+test("SETUP_ENV_VENV places the venv", () => {
+	const venv = join(dir, "elsewhere");
+	const r = run([], { SETUP_ENV_VENV: venv });
+	assert.equal(r.status, 0, r.stderr);
+	assert.equal(r.calls[0], `python3.99 -I -m venv --clear ${venv}`);
+});
+
+test("with no matching Python, uv makes the venv", () => {
+	rmSync(join(stubs, "python3.99"));
+	stub(
+		"uv",
+		`mkdir -p "\${@: -1}/bin"
+printf '#!/usr/bin/env bash\\necho "venv-python $*" >>"${log}"\\n' >"\${@: -1}/bin/python"
+chmod +x "\${@: -1}/bin/python"`,
+	);
+	const tools = join(dir, "tools");
+	mkdirSync(tools);
+	for (const tool of [
+		"bash",
+		"cat",
+		"cut",
+		"tr",
+		"sha256sum",
+		"mkdir",
+		"chmod",
+	])
+		symlinkSync(which(tool), join(tools, tool));
+	const r = run([], { PATH: `${stubs}:${tools}` });
+	assert.equal(
+		r.calls[0],
+		`uv venv --quiet --seed --clear --python 3.99 ${root}/.work/venv`,
+	);
+	assert.equal(
+		r.calls[1],
+		"venv-python -I -m pip install --quiet --only-binary=:all: --require-hashes --requirement .github/requirements-ci.txt",
+	);
 });

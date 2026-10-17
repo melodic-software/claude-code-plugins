@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Owns scripts/setup-env.test.mjs; CI runs it by name because
-# scripts/run-plugin-tests.sh does not discover scripts/.
+# Discovery wrapper: scripts/run-plugin-tests.sh finds scripts/**/*.test.sh, so this
+# hands off to the Node suite.
 set -euo pipefail
 exec node --test "$(dirname "${BASH_SOURCE[0]}")/setup-env.test.mjs"

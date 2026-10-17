@@ -49,19 +49,19 @@ venv=${SETUP_ENV_VENV:-$root/.work/venv}
 bin=$venv/bin
 [[ -d "$venv/Scripts" ]] && bin=$venv/Scripts
 key="$want $(hash_of .github/requirements-ci.txt)"
-if [[ -f "$venv/.setup-env" ]] && [[ "$(cat "$venv/.setup-env")" = "$key" ]]; then
+if [[ -f "$venv/.setup-env" ]] && [[ "$(cat "$venv/.setup-env")" = "$key" ]] && "$bin/python" -I -c "" 2>/dev/null; then
   echo "setup-env: Python $want venv is current: $venv"
 else
   py=""
   for candidate in "python$want" python3 python; do
     if command -v "$candidate" >/dev/null &&
-      "$candidate" -c "import sys; sys.exit('%d.%d' % sys.version_info[:2] != '$want')" 2>/dev/null; then
+      "$candidate" -I -c "import sys; sys.exit('%d.%d' % sys.version_info[:2] != sys.argv[1])" "$want" 2>/dev/null; then
       py=$candidate
       break
     fi
   done
   if [[ -n "$py" ]]; then
-    "$py" -m venv --clear "$venv"
+    "$py" -I -m venv --clear "$venv"
   elif command -v uv >/dev/null; then
     uv venv --quiet --seed --clear --python "$want" "$venv"
   else
@@ -69,7 +69,7 @@ else
     exit 1
   fi
   [[ -d "$venv/Scripts" ]] && bin=$venv/Scripts
-  "$bin/python" -m pip install --quiet --only-binary=:all: --require-hashes \
+  "$bin/python" -I -m pip install --quiet --only-binary=:all: --require-hashes \
     --requirement .github/requirements-ci.txt
   printf '%s\n' "$key" >"$venv/.setup-env"
   echo "setup-env: installed .github/requirements-ci.txt into $venv"
