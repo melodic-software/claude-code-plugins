@@ -32,9 +32,11 @@ function metadata(...updates) {
   return lines.join("\n");
 }
 
-const commit = (message, { sha = "d".repeat(40), name = "dependabot[bot]", email = "49699333+dependabot[bot]@users.noreply.github.com" } = {}) => ({
+// GitHub verified and committed it, as it does Dependabot's commits.
+const SIGNED = { committer: { email: "noreply@github.com" }, verification: { verified: true, reason: "valid" } };
+const commit = (message, { sha = "d".repeat(40), name = "dependabot[bot]", email = "49699333+dependabot[bot]@users.noreply.github.com", signed = SIGNED } = {}) => ({
   sha,
-  commit: { message, author: { name, email } },
+  commit: { message, author: { name, email }, ...signed },
 });
 
 // A readable policy that lists nothing, so the review-only step adds no reason.
@@ -295,8 +297,83 @@ test("the content step's refusals and gaps are review reasons", () => {
   assert.equal(contentStep({ ...base, commits: [FIX], commitFiles: () => [".github/workflows/x.yml"] }), "dependabot-fix-content:.github/workflows/x.yml");
   assert.equal(contentStep({ ...base, config: null }), "dependabot-config-unreadable");
   assert.equal(contentStep({ ...base, changedFiles: 2 }), "dependabot-content:files-incomplete");
-  const result = classify({ author: "dependabot[bot]", headRef: NPM, title: "bump x from 1.0.0 to 1.0.1", ...base, files: [changed("dist/x.js")], policy: NO_POLICY });
+  const result = classify({
+    author: "dependabot[bot]",
+    headRef: NPM,
+    title: "bump x from 1.0.0 to 1.0.1",
+    ...base,
+    commits: [commit("")],
+    totalCommits: 1,
+    files: [changed("dist/x.js")],
+    policy: NO_POLICY,
+  });
   assert.deepEqual([result.tier, result.reasons], ["review", ["dependabot-content:dist/x.js"]]);
+});
+
+// The commit step, as the pr-merge lane's commits_refusal (its cases are
+// test_babysit_dependabot.py's class Commits), as review reasons here.
+const H = "1".repeat(40);
+const full = (commits, files, commitFiles = () => null, totalCommits = commits.length) =>
+  classify({
+    author: "dependabot[bot]",
+    headRef: "dependabot/npm_and_yarn/plugins/miro/server/x-1.0.1",
+    title: "bump x from 1.0.0 to 1.0.1",
+    ciStatus: "success",
+    commits,
+    totalCommits,
+    files,
+    config: CONFIG_PAIRS,
+    changedFiles: files.length,
+    commitFiles,
+    policy: NO_POLICY,
+  });
+const LOCK = changed("plugins/miro/server/package-lock.json");
+
+test("a verified Dependabot commit with covered files is auto", () => {
+  assert.deepEqual(full([commit("")], [LOCK]).tier, "auto");
+});
+
+// test_babysit_merge_policy.py's commits-listed case, as a review reason.
+test("a commits listing that is not the pull request's whole total is review", () => {
+  const listed = (total) => full([commit("")], [LOCK], () => null, total);
+  assert.equal(listed(1).tier, "auto");
+  for (const [total, reason] of [
+    [2, "commits-listed:1-of:2"],
+    [251, "commits-listed:1-of:251"],
+    [null, "commits-listed:1-of:null"],
+    ["1", "commits-listed:1-of:1"],
+  ]) {
+    assert.deepEqual([listed(total).tier, listed(total).reasons], ["review", [reason]], String(total));
+  }
+});
+
+test("a commit another author added is review, even when its own paths are all it adds", () => {
+  const human = commit("add a file", { sha: H, name: "someone", email: "someone@example.test" });
+  const result = full([commit(""), human], [LOCK, changed("src/evil.js")], (sha) => (sha === H ? ["src/evil.js"] : null));
+  assert.deepEqual([result.tier, result.reasons], ["review", [`commit-not-dependabot:${H.slice(0, 12)}`]]);
+});
+
+test("a Dependabot author GitHub did not verify or commit is review", () => {
+  const unverified = commit("", { signed: { committer: { email: "noreply@github.com" }, verification: { verified: false, reason: "unsigned" } } });
+  assert.ok(full([unverified], [LOCK]).reasons.includes(`commit-unverified:${"d".repeat(12)}`));
+  const local = commit("", { signed: { committer: { email: "someone@example.test" }, verification: { verified: true, reason: "valid" } } });
+  assert.ok(full([local], [LOCK]).reasons.includes(`commit-not-committed-by-github:${"d".repeat(12)}`));
+});
+
+test("only the version-bump commit's shape passes for github-actions[bot]", () => {
+  const bump = (message) => commit(message, { sha: H, name: "github-actions[bot]", email: "41898282+github-actions[bot]@users.noreply.github.com" });
+  const files = [LOCK, changed("plugins/miro/CHANGELOG.md")];
+  const changelog = (sha) => (sha === H ? ["plugins/miro/CHANGELOG.md"] : null);
+  assert.equal(full([commit(""), bump("release [dependabot skip]")], files, changelog).tier, "auto");
+  assert.ok(full([commit(""), bump("release")], files, changelog).reasons.includes(`commit-not-dependabot:${H.slice(0, 12)}`));
+  const wide = (sha) => (sha === H ? ["plugins/miro/CHANGELOG.md", "src/x.js"] : null);
+  assert.ok(full([commit(""), bump("release [dependabot skip]")], files, wide).reasons.includes(`commit-not-version-bump:${H.slice(0, 12)}`));
+});
+
+test("a lanes App fix commit keeps the pull request review, and no commits is review", () => {
+  const fix = commit("fix: adapt [dependabot skip]", { sha: H, name: "melodic-automation-lanes[bot]", email: "lanes@example.test" });
+  assert.ok(full([commit(""), fix], [LOCK], (sha) => (sha === H ? ["src/x.js"] : null)).reasons.includes(`commit-not-dependabot:${H.slice(0, 12)}`));
+  assert.ok(full([], [LOCK]).reasons.includes("commits-missing"));
 });
 
 // Review-only: the pr-merge lane's ReviewOnly class, one for one.
@@ -392,6 +469,8 @@ test("classify sends a review-only update to review and leaves the rest auto", (
       title: "bump x from 1.2.0 to 1.3.0",
       repository: "o/r",
       policy,
+      commits: [commit("")],
+      totalCommits: 1,
       files: [changed("package.json"), changed("package-lock.json")],
       config: [["npm", "/"]],
       changedFiles: 2,

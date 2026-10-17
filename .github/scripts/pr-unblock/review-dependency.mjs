@@ -5,7 +5,8 @@
 //   select  run by .github/workflows/pr-run-activity-write.yml around a
 //           `prepare: dependency-review` skill, before the head checkout and
 //           any model turn, with the job's read-only token: skips a pull
-//           request Dependabot did not open or one dependency-classify.mjs
+//           request Dependabot did not open, one whose head is no longer the
+//           gated head (superseded-sha), or one dependency-classify.mjs
 //           sorts `auto` (pr-merge owns those), escalates once the configured
 //           number of review rounds ran, and otherwise writes the context
 //           file the skill reads.
@@ -118,6 +119,7 @@ export async function classifyPull({ pull, ciStatus, commits, files, config, pol
     labels: (pull.labels ?? []).map((label) => (typeof label === "string" ? label : label.name)),
     ciStatus,
     commits,
+    totalCommits: pull.commits,
     files,
     config,
     policy,
@@ -149,6 +151,10 @@ export async function select({ api, pr, headSha, appId, dependabotId, config = n
   const pull = await api.getPull(pr);
   if (pull.user?.id !== dependabotId || pull.user?.login !== DEPENDABOT_LOGIN) {
     return { decision: "skip", skipReason: "not-applicable" };
+  }
+  // The head moved since the gate: the next dispatcher run reviews the new one.
+  if (pull.head?.sha !== headSha) {
+    return { decision: "skip", skipReason: "superseded-sha" };
   }
   const files = await api.listPullFiles(pr);
   const commits = await api.listPullCommits(pr);
@@ -280,6 +286,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
   output("escalation-reason", result.escalationReason ?? "");
   output("security", String(result.classification?.security === true));
   output("config-unreadable", String((result.classification?.reasons ?? []).includes("dependabot-config-unreadable")));
+  output("files-truncated", String(result.file?.files_truncated === true));
   // Each matched review-only entry's control, which a merge verdict must
   // quote (apply-dependency-verdict.mjs); JSON keeps it on one line.
   output("controls", JSON.stringify(reviewControls(result.classification)));
