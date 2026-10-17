@@ -3140,5 +3140,78 @@ class TestRoundTooling(DirCase):
         self.assertEqual(added, {"Q1": None, "Q2": 3})
 
 
+class TestConfirmationRecap(DirCase):
+    """export-ledger --recap emits a recap that fits the restate cap on a long interview."""
+
+    LIVE = 49
+    WITHDRAWN = 79
+
+    def setUp(self):
+        super().setUp()
+        doc = base_doc()
+        archived = {"at": "2026-10-12T10:00:00Z", "why": "folded into Q1"}
+        doc["questions"] = [
+            question(
+                f"Q{i}",
+                group="g1",
+                round=1,
+                title=f"Which approach should question {i} take, given the rest?",
+                **({"archived": archived} if i > self.LIVE else {}),
+            )
+            for i in range(1, self.LIVE + self.WITHDRAWN + 1)
+        ]
+        self.write_doc(doc)
+        ops = [
+            {
+                "op": "record-terminal",
+                "id": f"Q{i}",
+                "decision": "own",
+                "text": f"Answer {i}: " + "a long answer " * 80,
+            }
+            for i in range(1, self.LIVE + 1)
+        ]
+        rc, out, err = self.rp(
+            "apply", "--file", self.file("ops.json", {"ops": ops})
+        )
+        self.assertEqual(rc, 0, out + err)
+
+    def recap(self):
+        path = self.tmp / "recap.md"
+        rc, out, err = self.rp("export-ledger", "--recap", "--out", str(path))
+        self.assertEqual(rc, 0, out + err)
+        return path.read_text(encoding="utf-8")
+
+    def test_the_full_ledger_would_not_fit_but_the_recap_does(self):
+        ledger = self.tmp / "ledger.md"
+        rc, out, err = self.rp("export-ledger", "--out", str(ledger))
+        self.assertEqual(rc, 0, out + err)
+        self.assertGreater(len(ledger.read_text(encoding="utf-8")), 20000)
+        recap = self.recap()
+        self.assertLessEqual(len(recap), 20000)
+        rc, out, err = self.rp(
+            "apply",
+            "--file",
+            self.file(
+                "restate.json",
+                {"ops": [{"op": "restate", "sections": {"decisions": recap}}]},
+            ),
+        )
+        self.assertEqual(rc, 0, out + err)
+
+    def test_every_live_question_keeps_a_line_and_withdrawn_rows_collapse(self):
+        lines = self.recap().splitlines()
+        live = [x for x in lines if not x.startswith("Withdrawn")]
+        self.assertEqual(len(live), self.LIVE)
+        for i, line in enumerate(live, 1):
+            self.assertTrue(line.startswith(f"Q{i} answered: "), line)
+            self.assertLess(len(line), 700)
+            self.assertNotIn("::", line)
+        (gone,) = [x for x in lines if x.startswith("Withdrawn")]
+        head = f"Withdrawn ({self.WITHDRAWN}): Q{self.LIVE + 1}, "
+        self.assertTrue(gone.startswith(head))
+        self.assertTrue(gone.endswith(f"Q{self.LIVE + self.WITHDRAWN}"))
+        self.assertNotIn("Q1 withdrawn", "\n".join(lines))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## 2.3.0 - 2026-10-17
+
+`pr-run-activity.md` run job steps 11 and 12 now copy the base's `scripts/setup-env.sh` before the
+head checkout, then set up Python and run it before a skill activity, so the skill can run the
+repository's Python and Node tests. `version` stays 2.
+
 ## 2.2.0 - 2026-10-17
 
 `models.routes` and `resolve-config`'s `model-route` take three more run routes: `review-code` and
