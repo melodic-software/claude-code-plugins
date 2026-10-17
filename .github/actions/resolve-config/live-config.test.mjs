@@ -5,12 +5,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
 
 import { parse } from "yaml";
 
 import { resolve, resolveGrant } from "./resolve.mjs";
-import { readAdmission } from "./resolve-config.mjs";
 
 const read = (relative) =>
   readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -183,63 +181,50 @@ test("live config: review-dependency may only write its branch; its verdict job 
   assert.equal(selected("pr-unblock", "apply-dependency-verdict").script, ".github/scripts/pr-unblock/apply-dependency-verdict.mjs");
 });
 
-// An agent-ready label event on a read-only issue with no ratification marker. The
-// lane went live at 2026-10-14T19:21:59Z, the labeled-after time in the live config.
+// An agent-ready label event on an issue. The lane went live at
+// 2026-10-14T19:21:59Z, the labeled-after time in the live config.
 const ISSUE = {
   event: "labeled",
-  labels: ["agent-ready", "work-class: read-only"],
+  labels: ["agent-ready"],
   labeledAt: "2026-10-20T00:00:00Z",
-  ratified: false,
 };
 
-// Merge-criterion plan, Design 5: admission is the owner's marker comment
-// (`ratified`, gathered by resolve-config from comments by a listed human);
-// no work-class label admits or refuses.
-test("live config: resolve-issue starts nothing for a labeled issue with no ratification", () => {
-  for (const labels of [["agent-ready", "work-class: read-only"], ["agent-ready", "work-class: mechanical"]]) {
-    assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels }), "not-applicable");
+// Owner decision 2026-10-17: the agent-ready label alone admits the issue;
+// no marker comment and no work-class label admits or refuses it.
+test("live config: resolve-issue starts on the agent-ready label alone, whatever its work-class label", () => {
+  for (const labels of [
+    ["agent-ready"],
+    ["agent-ready", "work-class: read-only"],
+    ["agent-ready", "work-class: scoped"],
+    ["agent-ready", "work-class: structural"],
+  ]) {
+    assert.equal(selected("work-resolve-issue", "resolve-issue", { ...ISSUE, labels }).applies, true, labels.join());
   }
 });
 
-const RATIFIED = { ...ISSUE, labels: ["agent-ready"], ratified: true };
-
-test("live config: resolve-issue starts nothing for a ratified issue labeled before the go-live time", () => {
-  assert.equal(
-    skipReason("work-resolve-issue", "resolve-issue", { ...RATIFIED, labeledAt: "2026-10-14T19:21:58Z" }),
-    "not-applicable",
-  );
-});
-
-test("live config: resolve-issue starts for an owner-ratified issue with no work class", () => {
-  assert.equal(selected("work-resolve-issue", "resolve-issue", RATIFIED).applies, true);
-});
-
-test("live config: resolve-issue starts nothing for an issue with no work class and no ratification", () => {
-  assert.equal(
-    skipReason("work-resolve-issue", "resolve-issue", { ...RATIFIED, ratified: false }),
-    "not-applicable",
-  );
-});
-
-test("live config: a ratified issue still needs the agent-ready label event after the go-live time", () => {
-  assert.equal(
-    skipReason("work-resolve-issue", "resolve-issue", { ...RATIFIED, labeledAt: "2026-10-14T19:21:58Z" }),
-    "not-applicable",
-  );
-  assert.equal(
-    skipReason("work-resolve-issue", "resolve-issue", { ...RATIFIED, event: "dispatch" }),
-    "not-applicable",
-  );
-});
-
-// The ratified issues still carrying a held class (#5981, #6821, #6825,
-// #6826, #6832) start on the marker alone.
-test("live config: resolve-issue starts for a ratified issue whatever its work-class label", () => {
-  for (const held of ["work-class: scoped", "work-class: structural", "work-class: untrusted-provenance"]) {
-    const labels = ["agent-ready", held];
-    assert.equal(selected("work-resolve-issue", "resolve-issue", { ...RATIFIED, labels }).applies, true);
-    assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels }), "not-applicable");
+// The holds stay: a person decides these, so the issue waits for them.
+test("live config: resolve-issue starts nothing for an issue carrying a hold label", () => {
+  for (const hold of ["needs-human", "needs-owner-decision", "status: needs-decision"]) {
+    assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels: ["agent-ready", hold] }), "awaiting-human", hold);
   }
+});
+
+// Codex P1 on #7780: the label alone admits, so its removal while a run waits
+// stops the run; the labels are read when the run starts.
+test("live config: resolve-issue starts nothing once agent-ready is gone from the issue", () => {
+  assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels: [] }), "not-applicable");
+  assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels: ["bug"] }), "not-applicable");
+});
+
+test("live config: resolve-issue still needs the agent-ready label event after the go-live time", () => {
+  assert.equal(
+    skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labeledAt: "2026-10-14T19:21:58Z" }),
+    "not-applicable",
+  );
+  assert.equal(
+    skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, event: "dispatch" }),
+    "not-applicable",
+  );
 });
 
 // The run must pass the fragment format check before it reports done.
@@ -294,12 +279,6 @@ test("live config: label-unblocked may only write issues", () => {
   assert.deepEqual(resolveGrant(FILES, { lane: "work-unblock", activity: "label-unblocked", configPath: CONFIG_PATH }), {
     effect: "mutate-tracker",
     grant: { contents: "read", "pull-requests": "read", issues: "write" },
-  });
-});
-
-test("live config: readAdmission returns resolve-issue's admission, which label-unblocked applies", () => {
-  assert.deepEqual(readAdmission({ basePath: fileURLToPath(new URL("../../..", import.meta.url)), activity: "resolve-issue" }), {
-    ratified: true,
   });
 });
 

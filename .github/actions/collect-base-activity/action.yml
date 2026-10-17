@@ -22,14 +22,6 @@ inputs:
     description: "`<plugin>:<skill>`, for a skill activity."
     required: false
     default: ""
-  model:
-    description: The model; empty omits --model.
-    required: false
-    default: ""
-  max-turns:
-    description: The turn budget.
-    required: false
-    default: ""
   gating:
     description: "`gate` or `advisory`."
     required: false
@@ -120,8 +112,6 @@ runs:
         BASE_PATH: ${{ inputs.base-path }}
         RESOLVED: ${{ inputs.resolved-path }}
         SKILL: ${{ inputs.skill }}
-        MODEL: ${{ inputs.model }}
-        MAX_TURNS: ${{ inputs.max-turns }}
         GATING: ${{ inputs.gating }}
         EFFECT: ${{ inputs.effect }}
         CAN_COMMIT: ${{ inputs.can-commit }}
@@ -150,7 +140,6 @@ runs:
         name='^[a-z0-9][a-z0-9-]*$'
         [[ $marketplace =~ $name ]] || fail "the base marketplace name is malformed"
         [[ $SKILL =~ ^[a-z0-9-]+:[a-z0-9-]+$ ]] || fail "the skill must be <plugin>:<skill>"
-        [[ $MAX_TURNS =~ ^[1-9][0-9]*$ ]] || fail "max-turns must be a positive integer"
         case "$PREPARE" in
           "" | merge-base | review-threads) ;;
           dependency-review) [ "$GATING" = advisory ] || fail "dependency-review: the activity must be advisory, since its verdict is the structured output" ;;
@@ -370,17 +359,12 @@ runs:
             ;;
           *) fail "the activity's effect is not a known effect" ;;
         esac
-        claude_args="--max-turns $MAX_TURNS --allowedTools \"$allowed\""
+        claude_args="--allowedTools \"$allowed\""
         if [ -n "$disallowed" ]; then
           claude_args="$claude_args --disallowedTools \"$disallowed\""
         fi
         if [ -n "$system_prompt" ]; then
           claude_args="$claude_args --add-dir \"$SCRATCH\" --append-system-prompt \"$system_prompt\""
-        fi
-        if [ -n "$MODEL" ]; then
-          model='^[A-Za-z0-9][]A-Za-z0-9._[-]*$'
-          [[ $MODEL =~ $model ]] || fail "the model name is malformed"
-          claude_args="$claude_args --model $MODEL"
         fi
         # A gate skill must end with a verdict the next steps can fail on;
         # the action fails its step when no structured output returns.
