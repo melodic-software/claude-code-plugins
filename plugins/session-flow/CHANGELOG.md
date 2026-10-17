@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.58.3] - 2026-10-17
+
+### Changed
+
+- `hop_chain.py` reads transcripts through the shared `transcript_reader` instead of its own JSONL loop.
+
 ## [0.58.2] - 2026-10-16
 
 ### Fixed

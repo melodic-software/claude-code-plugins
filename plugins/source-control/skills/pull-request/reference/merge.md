@@ -54,7 +54,7 @@ Default merge mode is squash: one squashed commit per PR onto the default branch
 
 Every merge call in 4.2 pins to the `HEAD_SHA` captured in 4.1 step 2, so a push after approval
 fails the merge instead of landing unreviewed. Before any merge call, poll the PR's merge state at
-the pinned head while it reads `UNKNOWN`, and merge or enqueue only once it reads `CLEAN`; any
+the pinned head over REST every 60 seconds while it reads `UNKNOWN`, and merge or enqueue only once it reads `CLEAN`; any
 other state, or a moved head, is a hold to report
 ([GitHub](../../../reference/providers/github/pull-request/merge.md#wait-for-a-known-merge-state)).
 
@@ -119,8 +119,9 @@ Behind a merge queue (claude-code-plugins) the queue sets the strategy, so pass 
 Never pass `--auto`, `--merge`/`-m` or `--rebase`/`-r`, and never `--admin` except in that
 section's guarded admin form where the user's own instructions authorize an admin merge for the
 repository. Confirm queue entry per
-[4.2.2](#422-confirm-queue-entry), then poll the PR's state and merge-queue membership every 30
-seconds until it reads `MERGED` or leaves the queue unmerged (run the loop in the background or under
+[4.2.2](#422-confirm-queue-entry), then poll the PR's state over REST every 60
+seconds, reading queue membership once when that read changes, until it reads `MERGED` or leaves
+the queue unmerged (run the loop in the background or under
 a monitor; [GitHub](../../../reference/providers/github/pull-request/merge.md#poll-the-merge-queue)).
 
 A PR that leaves the queue unmerged is reported to the user, not re-enqueued, and 4.3 does not run.

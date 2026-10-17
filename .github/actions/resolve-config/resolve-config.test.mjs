@@ -812,6 +812,12 @@ test("an admission predicate that takes ratification fails red off an issues eve
   await assertFailsRed(t, env, /needs ratified/, fakeGitHub(pullRoutes({ changedFiles: 0, files: [] })).github);
 });
 
+test("an admission predicate with no classes and ratified false fails the schema", async (t) => {
+  const { env } = workspace();
+  withPredicate(env, { admission: { ratified: false } });
+  await assertFailsRed(t, env, /fails the schema/);
+});
+
 test("a work-classes predicate fails red: no run supplies work classes yet", async (t) => {
   const { env } = workspace();
   withPredicate(env, { "work-classes": ["C2"] });

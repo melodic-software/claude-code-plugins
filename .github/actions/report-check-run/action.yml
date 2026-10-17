@@ -51,6 +51,26 @@ inputs:
     description: The check-signed-commits all-verified output; empty when it did not run.
     required: false
     default: ""
+  lane-class:
+    description: >
+      The run job's lane-class output: report-lane-outcome's failure class,
+      empty on a success. With the three below it becomes the first line of
+      the posted check run's output.summary, its output.text and external_id,
+      and one annotation (lane-record.mjs).
+    required: false
+    default: ""
+  lane-resets:
+    description: The run job's lane-resets output, the ISO time a usage limit resets.
+    required: false
+    default: ""
+  lane-turns:
+    description: The run job's lane-turns output, the turns the skill took.
+    required: false
+    default: ""
+  lane-max-turns:
+    description: The run job's lane-max-turns output, the skill's --max-turns cap.
+    required: false
+    default: ""
   verdict-path:
     description: Path of the downloaded verdict.json. A missing file posts failure.
     required: false
@@ -82,6 +102,10 @@ runs:
         PR_HEAD_SHA: ${{ inputs.pr-head-sha }}
         CAN_COMMIT: ${{ inputs.can-commit }}
         ALL_VERIFIED: ${{ inputs.all-verified }}
+        LANE_CLASS: ${{ inputs.lane-class }}
+        LANE_RESETS: ${{ inputs.lane-resets }}
+        LANE_TURNS: ${{ inputs.lane-turns }}
+        LANE_MAX_TURNS: ${{ inputs.lane-max-turns }}
         VERDICT_PATH: ${{ inputs.verdict-path }}
         BASE_PATH: ${{ inputs.base-path }}
         HEAD_SHA_FALLBACK: ${{ inputs.head-sha-fallback }}

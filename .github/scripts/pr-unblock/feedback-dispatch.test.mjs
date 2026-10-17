@@ -33,6 +33,12 @@ const marker = (lane, sha = HEAD, user = ACTIONS_BOT) => ({
   user,
   body: `<!-- claude-lane-reviewed-head lane=${lane} sha=${sha} -->\n${lane} has reviewed this pull request through ${sha}.`,
 });
+// The lane record report-lane-outcome (ci-workflows) writes on a limit stop.
+const limitRecord = (tokens = "") => ({
+  annotation_level: "failure",
+  title: "",
+  message: `pr-unblock skipped: usage limit reached; re-run after it resets (pr-unblock exited with: failure class=rate-limit${tokens}). Last SDK result: {}`,
+});
 const thread = (authors, isResolved = false) => ({
   isResolved,
   comments: { nodes: authors.map((author) => ({ author })), pageInfo: { hasNextPage: false } },
@@ -44,6 +50,7 @@ function fakeApi({
   comments = [marker("claude-review"), marker("claude-security-review")],
   threads = [thread([CLAUDE])],
   checkRuns = [],
+  annotations = [],
   workflowRuns = [],
   workflowRunId = 38779200001,
 } = {}) {
@@ -80,6 +87,7 @@ function fakeApi({
     listIssueComments: async () => comments,
     listReviewThreads: async () => threads,
     listCheckRuns: async () => checkRuns,
+    listAnnotations: async () => annotations,
     listWorkflowRuns: async () => workflowRuns,
     async dispatchWorkflow(request) {
       calls.dispatch.push(request);
@@ -249,6 +257,37 @@ test("the gate's untrusted-trigger skip on the head does not block a dispatch", 
     ],
   });
   assert.equal((await decide(api)).result.number, 42);
+});
+
+// FINAL-DESIGN C5: a limit-stopped address-feedback run holds the head only
+// until its limit resets; the next review completion then dispatches again.
+test("a limit-stopped check on the head blocks a dispatch only until its reset", async () => {
+  const stopped = [{ id: 7, status: "completed", conclusion: "failure", completed_at: "2026-10-17T10:00:00Z", output: { title: "x" } }];
+  for (const [resets, expected] of [
+    ["2026-10-17T11:00:00Z", 42],
+    ["2026-10-17T13:00:00Z", undefined],
+  ]) {
+    const api = fakeApi({ checkRuns: stopped, annotations: [limitRecord(` resets=${resets}`)] });
+    const result = await dispatchFeedback({
+      api,
+      repository: REPOSITORY,
+      runId: RUN_ID,
+      upstreamRunId: UPSTREAM_RUN_ID,
+      appSenderId: APP_ID,
+      resolveSlot: async () => resolvedLane(),
+      log: () => {},
+      now: Date.parse("2026-10-17T12:00:00Z"),
+    });
+    assert.equal(result?.number, expected, resets);
+  }
+});
+
+test("a failed check on the head that is not a limit stop blocks a dispatch", async () => {
+  const api = fakeApi({
+    checkRuns: [{ id: 7, status: "completed", conclusion: "failure", completed_at: "2026-10-01T00:00:00Z", output: { title: "x" } }],
+    annotations: [{ annotation_level: "failure", title: "", message: "pr-unblock exited with: failure class=other (infrastructure error)" }],
+  });
+  assert.equal((await decide(api)).result, null);
 });
 
 test("a dispatch with no usable run id throws", async () => {

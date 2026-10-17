@@ -2,9 +2,10 @@ name: pr-merge
 
 # What this does, in plain words:
 #
-# Some pull requests are low-risk chores (the lanes App opened them for an
-# issue labeled `work-class: mechanical`, also called C2). Instead of the
-# owner merging each one by hand, this workflow asks the existing merge gate
+# The lanes App opens pull requests, each for one issue. The gate treats each
+# as class C2 and reads no `work-class:` label: it merges one only when the
+# pr-verify verifier passed its current commit against that issue. Instead of
+# the owner merging each one by hand, this workflow asks the existing merge gate
 # (the babysit merge script) about each such PR and, when the gate says yes, adds the PR to GitHub's merge queue at
 # the exact commit the gate checked. The merge queue then runs CI one last
 # time and merges.
@@ -227,10 +228,9 @@ jobs:
 
       # Candidates: open, non-draft PRs into main that the lanes App
       # (merge.agent-identity on main) opened, plus Dependabot's unless
-      # merge.dependabot.mode is off. The work class lives on the closing
-      # issue, never on the PR, so no PR label is read here. This is only a
-      # shortlist; the gate checks the author, the class or Dependabot tier
-      # and every other rule again. Read with the job's own read-only token.
+      # merge.dependabot.mode is off. No label is read here. This is only a
+      # shortlist; the gate checks the author, the closing issue and verifier
+      # verdict or the Dependabot tier, and every other rule again. Read with the job's own read-only token.
       - name: List the candidate PRs
         id: candidates
         if: steps.lane-token.outputs.token != ''
@@ -261,9 +261,10 @@ jobs:
       # The gate itself, once per candidate, using the lane App's token. It is
       # the same script the local babysit loop uses, run as the pr-merge lane:
       # it refuses on any hold, missing review, failing check, risk above LOW,
-      # a changed file on the denied list, or a head that moved since listing.
+      # a changed file on the denied list, no passing verifier verdict at the
+      # head, or a head that moved since listing.
       # A Dependabot PR is judged by its tier and `ci-status` instead of the
-      # risk score and denied list.
+      # risk score, denied list and verdict.
       # When it passes (and that PR's kind is live) it posts the checked commit as
       # a pin comment and adds the PR to the merge queue at that commit.
       # The gate's token cannot read the kill switch, so it gets this run's
@@ -286,6 +287,9 @@ jobs:
           SCRIPT: ${{ steps.config.outputs.script }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           RUNG_CAP: ${{ vars.CLAUDE_LANES_MERGE_RUNG_CAP }}
+          # Ids that never ratify a lane PR's closing issue, as at the issue
+          # lane's start check (check-trusted-trigger's denied-actor-ids).
+          BABYSIT_DENIED_ACTOR_IDS: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
         run: |
           set -euo pipefail
           # The script and its flags come from the merge-pr activity on main.

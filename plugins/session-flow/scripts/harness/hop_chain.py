@@ -56,6 +56,7 @@ from claude_cli import (  # noqa: E402,F401  (claude_cli.py in the parent dir; r
     permission_prompts_args,
 )
 from io_streams import utf8_streams  # noqa: E402  (io_streams.py in the parent dir)
+from transcript_reader import iter_records  # noqa: E402  (transcript_reader.py in the parent dir)
 
 RAIL_RE = re.compile("^─{10,}$")
 COPY_LINE = "`/clear`, then copy everything between the dashed lines:"
@@ -530,17 +531,7 @@ def load_transcript(session_id: str, projects_root: Path) -> Transcript:
     hits = transcript_paths(session_id, projects_root)
     if not hits:
         return Transcript(None, [])
-    records: list[dict] = []
-    with open(hits[0], encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                records.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
-    return Transcript(Path(hits[0]), records)
+    return Transcript(Path(hits[0]), list(iter_records(Path(hits[0]))))
 
 
 def _tool_uses(records: list[dict]):

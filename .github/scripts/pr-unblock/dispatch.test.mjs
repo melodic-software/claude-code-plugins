@@ -8,6 +8,12 @@ import { createGitHubApi, dispatchConflicting, main } from "./dispatch.mjs";
 
 const CHECK_NAME = "pr-unblock / resolve-conflicts";
 const SUCCESS_RUN = { status: "completed", conclusion: "success", output: { title: "Resolved" } };
+// The lane record report-lane-outcome (ci-workflows) writes on a limit stop.
+const limitRecord = (tokens = "") => ({
+  annotation_level: "failure",
+  title: "",
+  message: `pr-unblock skipped: usage limit reached; re-run after it resets (pr-unblock exited with: failure class=rate-limit${tokens}). Last SDK result: {}`,
+});
 const UNTRUSTED_SKIP = {
   status: "completed",
   conclusion: "neutral",
@@ -39,6 +45,7 @@ function fakeApi({
   failDispatch = new Set(),
   failChecks = new Set(),
   runIds = new Map(),
+  annotations = new Map(),
 } = {}) {
   const calls = { list: [], get: [], checks: [], dispatch: [] };
   let round = 0;
@@ -76,6 +83,9 @@ function fakeApi({
         return checked.get(sha) ?? [];
       }
       return checked.has(sha) ? [SUCCESS_RUN] : [];
+    },
+    async listAnnotations(checkRunId) {
+      return annotations.get(checkRunId) ?? [];
     },
     async dispatchWorkflow({ workflow, ref, inputs }) {
       calls.dispatch.push({ workflow, ref, inputs });
@@ -231,6 +241,35 @@ test("an in-progress run or any other completed conclusion counts as handled", a
   });
   await run();
   assert.deepEqual(api.calls.dispatch, []);
+});
+
+// A run the usage limit stopped (FINAL-DESIGN C5) stops counting as handled
+// once its limit resets: at its `resets=` time, else five hours after it
+// ended. Until then, and for any other failure, it still counts.
+test("a limit-stopped run counts as handled only until its limit resets", async () => {
+  const now = Date.parse("2026-10-17T12:00:00Z");
+  const stop = (id, completed) => ({ id, status: "completed", conclusion: "failure", completed_at: completed, output: { title: "x" } });
+  const [statedPast, statedFuture, fallbackPast, fallbackFuture] = [pr(21), pr(22), pr(23), pr(24)];
+  const { api, run } = harness(
+    {
+      pages: [[statedPast, statedFuture, fallbackPast, fallbackFuture]],
+      checked: new Map([
+        [statedPast.headRefOid, [stop(1, "2026-10-17T10:00:00Z")]],
+        [statedFuture.headRefOid, [stop(2, "2026-10-17T10:00:00Z")]],
+        [fallbackPast.headRefOid, [stop(3, "2026-10-17T06:00:00Z")]],
+        [fallbackFuture.headRefOid, [stop(4, "2026-10-17T08:00:00Z")]],
+      ]),
+      annotations: new Map([
+        [1, [{ annotation_level: "failure", message: "Process completed with exit code 1." }, limitRecord(" resets=2026-10-17T11:00:00Z turns=3")]],
+        [2, [limitRecord(" resets=2026-10-17T13:00:00Z resets-window=five_hour")]],
+        [3, [limitRecord()]],
+        [4, [limitRecord(" turns=2")]],
+      ]),
+    },
+    { now, maxDispatch: 10 },
+  );
+  await run();
+  assert.deepEqual(dispatchedNumbers(api), ["21", "23"]);
 });
 
 test("maxDispatch defaults to 3, in ascending PR number, logging the PRs left for a later run", async () => {

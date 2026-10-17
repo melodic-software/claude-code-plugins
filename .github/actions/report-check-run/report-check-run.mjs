@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createGitHub } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { decide } from "./decide.mjs";
+import { laneRecordAnnotation, laneRecordOutput } from "./lane-record.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA = "docs/conventions/pr-pipeline/pr-pipeline.schema.json";
@@ -89,6 +90,30 @@ export async function main({
     return 1;
   }
   const body = { ...decision.report };
+  const inputs = {
+    lane: env.LANE,
+    failureClass: env.LANE_CLASS ?? "",
+    resets: env.LANE_RESETS ?? "",
+    turns: env.LANE_TURNS ?? "",
+    maxTurns: env.LANE_MAX_TURNS ?? "",
+  };
+  const record = laneRecordOutput({
+    ...inputs,
+    activity: env.ACTIVITY,
+    runId: env.GITHUB_RUN_ID ?? "",
+    runAttempt: env.GITHUB_RUN_ATTEMPT ?? "",
+  });
+  if (record) {
+    body.output = {
+      ...body.output,
+      summary: `${record.line}\n\n${body.output.summary}`,
+      text: record.text,
+      annotations: [laneRecordAnnotation(inputs)],
+    };
+    if (record.externalId) {
+      body.external_id = record.externalId;
+    }
+  }
   if (RUN_ID.test(env.GITHUB_RUN_ID ?? "")) {
     body.details_url = `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`;
   }
