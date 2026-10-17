@@ -493,8 +493,8 @@ jobs:
   # instead of stopping every gate after it. Each `run:` gate names
   # `scripts/run-hygiene-gate.sh` as its shell, which keeps a copy of its
   # output, so the aggregator's annotation and the job summary quote why it
-  # failed; a `uses:` gate is listed in STEP_LOG_CHECKS and points at its step
-  # log instead. Self-tests are NOT
+  # failed; a `uses:` gate is listed in STEP_LOG_CHECKS and quotes the job's
+  # check-run annotations, else points at its step log. Self-tests are NOT
   # `continue-on-error`: a broken detector must turn its job red rather than let
   # its own gate pass quietly. None of the four reads anything another produces.
   #
@@ -549,6 +549,10 @@ jobs:
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 7
+    # checks: read lets the aggregator quote a composite gate's annotations.
+    permissions:
+      contents: read
+      checks: read
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1164,8 +1168,11 @@ jobs:
           # never happened, and that is the direction that fails open. The
           # ungated whole-repo scanners feed their raw outcome.
           # Gates that run as `uses:` actions, whose output
-          # scripts/run-hygiene-gate.sh cannot capture: a failure here points
-          # at the step log instead of quoting the gate's output.
+          # scripts/run-hygiene-gate.sh cannot capture: a failure here quotes
+          # the job's own check-run annotations (checks: read), else points at
+          # the step log.
+          CHECK_RUN_ID: ${{ job.check_run_id }}
+          GH_TOKEN: ${{ github.token }}
           STEP_LOG_CHECKS: markdown typos gitleaks lychee-offline editorconfig actionlint dependabot-schema workflow-schema exec-bit machine-specific-paths eol-renormalize comment-hygiene
           CHECK_RESULTS: |
             zizmor=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.zizmor.outcome }}
@@ -1230,6 +1237,10 @@ jobs:
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.select-tests.outputs.run_shell == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 9
+    # checks: read lets the aggregator quote a composite gate's annotations.
+    permissions:
+      contents: read
+      checks: read
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1469,8 +1480,11 @@ jobs:
           # The feed's rules are stated on the one in `lint-repo`; the docs-only
           # gate pins them on every job.
           # Gates that run as `uses:` actions, whose output
-          # scripts/run-hygiene-gate.sh cannot capture: a failure here points
-          # at the step log instead of quoting the gate's output.
+          # scripts/run-hygiene-gate.sh cannot capture: a failure here quotes
+          # the job's own check-run annotations (checks: read), else points at
+          # the step log.
+          CHECK_RUN_ID: ${{ job.check_run_id }}
+          GH_TOKEN: ${{ github.token }}
           STEP_LOG_CHECKS: shellcheck
           CHECK_RESULTS: |
             killswitch-hoist=${{ steps.killswitch_hoist.outcome }}
@@ -1509,9 +1523,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     # pull-requests: read lets "Resolve the queued pull request" read the
-    # queued pull request in a merge group.
+    # queued pull request in a merge group; checks: read lets the aggregator
+    # quote a composite gate's annotations.
     permissions:
       contents: read
+      checks: read
       pull-requests: read
     steps:
       - name: Check out
@@ -2004,8 +2020,11 @@ jobs:
           # The feed's rules are stated on the one in `lint-repo`; the docs-only
           # gate pins them on every job.
           # Gates that run as `uses:` actions, whose output
-          # scripts/run-hygiene-gate.sh cannot capture: a failure here points
-          # at the step log instead of quoting the gate's output.
+          # scripts/run-hygiene-gate.sh cannot capture: a failure here quotes
+          # the job's own check-run annotations (checks: read), else points at
+          # the step log.
+          CHECK_RUN_ID: ${{ job.check_run_id }}
+          GH_TOKEN: ${{ github.token }}
           STEP_LOG_CHECKS: marketplace-schema plugin-schema
           CHECK_RESULTS: |
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
@@ -2049,6 +2068,10 @@ jobs:
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # checks: read lets the aggregator quote a composite gate's annotations.
+    permissions:
+      contents: read
+      checks: read
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -2379,8 +2402,11 @@ jobs:
           # The feed's rules are stated on the one in `lint-repo`; the docs-only
           # gate pins them on every job.
           # Gates that run as `uses:` actions, whose output
-          # scripts/run-hygiene-gate.sh cannot capture: a failure here points
-          # at the step log instead of quoting the gate's output.
+          # scripts/run-hygiene-gate.sh cannot capture: a failure here quotes
+          # the job's own check-run annotations (checks: read), else points at
+          # the step log.
+          CHECK_RUN_ID: ${{ job.check_run_id }}
+          GH_TOKEN: ${{ github.token }}
           STEP_LOG_CHECKS: evals-schema
           CHECK_RESULTS: |
             detector-findings-crosswalk=${{ steps.detector_findings_crosswalk.outcome }}

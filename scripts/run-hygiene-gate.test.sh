@@ -135,6 +135,14 @@ for job_id, job in doc["jobs"].items():
                 problems.append(f"{job_id}: run-gate {s.get('id')} has shell {s.get('shell')!r}, want {want!r}")
     for extra in sorted(listed - composites):
         problems.append(f"{job_id}: STEP_LOG_CHECKS names {extra}, which is not a uses-gate in its feed")
+    # A composite gate's failure quotes the job's own check-run annotations.
+    if listed:
+        if str(env.get("CHECK_RUN_ID", "")).replace(" ", "") != "${{job.check_run_id}}":
+            problems.append(f"{job_id}: the aggregator's CHECK_RUN_ID is not ${{{{ job.check_run_id }}}}")
+        if str(env.get("GH_TOKEN", "")).replace(" ", "") != "${{github.token}}":
+            problems.append(f"{job_id}: the aggregator's GH_TOKEN is not ${{{{ github.token }}}}")
+        if (job.get("permissions") or {}).get("checks") != "read":
+            problems.append(f"{job_id}: a job with composite gates needs permissions checks: read")
 if jobs == 0:
     problems.append("no job runs scripts/aggregate-hygiene-results.sh")
 print("\n".join(problems) if problems else f"wired: {jobs} job(s)")
