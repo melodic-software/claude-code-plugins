@@ -267,6 +267,9 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
     async compare(base, head) {
       return (await request(`${repo}/compare/${base}...${head}`)).data;
     },
+    async getRun(id) {
+      return (await request(`${repo}/actions/runs/${id}`)).data;
+    },
     async replyToComment(pr, commentId, body) {
       return (await request(`${repo}/pulls/${pr}/comments/${commentId}/replies`, "POST", { body })).data;
     },

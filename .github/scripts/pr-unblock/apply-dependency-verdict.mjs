@@ -13,12 +13,14 @@
 //      job started (its issue or marker is there), which resumes. merge,
 //      close and escalate need the head the model reviewed; a moved head is
 //      superseded and the next dispatcher run reviews the new one. fix needs
-//      only commits the lanes App made on top of that head, touching nothing
-//      under .github/ (else dependency-invalid), else
-//      dependency-fix-not-landed (no commit) or superseded (Dependabot
-//      rebased).
+//      only commits GitHub signed for the lanes App during this workflow run
+//      on top of that head, listed whole and touching nothing under .github/
+//      (else dependency-invalid), else dependency-fix-not-landed (no commit)
+//      or superseded (Dependabot rebased, or another commit).
 //   3. merge: the round marker it posts, naming the reviewed head, is the
 //      record the pr-merge lane merges on; this job never merges or enqueues.
+//      A model that saw a truncated files listing escalates
+//      dependency-files-truncated instead.
 //      close: never on a security update (the security label or an advisory
 //      in the body, read fresh here, or the model job's flag), which escalates
 //      dependency-security-close; otherwise finds or files the issue
@@ -34,6 +36,7 @@
 //   GITHUB_REPOSITORY       owner/repo
 //   PR_NUMBER, HEAD_SHA     the gated pull request and its head
 //   GITHUB_RUN_ID, DEPENDENCY_RUN_ATTEMPT  the model run the round marker names
+//                           (and whose creation bounds a fix commit's date)
 //   APP_SENDER_ID           the lanes App bot's user id
 //   DEPENDENCY_VERDICT_DIR  the downloaded artifact holding run.json
 //   DEPENDENCY_RUN_SHA256   run.json's SHA-256, from the model job's runner step
@@ -49,6 +52,25 @@ import { isSecurityUpdate } from "./dependency-classify.mjs";
 import { roundLine, rounds, VERDICTS } from "./review-dependency.mjs";
 
 export const LIMITS = { bytes: 65536, reasons: 10, reason: 500, evidence: 20, evidenceItem: 300 };
+// The compare listing stops at 250 commits and 300 files
+// (docs.github.com/en/rest/commits/commits#compare-two-commits, as of
+// 2026-10-17; recheck when that section changes its limits).
+export const COMPARE_LIMITS = { commits: 250, files: 300 };
+// web-flow, the committer GitHub records on commits it signs, as
+// check-trusted-trigger.mjs reads it.
+const WEB_FLOW_ID = 19864447;
+
+// A commit GitHub signed for the lanes App during this workflow run: author
+// the App, committer web-flow, signature valid, committed after the run was
+// created (check-trusted-trigger.mjs's upstreamHeadHolds). An author id
+// alone is whatever a pusher claims.
+export const isLaneCommit = (commit, appId, runCreated) =>
+  Number.isInteger(commit?.author?.id) &&
+  commit.author.id === appId &&
+  commit.committer?.id === WEB_FLOW_ID &&
+  commit.commit?.verification?.verified === true &&
+  commit.commit.verification.reason === "valid" &&
+  Date.parse(commit.commit.committer?.date ?? "") >= runCreated;
 
 class Invalid extends Error {}
 
@@ -72,12 +94,13 @@ export function validateRun(run, pr) {
   const fail = (why) => {
     throw new Invalid(`run.json is invalid: ${why}`);
   };
-  if (!exactKeys(run, ["version", "pr", "head_sha", "security", "config_unreadable", "output"])) fail("its fields are not the runner's");
+  if (!exactKeys(run, ["version", "pr", "head_sha", "security", "config_unreadable", "files_truncated", "output"])) fail("its fields are not the runner's");
   if (run.version !== 1) fail("version is not 1");
   if (run.pr !== pr) fail("it names another pull request");
   if (!SHA.test(String(run.head_sha))) fail("head_sha is not a commit id");
   if (typeof run.security !== "boolean") fail("security is not a boolean");
   if (typeof run.config_unreadable !== "boolean") fail("config_unreadable is not a boolean");
+  if (typeof run.files_truncated !== "boolean") fail("files_truncated is not a boolean");
   const out = run.output;
   if (!exactKeys(out, ["verdict", "reasons", "evidence"])) fail("the verdict's fields are not the template's");
   if (!VERDICTS.includes(out.verdict)) fail("the verdict is not merge, fix, close or escalate");
@@ -133,7 +156,7 @@ function ignoreIssue({ pr, head, title, reasons }) {
   };
 }
 
-export async function apply({ api, pr, appId, modelRun, run, log }) {
+export async function apply({ api, pr, appId, runId, modelRun, run, log }) {
   // One value names the model run in the marker and in the re-run check.
   const runKey = modelRun ?? "none";
   const pull = await api.getPull(pr);
@@ -170,14 +193,40 @@ export async function apply({ api, pr, appId, modelRun, run, log }) {
       return { escalationReason: "dependency-fix-not-landed", skipReason: "" };
     }
     const compare = await api.compare(run.head_sha, head);
-    if (compare.status !== "ahead" || !compare.commits.every((commit) => commit.author?.id === appId)) {
+    if (compare.status !== "ahead") {
+      log(`#${pr}: the head moved from ${run.head_sha} to ${head} off the reviewed head; the next run reviews it`);
+      return { escalationReason: "", skipReason: "superseded-sha" };
+    }
+    const { commits, files } = compare;
+    // A listing at its limit, or short of the total, may hide a commit or a
+    // path; neither is read as "nothing more".
+    if (
+      !Array.isArray(commits) ||
+      !Array.isArray(files) ||
+      commits.length >= COMPARE_LIMITS.commits ||
+      files.length >= COMPARE_LIMITS.files ||
+      compare.total_commits !== commits.length
+    ) {
+      log(`#${pr}: the comparison from ${run.head_sha} to ${head} is not listed whole`);
+      await record("invalid", { reasons, evidence });
+      return { escalationReason: "dependency-invalid", skipReason: "" };
+    }
+    let runCreated = Number.NaN;
+    try {
+      runCreated = Date.parse((await api.getRun(runId)).created_at ?? "");
+    } catch (error) {
+      log(`#${pr}: cannot read model run ${runId} (${String(error?.message ?? error).slice(0, 200)})`);
+    }
+    if (Number.isNaN(runCreated)) {
+      await record("invalid", { reasons, evidence });
+      return { escalationReason: "dependency-invalid", skipReason: "" };
+    }
+    if (!commits.every((commit) => isLaneCommit(commit, appId, runCreated))) {
       log(`#${pr}: the head moved from ${run.head_sha} to ${head} by more than the lane's fix; the next run reviews it`);
       return { escalationReason: "", skipReason: "superseded-sha" };
     }
     // The promote step already refuses this; checked again on what landed.
-    const files = compare.files ?? [];
-    const github = files.length >= 300 || files.some((file) => [file.filename, file.previous_filename].some((path) => /^\.github(\/|$)/i.test(path ?? "")));
-    if (github) {
+    if (files.some((file) => [file.filename, file.previous_filename].some((path) => /^\.github(\/|$)/i.test(path ?? "")))) {
       log(`#${pr}: the lane's fix changes a path under .github/, which it may not push`);
       await record("invalid", { reasons, evidence });
       return { escalationReason: "dependency-invalid", skipReason: "" };
@@ -194,6 +243,11 @@ export async function apply({ api, pr, appId, modelRun, run, log }) {
     if (run.config_unreadable) {
       await record("escalate", { reasons, evidence });
       return { escalationReason: "dependency-config-unreadable", skipReason: "" };
+    }
+    // The model saw only part of the files listing.
+    if (run.files_truncated) {
+      await record("escalate", { reasons, evidence });
+      return { escalationReason: "dependency-files-truncated", skipReason: "" };
     }
     await record("merge", { reasons, evidence });
     return { escalationReason: "", skipReason: "" };
@@ -270,6 +324,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       }),
     pr,
     appId,
+    runId: positive(env.GITHUB_RUN_ID, "GITHUB_RUN_ID"),
     modelRun,
     run,
     log,

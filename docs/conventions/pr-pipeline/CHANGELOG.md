@@ -1,5 +1,18 @@
 # Changelog for the PR pipeline convention
 
+## 1.22.1 - 2026-10-17
+
+The review-dependency activity checks commit provenance
+([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review)). Its classifier applies the
+pr-merge lane's commit check as review reasons, so an unverified commit, one GitHub did not
+commit, or one that is neither Dependabot's nor the version-bump commit sorts `review`, never
+`auto`. The select step skips `superseded-sha` when the head moved since the gate. The verdict job
+accepts a `fix` only from commits GitHub signed for the lanes App during the run (author, committer
+`web-flow`, a valid signature, a commit date after the run was created) in a comparison listed
+whole, else `dependency-invalid` or `superseded-sha`. `run.json` gains `files_truncated`, and a
+`merge` verdict on a truncated files listing escalates the new reason
+`dependency-files-truncated`. `version` stays 1.
+
 ## 1.22.0 - 2026-10-17
 
 `pr-unblock` gains `review-dependency` and `apply-dependency-verdict`, and `prepare` gains

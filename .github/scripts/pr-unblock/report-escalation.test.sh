@@ -108,7 +108,7 @@ for reason in protected-path-conflict workflow-staged repeat-cap unresolved-conf
   feedback-protected-path feedback-round-cap feedback-uncertain feedback-not-landed feedback-invalid \
   feedback-partial feedback-incomplete feedback-disputed \
   dependency-round-cap dependency-invalid dependency-fix-not-landed dependency-security-close dependency-escalate \
-  dependency-config-unreadable; do
+  dependency-config-unreadable dependency-files-truncated; do
   setup '[]' '[]'
   run "$reason"
   check "$reason: exit 0" 0 "$RC"

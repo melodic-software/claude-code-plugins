@@ -17,9 +17,29 @@ const output = (overrides = {}) => ({
   evidence: [".node-version:1"],
   ...overrides,
 });
-const runOf = (overrides = {}) => ({ version: 1, pr: 7, head_sha: HEAD, security: false, config_unreadable: false, output: output(), ...overrides });
+const runOf = (overrides = {}) => ({
+  version: 1,
+  pr: 7,
+  head_sha: HEAD,
+  security: false,
+  config_unreadable: false,
+  files_truncated: false,
+  output: output(),
+  ...overrides,
+});
 
-function fakeApi({ head = HEAD, state = "open", labels = [], body = "", compare = { status: "ahead", commits: [], files: [] }, comments = [], issues = [], failClose = false } = {}) {
+const RUN_CREATED = "2026-10-17T10:00:00Z";
+// A commit GitHub signed for the lanes App after the model run was created.
+const laneCommit = (overrides = {}) => ({
+  sha: FIX,
+  author: { id: APP },
+  committer: { id: 19864447 },
+  commit: { committer: { date: "2026-10-17T10:05:00Z" }, verification: { verified: true, reason: "valid" } },
+  ...overrides,
+});
+const landed = (overrides = {}) => ({ status: "ahead", total_commits: 1, commits: [laneCommit()], files: [{ filename: "package.json" }], ...overrides });
+
+function fakeApi({ head = HEAD, state = "open", labels = [], body = "", compare = { status: "ahead", total_commits: 0, commits: [], files: [] }, comments = [], issues = [], failClose = false, run = { created_at: RUN_CREATED } } = {}) {
   // State persists across calls, so a second apply() is a re-run.
   const calls = { comments: [], closed: [], issues: [] };
   const pull = { number: 7, state, head: { sha: head }, labels: labels.map((name) => ({ name })), body, title: "bump x from 1.0.0 to 2.0.0" };
@@ -30,6 +50,11 @@ function fakeApi({ head = HEAD, state = "open", labels = [], body = "", compare 
     getPull: async () => ({ ...pull }),
     listIssueComments: async () => comments,
     compare: async () => compare,
+    getRun: async (id) => {
+      if (run instanceof Error) throw run;
+      calls.runs = [...(calls.runs ?? []), id];
+      return run;
+    },
     createIssueComment: async (pr, text) => {
       calls.comments.push(text);
       comments.push({ user: { id: APP }, body: text });
@@ -50,7 +75,7 @@ function fakeApi({ head = HEAD, state = "open", labels = [], body = "", compare 
   return api;
 }
 
-const go = (api, run, extra = {}) => apply({ api, pr: 7, appId: APP, modelRun: "11-1", run, log: () => {}, ...extra });
+const go = (api, run, extra = {}) => apply({ api, pr: 7, appId: APP, runId: 11, modelRun: "11-1", run, log: () => {}, ...extra });
 
 test("validateRun accepts the runner's record and refuses anything off the template", () => {
   assert.deepEqual(validateRun(runOf(), 7).output.verdict, "merge");
@@ -93,13 +118,78 @@ test("a head that moved since the review is superseded for merge, close and esca
   }
 });
 
+const fix = () => runOf({ output: output({ verdict: "fix" }) });
+
 test("fix needs the lanes App's commits on top of the reviewed head", async () => {
-  const landed = fakeApi({ head: FIX, compare: { status: "ahead", commits: [{ author: { id: APP } }] } });
-  assert.equal((await go(landed, runOf({ output: output({ verdict: "fix" }) }))).escalationReason, "");
+  const ok = fakeApi({ head: FIX, compare: landed() });
+  assert.deepEqual(await go(ok, fix()), { escalationReason: "", skipReason: "" });
+  assert.match(ok.calls.comments[0], /verdict=fix/);
+  assert.deepEqual(ok.calls.runs, [11], "the commit date is bounded by this workflow run's creation");
   const notLanded = fakeApi();
-  assert.equal((await go(notLanded, runOf({ output: output({ verdict: "fix" }) }))).escalationReason, "dependency-fix-not-landed");
-  const rebased = fakeApi({ head: FIX, compare: { status: "diverged", commits: [{ author: { id: 49699333 } }] } });
-  assert.equal((await go(rebased, runOf({ output: output({ verdict: "fix" }) }))).skipReason, "superseded-sha");
+  assert.equal((await go(notLanded, fix())).escalationReason, "dependency-fix-not-landed");
+  const rebased = fakeApi({ head: FIX, compare: landed({ status: "diverged", commits: [laneCommit({ author: { id: 49699333 } })] }) });
+  assert.equal((await go(rebased, fix())).skipReason, "superseded-sha");
+});
+
+test("a fix commit is the lanes App's only when GitHub signed it for the App during this run", async () => {
+  const forged = {
+    "another author": laneCommit({ author: { id: 5 } }),
+    "no author account": laneCommit({ author: null }),
+    "a committer other than web-flow": laneCommit({ committer: { id: APP } }),
+    "an unverified signature": laneCommit({ commit: { committer: { date: "2026-10-17T10:05:00Z" }, verification: { verified: false, reason: "unsigned" } } }),
+    "a verified signature whose reason is not valid": laneCommit({ commit: { committer: { date: "2026-10-17T10:05:00Z" }, verification: { verified: true, reason: "unknown_key" } } }),
+    "a commit made before this run": laneCommit({ commit: { committer: { date: "2026-10-17T09:59:59Z" }, verification: { verified: true, reason: "valid" } } }),
+    "no commit date": laneCommit({ commit: { verification: { verified: true, reason: "valid" } } }),
+  };
+  for (const [why, commit] of Object.entries(forged)) {
+    const api = fakeApi({ head: FIX, compare: landed({ commits: [commit] }) });
+    assert.deepEqual(await go(api, fix()), { escalationReason: "", skipReason: "superseded-sha" }, why);
+    assert.deepEqual(api.calls.comments, [], `${why}: no fix marker`);
+  }
+});
+
+test("a fix whose comparison is not listed whole is invalid", async () => {
+  const many = (n, name = (i) => `f${i}.js`) => Array.from({ length: n }, (_, i) => ({ filename: name(i) }));
+  const cases = {
+    "no files key": landed({ files: undefined }),
+    "a files value that is not a list": landed({ files: { filename: "x" } }),
+    "no commits key": landed({ commits: undefined }),
+    "300 files, the listing's limit": landed({ files: many(300) }),
+    "250 commits, the listing's limit": landed({ total_commits: 250, commits: Array.from({ length: 250 }, () => laneCommit()) }),
+    "fewer commits listed than the total": landed({ total_commits: 2 }),
+    "no total": landed({ total_commits: undefined }),
+  };
+  for (const [why, compare] of Object.entries(cases)) {
+    const api = fakeApi({ head: FIX, compare });
+    assert.equal((await go(api, fix())).escalationReason, "dependency-invalid", why);
+    assert.match(api.calls.comments[0], /verdict=invalid/, why);
+  }
+  const under = fakeApi({ head: FIX, compare: landed({ files: many(299) }) });
+  assert.equal((await go(under, fix())).escalationReason, "", "299 files is a whole listing");
+});
+
+test("a .github/ path in the 300th file of a capped listing is still invalid", async () => {
+  const files = Array.from({ length: 300 }, (_, i) => ({ filename: i === 299 ? ".github/workflows/x.yml" : `f${i}.js` }));
+  assert.equal((await go(fakeApi({ head: FIX, compare: landed({ files }) }), fix())).escalationReason, "dependency-invalid");
+});
+
+test("a fix escalates dependency-invalid when the model run cannot be read", async () => {
+  for (const run of [new Error("403"), {}, { created_at: "not a date" }]) {
+    const api = fakeApi({ head: FIX, compare: landed(), run });
+    assert.equal((await go(api, fix())).escalationReason, "dependency-invalid", String(run));
+  }
+});
+
+test("a merge verdict from a model that read a truncated files listing escalates and posts no merge marker", async () => {
+  const api = fakeApi();
+  const result = await go(api, runOf({ files_truncated: true }));
+  assert.equal(result.escalationReason, "dependency-files-truncated");
+  assert.doesNotMatch(api.calls.comments.join("\n"), /verdict=merge/);
+  assert.match(api.calls.comments[0], /verdict=escalate/);
+  assert.throws(() => validateRun(runOf({ files_truncated: "no" }), 7), /invalid/i);
+  const older = runOf();
+  delete older.files_truncated;
+  assert.throws(() => validateRun(older, 7), /invalid/i, "a run.json without the flag is not the runner's");
 });
 
 test("close files the ignore issue, then closes the pull request", async () => {
@@ -157,11 +247,10 @@ test("a run with no model attempt posts its `none` marker once across re-runs", 
 });
 
 test("a fix that changed a path under .github/ is invalid", async () => {
-  const api = fakeApi({
-    head: FIX,
-    compare: { status: "ahead", commits: [{ author: { id: APP } }], files: [{ filename: ".github/workflows/x.yml" }] },
-  });
-  assert.equal((await go(api, runOf({ output: output({ verdict: "fix" }) }))).escalationReason, "dependency-invalid");
+  for (const file of [{ filename: ".github/workflows/x.yml" }, { filename: "x.yml", previous_filename: ".github/x.yml" }]) {
+    const api = fakeApi({ head: FIX, compare: landed({ files: [file] }) });
+    assert.equal((await go(api, fix())).escalationReason, "dependency-invalid", JSON.stringify(file));
+  }
 });
 
 test("a merge verdict on an unreadable Dependabot config escalates and posts no merge marker", async () => {

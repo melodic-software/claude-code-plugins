@@ -23,13 +23,15 @@ function pr(number, overrides = {}) {
 }
 
 const DEPENDABOT_COMMIT_AUTHOR = { name: "dependabot[bot]", email: "49699333+dependabot[bot]@users.noreply.github.com" };
+// GitHub verified and committed it, as it does Dependabot's commits.
+const SIGNED = { committer: { email: "noreply@github.com" }, verification: { verified: true, reason: "valid" } };
 
 function fakeApi({ nodes = [], checks = new Map(), ci = new Map(), files = new Map(), commits = new Map() } = {}) {
   const calls = { dispatch: [], checks: [] };
   return {
     calls,
     async listPullCommits(number) {
-      return commits.get(number) ?? [{ sha: "d".repeat(40), commit: { message: "bump", author: DEPENDABOT_COMMIT_AUTHOR } }];
+      return commits.get(number) ?? [{ sha: "d".repeat(40), commit: { message: "bump", author: DEPENDABOT_COMMIT_AUTHOR, ...SIGNED } }];
     },
     async getCommit(sha) {
       return { sha, files: [] };
@@ -106,15 +108,16 @@ test("skips a head that already has a review-dependency check run, except an unt
   assert.ok(api.calls.checks.some((call) => call.checkName === CHECK && call.appId === 15368));
 });
 
-test("Dependabot commit metadata that disagrees with the title is review; another author's is not read", async () => {
+test("Dependabot commit metadata that disagrees with the title is review, and so is another author's commit", async () => {
   const message = "bump\n---\nupdated-dependencies:\n- dependency-name: other\n  update-type: version-update:semver-patch\n...\n";
-  const nodes = [pr(30, { title: "bump x from 1.0.0 to 1.0.1" }), pr(31, { title: "bump x from 1.0.0 to 1.0.1" })];
+  const nodes = [pr(30, { title: "bump x from 1.0.0 to 1.0.1" }), pr(31, { title: "bump x from 1.0.0 to 1.0.1" }), pr(32, { title: "bump x from 1.0.0 to 1.0.1" })];
   const commits = new Map([
-    [30, [{ sha: "a".repeat(40), commit: { message, author: DEPENDABOT_COMMIT_AUTHOR } }]],
-    [31, [{ sha: "b".repeat(40), commit: { message, author: { name: "someone", email: "someone@example.test" } } }]],
+    [30, [{ sha: "a".repeat(40), commit: { message, author: DEPENDABOT_COMMIT_AUTHOR, ...SIGNED } }]],
+    [31, [{ sha: "b".repeat(40), commit: { message, author: { name: "someone", email: "someone@example.test" }, ...SIGNED } }]],
+    [32, [{ sha: "e".repeat(40), commit: { message: "bump", author: DEPENDABOT_COMMIT_AUTHOR } }]],
   ]);
-  const { dispatched } = await run(fakeApi({ nodes, commits }));
-  assert.deepEqual(dispatched.map((d) => d.number), [30]);
+  const { dispatched } = await run(fakeApi({ nodes, commits }), { maxDispatch: 3 });
+  assert.deepEqual(dispatched.map((d) => d.number), [30, 31, 32], "an unverified Dependabot author is review too");
 });
 
 test("a patch bump whose files the content rule does not cover is review", async () => {

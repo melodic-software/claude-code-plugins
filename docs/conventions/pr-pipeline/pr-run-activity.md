@@ -597,21 +597,30 @@ the pr-merge lane's `babysit_dependabot.py` and its content step, so the tiers, 
 and the `directories` globs are the ones
 [README, "Dependabot pull requests"](README.md#dependabot-pull-requests) states. They read the
 same inputs: the pull request, its REST commits and files with patches, each non-Dependabot
-commit's files, and the base's `.github/dependabot.yml`. The content step's refusals in the
-pr-merge lane (a commit whose files cannot be read whole, a fix commit touching `.github/`)
-are review reasons here. A base `dependabot.yml` that cannot be read, or holds no entry that
+commit's files, and the base's `.github/dependabot.yml`. The pr-merge lane's commit and content
+refusals are review reasons here, so the AI review owns the pull request: a commit whose
+`verification.verified` is not `true` (`commit-unverified:<sha>`), whose git committer email is
+not `noreply@github.com` (`commit-not-committed-by-github:<sha>`), or that is neither signed
+`dependabot[bot]` nor the `[dependabot skip]` version-bump commit (`commit-not-dependabot:<sha>`,
+`commit-not-version-bump:<sha>`); no commits (`commits-missing`); a commit whose files cannot be
+read whole; a fix commit touching `.github/`. The lanes App admission is left out, so a pull
+request carrying a lanes App fix stays `review`. The `updated-dependencies` metadata is read only
+from commits signed `dependabot[bot]`, and a pull request sorts `auto` only when every commit
+passes those checks. A base `dependabot.yml` that cannot be read, or holds no entry that
 reads, is `dependabot-config-unreadable`, with a warning naming which. A security update is the
 `security` label or an advisory, GHSA or CVE id in the body; it is a flag on either tier.
 
 1. After `resolve-config` and before the mint, the model job runs `review-dependency.mjs select`
    with the job's `GITHUB_TOKEN`. A pull request whose author is not `dependabot[bot]` (by id,
-   from the base's trusted-actors list) or that sorts `auto` skips `not-applicable`.
+   from the base's trusted-actors list) or that sorts `auto` skips `not-applicable`; one whose
+   head is no longer the gated head skips `superseded-sha`.
    `loop.dependency-review-rounds` earlier rounds escalate `dependency-round-cap` and skip
    `awaiting-human`, nothing minted: the larger of the round markers the lanes App posted and
    the PR commits carrying a `github-actions` `pr-unblock / review-dependency` check run that
    ended `success` or `failure`. Otherwise it writes `$RUNNER_TEMP/lane-dependency/dependency.json`:
    the head, title, labels, classification, each changed file with its patch (20,000 characters
-   each, 300,000 in all), and the body as data.
+   each, 300,000 in all), `files_truncated` (the files listing reached its 3,000-file limit),
+   and the body as data.
 2. `collect-base-activity` makes that directory read-only, grants `Read` on it, denies Edit and
    Write there, keeps the commit tool, and passes a `--json-schema` for the verdict:
    `verdict` (`merge`, `fix`, `close`, `escalate`), 1-10 `reasons` of at most 500 characters and
@@ -624,7 +633,7 @@ reads, is `dependabot-config-unreadable`, with a warning naming which. A securit
    discarded with the lane branch.
 4. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
    `github-script` step writes `run.json` (`version`, `pr`, the gated `head_sha`, the select
-   step's `security` and `config_unreadable` flags, and the skill's structured output as `output`, `null` when absent or
+   step's `security`, `config_unreadable` and `files_truncated` flags, and the skill's structured output as `output`, `null` when absent or
    unparsable) and the job uploads it as `dependency-verdict-<run attempt>`. Its
    `dependency-round` output is then `true`, with `dependency-run-sha256` and
    `dependency-run-attempt`.
@@ -637,14 +646,21 @@ reads, is `dependabot-config-unreadable`, with a warning naming which. A securit
      started at the reviewed head (its issue or marker is there), which resumes. `merge`,
      `close` and `escalate` need the reviewed head; a moved head skips `superseded-sha` and the
      next dispatcher run reviews the new one. `fix` needs the PR head ahead of the reviewed head
-     by commits the lanes App authored only, else `dependency-fix-not-landed` (no commit) or
-     `superseded-sha`, and those commits may change nothing under `.github/`, else
-     `dependency-invalid`;
+     (else `dependency-fix-not-landed` when it is that head, `superseded-sha` otherwise). The
+     comparison must be listed whole: `commits` and `files` are lists, fewer than 250 commits
+     and 300 files (the compare listing's limits), and `total_commits` equals the commits listed,
+     else `dependency-invalid`. Every commit must be one GitHub signed for the lanes App during
+     this workflow run, as `check-trusted-trigger` checks a commit after a model job: author id
+     the App's, committer `web-flow`, `verification.verified` `true` with reason `valid`, and a
+     committer date no earlier than the run's `created_at` (read from the Actions runs API; an
+     unreadable run is `dependency-invalid`), else `superseded-sha`. Those commits may change
+     nothing under `.github/`, either side of a rename, else `dependency-invalid`;
    - `merge`: posts the round marker, whose first line
      `<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<run id>-<attempt> -->`
      from the lanes App is the record the pr-merge lane merges a review-tier pull request on,
      at the current head and through its own gate. With `config_unreadable` it posts no merge
-     marker and escalates `dependency-config-unreadable`. This job never merges or enqueues;
+     marker and escalates `dependency-config-unreadable`; with `files_truncated` it posts no
+     merge marker and escalates `dependency-files-truncated`. This job never merges or enqueues;
    - `close`: escalates `dependency-security-close` for a security update (the model job's flag,
      or the label or an advisory in the body read fresh); otherwise finds the lanes App issue whose first line is
      `<!-- pr-unblock:dependency-ignore pr=<n> head=<sha> -->` or files it, proposing the
@@ -654,7 +670,7 @@ reads, is `dependabot-config-unreadable`, with a warning naming which. A securit
    - posts the round marker once per model run, named `none` when the model run uploaded no
      verdict: a re-run that finds its own marker posts none.
 
-   The runner accepts only those five reasons, and only with `dependency-verdict`.
+   The runner accepts only those six reasons, and only with `dependency-verdict`.
 
 ## The report job
 
