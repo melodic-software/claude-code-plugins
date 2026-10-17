@@ -1949,3 +1949,105 @@
 .app .vf-ctx[hidden] { display: none; }
 .app .vf-ctx .vf-i { inline-size: 14px; block-size: 14px; }
 .app .vf-zoomtag { white-space: nowrap; }
+
+/* ======================= polish: orientation, tour, inline composer, phone sheet ======================= */
+/* Triage 20: long words and dictation wrap inside fields instead of widening them. */
+.app .vf-ta { overflow-wrap: anywhere; }
+
+/* Triage 13: the answer box sits under the question and its options, inside the scrolling question. */
+.app .vf-scroll > .vf-composer { border: 0; background: none; padding: 0; margin-block: 16px 24px; }
+.app .vf-scroll > .vf-composer > * { max-inline-size: none; }
+
+/* Triage 3: a guest's first view. */
+.app .vf-orient {
+  position: relative; margin-block-end: 20px; padding: 16px 18px; border-radius: var(--r-lg);
+  border: 1px solid color-mix(in oklch, var(--accent) 45%, var(--line-strong)); background: color-mix(in oklch, var(--accent) 8%, var(--pane));
+}
+.app .vf-orient[hidden] { display: none; }
+.app .vf-orient-h { margin: 0 44px 6px 0; min-block-size: 38px; font-size: 17px; line-height: 1.3; overflow-wrap: anywhere; } /* clears the 44 px close button */
+.app :is(.vf-orient-goal, .vf-orient-ask) { margin: 0 0 6px; overflow-wrap: anywhere; }
+.app .vf-orient-goal { font-weight: 600; }
+.app .vf-orient-row { display: flex; flex-wrap: wrap; gap: 8px; margin-block-start: 12px; }
+.app .vf-orient-row .vf-btn { block-size: 44px; padding-inline: 16px; font-size: 14px; white-space: normal; text-align: center; }
+.app .vf-orient-x { position: absolute; inset-block-start: 6px; inset-inline-end: 6px; inline-size: 44px; block-size: 44px; }
+
+/* ux-review-2 #4: the guest's one control for the views, sort and filters. */
+.app .vf-viewopts { flex: none; }
+.app .vf-viewopts[hidden], .app .vf-seg[hidden] { display: none; }
+.app .vf-chips { flex-wrap: wrap; }
+
+/* Triage 4: the tour. A ring around what each step is about; everything else dims. */
+.app .vf-tour { position: absolute; inset: 0; z-index: 90; }
+.app .vf-tour[hidden] { display: none; }
+.app .vf-tour-ring {
+  position: absolute; border-radius: var(--r-md); pointer-events: none;
+  box-shadow: 0 0 0 3px var(--accent), 0 0 0 100vmax oklch(0 0 none / 0.55);
+}
+.app .vf-tour-card {
+  position: absolute; max-inline-size: calc(100% - 24px); padding: 16px; border-radius: var(--r-lg);
+  background: var(--raise); color: var(--text); border: 1px solid var(--line-strong); box-shadow: var(--shadow-pop);
+}
+.app .vf-tour-n { margin: 0; color: var(--muted); font-size: 13px; }
+.app .vf-tour-h { margin: 2px 0 6px; font-size: 17px; line-height: 1.3; }
+.app .vf-tour-t { margin: 0 0 12px; overflow-wrap: anywhere; }
+.app .vf-tour-row .vf-btn { block-size: 44px; padding-inline: 14px; font-size: 14px; }
+.app .vf-help-tour { justify-self: start; margin-block: 4px 12px; }
+@media (prefers-reduced-motion: no-preference) {
+  .app .vf-tour-ring { transition: inset 200ms var(--ease-out), inline-size 200ms var(--ease-out), block-size 200ms var(--ease-out); }
+}
+
+/* C40: the ten person colors in the person card. */
+.app .vf-pcolors { display: grid; grid-template-columns: repeat(5, 32px); gap: 8px; margin-block: 4px 12px; }
+.app .vf-pcolor { inline-size: 32px; block-size: 32px; padding: 0; border: 0; border-radius: 50%; background: var(--av); cursor: pointer; }
+.app .vf-pcolor[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--pane), 0 0 0 4px var(--text); }
+.app .vf-pcolor:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* Triage 24: new chat messages while scrolled up. */
+.app .vf-mnew {
+  position: absolute; z-index: 2; inset-block-start: 60px; inset-inline-start: 50%; translate: -50% 0; block-size: 36px; padding-inline: 14px; white-space: nowrap;
+  border-radius: 18px; background: var(--accent); color: var(--on-accent); font-weight: 600; font-size: 13px; box-shadow: var(--shadow-pop);
+}
+.app .vf-mnew[hidden] { display: none; }
+
+/* Triage 23: while the on-screen keyboard is up, toasts and the typing line step aside. */
+.app[data-kb] :is(.vf-toast, .vf-mtyping) { display: none; }
+
+.app .vf-optfoot[hidden] { display: none; }
+.app .vf-bar > .vf-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 720px) {
+  .app .vf-splittabs .vf-seg-btn { min-block-size: 44px; }
+  .app .vf-orient { padding: 14px; }
+  .app .vf-orient-h { font-size: 16px; }
+  .app .vf-orient-row .vf-btn { flex: 1 1 auto; }
+}
+.app .vf-sheethead { display: none; }
+.app[data-sheet] .vf-mentions { z-index: 85; }
+.app .vf-bubble { white-space: break-spaces; } /* a space at a line end wraps instead of hanging past the bubble */
+/* A long unbroken word in a report must not widen the reader past the screen. */
+.app .vf-reader { grid-template-columns: minmax(0, 1fr); }
+.app .vf-rd-text { overflow-wrap: anywhere; }
+/* "Write your own instead" and other long option actions wrap inside a narrow card. */
+.app .vf-optacts .vf-btn { white-space: normal; text-align: start; min-width: 0; max-inline-size: 100%; }
+@media (max-width: 720px) {
+  .app .vf-composer .vf-send-i { margin: 0; } /* centered in its round button (triage 19) */
+  .app .vf-scroll > .vf-composer > .vf-crow { inset-inline: 0; inset-block-end: 0; }
+  .app .vf-pcolors { grid-template-columns: repeat(5, 44px); }
+  .app .vf-pcolor { inline-size: 44px; block-size: 44px; }
+  .app .vf-mnew { block-size: 44px; border-radius: 22px; }
+  /* Triage 18: writing on a phone opens a full-height sheet over the visual viewport: Cancel and Save on top. */
+  .app .vf-scroll > .vf-composer.vf-composer-sheet {
+    position: fixed; z-index: 80; inset-inline: 0; inset-block-start: var(--vv-top, 0px); block-size: var(--vv-h, 100dvh);
+    margin: 0; padding: env(safe-area-inset-top) 12px max(12px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 8px;
+    background: var(--bg);
+  }
+  .app .vf-composer-sheet > .vf-sheethead { display: flex; align-items: center; gap: 8px; min-block-size: 56px; margin: 0; }
+  .app .vf-composer-sheet .vf-sheethead .vf-btn { block-size: 44px; padding-inline: 16px; font-size: 15px; }
+  .app .vf-sheettitle { flex: 1; min-width: 0; font-weight: 600; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .app .vf-scroll > .vf-composer-sheet > .vf-ta {
+    flex: 1; min-block-size: 0; block-size: auto !important; /* reason: overrides grow()'s inline height: the sheet sizes the field */
+    margin: 0; border-radius: var(--r-md); padding: 12px 14px; white-space: pre-wrap; font-size: 16px;
+    overflow-y: auto !important; /* reason: grow() hides the scrollbar below its cap; in the sheet the field always scrolls */
+  }
+  .app .vf-scroll > .vf-composer-sheet > .vf-crow { position: static; block-size: auto; margin: 0; pointer-events: auto; }
+  .app .vf-composer-sheet .vf-sendbtn { display: none; }
+}

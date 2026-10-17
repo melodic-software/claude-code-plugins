@@ -19,8 +19,8 @@ and the session-bridge watcher. Python 3 standard library only.
 | `session_bridge.py`, `watch.sh`, `wake.sh` | Generated copies of `lib/session-bridge/` (`scripts/sync-shared-copies.sh`); edit the canonical, never these |
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
-| `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/core.css`, `/app.css`, `/proto.js`). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when `schemaVersion` or the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret` |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/core.css`, `/app.css`, `/proto.js`). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when `schemaVersion` or the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `align.test.sh` (with `align.js`), `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -287,7 +287,22 @@ bash plugins/planning/shared/tests/tracer-live.test.sh [CLOUDFLARED]
 node plugins/planning/shared/tests/ui_journey.js
 node plugins/planning/shared/tests/ui_formats.js
 node plugins/planning/shared/tests/ui_presence.js
+node plugins/planning/shared/tests/ui_layout.js
+node plugins/planning/shared/tests/ui_keyboard.js
+node plugins/planning/shared/tests/ui_inputs.js
+node plugins/planning/shared/tests/ui_chat.js
+bash plugins/planning/shared/tests/align.test.sh
 ```
+
+`ui_layout.js` checks no page scroll at five sizes and 200% zoom in both themes, 44 px phone
+targets, the answer box right under the question, a guest's first view (goal, the host's ask,
+"Start here: question 1"), the ten person colors against WCAG 2.2 AA, and the phone edit sheet.
+`ui_keyboard.js` checks focus traps, Escape, focus return, announcements and the first-visit tour
+(the `tour` pref). `ui_inputs.js` types 2000 characters and pastes a 300-character word into each
+input surface on iPhone and Pixel profiles at keyboard-open heights and on a desktop. `ui_chat.js`
+checks the host's unread badge, a frozen tab catching up, and the new-messages pill.
+`align.test.sh` (about 3 minutes) is the C41 pixel pass over 47 views; `ALIGN_VIEWS` and
+`ALIGN_SIZES` narrow it.
 
 `ui_journey.js` drives the page in Chromium against `ensure-running` on spare ports with the fake
 tunnel: the owner and a guest join, answer, vote, lock, pick, react and send a round; every state

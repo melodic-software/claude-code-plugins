@@ -855,7 +855,9 @@
         "theme": {"$ref": "#/$defs/pref"},
         "accent": {"$ref": "#/$defs/pref"},
         "follow": {"$ref": "#/$defs/pref"},
-        "mute": {"$ref": "#/$defs/pref"}
+        "mute": {"$ref": "#/$defs/pref"},
+        "tour": {"$ref": "#/$defs/pref"},
+        "toolbar": {"$ref": "#/$defs/pref"}
       }
     },
     "notification": {

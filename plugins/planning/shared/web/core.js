@@ -37,7 +37,8 @@
     settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true },
   };
 
-  const PALETTE = ["#f472b6", "#60a5fa", "#34d399", "#fbbf24", "#a78bfa", "#f87171", "#22d3ee", "#fb923c", "#4ade80", "#e879f9"];
+  // C40: a person's color is one of ten ids (Person.color); core.css draws each per theme (--pc-c1..--pc-c10).
+  const COLORS = ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10"];
   const hash = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 
   // ---------- the contract snapshot as the prototype's state ----------
@@ -66,7 +67,7 @@
   function toView(s) {
     const people = {}, nameOf = pid => (pid === "host" && !people.host ? "Host" : people[pid]?.name || "Someone");
     const roles = {};
-    for (const p of [...(s.people || []), ...(s.removed || [])]) { people[p.pid] = { name: p.name, ts: p.joinedAt }; roles[p.pid] = p; }
+    for (const p of [...(s.people || []), ...(s.removed || [])]) { people[p.pid] = { name: p.name, ts: p.joinedAt, color: p.color }; roles[p.pid] = p; }
     const live = (s.people || []);
     const rounds = s.rounds || [], last = rounds[rounds.length - 1];
     const settings = s.settings || {};
@@ -260,13 +261,18 @@
     /** fn() runs just before the page reloads itself for a new version: save unsent text. */
     onReload(fn) { reloadHooks.add(fn); return () => reloadHooks.delete(fn); },
 
-    colorFor: id => PALETTE[hash(id || "") % PALETTE.length],
-    initials: name => (name || "?").trim().split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase(),
+    COLORS,
+    /** The color id a person chose or was given, else one picked from their id. */
+    colorIdOf: id => (COLORS.includes(Core.state.people?.[id]?.color) ? Core.state.people[id].color : COLORS[hash(id || "") % COLORS.length]),
+    colorFor: id => `var(--pc-${Core.colorIdOf(id)})`,
+    /** Up to two initials, letters and digits only: "Kyle (Admin)" is KA. */
+    initials: name => ((name || "").match(/[\p{L}\p{N}]+/gu) || ["?"]).map(w => [...w][0]).join("").slice(0, 2).toUpperCase(),
     el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; },
     /** Round avatar element for a person (cid + name). */
     avatar(personCid, name, size = 28) {
       const a = Core.el("span", "core-avatar", Core.initials(name));
       a.style.setProperty("--av", Core.colorFor(personCid));
+      a.dataset.who = personCid || "";
       a.style.width = a.style.height = size + "px";
       a.style.fontSize = Math.round(size * 0.4) + "px";
       a.title = name;
@@ -327,6 +333,7 @@
     // TODO(Phase 9): the owner's own image reference; until then images come from Claude's add-asset.
     uploadAsset: () => Promise.reject({ error: "uploads-off", message: "Picture references come from Claude for now." }),
     forward: id => act("/api/chat/propose", { id }),
+    setColor: color => act("/api/color", { color }),
     setLeader: (pid, on) => act("/api/person/role", { pid, role: on ? "leader" : "guest" }),
     setTrusted: (pid, on) => act("/api/person/trust", { pid, on }),
     /** Owner: the page's settings names (showNames, hideClaude) become the contract's. */
@@ -525,6 +532,12 @@
   };
   for (const ev of ["keydown", "pointerdown", "touchstart"]) window.addEventListener(ev, input, { capture: true, passive: true });
   document.addEventListener("visibilitychange", beat);
+  // iOS freezes a background tab's timers: catch up at once when the page shows again (triage 24).
+  const catchUp = () => { if (visibleNow()) poll(); };
+  document.addEventListener("visibilitychange", catchUp);
+  window.addEventListener("pageshow", catchUp);
+  document.addEventListener("resume", catchUp); // Page Lifecycle: a frozen tab thawed (Chrome on Android)
+  window.addEventListener("focus", catchUp);
 
   // Name prompt. It stays open until the join succeeds; Escape does not close it.
   function askName(notice = "") {
@@ -532,6 +545,11 @@
     const dlg = Core.el("dialog", "core-name");
     dlg.setAttribute("aria-labelledby", "core-name-h");
     const form = Core.el("form"), h = Core.el("h2", null, "Join the session"); h.id = "core-name-h";
+    // The session's title, so a guest arriving from a bare link knows what they were invited to.
+    const sub = Core.el("p", "core-sub"); sub.id = "core-name-sub";
+    const paintSub = () => { sub.textContent = Core.state.title ? `You are invited to answer a few questions: ${Core.state.title}` : ""; };
+    paintSub();
+    const unsub = Core.subscribe(paintSub);
     const label = Core.el("label", null, "What should everyone call you?"); label.htmlFor = "core-n";
     const input = Core.el("input"); Object.assign(input, { id: "core-n", name: "n", required: true, maxLength: 40, autocomplete: "nickname" });
     input.setAttribute("aria-describedby", "core-n-note core-n-err");
@@ -539,11 +557,19 @@
     note.id = "core-n-note";
     const err = Core.el("p", "core-err", notice); err.id = "core-n-err"; err.setAttribute("role", "alert");
     const go = Core.el("button", null, "Join");
-    form.append(h, label, input, note, err, go); dlg.append(form);
+    form.append(h, sub, label, input, note, err, go); dlg.append(form);
     document.body.append(dlg);
     if (Core.state.joinNeedsKey && !joinKey) err.textContent = "This session needs the host's newest invite link. Ask them for it.";
     dlg.addEventListener("cancel", e => e.preventDefault());
-    const done = () => { dlg.close(); dlg.remove(); beat(); poll(); };
+    // Tab cycles inside the dialog instead of leaving for the browser's own toolbar.
+    dlg.addEventListener("keydown", e => {
+      if (e.key !== "Tab") return;
+      const f = [...dlg.querySelectorAll("input, button")].filter(x => !x.disabled), i = f.indexOf(document.activeElement);
+      if (!f.length) return;
+      e.preventDefault();
+      f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus();
+    });
+    const done = () => { unsub(); dlg.close(); dlg.remove(); beat(); poll(); };
     /** "Were you here before as <name>?" Yes asks the host to merge; either way the person continues now. */
     function askWas(was) {
       form.replaceChildren();

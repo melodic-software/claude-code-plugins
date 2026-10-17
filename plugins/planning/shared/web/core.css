@@ -10,14 +10,25 @@ body { font: 15px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI"
   block-size: 100vh; block-size: var(--vv-h, 100dvh);
 }
 
+/* C40: ten person colors per theme. Each meets WCAG 2.2 AA: initials 4.5:1 on the color, the color 3:1 on the page. */
+#app {
+  --pc-c1: #f472b6; --pc-c2: #60a5fa; --pc-c3: #34d399; --pc-c4: #fbbf24; --pc-c5: #a78bfa;
+  --pc-c6: #f87171; --pc-c7: #22d3ee; --pc-c8: #fb923c; --pc-c9: #a3e635; --pc-c10: #e879f9; --pc-ink: #0b0b0f;
+}
+#app[data-theme="light"] {
+  --pc-c1: #be185d; --pc-c2: #1d4ed8; --pc-c3: #047857; --pc-c4: #b45309; --pc-c5: #6d28d9;
+  --pc-c6: #b91c1c; --pc-c7: #0e7490; --pc-c8: #c2410c; --pc-c9: #4d7c0f; --pc-c10: #a21caf; --pc-ink: #ffffff;
+}
 .core-avatar {
   display: inline-grid; place-items: center; flex: none; border-radius: 50%;
-  background: var(--av); color: #0b0b0f; font-weight: 700; letter-spacing: 0.02em; user-select: none;
+  background: var(--av); color: var(--pc-ink, #0b0b0f); font-weight: 700; letter-spacing: 0.02em; user-select: none;
 }
 
 dialog.core-name { border: 0; border-radius: 16px; padding: 28px; width: min(92vw, 380px); background: #16181f; color: #f4f4f5; box-shadow: 0 30px 80px rgb(0 0 0 / 0.6); }
 dialog.core-name::backdrop { background: rgb(0 0 0 / 0.6); backdrop-filter: blur(6px); }
 dialog.core-name h2 { margin: 0 0 4px; font-size: 20px; }
+dialog.core-name .core-sub { margin: 0 0 14px; color: #d4d4d8; overflow-wrap: anywhere; }
+dialog.core-name .core-sub:empty { display: none; }
 dialog.core-name label { display: block; margin: 0 0 10px; color: #c4c4cc; }
 dialog.core-name .core-note { margin: 12px 0 0; color: #a1a1aa; font-size: 13px; line-height: 1.45; }
 dialog.core-name .core-err { margin: 10px 0 0; color: #fca5a5; font-size: 13.5px; }

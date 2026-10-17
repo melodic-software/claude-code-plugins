@@ -1940,6 +1940,14 @@ class TestSessionControls(SessionCase):
         self.assertNotIn(self.ann, self.s.state["prefs"])
         self.assertNotIn("prefs", json.dumps(self.s.snapshot(self.bo)["people"]))
 
+    def test_tour_and_toolbar_prefs_take_only_their_named_values(self):
+        out = self.act("set_prefs", self.ann, {"set": {"tour": "skipped", "toolbar": "full"}})
+        self.assertEqual(out["prefs"], {"tour": "skipped", "toolbar": "full"})
+        self.act("set_prefs", self.ann, {"set": {"tour": "done", "toolbar": "simple"}})
+        self.assertEqual(self.s.snapshot(self.ann)["me"]["prefs"], {"tour": "done", "toolbar": "simple"})
+        for bad in ({"tour": True}, {"tour": "seen"}, {"toolbar": "compact"}):
+            self.refused("bad-field", "set_prefs", self.ann, {"set": bad})
+
     def test_title_is_1_to_80_and_goal_up_to_200(self):
         self.act("set_title", HOST, {"title": "  Payment step  "})
         self.assertEqual(self.s.state["session"]["title"], "Payment step")

@@ -37,6 +37,8 @@
     const isSentStatus = s => s === "sent" || s === "working";
     /** A round's own status: open, sent, working or closed (an earlier round, still open to late answers). */
     const roundStatus = n => (Core.state.rounds || []).find(r => r.n === n)?.status || (n < curRound().current ? "closed" : curRound().status);
+    /** The confirm question's written answer: named apart from the "Something else…" option of choice questions. */
+    const CONFIRM_OTHER = "Not exactly";
     const PURPOSE = { decide: ["Decide", "Vote, then a moderator locks the answer"], gather: ["Gather", "Every answer stands; react to the ones you like"],
       poll: ["Poll", "Pick one; results show once you pick, and the host closes it"] };
     // ---------- my preferences: the server's copy (state.me.prefs) once I have joined, this browser's copy before ----------
@@ -142,6 +144,7 @@
       image: ["M4.5 4.5h15a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1z", "M3.5 16l5-5 4 4 2.5-2.5 5.5 5.5", "M15.5 9.5h.01"],
       plus: ["M12 5v14M5 12h14"],
       at: ["M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0z", "M16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.6 7.2"],
+      help: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z", "M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8", "M12 17h.01"],
     };
     function icon(name, cls = "vf-i") {
       const s = document.createElementNS(SVG, "svg");
@@ -321,7 +324,7 @@
       if (a.pick === "other") return own[0].toUpperCase() + own.slice(1);
       const opt = a.pick && optionsOf(q).find(o => o.id === a.pick);
       if (opt) return `Picked: ${opt.label}`;
-      return q.format === "confirm" ? "Something else" : "";
+      return q.format === "confirm" ? CONFIRM_OTHER : "";
     }
     const assetUrl = id => "/assets/" + encodeURIComponent(id);
     /** People's answers and Claude's cards; a choice question's options render as their own cards above. */
@@ -331,6 +334,16 @@
     function claudeHidden(qid) {
       const pref = claudePref(), want = pref === "session" ? st().hideClaude !== false : pref === "answerFirst";
       return want && !ui.revealed.has(qid) && !hasAnswered(qid) && !iVoted(qid);
+    }
+    /** ux-review-2 #5: under Answer first, a guest sees no one's picks (counts, Leading, avatars, pick cards) until they
+     *  answered or voted, so the first voter does not steer them. A poll always waits for a pick; the owner, moderators
+     *  and a locked question see everything. */
+    function resultsWait(q) {
+      if (!q || Core.me.isOwner || Core.lockOf(q.id)) return false;
+      if (q.purpose === "poll") return !savedPick(q, myRec(q.id));
+      const pref = claudePref(), want = pref === "session" ? st().hideClaude !== false : pref === "answerFirst";
+      // Picks only: on a written question, voting for someone else's answer is how a guest takes part.
+      return want && isChoice(q) && !Core.canModerate() && !ui.revealed.has(q.id) && !hasAnswered(q.id) && !iVoted(q.id);
     }
     /** Why a Claude card shows while the others wait: chosen already. */
     function claudeChosen(a, qid, lead) {
@@ -436,6 +449,19 @@
       const h = t.scrollHeight + 2;
       t.style.blockSize = Math.min(h, max) + "px";
       t.style.overflowY = h > max ? "auto" : "hidden";
+      // Triage 23: a field growing while I type stays in view, with its form's send button when the form fits.
+      if (document.activeElement === t && !t.closest(".vf-composer-sheet")) reveal(t.closest("form") || t, t);
+    }
+    /** Scroll the nearest scrolling ancestor (never #app or the page) so el is in view; if el does not fit, keep must in view. */
+    function reveal(el, must = el) {
+      let sc = must.parentElement;
+      while (sc && sc !== root && !(/auto|scroll/.test(getComputedStyle(sc).overflowY) && sc.scrollHeight > sc.clientHeight)) sc = sc.parentElement;
+      if (!sc || sc === root) return;
+      const S = sc.getBoundingClientRect(), vvBottom = window.visualViewport ? visualViewport.offsetTop + visualViewport.height : innerHeight;
+      const bottom = Math.min(S.bottom, vvBottom), fits = el.getBoundingClientRect().height <= bottom - S.top;
+      const r = (fits ? el : must).getBoundingClientRect();
+      if (r.bottom > bottom) sc.scrollTop += r.bottom - bottom + 4;
+      else if (r.top < S.top) sc.scrollTop -= S.top - r.top + 4;
     }
 
     // ---------- toast ----------
@@ -458,7 +484,7 @@
       toastT = setTimeout(hideToast, action ? 9000 : 3200);
     }
     /** Centred on the centre pane (the part the chat leaves uncovered; the whole page when the pane is hidden),
-     *  12px above whatever is docked at the bottom under it: composer, tab bar, chat button or panel. */
+     *  12px above whatever is docked at the bottom under it: tab bar, chat button, panel or the phone edit sheet. */
     function placeToast() {
       const R = root.getBoundingClientRect(), C = center.getBoundingClientRect(), side = !chat.hidden ? chat : askPanel.isConnected && !askPanel.hidden && !drawerSheet.matches ? askPanel : null, ch = side ? side.getBoundingClientRect() : null;
       let L = C.width ? C.left : R.left, Rt = C.width ? C.right : R.right;
@@ -472,7 +498,7 @@
       if (ch && ch.left > L + 200 && ch.left < (L + Rt) / 2 + w / 2) { Rt = ch.left - 8; w = fit(); }
       const l = (L + Rt) / 2 - w / 2, r = l + w;
       let bottom = R.bottom - 16;
-      for (const el of root.querySelectorAll(".vf-composer, .vf-tabs, .vf-fab, .vf-chat, .vf-panel, .vf-drawer")) {
+      for (const el of root.querySelectorAll(".vf-tabs, .vf-fab, .vf-chat, .vf-panel, .vf-drawer, .vf-composer-sheet")) {
         const b = el.getBoundingClientRect();
         if (!b.height || el.closest("[hidden]") || getComputedStyle(el).visibility === "hidden" || b.right <= l || b.left >= r || b.bottom < R.bottom - 160) continue;
         bottom = Math.min(bottom, b.top - 12);
@@ -519,7 +545,7 @@
     const follow = btn("vf-follow"); follow.setAttribute("aria-pressed", "false");
     const followTxt = E("span", "vf-follow-txt");
     follow.append(E("span", "vf-switch"), followTxt);
-    const keysBtn = ibtn("vf-tbtn vf-icon-btn vf-keysbtn", "keys", "Keyboard shortcuts (?)"); keysBtn.setAttribute("aria-haspopup", "dialog");
+    const keysBtn = ibtn("vf-tbtn vf-icon-btn vf-keysbtn", "help", "Help: the tour and keyboard shortcuts (?)"); keysBtn.setAttribute("aria-haspopup", "dialog");
     const gear = ibtn("vf-tbtn vf-icon-btn vf-gear", "gear", "Session settings"); gear.setAttribute("aria-haspopup", "dialog");
     // Ask Claude: the session panel; the 💬 bubble is people chat only.
     const askTop = lbtn("vf-tbtn vf-asktop", "sparkle", "Ask Claude"); askTop.setAttribute("aria-haspopup", "dialog"); askTop.setAttribute("aria-expanded", "false");
@@ -669,7 +695,10 @@
     const expandBtn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-expand");
     toolbar.append(sortSel.w, chips, roundSel.w, expandBtn);
     /** Does a question pass the toolbar's filter and round? */
+    /** A guest's simple view: no view switch, sort or filters, so every question shows in round order. */
+    const simpleView = () => !Core.canModerate() && pref("toolbar", "simple") !== "full";
     function passes(q) {
+      if (simpleView()) return true;
       const t = tb();
       if (t.round !== "all" && String(roundOf(q)) !== t.round) return false;
       const lk = Core.lockOf(q.id);
@@ -686,7 +715,7 @@
     /** Questions in round order, filtered, and sorted inside each round as the toolbar says. */
     function shownQuestions() {
       const t = tb(), qs = Core.state.questions.filter(passes), pos = new Map(Core.state.questions.map((q, i) => [q.id, i]));
-      const key = q => t.sort === "votes" ? -totalVotes(q.id) : t.sort === "unanswered" ? +hasAnswered(q.id) : 0;
+      const key = q => simpleView() ? 0 : t.sort === "votes" ? -totalVotes(q.id) : t.sort === "unanswered" ? +hasAnswered(q.id) : 0;
       return qs.sort((a, b) => roundOf(a) - roundOf(b) || key(a) - key(b) || pos.get(a.id) - pos.get(b.id));
     }
     const barInfo = E("span", "vf-meta");
@@ -695,7 +724,15 @@
     const nextQ = ibtn("vf-tbtn vf-icon-btn", "chevR", "Next question");
     barNav.append(prevQ, nextQ);
     const pick = E("div", "vf-pick"); pick.setAttribute("role", "group"); pick.setAttribute("aria-label", "Round to compare");
-    bar.append(seg, barInfo, pick, barNav);
+    // ux-review-2 #4: a guest starts with one question at a time; views, sort and filters wait behind View options.
+    const viewOpts = btn("vf-btn vf-btn-ghost vf-btn-sm vf-viewopts"); viewOpts.setAttribute("aria-expanded", "false");
+    viewOpts.onclick = () => {
+      const full = pref("toolbar", "simple") !== "full";
+      setPrefs({ toolbar: full ? "full" : "simple" });
+      if (!full) setMode("focus");
+      render();
+    };
+    bar.append(seg, viewOpts, barInfo, pick, barNav);
 
     // Focus view
     const focusV = E("div", "vf-focus");
@@ -718,6 +755,16 @@
     const onIt = E("div", "vf-onit");
     const onItAv = E("span", "vf-avrow"), onItTxt = E("span"), onItDots = dots();
     onIt.append(onItAv, onItTxt, onItDots);
+    // Triage 3: a guest's first view says why they are here, what the host asks, and where to start.
+    const orient = E("section", "vf-orient"); orient.setAttribute("aria-labelledby", "vf-orient-h");
+    const orH = E("h2", "vf-orient-h"); orH.id = "vf-orient-h";
+    const orGoal = E("p", "vf-orient-goal"), orAsk = E("p", "vf-orient-ask");
+    const orRow = E("div", "vf-orient-row");
+    const orStart = btn("vf-btn vf-btn-primary vf-orient-start"), orTour = btn("vf-btn vf-btn-ghost vf-orient-tour", "Show me around");
+    orRow.append(orStart, orTour);
+    const orHide = ibtn("vf-tbtn vf-icon-btn vf-orient-x", "x", "Hide this introduction");
+    orient.append(orHide, orH, orGoal, orAsk, orRow);
+    orHide.onclick = () => { ui.orientHidden = true; render(); qText.focus({ preventScroll: true }); };
 
     // Research and ask requests
     const tools = E("div", "vf-qtools");
@@ -813,7 +860,7 @@
     confirmImg.onload = () => { if (confirmImg.naturalWidth && confirmImg.naturalHeight) confirmView.style.setProperty("--ar", String(confirmImg.naturalWidth / confirmImg.naturalHeight)); };
     const cfRow = E("div", "vf-confirm-row"); cfRow.setAttribute("role", "group"); cfRow.setAttribute("aria-label", "Your answer");
     const yesBtn = btn("vf-pickbtn"), noBtn = btn("vf-pickbtn"), elseBtn = btn("vf-pickbtn");
-    for (const [b, label] of [[yesBtn, "Yes"], [noBtn, "No"], [elseBtn, "Something else"]]) b.append(E("span", "vf-pick-l", label), E("span", "vf-pick-n"));
+    for (const [b, label] of [[yesBtn, "Yes"], [noBtn, "No"], [elseBtn, CONFIRM_OTHER]]) b.append(E("span", "vf-pick-l", label), E("span", "vf-pick-n"));
     const cfUndo = btn("vf-btn vf-btn-ghost vf-btn-sm vf-optundo", "Undo");
     cfRow.append(yesBtn, noBtn, elseBtn, cfUndo);
     const fmtNote = E("p", "vf-fmt-note");
@@ -870,8 +917,6 @@
     const qPrev = ibtn("vf-tbtn vf-icon-btn vf-qnav-btn", "chevL", "Previous question"), qNext = ibtn("vf-tbtn vf-icon-btn vf-qnav-btn", "chevR", "Next question");
     qNav.append(qPrev, qNext);
     qMeta.append(qNav);
-    scroll.append(qMeta, qText, refBox, reviewRow, onIt, fmtBox, splitTabs, split);
-
     const composer = E("form", "vf-composer");
     const ta = E("textarea", "vf-ta"); ta.rows = 3; ta.setAttribute("aria-label", "Your answer"); ta.maxLength = 2000; ta.id = "vf-answer";
     const cRow = E("div", "vf-crow");
@@ -890,11 +935,24 @@
     const citeChips = E("ul", "vf-citechips"); citeChips.setAttribute("aria-label", "Cited results");
     const upStrip = E("ul", "vf-upstrip"); upStrip.setAttribute("aria-label", "Your files on this question");
     cRow.append(attachBtn, citeBtn, cHint, clearBtn, sendBtn);
-    composer.append(upStrip, citeChips, ta, cRow);
+    // The phone sheet's head (triage 18): Cancel, what is being answered, Save. Hidden outside the sheet.
+    const sheetHead = E("div", "vf-sheethead");
+    const sheetCancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel"), sheetTitle = E("span", "vf-sheettitle");
+    const sheetSave = E("button", "vf-btn vf-btn-primary vf-btn-sm vf-sheetsave", "Save"); sheetSave.type = "submit";
+    sheetHead.append(sheetCancel, sheetTitle, sheetSave);
+    composer.append(sheetHead, upStrip, citeChips, ta, cRow);
+    function closeSheet() {
+      if (!composer.classList.contains("vf-composer-sheet")) return;
+      composer.classList.remove("vf-composer-sheet"); delete root.dataset.sheet;
+      ui.sheetFrom = null;
+      grow(ta);
+    }
     const citePop = E("div", "vf-pop vf-citepop"); citePop.setAttribute("role", "dialog"); citePop.setAttribute("aria-label", "Cite a result"); citePop.hidden = true;
     const citeList = E("ul", "vf-citelist"); citeList.setAttribute("role", "list");
     citePop.append(E("h2", "vf-pop-title", "Cite a result"), E("p", "vf-pop-note", "Your answer links to it, and the result shows who cited it."), citeList);
-    focusV.append(scroll, composer);
+    // Triage 13: the answer box sits right under the question and its options, never at the pane's foot.
+    scroll.append(orient, qMeta, qText, refBox, reviewRow, onIt, fmtBox, composer, splitTabs, split);
+    focusV.append(scroll);
 
     // Compare view
     const cmp = E("div", "vf-cmp");
@@ -1012,6 +1070,10 @@
     const mList = E("ul", "vf-mlist"); mList.setAttribute("role", "log");
     const mEmpty = E("p", "vf-empty vf-empty-sm", "No messages yet. Say hi, or float an idea.");
     mScroll.append(mList, mEmpty);
+    // Triage 24: scrolled up when messages arrive, the chat says how many are new instead of jumping.
+    const mNew = btn("vf-mnew"); mNew.hidden = true;
+    mNew.onclick = () => { mScroll.scrollTo({ top: mScroll.scrollHeight, behavior: smooth() }); mNew.hidden = true; ui.mNewFrom = null; };
+    on(mScroll, "scroll", () => { if (mScroll.scrollHeight - mScroll.scrollTop - mScroll.clientHeight < 40) { mNew.hidden = true; ui.mNewFrom = null; } });
     const mTyping = E("div", "vf-mtyping"); const mTypingTxt = E("span");
     mTyping.append(dots(), mTypingTxt);
     const mForm = E("form", "vf-mform");
@@ -1023,7 +1085,7 @@
     const mReply = E("div", "vf-mreply"); mReply.hidden = true;
     const mReplyTxt = E("span", "vf-mreply-txt"), mReplyX = ibtn("vf-tbtn vf-icon-btn vf-mreply-x", "x", "Cancel the reply");
     mReply.append(icon("reply"), mReplyTxt, mReplyX);
-    chat.append(chatHead, mScroll, mTyping, mCount, mReply, mForm);
+    chat.append(chatHead, mScroll, mNew, mTyping, mCount, mReply, mForm);
     // @mention suggestions: one list, under (or over) whichever field is being typed in.
     const mentionBox = E("ul", "vf-pop vf-mentions"); mentionBox.setAttribute("role", "listbox"); mentionBox.id = "vf-mentions"; mentionBox.hidden = true;
     mentionBox.setAttribute("aria-label", "People to mention");
@@ -1086,14 +1148,16 @@
     sharePop.append(E("h2", "vf-pop-title", "Invite people"), shareNew, shareField, shareRow,
       E("p", "vf-pop-note", "Anyone with this link can join. The link changes if the tunnel restarts."));
 
-    const keysPop = E("div", "vf-pop vf-keys"); keysPop.setAttribute("role", "dialog"); keysPop.setAttribute("aria-label", "Keyboard shortcuts"); keysPop.hidden = true;
-    keysPop.tabIndex = -1; // nothing inside is focusable, so the dialog itself takes focus
+    const keysPop = E("div", "vf-pop vf-keys"); keysPop.setAttribute("role", "dialog"); keysPop.setAttribute("aria-label", "Help"); keysPop.hidden = true;
+    keysPop.tabIndex = -1;
     const keyList = E("dl", "vf-keylist");
-    for (const [k, d] of [["← →", "Previous or next question"], ["↑ ↓", "Move between answers"], ["V", "Vote for the selected answer"], ["Enter", "Write your answer"], ["?", "Show these shortcuts"], ["Esc", "Close a panel or the reader"]]) {
+    for (const [k, d] of [["← →", "Previous or next question"], ["↑ ↓", "Move between answers"], ["V", "Vote for the selected answer"], ["Enter", "Write your answer"], ["?", "Show this help"], ["Esc", "Close a panel or the reader"]]) {
       const dt = E("dt"); for (const part of k.split(" ")) dt.append(E("kbd", null, part));
       keyList.append(dt, E("dd", null, d));
     }
-    keysPop.append(E("h2", "vf-pop-title", "Keyboard shortcuts"), keyList, E("p", "vf-pop-note", "They work when you are not typing in a field."));
+    const helpTour = btn("vf-btn vf-btn-primary vf-btn-sm vf-help-tour", "Show me around");
+    keysPop.append(E("h2", "vf-pop-title", "Help"), E("p", "vf-pop-note", "A one-minute tour of the questions, your answer, other people's answers and the chat."), helpTour,
+      E("h3", "vf-pop-sub", "Keyboard shortcuts"), keyList, E("p", "vf-pop-note", "They work when you are not typing in a field."));
 
     // Reader: one text at full width.
     const reader = E("div", "vf-reader"); reader.setAttribute("role", "dialog"); reader.setAttribute("aria-modal", "true"); reader.hidden = true;
@@ -1178,7 +1242,92 @@
     const msItem = (ico, label) => { const b = btn("vf-msitem"); const t = E("span", "vf-ms-l", label), d = E("span", "vf-ms-d"); b.append(icon(ico), t, d); b._d = d; b._l = t; msList.append(b); return b; };
     const msAsk = msItem("sparkle", "Ask Claude"), msBell = msItem("bell", "Notifications"), msTheme = msItem("system", "Theme");
     const msFollow = msItem("forward", "Follow host"), msShare = msItem("link", "Share"), msSettings = msItem("gear", "Settings"), msHost = msItem("host", "Host view");
+    const msTour = msItem("help", "Show me around"); msTour._d.textContent = "A one-minute tour";
     moreSheet.append(msHead, msList);
+
+    // ---------- Triage 4: an optional first-visit tour, skippable, re-opened from Help; the `tour` pref remembers it ----------
+    const tour = E("div", "vf-tour"); tour.hidden = true;
+    const tourRing = E("div", "vf-tour-ring"); tourRing.setAttribute("aria-hidden", "true");
+    const tourCard = E("div", "vf-tour-card"); tourCard.setAttribute("role", "dialog"); tourCard.setAttribute("aria-modal", "true");
+    tourCard.setAttribute("aria-labelledby", "vf-tour-h"); tourCard.setAttribute("aria-describedby", "vf-tour-t");
+    const tourN = E("p", "vf-tour-n"), tourH = E("h2", "vf-tour-h"), tourT = E("p", "vf-tour-t");
+    tourH.id = "vf-tour-h"; tourT.id = "vf-tour-t";
+    const tourRow = E("div", "vf-crow vf-tour-row");
+    const tourSkip = btn("vf-btn vf-btn-ghost vf-btn-sm", "Skip tour"), tourBack = btn("vf-btn vf-btn-ghost vf-btn-sm", "Back"), tourNext = btn("vf-btn vf-btn-primary vf-btn-sm");
+    tourRow.append(tourSkip, E("span", "vf-spacer"), tourBack, tourNext);
+    tourCard.append(tourN, tourH, tourT, tourRow);
+    tour.append(tourRing, tourCard);
+    const shown = el => !!el && el.isConnected && !el.closest("[hidden]") && el.getClientRects().length > 0;
+    const TOUR = [
+      { h: "The questions", t: "Every question in this round is listed here. A tick marks each one you answered.",
+        at: () => (phone.matches ? tabBtns.questions : rail) },
+      { h: "Answer here", t: "Read the question, then pick an option. Where a question has no options, type your answer instead.",
+        at: () => (fmtBox.hidden ? qText : fmtBox) },
+      { h: "Your answer box", t: "Type your answer, or a comment on your pick, right under the question, then send it. You can change it until the host locks the question.",
+        at: () => composer },
+      { h: "Everyone's answers", t: "Once you have answered, other people's answers show here, and you can vote for the ones you agree with.",
+        at: () => (shown(splitTabs) ? splitTabs : split) },
+      { h: "Chat with people", t: "The chat is for talking with the others here. It is not sent to Claude and does not count as an answer.",
+        at: () => fab },
+      { h: "Help is here", t: "Open Help to take this tour again or see the keyboard shortcuts.",
+        at: () => (phone.matches ? tabBtns.more : keysBtn) },
+    ];
+    const TT = { i: 0, from: null, steps: [] };
+    function startTour(from) {
+      closePop(); hideCard(); if (ui.chatOpen) setChat(false);
+      setMode("focus"); if (phone.matches) setTab("answer");
+      TT.from = from || null;
+      TT.steps = TOUR.filter(s => shown(s.at()));
+      if (!TT.steps.length) return;
+      TT.i = 0; tour.hidden = false; root.dataset.tour = "";
+      for (const el of [top, body, tabs, fab, chat]) el.inert = true;
+      paintTour();
+    }
+    function endTour(how) {
+      if (tour.hidden) return;
+      tour.hidden = true; delete root.dataset.tour;
+      for (const el of [top, body, tabs, fab, chat]) el.inert = false;
+      syncModal();
+      setPrefs({ tour: how });
+      const back = TT.from && shown(TT.from) ? TT.from : qText;
+      back.focus({ preventScroll: true });
+      announce(how === "done" ? "Tour finished. Help has it again any time." : "Tour skipped. Help has it any time.");
+      render();
+    }
+    function paintTour() {
+      const s = TT.steps[TT.i], el = s.at(), last = TT.i === TT.steps.length - 1;
+      tourN.textContent = `${TT.i + 1} of ${TT.steps.length}`;
+      tourH.textContent = s.h; tourT.textContent = s.t;
+      tourBack.hidden = TT.i === 0;
+      tourNext.textContent = last ? "Done" : "Next";
+      el.scrollIntoView({ block: "nearest", behavior: "auto" });
+      const R = root.getBoundingClientRect(), r = el.getBoundingClientRect();
+      const box = { l: Math.max(R.left + 4, r.left - 4), t: Math.max(R.top + 4, r.top - 4), r: Math.min(R.right - 4, r.right + 4), b: Math.min(R.bottom - 4, r.bottom + 4) };
+      Object.assign(tourRing.style, { insetInlineStart: box.l - R.left + "px", insetBlockStart: box.t - R.top + "px", inlineSize: box.r - box.l + "px", blockSize: box.b - box.t + "px" });
+      // The card sits below the target when it fits there, else above it, else over the bottom of the page.
+      const cs = tourCard.style; cs.insetBlockStart = cs.insetBlockEnd = cs.insetInlineStart = "";
+      const w = Math.min(360, R.width - 24), h = tourCard.offsetHeight || 180;
+      cs.inlineSize = w + "px";
+      cs.insetInlineStart = Math.min(Math.max(12, (box.l + box.r) / 2 - R.left - w / 2), R.width - w - 12) + "px";
+      if (box.b + 12 + h <= R.bottom - 12) cs.insetBlockStart = box.b - R.top + 12 + "px";
+      else if (box.t - 12 - h >= R.top + 12) cs.insetBlockStart = box.t - R.top - 12 - h + "px";
+      else cs.insetBlockEnd = "12px";
+      tourNext.focus({ preventScroll: true });
+    }
+    tourNext.onclick = () => { if (TT.i >= TT.steps.length - 1) return endTour("done"); TT.i++; paintTour(); };
+    tourBack.onclick = () => { if (TT.i > 0) { TT.i--; paintTour(); } };
+    tourSkip.onclick = () => endTour("skipped");
+    on(tourCard, "keydown", e => {
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); endTour("skipped"); return; }
+      if (e.key !== "Tab") return;
+      const f = [tourSkip, tourBack, tourNext].filter(b => !b.hidden), i = f.indexOf(document.activeElement);
+      e.preventDefault(); e.stopPropagation();
+      f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus();
+    });
+    // A click outside the card does nothing: the tour ends only by Skip, Done or Escape.
+    on(tour, "pointerdown", e => { if (!tourCard.contains(e.target)) e.preventDefault(); });
+    const tourMove = () => { if (!tour.hidden) paintTour(); };
+    on(window, "resize", tourMove);
 
     // Ask Claude: right drawer on desktop, bottom sheet on phones.
     const askPanel = E("div", "vf-pop vf-drawer"); askPanel.setAttribute("role", "dialog"); askPanel.setAttribute("aria-label", "Ask Claude"); askPanel.hidden = true;
@@ -1223,7 +1372,7 @@
     devicePop.append(E("h2", "vf-pop-title", "Use on another device"), E("p", "vf-pop-note", "Scan this on your phone, or open the link in another browser. You stay the same person there, with your answers and votes."), qrBox, devField, devRow, devWarn);
 
     root.append(top, body, tabs, fab, chat, pcard, settingsPop, sharePop, keysPop, PP.pop, RQ.pop, confirmPop, tiePop, proposePop, askMenu, citePop, msgMenu, askPanel, devicePop,
-      bellPop, moreSheet, mentionBox, reader, lb, toast, srLive);
+      bellPop, moreSheet, mentionBox, reader, lb, toast, srLive, tour);
 
     // ---------- actions ----------
     function applyTheme() {
@@ -1254,6 +1403,7 @@
     function select(qid, { manual = false } = {}) {
       if (manual && following() && Core.owner() && Core.owner().q !== qid) { setFollow(false); flash(`Stopped following ${disp(Core.owner().name)}.`); }
       if (qid === ui.cur) return;
+      closeSheet();
       if (ui.cur) { ui.drafts[ui.cur] = ta.value; markSeen(ui.cur); }
       ui.cur = qid;
       ui.seenAt = ui.seen[qid] ?? null;
@@ -1294,6 +1444,8 @@
         if (fields && (q.format === "choice" || isFormat(q) || q.purpose === "poll")) await Core.pickWith(qid, fields, { comment: text });
         else await Core.answerCiting(qid, text, ui.cites[qid] || [], extra);
         delete ui.drafts[qid]; delete ui.attDraft[qid]; ui.dirty = false; ta.value = Core.myAnswer(qid); grow(ta);
+        closeSheet();
+        announce(fields && (q.format === "choice" || isFormat(q) || q.purpose === "poll") ? "Your comment is saved." : "Your answer is saved.");
         if (phone.matches) ta.blur(); // the one-line composer folds back once sent
       }
       catch (e) {
@@ -1304,7 +1456,11 @@
     }
     function revealCol(qid) {
       const col = board._map?.get(qid);
-      if (col) board.scrollTo({ left: col.offsetLeft - 12, behavior: smooth() });
+      if (!col) return;
+      // ux-review-2 #15: the first columns stay at the start when the current one fits; otherwise a slice of the
+      // previous column stays in view, so it is plain that more columns are to the left.
+      const fits = col.offsetLeft + col.offsetWidth <= board.clientWidth - 12;
+      board.scrollTo({ left: fits ? 0 : Math.max(0, col.offsetLeft - 64), behavior: smooth() });
     }
     function edges() {
       const max = board.scrollWidth - board.clientWidth;
@@ -1328,7 +1484,7 @@
     }
     function openPop(pop, anchor) {
       closePop(); hideCard();
-      ui.pop = pop; pop.hidden = false;
+      ui.pop = pop; pop.hidden = false; pop._return = null;
       placeNear(pop, anchor);
       anchor.setAttribute("aria-expanded", "true"); pop._anchor = anchor;
       render();
@@ -1733,7 +1889,7 @@
       bellBtn.setAttribute("aria-label", unread ? `Notifications, ${unread} unread` : "Notifications");
       bellBtn.title = bellBtn.getAttribute("aria-label");
       bellBtn.hidden = !S.me;
-      tabBtns.more._badge.textContent = unread ? String(unread > 9 ? "9+" : unread) : "";
+      tabBtns.more._badge.textContent = ""; // ux-review-2 #8: a notification is badged once, on the bell
       msBell._d.textContent = unread ? `${unread} unread` : "All read";
       if (ui.pop !== bellPop) return;
       bpAll.hidden = !unread;
@@ -1768,6 +1924,20 @@
     msClose.onclick = () => { closePop(); tabBtns.more.focus(); };
     msAsk.onclick = () => { closePop(); openAskPanel(); };
     msBell.onclick = () => { closePop(); openBell(tabBtns.more); };
+    msTour.onclick = () => startTour(tabBtns.more);
+    helpTour.onclick = () => startTour(keysBtn.offsetParent ? keysBtn : null);
+    orTour.onclick = () => startTour(orTour);
+    orStart.onclick = () => {
+      const id = orStart._q; ui.orientHidden = true;
+      if (id) focusQuestion(id); else render();
+      requestAnimationFrame(() => {
+        const q = qById(ui.cur), sel = { choice: ".vf-optchoose:not(:disabled)", confirm: ".vf-pickbtn:not(:disabled)", multi: ".vf-check-box:not(:disabled)",
+          scale: ".vf-scale-btn[tabindex='0']", rank: "button:not(:disabled)" }[q?.format];
+        const first = (sel && fmtBox.querySelector(sel)) || (ta.disabled ? qText : ta);
+        first.scrollIntoView({ block: "center", behavior: smooth() });
+        first.focus({ preventScroll: true });
+      });
+    };
     msTheme.onclick = cycleTheme;
     msFollow.onclick = () => setFollow(!following());
     msShare.onclick = () => { closePop(); openPop(sharePop, tabBtns.more); };
@@ -1834,6 +2004,11 @@
       const R = root.getBoundingClientRect(), r = f.getBoundingClientRect(), ps = mentionBox.style;
       ps.inlineSize = Math.min(300, Math.max(220, r.width)) + "px";
       ps.insetInlineStart = Math.max(8, Math.min(r.left - R.left, R.width - mentionBox.offsetWidth - 8)) + "px";
+      // a field with no room above or below it (the phone's full-height answer sheet): over the field's lower half
+      if (r.top - R.top - 14 < 88 && R.bottom - r.bottom - 14 < 88) {
+        ps.insetBlockStart = ""; ps.insetBlockEnd = R.bottom - r.bottom + 8 + "px"; ps.maxBlockSize = Math.max(88, r.height / 2) + "px";
+        return;
+      }
       const above = r.top - R.top > R.height / 2;
       ps.maxBlockSize = Math.max(88, above ? r.top - R.top - 14 : R.bottom - r.bottom - 14) + "px";
       ps.insetBlockStart = above ? "" : r.bottom - R.top + 6 + "px";
@@ -2506,8 +2681,49 @@
     on(titleInput, "blur", () => endTitleEdit(true));
     composer.onsubmit = e => { e.preventDefault(); submit(); };
     clearBtn.onclick = () => { ta.value = ""; ui.dirty = true; ui.drafts[ui.cur] = ""; Core.setTyping(); grow(ta); render(); ta.focus(); };
-    on(ta, "input", () => { ui.dirty = true; ui.drafts[ui.cur] = ta.value; Core.setTyping(); renderComposer(); });
+    on(ta, "input", () => {
+      ui.dirty = true; ui.drafts[ui.cur] = ta.value; Core.setTyping(); renderComposer();
+      // in the phone sheet, writing at the end keeps the last line (the caret) in view
+      if (composer.classList.contains("vf-composer-sheet") && ta.selectionEnd === ta.value.length) ta.scrollTop = ta.scrollHeight;
+    });
     on(ta, "keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); } });
+    // Triage 18: on a phone, writing opens the answer as a full-height sheet: the text pre-filled, Cancel and Save on
+    // top, and the field filling the visual viewport, so the keyboard never covers it.
+    on(ta, "focus", () => {
+      if (!phone.matches || ta.disabled || composer.classList.contains("vf-composer-sheet")) return;
+      ui.sheetFrom = ta.value;
+      sheetTitle.textContent = Core.myAnswer(ui.cur) ? "Edit your answer" : qById(ui.cur)?.text || "Your answer";
+      composer.classList.add("vf-composer-sheet"); root.dataset.sheet = "";
+      renderComposer();
+      requestAnimationFrame(() => ta.setSelectionRange(ta.value.length, ta.value.length));
+    });
+    // Triage 21: on a touch screen a sideways swipe in Focus moves to the previous or next question; not from inside
+    // a field, the ranking (it drags) or anything that scrolls sideways.
+    const SW = { x: 0, y: 0, t: 0, ok: false };
+    on(scroll, "touchstart", e => {
+      const t = e.touches[0], el = e.target;
+      SW.ok = e.touches.length === 1 && !el.closest("input, textarea, select, .vf-rank, .vf-reflist, .vf-scale-row, [data-noswipe]");
+      for (let p = el; SW.ok && p && p !== scroll; p = p.parentElement) if (p.scrollWidth > p.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(p).overflowX)) SW.ok = false;
+      Object.assign(SW, { x: t.clientX, y: t.clientY, t: Date.now() });
+    }, { passive: true });
+    on(scroll, "touchend", e => {
+      if (!SW.ok || ui.mode !== "focus") return;
+      const t = e.changedTouches[0], dx = t.clientX - SW.x, dy = t.clientY - SW.y;
+      if (Math.abs(dx) > 70 && Math.abs(dx) > 2 * Math.abs(dy) && Date.now() - SW.t < 700) step(dx < 0 ? 1 : -1);
+    }, { passive: true });
+    sheetCancel.onclick = () => {
+      ta.value = ui.sheetFrom ?? ta.value; ui.drafts[ui.cur] = ta.value; ui.dirty = ta.value !== Core.myAnswer(ui.cur);
+      closeSheet(); ta.blur(); render();
+    };
+    on(composer, "keydown", e => {
+      if (!composer.classList.contains("vf-composer-sheet")) return;
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); sheetCancel.click(); return; }
+      if (e.key !== "Tab") return;
+      const f = [...composer.querySelectorAll("button, textarea")].filter(x => !x.disabled && x.offsetParent), i = f.indexOf(document.activeElement);
+      if (!f.length) return;
+      e.preventDefault(); e.stopPropagation();
+      f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus();
+    });
     on(root, "input", e => { if (e.target.matches?.("textarea.vf-ta")) grow(e.target); });
     lockBtn.onclick = () => {
       if (lockBtn.getAttribute("aria-disabled") === "true") return flash(lockBtn.title);
@@ -2673,13 +2889,14 @@
       if (S.trusted.includes(pid)) return "Trusted";
       return "Guest";
     }
+    const COLOR_NAMES = ["Pink", "Blue", "Green", "Amber", "Violet", "Red", "Cyan", "Orange", "Lime", "Magenta"];
     const nameOf = (pid, fallback = "") => Core.state.people?.[pid]?.name || Core.state.presence.find(p => p.cid === pid)?.name || fallback || "Someone";
     function fillPcard() {
       const c = ui.pcard; if (!c) return;
       const S = Core.state, pid = c.pid, name = nameOf(pid, c.name), here = S.presence.find(p => p.cid === pid);
       const role = roleOf(pid), joined = S.people?.[pid]?.ts, me = isMe(pid), owner = Core.me.isOwner;
       const q = here?.q && qById(here.q);
-      const sig = JSON.stringify([pid, name, role, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude], owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
+      const sig = JSON.stringify([pid, name, role, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude], Core.colorIdOf(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
       if (c.sig === sig) return;
       const refocus = pcard.contains(document.activeElement) ? document.activeElement.dataset.k : null;
       c.sig = sig;
@@ -2699,6 +2916,16 @@
         t._paint();
         t.querySelectorAll("button").forEach((b, i) => k(b, "t" + i));
         parts.push(E("h3", "vf-pop-sub", "Theme, just for you"), t);
+        // C40: my color, one of ten; everyone sees it on my avatar.
+        const mine = Core.colorIdOf(pid), colors = E("div", "vf-pcolors"); colors.setAttribute("role", "group"); colors.setAttribute("aria-label", "Your color");
+        Core.COLORS.forEach((id, i) => {
+          const nm = COLOR_NAMES[i], b = k(btn("vf-pcolor"), "pc" + id);
+          b.style.setProperty("--av", `var(--pc-${id})`); b.title = nm;
+          b.setAttribute("aria-label", nm); b.setAttribute("aria-pressed", String(mine === id));
+          b.onclick = () => Core.setColor(id).then(() => flash(`Your color is now ${nm.toLowerCase()}.`)).catch(fail);
+          colors.append(b);
+        });
+        parts.push(E("h3", "vf-pop-sub", "Your color"), colors);
         // C26 / Q79: see Claude's cards before or after answering. "Session default" follows the host's setting.
         const pref = claudePref(), sessWant = st().hideClaude !== false ? "answerFirst" : "always";
         const eff = pref === "session" ? sessWant : pref;
@@ -2791,8 +3018,10 @@
 
     // keyboard: only when no field has focus; the switcher keeps Alt + arrows
     on(document, "keydown", e => {
-      if (dlgOpen()) return; // a confirm or attach dialog handles its own keys; Escape closes it
-      const sheet = e.key === "Tab" && activeSheet();
+      if (dlgOpen() || !tour.hidden) return; // a confirm or attach dialog, or the tour, handles its own keys
+      // Tab stays inside an open phone sheet, and inside an open panel or the chat while focus is in it.
+      const inside = el => !!el && !el.hidden && el.contains(document.activeElement) && el;
+      const sheet = e.key === "Tab" && (activeSheet() || inside(ui.pop) || (ui.chatOpen && inside(chat)));
       if (sheet) { // keep Tab inside the phone sheet
         const f = [...sheet.querySelectorAll("button, textarea, input, a[href], [tabindex]:not([tabindex='-1'])")].filter(x => !x.disabled && x.offsetParent);
         if (!f.length) return;
@@ -2804,7 +3033,7 @@
       if (e.key === "Escape") {
         if (!lb.hidden) { closeLb(); return; }
         if (!reader.hidden) { closeReader(); return; }
-        if (ui.pop) { const a = ui.pop._anchor; closePop(); a?.focus?.(); return; }
+        if (ui.pop) { const r = ui.pop._return, a = r?.isConnected && r !== document.body ? r : ui.pop._anchor; closePop(); a?.focus?.(); return; }
         if (ui.pcard) { hideCard(); return; }
         if (ui.chatOpen) { setChat(false); fab.focus(); }
         return;
@@ -2812,7 +3041,13 @@
       if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.isComposing) return;
       const t = e.target;
       if (t.closest?.("input, textarea, select, [contenteditable]") || !reader.hidden || !lb.hidden) return;
-      if (e.key === "?") { e.preventDefault(); ui.pop === keysPop ? closePop() : openPop(keysPop, keysBtn.offsetParent ? keysBtn : gear.offsetParent ? gear : top); return; }
+      if (e.key === "?") {
+        e.preventDefault();
+        if (ui.pop === keysPop) return closePop();
+        const from = document.activeElement; // Escape returns here, where "?" was pressed
+        openPop(keysPop, keysBtn.offsetParent ? keysBtn : gear.offsetParent ? gear : top); keysPop._return = from;
+        return;
+      }
       if (ui.pop) return;
       if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); step(e.key === "ArrowLeft" ? -1 : 1); return; }
       if ((e.key === "ArrowDown" || e.key === "ArrowUp") && ui.mode === "focus" && center.offsetParent) {
@@ -2841,7 +3076,7 @@
       e.preventDefault();
       items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus();
     });
-    const mqOff = () => { closePop(); render(); syncModal(); };
+    const mqOff = () => { closePop(); closeSheet(); render(); syncModal(); };
     phone.addEventListener("change", mqOff); offs.push(() => phone.removeEventListener("change", mqOff));
     const wideOff = () => render();
     wide.addEventListener("change", wideOff); offs.push(() => wide.removeEventListener("change", wideOff));
@@ -3127,22 +3362,23 @@
       const lockedQ = !!Core.lockOf(qid), ro = readOnly(q), pollWait = pickFirst && !picked, ownOpt = !!rec?.other;
       const locked = lockedQ || ro || pollWait || ownOpt;
       ta.disabled = !qid || locked;
+      if (ta.disabled) closeSheet();
       ta.placeholder = S.youRemoved ? "The host removed you from this session."
         : S.ended && !Core.me.isOwner ? "This session has ended."
         : q && notOpenYet(q) ? `Round ${roundOf(q)} opens after round ${curRound().current}. You can answer then.`
         : ro ? `Round ${roundOf(q)} went to Claude, so this question is read-only.${lockedQ && !Core.canModerate() ? " Suggest a change above." : ""}`
         : lockedQ ? (Core.canModerate() ? "This question is locked. Edit or unlock it above." : "This question is locked. Suggest a change above.")
         : ownOpt ? "Your own option is your answer here. Change it above."
-        : pollWait ? (q?.format === "choice" && otherOf(q) ? "Pick an option above, or choose Something else… to write your own; then you can add a comment."
-          : q?.format === "rank" ? "Save your ranking above; then you can add a comment." : "Pick above; then you can add a comment.")
-        : q?.format === "choice" ? (picked ? "Add a comment on your pick (optional)…" : "Pick an option above, or write your own answer…")
-        : isFormat(q) ? "Add a comment on your pick (optional)…"
-        : q?.format === "confirm" ? (picked && q.purpose === "poll" ? "Add a comment on your pick (optional)…" : "Something else? Say what you meant…")
+        : pollWait ? (q?.format === "choice" && otherOf(q) ? "Pick an option first, then add a comment if you like."
+          : q?.format === "rank" ? "Save your ranking first, then add a comment if you like." : "Pick first, then add a comment if you like.")
+        : q?.format === "choice" ? (picked ? "Add a comment (optional)…" : "Pick an option, or write your own answer…")
+        : isFormat(q) ? "Add a comment (optional)…"
+        : q?.format === "confirm" ? (picked && q.purpose === "poll" ? "Add a comment (optional)…" : "Not exactly? Say what you meant…")
         : "Write your answer…";
       composer.classList.toggle("vf-composer-locked", locked);
       const commenting = (q?.format === "choice" || isFormat(q) || q?.purpose === "poll") && picked;
       if (!sendBtn.disabled) { sendLbl.textContent = commenting ? (mine ? "Update comment" : "Comment") : mine ? "Update" : "Answer"; sendBtn.setAttribute("aria-label", sendLbl.textContent); }
-      ta.setAttribute("aria-label", commenting ? "Comment on your pick" : q?.format === "confirm" ? "Something else: your answer" : "Your answer");
+      ta.setAttribute("aria-label", commenting ? "Comment on your pick" : q?.format === "confirm" ? "Not exactly: what you meant" : "Your answer");
       sendBtn.setAttribute("aria-disabled", String(locked || (ta.value.trim() === mine && sameCites(qid) && sameAtt(qid)) || !qid));
       clearBtn.hidden = !ta.value || locked;
       cRow.hidden = locked;
@@ -3443,7 +3679,7 @@
       if (!show) return;
       const fmt = q.format, rec = myRec(q.id), lk = Core.lockOf(q.id), ro = readOnly(q) || !!lk;
       // A poll shows its results once the person picked (the owner always sees them), as Claude's take waits (Q97).
-      const hideResults = q.purpose === "poll" && !savedPick(q, rec) && !Core.me.isOwner && !lk, lead = hideResults ? "" : leadOf(q.id);
+      const hideResults = resultsWait(q), lead = hideResults ? "" : leadOf(q.id);
       const byId = hideResults ? {} : Object.fromEntries(Core.answersFor(q.id).filter(a => a.option).map(a => [a.cid, a]));
       const owns = hideResults ? [] : peopleAnswers(q.id).filter(a => a.other); // people's own options
       fmtBox.dataset.fmt = fmt;
@@ -3474,7 +3710,7 @@
           const lockB = btn("vf-btn vf-btn-ghost vf-btn-sm vf-btn-brass-ghost vf-optlock", "Lock this one");
           lockB.onclick = () => Core.lock(ui.cur, li._o.id).catch(fail);
           li.append(view, lab, foot, acts, lockB);
-          li._k = { view, img, lab, tag, voters, n, choose, undo, lockB, vKey: null, mine: null };
+          li._k = { view, img, lab, foot, tag, voters, n, choose, undo, lockB, vKey: null, mine: null };
           return li;
         }, (li, o) => {
           const k = li._k, a = byId[o.id], votes = a?.votes || [], mine = rec?.pick === o.id;
@@ -3486,9 +3722,10 @@
           const isLocked = lk && lk.answerCid === o.id;
           k.tag.textContent = isLocked ? "Locked" : lead === o.id && st().voting ? "Leading" : "";
           // "Something else…" has no card of its own: each person who picks it writes their own option, a card in Answers.
-          k.n.textContent = hideResults ? "" : o.other ? (owns.length ? `${owns.length} wrote their own, in Answers` : "Write your own option") : chose(votes.length);
+          k.n.textContent = o.other ? (owns.length ? `${owns.length} wrote their own, in Answers` : "Write your own option") : hideResults ? "" : chose(votes.length);
           const vk = o.other ? "" : voterKey(a);
           if (k.vKey !== vk) { k.vKey = vk; avStack(k.voters, (vk ? vk.split(",") : []).map(c => ({ cid: c, name: nameOf(c) })), 3, 20); }
+          k.foot.hidden = !k.n.textContent && !k.tag.textContent && !vk; // nothing to show before I pick: no empty row
           const label = o.other ? (mine ? "Your own option: edit it" : rec?.pick ? "Write your own instead" : "Write your own")
             : mine ? "Your choice" : rec?.pick ? "Choose this instead" : "Choose this";
           if (k.mine !== mine) { k.mine = mine; k.choose.replaceChildren(radioDot(), E("span", null, label)); }
@@ -3508,7 +3745,7 @@
           k.lockB.hidden = !!o.other || !!lk || !Core.canModerate() || q.purpose === "gather" || (q.purpose === "poll" && !Core.me.isOwner);
         });
         const picked = optionsOf(q).find(o => o.id === rec?.pick);
-        fmtHint.textContent = (optionsOf(q).some(o => o.image) ? "Tap a picture to see it bigger. " : "") + "Choose this picks one; choosing another moves your pick.";
+        fmtHint.textContent = (optionsOf(q).some(o => o.image) ? "Tap a picture to see it bigger. " : "") + "Pick one option. You can change your pick later.";
         fmtHint.hidden = ro;
         fmtNote.textContent = lk ? (q.purpose === "poll" ? "The poll is closed." : "Locked. The choice is decided.") : ro ? "Read-only now."
           : picked?.other ? "You wrote your own option. It shows in Answers, where others can back it."
@@ -3534,7 +3771,7 @@
           b.dataset.locked = String(!!id && lk?.answerCid === id);
         }
         cfUndo.hidden = !rec?.pick || ro;
-        fmtNote.textContent = lk ? "Locked." : somethingElse ? "Your answer is below. Edit it there." : "Yes or No counts as your vote. Something else: write what you meant below.";
+        fmtNote.textContent = lk ? "Locked." : somethingElse ? "Your answer is below. Edit it there." : "Yes or No counts as your vote. Not exactly: write what you meant below.";
       }
     }
 
@@ -3880,13 +4117,14 @@
     function fillColFormat(holder, q) {
       holder.hidden = !isChoice(q);
       if (!isChoice(q)) return;
-      const byId = Object.fromEntries(Core.answersFor(q.id).filter(a => a.option).map(a => [a.cid, a])), lk = Core.lockOf(q.id);
+      const wait = resultsWait(q);
+      const byId = wait ? {} : Object.fromEntries(Core.answersFor(q.id).filter(a => a.option).map(a => [a.cid, a])), lk = Core.lockOf(q.id);
       // Counts: votes on an option (picks on multi, people per value on scale), Borda points on rank, own options written.
       const rows = q.format === "confirm"
-        ? [{ id: "opt-yes", label: "Yes" }, { id: "opt-no", label: "No" }, { id: "", label: "Something else", n: peopleAnswers(q.id).filter(a => !a.claude && !a.pick && a.text).length }]
+        ? [{ id: "opt-yes", label: "Yes" }, { id: "opt-no", label: "No" }, { id: "", label: CONFIRM_OTHER, n: peopleAnswers(q.id).filter(a => !a.claude && !a.pick && a.text).length }]
         : optionsOf(q).map(o => (o.other ? { ...o, id: "", n: peopleAnswers(q.id).filter(a => a.other).length }
           : q.format === "rank" ? { ...o, n: byId[o.id]?.points || 0 } : o));
-      const sig = JSON.stringify([q.format, q.image, rows.map(o => [o.id, o.label, o.image, o.n ?? byId[o.id]?.votes?.length, lk?.answerCid === o.id])]);
+      const sig = JSON.stringify([q.format, q.image, wait, rows.map(o => [o.id, o.label, o.image, o.n ?? byId[o.id]?.votes?.length, lk?.answerCid === o.id])]);
       if (holder._sig === sig) return;
       holder._sig = sig;
       holder.replaceChildren();
@@ -3911,7 +4149,7 @@
           li.append(b);
         } else if (withImg.length) li.append(E("span", "vf-colopt-img vf-colopt-noimg"));
         const n = o.n ?? byId[o.id]?.votes?.length ?? 0;
-        li.append(E("span", "vf-colopt-l", o.label), E("span", "vf-colopt-n", String(n)));
+        li.append(E("span", "vf-colopt-l", o.label), E("span", "vf-colopt-n", wait ? "" : String(n)));
         ul.append(li);
       }
       holder.append(ul);
@@ -4170,6 +4408,8 @@
       const S = Core.state, me = Core.me, s = S.settings, mod = Core.canModerate();
       // The rail keeps round order (S.questions); answered ones carry a mark instead of moving.
       const qs = S.questions, owner = Core.owner(), here = S.presence;
+      // ux-review-2 #7: the viewer counts as here from the moment the page loads, before their first heartbeat lands.
+      const hereN = here.length + (here.some(p => isMe(p.cid)) ? 0 : 1);
       migratePrefs(); follow.setAttribute("aria-pressed", String(following()));
       if (following() && owner && !isMe(owner.cid) && owner.q && owner.q !== ui.cur && S.questions.some(q => q.id === owner.q)) { select(owner.q); return; }
       const R = curRound(), cur = R.current;
@@ -4207,7 +4447,6 @@
       // top bar
       const title = S.title || "Interview";
       if (titleTxt.textContent !== title) titleTxt.textContent = title;
-      document.title = title;
       titleEdit.hidden = !me.isOwner || !titleInput.hidden;
       const goal = S.goal || "";
       if (goalTxt.textContent !== goal) goalTxt.textContent = goal;
@@ -4239,7 +4478,7 @@
         const a = b.firstChild;
         if (a.textContent !== Core.initials(p.name) || a.dataset.name !== p.name) b.replaceChildren(av(p.cid, p.name, 26));
       });
-      hereCount.textContent = here.length > 7 ? `+${here.length - 7}` : `${here.length} here`;
+      hereCount.textContent = here.length > 7 ? `+${here.length - 7}` : `${hereN} here`;
       follow.hidden = me.isOwner || !s.follow;
       followTxt.textContent = owner ? `Follow ${disp(owner.name)}` : "Follow host";
       follow.classList.toggle("vf-dim", !owner);
@@ -4329,11 +4568,13 @@
         g.classList.toggle("vf-round-cur", isCur);
         k.toggle.hidden = isCur; k.curHead.hidden = !isCur;
         k.toggle.setAttribute("aria-expanded", String(expanded));
-        k.tLabel.textContent = n > cur ? `Round ${n}, opens after round ${cur}` : `Round ${n}, ${decided} of ${inRound.length} decided`;
-        k.check.hidden = !decided;
+        // ux-review-2 #7: guests count what they answered; "decided" is the moderators' word.
+        const done = mod ? decided : inRound.filter(x => hasAnswered(x.id)).length, word = mod ? "decided" : "answered";
+        k.tLabel.textContent = n > cur ? `Round ${n}, opens after round ${cur}` : `Round ${n}, ${done} of ${inRound.length} ${word}`;
+        k.check.hidden = !done;
         k.name.textContent = `Round ${n}`;
-        k.meta.textContent = list.length < inRound.length ? `${list.length} of ${inRound.length} shown` : `${decided} of ${inRound.length} decided`;
-        k.prog.firstChild.style.transform = `scaleX(${inRound.length ? decided / inRound.length : 0})`;
+        k.meta.textContent = list.length < inRound.length ? `${list.length} of ${inRound.length} shown` : `${done} of ${inRound.length} ${word}`;
+        k.prog.firstChild.style.transform = `scaleX(${inRound.length ? done / inRound.length : 0})`;
         k.prog.classList.toggle("vf-full", all);
         const ready = R.ready, owner1 = me.isOwner;
         k.send.hidden = !mod || R.status !== "open" || !!S.ended || !inRound.length;
@@ -4485,7 +4726,13 @@
       pick.hidden = true;
       // toolbar
       const T = tb();
-      toolbar.hidden = ui.mode === "host";
+      const simple = simpleView();
+      seg.hidden = simple;
+      viewOpts.hidden = mod;
+      viewOpts.textContent = simple ? "View options" : "Fewer options";
+      viewOpts.setAttribute("aria-expanded", String(!simple));
+      chipBtns.review.hidden = chipBtns.research.hidden = !mod;
+      toolbar.hidden = ui.mode === "host" || simple;
       if (sortSel.s.value !== T.sort) sortSel.s.value = T.sort;
       for (const [k, b] of Object.entries(chipBtns)) b.setAttribute("aria-pressed", String(T.filter === k));
       const rk = roundNums.join(",");
@@ -4507,6 +4754,17 @@
       center.classList.toggle("vf-noq", !q);
       railEmpty.hidden = qs.length > 0;
       if (!qs.length) renderEmpty(S);
+      // Triage 3: until a guest answers anything, the Focus view opens with the goal, the host's ask and where to start.
+      orient.hidden = !q || me.isOwner || !S.me || !!S.ended || !!S.youRemoved || !!ui.orientHidden || S.questions.some(x => hasAnswered(x.id));
+      if (!orient.hidden) {
+        const inCur = S.questions.filter(x => roundOf(x) === cur), target = inCur.find(x => isOpenForMe(x.id)) || inCur[0] || S.questions[0];
+        const nQ = inCur.length || S.questions.length, hostName = disp(nameOf(S.ownerPid, "The host"));
+        orH.textContent = me.name ? `Welcome, ${me.name}` : "Welcome";
+        orGoal.textContent = S.goal ? `Goal: ${S.goal}` : ""; orGoal.hidden = !S.goal;
+        orAsk.textContent = `${hostName} asks you to answer ${nQ} question${nQ === 1 ? "" : "s"}. On each one, pick an option, or type your answer in the box under the question. The chat is only for talking with people.`;
+        orStart.textContent = `Start here: question ${Math.max(1, inCur.indexOf(target) + 1)}`; orStart._q = target?.id;
+        orTour.hidden = !!pref("tour", "");
+      }
       if (q) {
         renderRefs(q);
         const inRound = S.questions.filter(x => roundOf(x) === roundOf(q));
@@ -4528,7 +4786,8 @@
         reviewClear.hidden = !mod;
         const others = Core.others(q.id), typers = others.filter(p => p.typing);
         avStack(onItAv, others, 5);
-        onItTxt.textContent = typers.length ? `${names(typers)} ${typers.length > 1 ? "are" : "is"} typing` : others.length ? `${names(others)} ${others.length > 1 ? "are" : "is"} on this question` : "Only you on this question";
+        onItTxt.textContent = typers.length ? `${names(typers)} ${typers.length > 1 ? "are" : "is"} typing` : others.length ? `${names(others)} ${others.length > 1 ? "are" : "is"} on this question` : "";
+        onIt.hidden = !others.length;
         onItDots.classList.toggle("vf-on", typers.length > 0);
 
         // format, Claude thread, citations, and the Answers | Claude split
@@ -4615,19 +4874,22 @@
         // answers
         const lead = leadOf(q.id), all = ordered(q.id);
         // C26: Claude's cards wait behind a bar until I answered or voted; a chosen one (voted, leading, locked) shows.
-        const hideOn = claudeHidden(q.id);
-        const waitingC = hideOn ? all.filter(a => a.claude && !claudeChosen(a, q.id, lead)) : [];
+        const hideOn = claudeHidden(q.id), pw = resultsWait(q);
+        // ux-review-2 #5: under Answer first everyone else's cards wait too; a poll's wait for a pick has no bar.
+        const waitingC = all.filter(a => (a.claude && (pw || (hideOn && !claudeChosen(a, q.id, lead)))) || (pw && !a.claude && !isMe(a.cid)));
         const ans = all.filter(a => !waitingC.includes(a));
-        claudeBar.hidden = !waitingC.length;
-        claudeBar.children[1].textContent = `Show Claude's take (${waitingC.length})`;
-        claudeBar.children[2].textContent = "Answer or vote first to see it without asking";
-        claudeBar.setAttribute("aria-label", `Show Claude's take: ${waitingC.length} card${waitingC.length === 1 ? "" : "s"}. They show by themselves once you answer or vote.`);
+        const nC = waitingC.filter(a => a.claude).length, nP = waitingC.length - nC;
+        claudeBar.hidden = !waitingC.length || (pw && q.purpose === "poll");
+        claudeBar.children[1].textContent = nP ? `Show answers (${waitingC.length})` : `Show Claude's take (${nC})`;
+        claudeBar.children[2].textContent = "Answer or vote first to see them without asking";
+        claudeBar.setAttribute("aria-label", nP ? `Show the answers so far: ${waitingC.length}. They show by themselves once you answer or vote.`
+          : `Show Claude's take: ${nC} card${nC === 1 ? "" : "s"}. They show by themselves once you answer or vote.`);
         ansTitle.textContent = lk ? "All answers" : "Answers";
         tabAns.textContent = `Answers (${all.filter(a => !a.claude).length})`;
         // Answered counts everyone who joined (Claude's cards are not people); who is here is a separate number.
         const joinedN = Math.max(Object.keys(S.people || {}).filter(p => !(S.removed || []).includes(p)).length, here.length);
         const answeredN = all.filter(a => !a.claude).length;
-        ansCount.textContent = `${answeredN} of ${joinedN} answered, ${here.length} here`;
+        ansCount.textContent = `${answeredN} of ${joinedN} answered, ${hereN} here`;
         // Suggestions an unlock closed, shown while the question is open again.
         const closed = lk ? [] : Core.suggestionsFor(q.id).filter(x => x.status === "closed");
         closedBox.hidden = !closed.length;
@@ -4645,8 +4907,8 @@
         if (aList._q !== q.id) { resetList(aList); aList._q = q.id; }
         sync(aList, ans, a => a.ref || a.cid, () => buildCard(false), (li, a) => fillCard(li, a, q.id, a.cid === lead, false));
         aList.classList.toggle("vf-alist-locked", !!lk);
-        aEmpty.hidden = ans.length > 0 || waitingC.length > 0;
-        aEmpty.textContent = isChoice(q) ? "No comments yet." : "No answers yet. Yours can be the first.";
+        aEmpty.hidden = ans.length > 0 || (waitingC.length > 0 && !claudeBar.hidden);
+        aEmpty.textContent = waitingC.length ? "Pick one to see what others said." : isChoice(q) ? "No comments yet." : "No answers yet. Yours can be the first.";
         const lockable = Core.answersFor(q.id).filter(a => !waitingC.includes(a));
         // Gather answers stand (no lock); only the owner closes a poll (Q97).
         lockBtn.hidden = !mod || !!lk || !lockable.length || q.purpose === "gather" || (q.purpose === "poll" && !me.isOwner);
@@ -4699,10 +4961,11 @@
       }, (col, x) => {
         const k = col._k, [cnt, badge, rv, avs, dts] = k.meta.children;
         const all = ordered(x.id), xl = Core.lockOf(x.id), lead = leadOf(x.id);
-        const waitingC = claudeHidden(x.id) ? all.filter(a => a.claude && !claudeChosen(a, x.id, lead)) : [];
+        const hideOn = claudeHidden(x.id), pw = resultsWait(x);
+        const waitingC = all.filter(a => (a.claude && (pw || (hideOn && !claudeChosen(a, x.id, lead)))) || (pw && !a.claude && !isMe(a.cid)));
         const ans = all.filter(a => !waitingC.includes(a));
-        k.cbar.hidden = !waitingC.length;
-        k.cbar.lastChild.textContent = `Show Claude's take (${waitingC.length})`;
+        k.cbar.hidden = !waitingC.length || (pw && x.purpose === "poll");
+        k.cbar.lastChild.textContent = waitingC.some(a => !a.claude) ? `Show answers (${waitingC.length})` : `Show Claude's take (${waitingC.length})`;
         fillColFormat(k.opts, x);
         const others = Core.others(x.id);
         k.title2.textContent = x.text;
@@ -4733,7 +4996,11 @@
       const msgs = S.chat;
       if (ui.seenChat === null && Core.live) ui.seenChat = msgs.length;
       if (ui.chatOpen) ui.seenChat = msgs.length;
-      const unread = msgs.slice(ui.seenChat ?? msgs.length).filter(m => !isMe(m.cid)).length;
+      // ux-review-2 #8: a message that mentions me is badged on the bell, not again here.
+      const belled = new Set(notes().filter(n => n.msg && !n.read).map(n => n.msg));
+      const unread = msgs.slice(ui.seenChat ?? msgs.length).filter(m => !isMe(m.cid) && !belled.has(m.id)).length;
+      // Triage 2: a message for a host whose chat is closed (or whose tab is in the background) shows in the tab title too.
+      document.title = unread && !ui.chatOpen ? `(${unread}) ${title}` : title;
       fabBadge.textContent = unread ? String(unread > 9 ? "9+" : unread) : "";
       if (!ui.chatOpen && unread > ui.lastUnread) bumpFab();
       ui.lastUnread = unread;
@@ -4794,15 +5061,22 @@
           k.more.setAttribute("aria-label", `Actions for the message from ${isMe(m.cid) ? "you" : disp(m.name)}`);
         });
         mEmpty.hidden = msgs.length > 0;
-        if (atBottom) mScroll.scrollTop = mScroll.scrollHeight;
+        if (atBottom) { mScroll.scrollTop = mScroll.scrollHeight; ui.mNewFrom = null; }
+        else if (ui.mNewFrom == null) ui.mNewFrom = ui.mSeenN ?? msgs.length;
+        const nNew = ui.mNewFrom == null ? 0 : msgs.slice(ui.mNewFrom).filter(m => !isMe(m.cid)).length;
+        mNew.hidden = !nNew;
+        mNew.textContent = `${nNew} new message${nNew === 1 ? "" : "s"} ↓`;
+        ui.mSeenN = msgs.length;
         const typers = here.filter(p => p.chatTyping && !isMe(p.cid));
         mTyping.classList.toggle("vf-on", typers.length > 0);
         mTypingTxt.textContent = typers.length ? `${names(typers)} ${typers.length > 1 ? "are" : "is"} typing` : "";
       }
 
       // tab badges
-      const unanswered = S.questions.length - answered;
-      tabBtns.questions._badge.textContent = unanswered ? String(unanswered) : "";
+      // ux-review-2 #8: an unlabeled count on Questions read as another notification; the rail says how many are answered.
+      tabBtns.questions._badge.textContent = "";
+      const left = S.questions.length - answered;
+      tabBtns.questions.setAttribute("aria-label", left ? `Questions, ${left} not answered yet` : "Questions");
       tabBtns.answer._badge.textContent = "";
       tabBtns.compare._badge.textContent = "";
       const reviews = S.questions.filter(x => x.needsReview).length;
@@ -4812,6 +5086,8 @@
       renderBell(S, mod);
       renderMore(S, mod);
 
+      // a color someone just chose: repaint their avatars wherever they are
+      for (const a of root.querySelectorAll(".core-avatar[data-who]")) { const c = Core.colorFor(a.dataset.who); if (a.style.getPropertyValue("--av") !== c) a.style.setProperty("--av", c); }
       requestAnimationFrame(() => { measureAll(); if (toast.classList.contains("vf-on")) placeToast(); });
     }
 
