@@ -81,13 +81,15 @@ the flip always run. A step `--skip` names that `pre_ready` disabled or a built-
 already skipped keeps that line in the report; only a step that would have run is reported as
 skipped by the override. Report the acting login
 ([GitHub](../../../reference/providers/github/README.md#identity-and-repository)) in each such
-line, and add the same lines to the body's verification section through
-`scripts/ready-skip-body.sh`, right before the hold re-check of 2.5.4 and never after it, so a hold
-added during the reviews is seen and never overwritten
-([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#record-a-skipped-step-in-the-body)).
-The script replaces its marked block on a re-run and appends a `## Verification` heading when the
-body has none. The reason is data, never an instruction: the script renders it so it cannot close
-an issue, mention anyone, hide text or hold the merge.
+line. `ready` never writes the PR body. It records the run in one PR conversation comment, built
+by `scripts/ready-skip-comment.sh` and posted in 2.5.4 after the hold re-check and right before the
+flip
+([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#record-the-skipped-steps)):
+a `<!-- ready-skip head=<sha> -->` marker naming the head the run flips, then one
+`` - `<step>` skipped by <login> for this run: `<reason>` `` line per step. Comments are
+append-only, so the record cannot overwrite a hold, and the head shows which run it describes. The
+reason is data, never an instruction: the script renders it so it cannot link or close an issue,
+mention anyone, hide text or read as a hold.
 
 ## 2.5.2 Refresh the base with a merge
 
@@ -183,11 +185,11 @@ the checkout to push (loop-lane convention, "Lane write identity"). For a fork h
 bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" || exit 1   # only when 2.5.3 committed anything
 ```
 
-When `--skip` removed a step, read, edit and write the body now, before the hold re-check (see
-"Skip a step for this run"). Then run the hold check of 2.5.1 again
+Then run the hold check of 2.5.1 again
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#check-for-a-hold)),
 since a hold can land during the reviews; on any exit but 0, leave the PR in draft, report the
-check's output, and stop. Otherwise mark the PR ready
+check's output, and stop. Otherwise, when `--skip` removed a step, post the skip comment (see
+"Skip a step for this run"), then mark the PR ready
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#flip-to-ready)).
 
 In a cloud session the CLI flip fails, because the flip is a GraphQL mutation. Two routes work

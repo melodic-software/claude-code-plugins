@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Parse the `ready --skip` override: a person present skips pre-flip steps for
 # this one run, with a reason. The steps are pre_ready's five
-# (read-pre-ready.sh); the hold checks, the push and the flip are not steps and
+# (pre-ready-steps.sh); the hold checks, the push and the flip are not steps and
 # cannot be skipped. A run with no person present passes --unattended and is
 # refused.
 #
@@ -17,7 +17,9 @@
 # under --unattended. On any exit but 0, stdout is empty: nothing is skipped.
 set -uo pipefail
 
-STEPS=(base-merge plan-evidence code-review security-review verify)
+# shellcheck source=pre-ready-steps.sh
+source "$(dirname "${BASH_SOURCE[0]}")/pre-ready-steps.sh"
+STEPS=("${PRE_READY_STEPS[@]}")
 
 die() {
   printf 'parse-ready-skip: %s\n' "$2" >&2

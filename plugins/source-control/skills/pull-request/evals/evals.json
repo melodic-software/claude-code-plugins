@@ -669,13 +669,13 @@
       "id": 51,
       "name": "ready-skips-code-review-for-one-run-with-a-reason",
       "prompt": "/pull-request ready --skip code-review --reason \"review model is rate-limited until tomorrow\". I am here at the keyboard. PR 731 is an open draft on branch feat/731-export-retry, a code change (not docs-only), with no hold, and the base branch main has no pre_ready list. Flip it to ready for review and report.",
-      "expected_output": "A person is present, code-review is a known step and the reason is not empty, so the code review does not run. The hold check, the base merge, the security review and the verify gate run, then the hold check again and the flip. The code-review report line says skipped by the acting gh login for this run, with the reason, and the same line goes into the PR body's verification section before the flip. The code review is never reported as passed.",
+      "expected_output": "A person is present, code-review is a known step and the reason is not empty, so the code review does not run. The hold check, the base merge, the security review and the verify gate run, then the hold check again and the flip. The code-review report line says skipped by the acting gh login for this run, with the reason, and the same line is posted in one PR conversation comment that starts with a ready-skip marker naming the head, after the hold re-check and right before the flip. The PR body is not edited. The code review is never reported as passed.",
       "files": [],
       "expectations": [
         "The code review does not run, and the base merge, the security review and the verify gate do run",
         "The hold checks, the push when one is needed, and the flip still run",
         "The code-review report line says skipped by <login> for this run with the reason review model is rate-limited until tomorrow",
-        "The same skipped line is written into the PR body's verification section",
+        "The same skipped line is posted in one PR conversation comment, after the hold re-check and before the flip, and the PR body is not edited",
         "The code review is never reported as passed or clean"
       ]
     },
