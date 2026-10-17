@@ -9,7 +9,7 @@
 //   install.mjs list     [common]
 //   install.mjs plan     --scope local|shared [--manager <m>] [common]
 //   install.mjs copy     --scope local|shared [--entry <name>]... [--manager <m>] [--force] [common]
-//   install.mjs decline  --entry <name> [--undo] [common]
+//   install.mjs decline  --entry <name> [--undo] [--global] [common]
 //   install.mjs verify   [--quiet] [common]
 //   common: [--repo <dir>] [--plugin-root <dir>]
 //
@@ -123,7 +123,7 @@ const posix = (p) => p.split(path.sep).join("/");
 
 function git(cwd, args) {
   const r = spawnSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-  return { ok: !r.error && r.status === 0, out: (r.stdout ?? "").trim() };
+  return { ok: !r.error && r.status === 0, status: r.status, out: (r.stdout ?? "").trim() };
 }
 
 // readText(file) -> the text of a regular file of at most MAX_READ bytes, else
@@ -393,8 +393,17 @@ function wiring(info, plugin, entry, scope, manager) {
   return { wired, decision: { kind, entry: entry.name, file, snippet } };
 }
 
+// isDeclined: the entry's key at any git config scope (git's precedence, so a
+// local false beats a global true); unset, the master key declines every entry.
+// A value that is not a boolean reads as not declined, never as unset.
+const MASTER_DECLINE_KEY = "checks.git-hooks.declined";
+const declineKey = (plugin, entry) => `checks.${plugin.name}.${entry.name}.declined`;
+function configBool(info, key) {
+  const r = git(info.top, ["config", "--type=bool", "--get", key]);
+  return r.ok ? r.out : r.status === 1 ? "" : "invalid";
+}
 const isDeclined = (info, plugin, entry) =>
-  git(info.top, ["config", "--local", "--get", `checks.${plugin.name}.${entry.name}.declined`]).out === "true";
+  (configBool(info, declineKey(plugin, entry)) || configBool(info, MASTER_DECLINE_KEY)) === "true";
 
 // copyState(file, entry, current) -> missing | modified | stale | ok, for one
 // installed script, its lib and its assets beside it.
@@ -666,16 +675,21 @@ export function copy(info, plugin, entry, scope, manager, force = false) {
     const staged = stage(info, exec, true) && stage(info, [p.lib, ...plainFiles, ...(attributes ? [attributes.file] : [])], false);
     if (!staged) return "stage-failed";
   }
-  git(info.top, ["config", "--local", "--unset", `checks.${plugin.name}.${entry.name}.declined`]);
+  git(info.top, ["config", "--local", "--unset", declineKey(plugin, entry)]);
+  // An install opts this clone back in over a global or master decline.
+  if (isDeclined(info, plugin, entry)) git(info.top, ["config", "--local", declineKey(plugin, entry), "false"]);
   if (before === "missing") return "installed";
   return changed ? "refreshed" : "unchanged";
 }
 
-// decline(info, plugin, entry, undo) -> sets or clears the per-clone decline key.
-export function decline(info, plugin, entry, undo = false) {
-  const key = `checks.${plugin.name}.${entry.name}.declined`;
-  const args = undo ? ["config", "--local", "--unset", key] : ["config", "--local", key, "true"];
-  return git(info.top, args).ok || undo;
+// decline(info, plugin, entry, undo, global) -> sets or clears the entry's
+// decline key in this clone, or with global in the user's global config.
+export function decline(info, plugin, entry, undo = false, global = false) {
+  const scope = global ? "--global" : "--local";
+  const key = declineKey(plugin, entry);
+  const args = undo ? ["config", scope, "--unset", key] : ["config", scope, key, "true"];
+  const r = git(info.top, args);
+  return r.ok || (undo && r.status === 5); // 5: the key was not set
 }
 
 function scopesFor(info) {
@@ -732,12 +746,12 @@ const USAGE = [
   "usage: install.mjs detect|list [--repo <dir>] [--plugin-root <dir>]",
   "       install.mjs plan --scope local|shared [--manager lefthook|husky|plain]",
   "       install.mjs copy --scope local|shared [--entry <name>]... [--manager <m>] [--force]",
-  "       install.mjs decline --entry <name> [--undo]",
+  "       install.mjs decline --entry <name> [--undo] [--global]",
   "       install.mjs verify [--quiet]",
 ].join("\n");
 
 const VALUE_FLAGS = { "--repo": "repo", "--plugin-root": "pluginRoot", "--scope": "scope", "--manager": "manager" };
-const BOOL_FLAGS = { "--force": "force", "--quiet": "quiet", "--undo": "undo" };
+const BOOL_FLAGS = { "--force": "force", "--quiet": "quiet", "--undo": "undo", "--global": "global" };
 const ACTIONS = ["detect", "list", "plan", "copy", "decline", "verify"];
 
 function parseArgs(argv, defaults) {
@@ -812,7 +826,7 @@ function dispatch(info, plugin, opts, io) {
     case "copy":
       return runCopy(info, plugin, opts, io);
     case "decline":
-      return decline(info, plugin, pickEntries(plugin, opts.entries)[0], opts.undo) ? 0 : 2;
+      return decline(info, plugin, pickEntries(plugin, opts.entries)[0], opts.undo, opts.global) ? 0 : 2;
     default:
       return runVerify(info, plugin, opts, io);
   }

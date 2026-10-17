@@ -75,7 +75,8 @@ see the [hooks reference](https://code.claude.com/docs/en/hooks). As of 2026-10-
 
 Rule D1, split between script and agent: scripts only detect, list, diff, render snippets, verify,
 and write files the plugin owns outright (copied check scripts, the plain dispatcher and its
-`<event>.d/` entries, the `git config --local` decline key). Every step that needs judgment
+`<event>.d/` entries, the decline key: `git config --local`, or `--global` only when the user
+asks to decline across every repo). Every step that needs judgment
 returns to the setup agent as data, and the agent reasons about it and applies it:
 
 | The agent reasons and applies | Why it needs judgment |
@@ -190,7 +191,7 @@ detect(repo)                  -> { manager: "lefthook"|"husky"|"plain"|"conflict
 list(repo)                    -> [{ entryId, event, scope, stamp }]
 plan(repo, entries, scope)    -> { actions[], decisions[] }
 copy(repo, entry, scope)      -> "installed" | "refreshed" | "unchanged" | "blocked" | "unsafe-path" | "stage-failed"   # plugin-owned files only
-decline(repo, entryId)        -> sets the git config --local key
+decline(repo, entryId)        -> sets the git config --local key (--global: the global one)
 ```
 
 `plan` returns `actions` the script applies (plugin-owned files) and `decisions` the agent applies
@@ -260,7 +261,7 @@ to every consumer repository.
 | stale | stamp differs from the current source hash (a changed source script, check lib or asset) | drift line |
 | modified | the installed copy, or an installed asset, no longer hashes to its stamp | drift line; the agent decides (D1) |
 | missing | not installed and not declined | drift line |
-| declined | `git config --local checks.<plugin>.<name>.declined true` | silent until `verify` runs by hand |
+| declined | `checks.<plugin>.<name>.declined` true at any git config scope, or unset with `checks.git-hooks.declined` true | silent until `verify` runs by hand |
 
 Drift line, shown to the user only:
 
@@ -269,9 +270,12 @@ Drift line, shown to the user only:
 ```
 
 The SessionStart drift check runs inside each plugin's existing `prerequisites.mjs probe` row, so
-it adds no SessionStart spawn. A declined entry is recorded per clone, never committed; git shares
+it adds no SessionStart spawn. A decline is recorded per clone by default, never committed; git shares
 `.git/config` and the hooks directory across every worktree of a clone, so the decline has the
-same scope as the hook it declines.
+same scope as the hook it declines. A global decline (`decline --global`, or the master key
+`checks.git-hooks.declined` that declines every entry of every plugin) covers every clone; a
+clone opts one entry back in by setting its own key to `false`, which `copy` does when it
+installs over a global decline.
 
 ### Tests
 

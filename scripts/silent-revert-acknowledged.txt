@@ -39,3 +39,4 @@
 # and incident ranges overlap rather than merely abut, so no threshold can
 # separate the two shapes, which is why this file exists.
 91e77fc16f62bc0ce99b36565053636fb4a21d9e  #2135 deliberately reconciled a merge of origin/main; disposition argued in the PR body
+c97fba7b12f8dd61aac0574ee009f8632a2af1df  #7780 deliberately retired the ratification marker that #7725 had wired into pr-merge; the verifier criterion stays
