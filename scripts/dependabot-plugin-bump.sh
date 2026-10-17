@@ -182,6 +182,7 @@ ${body}
 
 edited=0
 bumped_names=()
+root_real="$(realpath -- "$ROOT")"
 
 # ${!assoc[@]+...} is NOT safe: bash treats ! as indirection on the values.
 # Guard length, then iterate keys (bash 4+ associative arrays).
@@ -194,6 +195,14 @@ if ((${#shipped_changed[@]} > 0)); then
       echo "dependabot-plugin-bump: $name has no CHANGELOG.md; refusing to invent one" >&2
       exit 1
     fi
+    # The pull request owns these paths, so a symlink in them could make this
+    # script read or write a file outside the tree, and commit what it read.
+    for path in "$manifest" "$changelog"; do
+      if [[ "$(realpath -- "$path")" != "$root_real/$path" ]]; then
+        echo "dependabot-plugin-bump: $path is or passes through a symlink; refusing to edit it" >&2
+        exit 1
+      fi
+    done
 
     base_manifest="$(git show "$base:$manifest" 2>/dev/null || true)"
     [[ -n "$base_manifest" ]] || continue
@@ -238,8 +247,9 @@ if ((${#shipped_changed[@]} > 0)); then
       new_ver="$(bump_patch "$base_ver")" || exit 1
     fi
 
-    jq --arg v "$new_ver" '.version = $v' "$manifest" >"${manifest}.tmp"
-    mv "${manifest}.tmp" "$manifest"
+    manifest_tmp="$(mktemp)"
+    jq --arg v "$new_ver" '.version = $v' "$manifest" >"$manifest_tmp"
+    mv "$manifest_tmp" "$manifest"
 
     # Process substitution, not a pipe into grep -q: under pipefail a matched
     # grep exits early and SIGPIPEs git (scripts/check-pipefail-grep-q.sh).

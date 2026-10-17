@@ -47,11 +47,15 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
-    # The token can write contents, so nothing from the pull request runs here:
+    # The token can write contents, so no code from the pull request runs here:
     # its checkout is data that git, jq and main's scripts read and edit. Every
-    # script comes from main's checkout in .base, never from github.base_ref,
-    # which the pull request picks. A local action would load from the pull
-    # request, so the job uses none.
+    # script comes from main's checkout in .base. The script still reads
+    # github.base_ref's fragment-plugins.txt and manifests, as data; the pull
+    # request picks that ref. A local action would load from the pull request,
+    # so the job uses none. scripts/pr-bump-plugin-version.test.sh holds the
+    # allowlist of what this job may run. actions/checkout writes only inside
+    # the workspace, so .base sits in the pull request's tree and must not
+    # already exist there.
     steps:
       - name: Check out the pull request head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -59,6 +63,8 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Refuse a pull request that tracks .base
+        run: test ! -e .base
       - name: Check out main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

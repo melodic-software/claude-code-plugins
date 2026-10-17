@@ -277,6 +277,29 @@ else
 fi
 rm -rf "$repo" "$base"
 
+# --- a symlinked CHANGELOG.md or manifest is refused, and its target is untouched ---
+for linked in CHANGELOG.md .claude-plugin/plugin.json; do
+  mk_repo repo
+  mk_repo base
+  mk_plugin "$repo" alpha 1.0.0
+  outside="$base/outside-$(basename "$linked")"
+  cp "$repo/plugins/alpha/$linked" "$outside"
+  ln -sf "$outside" "$repo/plugins/alpha/$linked"
+  init_git "$repo"
+  begin_pr "$repo"
+  echo s >>"$repo/plugins/alpha/server/package-lock.json"
+  git -C "$repo" add -A && git -C "$repo" commit -qm "deps"
+  before="$(cksum <"$outside")"
+  out="$(cd "$repo" && bash scripts/dependabot-plugin-bump.sh main 2>&1)"
+  rc=$?
+  if [[ $rc -eq 1 && "$out" == *"symlink"* && "$(cksum <"$outside")" == "$before" ]]; then
+    ok "a symlinked $linked is refused and its target left alone"
+  else
+    fail "symlinked $linked: rc=$rc out='$out'"
+  fi
+  rm -rf "$repo" "$base"
+done
+
 # --- no plugin paths: no-op ---
 mk_repo repo
 mk_plugin "$repo" alpha 1.0.0
