@@ -17,6 +17,7 @@ and shown as written, and the digest hands it to Claude framed as data by the se
 
 from __future__ import annotations
 
+import base64
 import collections
 import contextlib
 import copy
@@ -45,6 +46,7 @@ if str(HERE.parent / "surface") not in sys.path:
     sys.path.append(str(HERE.parent / "surface"))
 migrate = importlib.import_module("migrate")
 schema = importlib.import_module("schema")
+detached = importlib.import_module("detached")
 
 HOST = "host"
 CLAUDE = object()  # the actor for ops arriving through the control listener
@@ -113,6 +115,11 @@ CHUNK_SIZE = 8 * 1024 * 1024
 GUEST_UPLOAD_MAX = 100 * 1024 * 1024
 SESSION_UPLOAD_MAX = 5 * 1024 * 1024 * 1024
 ASSET_MAX = 10 * 1024 * 1024
+CHUNK_SECONDS = 300.0  # judgment: one whole chunk arrives within this on a 0.25 MB/s phone link
+CHUNK_INTERVAL = WRITE_INTERVAL  # chunks are writes: one a second per person; read at call time
+MAX_ATTACHMENTS = 4  # uploads one answer or pick carries (the page's attach slot holds four)
+MAX_FILE_NAME = 200  # characters of an upload's display name
+MAX_THUMB = 64000  # characters of an offered picture's data: URL preview, which only the owner sees
 
 COLORS = tuple(f"c{i}" for i in range(1, 11))
 ROLES = ("owner", "leader", "guest")
@@ -154,6 +161,20 @@ VARIANT = re.compile(r"v-[1-9][0-9]?")
 # it with querySelector.
 _SEL_STEP = r"[a-z][a-z0-9]{0,15}(?:-[a-z0-9]{1,15}){0,3}(?::nth-of-type\([1-9][0-9]{0,3}\))?"
 SELECTOR = re.compile(rf"{_SEL_STEP}(?: > {_SEL_STEP}){{0,31}}")
+
+
+# Uploads (Contracts, "Upload rules"). Every name on disk is the server's: a pending file is 32 hex digits under
+# uploads/pending/, a received one uploads/accepted/<date>-<upload id>.<ext>. The person's file name is display
+# text only. A state.json whose names stray from these patterns does not load (cross_field_errors).
+UPLOAD_ID = re.compile(r"U[1-9][0-9]{0,8}-[0-9a-f]{8}")
+TMP_NAME = re.compile(r"[0-9a-f]{32}")
+STORED_NAME = re.compile(r"[0-9]{8}-U[1-9][0-9]{0,8}-[0-9a-f]{8}(?:\.[a-z0-9]{1,10})?")  # in uploads/accepted/
+FILE_EXT = re.compile(r"[a-z0-9]{1,10}")
+SHA256_HEX = re.compile(r"[0-9a-f]{64}")
+THUMB = re.compile(r"data:image/(jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})")
+UPLOAD_LIVE = ("offered", "accepted", "uploading")
+UPLOAD_ACCEPTED = ("accepted", "uploading", "done")  # the owner said yes: others may see it on an answer
+UPLOAD_HELD = (*UPLOAD_LIVE, "done")  # counts against the caps
 
 
 def _element(selector):
@@ -289,6 +310,24 @@ def cross_field_errors(doc):
         seen.add(q["id"])
         per_round[q["round"]] = per_round.get(q["round"], 0) + 1
     errors += [f"Round {n} holds {k} questions; the most is {MAX_ROUND}." for n, k in sorted(per_round.items()) if k > MAX_ROUND]
+    errors += _upload_errors(doc)
+    return errors
+
+
+def _upload_errors(doc):
+    """No two upload records share an id, and an answer carries only its author's uploads the owner accepted. A
+    pending name that is not the server's (TMP_NAME) loads, but no file is ever opened or deleted by it."""
+    errors, by_id = [], {}
+    for u in doc["uploads"]:
+        if u["id"] in by_id:
+            errors.append(f"Two uploads share the id {u['id'][:40]}.")
+        by_id[u["id"]] = u
+    for qid, cards in doc["cards"].items():
+        for c in cards:
+            for uid in c.get("attachments", []):
+                u = by_id.get(uid)
+                if u is None or u["pid"] != c["pid"] or u["status"]["kind"] not in UPLOAD_ACCEPTED:
+                    errors.append(f"An answer on {qid} carries {uid[:40]}, not an accepted upload of its author.")
     return errors
 
 
@@ -551,6 +590,135 @@ def _asset_type(data, wanted):
     return found
 
 
+def _starts(*magics):
+    return lambda head: head.startswith(magics)
+
+
+def _plain_text(head):
+    """UTF-8 with no NUL byte; the chunk may end inside a character."""
+    if b"\x00" in head:
+        return False
+    try:
+        head.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        return exc.reason == "unexpected end of data" and exc.start >= len(head) - 3
+    return True
+
+
+_ZIP, _OLE = _starts(b"PK\x03\x04"), _starts(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1")
+# The magic-byte allowlist: extension -> (the MIME type the server records, the check the first chunk must pass).
+# Guests offer only these kinds (zip aside); the owner and trusted guests may offer any extension, and a kind
+# outside this table is stored unchecked as application/octet-stream. Nothing here is ever served back.
+UPLOAD_KINDS = {
+    "png": ("image/png", _starts(b"\x89PNG\r\n\x1a\n")),
+    "jpg": ("image/jpeg", _starts(b"\xff\xd8\xff")),
+    "jpeg": ("image/jpeg", _starts(b"\xff\xd8\xff")),
+    "gif": ("image/gif", _starts(b"GIF87a", b"GIF89a")),
+    "webp": ("image/webp", lambda head: head[:4] == b"RIFF" and head[8:12] == b"WEBP"),
+    "pdf": ("application/pdf", _starts(b"%PDF-")),
+    "txt": ("text/plain", _plain_text),
+    "md": ("text/markdown", _plain_text),
+    "csv": ("text/csv", _plain_text),
+    "tsv": ("text/tab-separated-values", _plain_text),
+    "log": ("text/plain", _plain_text),
+    "rtf": ("application/rtf", _starts(b"{\\rtf")),
+    "doc": ("application/msword", _OLE),
+    "xls": ("application/vnd.ms-excel", _OLE),
+    "ppt": ("application/vnd.ms-powerpoint", _OLE),
+    "docx": ("application/vnd.openxmlformats-officedocument.wordprocessingml.document", _ZIP),
+    "xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", _ZIP),
+    "pptx": ("application/vnd.openxmlformats-officedocument.presentationml.presentation", _ZIP),
+    "odt": ("application/vnd.oasis.opendocument.text", _ZIP),
+    "ods": ("application/vnd.oasis.opendocument.spreadsheet", _ZIP),
+    "odp": ("application/vnd.oasis.opendocument.presentation", _ZIP),
+    "zip": ("application/zip", _ZIP),
+}
+GUEST_KINDS = frozenset(UPLOAD_KINDS) - {"zip"}
+THUMB_KINDS = {"png", "jpg", "jpeg", "gif", "webp"}
+
+
+def _file_name(body):
+    """An upload's display name: one line, its last path part, control characters dropped; data, never a path."""
+    raw = _text(body, "file", limit=MAX_FILE_NAME * 2)
+    name = one_line(re.sub(r"[\x00-\x1f\x7f-\x9f]", "", re.split(r"[\\/]", raw)[-1]))
+    if not name or name in (".", ".."):
+        raise _bad("file", "file must name the file.")
+    if len(name) > MAX_FILE_NAME:
+        raise DomainError(400, "too-long", f"file allows at most {MAX_FILE_NAME} characters.", field="file", max=MAX_FILE_NAME)
+    return name
+
+
+def _thumb(v, ext):
+    """An offered picture's preview: a data: URL of a PNG, JPEG or WebP whose bytes are that kind, or None."""
+    if v is None or v == "":
+        return None
+    m = THUMB.fullmatch(v) if isinstance(v, str) and len(v) <= MAX_THUMB else None
+    if m is None or ext not in THUMB_KINDS:
+        raise _bad("thumb", "thumb must be a small PNG, JPEG or WebP data: URL, on a picture.")
+    try:
+        data = base64.b64decode(m.group(2), validate=True)
+    except ValueError as exc:
+        raise _bad("thumb", "thumb is not base64.") from exc
+    kind = {"jpeg": "jpg"}.get(m.group(1), m.group(1))
+    if not UPLOAD_KINDS[kind][1](data[:64]):
+        raise _bad("thumb", f"thumb says {m.group(1)}, but its bytes are not.")
+    return v
+
+
+def _chunk_meta(meta):
+    """The chunk route's headers, parsed: id, index, total, the chunk's sha256 and the whole file's (last chunk)."""
+    uid = meta.get("id")
+    if not isinstance(uid, str) or not UPLOAD_ID.fullmatch(uid):
+        raise _bad("X-Upload-Id", "X-Upload-Id must name an upload.")
+    out = {"id": uid}
+    for key, field in (("index", "X-Chunk-Index"), ("total", "X-Chunk-Total")):
+        v = meta.get(key)
+        if not isinstance(v, str) or not re.fullmatch(r"0|[1-9][0-9]{0,5}", v):
+            raise _bad(field, f"{field} must be a whole number.")
+        out[key] = int(v)
+    for key, field in (("sha256", "X-Chunk-Sha256"), ("fileSha256", "X-File-Sha256")):
+        v = meta.get(key)
+        if v is None and key == "fileSha256":
+            continue
+        if not isinstance(v, str) or not SHA256_HEX.fullmatch(v.lower()):
+            raise _bad(field, f"{field} must be a sha256 in hex.")
+        out[key] = v.lower()
+    if out["index"] >= out["total"]:
+        raise _bad("X-Chunk-Index", "X-Chunk-Index must be below X-Chunk-Total.")
+    return out
+
+
+def _private_dirs(folder):
+    """uploads/ and its pending/ or accepted/ folder, each 0700 where the OS has file modes."""
+    detached.make_private_dir(folder.parent)
+    detached.make_private_dir(folder)
+
+
+def _write_chunk(path, offset, data):
+    """Write `data` at `offset` of a pending file (created 0600, its folder 0700), cutting off whatever lay past
+    `offset` first (bytes a crash left after the last counted chunk). False when the file holds fewer than `offset`
+    bytes: the chunks before went missing."""
+    _private_dirs(path.parent)
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    with os.fdopen(fd, "r+b") as f:
+        if os.fstat(f.fileno()).st_size < offset:
+            return False
+        f.truncate(offset)
+        f.seek(offset)
+        f.write(data)
+        f.flush()
+        os.fsync(f.fileno())
+    return True
+
+
+def _file_sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
 class Session:
     """One shared interview session: the parsed state under one lock, with an injected clock and ids."""
 
@@ -571,6 +739,8 @@ class Session:
         self._key_joins = {}  # guest key -> times of recent joins from any address
         self._base_cache = None
         self._undo = []  # (file, bytes before or None) an apply wrote, put back when the apply is refused
+        self.uploads_dir = self.path.parent / "uploads"  # in the private data folder; never under web/ or assets/
+        self._sending = set()  # upload ids whose chunk is being written outside the lock
         self.on_owner_token = None  # called with (token, rotatedAt) inside the rotation, before it commits
 
     # -- construction and persistence ---------------------------------------------------------
@@ -1825,6 +1995,7 @@ class Session:
                 old_text = mine["text"] if mine else ""
                 card = {"kind": "person", "pid": pid, **({"device": device} if device else {}), "text": text, "at": now}
                 card["cites"] = list(cites) if cites is not None else (mine["cites"] if mine else [])
+                self._attach(card, pid, body, mine)
                 if mine:
                     votes = len(self._votes_on(qid, card_ref(mine)))
                     if mine.get("editedAfterVotes"):
@@ -1894,6 +2065,7 @@ class Session:
             else:
                 card = {"kind": "person", "pid": pid, **({"device": device} if device else {}), "text": text, "at": now, **fields}
                 card["cites"] = mine["cites"] if mine else []
+                self._attach(card, pid, body, mine)
                 backers = len(self._votes_on(qid, card_ref(card))) if was_other else 0
                 if was_other and chose_other and mine.get("editedAfterVotes"):
                     card["editedAfterVotes"] = mine["editedAfterVotes"]
@@ -1952,6 +2124,26 @@ class Session:
         if option and option not in known:
             raise DomainError(400, "no-such-option", "No such option on this question.")
         return "pick", ({"pick": option} if option else {})
+
+    def _attach(self, card, pid, body, mine):
+        """C44: the uploads an answer or pick carries. `attachments`, when sent, replaces the list: ids of the
+        writer's own uploads the owner accepted, at most MAX_ATTACHMENTS; when left out the card keeps its list."""
+        ids = _body(body).get("attachments")
+        if ids is None:
+            ids = list(mine.get("attachments", [])) if mine else []
+        else:
+            if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids) or len(set(ids)) != len(ids):
+                raise _bad("attachments", "attachments must list upload ids, each once.")
+            if len(ids) > MAX_ATTACHMENTS:
+                raise DomainError(400, "too-long", f"An answer carries at most {MAX_ATTACHMENTS} files.", field="attachments", max=MAX_ATTACHMENTS)
+            for uid in ids:
+                u = self._upload(uid)
+                if u["pid"] != pid:
+                    raise DomainError(404, "no-such-upload", f"No upload {uid[:40]}.")
+                if u["status"]["kind"] not in UPLOAD_ACCEPTED:
+                    raise DomainError(409, "wrong-status", "Attach a file once the host has accepted it.", status=u["status"]["kind"])
+        if ids:
+            card["attachments"] = list(ids)
 
     def _unback(self, qid, ref):
         """Drop every vote for, and every backing of, a card that no longer holds its author's Something else option."""
@@ -2762,6 +2954,261 @@ class Session:
         watchers = self.state["credentials"].get("watchers", {})
         for h in [h for h, p in watchers.items() if p == pid]:
             watchers.pop(h)
+
+    # -- uploads -----------------------------------------------------------------------------
+
+    def _upload(self, uid):
+        u = next((u for u in self.state["uploads"] if u["id"] == uid), None) if isinstance(uid, str) else None
+        if u is None:
+            raise DomainError(404, "no-such-upload", f"No upload {str(uid)[:40]}.")
+        return u
+
+    @staticmethod
+    def _chunk_length(u, index):
+        return min(CHUNK_SIZE, u["size"] - index * CHUNK_SIZE)
+
+    def _detach(self, uid):
+        """Take an upload off every answer that carries it."""
+        for cards in self.state["cards"].values():
+            for c in cards:
+                if uid in c.get("attachments", []):
+                    c["attachments"].remove(uid)
+                    if not c["attachments"]:
+                        c.pop("attachments")
+
+    def _pending_file(self, u):
+        """An accepted upload's pending file; None without one, or for a name the server never makes (a hand-edited
+        or early state.json), which then names no file to open or delete."""
+        tmp = u["status"].get("tmp", "")
+        return self.uploads_dir / "pending" / tmp if TMP_NAME.fullmatch(tmp) else None
+
+    @staticmethod
+    def _discard(path):
+        """Delete one file of ours; a failure (Windows holds open files) leaves it for the next start's sweep."""
+        with contextlib.suppress(OSError):
+            Path(path).unlink(missing_ok=True)
+
+    def offer_upload(self, pid, body):
+        """POST /api/upload/offer: offer a file, which stays in the person's browser until the owner accepts it (the
+        owner's own is accepted at once). Refused while uploads are off, past a cap (MAX_OPEN_UPLOADS open per
+        person, GUEST_UPLOAD_MAX per guest, SESSION_UPLOAD_MAX per session, counting every file not declined,
+        withdrawn or failed), or of a kind a guest may not send. The name is display text; the server names the file."""
+        body = _body(body)
+        name = _file_name(body)
+        size = body.get("size")
+        if not _is_int(size) or size < 1:
+            raise _bad("size", "size must be the file's size in bytes.")
+        _text(body, "type", limit=MAX_NOTE, empty_ok=True)  # the browser's guess, unused: the server records its own
+        ext = name.rsplit(".", 1)[1].lower() if "." in name else ""
+        ext = ext if FILE_EXT.fullmatch(ext) else ""
+        thumb = _thumb(body.get("thumb"), ext)
+        qid = body.get("qid") or None
+        with self._write_as(pid, "upload-offer") as st:
+            person = st["people"][pid]
+            if not st["session"]["settings"]["uploads"]:
+                raise DomainError(403, "uploads-off", "Uploads are off in this session.")
+            if qid is not None:
+                qid = self._question(qid)["id"]
+            owner = pid == HOST
+            if ext not in GUEST_KINDS and not (owner or person["trusted"]):
+                raise DomainError(415, "file-type", "Guests can send pictures, PDF, text, CSV and Office files.")
+            held = [u for u in st["uploads"] if u["status"]["kind"] in UPLOAD_HELD]
+            if sum(1 for u in held if u["pid"] == pid and u["status"]["kind"] in UPLOAD_LIVE) >= MAX_OPEN_UPLOADS:
+                raise DomainError(429, "too-many-pending", f"You have {MAX_OPEN_UPLOADS} files waiting already.", field="file")
+            mine = sum(u["size"] for u in held if u["pid"] == pid)
+            if not owner and mine + size > GUEST_UPLOAD_MAX:
+                raise DomainError(413, "upload-too-large", "That is more than a guest can send.", max=GUEST_UPLOAD_MAX, left=max(0, GUEST_UPLOAD_MAX - mine))
+            total = sum(u["size"] for u in held)
+            if total + size > SESSION_UPLOAD_MAX:
+                raise DomainError(413, "upload-too-large", "This session holds no more files.", max=SESSION_UPLOAD_MAX, left=max(0, SESSION_UPLOAD_MAX - total))
+            uid = f"{self._next('U')}-{self.ids.hex(4)}"
+            mime = UPLOAD_KINDS[ext][0] if ext in UPLOAD_KINDS else "application/octet-stream"
+            rec = {"id": uid, "pid": pid, "at": self.now(), "qid": qid, "file": name, "ext": ext, "mime": mime, "size": size, "chunks": -(-size // CHUNK_SIZE)}
+            if thumb:
+                rec["thumb"] = thumb
+            rec["status"] = {"kind": "accepted", "tmp": self.ids.hex(16)} if owner else {"kind": "offered"}
+            st["uploads"].append(rec)
+            if not owner:
+                self._queue_note([HOST], pid)
+            return {"id": uid, "status": rec["status"]["kind"], "chunks": rec["chunks"], "chunkSize": CHUNK_SIZE}
+
+    def act_on_upload(self, pid, body):
+        """POST /api/upload/act: the owner accepts or declines an offered file, and its uploader withdraws it. Declining
+        or withdrawing deletes what arrived so far and takes the file off every answer; the browser deletes its copy."""
+        action = _choice(body, "action", ("accept", "decline", "withdraw"))
+        uid = _ident(body, "id")
+        now = self.now()
+        with self._tx():
+            if action == "withdraw":
+                self._writer(pid)
+                self._throttle(pid, "upload-act", now)
+            else:
+                self._owner(pid)
+            u = self._upload(uid)
+            if action == "withdraw" and u["pid"] != pid:
+                raise DomainError(404, "no-such-upload", f"No upload {uid[:40]}.")
+            kind = u["status"]["kind"]
+            if kind not in (("offered",) if action == "accept" else UPLOAD_LIVE):
+                raise DomainError(409, "wrong-status", f"That file is {kind}.", status=kind)
+            doomed = self._pending_file(u)
+            if action == "accept":
+                if not self._active(u["pid"]):
+                    raise DomainError(409, "wrong-status", "Its sender is no longer in the session.", status="removed")
+                u["status"] = {"kind": "accepted", "tmp": self.ids.hex(16)}
+            else:
+                u["status"] = {"kind": "declined" if action == "decline" else "withdrawn", "at": now}
+                u.pop("thumb", None)
+                self._detach(uid)
+        if action == "withdraw":
+            self._wrote(pid, "upload-act", now)
+        if doomed:
+            self._discard(doomed)
+        return {"id": uid, "status": u["status"]["kind"]}
+
+    def _chunk_target(self, pid, m):
+        """The upload a chunk is for: the sender's own, accepted, with the total the offer set, no chunk in flight."""
+        self._writer(pid)
+        u = self._upload(m["id"])
+        if u["pid"] != pid:
+            raise DomainError(404, "no-such-upload", f"No upload {m['id']}.")
+        kind = u["status"]["kind"]
+        if kind not in ("accepted", "uploading"):
+            raise DomainError(409, "wrong-status", f"That file is {kind}.", status=kind)
+        if m["total"] != u["chunks"]:
+            raise _bad("X-Chunk-Total", f"This file takes {u['chunks']} pieces.")
+        if u["id"] in self._sending:
+            raise DomainError(409, "wrong-status", "A piece of this file is on its way already.", status="sending")
+        return u
+
+    def chunk_plan(self, pid, meta):
+        """Before the chunk route reads a body: {"length": the bytes chunk `index` holds}, or {"received": n} for a
+        chunk the server has (a repeat after a lost answer). A chunk past the next is 409 chunk-gap with `received`."""
+        m = _chunk_meta(meta)
+        with self._lock:
+            u = self._chunk_target(pid, m)
+            received = u["status"].get("received", 0)
+            if m["index"] < received:
+                return {"received": received}
+            if m["index"] > received:
+                raise DomainError(409, "chunk-gap", f"Send piece {received + 1} next.", received=received)
+            self._throttle(pid, "upload-chunk", self.now(), CHUNK_INTERVAL)
+            return {"length": self._chunk_length(u, m["index"])}
+
+    def upload_chunk(self, pid, meta, data):
+        """POST /api/upload/chunk: chunk `index` of an accepted upload, in order. Its own sha256 must match; the first
+        must start as its kind does (UPLOAD_KINDS) and the last must make the whole file hash to X-File-Sha256, or the
+        upload fails and its bytes are deleted. The bytes are written outside the session lock, one chunk per upload
+        at a time; a decline or withdraw meanwhile wins and the bytes are deleted. The last chunk moves the file to
+        uploads/accepted/ and writes `upload-received` for Claude."""
+        m = _chunk_meta(meta)
+        now = self.now()
+        with self._lock:
+            u = self._chunk_target(pid, m)
+            received = u["status"].get("received", 0)
+            if m["index"] < received:
+                return {"received": received}
+            if m["index"] > received:
+                raise DomainError(409, "chunk-gap", f"Send piece {received + 1} next.", received=received)
+            self._throttle(pid, "upload-chunk", now, CHUNK_INTERVAL)
+            if len(data) != self._chunk_length(u, m["index"]):
+                raise _bad("Content-Length", f"This piece is {self._chunk_length(u, m['index'])} bytes.")
+            last = m["index"] == u["chunks"] - 1
+            if last and "fileSha256" not in m:
+                raise _bad("X-File-Sha256", "The last piece carries the whole file's sha256.")
+            uid, ext, offset = u["id"], u["ext"], m["index"] * CHUNK_SIZE
+            tmp = self._pending_file(u)
+            if tmp is None:
+                raise DomainError(409, "wrong-status", "What arrived before was lost; offer the file again.", status="lost")
+            stored = f"uploads/accepted/{time.strftime('%Y%m%d', time.gmtime(now))}-{uid}{'.' + ext if ext else ''}"
+            self._sending.add(uid)
+        dest = self.path.parent / stored
+        try:
+            if hashlib.sha256(data).hexdigest() != m["sha256"]:
+                raise DomainError(400, "hash-mismatch", "That piece arrived damaged; send it again.", field="X-Chunk-Sha256")
+            failure, digest = None, None
+            if m["index"] == 0 and ext in UPLOAD_KINDS and not UPLOAD_KINDS[ext][1](data[:4096]):
+                failure = (DomainError(415, "file-type", f"This file is not a {ext.upper()} file.", field="file"), "Its contents are not what its name says.")
+            elif not _write_chunk(tmp, offset, data):
+                failure = (DomainError(409, "wrong-status", "What arrived before was lost; offer the file again.", status="failed"), "What arrived before was lost.")
+            elif last:
+                digest = _file_sha256(tmp)
+                if digest != m["fileSha256"]:
+                    failure = (DomainError(400, "hash-mismatch", "The file did not arrive intact; it was deleted.", field="X-File-Sha256"), "The file did not arrive intact.")
+                else:
+                    _private_dirs(dest.parent)
+                    replace_into(tmp, dest)
+            if failure:
+                self._discard(tmp)
+                with self._tx():
+                    u = self._upload(uid)
+                    if u["status"]["kind"] in ("accepted", "uploading"):
+                        u["status"] = {"kind": "failed", "reason": failure[1]}
+                        self._detach(uid)
+                raise failure[0]
+            try:
+                with self._tx():
+                    u = self._upload(uid)
+                    if u["status"]["kind"] not in ("accepted", "uploading"):
+                        raise DomainError(409, "wrong-status", f"That file is {u['status']['kind']}.", status=u["status"]["kind"])
+                    if last:
+                        u["status"] = {"kind": "done", "stored": stored, "sha256": digest}
+                        self._event("upload-received", upload=uid, file=u["file"], stored=stored, qid=u["qid"])
+                    else:
+                        u["status"] = {"kind": "uploading", "tmp": tmp.name, "received": m["index"] + 1, "bytes": offset + len(data)}
+            except BaseException:
+                if last:
+                    self._discard(dest)
+                with self._lock:
+                    if self._upload(uid)["status"]["kind"] not in ("accepted", "uploading"):
+                        self._discard(tmp)
+                raise
+        finally:
+            self._sending.discard(uid)
+        self._wrote(pid, "upload-chunk", now)
+        return {"received": m["index"] + 1, "status": u["status"]["kind"]}
+
+    def recover_uploads(self):
+        """At server start: cut each upload's pending file back to the chunks its record counts, start over one whose
+        bytes went missing or whose pending name is not one the server makes, and delete every pending file no record
+        names (a crash, or a delete Windows refused) and every received file of ours no record names. Returns how many
+        files it deleted."""
+        pending, accepted = self.uploads_dir / "pending", self.uploads_dir / "accepted"
+        with self._lock:
+            ups = [u for u in self.state["uploads"] if u["status"]["kind"] in ("accepted", "uploading")]
+            live = {f.name: u for u in ups if (f := self._pending_file(u))}
+            done = {Path(u["status"]["stored"]).name for u in self.state["uploads"] if u["status"]["kind"] == "done"}
+            stray = [f for f in (pending.iterdir() if pending.is_dir() else ()) if f.is_symlink() or (f.is_file() and f.name not in live)]
+            stray += [f for f in (accepted.iterdir() if accepted.is_dir() else ()) if STORED_NAME.fullmatch(f.name) and f.name not in done and (f.is_file() or f.is_symlink())]
+            removed = 0
+            for f in stray:
+                with contextlib.suppress(OSError):
+                    f.unlink()
+                    removed += 1
+            lost = [u["id"] for u in ups if self._pending_file(u) is None]
+            for name, u in live.items():
+                f, want = pending / name, u["status"].get("bytes", 0)
+                have = f.stat().st_size if f.is_file() and not f.is_symlink() else 0
+                if have > want:
+                    os.truncate(f, want)
+                elif have < want:
+                    lost.append(u["id"])
+            if lost:
+                with self._tx():
+                    for uid in lost:
+                        u = self._upload(uid)
+                        if self._pending_file(u):
+                            self._discard(self._pending_file(u))
+                        u["status"] = {"kind": "accepted", "tmp": self.ids.hex(16)}
+            return removed
+
+    def _upload_view(self, u, *, owner=False):
+        """An upload as the page reads it: never `tmp`, `stored` or any path; the preview to the owner only."""
+        out = {k: u[k] for k in ("id", "pid", "at", "qid", "file", "ext", "size", "chunks")}
+        out["status"] = {k: v for k, v in u["status"].items() if k not in ("tmp", "stored")}
+        out["chunkSize"] = CHUNK_SIZE
+        if owner and "thumb" in u:
+            out["thumb"] = u["thumb"]
+        return out
 
     # -- settings, prefs, notifications, session ---------------------------------------------
 
@@ -3578,10 +4025,24 @@ class Session:
                 if v["pid"] in active
             ],
             "requestCounts": self._request_counts(),
+            "files": self._files(cards),
         }
         base = json.loads(json.dumps(base))
         self._base_cache = (st["rev"], base)
         return base
+
+    def _files(self, cards):
+        """C44: what everyone reads of the files the shown answers carry (the owner accepted each): name, kind, size
+        and where it stands, never where it is saved."""
+        ups = {u["id"]: u for u in self.state["uploads"]}
+        out = {}
+        for lst in cards.values():
+            for c in lst:
+                for uid in c.get("attachments", []):
+                    u = ups.get(uid)
+                    if u is not None and u["status"]["kind"] in UPLOAD_ACCEPTED:
+                        out[uid] = {"file": u["file"], "ext": u["ext"], "size": u["size"], "status": u["status"]["kind"]}
+        return out
 
     def _public_card(self, qid, c, active):
         """One card as people read it: never `view`, `deviceInfo` or `history`; with its ref, the
@@ -3685,6 +4146,7 @@ class Session:
                 if held and not owner:
                     snap["results"] = {**snap["results"], qid: copy.deepcopy([r for r in lst if self._result_shown(r) or r["id"] in held])}
             snap["myMergeRequests"] = copy.deepcopy([m for m in st["mergeRequests"] if m["from"] == pid])
+            snap["myUploads"] = [self._upload_view(u, owner=owner) for u in st["uploads"] if u["pid"] == pid]
             if moderator:
                 snap["guestKey"] = st["session"]["guestKey"]
                 snap["behind"] = self._behind()
@@ -3692,6 +4154,7 @@ class Session:
                 snap["requests"] = copy.deepcopy([r for r in st["requests"] if r["runner"] == "host"])
                 snap["results"] = {q: copy.deepcopy(kept) for q, lst in st["results"].items() if (kept := [r for r in lst if self._from_active(r)])}
                 snap["mergeRequests"] = copy.deepcopy([m for m in st["mergeRequests"] if m["status"]["kind"] == "pending"])
+                snap["uploads"] = [self._upload_view(u, owner=True) for u in st["uploads"] if self._active(u["pid"])]
                 snap["aboutYou"] = copy.deepcopy(st["aboutYou"])
                 snap["removed"] = [
                     {k: v[k] for k in ("pid", "name", "role", "trusted", "color", "joinedAt")} for v in st["people"].values() if v["status"]["kind"] == "removed"

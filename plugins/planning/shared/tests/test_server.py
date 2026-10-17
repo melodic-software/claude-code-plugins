@@ -9,6 +9,7 @@ from running the server.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -278,8 +279,8 @@ class TestHeadersAndCaps(ServerCase):
         self.assertNotEqual(code, 200)
         self.assertFalse([k for k in h if k.lower().startswith("access-control-")])
 
-    def test_unknown_routes_and_later_phase_routes_are_404(self):
-        for path in ("/api/upload/offer", "/api/upload/act", "/api/upload/chunk", "/api/nope"):
+    def test_unknown_routes_are_404(self):
+        for path in ("/api/upload", "/api/upload/chunks", "/api/nope"):
             with self.subTest(path=path):
                 code, _, out = self.post(path, {})
                 self.assertEqual((code, out["error"]), (404, "not-found"))
@@ -1298,6 +1299,224 @@ class TestWatcherKey(ServerCase):
             with self.subTest(path=path):
                 code, _, out = self.post(f"/api/mine/requests/{path}", b, bo_key)
                 self.assertEqual((code, out["error"]), (404, "no-such-request"))
+
+
+class TestUploads(ServerCase):
+    """Phase 9 routes: /api/upload/offer, /api/upload/act, /api/upload/chunk. Expected values come from the Design's
+    Guest listener routes (offer cap 96 KB; chunk raw bytes with X-Upload-Id, X-Chunk-Index, X-Chunk-Total,
+    X-Chunk-Sha256 and X-File-Sha256 on the last; a repeat answers {received}; a gap is 409 chunk-gap), the Upload
+    rules (tmp and stored never on the wire), the Brief's upload criteria (AC 21 decline discards, AC 40 chunked with
+    resume and a whole-file hash check) and the Phase 9 security brief (sizes checked before a body is read; files in
+    the private data folder, never under a served path). Chunks are 1024 bytes here; hashes are sha256 of the bytes."""
+
+    CHUNK = 1024
+    DATA = b"%PDF-1.7\n" + bytes(range(256)) * 9 + b"%%EOF"  # 2318 bytes: chunks of 1024, 1024 and 270
+
+    def setUp(self):
+        super().setUp()
+        for name, value in (("CHUNK_SIZE", self.CHUNK), ("CHUNK_INTERVAL", 0.0)):
+            patcher = mock.patch.object(session, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.open_round("Q1")
+        code, _, out = self.post("/api/session/settings", {"uploads": True}, self.owner)
+        self.assertEqual(code, 200, out)
+        self.ann_pid, self.ann = self.join("Ann")
+        self.bo_pid, self.bo = self.join("Bo")
+
+    def offer(self, who, name="funnel.pdf", data=DATA):
+        code, _, out = self.post("/api/upload/offer", {"file": name, "size": len(data), "type": "application/pdf", "qid": "Q1"}, who)
+        self.assertEqual(code, 200, out)
+        return out["id"]
+
+    def accepted(self, who, name="funnel.pdf", data=DATA):
+        uid = self.offer(who, name, data)
+        if who is not self.owner:
+            code, _, out = self.post("/api/upload/act", {"id": uid, "action": "accept"}, self.owner)
+            self.assertEqual((code, out["status"]), (200, "accepted"), out)
+        return uid
+
+    def chunk_headers(self, who, uid, index, piece, data=DATA, sha=None, whole=None):
+        total = -(-len(data) // self.CHUNK)
+        h = {"Content-Type": "application/octet-stream", "X-Upload-Id": uid, "X-Chunk-Index": str(index), "X-Chunk-Total": str(total),
+             "X-Chunk-Sha256": sha or hashlib.sha256(piece).hexdigest(), **who}
+        if index == total - 1:
+            h["X-File-Sha256"] = whole or hashlib.sha256(data).hexdigest()
+        return h
+
+    def chunk(self, who, uid, index, data=DATA, **kw):
+        piece = data[index * self.CHUNK:(index + 1) * self.CHUNK]
+        return call(self.port, "POST", "/api/upload/chunk", raw=piece, headers=self.chunk_headers(who, uid, index, piece, data, **kw))
+
+    def mine(self, who, uid):
+        return next(u for u in self.get("/api/state?since=0", who)[2]["myUploads"] if u["id"] == uid)
+
+    def files(self, sub):
+        d = self.d / "uploads" / sub
+        return sorted(p.name for p in d.iterdir()) if d.is_dir() else []
+
+    def test_upload_resume_after_dropped_chunk(self):
+        uid = self.accepted(self.ann)
+        code, _, out = self.chunk(self.ann, uid, 0)
+        self.assertEqual((code, out["received"]), (200, 1), out)
+        piece = self.DATA[self.CHUNK:2 * self.CHUNK]
+        head = "".join(f"{k}: {v}\r\n" for k, v in {"Host": f"127.0.0.1:{self.port}", "Content-Length": str(len(piece)), **self.chunk_headers(self.ann, uid, 1, piece)}.items())
+        raw_exchange(self.port, f"POST /api/upload/chunk HTTP/1.1\r\n{head}\r\n".encode() + piece[:300], wait=0.5)  # the connection drops mid-piece
+        self.assertEqual(wait_for(lambda: uid not in self.app.session._sending, seconds=5), True)
+        self.assertEqual(self.mine(self.ann, uid)["status"], {"kind": "uploading", "received": 1, "bytes": self.CHUNK})
+        code, _, out = self.chunk(self.ann, uid, 2)
+        self.assertEqual((code, out["error"], out["received"]), (409, "chunk-gap", 1))
+        code, _, out = self.chunk(self.ann, uid, 0)  # a repeat of a piece the server has is answered, not written
+        self.assertEqual((code, out["received"], out["repeat"]), (200, 1, True))
+        for i in (1, 2):
+            code, _, out = self.chunk(self.ann, uid, i)
+            self.assertEqual(code, 200, out)
+        self.assertEqual(out, {"ok": True, "received": 3, "status": "done"})
+        self.assertEqual(self.mine(self.ann, uid)["status"], {"kind": "done", "sha256": hashlib.sha256(self.DATA).hexdigest()})
+        (stored,) = self.files("accepted")
+        self.assertEqual((self.d / "uploads" / "accepted" / stored).read_bytes(), self.DATA)
+        ev = [e for e in self.app.session.state["log"]["events"] if e["kind"] == "upload-received"]
+        self.assertEqual([(e["upload"], e["file"], e["stored"], e["qid"]) for e in ev], [(uid, "funnel.pdf", f"uploads/accepted/{stored}", "Q1")])
+        self.assertEqual(self.files("pending"), [])
+
+    def test_upload_hash_mismatch_rejected(self):
+        uid = self.accepted(self.ann)
+        code, _, out = self.chunk(self.ann, uid, 0, sha="0" * 64)
+        self.assertEqual((code, out["error"], out["field"]), (400, "hash-mismatch", "X-Chunk-Sha256"))
+        self.assertEqual(self.mine(self.ann, uid)["status"]["kind"], "accepted")
+        for i in (0, 1):
+            self.assertEqual(self.chunk(self.ann, uid, i)[0], 200)
+        code, _, out = self.chunk(self.ann, uid, 2, whole=hashlib.sha256(b"another file").hexdigest())
+        self.assertEqual((code, out["error"], out["field"]), (400, "hash-mismatch", "X-File-Sha256"))
+        self.assertEqual(self.mine(self.ann, uid)["status"]["kind"], "failed")
+        self.assertEqual((self.files("pending"), self.files("accepted")), ([], []))
+        self.assertEqual([e for e in self.app.session.state["log"]["events"] if e["kind"] == "upload-received"], [])
+
+    def test_upload_decline_discards(self):
+        uid = self.accepted(self.ann)
+        self.assertEqual(self.chunk(self.ann, uid, 0)[0], 200)
+        self.assertEqual(len(self.files("pending")), 1)
+        code, _, out = self.post("/api/upload/act", {"id": uid, "action": "decline"}, self.bo)
+        self.assertEqual((code, out["error"]), (403, "owner-only"))
+        code, _, out = self.post("/api/upload/act", {"id": uid, "action": "decline"}, self.owner)
+        self.assertEqual((code, out["status"]), (200, "declined"))
+        self.assertEqual(self.files("pending"), [])
+        self.assertEqual(self.mine(self.ann, uid)["status"]["kind"], "declined")
+        code, _, out = self.chunk(self.ann, uid, 1)
+        self.assertEqual((code, out["error"], out["status"]), (409, "wrong-status", "declined"))
+        offered = self.offer(self.bo)
+        code, _, out = self.post("/api/upload/act", {"id": offered, "action": "decline"}, self.owner)
+        self.assertEqual((code, out["status"]), (200, "declined"))
+
+    def test_snapshot_never_exposes_upload_paths(self):
+        lee_pid, lee = self.join("Lee")
+        self.leader(lee_pid)
+        done = self.accepted(self.ann)
+        for i in range(3):
+            self.assertEqual(self.chunk(self.ann, done, i)[0], 200)
+        code, _, out = self.post("/api/answer", {"qid": "Q1", "text": "The funnel.", "view": "focus", "attachments": [done]}, self.ann)
+        self.assertEqual(code, 200, out)
+        time.sleep(session.WRITE_INTERVAL)
+        sending = self.accepted(self.ann, name="b.pdf")
+        self.assertEqual(self.chunk(self.ann, sending, 0)[0], 200)
+        offered = self.offer(self.bo)
+        time.sleep(session.WRITE_INTERVAL)
+        declined = self.accepted(self.bo, name="c.pdf")
+        self.assertEqual(self.chunk(self.bo, declined, 0)[0], 200)
+        self.post("/api/upload/act", {"id": declined, "action": "decline"}, self.owner)
+        own = self.accepted(self.owner, name="notes.zip")
+        st = self.app.session.state
+        secrets_on_disk = [v for u in st["uploads"] for k, v in u["status"].items() if k in ("tmp", "stored")] + [str(self.d), "uploads/"]
+        self.assertGreaterEqual(len(secrets_on_disk), 4)
+        for role, who in (("owner", self.owner), ("leader", lee), ("uploader", self.ann), ("other guest", self.bo), ("anonymous", {})):
+            with self.subTest(role=role):
+                code, _, snap = self.get("/api/state?since=0", who)
+                self.assertEqual(code, 200)
+                keys, stack = set(), [snap]
+                while stack:
+                    x = stack.pop()
+                    if isinstance(x, dict):
+                        keys |= set(x)
+                        stack += list(x.values())
+                    elif isinstance(x, list):
+                        stack += x
+                self.assertFalse({"tmp", "stored"} & keys, role)
+                text = json.dumps(snap)
+                for s in secrets_on_disk:
+                    self.assertNotIn(s, text)
+        owner_view = self.get("/api/state?since=0", self.owner)[2]
+        self.assertEqual({u["id"] for u in owner_view["uploads"]}, {done, sending, offered, declined, own})
+        self.assertEqual(self.get("/api/state?since=0", self.bo)[2]["files"], {done: {"file": "funnel.pdf", "ext": "pdf", "size": len(self.DATA), "status": "done"}})
+
+    def test_sizes_are_checked_before_any_body_is_read(self):
+        uid = self.accepted(self.ann)
+        h = self.chunk_headers(self.ann, uid, 0, b"")
+        for length, want in ((self.CHUNK + 1, 413), (10, 400)):
+            with self.subTest(length=length):
+                head = "".join(f"{k}: {v}\r\n" for k, v in {"Host": f"127.0.0.1:{self.port}", **h, "Content-Length": str(length)}.items())
+                t0 = time.monotonic()
+                got, _ = raw_exchange(self.port, f"POST /api/upload/chunk HTTP/1.1\r\n{head}\r\n".encode(), wait=3.0)
+                self.assertEqual(status_and_headers(got)[0], want)
+                self.assertLess(time.monotonic() - t0, 2.5)  # answered without waiting for a body that never comes
+        code, _, out = self.post("/api/upload/offer", {"file": "a.pdf", "size": 1, "type": "", "pad": "x" * session.OFFER_MAX})
+        self.assertEqual((code, out["error"], out["max"]), (413, "body-too-large", 96 * 1024))
+
+    def test_one_piece_per_person_is_read_at_a_time(self):
+        first = self.accepted(self.ann)
+        time.sleep(session.WRITE_INTERVAL)
+        second = self.accepted(self.ann, name="b.pdf")
+        piece = self.DATA[:self.CHUNK]
+        head = "".join(f"{k}: {v}\r\n" for k, v in {"Host": f"127.0.0.1:{self.port}", "Content-Length": str(len(piece)), **self.chunk_headers(self.ann, first, 0, piece)}.items())
+        with socket.create_connection(("127.0.0.1", self.port), timeout=5) as slow:
+            slow.sendall(f"POST /api/upload/chunk HTTP/1.1\r\n{head}\r\n".encode() + piece[:10])  # a sender that stalls
+            self.assertTrue(wait_for(lambda: self.ann_pid in self.app._chunk_readers, seconds=5))
+            code, _, out = self.chunk(self.ann, second, 0)
+            self.assertEqual((code, out["error"], out["status"]), (409, "wrong-status", "sending"))
+            self.assertEqual(self.chunk(self.bo, self.accepted(self.bo), 0)[0], 200)  # another person is not held up
+        self.assertTrue(wait_for(lambda: self.ann_pid not in self.app._chunk_readers, seconds=5))
+        self.assertEqual(self.chunk(self.ann, second, 0)[0], 200)
+
+    def test_only_the_uploader_sends_raw_bytes(self):
+        uid = self.accepted(self.ann)
+        piece = self.DATA[:self.CHUNK]
+        h = self.chunk_headers(self.ann, uid, 0, piece)
+        anon = {k: v for k, v in h.items() if k != "X-Session-Secret"}
+        self.assertEqual(call(self.port, "POST", "/api/upload/chunk", raw=piece, headers=anon)[0], 401)
+        code, _, out = call(self.port, "POST", "/api/upload/chunk", raw=piece, headers={**h, "Content-Type": "application/json"})
+        self.assertEqual((code, out["error"]), (415, "bytes-required"))
+        code, _, out = call(self.port, "POST", "/api/upload/chunk", raw=piece, headers={**h, **self.bo})
+        self.assertEqual((code, out["error"]), (404, "no-such-upload"))
+        code, _, out = call(self.port, "POST", "/api/upload/chunk", raw=piece, headers={**h, "X-Upload-Id": "../../state.json"})
+        self.assertEqual((code, out["error"], out["field"]), (400, "bad-field", "X-Upload-Id"))
+
+    def test_uploads_off_refuses_an_offer(self):
+        self.post("/api/session/settings", {"uploads": False}, self.owner)
+        code, _, out = self.post("/api/upload/offer", {"file": "a.pdf", "size": 3, "type": ""}, self.ann)
+        self.assertEqual((code, out["error"]), (403, "uploads-off"))
+
+    def test_received_files_stay_in_the_private_data_folder_and_are_never_served(self):
+        uid = self.accepted(self.ann, name="shot.png", data=PNG + bytes(100))
+        self.assertEqual(self.chunk(self.ann, uid, 0, data=PNG + bytes(100))[0], 200)
+        (stored,) = self.files("accepted")
+        for path in (f"/uploads/accepted/{stored}", f"/assets/{stored}", f"/{stored}"):
+            with self.subTest(path=path):
+                self.assertEqual(self.get(path)[0], 404)
+        self.assertFalse(any(p.name == stored for p in server.WEB.rglob("*")))
+        if not WINDOWS:
+            for p in (self.d / "uploads", self.d / "uploads" / "accepted", self.d / "uploads" / "accepted" / stored):
+                self.assertEqual(stat.S_IMODE(p.stat().st_mode), 0o600 if p.is_file() else 0o700, p)
+
+    def test_a_restart_deletes_partial_files_no_upload_names(self):
+        uid = self.accepted(self.ann)
+        self.assertEqual(self.chunk(self.ann, uid, 0)[0], 200)
+        stray = self.d / "uploads" / "pending" / ("e" * 32)
+        stray.write_bytes(b"left by a crash")
+        self.app.shutdown()
+        again = server.App(self.d, watch_tunnel=False)
+        self.addCleanup(again.shutdown)
+        self.assertFalse(stray.exists())
+        self.assertEqual(len(self.files("pending")), 1)
+        self.assertEqual(next(u for u in again.session.state["uploads"] if u["id"] == uid)["status"]["received"], 1)
 
 
 if __name__ == "__main__":

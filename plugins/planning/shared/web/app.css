@@ -1935,8 +1935,15 @@
 .app .vf-att-note { margin: 0; }
 .app .vf-att-err { color: var(--warn); font-size: 12.5px; font-weight: 600; margin: 0; }
 .app .vf-att-err:empty { display: none; }
+/* C44: the picker's list of my files the host accepted; each attaches with one press. */
+.app .vf-attmine { flex-direction: column; overflow-x: visible; max-block-size: 40vh; overflow-y: auto; padding: 0; margin: 0; }
+.app .vf-attmine[hidden], .app .vf-attform .vf-sel-l[hidden] { display: none; }
+.app .vf-attmine > .vf-ref { inline-size: auto; border: 0; }
+.app .vf-attpick { justify-content: flex-start; gap: 8px; inline-size: 100%; min-block-size: 40px; }
+.app .vf-attpick > .vf-ref-dom { padding: 0; margin-inline-start: auto; }
 @media (max-width: 720px) {
   .app .vf-attseg .vf-seg-btn { min-block-size: 40px; }
+  .app .vf-attpick { min-block-size: 44px; }
 }
 /* Attachments on answers, messages, requests, suggestions and proposals: the reference cards, a size smaller. */
 .app .vf-attlist { margin-block-start: 8px; }

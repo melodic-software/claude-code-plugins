@@ -155,6 +155,8 @@
         // A person's own "Something else…" option: their pick, picks or order holds it, and their text is it.
         const other = c.pick === "other" || (c.picks || []).includes("other") || (c.order || []).includes("other");
         return { ...base, name: nameOf(c.pid), text: c.text || "", ts: c.at, cites: c.cites || [], device: c.device,
+          // C44: the files an answer or pick carries, each an upload the owner accepted.
+          ...(c.attachments ? { att: c.attachments.map(id => ({ kind: "file", upload: id })) } : {}),
           ...(c.pick ? { pick: optIn(c.pick) } : {}), ...(c.picks ? { picks: c.picks.map(optIn) } : {}), ...("value" in c ? { value: c.value } : {}),
           ...(c.order ? { order: c.order.map(optIn) } : {}), ...(other ? { other: true } : {}),
           ...(c.editedAfterVotes ? { editedAfter: c.editedAfterVotes } : {}), ...(c.late ? { late: c.late } : {}),
@@ -204,6 +206,14 @@
     view.myRequests = (s.myRequests || []).map(req);
     view.mergeRequests = (s.mergeRequests || []).map(m => ({ id: m.id, from: m.from, to: m.to, fromName: nameOf(m.from), toName: nameOf(m.to), ts: m.at, status: m.status.kind }));
     view.myMergeRequests = (s.myMergeRequests || []).map(m => ({ id: m.id, status: m.status.kind, toName: nameOf(m.to) }));
+    // Uploads: my own files, everyone's for the owner (with a picture's preview), and what everyone reads of the
+    // files answers carry. No path ever reaches the page.
+    const upView = u => ({ id: u.id, cid: u.pid, by: nameOf(u.pid), qid: u.qid || "", file: u.file, ext: u.ext, size: u.size, ts: u.at,
+      total: u.chunks, chunkSize: u.chunkSize, status: u.status.kind, received: u.status.received || 0, bytes: u.status.bytes || 0,
+      ...(u.status.reason ? { reason: u.status.reason } : {}), ...(u.thumb ? { thumb: u.thumb } : {}) });
+    view.myUploads = (s.myUploads || []).map(upView);
+    view.uploads = (s.uploads || []).map(upView);
+    view.files = s.files || {};
     // Present people are active or away (with since when); a person with no heartbeat for a while is absent: offline.
     view.presence = (s.presence || []).map(p => ({ cid: p.pid, name: nameOf(p.pid), q: p.q, typing: p.typing, chatTyping: p.chatTyping,
       away: p.state === "away", ...(p.state === "away" ? { awaySince: p.since } : {}),
@@ -251,6 +261,12 @@
     "slow-down": "You sent that a moment ago. Try again in a second.",
     "join-rate": "Too many people joined from your network just now. Wait a minute, then try again.",
     "too-many-pending": "You have 10 requests waiting already.",
+    "no-such-upload": "That file is gone. The page shows what is there now.",
+    "file-type": "Guests can send pictures, PDF, text, CSV and Office files.",
+    "upload-too-large": "That is more than this session takes. Guests can send up to 100 MB in all.",
+    "hash-mismatch": "The file did not arrive intact. Offer it again.",
+    "chunk-gap": "A piece went missing on the way. It is sent again.",
+    "bytes-required": "The page sent something the session could not read. Reload and try again.",
     "state-invalid": "The session could not save that. Nothing was changed.",
     full: "This session is full right now. Try again later, or ask the host.",
     busy: "The session is busy. Try again in a moment.",
@@ -274,6 +290,9 @@
     "too-long:reason": "Keep the reason to 200 characters or fewer.",
     "too-long:other": "Your own option is too long.",
     "too-long:comment": "That comment is too long.",
+    "too-many-pending:file": "You have 10 files waiting already.",
+    "too-long:attachments": "An answer carries four files at most.",
+    "file-type:file": "That file's contents are not what its name says.",
   };
   const errorText = e => FIELD_MESSAGES[`${e?.error}:${e?.field}`] || MESSAGES[e?.error] || e?.message
     || (e?.status ? "The session refused that." : "The session is out of reach. Check your connection.");
@@ -326,14 +345,17 @@
 
     // Each action rejects with {status, error, message, ...} from the server; errorText(e) words it.
     /** My one answer to a question, citing results; empty text clears it. Carries the view and device it was made on. */
-    answerCiting: (qid, text, cites) => act("/api/answer", { qid, text, cites, ...where() }).then(r => { typingUntil = 0; return r; }),
+    /** extra.attachments (C44), when given, replaces the upload ids the answer carries; left out, it keeps them. */
+    answerCiting: (qid, text, cites, extra) => act("/api/answer", { qid, text, cites, ...(extra?.attachments ? { attachments: extra.attachments } : {}), ...where() })
+      .then(r => { typingUntil = 0; return r; }),
     /** Choice, confirm, prototype or poll question: pick an option ("" clears it), with an optional comment.
      *  Picking "other" (Something else…) needs opts.other, the person's own option, which takes the comment's place. */
-    // TODO(Phase 9, C44): attachments on a pick and its comment.
     pick: (qid, option, comment, opts) => Core.pickWith(qid, { option: option || "" }, { comment, other: opts?.other }),
     /** Any format's pick: fields is {option}, {options: [...]} (multi), {value} (scale) or {order: [...]} (rank); an
-     *  empty list or a null value clears it. `other` is the person's own option when the pick holds "other". */
-    pickWith: (qid, fields, { comment, other } = {}) => act("/api/pick", { qid, ...contractPick(fields), ...(other != null ? { other } : { comment: comment || "" }), ...where() })
+     *  empty list or a null value clears it. `other` is the person's own option when the pick holds "other".
+     *  `attachments`, when given, replaces the upload ids the pick carries (C44); left out, it keeps them. */
+    pickWith: (qid, fields, { comment, other, attachments } = {}) => act("/api/pick", { qid, ...contractPick(fields),
+      ...(other != null ? { other } : { comment: comment || "" }), ...(attachments ? { attachments } : {}), ...where() })
       .then(r => { typingUntil = 0; return r; }),
     idea: text => act("/api/propose", { text }).then(r => { typingUntil = 0; return r; }),
     /** A vote on an answer card (its ref, or the page's id) or on a suggestion of that question. */
@@ -423,10 +445,21 @@
     /** "Were you here before as <name>?" Yes asks the host to merge me into that person. */
     mergeRequest: to => act("/api/merge-request", { to }),
     mergeAct: (id, action) => act("/api/merge-request/act", { id, action }),
-    // TODO(Phase 9): uploads (offer, accept, chunks) have no route yet.
-    uploadOffer: () => Promise.reject({ error: "uploads-off" }),
-    uploadAct: () => Promise.reject({ error: "uploads-off" }),
-    uploadChunk: () => Promise.reject({ error: "uploads-off" }),
+    /** Offer a file ({file, size, type, qid?, thumb?}); resolves to {id, status, chunks, chunkSize}. The bytes wait
+     *  in this browser until the owner accepts (the owner's own are accepted at once). */
+    uploadOffer: body => act("/api/upload/offer", body),
+    /** Owner: accept or decline; the uploader: withdraw. */
+    uploadAct: (id, action) => act("/api/upload/act", { id, action }),
+    /** One piece of an accepted upload, as raw bytes; `whole` is the whole file's sha256, sent with the last piece.
+     *  Resolves to {received}; rejects with {status, error, received?} (409 chunk-gap names the next piece). */
+    uploadChunk: (id, index, total, bytes, sha, whole) => spaced("/api/upload/chunk", async () => {
+      const headers = { "Content-Type": "application/octet-stream", ...ident(), "X-Upload-Id": id, "X-Chunk-Index": String(index),
+        "X-Chunk-Total": String(total), "X-Chunk-Sha256": sha, ...(whole ? { "X-File-Sha256": whole } : {}) };
+      const r = await fetch("/api/upload/chunk", { method: "POST", headers, body: bytes });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw { status: r.status, ...j };
+      return j;
+    }).then(async j => { await poll(); return j; }),
     /** A link that signs this person in on another device. It carries their secret: keep it private. */
     personalLink: () => {
       const base = `${(Core.state.shareUrl || location.origin).replace(/\/$/, "")}/`;
@@ -496,7 +529,8 @@
   // than a second there.
   const SPACED = new Set(["/api/answer", "/api/pick", "/api/propose", "/api/chat", "/api/suggest", "/api/request", "/api/merge-request",
     "/api/annotate", "/api/rename", "/api/color", "/api/prefs", "/api/about-you", "/api/vote", "/api/react", "/api/disagree",
-    "/api/go-with", "/api/notifications/read", "/api/chat/react", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail"]);
+    "/api/go-with", "/api/notifications/read", "/api/chat/react", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail",
+    "/api/upload/offer", "/api/upload/act", "/api/upload/chunk"]);
   const GAP = 1050; // ms: the server's one-a-second limit, plus a margin for clock rounding
   const lanes = new Map(); // path -> {tail: promise of the last write, done: when it answered}
   const wait = ms => new Promise(res => setTimeout(res, Math.max(0, ms)));

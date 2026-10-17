@@ -121,8 +121,8 @@ PRESENCE_TICK = 5  # the snapshot ETag moves at least this often, so expired pre
 
 # The guest routes: path -> (auth class, session method). Classes (Contracts, "Auth classes"):
 # public needs no identity; person needs a secret or the owner token; moderator is a person whose
-# role session.py checks; owner needs the X-Owner-Token header itself. Uploads arrive in a later
-# phase, so they answer 404.
+# role session.py checks; owner needs the X-Owner-Token header itself. The upload chunk route takes raw bytes,
+# not JSON, so GuestHandler.upload_chunk serves it (UPLOAD_CHUNK).
 ROUTES = {
     "/api/join": ("public", "join"),
     "/api/heartbeat": ("person", "heartbeat"),
@@ -178,12 +178,16 @@ ROUTES = {
     "/api/mine/requests/fail": ("person", "fail_my_request"),
     "/api/watcher": ("person", "issue_watcher"),
     "/api/watcher/revoke": ("person", "revoke_watcher"),
+    "/api/upload/offer": ("person", "offer_upload"),
+    "/api/upload/act": ("person", "act_on_upload"),  # session.py: accept and decline the owner's, withdraw the uploader's
 }
+UPLOAD_CHUNK = "/api/upload/chunk"
+CHUNK_HEADERS = {"id": "X-Upload-Id", "index": "X-Chunk-Index", "total": "X-Chunk-Total", "sha256": "X-Chunk-Sha256", "fileSha256": "X-File-Sha256"}
 GET_ROUTES = {"/api/mine/requests": ("person", "my_requests"), "/api/card/history": ("owner", "card_history")}
 # The only routes a watcher key (X-Watcher-Key) works on: a guest's own Claude reads and answers their own self
 # requests. Anywhere else the header answers 401, so the key never acts as the person's session secret.
 WATCHER_ROUTES = {"/api/mine/requests", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail"}
-BODY_CAPS = {}  # path -> bytes, where a route allows more than session.BODY_MAX
+BODY_CAPS = {"/api/upload/offer": session.OFFER_MAX}  # path -> bytes, where a route allows more than session.BODY_MAX
 
 
 class StartRefused(Exception):
@@ -569,17 +573,17 @@ class GuestHandler(BaseHTTPRequestHandler):
         self.fail(error)
         return True
 
-    def read_body(self, length):
-        """Exactly `length` body bytes, all within session.BODY_SECONDS (TimeoutError otherwise), or
-        None when the client closed first."""
-        deadline = time.monotonic() + session.BODY_SECONDS
+    def read_body(self, length, seconds=None):
+        """Exactly `length` body bytes, all within `seconds` (session.BODY_SECONDS by default; TimeoutError
+        otherwise), or None when the client closed first."""
+        deadline = time.monotonic() + (session.BODY_SECONDS if seconds is None else seconds)
         chunks, left = [], length
         try:
             while left:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise TimeoutError("the body did not arrive in time")
-                self.connection.settimeout(remaining)
+                self.connection.settimeout(min(remaining, self.timeout))  # a stalled sender is dropped after self.timeout
                 chunk = self.rfile.read1(min(left, 65536))
                 if not chunk:
                     self.close_connection = True
@@ -682,6 +686,8 @@ class GuestHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if self.watcher_misplaced():
             return self.fail(DomainError(401, "unknown-session", "A watcher key works only on /api/mine/requests."))
+        if path == UPLOAD_CHUNK:
+            return self.upload_chunk()
         if path not in ROUTES:
             return self.fail(DomainError(404, "not-found", "Nothing here."))
         if not self.headers.get("Content-Type", "").lower().startswith("application/json"):
@@ -723,6 +729,53 @@ class GuestHandler(BaseHTTPRequestHandler):
         app.changed()
         return self.send(200, {"ok": True, **out})
 
+    def upload_chunk(self):
+        """POST /api/upload/chunk: raw bytes of one chunk (application/octet-stream) with its X-Upload-Id,
+        X-Chunk-Index, X-Chunk-Total, X-Chunk-Sha256 and, on the last, X-File-Sha256. Who sends it, which chunk is
+        next and its exact length are settled before any of the body is read; a chunk the server holds already is
+        answered {received} unread. session.py checks the bytes and writes them under the data folder."""
+        app = self.app
+        try:
+            pid = self.authorize("person")
+            if not self.headers.get("Content-Type", "").lower().startswith("application/octet-stream"):
+                raise DomainError(415, "bytes-required", "Send the piece as application/octet-stream.")
+            if self.headers.get("Transfer-Encoding"):
+                raise DomainError(400, "bad-request", "Send the piece with a Content-Length.")
+            try:
+                length = int(self.headers.get("Content-Length") or "-1")
+            except ValueError:
+                length = -1
+            if length < 0:
+                raise DomainError(400, "bad-request", "Send the piece with a Content-Length.")
+            if length > session.CHUNK_SIZE:
+                raise DomainError(413, "body-too-large", f"A piece holds at most {session.CHUNK_SIZE} bytes.", max=session.CHUNK_SIZE)
+            meta = {k: self.headers.get(h) for k, h in CHUNK_HEADERS.items()}
+            plan = app.session.chunk_plan(pid, meta)
+            if "received" in plan:
+                self.close_connection = True  # its body stays unread
+                return self.send(200, {"ok": True, "received": plan["received"], "repeat": True})
+            if length != plan["length"]:
+                code = 413 if length > plan["length"] else 400
+                raise DomainError(code, "body-too-large" if code == 413 else "bad-field", f"This piece is {plan['length']} bytes.", field="Content-Length", max=plan["length"])
+            with app.reading_chunk(pid):
+                try:
+                    raw = self.read_body(length, session.CHUNK_SECONDS)
+                except TimeoutError:
+                    raise DomainError(408, "body-timeout", f"A piece must arrive within {session.CHUNK_SECONDS:.0f} s.") from None
+                except OSError:
+                    raw = None
+                if raw is None:
+                    self.close_connection = True
+                    return None
+                out = app.session.upload_chunk(pid, meta, raw)
+        except DomainError as exc:
+            return self.fail(exc)
+        except Exception:  # a bug: the transaction rolled back, so nothing was written
+            app.log.error("%s failed: %s", UPLOAD_CHUNK, trace())
+            return self.fail(DomainError(500, "state-invalid", "The server could not do that; nothing was written."))
+        app.changed()
+        return self.send(200, {"ok": True, **out})
+
     def refuse_method(self):
         if not self.refused():
             self.fail(DomainError(404, "not-found", "Nothing here."))
@@ -747,6 +800,9 @@ class App:
         self.secrets = ensure_secrets(self.dir)
         self.session = open_session(self.dir, self.secrets, self.log, defaults_file=defaults_file, initial_state=initial_state)
         self.session.on_owner_token = self.owner_rotated
+        swept = self.session.recover_uploads()
+        if swept:
+            self.log.info("uploads: deleted %d partial or unclaimed files", swept)
         self.old_pages = (self.dir / "state.v0.json").exists()  # imported from the prototype: its open tabs may still poll
         self.build = build_hash()
         self.bucket = Bucket(session.RATE_PER_SECOND, session.RATE_BURST)
@@ -758,6 +814,7 @@ class App:
         self._backoff = 2.0
         self._last_sync = 0.0
         self._stop = threading.Event()
+        self._chunk_lock, self._chunk_readers = threading.Lock(), set()
         self.guest = GuestServer(("127.0.0.1", guest_port), GuestHandler)
         self.guest.app = self
         self.guest_port = self.guest.server_address[1]
@@ -769,6 +826,19 @@ class App:
         self.write_owner_link()
         self.sync_tunnel()
         self.log.info("started: guest %d, control %d, build %s", self.guest_port, self.control_port, self.build)
+
+    @contextlib.contextmanager
+    def reading_chunk(self, pid):
+        """One upload piece in flight per person, so slow senders hold at most one connection each."""
+        with self._chunk_lock:
+            if pid in self._chunk_readers:
+                raise DomainError(409, "wrong-status", "A piece of your file is on its way already.", status="sending")
+            self._chunk_readers.add(pid)
+        try:
+            yield
+        finally:
+            with self._chunk_lock:
+                self._chunk_readers.discard(pid)
 
     @property
     def local_url(self):

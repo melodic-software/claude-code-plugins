@@ -1642,7 +1642,7 @@
       try {
         // A question that takes a pick (or a poll): the text is a comment on my pick. Without a pick (or on confirm) it is my own answer.
         const fields = savedPick(q, rec);
-        if (fields && (q.format === "choice" || isFormat(q) || q.purpose === "poll")) await Core.pickWith(qid, fields, { comment: text });
+        if (fields && (q.format === "choice" || isFormat(q) || q.purpose === "poll")) await Core.pickWith(qid, fields, { comment: text, ...extra });
         else await Core.answerCiting(qid, text, ui.cites[qid] || [], extra);
         delete ui.drafts[qid]; delete ui.attDraft[qid]; ui.dirty = false; ta.value = Core.myAnswer(qid); grow(ta);
         closeSheet();
@@ -1945,7 +1945,7 @@
       fab.classList.add(cls);
     }
     async function sendChat() {
-      const text = mInput.value.trim(); if (!text && !(attOn() && chatSlot.get().length)) return;
+      const text = mInput.value.trim(); if (!text) return;
       mSend.disabled = true;
       try {
         await Core.chat(text, ui.replyTo?.id, attExtra(chatSlot)); mInput.value = ""; mCount.textContent = ""; grow(mInput); mScroll.scrollTop = mScroll.scrollHeight;
@@ -2376,10 +2376,9 @@
     // ---------- attachments: one picker and one renderer for answers, chat, requests, suggestions, proposals and references ----------
     const httpUrl = u => { try { return ["http:", "https:"].includes(new URL(u).protocol) ? u : ""; } catch { return ""; } };
     const domainOf = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
-    // TODO(Phase 9, C44): attachments on answers, picks, chat, requests, suggestions and proposals, and file
-    // uploads; the contract has no field or route for them yet, so the attach button stays hidden.
-    const attOn = () => false;
-    const fileOf = a => (a?.upload && (Core.state.files?.[a.upload] || (Core.state.myUploads || []).find(u => u.id === a.upload))) || null;
+    // C44: an answer or pick carries files (uploads the owner accepted). Chat, requests, suggestions and proposals have
+    // no attachment field in the contract, so their attach buttons stay hidden.
+    const fileOf = a => (a?.upload && (Core.state.files?.[a.upload] || [...(Core.state.myUploads || []), ...(Core.state.uploads || [])].find(u => u.id === a.upload))) || null;
     // A diagram reference is an SVG Claude made, shown like a picture, with its required alt text on the image.
     const attAsset = a => (a?.kind === "image" ? a.asset || fileOf(a)?.asset || "" : a?.kind === "diagram" ? a.asset || "" : "");
     const attTitle = a => a.caption || fileOf(a)?.file || (a.kind === "diagram" ? "Diagram" : "Picture");
@@ -2481,27 +2480,32 @@
     const adF = { file: adField("File", adFile), image: adField("Image (PNG, JPEG or WebP)", adImg), cap: adField("Caption (optional)", adCap),
       url: adField("Link", adUrl), ltitle: adField("Title (optional)", adLTitle), qtext: adField("Quoted text", adQText),
       qsrc: adField("Source", adQSrc), qurl: adField("Link to the source (optional)", adQUrl) };
+    // C44: files I sent that the host accepted, ready to attach to this answer.
+    const adMine = E("ul", "vf-reflist vf-attmine"); adMine.setAttribute("aria-label", "Your files the host accepted");
+    const adMineHead = E("p", "vf-sel-l", "Or attach a file the host accepted");
     const adNote = E("p", "vf-pop-note vf-att-note");
     const adErr = E("p", "vf-att-err"); adErr.setAttribute("role", "alert");
     const adRow = E("div", "vf-crow vf-dlg-row");
     const adCancel = btn("vf-btn vf-btn-ghost", "Cancel");
     const adOk = E("button", "vf-btn vf-btn-primary"); adOk.type = "submit";
     adRow.append(E("span", "vf-spacer"), adCancel, adOk);
-    adForm.append(adTitle, adSeg, ...Object.values(adF), adNote, adErr, adRow);
+    adForm.append(adTitle, adSeg, ...Object.values(adF), adNote, adMineHead, adMine, adErr, adRow);
     attDlg.append(adForm);
     root.append(attDlg);
-    const AD = { kind: "link", qid: "", ref: false, onAdd: null, from: null };
-    /** Which tabs this person has: files follow the Uploads setting; a guest's picture is an upload too, the host's is not. */
-    function attKinds(ref) {
-      const owner = Core.me.isOwner, ups = v8() && !!st().uploads, on = attOn();
-      // TODO(Phase 9): the owner's own picture reference; pictures come from Claude's add-asset until then.
-      if (ref) return { file: ups && on, image: owner && on, link: true, quote: true };
-      return { file: ups && on, image: on && (owner || ups), link: on, quote: on };
+    const AD = { kind: "link", qid: "", ref: false, files: false, taken: [], onAdd: null, from: null };
+    /** Which tabs the picker shows. A reference takes a link or a quote. An answer or pick (files) takes an upload,
+     *  and only while Uploads is on; every other form takes nothing yet. Pictures come from Claude's add-asset. */
+    function attKinds(ref, files) {
+      if (ref) return { file: false, image: false, link: true, quote: true };
+      return { file: !!files && !!st().uploads, image: false, link: false, quote: false };
     }
+    /** My uploads the host accepted (the owner's own are accepted at once), newest first, not already attached. */
+    const acceptedMine = taken => (Core.state.myUploads || []).filter(u => ["accepted", "uploading", "done"].includes(u.status) && !taken.includes(u.id))
+      .sort((a, b) => b.ts - a.ts);
     const adFirst = () => ({ file: adFile, image: adImg, link: adUrl, quote: adQText })[AD.kind];
     function openAttach(o) {
-      Object.assign(AD, { qid: "", ref: false, onAdd: null, from: null }, o);
-      const ok = attKinds(AD.ref);
+      Object.assign(AD, { qid: "", ref: false, files: false, taken: [], onAdd: null, from: null }, o);
+      const ok = attKinds(AD.ref, AD.files);
       if (!ok[AD.kind]) AD.kind = Object.keys(ok).find(k => ok[k]) || "link";
       for (const x of [adFile, adImg, adCap, adUrl, adLTitle, adQText, adQSrc, adQUrl]) x.value = "";
       adErr.textContent = "";
@@ -2510,7 +2514,7 @@
       adFirst()?.focus();
     }
     function paintAttach() {
-      const ok = attKinds(AD.ref), k = AD.kind, owner = Core.me.isOwner, trusted = owner || Core.me.isTrusted;
+      const ok = attKinds(AD.ref, AD.files), k = AD.kind, owner = Core.me.isOwner, trusted = owner || Core.me.isTrusted;
       adTitle.textContent = AD.ref ? "Add a reference" : "Attach to this";
       for (const [kk, b] of Object.entries(adKinds)) { b.hidden = !ok[kk]; b.setAttribute("aria-pressed", String(kk === k)); }
       adSeg.hidden = Object.values(ok).filter(Boolean).length < 2;
@@ -2519,16 +2523,24 @@
       adF.qtext.hidden = adF.qsrc.hidden = adF.qurl.hidden = k !== "quote";
       adFile.accept = trusted ? "" : [...GUEST_EXT].map(x => "." + x).join(",");
       adNote.textContent = {
-        file: owner ? "Any kind of file. It is saved on your computer, for Claude."
-          : (trusted ? "Any kind of file, zip included." : "Images, PDF, text, CSV and Office files, up to 100 MB.")
-            + " The host accepts it first; until then it stays on this device.",
-        image: owner ? "Shows in place, up to 7 MB." : "Shows in place once the host accepts it.",
+        file: owner ? "Any kind of file. It is saved on your computer, for Claude. Attach it once it is sent."
+          : (trusted ? "Any kind of file, zip included, up to 100 MB in all." : "Pictures, PDF, text, CSV and Office files, up to 100 MB in all.")
+            + " The host accepts it first; until then it stays on this device. Attach it here once they do.",
+        image: "Shows in place.",
         link: "Shows as a titled link that opens in a new tab.",
         quote: "Shows the quoted words and where they come from.",
       }[k];
-      adOk.textContent = AD.ref ? "Add reference" : "Attach";
+      const mine = k === "file" && !AD.ref ? acceptedMine(AD.taken) : [];
+      adMineHead.hidden = adMine.hidden = !mine.length;
+      adMine.replaceChildren(...mine.map(u => {
+        const li = E("li", "vf-ref"), b = btn("vf-btn vf-btn-ghost vf-btn-sm vf-attpick");
+        b.append(icon("file"), E("span", "vf-ref-title", u.file), E("span", "vf-ref-dom", sizeTxt(u.size)));
+        b.setAttribute("aria-label", `Attach ${u.file}`);
+        b.onclick = async () => { try { await AD.onAdd?.({ kind: "file", upload: u.id }); attDlg.close(); } catch (x) { adErr.textContent = `Not added: ${Core.errorText(x)}`; } };
+        li.append(b); return li;
+      }));
+      adOk.textContent = AD.ref ? "Add reference" : k === "file" ? "Offer file" : "Attach";
     }
-    const readData = f => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(f); });
     adForm.onsubmit = async e => {
       e.preventDefault();
       const k = AD.kind, bad = (error, field) => ({ error, field });
@@ -2547,18 +2559,14 @@
           if (u && !httpUrl(u)) throw bad("The source link must start with http:// or https://.", adQUrl);
           att = { kind: "quote", text, source, ...(u ? { url: u } : {}) };
         } else {
-          const input = k === "image" ? adImg : adFile, f = input.files?.[0], cap = adCap.value.trim();
-          if (!f) throw bad(k === "image" ? "Choose an image first." : "Choose a file first.", input);
-          if (k === "image" && !/^image\/(png|jpeg|webp)$/.test(f.type)) throw bad("The image must be PNG, JPEG or WebP.", adImg);
-          if (k === "image" && Core.me.isOwner) {
-            if (f.size > 7 * 1024 * 1024) throw bad("The image is over 7 MB.", adImg);
-            att = { kind: "image", asset: (await Core.uploadAsset(await readData(f))).id, ...(cap ? { caption: cap } : {}) };
-          } else {
-            const id = await offerFile(f, AD.qid).catch(x => { throw bad(x.error, input); });
-            att = { kind: k, upload: id, ...(k === "image" && cap ? { caption: cap } : {}) };
-          }
+          // Offering a file is all this does: it stays on this device until the host accepts it, and is attached
+          // from the list above once they do (the owner's own is accepted at once, so it attaches now).
+          const f = adFile.files?.[0];
+          if (!f) throw bad("Choose a file first.", adFile);
+          const r = await offerFile(f, AD.qid).catch(x => { throw x?.status ? x : bad(x.error, adFile); });
+          if (r.status === "accepted") att = { kind: "file", upload: r.id };
         }
-        if (AD.ref || attOn()) await AD.onAdd?.(att);
+        if (att) await AD.onAdd?.(att);
         attDlg.close();
       } catch (x) {
         adErr.textContent = x?.field ? x.error : `Not added: ${Core.errorText(x)}`;
@@ -2570,20 +2578,23 @@
 
     /** A form's attachments before it is sent: chips with a remove button, and the button that opens the picker.
      *  store.get/set keep the list somewhere else (the answer composer keeps one per question). */
-    function attSlot(getQid, btnEl, store) {
+    function attSlot(getQid, btnEl, store, files = false) {
       const b = btnEl || ibtn("vf-btn vf-btn-ghost vf-btn-sm vf-attach", "clip", "Attach");
-      b.setAttribute("aria-label", "Attach a file, image, link or quote"); b.title = "Attach"; b.setAttribute("aria-haspopup", "dialog");
+      b.setAttribute("aria-label", files ? "Attach a file" : "Attach a file, image, link or quote"); b.title = "Attach"; b.setAttribute("aria-haspopup", "dialog");
       const chips = E("ul", "vf-reflist vf-attlist vf-attdraft"); chips.setAttribute("aria-label", "Attached, not sent yet"); chips.hidden = true;
       let own = [];
-      const slot = { btn: b, chips, get: store?.get || (() => own), set: store?.set || (l => { own = l; }) };
+      const slot = { btn: b, chips, files, get: store?.get || (() => own), set: store?.set || (l => { own = l; }) };
       slot.put = l => { slot.set(l); paintSlot(slot); };
       slot.clear = () => slot.put([]);
-      b.onclick = () => openAttach({ qid: getQid(), from: b, onAdd: att => slot.put([...slot.get(), att]) });
+      b.onclick = () => {
+        if (slot.get().length >= 4) return flash("An answer carries four files at most.");
+        openAttach({ qid: getQid(), files, taken: slot.get().map(a => a.upload), from: b, onAdd: att => slot.put([...slot.get(), att]) });
+      };
       return slot;
     }
     function paintSlot(slot, ro = false) {
       const list = slot.get(), full = list.length >= 4;
-      slot.btn.hidden = ro || !Object.values(attKinds(false)).some(Boolean);
+      slot.btn.hidden = ro || !Object.values(attKinds(false, slot.files)).some(Boolean);
       slot.btn.setAttribute("aria-disabled", String(full));
       slot.btn.title = full ? "Four attachments at most" : "Attach";
       slot.chips.hidden = ro || !list.length;
@@ -2598,7 +2609,8 @@
         li.append(x); return li;
       }));
     }
-    const attExtra = slot => (attOn() ? { attachments: slot.get() } : undefined);
+    /** What a send carries: the upload ids of an answer's or pick's files; nothing for forms with no attachment field. */
+    const attExtra = slot => (slot.files ? { attachments: slot.get().map(a => a.upload).filter(Boolean) } : undefined);
 
     // ---------- QR code: byte mode, error correction M, versions 1 to 10, built here with no library ----------
     function qrMatrix(text) {
@@ -2720,7 +2732,7 @@
     devClose.onclick = () => closePop();
 
     // ---------- uploads: the file waits in this browser until the host accepts ----------
-    const CHUNK = 8 * 1024 * 1024, GUEST_MAX = 100 * 1024 * 1024;
+    const CHUNK_MAX = 8 * 1024 * 1024, GUEST_MAX = 100 * 1024 * 1024; // the server names its chunk size on each upload
     const GUEST_EXT = new Set("png jpg jpeg gif webp pdf txt md csv tsv log rtf doc docx xls xlsx ppt pptx odt ods odp".split(" "));
     const up = { files: new Map(), running: new Set(), sent: {}, retryAt: {}, memOnly: new Set(), loaded: false, noIdb: false };
     const idb = (() => {
@@ -2792,18 +2804,19 @@
       } catch {}
       return "";
     }
-    /** Offer a file to the host; resolves to the upload id, rejects with {error}. */
+    /** Offer a file to the host; resolves to {id, status}, rejects with {error} or the server's refusal. */
     async function offerFile(file, qid) {
       const ext = (file.name.split(".").pop() || "").toLowerCase(), owner = Core.me.isOwner, trusted = owner || Core.me.isTrusted;
-      if (!trusted && !GUEST_EXT.has(ext)) throw { error: "Guests can send images, PDF, text, CSV and Office files. Ask the host to trust you for other kinds." };
-      if (!trusted && file.size > GUEST_MAX) throw { error: `That file is ${sizeTxt(file.size)}. Guests can send up to 100 MB; ask the host to trust you for bigger ones.` };
+      if (!trusted && !GUEST_EXT.has(ext)) throw { error: "Guests can send pictures, PDF, text, CSV and Office files. Ask the host to trust you for other kinds." };
+      if (!owner && file.size > GUEST_MAX) throw { error: `That file is ${sizeTxt(file.size)}. Guests can send up to 100 MB in all.` };
+      if (!file.size) throw { error: "That file is empty." };
       const thumb = /^image\/(png|jpeg|webp|gif)$/.test(file.type) ? await makeThumb(file) : "";
-      const r = await Core.uploadOffer({ file: file.name, size: file.size, type: file.type, qid: qid || "", ...(thumb ? { thumb } : {}) });
+      const r = await Core.uploadOffer({ file: file.name, size: file.size, type: file.type.slice(0, 200), ...(qid ? { qid } : {}), ...(thumb ? { thumb } : {}) });
       up.files.set(r.id, file);
       try { await idb.put(r.id, file); flash(owner ? "Sending the file to your computer." : "Offered to the host. The file stays on this device until they accept."); }
       catch { up.memOnly.add(r.id); flash("Offered. This browser cannot keep files (private mode?), so keep this tab open until it is sent."); }
       render();
-      return r.id;
+      return r;
     }
     function forget(id) { up.files.delete(id); up.memOnly.delete(id); idb.del(id).catch(() => {}); }
     /** Start or resume every accepted upload this browser still holds. Called on each render. */
@@ -2816,7 +2829,7 @@
     }
     async function runUpload(u, file) {
       up.running.add(u.id);
-      const hasher = sha256();
+      const hasher = sha256(), CHUNK = u.chunkSize || CHUNK_MAX;
       try {
         for (let i = 0; i < u.total; i++) {
           const buf = new Uint8Array(await file.slice(i * CHUNK, Math.min(file.size, (i + 1) * CHUNK)).arrayBuffer());
@@ -2836,8 +2849,9 @@
         }
       } catch (e) {
         up.retryAt[u.id] = Date.now() + 4000;
-        if (e?.status === 409 && e.received != null) up.retryAt[u.id] = Date.now() + 1600; // resume from the server's count
-        else if (e?.status && e.status !== 409) flash(`Upload stopped: ${e.error || "the host refused a piece"}.`);
+        // a gap resumes from the server's count; too fast waits a moment; the next poll shows a decline or a failure
+        if ((e?.status === 409 && e.received != null) || e?.status === 429) up.retryAt[u.id] = Date.now() + 1600;
+        else if (e?.status && e.status !== 409) flash(`Upload stopped: ${Core.errorText(e)}`);
       } finally { up.running.delete(u.id); }
     }
     const UPSTAT = { offered: "Waiting for the host. The file stays on this device.", accepted: "Accepted, starting", uploading: "Sending",
@@ -2899,7 +2913,7 @@
     }
     // One attach picker on every form; the answer keeps a draft list per question, prefilled from my answer.
     ui.attDraft = {};
-    const cSlot = attSlot(() => ui.cur, attachBtn, { get: () => ui.attDraft[ui.cur] ?? (myRec(ui.cur)?.att || []), set: l => { ui.attDraft[ui.cur] = l; } });
+    const cSlot = attSlot(() => ui.cur, attachBtn, { get: () => ui.attDraft[ui.cur] ?? (myRec(ui.cur)?.att || []), set: l => { ui.attDraft[ui.cur] = l; } }, true);
     composer.insertBefore(cSlot.chips, ta);
     const apSlot = attSlot(() => (ui.askMode === "propose" ? "" : apQWrap.s.value || ui.cur), apAttach);
     apForm.insertBefore(apSlot.chips, apNote);

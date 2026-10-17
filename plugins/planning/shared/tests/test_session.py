@@ -7,6 +7,7 @@ limits) and the Brief's acceptance criteria, never from running the code under t
 from __future__ import annotations
 
 import collections
+import hashlib
 import json
 import os
 import shutil
@@ -3999,6 +4000,357 @@ class TestWatcherKey(SessionCase):
     def test_the_owner_cannot_take_a_watcher_key(self):
         self.refused("guests-only", "issue_watcher", HOST, {}, http=403)
         self.assertEqual(self.s.state["credentials"].get("watchers", {}), {})
+
+
+# ---------------------------------------------------------------------------------------------
+# Phase 9: uploads. Expected values come from the Design's Upload contract and rules (offer, accept, decline,
+# withdraw, chunk, done, failed; caps 100 MB per guest, 5 GB per session, 10 open per person; chunks in order with
+# resume; magic bytes on the first chunk; the whole file's sha256 on the last; tmp and stored never on the wire),
+# the Brief's upload criteria (AC 21, AC 40), C44 (an answer's attachments are accepted upload ids) and the Phase 9
+# security brief (server-made names, 0700/0600, partial files deleted). Hashes are sha256 of the literal bytes here.
+
+PDF = b"%PDF-1.7\n" + bytes(range(256)) * 3  # 777 bytes: four 200-byte chunks and one of 177
+SMALL = 200
+
+
+def piece_meta(uid, index, total, piece, whole=None):
+    meta = {"id": uid, "index": str(index), "total": str(total), "sha256": hashlib.sha256(piece).hexdigest()}
+    if whole is not None:
+        meta["fileSha256"] = hashlib.sha256(whole).hexdigest()
+    return meta
+
+
+class UploadCase(SessionCase):
+    def setUp(self):
+        super().setUp()
+        for name, value in (("CHUNK_SIZE", SMALL), ("CHUNK_INTERVAL", 0.0)):
+            patcher = mock.patch.object(session, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.act("update_settings", HOST, {"uploads": True})
+        (self.ann, _), (self.bo, _) = self.join("Ann"), self.join("Bo")
+        self.open_round(text_q("Q1"), choice_q("Q2", purpose="decide"))
+
+    def offer(self, pid, name="funnel.pdf", data=PDF, **extra):
+        return self.act("offer_upload", pid, {"file": name, "size": len(data), "type": "application/pdf", **extra})
+
+    def offered_and_accepted(self, pid, name="funnel.pdf", data=PDF):
+        uid = self.offer(pid, name, data)["id"]
+        if pid != HOST:
+            self.act("act_on_upload", HOST, {"id": uid, "action": "accept"})
+        return uid
+
+    def chunk(self, pid, uid, index, data=PDF, *, whole=None, piece=None):
+        total = -(-len(data) // SMALL)
+        piece = data[index * SMALL:(index + 1) * SMALL] if piece is None else piece
+        last = index == total - 1
+        self.clock.tick()
+        return self.s.upload_chunk(pid, piece_meta(uid, index, total, piece, (whole if whole is not None else data) if last else None), piece)
+
+    def send_all(self, pid, uid, data=PDF):
+        for i in range(-(-len(data) // SMALL)):
+            out = self.chunk(pid, uid, i, data)
+        return out
+
+    def refused(self, code, method, pid, body, data=None, http=None):
+        """SessionCase.refused, plus the chunk's bytes for upload_chunk (its meta is `body`)."""
+        if method != "upload_chunk":
+            return super().refused(code, method, pid, body, http=http)
+        self.clock.tick()
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.upload_chunk(pid, body, data)
+        self.assertEqual(ctx.exception.code, code, ctx.exception.message)
+        return ctx.exception
+
+    def upload(self, uid):
+        return next(u for u in self.s.state["uploads"] if u["id"] == uid)
+
+    def pending(self):
+        d = self.tmp / "uploads" / "pending"
+        return sorted(p.name for p in d.iterdir()) if d.is_dir() else []
+
+
+class TestUploadLifecycle(UploadCase):
+    def test_an_offer_is_refused_while_uploads_are_off(self):
+        self.act("update_settings", HOST, {"uploads": False})
+        e = self.refused("uploads-off", "offer_upload", self.ann, {"file": "a.pdf", "size": 10, "type": ""})
+        self.assertEqual(e.http, 403)
+
+    def test_a_guest_offer_waits_for_the_owner_and_the_owner_alone_accepts(self):
+        out = self.offer(self.ann, qid="Q1")
+        self.assertRegex(out["id"], r"^U1-[0-9a-f]{8}$")
+        self.assertEqual((out["status"], out["chunks"], out["chunkSize"]), ("offered", 4, SMALL))
+        u = self.upload(out["id"])
+        self.assertEqual((u["file"], u["ext"], u["mime"], u["size"], u["qid"]), ("funnel.pdf", "pdf", "application/pdf", 777, "Q1"))
+        self.assertEqual(self.refused("owner-only", "act_on_upload", self.bo, {"id": out["id"], "action": "accept"}).http, 403)
+        self.refused("owner-only", "act_on_upload", self.ann, {"id": out["id"], "action": "accept"})
+        self.assertEqual(self.act("act_on_upload", HOST, {"id": out["id"], "action": "accept"})["status"], "accepted")
+        self.assertRegex(self.upload(out["id"])["status"]["tmp"], r"^[0-9a-f]{32}$")
+        self.assertEqual(self.notes(HOST, "queue")[-1]["title"], "1 new item in the queue.")
+
+    def test_the_owners_own_offer_is_accepted_at_once(self):
+        self.assertEqual(self.offer(HOST)["status"], "accepted")
+
+    def test_the_name_is_display_text_and_the_server_names_the_file(self):
+        uid = self.offered_and_accepted(self.ann, name="..\\..\\evil/../../etc/passwd\x07.pdf")
+        self.assertEqual(self.upload(uid)["file"], "passwd.pdf")
+        self.send_all(self.ann, uid)
+        stored = self.upload(uid)["status"]["stored"]
+        self.assertRegex(stored, rf"^uploads/accepted/\d{{8}}-{uid}\.pdf$")
+        self.assertEqual((self.tmp / stored).read_bytes(), PDF)
+
+    def test_a_guest_sends_only_the_listed_kinds_and_a_trusted_guest_any(self):
+        e = self.refused("file-type", "offer_upload", self.ann, {"file": "setup.exe", "size": 10, "type": ""})
+        self.assertEqual(e.http, 415)
+        self.act("set_trust", HOST, {"pid": self.ann, "on": True})
+        self.assertEqual(self.upload(self.offer(self.ann, name="setup.exe")["id"])["mime"], "application/octet-stream")
+
+    def test_ten_open_uploads_per_person(self):
+        for i in range(10):
+            self.offer(self.ann, name=f"f{i}.txt", data=b"x")
+        self.assertEqual(self.refused("too-many-pending", "offer_upload", self.ann, {"file": "f.txt", "size": 1, "type": ""}).http, 429)
+        self.offer(self.bo, name="g.txt", data=b"x")  # another person's count is their own
+        self.act("act_on_upload", self.ann, {"id": self.s.state["uploads"][0]["id"], "action": "withdraw"})
+        self.offer(self.ann, name="f.txt", data=b"x")
+
+    def test_a_guest_holds_at_most_100_mb_and_the_session_5_gb(self):
+        mb = 1024 * 1024
+        self.act("offer_upload", self.ann, {"file": "a.pdf", "size": 60 * mb, "type": ""})
+        e = self.refused("upload-too-large", "offer_upload", self.ann, {"file": "b.pdf", "size": 41 * mb, "type": ""})
+        self.assertEqual((e.http, e.details["max"], e.details["left"]), (413, 100 * mb, 40 * mb))
+        self.act("offer_upload", self.ann, {"file": "b.pdf", "size": 40 * mb, "type": ""})
+        gb = 1024 * mb
+        self.act("offer_upload", HOST, {"file": "big.zip", "size": 5 * gb - 100 * mb, "type": ""})
+        e = self.refused("upload-too-large", "offer_upload", HOST, {"file": "one.zip", "size": 1, "type": ""})
+        self.assertEqual((e.details["max"], e.details["left"]), (5 * gb, 0))
+
+    def test_chunks_arrive_in_order_and_the_last_writes_upload_received(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.assertEqual(self.s.chunk_plan(self.ann, piece_meta(uid, 0, 4, PDF[:SMALL])), {"length": SMALL})
+        self.chunk(self.ann, uid, 0)
+        self.assertEqual(self.upload(uid)["status"], {"kind": "uploading", "tmp": self.upload(uid)["status"]["tmp"], "received": 1, "bytes": SMALL})
+        e = self.refused("chunk-gap", "upload_chunk", self.ann, piece_meta(uid, 2, 4, PDF[400:600]), PDF[400:600])
+        self.assertEqual((e.http, e.details["received"]), (409, 1))
+        self.assertEqual(self.chunk(self.ann, uid, 0), {"received": 1})  # a repeat is answered, not written twice
+        for i in (1, 2, 3):
+            out = self.chunk(self.ann, uid, i)
+        self.assertEqual(out, {"received": 4, "status": "done"})
+        done = self.upload(uid)["status"]
+        self.assertEqual((done["kind"], done["sha256"]), ("done", hashlib.sha256(PDF).hexdigest()))
+        self.assertEqual(self.events("upload-received")[-1]["stored"], done["stored"])
+        self.assertEqual(self.pending(), [])
+
+    def test_a_wrong_length_or_total_or_someone_elses_upload_is_refused(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.refused("bad-field", "upload_chunk", self.ann, piece_meta(uid, 0, 4, PDF[:10]), PDF[:10])
+        self.refused("bad-field", "upload_chunk", self.ann, piece_meta(uid, 0, 5, PDF[:SMALL]), PDF[:SMALL])
+        self.refused("no-such-upload", "upload_chunk", self.bo, piece_meta(uid, 0, 4, PDF[:SMALL]), PDF[:SMALL])
+        offered = self.offer(self.bo)["id"]
+        self.refused("wrong-status", "upload_chunk", self.bo, piece_meta(offered, 0, 4, PDF[:SMALL]), PDF[:SMALL])
+
+    def test_a_first_chunk_that_is_not_its_kind_fails_the_upload_and_deletes_it(self):
+        fake = b"MZ\x90\x00" + bytes(SMALL - 4)
+        uid = self.offered_and_accepted(self.ann, name="report.pdf", data=fake)
+        self.clock.tick()
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.upload_chunk(self.ann, piece_meta(uid, 0, 1, fake, fake), fake)
+        self.assertEqual((ctx.exception.http, ctx.exception.code), (415, "file-type"))
+        self.assertEqual(self.upload(uid)["status"]["kind"], "failed")
+        self.assertEqual(self.pending(), [])
+
+    def test_each_listed_kind_passes_with_its_own_magic_and_fails_with_another(self):
+        good = {"png": b"\x89PNG\r\n\x1a\nrest", "jpg": b"\xff\xd8\xff\xe0rest", "gif": b"GIF89arest", "webp": b"RIFF\x10\x00\x00\x00WEBPVP8 ",
+                "pdf": b"%PDF-1.4", "txt": "café notes\n".encode(), "rtf": b"{\\rtf1 hi}", "doc": b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1rest",
+                "docx": b"PK\x03\x04rest"}
+        for ext, head in good.items():
+            with self.subTest(ext=ext):
+                self.assertTrue(session.UPLOAD_KINDS[ext][1](head))
+                self.assertFalse(session.UPLOAD_KINDS[ext][1](b"\x00\x01binary" if ext != "txt" else b"a\x00b"))
+
+    def test_a_damaged_chunk_is_refused_and_can_be_sent_again(self):
+        uid = self.offered_and_accepted(self.ann)
+        bad = piece_meta(uid, 0, 4, PDF[:SMALL])
+        bad["sha256"] = "0" * 64
+        self.assertEqual(self.refused("hash-mismatch", "upload_chunk", self.ann, bad, PDF[:SMALL]).details["field"], "X-Chunk-Sha256")
+        self.assertEqual(self.upload(uid)["status"]["kind"], "accepted")
+        self.assertEqual(self.chunk(self.ann, uid, 0)["received"], 1)
+
+    def test_a_whole_file_hash_mismatch_fails_the_upload_and_keeps_no_file(self):
+        uid = self.offered_and_accepted(self.ann)
+        for i in (0, 1, 2):
+            self.chunk(self.ann, uid, i)
+        with self.assertRaises(session.DomainError) as ctx:
+            self.chunk(self.ann, uid, 3, whole=b"something else")
+        self.assertEqual((ctx.exception.code, ctx.exception.details["field"]), ("hash-mismatch", "X-File-Sha256"))
+        self.assertEqual(self.upload(uid)["status"], {"kind": "failed", "reason": "The file did not arrive intact."})
+        self.assertEqual(self.pending(), [])
+        self.assertFalse((self.tmp / "uploads" / "accepted").is_dir() and list((self.tmp / "uploads" / "accepted").iterdir()))
+        self.assertEqual(self.events("upload-received"), [])
+
+    def test_decline_and_withdraw_delete_what_arrived(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.chunk(self.ann, uid, 0)
+        self.assertEqual(len(self.pending()), 1)
+        self.act("act_on_upload", HOST, {"id": uid, "action": "decline"})
+        self.assertEqual((self.upload(uid)["status"]["kind"], self.pending()), ("declined", []))
+        self.refused("wrong-status", "upload_chunk", self.ann, piece_meta(uid, 1, 4, PDF[SMALL:400]), PDF[SMALL:400])
+        uid2 = self.offered_and_accepted(self.ann)
+        self.chunk(self.ann, uid2, 0)
+        self.refused("no-such-upload", "act_on_upload", self.bo, {"id": uid2, "action": "withdraw"})
+        self.act("act_on_upload", self.ann, {"id": uid2, "action": "withdraw"})
+        self.assertEqual((self.upload(uid2)["status"]["kind"], self.pending()), ("withdrawn", []))
+        self.refused("wrong-status", "act_on_upload", HOST, {"id": uid2, "action": "decline"})
+
+    @unittest.skipIf(os.name == "nt", "file modes are advisory on Windows")
+    def test_upload_files_and_folders_are_private(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.chunk(self.ann, uid, 0)
+        pend = self.tmp / "uploads" / "pending"
+        self.assertEqual([stat.S_IMODE(p.stat().st_mode) for p in (self.tmp / "uploads", pend)], [0o700, 0o700])
+        self.assertEqual(stat.S_IMODE(next(pend.iterdir()).stat().st_mode), 0o600)
+        for i in (1, 2, 3):
+            self.chunk(self.ann, uid, i)
+        stored = self.tmp / self.upload(uid)["status"]["stored"]
+        self.assertEqual((stat.S_IMODE(stored.parent.stat().st_mode), stat.S_IMODE(stored.stat().st_mode)), (0o700, 0o600))
+
+    def test_no_view_names_a_path_and_only_the_owner_sees_a_preview(self):
+        thumb = "data:image/png;base64," + __import__("base64").b64encode(b"\x89PNG\r\n\x1a\n" + bytes(8)).decode()
+        pic = self.offered_and_accepted(self.ann, name="shot.png", data=b"\x89PNG\r\n\x1a\n" + bytes(300))
+        self.chunk(self.ann, pic, 0, b"\x89PNG\r\n\x1a\n" + bytes(300))
+        done = self.offered_and_accepted(self.ann)
+        self.send_all(self.ann, done)
+        withthumb = self.offer(self.ann, name="b.png", data=b"\x89PNG\r\n\x1a\n" + bytes(10), thumb=thumb)["id"]
+        for pid in (HOST, self.ann, self.bo):
+            with self.subTest(pid=pid):
+                text = json.dumps(self.s.snapshot(pid))
+                self.assertNotIn('"tmp"', text)
+                self.assertNotIn('"stored"', text)
+                self.assertNotIn("uploads/", text)
+                for u in self.s.state["uploads"]:
+                    for v in (u["status"].get("tmp"), u["status"].get("stored")):
+                        if v:
+                            self.assertNotIn(v, text)
+        self.assertEqual(next(u for u in self.s.snapshot(HOST)["uploads"] if u["id"] == withthumb)["thumb"], thumb)
+        self.assertNotIn("thumb", next(u for u in self.s.snapshot(self.ann)["myUploads"] if u["id"] == withthumb))
+
+    def test_a_preview_must_be_a_picture_of_the_kind_it_says(self):
+        bad = "data:image/png;base64," + __import__("base64").b64encode(b"<svg onload=x>").decode()
+        self.refused("bad-field", "offer_upload", self.ann, {"file": "a.png", "size": 9, "type": "", "thumb": bad})
+        good = "data:image/png;base64," + __import__("base64").b64encode(b"\x89PNG\r\n\x1a\n").decode()
+        self.refused("bad-field", "offer_upload", self.ann, {"file": "a.pdf", "size": 9, "type": "", "thumb": good})
+
+
+class TestUploadAttachments(UploadCase):
+    """C44: an answer or pick lists accepted upload ids; everyone reads the file's name and size once the owner accepted it."""
+
+    def test_an_answer_and_a_pick_carry_accepted_uploads(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("answer", self.ann, {"qid": "Q1", "text": "See the funnel.", "view": "focus", "attachments": [uid]})
+        card = next(c for c in self.s.state["cards"]["Q1"] if c.get("pid") == self.ann)
+        self.assertEqual(card["attachments"], [uid])
+        bo_view = self.s.snapshot(self.bo)
+        self.assertEqual(next(c for c in bo_view["cards"]["Q1"] if c.get("pid") == self.ann)["attachments"], [uid])
+        self.assertEqual(bo_view["files"][uid], {"file": "funnel.pdf", "ext": "pdf", "size": 777, "status": "accepted"})
+        self.act("answer", self.ann, {"qid": "Q1", "text": "See the funnel, again.", "view": "focus"})  # left out: kept
+        self.assertEqual(next(c for c in self.s.state["cards"]["Q1"] if c.get("pid") == self.ann)["attachments"], [uid])
+        self.act("pick", self.ann, {"qid": "Q2", "option": "opt-1", "comment": "", "view": "focus", "attachments": [uid]})
+        self.assertEqual(next(c for c in self.s.state["cards"]["Q2"] if c.get("pid") == self.ann)["attachments"], [uid])
+        self.act("answer", self.ann, {"qid": "Q1", "text": "No file now.", "view": "focus", "attachments": []})
+        self.assertNotIn("attachments", next(c for c in self.s.state["cards"]["Q1"] if c.get("pid") == self.ann))
+
+    def test_only_my_own_accepted_uploads_attach_and_four_at_most(self):
+        offered = self.offer(self.ann)["id"]
+        e = self.refused("wrong-status", "answer", self.ann, {"qid": "Q1", "text": "x", "view": "focus", "attachments": [offered]})
+        self.assertEqual(e.details["status"], "offered")
+        bos = self.offered_and_accepted(self.bo)
+        self.refused("no-such-upload", "answer", self.ann, {"qid": "Q1", "text": "x", "view": "focus", "attachments": [bos]})
+        self.refused("no-such-upload", "answer", self.ann, {"qid": "Q1", "text": "x", "view": "focus", "attachments": ["U99-00000000"]})
+        mine = [self.offered_and_accepted(self.ann, name=f"f{i}.pdf") for i in range(5)]
+        self.assertEqual(self.refused("too-long", "answer", self.ann, {"qid": "Q1", "text": "x", "view": "focus", "attachments": mine}).details["max"], 4)
+        self.refused("bad-field", "answer", self.ann, {"qid": "Q1", "text": "x", "view": "focus", "attachments": [mine[0], mine[0]]})
+
+    def test_a_declined_upload_leaves_every_answer(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("answer", self.ann, {"qid": "Q1", "text": "See the funnel.", "view": "focus", "attachments": [uid]})
+        self.act("act_on_upload", HOST, {"id": uid, "action": "decline"})
+        self.assertNotIn("attachments", next(c for c in self.s.state["cards"]["Q1"] if c.get("pid") == self.ann))
+        self.assertEqual(self.s.snapshot(self.bo)["files"], {})
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_a_state_whose_answer_names_another_persons_upload_does_not_load(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Mine.", "view": "focus"})
+        doc = self.disk()
+        next(c for c in doc["cards"]["Q1"] if c.get("pid") == self.bo)["attachments"] = [uid]
+        self.assertIn("not an accepted upload of its author", session.document_error(doc))
+
+    def test_a_pending_name_the_server_never_makes_opens_and_deletes_no_file(self):
+        uid = self.offered_and_accepted(self.ann)
+        victim = self.tmp / "victim.txt"
+        victim.write_bytes(b"keep me")
+        doc = self.disk()
+        doc["uploads"][0]["status"]["tmp"] = "../../victim.txt"
+        self.path.write_text(json.dumps(doc), encoding="utf-8")
+        self.s = session.Session.load(self.path, clock=self.clock, ids=self.ids, validate_writes=True)
+        self.refused("wrong-status", "upload_chunk", self.ann, piece_meta(uid, 0, 4, PDF[:SMALL]), PDF[:SMALL])
+        self.s.recover_uploads()
+        self.assertRegex(self.upload(uid)["status"]["tmp"], r"^[0-9a-f]{32}$")
+        self.act("act_on_upload", HOST, {"id": uid, "action": "decline"})
+        self.assertEqual(victim.read_bytes(), b"keep me")
+
+
+class TestUploadRecovery(UploadCase):
+    """At server start: partial bytes match their record again, and files no record names are deleted."""
+
+    def test_recover_cuts_extra_bytes_restarts_lost_ones_and_deletes_strays(self):
+        a = self.offered_and_accepted(self.ann)
+        self.chunk(self.ann, a, 0)
+        b = self.offered_and_accepted(self.ann, name="other.pdf")
+        self.chunk(self.ann, b, 0)
+        pend = self.tmp / "uploads" / "pending"
+        with open(pend / self.upload(a)["status"]["tmp"], "ab") as f:
+            f.write(b"half of chunk 1 a crash left")
+        (pend / self.upload(b)["status"]["tmp"]).write_bytes(b"short")
+        (pend / ("f" * 32)).write_bytes(b"orphan")
+        acc = self.tmp / "uploads" / "accepted"
+        acc.mkdir()
+        (acc / "20250101-U9-0000abcd.pdf").write_bytes(b"orphan")
+        (acc / "notes.txt").write_bytes(b"not ours")
+        self.assertEqual(self.s.recover_uploads(), 2)
+        self.assertEqual((pend / self.upload(a)["status"]["tmp"]).read_bytes(), PDF[:SMALL])
+        self.assertEqual(self.upload(b)["status"]["kind"], "accepted")
+        self.assertEqual(sorted(p.name for p in acc.iterdir()), ["notes.txt"])
+        self.assertEqual(self.pending(), [self.upload(a)["status"]["tmp"]])
+        for i in (1, 2, 3):
+            self.chunk(self.ann, a, i)
+        self.assertEqual((self.tmp / self.upload(a)["status"]["stored"]).read_bytes(), PDF)
+
+
+class TestStateFromE27acc5(StateFixtureCase):
+    """state-written-e27acc5.json was written by e27acc5's own session.py (uploads off, no upload ever): Ann
+    (tok0002x9) answered Q1, Bo (tok0004x9) picked Google Pay on Q2 with a comment and answered Q1. It loads unchanged;
+    with uploads on, Ann's file goes through and her answer carries it."""
+
+    def test_a_state_e27acc5_wrote_loads_unchanged_and_takes_uploads(self):
+        s = self.load("state-written-e27acc5.json")
+        ann, bo = "tok0002x9", "tok0004x9"
+        self.assertEqual(s.snapshot(bo)["files"], {})
+        s.clock.tick()
+        s.update_settings(HOST, {"uploads": True})
+        with mock.patch.object(session, "CHUNK_SIZE", SMALL), mock.patch.object(session, "CHUNK_INTERVAL", 0.0):
+            s.clock.tick()
+            uid = s.offer_upload(ann, {"file": "funnel.pdf", "size": len(PDF), "type": "application/pdf", "qid": "Q1"})["id"]
+            s.clock.tick()
+            s.act_on_upload(HOST, {"id": uid, "action": "accept"})
+            for i in range(4):
+                s.clock.tick()
+                piece = PDF[i * SMALL:(i + 1) * SMALL]
+                s.upload_chunk(ann, piece_meta(uid, i, 4, piece, PDF if i == 3 else None), piece)
+        s.clock.tick()
+        s.answer(ann, {"qid": "Q1", "text": "Card first, then saved.", "view": "focus", "attachments": [uid]})
+        self.assertEqual(s.snapshot(bo)["files"][uid]["status"], "done")
+        self.assertIsNone(session.document_error(json.loads(s.path.read_text(encoding="utf-8"))))
+        session.Session.load(s.path, validate_writes=True)
 
 
 if __name__ == "__main__":

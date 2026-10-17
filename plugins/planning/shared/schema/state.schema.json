@@ -543,6 +543,7 @@
             "value": {"type": "integer", "minimum": 1, "maximum": 10},
             "order": {"type": "array", "minItems": 3, "maxItems": 7, "items": {"type": "string"}},
             "cites": {"type": "array", "items": {"type": "string"}},
+            "attachments": {"type": "array", "minItems": 1, "maxItems": 4, "items": {"type": "string"}},
             "editedAfterVotes": {"type": "integer", "minimum": 0},
             "deviceInfo": {"$ref": "#/$defs/deviceInfo"},
             "view": {"enum": ["focus", "compare", "tree", "host", "prototype"]},

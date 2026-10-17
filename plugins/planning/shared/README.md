@@ -12,7 +12,7 @@ and the session-bridge watcher. Python 3 standard library only.
 | `share.sh` | Launcher: runs `share.py` with the first Python 3 that runs. The session-bridge `CONTROL` script and the only file the skill calls |
 | `share.py` | The CLI: `ensure-running`, `stop`, `restart`, `status`, `url`, `list`, `apply`, `lease` |
 | `server.py` | One process, two 127.0.0.1 listeners: the guest listener (the page and `/api/*`) and the control listener (session-bridge). Routes, auth, caps, headers and the snapshot; no domain rules |
-| `session.py` | The domain rules over `state.json` (people, rounds, questions, votes, locks, proposals, requests, results, digest, ops) |
+| `session.py` | The domain rules over `state.json` (people, rounds, questions, votes, locks, proposals, requests, results, uploads, digest, ops) |
 | `migrate.py` | `schemaVersion` migrations, `(dict, ctx) -> dict`, including `0 -> 1` from the prototype's state file |
 | `tunnel.py` | cloudflared: start, address parse, reattach, adopt, exit detection, stop. The only file that names cloudflared |
 | `detached.py` | Processes that outlive their starter, and liveness and stop by pid, on Windows, macOS and Linux |
@@ -20,7 +20,7 @@ and the session-bridge watcher. Python 3 standard library only.
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
 | `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/core.css`, `/app.css`, `/proto.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when `schemaVersion` or the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_proto.js`, `ui_connect.js`, `align.test.sh` (with `align.js`), `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_proto.js`, `ui_connect.js`, `ui_uploads.js`, `align.test.sh` (with `align.js`), `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -279,6 +279,41 @@ Upstream link formats (volatile; read the pages, never copy their limits here):
 - As of 2026-10-17. Recheck when either page changes a format or limit, when claude.ai documents a
   web prefill link, or when a link opens with its prompt sent rather than filled in.
 
+## Uploads
+
+Off until the owner turns on Uploads (`shared_session.uploads`). The answer composer's attach button
+then offers "Upload a file", and lists the person's files the owner accepted, which an answer or a
+pick carries (C44, at most four; `attachments` on `POST /api/answer` and `POST /api/pick` replaces
+the list, left out it is kept). While Uploads is off no upload control shows.
+
+1. `POST /api/upload/offer` `{file, size, type, qid?, thumb?}` (96 KB) records the offer; the file
+   stays in the browser (IndexedDB, or memory where a private window refuses it) until the owner
+   accepts. The owner's own offer is accepted at once.
+2. The owner accepts or declines in the Host queue (`POST /api/upload/act`); the uploader can
+   withdraw. Declined or withdrawn, the browser deletes its copy and shows "Not accepted" or
+   "Withdrawn", and whatever arrived is deleted.
+3. Accepted, the browser sends the file in order as raw pieces (`POST /api/upload/chunk`,
+   `application/octet-stream`, 8 MiB each, below the quick tunnel's 100 MB request limit) with
+   `X-Upload-Id`, `X-Chunk-Index`, `X-Chunk-Total`, `X-Chunk-Sha256`, and `X-File-Sha256` on the
+   last. A piece the server has is answered `{received}` unread; one past the next is 409
+   `chunk-gap` with `received`, so a reload or a dropped connection resumes from there.
+4. The last piece makes the file `done` under `uploads/accepted/` and writes `upload-received`
+   (`upload`, `file`, `stored` relative to the data folder, `qid`) for Claude.
+
+Limits: 10 open files per person, 100 MB per guest in all, 5 GB per session (declined, withdrawn
+and failed files do not count). Guests send pictures, PDF, text, CSV, RTF and Office files; the
+owner and trusted guests any kind. The first piece must start as its kind does (PNG, JPEG, GIF,
+WebP, PDF, RTF, OLE and ZIP magic numbers; UTF-8 without NUL for text) or the upload fails and its
+bytes are deleted; a damaged piece (its sha256) is refused and sent again; a whole file whose
+sha256 differs fails and is deleted.
+
+Nothing uploaded is served back: the files sit in the private data folder, named by the server
+(`uploads/pending/<32 hex>`, then `uploads/accepted/<yyyymmdd>-<upload id>.<ext>`); the person's
+file name is display text only. The snapshot never carries a path: `myUploads` (one's own),
+`uploads` (the owner's, with a picture's preview) and `files` (name, kind, size and status of the
+files shown answers carry). Each start deletes pending files no upload names and cuts a partial
+file back to the pieces its record counts.
+
 ## Data contract
 
 One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
@@ -301,6 +336,7 @@ One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
 | `.shared-reported` | `share.py` | 0600 | The guest link the last `ensure-running` printed (for `shareChanged`) |
 | `.watch-seq`, `.watch-replay` | `watch.sh` | | |
 | `assets/<16 hex>.<ext>`, `assets/.<id>.json` | server (`add-asset`) | | The file, and its kind, size and scale |
+| `uploads/pending/<32 hex>`, `uploads/accepted/<yyyymmdd>-<upload id>.<ext>` | server | 0700 folders, 0600 files | An accepted upload's pieces so far; a received one (see [Uploads](#uploads)). Never served |
 
 Every `GET /api/state` with identity carries `schemaVersion`, `rev` and `build` (a hash of the
 served web files); every answer carries `X-Shared-Build`. A page built for another version or
@@ -414,6 +450,7 @@ node plugins/planning/shared/tests/ui_moderation.js
 node plugins/planning/shared/tests/ui_acceptance.js
 node plugins/planning/shared/tests/ui_proto.js
 node plugins/planning/shared/tests/ui_connect.js
+node plugins/planning/shared/tests/ui_uploads.js
 bash plugins/planning/shared/tests/align.test.sh
 ```
 
@@ -424,6 +461,11 @@ watcher key and its revoke, the owner taking a shared answer down, that the owne
 guest never see the request and another key cannot answer it, and that on the phone every Connect
 control lies inside the viewport. Before the browsers it checks the one-request prompt's data
 block against look-alike end markers.
+
+`ui_uploads.js` checks uploads with a 390x844 phone guest and a desktop owner: no upload control
+while Uploads is off, an offer held in the guest's browser, the owner's Accept, a chunked send
+that resumes after a dropped piece and a reload, the file attached to a pick and shown to another
+guest, and a declined file deleted from the browser and shown as "Not accepted".
 
 `ui_proto.js` checks the prototype page on a desktop and a 390x844 phone in separate browser
 contexts: the preview tile and its link, the variant switcher, Annotate, a note pinned to an

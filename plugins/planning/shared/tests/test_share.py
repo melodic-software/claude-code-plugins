@@ -317,6 +317,30 @@ class TestRestart(Running):
         self.assertEqual(sorted(c["text"] for c in snap["cards"]["Q1"] if c["kind"] == "person"), ["Card", "Saved method"])
 
 
+class TestRestartFromE27acc5(ShareCase):
+    """A state.json e27acc5's session.py wrote (tests/fixtures/state-written-e27acc5.json; Ann's secret is tok0003x32)
+    starts, survives `share.sh restart` as it was, and then takes an upload: its keys are all optional."""
+
+    def test_a_state_e27acc5_wrote_survives_restart_and_takes_an_upload(self):
+        fixture = Path(__file__).resolve().parent / "fixtures" / "state-written-e27acc5.json"
+        detached.make_private_dir(self.d)
+        detached.write_private(self.d / "state.json", fixture.read_text(encoding="utf-8"))
+        code, _, err = share(self.d, "ensure-running")
+        self.assertEqual(code, 0, err)
+        ann = {"X-Session-Secret": "tok0003x32"}
+        _, _, before = call(self.guest_port(), "GET", "/api/state?since=0", headers=ann)
+        code, _, err = share(self.d, "restart")
+        self.assertEqual(code, 0, err)
+        _, _, after = call(self.guest_port(), "GET", "/api/state?since=0", headers=ann)
+        self.assertEqual((after["cards"], after["questions"], after["chat"]), (before["cards"], before["questions"], before["chat"]))
+        self.assertEqual(sorted(c["text"] for c in after["cards"]["Q1"] if c["kind"] == "person"), ["Card first, then saved.", "Saved method first."])
+        self.assertEqual((after["myUploads"], after["files"], after["settings"]["uploads"]), ([], {}, False))
+        owner = {"X-Owner-Token": self.owner_token()}
+        self.assertEqual(call(self.guest_port(), "POST", "/api/session/settings", {"uploads": True}, owner)[0], 200)
+        code, _, out = call(self.guest_port(), "POST", "/api/upload/offer", {"file": "funnel.pdf", "size": 9, "type": "application/pdf", "qid": "Q1"}, ann)
+        self.assertEqual((code, out.get("status")), (200, "offered"), out)
+
+
 class TestTunnelRestart(Running):
     def test_a_tunnel_that_exits_comes_back_with_a_new_link_and_the_next_start_says_so(self):
         cf = tunnel.read(self.d)
