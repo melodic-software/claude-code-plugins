@@ -223,7 +223,11 @@ jobs:
       # Swaps this job's GitHub identity proof for a short-lived token of the
       # lanes App, with exactly the permissions resolved above. The broker
       # re-checks everything itself (main only, this file unchanged from main,
-      # kill switch, a listed human) and hands out one token per job.
+      # kill switch, a listed human) and hands out one token per job. A queued
+      # run that a change to this file on main superseded is refused
+      # `workflow-modified`; it ends green with a warning and no token, so the
+      # steps below skip and no stale failed `merge` check lands on a PR. The
+      # newer run checks every PR.
       - name: Request the lane token
         id: lane-token
         if: steps.config.outcome == 'success'
@@ -237,6 +241,7 @@ jobs:
           contents: ${{ steps.config.outputs.contents }}
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
+          superseded-ok: true
 
       # Candidates: open, non-draft PRs into main that the lanes App
       # (merge.agent-identity on main) opened, plus Dependabot's unless
