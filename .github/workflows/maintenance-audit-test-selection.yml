@@ -77,7 +77,7 @@ jobs:
           cache: pip
           cache-dependency-path: |
             .github/requirements-ci.txt
-            .github/requirements-ci-animation.txt
+            plugins/animation/requirements.txt
       - name: Install and verify ShellCheck toolchain
         uses: melodic-software/ci-workflows/.github/actions/shellcheck@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
         with:
@@ -100,7 +100,7 @@ jobs:
           npm ci --prefix .github/standards/runner-policy
           python -m pip install --user --only-binary=:all: --require-hashes \
             --requirement .github/requirements-ci.txt \
-            --requirement .github/requirements-ci-animation.txt
+            --requirement plugins/animation/requirements.txt
           python plugins/harness-ops/skills/inventory/scripts/parser_reader.py --install
       - name: Install DuckDB CLI
         env:

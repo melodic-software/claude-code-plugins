@@ -3,6 +3,12 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.1] - 2026-10-16
+
+### Fixed
+
+- The pre-push range reader treats an all-zero object id of any width as zero, so in a SHA-256 repository a new branch is checked from its merge-base and a deletion is skipped instead of the hook checking nothing.
+
 ## [0.10.0] - 2026-10-16
 
 ### Added
