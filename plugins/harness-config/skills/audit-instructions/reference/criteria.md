@@ -1704,20 +1704,18 @@ not a `Model scope` annotation**, for the reason I17 states.
   default differs, it silently becomes a step nobody measured, which is this row's subject exactly. A resolved target
   always exists, because the skill body aborts rather than run against an unresolved one, so this
   fence never has to guess which side of it a surface falls on. **When the pin targets subagents,
-  the target is the model each subagent runs on, not the session's.** A subagent's model is the
-  first of the per-invocation `model`, its definition's `model` field (where `inherit` selects the
-  session's model), `CLAUDE_CODE_SUBAGENT_MODEL`, then the session's model, so a subagent can run
-  on a model whose default is not `high` while the session's is. The level the subagent runs at is
-  the `effort` its definition sets, which overrides the session's level, else the default of the
-  model it runs on; the exemption holds only when that level is `high`. A model or `effort` counts
+  the target is the model each subagent runs on, not the session's.** Resolve it by the subagent
+  model order read live from the Pointer, so a subagent can run on a model whose default is not
+  `high` while the session's is. Resolve the level it runs at by the effort-level order read live
+  from the same Pointer, counting every source that order names, environment variables included;
+  the exemption holds only when that resolved level is `high`. A model or `effort` counts
   when the audited text states it or a subagent definition in scope sets it, and reading a
   definition's `effort` as evidence does not make that frontmatter value a finding (the
   `effort:` fence below still applies). Where nothing names a different model or effort for the
   subagents, they run on the session's resolved target, which stays the fallback.
   Pointer: [Choose the subagent's model](https://code.claude.com/docs/en/sub-agents#choose-a-model)
   and [Choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level)
-  (as of 2026-10-17; recheck when that order gains a source or `effort` stops overriding the
-  session's level). **The exemption speaks to
+  (as of 2026-10-17; recheck when either order gains a source or changes precedence). **The exemption speaks to
   calibration staleness only, never to level adequacy:** a model guide may recommend running above
   the default for named lanes, as the Opus 4.8 guide does when it recommends `xhigh` for coding and
   agentic use, and whether a `high` pin under-serves such a lane is that surface's sizing decision,
