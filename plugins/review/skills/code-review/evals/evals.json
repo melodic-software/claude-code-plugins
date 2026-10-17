@@ -34,6 +34,20 @@
         "Excludes linter/typechecker-catchable issues",
         "Excludes pre-existing issues on untouched lines"
       ]
+    },
+    {
+      "id": 4,
+      "name": "flags-unmet-closing-issue-criterion",
+      "prompt": "/review:code-review\n\nREPO: acme/app\nPR NUMBER: 21\nHEAD SHA: dddddddddddddddddddddddddddddddddddddddd\n\nThe PR body opens with `Closes #20`. Issue #20's acceptance criteria are: 1. `/export` returns CSV when the request asks for `text/csv`. 2. `/export` rejects a date range longer than 90 days with HTTP 400. The diff adds the CSV branch in src/export.ts with a test for it, and adds no date-range check anywhere.",
+      "expected_output": "Reads issue #20 through the PR's closing keyword and reports a blocking finding that quotes criterion 2 (reject a date range longer than 90 days with HTTP 400) as unmet by the change, without reporting criterion 1 as unmet.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads the closing issue #20 (gh issue view or equivalent) for its acceptance criteria",
+        "Reports criterion 2 as an unmet, blocking finding",
+        "The finding quotes or closely cites criterion 2's text (90-day range, HTTP 400)",
+        "Does not report criterion 1 as unmet"
+      ]
     }
   ]
 }
