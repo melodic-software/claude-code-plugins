@@ -42,6 +42,7 @@ on:
       - .editorconfig-checker.json
       - .gitattributes
       - .github/actionlint.yaml
+      - .github/standards/dependabot-policy/policy.json
       - .github/standards/github-actions-conventions/vocabulary.json
       - .github/standards/github-actions-conventions/vocabulary.schema.json
       - .github/standards/pyright/pyrightconfig.json

@@ -69,6 +69,47 @@ activities:
     # Reads the replies the model wrote.
     reads-untrusted: true
     inputs: [pr, head-sha]
+  review-dependency:
+    # Reviews one Dependabot pull request the classifier sorts `review` (a
+    # major bump, an action publisher outside the allowlist, a group holding
+    # a major, a red ci-status, or a file outside the content rule) and
+    # returns a verdict: merge, fix, close or escalate. It posts nothing
+    # itself. pr-unblock-dispatch.yml starts it; a trusted person may also
+    # dispatch it by hand.
+    skill: source-control:pull-request
+    # The skill's CI mode for dependency bumps: reads the runner's context
+    # file, the checkout and upstream release notes, runs no head code, and
+    # pushes a fix only outside .github/ with [dependabot skip].
+    args: dependency --ci
+    # Before any model turn the runner skips a pull request Dependabot did
+    # not open or one sorted `auto`, and hands it to a person once
+    # `loop.dependency-review-rounds` rounds already ran.
+    prepare: dependency-review
+    # Reads the upstream changelog and release notes for the bumped versions.
+    web-access:
+      enabled: true
+      domains: [github.com, raw.githubusercontent.com, www.npmjs.com, registry.npmjs.org, pypi.org]
+    # Pushes a fix to the pull request's branch, nothing else.
+    effect: mutate-branch
+    # ci-status judges the pushed fix; the verdict job acts on the verdict.
+    gating: advisory
+    # Reads the PR body's release notes, the upstream changelog and head files.
+    reads-untrusted: true
+    inputs: [pr, head-sha]
+    applies-when:
+      labels-absent: [do-not-merge, needs-human]
+      draft: [false]
+  apply-dependency-verdict:
+    # Acts on the verdict review-dependency recorded: posts the round marker
+    # (for merge, the record the pr-merge lane merges on), closes the pull request
+    # and files an ignore-entry issue (never for a security update), or hands
+    # the pull request to a person. Never merges. A script, no model.
+    script: .github/scripts/pr-unblock/apply-dependency-verdict.mjs
+    effect: publish-artifact
+    gating: advisory
+    # Reads the verdict the model wrote, and the PR body for an advisory.
+    reads-untrusted: true
+    inputs: [pr, head-sha]
   resolve-issue:
     # Works one issue labeled agent-ready: either commits the change to a new
     # branch, or stops and says why. The runner adds `--issue <number>`.
@@ -81,13 +122,19 @@ activities:
     checks: ["scripts/check-changelog-fragments.sh --check"]
     # Repository scripts the run may call with any arguments it chooses, to
     # check its work the way an issue's done-when says. Each runs from a
-    # read-only copy of the base. List only scripts that read files and
-    # report: one that changes files, runs code from the checkout (a test,
-    # a linter it finds there) or reaches the network would hand the run
-    # that power. skill-quality's check-skill.sh is left out because it runs
-    # each skill's scripts/*.test.sh and a markdownlint from the checkout.
+    # read-only copy of the base. A script that changes files, runs code from
+    # the checkout or reaches the network hands the run that power, so list
+    # one only when it limits that itself. run-test-file.sh runs one test
+    # file inside the checkout (pytest, bash or node --test, without the
+    # GitHub token), so the run can show a test it changed passing and
+    # failing when broken on purpose. git-mv-rm.sh renames and removes paths
+    # inside the checkout. skill-quality's check-skill.sh is left out because
+    # it runs every skill's scripts/*.test.sh and a markdownlint from the
+    # checkout.
     verify-scripts:
       - plugins/testing/skills/audit/scripts/cant-fail-scan.sh
+      - scripts/run-test-file.sh
+      - scripts/git-mv-rm.sh
     # Lets the run read web pages, so it can check a fact against its source
     # (for example a documented default on a vendor docs page) instead of
     # trusting the issue's quote. It may search the web and read any site,
@@ -186,9 +233,14 @@ lanes:
       # Runs after address-feedback, in its own job with its own token.
       - activity: publish-feedback
         needs: [address-feedback]
-      # Hands the pull request to a person when any of the three escalates.
+      # Started by pr-unblock-dispatch.yml for review-tier Dependabot PRs.
+      - activity: review-dependency
+      # Runs after review-dependency, in its own job with its own token.
+      - activity: apply-dependency-verdict
+        needs: [review-dependency]
+      # Hands the pull request to a person when any of the others escalates.
       - activity: report-escalation
-        needs: [resolve-conflicts, address-feedback, publish-feedback]
+        needs: [resolve-conflicts, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict]
   pr-merge:
     stage: merge
     slots:
@@ -202,6 +254,7 @@ lanes:
 
 loop:
   review-rounds: 3
+  dependency-review-rounds: 2
 
 merge:
   # The lane auto-merges only PRs whose single closing issue is labeled
@@ -218,6 +271,9 @@ merge:
   require-verifier-verdict: true
   # The model pr-verify.yml judges with.
   verifier-model: opus
+  # pr-verify.yml judges only PRs the lanes App (agent-identity) opened; `any`
+  # judges every author's.
+  verify-authors: lane
   # Dependabot pull requests answer to this switch, not report-only: tier auto
   # (every update non-major, allowed Actions publishers) merges once ci-status
   # passes; tier review merges once the pr-unblock review leaves a merge

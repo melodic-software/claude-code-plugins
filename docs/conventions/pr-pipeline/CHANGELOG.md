@@ -1,5 +1,69 @@
 # Changelog for the PR pipeline convention
 
+## 1.25.0 - 2026-10-17
+
+Both Dependabot classifiers read the standards Dependabot policy at the base and make every update
+to a dependency its `autoMerge.reviewOnly` lists tier `review` (`review-only:<dependency>`),
+whatever the version change, and every Dependabot pull request tier `review`
+(`dependabot-policy-unreadable`) when the policy does not read or a caller passes none. An entry's
+`directory` covers a changed path in it, and a `github-actions` entry also covers the workflow and
+action files the content rule gives its directory (README, "Review-only dependencies"). The
+review-dependency activity gets the matched entries. Both classifiers also make an otherwise tier
+`auto` npm or pip update tier `review` when its
+registry provenance changed or cannot be read (`provenance-changed:<name>`,
+`provenance-missing:<name>`, `provenance-unreadable:<name>`; README, "Registry provenance"). The
+review-dependency select step outputs `controls`, `run.json` gains `controls`, and the write
+runner gains a seventh dependency escalation reason, `dependency-control-uncited`: a `merge`
+verdict on a review-only dependency that does not quote each matched entry's `control` in
+`evidence`. The select step warns `classifier gap` when only a read failure sent a pull request
+to review (README, "Classifier gaps"). `version` stays 1.
+
+## 1.24.0 - 2026-10-17
+
+`resolve-issue` lists two more `verify-scripts`, each wrapped by the same generator as the
+can't-fail scan: `scripts/run-test-file.sh` runs one test file inside the checkout by name
+(`test_*.py` under pytest, `*.test.sh` under bash, `*.test.mjs` under `node --test`, without
+`GH_TOKEN` or `GITHUB_TOKEN`), and `scripts/git-mv-rm.sh` runs `git mv` or `git rm` inside the
+checkout, recording an untracked path as intent-to-add first. Both refuse an absolute path, a `..`
+segment, a leading `-` or `:` and a path that resolves outside the checkout (`scripts/lib/checkout-path.sh`).
+`git-mv-rm.sh` sets `GIT_LITERAL_PATHSPECS=1`, so git reads no glob or pathspec magic, and
+`run-test-file.sh` takes only `[A-Za-z0-9._/-]` names after `--`, so pytest reads no node id.
+A write skill that commits also gets `mcp__github_file_ops__delete_files`, and the system prompt
+tells it to delete each committed path it renamed or removed. When the stage grants the test-file
+runner, the write runner sets up Python and installs the base's hash-pinned CI requirements before
+the head checkout. `verify-scripts` may now list a script that changes files or runs checkout code
+when the script limits itself. `version` stays 1.
+
+## 1.23.0 - 2026-10-17
+
+`merge.verify-authors` (`lane`, `any`; absent is `lane`) is a new optional key. Under `lane`
+`.github/workflows/pr-verify.yml` judges only pull requests the lanes App opened (a `Bot` account
+whose login is `merge.agent-identity`, compared as the pr-merge lane compares it) and skips any
+other author's before the model runs, with the reason `author-not-lane`; `any` judges every
+author's, and any other value judges none ("Verifier verdict"). `version` stays 1.
+
+## 1.22.0 - 2026-10-17
+
+`pr-unblock` gains `review-dependency` and `apply-dependency-verdict`, and `prepare` gains
+`dependency-review` ([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
+[ADR 0074](../../adr/0074-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
+`pr-unblock-dispatch.yml` also dispatches `review-dependency` for at most 2 review-tier Dependabot
+pull requests per run whose head has no `pr-unblock / review-dependency` check run. The model job
+(`mutate-branch`) reads a read-only context file, the checkout and the upstream release notes as
+data, may push a fix outside `.github/` whose every commit carries `[dependabot skip]`, and returns
+a `merge`, `fix`, `close` or `escalate` verdict as structured output. The verdict job
+(`publish-artifact`, no model) validates it and posts the round marker, closes the pull request
+with an ignore-entry issue (never a security update), or escalates. Neither merges: the pr-merge
+lane merges a review-tier pull request on the `verdict=merge` marker at the current head (1.20.0,
+[ADR 0073](../../adr/0073-merge-dependabot-pull-requests-in-the-pr-merge-lane.md)). The
+dispatcher sorts with the same tier and content rules as the pr-merge lane, and a base
+`dependabot.yml` it cannot read is the reason `dependabot-config-unreadable`. `loop` gains
+`dependency-review-rounds` (default 2; this repository sets 2), and the write runner gains the
+`dependency-verdict`, `dependency-run-sha256` and `dependency-run-attempt` inputs and six
+escalation reasons: `dependency-round-cap`, `dependency-invalid`, `dependency-fix-not-landed`,
+`dependency-security-close`, `dependency-escalate` and `dependency-config-unreadable`. `version`
+stays 1.
+
 ## 1.21.0 - 2026-10-17
 
 `merge.require-verifier-verdict` and `merge.verifier-model` are new optional keys.

@@ -45,6 +45,12 @@
           "minimum": 1,
           "default": 3,
           "description": "Lane runs in a row that change nothing before the PR escalates to needs-human."
+        },
+        "dependency-review-rounds": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 2,
+          "description": "review-dependency rounds on one Dependabot PR before the next one escalates to needs-human."
         }
       }
     },
@@ -214,8 +220,8 @@
       "properties": {
         "skill": { "$ref": "#/$defs/skill" },
         "prepare": {
-          "enum": ["merge-base", "review-threads"],
-          "description": "What the write runner does around a skill with an effect other than read. merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents. review-threads: before any model turn, keep the PR's unresolved reviewer-bot threads on a reviewed head and escalate on a .github/** diff or the round cap; give the skill the review-thread tool; after it, upload the replies it recorded, which a review-replies script job validates and posts with the round marker."
+          "enum": ["merge-base", "review-threads", "dependency-review"],
+          "description": "What the write runner does around a skill with an effect other than read. merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents. review-threads: before any model turn, keep the PR's unresolved reviewer-bot threads on a reviewed head and escalate on a .github/** diff or the round cap; give the skill the review-thread tool; after it, upload the replies it recorded, which a review-replies script job validates and posts with the round marker. dependency-review: before any model turn, skip a PR Dependabot did not open or one sorted auto, and escalate on the round cap; give the skill a read-only context file and a verdict schema for its structured output; move the PR branch only to commits that touch nothing under .github/ and carry [dependabot skip]; after it, upload the verdict, which a dependency-verdict script job validates and acts on."
         },
         "args": {
           "type": "string",
@@ -240,7 +246,7 @@
             "type": "string",
             "pattern": "^(scripts|plugins/[a-z0-9-]+/(skills/[a-z0-9-]+/)?scripts)/[A-Za-z0-9_-]+\\.sh$"
           },
-          "description": "Exact repository-relative paths of read-only checker scripts a skill with an effect other than read may run with any arguments. The write runner copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout with any arguments but a path outside it. Needs an effect other than read. List only scripts that read and report: never one that changes files, runs code from the checkout, or reaches the network."
+          "description": "Exact repository-relative paths of scripts a skill with an effect other than read may run with any arguments. The write runner copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout with any arguments but a path outside it. Needs an effect other than read. A script that changes files, runs code from the checkout, or reaches the network hands the run that power: list one only when it limits itself, as scripts/run-test-file.sh and scripts/git-mv-rm.sh do."
         },
         "web-access": {
           "type": "object",
@@ -405,6 +411,11 @@
           "type": "string",
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._\\[\\]-]*$",
           "description": "The model pr-verify.yml judges each head with. Absent: the action's default model (README.md, Verifier verdict)."
+        },
+        "verify-authors": {
+          "enum": ["lane", "any"],
+          "default": "lane",
+          "description": "Whose pull requests pr-verify.yml judges. lane: only those the lanes App (agent-identity, a Bot account) opened; any: every author's. The resolver skips on any other value (README.md, Verifier verdict)."
         },
         "agent-identity": {
           "type": "string",

@@ -156,6 +156,13 @@ say(actors >= 0 && actors < checkout && /\.base\/\.github\/standards\/trusted-ac
 say(/\?\*:feedback-uncertain \| \?\*:feedback-not-landed \| \?\*:feedback-invalid\)/.test(byId("act-script").run ?? "")
   && /\?\*:feedback-partial \| \?\*:feedback-incomplete \| \?\*:feedback-disputed\)/.test(byId("act-script").run ?? ""),
   "a script escalates only with the reply script's own reasons, and only in review-replies mode");
+say(/:\?\*:dependency-invalid \| :\?\*:dependency-fix-not-landed\)/.test(byId("act-script").run ?? "")
+  && /:\?\*:dependency-security-close \| :\?\*:dependency-escalate \| :\?\*:dependency-config-unreadable\)/.test(byId("act-script").run ?? "")
+  && /:\?\*:dependency-control-uncited\)/.test(byId("act-script").run ?? ""),
+  "a script escalates with the verdict script's reasons only in dependency-verdict mode");
+say(promoteScript.indexOf("verdict !== 'fix'") >= 0 && promoteScript.indexOf("verdict !== 'fix'") < promoteScript.indexOf("updateRef")
+  && /\[dependabot skip\]/.test(promoteScript) && /\\\.github/.test(promoteScript),
+  "dependency-review promotes only a fix verdict's commits, none under .github/, each with [dependabot skip]");
 say(/chmod -R a-w "\$CHECKS_DIR"/.test(stage) && /disallowed="\$\{disallowed:\+\$disallowed,\}Edit\(\/\$CHECKS_DIR\/\*\*\),Write\(\/\$CHECKS_DIR\/\*\*\)"/.test(stage),
   "the check wrappers and their base copy are read-only to the skill");
 say(/chmod -R a-w "\$DOCS_DIR"/.test(stage) && /disallowed="Edit\(\/\$DOCS_DIR\/\*\*\),Write\(\/\$DOCS_DIR\/\*\*\)"/.test(stage),

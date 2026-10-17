@@ -103,6 +103,9 @@ jobs:
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: |
           mkdir -p "$(dirname "$SPEC_FILE")"
+          VERIFY_AUTHORS=$(yq '.merge."verify-authors" // "lane"' .base/docs/conventions/pr-pipeline.yaml)
+          LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          export VERIFY_AUTHORS LANE_IDENTITY
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
       # The gate and the resolver read the PR separately; both must name the
@@ -200,7 +203,7 @@ jobs:
       - name: Judge the pull request
         id: judge
         if: steps.agree.outcome == 'success'
-        uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc # v1.0.248
+        uses: anthropics/claude-code-action@a26b07d8c778b0c43f64618e5fd29fd0f8af72e8 # v1.0.250
         env:
           # Strips the OAuth token and other credentials from any subprocess
           # (code.claude.com/docs/en/env-vars, as of 2026-10-04; recheck as in

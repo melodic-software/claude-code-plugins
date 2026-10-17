@@ -647,6 +647,7 @@ export function resolve(
     loop: {
       "review-rounds": doc.loop?.["review-rounds"] ?? 2,
       "no-progress": doc.loop?.["no-progress"] ?? 3,
+      "dependency-review-rounds": doc.loop?.["dependency-review-rounds"] ?? 2,
     },
     merge: resolveMerge(doc.merge, configPath),
   };

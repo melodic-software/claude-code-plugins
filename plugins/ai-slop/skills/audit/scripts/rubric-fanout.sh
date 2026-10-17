@@ -63,7 +63,8 @@ is <bracketed> or holds no space and at most one level of balanced parens,
 with an optional title; autolinks (<scheme:...>, <user@host>); raw HTML tags
 on one line (<tag attr="...">, </tag>), their text between them counted;
 double-quoted spans, straight or curly, which may wrap onto later lines of the
-same paragraph; and HTML comment interiors. A < after an odd run of
+same paragraph; HTML comment interiors; and generated regions (a standalone
+<!-- BEGIN GENERATED: ... --> line through its <!-- END GENERATED: ... --> line). A < after an odd run of
 backslashes is literal, so an escaped comment opener opens nothing. Quotes and comments are read
 left to right, so a quoted <!-- opens nothing. A comment closes at the first --> after its <!-- (<!--> is whole) and may span
 lines; one at a line start (up to 3 spaces) that never closes runs to the end
@@ -413,7 +414,7 @@ cmd_plan() {
     {
       t = index($0, "\t"); b = substr($0, 1, t - 1); f = substr($0, t + 1)
       if (!(b in seen)) { seen[b] = 1; order[++nb] = b }
-      S++; fence = ""; fm = 0; nl = 0; qopen = 0; hcopen = 0; pblank = 1; icode = 0; inlist = 0
+      S++; fence = ""; gen = 0; fm = 0; nl = 0; qopen = 0; hcopen = 0; pblank = 1; icode = 0; inlist = 0
       for (i = 1; i <= nc; i++) h[i] = 0
       while ((getline line < f) > 0) { sub(/\r$/, "", line); L[++nl] = line }
       close(f)
@@ -426,6 +427,10 @@ cmd_plan() {
       }
       for (ln = fm + 1; ln <= nl; ln++) {
         line = L[ln]; hcb = (line ~ /^(   |  | )?<!--/)
+        if (gen) {
+          if (line ~ /^[ \t]*<!-- END GENERATED:[^>]*-->[ \t]*$/) gen = 0
+          continue
+        }
         if (fence != "") {
           # The container ends the fence: a blockquote fence at a line with no
           # `>`, a list-item fence at a non-blank line indented less than the
@@ -450,6 +455,7 @@ cmd_plan() {
           for (i = 1; i <= nc; i++) h[i] += cue_hits(s, C[i])
           pblank = 0; continue
         }
+        if (line ~ /^[ \t]*<!-- BEGIN GENERATED:[^>]*-->[ \t]*$/) { gen = 1; continue }
         if (line !~ /[^ \t]/) { pblank = 1; qopen = 0; continue }
         # Indented code: 4 columns of indent after a blank line, a heading or
         # more indented code, outside a list.

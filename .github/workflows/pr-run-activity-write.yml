@@ -122,6 +122,30 @@ on:
         required: false
         type: string
         default: ""
+      dependency-verdict:
+        description: >-
+          For the verdict script of a review-dependency round: download the
+          verdict the model run's runner step uploaded in this workflow run
+          and pass it to the script as DEPENDENCY_VERDICT_DIR.
+        required: false
+        type: boolean
+        default: false
+      dependency-run-sha256:
+        description: >-
+          With dependency-verdict, the model run's dependency-run-sha256
+          output; the verdict script refuses a run.json with any other SHA-256.
+        required: false
+        type: string
+        default: ""
+      dependency-run-attempt:
+        description: >-
+          With dependency-verdict, the model run's dependency-run-attempt
+          output: the attempt whose verdict artifact to download. Empty
+          downloads nothing, which the verdict script refuses as
+          dependency-invalid.
+        required: false
+        type: string
+        default: ""
     secrets:
       claude-code-oauth-token:
         description: Claude Code OAuth token for skill activities.
@@ -135,8 +159,12 @@ on:
           feedback-protected-path or feedback-round-cap; for the
           review-replies script feedback-uncertain, feedback-not-landed or
           feedback-invalid, feedback-partial, feedback-incomplete or
-          feedback-disputed; empty otherwise. Set only by runner steps and the
-          base's reply script.
+          feedback-disputed; for dependency-review, before any model turn,
+          dependency-round-cap; for the dependency-verdict script
+          dependency-invalid, dependency-fix-not-landed, dependency-config-unreadable,
+          dependency-control-uncited, dependency-security-close or
+          dependency-escalate; empty otherwise.
+          Set only by runner steps and the base's reply and verdict scripts.
         value: ${{ jobs.run.outputs.escalation-reason }}
       head-sha:
         description: The PR head the gate passed, before any push of this run. Set only by runner steps.
@@ -159,6 +187,22 @@ on:
           round's replies; the caller passes it to the reply job as
           review-run-attempt. Set only by runner steps.
         value: ${{ jobs.run.outputs.feedback-run-attempt }}
+      dependency-round:
+        description: >-
+          `true` once a dependency-review skill ran, so its verdict was
+          uploaded (or the run ended before it could be) and its verdict job
+          must run. Set only by runner steps.
+        value: ${{ jobs.run.outputs.dependency-round }}
+      dependency-run-sha256:
+        description: >-
+          The SHA-256 of the run.json the dependency-review runner step wrote;
+          the caller passes it to the verdict job. Set only by runner steps.
+        value: ${{ jobs.run.outputs.dependency-run-sha256 }}
+      dependency-run-attempt:
+        description: >-
+          The run attempt whose dependency-verdict-<attempt> artifact holds
+          the round's verdict. Set only by runner steps.
+        value: ${{ jobs.run.outputs.dependency-run-attempt }}
       issue-run-started:
         description: >-
           Issue mode: `true` once the run got its lane token, so its outcome
@@ -212,12 +256,18 @@ jobs:
       merge-state: ${{ steps.prepare.outputs.merge-state }}
       escalation-reason: >-
         ${{ steps.prepare.outputs.escalation-reason || steps.post.outputs.escalation-reason
-        || steps.feedback-select.outputs.escalation-reason || steps.act-script.outputs.escalation-reason }}
+        || steps.feedback-select.outputs.escalation-reason || steps.dependency-select.outputs.escalation-reason
+        || steps.act-script.outputs.escalation-reason }}
       feedback-round: >-
         ${{ steps.config.outputs.prepare == 'review-threads'
         && steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome != '' }}
       feedback-run-sha256: ${{ steps.feedback-collect.outputs.run-sha256 }}
       feedback-run-attempt: ${{ steps.feedback-collect.outcome == 'success' && github.run_attempt || '' }}
+      dependency-round: >-
+        ${{ steps.config.outputs.prepare == 'dependency-review'
+        && steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome != '' }}
+      dependency-run-sha256: ${{ steps.dependency-collect.outputs.run-sha256 }}
+      dependency-run-attempt: ${{ steps.dependency-collect.outcome == 'success' && github.run_attempt || '' }}
       issue-run-started: ${{ inputs.issue-number != '' && steps.lane-token.outcome == 'success' }}
       # A gate skill succeeds only on a `pass` verdict, a skill that took no
       # model turn fails, and a skill whose commits could not be moved onto
@@ -277,6 +327,9 @@ jobs:
             "" | protected-path-conflict | workflow-staged | repeat-cap | unresolved-conflict) ;;
             feedback-protected-path | feedback-round-cap | feedback-uncertain | feedback-not-landed | feedback-invalid) ;;
             feedback-partial | feedback-incomplete | feedback-disputed) ;;
+            dependency-round-cap | dependency-invalid | dependency-fix-not-landed) ;;
+            dependency-security-close | dependency-escalate | dependency-config-unreadable) ;;
+            dependency-control-uncited) ;;
             *)
               echo "::error::the escalation-reason input is not a known escalation reason"
               exit 1
@@ -393,6 +446,32 @@ jobs:
           export REVIEW_ROUNDS
           THREAD_FILE="$FEEDBACK_DIR/threads.json" node .base/.github/scripts/pr-unblock/address-feedback.mjs select
 
+      # dependency-review, before the mint and any model turn, with the job's
+      # read-only token: skips a PR Dependabot did not open or one sorted
+      # `auto` (pr-merge owns those), escalates once the round cap is reached,
+      # or writes the context file the skill reads: the PR's files and
+      # patches, its classification and its body (release notes, data).
+      - name: Select the dependency pull request
+        id: dependency-select
+        if: steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'dependency-review'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          DEPENDENCY_DIR: ${{ runner.temp }}/lane-dependency
+          TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
+          # The content rule's ecosystems and directories, read from the base.
+          DEPENDABOT_CONFIG: .base/.github/dependabot.yml
+          # The review-only dependencies, read from the base.
+          DEPENDABOT_POLICY: .base/.github/standards/dependabot-policy/policy.json
+          RESOLVED: ${{ runner.temp }}/resolved-config.json
+        run: |
+          mkdir -p "$DEPENDENCY_DIR"
+          DEPENDENCY_REVIEW_ROUNDS=$(jq -r '.loop["dependency-review-rounds"] // empty' "$RESOLVED")
+          export DEPENDENCY_REVIEW_ROUNDS
+          DEPENDENCY_FILE="$DEPENDENCY_DIR/dependency.json" node .base/.github/scripts/pr-unblock/review-dependency.mjs select
+
       # A read activity belongs in pr-run-activity-read.yml, whose run holds no
       # App key; the caller chose the wrong file.
       - name: Assert the effect is not read
@@ -411,6 +490,7 @@ jobs:
         if: >-
           steps.config.outputs.applies == 'true' && steps.config.outputs.effect != 'read'
           && steps.feedback-select.outputs.proceed != 'false'
+          && steps.dependency-select.outputs.proceed != 'false'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           EFFECT: ${{ steps.config.outputs.effect }}
@@ -490,6 +570,19 @@ jobs:
           resolved-path: ${{ runner.temp }}/resolved-config.json
           issue-number: ${{ inputs.issue-number }}
 
+      # The run-test-file verify-script runs test_*.py under pytest, which the
+      # runner image lacks. When the stage granted its wrapper, install the
+      # base's hash-pinned CI requirements, before the head checkout replaces
+      # .base.
+      - name: Set up Python for the test-file runner
+        if: contains(steps.stage.outputs.claude-args, '/lane-verify/bin/run-test-file ')
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .base/.python-version
+      - name: Install the pinned pytest for the test-file runner
+        if: contains(steps.stage.outputs.claude-args, '/lane-verify/bin/run-test-file ')
+        run: python -m pip install --only-binary ':all:' --require-hashes --requirement .base/.github/requirements-ci.txt
+
       # Issue mode: the skill reads the issue from its scratch directory, so it
       # needs no shell or API access. Title, body and labels only: comments
       # are left out. The text is untrusted data the skill evaluates.
@@ -550,6 +643,20 @@ jobs:
           # this job alone keeps the model job's outputs from its attempt.
           name: feedback-replies-${{ inputs.review-run-attempt }}
           path: ${{ runner.temp }}/feedback-replies
+
+      # dependency-verdict: the verdict script reads the model run's artifact
+      # from this workflow run. A missing artifact leaves the directory empty,
+      # which the script refuses as dependency-invalid after it still records
+      # the round.
+      - name: Download the dependency verdict
+        if: >-
+          steps.head-recheck.outputs.proceed == 'true' && inputs.dependency-verdict
+          && steps.config.outputs.kind == 'script' && inputs.dependency-run-attempt != ''
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dependency-verdict-${{ inputs.dependency-run-attempt }}
+          path: ${{ runner.temp }}/dependency-verdict
 
       - name: Copy the trusted actors for the reply script
         id: reply-actors
@@ -758,7 +865,7 @@ jobs:
         if: >-
           steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.kind == 'skill'
           && (steps.config.outputs.prepare != 'merge-base' || steps.prepare.outputs.merge-state == 'conflicted')
-        uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc # v1.0.248
+        uses: anthropics/claude-code-action@a26b07d8c778b0c43f64618e5fd29fd0f8af72e8 # v1.0.250
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
@@ -1162,6 +1269,13 @@ jobs:
           THREAD_FILE: >-
             ${{ steps.config.outputs.prepare == 'review-threads'
             && format('{0}/lane-feedback/threads.json', runner.temp) || '' }}
+          # dependency-review mode moves the PR branch only when the lane
+          # branch changes nothing under .github/ and every commit's message
+          # carries [dependabot skip], so Dependabot may still rebase the PR.
+          DEPENDENCY_REVIEW: ${{ steps.config.outputs.prepare == 'dependency-review' }}
+          # ...and only when the skill's structured verdict is `fix`: commits
+          # made beside any other verdict are discarded.
+          DEPENDENCY_OUTPUT: ${{ steps.config.outputs.prepare == 'dependency-review' && steps.act-skill.outputs.structured_output || '' }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           HOLD_LABELS: ${{ steps.hold-label.outputs.labels }}
           READ_TOKEN: ${{ github.token }}
@@ -1170,7 +1284,7 @@ jobs:
           retries: 0
           script: |
             const { HEAD_SHA, HEAD_REF, LANE_BRANCH, MERGE_BASE, COMMIT_OUTCOME, COMMIT_SHA, THREAD_FILE } = process.env;
-            const { PR_NUMBER, HOLD_LABELS, READ_TOKEN } = process.env;
+            const { DEPENDENCY_REVIEW, DEPENDENCY_OUTPUT, PR_NUMBER, HOLD_LABELS, READ_TOKEN } = process.env;
             core.setOutput('skip-reason', '');
             const tip = async (branch) =>
               (await github.request('GET /repos/{owner}/{repo}/git/ref/{ref}', { ...context.repo, ref: `heads/${branch}` }))
@@ -1193,6 +1307,27 @@ jobs:
                   .filter((p) => !paths.has(p) || /^\.github(\/|$)/i.test(p));
                 if (bad.length > 0) {
                   core.setFailed(`The lane branch changes a path no kept thread names or under .github/ (${bad.slice(0, 5).join(', ')}); the PR branch is not moved`);
+                  return;
+                }
+              }
+              if (DEPENDENCY_REVIEW === 'true') {
+                let verdict = '';
+                try {
+                  verdict = JSON.parse(DEPENDENCY_OUTPUT || 'null')?.verdict ?? '';
+                } catch {
+                  verdict = '';
+                }
+                if (verdict !== 'fix') {
+                  core.info(`The verdict is ${JSON.stringify(String(verdict).slice(0, 20))}, not fix; the lane's commits (${lane}) are discarded`);
+                  return;
+                }
+                const { data } = await github.rest.repos.compareCommitsWithBasehead({ ...context.repo, basehead: `${HEAD_SHA}...${lane}` });
+                const bad = data.files.length >= 300 ? ['(300 or more files)'] : data.files
+                  .flatMap((f) => [f.filename, f.previous_filename].filter(Boolean))
+                  .filter((p) => /^\.github(\/|$)/i.test(p));
+                const unskipped = data.commits.length >= 250 || data.commits.some((c) => !/\[dependabot skip\]/i.test(c.commit.message));
+                if (bad.length > 0 || unskipped) {
+                  core.setFailed(`The lane branch changes a path under .github/ (${bad.slice(0, 5).join(', ') || 'none'}) or holds a commit without [dependabot skip]; the PR branch is not moved`);
                   return;
                 }
               }
@@ -1306,6 +1441,70 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+      # dependency-review, after any model turn, also after a failed,
+      # cancelled or timed-out skill: this job posts nothing to the PR.
+      # run.json is the runner's own record: the gated head, the select
+      # step's security flag, and the skill's structured output (the verdict
+      # JSON, model output, null when absent or unparsable), which the
+      # verdict job validates and acts on.
+      - name: Collect the dependency verdict
+        id: dependency-collect
+        if: >-
+          always() && steps.config.outputs.prepare == 'dependency-review'
+          && steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome != ''
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          SECURITY: ${{ steps.dependency-select.outputs.security }}
+          CONFIG_UNREADABLE: ${{ steps.dependency-select.outputs.config-unreadable }}
+          # The matched review-only controls a merge verdict must quote.
+          CONTROLS: ${{ steps.dependency-select.outputs.controls }}
+          STRUCTURED_OUTPUT: ${{ steps.act-skill.outputs.structured_output }}
+          OUT_DIR: ${{ runner.temp }}/lane-dependency-out
+        with:
+          retries: 0
+          script: |
+            const fs = require('fs');
+            const { HEAD_SHA, PR_NUMBER, SECURITY, CONFIG_UNREADABLE, CONTROLS, STRUCTURED_OUTPUT, OUT_DIR } = process.env;
+            fs.rmSync(OUT_DIR, { recursive: true, force: true });
+            fs.mkdirSync(OUT_DIR);
+            let output = null;
+            try {
+              output = JSON.parse(STRUCTURED_OUTPUT || 'null');
+            } catch {
+              core.warning('the skill returned no parsable structured output; the verdict job escalates');
+            }
+            const run = {
+              version: 1,
+              pr: Number(PR_NUMBER),
+              head_sha: HEAD_SHA,
+              security: SECURITY === 'true',
+              config_unreadable: CONFIG_UNREADABLE === 'true',
+              // Unreadable controls leave a value the verdict job refuses.
+              controls: (() => {
+                try {
+                  return JSON.parse(CONTROLS);
+                } catch {
+                  return null;
+                }
+              })(),
+              output,
+            };
+            const text = `${JSON.stringify(run)}\n`;
+            fs.writeFileSync(`${OUT_DIR}/run.json`, text);
+            core.setOutput('run-sha256', require('crypto').createHash('sha256').update(text).digest('hex'));
+            core.info(`run.json holds ${text.length} byte(s)`);
+
+      - name: Upload the dependency verdict
+        if: always() && steps.dependency-collect.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dependency-verdict-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/lane-dependency-out/run.json
+          retention-days: 7
+          if-no-files-found: error
+
       # Issue mode: the lane branch is kept only when the skill committed to
       # it, and the report-outcome run reads its name from lane.json, written
       # here after the skill ended.
@@ -1412,6 +1611,10 @@ jobs:
           RUN_SHA256: ${{ inputs.review-run-sha256 }}
           HEAD_REF: ${{ steps.gate.outputs.head-ref }}
           MODEL_RUN_ATTEMPT: ${{ inputs.review-run-attempt }}
+          # dependency-verdict only; empty otherwise.
+          DEPENDENCY_VERDICT_DIR: ${{ inputs.dependency-verdict && format('{0}/dependency-verdict', runner.temp) || '' }}
+          DEPENDENCY_RUN_SHA256: ${{ inputs.dependency-run-sha256 }}
+          DEPENDENCY_RUN_ATTEMPT: ${{ inputs.dependency-run-attempt }}
           ESCALATION_REASON_FILE: ${{ runner.temp }}/escalation-reason
         run: |
           if [ "$TRACKER_SHA256" = absent ]; then
@@ -1446,14 +1649,23 @@ jobs:
             fi
           fi
           echo "skip-reason=$reason" >>"$GITHUB_OUTPUT"
-          # Only the reply script escalates from here, with its own reasons.
+          # Only the reply and verdict scripts escalate from here, each with
+          # its own reasons.
           escalation=""
           if [ -s "$ESCALATION_REASON_FILE" ]; then
             escalation=$(head -n 1 "$ESCALATION_REASON_FILE" | tr -d '\r')
             case "$FEEDBACK_REPLIES_DIR:$escalation" in
               ?*:feedback-uncertain | ?*:feedback-not-landed | ?*:feedback-invalid) ;;
               ?*:feedback-partial | ?*:feedback-incomplete | ?*:feedback-disputed) ;;
-              *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
+              *)
+                # The verdict script's reasons, only in dependency-verdict mode.
+                case "$FEEDBACK_REPLIES_DIR:$DEPENDENCY_VERDICT_DIR:$escalation" in
+                  :?*:dependency-invalid | :?*:dependency-fix-not-landed) ;;
+                  :?*:dependency-security-close | :?*:dependency-escalate | :?*:dependency-config-unreadable) ;;
+                  :?*:dependency-control-uncited) ;;
+                  *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
+                esac
+                ;;
             esac
           fi
           echo "escalation-reason=$escalation" >>"$GITHUB_OUTPUT"
@@ -1475,7 +1687,8 @@ jobs:
             || steps.prepare.outputs.skip-reason || steps.post.outputs.skip-reason
             || steps.commit.outputs.skip-reason || steps.promote.outputs.skip-reason
             || steps.act-script.outputs.skip-reason
-            || steps.feedback-select.outputs.skip-reason }}
+            || steps.feedback-select.outputs.skip-reason
+            || steps.dependency-select.outputs.skip-reason }}
           ACT_OUTCOME: >-
             ${{ steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'
             && ((steps.post.outputs.escalation-reason != ''

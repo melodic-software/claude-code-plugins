@@ -83,7 +83,9 @@ family alias resolves. Each subagent receives:
   findings omitted, with `batch: <digest>`, `files_reviewed:`, and `files_with_findings:`
   lines at the top;
 - the boundary rules: skip fenced code, blockquotes, double-quoted spans, inline code, YAML
-  frontmatter, and table cell literals except for `rule-unusual-tables`; a file that quotes a
+  frontmatter, generated regions (a standalone `<!-- BEGIN GENERATED: ... -->` line through its
+  `<!-- END GENERATED: ... -->` line, which a script owns), and table cell literals except for
+  `rule-unusual-tables`; a file that quotes a
   tell to document it is not a finding; cap 6 findings per file and 30 per batch, worst first.
   For a non-repository target, add that `rule-style-shift` is not evaluable, because there is
   no history to compare against, and is never reported as a finding.

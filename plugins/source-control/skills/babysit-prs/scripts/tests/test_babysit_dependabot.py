@@ -14,6 +14,8 @@ marker is the one pr-run-activity.md's "prepare: dependency-review" defines.
 
 from __future__ import annotations
 
+import base64
+import json
 import pathlib
 import sys
 import unittest
@@ -84,6 +86,15 @@ class Classify(unittest.TestCase):
             with self.subTest(title=title):
                 result = tier(title)
                 self.assertEqual((result.tier, result.reasons), ("auto", ()))
+
+    def test_a_quoted_scoped_npm_name_matches_the_title(self) -> None:
+        # Dependabot quotes `@scope/name` in the metadata.
+        message = metadata(('"@anthropic-ai/claude-code"', "semver-patch", "2.1.302"))
+        result = tier(
+            "build: Bump @anthropic-ai/claude-code from 2.1.301 to 2.1.302 in the npm-minor-patch group",
+            commits=[commit(message)],
+        )
+        self.assertEqual((result.tier, result.reasons), ("auto", ()))
 
     def test_a_0x_minor_update_is_review(self) -> None:
         # Semver promises nothing below 1.0, so 0.3 to 0.4 is breaking.
@@ -259,6 +270,163 @@ def marker(
             f"verdict={verdict} run=123-1 -->\nThe review found the bump safe."
         ),
     }
+
+
+def review_only_policy(*entries: dict[str, str]) -> dict[str, Any]:
+    return {
+        "autoMerge": {
+            "reviewOnly": [
+                {
+                    "repository": "melodic-software/claude-code-plugins",
+                    "ecosystem": "npm",
+                    "directory": "/",
+                    "dependency": "@anthropic-ai/claude-code",
+                    "reviewed": "2026-10-17",
+                    "basis": "runs with a secret",
+                    "control": "docs/x.md#control",
+                    **entry,
+                }
+                for entry in entries
+            ]
+        }
+    }
+
+
+class ReviewOnly(unittest.TestCase):
+    """`autoMerge.reviewOnly` in the standards Dependabot policy: a listed
+    dependency is review whatever its version change; an unreadable policy
+    sends every update to review."""
+
+    REPO = "melodic-software/claude-code-plugins"
+    ROOT = "dependabot/npm_and_yarn/npm-minor-patch-ba695db9ca"
+    UPDATES = (
+        dependabot.Update("@anthropic-ai/claude-code", False),
+        dependabot.Update("@biomejs/biome", False),
+    )
+
+    def reasons(
+        self,
+        policy: Any,
+        head_ref: str = ROOT,
+        paths: list[str] | None = None,
+    ) -> tuple[str, ...]:
+        return dependabot.review_only(
+            policy,
+            self.REPO,
+            head_ref,
+            self.UPDATES,
+            ["package.json", "package-lock.json"] if paths is None else paths,
+        )
+
+    def test_a_listed_dependency_is_review_only(self) -> None:
+        self.assertEqual(
+            self.reasons(
+                review_only_policy(
+                    {}, {"repository": "Melodic-Software/Claude-Code-Plugins"}
+                )
+            ),
+            ("review-only:@anthropic-ai/claude-code",),
+        )
+
+    def test_each_branch_ecosystem_maps_to_its_dependabot_yml_spelling(self) -> None:
+        for segment, ecosystem in (
+            ("npm_and_yarn", "npm"),
+            ("pip", "pip"),
+            ("github_actions", "github-actions"),
+        ):
+            with self.subTest(segment=segment):
+                policy = review_only_policy({"ecosystem": ecosystem})
+                self.assertEqual(
+                    self.reasons(policy, f"dependabot/{segment}/x-1.0.1"),
+                    ("review-only:@anthropic-ai/claude-code",),
+                )
+
+    def test_another_repo_ecosystem_directory_or_dependency_does_not_match(
+        self,
+    ) -> None:
+        for fields in (
+            {"repository": "melodic-software/standards"},
+            {"ecosystem": "pip"},
+            {"directory": "/plugins/miro/server"},
+            {"dependency": "@playwright/cli"},
+        ):
+            with self.subTest(fields=fields):
+                self.assertEqual(self.reasons(review_only_policy(fields)), ())
+
+    def test_the_directory_is_the_changed_paths_folder(self) -> None:
+        policy = review_only_policy({"directory": "/plugins/miro/server"})
+        miro = [
+            "plugins/miro/server/package.json",
+            "plugins/miro/server/package-lock.json",
+        ]
+        self.assertEqual(
+            self.reasons(policy, paths=miro), ("review-only:@anthropic-ai/claude-code",)
+        )
+        self.assertEqual(self.reasons(review_only_policy({}), paths=miro), ())
+
+    ACTIONS = "dependabot/github_actions/actions/checkout-4.2.0"
+
+    def test_a_root_github_actions_entry_covers_workflow_and_actions_files(
+        self,
+    ) -> None:
+        policy = review_only_policy({"ecosystem": "github-actions"})
+        for path in (
+            ".github/workflows/claude.yml",
+            ".github/actions/setup/action.yml",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(
+                    self.reasons(policy, self.ACTIONS, [path]),
+                    ("review-only:@anthropic-ai/claude-code",),
+                )
+        self.assertEqual(
+            self.reasons(policy, self.ACTIONS, ["plugins/x/action.yml"]), ()
+        )
+
+    def test_a_github_actions_entry_for_a_folder_covers_the_action_file_there(
+        self,
+    ) -> None:
+        policy = review_only_policy(
+            {"ecosystem": "github-actions", "directory": "/plugins/x"}
+        )
+        self.assertEqual(
+            self.reasons(policy, self.ACTIONS, ["plugins/x/action.yml"]),
+            ("review-only:@anthropic-ai/claude-code",),
+        )
+        self.assertEqual(
+            self.reasons(policy, self.ACTIONS, [".github/workflows/claude.yml"]), ()
+        )
+
+    def test_a_directory_glob_matches_the_changed_paths_folder(self) -> None:
+        policy = review_only_policy({"directory": "/plugins/*/server"})
+        self.assertEqual(
+            self.reasons(policy, paths=["plugins/miro/server/package.json"]),
+            ("review-only:@anthropic-ai/claude-code",),
+        )
+
+    def test_unread_paths_match_any_directory(self) -> None:
+        policy = review_only_policy({"directory": "/plugins/miro/server"})
+        self.assertEqual(
+            dependabot.review_only(policy, self.REPO, self.ROOT, self.UPDATES, None),
+            ("review-only:@anthropic-ai/claude-code",),
+        )
+
+    def test_an_unreadable_policy_is_review(self) -> None:
+        for policy in (
+            None,
+            [],
+            {},
+            {"autoMerge": {}},
+            {"autoMerge": {"reviewOnly": {}}},
+            {"autoMerge": {"reviewOnly": [{"dependency": "x"}]}},
+        ):
+            with self.subTest(policy=policy):
+                self.assertEqual(
+                    self.reasons(policy), ("dependabot-policy-unreadable",)
+                )
+
+    def test_an_empty_list_lists_nothing(self) -> None:
+        self.assertEqual(self.reasons({"autoMerge": {"reviewOnly": []}}), ())
 
 
 class MergeVerdict(unittest.TestCase):
@@ -539,6 +707,376 @@ class Pushes(unittest.TestCase):
             dependabot.push_refusal([push("push", HEAD)], HEAD, []),
             "push-history-incomplete",
         )
+
+
+# The provenance gate, vector for vector with dependency-classify.test.mjs.
+# Fixtures carry the shapes the registries return: npm's packument
+# (dist.attestations, _npmUser.trustedPublisher) and attestations endpoint (a
+# base64 DSSE payload holding the SLSA v1 predicate), PyPI's simple index JSON
+# (files[].provenance, upload-time) and integrity endpoint
+# (attestation_bundles[].publisher). The identities are what the registries
+# served on 2026-10-17: biome 2.5.14 from biomejs/biome
+# .github/workflows/release.yml, its trusted publisher's oidcConfigId both
+# with and without `oidc:`, numpy from numpy/numpy-release wheels.yml.
+REG = "https://registry.npmjs.org"
+BIOME = "@biomejs/biome"
+BIOME_OIDC = "88a86367-18c3-4668-9f8d-aa7619d345aa"
+RELEASE = ".github/workflows/release.yml"
+
+
+def slsa(repository: str, path: str, ref: str = "refs/heads/main") -> dict[str, Any]:
+    predicate = {
+        "predicate": {
+            "buildDefinition": {
+                "externalParameters": {
+                    "workflow": {
+                        "ref": ref,
+                        "repository": f"https://github.com/{repository}",
+                        "path": path,
+                    }
+                }
+            }
+        }
+    }
+    payload = base64.b64encode(json.dumps(predicate).encode()).decode()
+    return {
+        "attestations": [
+            {
+                "predicateType": "https://github.com/npm/attestation/tree/main/specs/publish/v0.1",
+                "bundle": {},
+            },
+            {
+                "predicateType": "https://slsa.dev/provenance/v1",
+                "bundle": {"dsseEnvelope": {"payload": payload}},
+            },
+        ]
+    }
+
+
+def packument(name: str, rows: list[tuple[str, str, dict[str, Any]]]) -> dict[str, Any]:
+    versions = {}
+    for version, _, flags in rows:
+        dist = (
+            {"attestations": {"url": f"{REG}/-/npm/v1/attestations/{name}@{version}"}}
+            if flags.get("attested")
+            else {}
+        )
+        oidc = flags.get("oidc")
+        user = (
+            {
+                "name": "GitHub Actions",
+                "trustedPublisher": {"id": "github", "oidcConfigId": oidc},
+            }
+            if oidc
+            else {"name": "someone"}
+        )
+        versions[version] = {"version": version, "dist": dist, "_npmUser": user}
+    time = {"created": "2020-01-01T00:00:00.000Z", **{v: at for v, at, _ in rows}}
+    return {"name": name, "versions": versions, "time": time}
+
+
+class Registry:
+    """Answers only the URLs it holds; anything else raises, as a 404 or a
+    timeout does."""
+
+    def __init__(self, pages: dict[str, Any]) -> None:
+        self.pages = pages
+        self.calls: list[str] = []
+
+    def __call__(self, url: str, accept: str) -> Any:
+        self.calls.append(url)
+        assert accept, "every read names its media type"
+        found = self.pages.get(url)
+        if found is None or isinstance(found, Exception):
+            raise found or OSError(f"HTTP 404 {url}")
+        return json.loads(json.dumps(found))
+
+
+ATTESTED = {"attested": True, "oidc": f"oidc:{BIOME_OIDC}"}
+
+
+def biome_pages(
+    new_attestation: dict[str, Any] | None = None,
+    new_row: dict[str, Any] | None = None,
+    *,
+    dropped: bool = False,
+) -> dict[str, Any]:
+    attestation = new_attestation or slsa("biomejs/biome", RELEASE)
+    pages: dict[str, Any] = {
+        f"{REG}/@biomejs%2Fbiome": packument(
+            BIOME,
+            [
+                ("2.5.12", "2026-09-01T00:00:00Z", ATTESTED),
+                ("2.5.13", "2026-09-20T00:00:00Z", ATTESTED),
+                ("2.6.0-beta.1", "2026-10-01T00:00:00Z", {}),
+                (
+                    "2.5.14",
+                    "2026-10-10T00:00:00Z",
+                    ATTESTED if new_row is None else new_row,
+                ),
+            ],
+        ),
+        f"{REG}/-/npm/v1/attestations/@biomejs%2Fbiome@2.5.13": slsa(
+            "biomejs/biome", RELEASE
+        ),
+    }
+    if not dropped:
+        pages[f"{REG}/-/npm/v1/attestations/@biomejs%2Fbiome@2.5.14"] = attestation
+    return pages
+
+
+def npm(name: str, version: str | None) -> list[dependabot.Update]:
+    return [dependabot.Update(name, False, version)]
+
+
+def reasons(
+    updates: list[dependabot.Update], segment: str, get: Any, cap: int = 20
+) -> list[str]:
+    return list(dependabot.provenance_reasons(updates, segment, get, cap))
+
+
+class Provenance(unittest.TestCase):
+    """README, "Registry provenance": the new version's publisher identity
+    against the newest earlier stable version that has one."""
+
+    def test_an_npm_release_from_the_same_repository_and_workflow_passes(self) -> None:
+        get = Registry(biome_pages())
+        self.assertEqual(reasons(npm(BIOME, "2.5.14"), "npm_and_yarn", get), [])
+        # The packument and two attestations; the prerelease is not read.
+        self.assertEqual(len(get.calls), 3)
+
+    def test_a_release_workflow_on_a_new_tag_ref_is_the_same_identity(self) -> None:
+        tag = slsa("biomejs/biome", RELEASE, "refs/tags/v2.5.14")
+        self.assertEqual(
+            reasons(npm(BIOME, "2.5.14"), "npm_and_yarn", Registry(biome_pages(tag))),
+            [],
+        )
+
+    def test_a_dropped_attestation_or_another_publisher_is_review(self) -> None:
+        dropped = Registry(biome_pages(new_row={}, dropped=True))
+        self.assertEqual(
+            reasons(npm(BIOME, "2.5.14"), "npm_and_yarn", dropped),
+            [f"provenance-missing:{BIOME}"],
+        )
+        publisher_only = Registry(
+            biome_pages(new_row={"oidc": BIOME_OIDC}, dropped=True)
+        )
+        self.assertEqual(
+            reasons(npm(BIOME, "2.5.14"), "npm_and_yarn", publisher_only),
+            [f"provenance-changed:{BIOME}"],
+        )
+        for repository, path in (
+            ("someone/biome", RELEASE),
+            ("biomejs/biome", ".github/workflows/other.yml"),
+        ):
+            with self.subTest(repository=repository, path=path):
+                moved = Registry(biome_pages(slsa(repository, path)))
+                self.assertEqual(
+                    reasons(npm(BIOME, "2.5.14"), "npm_and_yarn", moved),
+                    [f"provenance-changed:{BIOME}"],
+                )
+
+    def test_an_oidc_config_id_compares_with_any_oidc_prefix_stripped(self) -> None:
+        name = "@anthropic-ai/claude-code"
+
+        def pages(oidc: str | None) -> Registry:
+            return Registry(
+                {
+                    f"{REG}/@anthropic-ai%2Fclaude-code": packument(
+                        name,
+                        [
+                            (
+                                "2.1.301",
+                                "2026-10-01T00:00:00Z",
+                                {"oidc": f"oidc:{BIOME_OIDC}"},
+                            ),
+                            ("2.1.302", "2026-10-02T00:00:00Z", {"oidc": oidc}),
+                        ],
+                    )
+                }
+            )
+
+        self.assertEqual(
+            reasons(npm(name, "2.1.302"), "npm_and_yarn", pages(BIOME_OIDC)), []
+        )
+        other = pages("ed8551cb-3303-4af8-bcf8-5818707a0f2d")
+        self.assertEqual(
+            reasons(npm(name, "2.1.302"), "npm_and_yarn", other),
+            [f"provenance-changed:{name}"],
+        )
+        self.assertEqual(
+            reasons(npm(name, "2.1.302"), "npm_and_yarn", pages(None)),
+            [f"provenance-missing:{name}"],
+        )
+
+    def test_a_package_that_never_had_provenance_passes_in_one_read(self) -> None:
+        get = Registry(
+            {
+                f"{REG}/markdownlint-cli2": packument(
+                    "markdownlint-cli2",
+                    [
+                        ("0.18.0", "2026-08-01T00:00:00Z", {}),
+                        ("0.18.1", "2026-09-01T00:00:00Z", {}),
+                    ],
+                )
+            }
+        )
+        self.assertEqual(
+            reasons(npm("markdownlint-cli2", "0.18.1"), "npm_and_yarn", get), []
+        )
+        self.assertEqual(len(get.calls), 1)
+
+    def test_a_failed_read_a_missing_version_or_no_version_is_unreadable(self) -> None:
+        unreadable = [f"provenance-unreadable:{BIOME}"]
+        self.assertEqual(
+            reasons(npm(BIOME, "2.5.14"), "npm_and_yarn", Registry({})), unreadable
+        )
+        timeout = biome_pages()
+        timeout[f"{REG}/-/npm/v1/attestations/@biomejs%2Fbiome@2.5.13"] = TimeoutError()
+        self.assertEqual(
+            reasons(npm(BIOME, "2.5.14"), "npm_and_yarn", Registry(timeout)), unreadable
+        )
+        garbled = biome_pages(
+            {
+                "attestations": [
+                    {
+                        "predicateType": "https://slsa.dev/provenance/v1",
+                        "bundle": {"dsseEnvelope": {"payload": "not json"}},
+                    }
+                ]
+            }
+        )
+        self.assertEqual(
+            reasons(npm(BIOME, "2.5.14"), "npm_and_yarn", Registry(garbled)), unreadable
+        )
+        self.assertEqual(
+            reasons(npm(BIOME, "9.9.9"), "npm_and_yarn", Registry(biome_pages())),
+            unreadable,
+        )
+        self.assertEqual(
+            reasons(npm(BIOME, None), "npm_and_yarn", Registry(biome_pages())),
+            unreadable,
+        )
+
+    def test_past_the_read_cap_every_remaining_update_is_unreadable(self) -> None:
+        two = npm(BIOME, "2.5.14") * 2
+        self.assertEqual(
+            reasons(two, "npm_and_yarn", Registry(biome_pages()), 4),
+            [f"provenance-unreadable:{BIOME}"],
+        )
+        self.assertEqual(reasons(two, "npm_and_yarn", Registry(biome_pages()), 6), [])
+
+    @staticmethod
+    def pypi(
+        new_publisher: dict[str, str] | None = None, *, missing: bool = False
+    ) -> Registry:
+        def integrity(name: str) -> str:
+            return f"https://pypi.org/integrity/numpy/{name.split('-')[1]}/{name}/provenance"
+
+        files = [
+            (
+                "numpy-2.3.4-cp312-cp312-manylinux_2_28_x86_64.whl",
+                "2025-10-15T16:15:56Z",
+                True,
+            ),
+            ("numpy-2.3.4.tar.gz", "2025-10-15T16:10:00Z", True),
+            (
+                "numpy-2.4.0rc1-cp312-cp312-manylinux_2_28_x86_64.whl",
+                "2025-11-01T00:00:00Z",
+                False,
+            ),
+            (
+                "numpy-2.3.5-cp312-cp312-manylinux_2_28_x86_64.whl",
+                "2025-11-16T22:50:02Z",
+                not missing,
+            ),
+            ("numpy-2.3.5.tar.gz", "2025-11-16T22:40:00Z", not missing),
+        ]
+        publisher = {
+            "environment": "pypi",
+            "kind": "GitHub",
+            "repository": "numpy/numpy-release",
+            "workflow": "wheels.yml",
+        }
+        new = new_publisher or publisher
+        pages: dict[str, Any] = {
+            "https://pypi.org/simple/numpy/": {
+                "meta": {"api-version": "1.4"},
+                "name": "numpy",
+                "versions": ["2.3.4", "2.3.5", "2.4.0rc1"],
+                "files": [
+                    {
+                        "filename": name,
+                        "upload-time": at,
+                        "yanked": False,
+                        **({"provenance": integrity(name)} if attested else {}),
+                    }
+                    for name, at, attested in files
+                ],
+            }
+        }
+        for name, _, attested in files:
+            if attested:
+                chosen = new if "2.3.5" in name else publisher
+                pages[integrity(name)] = {
+                    "version": 1,
+                    "attestation_bundles": [{"publisher": chosen}],
+                }
+        return Registry(pages)
+
+    def test_a_pypi_release_keeps_its_pep_740_publisher_or_is_review(self) -> None:
+        numpy = [dependabot.Update("numpy", False, "2.3.5")]
+        self.assertEqual(reasons(numpy, "pip", self.pypi()), [])
+        self.assertEqual(
+            reasons(numpy, "pip", self.pypi(missing=True)), ["provenance-missing:numpy"]
+        )
+        moved = {
+            "kind": "GitHub",
+            "repository": "someone/numpy",
+            "workflow": "wheels.yml",
+        }
+        self.assertEqual(
+            reasons(numpy, "pip", self.pypi(moved)), ["provenance-changed:numpy"]
+        )
+        self.assertEqual(
+            reasons([dependabot.Update("numpy", False, "9.9.9")], "pip", self.pypi()),
+            ["provenance-unreadable:numpy"],
+        )
+        self.assertEqual(
+            reasons(numpy, "pip", Registry({})), ["provenance-unreadable:numpy"]
+        )
+
+    def test_github_actions_is_not_read(self) -> None:
+        get = Registry({})
+        self.assertEqual(
+            reasons(npm("actions/checkout", "4.2.0"), "github_actions", get), []
+        )
+        self.assertEqual(get.calls, [])
+
+    def test_the_parsed_updates_carry_the_new_version(self) -> None:
+        titled = dependabot.classify("bump x from 1.2.0 to 1.3.0", "", NPM, "success")
+        self.assertEqual(titled.updates[0].version, "1.3.0")
+        listed = dependabot.classify(
+            "bump x",
+            "",
+            NPM,
+            "success",
+            [commit(metadata(("x", "semver-minor", "1.3.0")))],
+        )
+        self.assertEqual(listed.updates[0].version, "1.3.0")
+
+    def test_only_a_parse_gap_is_a_classifier_gap(self) -> None:
+        gaps = dependabot.classifier_gaps
+        self.assertEqual(gaps(["unparsed-updates"]), ("unparsed-updates",))
+        self.assertEqual(
+            gaps(["sources-disagree", "provenance-unreadable:x"]),
+            ("sources-disagree", "provenance-unreadable:x"),
+        )
+        for reason in ("dependabot-config-unreadable", "dependabot-policy-unreadable"):
+            self.assertEqual(gaps([reason]), (reason,))
+        self.assertEqual(gaps(["provenance-unreadable:x", "major:y"]), ())
+        self.assertEqual(gaps(["provenance-changed:x"]), ())
+        self.assertEqual(gaps([]), ())
 
 
 if __name__ == "__main__":
