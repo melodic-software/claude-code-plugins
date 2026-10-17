@@ -15,7 +15,15 @@
 // swept close counts only when a listed human or a merge made it. Overlapping
 // windows are harmless: an issue already labeled is left alone, and one whose
 // label was ever removed (by a person, or by a lane's pushback) is never
-// labeled again.
+// labeled again. A removal by the lanes App that follows the App's own
+// limited marker is a restart, not a stop, and does not count.
+//
+// The sweep also restarts issues the usage limit stopped: an open agent-ready
+// issue whose newest lanes-App outcome marker is `limited`, past its reset,
+// with no agent-ready label added since (so no lane run started after the
+// stop), no hold label, ratified and admitted, gets agent-ready removed and
+// added again by the App, which starts the lane. At most RESTARTS_PER_RUN
+// issues per run, longest-waiting first.
 //
 // Environment:
 //   GH_TOKEN               the lane App token (issues: write)
@@ -32,6 +40,9 @@
 //                          must be a listed human (`issues` only)
 //   BASE_PATH              the default branch checkout (default `.base`), whose
 //                          pr-pipeline.yaml holds resolve-issue's admission
+//   LANES_BOT_LOGIN        the lanes App bot login, the only author of a marker
+//                          and actor of a restart this trusts (default
+//                          melodic-automation-lanes[bot])
 //   GITHUB_API_URL
 import { readFileSync } from "node:fs";
 import process from "node:process";
@@ -41,8 +52,12 @@ import { createGitHub, loadTrustedList, paginate } from "../../actions/check-tru
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admits } from "../../actions/resolve-config/predicate.mjs";
 import { findRatification } from "../../actions/resolve-config/ratification.mjs";
+import { FALLBACK_RESET_MS, parseOutcomeMarker } from "../work-resolve-issue/report-outcome.mjs";
 
 const LABEL = "agent-ready";
+const DEFAULT_BOT = "melodic-automation-lanes[bot]";
+// TODO(C6): read limits.restarts-per-run from pr-pipeline.yaml once that leaf exists.
+export const RESTARTS_PER_RUN = 5;
 // A person decides these; the lane never starts on them.
 const HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "needs-human"]);
 const NUMBER = /^[1-9][0-9]{0,9}$/;
@@ -66,8 +81,23 @@ const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const reportError = (number, error) =>
   console.log(`::error title=label-unblocked::#${number}: ${escapeCommand(error?.message ?? error)}`);
 
+const isLabel = (event, kind) => event.event === kind && String(event.label?.name).toLowerCase() === LABEL;
+
+// The lanes App's outcome markers on an issue, oldest first, each with when it
+// was posted.
+const appMarkers = (comments, bot) =>
+  comments
+    .filter((comment) => comment.user?.login === bot)
+    .map((comment) => ({ ...parseOutcomeMarker(comment.body), at: Date.parse(comment.created_at) }))
+    .filter((marker) => marker.outcome !== undefined && Number.isFinite(marker.at));
+
+// A removal of agent-ready by the App after one of its own limited markers is
+// a restart, which the App re-adds; any other removal stops the lane.
+const isRestart = (event, limitedAt, bot) =>
+  event.actor?.login === bot && limitedAt.some((at) => at <= Date.parse(event.created_at));
+
 // Why `number` is not promoted, or null when it is ready.
-async function refusal({ github, repo, number, ratifiers, admission, closes }) {
+async function refusal({ github, repo, number, ratifiers, admission, closes, bot = DEFAULT_BOT }) {
   const base = `/repos/${repo}/issues/${number}`;
   const current = await github("GET", base);
   if (current.state !== "open") {
@@ -113,11 +143,15 @@ async function refusal({ github, repo, number, ratifiers, admission, closes }) {
     return `${pending} blocker(s) not closed as completed by a listed human or a merge`;
   }
   // Removing the label by hand stops the lane; a person adds it to restart.
+  const comments = await paginate(github, `${base}/comments`);
+  const limitedAt = appMarkers(comments, bot)
+    .filter((marker) => marker.outcome === "limited")
+    .map((marker) => marker.at);
   const events = await paginate(github, `${base}/events`);
-  if (events.some((event) => event.event === "unlabeled" && String(event.label?.name).toLowerCase() === LABEL)) {
+  if (events.some((event) => isLabel(event, "unlabeled") && !isRestart(event, limitedAt, bot))) {
     return `${LABEL} was removed before`;
   }
-  const ratifying = findRatification(await paginate(github, `${base}/comments`), ratifiers);
+  const ratifying = findRatification(comments, ratifiers);
   if (ratifying === undefined) {
     return "no admission marker from a listed human";
   }
@@ -191,7 +225,7 @@ async function isTrustedClose(github, repo, closedIssue, ratifiers) {
 
 // Labels each issue `closed` blocked that is ready, each at most once per run.
 // Returns how many reads or writes failed.
-async function labelUnblocked({ github, repo, closed, sweep, ratifiers, admission }) {
+async function labelUnblocked({ github, repo, closed, sweep, ratifiers, admission, bot }) {
   const seen = new Set();
   const closes = new Map();
   let failed = 0;
@@ -220,7 +254,7 @@ async function labelUnblocked({ github, repo, closed, sweep, ratifiers, admissio
       }
       seen.add(number);
       try {
-        const reason = await refusal({ github, repo, number, ratifiers, admission, closes });
+        const reason = await refusal({ github, repo, number, ratifiers, admission, closes, bot });
         if (reason !== null) {
           console.log(`label-unblocked: #${number} not labeled: ${reason}`);
           continue;
@@ -231,6 +265,85 @@ async function labelUnblocked({ github, repo, closed, sweep, ratifiers, admissio
         failed += 1;
         reportError(number, error);
       }
+    }
+  }
+  return failed;
+}
+
+// Why a limit-stopped agent-ready issue is not restarted now, or null with the
+// time its limit reset. Every fact is read fresh from the API.
+async function restartRefusal({ github, repo, issue, ratifiers, admission, bot, now }) {
+  const base = `/repos/${repo}/issues/${issue.number}`;
+  const labels = (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label.name));
+  const held = labels.map((label) => String(label).toLowerCase()).find((label) => HOLDS.has(label));
+  if (held) {
+    return { reason: `held by ${held}` };
+  }
+  const comments = await paginate(github, `${base}/comments`);
+  const marker = appMarkers(comments, bot).at(-1);
+  if (marker?.outcome !== "limited") {
+    return { reason: "no limit stop is its newest lane outcome" };
+  }
+  const resets = marker.resets ?? marker.at + FALLBACK_RESET_MS;
+  if (now < resets) {
+    return { reason: `waiting for the limit to reset at ${new Date(resets).toISOString()}` };
+  }
+  // A lane run starts on agent-ready being added, and its outcome marker ends
+  // it, so a label added after the newest marker is a run since the stop:
+  // still going, or one that left no marker (a PR opened, or the reporter
+  // failed). Either way this pass leaves it.
+  const events = await paginate(github, `${base}/events`);
+  if (events.some((event) => isLabel(event, "labeled") && Date.parse(event.created_at) > marker.at)) {
+    return { reason: `${LABEL} was added after the limit stop` };
+  }
+  if (findRatification(comments, ratifiers) === undefined) {
+    return { reason: "no admission marker from a listed human" };
+  }
+  if (!admits(admission, labels, { ratified: true })) {
+    return { reason: "a work class resolve-issue does not admit" };
+  }
+  return { reason: null, resets };
+}
+
+// Restarts up to `cap` limit-stopped issues, longest-waiting first. Returns
+// how many reads or writes failed.
+async function restartLimited({ github, repo, ratifiers, admission, bot, now, cap = RESTARTS_PER_RUN }) {
+  let failed = 0;
+  const ready = [];
+  let open;
+  try {
+    open = (await paginate(github, `/repos/${repo}/issues?state=open&labels=${LABEL}`)).filter(
+      (item) => !item.pull_request && NUMBER.test(String(item.number)),
+    );
+  } catch (error) {
+    reportError("restart", error);
+    return 1;
+  }
+  for (const issue of open) {
+    try {
+      const { reason, resets } = await restartRefusal({ github, repo, issue, ratifiers, admission, bot, now });
+      if (reason !== null) {
+        console.log(`label-unblocked: #${issue.number} not restarted: ${reason}`);
+        continue;
+      }
+      ready.push({ number: Number(issue.number), resets });
+    } catch (error) {
+      failed += 1;
+      reportError(issue.number, error);
+    }
+  }
+  ready.sort((a, b) => a.resets - b.resets || a.number - b.number);
+  for (const { number } of ready.slice(cap)) {
+    console.log(`label-unblocked: #${number} restart deferred: ${cap} restarts this run`);
+  }
+  for (const { number } of ready.slice(0, cap)) {
+    try {
+      await github("DELETE", `/repos/${repo}/issues/${number}/labels/${LABEL}`);
+      await github("POST", `/repos/${repo}/issues/${number}/labels`, { labels: [LABEL] });
+      console.log(`label-unblocked: #${number} restarted after its limit stop`);
+    } catch (error) {
+      failed += 1;
+      reportError(number, error);
     }
   }
   return failed;
@@ -272,7 +385,11 @@ export async function main({ env = process.env, github, admission, now = Date.no
     if (sweep) {
       console.log(`label-unblocked: ${closed.length} issue(s) closed in the last ${LOOKBACK_HOURS} hours`);
     }
-    const failed = await labelUnblocked({ github, repo, closed, sweep, ratifiers, admission });
+    const bot = env.LANES_BOT_LOGIN || DEFAULT_BOT;
+    let failed = await labelUnblocked({ github, repo, closed, sweep, ratifiers, admission, bot });
+    if (sweep) {
+      failed += await restartLimited({ github, repo, ratifiers, admission, bot, now });
+    }
     return failed === 0 ? 0 : 1;
   } catch (error) {
     console.log(`::error title=label-unblocked::${escapeCommand(error?.message ?? error)}`);

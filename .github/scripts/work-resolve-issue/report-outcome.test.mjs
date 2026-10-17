@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { decide, main, readHoldPaths, readOutcome } from "./report-outcome.mjs";
+import { decide, main, parseOutcomeMarker, readHoldPaths, readOutcome } from "./report-outcome.mjs";
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
 
@@ -474,4 +474,103 @@ test("main refuses a lane.json branch that is not this issue's lane branch", asy
       assert.ok(!calls.some((c) => c.path.endsWith("/pulls")));
     },
   );
+});
+
+// The limited exit (FINAL-DESIGN C2): a run the usage limit stopped leaves one
+// marker comment naming when the limit resets, keeps agent-ready and adds no
+// label. With no reset in the record, the reset is the run's end plus five
+// hours (the shortest plan limit window).
+test("a limit-stopped run is limited: one marker comment, agent-ready kept, no label", () => {
+  const plan = decide({
+    outcome: { exit: "stopped", reason: "", title: "", summary: "" },
+    issueNumber: 77,
+    issueLabels: ["agent-ready"],
+    branch: "",
+    changedFiles: [],
+    limit: { resets: Date.parse("2026-10-17T18:00:00Z") },
+    runId: "555",
+  });
+  assert.equal(plan.action, "limited");
+  assert.deepEqual(plan.addLabels, []);
+  assert.deepEqual(plan.removeLabels, []);
+  assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=limited resets=2026-10-17T18:00:00Z run=555 -->\n"));
+});
+
+test("a limit stop with no reset time restarts five hours after the run ended", () => {
+  const plan = decide({
+    outcome: { exit: "stopped", reason: "", title: "", summary: "" },
+    issueNumber: 77,
+    issueLabels: ["agent-ready"],
+    branch: "",
+    changedFiles: [],
+    limit: { resets: null },
+    now: Date.parse("2026-10-17T12:00:00Z"),
+    runId: "555",
+  });
+  assert.equal(plan.resets, "2026-10-17T17:00:00Z");
+});
+
+test("a pushback stays a pushback even on a limit-stopped run", () => {
+  const plan = decide({
+    outcome: { exit: "pushback", reason: "Unclear.", title: "", summary: "" },
+    issueNumber: 77,
+    issueLabels: ["agent-ready"],
+    branch: "",
+    changedFiles: [],
+    limit: { resets: null },
+  });
+  assert.deepEqual(plan.addLabels, ["needs-human"]);
+  assert.deepEqual(plan.removeLabels, ["agent-ready"]);
+});
+
+test("the limited marker reads back with its reset and run", () => {
+  assert.deepEqual(parseOutcomeMarker("<!-- work-resolve-issue outcome=limited resets=2026-10-17T18:00:00Z run=555 -->\ntext"), {
+    outcome: "limited",
+    resets: Date.parse("2026-10-17T18:00:00Z"),
+    run: "555",
+  });
+  assert.equal(parseOutcomeMarker("<!-- work-resolve-issue outcome=stopped -->").outcome, "stopped");
+  assert.equal(parseOutcomeMarker("hello"), null);
+});
+
+const LIMITED_LANE = JSON.stringify({ branch: "", class: "rate-limit", resets: "2026-10-17T18:00:00Z" });
+
+test("main on a limit stop comments the marker and touches no label", async () => {
+  await withDir({ "lane.json": LIMITED_LANE }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["GET", /\/issues\/77\/comments$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: env(dir), fetch }), 0);
+    const posted = calls.filter((c) => c.method === "POST");
+    assert.equal(posted.length, 1);
+    assert.ok(posted[0].body.body.startsWith("<!-- work-resolve-issue outcome=limited resets=2026-10-17T18:00:00Z run=123 -->"));
+    assert.ok(!calls.some((c) => c.path.endsWith("/labels") || c.method === "DELETE"));
+  });
+});
+
+test("main posts the limited marker once per run", async () => {
+  await withDir({ "lane.json": LIMITED_LANE }, async (dir) => {
+    const marker = "<!-- work-resolve-issue outcome=limited resets=2026-10-17T18:00:00Z run=123 -->";
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["GET", /\/issues\/77\/comments$/, 200, [{ user: { login: "melodic-automation-lanes[bot]" }, body: marker }]],
+    ]);
+    assert.equal(await main({ env: env(dir), fetch }), 0);
+    assert.ok(!calls.some((c) => c.method === "POST"));
+  });
+});
+
+test("main does not take another account's copy of the marker as its own", async () => {
+  await withDir({ "lane.json": LIMITED_LANE }, async (dir) => {
+    const marker = "<!-- work-resolve-issue outcome=limited resets=2026-10-17T18:00:00Z run=123 -->";
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["GET", /\/issues\/77\/comments$/, 200, [{ user: { login: "stranger" }, body: marker }]],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: env(dir), fetch }), 0);
+    assert.equal(calls.filter((c) => c.method === "POST").length, 1);
+  });
 });

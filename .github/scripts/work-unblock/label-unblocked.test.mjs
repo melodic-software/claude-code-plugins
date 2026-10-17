@@ -69,7 +69,8 @@ const marker = (user = OWNER, body = MARKER) => ({ id: 9, body, user, created_at
 // fresh GET /issues/{n} answers, `blockedBy` and `comments` per issue number.
 // `closedList` is what the sweep's closed-issue listing answers; `blockingOf`
 // gives the blocking list of closed issues other than number 10.
-function world({ blocking, blockingOf = {}, closedList = [], issues = {}, blockedBy = {}, comments = {}, events = {}, failOn } = {}) {
+// `openReady` is what the sweep's open agent-ready listing answers.
+function world({ blocking, blockingOf = {}, closedList = [], openReady = [], issues = {}, blockedBy = {}, comments = {}, events = {}, failOn } = {}) {
   const calls = [];
   const base = `/repos/${REPO}/issues`;
   const github = async (method, path, body) => {
@@ -82,7 +83,7 @@ function world({ blocking, blockingOf = {}, closedList = [], issues = {}, blocke
     const listed = (items) => (page === 1 ? items : []);
     let match;
     if (route === base && method === "GET") {
-      return listed(closedList);
+      return listed(new URL(path, "https://x").searchParams.get("state") === "open" ? openReady : closedList);
     }
     if (route === `${base}/10/dependencies/blocking`) {
       return listed(blocking);
@@ -100,6 +101,9 @@ function world({ blocking, blockingOf = {}, closedList = [], issues = {}, blocke
       return listed(events[match[1]] ?? []);
     }
     if (method === "POST" && (match = route.match(/\/issues\/(\d+)\/labels$/))) {
+      return [];
+    }
+    if (method === "DELETE" && route.match(/\/issues\/(\d+)\/labels\/agent-ready$/)) {
       return [];
     }
     const lookup = (number) =>
@@ -682,6 +686,108 @@ test("a blocker in another repository, closed, does not count", async () => {
   });
   assert.equal(await main({ env: envFor(), github }), 0);
   assert.deepEqual(writes(calls), []);
+});
+
+// Restarts after a limit stop (FINAL-DESIGN C4): the sweep restarts an open
+// agent-ready issue whose newest lanes-App marker is outcome=limited once its
+// reset has passed (a marker with no reset: five hours after it was posted),
+// when no agent-ready label was added since the stop, no hold label is on it,
+// and it is ratified and admitted. The restart is the App removing and adding
+// agent-ready, at most five issues per run, the longest-waiting first.
+const limitedNote = (resets, at, user = LANES_BOT) => ({
+  id: 30,
+  body: `<!-- work-resolve-issue outcome=limited${resets ? ` resets=${resets}` : ""} run=7 -->\nStopped on the usage limit.`,
+  user,
+  created_at: at,
+});
+const ready = (n, labels = []) => issue(n, { labels: ["agent-ready", "work-class: read-only", ...labels] });
+const added = (at, actor = LANES_BOT) => ({ event: "labeled", label: { name: "agent-ready" }, actor, created_at: at });
+const restarted = (n) => [`DELETE /repos/${REPO}/issues/${n}/labels/agent-ready`, labeled(n)];
+function stopped({ resets = "2026-10-16T11:00:00Z", at = "2026-10-16T06:00:00Z", labels = [], comments, events } = {}) {
+  return world({
+    openReady: [ready(30, labels)],
+    comments: { 30: comments ?? [marker(), limitedNote(resets, at)] },
+    events: { 30: events ?? [added("2026-10-16T05:00:00Z")] },
+  });
+}
+
+test("a limit-stopped issue past its reset is restarted by removing and adding agent-ready", async () => {
+  const { github, calls } = stopped();
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), restarted(30));
+});
+
+test("a limit-stopped issue before its reset waits", async () => {
+  const { github, calls } = stopped({ resets: "2026-10-16T13:00:00Z" });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+test("a limit stop with no reset waits five hours from its marker", async () => {
+  const early = stopped({ resets: "", at: "2026-10-16T06:00:00Z" });
+  assert.equal(await sweep({ github: early.github }), 0);
+  assert.deepEqual(writes(early.calls), restarted(30));
+  const late = stopped({ resets: "", at: "2026-10-16T08:00:00Z" });
+  assert.equal(await sweep({ github: late.github }), 0);
+  assert.deepEqual(writes(late.calls), []);
+});
+
+test("agent-ready added after the stop means a run started since, so no restart", async () => {
+  const { github, calls } = stopped({ events: [added("2026-10-16T05:00:00Z"), added("2026-10-16T11:30:00Z", OWNER)] });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+test("only the newest lanes-App marker counts, and only the App's", async () => {
+  const later = { ...limitedNote("", "2026-10-16T07:00:00Z"), body: "<!-- work-resolve-issue outcome=stopped -->" };
+  for (const comments of [
+    [marker(), limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z"), later],
+    [marker(), limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z", OWNER)],
+  ]) {
+    const { github, calls } = stopped({ comments });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), []);
+  }
+});
+
+test("a held or unratified limit-stopped issue is not restarted", async () => {
+  for (const world of [stopped({ labels: ["needs-human"] }), stopped({ comments: [limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z")] })]) {
+    assert.equal(await sweep({ github: world.github }), 0);
+    assert.deepEqual(writes(world.calls), []);
+  }
+});
+
+test("a run restarts at most five issues, the longest-waiting first", async () => {
+  const numbers = [31, 32, 33, 34, 35, 36];
+  const { github, calls } = world({
+    openReady: numbers.map((n) => ready(n)),
+    // Number 31's limit reset last, so it is the one left for the next run.
+    comments: Object.fromEntries(
+      numbers.map((n) => [n, [marker(), limitedNote(`2026-10-16T${n === 31 ? "11" : String(n - 30).padStart(2, "0")}:00:00Z`, "2026-10-16T00:30:00Z")]]),
+    ),
+    events: Object.fromEntries(numbers.map((n) => [n, [added("2026-10-16T00:00:00Z")]])),
+  });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), [32, 33, 34, 35, 36].flatMap(restarted));
+});
+
+test("the App's own removal after its limited marker does not stop unblocking, a person's does", async () => {
+  const unlabeled = (actor, at) => ({ event: "unlabeled", label: { name: "agent-ready" }, actor, created_at: at });
+  for (const [events, expected] of [
+    [[unlabeled(LANES_BOT, "2026-10-16T07:00:00Z")], [labeled(20)]],
+    [[unlabeled(LANES_BOT, "2026-10-16T05:00:00Z")], []],
+    [[unlabeled(OWNER, "2026-10-16T07:00:00Z")], []],
+  ]) {
+    const { github, calls } = world({
+      blocking: [issue(20)],
+      issues: { 20: issue(20) },
+      blockedBy: { 20: [issue(10, { state: "closed" })] },
+      comments: { 20: [marker(), limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z")] },
+      events: { 20: events },
+    });
+    assert.equal(await main({ env: envFor(), github }), 0);
+    assert.deepEqual(writes(calls), expected, JSON.stringify(events));
+  }
 });
 
 test("a failed listing of closed issues writes nothing and fails the run", async () => {

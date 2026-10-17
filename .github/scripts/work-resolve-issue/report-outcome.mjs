@@ -15,6 +15,10 @@
 //   stopped   comments why, adds the human-gated label, and names the branch
 //             that holds any partial work. A missing or invalid outcome file
 //             is stopped.
+//   limited   a stopped run whose lane.json carries class rate-limit (the run
+//             hit its credential's usage limit): comments once with the
+//             limited marker naming when the limit resets, keeps agent-ready
+//             and adds no label, so work-unblock restarts it after the reset.
 //
 // Run from the base copy. It reads only the outcome directory and the GitHub
 // API, and never writes to a branch.
@@ -24,7 +28,8 @@
 //   GITHUB_REPOSITORY   owner/repo
 //   ISSUE_NUMBER        the issue the lane worked
 //   WORK_OUTCOME_DIR    holds work-outcome.json (written by the skill, so
-//                       untrusted) and lane.json (written by the runner)
+//                       untrusted) and lane.json (written by the runner: the
+//                       lane branch, and the run's limit `class` and `resets`)
 //   TRACKER_CONFIG      base .work-item-tracker.json, for the human-gated label
 //   RESOLVED_CONFIG     resolve-config's output for this run (default
 //                       $RUNNER_TEMP/resolved-config.json), for the denied paths
@@ -52,6 +57,30 @@ const MAX_ITEM = 300;
 // GET /compare lists at most this many files, so a listing this long may
 // hide a hold path.
 const COMPARE_FILES_CAP = 300;
+
+// When a limit stop names no reset time, it is taken to reset this long after
+// the run: the shortest plan limit is a five-hour session window
+// (https://support.claude.com/en/articles/11145838).
+// TODO(C6): read limits.fallback-reset from pr-pipeline.yaml once that leaf exists.
+export const FALLBACK_RESET_MS = 5 * 3_600_000;
+const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/;
+const MARKER = /^<!-- work-resolve-issue outcome=([a-z]+)(?: resets=(\S+))?(?: run=(\d+))? -->/;
+
+// The marker a limited run leaves on its issue; work-unblock reads it back.
+export const limitedMarker = ({ resets, runId }) =>
+  `<!-- work-resolve-issue outcome=limited resets=${resets} run=${runId || 0} -->`;
+
+// {outcome, resets, run} from a comment body that opens with the lane's
+// marker, or null. resets is epoch milliseconds, or null when absent or
+// unreadable.
+export function parseOutcomeMarker(body) {
+  const match = MARKER.exec(String(body ?? ""));
+  if (!match) {
+    return null;
+  }
+  const resets = ISO.test(match[2] ?? "") ? Date.parse(match[2]) : Number.NaN;
+  return { outcome: match[1], resets: Number.isFinite(resets) ? resets : null, run: match[3] ?? "" };
+}
 
 const stopped = (reason) => ({ exit: "stopped", reason, title: "", summary: "", changes: [], verification: [], notDone: [], steps: [] });
 const text = (value) => (typeof value === "string" ? value.slice(0, MAX_TEXT) : "");
@@ -196,7 +225,25 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl }) {
   };
 }
 
-// What to do on the issue, from the outcome and what the run left.
+// A run the usage limit stopped: one marker comment, agent-ready kept, no
+// label, so work-unblock restarts the issue once the limit resets.
+function limitedPlan({ issueNumber, branch, resets, runId, runUrl }) {
+  const lines = [
+    limitedMarker({ resets, runId }),
+    `The work-resolve-issue lane stopped on its usage limit, not on this issue. It keeps \`agent-ready\`, and work-unblock starts it again after ${resets}.`,
+  ];
+  if (branch) {
+    lines.push("", `Partial work is on the branch \`${branch}\`.`);
+  }
+  if (runUrl) {
+    lines.push("", `Run: ${runUrl}`);
+  }
+  return { action: "limited", exit: "limited", issueNumber, resets, runId, comment: lines.join("\n"), addLabels: [], removeLabels: [] };
+}
+
+// What to do on the issue, from the outcome and what the run left. `limit` is
+// the runner's limit record ({resets}, epoch ms or null) when the run hit its
+// usage limit; a missing reset counts from `now`, the run's end.
 export function decide({
   outcome,
   issueNumber,
@@ -206,8 +253,15 @@ export function decide({
   holdPaths = null,
   humanLabel = "needs-human",
   runUrl = "",
+  limit = null,
+  now = Date.now(),
+  runId = "",
 }) {
   outcome = { changes: [], verification: [], notDone: [], ...outcome };
+  if (limit && outcome.exit !== "pushback" && !(outcome.exit === "done" && branch)) {
+    const resets = new Date(limit.resets ?? now + FALLBACK_RESET_MS).toISOString().replace(/\.\d+Z$/, "Z");
+    return limitedPlan({ issueNumber, branch, resets, runId, runUrl });
+  }
   if (outcome.exit === "done" && !branch) {
     return handBack({
       outcome: stopped("The run reported done but committed nothing."),
@@ -306,6 +360,21 @@ export function readBranch(dir, issueNumber) {
   }
 }
 
+// The runner's limit record in lane.json: {resets} (epoch ms, or null when
+// the run named none) when the run's class is rate-limit, else null.
+export function readLimit(dir) {
+  try {
+    const lane = JSON.parse(readFileSync(join(dir, "lane.json"), "utf8"));
+    if (lane?.class !== "rate-limit") {
+      return null;
+    }
+    const resets = ISO.test(lane.resets ?? "") ? Date.parse(lane.resets) : Number.NaN;
+    return { resets: Number.isFinite(resets) ? resets : null };
+  } catch {
+    return null;
+  }
+}
+
 function api({ fetch, apiUrl, token }) {
   return async (method, path, body) => {
     const response = await fetch(`${apiUrl}${path}`, {
@@ -324,7 +393,7 @@ function api({ fetch, apiUrl, token }) {
   };
 }
 
-export async function main({ env = process.env, fetch = globalThis.fetch } = {}) {
+export async function main({ env = process.env, fetch = globalThis.fetch, now = Date.now() } = {}) {
   try {
     const issueNumber = Number(env.ISSUE_NUMBER);
     if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "")) {
@@ -338,6 +407,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
     const dir = env.WORK_OUTCOME_DIR ?? "";
     const outcome = readOutcome(join(dir, "work-outcome.json"));
     const branch = readBranch(dir, issueNumber);
+    const limit = readLimit(dir);
     const issue = await github("GET", `${repo}/issues/${issueNumber}`);
     let changedFiles = [];
     let base = "";
@@ -360,7 +430,26 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
         env.GITHUB_SERVER_URL && env.GITHUB_RUN_ID
           ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`
           : "",
+      limit,
+      now,
+      runId: /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "",
     });
+    if (plan.action === "limited") {
+      // Once per run: a rerun of this report, within the day, finds its own
+      // marker and posts nothing.
+      const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
+      const since = encodeURIComponent(new Date(now - 86_400_000).toISOString());
+      const comments = await github("GET", `${repo}/issues/${issueNumber}/comments?per_page=100&since=${since}`);
+      const posted = (comments ?? []).some((comment) => {
+        const marker = comment.user?.login === bot ? parseOutcomeMarker(comment.body) : null;
+        return marker?.outcome === "limited" && plan.runId !== "" && marker.run === plan.runId;
+      });
+      if (!posted) {
+        await github("POST", `${repo}/issues/${issueNumber}/comments`, { body: plan.comment });
+      }
+      console.log(`report-outcome: issue #${issueNumber} stopped on the usage limit; restart after ${plan.resets}`);
+      return 0;
+    }
     if (plan.action === "open-pr") {
       // A rerun finds the PR it already opened. Anyone can open a PR between two branches of a public repository, so
       // only one the lanes App opened is reused; otherwise the create fails.

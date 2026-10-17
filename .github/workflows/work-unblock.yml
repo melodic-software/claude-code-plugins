@@ -27,8 +27,11 @@ name: work-unblock
 # scheduled run applies the same rules to every issue a listed human or a
 # merge (a merged pull request or a commit) closed in the last three hours, so one missed run loses nothing.
 #
+# The hourly sweep also restarts an issue the usage limit stopped: once the
+# limit has reset, the App removes and re-adds agent-ready (at most five a run).
+#
 # To stop the lane on one issue, remove its agent-ready label or add a hold
-# label: no later run labels an issue whose agent-ready label was removed.
+# label: no later run labels an issue whose agent-ready label a person removed.
 
 on:
   issues:
