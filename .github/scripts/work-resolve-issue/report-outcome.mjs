@@ -64,7 +64,7 @@ export const HOLD_LINE = "Hold: a human merges this";
 const EXITS = new Set(["done", "pushback", "stopped"]);
 // The subject allows no `#`, `/` or `GH-<digit>`, so the squash commit title
 // cannot name an issue to close.
-const PREFIX = /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|security|style|test)(\([a-z0-9._-]+\))?!?: /;
+const PREFIX = /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._-]+\))?!?: /;
 const SUBJECT = /^(?!.*\bGH-\d)[A-Za-z0-9][A-Za-z0-9 ,.:;()'"`!?+=_-]{0,98}$/i;
 const SUBJECT_MAX = 99;
 

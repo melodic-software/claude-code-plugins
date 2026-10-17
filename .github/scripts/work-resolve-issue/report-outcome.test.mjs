@@ -146,10 +146,6 @@ test("a long issue title is cut at a word to the subject's 99 characters", () =>
   );
 });
 
-test("done keeps a security: title", () => {
-  assert.equal(decideDone({ outcome: { ...done, title: "security: pin an action" } }).title, "security: pin an action");
-});
-
 test("with no usable run or issue title the PR is titled from the issue number", () => {
   assert.equal(decideDone({ outcome: { ...done, title: "" }, issueTitle: "###" }).title, "fix: resolve issue 77");
 });
