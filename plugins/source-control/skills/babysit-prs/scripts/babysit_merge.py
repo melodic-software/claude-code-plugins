@@ -84,7 +84,9 @@ Contract enforced here (encoded as code, not convention):
   report's `unattended` block says which. With `--merge`, a stop refusal
   dequeues the identity's queued entries, a held identity entry leaves the
   queue, an eligible MED or HIGH pull request gets one upserted
-  `<!-- babysit-merge-risk -->` comment, and a ready LOW pull request is
+  `<!-- babysit-merge-risk -->` comment, a verifier refusal that needs a
+  human gets the tracker's human-gated role label and one upserted
+  `<!-- babysit-merge-verify-escalation -->` comment, and a ready LOW pull request is
   enqueued at its pinned head after a second kill-switch read, an armed
   auto-merge disarm (`disablePullRequestAutoMerge`) and a pin comment; a
   later run that reads the queued entry back as merged at that head
@@ -128,7 +130,7 @@ import argparse
 import json
 import re
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -2655,6 +2657,7 @@ def queued_entry_hold(
 # --- The unattended path ------------------------------------------------------------------------
 
 RISK_MARKER = "<!-- babysit-merge-risk -->"
+VERIFY_ESCALATION_MARKER = "<!-- babysit-merge-verify-escalation -->"
 UNATTENDED_REFUSED = "unattended merge refused: "
 # Refusals that stop the path: the identity's own queued entries leave the queue.
 STOP_REFUSALS = (
@@ -2989,16 +2992,18 @@ def risk_comment_body(risk: babysit_risk.RiskResult, head: str) -> str:
     return "\n".join(lines)
 
 
-def upsert_risk_comment(
+def upsert_marker_comment(
     repo: str,
     number: int,
     identity: str,
     body: str,
     comments: list[dict[str, Any]] | None,
+    marker: str = RISK_MARKER,
 ) -> str:
-    """Post or rewrite the one reasons comment (Design T14): `unchanged` when
-    the identity's newest one already says this, else `updated` or `created`.
-    Raises `RuntimeError` on a failed read or write."""
+    """Post or rewrite the identity's one comment whose first line is
+    `marker` (the reasons comment, Design T14, by default): `unchanged` when
+    the newest one already says this, else `updated` or `created`. Raises
+    `RuntimeError` on a failed read or write."""
     if comments is None:
         comments = fetch_paginated_api(
             f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
@@ -3013,7 +3018,7 @@ def upsert_risk_comment(
             }
         )
         == identity.casefold()
-        and _first_line(c.get("body")) == RISK_MARKER
+        and _first_line(c.get("body")) == marker
     ]
     if mine:
         newest = max(mine, key=lambda c: (str(c.get("created_at")), c.get("id") or 0))
@@ -3031,8 +3036,58 @@ def upsert_risk_comment(
         outcome = "created"
     proc = gh_capture([*args, "-f", f"body={body}"])
     if proc.returncode != 0:
-        raise RuntimeError(f"reasons comment: {proc.stderr.strip()}")
+        raise RuntimeError(proc.stderr.strip())
     return outcome
+
+
+def verify_escalation_body(refusal: str, head: str) -> str:
+    """The needs-human comment for a verifier refusal: a function of the
+    refusal and the head only, so a rerun renders the same body."""
+    return "\n".join(
+        [
+            VERIFY_ESCALATION_MARKER,
+            f"Unattended merge: the verifier verdict refuses `{refusal}` at head "
+            f"`{head}`. That refusal needs a human, who merges in person; the "
+            "pr-merge lane will not merge this pull request.",
+        ]
+    )
+
+
+def escalate_verify(
+    repo: str, number: int, identity: str, refusal: str, inputs: Mapping[str, Any]
+) -> dict[str, Any]:
+    """The escalation contract for a needs-human verifier refusal (loop-lane
+    README §2): one marked comment naming the refusal and the head, then the
+    tracker's human-gated role label on the pull request, added only when no
+    label matches it case-insensitively. The comment goes first so a label
+    never stands unexplained; a failed label is retried by the next run,
+    which finds the comment unchanged. Raises `RuntimeError` on a failed
+    write."""
+    pr = json_object(inputs.get("pr"))
+    head = str(json_object(pr.get("head")).get("sha"))
+    comment = upsert_marker_comment(
+        repo,
+        number,
+        identity,
+        verify_escalation_body(refusal, head),
+        inputs.get("comments"),
+        marker=VERIFY_ESCALATION_MARKER,
+    )
+    owner, name = repo.split("/", 1)
+    label = postmerge._role_label(owner, name)
+    labels = pr.get("labels")
+    present = is_json_array(labels) and any(
+        str(json_object(item).get("name") or "").casefold() == label.casefold()
+        for item in labels
+    )
+    if not present:
+        proc = gh_capture(
+            ["api", "-X", "POST", f"repos/{repo}/issues/{number}/labels"]
+            + ["-f", f"labels[]={label}"]
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"label {label}: {proc.stderr.strip()}")
+    return {"label": "present" if present else "added", "comment": comment}
 
 
 def _queued_verify_hold(verifier: verify_evidence.Reader, number: int) -> str | None:
@@ -3054,7 +3109,8 @@ def unattended_writes(
     hold (D3) leaves the queue, as does this pull request's own entry when
     this run refused it for itself (`own_refusal`) or scored it above LOW
     (`risk:<score>`). Then the reasons comment for an eligible
-    MED or HIGH pull request on a path not stopped. Nothing is written before
+    MED or HIGH pull request on a path not stopped, and the escalation
+    (`escalate_verify`) for a verifier refusal that needs a human. Nothing is written before
     the identity and the credential chokepoint passed (`inputs["identity"]`)."""
     inputs = policy.inputs or {}
     identity, branch = inputs.get("identity"), inputs.get("branch")
@@ -3123,7 +3179,7 @@ def unattended_writes(
     if not stopped and risk is not None and risk.score is not babysit_risk.Risk.LOW:
         head = str(json_object(inputs["pr"].get("head")).get("sha"))
         try:
-            report["riskComment"] = upsert_risk_comment(
+            report["riskComment"] = upsert_marker_comment(
                 repo,
                 number,
                 identity,
@@ -3132,6 +3188,16 @@ def unattended_writes(
             )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"reasons comment: {exc}")
+    # A verifier refusal that needs a human gets the durable escalation
+    # signal; report-only never reaches here.
+    verify = json_object((policy.details or {}).get("verify"))
+    if not stopped and verify.get("needsHuman") is True:
+        try:
+            report["escalation"] = escalate_verify(
+                repo, number, identity, str(verify.get("refusal")), inputs
+            )
+        except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
+            report["errors"].append(f"escalation: {exc}")
     return report
 
 

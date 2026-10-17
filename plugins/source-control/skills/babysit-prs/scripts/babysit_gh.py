@@ -106,14 +106,9 @@ def gh_capture(
 ) -> subprocess.CompletedProcess[str]:
     """Run a gh command capturing stdout/stderr/returncode without raising on
     nonzero exit -- for callers that inspect the returncode themselves."""
-    if env_overrides:
-        return _run_gh(
-            args,
-            timeout_seconds=timeout_seconds,
-            check=False,
-            env_overrides=env_overrides,
-        )
-    return _run_gh(args, timeout_seconds=timeout_seconds, check=False)
+    return _run_gh(
+        args, timeout_seconds=timeout_seconds, check=False, env_overrides=env_overrides
+    )
 
 
 def gh_json(args: list[str]) -> Any:

@@ -91,3 +91,26 @@ may not merge (one merge authority per repository).
   repins, or the review activity skips one the pr-merge lane will not merge without its verdict.
 - `.github/standards/runner-policy/policy.json` still admits the removed caller's reusable
   workflow; that file is synced from standards and changes there.
+
+## Addendum (2026-10-17): script the checks a script can make
+
+The owner's principle: "use deterministic things where it makes sense, and then use AI reasoning
+only on the things where we need it". Three checks that were left to the review, or not made,
+move into the classifiers and the verdict job, with no model
+([README, "Dependabot pull requests"](../conventions/pr-pipeline/README.md#dependabot-pull-requests)):
+
+- **Registry provenance.** A non-major npm or pip release whose publisher identity (the SLSA
+  workflow repository and path, the npm trusted publisher, or the PEP 740 publisher) differs from
+  the newest earlier version's, or that dropped it, is tier `review`; a registry that cannot be
+  read is too. This narrows the "compromised upstream release" consequence above to a token
+  thief who can also publish from the project's own release workflow. A package that never
+  published provenance is unchanged: the cooldown and CI still bound it.
+- **Control citation.** A `merge` verdict on a review-only dependency must quote each matched
+  entry's `control`; the verdict job checks the string, not the model. It catches a verdict
+  that skipped the review-only procedure, not a model that release text steered, since any
+  text the model can see it can also quote.
+- **Classifier gaps.** A pull request sent to review only by a read failure is logged as a
+  classifier gap, so parse bugs are fixed instead of being paid for in AI reviews.
+
+The two classifiers still change together: the provenance rule is stated once in the README and
+implemented in both, with matching test vectors.

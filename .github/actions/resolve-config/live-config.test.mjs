@@ -251,9 +251,12 @@ test("live config: resolve-issue may run the changelog fragment check", () => {
 
 // #7597: the issue's done-when runs the can't-fail scan, a read-only checker.
 // check-skill.sh (#7598) runs each skill's test scripts, so it is not listed.
-test("live config: resolve-issue may run the can't-fail scan; no other activity lists verify-scripts", () => {
+// #7685 and #7686: one test file at a time, and git mv and git rm, in the checkout.
+test("live config: resolve-issue may run the can't-fail scan, one test file and git mv or rm; no other activity lists verify-scripts", () => {
   assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE)["verify-scripts"], [
     "plugins/testing/skills/audit/scripts/cant-fail-scan.sh",
+    "scripts/run-test-file.sh",
+    "scripts/git-mv-rm.sh",
   ]);
   const doc = parse(FILES.config);
   const others = Object.entries(doc.activities).filter(([name, a]) => name !== "resolve-issue" && a["verify-scripts"]);

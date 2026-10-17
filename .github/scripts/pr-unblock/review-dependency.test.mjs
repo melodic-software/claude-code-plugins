@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { ciStatusOf, countRounds, main, readConfig, roundLine, rounds, select } from "./review-dependency.mjs";
+import { ciStatusOf, countRounds, main, readConfig, readPolicy, roundLine, rounds, select as selectLive } from "./review-dependency.mjs";
+
+// No registry reads in tests: the provenance gate finds nothing unless a test
+// passes its own, and the policy lists nothing unless a test passes its own.
+const select = (args) => selectLive({ provenance: async () => [], policy: { autoMerge: { reviewOnly: [] } }, ...args });
 
 const HEAD = "a".repeat(40);
 const OTHER = "b".repeat(40);
@@ -115,6 +119,55 @@ test("select reviews a red ci-status even on a patch bump", async () => {
   });
   assert.equal(result.decision, "proceed");
   assert.deepEqual(result.file.classification.reasons, ["ci-status-red"]);
+});
+
+const POLICY = {
+  autoMerge: {
+    reviewOnly: [
+      { repository: "o/r", ecosystem: "npm", directory: "/", dependency: "x", reviewed: "2026-10-17", basis: "runs with a secret", control: "docs/x.md#control" },
+    ],
+  },
+};
+const ROOT_FILES = [{ filename: "package.json", status: "modified", additions: 1, deletions: 1, patch: "@@ -1 +1 @@" }];
+const selectMinor = (policy) =>
+  select({
+    api: fakeApi({ pull: { title: "bump x from 1.4.0 to 1.5.0" }, files: ROOT_FILES, ciRuns: [] }),
+    pr: 7,
+    headSha: HEAD,
+    appId: APP,
+    dependabotId: DEPENDABOT,
+    config: [["npm", "/"]],
+    policy,
+    repository: "o/r",
+  });
+
+test("select proceeds on a minor bump of a review-only dependency and hands the model its control", async () => {
+  const result = await selectMinor(POLICY);
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file.classification.reasons, ["review-only:x"]);
+  assert.equal(result.file.classification.reviewOnly[0].control, "docs/x.md#control");
+});
+
+test("select skips a minor bump of an unlisted dependency and reviews every bump when the policy is unreadable", async () => {
+  const unlisted = structuredClone(POLICY);
+  unlisted.autoMerge.reviewOnly[0].dependency = "y";
+  assert.equal((await selectMinor(unlisted)).decision, "skip");
+  const result = await selectMinor(null);
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file.classification.reasons, ["dependabot-policy-unreadable"]);
+});
+
+test("readPolicy is the parsed file, or null with a warning when missing or not JSON", () => {
+  const dir = mkdtempSync(join(tmpdir(), "dependabot-policy-"));
+  const warnings = [];
+  const log = (line) => warnings.push(line);
+  assert.equal(readPolicy(join(dir, "absent.json"), log), null);
+  writeFileSync(join(dir, "bad.json"), "{not json");
+  assert.equal(readPolicy(join(dir, "bad.json"), log), null);
+  writeFileSync(join(dir, "ok.json"), JSON.stringify(POLICY));
+  assert.deepEqual(readPolicy(join(dir, "ok.json"), log), POLICY);
+  assert.equal(warnings.length, 2);
+  assert.match(warnings[0], /^::warning::cannot read the Dependabot policy .*ENOENT/);
 });
 
 test("readConfig is null for a missing file and for one with no entry, each with its own warning", () => {
@@ -245,6 +298,7 @@ test("main writes the outputs and the file, and the security flag", async () => 
     DEPENDENCY_FILE: join(dir, "dependency.json"),
     DEPENDENCY_REVIEW_ROUNDS: "2",
     DEPENDABOT_CONFIG: join(dir, "dependabot.yml"),
+    DEPENDABOT_POLICY: join(dir, "policy.json"),
   };
   await main(["select"], env, { api: fakeApi({ pull: { labels: [{ name: "security" }] } }), log: () => {} });
   const out = readFileSync(env.GITHUB_OUTPUT, "utf8");
@@ -253,5 +307,64 @@ test("main writes the outputs and the file, and the security flag", async () => 
   assert.match(out, /^escalation-reason=$/m);
   assert.match(out, /^security=true$/m);
   assert.match(out, /^config-unreadable=true$/m, "the main test points at no config file");
+  assert.match(out, /^controls=\[\]$/m);
   assert.equal(JSON.parse(readFileSync(env.DEPENDENCY_FILE, "utf8")).pr, 7);
+});
+
+// main over a readable base config and policy, with the registry stubbed.
+async function mainWith({ title, policy = POLICY, provenance = async () => [] }) {
+  const dir = mkdtempSync(join(tmpdir(), "review-dependency-"));
+  const actors = join(dir, "actors.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: DEPENDABOT, login: "dependabot[bot]", kind: "bot" }] }));
+  writeFileSync(join(dir, "dependabot.yml"), "updates:\n  - package-ecosystem: npm\n    directory: /\n");
+  writeFileSync(join(dir, "policy.json"), JSON.stringify(policy));
+  const env = {
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    GITHUB_OUTPUT: join(dir, "out"),
+    PR_NUMBER: "7",
+    HEAD_SHA: HEAD,
+    APP_SENDER_ID: String(APP),
+    TRUSTED_ACTORS: actors,
+    DEPENDENCY_FILE: join(dir, "dependency.json"),
+    DEPENDABOT_CONFIG: join(dir, "dependabot.yml"),
+    DEPENDABOT_POLICY: join(dir, "policy.json"),
+  };
+  const lines = [];
+  await main(["select"], env, { api: fakeApi({ pull: { title }, files: ROOT_FILES }), log: (line) => lines.push(line), provenance });
+  return { out: readFileSync(env.GITHUB_OUTPUT, "utf8"), warnings: lines.filter((line) => line.startsWith("::warning::")) };
+}
+
+test("main outputs the matched review-only controls for the verdict job to check", async () => {
+  const { out } = await mainWith({ title: "bump x from 1.4.0 to 1.5.0" });
+  assert.match(out, /^proceed=true$/m);
+  assert.match(out, /^controls=\["docs\/x\.md#control"\]$/m);
+});
+
+test("main warns of a classifier gap when only a parse failure sends a pull request to review", async () => {
+  const unparsed = await mainWith({ title: "chore: tidy" });
+  assert.equal(unparsed.warnings.length, 1);
+  assert.match(unparsed.warnings[0], /classifier gap: #7 .*unparsed-updates/);
+  const unread = await mainWith({ title: "bump y from 1.4.0 to 1.5.0", provenance: async () => ["provenance-unreadable:y"] });
+  assert.match(unread.warnings.join("\n"), /classifier gap: #7 .*provenance-unreadable:y/);
+  // A real risk beside the gap, or a skip, is no classifier gap.
+  assert.deepEqual((await mainWith({ title: "bump x from 1.4.0 to 2.0.0", policy: { autoMerge: { reviewOnly: [] } } })).warnings, []);
+  assert.deepEqual((await mainWith({ title: "bump y from 1.4.0 to 1.5.0" })).warnings, []);
+  assert.deepEqual((await mainWith({ title: "bump y from 1.4.0 to 1.5.0", provenance: async () => ["provenance-changed:y"] })).warnings, []);
+});
+
+test("select sends an otherwise auto bump whose provenance changed to review", async () => {
+  const result = await select({
+    api: fakeApi({ pull: { title: "bump y from 1.4.0 to 1.5.0" }, files: ROOT_FILES }),
+    pr: 7,
+    headSha: HEAD,
+    appId: APP,
+    dependabotId: DEPENDABOT,
+    config: [["npm", "/"]],
+    policy: POLICY,
+    repository: "o/r",
+    provenance: async (updates, segment) => (segment === "npm_and_yarn" && updates[0].version === "1.5.0" ? ["provenance-changed:y"] : []),
+  });
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file.classification.reasons, ["provenance-changed:y"]);
 });

@@ -222,15 +222,15 @@ Each leaf declares:
   flags fixed, that a skill with an effect other than `read` may run. The write runner runs each
   from the base copy against the checkout, so no head code runs
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)).
-- `verify-scripts` (optional, `skill` only): exact repository-relative paths of read-only checker
-  scripts, each `scripts/<name>.sh`, `plugins/<plugin>/scripts/<name>.sh` or
+- `verify-scripts` (optional, `skill` only): exact repository-relative paths of scripts, each `scripts/<name>.sh`, `plugins/<plugin>/scripts/<name>.sh` or
   `plugins/<plugin>/skills/<skill>/scripts/<name>.sh`, that a skill with an effect other than
   `read` may run with any arguments but a path outside the checkout; a `read` leaf cannot set it.
   The write runner runs each from a read-only base copy of its plugin (or of `scripts/`) against
   the checkout
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The arguments are the model's, so
-  list only scripts that read and report: never one that changes files, runs code from the
-  checkout or reaches the network.
+  a script that changes files, runs code from the checkout or reaches the network hands the run
+  that power: list one only when it limits itself, as `scripts/run-test-file.sh` (one test file
+  inside the checkout) and `scripts/git-mv-rm.sh` (`git mv` and `git rm` inside the checkout) do.
 - `web-access` (optional, `skill` only, off when absent): `enabled` and `domains`, either `any` or
   a list of host names (`*.` allowed as a prefix). When on, a skill with an effect other than
   `read` may search the web, fetch those domains, and run the research skills
@@ -486,7 +486,8 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   group's body `Updates` lines otherwise; when both read, they must name the same dependencies and
   agree on which are major.
 - **Tier `review`.** Anything else, including anything unreadable (a SHA version, an unparsed
-  title). The pr-unblock lane's review activity reviews it, and the pr-merge lane merges it only
+  title), every update to a [review-only dependency](#review-only-dependencies), and an npm or
+  pip update whose [registry provenance](#registry-provenance) changed. The pr-unblock lane's review activity reviews it, and the pr-merge lane merges it only
   when the newest round marker the lanes App posted on it
   (`<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<id>-<attempt> -->`)
   names the current head with `verdict=merge`. A marker from any other author is ignored.
@@ -535,6 +536,81 @@ App token the broker mints for that file on `main`. A finished `ci-status` or re
 up by the next scheduled run, not by a wake-up of its own: runs are serialized, and the triggers
 must start them more slowly than they finish to stay under GitHub's cap on queued runs.
 
+#### Review-only dependencies
+
+A non-major release of a hijacked package passes tier `auto` on a green `ci-status`. A dependency
+that runs inside a job holding a secret or a write token is therefore listed in the standards
+Dependabot policy's `autoMerge.reviewOnly` (melodic-software/standards
+`components/dependabot-policy/policy.json`), which the sync places at
+`.github/standards/dependabot-policy/policy.json`. Both lanes read that file at the base:
+
+- **Match.** An entry matches an update when its `repository` is this repository (any case), its
+  `ecosystem` is the head branch's ecosystem in `dependabot.yml` spelling
+  (`dependabot/npm_and_yarn/...` is `npm`, `dependabot/github_actions/...` is `github-actions`,
+  any other segment such as `pip` is itself), its `directory` covers a changed path (any path
+  when the config or the files listing does not read whole), and its `dependency` is one of the
+  updates. A directory covers a path that sits in it, read as the content rule reads a
+  `dependabot.yml` directory (globs included); a `github-actions` entry also covers the workflow
+  and action files the content rule gives its directory (`/` covers `.github/workflows/` and the
+  action files under `.github/actions/`). A match makes the pull request tier `review` with the
+  reason `review-only:<dependency>`, whatever the version change.
+- **Unreadable.** A missing policy file, one that is not JSON, or one whose `reviewOnly` is not a
+  list of entries with string `repository`, `ecosystem`, `directory`, `dependency` and `control`
+  makes every Dependabot pull request tier `review` with the reason
+  `dependabot-policy-unreadable`; so does a classifier call that passes no policy at all.
+- **Review.** The review activity gets the matched entries. A `merge` verdict on such a pull
+  request cites each entry's `control` (this section, for this repository's entries) and states
+  what it checked: the release's provenance (who published it and how), maintainer or publisher
+  changes since the previous version, new or changed install scripts, and dependencies the
+  release adds that its changelog does not explain. Anything it cannot check is `escalate`.
+- **Citation check.** The verdict job checks that by script: a `merge` verdict whose `evidence`
+  does not hold each matched entry's `control` string verbatim (as a substring of one entry)
+  posts no merge marker and escalates `dependency-control-uncited`. This proves only that the
+  verdict followed the review-only procedure, not that the model checked anything: the control
+  string is public, and a model steered by release text can quote it as easily as one that did
+  the work. The deterministic defenses are the routing to review and the registry provenance
+  gate below; against steering text the review relies on the model escalating it.
+
+#### Registry provenance
+
+A stolen publish token can ship a non-major release from outside the project's CI, which tier
+`auto` would merge on a green `ci-status`. Both lanes therefore compare who published each npm or
+pip update (`dependabot/npm_and_yarn/...` and `dependabot/pip/...` branches; `github_actions`
+updates are covered by the publisher allowlist), with no model, and only for a pull request every
+other rule left tier `auto`:
+
+- **Identity.** npm: when the version's packument entry (`GET https://registry.npmjs.org/<name>`,
+  a scoped name as `@scope%2Fname`) has `dist.attestations.url`, the SLSA provenance from
+  `GET https://registry.npmjs.org/-/npm/v1/attestations/<name>@<version>` names the identity:
+  `predicate.buildDefinition.externalParameters.workflow` `repository` and `path` (SLSA v0.2:
+  `predicate.invocation.configSource` `uri` without its `@<ref>`, and `entryPoint`), compared
+  without `https://github.com/` and in any case. The ref is never part of it, so a release from a
+  new tag is the same identity. With no attestation, `_npmUser.trustedPublisher` `id` and
+  `oidcConfigId` (any `oidc:` prefix stripped) are the identity. pip: the version's files in
+  `GET https://pypi.org/simple/<name>/` (`Accept: application/vnd.pypi.simple.v1+json`); the
+  first by name with a `provenance` URL is read with
+  `Accept: application/vnd.pypi.integrity.v1+json`, and the first attestation bundle's
+  `publisher` `kind`, `repository` (any case) and `workflow` are the identity. A version with
+  neither has none.
+- **Rule.** The previous identity is the newest stable version (npm `x.y.z`; pip digits and dots
+  with an optional `.postN`, not yanked) published before the new one that has an identity. With
+  one, a new version with no identity is `provenance-missing:<name>` and one with a different
+  identity `provenance-changed:<name>`; either makes the tier `review`. With none, the gate adds
+  nothing: a package that never published provenance keeps the cooldown and the other rules.
+- **Fail closed.** A registry read that fails, takes over 10 seconds or does not parse, a new
+  version the registry does not list, an update with no version, or more than 20 registry reads
+  for one pull request is `provenance-unreadable:<name>`, tier `review`.
+
+The review activity then judges the release as it judges any review-tier pull request.
+
+#### Classifier gaps
+
+A pull request whose every reason is a read failure (`unparsed-updates`, `sources-disagree`,
+`dependabot-config-unreadable`, `dependabot-policy-unreadable`, `provenance-unreadable:<name>`)
+is review tier because the classifier could not read it, not because it is risky. The
+review-dependency select step writes a `::warning::classifier gap` naming those reasons, so a
+parse bug shows in the run log instead of quietly spending AI reviews; fix the classifier.
+
 ### Verifier verdict
 
 `.github/workflows/pr-verify.yml` runs on main after each successful `pr-require-checks` run of a
@@ -554,14 +630,19 @@ the lanes App opened is: a `Bot` account whose login is `merge.agent-identity`, 
 pr-merge lane decides lane authorship. Any other author's is skipped before the model runs, with
 the reason `author-not-lane` and the step summary line `skipped: author not the lanes App`, since
 only lane-authored pull requests reach the pr-merge lane. `any` judges every author's. Any other
-value judges none (`verify-authors-invalid`).
+value judges none (`verify-authors-invalid`). The trusted-spec rule below is scoped to that: on a
+lane pull request the App is the author and a human wrote the issue, so the spec can be trusted,
+while a human author who also wrote the linked issue would read `verify:untrusted-spec`, which
+never arises because such a pull request is neither judged nor read by the pr-merge lane.
 
 With `merge.require-verifier-verdict: true` the pr-merge lane reads the artifacts through their
 run records, since only steps of a run can upload its artifacts. A run is of verifier origin when
 it is `pr-verify.yml`, event `workflow_run`, on main, in this repository with a head on main. A
 `fail` counts from any such run, whatever its conclusion, because the upload comes before the
 run's later steps; a `pass` or `pass-notes` counts only from one that completed with success. Any
-other artifact with such a name is ignored. At the pull request's vetted head:
+other artifact with such a name is ignored. The resolver and the gate each hold this rule and the
+dependency-manager list, and one test runs both to keep them equal. At the pull request's vetted
+head:
 
 - created more than 80 days ago refuses (`verify:too-old`): artifacts last at most 90 days in this
   repository (the retention maximum and its setting), so an older verdict may be gone;
@@ -573,7 +654,9 @@ other artifact with such a name is ignored. At the pull request's vetted head:
   downloaded, or any other failed read, refuses (`verify:unreadable`). An untied `fail` whose run
   cannot be read is ignored. One unreadable record of an untied `fail` therefore blocks every pull
   request until it can be read, expires or is deleted;
-- a counted `pass` or `pass-notes` for this pull request refuses (`verify:spec-changed`) unless the
+- every counted `pass` or `pass-notes` for this pull request at the head is checked, whatever order
+  the listing returns them in, and the merge is allowed only when each allows (a changed spec is
+  reported before an untrusted one). Each refuses (`verify:spec-changed`) unless the
   pull request's closing issues in this repository now are the ones its verdict recorded, none
   was edited after the verdict's run started, and each issue's spec comments (written, and last
   edited if ever, by a `User` on the trusted-actor list's humans other than the pull request's
@@ -591,14 +674,23 @@ acting as that account wrote it. Unattended merge stays off (`merge.report-only:
 identity exists.
 
 `verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and `verify:untrusted-spec` need a
-human, who clears them
+human. While `merge.report-only` is false the lane escalates such a refusal on the pull request
+([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it keeps one
+`<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, rewritten only
+when either changes, then adds the tracker's human-gated role label (`needs-human` unless
+`.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,
+so a label never stands unexplained, and a failed label is added by the next run; a rerun that
+finds both writes nothing. While it is true the refusal is only reported. The
+lane token's `issues: write` and `pull-requests: write` cover both writes. A human clears them
 by merging in person: the verdict is not a check run and stays out of `ci-status` and the required
 checks (github-iac ADR 0011), so a human merge needs `ci-status` alone. A queued entry without an
-allowing verdict at its live head leaves the queue. A dependency manager's pull request needs no
-verdict: the lane decides it in its Dependabot class before the verdict is read, or refuses it, and
+allowing verdict at its live head leaves the queue. A dependency manager's pull request (a `Bot`
+account with a dependency manager's login; a `User` named like one is judged) needs no verdict: the lane decides it in its Dependabot class before the verdict is read, or refuses it, and
 its queued entry is not held for one. The gate lists every repository artifact once per
-candidate run, since pr-merge.yml runs the gate once per candidate. The lane token holds no Actions
-permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
+candidate run, since pr-merge.yml runs the gate once per candidate. A failed listing is kept for
+that run as well: the pull request and every queued entry refuse `verify:unreadable` without the
+listing being paged again, so a listing outage holds the whole queue rather than merging blind.
+The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
 records and the download alone, and every other call keeps the lane token. That job checks out only
 main and runs no pull request code.
