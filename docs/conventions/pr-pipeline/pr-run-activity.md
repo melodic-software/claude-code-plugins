@@ -258,7 +258,7 @@ cap. They come from steps after the skill. The report job passes them to `report
 checks each against a fixed shape and writes them into the posted check run: as the first line of
 `output.summary`, `lane=<lane> activity=<activity>` then `class`, `resets`, `turns` and `max-turns`
 in that order, each omitted when absent; as one JSON block in `output.text`; and as
-`external_id` `<lane>:<run id>:<run attempt>`. A failed run whose record says `class=rate-limit`
+`external_id` `<lane>:<activity>:<run id>:<run attempt>`. A failed run whose record says `class=rate-limit`
 is the limit stop the pr-unblock dispatchers read from the check-run list they already fetch. The
 record also stays, for one release, as an annotation in report-lane-outcome's shape, which the
 dispatchers read only for a check run whose summary has no record line. In issue mode the

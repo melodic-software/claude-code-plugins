@@ -136,7 +136,7 @@ test("a lane record from env opens the summary, fills output.text and external_i
     turns: 3,
     "max-turns": 30,
   });
-  assert.equal(body.external_id, "pr-refine:123:2");
+  assert.equal(body.external_id, "pr-refine:simplify:123:2");
   const [annotation] = body.output.annotations;
   assert.match(annotation.message, /class=rate-limit resets=2026-10-17T15:30:00Z turns=3 max-turns=30\)/);
 });

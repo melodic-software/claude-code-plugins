@@ -92,7 +92,7 @@ test("the output record is one line of key=value tokens in a fixed order, its JS
       `{"lane":"pr-unblock","activity":"resolve-conflicts","class":"rate-limit","resets":"${RESETS}","turns":12,"max-turns":30}` +
       "\n```",
   );
-  assert.equal(record.externalId, "pr-unblock:4242:2");
+  assert.equal(record.externalId, "pr-unblock:resolve-conflicts:4242:2");
 });
 
 test("absent fields are omitted from the output record, and a success carries no class", () => {

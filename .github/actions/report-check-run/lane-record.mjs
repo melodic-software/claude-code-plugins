@@ -65,7 +65,7 @@ export function laneRecordOutput({ lane, activity, runId = "", runAttempt = "", 
     line: tokensOf(fields).join(" "),
     text: `\`\`\`json\n${JSON.stringify(json)}\n\`\`\``,
     externalId:
-      RUN_NUMBER.test(runId) && RUN_NUMBER.test(runAttempt) ? `${lane}:${runId}:${runAttempt}` : null,
+      RUN_NUMBER.test(runId) && RUN_NUMBER.test(runAttempt) ? `${lane}:${activity}:${runId}:${runAttempt}` : null,
   };
 }
 
