@@ -29,6 +29,18 @@ FAKE = str(FIXTURES / ("fake_cloudflared.py" if WINDOWS else "fake-cloudflared.s
 SHARE = SHARED / "share.py"
 
 
+FIXTURE_TOKEN_HASH = "0" * 63 + "1"  # every fixture's owner tokenHash: low entropy, so secret scanners pass it
+
+
+def write_state_fixture(state, name, folder=FIXTURES):
+    """Save a state a build's session.py wrote (Session.state) as fixtures/<name>, for the forward-compatibility
+    tests that load it unchanged: its owner tokenHash becomes FIXTURE_TOKEN_HASH, as no fixture test opens the owner
+    view with the token that made it."""
+    doc = json.loads(json.dumps(state))
+    doc["credentials"]["owner"]["tokenHash"] = FIXTURE_TOKEN_HASH
+    (Path(folder) / name).write_text(json.dumps(doc, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
 def tmpdir(case):
     d = Path(tempfile.mkdtemp(prefix="shared-test-"))
     case.addCleanup(shutil.rmtree, d, ignore_errors=True)

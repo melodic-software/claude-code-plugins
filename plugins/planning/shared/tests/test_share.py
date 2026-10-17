@@ -438,7 +438,7 @@ class TestImport(ShareCase):
     def test_import_and_adopt_keep_the_guest_link_state_and_cloudflared(self):
         code, out, err = self.ensure()
         self.assertEqual(code, 0, err)
-        self.assertEqual(out["guestUrl"], f"{self.url}/#join=fixture-guest-key-1")
+        self.assertEqual(out["guestUrl"], f"{self.url}/#join=guest-key-aaaa")
         self.assertEqual((out["localUrl"], out["tunnel"], out["shareChanged"]), (f"http://127.0.0.1:{self.port}/", "quick", False))
         rec = tunnel.read(self.d)
         self.assertEqual((rec["pid"], rec["url"], rec["port"], rec["adopted"]), (self.cf.pid, self.url, self.port, True))
@@ -467,7 +467,7 @@ class TestImport(ShareCase):
         self.cf.kill()
         self.cf.wait()
         new = wait_for(lambda: (u := share(self.d, "url")[1]["guestUrl"]) != first["guestUrl"] and u, seconds=30, step=0.5)
-        self.assertRegex(new, r"^https://fake-[0-9a-f]{12}\.trycloudflare\.com/#join=fixture-guest-key-1$")
+        self.assertRegex(new, r"^https://fake-[0-9a-f]{12}\.trycloudflare\.com/#join=guest-key-aaaa$")
         _, _, snap = call(self.port, "GET", "/api/state?since=0", headers={"X-Owner-Token": PROTO_OWNER})
         self.assertIn("changedAt", snap["share"])
 

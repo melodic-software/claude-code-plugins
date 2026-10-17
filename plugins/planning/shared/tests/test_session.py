@@ -26,6 +26,7 @@ if str(SHARED) not in sys.path:
     sys.path.insert(0, str(SHARED))
 
 import session  # noqa: E402  (the module lives one directory up; sys.path is set just above)
+import support  # noqa: E402  (beside this file; imported after session so its sys.path entry is set)
 
 HOST = "host"
 PNG = "0123456789abcdef.png"
@@ -3826,6 +3827,27 @@ class TestImageReferenceRect(SessionCase):
         self.assertEqual(self.disk()["questions"][0]["references"], expected)
         self.assertEqual(session.Session.load(self.path).state["questions"][0]["references"], expected)
         self.assertEqual(self.s.snapshot(HOST)["questions"][0]["references"], expected)
+
+
+class TestFixtureTokenHashes(unittest.TestCase):
+    """No committed fixture holds a real-looking owner token hash (a secret scanner flags sha256 values there), and
+    support.write_state_fixture, how a build's state becomes a fixture, writes the placeholder."""
+
+    def test_every_fixture_with_an_owner_holds_the_placeholder_hash(self):
+        owners = {}
+        for f in sorted(FIXTURES.glob("*.json")):
+            doc = json.loads(f.read_text(encoding="utf-8"))
+            if isinstance(doc, dict) and isinstance(doc.get("credentials"), dict):
+                owners[f.name] = doc["credentials"]["owner"]["tokenHash"]
+        self.assertGreaterEqual(len(owners), 13)
+        self.assertEqual({n: h for n, h in owners.items() if h != "0" * 63 + "1"}, {})
+
+    def test_the_fixture_writer_puts_the_placeholder_in_place_of_the_hash(self):
+        s, _ = session.Session.create(Path(tempfile.mkdtemp()) / "state.json", title="T", goal="", clock=Clock(), ids=Ids())
+        self.addCleanup(shutil.rmtree, s.path.parent, ignore_errors=True)
+        support.write_state_fixture(s.state, "state-written-test.json", folder=s.path.parent)
+        doc = json.loads((s.path.parent / "state-written-test.json").read_text(encoding="utf-8"))
+        self.assertEqual((doc["credentials"]["owner"]["tokenHash"], {**doc, "credentials": s.state["credentials"]}), ("0" * 63 + "1", s.state))
 
 
 class StateFixtureCase(unittest.TestCase):

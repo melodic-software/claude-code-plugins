@@ -276,7 +276,7 @@ class TestFromPrototype(unittest.TestCase):
 
     def test_session_title_goal_settings_share_and_counters(self):
         s = self.doc["session"]
-        self.assertEqual((s["title"], s["goal"], s["guestKey"]), ("Fixture checkout session", "Pick the payment step layout", "fixture-guest-key-1"))
+        self.assertEqual((s["title"], s["goal"], s["guestKey"]), ("Fixture checkout session", "Pick the payment step layout", "guest-key-aaaa"))
         self.assertEqual(s["share"], {"url": "https://fixture-quiet-lake.trycloudflare.com"})
         self.assertEqual(s["phase"], {"kind": "live"})
         st = s["settings"]

@@ -71,7 +71,7 @@
   "researchSeq": 1,
   "removed": ["pidCy0003"],
   "ended": null,
-  "guestKey": "fixture-guest-key-1",
+  "guestKey": "guest-key-aaaa",
   "ownerToken": "fixture-owner-token-0001",
   "shareUrl": "https://fixture-quiet-lake.trycloudflare.com",
   "goal": "Pick the payment step layout",
