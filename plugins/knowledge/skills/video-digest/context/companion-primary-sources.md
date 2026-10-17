@@ -31,6 +31,17 @@ Dedupe by `video-id` unchanged. Companion brief may exist before any `run-watch.
 7. Seed `source/harvested-links.json` with companion URL(s) typed `doc`, `priority: pre-watch` (create file if bootstrap has not run yet).
 8. `mark-phase <slice-dir> companion` only after every section row in the brief has a digest shard.
 
+### Late Phase 0b (after vision or `close`)
+
+A companion source can surface only during research, or after `close` (the speaker's longer talk or essay). It enters the slice contract through a late Phase 0b, not as an ad-hoc lane:
+
+1. Create `source/companion-sources.md` from `templates/companion-source-brief.md` when it does not exist; add the new URL(s) and section rows to it when it does.
+2. Run the Execution steps above for the new rows only. Output goes to `source/companion-digest/` (shards plus the hub `README.md`); never to `analysis/companion/` or any other lane the output contract does not list.
+3. Merge the companion URL(s) into `source/harvested-links.json` typed `doc`, with `priority: post-vision` instead of `pre-watch`.
+4. `mark-phase <slice-dir> companion` once every row has a shard. Then fold the digest into the work already done: tag affected claims in `research/claim-inventory.md` with `blog-ref`, add the URL to `research/sources.md`, and revisit `RESEARCH.md` and the recommendations only where the companion changes them. When the slice was already closed, re-run `close` afterward.
+
+Caption-track and 429 handling for a video companion is the same as for the main video (`context/gotchas.md`); do not improvise it per subagent.
+
 ### Resume
 
 If `watch.json` exists with CLI phases done but `companion` not marked, run Phase 0b before vision. If companion is marked but digest shards are missing, re-run Phase 0b.
@@ -55,6 +66,6 @@ When `source/companion-sources.md` exists:
 | --- | --- |
 | `source/companion-digest/README.md` exists | Phase 0b: write hub after section fan-out |
 | Every section slug in brief has `source/companion-digest/<slug>.md` | Phase 0b: complete subagent fan-out |
-| `mark-phase companion` in `watch.json` | Only after digest complete; before Phase 1 if starting fresh |
+| `mark-phase companion` in `watch.json` | Only after digest complete; before Phase 1 if starting fresh, or after a late Phase 0b |
 
 Phase gates table: `context/quality-gates.md`.
