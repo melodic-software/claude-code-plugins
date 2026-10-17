@@ -742,6 +742,19 @@ def clip(text, n):
     return text if len(text) <= n else text[: max(n - 1, 0)].rstrip() + "…"
 
 
+def recap_answer(r):
+    """A row's answer as the recap shows it: its readable form, else its named-field resolution
+    read back through parse_named into readable(), else its resolution as the ledger wrote it."""
+    if r.get("readable"):
+        return r["readable"]
+    res = LEAD.sub(r"\2", r["resolution"], count=1)
+    try:
+        named = parse_named(res, "the ledger")
+    except SystemExit:
+        named = None
+    return readable(r["status"], *named) if named else clean(r["resolution"])
+
+
 def confirmation_recap(d, cap, text=None):
     """The confirmation gate's compact recap, one `Q<N> <status>: <question> (<answer>)` line per
     live question, with every withdrawn row collapsed into one closing line and each long answer
@@ -754,7 +767,7 @@ def confirmation_recap(d, cap, text=None):
     for n in RECAP_ANSWER_STEPS:
         lines = [
             f"{r['n']} {r['status']}: {clip(r['title'], n)} "
-            f"({clip(r.get('readable') or clean(r['resolution']), n)})"
+            f"({clip(recap_answer(r), n)})"
             for r in live
         ]
         if gone:
