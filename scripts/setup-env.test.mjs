@@ -215,3 +215,24 @@ chmod +x "\${@: -1}/bin/python"`,
     "venv-python -I -m pip install --quiet --only-binary=:all: --require-hashes --requirement .github/requirements-ci.txt",
   );
 });
+
+test("a relative --root resolves against the caller's directory", () => {
+  const pathFile = join(dir, "github-path");
+  writeFileSync(pathFile, "");
+  writeFileSync(log, "");
+  const r = spawnSync(bash, [script, "--root", "repo"], {
+    cwd: dir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${stubs}:${process.env.PATH}`,
+      GITHUB_PATH: pathFile,
+      SETUP_ENV_PLAYWRIGHT: "",
+    },
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(
+    readFileSync(pathFile, "utf8"),
+    `${root}/.work/venv/bin\n${root}/node_modules/.bin\n`,
+  );
+});

@@ -904,7 +904,16 @@ jobs:
           && (steps.config.outputs.prepare != 'merge-base' || steps.prepare.outputs.merge-state == 'conflicted')
         env:
           SETUP_ENV_VENV: ${{ runner.temp }}/setup-env-venv
-        run: bash "$RUNNER_TEMP/setup-env/scripts/setup-env.sh" --root "$RUNNER_TEMP/setup-env"
+        run: |
+          bash "$RUNNER_TEMP/setup-env/scripts/setup-env.sh" --root "$RUNNER_TEMP/setup-env"
+          # Node resolves a package from the importing file's directory, so the
+          # base-built trees are copied into the checkout, where node_modules
+          # is ignored.
+          for dir in . .github/standards/runner-policy; do
+            [ -d "$GITHUB_WORKSPACE/$dir" ] || continue
+            rm -rf "${GITHUB_WORKSPACE:?}/$dir/node_modules"
+            cp -R "$RUNNER_TEMP/setup-env/$dir/node_modules" "$GITHUB_WORKSPACE/$dir/"
+          done
 
       # In merge-base mode only a conflicted merge needs the model.
       - name: Run the skill activity

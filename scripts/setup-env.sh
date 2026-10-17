@@ -37,6 +37,7 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 root=${root:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}
+root=$(cd "$root" && pwd)
 cd "$root"
 
 hash_of() {
