@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 1.28.0 - 2026-10-17
+## 2.0.0 - 2026-10-17
 
 A `models` block sets each model run's model, effort and turn budget as named profiles, with
 `routes` from a skill activity or `verify-pr` to a profile and a `default-profile` for the rest
@@ -14,8 +14,21 @@ built-in `standard` profile (model `default`, 75 turns). Model values are aliase
 inputs; `collect-base-activity` drops its `model` and `max-turns` inputs; `pr-verify.yml` resolves
 `verify-pr`. The write runner's lane record gains `models` and `profile`, after `max-turns`. This
 repository's block keeps every run as it was: `standard` for each skill activity, `review` (`opus`,
-60 turns) for the verifier. The pr-pipeline-sandbox config sets activity `max-turns` and moves them
-into a `models` block when it takes this schema. `version` stays 1.
+60 turns) for the verifier. `version` is now 2: the schema rejects a version 1 config.
+
+Migration from version 1:
+
+1. Set `version: 2`.
+2. For each distinct `model` and `max-turns` pair an activity sets, add a profile under
+   `models.profiles` (`{ model: <alias>, max-turns: <n> }`; `model: default` for no `--model`, an
+   alias for a full model ID) and a `models.routes` entry from the activity to it; delete the
+   activity's `model` and `max-turns`.
+3. Replace `merge.verifier-model: <alias>` with a profile (`max-turns: 60` keeps pr-verify's
+   former budget) and `models.routes.verify-pr`.
+4. Set `models.default-profile`; `{ model: default, max-turns: 75 }` keeps the runners' former
+   defaults. With no `models` block every run gets that profile.
+
+The pr-pipeline-sandbox keeps its own schema copy at version 1 and migrates when it takes this one.
 
 ## 1.27.0 - 2026-10-17
 

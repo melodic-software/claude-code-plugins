@@ -176,6 +176,12 @@ test("the schema rejects the removed activity model and max-turns keys and merge
   assertRejected(() => fixtureSlot({ ...FIXTURE, config: stringify(doc) }), "invalid-config");
 });
 
+test("the schema rejects a version 1 config, the contract before models", () => {
+  const doc = parse(FIXTURE.config);
+  doc.version = 1;
+  assertRejected(() => fixtureSlot({ ...FIXTURE, config: stringify(doc) }), "invalid-config");
+});
+
 test("a default-profile or route naming no profile is undefined-profile", () => {
   const profiles = { p: { model: "opus", "max-turns": 5 } };
   assertRejected(() => fixtureSlot(withModels({ profiles, "default-profile": "q" })), "undefined-profile");

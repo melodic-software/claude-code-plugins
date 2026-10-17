@@ -9,7 +9,7 @@
   "properties": {
     "$schema": { "type": "string" },
     "version": {
-      "const": 1,
+      "const": 2,
       "description": "Contract major version. CHANGELOG.md beside this schema records each version."
     },
     "extends": {
