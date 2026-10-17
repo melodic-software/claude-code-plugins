@@ -471,17 +471,13 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 - **Own prior replies re-processed as findings.** Classification-table replies from your own
   posting identities must be filtered during rescan or the loop chases its own tail
   ([review-discipline](../../reference/review-discipline.md) §1)
-- **Exit codes are not per-thread outcomes.** Both wrappers demand JSON `action`-field parsing;
-  a zero exit covers skipped and refused threads too
+- **Exit codes are not per-thread outcomes.** Both wrappers demand JSON `action`-field parsing; a zero exit covers skipped and refused threads too
 - **Self-blocking CI check.** A newly required check whose own fix PR carries that same check
   cannot be gate-merged, the check is failing or absent on the very PR that would make it pass,
   so the merge gate correctly refuses. Breaking the cycle is a one-time human admin-merge
   bootstrap of that fix PR; no tier automates it. Surface it as a blocker needing that bootstrap,
   never as a reason to route around the gate
-- **Every worker draws on one forge API budget.** Waits, GraphQL-only reads, writes and a
-  rate-limit error each follow the [API budget](../../reference/providers/github/README.md#api-budget):
-  one background watcher per PR at 60 s or slower, writes one at a time, and a stop at the first
-  rate-limit error, never a retry loop
+- **Every worker draws on one forge [API budget](../../reference/providers/github/README.md#api-budget):** one background watcher per PR at 60 s or slower, writes one at a time, stop at the first rate-limit error
 
 ## Reference index. Load on demand
 

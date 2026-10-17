@@ -233,9 +233,14 @@ done
 - **Pointer**: how `gh pr merge` behaves on a merge-queue base and what `--match-head-commit` does:
   [gh pr merge](https://cli.github.com/manual/gh_pr_merge); `isInMergeQueue`:
   [GraphQL PullRequest object](https://docs.github.com/graphql/reference/objects#pullrequest).
-- **As of**: 2026-10-09
-- **Recheck trigger**: a gh release that changes `gh pr merge` flags or merge-queue handling, or a
-  rename of the AI review lanes' check names.
+  The queue events: `GET repos/{owner}/{repo}/issues/{n}/events` returned `added_to_merge_queue`
+  and `removed_from_merge_queue` for a queue-merged PR (melodic-software/claude-code-plugins#7771,
+  read 2026-10-17), though [issue event types](https://docs.github.com/en/rest/using-the-rest-api/issue-event-types)
+  does not list them.
+- **As of**: 2026-10-09; queue events 2026-10-17
+- **Recheck trigger**: a gh release that changes `gh pr merge` flags or merge-queue handling, a
+  rename of the AI review lanes' check names, or the events endpoint no longer returning the queue
+  events.
 
 ## Confirm queue entry
 
