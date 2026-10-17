@@ -7,6 +7,17 @@ import { test } from "node:test";
 import { createGitHubApi, dispatchConflicting, main } from "./dispatch.mjs";
 
 const CHECK_NAME = "pr-unblock / resolve-conflicts";
+// The title GitHub gives a pr-unblock.yml run, read from the workflow file:
+// its top-level run-name scalar as YAML reads it (a double-quoted string, or a
+// plain one cut at " #", which starts a comment), with the inputs filled in.
+function pr_unblockTitle(activity, number) {
+  const workflow = readFileSync(new URL("../../workflows/pr-unblock.yml", import.meta.url), "utf8");
+  const raw = /^run-name:[ \t]*(.*)$/m.exec(workflow)?.[1] ?? "";
+  const value = raw.startsWith('"') ? JSON.parse(raw.slice(0, raw.lastIndexOf('"') + 1)) : raw.split(/[ \t]#/)[0].trim();
+  return value
+    .replaceAll("${{ inputs.activity }}", activity)
+    .replaceAll("${{ inputs.pr-number }}", String(number));
+}
 const SUCCESS_RUN = { status: "completed", conclusion: "success", output: { title: "Resolved" } };
 // A failed run whose summary opens with the lane record report-check-run
 // writes; `tokens` follow class=rate-limit, and null leaves no record.
@@ -46,7 +57,8 @@ function pr(number, overrides = {}) {
 // `checked` is the set of head SHAs that already carry a successful check run,
 // or a Map from head SHA to the check runs GitHub returns for it. `runIds`
 // maps a PR number to the workflow_run_id its dispatch returns, undefined
-// included; any other PR gets 9000 plus its number.
+// included; any other PR gets 9000 plus its number. `workflowRuns` is the
+// pr-unblock.yml run listing.
 function fakeApi({
   pages = [[]],
   requeries = [],
@@ -54,8 +66,9 @@ function fakeApi({
   failDispatch = new Set(),
   failChecks = new Set(),
   runIds = new Map(),
+  workflowRuns = [],
 } = {}) {
-  const calls = { list: [], get: [], checks: [], dispatch: [] };
+  const calls = { list: [], get: [], checks: [], dispatch: [], runs: [] };
   let round = 0;
   return {
     calls,
@@ -91,6 +104,13 @@ function fakeApi({
         return checked.get(sha) ?? [];
       }
       return checked.has(sha) ? [SUCCESS_RUN] : [];
+    },
+    async listWorkflowRuns(workflow) {
+      calls.runs.push(workflow);
+      if (workflowRuns instanceof Error) {
+        throw workflowRuns;
+      }
+      return workflowRuns;
     },
     async dispatchWorkflow({ workflow, ref, inputs }) {
       calls.dispatch.push({ workflow, ref, inputs });
@@ -269,6 +289,43 @@ test("a limit-stopped run counts as handled only until its limit resets", async 
   );
   await run();
   assert.deepEqual(dispatchedNumbers(api), ["21", "23"]);
+});
+
+test("skips a PR while a resolve-conflicts run for it is queued or going", async () => {
+  for (const status of ["queued", "in_progress", "waiting", "pending"]) {
+    const { api, lines, run } = harness({
+      pages: [[pr(26), pr(27)]],
+      workflowRuns: [{ id: 1, status, display_title: pr_unblockTitle("resolve-conflicts", 26) }],
+    });
+    await run();
+    assert.deepEqual(api.calls.runs, ["pr-unblock.yml"], status);
+    assert.deepEqual(dispatchedNumbers(api), ["27"], status);
+    assert.ok(lines.some((line) => line.includes("#26") && line.includes("run 1")), status);
+  }
+});
+
+test("a finished run, another PR's run or another activity's run does not hold the dispatch", async () => {
+  const { api, run } = harness({
+    pages: [[pr(28)]],
+    workflowRuns: [
+      { id: 1, status: "completed", display_title: pr_unblockTitle("resolve-conflicts", 28) },
+      { id: 2, status: "in_progress", display_title: pr_unblockTitle("resolve-conflicts", 280) },
+      { id: 3, status: "queued", display_title: pr_unblockTitle("address-feedback", 28) },
+    ],
+  });
+  await run();
+  assert.deepEqual(dispatchedNumbers(api), ["28"]);
+});
+
+test("an unreadable run listing dispatches nothing and counts as a failure", async () => {
+  const { api, lines, run } = harness({
+    pages: [[pr(29)]],
+    workflowRuns: new Error("runs read failed"),
+  });
+  const result = await run();
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.equal(result.failed, 1);
+  assert.ok(lines.some((line) => line.startsWith("::error::") && line.includes("runs read failed")));
 });
 
 test("maxDispatch defaults to 3, in ascending PR number, logging the PRs left for a later run", async () => {
@@ -489,6 +546,7 @@ test("the GitHub adapter calls the documented endpoints", async () => {
     },
     { total_count: 1, check_runs: [SUCCESS_RUN] },
     { workflow_run_id: 77, run_url: "u", html_url: "h" },
+    { total_count: 1, workflow_runs: [{ id: 5, status: "queued" }] },
   ];
   const fetchStub = async (url, init) => {
     requests.push({
@@ -546,4 +604,9 @@ test("the GitHub adapter calls the documented endpoints", async () => {
   });
   assert.equal(requests[2].method, "POST");
   assert.equal(requests[2].auth, "Bearer t0ken");
+  assert.deepEqual(await api.listWorkflowRuns("pr-unblock.yml"), [{ id: 5, status: "queued" }]);
+  assert.equal(
+    requests[3].url,
+    "https://api.example/repos/octo/repo/actions/workflows/pr-unblock.yml/runs?event=workflow_dispatch&per_page=100",
+  );
 });

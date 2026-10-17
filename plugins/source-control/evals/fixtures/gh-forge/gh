@@ -65,19 +65,22 @@ pr_matches() {
 }
 
 pr_doc() {
-  local head_oid base_oid behind=CLEAN
+  local head_oid base_oid mss=CLEAN
   head_oid=$(git --git-dir="$origin" rev-parse "refs/heads/$PR_HEAD")
   base_oid=$(git --git-dir="$origin" rev-parse "refs/heads/$PR_BASE")
-  git --git-dir="$origin" merge-base --is-ancestor "$base_oid" "$head_oid" || behind=BEHIND
+  # GitHub never reads CLEAN with a failing check: a non-required one makes it UNSTABLE.
+  jq -e 'any(.[]; .bucket == "fail")' "$forge/checks" >/dev/null && mss=UNSTABLE
+  git --git-dir="$origin" merge-base --is-ancestor "$base_oid" "$head_oid" || mss=BEHIND
   jq -n --arg n "$PR_NUMBER" --arg head "$PR_HEAD" --arg base "$PR_BASE" --arg oid "$head_oid" \
-    --arg title "$PR_TITLE" --argjson draft "$(cat "$forge/draft")" --arg mss "$behind" '{
+    --arg title "$PR_TITLE" --argjson draft "$(cat "$forge/draft")" --arg mss "$mss" \
+    --argjson checks "$(jq -c 'map({name, status: "COMPLETED", conclusion: (if .bucket == "fail" then "FAILURE" else "SUCCESS" end), detailsUrl: .link})' "$forge/checks")" '{
       number: ($n | tonumber), title: $title, body: "", state: "OPEN", isDraft: $draft,
       headRefName: $head, headRefOid: $oid, baseRefName: $base,
       url: ("https://github.com/eval-fixture/app/pull/" + $n),
       author: {login: "eval-fixture"}, isCrossRepository: false,
       headRepository: {name: "app"}, headRepositoryOwner: {login: "eval-fixture"},
       mergeable: "MERGEABLE", mergeStateStatus: $mss, reviewDecision: "",
-      statusCheckRollup: [], reviews: [], comments: [], labels: [], files: []
+      statusCheckRollup: $checks, reviews: [], comments: [], labels: [], files: []
     }'
 }
 
@@ -129,8 +132,22 @@ case "$cmd $sub" in
     fi
     ;;
   "pr checks")
-    echo "no checks reported on the '$PR_HEAD' branch" >&2
-    exit 1
+    shift 2
+    parse "$@"
+    pr_matches "${args[0]:-}" || refuse pr checks "$@"
+    if [[ "$(jq length "$forge/checks")" == 0 ]]; then
+      echo "no checks reported on the '$PR_HEAD' branch" >&2
+      exit 1
+    fi
+    # gh exits 0 on the --json path whatever the checks say; the table exits 8 while checks pend and
+    # 1 when one failed, and the stand-in has only the failed case.
+    if [[ -n "$json" ]]; then
+      doc=$(jq -c --arg f "$json" 'map(. as $d | reduce ($f | split(",")[]) as $k ({}; .[$k] = $d[$k]))' "$forge/checks")
+      if [[ -n "$jq_expr" ]]; then jq -r "$jq_expr" <<<"$doc"; else jq . <<<"$doc"; fi
+    else
+      jq -r '.[] | [.name, .bucket, "1m0s", .link] | @tsv' "$forge/checks"
+      jq -e 'any(.[]; .bucket == "fail") | not' "$forge/checks" >/dev/null
+    fi
     ;;
   "repo view")
     shift 2

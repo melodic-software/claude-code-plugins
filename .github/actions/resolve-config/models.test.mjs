@@ -51,11 +51,11 @@ const LIVE_FACTS = {
   event: "labeled",
   changedPaths: ["docs/guide.md"],
   changedTargets: ["docs/guide.md"],
-  labels: [],
+  // resolve-issue applies only while its issue carries agent-ready.
+  labels: ["agent-ready"],
   workClasses: [],
   mergeable: "conflicting",
   draft: false,
-  ratified: true,
   labeledAt: "2026-10-16T00:00:00Z",
 };
 const liveSlot = (lane, activity) =>
@@ -100,6 +100,25 @@ test("live config: verify-pr keeps --model opus and 60 turns", () => {
   assert.equal(modelArgs(models), "--model opus --max-turns 60");
   assert.equal(modelSettings(models), "");
 });
+
+// The review and triage routes have no caller yet. Their values are owner
+// decisions: both review lanes keep the Sonnet, effort high, 75 turns the
+// ci-workflows review callers pass today; triage moves to Sonnet at effort
+// medium with 30 turns.
+for (const [route, profile, args] of [
+  ["review-code", "pr-review", "--model sonnet --max-turns 75 --effort high"],
+  ["review-security", "pr-review", "--model sonnet --max-turns 75 --effort high"],
+  ["triage-issue", "triage", "--model sonnet --max-turns 30 --effort medium"],
+  // Owner decision: the reuse summary is a short read-only pass at a low turn budget.
+  ["summarize-reuse", "summary", "--model sonnet --max-turns 10 --effort medium"],
+]) {
+  test(`live config: ${route} resolves ${args}`, () => {
+    const models = resolveRoute(LIVE, { route, configPath: CONFIG_PATH });
+    assert.equal(models.profile, profile);
+    assert.equal(modelArgs(models), args);
+    assert.equal(modelSettings(models), "");
+  });
+}
 
 // A fixture config with a models block, or `null` to leave the block out.
 const withModels = (models) => {
@@ -202,6 +221,15 @@ test("a route naming a script activity or nothing known is undefined-route", () 
   assertRejected(() => resolveRoute(LIVE, { route: "fix-docs", configPath: CONFIG_PATH }), "undefined-route");
 });
 
+test("a run route that is not one of the five is undefined-route, as a model-route and as a config route", () => {
+  assertRejected(() => resolveRoute(LIVE, { route: "review-docs", configPath: CONFIG_PATH }), "undefined-route");
+  const profiles = { p: { model: "opus", "max-turns": 5 } };
+  assertRejected(
+    () => fixtureSlot(withModels({ profiles, "default-profile": "p", routes: { "review-docs": "p" } })),
+    "undefined-route",
+  );
+});
+
 // main() with model-route against a base holding the live config.
 const scratch = mkdtempSync(join(tmpdir(), "resolve-models-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
@@ -247,6 +275,24 @@ test("main with model-route verify-pr writes the verifier's outputs and file", a
     "max-turns": "60",
   });
   assert.equal(JSON.parse(readFileSync(env.OUTPUT_PATH, "utf8")).models.profile, "review");
+});
+
+test("main with model-route triage-issue writes the triage profile's outputs", async () => {
+  const env = routeEnv({ MODEL_ROUTE: "triage-issue" });
+  assert.equal(await main({ env }), 0);
+  assert.deepEqual(readOutputs(env.GITHUB_OUTPUT), {
+    profile: "triage",
+    "claude-args": "--model sonnet --max-turns 30 --effort medium",
+    "settings-json": "",
+    "max-turns": "30",
+  });
+});
+
+test("main refuses an unknown model-route, and writes no file", async () => {
+  const env = routeEnv({ MODEL_ROUTE: "review-docs" });
+  assert.equal(await main({ env }), 1);
+  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "");
+  assert.throws(() => readFileSync(env.OUTPUT_PATH));
 });
 
 test("main refuses model-route beside a lane, and writes no file", async () => {

@@ -14,17 +14,34 @@ from __future__ import annotations
 import base64
 import contextlib
 import json
+import os
 import pathlib
 import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from typing import Any
 from unittest import mock
 
+# An inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would send the git
+# fixtures' identity writes into the caller's repository
+# (scripts/check-fixture-git-isolation.sh). Cleared before any test spawns git.
+for _leaked_git_var in (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_PREFIX",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_CONFIG",
+):
+    os.environ.pop(_leaked_git_var, None)
+del _leaked_git_var
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-import babysit_merge_policy as policy
+import babysit_merge_policy as policy  # noqa: E402  (follows the git-env clear above)
 
 REPO = "owner/repo"
 SHA = "a" * 40
@@ -2162,9 +2179,22 @@ class EnabledSince(unittest.TestCase):
     def commit(self, sha: str, date: str) -> dict[str, Any]:
         return {"sha": sha, "commit": {"committer": {"date": date}}}
 
-    def fake(self, history: list[dict[str, Any]], configs: dict[str, str]) -> GhFake:
+    def fake(
+        self,
+        history: list[dict[str, Any]],
+        configs: dict[str, str],
+        base: str = SHA,
+        clones: tuple[pathlib.Path, ...] = (),
+    ) -> GhFake:
+        """The commits and contents APIs answering for `base`; `clones` are
+        the local clones `enabled_since` may read instead (none by default)."""
+        checkouts = mock.patch.object(
+            policy, "_history_checkouts", return_value=list(clones)
+        )
+        checkouts.start()
+        self.addCleanup(checkouts.stop)
         gh = GhFake().install(self)
-        gh.rest[self.HISTORY] = history
+        gh.rest[self.HISTORY.replace(SHA, base)] = history
         for sha, text in configs.items():
             gh.rest[f"repos/{REPO}/contents?ref={sha}"] = []
             gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={sha}"] = (
@@ -2210,10 +2240,145 @@ class EnabledSince(unittest.TestCase):
             policy.enabled_since(REPO, SHA)
 
     def test_an_unreadable_history_has_no_floor(self) -> None:
-        gh = GhFake().install(self)
-        gh.rest[self.HISTORY] = 502
+        self.fake(502, {})  # type: ignore[arg-type]
         with self.assertRaises(policy.PolicyReadError):
             policy.enabled_since(REPO, SHA)
+
+
+DISABLED = "merge:\n  rung: C2\n"
+
+
+class LocalEnabledSince(unittest.TestCase):
+    """`enabled_since` read from a real local clone holding the base SHA:
+    the floor the contents API gives for the same history, with no gh call
+    and no 100-commit limit. A clone that is shallow or lacks the base SHA
+    leaves the read to the API."""
+
+    commit_record = EnabledSince.commit
+    HISTORY = EnabledSince.HISTORY
+    fake = EnabledSince.fake
+
+    def setUp(self) -> None:
+        self.tmp = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.clone = self.tmp / "clone"
+        self.git(self.tmp, "init", "-q", str(self.clone))
+        # The lane runs the script from a subdirectory of its checkout.
+        self.scripts = self.clone / "scripts"
+        self.scripts.mkdir()
+
+    def git(self, root: pathlib.Path, *args: str, date: str = "") -> str:
+        env = {"GIT_COMMITTER_DATE": date, "GIT_AUTHOR_DATE": date} if date else {}
+        return subprocess.run(
+            ["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@t",
+             "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", *args],
+            check=True, capture_output=True, text=True, env={**os.environ, **env},
+        ).stdout.strip()  # fmt: skip
+
+    def commit(self, path: str, text: str | None, date: str) -> str:
+        """Commit `text` at `path` (None deletes it) with this committer date."""
+        if text is None:
+            self.git(self.clone, "rm", "-q", path)
+        else:
+            (self.clone / path).parent.mkdir(parents=True, exist_ok=True)
+            (self.clone / path).write_text(text)
+            self.git(self.clone, "add", path)
+        self.git(self.clone, "commit", "-q", "-m", date, date=date)
+        return self.git(self.clone, "rev-parse", "HEAD")
+
+    def pipeline(self, text: str | None, date: str) -> str:
+        return self.commit(policy.CONFIG_PATH, text, date)
+
+    def local(self) -> GhFake:
+        """No API answers: any gh call fails the test."""
+        return self.fake(
+            [], {}, base="0" * 40, clones=(self.tmp / "none", self.scripts)
+        )
+
+    def test_the_floor_matches_the_contents_api_for_the_same_history(self) -> None:
+        oldest = self.pipeline(DISABLED, "2026-10-01T00:00:00Z")
+        older = self.pipeline(PIPELINE, "2026-10-11T02:00:00+02:00")
+        self.commit("README.md", "unrelated", "2026-10-11T12:00:00Z")
+        newest = self.pipeline(PIPELINE + "# edit\n", "2026-10-12T00:00:00Z")
+        base = self.commit("README.md", "unrelated too", "2026-10-13T00:00:00Z")
+        expected = policy.datetime.fromisoformat("2026-10-11T00:00:00Z")
+        gh = self.local()
+        self.assertEqual(policy.enabled_since(REPO, base), expected)
+        self.assertEqual(policy.enabled_since(REPO, base, "local-babysit"), expected)
+        with self.assertRaises(policy.PolicyReadError):
+            policy.enabled_since(REPO, base, "pr-merge")
+        self.assertEqual(gh.calls, [])
+        # Pin: the contents-API path gives the same floor for this history.
+        self.fake(
+            [
+                self.commit_record(newest, "2026-10-12T00:00:00Z"),
+                self.commit_record(older, "2026-10-11T00:00:00Z"),
+                self.commit_record(oldest, "2026-10-01T00:00:00Z"),
+            ],
+            {newest: PIPELINE + "# edit\n", older: PIPELINE, oldest: DISABLED},
+            base=base,
+        )
+        self.assertEqual(policy.enabled_since(REPO, base), expected)
+
+    def test_the_newest_config_commit_comes_from_the_same_clone(self) -> None:
+        self.pipeline(PIPELINE, "2026-10-11T00:00:00Z")
+        newest = self.pipeline(PIPELINE + "# edit\n", "2026-10-12T00:00:00Z")
+        base = self.commit("README.md", "unrelated", "2026-10-13T00:00:00Z")
+        gh = self.local()
+        self.assertEqual(policy.newest_config_commit(REPO, base), newest)
+        self.assertEqual(gh.calls, [])
+
+    def test_a_deleted_pipeline_file_ends_the_enabled_run(self) -> None:
+        self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
+        self.pipeline(None, "2026-10-05T00:00:00Z")
+        base = self.pipeline(PIPELINE, "2026-10-09T00:00:00Z")
+        self.local()
+        self.assertEqual(
+            policy.enabled_since(REPO, base),
+            policy.datetime.fromisoformat("2026-10-09T00:00:00Z"),
+        )
+
+    def test_more_than_100_enabled_commits_still_have_a_floor(self) -> None:
+        # Every commit enables the path, so the walk reaches the first one.
+        for n in range(101):
+            base = self.pipeline(
+                f"{PIPELINE}# {n}\n", f"2026-02-01T00:{n // 60:02d}:{n % 60:02d}Z"
+            )
+        gh = self.local()
+        self.assertEqual(
+            policy.enabled_since(REPO, base),
+            policy.datetime.fromisoformat("2026-02-01T00:00:00Z"),
+        )
+        self.assertEqual(gh.calls, [])
+
+    def test_a_shallow_clone_falls_back_to_the_api(self) -> None:
+        self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
+        base = self.pipeline(PIPELINE + "# edit\n", "2026-10-11T00:00:00Z")
+        shallow = self.tmp / "shallow"
+        self.git(
+            self.tmp, "clone", "-q", "--depth", "1", self.clone.as_uri(), str(shallow)
+        )
+        self.fake(
+            [self.commit_record(base, "2026-09-01T00:00:00Z")],
+            {base: PIPELINE},
+            base=base,
+            clones=(shallow,),
+        )
+        self.assertEqual(
+            policy.enabled_since(REPO, base),
+            policy.datetime.fromisoformat("2026-09-01T00:00:00Z"),
+        )
+
+    def test_a_clone_without_the_base_falls_back_to_the_api(self) -> None:
+        self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
+        self.fake(
+            [self.commit_record(SHA, "2026-09-02T00:00:00Z")],
+            {SHA: PIPELINE},
+            clones=(self.clone,),
+        )
+        self.assertEqual(
+            policy.enabled_since(REPO, SHA),
+            policy.datetime.fromisoformat("2026-09-02T00:00:00Z"),
+        )
 
 
 LANE_PIPELINE = PIPELINE.replace("local-babysit", "pr-merge").replace(
@@ -2229,39 +2394,6 @@ LANE_DENIED = (
     "plugins/*/skills/**",
     "plugins/*/agents/**",
 )
-
-
-# The owner's ratification (resolve-config's ratification.mjs): the marker on
-# a line of its own, by a listed human, not through an App, never edited.
-MARKER = (
-    "<!-- admission: admitted when unblocked, owner batch ratification 2026-10-16 -->"
-)
-OWNER_ID = 153232337
-# The trusted list is read at the default branch's current head, never at a
-# pull request's base.
-DEFAULT_HEAD = "d" * 40
-TRUSTED_LIST = (
-    f"repos/{REPO}/contents/.github/standards/trusted-actors/trusted-actors.json"
-    f"?ref={DEFAULT_HEAD}"
-)
-TRUSTED = {
-    "version": 1,
-    "actors": [
-        {"id": OWNER_ID, "login": "kyle-sexton", "kind": "human"},
-        {"id": 337595936, "login": "melodic-automation-lanes[bot]", "kind": "bot"},
-    ],
-}
-
-
-def ratification(**changes: Any) -> dict[str, Any]:
-    return {
-        "id": 4242,
-        "body": f"Ratified.\n{MARKER}\n",
-        "user": {"id": OWNER_ID, "login": "kyle-sexton"},
-        "performed_via_github_app": None,
-        "created_at": "2026-10-16T12:00:00Z",
-        "updated_at": "2026-10-16T12:00:00Z",
-    } | changes
 
 
 class LaneConfig(unittest.TestCase):
@@ -2350,18 +2482,13 @@ class LaneEligibility(unittest.TestCase):
         number: int = 41,
         labels: list[str] | None = None,
         repository: str = REPO,
-        edited: Any = None,
-        renamed: Any = None,
     ) -> dict[str, Any]:
         names = [] if labels is None else labels
         return {
             "number": number,
-            "lastEditedAt": edited,
+            "lastEditedAt": None,
             "repository": {"nameWithOwner": repository},
             "labels": {"totalCount": len(names), "nodes": [{"name": n} for n in names]},
-            "timelineItems": {
-                "nodes": [] if renamed is None else [{"createdAt": renamed}]
-            },
         }
 
     def fake(
@@ -2372,20 +2499,12 @@ class LaneEligibility(unittest.TestCase):
         pr_labels: list[str] | None = None,
         closing: list[dict[str, Any]] | None = None,
         author: dict[str, str] | None = None,
-        comments: Any = None,
         base_ref: str = "main",
     ) -> GhFake:
         issues = [self.issue_node(labels=labels)] if closing is None else closing
         names = pr_labels or []
         gh = GhFake().install(self)
         gh.rest[f"repos/{REPO}"] = {"default_branch": "main"}
-        gh.rest[f"repos/{REPO}/commits/main"] = {"sha": DEFAULT_HEAD}
-        # Each closing issue's body-edit and title-change times, read fresh.
-        gh.graphql["PolicyIssueEdits"] = lambda v: {
-            "repository": {
-                "issue": next((i for i in issues if str(i["number"]) == v["n"]), None)
-            }
-        }
         gh.graphql["PolicyEligibility"] = {
             "repository": {
                 "pullRequest": {
@@ -2409,9 +2528,6 @@ class LaneEligibility(unittest.TestCase):
         }
         self.paths = ["docs/guide.md"] if files is None else files
         gh.rest[self.FILES] = [{"filename": p} for p in self.paths]
-        # The owner's ratification marker on the closing issue (#7725).
-        gh.rest[self.COMMENTS] = [ratification()] if comments is None else comments
-        gh.rest[TRUSTED_LIST] = file_payload(json.dumps(TRUSTED))
         return gh
 
     def eligibility(self, changed: int | None = None) -> Any:
@@ -2434,11 +2550,13 @@ class LaneEligibility(unittest.TestCase):
         result = self.eligibility()
         self.assertTrue(result.eligible, result.reason)
         self.assertEqual((result.work_class, result.issue), ("C2", 41))
-        # No label history is read: the fake answers no timeline call.
-        self.assertFalse(any(self.TIMELINE in " ".join(c) for c in gh.calls))
+        # No label history and no issue comment is read: the agent-ready
+        # label alone admitted the issue, and the fake answers neither call.
+        calls = [" ".join(c) for c in gh.calls]
+        self.assertFalse(any(self.TIMELINE in c or self.COMMENTS in c for c in calls))
 
     def test_a_class_label_on_the_issue_or_the_pr_is_ignored(self) -> None:
-        # The ratified issues still carrying these labels (#5981, #6821).
+        # The admitted issues still carrying these labels (#5981, #6821).
         for labels in (
             ["work-class: scoped"],
             ["Work-Class: Structural"],
@@ -2555,58 +2673,6 @@ class LaneEligibility(unittest.TestCase):
         )
         self.assertEqual(result.reason, "not-lane-authored")
 
-    def test_a_ratified_closing_issue_is_eligible(self) -> None:
-        self.fake()
-        self.assertTrue(self.eligibility().eligible)
-
-    def test_an_issue_the_owner_did_not_ratify_refuses(self) -> None:
-        # Each rule of ratification.mjs `findRatification`, one at a time.
-        for name, comments in (
-            ("no comment", []),
-            ("no marker", [ratification(body="Ratified.")]),
-            ("a quoted marker", [ratification(body=f"> {MARKER}")]),
-            ("edited", [ratification(updated_at="2026-10-16T12:05:00Z")]),
-            ("through an App", [ratification(performed_via_github_app={"id": 1})]),
-            ("an unlisted human", [ratification(user={"id": 1, "login": "x"})]),
-            ("a listed bot", [ratification(user={"id": 337595936})]),
-        ):
-            with self.subTest(name):
-                self.fake(comments=comments)
-                result = self.eligibility()
-                self.assertFalse(result.eligible)
-                self.assertEqual(result.reason, "not-ratified")
-
-    def test_one_ratifying_comment_among_others_is_enough(self) -> None:
-        self.fake(comments=[ratification(body="hi"), ratification(id=7)])
-        self.assertTrue(self.eligibility().eligible)
-
-    def test_unreadable_comments_or_trusted_list_refuse(self) -> None:
-        gh = self.fake()
-        gh.rest[self.COMMENTS] = 502
-        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
-        gh = self.fake()
-        gh.rest[TRUSTED_LIST] = file_payload('{"version": 2, "actors": []}')
-        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
-        # The list is read at the default branch's head: no head, no read.
-        gh = self.fake()
-        gh.rest[f"repos/{REPO}/commits/main"] = 502
-        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
-        gh = self.fake()
-        gh.rest[f"repos/{REPO}"] = 502
-        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
-
-    def test_the_trusted_list_is_read_at_the_default_branch_head(self) -> None:
-        # #7725 review: a human removed from the list on main no longer
-        # ratifies an older pull request whose base still lists them.
-        gh = self.fake()
-        gh.rest[TRUSTED_LIST] = file_payload(
-            json.dumps({"version": 1, "actors": TRUSTED["actors"][1:]})
-        )
-        gh.rest[TRUSTED_LIST.replace(DEFAULT_HEAD, SHA)] = file_payload(
-            json.dumps(TRUSTED)
-        )
-        self.assertEqual(self.eligibility().reason, "not-ratified")
-
     def test_a_pr_into_another_branch_refuses(self) -> None:
         self.fake(base_ref="release")
         self.assertEqual(self.eligibility().reason, "base-not-default:release")
@@ -2614,49 +2680,10 @@ class LaneEligibility(unittest.TestCase):
             policy.recheck_lane_issue(REPO, 7, issue=41), "base-not-default:release"
         )
 
-    def test_a_denied_actor_does_not_ratify(self) -> None:
-        # check-trusted-trigger.mjs: DENIED_ACTOR_IDS leave the ratifiers.
-        self.fake()
-        env = {policy.DENIED_ACTOR_IDS_ENV: f"1, {OWNER_ID}"}
-        with mock.patch.dict(policy.os.environ, env):
-            self.assertEqual(self.eligibility().reason, "not-ratified")
-        with mock.patch.dict(policy.os.environ, {policy.DENIED_ACTOR_IDS_ENV: "x"}):
-            self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
-        with mock.patch.dict(policy.os.environ, {policy.DENIED_ACTOR_IDS_ENV: "5"}):
-            self.assertTrue(self.eligibility().eligible)
-
-    def test_an_issue_edit_after_the_newest_ratification_refuses(self) -> None:
-        # The owner ratified the title and body as they stood then.
-        after, before = "2026-10-16T12:05:00Z", "2026-10-16T11:00:00Z"
-        for node, eligible in (
-            (self.issue_node(edited=after), False),
-            (self.issue_node(renamed=after), False),
-            (self.issue_node(edited="not a time"), False),
-            (self.issue_node(edited=before, renamed=before), True),
-            (self.issue_node(edited="2026-10-16T12:00:00Z"), True),
-        ):
-            with self.subTest(node=node):
-                self.fake(closing=[node])
-                result = self.eligibility()
-                self.assertIs(result.eligible, eligible, result.reason)
-                if not eligible:
-                    self.assertEqual(result.reason, "not-ratified")
-        # A later marker re-ratifies an edit made after the first.
-        later = ratification(
-            id=5, created_at="2026-10-16T13:00:00Z", updated_at="2026-10-16T13:00:00Z"
-        )
-        self.fake(
-            closing=[self.issue_node(edited=after)], comments=[ratification(), later]
-        )
-        self.assertTrue(self.eligibility().eligible)
-
-    def test_the_enqueue_recheck_reads_the_ratification_again(self) -> None:
-        self.fake(comments=[])
-        self.assertEqual(policy.recheck_lane_issue(REPO, 7, issue=41), "not-ratified")
-        self.fake(closing=[self.issue_node(renamed="2026-10-17T00:00:00Z")])
-        self.assertEqual(policy.recheck_lane_issue(REPO, 7, issue=41), "not-ratified")
+    def test_an_unreadable_default_branch_refuses(self) -> None:
         gh = self.fake()
-        gh.rest[self.COMMENTS] = 502
+        gh.rest[f"repos/{REPO}"] = 502
+        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
         reason = policy.recheck_lane_issue(REPO, 7, issue=41)
         self.assertTrue(str(reason).startswith("unreadable:"))
 
@@ -2905,6 +2932,127 @@ class LaneAssess(unittest.TestCase):
     def test_local_babysit_refuses_a_pr_merge_config(self) -> None:
         self.readable()
         self.assertEqual(self.assess().reason, "authority-unconfigured")
+
+
+MAIN_SHA = "c" * 40
+CONFIG_SHA = "d" * 40
+NEWEST_CONFIG = (
+    f"repos/{REPO}/commits?sha={SHA}"
+    "&path=docs%2Fconventions%2Fpr-pipeline.yaml&per_page=1"
+)
+
+
+class SharedPostMergeAnswer(unittest.TestCase):
+    """`assess(shared=...)`: the pr-merge run's one demotion, floor and
+    post-merge answer stands in for each candidate's own reads only while it
+    is bound to the default branch head, the base's pipeline-config commit,
+    the identity, self logins and lane, and is fresh. The expected decisions
+    are the fresh path's own (a pin of the reads it replaces)."""
+
+    readable = LaneAssess.readable
+    fake = Assess.fake
+    assess = Assess.assess
+    lane_assess = LaneAssess.lane_assess
+
+    def bound(self) -> GhFake:
+        gh = self.readable()
+        gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": MAIN_SHA}
+        gh.rest[NEWEST_CONFIG] = [{"sha": CONFIG_SHA}]
+        return gh
+
+    def shared(self, gate_: policy.PostMergeGate, **overrides: Any) -> Any:
+        fields: dict[str, Any] = {
+            "main_sha": MAIN_SHA,
+            "config_sha": CONFIG_SHA,
+            "identity": IDENTITY,
+            "self_logins": frozenset(),
+            "lane_merges_only": True,
+            "computed_at": policy.datetime.now(policy.UTC),
+            "demotion": policy.Demotion(False, None, ()),
+            "floor": policy.datetime.fromisoformat(ENABLED_AT),
+            "gate": gate_,
+        }
+        return policy.SharedPostMerge(**{**fields, **overrides})
+
+    def flight(self) -> mock.Mock:
+        patcher = mock.patch.object(
+            policy, "in_flight", return_value=policy.InFlight(True, None)
+        )
+        self.addCleanup(patcher.stop)
+        flight = patcher.start()
+        lane = mock.patch.object(
+            policy,
+            "lane_eligibility",
+            return_value=policy.Eligibility(True, None, "C2"),
+        )
+        lane.start()
+        self.addCleanup(lane.stop)
+        return flight
+
+    def decided(self, result: policy.UnattendedPolicy) -> tuple[Any, ...]:
+        details = {
+            k: v for k, v in (result.details or {}).items() if k != "postMergeShared"
+        }
+        return result.reason, result.enabled, result.promoted, details
+
+    def test_a_bound_answer_decides_as_the_fresh_reads_do(self) -> None:
+        verified = lambda merge: True  # noqa: E731
+        for answer in (gate("failure:canary#7708"), gate(verified=verified)):
+            with self.subTest(refusal=answer.refusal):
+                self.bound()
+                self.flight()
+                fresh = self.lane_assess(post_merge=lambda floor, who: answer)
+                self.bound()
+                flight = self.flight()
+                never = mock.Mock(side_effect=AssertionError("read fresh"))
+                with (
+                    mock.patch.object(policy, "read_demotion", never),
+                    mock.patch.object(policy, "enabled_since", never),
+                ):
+                    reused = self.lane_assess(
+                        post_merge=never, shared=self.shared(answer)
+                    )
+                self.assertEqual(self.decided(reused), self.decided(fresh))
+                self.assertEqual(reused.details["postMergeShared"], "used")
+                if answer.refusal is None:
+                    self.assertIs(flight.call_args.kwargs["verified"], verified)
+
+    def test_an_unbound_answer_is_not_used(self) -> None:
+        late = policy.datetime.now(policy.UTC) - policy.timedelta(minutes=31)
+        for overrides, rest, reason in (
+            ({}, {f"repos/{REPO}/commits/trunk": {"sha": "f" * 40}}, "main-moved"),
+            ({}, {f"repos/{REPO}/commits/trunk": 502}, "main-moved"),
+            ({}, {NEWEST_CONFIG: [{"sha": "f" * 40}]}, "config-differs"),
+            ({}, {NEWEST_CONFIG: 404}, "config-unreadable"),
+            ({"identity": "other[bot]"}, {}, "identity-differs"),
+            ({"self_logins": frozenset({"x[bot]"})}, {}, "self-logins-differ"),
+            ({"lane_merges_only": False}, {}, "lane-differs"),
+            ({"computed_at": late}, {}, "stale"),
+        ):
+            with self.subTest(reason=reason, rest=rest):
+                gh = self.bound()
+                gh.rest.update(rest)
+                self.flight()
+                seen: list[Any] = []
+                shared = self.shared(gate("failure:canary#1"), **overrides)
+                result = self.lane_assess(
+                    post_merge=lambda floor, who: seen.append(floor) or gate(),
+                    shared=shared,
+                )
+                self.assertEqual(result.details["postMergeShared"], f"unused:{reason}")
+                self.assertEqual(seen, [policy.datetime.fromisoformat(ENABLED_AT)])
+                self.assertIsNone(result.reason)
+
+    def test_without_an_answer_the_reads_run_as_before(self) -> None:
+        self.readable()
+        self.flight()
+        seen: list[Any] = []
+        result = self.lane_assess(
+            post_merge=lambda floor, who: seen.append(floor) or gate()
+        )
+        self.assertNotIn("postMergeShared", result.details)
+        self.assertEqual(seen, [policy.datetime.fromisoformat(ENABLED_AT)])
+        self.assertIsNone(result.reason)
 
 
 class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):

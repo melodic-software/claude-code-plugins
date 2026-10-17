@@ -241,6 +241,74 @@ const collect = steps.find((s) => s.name === "Collect the issue outcome");
 say(outcomeWriters.length === 1 && collect !== undefined
   && [...outcomeWriters, collect].every((s) => /steps\.config\.outputs\.kind == 'skill'/.test(String(s.if ?? ""))),
   "issue mode collects and uploads the outcome artifact only in a skill run");
+
+// Issue mode: the check for an earlier run's work decides before the mint,
+// with the job's read-only token, and a stop or reuse skips the mint.
+const prior = byId("issue-prior");
+const priorAt = at((s) => s.id === "issue-prior");
+say(priorAt >= 0 && priorAt < recheck && priorAt < mint && prior.env?.GH_TOKEN === "${{ github.token }}"
+  && !/lane-token/.test(JSON.stringify(prior)),
+  "the earlier-work check runs before the head re-read and the mint, with the job's read-only token and no lane token");
+say(/steps\.config\.outputs\.kind == 'skill'/.test(String(prior.if ?? "")) && /inputs\.issue-number != ''/.test(String(prior.if ?? ""))
+  && /\.base\/\.github\/scripts\/work-resolve-issue\/report-outcome\.mjs --find-prior/.test(prior.run ?? ""),
+  "the earlier-work check runs only for an issue-mode skill, from the base copy");
+say(/steps\.issue-prior\.outputs\.proceed != 'false'/.test(String(byId("head-recheck").if ?? "")),
+  "an earlier run's work skips the mint");
+say(wf.jobs.run.outputs["reuse-branch"] === "${{ steps.issue-prior.outputs.reuse-branch }}",
+  "the reuse-branch output comes only from the runner's earlier-work check");
+const first = steps[0];
+say(first.env?.REUSE_BRANCH === "${{ inputs.reuse-branch }}"
+  && (first.run ?? "").includes("[[ $REUSE_BRANCH =~ ^work-resolve-issue/issue-${ISSUE_NUMBER}-[1-9][0-9]*-[1-9][0-9]*$ ]]"),
+  "the first step refuses a reuse-branch input that is not this issue's lane branch");
+say(byId("act-script").env?.REUSE_BRANCH === "${{ inputs.reuse-branch }}", "the script step gets the checked reuse-branch input");
+
+// Issue mode, reuse: the summary pass is its own job after the run job,
+// started only by the earlier-work check's reuse-branch (which skips the mint).
+// It holds no id-token, reads the branch as data, and no step can turn it red.
+const sjob = wf.jobs.summary ?? {};
+const ssteps = sjob.steps ?? [];
+const sById = (id) => ssteps.find((s) => s.id === id) ?? {};
+const summaryIds = ["summary-data", "summary-models", "summary-prompt", "summary-run", "summary-collect"];
+say(!steps.some((s) => summaryIds.includes(s.id) || /claude-code-action/.test(s.uses ?? "") && s.id !== "act-skill"),
+  "the run job, which holds id-token: write, runs no summary step and no model step but the skill");
+say(sjob.needs === "run" && /needs\.run\.outputs\.reuse-branch != ''/.test(String(sjob.if ?? "")) && /!cancelled\(\)/.test(String(sjob.if ?? "")),
+  "the summary job runs after the run job, only on its reuse-branch output");
+say(JSON.stringify(sjob.permissions) === JSON.stringify({ contents: "read" }),
+  "the summary job holds contents: read and nothing else, no id-token");
+say(wf.jobs.run.outputs?.["reuse-branch"] === "${{ steps.issue-prior.outputs.reuse-branch }}",
+  "the run job's reuse-branch output is the earlier-work check's");
+say(ssteps.length > 0 && ssteps.every((s) => s["continue-on-error"] === true),
+  "every summary job step is continue-on-error, so a failed pass turns no job red");
+say(summaryIds.every((id) => sById(id).id === id) && !/lane-token/.test(JSON.stringify(sjob)),
+  "the summary job has every summary step and reads no lane token");
+const sBase = ssteps.find((s) => /actions\/checkout/.test(s.uses ?? "")) ?? {};
+say(sBase.with?.ref === "${{ needs.run.outputs.base-sha }}" && sBase.with?.["persist-credentials"] === false
+  && ssteps.filter((s) => /actions\/checkout/.test(s.uses ?? "")).length === 1,
+  "the summary job checks out only the run job's trusted base, without persisted credentials");
+const summaryData = sById("summary-data");
+say(summaryData.env?.GITHUB_TOKEN === "${{ github.token }}" && /GIT_CONFIG_GLOBAL=\/dev\/null/.test(summaryData.run ?? "")
+  && /--filter=blob:none/.test(summaryData.run ?? "")
+  && /diff --no-ext-diff --no-textconv/.test(summaryData.run ?? "") && !/checkout|worktree|npm |bash "\$SRC|node "\$SRC/.test(summaryData.run ?? ""),
+  "the summary data step fetches the branch as objects with the read-only token and diffs it without running anything from it");
+const summaryRun = sById("summary-run");
+const summaryArgs = String(sById("summary-prompt").run ?? "");
+say(String(summaryRun.uses ?? "") === String(skill.uses ?? "") && summaryRun.with?.github_token === "${{ github.token }}"
+  && !("use_commit_signing" in (summaryRun.with ?? {})) && !("plugins" in (summaryRun.with ?? {}))
+  && !("plugin_marketplaces" in (summaryRun.with ?? {})) && sById("isolate").uses === "./.base/.github/actions/setup-runner-isolation"
+  && String(summaryRun.if ?? "") === "steps.isolate.outcome == 'success'",
+  "the summary model step runs only after runner isolation, with the job's read-only token, no commit signing and no plugins");
+say(/--setting-sources user/.test(String(summaryRun.with?.claude_args ?? "")) && /--permission-mode dontAsk/.test(String(summaryRun.with?.claude_args ?? ""))
+  && /--allowedTools \\"Read\(\/\$DATA\/\*\*\)\\"/.test(summaryArgs) && /denied="Bash,Edit,Write,/.test(summaryArgs)
+  && /mcp__github_file_ops/.test(summaryArgs) && /--json-schema/.test(summaryArgs) && /openssl rand -hex/.test(summaryArgs),
+  "the summary model reads the data directory and nothing else, under dontAsk, and returns structured output");
+const summaryCollect = sById("summary-collect");
+say(summaryCollect.env?.REUSE_BRANCH === "${{ needs.run.outputs.reuse-branch }}"
+  && summaryCollect.env?.TIP === "${{ steps.summary-data.outputs.tip }}" && /try fromjson catch null/.test(summaryCollect.run ?? ""),
+  "the summary file binds the model's output to the runner's branch and tip");
+const summaryDownload = steps.find((s) => s.name === "Download the reused branch's summary");
+say(/inputs\.reuse-branch != ''/.test(String(summaryDownload?.if ?? "")) && /steps\.config\.outputs\.kind == 'script'/.test(String(summaryDownload?.if ?? ""))
+  && summaryDownload?.["continue-on-error"] === true,
+  "only a reuse's report-outcome run downloads the summary, and a missing one fails nothing");
 EOF
 )
 if [[ -z "$results" ]]; then

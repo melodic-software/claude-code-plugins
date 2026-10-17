@@ -164,7 +164,18 @@ candidates; any other link is a row the handoff marks `skipped` with that reason
 
 ## Phase 3. Digest fan-out
 
-One subagent per digest unit, each writing `<work-root>/digests/NN-slug.md` with this fixed
+One subagent per digest unit, dispatched in waves that fit the session's free slots: the
+concurrent subagent limit is shared with every subagent the session runs, including sibling
+runs and this run's own verifiers. A spawn the harness refuses for that limit is handled by the
+subagent-death ladder in [context/pipeline-hardening.md](context/pipeline-hardening.md#subagent-death--usage-limit-ladder),
+not retried at once and not collapsed into inline writing.
+
+- **Pointer**: <https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit>
+- **As of**: 2026-10-17
+- **Recheck trigger**: that section changes what the limit counts or what the refusal tells
+  Claude to do.
+
+Each unit writes `<work-root>/digests/NN-slug.md` with this fixed
 structure: Summary / Key claims (verbatim) / Prompt snippets (exact) / Implications for daily
 use / Candidate artifacts / Open questions for interview. Digest filenames derive from section
 headings, untrusted content, so apply the same slug guard as the work root: slugify to
@@ -181,6 +192,10 @@ path stays inside `<work-root>/digests/` before writing.
 - Each brief carries the untrusted-source rule and ONLY the source section plus SOURCES.md context, not this conversation.
   When the matched profile defines applicability evidence rules, the brief names them, including
   the corpora an absence or blog-only claim must search, so no agent picks its own search set.
+- **Helper and scratch files** (build scripts, the cross-digest reconcile script) go under
+  `<work-root>/scratch/<role>-<unit-or-round>/`, never the session scratchpad, which every
+  subagent in the session shares and sibling runs overwrite each other's files in. Every brief
+  names its own directory.
 - **Exact bytes:** the Edit and Write tools take their text through a JSON parameter, and a past
   run found every agent edit writing a source's literal `\uXXXX` escape as the decoded
   character, so do not use them for those bytes. Write those bytes with a script file run as
@@ -206,13 +221,19 @@ digest presented without it is unverified, which is the state this phase exists 
 From the pin until every verifier arm has returned, nothing edits the slice, and that includes
 the orchestrating session itself. Hold corrections until the arms are back, apply them, re-pin,
 and re-verify what changed. A parent edit during a run leaves the arm auditing bytes that no
-longer exist, and its verdict comes back BLOCKED.
+longer exist, and its verdict comes back BLOCKED. The freeze covers only the pinned set
+(`scripts/pin-manifest.py`), so an arm may write under `<work-root>/scratch/` during
+verification.
 
 ## Phase 5. Interview handoff
 
-Author `<work-root>/interview-handoff.md`: a validation-answer-set-shaped artifact. One entry
-per open question or candidate artifact surfaced by the digests, each carrying the digest
-citation, the verifiers' verdict state, and a recommended disposition.
+Author `<work-root>/interview-handoff.md`: a validation-answer-set-shaped artifact. It opens
+with a de-duplicated **Decisions** section holding the questions the user must decide, one entry
+each with a recommendation. Every other open question or candidate artifact surfaced by the
+digests (route-elsewhere, data to confirm) goes in an **Appendix ledger**, one entry each. Every
+entry carries the digest citation, the verifiers' verdict state, and a recommended disposition.
+When a run follows other pages' runs, the decision sections merge across slices while each
+ledger stays with its slice.
 
 The handoff also carries a relied-on-links table, one row per SOURCES.md relied-on link, with
 columns link, relied on by (digest unit and claim citation), disposition, and evidence:
@@ -254,7 +275,8 @@ only when a THIRD profile lands (Rule of Three). Two points make a line, not an 
 
 ## What this skill does NOT do
 
-- **Does not crawl.** One page per run; a queue of pages is N runs.
+- **Does not crawl.** One page per run; a queue of pages is N runs, and N parallel runs share
+  one session's subagent slots (see Phase 3).
 - **Does not commit or graduate.** Slices live under the untracked work root; moving one into a
   tracked corpus repo is a separate human-gated decision.
 - **Does not build artifacts from findings.** It ends at the interview handoff.

@@ -404,6 +404,15 @@ describe("writeEnvelopeTranscriptArtifacts", () => {
     expect(readme).not.toContain("metadataId0");
   });
 
+  it("a 0-entry post's README says no video entries and lists no transcript", async () => {
+    const { files } = await writeWithFakeFs(
+      createAcquisitionEnvelope({ entries: [], metadata, workDir: "/w" }),
+    );
+    const readme = files[path.join(sliceDir, "README.md")];
+    expect(readme).toContain("No video entries were found");
+    expect(readme).not.toContain("source/transcript.txt");
+  });
+
   it("captions+repair repairs proper nouns from the post-text lexicon", async () => {
     const corruptedVtt = `WEBVTT
 

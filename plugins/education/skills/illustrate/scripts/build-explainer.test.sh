@@ -486,6 +486,35 @@ check("a backslash in model text cannot cancel a bracket escape", parity.split("
 writeFileSync(`${work}/blocker`, "file");
 const unpaired = run(["--record", `${work}/u/r.md`, "--page", `${work}/blocker/sub/p.html`], json);
 check("a failed page write leaves no unpaired record", unpaired.status === 2 && !existsSync(`${work}/u/r.md`), unpaired.stderr);
+const withSlug = (slug) => JSON.stringify({ ...model, slug });
+writeFileSync(`${work}/slug-ok.json`, withSlug("session-resume-2"));
+const slugOk = run(["--out-dir", `${work}/od`, "--model", `${work}/slug-ok.json`], "");
+check(
+  "--out-dir derives the record and page paths from the model slug",
+  slugOk.status === 0 &&
+    readFileSync(`${work}/od/records/session-resume-2.md`, "utf8") === record &&
+    readFileSync(`${work}/od/views/session-resume-2.html`, "utf8") === page,
+  slugOk.stderr,
+);
+writeFileSync(`${work}/slug-md.json`, withSlug("md-only"));
+const slugMd = run(["--out-dir", `${work}/odm`, "--format", "markdown", "--model", `${work}/slug-md.json`], "");
+check("--format markdown writes the record alone", slugMd.status === 0 && existsSync(`${work}/odm/records/md-only.md`) && !existsSync(`${work}/odm/views`), slugMd.stderr);
+for (const [name, slug] of [
+  ["a command substitution", "$(touch pwned)"],
+  ["backticks", "`touch pwned`"],
+  ["an uppercase letter", "Bad"],
+  ["a path separator", "../escape"],
+  ["a space", "two words"],
+  ["an empty string", ""],
+  ["a non-string", 7],
+  ["a missing slug", undefined],
+]) {
+  writeFileSync(`${work}/slug-bad.json`, withSlug(slug));
+  const refused = run(["--out-dir", `${work}/odb`, "--model", `${work}/slug-bad.json`], "");
+  check(`a slug with ${name} exits 2 on the slug and writes nothing`, refused.status === 2 && /slug/.test(refused.stderr) && !existsSync(`${work}/odb`), refused.stderr);
+}
+check("--out-dir with --record exits 2", run(["--out-dir", `${work}/od2`, "--record", `${work}/r2.md`, "--model", `${work}/slug-ok.json`], "").status === 2);
+check("--out-dir with a bad --format exits 2", run(["--out-dir", `${work}/od3`, "--format", "html", "--model", `${work}/slug-ok.json`], "").status === 2);
 writeFileSync(`${work}/page.html`, page);
 check("--check accepts a builder page", run(["--check", `${work}/page.html`]).status === 0);
 writeFileSync(`${work}/hand.html`, `<!doctype html><html><head></head><body><h1>${hostile[0]}</h1></body></html>`);
@@ -498,6 +527,9 @@ check(
   "the skill routes the page through the builder",
   skill.includes("build-explainer.mjs") && skill.includes("Do not hand-write the HTML"),
 );
+const buildCommand = skill.match(/```bash\n([\s\S]*?)```/)?.[1] ?? "<slug>"; // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+check("the skill's build command carries no model-chosen slug", !/<slug>/.test(buildCommand) && skill.includes("--out-dir"));
+check("the skill's build command reads a per-session model file", /--model "[^"]*\$\{CLAUDE_SESSION_ID\}[^"]*"/.test(buildCommand), buildCommand); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 check("the skill states the short-label rule", skill.includes("Labels are capped at 40 characters"));
 const kindRows = ["flow", "stack", "hub", "timeline", "compare", "before-after"].filter((kind) => skill.includes(`| \`${kind}\` |`));
 check("the skill documents every kind the builder accepts", kindRows.length === 6, kindRows.join(","));

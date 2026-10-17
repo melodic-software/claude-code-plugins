@@ -281,8 +281,8 @@ class Distillation(unittest.TestCase):
         self.assertNotIn("tool_results", u)
 
     def test_user_bare_string_in_content_list_is_a_human_message(self):
-        """`content: ["next request"]` is a human prompt, the shape retro's own
-        parser counts as one (`parse_transcript.py`). Extracting only dict `text`
+        """`content: ["next request"]` is a human prompt for the observer, though
+        the shared reader skips the shape. Extracting only dict `text`
         blocks emitted neither `human` nor `turn_boundary`, so in a session with
         no `stop_hook_summary` records the analysis prompt's "same user turn"
         precondition saw no boundary at all and calls answering prompts on either
@@ -1377,6 +1377,48 @@ class LedgerAndRetention(unittest.TestCase):
                 total,
                 f"expected {total} distilled events, got {len(lines)} (dupes/underread?)",
             )
+
+    def test_tail_decodes_through_shared_reader_and_keeps_streamed_message_whole(self):
+        # One streamed API message written as two records yields two events that
+        # share one `mid` (so downstream counts the message once); a bad line and a
+        # non-object line emit nothing, and the bad line is counted in the status.
+        def tool_use(call_id: str) -> str:
+            return json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "id": "msg_stream",
+                        "content": [
+                            {"type": "tool_use", "id": call_id, "name": "Bash", "input": {}}
+                        ],
+                    },
+                }
+            )
+
+        with tempfile.TemporaryDirectory() as d:
+            ob = make_observer(
+                Path(d),
+                analysis=False,
+                idle_seconds=0.4,
+                poll_seconds=0.1,
+                idle_confirm_seconds=0.5,
+                max_seconds=8.0,
+            )
+            ob.transcript.write_text(
+                "\n".join([tool_use("c1"), "{not json", "[1]", tool_use("c2")]) + "\n",
+                encoding="utf-8",
+            )
+            ob._tail_until_idle()
+            events = [
+                json.loads(ln)
+                for ln in ob.obs_path.read_text(encoding="utf-8").splitlines()
+                if ln
+            ]
+            self.assertEqual(len(events), 2)
+            self.assertEqual(len({e["mid"] for e in events}), 1)
+            status = json.loads(ob.status_path.read_text(encoding="utf-8"))
+            self.assertEqual(status["lines_observed"], 2)
+            self.assertEqual(status["parse_errors"], 2)
 
     def test_idle_confirmation_resumes_when_transcript_grows_again(self):
         rec = '{"type":"user","message":{"content":"x"}}\n'

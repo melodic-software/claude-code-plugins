@@ -1379,7 +1379,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
         }
         reads = [
             ("_graphql", {"repository": {"pullRequest": node}}),
-            ("_ratification_refusal", None),
+            ("_base_refusal", None),
         ]
         if not real_denied_paths:
             reads.append(("_denied_path_refusal", None))
