@@ -270,6 +270,16 @@ jobs:
       dependency-run-sha256: ${{ steps.dependency-collect.outputs.run-sha256 }}
       dependency-run-attempt: ${{ steps.dependency-collect.outcome == 'success' && github.run_attempt || '' }}
       issue-run-started: ${{ inputs.issue-number != '' && steps.lane-token.outcome == 'success' }}
+      # The lane record, from steps that read the execution file after the
+      # skill. A forged limit stop can only restart the lane after a reset
+      # limit-stop.mjs and report-outcome clamp to at least an hour away, at
+      # most MAX_LIMIT_STOPS times.
+      lane-class: ${{ steps.lane-record.outputs.failure-class }}
+      lane-resets: ${{ steps.lane-record.outputs.resets-at }}
+      lane-turns: ${{ steps.lane-record.outcome == 'success' && steps.act-turns.outputs.turns || '' }}
+      lane-max-turns: >-
+        ${{ steps.lane-record.outcome == 'success'
+        && (steps.config.outputs.max-turns || inputs.default-max-turns) || '' }}
       # A gate skill succeeds only on a `pass` verdict, a skill that took no
       # model turn fails, and a skill whose commits could not be moved onto
       # the PR branch fails. In merge-base mode a clean merge skips the skill
@@ -997,12 +1007,34 @@ jobs:
               .write();
             // JSON escapes newlines, so no field can start a workflow command.
             core.info(JSON.stringify({ subtype: diag.subtype, is_error: diag.is_error, num_turns: diag.num_turns, models: diag.models.length }));
+            if (Number.isSafeInteger(diag.num_turns) && diag.num_turns >= 0) {
+              core.setOutput('turns', String(diag.num_turns));
+            }
             if (!(diag.num_turns > 0) || diag.models.length === 0) {
               core.setFailed(
                 'no-model-turn: the skill ended without a model turn, so it did nothing; ' +
                   'the step summary and the skill-reply artifact hold the result fields and any local-command stderr',
               );
             }
+
+      # The lane record: the run's failure class and, on a usage limit, when it
+      # resets, read from the execution file's structured fields by
+      # ci-workflows' classifier, never from model text. The report job copies
+      # it onto the posted check run, and issue mode writes it into lane.json,
+      # where the limit-stop restarts read it.
+      # TODO: repin to the ci-workflows release that ships ci-workflows#755.
+      - name: Record the lane outcome
+        id: lane-record
+        if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@1231f3c7c3fe2989405971c143a99821c2f92f6d # ci-workflows#755 head
+        with:
+          outcome: ${{ steps.act-skill.outcome }}
+          execution-file: >-
+            ${{ steps.act-skill.outputs.execution_file
+            || format('{0}/claude-execution-output.json', runner.temp) }}
+          lane: ${{ inputs.lane }}
+          credential: CLAUDE_CODE_OAUTH_TOKEN
+          max-turns: ${{ steps.config.outputs.max-turns || inputs.default-max-turns }}
 
       - name: Upload the skill's final reply
         if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
@@ -1514,8 +1546,7 @@ jobs:
           if-no-files-found: error
 
       # Issue mode: the lane branch is kept only when the skill committed to
-      # it, and the report-outcome run reads its name from lane.json, written
-      # here after the skill ended.
+      # it; the collect step writes its name into lane.json.
       - name: Keep the issue branch only when it holds commits
         id: issue-branch
         if: always() && inputs.issue-number != '' && steps.lane-branch.outputs.branch != ''
@@ -1523,13 +1554,11 @@ jobs:
         env:
           BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
           LANE_BRANCH: ${{ steps.lane-branch.outputs.branch }}
-          OUT_DIR: ${{ runner.temp }}/work-outcome
         with:
           github-token: ${{ steps.lane-token.outputs.token }}
           retries: 0
           script: |
-            const fs = require('fs');
-            const { BASE_SHA, LANE_BRANCH, OUT_DIR } = process.env;
+            const { BASE_SHA, LANE_BRANCH } = process.env;
             const ref = `heads/${LANE_BRANCH}`;
             const tip = (await github.request('GET /repos/{owner}/{repo}/git/ref/{ref}', { ...context.repo, ref })).data.object.sha;
             let branch = LANE_BRANCH;
@@ -1540,9 +1569,7 @@ jobs:
             } else {
               core.info(`The skill's commits are on ${LANE_BRANCH} at ${tip}`);
             }
-            fs.mkdirSync(OUT_DIR, { recursive: true });
-            fs.rmSync(`${OUT_DIR}/lane.json`, { force: true });
-            fs.writeFileSync(`${OUT_DIR}/lane.json`, `${JSON.stringify({ branch })}\n`);
+            core.setOutput('branch', branch);
 
       # The skill's outcome file is model output, copied as data and capped.
       # Skill runs only: the report-outcome run must not overwrite the
@@ -1554,19 +1581,20 @@ jobs:
         env:
           SCRATCH_OUTCOME: ${{ runner.temp }}/lane-scratch/work-outcome.json
           OUT_DIR: ${{ runner.temp }}/work-outcome
-          KEEP_OUTCOME: ${{ steps.issue-branch.outcome }}
+          # lane.json holds only runner step outputs: the kept branch and the
+          # lane record. Anything else in the directory could have been
+          # planted during the run.
+          LANE_BRANCH: ${{ steps.issue-branch.outcome == 'success' && steps.issue-branch.outputs.branch || '' }}
+          LANE_CLASS: ${{ steps.lane-record.outputs.failure-class }}
+          LANE_RESETS: ${{ steps.lane-record.outputs.resets-at }}
         run: |
           mkdir -p "$OUT_DIR"
-          rm -f "$OUT_DIR/work-outcome.json"
+          rm -f "$OUT_DIR/work-outcome.json" "$OUT_DIR/lane.json"
           if [ -f "$SCRATCH_OUTCOME" ] && [ ! -L "$SCRATCH_OUTCOME" ]; then
             head -c 65536 "$SCRATCH_OUTCOME" >"$OUT_DIR/work-outcome.json"
           fi
-          # Only the keep step's own write names a branch; anything else in
-          # the directory could have been planted during the run.
-          if [ "$KEEP_OUTCOME" != success ]; then
-            rm -f "$OUT_DIR/lane.json"
-            echo '{"branch":""}' >"$OUT_DIR/lane.json"
-          fi
+          jq -n --arg branch "$LANE_BRANCH" --arg class "$LANE_CLASS" --arg resets "$LANE_RESETS" \
+            '{branch: $branch, class: $class, resets: $resets}' >"$OUT_DIR/lane.json"
 
       - name: Upload the issue outcome
         if: >-
@@ -1909,6 +1937,10 @@ jobs:
           pr-head-sha: ${{ steps.pr-head.outputs.sha }}
           can-commit: ${{ needs.run.outputs.can-commit }}
           all-verified: ${{ steps.signed.outputs.all-verified }}
+          lane-class: ${{ needs.run.outputs.lane-class }}
+          lane-resets: ${{ needs.run.outputs.lane-resets }}
+          lane-turns: ${{ needs.run.outputs.lane-turns }}
+          lane-max-turns: ${{ needs.run.outputs.lane-max-turns }}
           verdict-path: ${{ runner.temp }}/verdict/verdict.json
           base-path: .base
           head-sha-fallback: ${{ github.event.pull_request.head.sha || github.sha }}

@@ -347,7 +347,7 @@ async function restartLimited({ github, repo, ratifiers, admission, bot, now, ca
         const base = `/repos/${repo}/issues/${issue.number}`;
         await github("POST", `${base}/labels`, { labels: [HUMAN_LABEL] });
         await github("POST", `${base}/comments`, {
-          body: `The usage limit stopped the work-resolve-issue lane on this issue ${escalate} times since a person last added \`${LABEL}\`, so work-unblock stops restarting it. To try again, remove \`${HUMAN_LABEL}\`, then remove and add \`${LABEL}\`.`,
+          body: `The usage limit stopped the work-resolve-issue lane on this issue ${escalate} times since a person last added \`${LABEL}\`, so work-unblock stops restarting it. To try again, remove \`${HUMAN_LABEL}\`, then remove and add \`${LABEL}\`: adding it starts the lane now and resets this count. After a person removes \`${LABEL}\`, work-unblock never adds it back when a blocker closes, so add it yourself whenever this issue should run again.`,
         });
         console.log(`label-unblocked: #${issue.number} handed to a person: ${reason}`);
         continue;

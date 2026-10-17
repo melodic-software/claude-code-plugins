@@ -251,6 +251,16 @@ PR branch, or when its merge commit failed or was not made; in `prepare: merge-b
 that skipped the skill is a success once its commit is promoted. These checks are steps that run
 after the skill.
 
+The write file also outputs the lane record of a skill run: `lane-class` and `lane-resets`, the
+failure class and usage-limit reset that ci-workflows' `report-lane-outcome` reads from the
+execution file's structured fields, and `lane-turns` and `lane-max-turns`, the turns taken and the
+cap. They come from steps after the skill. The report job passes them to `report-check-run`, which
+checks each against a fixed shape and posts them as one annotation on the check run; a
+`class=rate-limit` annotation is the limit stop the pr-unblock dispatchers read. In issue mode the
+same `class` and `resets` go into `lane.json` beside the kept branch, for report-outcome's
+`limited` exit. A forged limit stop can only restart the lane, at least an hour later and a
+bounded number of times.
+
 ### Skill activities
 
 The prompt is `/<plugin>:<skill> <args>`, followed, for an activity with the `changed-paths`

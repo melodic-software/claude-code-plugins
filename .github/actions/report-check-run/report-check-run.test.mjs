@@ -109,6 +109,24 @@ test("a valid verdict POSTs one completed check run with the contract body", asy
   );
 });
 
+test("a lane record from env POSTs as the check run's one annotation", async () => {
+  const { calls } = await run({
+    ACT_OUTCOME: "failure",
+    LANE_CLASS: "rate-limit",
+    LANE_RESETS: "2026-10-17T15:30:00Z",
+    LANE_TURNS: "3",
+    LANE_MAX_TURNS: "30",
+  });
+  assert.equal(calls[0].body.conclusion, "failure");
+  const [annotation] = calls[0].body.output.annotations;
+  assert.match(annotation.message, /class=rate-limit resets=2026-10-17T15:30:00Z turns=3 max-turns=30\)/);
+});
+
+test("no lane record POSTs no annotations", async () => {
+  const { calls } = await run();
+  assert.equal(calls[0].body.output.annotations, undefined);
+});
+
 test("an absent verdict file POSTs failure on the env head", async () => {
   const { code, calls } = await run({
     VERDICT_PATH: path.join(dir, "missing.json"),
