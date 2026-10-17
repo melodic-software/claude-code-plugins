@@ -32,7 +32,7 @@ import re
 import sys
 import tempfile
 import urllib.request
-from collections.abc import Callable, Collection, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -1045,13 +1045,6 @@ ELIGIBILITY = (
     "closingIssuesReferences(first:10){totalCount nodes{number lastEditedAt "
     "repository{nameWithOwner} labels(first:100){totalCount nodes{name}}}}}}}"
 )
-# When an issue's body was last edited and its title last changed
-# (check-trusted-trigger.mjs ISSUE_EDITS_QUERY).
-ISSUE_EDITS = (
-    "query PolicyIssueEdits($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
-    "issue(number:$n){lastEditedAt timelineItems(itemTypes:[RENAMED_TITLE_EVENT],last:1)"
-    "{nodes{... on RenamedTitleEvent{createdAt}}}}}}"
-)
 
 
 @dataclass(frozen=True)
@@ -1354,197 +1347,13 @@ def _foreign_refusal(pr: dict[str, Any], owner: str) -> str | None:
 # is read. The diff-derived C2 checks in the risk score still apply.
 LANE_CLASS = "C2"
 
-# The owner's ratification of an issue's admission, ported from
-# .github/actions/resolve-config/ratification.mjs (tests/test_ratification_sync.py
-# runs both): the marker on a line of its own, where a line ends at any
-# JavaScript line terminator and the date's digits are ASCII.
-TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
-RATIFICATION_LINE = re.compile(
-    r"<!-- admission: admitted when unblocked, owner batch ratification "
-    r"[0-9]{4}-[0-9]{2}-[0-9]{2} -->"
-)
-_JS_LINE_BREAK = re.compile("[\n\r  ]")
 
-
-def find_ratification(
-    comments: Sequence[Any], ratifiers: Collection[int]
-) -> dict[str, Any] | None:
-    """The first comment that ratifies the issue, or None (`findRatification`):
-    the marker line, a listed human's id, not through a GitHub App, and never
-    edited (`updated_at` equals a string `created_at`)."""
-    for comment in comments:
-        if not isinstance(comment, dict):
-            continue
-        body = comment.get("body")
-        user = comment.get("user")
-        user_id = user.get("id") if isinstance(user, dict) else None
-        created = comment.get("created_at")
-        if (
-            isinstance(body, str)
-            and any(
-                RATIFICATION_LINE.fullmatch(line) for line in _JS_LINE_BREAK.split(body)
-            )
-            and isinstance(user_id, int)
-            and not isinstance(user_id, bool)
-            and user_id in ratifiers
-            and comment.get("performed_via_github_app") is None
-            and isinstance(created, str)
-            and comment.get("updated_at") == created
-        ):
-            return comment
-    return None
-
-
-def _trusted_humans(owner: str, name: str, ref: str) -> frozenset[int]:
-    """The trusted-actor list's human ids at `ref`, under the shape
-    check-trusted-trigger.mjs `loadTrustedList` enforces; any other shape, or
-    no list, raises."""
-    text = _file_at(owner, name, TRUSTED_ACTORS_PATH, ref)
-    try:
-        listing = json.loads(text) if text is not None else None
-    except ValueError as exc:
-        raise PolicyReadError(f"trusted-actor list unreadable: {exc}") from exc
-    actors = listing.get("actors") if isinstance(listing, dict) else None
-    if (
-        not isinstance(listing, dict)
-        or sorted(listing) != ["actors", "version"]
-        or listing.get("version") != 1
-        or isinstance(listing.get("version"), bool)
-        or not isinstance(actors, list)
-    ):
-        raise PolicyReadError("trusted-actor list does not match its schema")
-    humans = set()
-    for actor in actors:
-        actor_id = actor.get("id") if isinstance(actor, dict) else None
-        if (
-            not isinstance(actor, dict)
-            or sorted(actor) != ["id", "kind", "login"]
-            or not isinstance(actor_id, int)
-            or isinstance(actor_id, bool)
-            or actor_id < 1
-            or not isinstance(actor.get("login"), str)
-            or actor.get("kind") not in ("human", "bot")
-        ):
-            raise PolicyReadError("trusted-actor entry does not match its schema")
-        if actor["kind"] == "human":
-            humans.add(actor_id)
-    return frozenset(humans)
-
-
-# The ECMAScript date time string format with an explicit offset, or a bare
-# date (UTC). JavaScript also reads other forms, some as local time; this
-# port reads none of them, so such a time refuses.
-_ES_TIME = re.compile(
-    r"([+-][0-9]{6}|[0-9]{4})(?:-([0-9]{2})(?:-([0-9]{2}))?)?"
-    r"(?:T([0-9]{2}):([0-9]{2})(?::([0-9]{2})(?:\.([0-9]{1,3})[0-9]*)?)?"
-    r"(Z|[+-][0-9]{2}:[0-9]{2}))?"
-)
-_NAN = float("nan")
-
-
-def _time_of(value: Any) -> float:
-    """Milliseconds since the epoch, as check-trusted-trigger.mjs `timeOf`
-    (`Date.parse` on a string), or NaN for anything it does not read."""
-    match = _ES_TIME.fullmatch(value) if isinstance(value, str) else None
-    if match is None or value.startswith("-000000"):
-        return _NAN
-    year, month, day, hour, minute, second, millis, zone = match.groups()
-    if hour is not None and zone is None:
-        return _NAN  # JavaScript reads it as local time
-    try:
-        at = datetime(
-            int(year),
-            int(month or 1),
-            int(day or 1),
-            int(hour or 0),
-            int(minute or 0),
-            int(second or 0),
-            int((millis or "0").ljust(3, "0")) * 1000,
-            tzinfo=UTC,
-        )
-    except ValueError:
-        return _NAN
-    offset = 0
-    if zone not in (None, "Z"):
-        hours, minutes = int(zone[1:3]), int(zone[4:6])
-        if hours > 23 or minutes > 59:
-            return _NAN
-        offset = (hours * 60 + minutes) * (1 if zone[0] == "+" else -1)
-    epoch = datetime(1970, 1, 1, tzinfo=UTC)
-    return ((at - epoch).total_seconds() - offset * 60) * 1000
-
-
-def ratified(
-    comments: Sequence[Any],
-    humans: Collection[int],
-    denied: Collection[int],
-    issue: Any,
-) -> bool:
-    """Whether the issue stands ratified, as check-trusted-trigger.mjs
-    `checkRatifiedAppLabel` decides it at resolve-issue's start: a comment
-    `find_ratification` accepts from a listed human outside `denied`, and no
-    body edit (`lastEditedAt`) or title change (the newest
-    `RenamedTitleEvent`) after the newest such comment. An unreadable time
-    refuses."""
-    ratifiers = frozenset(humans) - frozenset(denied)
-    newest = None
-    for comment in comments:
-        if find_ratification([comment], ratifiers) is None:
-            continue
-        if newest is None or _time_of(comment.get("created_at")) > _time_of(
-            newest.get("created_at")
-        ):
-            newest = comment
-    if newest is None or not isinstance(issue, dict):
-        return False
-    at = _time_of(newest.get("created_at"))
-    timeline = issue.get("timelineItems")
-    nodes = timeline.get("nodes") if isinstance(timeline, dict) else None
-    edits = [issue.get("lastEditedAt")] + [
-        node.get("createdAt") if isinstance(node, dict) else None
-        for node in (nodes if isinstance(nodes, list) else [])
-    ]
-    return all(edit is None or _time_of(edit) <= at for edit in edits)
-
-
-DENIED_ACTOR_IDS_ENV = "BABYSIT_DENIED_ACTOR_IDS"
-
-
-def _denied_actor_ids() -> frozenset[int]:
-    """`BABYSIT_DENIED_ACTOR_IDS`, parsed as check-trusted-trigger.mjs
-    `parseDeniedIds`: comma- or space-separated positive ids; anything else
-    raises, so a malformed denial never reads as an empty one."""
-    tokens = [
-        t for t in re.split(r"[\s,]+", os.environ.get(DENIED_ACTOR_IDS_ENV, "")) if t
-    ]
-    if not all(re.fullmatch(r"[1-9][0-9]{0,15}", t) for t in tokens):
-        raise PolicyReadError(f"{DENIED_ACTOR_IDS_ENV} must list positive integer ids")
-    return frozenset(int(t) for t in tokens)
-
-
-def _ratification_refusal(
-    owner: str, name: str, node: Mapping[str, Any], issue: Mapping[str, Any]
-) -> str | None:
-    """Why the closing issue does not stand ratified now: the pull request's
-    base is not the default branch (`base-not-default:<ref>`), or `ratified`
-    says no (`not-ratified`), over its comments and edit times read fresh and
-    the trusted list at the default branch's current head. A failed read
-    raises, which refuses."""
-    branch, head = _default_branch_head(f"{owner}/{name}")
+def _base_refusal(owner: str, name: str, node: Mapping[str, Any]) -> str | None:
+    """`base-not-default:<ref>` when the pull request's base is not the
+    default branch, read fresh. A failed read raises, which refuses."""
+    branch = _default_branch(f"{owner}/{name}")
     base = node.get("baseRefName")
-    if base != branch:
-        return f"base-not-default:{base}"
-    number = issue["number"]
-    comments = _paginated(
-        f"repos/{owner}/{name}/issues/{number}/comments?per_page=100",
-        f"#{number} comments",
-    )
-    data = _graphql(ISSUE_EDITS, f"#{number} edits", o=owner, r=name, n=number)
-    edits = json_object(data.get("repository")).get("issue")
-    humans = _trusted_humans(owner, name, head)
-    if ratified(comments, humans, _denied_actor_ids(), edits):
-        return None
-    return "not-ratified"
+    return None if base == branch else f"base-not-default:{base}"
 
 
 def _denied_path_refusal(
@@ -1608,7 +1417,7 @@ def lane_eligibility(
         issue, refusal = _closing_issue(node, repo)
         if refusal is None:
             issue_number = issue["number"]
-            refusal = _ratification_refusal(owner, name, node, issue)
+            refusal = _base_refusal(owner, name, node)
         if refusal is None:
             refusal = _denied_path_refusal(
                 owner, name, number, pr.get("changed_files"), denied_paths
@@ -1900,8 +1709,8 @@ def dependabot_eligibility(
 def recheck_lane_issue(repo: str, number: int, *, issue: int | None) -> str | None:
     """The closing issue read again right before the enqueue: it must still
     be the one, in this repository, that the eligibility read found (`issue`),
-    since the verifier verdict binds to it, and still stand ratified
-    (`_ratification_refusal`, read fresh)."""
+    since the verifier verdict binds to it, and the base must still be the
+    default branch (`_base_refusal`, read fresh)."""
     owner, name = _split_repo(repo)
     try:
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
@@ -1913,7 +1722,7 @@ def recheck_lane_issue(repo: str, number: int, *, issue: int | None) -> str | No
             return refusal
         if found["number"] != issue:
             return f"closing-issue-changed:{issue}>{found['number']}"
-        return _ratification_refusal(owner, name, node, found)
+        return _base_refusal(owner, name, node)
     except PolicyReadError as exc:
         return f"unreadable: {exc}"
 

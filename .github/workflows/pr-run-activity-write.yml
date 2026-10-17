@@ -44,12 +44,10 @@ on:
         required: false
         type: string
         default: ""
-      ratified-app-label:
+      app-label:
         description: >-
-          Issue mode: the one label the lanes App may apply to start the lane,
-          accepted only while the issue carries the owner's unedited
-          ratification marker, re-read by the trigger gate. Empty keeps every
-          App event stopped.
+          Issue mode: the one label the lanes App may apply to start the lane.
+          Empty keeps every App event stopped.
         required: false
         type: string
         default: ""
@@ -365,7 +363,7 @@ jobs:
       # The lanes App bot never starts a write activity, on any event, so one
       # write cannot chain into the next; a re-run must be started by a listed
       # account. One exception, in issue mode: the App applying the caller's
-      # ratified-app-label to an issue the owner ratified.
+      # app-label to an issue.
       - name: Check the trigger
         id: gate
         if: steps.kill.outputs.proceed == 'true'
@@ -395,7 +393,7 @@ jobs:
           # any re-runner, must be listed as a human.
           require-pr: ${{ inputs.issue-number == '' }}
           require-kind: ${{ inputs.issue-number != '' && 'human' || '' }}
-          ratified-app-label: ${{ inputs.issue-number != '' && inputs.ratified-app-label || '' }}
+          app-label: ${{ inputs.issue-number != '' && inputs.app-label || '' }}
 
       # The trusted base is the config, actions and trusted-actor source and,
       # in prepare: merge-base mode, the merge's second parent.
@@ -589,9 +587,10 @@ jobs:
       # the skill evaluates as untrusted data, plus only the comments
       # select-trusted-text's author and edit rules keep, so a listed
       # maintainer's recorded decision reaches the skill. The lanes App's own
-      # comments are left out, and on its ratified label so is any comment
-      # created or edited after the ratification marker. Runs from the base
-      # copy before the checkout below replaces it.
+      # comments are left out, and so is any comment created or edited after
+      # the label that started the run was last added; a title or body
+      # changed since fails the step. Runs from the base copy before the
+      # checkout below replaces it.
       - name: Write the issue for the skill
         if: >-
           steps.head-recheck.outputs.proceed == 'true' && inputs.issue-number != ''
@@ -603,6 +602,8 @@ jobs:
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           LABEL_SENDER_ID: ${{ format('{0}', github.event.sender.id) }}
+          LABEL_NAME: ${{ github.event.label.name }}
+          LABEL_EVENT_AT: ${{ github.event.issue.updated_at }}
         run: node .base/.github/scripts/work-resolve-issue/write-issue.mjs
 
       # A script reads the base's work-item tracker config (report-escalation's
