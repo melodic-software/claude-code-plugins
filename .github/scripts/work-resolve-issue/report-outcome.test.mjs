@@ -548,6 +548,19 @@ test("a stop the skill reported goes to a person even with a limit record", () =
   assert.match(plan.comment, /The tests cannot run here\./);
 });
 
+test("done with no branch still hands back even with a limit record", () => {
+  const plan = decide({
+    outcome: { exit: "done", reason: "", title: "", summary: "" },
+    issueNumber: 77,
+    issueLabels: ["agent-ready"],
+    branch: "",
+    changedFiles: [],
+    limit: { resets: null },
+  });
+  assert.notEqual(plan.action, "limited");
+  assert.deepEqual(plan.addLabels, ["needs-human"]);
+});
+
 test("an unreadable outcome file with a limit record reads as limited", () => {
   const plan = decide({
     outcome: readOutcome("/nonexistent/work-outcome.json"),
