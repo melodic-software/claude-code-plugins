@@ -173,7 +173,11 @@ named the worktree's path as the scope it updated. The matching rule is not know
 repository rather than by literal cwd, or first record in file order, are both consistent with it) and
 the other four ids hit the cwd's record. Do not trust the cwd to select the record: read the record
 back after the call, per [converge.md](converge.md) Step 4 and the in-repo step in
-[sync.md](sync.md). The same applies to `-s local`.
+[sync.md](sync.md). The same applies to `-s local`. **Recheck trigger**: a Claude Code release note
+that fixes #7445 or changes how `update -s project` selects a record, or a re-probe from a main
+checkout that has a linked worktree holding a record of the same id, showing `update -s project`
+updating the record keyed to the literal cwd. On a confirmed fix, drop the read-back in `converge.md`
+Step 4 and `sync.md` Step 2 and the `currentProject` filter in `sync-run.sh`.
 
 When reading a record out of a `fleet-state.sh` report, a `project`/`local` record belongs to the run
 only when its `currentProject` flag is `true`; matching on id and scope alone returns whichever
