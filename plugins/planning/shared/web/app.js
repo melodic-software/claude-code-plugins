@@ -339,7 +339,8 @@
       if (Core.tookPart(qid)) return "took";
       return !askedOfMe(qid) && otherAnswer(qid) ? "soft" : "open";
     }
-    const isOpenForMe = id => { const q = qById(id); return !!q && myState(id) === "open" && !Core.lockOf(id) && !readOnly(q); };
+    /** Not yet taken part in, optional or not: where landing, Next and Start here go. Counts use myState "open" only. */
+    const isOpenForMe = id => { const q = qById(id); return !!q && ["open", "soft"].includes(myState(id)) && !Core.lockOf(id) && !readOnly(q); };
     /** Triage row 43 (Q100): the earliest closed round with unlocked questions I have not taken part in, and those
      *  questions; answers there still go to Claude, marked late. Null when there is none, or for the owner. */
     function catchUp() {
