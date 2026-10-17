@@ -1433,6 +1433,7 @@ LANE_DEFS='
       | (if $t != null then ($t | tok("activity")) else null end) as $act
       | . + {
           read: ($t != null),
+          record: ($t != null and ($t | test("(?:^|[^A-Za-z0-9_-])(?:class|turns|max-turns|models|profile)="))),
           failed: (.conclusion | IN("failure", "timed_out", "startup_failure")),
           turns: (if $t != null then ($t | turns_of) else null end),
           cap: (if $t != null then ($t | cap_of) else null end),
@@ -1476,7 +1477,8 @@ LANES_JQ="$LANE_DEFS"'
     ($repeat[] | "    \(.n) limit stops on one \(if .head then "head" else "item" end): \(.title)\(if .head and .sha != "" then " @ \(.sha)" else "" end)")
 '
 # The model-usage baseline: one row per activity and profile over the same
-# runs, from the record tokens of the runs whose annotations were read. An
+# runs, from the record tokens of the runs whose annotations carry a lane
+# record; a run read with none (cancelled, stopped at a gate) is left out. An
 # activity is the record's `activity=` (a pipeline lane's), else the lane; a
 # profile is the record's `profile=`, else unknown. A pass is a run that
 # concluded success; a max-turns hit is a failed run of class max-turns.
@@ -1484,7 +1486,7 @@ LANES_JQ="$LANE_DEFS"'
 MODELS_JQ="$LANE_DEFS"'
   def median: if length == 0 then null elif length % 2 == 1 then .[length / 2 | floor] else (.[length / 2 - 1] + .[length / 2]) / 2 end;
   [ $lanes[] as $wf | lane_runs($wf)[] ] as $all
-  | ($all | map(select(.read))) as $read
+  | ($all | map(select(.record))) as $read
   | (($all | length) - ($read | length)) as $unread
   | ($read | group_by([.name, .profile]) | map({
       name: .[0].name, profile: .[0].profile, runs: length,
@@ -1496,7 +1498,7 @@ MODELS_JQ="$LANE_DEFS"'
   | "  model usage by activity and profile (runs with a read lane record; no sizes or costs):",
     (if ($cells | length) == 0 then "    no lane records read" else empty end),
     ($cells[] | "    \(.name)  profile=\(.profile)  runs=\(.runs)  pass=\(.pass)/\(.runs)  median-turns=\(.median // "-")  max-turns-hits=\(.hits)  models=\(if (.models | length) > 0 then .models | join(",") else "none recorded" end)"),
-    (if $unread > 0 then "    \($unread) run(s) left out: their annotations were not read" else empty end),
+    (if $unread > 0 then "    \($unread) run(s) left out: no lane record was read" else empty end),
     (if $threshold == null then "    no threshold set: pass --max-turns-hits N for RECOMMENDED lines"
      else ($cells[] | select(.hits > $threshold)
        | "    RECOMMENDED: \(.name) profile=\(.profile) hit max-turns \(.hits) times, over the threshold of \($threshold); raise its max-turns or route it to a stronger profile in the models: table")

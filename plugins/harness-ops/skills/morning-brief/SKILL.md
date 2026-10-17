@@ -138,7 +138,7 @@ Upstream facts the script restates, each with its verification record:
 | Parked decisions | open issues with the decision label (default `status: needs-decision`) | Surfaces each one's RECOMMENDED line, the uppercase marker wins over an incidental lowercase mention; a case-insensitive fallback catches lowercase markers; pass `--decision-label` to pin |
 | Lane telemetry | the loop-lane telemetry issue's per-lane comments | Each lane's `last-cycle` age (marked `STALE` past `--stale-hours`, default 6) and any `flags:` |
 | Stranded findings | merged PRs whose unresolved review threads were **created after the merge** | One line per PR at its worst severity, with a finding count. The header prints the window: merges since the older of `--stranded-days` ago (default 3) and the repo's bookmark. Paging stops at that cutoff |
-| Lanes | the last 7 days of runs of each lane workflow, and the check-run annotations of their jobs | One row per lane: runs, failures by class (rate-limit, max-turns, auth, other), limit stops, restarts (a run on an item whose previous run was a limit stop), and items with 3+ limit stops. Then turns used (max, p90) against the cap, with `CHECK` and run links when a run hit max-turns or the p90 is at or above 80% of the cap. Class, turns and cap come from the lane record when it carries them, else from the SDK result and the action's turn-cap annotation; a turn-cap stop counts as max-turns whatever class the record gives. Lanes default to the Claude workflows the repo has; `--lane-workflows` pins them. Annotations are read for `--lane-read-limit` runs (default 200), failed first; past it the row says `unread` and the section `PARTIAL`. Then a model-usage table, the baseline before model routing changes anything: one row per activity and profile over the read runs, with runs, passes (run conclusion success), median turns, max-turns hits and the models the records name, never sizes or costs. The activity is a pipeline lane's caller job (`<lane> / <activity>`), else the lane; the profile is the record's `profile=`, else `unknown`. A row whose max-turns hits exceed `--max-turns-hits` gets a `RECOMMENDED` line; with the flag unset (the default) the table says no threshold is set |
+| Lanes | the last 7 days of runs of each lane workflow, and the check-run annotations of their jobs | One row per lane: runs, failures by class (rate-limit, max-turns, auth, other), limit stops, restarts (a run on an item whose previous run was a limit stop), and items with 3+ limit stops. Then turns used (max, p90) against the cap, with `CHECK` and run links when a run hit max-turns or the p90 is at or above 80% of the cap. Class, turns and cap come from the lane record when it carries them, else from the SDK result and the action's turn-cap annotation; a turn-cap stop counts as max-turns whatever class the record gives. Lanes default to the Claude workflows the repo has; `--lane-workflows` pins them. Annotations are read for `--lane-read-limit` runs (default 200), failed first; past it the row says `unread` and the section `PARTIAL`. Then a model-usage table, the baseline before model routing changes anything: one row per activity and profile over the runs whose annotations carry a lane record, with runs, passes (run conclusion success), median turns, max-turns hits and the models the records name, never sizes or costs. The activity is a pipeline lane's activity (`<lane> / <activity>`), else the lane; the profile is the record's `profile=`, else `unknown`. A row whose max-turns hits exceed `--max-turns-hits` gets a `RECOMMENDED` line; with the flag unset (the default) the table says no threshold is set |
 
 The Lanes section parses text two upstream components write. When a row's classes or turns look
 wrong, read the current shapes live:
@@ -152,19 +152,18 @@ wrong, read the current shapes live:
 - **Recheck trigger**: a ci-workflows release changes the lane record's fields or class names,
   or a claude-code-action release changes its turn-cap message.
 
-A pipeline lane's activity comes from the name of the job that carries the record, which GitHub
-gives a reusable-workflow job as `<caller job> / <job>`; the pipeline lanes name each caller job
-after its activity. The `<lane> / <activity>` check runs the pipeline posts copy the same record
-and are not read, since reading them costs a call per head the jobs read already avoids. When a
-pipeline lane's rows show only the lane name, check the job names first:
+A pipeline lane's activity is read from the name of the job that carries the record, which the
+pipeline lanes name after the activity, so it costs no read beyond the jobs read. The
+`<lane> / <activity>` check runs the pipeline posts copy the same record and are not read. The
+job-name shape this relies on is not documented upstream; the shape assumed is the jobs fixture
+of the probe below:
 
-- **Pointer**: <https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations>
-  (as of the date it does not document the job name format; this repository's
-  [`lane-record.mjs`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/report-check-run/lane-record.mjs) writes the
-  posted record).
+- **Pointer**: probe: the case "rest: the activity comes from the caller job of the job that
+  carries the record" in [`morning-brief.test.sh`](morning-brief.test.sh), checked against a live
+  pipeline run's jobs read.
 - **As of**: 2026-10-17
-- **Recheck trigger**: that page documents a job name format, or a pipeline run's jobs stop
-  carrying the caller job's name.
+- **Recheck trigger**: a pipeline lane's model-usage rows show only the lane name, or GitHub
+  documents how it names a reusable workflow's jobs.
 
 The bookmark is one file per repo under the plugin data dir. After a full read of the section it
 moves to this run's `--stranded-days` floor; a failed or partial read leaves it where it was. A

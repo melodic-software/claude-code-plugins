@@ -1263,7 +1263,8 @@ assert_contains "models: a lane whose records carry no models= still gets a row"
 # pr-unblock runs 30-36: resolve-conflicts with no profile= runs 30, 31, 34 and
 # 36 (two pass, two max-turns failures, turns 8, 40, 40, 10, so the median is
 # (10 + 40) / 2 = 25); run 32 carries profile=standard; run 33 is
-# address-feedback; run 35 has no annotations read. intake-triage run 40 has no
+# address-feedback; run 35 has no annotations read, and cancelled run 37's
+# annotations carry no lane record. intake-triage run 40 has no
 # activity= and so is its own activity.
 cat >"$TMP/model-runs.json" <<'EOF'
 {
@@ -1274,7 +1275,8 @@ cat >"$TMP/model-runs.json" <<'EOF'
     {"id": 33, "html_url": "http://x/runs/33", "event": "pull_request", "display_title": "PR C", "head_sha": "c1", "status": "completed", "conclusion": "success", "created_at": "2026-07-18T11:00:00Z"},
     {"id": 34, "html_url": "http://x/runs/34", "event": "pull_request", "display_title": "PR D", "head_sha": "d1", "status": "completed", "conclusion": "failure", "created_at": "2026-07-17T10:00:00Z"},
     {"id": 35, "html_url": "http://x/runs/35", "event": "pull_request", "display_title": "PR E", "head_sha": "e1", "status": "completed", "conclusion": "failure", "created_at": "2026-07-17T11:00:00Z"},
-    {"id": 36, "html_url": "http://x/runs/36", "event": "pull_request", "display_title": "PR F", "head_sha": "f1", "status": "completed", "conclusion": "success", "created_at": "2026-07-16T10:00:00Z"}
+    {"id": 36, "html_url": "http://x/runs/36", "event": "pull_request", "display_title": "PR F", "head_sha": "f1", "status": "completed", "conclusion": "success", "created_at": "2026-07-16T10:00:00Z"},
+    {"id": 37, "html_url": "http://x/runs/37", "event": "pull_request", "display_title": "PR G", "head_sha": "g1", "status": "completed", "conclusion": "cancelled", "created_at": "2026-07-16T11:00:00Z"}
   ],
   "intake-triage.yml": [
     {"id": 40, "html_url": "http://x/runs/40", "event": "issues", "display_title": "Issue Q", "head_sha": "m1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T09:00:00Z"}
@@ -1289,6 +1291,7 @@ cat >"$TMP/model-annotations.json" <<'EOF'
   "33": "activity=address-feedback\npr-unblock completed: turns=5 max-turns=40 models=claude-sonnet-5.",
   "34": "pr-unblock exited with: failure class=max-turns turns=40 max-turns=40 models=claude-sonnet-5\nactivity=resolve-conflicts",
   "36": "pr-unblock completed: turns=10 max-turns=40 models=claude-sonnet-5.\nactivity=resolve-conflicts",
+  "37": "The run was canceled by @someone.\nactivity=resolve-conflicts",
   "40": "Claude intake triage completed: turns=3 max-turns=10 models=claude-sonnet-5. Findings (if any) are in the PR comments."
 }
 EOF
@@ -1306,8 +1309,8 @@ assert_contains "models: a profile= token splits the activity's row" "$MODELS" \
   "    pr-unblock / resolve-conflicts  profile=standard  runs=1  pass=1/1  median-turns=12  max-turns-hits=0  models=claude-opus-5"
 assert_contains "models: pass count, even-count median, max-turns hits and the union of models" "$MODELS" \
   "    pr-unblock / resolve-conflicts  profile=unknown  runs=4  pass=2/4  median-turns=25  max-turns-hits=2  models=claude-haiku-5,claude-sonnet-5"
-assert_contains "models: a run whose annotations were not read is left out and counted" "$MODELS" \
-  "    1 run(s) left out: their annotations were not read"
+assert_contains "models: runs with no lane record read, unread or recordless, are left out and counted" "$MODELS" \
+  "    2 run(s) left out: no lane record was read"
 assert_contains "models: no threshold set prints no RECOMMENDED line" "$MODELS" \
   "    no threshold set: pass --max-turns-hits N for RECOMMENDED lines"
 assert_not_contains "models: no RECOMMENDED line without a threshold" "$MODELS" "RECOMMENDED:"
