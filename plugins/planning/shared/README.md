@@ -19,8 +19,8 @@ and the session-bridge watcher. Python 3 standard library only.
 | `session_bridge.py`, `watch.sh`, `wake.sh` | Generated copies of `lib/session-bridge/` (`scripts/sync-shared-copies.sh`); edit the canonical, never these |
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape` |
-| `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/core.css`, `/app.css`, `/proto.js`) |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/core.css`, `/app.css`, `/proto.js`). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when `schemaVersion` or the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret` |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -58,7 +58,12 @@ like one the server started.
 
 ## Moving the prototype's session
 
+`ensure-running` needs cloudflared on PATH even with `--adopt-tunnel`: it exits 2 without one, and
+by then the prototype is already stopped. Check first, then stop the prototype (leaving its
+cloudflared running), then import:
+
 ```bash
+command -v cloudflared || { echo "cloudflared is not on PATH: fix PATH before stopping the prototype"; exit 1; }
 bash '<plugin-root>/shared/share.sh' --dir '<data_dir>' ensure-running \
   --import '<prototype>/state-<port>.json' --guest-port <port> --adopt-tunnel <cloudflared pid> <tunnel URL>
 ```
@@ -240,7 +245,12 @@ p50 1.2 ms, p95 1.6 ms. The test fails above a 1 s p95.
 python3 -m unittest discover -s plugins/planning/shared/tests
 bash plugins/planning/shared/tests/tracer.test.sh
 bash plugins/planning/shared/tests/tracer-live.test.sh [CLOUDFLARED]
+node plugins/planning/shared/tests/ui_journey.js
 ```
 
-`tracer.test.sh` runs the whole flow against the fake tunnel. `tracer-live.test.sh` uses a real
+`ui_journey.js` drives the page in Chromium against `ensure-running` on spare ports with the fake
+tunnel: the owner and a guest join, answer, vote, lock, pick, react and send a round; every state
+poll carries a query string; no page breaks the CSP; and a guest of an imported prototype session
+comes back as the same person. It needs playwright-core (from `node_modules`, or the one
+playwright-cli bundles) and SKIPs without it. `tracer.test.sh` runs the whole flow against the fake tunnel. `tracer-live.test.sh` uses a real
 cloudflared (a path argument, else PATH), opens a public address, and SKIPs in CI or without one.

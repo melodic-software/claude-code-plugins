@@ -659,6 +659,107 @@ class TestSnapshot(ServerCase):
         self.assertEqual(self.get("/api/mine/requests")[0], 401)
 
 
+class TestSnapshotContract(unittest.TestCase):
+    """The snapshot names the page's core.js reads, per .work/shared-interview-ui/snapshot-map.md
+    (the page reads the prototype's names; core.js builds them from these). A key the server drops
+    or renames fails here before it blanks part of the page."""
+
+    TOP_ALL = {"schemaVersion", "rev", "build", "title", "goal", "ended", "serverTime", "settings", "rounds", "round", "questions", "cards", "locks"}
+    TOP_ALL |= {"suggestions", "results", "chat", "people", "presence", "requestCounts", "proposals", "myRequests", "myMergeRequests", "me"}
+    TOP_MODERATOR = {"share", "guestKey"}
+    TOP_OWNER = {"requests", "mergeRequests", "removed", "cardDetails"}
+    KEY = "Zk3yZk3yZk3y"  # the fixture's session.guestKey
+
+    def setUp(self):
+        self.d = tmpdir(self)
+        self.app = server.App(self.d, watch_tunnel=False, initial_state=FIXTURES / "state-v1.json")
+        self.app.serve()
+        self.addCleanup(self.app.shutdown)
+        self.port = self.app.guest_port
+        self.owner = {"X-Owner-Token": self.app.secrets["owner"]}
+        code, _, out = call(self.port, "POST", "/api/heartbeat", {"q": "Q1", "typing": False, "chatTyping": False}, self.owner)
+        self.assertEqual(code, 200, out)
+
+    def snap(self, headers):
+        code, _, out = call(self.port, "GET", "/api/state?since=0", headers=headers)
+        self.assertEqual(code, 200, out)
+        return out
+
+    def has(self, obj, keys, where):
+        self.assertIsInstance(obj, dict, where)
+        missing = sorted(set(keys) - set(obj))
+        self.assertEqual(missing, [], f"{where} lacks {missing}")
+
+    def test_snapshot_contract(self):
+        s = self.snap(self.owner)
+        self.has(s, self.TOP_ALL | self.TOP_MODERATOR | self.TOP_OWNER, "owner snapshot")
+        self.has(s["settings"], ("voting", "signoff", "chat", "follow", "names", "digestNames", "uploads", "claudeTake", "theme"), "settings")
+        self.has(s["round"], ("n", "status"), "round")
+        self.has(s["rounds"][-1], ("n", "status"), "rounds[-1]")
+        self.has(s["rounds"][-1]["status"]["ready"], ("by", "at"), "rounds[-1].status.ready")
+        self.has(s["requestCounts"], ("open", "byQ"), "requestCounts")
+        self.has(s["share"], ("url", "changedAt"), "share")
+
+        qs = {q["id"]: q for q in s["questions"]}
+        for q in qs.values():
+            self.has(q, ("id", "text", "round", "dependsOn", "references", "format", "needsReview", "origin", "purpose", "alternatives"), f"question {q['id']}")
+        self.has(qs["Q1"], ("recommendation", "basis", "lockedText"), "Q1, a text question with Claude's cards")
+        self.has(qs["Q2"]["format"]["options"][0], ("id", "label", "image"), "a choice option")
+        self.has(qs["Q3"]["format"], ("kind", "image", "rect"), "a confirm format")
+        self.has(qs["Q4"]["format"]["variants"][0], ("id", "label"), "a prototype variant")
+        self.has(qs["Q4"]["origin"], ("kind", "proposal", "by"), "a host-added question's origin")
+        self.has(qs["Q3"]["origin"], ("kind", "proposal"), "a proposal question's origin")
+
+        cards = [c for lst in s["cards"].values() for c in lst]
+        kinds = {c["kind"]: c for c in cards}
+        self.assertEqual(set(kinds), {"person", "claude", "option"})
+        for c in cards:
+            self.has(c, ("kind", "ref", "votes", "reactions"), f"card {c.get('ref')}")
+        self.has(kinds["claude"], ("key",), "a Claude card")
+        self.has(kinds["option"], ("option",), "an option card")
+        person = next(c for c in s["cards"]["Q1"] if c["kind"] == "person")
+        self.has(person, ("pid", "text", "at", "cites"), "a person card")
+        self.has(next(c for c in s["cards"]["Q2"] if c["kind"] == "person"), ("pick", "late"), "a late pick")
+        self.assertIn("device", next(c for c in s["cards"]["Q5"] if c["kind"] == "person"))
+        self.has(s["cardDetails"]["Q1"][person["ref"]], ("view",), "cardDetails")
+
+        self.has(s["locks"]["Q1"], ("at", "by", "source"), "a lock")
+        self.has(s["locks"]["Q1"]["source"], ("kind", "card", "text"), "a card lock's source")
+        self.has(s["locks"]["Q3"]["source"], ("kind", "text", "from"), "an edited lock's source")
+        self.has(s["suggestions"]["Q1"][0], ("id", "pid", "text", "note", "at", "status", "votes"), "a suggestion")
+        for p in s["proposals"]:
+            self.has(p, ("id", "pid", "text", "at", "via", "status"), f"proposal {p['id']}")
+        self.has(next(p for p in s["proposals"] if p["via"]["kind"] == "chat")["via"], ("by",), "a chat proposal's via")
+        msgs = {m["id"]: m for m in s["chat"]}
+        self.has(msgs["M1"], ("id", "pid", "text", "at", "proposed"), "a proposed chat message")
+        self.has(msgs["M2"]["replyTo"], ("id", "pid", "excerpt"), "a reply")
+        res = s["results"]["Q1"][0]
+        self.has(res, ("id", "kind", "summary", "sources", "report", "at", "request", "used", "why", "published"), "a result")
+        self.has(res["used"][0], ("name",), "a result's used entry")
+        for r in s["requests"]:
+            self.has(r, ("id", "qid", "kind", "text", "edited", "pid", "at", "status"), f"request {r['id']}")
+        self.has(s["mergeRequests"][0], ("id", "from", "to", "at", "status"), "a merge request")
+        for p in s["people"] + s["removed"]:
+            self.has(p, ("pid", "name", "role", "trusted", "joinedAt"), f"person {p['pid']}")
+        self.has(s["presence"][0], ("pid", "q", "typing", "chatTyping"), "presence")
+        self.has(s["me"], ("pid", "name", "role", "trusted", "prefs", "notifications", "unread", "votes", "reactions"), "me")
+
+    def test_a_guest_snapshot_holds_the_shared_names_and_none_of_the_owners(self):
+        code, _, out = call(self.port, "POST", "/api/join", {"name": "Cy", "device": "phone", "key": self.KEY})
+        self.assertEqual(code, 200, out)
+        s = self.snap({"X-Session-Secret": out["secret"]})
+        self.has(s, self.TOP_ALL, "guest snapshot")
+        self.assertEqual(sorted((self.TOP_MODERATOR | self.TOP_OWNER) & set(s)), [])
+
+    def test_a_leader_gets_the_share_link_and_guest_key(self):
+        code, _, out = call(self.port, "POST", "/api/join", {"name": "Lee", "device": "computer", "key": self.KEY})
+        self.assertEqual(code, 200, out)
+        call(self.port, "POST", "/api/person/role", {"pid": out["pid"], "role": "leader"}, self.owner)
+        s = self.snap({"X-Session-Secret": out["secret"]})
+        self.has(s, self.TOP_ALL | self.TOP_MODERATOR, "leader snapshot")
+        self.assertEqual(sorted(self.TOP_OWNER & set(s)), [])
+
+
 class TestControl(ServerCase):
     def test_ops_need_the_control_token(self):
         code, _, _ = call(self.app.control_port, "POST", "/api/ops", {"ops": []}, {"X-Shared-Token": "wrong"})
