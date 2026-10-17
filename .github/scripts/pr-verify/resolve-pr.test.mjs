@@ -8,7 +8,7 @@
 // /actions/runs/{id}, /commits/{sha}/pulls, /actions/artifacts and the
 // closingIssuesReferences GraphQL field.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -20,7 +20,26 @@ const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
 const MAIN = "c".repeat(40);
 const RUN = 5551;
-const ISSUE = { number: 7, repository: { nameWithOwner: REPO }, author: { __typename: "User", login: "maintainer", databaseId: 100 } };
+const ISSUE = {
+  number: 7,
+  repository: { nameWithOwner: REPO },
+  body: "the spec",
+  lastEditedAt: null,
+  author: { __typename: "User", login: "maintainer", databaseId: 100 },
+  editor: null,
+  comments: { totalCount: 0, nodes: [] },
+};
+const LINKED = {
+  number: 7,
+  author_login: "maintainer",
+  author_id: 100,
+  author_type: "User",
+  last_edited_at: null,
+  editor_login: null,
+  editor_id: null,
+  editor_type: null,
+};
+const HUMANS = new Set([100]);
 
 const upstream = (overrides = {}) => ({
   id: RUN,
@@ -77,7 +96,7 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
   return github;
 }
 
-const resolve = (setup) => resolvePull({ github: fake(setup), repository: REPO, upstreamRunId: String(RUN) });
+const resolve = (setup) => resolvePull({ github: fake(setup), repository: REPO, upstreamRunId: String(RUN), humans: HUMANS });
 const reason = async (setup) => (await resolve(setup)).reason;
 
 test("a passing same-repository run resolves its one PR at the run's head", async () => {
@@ -88,7 +107,8 @@ test("a passing same-repository run resolves its one PR at the run's head", asyn
     headSha: HEAD,
     baseSha: BASE,
     headRef: "feat/x",
-    linkedIssues: [{ number: 7, author_login: "maintainer", author_id: 100, author_type: "User" }],
+    linkedIssues: [LINKED],
+    specText: [{ number: 7, body: "the spec", comments: [] }],
   });
 });
 
@@ -179,19 +199,72 @@ test("a malformed run id throws", async () => {
   await assert.rejects(resolvePull({ github: fake(), repository: REPO, upstreamRunId: "1;x" }));
 });
 
-test("main writes the outputs and the linked issues the workflow reads", async () => {
+test("the spec text keeps only what trusted humans other than the PR author wrote and last edited", async () => {
+  const human = { __typename: "User", login: "maintainer", databaseId: 100 };
+  const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
+  const stranger = { __typename: "User", login: "stranger", databaseId: 999 };
+  const comment = (body, author, extra = {}) => ({ body, author, lastEditedAt: null, editor: null, ...extra });
+  const issue = {
+    ...ISSUE,
+    comments: {
+      totalCount: 6,
+      nodes: [
+        comment("kept", human),
+        comment("by a bot with a listed human's id", { ...human, __typename: "Bot" }),
+        comment("by the lanes App", lanes),
+        comment("by a stranger", stranger),
+        comment("edited by the lanes App", human, { lastEditedAt: "2026-10-14T00:00:00Z", editor: lanes }),
+        comment("edited by the human", human, { lastEditedAt: "2026-10-14T00:00:00Z", editor: human }),
+      ],
+    },
+  };
+  assert.deepEqual((await resolve({ issues: [issue] })).specText, [
+    { number: 7, body: "the spec", comments: ["kept", "edited by the human"] },
+  ]);
+  const editedBody = { ...issue, lastEditedAt: "2026-10-14T00:00:00Z", editor: lanes };
+  assert.equal((await resolve({ issues: [editedBody] })).specText[0].body, null, "a body the lanes App last edited");
+  const byAuthor = (await resolve({ issues: [issue], pulls: [pull({ user: { id: 100, login: "Maintainer" } })] })).specText[0];
+  assert.deepEqual(byAuthor, { number: 7, body: null, comments: [] }, "the PR author's own text");
+  const lanesIssue = { ...issue, author: lanes };
+  assert.equal((await resolve({ issues: [lanesIssue] })).specText[0].body, null, "an issue the lanes App wrote");
+});
+
+test("the linked issues record each body's last editor", async () => {
+  const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
+  const edited = { ...ISSUE, lastEditedAt: "2026-10-14T00:00:00Z", editor: lanes };
+  assert.deepEqual((await resolve({ issues: [edited] })).linkedIssues, [
+    { ...LINKED, last_edited_at: "2026-10-14T00:00:00Z", editor_login: "melodic-automation-lanes", editor_id: 337595936, editor_type: "Bot" },
+  ]);
+});
+
+test("an issue whose comments are cut off fails the read", async () => {
+  const cut = { ...ISSUE, comments: { totalCount: 101, nodes: [] } };
+  await assert.rejects(resolve({ issues: [cut] }), { message: "#7: the issue's comments could not be read" });
+});
+
+test("main writes the outputs, the linked issues and the spec text the workflow reads", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
   const output = path.join(dir, "out");
   const spec = path.join(dir, "spec.json");
+  const specText = path.join(dir, "spec-text.json");
+  const actors = path.join(dir, "trusted-actors.json");
+  writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
   await main(
-    { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: REPO, GITHUB_OUTPUT: output, UPSTREAM_RUN_ID: String(RUN), SPEC_FILE: spec },
+    {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: REPO,
+      GITHUB_OUTPUT: output,
+      UPSTREAM_RUN_ID: String(RUN),
+      SPEC_FILE: spec,
+      SPEC_TEXT_FILE: specText,
+      TRUSTED_ACTORS_PATH: actors,
+    },
     { github: fake() },
   );
   assert.equal(
     readFileSync(output, "utf8"),
     `proceed=true\nreason=ok\npr-number=41\nhead-sha=${HEAD}\nbase-sha=${BASE}\nhead-ref=feat/x\n`,
   );
-  assert.deepEqual(JSON.parse(readFileSync(spec, "utf8")), [
-    { number: 7, author_login: "maintainer", author_id: 100, author_type: "User" },
-  ]);
+  assert.deepEqual(JSON.parse(readFileSync(spec, "utf8")), [LINKED]);
+  assert.deepEqual(JSON.parse(readFileSync(specText, "utf8")), [{ number: 7, body: "the spec", comments: [] }]);
 });

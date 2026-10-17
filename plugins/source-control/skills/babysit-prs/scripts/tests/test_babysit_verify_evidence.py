@@ -53,7 +53,12 @@ TRUSTED_ISSUE = {
     "author_login": "maintainer",
     "author_id": 100,
     "author_type": "User",
+    "last_edited_at": None,
+    "editor_login": None,
+    "editor_id": None,
+    "editor_type": None,
 }
+RUN_STARTED = "2026-10-15T00:00:00Z"
 
 
 def pull(**overrides: Any) -> dict[str, Any]:
@@ -93,6 +98,7 @@ def run(run_id: int, **overrides: Any) -> dict[str, Any]:
         "head_branch": "main",
         "head_sha": MAIN_SHA,
         "run_attempt": 1,
+        "run_started_at": RUN_STARTED,
         "repository": {"full_name": REPO},
         "head_repository": {"full_name": REPO},
     }
@@ -142,6 +148,8 @@ class FakeGitHub:
         # The PR's closing issues now: (number, repository).
         self.closing: list[tuple[int, str]] = [(7, REPO)]
         self.closing_total: int | None = None
+        # Each closing issue's body lastEditedAt now, by number.
+        self.closing_edited: dict[int, str | None] = {}
 
     def __call__(self, args: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
         self.calls.append(args)
@@ -156,7 +164,11 @@ class FakeGitHub:
             if "graphql" in self.fail:
                 return subprocess.CompletedProcess(args, 1, "", "gh: boom (HTTP 502)")
             nodes = [
-                {"number": n, "repository": {"nameWithOwner": repo}}
+                {
+                    "number": n,
+                    "lastEditedAt": self.closing_edited.get(n),
+                    "repository": {"nameWithOwner": repo},
+                }
                 for n, repo in self.closing
             ]
             refs = {"totalCount": self.closing_total or len(nodes), "nodes": nodes}
@@ -459,9 +471,67 @@ class TheSpecMustBeTrusted(unittest.TestCase):
         evidence = self.with_issues([TRUSTED_ISSUE], user={"login": "Maintainer"})
         self.assertEqual(evidence.refusal, "verify:untrusted-spec")
 
-    def test_one_trusted_issue_among_others_allows(self) -> None:
+    def test_every_linked_issue_must_be_trusted(self) -> None:
+        # A trivially satisfied human issue beside the lanes App's own.
         bot = {**TRUSTED_ISSUE, "number": 8, "author_type": "Bot", "author_id": 200}
-        self.assertIsNone(self.with_issues([bot, TRUSTED_ISSUE]).refusal)
+        self.assertEqual(
+            self.with_issues([bot, TRUSTED_ISSUE]).refusal, "verify:untrusted-spec"
+        )
+        second = {**TRUSTED_ISSUE, "number": 8}
+        self.assertIsNone(self.with_issues([TRUSTED_ISSUE, second]).refusal)
+
+    def test_an_edit_by_anyone_but_a_trusted_user_refuses(self) -> None:
+        edited = {**TRUSTED_ISSUE, "last_edited_at": "2026-10-14T00:00:00Z"}
+        cases = {
+            "the lanes App": {
+                "editor_login": "agent-lanes[bot]",
+                "editor_id": 200,
+                "editor_type": "Bot",
+            },
+            "a listed human's id as a bot": {
+                "editor_login": "maintainer",
+                "editor_id": 100,
+                "editor_type": "Bot",
+            },
+            "an unlisted user": {
+                "editor_login": "x",
+                "editor_id": 999,
+                "editor_type": "User",
+            },
+            "the PR author": {
+                "editor_login": "maintainer",
+                "editor_id": 100,
+                "editor_type": "User",
+            },
+            "no editor": {"editor_login": None, "editor_id": None, "editor_type": None},
+        }
+        for label, editor in cases.items():
+            with self.subTest(label):
+                user = (
+                    {"login": "maintainer"}
+                    if label == "the PR author"
+                    else {"login": "agent-lanes[bot]"}
+                )
+                issue = {**edited, **editor}
+                if label == "the PR author":
+                    # The author must differ from the issue author too, so
+                    # only the edit decides: another trusted human wrote it.
+                    issue = {**issue, "author_login": "other", "author_id": 101}
+                fake = passing()
+                fake.actors["actors"].append(
+                    {"id": 101, "login": "other", "kind": "human"}
+                )
+                fake.records[named(HEAD, "pass")] = record(linked_issues=[issue])
+                self.assertEqual(
+                    read(fake, pull(user=user)).refusal, "verify:untrusted-spec"
+                )
+        trusted = {
+            **edited,
+            "editor_login": "maintainer",
+            "editor_id": 100,
+            "editor_type": "User",
+        }
+        self.assertIsNone(self.with_issues([trusted]).refusal)
 
     def test_a_record_for_another_head_or_an_unreadable_list_refuses(self) -> None:
         fake = passing()
@@ -498,6 +568,23 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
                 evidence = read(fake)
                 self.assertEqual(evidence.refusal, "verify:spec-changed")
                 self.assertTrue(evidence.needs_human)
+
+    def test_an_issue_edited_after_the_judgment_started_refuses(self) -> None:
+        fake = passing()
+        fake.closing_edited = {7: "2026-10-15T00:00:01Z"}
+        self.assertEqual(read(fake).refusal, "verify:spec-changed")
+        fake = passing()
+        fake.closing_edited = {7: "2026-10-14T23:59:59Z"}
+        self.assertIsNone(read(fake).refusal)
+
+    def test_an_unreadable_edit_or_start_time_refuses(self) -> None:
+        fake = passing()
+        fake.closing_edited = {7: "yesterday"}
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
+        fake = passing()
+        fake.runs[1] = run(1, run_started_at=None)
+        fake.closing_edited = {7: "2026-10-14T00:00:00Z"}
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
 
     def test_an_unreadable_or_partial_listing_refuses(self) -> None:
         fake = passing()
@@ -603,6 +690,24 @@ class LaneRequiresAVerdict(unattended.Unattended):
         )
         # The queued entry is judged at the head its pull request reads now.
         self.read.assert_any_call(other, self.scored_head)
+
+    def test_a_crash_on_one_queued_entry_refuses_it_and_the_sweep_goes_on(self) -> None:
+        crash, after = unattended.PR + 1, unattended.PR + 2
+        self.queued = [crash, after]
+        self.verdicts[after] = evidence("verify:missing")
+
+        def read(number: int, head: str) -> ve.Evidence:
+            if number == crash:
+                raise KeyError("unexpected")
+            return self.verdicts.get(number, evidence(None))
+
+        self.read.side_effect = read
+        _, out = self.lane()
+        self.assertEqual(
+            out["unattended"]["writes"]["holds"],
+            {str(crash): "verify:unreadable", str(after): "verify:missing"},
+        )
+        self.assertIn(f"dequeue:[{crash}, {after}]", self.log)
 
     def test_an_ineligible_candidate_still_dequeues_an_unverified_entry(self) -> None:
         other = unattended.PR + 1

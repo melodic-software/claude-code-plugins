@@ -3,7 +3,8 @@
 // must be exactly {verdict, summary, notes}: verdict pass, pass-notes or fail,
 // summary a string, notes an array of strings. The file also records the head
 // branch and the linked issues with their authors, as the resolver read them
-// ({number, author_login, author_id, author_type} each), which the pr-merge
+// (number, author and last body editor login, id and type, last_edited_at;
+// each nullable but the number), which the pr-merge
 // lane's reader checks. Anything malformed throws, so the job fails and
 // uploads nothing. Model text is cut to fixed lengths (judgment) and never
 // reaches a shell.
@@ -21,7 +22,9 @@ const SHA = /^[0-9a-f]{40}$/;
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
 const REF = /^[A-Za-z0-9._/-]+$/;
-const ISSUE_KEYS = "author_id,author_login,author_type,number";
+const ISSUE_KEYS = "author_id,author_login,author_type,editor_id,editor_login,editor_type,last_edited_at,number";
+const stringOrNull = (value) => value === null || typeof value === "string";
+const idOrNull = (value) => value === null || Number.isSafeInteger(value);
 
 const isObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -34,9 +37,10 @@ function checkIssues(issues) {
         Object.keys(issue).sort().join() === ISSUE_KEYS &&
         Number.isSafeInteger(issue.number) &&
         issue.number > 0 &&
-        typeof issue.author_login === "string" &&
-        (issue.author_id === null || Number.isSafeInteger(issue.author_id)) &&
-        typeof issue.author_type === "string",
+        ["author", "editor"].every(
+          (role) => stringOrNull(issue[`${role}_login`]) && idOrNull(issue[`${role}_id`]) && stringOrNull(issue[`${role}_type`]),
+        ) &&
+        stringOrNull(issue.last_edited_at),
     )
   ) {
     throw new Error("the linked issues do not match their schema");

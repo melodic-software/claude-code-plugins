@@ -71,7 +71,7 @@ NEEDS_HUMAN = (EARLIER_FAIL, TOO_OLD, UNTRUSTED_SPEC, SPEC_CHANGED)
 CLOSING_QUERY = (
     "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
     "pullRequest(number:$n){closingIssuesReferences(first:10){totalCount "
-    "nodes{number repository{nameWithOwner}}}}}}"
+    "nodes{number lastEditedAt repository{nameWithOwner}}}}}}"
 )
 
 # A run's standing: unreadable, foreign (not of verifier origin), origin (of
@@ -134,6 +134,7 @@ class Reader:
     now: datetime | None = None
     _artifacts: list[dict[str, Any]] | None = None
     _runs: dict[int, str] = field(default_factory=dict)
+    _started: dict[int, Any] = field(default_factory=dict)
     _on_branch: dict[str, bool] = field(default_factory=dict)
     _records: dict[tuple[int, str], dict[str, Any]] = field(default_factory=dict)
     _humans: frozenset[int] | None = None
@@ -186,6 +187,7 @@ class Reader:
                     and merge_policy.SHA_RE.fullmatch(head) is not None
                     and self._contains(head)
                 )
+                self._started[run_id] = record.get("run_started_at")
                 done = (
                     record.get("status") == "completed"
                     and record.get("conclusion") == "success"
@@ -242,18 +244,32 @@ class Reader:
         return humans
 
     def _trusted_spec(self, record: dict[str, Any], author: str) -> bool:
+        """Every linked issue was written, and its body last edited if ever,
+        by a User on the trusted list's humans other than the PR author."""
         humans = self._trusted_humans()
-        return any(
-            issue.get("author_type") == "User"
-            and issue.get("author_id") in humans
-            and str(issue.get("author_login") or "").casefold() != author.casefold()
-            and author != ""
-            for issue in map(json_object, json_array(record.get("linked_issues")))
+
+        def trusted(issue: dict[str, Any], role: str) -> bool:
+            return (
+                issue.get(f"{role}_type") == "User"
+                and issue.get(f"{role}_id") in humans
+                and str(issue.get(f"{role}_login") or "").casefold()
+                != author.casefold()
+                and author != ""
+            )
+
+        issues = [
+            json_object(issue) for issue in json_array(record.get("linked_issues"))
+        ]
+        return bool(issues) and all(
+            trusted(issue, "author")
+            and (issue.get("last_edited_at") is None or trusted(issue, "editor"))
+            for issue in issues
         )
 
-    def _closing_issues(self, number: int) -> set[Any]:
-        """The PR's closing issues in this repository now, read as the
-        resolver reads them (closingIssuesReferences, first 10)."""
+    def _closing_issues(self, number: int) -> dict[Any, Any]:
+        """The PR's closing issues in this repository now, each with its
+        body's lastEditedAt, read as the resolver reads them
+        (closingIssuesReferences, first 10)."""
         owner, _, name = self.repo.partition("/")
         payload = json_object(
             _read(
@@ -277,7 +293,7 @@ class Reader:
         ):
             raise _Unreadable(f"#{number}: the closing issues could not be read")
         return {
-            json_object(node).get("number")
+            json_object(node).get("number"): json_object(node).get("lastEditedAt")
             for node in nodes
             if json_object(json_object(node).get("repository")).get("nameWithOwner")
             == self.repo
@@ -383,7 +399,14 @@ class Reader:
             if not is_json_array(recorded):
                 raise _Unreadable(f"artifact {name} records no linked issues")
             judged = {json_object(issue).get("number") for issue in recorded}
-            if self._closing_issues(number) != judged:
+            live = self._closing_issues(number)
+            # An edit after the judgment started is a spec the model never
+            # read. An unparseable time refuses (PostMergeReadError).
+            started = postmerge._time(self._started.get(run_id))
+            if set(live) != judged or any(
+                edited is not None and postmerge._time(edited) > started
+                for edited in live.values()
+            ):
                 refusal = SPEC_CHANGED
             elif self._trusted_spec(record, author):
                 refusal = None

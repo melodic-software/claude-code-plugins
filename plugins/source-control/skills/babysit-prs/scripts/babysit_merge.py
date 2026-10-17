@@ -2796,11 +2796,15 @@ def _head_file(repo: str, head: str) -> Callable[[str, str], str | None]:
                 gh_json(["api", f"repos/{repo}/compare/{original}...{head}"])
             ).get("files")
             # The comparison lists at most 300 files; a full page may hide one.
-            if not is_json_array(files) or len(files) >= 300 or not any(
-                is_json_object(item)
-                and item.get("filename") == path
-                and item.get("status") == "removed"
-                for item in files
+            if (
+                not is_json_array(files)
+                or len(files) >= 300
+                or not any(
+                    is_json_object(item)
+                    and item.get("filename") == path
+                    and item.get("status") == "removed"
+                    for item in files
+                )
             ):
                 raise RuntimeError(f"head-file-unproven:{path}")
             text = None
@@ -3013,6 +3017,15 @@ def upsert_risk_comment(
     return outcome
 
 
+def _queued_verify_hold(verifier: verify_evidence.Reader, number: int) -> str | None:
+    """One queued entry's verifier hold. An unexpected error refuses that
+    entry, so it leaves the queue and the sweep goes on to the next."""
+    try:
+        return verifier.queued_hold(number)
+    except Exception:  # noqa: BLE001 -- any crash refuses this entry alone
+        return verify_evidence.UNREADABLE
+
+
 def unattended_writes(
     repo: str, number: int, policy: merge_policy.UnattendedPolicy
 ) -> dict[str, Any]:
@@ -3059,7 +3072,7 @@ def unattended_writes(
                         permission=inputs.get("permission"),
                     )
                     or (
-                        verifier.queued_hold(n)
+                        _queued_verify_hold(verifier, n)
                         if verifier is not None and n != number
                         else None
                     )

@@ -99,6 +99,8 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SPEC_FILE: ${{ runner.temp }}/pr-verify-data/spec.json
+          SPEC_TEXT_FILE: ${{ runner.temp }}/pr-verify-data/spec-text.json
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: |
           mkdir -p "$(dirname "$SPEC_FILE")"
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
@@ -166,6 +168,7 @@ jobs:
           prompt=${prompt//DIFF_FILE/$DATA/diff.patch}
           prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
           prompt=${prompt//PR_FILE/$DATA/pr.json}
+          prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
           prompt=${prompt//SPEC_FILE/$DATA/spec.json}
           schema='{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}'
           # A rule path starting `//` is absolute. In agent mode the action

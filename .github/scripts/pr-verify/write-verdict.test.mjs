@@ -13,7 +13,16 @@ import { artifactName, buildVerdict, main } from "./write-verdict.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
-const ISSUE = { number: 7, author_login: "maintainer", author_id: 100, author_type: "User" };
+const ISSUE = {
+  number: 7,
+  author_login: "maintainer",
+  author_id: 100,
+  author_type: "User",
+  last_edited_at: null,
+  editor_login: null,
+  editor_id: null,
+  editor_type: null,
+};
 const ids = { pr: "41", headSha: HEAD, baseSha: BASE, runId: "9001", headRef: "feat/x", linkedIssues: [ISSUE] };
 const ok = JSON.stringify({ verdict: "pass", summary: "s", notes: [] });
 
@@ -64,14 +73,19 @@ test("linked issues outside their schema throw", () => {
     [{ ...ISSUE, number: 0 }],
     [{ ...ISSUE, author_login: 5 }],
     [{ ...ISSUE, author_id: "100" }],
-    [{ ...ISSUE, author_type: null }],
+    [{ ...ISSUE, author_type: 1 }],
+    [{ ...ISSUE, editor_login: 5 }],
+    [{ ...ISSUE, editor_id: "200" }],
+    [{ ...ISSUE, editor_type: false }],
+    [{ ...ISSUE, last_edited_at: 0 }],
     [{ ...ISSUE, extra: 1 }],
     [{ number: 7, author_login: "m", author_id: 1 }],
   ]) {
     assert.throws(() => buildVerdict({ ...ids, linkedIssues, output: ok }), undefined, JSON.stringify(linkedIssues));
   }
   assert.deepEqual(buildVerdict({ ...ids, linkedIssues: [], output: ok }).linked_issues, []);
-  assert.equal(buildVerdict({ ...ids, linkedIssues: [{ ...ISSUE, author_id: null }], output: ok }).linked_issues[0].author_id, null);
+  const edited = { ...ISSUE, last_edited_at: "2026-10-14T00:00:00Z", editor_login: "lanes", editor_id: 200, editor_type: "Bot" };
+  assert.deepEqual(buildVerdict({ ...ids, linkedIssues: [edited], output: ok }).linked_issues, [edited]);
 });
 
 test("long model text is cut, not refused", () => {

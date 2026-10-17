@@ -487,9 +487,11 @@ other artifact with such a name is ignored. At the pull request's vetted head:
 - a `fail` artifact tied to it whose run or record cannot be read, or any other failed read,
   refuses (`verify:unreadable`);
 - a counted `pass` or `pass-notes` for this pull request refuses (`verify:spec-changed`) unless the
-  pull request's closing issues in this repository now are the ones its verdict recorded, and then
-  allows the merge only when its verdict records a linked issue a `User` on the trusted-actor list's humans wrote, other than the pull
-  request's author, and otherwise refuses (`verify:untrusted-spec`);
+  pull request's closing issues in this repository now are the ones its verdict recorded and none
+  was edited after the verdict's run started, and then allows the merge only when every linked
+  issue it records was written, and its body last edited if ever, by a `User` on the trusted-actor
+  list's humans other than the pull request's author (otherwise `verify:untrusted-spec`). The
+  model's spec text holds only what such accounts wrote;
 - no counted verdict refuses (`verify:missing`).
 
 `verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and `verify:untrusted-spec` need a

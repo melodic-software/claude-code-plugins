@@ -13,14 +13,16 @@
 //   pr-merge lane's reader would count (countedBy, the same checks as
 //   babysit_verify_evidence.py). A run still going or one that uploaded
 //   nothing does not stop a new judgment.
-// It also writes the PR's closing issues with their authors to SPEC_FILE.
+// It also writes the PR's closing issues with their authors and last body
+// editors to SPEC_FILE, and the spec text trusted humans wrote to
+// SPEC_TEXT_FILE (linkedIssues).
 // The head SHA is the run's, never the PR's live head.
 
 import { appendFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
 export const UPSTREAM_PATH = ".github/workflows/pr-require-checks.yml";
 export const VERIFY_PATH = ".github/workflows/pr-verify.yml";
@@ -38,11 +40,22 @@ const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
     pullRequest(number: $number) {
       closingIssuesReferences(first: 10) {
         totalCount
-        nodes { number repository { nameWithOwner } author { __typename login ... on User { databaseId } ... on Bot { databaseId } } }
+        nodes {
+          number repository { nameWithOwner } body lastEditedAt
+          author { ...actor } editor { ...actor }
+          comments(first: 100) { totalCount nodes { body lastEditedAt author { ...actor } editor { ...actor } } }
+        }
       }
     }
   }
-}`;
+}
+fragment actor on Actor { __typename login ... on User { databaseId } ... on Bot { databaseId } }`;
+
+const actorFields = (actor, role) => ({
+  [`${role}_login`]: typeof actor?.login === "string" ? actor.login : null,
+  [`${role}_id`]: Number.isSafeInteger(actor?.databaseId) ? actor.databaseId : null,
+  [`${role}_type`]: typeof actor?.__typename === "string" ? actor.__typename : null,
+});
 
 export const isDependencyManager = (login) =>
   DEPENDENCY_MANAGERS.includes(String(login ?? "").toLowerCase().replace(/^app\//, "").replace(/\[bot\]$/, ""));
@@ -109,24 +122,50 @@ async function judged({ github, repository, number, head, base }) {
   return false;
 }
 
-async function linkedIssues(github, repository, number) {
+// The closing issues in this repository with their authors and last body
+// editors (`linkedIssues`), and the spec text: each body and comment written,
+// and last edited if ever, by a User on the trusted list's humans other than
+// the PR author (`specText`). Bots, the lanes App and the PR author are left
+// out even where select-trusted-text keeps them.
+async function linkedIssues(github, repository, number, humans, prAuthor) {
   const [owner, name] = repository.split("/");
   const data = await github("POST", "/graphql", { query: SPEC_QUERY, variables: { owner, name, number } });
   const refs = data?.data?.repository?.pullRequest?.closingIssuesReferences;
   if (!refs || !Array.isArray(refs.nodes) || refs.totalCount !== refs.nodes.length) {
     throw new Error(`#${number}: the closing issues could not be read`);
   }
-  return refs.nodes
-    .filter((issue) => issue?.repository?.nameWithOwner === repository && Number.isSafeInteger(issue.number))
-    .map((issue) => ({
+  const author = String(prAuthor ?? "").toLowerCase();
+  const trusted = (actor) =>
+    actor?.__typename === "User" &&
+    humans.has(actor.databaseId) &&
+    author !== "" &&
+    String(actor.login ?? "").toLowerCase() !== author;
+  const written = (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
+  const issues = refs.nodes.filter(
+    (issue) => issue?.repository?.nameWithOwner === repository && Number.isSafeInteger(issue.number),
+  );
+  for (const issue of issues) {
+    const comments = issue.comments;
+    if (!Array.isArray(comments?.nodes) || comments.totalCount !== comments.nodes.length) {
+      throw new Error(`#${issue.number}: the issue's comments could not be read`);
+    }
+  }
+  return {
+    linkedIssues: issues.map((issue) => ({
       number: issue.number,
-      author_login: typeof issue.author?.login === "string" ? issue.author.login : "",
-      author_id: Number.isSafeInteger(issue.author?.databaseId) ? issue.author.databaseId : null,
-      author_type: typeof issue.author?.__typename === "string" ? issue.author.__typename : "",
-    }));
+      ...actorFields(issue.author, "author"),
+      last_edited_at: typeof issue.lastEditedAt === "string" ? issue.lastEditedAt : null,
+      ...actorFields(issue.editor, "editor"),
+    })),
+    specText: issues.map((issue) => ({
+      number: issue.number,
+      body: written(issue) && typeof issue.body === "string" ? issue.body : null,
+      comments: issue.comments.nodes.filter(written).map((comment) => String(comment.body ?? "")),
+    })),
+  };
 }
 
-export async function resolvePull({ github, repository, upstreamRunId, base = "main" }) {
+export async function resolvePull({ github, repository, upstreamRunId, humans, base = "main" }) {
   const skip = (reason) => ({ proceed: false, reason });
   if (!RUN_ID.test(String(upstreamRunId))) {
     throw new Error("the upstream run id is not a run id");
@@ -175,12 +214,20 @@ export async function resolvePull({ github, repository, upstreamRunId, base = "m
     headSha: head,
     baseSha: pull.base.sha,
     headRef: String(pull.head.ref ?? ""),
-    linkedIssues: await linkedIssues(github, repository, pull.number),
+    ...(await linkedIssues(github, repository, pull.number, humans, pull.user?.login)),
   };
 }
 
 export async function main(env = process.env, { github } = {}) {
-  for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "UPSTREAM_RUN_ID", "SPEC_FILE"]) {
+  for (const key of [
+    "GITHUB_TOKEN",
+    "GITHUB_REPOSITORY",
+    "GITHUB_OUTPUT",
+    "UPSTREAM_RUN_ID",
+    "SPEC_FILE",
+    "SPEC_TEXT_FILE",
+    "TRUSTED_ACTORS_PATH",
+  ]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
     }
@@ -189,12 +236,14 @@ export async function main(env = process.env, { github } = {}) {
     github: github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),
     repository: env.GITHUB_REPOSITORY,
     upstreamRunId: env.UPSTREAM_RUN_ID,
+    humans: loadTrustedList(env.TRUSTED_ACTORS_PATH).humans,
   });
   if (result.proceed && !/^[A-Za-z0-9._/-]+$/.test(result.headRef)) {
     throw new Error("the head branch has a name the outputs cannot carry");
   }
   if (result.proceed) {
     writeFileSync(env.SPEC_FILE, `${JSON.stringify(result.linkedIssues, null, 2)}\n`);
+    writeFileSync(env.SPEC_TEXT_FILE, `${JSON.stringify(result.specText, null, 2)}\n`);
   }
   const lines = [
     `proceed=${result.proceed}`,
