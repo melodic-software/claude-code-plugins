@@ -14,17 +14,34 @@ from __future__ import annotations
 import base64
 import contextlib
 import json
+import os
 import pathlib
 import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from typing import Any
 from unittest import mock
 
+# An inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would send the git
+# fixtures' identity writes into the caller's repository
+# (scripts/check-fixture-git-isolation.sh). Cleared before any test spawns git.
+for _leaked_git_var in (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_PREFIX",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_CONFIG",
+):
+    os.environ.pop(_leaked_git_var, None)
+del _leaked_git_var
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-import babysit_merge_policy as policy
+import babysit_merge_policy as policy  # noqa: E402  (follows the git-env clear above)
 
 REPO = "owner/repo"
 SHA = "a" * 40
@@ -2162,9 +2179,22 @@ class EnabledSince(unittest.TestCase):
     def commit(self, sha: str, date: str) -> dict[str, Any]:
         return {"sha": sha, "commit": {"committer": {"date": date}}}
 
-    def fake(self, history: list[dict[str, Any]], configs: dict[str, str]) -> GhFake:
+    def fake(
+        self,
+        history: list[dict[str, Any]],
+        configs: dict[str, str],
+        base: str = SHA,
+        clones: tuple[pathlib.Path, ...] = (),
+    ) -> GhFake:
+        """The commits and contents APIs answering for `base`; `clones` are
+        the local clones `enabled_since` may read instead (none by default)."""
+        checkouts = mock.patch.object(
+            policy, "_history_checkouts", return_value=list(clones)
+        )
+        checkouts.start()
+        self.addCleanup(checkouts.stop)
         gh = GhFake().install(self)
-        gh.rest[self.HISTORY] = history
+        gh.rest[self.HISTORY.replace(SHA, base)] = history
         for sha, text in configs.items():
             gh.rest[f"repos/{REPO}/contents?ref={sha}"] = []
             gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={sha}"] = (
@@ -2210,10 +2240,137 @@ class EnabledSince(unittest.TestCase):
             policy.enabled_since(REPO, SHA)
 
     def test_an_unreadable_history_has_no_floor(self) -> None:
-        gh = GhFake().install(self)
-        gh.rest[self.HISTORY] = 502
+        self.fake(502, {})  # type: ignore[arg-type]
         with self.assertRaises(policy.PolicyReadError):
             policy.enabled_since(REPO, SHA)
+
+
+DISABLED = "merge:\n  rung: C2\n"
+
+
+class LocalEnabledSince(unittest.TestCase):
+    """`enabled_since` read from a real local clone holding the base SHA:
+    the floor the contents API gives for the same history, with no gh call
+    and no 100-commit limit. A clone that is shallow or lacks the base SHA
+    leaves the read to the API."""
+
+    commit_record = EnabledSince.commit
+    HISTORY = EnabledSince.HISTORY
+    fake = EnabledSince.fake
+
+    def setUp(self) -> None:
+        self.tmp = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.clone = self.tmp / "clone"
+        self.git(self.tmp, "init", "-q", str(self.clone))
+        # The lane runs the script from a subdirectory of its checkout.
+        self.scripts = self.clone / "scripts"
+        self.scripts.mkdir()
+
+    def git(self, root: pathlib.Path, *args: str, date: str = "") -> str:
+        env = {"GIT_COMMITTER_DATE": date, "GIT_AUTHOR_DATE": date} if date else {}
+        return subprocess.run(
+            ["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@t",
+             "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", *args],
+            check=True, capture_output=True, text=True, env={**os.environ, **env},
+        ).stdout.strip()  # fmt: skip
+
+    def commit(self, path: str, text: str | None, date: str) -> str:
+        """Commit `text` at `path` (None deletes it) with this committer date."""
+        if text is None:
+            self.git(self.clone, "rm", "-q", path)
+        else:
+            (self.clone / path).parent.mkdir(parents=True, exist_ok=True)
+            (self.clone / path).write_text(text)
+            self.git(self.clone, "add", path)
+        self.git(self.clone, "commit", "-q", "-m", date, date=date)
+        return self.git(self.clone, "rev-parse", "HEAD")
+
+    def pipeline(self, text: str | None, date: str) -> str:
+        return self.commit(policy.CONFIG_PATH, text, date)
+
+    def local(self) -> GhFake:
+        """No API answers: any gh call fails the test."""
+        return self.fake(
+            [], {}, base="0" * 40, clones=(self.tmp / "none", self.scripts)
+        )
+
+    def test_the_floor_matches_the_contents_api_for_the_same_history(self) -> None:
+        oldest = self.pipeline(DISABLED, "2026-10-01T00:00:00Z")
+        older = self.pipeline(PIPELINE, "2026-10-11T02:00:00+02:00")
+        self.commit("README.md", "unrelated", "2026-10-11T12:00:00Z")
+        newest = self.pipeline(PIPELINE + "# edit\n", "2026-10-12T00:00:00Z")
+        base = self.commit("README.md", "unrelated too", "2026-10-13T00:00:00Z")
+        expected = policy.datetime.fromisoformat("2026-10-11T00:00:00Z")
+        gh = self.local()
+        self.assertEqual(policy.enabled_since(REPO, base), expected)
+        self.assertEqual(policy.enabled_since(REPO, base, "local-babysit"), expected)
+        with self.assertRaises(policy.PolicyReadError):
+            policy.enabled_since(REPO, base, "pr-merge")
+        self.assertEqual(gh.calls, [])
+        # Pin: the contents-API path gives the same floor for this history.
+        self.fake(
+            [
+                self.commit_record(newest, "2026-10-12T00:00:00Z"),
+                self.commit_record(older, "2026-10-11T00:00:00Z"),
+                self.commit_record(oldest, "2026-10-01T00:00:00Z"),
+            ],
+            {newest: PIPELINE + "# edit\n", older: PIPELINE, oldest: DISABLED},
+            base=base,
+        )
+        self.assertEqual(policy.enabled_since(REPO, base), expected)
+
+    def test_a_deleted_pipeline_file_ends_the_enabled_run(self) -> None:
+        self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
+        self.pipeline(None, "2026-10-05T00:00:00Z")
+        base = self.pipeline(PIPELINE, "2026-10-09T00:00:00Z")
+        self.local()
+        self.assertEqual(
+            policy.enabled_since(REPO, base),
+            policy.datetime.fromisoformat("2026-10-09T00:00:00Z"),
+        )
+
+    def test_more_than_100_enabled_commits_still_have_a_floor(self) -> None:
+        # Every commit enables the path, so the walk reaches the first one.
+        for n in range(101):
+            base = self.pipeline(
+                f"{PIPELINE}# {n}\n", f"2026-02-01T00:{n // 60:02d}:{n % 60:02d}Z"
+            )
+        gh = self.local()
+        self.assertEqual(
+            policy.enabled_since(REPO, base),
+            policy.datetime.fromisoformat("2026-02-01T00:00:00Z"),
+        )
+        self.assertEqual(gh.calls, [])
+
+    def test_a_shallow_clone_falls_back_to_the_api(self) -> None:
+        self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
+        base = self.pipeline(PIPELINE + "# edit\n", "2026-10-11T00:00:00Z")
+        shallow = self.tmp / "shallow"
+        self.git(
+            self.tmp, "clone", "-q", "--depth", "1", self.clone.as_uri(), str(shallow)
+        )
+        self.fake(
+            [self.commit_record(base, "2026-09-01T00:00:00Z")],
+            {base: PIPELINE},
+            base=base,
+            clones=(shallow,),
+        )
+        self.assertEqual(
+            policy.enabled_since(REPO, base),
+            policy.datetime.fromisoformat("2026-09-01T00:00:00Z"),
+        )
+
+    def test_a_clone_without_the_base_falls_back_to_the_api(self) -> None:
+        self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
+        self.fake(
+            [self.commit_record(SHA, "2026-09-02T00:00:00Z")],
+            {SHA: PIPELINE},
+            clones=(self.clone,),
+        )
+        self.assertEqual(
+            policy.enabled_since(REPO, SHA),
+            policy.datetime.fromisoformat("2026-09-02T00:00:00Z"),
+        )
 
 
 LANE_PIPELINE = PIPELINE.replace("local-babysit", "pr-merge").replace(

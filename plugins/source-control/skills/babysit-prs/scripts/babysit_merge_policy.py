@@ -498,25 +498,35 @@ def _loop_merge(text: str) -> str | None:
     return values[0] if len(values) == 1 and values[0] else None
 
 
-def read_config_at(repo: str, base_sha: str) -> PipelineConfig:
+def read_config_at(
+    repo: str,
+    base_sha: str,
+    file_at: Callable[[str, str], str | None] | None = None,
+) -> PipelineConfig:
     """`merge:` from `docs/conventions/pr-pipeline.yaml` and `babysit_loop_merge`
-    from `.claude/source-control.md`, both read at `base_sha` through the
-    contents API. A pipeline file the shared reader rejects is off; an absent
-    one has no merge block (rung off, authority unset). Raises
-    `PolicyReadError` when the pipeline file cannot be read.
+    from `.claude/source-control.md`, both read at `base_sha` through
+    `file_at(path, sha)` (text, or None when absent), by default the contents
+    API. A pipeline file the shared reader rejects is off; an absent one has
+    no merge block (rung off, authority unset). Raises `PolicyReadError` when
+    the pipeline file cannot be read.
     """
     owner, name = _split_repo(repo)
     if not SHA_RE.fullmatch(base_sha or ""):
         raise PolicyReadError(f"base SHA is not a 40-hex commit id: {base_sha!r}")
+    if file_at is None:
+
+        def file_at(path: str, sha: str) -> str | None:
+            return _file_at(owner, name, path, sha)
+
     notes: list[str] = []
     try:
-        source = _file_at(owner, name, SOURCE_CONTROL_PATH, base_sha)
+        source = file_at(SOURCE_CONTROL_PATH, base_sha)
     except PolicyReadError as exc:
         source = None
         notes.append(f"{SOURCE_CONTROL_PATH} unreadable: {exc}")
     loop_merge = _loop_merge(source) if source is not None else None
 
-    text = _file_at(owner, name, CONFIG_PATH, base_sha)
+    text = file_at(CONFIG_PATH, base_sha)
     off = PipelineConfig(base_sha, "off", None, None, None, (), loop_merge)
     if text is None:
         return off
@@ -2125,9 +2135,80 @@ def pull_request(repo: str, number: int) -> dict[str, Any]:
 
 # --- The post-merge floor -----------------------------------------------------------------------
 
-# The pipeline file's commits read for the enabling commit: one page. A run of
-# enabled commits longer than that has no readable start, which refuses.
+# The pipeline file's commits the contents-API fallback reads for the enabling
+# commit: one page. A run of enabled commits longer than that has no readable
+# start, which refuses. The local git history has no such limit.
 CONFIG_HISTORY_LIMIT = 100
+
+
+def _history_checkouts() -> list[Path]:
+    """Where a local clone may hold the pipeline file's history: this
+    script's own checkout (the pr-merge lane runs it from a checkout of main)
+    and the working directory's (a local babysit run from a clone)."""
+    return [Path(__file__).resolve().parent, Path.cwd()]
+
+
+def _git(root: Path, *args: str) -> str | None:
+    """The stdout of `git` run in `root`, or None when it fails."""
+    try:
+        proc = run_command(
+            ["git", "--no-replace-objects", "-C", str(root), *args],
+            allowed_executables=("git",),
+            check=False,
+        )
+    except (RuntimeError, ValueError, OSError):
+        return None
+    return proc.stdout if proc.returncode == 0 else None
+
+
+def _git_file_at(root: Path, path: str, sha: str) -> str | None:
+    """The file's text at `sha` in the clone at `root`, or None when absent
+    from a readable tree."""
+    entry = _git(root, "ls-tree", "-z", sha, "--", path)
+    if entry is None:
+        raise PolicyReadError(f"the tree at {sha} could not be read")
+    if not entry:
+        return None
+    mode, kind = entry.split(" ", 2)[:2]
+    if kind != "blob" or mode == "120000":
+        raise PolicyReadError(f"{path} at {sha} is not a file")
+    text = _git(root, "cat-file", "blob", f"{sha}:{path}")
+    if text is None:
+        raise PolicyReadError(f"{path} at {sha} is unreadable")
+    return text
+
+
+def _local_history(base_sha: str) -> tuple[Path, list[tuple[str, str]]] | None:
+    """The pipeline file's commits from `base_sha`, newest first, as (SHA,
+    committer date), from the first clone in `_history_checkouts` that holds
+    `base_sha` with its whole history (not shallow); None when none does.
+    A commit id names its whole ancestry, so any clone holding it answers
+    for the repository."""
+    for checkout in _history_checkouts():
+        # Pathspecs resolve against the working directory, so run at the top.
+        top = _git(checkout, "rev-parse", "--show-toplevel")
+        if not top or not top.strip():
+            continue
+        root = Path(top.strip())
+        if _git(root, "rev-parse", "--is-shallow-repository") != "false\n":
+            continue
+        if _git(root, "cat-file", "-e", f"{base_sha}^{{commit}}") is None:
+            continue
+        log = _git(
+            root,
+            "-c",
+            "log.follow=false",
+            "log",
+            "--no-show-signature",
+            "--format=%H %cI",
+            base_sha,
+            "--",
+            CONFIG_PATH,
+        )
+        if log is not None:
+            pairs = [line.partition(" ") for line in log.splitlines()]
+            return root, [(sha, date) for sha, _, date in pairs]
+    return None
 
 
 def enabled_since(repo: str, base_sha: str, authority: str | None = None) -> datetime:
@@ -2138,32 +2219,62 @@ def enabled_since(repo: str, base_sha: str, authority: str | None = None) -> dat
     enables). A later edit that keeps it enabled does not move the floor, so
     no merge since enabling escapes the check. Commits reach the default
     branch through the merge queue, whose squash commits GitHub dates.
+
+    The history and each config come from a local clone holding `base_sha`
+    (`_local_history`), else from the commits and contents APIs.
     Raises `PolicyReadError` when no start can be read."""
-    owner, name = _split_repo(repo)
-    status, commits = _get(
-        f"repos/{owner}/{name}/commits?sha={base_sha}"
-        f"&path={quote(CONFIG_PATH, safe='')}&per_page={CONFIG_HISTORY_LIMIT}"
-    )
-    if status != 200 or not is_json_array(commits) or not commits:
+    local = _local_history(base_sha)
+    if local is not None:
+        root, commits = local
+        complete = True
+
+        def read(sha: str) -> PipelineConfig:
+            return read_config_at(
+                repo, sha, lambda path, ref: _git_file_at(root, path, ref)
+            )
+
+    else:
+        owner, name = _split_repo(repo)
+        status, payload = _get(
+            f"repos/{owner}/{name}/commits?sha={base_sha}"
+            f"&path={quote(CONFIG_PATH, safe='')}&per_page={CONFIG_HISTORY_LIMIT}"
+        )
+        if status != 200 or not is_json_array(payload):
+            raise PolicyReadError(f"{CONFIG_PATH} history could not be read")
+        commits = [
+            (
+                str(commit.get("sha")),
+                str(
+                    json_object(json_object(commit.get("commit")).get("committer")).get(
+                        "date"
+                    )
+                ),
+            )
+            for commit in map(json_object, payload)
+        ]
+        complete = len(commits) < CONFIG_HISTORY_LIMIT
+
+        def read(sha: str) -> PipelineConfig:
+            return read_config_at(repo, sha)
+
+    if not commits:
         raise PolicyReadError(f"{CONFIG_PATH} history could not be read")
-    start: dict[str, Any] | None = None
-    for commit in map(json_object, commits):
-        sha = str(commit.get("sha"))
-        config = read_config_at(repo, sha)
+    start: str | None = None
+    for sha, date in commits:
+        config = read(sha)
         enabled = None if config.error else enabled_authority(config)
         authority = authority or enabled
         if enabled is None or enabled != authority:
             break
-        start = commit
+        start = date
     else:
-        if len(commits) >= CONFIG_HISTORY_LIMIT:
+        if not complete:
             raise PolicyReadError(
                 f"more than {CONFIG_HISTORY_LIMIT} enabled {CONFIG_PATH} commits"
             )
     if start is None:
         raise PolicyReadError(f"{CONFIG_PATH} at {base_sha} does not enable the path")
-    committer = json_object(json_object(start.get("commit")).get("committer"))
-    return _time(str(committer.get("date")).replace("Z", "+00:00"))
+    return _time(start.replace("Z", "+00:00")).astimezone(UTC)
 
 
 def merged_since_floor(
