@@ -176,10 +176,10 @@ const DATED =
 // names it in dated_by. A serve-time header is never a publication date.
 const DATED_BY =
   ' When the page prints no date, derive one the publisher or its source repository attaches to the content ' +
-  'and name the method in dated_by: sitemap-lastmod (the lastmod beside the page\'s loc in the sitemap at ' +
-  'the origin\'s /sitemap.xml, which you request through requests; code.claude.com /docs/en/ pages), ' +
-  'ms-date (the page\'s ms.date metadata, Microsoft Learn), or source-commit (the last commit on the ' +
-  'page\'s source file, when its repository is public). Leave dated_by out when the page prints the date. ' +
+  'and name the method in dated_by: sitemap-lastmod (the lastmod beside the page\'s loc in a sitemap.xml at ' +
+  'the page\'s origin or one of its parent paths, which you request through requests; code.claude.com ' +
+  '/docs/en/ pages, sitemap https://code.claude.com/docs/sitemap.xml) or ms-date (the page\'s ms.date ' +
+  'metadata, Microsoft Learn). Leave dated_by out when the page prints the date. ' +
   'Never use a Last-Modified, Date or ETag header: when no method yields a date, return "undated".'
 
 // ---- Fetch stage ----
@@ -219,8 +219,15 @@ const datingOf = r => {
 const FINAL_ROUND = ' This is your last round: the slices now hold what you requested, and requests are ignored. For a section you still need that the slices lack, use WebFetch on that page.'
 
 const pageOf = u => String(u).split('#')[0]
-// The one other address a reader may request: the sitemap at its page's origin, to date the page.
-const sitemapOf = u => { try { return new URL('/sitemap.xml', pageOf(u)).href } catch { return null } }
+// The other addresses a reader may request, to date its page: a sitemap.xml at
+// the page's origin or one of its parent paths.
+const sitemapsOf = u => {
+  try {
+    const { origin, pathname } = new URL(pageOf(u))
+    const dirs = pathname.split('/').slice(1, -1)
+    return dirs.map((_, i) => origin + '/' + dirs.slice(0, i + 1).join('/') + '/sitemap.xml').concat(origin + '/sitemap.xml')
+  } catch { return [] }
+}
 const rawable = u => isPublicUrl(u) && /^https:/.test(u) && !/['"\\]/.test(u)
 const idsOf = v => [...new Set((Array.isArray(v) ? v : []).filter(n => Number.isInteger(n) && n >= 1 && n <= 999999))]
   .sort((a, b) => a - b).slice(0, 20)
@@ -519,7 +526,7 @@ log('Fetch: ' + [...slices.values()].filter(s => s.state === 'read').length + '/
 // ---- Read ----
 phase('Read')
 
-// A reader may request sections of its own page only.
+// A reader may request sections of its own page, and a sitemap that dates it.
 const readers = selected.map((s, i) => ({ label: 'read:' + (i + 1), src: s }))
 const reads = await inWaves(readers.map(r => () => judged(extra =>
   'Stage: read. Read the source URL below in full, from its slices when they cover it. Record whether ' +
@@ -529,10 +536,10 @@ const reads = await inWaves(readers.map(r => () => judged(extra =>
   'population, version, era), the product and versions the claim applies to, and every hedge or ' +
   'scope limit the source attaches to it. Name the publisher and its pool (the organization whose ' +
   'content this is; two pages from one organization are one pool). Do not add claims the page does ' +
-  'not make, and fetch no other address than the sitemap at its origin.' + TIERS + DATED + DATED_BY +
+  'not make, and fetch no other address than a sitemap that dates the page.' + TIERS + DATED + DATED_BY +
   fence('question', QUESTION) + fence('source-url', r.src.url) + extra,
   { label: r.label, phase: 'Read', schema: READ_SCHEMA, ...opts(R.worker.fanout) },
-  [r.src.url], u => u === pageOf(r.src.url) || u === sitemapOf(r.src.url),
+  [r.src.url], u => u === pageOf(r.src.url) || sitemapsOf(r.src.url).includes(u),
 )), MAX_CONCURRENT)
 
 readers.forEach((r, i) => { if (reads[i] == null) nulls.push(r.label) })
