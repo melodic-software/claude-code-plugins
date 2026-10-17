@@ -42,7 +42,7 @@
 
   const listeners = new Set(), reloadHooks = new Set();
   let focusQ = "", typingUntil = 0, chatTypingUntil = 0, lastOk = 0, joining = null;
-  let snap = null, rev = 0, etag = "", build = "", polling = false;
+  let snap = null, rev = 0, etag = "", build = "";
   const DEFAULTS = {
     questions: [], answers: {}, ideas: [], presence: [], locks: {}, disagreements: {}, suggestions: {}, chat: [], leaders: [], trusted: [],
     round: { current: 1, status: "open" }, rounds: [], title: "", people: {}, research: {}, requestCounts: { open: 0, byQ: {} }, requests: [],
@@ -355,19 +355,52 @@
     /** Any format's pick: fields is {option}, {options: [...]} (multi), {value} (scale) or {order: [...]} (rank); an
      *  empty list or a null value clears it. `other` is the person's own option when the pick holds "other".
      *  `attachments`, when given, replaces the upload ids the pick carries (C44); left out, it keeps them. */
-    pickWith: (qid, fields, { comment, other, attachments } = {}) => act("/api/pick", { qid, ...contractPick(fields),
-      ...(other != null ? { other } : { comment: comment || "" }), ...(attachments ? { attachments } : {}), ...where() })
-      .then(r => { typingUntil = 0; return r; }),
+    pickWith: (qid, fields, { comment, other, attachments } = {}) => {
+      const body = { qid, ...contractPick(fields), ...(other != null ? { other } : { comment: comment || "" }), ...(attachments ? { attachments } : {}), ...where() };
+      return act("/api/pick", body, { key: "pick:" + qid, patch: (s, pid) => patchPick(s, pid, qid, body) }).then(r => { typingUntil = 0; return r; });
+    },
     idea: text => act("/api/propose", { text }).then(r => { typingUntil = 0; return r; }),
     /** A vote on an answer card (its ref, or the page's id) or on a suggestion of that question. */
-    vote: (qid, target, on) => ((Core.state.suggestions[qid] || []).some(s => s.id === target)
-      ? act("/api/vote", { qid, suggestion: target, on }) : act("/api/vote", { qid, card: refOf(qid, target), on })),
+    vote: (qid, target, on) => {
+      if ((Core.state.suggestions[qid] || []).some(s => s.id === target)) {
+        return act("/api/vote", { qid, suggestion: target, on }, { key: "svote:" + qid, patch: (s, pid) => {
+          const list = s.suggestions?.[qid] || [];
+          for (const x of list) if (on || x.id === target) x.votes = without(x.votes, pid);
+          const x = on && list.find(y => y.id === target);
+          if (x) x.votes = [...without(x.votes, pid), pid];
+        } });
+      }
+      const card = refOf(qid, target), multi = qOf(Core.state.questions, qid)?.format === "multi";
+      return act("/api/vote", { qid, card, on }, { key: multi ? `vote:${qid}:${card}` : "vote:" + qid, patch: (s, pid) => patchVote(s, pid, qid, card, on) });
+    },
     /** Gather questions: thumbs, down, heart or idea on an answer; null clears mine. */
-    react: (qid, target, reaction) => act("/api/react", { qid, card: refOf(qid, target), reaction }),
+    react: (qid, target, reaction) => {
+      const card = refOf(qid, target);
+      return act("/api/react", { qid, card, reaction }, { key: `react:${qid}:${card}`, patch: s => {
+        s.me.reactions ||= {};
+        s.me.reactions[qid] ||= {};
+        const mine = s.me.reactions[qid], was = mine[card], c = cardsOf(s, qid).find(x => x.ref === card);
+        if (c && was !== reaction) {
+          c.reactions ||= {};
+          const n = c.reactions;
+          if (was) n[was] = Math.max(0, (n[was] || 0) - 1);
+          if (reaction) n[reaction] = (n[reaction] || 0) + 1;
+        }
+        if (reaction) mine[card] = reaction; else delete mine[card];
+      } });
+    },
     REACTIONS: [["thumbs", "👍", "Agree"], ["down", "👎", "Disagree"], ["heart", "❤️", "Love it"], ["idea", "💡", "Sparks an idea"]],
     myReaction: (qid, ref) => Core.state.myReactions?.[qid]?.[ref] || null,
     /** Decide questions: why I disagree with one answer (1..200 characters; a new reason replaces mine); on=false takes it back. */
-    disagree: (qid, target, reason, on = true) => act("/api/disagree", { qid, card: refOf(qid, target), on, ...(on ? { reason } : {}) }),
+    disagree: (qid, target, reason, on = true) => {
+      const card = refOf(qid, target);
+      return act("/api/disagree", { qid, card, on, ...(on ? { reason } : {}) }, { key: `disagree:${qid}:${card}`, patch: (s, pid) => {
+        s.disagreements ||= {};
+        const kept = (s.disagreements[qid] || []).filter(d => !(d.pid === pid && d.card === card));
+        if (on) kept.push({ pid, card, reason, at: s.serverTime });
+        s.disagreements[qid] = kept;
+      } });
+    },
     disagreementsOn: (qid, ref) => (Core.state.disagreements[qid] || []).filter(d => d.card === ref),
     goWith: (qid, target) => act("/api/go-with", { qid, card: refOf(qid, target) }),
     lock: (qid, target) => act("/api/lock", { qid, ...(target ? { card: refOf(qid, target) } : {}) }).catch(e => {
@@ -378,13 +411,30 @@
     useSuggestion: (qid, id) => act("/api/suggestion/act", { qid, id, action: "use" }),
     dismissSuggestion: (qid, id) => act("/api/suggestion/act", { qid, id, action: "dismiss" }),
     lockEdit: (qid, text, from) => act("/api/lock/edit", { qid, text, ...(from ? { from } : {}) }),
-    chat: (text, replyTo) => act("/api/chat", { text, ...(replyTo ? { replyTo } : {}) }).then(r => { chatTypingUntil = 0; return r; }),
+    /** My message shows at once; the server's copy (a message of mine with this text it did not hold before) replaces it. */
+    chat: (text, replyTo) => {
+      const before = new Set((snap?.chat || []).map(m => m.id)), id = `sending-${++sends}`;
+      return act("/api/chat", { text, ...(replyTo ? { replyTo } : {}) }, { key: "chat:" + id, patch: (s, pid) => {
+        s.chat ||= [];
+        const chat = s.chat;
+        if (chat.some(m => m.pid === pid && m.text === text && !before.has(m.id))) return;
+        const to = replyTo && chat.find(m => m.id === replyTo);
+        chat.push({ id, pid, text, at: s.serverTime, ...(to ? { replyTo: { id: to.id, pid: to.pid, excerpt: to.text } } : {}) });
+      } }).then(r => { chatTypingUntil = 0; return r; });
+    },
     readNotifications: ids => act("/api/notifications/read", ids === "all" ? { all: true } : { ids }),
     addReference: (qid, reference) => act("/api/question/reference", { qid, reference }),
     removeReference: (qid, index) => act("/api/question/reference", { qid, remove: index }),
     forward: id => act("/api/chat/propose", { id }),
     /** One of my emoji on a chat message, on or off (the server takes only its fixed set). */
-    chatReact: (id, emoji, on) => act("/api/chat/react", { id, emoji, on }),
+    chatReact: (id, emoji, on) => act("/api/chat/react", { id, emoji, on }, { key: `chatreact:${id}:${emoji}`, patch: (s, pid) => {
+      const m = (s.chat || []).find(x => x.id === id);
+      if (!m) return;
+      m.reactions ||= {};
+      const r = m.reactions, pids = without(r[emoji], pid);
+      if (on) pids.push(pid);
+      if (pids.length) r[emoji] = pids; else delete r[emoji];
+    } }),
     /** Owner: hide an answer from everyone else and the digest (reversible), or replace its text. */
     hideCard: (qid, target, on, reason) => act("/api/card/hide", { qid, card: refOf(qid, target), on, ...(reason ? { reason } : {}) }),
     editCard: (qid, target, text) => act("/api/card/edit", { qid, card: refOf(qid, target), text }),
@@ -554,12 +604,78 @@
   }
   function forget() { secret = ""; drop("secret"); drop("pid"); Core.me.cid = ""; }
 
-  const act = (path, body) => send(path, body).then(async r => {
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw { status: r.status, ...j };
-    await poll();
-    return j;
-  });
+  // ---------- optimistic actions: shown at once, reconciled with the server in the background ----------
+  // An action given a patch shows before its request goes out: patch(snapshot, myPid) edits a copy of the server's
+  // last snapshot, and every snapshot after it, until a poll that started after the server accepted the action
+  // returns (that snapshot holds the change). A refusal or a network error drops the patch, so the page shows the
+  // server's state again, and the caller's catch shows the error. A patch sets state, never toggles it, so applying
+  // it to a snapshot that already holds the change changes nothing. One key holds one pending action: a newer
+  // action under the same key replaces the older one's patch, and the older one's answer no longer touches it.
+  const pending = new Map(); // key -> {patch, after: the poll count when the server accepted it, or null}
+  let polls = 0; // polls started so far
+  function withPending(s) {
+    if (!pending.size || !s?.me) return s;
+    const out = structuredClone(s);
+    for (const p of pending.values()) { try { p.patch(out, out.me.pid); } catch (e) { console.error(e); } }
+    return out;
+  }
+  const repaint = () => { if (snap) { Core.state = toView(withPending(snap)); emit(); } };
+  function act(path, body, opt) {
+    const entry = opt && { patch: opt.patch, after: null };
+    const mine = () => !!entry && pending.get(opt.key) === entry;
+    const drop = () => { if (mine()) { pending.delete(opt.key); repaint(); } };
+    if (entry) { pending.delete(opt.key); pending.set(opt.key, entry); repaint(); }
+    return send(path, body).then(async r => {
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { drop(); throw { status: r.status, ...j }; }
+      if (mine()) entry.after = polls;
+      await poll();
+      return j;
+    }, e => { drop(); throw e; });
+  }
+  function cardsOf(s, qid) {
+    s.cards ||= {};
+    s.cards[qid] ||= [];
+    return s.cards[qid];
+  }
+  const without = (list, x) => (list || []).filter(v => v !== x);
+  const fmtOf = (s, qid) => qOf(s.questions || [], qid)?.format || {};
+  /** My vote on card `ref` of qid, on or off. Off a multi question a person holds one vote per question. */
+  function patchVote(s, pid, qid, ref, on) {
+    const cards = cardsOf(s, qid), multi = fmtOf(s, qid).kind === "multi";
+    if (on && !multi) for (const c of cards) c.votes = without(c.votes, pid);
+    const c = cards.find(x => x.ref === ref);
+    if (c) c.votes = on ? [...without(c.votes, pid), pid] : without(c.votes, pid);
+    // On choice, backing someone's own option moves my one pick there (session.py vote).
+    if (on && fmtOf(s, qid).kind === "choice") {
+      s.cards[qid] = cards.filter(x => !(x.kind === "person" && x.pid === pid && (x.pick === "other" || !x.text)));
+      for (const x of s.cards[qid]) if (x.kind === "person" && x.pid === pid) delete x.pick;
+    }
+  }
+  const isOther = c => c.pick === "other" || (c.picks || []).includes("other") || (c.order || []).includes("other");
+  /** My pick on qid as /api/pick takes it (contract option ids), the way session.py pick writes my card and vote. */
+  function patchPick(s, pid, qid, body) {
+    const kind = fmtOf(s, qid).kind, cards = cardsOf(s, qid), device = body.device;
+    const ids = (fmtOf(s, qid).options || []).map(o => o.id).filter(id => id !== "other");
+    const fields = "option" in body ? (body.option ? { pick: body.option } : {})
+      : "options" in body ? (body.options.length ? { picks: [...ids, "other"].filter(id => body.options.includes(id)) } : {})
+      : "value" in body ? (body.value == null ? {} : { value: body.value })
+      : body.order?.length ? { order: body.order } : {};
+    const i = cards.findIndex(c => c.kind === "person" && c.pid === pid && (c.device || "") === (device || ""));
+    const mine = cards[i], chose = isOther(fields);
+    if ("option" in body) {
+      for (const c of cards) if (kind !== "text" || c.kind === "option") c.votes = without(c.votes, pid);
+      const o = fields.pick && !chose && cards.find(c => c.ref === "o:" + fields.pick);
+      if (o) o.votes = [...without(o.votes, pid), pid];
+    }
+    const text = body.other ?? body.comment ?? "";
+    if (!Object.keys(fields).length && !text) { if (mine) cards.splice(i, 1); return; }
+    const card = { kind: "person", pid, ...(device ? { device } : {}), ref: `p:${pid}${device ? ":" + device : ""}`, text, at: mine?.at ?? s.serverTime,
+      cites: mine?.cites || [], votes: mine && (chose || !isOther(mine)) ? mine.votes || [] : [], reactions: mine?.reactions || {},
+      ...(body.attachments ? { attachments: body.attachments } : mine?.attachments ? { attachments: mine.attachments } : {}), ...fields };
+    if (mine) cards[i] = card; else cards.push(card);
+  }
+  let sends = 0;
 
   const emit = () => listeners.forEach(fn => { try { fn(Core.state, Core); } catch (e) { console.error(e); } });
 
@@ -570,13 +686,28 @@
 
   /** The state poll always carries ?since=<rev>: in a session imported from the prototype a poll with
    *  identity and no query is an old page, which gets only a reload notice. */
-  async function poll() {
-    if (polling) return;
-    polling = true;
+  // A poll asked for while one runs runs once more after it, so an action's poll always starts after its answer.
+  let polling = null, pollNext = null;
+  function poll() {
+    if (!polling) {
+      polling = pollOnce().finally(() => { polling = null; });
+      return polling;
+    }
+    pollNext ||= polling.then(() => { pollNext = null; return poll(); });
+    return pollNext;
+  }
+  /** Drop the patches of actions the server accepted before poll number `seq` started: its snapshot holds them. */
+  function settle(seq) {
+    const n = pending.size;
+    for (const [k, e] of pending) if (e.after != null && seq > e.after) pending.delete(k);
+    return pending.size !== n;
+  }
+  async function pollOnce() {
+    const seq = ++polls;
     try {
       const headers = { ...ident(), ...(etag ? { "If-None-Match": etag } : {}) };
       const r = await fetch(`/api/state?since=${rev}`, { headers });
-      if (r.status === 304) { lastOk = Date.now(); return; }
+      if (r.status === 304) { lastOk = Date.now(); if (settle(seq) && snap) Core.state = toView(withPending(snap)); return; }
       const s = await r.json().catch(() => ({}));
       if (r.status === 403 && s.error === "removed") { Core.state = { ...Core.state, youRemoved: true, youWaiting: false }; lastOk = Date.now(); return; }
       // Approve new joins: the person waits until the owner lets them in; the poll keeps asking.
@@ -592,12 +723,12 @@
         return;
       }
       snap = s; rev = s.rev;
-      Core.state = toView(s);
+      settle(seq);
+      Core.state = toView(withPending(s));
       Core.me.cid = s.me.pid; Core.me.name = s.me.name;
       Core.me.isOwner = s.me.role === "owner"; Core.me.isLeader = s.me.role === "leader"; Core.me.isTrusted = !!s.me.trusted;
       if (!ownerToken) { put("pid", s.me.pid); put("name", s.me.name); }
     } catch { /* offline: the live dot says so */ } finally {
-      polling = false;
       Core.live = Date.now() - lastOk < 5000;
       emit();
     }

@@ -1947,13 +1947,20 @@
     }
     async function sendChat() {
       const text = mInput.value.trim(); if (!text) return;
-      mSend.disabled = true;
+      // The message shows at once and the box empties; a refusal puts the text back.
+      const reply = ui.replyTo, sent = Core.chat(text, reply?.id, attExtra(chatSlot));
+      mInput.value = ""; mCount.textContent = ""; grow(mInput); mScroll.scrollTop = mScroll.scrollHeight;
+      ui.replyTo = null; paintReply();
       try {
-        await Core.chat(text, ui.replyTo?.id, attExtra(chatSlot)); mInput.value = ""; mCount.textContent = ""; grow(mInput); mScroll.scrollTop = mScroll.scrollHeight;
+        await sent;
         chatSlot.clear();
-        ui.replyTo = null; paintReply();
-      } catch (e) { if (e?.status === 404 && ui.replyTo) { ui.replyTo = null; paintReply(); } fail(e); }
-      finally { mSend.disabled = false; }
+      } catch (e) {
+        if (!mInput.value) {
+          mInput.value = text; grow(mInput);
+          if (reply && e?.status !== 404 && !ui.replyTo) { ui.replyTo = reply; paintReply(); }
+        }
+        fail(e);
+      }
     }
     function startTitleEdit() {
       titleInput.value = Core.state.title || "Interview";
@@ -3592,9 +3599,10 @@
           e.preventDefault();
           const reason = disIn.value.trim();
           if (!reason) { disIn.focus(); return flash("Say why you disagree first."); }
-          disSend.disabled = true;
-          Core.disagree(k.qid, k.ref, reason).then(() => { closeDis(); flash("Your disagreement is noted with your reason. Votes stay as they are."); })
-            .catch(fail).finally(() => { disSend.disabled = false; });
+          // It shows in the list at once; a refusal takes it out again and reopens the form with the reason.
+          closeDis();
+          Core.disagree(k.qid, k.ref, reason).then(() => flash("Your disagreement is noted with your reason. Votes stay as they are."))
+            .catch(e => { if (disForm.hidden && !k.disBtn.hidden) { disForm.hidden = false; k.disBtn.setAttribute("aria-expanded", "true"); disIn.value = reason; } fail(e); });
         };
       }
       vote.onclick = () => { const was = k.mine; return Core.vote(k.qid, k.ref, !was).then(r => {
@@ -4268,11 +4276,10 @@
         announce("Your own option is in your ranking. Move it where it belongs, then save your ranking.");
         return fmtSave.focus({ preventScroll: true });
       }
-      otherSave.disabled = true;
-      Core.pick(qid, "other", "", { other: text }).then(() => {
-        delete ui.otherText[qid]; ui.otherOpen[qid] = false;
-        flash("Your own option is in Answers, where others can back it.");
-      }).catch(fail).finally(() => { otherSave.disabled = false; render(); });
+      // It shows in Answers at once; a refusal reopens the box with the text.
+      delete ui.otherText[qid]; ui.otherOpen[qid] = false;
+      Core.pick(qid, "other", "", { other: text }).then(() => flash("Your own option is in Answers, where others can back it."))
+        .catch(e => { if (ui.otherText[qid] == null) { ui.otherText[qid] = text; ui.otherOpen[qid] = true; } fail(e); render(); });
     };
     otherCancel.onclick = () => {
       const qid = ui.cur, q = qById(qid);
@@ -4317,7 +4324,7 @@
         if (scaleRow._q !== q.id) { resetList(scaleRow); scaleRow._q = q.id; }
         sync(scaleRow, optionsOf(q), o => o.id, () => {
           const b = btn("vf-scale-btn"); b.setAttribute("role", "radio");
-          b.onclick = () => pickScale(+b._o.id);
+          b.onclick = () => pickScale(+b._o.id, true);
           return b;
         }, (b, o) => {
           const n = +o.id, mine = v === n;
@@ -4398,11 +4405,12 @@
       const list = draftOf(q, rec), own = list.includes("other") ? ownText(q, rec).trim() : null;
       if (own === "") { openOther(qid); return flash("Write your own option first."); }
       const fields = q.format === "multi" ? { options: list } : { order: list };
-      fmtSave.disabled = true;
-      Core.pickWith(qid, fields, own != null ? { other: own } : { comment: commentOf(rec) }).then(() => {
-        delete ui.fdraft[qid]; delete ui.otherText[qid]; ui.otherOpen[qid] = false; otherBox._q = null;
-        flash(q.format === "multi" ? "Your picks are saved." : "Your ranking is saved.");
-      }).catch(fail).finally(() => { fmtSave.disabled = false; render(); });
+      // The saved pick shows at once; a refusal puts the draft back.
+      const draft = ui.fdraft[qid], ownDraft = ui.otherText[qid];
+      delete ui.fdraft[qid]; delete ui.otherText[qid]; ui.otherOpen[qid] = false; otherBox._q = null;
+      Core.pickWith(qid, fields, own != null ? { other: own } : { comment: commentOf(rec) })
+        .then(() => flash(q.format === "multi" ? "Your picks are saved." : "Your ranking is saved."))
+        .catch(e => { if (draft && !ui.fdraft[qid]) ui.fdraft[qid] = draft; if (ownDraft != null && ui.otherText[qid] == null) ui.otherText[qid] = ownDraft; fail(e); render(); });
     };
     fmtClear.onclick = () => {
       const qid = ui.cur, q = qById(qid), rec = myRec(qid);
@@ -4414,22 +4422,21 @@
         flash(q.format === "rank" ? "Your ranking is cleared." : "Your pick is cleared.");
       }).catch(fail).finally(render);
     };
-    /** A scale value: shown at once, sent a moment after the last change, so arrowing across sends one pick. */
-    function pickScale(n) {
+    /** A scale value: a tap saves it at once; arrowing sends a moment after the last key, so arrowing across sends one pick. */
+    function pickScale(n, now) {
       const qid = ui.cur, q = qById(qid);
       if (!q || readOnly(q) || Core.lockOf(qid) || n < q.min || n > q.max) return;
       ui.fdraft[qid] = { value: n };
       render();
       scaleRow._map?.get(String(n))?.focus({ preventScroll: true });
       clearTimeout(FMT.timer);
-      FMT.timer = setTimeout(() => {
+      const save = () => {
         const rec = myRec(qid);
-        if (rec?.value === n) { delete ui.fdraft[qid]; return render(); }
-        Core.pickWith(qid, { value: n }, { comment: commentOf(rec) }).then(() => {
-          if (ui.fdraft[qid]?.value === n) delete ui.fdraft[qid];
-          announce(`You chose ${n}.`);
-        }).catch(e => { delete ui.fdraft[qid]; fail(e); }).finally(render);
-      }, 450);
+        delete ui.fdraft[qid];
+        if (rec?.value === n) return render();
+        Core.pickWith(qid, { value: n }, { comment: commentOf(rec) }).then(() => announce(`You chose ${n}.`)).catch(fail).finally(render);
+      };
+      if (now) save(); else FMT.timer = setTimeout(save, 450);
     }
     on(scaleRow, "keydown", e => {
       const q = qById(ui.cur); if (!q || q.format !== "scale") return;
