@@ -160,7 +160,7 @@ loop:
 models:
   profiles:
     standard: { model: default, max-turns: 75 }
-    review: { model: opus, effort: high, max-turns: 100 }
+    review: { model: opus, max-turns: 100 }
   default-profile: standard
   routes:
     claude: review

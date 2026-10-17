@@ -1383,7 +1383,7 @@ test("the README example validates and resolves for each of its lanes", () => {
   assert.deepEqual(results["pr-review / claude"].models, {
     profile: "review",
     model: "opus",
-    effort: "high",
+    effort: null,
     "subagent-model": "inherit",
     "max-turns": 100,
   });
