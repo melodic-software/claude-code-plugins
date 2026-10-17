@@ -58,7 +58,8 @@ const keyboard = (page, up, { kb = KB, stale = false } = {}) => page.evaluate(as
   return pan;
 }, [up, kb, stale]);
 /** What a person sees of the focused sheet's field: the label, the field's first 3 lines and its primary button must
- *  each be the topmost element at their sample points, inside the visual viewport. Resolves to the problems found. */
+ *  each be the topmost element at their sample points, inside the visual viewport, and the button's whole box inside
+ *  it. Resolves to the problems found. */
 const fieldSeen = (page, label, field, button) => page.evaluate(([l, f, b]) => {
   const vv = visualViewport, top = vv.offsetTop, bottom = vv.offsetTop + vv.height, out = [];
   const probe = (what, el, x, y) => {
@@ -73,6 +74,7 @@ const fieldSeen = (page, label, field, button) => page.evaluate(([l, f, b]) => {
   probe("label", L, lr.left + Math.min(20, lr.width / 2), lr.top + lr.height / 2);
   for (let i = 0; i < 3; i++) for (const x of [fr.left + 16, fr.right - 16]) probe(`field line ${i + 1}`, F, x, fr.top + pad + (i + 0.5) * lh);
   probe(B.textContent.trim() || "button", B, br.left + br.width / 2, br.top + br.height / 2);
+  if (br.top < top - 0.5 || br.bottom > bottom + 0.5 || br.left < -0.5 || br.right > innerWidth + 0.5) out.push(`${B.textContent.trim() || "button"} at ${br.left.toFixed(0)},${br.top.toFixed(0)} to ${br.right.toFixed(0)},${br.bottom.toFixed(0)} not whole inside the visual viewport ${top.toFixed(0)}..${bottom.toFixed(0)} by ${innerWidth}`);
   return [...new Set(out)];
 }, [label, field, button]);
 const settle = page => page.evaluate(() => Promise.all(document.getAnimations().filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished.catch(() => null))));
@@ -271,8 +273,9 @@ async function main() {
     // ---------- dogfood: the Ask Claude sheet with an iOS keyboard of every plausible height ----------
     // Keyboard heights from 300 to 600 px at 390x844 and 260 to 430 at 375x667 (a small iPhone), each with WebKit's
     // centering pan, and one where the last resize reads offsetTop 0. In Ask and in Propose question the label, the
-    // field's first 3 lines and the primary button are seen above the keyboard and the sticky row; in Ask the sheet
-    // sits at its top.
+    // field's first 3 lines and the primary button are seen above the keyboard and the sticky row, the button whole; in
+    // Ask the sheet sits at its top. What the form shows runs down the page in DOM order, and once the keyboard closes
+    // every part it showed before is back.
     const SWEEP = [[390, 844, [300, 350, 400, 450, 500, 550, 600], 450], [375, 667, [260, 310, 360, 410, 430], 360]];
     for (const [w, h, kbs, staleKb] of SWEEP) {
       const sp = await rec.open(A.localUrl, { context: { ...PHONE, viewport: { width: w, height: h } } });
@@ -284,20 +287,32 @@ async function main() {
         await sp.locator(".vf-apmodes .vf-seg-btn", { hasText: mode }).tap();
         await until(sp, l => document.querySelector(".vf-apform .vf-btn-primary")?.textContent === l, label, 3000);
         const bad = [];
+        // The form's parts a person sees, in DOM order, and whether they also run down the page in that order (a sticky
+        // row floats over what scrolls under it, so it has no place in that order).
+        const parts = () => sp.evaluate(() => {
+          const shown = [...document.querySelector(".vf-apform").children].filter(c => c.getClientRects().length);
+          const tops = shown.filter(c => getComputedStyle(c).position !== "sticky").map(c => c.getBoundingClientRect().top);
+          return { names: shown.map(c => c.className), inOrder: tops.every((t, i) => !i || t >= tops[i - 1] - 0.5) };
+        });
+        const closed = await parts();
         for (const [kb, stale] of [...kbs.map(k => [k, false]), [staleKb, true]]) {
           await sp.evaluate(() => { document.activeElement?.blur(); document.querySelector(".vf-apscroll").scrollTop = 0; });
           await sp.locator("#vf-ap-ta").tap();
           await keyboard(sp, true, { kb, stale });
           const seen = await fieldSeen(sp, ".vf-apform .vf-asklabel", "#vf-ap-ta", ".vf-apform .vf-btn-primary");
           if (mode === "Ask") { const st = await sp.evaluate(() => document.querySelector(".vf-apscroll").scrollTop); if (st > 0.5) seen.push(`the sheet scrolled ${st.toFixed(0)} px from its top`); }
+          const up = await parts();
+          if (!up.inOrder) seen.push(`the form's parts are out of DOM order on screen: ${up.names.join(", ")}`);
           if (seen.length) bad.push(`keyboard ${kb}${stale ? " (offsetTop read 0)" : ""}: ${seen.join(", ")}`);
           if (process.env.KBD_SHOTS && kb === kbs[kbs.length - 1] && !stale) {
             const vv = await sp.evaluate(() => [visualViewport.offsetTop, visualViewport.height]);
             await sp.screenshot({ path: require("node:path").join(process.env.KBD_SHOTS, `${mode === "Ask" ? "ask" : "propose"}-${w}x${h}-kb${kb}.png`), clip: { x: 0, y: vv[0], width: w, height: vv[1] } });
           }
           await keyboard(sp, false);
+          const back = await parts();
+          if (back.names.join() !== closed.names.join() || !back.inOrder) bad.push(`keyboard ${kb}${stale ? " (offsetTop read 0)" : ""}, closed again: the form shows ${back.names.join(", ")}, not ${closed.names.join(", ")}`);
         }
-        ok(`${w}x${h}, Ask Claude in ${mode}, keyboard ${kbs[0]} to ${kbs[kbs.length - 1]} px: the label, the field's first 3 lines and ${label} are seen above the keyboard${mode === "Ask" ? ", the sheet at its top" : ""}`, bad.length === 0, bad.join("; "));
+        ok(`${w}x${h}, Ask Claude in ${mode}, keyboard ${kbs[0]} to ${kbs[kbs.length - 1]} px: the label, the field's first 3 lines and ${label} are seen above the keyboard${mode === "Ask" ? ", the sheet at its top" : ""}, the form in DOM order, every part back once it closes`, bad.length === 0, bad.join("; "));
       }
       await sp.context().close();
     }
