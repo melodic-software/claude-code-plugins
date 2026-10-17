@@ -42,8 +42,11 @@ from a completed, successful one. Any other artifact is ignored.
 (`verify:unreadable`). The repository's artifacts are listed once per
 `Reader`, which pr-merge.yml builds once per candidate gate run, every page,
 and filtered on the name here: the API's name filter matches whole names only.
-A failed listing is kept as well, so one outage refuses every entry of the
-run without paging again: it holds the whole queue rather than merging blind.
+A listing that got a 5xx or a fast network error is read again after each of
+`LISTING_WAITS`, every read inside one gh timeout in all; any other failure, a
+timeout, a 429 or a rate-limit 403 included, is not. A failed listing is kept
+as well, so one outage refuses every entry of the run without paging again:
+it holds the whole queue rather than merging blind.
 """
 
 from __future__ import annotations
@@ -52,6 +55,7 @@ import json
 import os
 import re
 import tempfile
+import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -60,7 +64,7 @@ from typing import Any
 import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
 from babysit_classify import is_dependency_author
-from babysit_gh import flatten_paginated_items
+from babysit_gh import flatten_paginated_items, gh_http_status, gh_timeout_seconds
 from babysit_util import is_json_array, is_json_object, json_array, json_object
 
 WORKFLOW_PATH = ".github/workflows/pr-verify.yml"
@@ -74,6 +78,18 @@ PASSES = ("pass", "pass-notes")
 TOO_OLD_DAYS = 80
 # `GET /pulls/{n}/commits` lists at most 250 commits.
 COMMITS_CAP = 250
+# The waits before the second and third listing reads (judgment).
+LISTING_WAITS = (2.0, 4.0)
+# How gh reports a request that never got an HTTP response: its own
+# "error connecting to <host>" for a failed lookup, else Go's net/http error.
+NETWORK_ERRORS = (
+    "error connecting to",
+    "connection reset by peer",
+    "connection refused",
+    "i/o timeout",
+    "tls handshake timeout",
+    "unexpected eof",
+)
 FAIL = "verify:fail"
 EARLIER_FAIL = "verify:earlier-fail"
 MISSING = "verify:missing"
@@ -99,6 +115,28 @@ UNREAD, FOREIGN, ORIGIN, COUNTED = "unreadable", "foreign", "origin", "counted"
 
 class _Unreadable(Exception):
     pass
+
+
+class _Transient(_Unreadable):
+    """A failed read that may succeed if repeated."""
+
+
+def _transient(detail: str) -> bool:
+    """A 5xx, or a network error with no HTTP response. A rate limit is not:
+    a fixed short wait outlasts neither a Retry-After nor an hourly reset, and
+    more requests can extend a secondary limit."""
+    status = gh_http_status(detail)
+    if status is not None:
+        return status >= 500
+    return any(phrase in detail.casefold() for phrase in NETWORK_ERRORS)
+
+
+def _listing_sleep(seconds: float) -> None:
+    time.sleep(seconds)
+
+
+def _listing_clock() -> float:
+    return time.monotonic()
 
 
 def dependency_bot(user: Any) -> bool:
@@ -182,17 +220,8 @@ class Reader:
         listing = self._artifacts
         if listing is None:
             try:
-                payload = self._actions(
-                    [
-                        "api",
-                        f"repos/{self.repo}/actions/artifacts?per_page=100",
-                        "--paginate",
-                        "--slurp",
-                    ],
-                    "repository artifacts",
-                )
                 listing = flatten_paginated_items(
-                    payload, "repository artifacts", items_key="artifacts"
+                    self._read_listing(), "repository artifacts", items_key="artifacts"
                 )
             except (_Unreadable, RuntimeError) as exc:
                 self._listing_error = str(exc)
@@ -200,19 +229,50 @@ class Reader:
             self._artifacts = listing
         return listing
 
+    def _read_listing(self) -> Any:
+        """The listing payload, read again after a 5xx or a fast network
+        error while time is left: every read and wait fits in the one gh
+        timeout a single read would get, so a retry adds no time to the run's
+        worst case."""
+        args = [
+            "api",
+            f"repos/{self.repo}/actions/artifacts?per_page=100",
+            "--paginate",
+            "--slurp",
+        ]
+        deadline = _listing_clock() + gh_timeout_seconds()
+        timeout: float | None = None
+        for wait in LISTING_WAITS:
+            try:
+                return self._actions(args, "repository artifacts", timeout)
+            except _Transient:
+                if deadline - _listing_clock() - wait <= 0:
+                    raise
+                _listing_sleep(wait)
+                # Recomputed after the sleep, which may return late.
+                timeout = deadline - _listing_clock()
+                if timeout <= 0:
+                    raise
+        return self._actions(args, "repository artifacts", timeout)
+
     def _env(self) -> dict[str, str] | None:
         return {"GH_TOKEN": self.actions_token} if self.actions_token else None
 
-    def _actions(self, args: list[str], label: str) -> Any:
-        """A read the Actions API answers, under the Actions token when set."""
+    def _actions(
+        self, args: list[str], label: str, timeout_seconds: float | None = None
+    ) -> Any:
+        """A read the Actions API answers, under the Actions token when set;
+        `None` keeps gh's default timeout."""
         try:
-            proc = postmerge.gh_capture(args, env_overrides=self._env())
+            proc = postmerge.gh_capture(
+                args, timeout_seconds=timeout_seconds, env_overrides=self._env()
+            )
         except (RuntimeError, ValueError, OSError) as exc:
+            # A timeout, or no gh on PATH: neither is read again.
             raise _Unreadable(f"{label}: {exc}") from exc
         if proc.returncode != 0:
-            raise _Unreadable(
-                f"{label}: {(proc.stderr or '').strip() or proc.returncode}"
-            )
+            detail = f"{label}: {(proc.stderr or '').strip() or proc.returncode}"
+            raise (_Transient if _transient(detail) else _Unreadable)(detail)
         try:
             return json.loads(proc.stdout) if proc.stdout.strip() else None
         except ValueError as exc:
