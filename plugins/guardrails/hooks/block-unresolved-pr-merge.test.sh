@@ -140,6 +140,9 @@ J
   failed-cancelled-skipped) echo '{"total_count":3,"check_runs":[{"id":900,"name":"test","app":{"id":15368},"status":"completed","conclusion":"failure","started_at":"2026-10-14T09:50:00Z","completed_at":"2026-10-14T09:55:00Z"},{"id":901,"name":"test","app":{"id":15368},"status":"completed","conclusion":"cancelled","started_at":"2026-10-14T10:00:00Z","completed_at":"2026-10-14T10:01:00Z"},{"id":902,"name":"test","app":{"id":15368},"status":"completed","conclusion":"skipped","started_at":"2026-10-14T10:20:00Z","completed_at":"2026-10-14T10:20:00Z"}]}' >"$FIX/checks.json" ;;
   # An older success, then a newer run that was cancelled.
   newer-cancelled) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test","app":{"id":15368},"status":"completed","conclusion":"success","started_at":"2026-10-14T10:00:00Z","completed_at":"2026-10-14T10:10:00Z"},{"id":902,"name":"test","app":{"id":15368},"status":"completed","conclusion":"cancelled","started_at":"2026-10-14T10:20:00Z","completed_at":"2026-10-14T10:21:00Z"}]}' >"$FIX/checks.json" ;;
+  # Matrix jobs cancelled before expanding (bare names), then the newer run's legs (#7797).
+  matrix-cancelled-then-legs) echo '{"total_count":4,"check_runs":[{"id":901,"name":"test-bash","app":{"id":15368},"status":"completed","conclusion":"cancelled"},{"id":902,"name":"test-python","app":{"id":15368},"status":"completed","conclusion":"cancelled"},{"id":903,"name":"test-bash (0)","app":{"id":15368},"status":"completed","conclusion":"success"},{"id":904,"name":"test-python (0)","app":{"id":15368},"status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
+  matrix-cancelled-then-leg-fails) echo '{"total_count":3,"check_runs":[{"id":901,"name":"test-bash","app":{"id":15368},"status":"completed","conclusion":"cancelled"},{"id":903,"name":"test-bash (0)","app":{"id":15368},"status":"completed","conclusion":"success"},{"id":904,"name":"test-bash (1)","app":{"id":15368},"status":"completed","conclusion":"failure"}]}' >"$FIX/checks.json" ;;
   *) return 1 ;;
   esac
   case "$4" in
@@ -280,6 +283,13 @@ assert_contains "blocks naming test" "$ERR" "Failing checks: test"
 scenario none none newer-cancelled green
 run "a newest cancelled run still blocks" 'gh pr merge 42 --squash' 2
 assert_contains "names the cancelled check" "$ERR" "Failing checks: test"
+scenario none none matrix-cancelled-then-legs green
+run "a cancelled matrix job is superseded by its newer legs" 'gh pr merge 42 --squash' 0
+assert_eq "matrix cancelled then legs -> no stderr" "" "$ERR"
+scenario none none matrix-cancelled-then-leg-fails green
+run "a failing leg still blocks after its cancelled matrix job" 'gh pr merge 42 --squash' 2
+assert_contains "names the failing leg" "$ERR" "Failing checks: test-bash (1)"
+assert_absent "the bare cancelled job is not listed" "$ERR" "test-bash,"
 
 # --- 4. REST, GraphQL and curl merge paths -------------------------------------
 scenario unresolved none green green

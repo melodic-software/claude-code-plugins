@@ -529,14 +529,20 @@ _bupm_changes="$BUPM_OUT"
 # finish later and a caller can set them. A skipped or neutral run never
 # supersedes a completed run with a real conclusion, so a later event that
 # skips a job cannot clear its failure; it does supersede a pending run and a
-# cancelled one, which stopped before reaching a conclusion (#7549).
+# cancelled one, which stopped before reaching a conclusion (#7549). A matrix
+# job cancelled before its matrix expanded carries the bare job name, and the
+# next run's legs carry `name (leg)`, so a newer `name (...)` run of the same
+# app supersedes a cancelled `name` (#7797).
 # shellcheck disable=SC2016
 _bupm_api "repos/$BUPM_REPO/commits/$_bupm_sha/check-runs?per_page=100" --jq '
-  [.check_runs | group_by([.name, (.app.id // 0)])[]
+  .check_runs as $all
+  | [$all | group_by([.name, (.app.id // 0)])[]
     | max_by(.id) as $n
     | if ($n.conclusion | IN("skipped","neutral"))
       then (map(select(.status == "completed" and (.conclusion | IN("skipped","neutral","cancelled") | not))) | max_by(.id)) // $n
-      else $n end] as $runs
+      else $n end
+    | select(. as $c | $c.conclusion == "cancelled"
+        and any($all[]; (.app.id // 0) == ($c.app.id // 0) and .id > $c.id and (.name | startswith($c.name + " ("))) | not)] as $runs
   | [$runs[] | select(.status == "completed" and (.conclusion | IN("failure","timed_out","cancelled","action_required","startup_failure","stale"))) | .name] as $f
   | [$runs[] | select(.status != "completed") | .name] as $p
   | "\($f | join(", "))\u001f\($p | join(", "))"' ||
