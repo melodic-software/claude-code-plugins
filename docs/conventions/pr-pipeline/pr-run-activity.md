@@ -622,9 +622,11 @@ sort pull requests with `dependency-classify.mjs`:
    `verdict` (`merge`, `fix`, `close`, `escalate`), 1-10 `reasons` of at most 500 characters and
    at most 20 `evidence` entries of at most 300. The activity's `web-access` names the release-note
    hosts. The skill runs no head code; `ci-status` runs the tests on the pushed head.
-3. The promote step moves the PR branch only when the lane branch changes nothing under
-   `.github/` in fewer than 300 files and every commit's message carries `[dependabot skip]`, so
-   Dependabot may still rebase over the fix (pr-bump-plugin-version.yml states the convention).
+3. The promote step moves the PR branch only when the skill's structured verdict is `fix`, the
+   lane branch changes nothing under `.github/` in fewer than 300 files, and every commit's
+   message carries `[dependabot skip]`, so Dependabot may still rebase over the fix
+   (pr-bump-plugin-version.yml states the convention). Commits made beside any other verdict are
+   discarded with the lane branch.
 4. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
    `github-script` step writes `run.json` (`version`, `pr`, the gated `head_sha`, the select
    step's `security` flag, and the skill's structured output as `output`, `null` when absent or
@@ -636,19 +638,25 @@ sort pull requests with `dependency-classify.mjs`:
      runner's fields, and an `output` with exactly the schema's fields within its limits, each
      string plain prose with no control character, code fence, HTML comment or @-mention. Any
      failure, or a missing artifact, escalates `dependency-invalid`;
-   - re-reads the pull request: a closed one gets nothing. `merge`, `close` and `escalate` need
-     the reviewed head; a moved head skips `superseded-sha` and the next dispatcher run reviews
-     the new one. `fix` needs the PR head ahead of the reviewed head by commits the lanes App
-     authored only, else `dependency-fix-not-landed` (no commit) or `superseded-sha`;
+   - re-reads the pull request: a closed one gets nothing, unless it is a `close` this job
+     started at the reviewed head (its issue or marker is there), which resumes. `merge`,
+     `close` and `escalate` need the reviewed head; a moved head skips `superseded-sha` and the
+     next dispatcher run reviews the new one. `fix` needs the PR head ahead of the reviewed head
+     by commits the lanes App authored only, else `dependency-fix-not-landed` (no commit) or
+     `superseded-sha`, and those commits may change nothing under `.github/`, else
+     `dependency-invalid`;
    - `merge`: posts the round marker, whose first line
      `<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<run id>-<attempt> -->`
      from the lanes App is the record the pr-merge lane merges a review-tier pull request on,
      at the current head and through its own gate. This job never merges or enqueues;
    - `close`: escalates `dependency-security-close` for a security update (the model job's flag,
-     or the label or an advisory in the body read fresh); otherwise files an issue proposing the
-     `.github/dependabot.yml` `ignore` entry, closes the pull request, and posts the marker;
+     or the label or an advisory in the body read fresh); otherwise finds the lanes App issue whose first line is
+     `<!-- pr-unblock:dependency-ignore pr=<n> head=<sha> -->` or files it, proposing the
+     `.github/dependabot.yml` `ignore` entry, then posts the marker, then closes an open pull
+     request. Each step is safe to repeat, so a re-run after a partial failure resumes;
    - `escalate`: escalates `dependency-escalate`;
-   - posts the round marker once per model run: a re-run that finds its own marker posts none.
+   - posts the round marker once per model run, named `none` when the model run uploaded no
+     verdict: a re-run that finds its own marker posts none.
 
    The runner accepts only those four reasons, and only with `dependency-verdict`.
 

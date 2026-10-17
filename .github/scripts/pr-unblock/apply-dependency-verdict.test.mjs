@@ -19,20 +19,35 @@ const output = (overrides = {}) => ({
 });
 const runOf = (overrides = {}) => ({ version: 1, pr: 7, head_sha: HEAD, security: false, output: output(), ...overrides });
 
-function fakeApi({ head = HEAD, state = "open", labels = [], body = "", compare = { status: "ahead", commits: [] }, comments = [] } = {}) {
+function fakeApi({ head = HEAD, state = "open", labels = [], body = "", compare = { status: "ahead", commits: [], files: [] }, comments = [], issues = [], failClose = false } = {}) {
+  // State persists across calls, so a second apply() is a re-run.
   const calls = { comments: [], closed: [], issues: [] };
-  return {
+  const pull = { number: 7, state, head: { sha: head }, labels: labels.map((name) => ({ name })), body, title: "bump x from 1.0.0 to 2.0.0" };
+  const api = {
     calls,
-    getPull: async () => ({ number: 7, state, head: { sha: head }, labels: labels.map((name) => ({ name })), body, title: "bump x from 1.0.0 to 2.0.0" }),
+    pull,
+    failClose,
+    getPull: async () => ({ ...pull }),
     listIssueComments: async () => comments,
     compare: async () => compare,
-    createIssueComment: async (pr, text) => calls.comments.push(text),
-    closePull: async (pr) => calls.closed.push(pr),
+    createIssueComment: async (pr, text) => {
+      calls.comments.push(text);
+      comments.push({ user: { id: APP }, body: text });
+    },
+    listIssues: async () => issues,
+    closePull: async (pr) => {
+      if (api.failClose) throw new Error("close failed");
+      calls.closed.push(pr);
+      pull.state = "closed";
+    },
     createIssue: async (fields) => {
       calls.issues.push(fields);
-      return { number: 99, html_url: "https://github.com/o/r/issues/99" };
+      const issue = { number: 99, user: { id: APP }, body: fields.body };
+      issues.push(issue);
+      return issue;
     },
   };
+  return api;
 }
 
 const go = (api, run, extra = {}) => apply({ api, pr: 7, appId: APP, modelRun: "11-1", run, log: () => {}, ...extra });
@@ -98,6 +113,57 @@ test("close files the ignore issue, then closes the pull request", async () => {
   assert.match(api.calls.comments.at(-1), /verdict=close/);
 });
 
+test("close resumes after a failed close without filing a second issue", async () => {
+  const api = fakeApi({ failClose: true });
+  const close = runOf({ output: output({ verdict: "close" }) });
+  await assert.rejects(go(api, close), /close failed/);
+  api.failClose = false;
+  const result = await go(api, close);
+  assert.equal(result.escalationReason, "");
+  assert.equal(api.calls.issues.length, 1);
+  assert.equal(api.calls.comments.length, 1);
+  assert.deepEqual(api.calls.closed, [7]);
+});
+
+test("close resumes on a closed pull request whose issue is filed but whose marker is missing", async () => {
+  const api = fakeApi({ state: "closed" });
+  const close = runOf({ output: output({ verdict: "close" }) });
+  assert.equal((await go(api, close)).skipReason, "not-applicable", "a PR someone else closed gets nothing");
+  await api.createIssue({ body: `<!-- pr-unblock:dependency-ignore pr=7 head=${HEAD} -->\nbody` });
+  const result = await go(api, close);
+  assert.equal(result.skipReason, "");
+  assert.equal(api.calls.issues.length, 1, "the existing issue is reused");
+  assert.match(api.calls.comments.at(-1), /verdict=close/);
+  assert.deepEqual(api.calls.closed, [], "a closed PR is not closed again");
+});
+
+test("an ignore issue for another head, or by another author, is not reused", async () => {
+  const api = fakeApi({
+    issues: [
+      { number: 1, user: { id: APP }, body: `<!-- pr-unblock:dependency-ignore pr=7 head=${FIX} -->` },
+      { number: 2, user: { id: 5 }, body: `<!-- pr-unblock:dependency-ignore pr=7 head=${HEAD} -->` },
+    ],
+  });
+  await go(api, runOf({ output: output({ verdict: "close" }) }));
+  assert.equal(api.calls.issues.length, 1);
+});
+
+test("a run with no model attempt posts its `none` marker once across re-runs", async () => {
+  const api = fakeApi();
+  await go(api, runOf(), { modelRun: null });
+  await go(api, runOf(), { modelRun: null });
+  assert.equal(api.calls.comments.length, 1);
+  assert.match(api.calls.comments[0], /run=none -->/);
+});
+
+test("a fix that changed a path under .github/ is invalid", async () => {
+  const api = fakeApi({
+    head: FIX,
+    compare: { status: "ahead", commits: [{ author: { id: APP } }], files: [{ filename: ".github/workflows/x.yml" }] },
+  });
+  assert.equal((await go(api, runOf({ output: output({ verdict: "fix" }) }))).escalationReason, "dependency-invalid");
+});
+
 test("a security update is never closed: it escalates", async () => {
   for (const api of [fakeApi({ labels: ["security"] }), fakeApi({ body: "Fixes CVE-2026-12345" })]) {
     const result = await go(api, runOf({ output: output({ verdict: "close" }) }));
@@ -137,10 +203,10 @@ test("main escalates dependency-invalid on a run.json whose SHA-256 does not mat
     PR_NUMBER: "7",
     HEAD_SHA: HEAD,
     GITHUB_RUN_ID: "11",
-    MODEL_RUN_ATTEMPT: "1",
+    DEPENDENCY_RUN_ATTEMPT: "1",
     APP_SENDER_ID: String(APP),
     DEPENDENCY_VERDICT_DIR: dir,
-    RUN_SHA256: "0".repeat(64),
+    DEPENDENCY_RUN_SHA256: "0".repeat(64),
     SKIP_REASON_FILE: join(dir, "skip"),
     ESCALATION_REASON_FILE: join(dir, "escalation"),
   };
@@ -148,7 +214,7 @@ test("main escalates dependency-invalid on a run.json whose SHA-256 does not mat
   await main(env, { api, log: () => {} });
   assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "dependency-invalid\n");
   assert.match(api.calls.comments[0], /verdict=invalid/);
-  const good = { ...env, RUN_SHA256: createHash("sha256").update(text).digest("hex"), ESCALATION_REASON_FILE: join(dir, "e2") };
+  const good = { ...env, DEPENDENCY_RUN_SHA256: createHash("sha256").update(text).digest("hex"), ESCALATION_REASON_FILE: join(dir, "e2") };
   await main(good, { api: fakeApi(), log: () => {} });
   assert.throws(() => readFileSync(good.ESCALATION_REASON_FILE));
 });

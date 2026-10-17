@@ -9,28 +9,34 @@
 //      (SHA-256 from that job), its gated head, and the model's structured
 //      verdict, with exactly the template's fields within the limits below.
 //      Anything else escalates dependency-invalid.
-//   2. Re-reads the pull request. Closed: nothing. merge, close and escalate
-//      need the head the model reviewed; a moved head is superseded and the
-//      next dispatcher run reviews the new one. fix needs only commits the
-//      lanes App made on top of that head, else dependency-fix-not-landed (no
-//      commit) or superseded (Dependabot rebased).
+//   2. Re-reads the pull request. Closed: nothing, unless it is a close this
+//      job started (its issue or marker is there), which resumes. merge,
+//      close and escalate need the head the model reviewed; a moved head is
+//      superseded and the next dispatcher run reviews the new one. fix needs
+//      only commits the lanes App made on top of that head, touching nothing
+//      under .github/ (else dependency-invalid), else
+//      dependency-fix-not-landed (no commit) or superseded (Dependabot
+//      rebased).
 //   3. merge: the round marker it posts, naming the reviewed head, is the
 //      record the pr-merge lane merges on; this job never merges or enqueues.
 //      close: never on a security update (the security label or an advisory
 //      in the body, read fresh here, or the model job's flag), which escalates
-//      dependency-security-close; otherwise files an issue proposing the
-//      dependabot.yml ignore entry and closes the pull request. escalate:
-//      dependency-escalate. fix: nothing more; CI judges the push.
-//   4. Posts the round marker, as the lanes App, once per model run.
+//      dependency-security-close; otherwise finds or files the issue
+//      proposing the dependabot.yml ignore entry (keyed by PR and head), posts
+//      the marker, then closes the pull request, so a re-run after any
+//      partial failure resumes. escalate: dependency-escalate. fix: nothing
+//      more; CI judges the push.
+//   4. Posts the round marker, as the lanes App, once per model run (a run
+//      with no attempt is named `none`).
 //
 // Environment:
 //   GH_TOKEN                the lane token
 //   GITHUB_REPOSITORY       owner/repo
 //   PR_NUMBER, HEAD_SHA     the gated pull request and its head
-//   GITHUB_RUN_ID, MODEL_RUN_ATTEMPT  the model run the round marker names
+//   GITHUB_RUN_ID, DEPENDENCY_RUN_ATTEMPT  the model run the round marker names
 //   APP_SENDER_ID           the lanes App bot's user id
 //   DEPENDENCY_VERDICT_DIR  the downloaded artifact holding run.json
-//   RUN_SHA256              run.json's SHA-256, from the model job's runner step
+//   DEPENDENCY_RUN_SHA256   run.json's SHA-256, from the model job's runner step
 //   SKIP_REASON_FILE, ESCALATION_REASON_FILE  where the runner reads them
 
 import { createHash } from "node:crypto";
@@ -93,11 +99,21 @@ function roundBody({ head, verdict, run, reasons = [], evidence = [] }) {
   return `${parts.join("\n")}\n`;
 }
 
-function ignoreIssue({ pr, title, reasons }) {
+const ignoreLine = (pr, head) => `<!-- pr-unblock:dependency-ignore pr=${pr} head=${head} -->`;
+
+// The ignore-entry issue the lanes App already filed for this PR and head.
+async function findIgnoreIssue(api, { pr, head, appId }) {
+  const issues = await api.listIssues("state=all&labels=dependencies");
+  return issues.find(
+    (issue) => issue.user?.id === appId && !issue.pull_request && String(issue.body ?? "").split("\n")[0].replace(/\r$/, "") === ignoreLine(pr, head),
+  );
+}
+
+function ignoreIssue({ pr, head, title, reasons }) {
   return {
     title: `chore(deps): decide whether dependabot.yml ignores the update closed in #${pr}`,
     body: [
-      `<!-- pr-unblock:dependency-ignore pr=${pr} -->`,
+      ignoreLine(pr, head),
       `The pr-unblock lane closed Dependabot pull request #${pr} (${JSON.stringify(String(title).slice(0, 200))}) on its review-dependency verdict.`,
       "Dependabot proposes the next version on its own; add an `ignore` entry to `.github/dependabot.yml` only if this version line should stop coming back, for example:",
       "",
@@ -117,20 +133,30 @@ function ignoreIssue({ pr, title, reasons }) {
 }
 
 export async function apply({ api, pr, appId, modelRun, run, log }) {
+  // One value names the model run in the marker and in the re-run check.
+  const runKey = modelRun ?? "none";
   const pull = await api.getPull(pr);
-  if (pull.state !== "open") {
-    log(`#${pr} is ${pull.state}; nothing applied`);
-    return { escalationReason: "", skipReason: "not-applicable" };
-  }
   const comments = await api.listIssueComments(pr);
-  const posted = rounds(comments, appId).some((round) => round.run === modelRun);
+  const posted = rounds(comments, appId).some((round) => round.run === runKey);
   const record = async (verdict, output = {}) => {
     if (posted) {
-      log(`the round marker for model run ${modelRun} is already posted`);
+      log(`the round marker for model run ${runKey} is already posted`);
       return;
     }
-    await api.createIssueComment(pr, roundBody({ head: run?.head_sha ?? pull.head.sha, verdict, run: modelRun ?? "none", ...output }));
+    await api.createIssueComment(pr, roundBody({ head: run?.head_sha ?? pull.head.sha, verdict, run: runKey, ...output }));
   };
+  if (pull.state !== "open") {
+    // A close this job started and did not finish resumes: the PR is closed
+    // at the reviewed head and the lane's issue or marker is already there.
+    const resumable =
+      run?.output.verdict === "close" &&
+      pull.head.sha === run.head_sha &&
+      (posted || (await findIgnoreIssue(api, { pr, head: run.head_sha, appId })) !== undefined);
+    if (!resumable) {
+      log(`#${pr} is ${pull.state}; nothing applied`);
+      return { escalationReason: "", skipReason: "not-applicable" };
+    }
+  }
   if (!run) {
     await record("invalid");
     return { escalationReason: "dependency-invalid", skipReason: "" };
@@ -146,6 +172,14 @@ export async function apply({ api, pr, appId, modelRun, run, log }) {
     if (compare.status !== "ahead" || !compare.commits.every((commit) => commit.author?.id === appId)) {
       log(`#${pr}: the head moved from ${run.head_sha} to ${head} by more than the lane's fix; the next run reviews it`);
       return { escalationReason: "", skipReason: "superseded-sha" };
+    }
+    // The promote step already refuses this; checked again on what landed.
+    const files = compare.files ?? [];
+    const github = files.length >= 300 || files.some((file) => [file.filename, file.previous_filename].some((path) => /^\.github(\/|$)/i.test(path ?? "")));
+    if (github) {
+      log(`#${pr}: the lane's fix changes a path under .github/, which it may not push`);
+      await record("invalid", { reasons, evidence });
+      return { escalationReason: "dependency-invalid", skipReason: "" };
     }
     await record("fix", { reasons, evidence });
     return { escalationReason: "", skipReason: "" };
@@ -164,10 +198,16 @@ export async function apply({ api, pr, appId, modelRun, run, log }) {
       await record("escalate", { reasons, evidence });
       return { escalationReason: "dependency-security-close", skipReason: "" };
     }
-    const issue = await api.createIssue(ignoreIssue({ pr, title: pull.title ?? "", reasons }));
-    log(`#${pr}: filed #${issue.number} for the ignore entry`);
-    await api.closePull(pr);
+    // Each step is safe to repeat, so a re-run after a partial failure
+    // resumes: the issue is looked up by its marker before it is filed, the
+    // round marker is posted once per model run, and only an open PR closes.
+    const existing = await findIgnoreIssue(api, { pr, head: run.head_sha, appId });
+    const issue = existing ?? (await api.createIssue(ignoreIssue({ pr, head: run.head_sha, title: pull.title ?? "", reasons })));
+    log(`#${pr}: ${existing ? "found" : "filed"} #${issue.number} for the ignore entry`);
     await record("close", { reasons, evidence });
+    if (pull.state === "open") {
+      await api.closePull(pr);
+    }
     log(`#${pr}: closed`);
     return { escalationReason: "", skipReason: "" };
   }
@@ -192,9 +232,9 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   if (!SHA.test(env.HEAD_SHA)) {
     throw new Error("HEAD_SHA is not a commit id");
   }
-  const attempt = env.MODEL_RUN_ATTEMPT ?? "";
+  const attempt = env.DEPENDENCY_RUN_ATTEMPT ?? "";
   if (attempt !== "" && !/^[1-9][0-9]{0,4}$/.test(attempt)) {
-    throw new Error("MODEL_RUN_ATTEMPT is not a run attempt");
+    throw new Error("DEPENDENCY_RUN_ATTEMPT is not a run attempt");
   }
   const modelRun = attempt ? `${positive(env.GITHUB_RUN_ID, "GITHUB_RUN_ID")}-${attempt}` : null;
   let run = null;
@@ -205,7 +245,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       throw new Invalid("run.json is not a regular file within the size limit");
     }
     const text = readFileSync(path, "utf8");
-    if (!/^[0-9a-f]{64}$/.test(env.RUN_SHA256 ?? "") || createHash("sha256").update(text).digest("hex") !== env.RUN_SHA256) {
+    if (!/^[0-9a-f]{64}$/.test(env.DEPENDENCY_RUN_SHA256 ?? "") || createHash("sha256").update(text).digest("hex") !== env.DEPENDENCY_RUN_SHA256) {
       throw new Invalid("run.json does not match the SHA-256 the model job recorded");
     }
     run = validateRun(JSON.parse(text), pr);

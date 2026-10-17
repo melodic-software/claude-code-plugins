@@ -1254,6 +1254,9 @@ jobs:
           # branch changes nothing under .github/ and every commit's message
           # carries [dependabot skip], so Dependabot may still rebase the PR.
           DEPENDENCY_REVIEW: ${{ steps.config.outputs.prepare == 'dependency-review' }}
+          # ...and only when the skill's structured verdict is `fix`: commits
+          # made beside any other verdict are discarded.
+          DEPENDENCY_OUTPUT: ${{ steps.config.outputs.prepare == 'dependency-review' && steps.act-skill.outputs.structured_output || '' }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           HOLD_LABELS: ${{ steps.hold-label.outputs.labels }}
           READ_TOKEN: ${{ github.token }}
@@ -1262,7 +1265,7 @@ jobs:
           retries: 0
           script: |
             const { HEAD_SHA, HEAD_REF, LANE_BRANCH, MERGE_BASE, COMMIT_OUTCOME, COMMIT_SHA, THREAD_FILE } = process.env;
-            const { DEPENDENCY_REVIEW, PR_NUMBER, HOLD_LABELS, READ_TOKEN } = process.env;
+            const { DEPENDENCY_REVIEW, DEPENDENCY_OUTPUT, PR_NUMBER, HOLD_LABELS, READ_TOKEN } = process.env;
             core.setOutput('skip-reason', '');
             const tip = async (branch) =>
               (await github.request('GET /repos/{owner}/{repo}/git/ref/{ref}', { ...context.repo, ref: `heads/${branch}` }))
@@ -1289,6 +1292,16 @@ jobs:
                 }
               }
               if (DEPENDENCY_REVIEW === 'true') {
+                let verdict = '';
+                try {
+                  verdict = JSON.parse(DEPENDENCY_OUTPUT || 'null')?.verdict ?? '';
+                } catch {
+                  verdict = '';
+                }
+                if (verdict !== 'fix') {
+                  core.info(`The verdict is ${JSON.stringify(String(verdict).slice(0, 20))}, not fix; the lane's commits (${lane}) are discarded`);
+                  return;
+                }
                 const { data } = await github.rest.repos.compareCommitsWithBasehead({ ...context.repo, basehead: `${HEAD_SHA}...${lane}` });
                 const bad = data.files.length >= 300 ? ['(300 or more files)'] : data.files
                   .flatMap((f) => [f.filename, f.previous_filename].filter(Boolean))
@@ -1558,11 +1571,13 @@ jobs:
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           FEEDBACK_REPLIES_DIR: ${{ inputs.review-replies && format('{0}/feedback-replies', runner.temp) || '' }}
           TRUSTED_ACTORS: ${{ inputs.review-replies && format('{0}/base-script/.trusted-actors.json', runner.temp) || '' }}
-          RUN_SHA256: ${{ inputs.review-run-sha256 || inputs.dependency-run-sha256 }}
+          RUN_SHA256: ${{ inputs.review-run-sha256 }}
           HEAD_REF: ${{ steps.gate.outputs.head-ref }}
-          MODEL_RUN_ATTEMPT: ${{ inputs.review-run-attempt || inputs.dependency-run-attempt }}
+          MODEL_RUN_ATTEMPT: ${{ inputs.review-run-attempt }}
           # dependency-verdict only; empty otherwise.
           DEPENDENCY_VERDICT_DIR: ${{ inputs.dependency-verdict && format('{0}/dependency-verdict', runner.temp) || '' }}
+          DEPENDENCY_RUN_SHA256: ${{ inputs.dependency-run-sha256 }}
+          DEPENDENCY_RUN_ATTEMPT: ${{ inputs.dependency-run-attempt }}
           ESCALATION_REASON_FILE: ${{ runner.temp }}/escalation-reason
         run: |
           if [ "$TRACKER_SHA256" = absent ]; then
@@ -1602,12 +1617,17 @@ jobs:
           escalation=""
           if [ -s "$ESCALATION_REASON_FILE" ]; then
             escalation=$(head -n 1 "$ESCALATION_REASON_FILE" | tr -d '\r')
-            case "$FEEDBACK_REPLIES_DIR:$DEPENDENCY_VERDICT_DIR:$escalation" in
-              ?*::feedback-uncertain | ?*::feedback-not-landed | ?*::feedback-invalid) ;;
-              ?*::feedback-partial | ?*::feedback-incomplete | ?*::feedback-disputed) ;;
-              :?*:dependency-invalid | :?*:dependency-fix-not-landed) ;;
-              :?*:dependency-security-close | :?*:dependency-escalate) ;;
-              *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
+            case "$FEEDBACK_REPLIES_DIR:$escalation" in
+              ?*:feedback-uncertain | ?*:feedback-not-landed | ?*:feedback-invalid) ;;
+              ?*:feedback-partial | ?*:feedback-incomplete | ?*:feedback-disputed) ;;
+              *)
+                # The verdict script's reasons, only in dependency-verdict mode.
+                case "$FEEDBACK_REPLIES_DIR:$DEPENDENCY_VERDICT_DIR:$escalation" in
+                  :?*:dependency-invalid | :?*:dependency-fix-not-landed) ;;
+                  :?*:dependency-security-close | :?*:dependency-escalate) ;;
+                  *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
+                esac
+                ;;
             esac
           fi
           echo "escalation-reason=$escalation" >>"$GITHUB_OUTPUT"
