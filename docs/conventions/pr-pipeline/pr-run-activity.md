@@ -945,14 +945,20 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
   default branch tip, and that commit is the head the job checks out.
 - `resolve-config` decides the issue's labels from the event payload and `labeled-after`, the
   lane's go-live time, from the issue's update time. The token request sends `issue_number`.
-- Before the skill, the runner writes the issue's number, title, body and labels (no comments) to
-  `issue.json` in the skill's scratch directory. The skill commits to a new branch,
+- Before the skill, the runner writes the issue's number, title, body and labels to `issue.json`
+  in the skill's scratch directory, with only the comments `select-trusted-text`'s author and edit
+  rules keep (`write-issue.mjs`), oldest first, so a listed maintainer's recorded decision reaches
+  the skill. The lanes App's own comments are left out, a listed human's comment whose first line
+  is `**Decision recorded.**` is marked `decision: true`, and comments other than decisions are
+  capped at the newest 20. When the lanes App applied the label, a comment created or edited
+  after the newest ratification marker is left out, matching the gate's frozen title and body. The skill commits to a new branch,
   `<lane>/issue-<n>-<run id>-<attempt>`, which is kept only when it holds commits. The skill's
   `work-outcome.json` and the runner's `lane.json` (the kept branch, or empty) are uploaded as the
   `work-outcome-<n>` artifact, and the job output `issue-run-started` is `true` once the token
   was minted.
 - `report-outcome` downloads that artifact. On `done` it opens a ready (not draft) PR from the branch whose
-  body starts `Closes #<n>`, puts no label on it (the work class stays on the issue), and adds
+  body starts `Closes #<n>` (or `Refs: #<n>`, with the hold line, when the outcome sets
+  `"link": "refs"` because a recorded decision keeps the issue open), puts no label on it (the work class stays on the issue), and adds
   `Hold: a human merges this` for scoped, structural or untrusted-provenance work, for a diff that
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
   resolved config; unreadable holds every PR), or for one too large for the compare listing to

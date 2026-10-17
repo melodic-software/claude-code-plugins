@@ -41,6 +41,9 @@ That query covers bodies only, so the PR title has its own rule: the PR's `timel
 null or not listed, the title is withheld (empty) and counted once under `edited-by-untrusted`;
 the body still follows the edit rule above.
 
+`selectTrustedIssueComments` applies the same author and edit rules to one issue's comments; the
+issue lane's `write-issue.mjs` uses it to give the model only trusted comments beside the issue.
+
 ## Output
 
 The file at `output-path` holds `pr` (number, head and base SHA, author id, title, body), `items`

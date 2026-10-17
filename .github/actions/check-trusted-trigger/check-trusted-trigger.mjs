@@ -469,6 +469,21 @@ const ISSUE_EDITS_QUERY = `query($owner: String!, $name: String!, $number: Int!)
   }
 }`;
 
+// The issue's body edit and title change times (null when never). A failed
+// read or an unexpected shape throws.
+export async function readIssueEdits(github, repository, number) {
+  const [owner, name] = repository.split("/");
+  const { issue } = (await github("POST", "/graphql", { query: ISSUE_EDITS_QUERY, variables: { owner, name, number: Number(number) } })).data.repository;
+  if (!isPlainObject(issue)) {
+    throw new Error("issue edits have an unexpected shape");
+  }
+  return [issue.lastEditedAt, ...(issue.timelineItems?.nodes ?? []).map((node) => node?.createdAt)];
+}
+
+// True when every time in `editedAt` is null or no later than `at`; NaN
+// compares false, so an unparseable time is a change.
+export const unchangedSince = (editedAt, at) => editedAt.every((time) => time == null || timeOf(time) <= at);
+
 // ratified-app-label: the lanes App applying exactly that label to an issue
 // starts the lane only while the issue carries the owner's ratification marker
 // (findRatification), read now; any other App event, or a failed read, stops.
@@ -496,17 +511,13 @@ async function checkRatifiedAppLabel({ event, repository, list, deniedIds, trigg
   if (ratifying === undefined) {
     throw new Stop("untrusted-actor");
   }
-  const [owner, name] = repository.split("/");
-  let issue;
+  let editedAt;
   try {
-    ({ issue } = (await github("POST", "/graphql", { query: ISSUE_EDITS_QUERY, variables: { owner, name, number: Number(number) } })).data.repository);
+    editedAt = await readIssueEdits(github, repository, number);
   } catch {
     throw new Stop("untrusted-actor");
   }
-  const ratifiedAt = timeOf(ratifying.created_at);
-  const editedAt = [issue?.lastEditedAt, ...(issue?.timelineItems?.nodes ?? []).map((node) => node?.createdAt)];
-  // Comparisons with NaN are false, so an unparseable time stops too.
-  if (!isPlainObject(issue) || !editedAt.every((time) => time == null || timeOf(time) <= ratifiedAt)) {
+  if (!unchangedSince(editedAt, timeOf(ratifying.created_at))) {
     throw new Stop("untrusted-actor");
   }
   console.log(
