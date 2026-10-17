@@ -4,7 +4,7 @@
 // them as data). Comments go in only when select-trusted-text's author and
 // edit rules keep them, oldest first, each tagged with its author's kind from
 // the trusted-actor list. A human's comment whose first line is
-// `**Decision recorded.**`, not posted through an App and never edited or last
+// `**Decision recorded.**`, not posted through an App, and unedited or last
 // edited by a human, is marked `decision: true` with `decided_at`, its latest
 // create or edit time. The lanes App's own comments never go in: its
 // pushback quotes the issue body. On any failure no file is left, so the
