@@ -8,6 +8,10 @@ Public interface:
   integer counters in `stats`: `records` (objects yielded), `bad_lines` (lines that are not a JSON
   object), `incomplete` (an unterminated final line that does not parse: a session still being
   written, not a bad line) and `unknown` (records whose `record_kind` is `unknown`).
+- `decode_line(line, stats=None)` is the record on one transcript line already read as text, else
+  None for a blank line or one that is not a JSON object, updating the same `stats` counters as
+  `iter_records`, which is built on it. A tailer that reads appended bytes calls it per line; an
+  unparsed line without its trailing newline counts as `incomplete`, not `bad_lines`.
 - `record_kind(record)` is the record's `type` when it is one of `RECORD_TYPES`, else `unknown`.
   `IGNORED_RECORD_TYPES`, a subset, is known only so drift checks stop reporting it: a caller
   skips such a record before counting anything from it.
@@ -138,26 +142,38 @@ def record_kind(record: dict) -> str:
     return kind if isinstance(kind, str) and kind in RECORD_TYPES else "unknown"
 
 
-def iter_records(path: Path, stats: dict[str, int] | None = None) -> Iterator[dict]:
+def _init_stats(stats: dict[str, int] | None) -> dict[str, int]:
     counts = stats if stats is not None else {}
     for key in ("records", "bad_lines", "incomplete", "unknown"):
         counts.setdefault(key, 0)
+    return counts
+
+
+def decode_line(line: str, stats: dict[str, int] | None = None) -> dict | None:
+    counts = _init_stats(stats)
+    if not line.strip():
+        return None
+    try:
+        record = json.loads(line)
+    except json.JSONDecodeError:
+        record = None
+    if not isinstance(record, dict):
+        # Only the last line can lack its newline: a session still being written.
+        counts["bad_lines" if line.endswith("\n") else "incomplete"] += 1
+        return None
+    counts["records"] += 1
+    if record_kind(record) == "unknown":
+        counts["unknown"] += 1
+    return record
+
+
+def iter_records(path: Path, stats: dict[str, int] | None = None) -> Iterator[dict]:
+    counts = _init_stats(stats)
     with Path(path).open(encoding="utf-8", errors="replace") as handle:
         for line in handle:
-            if not line.strip():
-                continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                record = None
-            if not isinstance(record, dict):
-                # Only the last line can lack its newline: a session still being written.
-                counts["bad_lines" if line.endswith("\n") else "incomplete"] += 1
-                continue
-            counts["records"] += 1
-            if record_kind(record) == "unknown":
-                counts["unknown"] += 1
-            yield record
+            record = decode_line(line, counts)
+            if record is not None:
+                yield record
 
 
 def first_cwd(path: Path) -> str | None:
