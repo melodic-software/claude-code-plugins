@@ -14,7 +14,7 @@ import re
 import secrets
 import time
 
-CURRENT = 1
+CURRENT = 2
 MIGRATIONS = {}
 
 PROTOTYPE_KEYS = frozenset({"questions", "answers", "ideas", "people", "secrets", "round"})
@@ -736,3 +736,17 @@ def _v0_to_v1(doc, ctx):
 
 
 MIGRATIONS[0] = _v0_to_v1
+
+
+# -- 1 -> 2: a person holds several reactions on one answer ------------------------------------
+
+
+def _v1_to_v2(doc, ctx):
+    """Each person's one reaction on an answer becomes a list of one."""
+    reactions = doc.get("reactions")
+    if not isinstance(reactions, dict):
+        return dict(doc)  # not a session file: the validator names what is wrong
+    return {**doc, "reactions": {qid: {ref: {pid: [r] for pid, r in _dict(by).items()} for ref, by in _dict(refs).items()} for qid, refs in reactions.items()}}
+
+
+MIGRATIONS[1] = _v1_to_v2

@@ -143,6 +143,7 @@ VIEWS = ("focus", "compare", "tree", "host", "prototype")
 DEVICES = ("phone", "tablet", "computer")
 BROWSERS = ("chrome", "safari", "firefox", "edge", "samsung", "in-app", "other")
 REACTIONS = ("thumbs", "down", "heart", "idea")
+OPPOSITE = {"thumbs": "down", "down": "thumbs"}  # one person never holds both on one answer
 REQUEST_KINDS = ("ask", "research", "explore", "design", "prototype")
 USED_TYPES = ("skill", "workflow", "mcp", "cli")
 TECH_COMFORT = ("low", "ok", "high")
@@ -304,8 +305,9 @@ def cross_field_errors(doc):
     """The session rules the schema cannot express, each broken one as a sentence: dependsOn names
     only earlier questions, no two review flags share because and why, a round holds at most 8, a
     question holds at most one Something else option, the one with id `other` and `other: true`, no
-    session secret names the owner (only the owner link does), only a poll holds a closed-poll lock, and every link and asset name is
-    one a write route takes (the schema's url and assetId patterns, which schema.py does not check)."""
+    session secret names the owner (only the owner link does), only a poll holds a closed-poll lock, no person holds a
+    reaction twice or both thumbs and down on one answer, and every link and asset name is one a write route takes
+    (the schema's url and assetId patterns, which schema.py does not check)."""
     errors, seen, per_round = [], set(), {}
     if HOST in doc["credentials"]["secrets"].values():
         errors.append("A session secret names the owner; only the owner link may.")
@@ -328,6 +330,8 @@ def cross_field_errors(doc):
         seen.add(q["id"])
         per_round[q["round"]] = per_round.get(q["round"], 0) + 1
     errors += [f"Round {n} holds {k} questions; the most is {MAX_ROUND}." for n, k in sorted(per_round.items()) if k > MAX_ROUND]
+    held = [(qid, rs) for qid, refs in doc["reactions"].items() for by in refs.values() for rs in by.values()]
+    errors += [f"A person holds one reaction twice, or both thumbs and down, on an answer to {qid}." for qid, rs in held if len(set(rs)) < len(rs) or {"thumbs", "down"} <= set(rs)]
     errors += _upload_errors(doc)
     return errors
 
@@ -2413,12 +2417,15 @@ class Session:
             return {"moved": moved}
 
     def react(self, pid, body):
-        """POST /api/react: thumbs, down, heart or idea on an answer of a gather question; null clears.
-        Decide questions take Disagree instead (`disagree`)."""
+        """POST /api/react: `{qid, card, reaction, on}` turns one of thumbs, down, heart or idea on (`on`, the
+        default) or off for the person on an answer of a gather question; `reaction: null` clears all of theirs. A
+        person holds any of them at once, except thumbs and down: turning one on turns the other off. Decide
+        questions take Disagree instead (`disagree`)."""
         ref = _ident(body, "card")
         reaction = _body(body).get("reaction")
         if reaction is not None and reaction not in REACTIONS:
             raise _bad("reaction", f"reaction must be one of {', '.join(REACTIONS)}, or null.")
+        on = _bool(body, "on", default=True)
         with self._write_as(pid, "react") as st:
             q = self._question(body.get("qid"))
             if q["purpose"] != "gather":
@@ -2428,16 +2435,20 @@ class Session:
             if ref_author(ref) == pid:
                 raise DomainError(400, "cannot-vote-own", "You cannot react to your own answer.")
             by_card = st["reactions"].setdefault(q["id"], {})
-            mine = by_card.setdefault(ref, {})
-            if reaction is None:
-                mine.pop(pid, None)
-                if not mine:
-                    by_card.pop(ref)
+            by = by_card.setdefault(ref, {})
+            have = set() if reaction is None else set(by.get(pid, ())) - {reaction}
+            if reaction is not None and on:
+                have = (have - {OPPOSITE.get(reaction)}) | {reaction}
+            mine = [r for r in REACTIONS if r in have]
+            if mine:
+                by[pid] = mine
             else:
-                mine[pid] = reaction
+                by.pop(pid, None)
+            if not by:
+                by_card.pop(ref)
             if not by_card:
                 st["reactions"].pop(q["id"])
-            return {"reaction": reaction}
+            return {"reactions": mine}
 
     def disagree(self, pid, body):
         """POST /api/disagree: `{qid, card, reason}` records why the person disagrees with one answer
@@ -3733,15 +3744,10 @@ class Session:
             return out
         people = [c for c in st["cards"].get(qid, []) if c["kind"] == "person" and self._shown(c)]
         if q["purpose"] == "gather":
-            answers = []
+            answers, active = [], {p for p in st["people"] if self._active(p)}
             for c in people:
-                if not c["text"]:
-                    continue
-                counts = dict.fromkeys(REACTIONS, 0)
-                for voter, reaction in st["reactions"].get(qid, {}).get(card_ref(c), {}).items():
-                    if self._active(voter):
-                        counts[reaction] += 1
-                answers.append({"text": c["text"], "reactions": counts, **by(c["pid"]), **_edited(c)})
+                if c["text"]:
+                    answers.append({"text": c["text"], "reactions": self._reaction_counts(qid, card_ref(c), active), **by(c["pid"]), **_edited(c)})
             return {"kind": "gathered", "answers": answers} if answers else {"kind": "unanswered"}
         tally = self._tally(qid)
         ranked = []
@@ -4240,12 +4246,17 @@ class Session:
         shown = {k: v for k, v in c.items() if k not in ("view", "deviceInfo", "history")}
         shown["ref"] = ref
         shown["votes"] = sorted(self._votes_on(qid, ref))
-        counts = dict.fromkeys(REACTIONS, 0)
-        for voter, reaction in self.state["reactions"].get(qid, {}).get(ref, {}).items():
-            if voter in active:
-                counts[reaction] += 1
-        shown["reactions"] = counts
+        shown["reactions"] = self._reaction_counts(qid, ref, active)
         return shown
+
+    def _reaction_counts(self, qid, ref, active):
+        """How many active people hold each reaction on one answer (a person counts once per reaction they hold)."""
+        counts = dict.fromkeys(REACTIONS, 0)
+        for voter, held in self.state["reactions"].get(qid, {}).get(ref, {}).items():
+            if voter in active:
+                for r in held:
+                    counts[r] += 1
+        return counts
 
     @staticmethod
     def _public_chat(m, active):

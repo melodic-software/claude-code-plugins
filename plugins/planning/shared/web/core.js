@@ -2,7 +2,7 @@
 // reads the prototype's state names; toView() builds them from the contract snapshot, and each action
 // below sends the contract route's body. The map: .work/shared-interview-ui/snapshot-map.md.
 (() => {
-  const SCHEMA_VERSION = 1; // the session file version this page was built for; another one reloads it
+  const SCHEMA_VERSION = 2; // the session file version this page was built for; another one reloads it
   const memory = new Map();
   const store = (() => { try { const s = window.localStorage; s.setItem("_t", "1"); s.removeItem("_t"); return s; } catch { return null; } })()
     || { getItem: k => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, v), removeItem: k => memory.delete(k) };
@@ -303,6 +303,7 @@
     || (GENERIC.has(e?.error) && e?.status < 500 && e?.message) || MESSAGES[e?.error] || e?.message
     || (e?.status ? "The session refused that." : "The session is out of reach. Check your connection.");
 
+  const OPPOSITE = { thumbs: "down", down: "thumbs" }; // one person never holds both on one answer
   const Core = {
     // cid holds the public pid (the prototype's name for it).
     me: { cid: secret ? get("pid") || "" : ownerToken ? "host" : "", name: get("name") || "", isOwner: !!ownerToken, isLeader: false, isTrusted: false },
@@ -378,24 +379,24 @@
       const card = refOf(qid, target), multi = qOf(Core.state.questions, qid)?.format === "multi";
       return act("/api/vote", { qid, card, on }, { key: multi ? `vote:${qid}:${card}` : "vote:" + qid, patch: (s, pid) => patchVote(s, pid, qid, card, on) });
     },
-    /** Gather questions: thumbs, down, heart or idea on an answer; null clears mine. */
-    react: (qid, target, reaction) => {
+    /** Gather questions: turn one of thumbs, down, heart or idea on or off on an answer. I may hold several at once,
+     *  but thumbs and down exclude each other: turning one on turns the other off (as the server does). */
+    react: (qid, target, reaction, on = true) => {
       const card = refOf(qid, target);
-      return act("/api/react", { qid, card, reaction }, { key: `react:${qid}:${card}`, patch: s => {
+      return act("/api/react", { qid, card, reaction, on }, { key: `react:${qid}:${card}:${reaction}`, patch: s => {
         s.me.reactions ||= {};
         s.me.reactions[qid] ||= {};
-        const mine = s.me.reactions[qid], was = mine[card], c = cardsOf(s, qid).find(x => x.ref === card);
-        if (c && was !== reaction) {
+        const mine = s.me.reactions[qid], was = mine[card] || [], c = cardsOf(s, qid).find(x => x.ref === card);
+        const now = Core.REACTIONS.map(([r]) => r).filter(r => (r === reaction ? on : was.includes(r) && !(on && r === OPPOSITE[reaction])));
+        if (c) {
           c.reactions ||= {};
-          const n = c.reactions;
-          if (was) n[was] = Math.max(0, (n[was] || 0) - 1);
-          if (reaction) n[reaction] = (n[reaction] || 0) + 1;
+          for (const [r] of Core.REACTIONS) c.reactions[r] = Math.max(0, (c.reactions[r] || 0) - was.includes(r) + now.includes(r));
         }
-        if (reaction) mine[card] = reaction; else delete mine[card];
+        if (now.length) mine[card] = now; else delete mine[card];
       } });
     },
     REACTIONS: [["thumbs", "👍", "Agree"], ["down", "👎", "Disagree"], ["heart", "❤️", "Love it"], ["idea", "💡", "Sparks an idea"]],
-    myReaction: (qid, ref) => Core.state.myReactions?.[qid]?.[ref] || null,
+    myReactions: (qid, ref) => Core.state.myReactions?.[qid]?.[ref] || [],
     /** Decide questions: why I disagree with one answer (1..200 characters; a new reason replaces mine); on=false takes it back. */
     disagree: (qid, target, reason, on = true) => {
       const card = refOf(qid, target);

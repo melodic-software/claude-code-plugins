@@ -3,7 +3,8 @@
 // chip has no fill (the grey the owner saw was the browser's own button background, so the computed background
 // must be transparent, not the UA default) and a --line-input outline; hovered it takes --raise; chosen, the
 // --accent-soft fill inside a full --accent border with the count in --accent-text; focused, a 2px --accent outline
-// with an offset. aria-pressed carries the choice and the label never changes with it, in dark and light.
+// with an offset. aria-pressed carries the choice and the label never changes with it, in dark and light. One person
+// holds ❤️ and 💡 with 👍 or 👎, and 👎 takes 👍's place (triage row 45).
 //   node plugins/planning/shared/tests/ui_reactions.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from triage row 41 and research/presence-indicator/RESEARCH-reactions.md (the token each
@@ -76,6 +77,28 @@ async function main() {
     const off =await bo.evaluate(look, ["heart", ""]);
     ok("let go, the label is the same sentence with the count", off.label === `${LABELS.heart}: 0` && off.bg === off.t.transparent, JSON.stringify(off));
     ok("focused from the keyboard, a 2px --accent outline with an offset", off.outline === `solid 2px ${off.t.accent} 2px`, off.outline);
+
+    // ---------- combined reactions (triage row 45): ❤️ and 💡 with 👍 or 👎, never 👍 and 👎 together ----------
+    const pressed = () => bo.evaluate(() => {
+      const card = [...document.querySelectorAll(".vf-alist .vf-card")].find(c => /Losing the saved card/.test(c.textContent));
+      return [...card.querySelectorAll(".vf-react")].filter(b => b.getAttribute("aria-pressed") === "true").map(b => b.dataset.r).join(" ");
+    });
+    const mine = () => owner.evaluate(p => window.Core.snapshot()?.cards?.Q1?.find(c => c.ref === "p:host")?.reactions, null);
+    for (const r of ["heart", "idea", "thumbs"]) { await chip(r).click(); await bo.waitForTimeout(150); }
+    ok("one person holds 👍 ❤️ 💡 on one answer at once", await until(bo, () => {
+      const card = [...document.querySelectorAll(".vf-alist .vf-card")].find(c => /Losing the saved card/.test(c.textContent));
+      return [...card.querySelectorAll(".vf-react")].filter(b => b.getAttribute("aria-pressed") === "true").map(b => b.dataset.r).join(" ") === "thumbs heart idea";
+    }), await pressed());
+    ok("  and the server counts each of them", await until(owner, () => JSON.stringify(window.Core.snapshot()?.cards?.Q1?.find(c => c.ref === "p:host")?.reactions) === JSON.stringify({ thumbs: 1, down: 0, heart: 1, idea: 1 }), null, 10000),
+      JSON.stringify(await mine()));
+    await chip("down").click();
+    ok("👎 takes 👍's place and leaves ❤️ and 💡 pressed", await until(bo, () => {
+      const card = [...document.querySelectorAll(".vf-alist .vf-card")].find(c => /Losing the saved card/.test(c.textContent));
+      return [...card.querySelectorAll(".vf-react")].filter(b => b.getAttribute("aria-pressed") === "true").map(b => b.dataset.r).join(" ") === "down heart idea";
+    }), await pressed());
+    ok("  on the server too", await until(owner, () => JSON.stringify(window.Core.snapshot()?.cards?.Q1?.find(c => c.ref === "p:host")?.reactions) === JSON.stringify({ thumbs: 0, down: 1, heart: 1, idea: 1 }), null, 10000),
+      JSON.stringify(await mine()));
+    ok("  and Bo's own record is the list of the three", await until(bo, () => JSON.stringify(window.Core.snapshot()?.me?.reactions?.Q1?.["p:host"]) === JSON.stringify(["down", "heart", "idea"]), null, 10000));
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));

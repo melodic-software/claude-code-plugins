@@ -1,0 +1,380 @@
+{
+  "schemaVersion": 2,
+  "pluginVersion": "1.0.0",
+  "writtenBy": "1.0.0",
+  "rev": 42,
+  "session": {
+    "title": "Checkout redesign",
+    "goal": "Agree the payment step layout",
+    "createdAt": 1760600000.0,
+    "phase": {"kind": "live"},
+    "share": {"url": "https://quiet-river.trycloudflare.com", "changedAt": 1760600010.5},
+    "guestKey": "Zk3yZk3yZk3y",
+    "settings": {
+      "voting": true,
+      "signoff": false,
+      "chat": true,
+      "follow": true,
+      "names": "full",
+      "digestNames": false,
+      "uploads": true,
+      "claudeTake": "answerFirst",
+      "theme": {"mode": "system", "accent": "teal"}
+    },
+    "seq": {"P": 5, "S": 2, "R": 4, "X": 2, "M": 2, "G": 1, "U": 3, "N": 2, "A": 1}
+  },
+  "people": {
+    "host": {"pid": "host", "name": "Kim", "joinedAt": 1760600000.0, "role": "owner", "trusted": true, "color": "c1", "status": {"kind": "active"}},
+    "aB3dE5fG7hJ9": {"pid": "aB3dE5fG7hJ9", "name": "Ann", "joinedAt": 1760600100.0, "role": "leader", "trusted": true, "color": "c2", "status": {"kind": "active"}},
+    "kL1mN3pQ5rS7": {"pid": "kL1mN3pQ5rS7", "name": "Bo", "joinedAt": 1760600120.0, "role": "guest", "trusted": false, "color": "c3", "status": {"kind": "active"}},
+    "tU9vW1xY3zA5": {"pid": "tU9vW1xY3zA5", "name": "Guest 3", "joinedAt": 1760600130.0, "role": "guest", "trusted": false, "color": "c10", "status": {"kind": "removed", "at": 1760600900.0, "by": "host"}}
+  },
+  "credentials": {
+    "owner": {"tokenHash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08", "rotatedAt": 1760600000.0},
+    "secrets": {
+      "60303ae22b998861bce3b28f33eec1be758a213c86c93c076dbe9f558c11c752": "aB3dE5fG7hJ9",
+      "fd61a03af4f77d870fc21e05e7e80678095c92d808cfb3b5c279ee04c74aca13": "kL1mN3pQ5rS7",
+      "a4e624d686e03ed2767c0abd85c14426b0b1157d2ce81d27bb4fe4f6f01d688a": "tU9vW1xY3zA5"
+    }
+  },
+  "rounds": [
+    {"n": 1, "openedAt": 1760600050.0, "status": {"kind": "closed", "sentAt": 1760601000.0, "ackAt": 1760601002.0, "closedAt": 1760601200.0, "next": 2}},
+    {"n": 2, "openedAt": 1760601200.0, "status": {"kind": "open", "ready": {"by": "aB3dE5fG7hJ9", "at": 1760601500.0}}}
+  ],
+  "questions": [
+    {
+      "id": "Q1",
+      "text": "Where should the order summary sit on the payment step?",
+      "short": "Order summary placement",
+      "scope": "Payment step, desktop checkout",
+      "context": "Today the summary sits below the card form and people scroll past it.",
+      "recommendation": "Pin the summary in a right-hand column.",
+      "basis": "Checked against: the single-page checkout constraint and the existing grid.",
+      "alternatives": [
+        {"key": "a", "text": "Keep it below the form.", "tradeoff": "No layout work, but it stays out of sight."},
+        {"key": "b", "text": "Collapse it into a header bar."}
+      ],
+      "dependsOn": [],
+      "round": 1,
+      "purpose": "decide",
+      "format": {"kind": "text"},
+      "answerScope": "person",
+      "references": [{"kind": "image", "asset": "0123456789abcdef.png", "rect": {"x": 5, "y": 10, "w": 60, "h": 40}, "caption": "Current payment step"}],
+      "origin": {"kind": "claude"},
+      "lockedText": "Pin the summary in a right-hand column.",
+      "needsReview": []
+    },
+    {
+      "id": "Q2",
+      "text": "Which payment method should be selected by default?",
+      "scope": "Payment step, method picker",
+      "alternatives": [],
+      "dependsOn": [],
+      "round": 1,
+      "purpose": "poll",
+      "format": {
+        "kind": "choice",
+        "options": [
+          {"id": "opt-1", "label": "Card", "image": "1111222233334444.webp"},
+          {"id": "opt-2", "label": "Saved method"},
+          {"id": "opt-3", "label": "None"},
+          {"id": "other", "label": "Something else…", "other": true}
+        ]
+      },
+      "answerScope": "person",
+      "references": [{"kind": "link", "url": "https://example.com/research/defaults", "title": "Default selection study"}],
+      "origin": {"kind": "claude"},
+      "needsReview": []
+    },
+    {
+      "id": "Q3",
+      "text": "Is this the right spot for the promo code field?",
+      "scope": "Payment step, below the total",
+      "alternatives": [],
+      "dependsOn": ["Q1"],
+      "round": 2,
+      "purpose": "decide",
+      "format": {"kind": "confirm", "image": "5555666677778888.png", "rect": {"x": 10, "y": 47, "w": 80, "h": 6}},
+      "answerScope": "device",
+      "references": [{"kind": "quote", "text": "I never find the promo box.", "source": "Support ticket", "url": "https://example.com/tickets/1"}],
+      "origin": {"kind": "proposal", "proposal": "P1"},
+      "lockedText": "Yes, below the total.",
+      "needsReview": [
+        {"because": "Q1", "at": 1760601300.0, "why": {"kind": "lock-changed"}},
+        {"because": "Q1", "at": 1760601310.0, "why": {"kind": "unlocked"}},
+        {"because": "Q1", "at": 1760601320.0, "why": {"kind": "suggested", "suggestion": "S1"}}
+      ]
+    },
+    {
+      "id": "Q4",
+      "text": "Which payment step prototype reads more clearly?",
+      "scope": "Payment step prototypes A and B",
+      "alternatives": [],
+      "dependsOn": [],
+      "round": 2,
+      "purpose": "gather",
+      "format": {
+        "kind": "prototype",
+        "variants": [
+          {"id": "v-1", "label": "Two columns", "asset": "9999aaaabbbbcccc.html"},
+          {"id": "v-2", "label": "Stacked", "asset": "ddddeeeeffff0000.png"}
+        ]
+      },
+      "answerScope": "person",
+      "references": [],
+      "origin": {"kind": "host", "proposal": "P2", "by": "host"},
+      "needsReview": []
+    },
+    {
+      "id": "Q5",
+      "text": "What slows you down on the payment step today?",
+      "scope": "Payment step, every device",
+      "recommendation": "Card number entry on phones.",
+      "alternatives": [{"key": "a", "text": "Address lookup."}, {"key": "b", "text": "Choosing a delivery slot."}],
+      "dependsOn": ["Q1", "Q2"],
+      "round": 2,
+      "purpose": "gather",
+      "format": {"kind": "text"},
+      "answerScope": "device",
+      "references": [],
+      "origin": {"kind": "proposal", "proposal": "P5"},
+      "needsReview": []
+    },
+    {
+      "id": "Q6",
+      "text": "Which payment methods should the step offer?",
+      "scope": "Payment step, method picker",
+      "alternatives": [],
+      "dependsOn": [],
+      "round": 2,
+      "purpose": "decide",
+      "format": {
+        "kind": "multi",
+        "options": [
+          {"id": "opt-1", "label": "Card"},
+          {"id": "opt-2", "label": "PayPal"},
+          {"id": "opt-3", "label": "Bank transfer"},
+          {"id": "other", "label": "Something else…", "other": true}
+        ]
+      },
+      "answerScope": "person",
+      "references": [],
+      "origin": {"kind": "claude"},
+      "needsReview": []
+    },
+    {
+      "id": "Q7",
+      "text": "How often do you pay with a saved card?",
+      "scope": "Payment step, saved cards",
+      "alternatives": [],
+      "dependsOn": [],
+      "round": 2,
+      "purpose": "poll",
+      "format": {"kind": "scale", "min": 1, "max": 5, "labels": {"min": "Never", "max": "Always", "mid": "Sometimes"}},
+      "answerScope": "person",
+      "references": [],
+      "origin": {"kind": "claude"},
+      "needsReview": []
+    },
+    {
+      "id": "Q8",
+      "text": "Order these checkout goals from most to least important.",
+      "scope": "Checkout, every step",
+      "alternatives": [],
+      "dependsOn": [],
+      "round": 2,
+      "purpose": "decide",
+      "format": {
+        "kind": "rank",
+        "options": [
+          {"id": "opt-1", "label": "Speed"},
+          {"id": "opt-2", "label": "Trust"},
+          {"id": "opt-3", "label": "Fewer fields"},
+          {"id": "other", "label": "Something else…", "other": true}
+        ]
+      },
+      "answerScope": "person",
+      "references": [{"kind": "diagram", "asset": "aaaabbbbccccdddd.svg", "alt": "Funnel chart: 60 percent of people leave at the payment step.", "caption": "Where people leave checkout"}],
+      "origin": {"kind": "claude"},
+      "needsReview": []
+    }
+  ],
+  "cards": {
+    "Q1": [
+      {"kind": "person", "pid": "aB3dE5fG7hJ9", "text": "Right column, sticky on scroll.", "at": 1760600500.0, "cites": ["X1"], "view": "focus"},
+      {"kind": "claude", "key": "rec", "at": 1760600050.0},
+      {"kind": "claude", "key": "a", "at": 1760600050.0},
+      {"kind": "claude", "key": "b", "at": 1760600050.0}
+    ],
+    "Q2": [
+      {"kind": "option", "option": "opt-1"},
+      {"kind": "option", "option": "opt-2"},
+      {"kind": "option", "option": "opt-3"},
+      {"kind": "person", "pid": "kL1mN3pQ5rS7", "text": "Saved method, it is what most of us use.", "at": 1760601400.0, "pick": "opt-2", "cites": [], "view": "compare", "late": {"round": 1}},
+      {"kind": "person", "pid": "aB3dE5fG7hJ9", "text": "Pay by bank app.", "at": 1760601410.0, "pick": "other", "cites": [], "view": "focus", "late": {"round": 1}}
+    ],
+    "Q3": [
+      {"kind": "option", "option": "yes"},
+      {"kind": "option", "option": "no"},
+      {
+        "kind": "person", "pid": "aB3dE5fG7hJ9", "device": "phone", "text": "Fine on my phone.", "at": 1760601600.0, "pick": "yes", "cites": [],
+        "deviceInfo": {"kind": "phone", "browser": "safari", "screen": {"w": 390, "h": 840}}, "view": "focus"
+      }
+    ],
+    "Q4": [
+      {"kind": "option", "option": "v-1"},
+      {"kind": "option", "option": "v-2"},
+      {"kind": "person", "pid": "kL1mN3pQ5rS7", "text": "The two-column one.", "at": 1760601700.0, "pick": "v-1", "cites": [], "view": "prototype"}
+    ],
+    "Q5": [
+      {"kind": "person", "pid": "aB3dE5fG7hJ9", "device": "computer", "text": "The address form resets when I go back.", "at": 1760601650.0, "cites": [], "editedAfterVotes": 1, "view": "tree"},
+      {"kind": "person", "pid": "kL1mN3pQ5rS7", "device": "phone", "text": "Typing the card number.", "at": 1760601660.0, "cites": [], "view": "host"}
+    ],
+    "Q6": [
+      {"kind": "option", "option": "opt-1"},
+      {"kind": "option", "option": "opt-2"},
+      {"kind": "option", "option": "opt-3"},
+      {"kind": "person", "pid": "aB3dE5fG7hJ9", "text": "", "at": 1760601710.0, "picks": ["opt-1", "opt-3"], "cites": [], "view": "focus"},
+      {"kind": "person", "pid": "kL1mN3pQ5rS7", "text": "Apple Pay.", "at": 1760601720.0, "picks": ["opt-1", "other"], "cites": [], "view": "focus"}
+    ],
+    "Q7": [
+      {"kind": "option", "option": "1"},
+      {"kind": "option", "option": "2"},
+      {"kind": "option", "option": "3"},
+      {"kind": "option", "option": "4"},
+      {"kind": "option", "option": "5"},
+      {"kind": "person", "pid": "aB3dE5fG7hJ9", "text": "Only on my own laptop.", "at": 1760601730.0, "value": 4, "cites": [], "view": "focus"}
+    ],
+    "Q8": [
+      {"kind": "option", "option": "opt-1"},
+      {"kind": "option", "option": "opt-2"},
+      {"kind": "option", "option": "opt-3"},
+      {"kind": "person", "pid": "aB3dE5fG7hJ9", "text": "", "at": 1760601740.0, "order": ["opt-2", "opt-1", "opt-3"], "cites": [], "view": "compare"}
+    ]
+  },
+  "votes": {
+    "Q1": {"host": "p:aB3dE5fG7hJ9", "aB3dE5fG7hJ9": "c:rec", "kL1mN3pQ5rS7": "c:rec"},
+    "Q2": {"kL1mN3pQ5rS7": "o:opt-2", "host": "p:aB3dE5fG7hJ9"},
+    "Q3": {"aB3dE5fG7hJ9": "o:yes"},
+    "Q6": {"aB3dE5fG7hJ9": "p:kL1mN3pQ5rS7"}
+  },
+  "disagreements": {
+    "Q8": [{"pid": "kL1mN3pQ5rS7", "card": "o:opt-1", "reason": "Speed matters less than trust here.", "at": 1760601750.0}]
+  },
+  "reactions": {
+    "Q5": {
+      "p:aB3dE5fG7hJ9:computer": {"kL1mN3pQ5rS7": ["thumbs"], "host": ["heart", "idea"]},
+      "p:kL1mN3pQ5rS7:phone": {"aB3dE5fG7hJ9": ["thumbs", "heart", "idea"], "host": ["down"]}
+    }
+  },
+  "locks": {
+    "Q1": {"at": 1760601100.0, "by": "host", "source": {"kind": "card", "card": "c:rec", "text": "Pin the summary in a right-hand column."}},
+    "Q3": {"at": 1760601800.0, "by": "aB3dE5fG7hJ9", "source": {"kind": "edited", "text": "Yes, below the total.", "from": null}}
+  },
+  "suggestions": {
+    "Q1": [
+      {"id": "S1", "pid": "kL1mN3pQ5rS7", "text": "Make the column collapsible on narrow screens.", "note": "Laptops at 1280 wide", "at": 1760601250.0, "status": {"kind": "open"}},
+      {"id": "S2", "pid": "aB3dE5fG7hJ9", "text": "Show the summary twice.", "note": "", "at": 1760601260.0, "fromProposal": "P4", "status": {"kind": "closed", "by": "unlock", "at": 1760601310.0}}
+    ]
+  },
+  "suggestionVotes": {"Q1": {"aB3dE5fG7hJ9": "S1"}},
+  "proposals": [
+    {"id": "P1", "pid": "kL1mN3pQ5rS7", "text": "Ask where the promo code goes.", "at": 1760600700.0, "via": {"kind": "direct"}, "status": {"kind": "question", "question": "Q3"}},
+    {"id": "P2", "pid": "kL1mN3pQ5rS7", "text": "Compare two layouts side by side.", "at": 1760600800.0, "via": {"kind": "chat", "message": "M1", "by": "host"}, "status": {"kind": "question", "question": "Q4"}},
+    {"id": "P3", "pid": "aB3dE5fG7hJ9", "text": "Talk about refunds.", "at": 1760600810.0, "via": {"kind": "direct"}, "status": {"kind": "parked", "by": "host"}},
+    {"id": "P4", "pid": "aB3dE5fG7hJ9", "text": "Repeat the summary at the bottom.", "at": 1760600820.0, "via": {"kind": "direct"}, "status": {"kind": "suggested", "question": "Q1", "suggestion": "S2"}},
+    {"id": "P5", "pid": "kL1mN3pQ5rS7", "text": "Ask what slows people down.", "at": 1760600830.0, "via": {"kind": "direct"}, "status": {"kind": "question", "question": "Q5"}}
+  ],
+  "chat": [
+    {"id": "M1", "pid": "kL1mN3pQ5rS7", "text": "Could we see both layouts at once?", "at": 1760600790.0, "proposed": "P2"},
+    {"id": "M2", "pid": "aB3dE5fG7hJ9", "text": "Yes, I would like that too.", "at": 1760600795.0, "replyTo": {"id": "M1", "pid": "kL1mN3pQ5rS7", "excerpt": "Could we see both layouts at once?"}}
+  ],
+  "requests": [
+    {"id": "R1", "pid": "kL1mN3pQ5rS7", "qid": "Q1", "at": 1760600600.0, "kind": "research", "text": "How do other shops place the summary?", "edited": false, "runner": "host", "status": {"kind": "done", "at": 1760600900.0, "result": "X1"}},
+    {"id": "R2", "pid": "aB3dE5fG7hJ9", "qid": "Q5", "at": 1760601700.0, "kind": "ask", "text": "Which step has the most drop-off?", "edited": true, "runner": "self", "status": {"kind": "running", "since": 1760601710.0}},
+    {"id": "R3", "pid": "kL1mN3pQ5rS7", "qid": "Q2", "at": 1760601720.0, "kind": "explore", "text": "What did people say about saved methods?", "edited": false, "runner": "host", "status": {"kind": "pending"}},
+    {"id": "R4", "pid": "kL1mN3pQ5rS7", "qid": "Q4", "at": 1760601730.0, "kind": "prototype", "text": "Mock a third layout.", "edited": false, "runner": "host", "status": {"kind": "failed", "at": 1760601790.0, "reason": "Cancelled by the owner.", "cancelled": true}}
+  ],
+  "results": {
+    "Q1": [
+      {
+        "id": "X1", "qid": "Q1", "at": 1760600900.0, "request": "R1", "kind": "research",
+        "used": [{"name": "discovery:research", "type": "skill"}, {"name": "firecrawl", "type": "mcp"}],
+        "why": "An outside comparison, so a web research skill.",
+        "summary": "Most large shops pin the summary on the right.",
+        "sources": [{"title": "Checkout patterns", "url": "https://example.com/checkout-patterns"}],
+        "report": "Seven of ten checkouts reviewed pin the summary.",
+        "by": {"kind": "host-claude"},
+        "published": true
+      }
+    ],
+    "Q5": [
+      {
+        "id": "X2", "qid": "Q5", "at": 1760601790.0, "request": null, "kind": "explore",
+        "used": [{"name": "rg", "type": "cli"}],
+        "why": "The answer is in the session's own answers.",
+        "summary": "Two people named card entry.",
+        "sources": [],
+        "report": "Card entry came up twice, address once.",
+        "by": {"kind": "guest-claude", "pid": "aB3dE5fG7hJ9"},
+        "published": false
+      }
+    ]
+  },
+  "uploads": [
+    {"id": "U1-0a1b2c3d", "pid": "kL1mN3pQ5rS7", "at": 1760600950.0, "qid": "Q1", "file": "summary.png", "ext": "png", "mime": "image/png", "size": 204800, "thumb": "data:image/png;base64,iVBORw0KGgo=", "chunks": 1, "status": {"kind": "done", "stored": "uploads/accepted/2026-10-16-U1-summary.png", "sha256": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"}},
+    {"id": "U2-4e5f6a7b", "pid": "aB3dE5fG7hJ9", "at": 1760601400.0, "qid": null, "file": "walkthrough.mp4", "ext": "mp4", "mime": "video/mp4", "size": 52428800, "chunks": 7, "status": {"kind": "uploading", "tmp": "uploads/pending/tmp-2", "received": 3, "bytes": 25165824}},
+    {"id": "U3-8c9d0e1f", "pid": "kL1mN3pQ5rS7", "at": 1760601500.0, "qid": "Q4", "file": "notes.pdf", "ext": "pdf", "mime": "application/pdf", "size": 1024, "chunks": 1, "status": {"kind": "offered"}}
+  ],
+  "annotations": [
+    {"id": "A1", "pid": "kL1mN3pQ5rS7", "qid": "Q4", "variant": "v-1", "at": 1760601750.0, "text": "This button is too small.", "anchor": {"selector": "#pay-button", "rect": {"x": 40, "y": 75, "w": 10, "h": 5}}}
+  ],
+  "prefs": {
+    "aB3dE5fG7hJ9": {"theme": {"value": "dark", "at": 1760600200.0}, "mute": {"value": ["votes"], "at": 1760600210.0}},
+    "host": {"sort": {"value": "votes", "at": 1760600300.0}}
+  },
+  "notifications": {
+    "aB3dE5fG7hJ9": [
+      {"id": "N1", "kind": "mention", "title": "Bo mentioned you", "at": 1760601660.0, "read": false, "by": "kL1mN3pQ5rS7", "body": "Typing the card number.", "qid": "Q5", "msg": "M1"}
+    ],
+    "kL1mN3pQ5rS7": [
+      {"id": "N2", "kind": "votes", "title": "3 votes on your answer", "at": 1760601100.0, "read": true, "qid": "Q1", "rollup": {"key": "Q1:c:rec", "since": 1760600600.0, "n": 3}}
+    ]
+  },
+  "mergeRequests": [
+    {"id": "G1", "from": "kL1mN3pQ5rS7", "to": "aB3dE5fG7hJ9", "at": 1760601550.0, "status": {"kind": "pending"}}
+  ],
+  "aboutYou": {
+    "kL1mN3pQ5rS7": {"techComfort": "low", "note": "Prefers phone", "at": 1760600400.0}
+  },
+  "log": {
+    "seq": 3,
+    "events": [
+      {
+        "seq": 1, "at": "2026-10-16T10:30:00Z", "deliveredAt": "2026-10-16T10:30:01Z", "kind": "round-sent", "round": 1,
+        "digest": {
+          "round": 1,
+          "names": true,
+          "questions": [
+            {"id": "Q1", "text": "Where should the order summary sit on the payment step?", "scope": "Payment step, desktop checkout", "purpose": "decide", "format": "text",
+             "outcome": {"kind": "locked", "text": "Pin the summary in a right-hand column.", "source": "claude-rec", "by": "Kim"}},
+            {"id": "Q2", "text": "Which payment method should be selected by default?", "purpose": "poll", "format": "choice",
+             "outcome": {"kind": "poll", "closed": false, "counts": [{"option": "Card", "votes": 0}, {"option": "Saved method", "votes": 1}, {"option": "None", "votes": 0}]}}
+          ],
+          "late": [],
+          "needsReview": [],
+          "results": [{"qid": "Q1", "id": "X1", "kind": "research", "summary": "Most large shops pin the summary on the right."}],
+          "proposals": [{"id": "P1", "text": "Ask where the promo code goes.", "by": "Bo"}],
+          "annotations": [],
+          "people": {"joined": 3, "answered": 2, "devices": {"phone": 1, "tablet": 0, "computer": 2}}
+        }
+      },
+      {
+        "seq": 2, "at": "2026-10-16T10:31:00Z", "kind": "request-run",
+        "requests": [{"id": "R1", "qid": "Q1", "kind": "research", "text": "How do other shops place the summary?", "question": "Where should the order summary sit on the payment step?"}]
+      },
+      {"seq": 3, "at": "2026-10-16T10:45:00Z", "kind": "upload-received", "upload": "U1-0a1b2c3d", "file": "summary.png", "stored": "uploads/accepted/2026-10-16-U1-summary.png", "qid": "Q1"}
+    ],
+    "handled": [1, 2]
+  }
+}

@@ -3,7 +3,7 @@
 // request of the acting guest waits 600 ms first, as over a quick tunnel; a Gather reaction, a Decide vote, a choice,
 // multi, scale and rank pick, a Disagree, a chat reaction and a chat message must each show on that guest's page in
 // under 100 ms and stay shown while the server catches up. A refused reaction (409) rolls back with the error toast,
-// and a reaction taken back at once ends with no reaction on the server.
+// and a reaction taken back at once ends with that reaction gone on the server.
 //   node plugins/planning/shared/tests/ui_snappy.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values: the 100 ms and 600 ms bounds come from the dogfood brief; the texts and picks are the ones this
@@ -94,9 +94,10 @@ async function main() {
 
     // ---------- react, then take it back at once ----------
     await gus.evaluate(t => { const b = window.__card(t).querySelector(".vf-react[data-r=heart]"); b.click(); b.click(); }, GATHER);
-    const zero = () => { const r = window.Core.snapshot().cards.Q1.find(c => c.ref === "p:host")?.reactions || {}; return Object.values(r).every(n => n === 0); };
-    ok("react then un-react at once ends with no reaction on the server", await server(zero) && await owner.waitForTimeout(2500).then(() => owner.evaluate(zero)));
-    ok("and none on the page", await until(gus, t => [...window.__card(t).querySelectorAll(".vf-react")].every(b => b.getAttribute("aria-pressed") === "false"), GATHER));
+    // Reactions combine (triage row 45): the 👍 from before stays, and the ❤️ taken back at once is not there.
+    const onlyThumbs = () => { const r = window.Core.snapshot().cards.Q1.find(c => c.ref === "p:host")?.reactions || {}; return r.thumbs === 1 && r.down + r.heart + r.idea === 0; };
+    ok("react then un-react at once ends with that reaction gone on the server", await server(onlyThumbs) && await owner.waitForTimeout(2500).then(() => owner.evaluate(onlyThumbs)));
+    ok("and gone on the page, the earlier one kept", await until(gus, t => [...window.__card(t).querySelectorAll(".vf-react")].map(b => b.getAttribute("aria-pressed")).join() === "true,false,false,false", GATHER));
 
     // ---------- Decide: a vote and a Disagree ----------
     await go("Who should own checkout?");

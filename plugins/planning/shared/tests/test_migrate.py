@@ -39,22 +39,33 @@ class TestChain(unittest.TestCase):
             self.assertEqual(out["schemaVersion"], migrate.CURRENT)
             self.assertIsNone(schema.first_error(out, STATE), f"state-v{version}.json")
 
-    def test_the_v1_chain_is_the_identity_while_v1_is_current(self):
-        doc = json.loads((FIXTURES / "state-v1.json").read_text(encoding="utf-8"))
-        self.assertEqual(migrate.CURRENT, 1)
+    def test_v1_reactions_become_one_item_lists_and_nothing_else_changes(self):
+        raw = (FIXTURES / "state-v1.json").read_text(encoding="utf-8")
+        doc = json.loads(raw)
+        out = migrate.migrate(doc)
+        # state-v1.json's four single reactions, each as a list of one, written out by hand.
+        self.assertEqual(out["reactions"], {"Q5": {
+            "p:aB3dE5fG7hJ9:computer": {"kL1mN3pQ5rS7": ["thumbs"], "host": ["idea"]},
+            "p:kL1mN3pQ5rS7:phone": {"aB3dE5fG7hJ9": ["heart"], "host": ["down"]},
+        }})
+        self.assertEqual({k: v for k, v in out.items() if k not in ("reactions", "schemaVersion")}, {k: v for k, v in doc.items() if k not in ("reactions", "schemaVersion")})
+        self.assertEqual((out["schemaVersion"], doc), (2, json.loads(raw)))
+
+    def test_the_current_chain_is_the_identity(self):
+        doc = json.loads((FIXTURES / f"state-v{migrate.CURRENT}.json").read_text(encoding="utf-8"))
         self.assertEqual(migrate.migrate(doc), doc)
 
 
 class TestMigrate(unittest.TestCase):
     def test_current_version_comes_back_unchanged(self):
-        doc = {"schemaVersion": 1, "rev": 3}
-        self.assertEqual(migrate.migrate(doc), {"schemaVersion": 1, "rev": 3})
+        doc = {"schemaVersion": 2, "rev": 3}
+        self.assertEqual(migrate.migrate(doc), {"schemaVersion": 2, "rev": 3})
 
     def test_newer_version_is_refused_naming_both_versions(self):
         with self.assertRaises(migrate.MigrationError) as ctx:
-            migrate.migrate({"schemaVersion": 2})
-        self.assertIn("schemaVersion 2", str(ctx.exception))
-        self.assertIn("newer than 1", str(ctx.exception))
+            migrate.migrate({"schemaVersion": 3})
+        self.assertIn("schemaVersion 3", str(ctx.exception))
+        self.assertIn("newer than 2", str(ctx.exception))
 
     def test_missing_or_non_integer_version_is_refused(self):
         for doc in (
@@ -82,11 +93,11 @@ class TestMigrate(unittest.TestCase):
 
     def test_a_gap_in_the_chain_is_refused(self):
         with (
-            mock.patch.object(migrate, "CURRENT", 2),
+            mock.patch.object(migrate, "CURRENT", 3),
             self.assertRaises(migrate.MigrationError) as ctx,
         ):
-            migrate.migrate({"schemaVersion": 1})
-        self.assertIn("no migration from schemaVersion 1 to 2", str(ctx.exception))
+            migrate.migrate({"schemaVersion": 2})
+        self.assertIn("no migration from schemaVersion 2 to 3", str(ctx.exception))
 
 
 PROTO = FIXTURES / "state-v0-prototype.json"
@@ -120,8 +131,8 @@ class TestFromPrototype(unittest.TestCase):
         with self.assertRaises(migrate.MigrationError):
             migrate.migrate({"title": "x", "people": {}})
 
-    def test_the_result_is_a_valid_version_1_document(self):
-        self.assertEqual(self.doc["schemaVersion"], 1)
+    def test_the_result_is_a_valid_current_document(self):
+        self.assertEqual(self.doc["schemaVersion"], migrate.CURRENT)
         self.assertIsNone(schema.first_error(self.doc, STATE))
 
     def test_people_keep_their_pid_name_and_standing(self):
@@ -470,8 +481,8 @@ class TestImportedSession(unittest.TestCase):
 class TestLoadRefuses(unittest.TestCase):
     """Every load runs the cross-field rules, so no path brings back what the import drops."""
 
-    def load(self, change):
-        doc = json.loads((FIXTURES / "state-v1.json").read_text(encoding="utf-8"))
+    def load(self, change, name="state-v1.json"):
+        doc = json.loads((FIXTURES / name).read_text(encoding="utf-8"))
         change(doc)
         path = tmpdir(self) / "state.json"
         path.write_text(json.dumps(doc), encoding="utf-8")
@@ -505,10 +516,31 @@ class TestLoadRefuses(unittest.TestCase):
 
         self.assertIn("questions[Q1].references.asset", self.load(change))
 
-    def test_the_v1_fixture_loads(self):
+    def test_a_person_holding_thumbs_and_down_on_one_answer_is_refused(self):
+        def change(doc):
+            doc["reactions"]["Q5"]["p:kL1mN3pQ5rS7:phone"]["host"] = ["thumbs", "down"]
+
+        self.assertIn("both thumbs and down", self.load(change, "state-v2.json"))
+
+    def test_a_person_holding_one_reaction_twice_is_refused(self):
+        def change(doc):
+            doc["reactions"]["Q5"]["p:kL1mN3pQ5rS7:phone"]["host"] = ["heart", "heart"]
+
+        self.assertIn("one reaction twice", self.load(change, "state-v2.json"))
+
+
+class TestLoadMigrates(unittest.TestCase):
+    def test_a_v1_file_loads_at_v2_with_lists_and_keeps_the_original_as_state_v1_json(self):
         path = tmpdir(self) / "state.json"
         shutil.copy(FIXTURES / "state-v1.json", path)
-        self.assertEqual(session.Session.load(path).state["schemaVersion"], 1)
+        raw = path.read_text(encoding="utf-8")
+        s = session.Session.load(path)
+        self.assertEqual(s.state["schemaVersion"], 2)
+        self.assertEqual(path.with_name("state.v1.json").read_text(encoding="utf-8"), raw)
+        on_disk = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual((on_disk["schemaVersion"], on_disk["reactions"]["Q5"]["p:kL1mN3pQ5rS7:phone"]), (2, {"aB3dE5fG7hJ9": ["heart"], "host": ["down"]}))
+        if os.name != "nt":
+            self.assertEqual(stat.S_IMODE(path.with_name("state.v1.json").stat().st_mode), 0o600)
 
 
 if __name__ == "__main__":

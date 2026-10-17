@@ -3633,7 +3633,7 @@
       const reactBtns = Core.REACTIONS.map(([r, glyph, label]) => {
         const b = btn("vf-react"); b.dataset.r = r; b.append(E("span", "vf-react-g", glyph), E("span", "vf-react-n"));
         b._label = label;
-        b.onclick = () => Core.react(k.qid, k.ref, Core.myReaction(k.qid, k.ref) === r ? null : r).catch(fail);
+        b.onclick = () => Core.react(k.qid, k.ref, r, !Core.myReactions(k.qid, k.ref).includes(r)).catch(fail);
         reacts.append(b); return b;
       });
       foot.append(vote, reacts);
@@ -3768,11 +3768,11 @@
       k.vote.classList.toggle("vf-vote-back", k.other);
       k.reacts.hidden = !gather || !!a.option;
       if (gather) {
-        const mineR = Core.myReaction(qid, k.ref);
+        const mineR = Core.myReactions(qid, k.ref);
         for (const b of k.reactBtns) {
           const r = b.dataset.r, n = a.reactions?.[r] || 0;
           b.lastChild.textContent = n ? String(n) : "";
-          b.setAttribute("aria-pressed", String(mineR === r));
+          b.setAttribute("aria-pressed", String(mineR.includes(r)));
           b.disabled = isMe(a.cid) || ro;
           b.setAttribute("aria-label", `${b._label}: ${n}`); // aria-pressed says whether it is yours
           b.title = isMe(a.cid) ? "Your answer" : b._label;

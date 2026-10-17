@@ -205,7 +205,7 @@ class SessionCase(unittest.TestCase):
 class TestPersistence(SessionCase):
     def test_create_writes_a_schema_valid_file_with_version_and_rev_zero(self):
         doc = self.disk()
-        self.assertEqual(doc["schemaVersion"], 1)
+        self.assertEqual(doc["schemaVersion"], session.migrate.CURRENT)
         self.assertEqual(doc["rev"], 0)
         self.assertEqual(doc["pluginVersion"], "9.9.9")
         self.assertEqual(doc["people"][HOST]["role"], "owner")
@@ -279,12 +279,13 @@ class TestPersistence(SessionCase):
 
     def test_load_refuses_a_newer_schema_naming_both_versions(self):
         doc = self.disk()
-        doc["schemaVersion"] = 2
+        now = session.migrate.CURRENT
+        doc["schemaVersion"] = now + 1
         self.path.write_text(json.dumps(doc), encoding="utf-8")
         with self.assertRaises(session.migrate.MigrationError) as ctx:
             session.Session.load(self.path, clock=self.clock, ids=self.ids)
-        self.assertIn("schemaVersion 2", str(ctx.exception))
-        self.assertIn("newer than 1", str(ctx.exception))
+        self.assertIn(f"schemaVersion {now + 1}", str(ctx.exception))
+        self.assertIn(f"newer than {now}", str(ctx.exception))
 
     def test_migration_copies_the_old_file_once_then_writes_the_migrated_state(self):
         original = self.path.read_bytes()
@@ -292,15 +293,16 @@ class TestPersistence(SessionCase):
         def step(doc, ctx):
             return {**doc, "writtenBy": "migrated"}
 
+        now = session.migrate.CURRENT
         with (
-            mock.patch.object(session.migrate, "CURRENT", 2),
-            mock.patch.dict(session.migrate.MIGRATIONS, {1: step}),
+            mock.patch.object(session.migrate, "CURRENT", now + 1),
+            mock.patch.dict(session.migrate.MIGRATIONS, {now: step}),
             mock.patch.object(session, "state_error", return_value=None),
         ):
             s = session.Session.load(self.path, clock=self.clock, ids=self.ids)
-        self.assertEqual((self.tmp / "state.v1.json").read_bytes(), original)
+        self.assertEqual((self.tmp / f"state.v{now}.json").read_bytes(), original)
         self.assertEqual(s.state["writtenBy"], "migrated")
-        self.assertEqual(self.disk()["schemaVersion"], 2)
+        self.assertEqual(self.disk()["schemaVersion"], now + 1)
 
     def test_a_failed_migration_leaves_the_original_file(self):
         original = self.path.read_bytes()
@@ -308,9 +310,10 @@ class TestPersistence(SessionCase):
         def step(doc, ctx):
             raise session.migrate.MigrationError("step 1 to 2 failed")
 
+        now = session.migrate.CURRENT
         with (
-            mock.patch.object(session.migrate, "CURRENT", 2),
-            mock.patch.dict(session.migrate.MIGRATIONS, {1: step}),
+            mock.patch.object(session.migrate, "CURRENT", now + 1),
+            mock.patch.dict(session.migrate.MIGRATIONS, {now: step}),
             self.assertRaises(session.migrate.MigrationError),
         ):
             session.Session.load(self.path, clock=self.clock, ids=self.ids)
@@ -735,7 +738,7 @@ class TestOwnerMerge(SessionCase):
         self.assertNotIn(self.twin, st["people"])
         self.assertEqual([c["pid"] for c in st["cards"]["Q1"] if c["kind"] == "person"], [HOST])
         self.assertEqual(st["votes"]["Q2"], {HOST: "c:rec"})
-        self.assertEqual(st["reactions"]["Q3"], {f"p:{self.ann}": {HOST: "heart"}})
+        self.assertEqual(st["reactions"]["Q3"], {f"p:{self.ann}": {HOST: ["heart"]}})
         self.assertEqual({m["id"]: m["pid"] for m in st["chat"]}, {hello: self.ann, mine: HOST})
         self.assertEqual(next(m for m in st["chat"] if m["id"] == hello)["reactions"], {"👍": [HOST]})
         self.assertEqual([(r["id"], r["pid"]) for r in st["requests"]], [(rid, HOST)])
@@ -1294,11 +1297,38 @@ class TestCardsAndVotes(SessionCase):
     def test_reactions_are_thumbs_heart_idea_on_gather_questions_only(self):
         self.act("answer", self.ann, {"qid": "Q3", "text": "The address form", "view": "focus"})
         self.act("react", self.bo, {"qid": "Q3", "card": f"p:{self.ann}", "reaction": "heart"})
-        self.assertEqual(self.s.state["reactions"]["Q3"], {f"p:{self.ann}": {self.bo: "heart"}})
+        self.assertEqual(self.s.state["reactions"]["Q3"], {f"p:{self.ann}": {self.bo: ["heart"]}})
         self.refused("bad-field", "react", self.bo, {"qid": "Q3", "card": f"p:{self.ann}", "reaction": "agree"})
         self.refused("wrong-purpose", "react", self.bo, {"qid": "Q1", "card": "c:rec", "reaction": "thumbs"})
         self.act("react", self.bo, {"qid": "Q3", "card": f"p:{self.ann}", "reaction": None})
         self.assertNotIn("Q3", self.s.state["reactions"])
+
+    def test_one_person_holds_heart_and_idea_with_thumbs_or_down_but_never_both_thumbs_and_down(self):
+        card = f"p:{self.ann}"
+        self.act("answer", self.ann, {"qid": "Q3", "text": "The address form", "view": "focus"})
+
+        def react(reaction, on=True):
+            return self.act("react", self.bo, {"qid": "Q3", "card": card, "reaction": reaction, "on": on})["reactions"]
+
+        self.assertEqual(react("heart"), ["heart"])
+        self.assertEqual(react("idea"), ["heart", "idea"])
+        self.assertEqual(react("thumbs"), ["thumbs", "heart", "idea"])
+        self.assertEqual(react("down"), ["down", "heart", "idea"])  # 👎 takes 👍's place, ❤️ and 💡 stay
+        self.assertEqual(react("thumbs"), ["thumbs", "heart", "idea"])
+        self.assertEqual(react("heart", on=False), ["thumbs", "idea"])
+        self.assertEqual(react("down", on=False), ["thumbs", "idea"])  # off for one not held changes nothing
+        self.assertEqual(self.s.state["reactions"]["Q3"], {card: {self.bo: ["thumbs", "idea"]}})
+        self.assertEqual(self.s.snapshot(self.bo)["me"]["reactions"], {"Q3": {card: ["thumbs", "idea"]}})
+        self.refused("bad-field", "react", self.bo, {"qid": "Q3", "card": card, "reaction": "heart", "on": "yes"})
+        self.assertIsNone(session.document_error(self.s.state))
+
+    def test_each_reaction_a_person_holds_counts_once_on_the_card(self):
+        card = f"p:{self.ann}"
+        self.act("answer", self.ann, {"qid": "Q3", "text": "The address form", "view": "focus"})
+        for pid, reaction in ((self.bo, "thumbs"), (self.bo, "heart"), (self.cy, "heart"), (self.cy, "down")):
+            self.act("react", pid, {"qid": "Q3", "card": card, "reaction": reaction})
+        (shown,) = [c for c in self.s.snapshot(HOST)["cards"]["Q3"] if c["ref"] == card]
+        self.assertEqual(shown["reactions"], {"thumbs": 1, "down": 1, "heart": 2, "idea": 0})
 
     def test_cites_must_name_a_shown_result_on_the_question(self):
         self.refused("bad-field", "answer", self.ann, {"qid": "Q1", "text": "See X1", "view": "focus", "cites": ["X1"]})
@@ -1527,7 +1557,7 @@ class TestLocks(SessionCase):
         self.assertEqual(self.s.state["suggestions"]["Q1"][0]["status"]["kind"], "closed")
 
     def test_the_deferred_fixture_duplicate_flag_is_refused_by_the_session_checks(self):
-        doc = json.loads((FIXTURES / "invalid-state-duplicate-flag.json").read_text(encoding="utf-8"))
+        doc = session.migrate.migrate(json.loads((FIXTURES / "invalid-state-duplicate-flag.json").read_text(encoding="utf-8")))  # a v1 file
         self.assertIsNone(session.state_error(doc))
         self.assertIn("Q3", session.cross_field_errors(doc)[0])
         self.path.write_text(json.dumps(doc), encoding="utf-8")
@@ -1602,7 +1632,7 @@ class TestProposals(SessionCase):
         self.act("answer", self.ann, {"qid": qid, "text": "A spreadsheet", "view": "focus"})
         card = f"p:{self.ann}"
         self.act("react", self.bo, {"qid": qid, "card": card, "reaction": "thumbs"})
-        self.assertEqual(self.s.state["reactions"][qid], {card: {self.bo: "thumbs"}})
+        self.assertEqual(self.s.state["reactions"][qid], {card: {self.bo: ["thumbs"]}})
         self.refused("wrong-purpose", "vote", self.bo, {"qid": qid, "card": card, "on": True}, http=409)
         self.refused("wrong-purpose", "disagree", self.bo, {"qid": qid, "card": card, "reason": "Not for me"}, http=409)
         self.refused("wrong-purpose", "lock", HOST, {"qid": qid, "card": card}, http=409)
@@ -2515,6 +2545,16 @@ class TestDigest(SessionCase):
         out = self.by_id(self.digest())["Q1"]["outcome"]
         self.assertEqual(out, {"kind": "gathered", "answers": [{"text": "Address form", "reactions": {"thumbs": 1, "down": 0, "heart": 0, "idea": 1}}]})
 
+    def test_one_persons_combined_reactions_each_count_in_the_digest(self):
+        """Endorsement reads 👍 and ❤️: one person who gives both counts in each, beside their 💡."""
+        self.open_round(text_q("Q1", purpose="gather"))
+        self.act("answer", self.ann, {"qid": "Q1", "text": "Address form", "view": "focus"})
+        for reaction in ("thumbs", "heart", "idea"):
+            self.act("react", self.bo, {"qid": "Q1", "card": f"p:{self.ann}", "reaction": reaction})
+        self.act("react", self.cy, {"qid": "Q1", "card": f"p:{self.ann}", "reaction": "heart"})
+        (answer,) = self.by_id(self.digest())["Q1"]["outcome"]["answers"]
+        self.assertEqual(answer["reactions"], {"thumbs": 1, "down": 0, "heart": 2, "idea": 1})
+
     def test_a_poll_reports_counts_per_option_and_whether_it_closed(self):
         self.open_round(choice_q("Q1"))
         self.act("pick", self.ann, {"qid": "Q1", "option": "opt-2", "view": "focus"})
@@ -2765,7 +2805,7 @@ class TestSnapshots(SessionCase):
         return next(c for c in snap["cards"]["Q1"] if c["ref"] == ref)
 
     def test_the_anonymous_view_has_exactly_four_keys(self):
-        self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": False, "schemaVersion": 1})
+        self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": False, "schemaVersion": 2})
         self.act("rotate_guest_link", HOST, {})
         self.assertTrue(self.s.anonymous_view()["joinNeedsKey"])
 
@@ -2838,7 +2878,7 @@ class TestSnapshots(SessionCase):
 
     def test_a_snapshot_carries_schema_version_and_rev(self):
         snap = self.s.snapshot(self.cy)
-        self.assertEqual((snap["schemaVersion"], snap["rev"]), (1, self.s.state["rev"]))
+        self.assertEqual((snap["schemaVersion"], snap["rev"]), (2, self.s.state["rev"]))
 
     def test_the_shared_part_is_built_once_per_rev(self):
         first = self.s._base()
@@ -3796,9 +3836,11 @@ class StateFixtureCase(unittest.TestCase):
         shutil.copy(FIXTURES / name, tmp / "state.json")
         raw = (tmp / "state.json").read_text(encoding="utf-8")
         s = session.Session.load(tmp / "state.json", clock=Clock(1_760_700_000.0), ids=Ids(), validate_writes=True)
-        self.assertEqual(s.state, json.loads(raw))
-        self.assertEqual((tmp / "state.json").read_text(encoding="utf-8"), raw)  # nothing rewritten on load
-        self.assertEqual(sorted(p.name for p in tmp.iterdir()), ["assets", "state.json"])  # no state.v<N>.json backup
+        # These builds wrote schemaVersion 1: the 1 -> 2 step (pinned by hand in test_migrate) is the only change.
+        self.assertEqual(s.state, session.migrate.migrate(json.loads(raw)))
+        self.assertEqual(json.loads((tmp / "state.json").read_text(encoding="utf-8")), s.state)
+        self.assertEqual(sorted(p.name for p in tmp.iterdir()), ["assets", "state.json", "state.v1.json"])
+        self.assertEqual((tmp / "state.v1.json").read_text(encoding="utf-8"), raw)  # the original, kept once
         return s
 
 
