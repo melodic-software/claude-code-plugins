@@ -24,11 +24,14 @@
 //             limit before it could report): comments once with the
 //             limited marker naming when the limit resets, keeps agent-ready
 //             and adds no label, so work-unblock restarts it after the reset.
-//   reused    the resolve-issue run skipped the model for a lane branch an
+//   reused    the resolve-issue run skipped the work for a lane branch an
 //             earlier run left with commits and no report (REUSE_BRANCH):
 //             the earlier outcome counts only when this run's artifact names
-//             that branch (a re-run attempt); with none readable, a held PR
-//             with fixed text only opens from it, whatever the limit record.
+//             that branch (a re-run attempt); with none readable, a PR opens
+//             from it, whatever the limit record. It carries the read-only
+//             summary pass's summary, held only as a done PR would be, when
+//             the summary names this issue, the branch and its current tip;
+//             else fixed text only and the hold line.
 //
 // Run from the base copy. It reads only the outcome directory and the GitHub
 // API, and never writes to a branch.
@@ -46,6 +49,8 @@
 //                       untrusted) and lane.json (written by the runner: the
 //                       lane branch, and the run's limit `class` and `resets`)
 //   REUSE_BRANCH        the lane branch --find-prior chose, or empty
+//   REUSE_SUMMARY_DIR   on a reuse, holds the summary pass's reuse-summary.json
+//                       (runner-written issue, branch and tip; model output)
 //   TRACKER_CONFIG      base .work-item-tracker.json, for the human-gated label
 //   RESOLVED_CONFIG     resolve-config's output for this run (default
 //                       $RUNNER_TEMP/resolved-config.json), for the denied paths
@@ -272,9 +277,95 @@ function limitedPlan({ issueNumber, branch, resets, runId, runUrl }) {
   return { action: "limited", exit: "limited", issueNumber, resets, runId, comment: lines.join("\n"), addLabels: [], removeLabels: [] };
 }
 
+// Whether a lane PR carries the hold line, from runner facts only: a refs
+// link, a held work class on the issue, a diff the compare listing may have
+// cut short, unreadable hold paths, or a changed file on one.
+const held = ({ refs = false, issueLabels, changedFiles, holdPaths }) =>
+  refs ||
+  issueLabels.some((name) => HOLD_CLASSES.has(name)) ||
+  changedFiles.length >= COMPARE_FILES_CAP ||
+  holdPaths === null ||
+  changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob)));
+
+// The summary pass's file for a reused branch, or null unless it is bound to
+// this issue and branch, names the tip it read, and holds a non-empty summary.
+// issue, branch and tip are runner values; output is the model's, read as data.
+export function readSummary(dir, { issueNumber, branch }) {
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(join(dir, "reuse-summary.json"), "utf8"));
+  } catch {
+    return null;
+  }
+  const output = parsed?.output;
+  if (
+    parsed?.version !== 1 ||
+    parsed.issue !== issueNumber ||
+    parsed.branch !== branch ||
+    !/^[0-9a-f]{40}$/.test(parsed.tip ?? "") ||
+    output === null ||
+    typeof output !== "object" ||
+    Array.isArray(output)
+  ) {
+    return null;
+  }
+  const summary = text(output.summary);
+  return summary.trim() ? { tip: parsed.tip, title: text(output.title), summary, changes: list(output.changes) } : null;
+}
+
 // A lane branch an earlier run left with commits and no report, whose outcome
-// this run cannot read: a PR a human merges, with fixed text only.
-export function reusePlan({ issueNumber, branch, runUrl = "", earlierRunUrl = "" }) {
+// this run cannot read. With the summary pass's summary, a lane PR held only
+// where decide() would hold one; without it, a PR a human merges, with fixed
+// text only.
+export function reusePlan({
+  issueNumber,
+  branch,
+  runUrl = "",
+  earlierRunUrl = "",
+  summary = null,
+  issueLabels = [],
+  changedFiles = [],
+  holdPaths = null,
+}) {
+  const runs = [
+    earlierRunUrl ? `- The earlier lane run: ${earlierRunUrl}` : "- The earlier lane run.",
+    runUrl ? `- This lane run: ${runUrl}` : "- This lane run.",
+  ];
+  if (summary) {
+    const body = [
+      `Closes #${issueNumber}`,
+      ...(held({ issueLabels, changedFiles, holdPaths }) ? ["", HOLD_LINE] : []),
+      "",
+      "## Summary",
+      "",
+      `Opened by the work-resolve-issue lane from \`${branch}\`, which an earlier run left with commits and no report. A summary-only model pass read the branch's diff and the issue, changed nothing, and wrote:`,
+      "",
+      quoted(summary.summary),
+      "",
+      "## Fix",
+      "",
+      summary.changes.length ? bullets(summary.changes) : "The summary pass listed no changes; the diff shows them.",
+      "",
+      "## Verification",
+      "",
+      "The earlier run reported no checks here, and the summary pass ran none.",
+      "",
+      ...runs,
+      "",
+      "Left out: every check the earlier run would have reported.",
+      "",
+      "## Related",
+      "",
+      `#${issueNumber}`,
+    ].join("\n");
+    return {
+      action: "open-pr",
+      issueNumber,
+      title: CONVENTIONAL.test(summary.title) ? summary.title : `chore: work on #${issueNumber}`,
+      body,
+      branch,
+    };
+  }
   const body = [
     `Closes #${issueNumber}`,
     "",
@@ -292,8 +383,7 @@ export function reusePlan({ issueNumber, branch, runUrl = "", earlierRunUrl = ""
     "",
     "The earlier run reported no checks here.",
     "",
-    earlierRunUrl ? `- The earlier lane run: ${earlierRunUrl}` : "- The earlier lane run.",
-    runUrl ? `- This lane run: ${runUrl}` : "- This lane run.",
+    ...runs,
     "",
     "Left out: every check; a person reviews the diff before merging.",
     "",
@@ -356,12 +446,7 @@ export function decide({
     });
   }
   const refs = outcome.link === "refs";
-  const hold =
-    refs ||
-    issueLabels.some((name) => HOLD_CLASSES.has(name)) ||
-    changedFiles.length >= COMPARE_FILES_CAP ||
-    holdPaths === null ||
-    changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob)));
+  const hold = held({ refs, issueLabels, changedFiles, holdPaths });
   // The sections of the PR body contract (.claude/rules/pr-body-contract.md),
   // in the org PR template's order, with the run's gaps above the work.
   const gaps = outcome.notDone.map(({ what }) => what);
@@ -656,7 +741,7 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
       prior.action === "run"
         ? `report-outcome: no earlier run of issue #${issueNumber} left work to report; the model runs`
         : prior.action === "reuse"
-          ? `report-outcome: ${prior.branch} holds unreported work for issue #${issueNumber}; the model is skipped and report-outcome opens its PR`
+          ? `report-outcome: ${prior.branch} holds unreported work for issue #${issueNumber}; the work is skipped, a summary pass describes it and report-outcome opens its PR`
           : `report-outcome: ${prior.reason}; the model is skipped`,
     );
     return 0;
@@ -692,33 +777,55 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const runUrlOf = (id) => (env.GITHUB_SERVER_URL && id ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${id}` : "");
     const runUrl = runUrlOf(env.GITHUB_RUN_ID);
     const issue = await github("GET", `${repo}/issues/${issueNumber}`);
+    const unreported = reuse && (outcome === null || outcome.unread);
+    // The summary counts only while the branch is still at the tip it read; a
+    // tip that cannot be read keeps the fixed text and the hold.
+    let summary = unreported && env.REUSE_SUMMARY_DIR ? readSummary(env.REUSE_SUMMARY_DIR, { issueNumber, branch: reuse }) : null;
+    if (summary) {
+      const ref = reuse.split("/").map(encodeURIComponent).join("/");
+      const tip = await github("GET", `${repo}/git/ref/heads/${ref}`).then(
+        (answer) => answer?.object?.sha,
+        () => "",
+      );
+      if (tip !== summary.tip) {
+        console.log(`report-outcome: ${reuse} is not at the tip the summary read, so the PR keeps the fixed text`);
+        summary = null;
+      }
+    }
     let changedFiles = [];
     let base = "";
-    if (outcome?.exit === "done" && branch) {
+    if ((outcome?.exit === "done" || summary) && branch) {
       base = (await github("GET", repo)).default_branch;
       const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(branch)}`);
       changedFiles = (comparison.files ?? []).flatMap((file) =>
         file.previous_filename ? [file.filename, file.previous_filename] : [file.filename],
       );
     }
+    const issueLabels = (issue.labels ?? []).map((label) => label.name);
+    const holdPaths = () => readHoldPaths(env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json"));
     // A reuse whose outcome cannot be read never takes the limit record: the
     // skipped run hit no limit, and a limited marker would loop restarts.
-    const plan =
-      reuse && (outcome === null || outcome.unread)
-        ? reusePlan({ issueNumber, branch, runUrl, earlierRunUrl: runUrlOf(reused[1]) })
-        : decide({
-            outcome,
-            issueNumber,
-            issueLabels: (issue.labels ?? []).map((label) => label.name),
-            branch,
-            changedFiles,
-            holdPaths: readHoldPaths(env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json")),
-            humanLabel: humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json"),
-            runUrl,
-            limit,
-            now,
-            runId: /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "",
-          });
+    const plan = unreported
+      ? reusePlan({
+          issueNumber,
+          branch,
+          runUrl,
+          earlierRunUrl: runUrlOf(reused[1]),
+          ...(summary ? { summary, issueLabels, changedFiles, holdPaths: holdPaths() } : {}),
+        })
+      : decide({
+          outcome,
+          issueNumber,
+          issueLabels,
+          branch,
+          changedFiles,
+          holdPaths: holdPaths(),
+          humanLabel: humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json"),
+          runUrl,
+          limit,
+          now,
+          runId: /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "",
+        });
     if (plan.action === "limited") {
       // Once per run: a rerun of this report, however late, finds its own
       // marker in the issue's whole comment history and posts nothing.

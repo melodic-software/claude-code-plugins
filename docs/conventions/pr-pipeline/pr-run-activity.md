@@ -991,14 +991,27 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
   removes `agent-ready`. Each comment opens with the marker
   `<!-- work-resolve-issue outcome=<exit> run=<run id> -->`, which `issue-prior` matches to the
   branches of that run (a marker naming no run covers every branch whose tip is older than it).
+- On a reuse the skill run mints nothing and runs a summary pass instead: with the job's
+  read-only `GITHUB_TOKEN`, `write-issue.mjs` writes the issue, and a blobless fetch of the trusted
+  base and the branch into a repository outside the workspace writes the branch's diff
+  (`git diff --no-ext-diff --no-textconv`, cut at 1 MB), so nothing on the branch runs. A second
+  `claude-code-action` step, on the `summarize-reuse` route of [Models](README.md#models), with no
+  plugins and no commit signing, reads those files with `Read` alone and returns `title`,
+  `summary` and `changes` as structured output. A failed or limit-stopped pass fails nothing
+  (`continue-on-error`). The runner writes `reuse-summary.json`, the issue, branch and diffed tip
+  from its own steps beside the parsed output, and uploads it as the `reuse-summary-<n>` artifact.
 - A non-empty `reuse-branch` also starts `report-outcome` and `report-statuses`, and reaches the
-  script as `REUSE_BRANCH`. The downloaded outcome counts only when its `lane.json` names that
-  branch (a re-run attempt of the run that made it). Otherwise, and when that outcome cannot be
-  read, `report-outcome` opens a held PR from the branch with fixed text naming the earlier run and
-  none of the model's text, ignoring any limit record; the earlier run's artifact would need
-  `actions: read`, which no lane token holds. `report-statuses` then posts only
-  `pipeline/report-outcome` on that branch, so any statuses the earlier run posted on the same
-  head stand.
+  script as `REUSE_BRANCH`; `report-outcome` also downloads `reuse-summary-<n>`. The downloaded
+  outcome counts only when its `lane.json` names that branch (a re-run attempt of the run that
+  made it). Otherwise, and when that outcome cannot be read, `report-outcome` opens a PR from the
+  branch, ignoring any limit record: the earlier run's artifact would need `actions: read`, which
+  no lane token holds. When the summary names this issue and branch, the branch is still at its
+  tip, and its `summary` is not empty, the PR carries the summary and its changes, quoted as model
+  text, and the hold line only where a `done` PR would carry it, so it goes through review and the
+  merge lane like any lane PR. Otherwise the PR has fixed text naming the earlier run, none of the
+  model's text, and the hold line. The summary never reaches a status or the hold decision:
+  `report-statuses` then posts only `pipeline/report-outcome` on that branch, so any statuses the
+  earlier run posted on the same head stand.
 - No check run is posted: there is no PR head. The lane's `report-statuses` job (in
   `work-resolve-issue.yml`, the lane's only `statuses: write`, on its own `GITHUB_TOKEN`) posts a
   `pipeline/<activity>` commit status on the lane branch's head for `resolve-issue` and

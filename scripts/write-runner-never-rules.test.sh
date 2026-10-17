@@ -261,6 +261,40 @@ say(first.env?.REUSE_BRANCH === "${{ inputs.reuse-branch }}"
   && (first.run ?? "").includes("[[ $REUSE_BRANCH =~ ^work-resolve-issue/issue-${ISSUE_NUMBER}-[1-9][0-9]*-[1-9][0-9]*$ ]]"),
   "the first step refuses a reuse-branch input that is not this issue's lane branch");
 say(byId("act-script").env?.REUSE_BRANCH === "${{ inputs.reuse-branch }}", "the script step gets the checked reuse-branch input");
+
+// Issue mode, reuse: the summary pass runs only when the earlier-work check
+// named a branch, so no lane token exists; it reads the branch as data and
+// holds only the job's read-only token.
+const summaryIds = ["summary-data", "summary-models", "summary-prompt", "summary-run", "summary-collect"];
+const summarySteps = steps.filter((s) => summaryIds.includes(s.id) || /reused branch's summary/.test(s.name ?? "") && /upload-artifact/.test(s.uses ?? ""));
+say(summaryIds.every((id) => at((s) => s.id === id) > priorAt && at((s) => s.id === id) < checkout),
+  "the summary pass runs after the earlier-work check and before the head checkout");
+say(String(byId("summary-data").if ?? "") === "steps.issue-prior.outputs.reuse-branch != ''",
+  "the summary pass starts only from the earlier-work check's reuse-branch, which skips the mint");
+say(summarySteps.length === summaryIds.length + 1 && !/lane-token/.test(JSON.stringify(summarySteps)),
+  "no summary pass step reads the lane token");
+const summaryData = byId("summary-data");
+say(summaryData.env?.GITHUB_TOKEN === "${{ github.token }}" && /--filter=blob:none/.test(summaryData.run ?? "")
+  && /diff --no-ext-diff --no-textconv/.test(summaryData.run ?? "") && !/checkout|worktree|\bnpm\b|bash "\$SRC|node "\$SRC/.test(summaryData.run ?? ""),
+  "the summary data step fetches the branch as objects with the read-only token and diffs it without running anything from it");
+const summaryRun = byId("summary-run");
+const summaryArgs = String(byId("summary-prompt").run ?? "");
+say(String(summaryRun.uses ?? "") === String(skill.uses ?? "") && summaryRun.with?.github_token === "${{ github.token }}"
+  && !("use_commit_signing" in (summaryRun.with ?? {})) && !("plugins" in (summaryRun.with ?? {}))
+  && !("plugin_marketplaces" in (summaryRun.with ?? {})) && summaryRun["continue-on-error"] === true,
+  "the summary model step holds the job's read-only token, no commit signing and no plugins, and cannot fail the job");
+say(/--setting-sources user/.test(String(summaryRun.with?.claude_args ?? "")) && /--permission-mode dontAsk/.test(String(summaryRun.with?.claude_args ?? ""))
+  && /--allowedTools \\"Read\(\/\$DATA\/\*\*\)\\"/.test(summaryArgs) && /denied="Bash,Edit,Write,/.test(summaryArgs)
+  && /mcp__github_file_ops/.test(summaryArgs) && /--json-schema/.test(summaryArgs),
+  "the summary model reads the data directory and nothing else, under dontAsk, and returns structured output");
+const summaryCollect = byId("summary-collect");
+say(summaryCollect.env?.REUSE_BRANCH === "${{ steps.issue-prior.outputs.reuse-branch }}"
+  && summaryCollect.env?.TIP === "${{ steps.summary-data.outputs.tip }}" && /try fromjson catch null/.test(summaryCollect.run ?? ""),
+  "the summary file binds the model's output to the runner's branch and tip");
+const summaryDownload = steps.find((s) => s.name === "Download the reused branch's summary");
+say(/inputs\.reuse-branch != ''/.test(String(summaryDownload?.if ?? "")) && /steps\.config\.outputs\.kind == 'script'/.test(String(summaryDownload?.if ?? ""))
+  && summaryDownload?.["continue-on-error"] === true,
+  "only a reuse's report-outcome run downloads the summary, and a missing one fails nothing");
 EOF
 )
 if [[ -z "$results" ]]; then
