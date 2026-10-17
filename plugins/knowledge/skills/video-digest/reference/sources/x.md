@@ -187,7 +187,7 @@ watch, not a pipeline stage. The acquisition layer never walks replies.
 | Media-optional (0-media is well-formed) | **available**; every yt-dlp call passes `--ignore-no-formats-error` |
 
 Because the browser-profile loop is unavailable, X must never iterate browser cookie profiles on
-an auth failure. Supply `${user_config.yt_dlp_cookies_file}` (a Netscape `cookies.txt`, never
+an auth failure. Supply the `yt_dlp_cookies_file` option (SKILL.md "Configured options"; a Netscape `cookies.txt`, never
 committed) or accept the login-required failure.
 
 **Auth is not a precondition.** A public status acquires media, captions, and metadata

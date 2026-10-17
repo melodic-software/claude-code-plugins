@@ -11,7 +11,7 @@ effort, turn budget) and the App token grant. The config's contract is the
 |---|---|---|
 | `lane` | empty | The lane, its workflow's file stem; required unless `model-route` is set |
 | `activity` | empty | The activity to select from the lane's slots |
-| `model-route` | empty | A run that is no lane activity (`verify-pr`, `review-code`, `review-security`, `triage-issue`): resolve only its models profile. Set it or `lane`, not both |
+| `model-route` | empty | A run that is no lane activity (`verify-pr`, `review-code`, `review-security`, `triage-issue`, `summarize-reuse`): resolve only its models profile. Set it or `lane`, not both |
 | `base-path` | `.base` | The base-SHA checkout; every config, schema and vocabulary read is under it |
 | `config-path` | `docs/conventions/pr-pipeline.yaml` | The config, relative to `base-path`; for test callers only |
 | `output-path` | required | Where the `ResolvedConfig` JSON file is written |
@@ -59,7 +59,7 @@ The step fails and writes no file when:
     does not.
 13. `models.default-profile` or a route names a profile `models.profiles` does not define
     (`undefined-profile`), or a route key is neither a skill activity nor a run route
-    (`verify-pr`, `review-code`, `review-security`, `triage-issue`; `undefined-route`), so a mistyped route cannot quietly take the default.
+    (`verify-pr`, `review-code`, `review-security`, `triage-issue`, `summarize-reuse`; `undefined-route`), so a mistyped route cannot quietly take the default.
 
 It also fails when a predicate it decides cannot be decided: `pulls/{n}/files` lists 3000 files or
 fewer than the PR's `changed_files`, a predicate needs the PR and there is no `pr-number`, a

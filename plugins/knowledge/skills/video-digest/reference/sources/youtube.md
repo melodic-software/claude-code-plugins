@@ -75,17 +75,20 @@ cross-platform way as `--work-root` (see `../../context/output-contract.md`): a 
 flag on the `run.mjs` invocation that the launcher forwards to the extraction child as an
 environment variable. Those env vars are internal plumbing, not a channel to set by hand.
 
+This file arrives through Read unsubstituted. Take each option's value from SKILL.md's "Configured
+options" table, written `<option>` below.
+
 Apply the **same guard** as `library_dir`: pass a flag only when its option holds a non-empty
-value other than the option default, and not still an unexpanded `${user_config.…}` token;
+value other than the option default, and not still an unexpanded `user_config` token;
 otherwise omit it and the pipeline keeps its built-in default. All are leading and
 order-independent, so they combine with `--work-root` in any order.
 
 | Option | Flag | Pass when | Effect |
 |---|---|---|---|
-| `${user_config.yt_dlp_js_runtimes}` | `--js-runtimes "<value>"` | set and not the default `node` | `off` omits yt-dlp's `--js-runtimes`; any other value selects that runtime |
-| `${user_config.yt_dlp_cookies_file}` | `--cookies-file "<value>"` | non-empty | authenticated acquisition from a Netscape cookies.txt (never commit it) |
-| `${user_config.yt_dlp_cookies_from_browser}` | `--cookies-from-browser "<value>"` | non-empty | forces one browser's cookies instead of the automatic platform-ordered fallback; a cookies file wins over it |
-| `${user_config.max_concurrent_acquires}` | `--max-concurrent-acquires "<value>"` | set and not the default `1` | caps concurrent acquisitions (1–3); higher increases HTTP 429 risk |
+| `<yt_dlp_js_runtimes>` | `--js-runtimes "<value>"` | set and not the default `node` | `off` omits yt-dlp's `--js-runtimes`; any other value selects that runtime |
+| `<yt_dlp_cookies_file>` | `--cookies-file "<value>"` | non-empty | authenticated acquisition from a Netscape cookies.txt (never commit it) |
+| `<yt_dlp_cookies_from_browser>` | `--cookies-from-browser "<value>"` | non-empty | forces one browser's cookies instead of the automatic platform-ordered fallback; a cookies file wins over it |
+| `<max_concurrent_acquires>` | `--max-concurrent-acquires "<value>"` | set and not the default `1` | caps concurrent acquisitions (1–3); higher increases HTTP 429 risk |
 
 One more throttle flag has no `userConfig` option: `--acquire-phase-gap <sec>`, a leading
 `run.mjs` flag. A `watch` acquires in two passes, the video and then the captions, and the flag sets
@@ -99,8 +102,8 @@ contribute no flag):
 
 ```bash
 node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" \
-  --work-root "${CLAUDE_PROJECT_DIR}/${user_config.library_dir}" \
-  --cookies-from-browser "${user_config.yt_dlp_cookies_from_browser}" \
+  --work-root "${CLAUDE_PROJECT_DIR}/<library_dir>" \
+  --cookies-from-browser "<yt_dlp_cookies_from_browser>" \
   <script.js> [args…]
 ```
 

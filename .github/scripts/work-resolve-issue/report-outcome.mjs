@@ -24,11 +24,13 @@
 //             limit before it could report): comments once with the
 //             limited marker naming when the limit resets, keeps agent-ready
 //             and adds no label, so work-unblock restarts it after the reset.
-//   reused    the resolve-issue run skipped the model for a lane branch an
+//   reused    the resolve-issue run skipped the work for a lane branch an
 //             earlier run left with commits and no report (REUSE_BRANCH):
 //             the earlier outcome counts only when this run's artifact names
 //             that branch (a re-run attempt); with none readable, a held PR
-//             with fixed text only opens from it, whatever the limit record.
+//             opens from it, whatever the limit record. It carries the
+//             read-only summary pass's summary when the summary names this
+//             issue, the branch and its current tip; else fixed text only.
 //
 // Run from the base copy. It reads only the outcome directory and the GitHub
 // API, and never writes to a branch.
@@ -46,6 +48,8 @@
 //                       untrusted) and lane.json (written by the runner: the
 //                       lane branch, and the run's limit `class` and `resets`)
 //   REUSE_BRANCH        the lane branch --find-prior chose, or empty
+//   REUSE_SUMMARY_DIR   on a reuse, holds the summary pass's reuse-summary.json
+//                       (runner-written issue, branch and tip; model output)
 //   TRACKER_CONFIG      base .work-item-tracker.json, for the human-gated label
 //   RESOLVED_CONFIG     resolve-config's output for this run (default
 //                       $RUNNER_TEMP/resolved-config.json), for the denied paths
@@ -218,10 +222,13 @@ export function readOutcome(path) {
 // body as plain text, so `#` becomes a full-width ＃, `GH-` and `/issues/` or
 // `/pull/` gain a space, and no closing keyword in it can close an issue.
 // `://` and `www.` gain a space too, so no bare URL autolinks.
-// Control characters other than newline go. The cap applies after escaping.
-const neutral = (value, cap) =>
-  value
-    .replaceAll(/<!--[\s\S]*?(-->|$)/g, "")
+// Control characters other than newline go, and so do format characters
+// (bidi overrides, zero-width), which can make text read other than it is.
+// The cap applies after escaping. A file path keeps its comments, escaped,
+// so the whole name shows.
+const neutral = (value, cap, { path = false } = {}) =>
+  (path ? value : value.replaceAll(/<!--[\s\S]*?(-->|$)/g, ""))
+    .replaceAll(/\p{Cf}/gu, "")
     .replaceAll("\r\n", "\n")
     .replaceAll(/[\u0000-\u0009\u000b-\u001f\u007f]/g, " ")
     .replaceAll("&", "&amp;")
@@ -309,10 +316,86 @@ function limitedPlan({ issueNumber, branch, resets, runId, runUrl }) {
   return { action: "limited", exit: "limited", issueNumber, resets, runId, comment: lines.join("\n"), addLabels: [], removeLabels: [] };
 }
 
+// The summary pass's file for a reused branch, or null unless it is bound to
+// this issue and branch, names the tip it read, and holds a non-empty summary.
+// issue, branch and tip are runner values; output is the model's, read as data.
+export function readSummary(dir, { issueNumber, branch }) {
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(join(dir, "reuse-summary.json"), "utf8"));
+  } catch {
+    return null;
+  }
+  const output = parsed?.output;
+  if (
+    parsed?.version !== 1 ||
+    parsed.issue !== issueNumber ||
+    parsed.branch !== branch ||
+    !/^[0-9a-f]{40}$/.test(parsed.tip ?? "") ||
+    output === null ||
+    typeof output !== "object" ||
+    Array.isArray(output)
+  ) {
+    return null;
+  }
+  const summary = text(output.summary);
+  return summary.trim() ? { tip: parsed.tip, title: text(output.title), summary, changes: list(output.changes) } : null;
+}
+
+// The files a reused branch changes, from the runner's GET /compare (null
+// when it failed), with each one the merge lane's denied paths cover marked
+// and listed first. File names come from the branch, so they are data.
+const MAX_FILES = 50;
+function fileList(files, holdPaths) {
+  if (!files) {
+    return "The changed-file list is unavailable: the compare request failed.";
+  }
+  if (!files.length) {
+    return "The compare listing names no changed files.";
+  }
+  const denied = (path) => holdPaths?.some((glob) => posix.matchesGlob(path, glob)) ?? false;
+  const sorted = [...files.filter(denied), ...files.filter((path) => !denied(path))];
+  return [
+    holdPaths
+      ? "Files the branch changes, from the compare listing; a denied path, which the merge lane refuses, is marked and listed first:"
+      : "Files the branch changes, from the compare listing; the denied paths could not be read, so none is marked:",
+    "",
+    ...sorted
+      .slice(0, MAX_FILES)
+      .map((path) => `- ${neutral(path.replaceAll(/\s+/g, " "), MAX_ITEM, { path: true }).trim()}${denied(path) ? " (denied path)" : ""}`),
+    ...(sorted.length > MAX_FILES ? [`- and ${sorted.length - MAX_FILES} more`] : []),
+    ...(files.length >= COMPARE_FILES_CAP ? ["", `The compare listing stops at ${COMPARE_FILES_CAP} files, so this list may be incomplete.`] : []),
+  ].join("\n");
+}
+
 // A lane branch an earlier run left with commits and no report, whose outcome
-// this run cannot read: a PR a human merges, titled from the issue, with no
-// model text.
-export function reusePlan({ issueNumber, issueTitle = "", branch, runUrl = "", earlierRunUrl = "" }) {
+// this run cannot read: a PR a human merges, listing the files it changes.
+// With the summary pass's summary it carries that text; without it, titled
+// from the issue, no model text.
+export function reusePlan({
+  issueNumber,
+  issueTitle = "",
+  branch,
+  runUrl = "",
+  earlierRunUrl = "",
+  summary = null,
+  changedFiles = null,
+  holdPaths = null,
+}) {
+  const opened = `Opened by the work-resolve-issue lane from \`${branch}\`, which an earlier run left with commits and no report.`;
+  const [about, fix, checks, leftOut] = summary
+    ? [
+        [`${opened} A summary-only model pass read the branch's diff and the issue, changed nothing, and wrote:`, "", quoted(summary.summary)],
+        summary.changes.length ? bullets(summary.changes) : "The summary pass listed no changes; the diff shows them.",
+        "The earlier run reported no checks here, and the summary pass ran none.",
+        "every check the earlier run would have reported",
+      ]
+    : [
+        [`${opened} The model did not run again, and the earlier run's outcome could not be read, so this body carries none of its text.`],
+        "The diff shows the changes.",
+        "The earlier run reported no checks here.",
+        "every check",
+      ];
   const body = [
     `Closes #${issueNumber}`,
     "",
@@ -320,26 +403,28 @@ export function reusePlan({ issueNumber, issueTitle = "", branch, runUrl = "", e
     "",
     "## Summary",
     "",
-    `Opened by the work-resolve-issue lane from \`${branch}\`, which an earlier run left with commits and no report. The model did not run again, and the earlier run's outcome could not be read, so this body carries none of its text.`,
+    ...about,
     "",
     "## Fix",
     "",
-    "The diff shows the changes.",
+    fix,
+    "",
+    fileList(changedFiles, holdPaths),
     "",
     "## Verification",
     "",
-    "The earlier run reported no checks here.",
+    checks,
     "",
     earlierRunUrl ? `- The earlier lane run: ${earlierRunUrl}` : "- The earlier lane run.",
     runUrl ? `- This lane run: ${runUrl}` : "- This lane run.",
     "",
-    "Left out: every check; a person reviews the diff before merging.",
+    `Left out: ${leftOut}; a person reviews the diff before merging.`,
     "",
     "## Related",
     "",
     `#${issueNumber}`,
   ].join("\n");
-  return { action: "open-pr", issueNumber, title: prTitle("", issueTitle, issueNumber), body, branch };
+  return { action: "open-pr", issueNumber, title: prTitle(summary?.title ?? "", issueTitle, issueNumber), body, branch };
 }
 
 // What to do on the issue, from the outcome and what the run left. `limit` is
@@ -695,7 +780,7 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
       prior.action === "run"
         ? `report-outcome: no earlier run of issue #${issueNumber} left work to report; the model runs`
         : prior.action === "reuse"
-          ? `report-outcome: ${prior.branch} holds unreported work for issue #${issueNumber}; the model is skipped and report-outcome opens its PR`
+          ? `report-outcome: ${prior.branch} holds unreported work for issue #${issueNumber}; the work is skipped, a summary pass describes it and report-outcome opens its PR`
           : `report-outcome: ${prior.reason}; the model is skipped`,
     );
     return 0;
@@ -731,40 +816,60 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const runUrlOf = (id) => (env.GITHUB_SERVER_URL && id ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${id}` : "");
     const runUrl = runUrlOf(env.GITHUB_RUN_ID);
     const issue = await github("GET", `${repo}/issues/${issueNumber}`);
-    let changedFiles = [];
+    const unreported = reuse && (outcome === null || outcome.unread);
+    // The summary counts only while the branch is still at the tip it read; a
+    // tip that cannot be read keeps the fixed text.
+    let summary = unreported && env.REUSE_SUMMARY_DIR ? readSummary(env.REUSE_SUMMARY_DIR, { issueNumber, branch: reuse }) : null;
+    if (summary) {
+      const ref = reuse.split("/").map(encodeURIComponent).join("/");
+      const tip = await github("GET", `${repo}/git/ref/heads/${ref}`).then(
+        (answer) => answer?.object?.sha,
+        () => "",
+      );
+      if (tip !== summary.tip) {
+        console.log(`report-outcome: ${reuse} is not at the tip the summary read, so the PR keeps the fixed text`);
+        summary = null;
+      }
+    }
     let base = "";
-    if (outcome?.exit === "done" && branch) {
+    const compare = async () => {
       base = (await github("GET", repo)).default_branch;
       const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(branch)}`);
-      changedFiles = (comparison.files ?? []).flatMap((file) =>
+      return (comparison.files ?? []).flatMap((file) =>
         file.previous_filename ? [file.filename, file.previous_filename] : [file.filename],
       );
-    }
+    };
+    const changedFiles = outcome?.exit === "done" && branch ? await compare() : [];
+    const holdPaths = readHoldPaths(env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json"));
     // A reuse whose outcome cannot be read never takes the limit record: the
-    // skipped run hit no limit, and a limited marker would loop restarts.
-    const plan =
-      reuse && (outcome === null || outcome.unread)
-        ? reusePlan({
-            issueNumber,
-            issueTitle: typeof issue.title === "string" ? issue.title : "",
-            branch,
-            runUrl,
-            earlierRunUrl: runUrlOf(reused[1]),
-          })
-        : decide({
-            outcome,
-            issueNumber,
-            issueLabels: (issue.labels ?? []).map((label) => label.name),
-            issueTitle: typeof issue.title === "string" ? issue.title : "",
-            branch,
-            changedFiles,
-            holdPaths: readHoldPaths(env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json")),
-            humanLabel: humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json"),
-            runUrl,
-            limit,
-            now,
-            runId: /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "",
-          });
+    // skipped run hit no limit, and a limited marker would loop restarts. Its
+    // file list is only text, so a failed compare never blocks the PR.
+    const issueTitle = typeof issue.title === "string" ? issue.title : "";
+    const plan = unreported
+      ? reusePlan({
+          issueNumber,
+          issueTitle,
+          branch,
+          runUrl,
+          earlierRunUrl: runUrlOf(reused[1]),
+          summary,
+          changedFiles: await compare().catch(() => null),
+          holdPaths,
+        })
+      : decide({
+          outcome,
+          issueNumber,
+          issueLabels: (issue.labels ?? []).map((label) => label.name),
+          issueTitle,
+          branch,
+          changedFiles,
+          holdPaths,
+          humanLabel: humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json"),
+          runUrl,
+          limit,
+          now,
+          runId: /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "",
+        });
     if (plan.action === "limited") {
       // Once per run: a rerun of this report, however late, finds its own
       // marker in the issue's whole comment history and posts nothing.

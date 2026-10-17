@@ -2908,10 +2908,11 @@ def assess_unattended(
     authority: str = merge_policy.LOCAL_BABYSIT,
     lane_kill_switch: str | None = None,
     lane_rung_cap: str | None = None,
+    shared: merge_policy.SharedPostMerge | None = None,
 ) -> merge_policy.UnattendedPolicy:
     """The unattended decision for one pull request, in the wiring order:
     identity, the credential chokepoint, the kill switch, a default-branch
-    base, the post-merge check, demotion and cap, in flight, promotion evidence, eligibility, then
+    base, the post-merge check (or the run's `shared` answer), demotion and cap, in flight, promotion evidence, eligibility, then
     the review evidence and the score. Raises `PolicyReadError` when the
     pull request or its pipeline config cannot be read."""
 
@@ -2924,14 +2925,7 @@ def assess_unattended(
             pinned_sha=postmerge.pin_reader(repo, identity),
             lane_merges_only=authority == merge_policy.PR_MERGE,
         )
-        refusal = None
-        if not verdict.ok:
-            refusal = verdict.reason or "failure:" + ",".join(
-                f"{f.signal}#{f.merge.number}" for f in verdict.failures
-            )
-        return merge_policy.PostMergeGate(
-            refusal, verdict.report(), verdict.is_verified
-        )
+        return postmerge.gate_from_report(verdict.report())
 
     def promotion(window_start: datetime | None) -> merge_policy.Promotion:
         return merge_policy.read_promotion(
@@ -2948,6 +2942,7 @@ def assess_unattended(
         authority=authority,
         lane_kill_switch=lane_kill_switch,
         lane_rung_cap=lane_rung_cap,
+        shared=shared,
     )
     return score_unattended(repo, number, policy, self_logins)
 
@@ -3587,6 +3582,16 @@ def main() -> int:
             "or any other value holds the rung at off"
         ),
     )
+    parser.add_argument(
+        "--postmerge-result",
+        default=None,
+        help=(
+            "with --authority pr-merge, this run's babysit_postmerge.py report: "
+            "its demotion, floor and post-merge verdict stand in for this pull "
+            "request's own reads when bound to the current default-branch head "
+            "and config; unreadable or unbound, they are read as without it"
+        ),
+    )
     args = parser.parse_args()
 
     def _refuse(message: str, code: int, **envelope: object) -> int:
@@ -3712,11 +3717,13 @@ def main() -> int:
     if args.authority is not None and not args.unattended:
         return _refuse("--authority is only meaningful with --unattended", 2)
     if args.authority != merge_policy.PR_MERGE and (
-        args.lane_kill_switch is not None or args.lane_rung_cap is not None
+        args.lane_kill_switch is not None
+        or args.lane_rung_cap is not None
+        or args.postmerge_result is not None
     ):
         return _refuse(
-            "--lane-kill-switch and --lane-rung-cap are only meaningful with "
-            "--authority pr-merge",
+            "--lane-kill-switch, --lane-rung-cap and --postmerge-result are only "
+            "meaningful with --authority pr-merge",
             2,
         )
 
@@ -3765,6 +3772,11 @@ def main() -> int:
             for token in (args.self_logins or "").split(",")
             if token.strip().casefold().endswith("[bot]")
         )
+        shared = (
+            postmerge.read_shared(args.postmerge_result)
+            if args.postmerge_result is not None
+            else None
+        )
         try:
             unattended = assess_unattended(
                 repo,
@@ -3773,9 +3785,18 @@ def main() -> int:
                 authority=args.authority or merge_policy.LOCAL_BABYSIT,
                 lane_kill_switch=args.lane_kill_switch,
                 lane_rung_cap=args.lane_rung_cap,
+                shared=shared,
             )
         except (RuntimeError, ValueError, OSError) as exc:
             return _refuse(f"unattended merge policy unreadable: {exc}", 10)
+        if args.postmerge_result is not None and shared is None:
+            unattended = replace(
+                unattended,
+                details={
+                    **(unattended.details or {}),
+                    "postMergeShared": "unused:unreadable",
+                },
+            )
         # Report-only: the decision is reported and nothing is written, so
         # `--merge` runs as a check.
         if (unattended.details or {}).get("reportOnly"):

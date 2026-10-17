@@ -25,6 +25,7 @@ import os
 import sys
 from typing import List, Optional
 
+sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from digest_fences import (  # noqa: E402
     Failures,

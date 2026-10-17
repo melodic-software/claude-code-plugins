@@ -32,7 +32,8 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   ensure-running  start the page server for the data dir, or reuse the running one; prints its URL
   stop            stop the data dir's server (only the recorded PID), post a finish when none was
                   posted, and clear its session files but the port
-  lease           print the watcher holding the server's lease, or `no lease`; --release clears it
+  lease           print the watcher holding the server's lease, or `no lease`; --release clears it;
+                  --takeover clears it and arms watch.sh for this session
 
 Every write validates questions.json against schema/questions.schema.json and holds the sidecar
 lock questions.json.lock (ROUND_LOCK_TIMEOUT seconds, default 10).
@@ -2122,14 +2123,24 @@ def cmd_stop(d, a):
 
 
 def cmd_lease(d, a):
-    """Print the watcher holding the lease, or `no lease`; --release clears it first."""
+    """Print the watcher holding the lease, or `no lease`; --release clears it first.
+
+    --takeover clears it, then runs watch.sh in its place, so the old holder exits as handed over
+    and this session watches."""
     s = bridge.read_session(d, NAME)
     if not (s and bridge.running(d, s)):
         sys.exit("not running")
-    if a.release:
+    if a.release or a.takeover:
         status = bridge.release_lease(s, NAME)
         if status != 200:
             sys.exit(f"release refused: HTTP {status}")
+    if a.takeover:
+        cmd = ["bash", str(HERE / "watch.sh"), str(d)]
+        if os.name == "posix":
+            # Replace this process so a stop signal reaches watch.sh itself, not an orphaning parent.
+            os.execvp(cmd[0], cmd)
+        rc = subprocess.call(cmd)
+        sys.exit(128 - rc if rc < 0 else rc)  # a signal death reads as 128 + signal, not a wrapped status
     lease = bridge.watcher_lease(d, NAME)
     if not lease:
         print("no lease")
@@ -2462,6 +2473,11 @@ def main(argv=None):
         "--release",
         action="store_true",
         help="clear the lease so another watcher can take it",
+    )
+    s.add_argument(
+        "--takeover",
+        action="store_true",
+        help="clear the lease and arm watch.sh for this session (after /clear)",
     )
     s.set_defaults(fn=cmd_lease)
 

@@ -10,6 +10,9 @@ Status: the rubric applies now. The registration contract is specified here and 
 rollout of the check plugins' git-hook entries; until a plugin's entry ships, its setup has no
 `install-git-hooks` action.
 
+Adopting the entries in a repository (trying one in a clone, a formatter's cleanup PR, sharing
+with the team, declining) is in [adopting-git-hooks.md](adopting-git-hooks.md).
+
 Related conventions: [hook-budget](../hook-budget/README.md) owns spawn counts for Claude Code
 hooks and the CI ratchets that enforce them; [hook-precision](../hook-precision/README.md) owns
 what a hook fires on and the stay-quiet test discipline. This doc owns where a check runs and how
@@ -240,10 +243,10 @@ committed config through their own install step.
 
 **Committed hook config runs the checked-out branch's code.** Lefthook and husky read their config,
 and plain shared hooks read `.githooks/`, from the branch that is checked out. Once a clone has
-installed hooks, a push from a contributor's branch runs whatever that branch puts in
+installed hooks, a commit or push on a contributor's branch runs whatever that branch puts in
 `lefthook.yml`, `.husky/` or `.githooks/`. Pinning the check scripts to the merge-base, as this
-repository's pre-push job does, does not reach the config file itself. Before pushing from a branch
-you do not trust, read its diff to those paths.
+repository's pre-push job does, does not reach the config file itself. Before committing or
+pushing on a branch you do not trust, read its diff to those paths.
 
 ### Drift: the content-hash stamp
 

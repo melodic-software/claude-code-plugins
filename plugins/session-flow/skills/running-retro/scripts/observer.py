@@ -46,6 +46,7 @@ if _PLUGIN_SCRIPTS not in sys.path:
     sys.path.insert(0, _PLUGIN_SCRIPTS)
 
 from claude_cli import permission_prompts_args  # noqa: E402  (plugin-level scripts/claude_cli.py)
+from transcript_reader import decode_line  # noqa: E402  (plugin-level scripts/transcript_reader.py)
 
 
 def user_config_default(key: str) -> str:
@@ -274,9 +275,8 @@ def summarize_record(rec: dict) -> dict:
                 for c in content
                 if isinstance(c, dict) and c.get("type") == "tool_result"
             ]
-            # A bare string inside the content list is a human message, the same
-            # as a `text` block -- retro's canonical `parse_transcript.py` counts
-            # it as one.
+            # A bare string inside the content list is kept as human text here, as
+            # a `text` block is; the shared reader's `user_text` skips it.
             humans = [
                 c if isinstance(c, str) else c.get("text", "")
                 for c in content
@@ -468,7 +468,8 @@ class Observer:
         # in the loop. First arm has no prior status -> offset 0.
         offset = self._resume_offset()
         partial = b""
-        cycles = total_lines = sharing_violations = read_errors = parse_errors = 0
+        cycles = total_lines = sharing_violations = read_errors = 0
+        line_stats: dict[str, int] = {}
         max_mtime = 0.0
         last_growth_iso = now_iso()
         started_iso = now_iso()
@@ -524,15 +525,9 @@ class Observer:
                     lines = data.split(b"\n")
                     partial = lines.pop()
                     for raw in lines:
-                        raw = raw.strip()
-                        if not raw:
-                            continue
-                        try:
-                            rec = json.loads(raw.decode("utf-8", "replace"))
-                        except json.JSONDecodeError:
-                            parse_errors += 1
-                            continue
-                        if not isinstance(rec, dict):
+                        # `lines` holds complete lines only: restore the newline.
+                        rec = decode_line(raw.decode("utf-8", "replace") + "\n", line_stats)
+                        if rec is None:
                             continue
                         total_lines += 1
                         obs_f.write(json.dumps(summarize_record(rec)) + "\n")
@@ -555,7 +550,7 @@ class Observer:
                         "lines_observed": total_lines,
                         "sharing_violations": sharing_violations,
                         "read_errors": read_errors,
-                        "parse_errors": parse_errors,
+                        "parse_errors": line_stats.get("bad_lines", 0),
                         "idle_seconds": round(idle_for, 1),
                         "last_growth": last_growth_iso,
                         "state": state,
