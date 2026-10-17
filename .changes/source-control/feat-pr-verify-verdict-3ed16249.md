@@ -1,0 +1,7 @@
+---
+bump: minor
+---
+
+### Added
+
+- The pr-merge lane (`babysit_merge.py --unattended --authority pr-merge`) reads the pr-verify verdict when `merge.require-verifier-verdict` is true, from artifacts `pr-verify-<pr>-<head-sha>-<verdict>` authenticated by their run (`.github/workflows/pr-verify.yml`, event `workflow_run`, on main, this repository, head on main). A FAIL counts whatever its run concluded and under any pull request number: at the head it refuses `verify:fail`, at another head of the pull request (number, commit or head branch) `verify:earlier-fail`. A PASS counts only from a successful run, only while the pull request's closing issues are the ones it recorded and none was edited after its run started (`verify:spec-changed` otherwise), and only when every linked issue it records was written, and last edited if ever, by a trusted human other than the author (`verify:untrusted-spec` otherwise). A crash judging one queued entry refuses that entry and the sweep goes on. The artifact listing, run records and download run under `BABYSIT_VERIFY_GH_TOKEN` when it is set (pr-merge.yml passes the job's `GITHUB_TOKEN` with `actions: read`); `gh_capture` takes `env_overrides` for that. A pull request older than 80 days refuses `verify:too-old`, any failed read `verify:unreadable`, and no verdict `verify:missing`. Queued entries are dequeued on the same rules at their live head; a dependency manager's pull request, which the lane decides in its Dependabot class, needs no verdict, and its queued entry is not held for one.

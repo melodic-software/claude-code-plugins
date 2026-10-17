@@ -8,7 +8,7 @@ import json
 import math
 import re
 import subprocess
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from typing import Any, cast
 from urllib.parse import quote, unquote, urlparse
 
@@ -73,9 +73,15 @@ def gh_timeout_seconds() -> float:
 
 
 def _run_gh(
-    args: list[str], *, timeout_seconds: float | None, check: bool
+    args: list[str],
+    *,
+    timeout_seconds: float | None,
+    check: bool,
+    env_overrides: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """The one gh invocation seam; `None` means the process-wide default timeout."""
+    """The one gh invocation seam; `None` means the process-wide default timeout.
+    `env_overrides` layers onto the environment for this call only, such as a
+    `GH_TOKEN` other than the process's."""
     return run_command(
         ["gh", *args],
         allowed_executables=("gh",),
@@ -83,6 +89,7 @@ def _run_gh(
             timeout_seconds if timeout_seconds is not None else _default_timeout_seconds
         ),
         check=check,
+        env_overrides=env_overrides,
     )
 
 
@@ -92,10 +99,20 @@ def run_gh(args: list[str], *, timeout_seconds: float | None = None) -> str:
 
 
 def gh_capture(
-    args: list[str], *, timeout_seconds: float | None = None
+    args: list[str],
+    *,
+    timeout_seconds: float | None = None,
+    env_overrides: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run a gh command capturing stdout/stderr/returncode without raising on
     nonzero exit -- for callers that inspect the returncode themselves."""
+    if env_overrides:
+        return _run_gh(
+            args,
+            timeout_seconds=timeout_seconds,
+            check=False,
+            env_overrides=env_overrides,
+        )
     return _run_gh(args, timeout_seconds=timeout_seconds, check=False)
 
 

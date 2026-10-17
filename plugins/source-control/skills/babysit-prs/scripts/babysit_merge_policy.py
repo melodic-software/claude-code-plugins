@@ -409,6 +409,11 @@ class PipelineConfig:
     # `merge.report-only`: the gate reports and writes nothing. Absent is
     # false; any value but true or false is true.
     report_only: bool = False
+    # `merge.require-verifier-verdict`: the pr-merge lane refuses a pull
+    # request without a passing pr-verify verdict at its head
+    # (`babysit_verify_evidence`). Absent is false; any value but true or
+    # false is true.
+    require_verifier_verdict: bool = False
     # `merge.dependabot.mode`, the pr-merge lane's Dependabot class: `off`
     # (absent, or any other value) refuses every Dependabot pull request,
     # `report` reports it and writes nothing, and `enforce` merges it
@@ -515,6 +520,7 @@ def read_config_at(repo: str, base_sha: str) -> PipelineConfig:
             ("merge.diff-check.max-changed-lines", False),
             ("merge.diff-check.denied-paths", True),
             ("merge.report-only", False),
+            ("merge.require-verifier-verdict", False),
             ("merge.dependabot.mode", False),
         ],
     )
@@ -538,6 +544,9 @@ def read_config_at(repo: str, base_sha: str) -> PipelineConfig:
     report_only = scalar("merge.report-only")
     if report_only not in (None, "true", "false"):
         notes.append(f"merge.report-only {report_only!r} is not true or false")
+    verdict = scalar("merge.require-verifier-verdict")
+    if verdict not in (None, "true", "false"):
+        notes.append(f"merge.require-verifier-verdict {verdict!r} is not true or false")
     dependabot_mode = scalar("merge.dependabot.mode") or "off"
     if dependabot_mode not in DEPENDABOT_MODES:
         notes.append(
@@ -554,6 +563,7 @@ def read_config_at(repo: str, base_sha: str) -> PipelineConfig:
         loop_merge=loop_merge,
         notes=tuple(notes),
         report_only=report_only not in (None, "false"),
+        require_verifier_verdict=verdict not in (None, "false"),
         dependabot_mode=dependabot_mode,
     )
 

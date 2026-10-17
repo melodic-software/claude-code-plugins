@@ -402,6 +402,16 @@
           "default": false,
           "description": "true: the merge authority reports each decision and writes nothing (no enqueue, dequeue or comment). The pr-merge lane starts true; the owner sets false to let it merge (README.md, Merge authority)."
         },
+        "require-verifier-verdict": {
+          "type": "boolean",
+          "default": false,
+          "description": "true: the pr-merge lane refuses a pull request, and dequeues a queued one, without a passing pr-verify verdict at its head (README.md, Verifier verdict)."
+        },
+        "verifier-model": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._\\[\\]-]*$",
+          "description": "The model pr-verify.yml judges each head with. Absent: the action's default model (README.md, Verifier verdict)."
+        },
         "agent-identity": {
           "type": "string",
           "pattern": "^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\[bot\\]$",

@@ -462,8 +462,15 @@ class Unattended(unittest.TestCase):
             mock.patch.object(policy, "in_flight", self.in_flight),
             mock.patch.object(policy, "read_promotion", return_value=self.promotion),
             mock.patch.object(policy, "eligibility", return_value=self.eligible),
-            mock.patch.object(
-                policy, "lane_eligibility", return_value=self.lane_eligible
+            # None runs the real lane eligibility over the stubbed reads.
+            *(
+                [
+                    mock.patch.object(
+                        policy, "lane_eligibility", return_value=self.lane_eligible
+                    )
+                ]
+                if self.lane_eligible is not None
+                else []
             ),
             mock.patch.object(
                 policy,

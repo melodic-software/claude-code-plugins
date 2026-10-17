@@ -531,6 +531,61 @@ App token the broker mints for that file on `main`. A finished `ci-status` or re
 up by the next scheduled run, not by a wake-up of its own: runs are serialized, and the triggers
 must start them more slowly than they finish to stay under GitHub's cap on queued runs.
 
+### Verifier verdict
+
+`.github/workflows/pr-verify.yml` runs on main after each successful `pr-require-checks` run of a
+same-repository, non-draft pull request into main. It never runs the pull request's code: a model
+(`merge.verifier-model`) reads the diff, the trusted pull request text and its linked issues as
+data, and judges whether the diff delivers the issue's intent correctly and safely. The run
+uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON
+(`pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
+account type, `verdict`, `summary`, `notes`, `run_id`). The head SHA is the one `pr-require-checks`
+ran on, never the pull request's live head. A model error or an output that fails the schema
+uploads nothing. A head that already has a counted verdict from a completed run (a `fail` under any
+pull request number) is not judged again. Runs share one concurrency group per pull request and
+head and never cancel a running judgment.
+
+With `merge.require-verifier-verdict: true` the pr-merge lane reads the artifacts through their
+run records, since only steps of a run can upload its artifacts. A run is of verifier origin when
+it is `pr-verify.yml`, event `workflow_run`, on main, in this repository with a head on main. A
+`fail` counts from any such run, whatever its conclusion, because the upload comes before the
+run's later steps; a `pass` or `pass-notes` counts only from one that completed with success. Any
+other artifact with such a name is ignored. At the pull request's vetted head:
+
+- created more than 80 days ago refuses (`verify:too-old`): artifacts last at most 90 days in this
+  repository (the retention maximum and its setting), so an older verdict may be gone;
+- a counted `fail` at the head, under any pull request number, refuses (`verify:fail`);
+- a counted `fail` at another head of the pull request (its number, one of its commits, or a
+  verdict recording its head branch) refuses (`verify:earlier-fail`);
+- a `fail` artifact tied to it (its number or one of its commits) whose run cannot be read, an
+  untied `fail` whose run is readable and of verifier origin but whose verdict record cannot be
+  downloaded, or any other failed read, refuses (`verify:unreadable`). An untied `fail` whose run
+  cannot be read is ignored. One unreadable record of an untied `fail` therefore blocks every pull
+  request until it can be read, expires or is deleted;
+- a counted `pass` or `pass-notes` for this pull request refuses (`verify:spec-changed`) unless the
+  pull request's closing issues in this repository now are the ones its verdict recorded, none
+  was edited after the verdict's run started, and each issue's spec comments (written, and last
+  edited if ever, by a `User` on the trusted-actor list's humans other than the pull request's
+  author) are the ones it recorded by id and update time, none added, edited or deleted; a partial
+  comment read refuses `verify:unreadable`. It then allows the merge only when every linked
+  issue it records was written, and its body last edited if ever, by a `User` on the trusted-actor
+  list's humans other than the pull request's author (otherwise `verify:untrusted-spec`). The
+  model's spec text holds only what such accounts wrote;
+- no counted verdict refuses (`verify:missing`).
+
+`verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and `verify:untrusted-spec` need a
+human, who clears them
+by merging in person: the verdict is not a check run and stays out of `ci-status` and the required
+checks (github-iac ADR 0011), so a human merge needs `ci-status` alone. A queued entry without an
+allowing verdict at its live head leaves the queue. A dependency manager's pull request needs no
+verdict: the lane decides it in its Dependabot class before the verdict is read, or refuses it, and
+its queued entry is not held for one. The gate lists every repository artifact once per
+candidate run, since pr-merge.yml runs the gate once per candidate. The lane token holds no Actions
+permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
+`BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
+records and the download alone, and every other call keeps the lane token. That job checks out only
+main and runs no pull request code.
+
 ## Trust-root paths
 
 A lane's token grant and the rules it is judged by come from these default-branch paths, so a
