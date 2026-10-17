@@ -2,5 +2,6 @@
   {},
   {"q": "Q2", "typing": true, "chatTyping": false},
   {"q": null, "typing": false, "chatTyping": false, "visible": false, "lastInput": 412.5},
-  {"q": "Q6", "typing": false, "chatTyping": false, "visible": true, "lastInput": 3, "away": true}
+  {"q": "Q6", "typing": false, "chatTyping": false, "visible": true, "lastInput": 3, "away": true},
+  {"q": "Q1", "visible": true, "lastInput": 0, "tab": "9f2c41d07ab35e68c1d4a2b0"}
 ]

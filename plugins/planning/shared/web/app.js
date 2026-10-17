@@ -314,10 +314,11 @@
     /** What a person card picked, in words: "Picked: Card", "Picked: A, B", "Chose 4 of 5", "Ranked: A > B > C". */
     function pickedText(q, a) {
       if (!q || a.claude || a.option) return "";
-      if (a.picks?.length) return `Picked: ${a.picks.filter(o => o !== "other").map(o => pickLabel(q, o)).join(", ")}${a.other ? `${a.picks.length > 1 ? ", and " : ""}their own option` : ""}`;
+      const own = `${isMe(a.cid) ? "your" : "their"} own option`;
+      if (a.picks?.length) return `Picked: ${a.picks.filter(o => o !== "other").map(o => pickLabel(q, o)).join(", ")}${a.other ? `${a.picks.length > 1 ? ", and " : ""}${own}` : ""}`;
       if (a.value != null) { const end = a.value === q.min ? q.labels?.min : a.value === q.max ? q.labels?.max : ""; return `Chose ${a.value} of ${q.max}${end ? ` (${end})` : ""}`; }
-      if (a.order?.length) return `Ranked: ${a.order.map(o => (o === "other" ? "their own option" : pickLabel(q, o))).join(" > ")}`;
-      if (a.pick === "other") return "Their own option";
+      if (a.order?.length) return `Ranked: ${a.order.map(o => (o === "other" ? own : pickLabel(q, o))).join(" > ")}`;
+      if (a.pick === "other") return own[0].toUpperCase() + own.slice(1);
       const opt = a.pick && optionsOf(q).find(o => o.id === a.pick);
       if (opt) return `Picked: ${opt.label}`;
       return q.format === "confirm" ? "Something else" : "";
@@ -818,7 +819,7 @@
     const fmtNote = E("p", "vf-fmt-note");
     // Phase 4b formats. multi: checkboxes, any subset of at least one. scale: one value from min to max. rank: every
     // option in order, by dragging its handle (mouse or touch), its Up and Down buttons, or the arrow keys on its handle.
-    const multiList = E("ul", "vf-multi"); multiList.setAttribute("role", "list");
+    const multiList = E("ul", "vf-multilist"); multiList.setAttribute("role", "list");
     const scaleBox = E("div", "vf-scale");
     const scaleRow = E("div", "vf-scale-row"); scaleRow.setAttribute("role", "radiogroup");
     const scaleEnds = E("div", "vf-scale-ends");

@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 // Presence in real browsers, against `share.sh ensure-running` with the fake cloudflared, watched from the owner's page:
 // a tab hidden for 3 minutes with hidden-tab timer throttling emulated shows Away and never drops out and back; a closed
-// tab goes offline after about 90 s; Away by hand shows, and the next key press ends it; and normal use (switching
-// questions while typing, answering, a personal link) gets no 429 from the heartbeat or any other route.
+// tab goes offline after about 90 s; Away by hand shows, and the next key press ends it; one person in two tabs, one
+// hidden, shows Active throughout; and normal use (switching questions while typing, answering, a personal link on a
+// second device, a second tab) gets no 429 from the heartbeat or any other route.
 //   node plugins/planning/shared/tests/ui_presence.js   (about 4 minutes)
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the Presence amendment (visible and lastInput on the heartbeat, Away when hidden or snoozed,
-// offline after 90 s without a heartbeat: session.py OFFLINE_AFTER) and the one-a-second heartbeat limit
-// (HEARTBEAT_INTERVAL), never from the page.
+// offline after 90 s without a heartbeat: session.py OFFLINE_AFTER), the one-a-second heartbeat limit per tab
+// (HEARTBEAT_INTERVAL), and per-tab presence (Away only when every live tab is), never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 
@@ -33,6 +34,14 @@ function hideable() {
   window.__setHidden = h => { hidden = h; if (!h) flush(); document.dispatchEvent(new Event("visibilitychange")); };
 }
 
+/** A visibility switch only: the tab's timers keep their pace, as in the first minutes a tab is hidden. */
+function hideOnly() {
+  let hidden = false;
+  Object.defineProperty(Document.prototype, "visibilityState", { configurable: true, get: () => (hidden ? "hidden" : "visible") });
+  Object.defineProperty(Document.prototype, "hidden", { configurable: true, get: () => hidden });
+  window.__setHidden = h => { hidden = h; document.dispatchEvent(new Event("visibilitychange")); };
+}
+
 async function main() {
   const pw = loadPlaywright();
   if (!pw) { console.log("SKIP: ui_presence.js needs playwright-core (npm ci, or playwright-cli on PATH)"); return 0; } // silent-skip-ok: a browser suite needs a local Playwright
@@ -53,14 +62,22 @@ async function main() {
     const snoozePid = await joinAs(snooze, "Cai");
     const busy = await rec.open(A.localUrl);
     const busyPid = await joinAs(busy, "Dee");
+    // One person in two tabs of one browser (they share the stored identity), each beating on its own.
+    const tabA = await rec.open(A.localUrl, { init: { fn: hideOnly } });
+    const twoPid = await joinAs(tabA, "Tess");
+    const tabB = await rec.openIn(tabA.context(), A.localUrl);
+    ok("a second tab of the same browser is the same person", await until(tabB, p => window.Core.snapshot()?.me?.pid === p, twoPid));
+    const twoTabs429 = [];
+    for (const p of [tabA, tabB]) p.on("response", r => { if (r.status() === 429) twoTabs429.push(new URL(r.url()).pathname); });
     const view = () => owner.evaluate(() => Object.fromEntries(window.Core.state.presence.map(p => [p.cid, p.away ? "away" : "active"])));
     const shownAs = pid => owner.evaluate(p => document.querySelector(`.vf-hperson:has([data-pid="${p}"])`)?.dataset.presence || "", pid);
-    ok("everyone shows Active on the owner's page", await until(owner, ps => ps.every(p => window.Core.state.presence.some(x => x.cid === p && !x.away)), [hidPid, gonePid, snoozePid, busyPid], 10000));
+    ok("everyone shows Active on the owner's page", await until(owner, ps => ps.every(p => window.Core.state.presence.some(x => x.cid === p && !x.away)), [hidPid, gonePid, snoozePid, busyPid, twoPid], 10000));
 
     // ---------- hide one tab for 3 minutes; close another; watch both from the owner's page ----------
+    const t0 = Date.now(), samples = [], hiddenBeats = [];
+    hid.on("request", r => { if (new URL(r.url()).pathname === "/api/heartbeat") hiddenBeats.push((Date.now() - t0) / 1000); });
     await hid.evaluate(() => window.__setHidden(true));
     await gone.context().close();
-    const t0 = Date.now(), samples = [];
     const watch = (async () => {
       while ((Date.now() - t0) / 1000 < HIDDEN_FOR) {
         const v = await view();
@@ -95,13 +112,31 @@ async function main() {
       await joinAs(eve, "Eve");
       const secret = await eve.evaluate(() => localStorage.getItem("secret"));
       await eve.context().close();
-      await busy.waitForTimeout(2500); // past the closed tab's last beat, so the new device's first beat is not a second one in the same second
       const eve2 = await rec.open(`${A.localUrl}#me=${secret}`);
       ok("a personal link signs the person in on another device", await until(eve2, () => window.Core.me.name === "Eve" && !!window.Core.snapshot()?.me));
       for (const label of ["Which default", "Where should"]) { await eve2.locator(".vf-q", { hasText: label }).first().click(); await eve2.locator("#vf-answer").pressSequentially("hi", { delay: 30 }); }
       await eve2.waitForTimeout(3000);
     })();
-    await Promise.all([watch, meanwhile]);
+
+    // ---------- meanwhile: one person, two tabs, one hidden; the other in use for 30 s ----------
+    const twoTabs = (async () => {
+      await tabB.evaluate(() => window.__setHidden(true));
+      const seen = [], start = Date.now();
+      for (let i = 0; Date.now() - start < 30000; i++) {
+        if (i % 4 === 0) {
+          await tabA.locator(".vf-q", { hasText: ["Where should", "Which default", "What worries"][(i / 4) % 3] }).first().click();
+          await tabA.locator("#vf-answer").pressSequentially("ok", { delay: 30 });
+        }
+        seen.push(await owner.evaluate(p => { const x = window.Core.state.presence.find(y => y.cid === p); return x ? (x.away ? "away" : "active") : "absent"; }, twoPid));
+        await owner.waitForTimeout(500);
+      }
+      const flips = seen.slice(1).filter((x, j) => x !== seen[j]).length;
+      ok("two tabs, one hidden, the other in use for 30 s: the owner sees the person Active throughout, no flip",
+        seen.length >= 40 && flips === 0 && seen.every(x => x === "active"), `${flips} flips: ${seen.join(" ")}`);
+      ok("  and neither tab was answered 429", twoTabs429.length === 0, `${twoTabs429.length}: ${twoTabs429.slice(0, 5).join(", ")}`);
+      await tabA.context().close();
+    })();
+    await Promise.all([watch, meanwhile, twoTabs]);
 
     // The hidden tab: Away from its visibility-change beat on, present the whole time.
     const firstAway = samples.find(x => x.hid === "away")?.t ?? Infinity;
@@ -110,12 +145,17 @@ async function main() {
     ok(`the hidden tab stays present and Away for ${HIDDEN_FOR} s: it never drops out and back`, samples.length > 150 && samples.every(x => x.hid !== "absent") && after.every(x => x.hid === "away"),
       JSON.stringify(samples.filter(x => x.hid !== "away").slice(0, 5)));
     ok("  and the people list shows it Away, never offline", after.every(x => x.row === "away"), JSON.stringify(after.filter(x => x.row !== "away").slice(0, 3)));
-    ok("  its timers really were throttled to the one-minute wakes", (await hid.evaluate(() => window.__wakes)) >= 2, await hid.evaluate(() => window.__wakes));
+    // With its timers held to one-minute wakes, the page still beats at every wake: the beat its timer starts goes out
+    // in that wake, not in the next one. Two-minute gaps here would leave it a hair from offline (90 s).
+    const gaps = hiddenBeats.slice(1).map((t, i) => t - hiddenBeats[i]);
+    ok("  while hidden the page beat at each one-minute wake", hiddenBeats.length >= 3 && gaps.every(g => g <= 75), `beats at ${hiddenBeats.map(t => t.toFixed(0)).join(", ")} s`);
     // The closed tab: present until about 90 s after its last beat, then offline (absent), and it stays so.
     const lastSeen = Math.max(0, ...samples.filter(x => x.gone !== "absent").map(x => x.t));
     const offAt = samples.find(x => x.t > lastSeen)?.t ?? Infinity;
     ok(`the closed tab goes offline about ${OFFLINE_AFTER} s after it closed`, offAt >= OFFLINE_AFTER - 5 && offAt <= OFFLINE_AFTER + 10 && samples.filter(x => x.t > offAt).every(x => x.gone === "absent"), `offline at ${offAt}s`);
-    ok("  and the people list shows it offline", samples.filter(x => x.t > offAt + 2).every(x => x.goneRow === "offline"), JSON.stringify(samples.filter(x => x.t > offAt + 2 && x.goneRow !== "offline").slice(0, 3)));
+    const offRows = samples.filter(x => x.t > offAt + 2);
+    ok("  and the people list shows it offline", offRows.length >= 30 && offRows.every(x => x.goneRow === "offline"),
+      `${offRows.length} samples after going offline; ${JSON.stringify(offRows.filter(x => x.goneRow !== "offline").slice(0, 3))}`);
 
     await hid.evaluate(() => window.__setHidden(false));
     ok("shown again, the tab is Active", await until(owner, p => window.Core.state.presence.find(x => x.cid === p)?.away === false, hidPid, 10000));

@@ -77,7 +77,8 @@ OFFLINE_AFTER = 90.0
 IDLE_AFTER = 300.0
 TYPING_TTL = 5.0
 WRITE_INTERVAL = 1.0
-HEARTBEAT_INTERVAL = 1.0  # judgment: the page beats every 2 s, plus one on a visibility change
+HEARTBEAT_INTERVAL = 1.0  # judgment: the page beats every 2 s per tab, plus one on a visibility change
+MAX_TABS = 8  # judgment: tabs and devices tracked per person; a ninth forgets the least recent
 JOIN_WINDOW = 60.0
 JOINS_PER_WINDOW = 30
 JOIN_KEY_WINDOW = 600.0
@@ -115,26 +116,6 @@ REQUEST_KINDS = ("ask", "research", "explore", "design", "prototype")
 USED_TYPES = ("skill", "workflow", "mcp", "cli")
 TECH_COMFORT = ("low", "ok", "high")
 NOTIFY_KINDS = ("mention", "reply", "request", "proposal", "round", "merge", "role", "queue", "ready", "votes")
-THROTTLED = (
-    "answer",
-    "pick",
-    "propose",
-    "chat",
-    "suggest",
-    "request",
-    "merge-request",
-    "annotate",
-    "rename",
-    "color",
-    "prefs",
-    "about-you",
-    "vote",
-    "react",
-    "disagree",
-    "go-with",
-    "notifications-read",
-    "heartbeat",
-)
 SEQ_KEYS = ("P", "S", "R", "X", "M", "G", "U", "N", "A")
 
 QID = re.compile(r"Q[1-9][0-9]{0,5}")
@@ -523,7 +504,7 @@ class Session:
         self.plugin_version = plugin_version
         self._lock = threading.RLock()
         self._saved = json.dumps(state, ensure_ascii=False)
-        self._presence = {}  # pid -> {q, typing, chatTyping, seen}; never persisted
+        self._presence = {}  # pid -> {"at": join time, "device"?, "tabs": tab -> beat, least recent first}; never persisted
         self._presence_rev = 0
         self._last_write = collections.OrderedDict()  # (pid, route) -> time of the last accepted write, oldest first
         self._joins = collections.OrderedDict()  # (guest key, address) -> times of recent joins, least recent first
@@ -765,9 +746,14 @@ class Session:
             yield st
         self._wrote(pid, route, now)
 
+    @staticmethod
+    def _seen(v):
+        """When a person last showed: their latest beat from any tab, else their join."""
+        return next(reversed(v["tabs"].values()))["seen"] if v["tabs"] else v["at"]
+
     def _present(self):
         now = self.now()
-        return {p for p, v in self._presence.items() if now - v["seen"] < OFFLINE_AFTER and self._active(p)}
+        return {p for p, v in self._presence.items() if now - self._seen(v) < OFFLINE_AFTER and self._active(p)}
 
     @staticmethod
     def _away_since(v, now):
@@ -843,7 +829,7 @@ class Session:
             self._joins[window] = recent + [now]
             self._key_joins[guest_key] = by_key + [now]
             if device:
-                self._presence[new] = {"q": "", "typing": False, "chatTyping": False, "seen": now, "device": device}
+                self._presence[new] = {"at": now, "device": device, "tabs": collections.OrderedDict()}
                 self._presence_rev += 1
         return {"pid": new, "secret": secret, "name": final, **({"was": was} if was else {})}
 
@@ -897,7 +883,7 @@ class Session:
         idle = [p for p in st["people"] if not self._holds_content(p)]
         if not idle:
             raise DomainError(503, "full", "This session is full.")
-        gone = min(idle, key=lambda p: (self._presence.get(p, {}).get("seen", st["people"][p]["joinedAt"]), p))
+        gone = min(idle, key=lambda p: (self._seen(self._presence[p]) if p in self._presence else st["people"][p]["joinedAt"], p))
         self._forget(gone)
 
     def _forget(self, pid):
@@ -908,14 +894,16 @@ class Session:
         for h in [h for h, p in st["credentials"]["secrets"].items() if p == pid]:
             st["credentials"]["secrets"].pop(h)
         self._presence.pop(pid, None)
-        for route in THROTTLED:
-            self._last_write.pop((pid, route), None)
+        for key in [k for k in self._last_write if k[0] == pid]:
+            self._last_write.pop(key)
 
     def heartbeat(self, pid, body):
         """POST /api/heartbeat (wire.schema.json `heartbeat`): memory only; allowed while the session
-        is ended. A beat that changes `visible` or `away` is taken at once, outside the one-a-second
-        limit, since the page sends one the moment its visibility changes; such changes have their
-        own one-a-second limit, so flipping visibility cannot flood."""
+        is ended. Each `tab` (a page sends its own id; none is the tab "") keeps its own beat and its
+        own limits, so one person's tabs and devices never refuse each other. A beat that changes
+        `visible` or `away` is taken at once, outside the tab's one-a-second limit, since the page
+        sends one the moment its visibility changes; such changes have their own one-a-second limit,
+        so flipping visibility cannot flood. A person keeps MAX_TABS tabs, the least recent dropped."""
         body = _body(body)
         err = wire_error(body, "heartbeat")
         if err:
@@ -923,16 +911,19 @@ class Session:
             raise _bad(m.group(1) if m else "body", err)
         if not math.isfinite(body.get("lastInput", 0)):  # json.loads takes Infinity and NaN
             raise _bad("lastInput", "lastInput must be a finite number of seconds.")
+        if body.get("tab") == "":
+            raise _bad("tab", "tab must name the tab: 1 to 32 characters.")
+        tab = body.get("tab", "")
         visible = body.get("visible", True)
         away = body.get("away") is True
         with self._lock:
             person = self._person(pid)
             now = self.now()
-            old = self._presence.get(pid)
-            changed = old is not None and (old.get("visible", True) != visible or (old.get("awayAt") is not None) != away)
-            self._throttle(pid, "heartbeat-change" if changed else "heartbeat", now, HEARTBEAT_INTERVAL)
-            if changed:
-                self._wrote(pid, "heartbeat-change", now)
+            rec = self._presence.setdefault(pid, {"at": now, "tabs": collections.OrderedDict()})
+            old = rec["tabs"].get(tab)
+            changed = old is not None and (old["visible"] != visible or (old.get("awayAt") is not None) != away)
+            route = f"heartbeat-change:{tab}" if changed else f"heartbeat:{tab}"
+            self._throttle(pid, route, now, HEARTBEAT_INTERVAL)
             old = old or {}
             beat = {
                 "q": (body.get("q") or "")[:16],
@@ -941,15 +932,22 @@ class Session:
                 "seen": now,
                 "visible": visible,
                 "inputAt": now - body.get("lastInput", 0),
-                **({"device": old["device"]} if old.get("device") else {}),
             }
             if not visible:
                 beat["hiddenAt"] = old.get("hiddenAt", now) if not old.get("visible", True) else now
             if away:
                 beat["awayAt"] = old.get("awayAt", now)
-            self._presence[pid] = beat
+            tabs = rec["tabs"]
+            tabs.pop(tab, None)
+            for t in [t for t, b in tabs.items() if now - b["seen"] >= OFFLINE_AFTER]:
+                tabs.pop(t)
+            while len(tabs) >= MAX_TABS:
+                tabs.popitem(last=False)
+            tabs[tab] = beat
             self._presence_rev += 1
-            self._wrote(pid, "heartbeat", now)
+            self._wrote(pid, route, now)
+            if changed:
+                self._wrote(pid, f"heartbeat:{tab}", now)
             return {"pid": pid, "name": person["name"], "role": person["role"], "trusted": person["trusted"]}
 
     def rename(self, pid, body):
@@ -3224,11 +3222,17 @@ class Session:
             return snap
 
     def _presence_entry(self, pid, v, now):
-        """One wire.schema.json `presence` entry; typing flags last TYPING_TTL after the beat that set them."""
-        fresh = now - v["seen"] < TYPING_TTL
-        since = self._away_since(v, now)
-        entry = {"pid": pid, "q": v["q"], "typing": v["typing"] and fresh, "chatTyping": v["chatTyping"] and fresh}
-        return {**entry, "state": "active"} if since is None else {**entry, "state": "away", "since": since}
+        """One wire.schema.json `presence` entry from the person's live tabs: q and typing from the latest
+        beat (typing lasts TYPING_TTL after it), active while any live tab is, else away since the last
+        one went away. Just joined with no beat yet is active."""
+        live = [b for b in v["tabs"].values() if now - b["seen"] < OFFLINE_AFTER]
+        if not live:
+            return {"pid": pid, "q": "", "typing": False, "chatTyping": False, "state": "active"}
+        latest = live[-1]
+        fresh = now - latest["seen"] < TYPING_TTL
+        entry = {"pid": pid, "q": latest["q"], "typing": latest["typing"] and fresh, "chatTyping": latest["chatTyping"] and fresh}
+        sinces = [self._away_since(b, now) for b in live]
+        return {**entry, "state": "active"} if None in sinces else {**entry, "state": "away", "since": max(sinces)}
 
     def _behind(self):
         """Moderators only: per active guest, how many open questions of the current round they have not touched."""

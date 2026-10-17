@@ -149,11 +149,18 @@ How people answer each `format` through `POST /api/pick` (`{qid, view, device?, 
   many gave each full order. Each lists people's own options with their backers, and the comments.
 - **Presence.** The heartbeat (`schema/wire.schema.json`) carries `visible`, `lastInput` (seconds
   since the last key, pointer or touch) and `away` (the person's own snooze, sent until their next
-  input). A person is offline after 90 s with no beat, and Away while hidden, after 5 minutes
-  visible with no input, or snoozed; the snapshot gives `state` and, when Away, `since`. Typing
-  flags last 5 s. A beat that changes `visible` or `away` is taken at once. The page beats every
-  2 s and at once on a visibility change, never two beats within the one-a-second limit, and sends
-  writes to one throttled route a second apart, so in normal use it gets no 429.
+  input), and `tab`, an id each browser tab keeps for its life (in `sessionStorage`). The server
+  keeps a beat per tab, at most 8 per person, the least recent dropped. A tab is live until 90 s
+  without a beat; a person with no live tab is offline. A tab is Away while hidden, after 5 minutes
+  visible with no input, or snoozed; the person is Active while any live tab is Active, and Away,
+  `since` the last tab went Away, only when every live tab is. Their question and typing come
+  from their latest beat, and typing flags last 5 s. Each tab's beats have their own one-a-second
+  limit, and a beat that changes `visible` or `away` is taken at once. The page beats every 2 s
+  and at once on a visibility change, never two from one tab within the limit, and sends its own
+  writes to one route a second apart. The write limits count per person, not per tab, so one
+  person writing the same route from two tabs or devices within a second gets a 429 on the second
+  write, which the page shows as an error to send again. A duplicated tab copies `sessionStorage`,
+  so it beats under the original's id and the two share one limit.
 
 ## Data contract
 
@@ -204,7 +211,7 @@ build reloads itself.
   | Requests per address (`CF-Connecting-IP` only, never `X-Forwarded-For`; an IPv6 address counts by its /64) | 100 a second, bursts of 200; the 10000 most recently seen addresses are remembered |
   | Joins | 30 a minute per address and guest key; 60 per 10 minutes per guest key across all addresses (rotating the guest link starts a new count) |
   | Writes | 1 a second per person per route, on every route that writes (answer, pick, vote, react, disagree, go-with, rename, color, prefs, about-you, notifications/read, chat, propose, suggest, request, annotate, merge-request) |
-  | Heartbeat | 1 a second per person (429 otherwise), except a beat that changes `visible` or `away` |
+  | Heartbeat | 1 a second per person and tab (429 otherwise), except a beat that changes `visible` or `away` |
   | Stored chat, notes, suggestions | the newest 2000 messages; 2000 notes; 200 suggestions per question, with votes on a dropped one dropped too |
   | Connections served at once | 64; one more is answered 503 `busy` |
 
@@ -285,10 +292,13 @@ node plugins/planning/shared/tests/ui_presence.js
 `ui_journey.js` drives the page in Chromium against `ensure-running` on spare ports with the fake
 tunnel: the owner and a guest join, answer, vote, lock, pick, react and send a round; every state
 poll carries a query string; no page breaks the CSP; and a guest of an imported prototype session
-comes back as the same person. `ui_formats.js` covers `multi`, `scale` and `rank` (keyboard, and
-touch on a 390x844 phone), Something else on `choice`, `multi` and `rank`, Disagree, the `down`
-reaction and a diagram's alt text. `ui_presence.js` (about 4 minutes) hides a tab for 3 minutes
-with throttled timers, closes another, snoozes a third, and checks no request gets a 429. The
+comes back as the same person, keeping its stored secret when its first heartbeats get a 429 or
+no answer. `ui_formats.js` covers, in a session past its first round, `multi`, `scale` and `rank`
+(keyboard, and touch on a 390x844 phone, whose Questions tab must take taps with two rounds
+listed), Something else on `choice`, `multi` and `rank`, Disagree, the `down` reaction and a
+diagram's alt text. `ui_presence.js` (about 4 minutes) hides a tab for 3 minutes with throttled
+timers, closes another, snoozes a third, keeps one person in two tabs with one hidden, and checks
+none of that gets a 429. The
 browser suites share `browser_harness.js` (not a test), need playwright-core (from `node_modules`,
 or the one playwright-cli bundles), and SKIP without it. `tracer.test.sh` runs the whole flow against the fake tunnel. `tracer-live.test.sh` uses a real
 cloudflared (a path argument, else PATH), opens a public address, and SKIPs in CI or without one.

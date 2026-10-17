@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // The Phase 4b formats in real browsers, against `share.sh ensure-running` with the fake cloudflared: the owner and a
-// guest on desktops, and a guest on a 390x844 phone with touch. Covered: multi (checkboxes), scale (keyboard and touch),
+// guest on desktops, and a guest on a 390x844 phone with touch, in a session past its first round (so the phone's
+// Questions tab must take taps on the round toggle and the questions with two rounds listed). Covered: multi (checkboxes), scale (keyboard and touch),
 // rank (keyboard, and a touch drag), "Something else…" on choice, multi and rank (the person's own option becomes a card
 // others back), Disagree with a reason, the 👎 reaction, a diagram reference's alt text, the digest numbers where the
 // page shows results, no Something else on confirm and prototype questions, no 429 and no CSP violation.
@@ -27,7 +28,12 @@ async function main() {
     const shot = s.asset(A.dir, "shot.png", PNG), svg = s.asset(A.dir, "flow.svg", SVG);
     const v1 = s.asset(A.dir, "v1.html", "<!doctype html><html><body><p>One</p></body></html>");
     const v2 = s.asset(A.dir, "v2.html", "<!doctype html><html><body><p>Two</p></body></html>");
-    s.apply(A.dir, [{ op: "set-title", title: "Checkout formats" }, { op: "open-round", questions: [
+    // Two rounds, as in a live session past its first: round 1 sent and closed, round 2 holds the formats.
+    s.apply(A.dir, [{ op: "set-title", title: "Checkout formats" }, { op: "open-round", questions: [q("Q20", "Which browsers do your customers use?", { kind: "text" })] }]);
+    const owner = await rec.open(A.ownerUrl);
+    await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
+    await owner.evaluate(() => window.Core.sendRound());
+    s.apply(A.dir, [{ op: "ack-round", round: 1 }, { op: "open-round", questions: [
       q("Q1", "Which default payment method?", { kind: "choice", options: [{ id: "opt-1", label: "Card" }, { id: "opt-2", label: "Saved method" }] }),
       q("Q2", "Which payment methods should checkout offer?", { kind: "multi", options: [{ id: "opt-1", label: "Card" }, { id: "opt-2", label: "PayPal" }, { id: "opt-3", label: "Apple Pay" }, { id: "opt-4", label: "Bank transfer" }] }),
       q("Q3", "How urgent is the checkout redesign?", { kind: "scale", min: 1, max: 5, labels: { min: "Not urgent", max: "Very urgent", mid: "Somewhat" } }),
@@ -37,8 +43,8 @@ async function main() {
       q("Q7", "Did you mean this button?", { kind: "confirm", image: shot, rect: { x: 10, y: 10, w: 30, h: 20 } }),
       q("Q8", "Which checkout layout?", { kind: "prototype", variants: [{ id: "v-1", label: "Layout one", asset: v1 }, { id: "v-2", label: "Layout two", asset: v2 }] }),
     ] }]);
+    await until(owner, () => (window.Core.snapshot()?.questions || []).some(x => x.id === "Q8"));
 
-    const owner = await rec.open(A.ownerUrl);
     const gus = await rec.open(A.localUrl);
     const gusPid = await joinAs(gus, "Gus");
     const pia = await rec.open(A.localUrl, { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 } });
@@ -48,12 +54,23 @@ async function main() {
     gus.on("request", r => { if (new URL(r.url()).pathname === "/api/pick") picks.gus++; });
 
     const isPhone = p => p === pia;
-    const press = (p, loc) => (isPhone(p) ? loc.tap() : loc.click());
+    const press = (p, loc) => (isPhone(p) ? loc.tap({ timeout: 5000 }) : loc.click());
     async function go(p, qid, text) {
       if (isPhone(p)) await p.locator(".vf-tab", { hasText: "Questions" }).tap();
       await press(p, p.locator(".vf-q", { hasText: text }).first());
       return until(p, t => document.querySelector(".vf-qtext")?.textContent === t, text);
     }
+
+    // ---------- the phone's Questions tab in a two-round session ----------
+    await pia.locator(".vf-tab", { hasText: "Questions" }).tap();
+    const r1 = pia.locator(".vf-round:not(.vf-round-cur) .vf-rtoggle");
+    const tapped = async loc => loc.tap({ timeout: 5000 }).then(() => true, e => String(e.message).split("\n").find(x => /intercepts|Timeout/.test(x)) || "tap failed");
+    const t1 = await tapped(r1);
+    ok("phone, two rounds: the round 1 toggle takes the tap and opens the round", t1 === true && (await r1.getAttribute("aria-expanded")) === "true", t1);
+    const t2 = await tapped(pia.locator(".vf-q", { hasText: "Which browsers do your customers use?" }));
+    ok("phone, two rounds: a round 1 question in the list takes the tap and opens",
+      t2 === true && await until(pia, () => document.querySelector(".vf-qtext")?.textContent === "Which browsers do your customers use?"), t2);
+    ok("phone, two rounds: a round 2 question opens from the Questions tab", await go(pia, "Q5", "Where should the order summary sit?"));
     const cardOf = async (page, qid, ref) => (await snap(page))?.cards?.[qid]?.find(c => c.ref === ref);
     const server = (fn, arg, t) => until(owner, fn, arg, t);
 
@@ -77,7 +94,13 @@ async function main() {
     ok("submitting sends the own option: a person card with pick other and that text",
       await server(p => { const c = (window.Core.snapshot()?.cards?.Q1 || []).find(x => x.ref === "p:" + p); return c?.pick === "other" && c?.text === "Pay on delivery"; }, gusPid), JSON.stringify(await cardOf(owner, "Q1", `p:${gusPid}`)));
 
+    const chipOn = (page, text) => page.evaluate(t => [...document.querySelectorAll(".vf-alist .vf-card")].find(c => c.textContent.includes(t))?.querySelector(".vf-pickchip-t")?.textContent, text);
+    ok("Gus's own option card tells Gus it is his", await until(gus, () => [...document.querySelectorAll(".vf-alist .vf-card")].find(c => c.textContent.includes("Pay on delivery"))?.querySelector(".vf-pickchip-t")?.textContent === "Your own option"),
+      await chipOn(gus, "Pay on delivery"));
+
     await go(owner, "Q1", "Which default payment method?");
+    ok("the owner sees it as Gus's own option", await until(owner, () => [...document.querySelectorAll(".vf-alist .vf-card")].find(c => c.textContent.includes("Pay on delivery"))?.querySelector(".vf-pickchip-t")?.textContent === "Their own option"),
+      await chipOn(owner, "Pay on delivery"));
     ok("the owner gets no Lock this one on Something else…, but does on a real option",
       await until(owner, () => { const o = document.querySelector(".vf-opt.vf-opt-other .vf-optlock"), r = document.querySelector(".vf-opt:not(.vf-opt-other) .vf-optlock"); return !!o && o.hidden && !!r && !r.hidden; }));
 

@@ -73,6 +73,10 @@ function recorder(browser) {
     const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, ...context });
     await ctx.addInitScript(() => document.addEventListener("securitypolicyviolation", e => { (window.__csp ||= []).push(`${e.violatedDirective} ${e.blockedURI}`); }));
     if (init) await ctx.addInitScript(init.fn, init.arg);
+    return openIn(ctx, url);
+  }
+  /** Another tab in the same browser context: it shares the first tab's localStorage, as a second tab does. */
+  async function openIn(ctx, url) {
     const page = await ctx.newPage();
     page.on("pageerror", e => errors.push(String(e)));
     page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
@@ -86,7 +90,7 @@ function recorder(browser) {
     for (const p of pages) if (!p.isClosed()) out.push(...(await p.evaluate(() => window.__csp || []).catch(() => [])));
     return out;
   }
-  return { open, errors, too, cspViolations };
+  return { open, openIn, errors, too, cspViolations };
 }
 
 const until = (page, fn, arg, timeout = 8000) => page.waitForFunction(fn, arg, { timeout }).then(() => true).catch(() => false);

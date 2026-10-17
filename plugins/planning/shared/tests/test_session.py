@@ -1632,11 +1632,12 @@ class TestWriteLimits(SessionCase):
                 self.assertEqual(self.s.state["rev"], rev + 1, "the refused write reached the disk")
 
     def test_the_heartbeat_takes_about_one_a_second(self):
+        q_of = lambda: next(p["q"] for p in self.s.snapshot(HOST)["presence"] if p["pid"] == self.ann)  # noqa: E731
         self.twice("heartbeat", {"q": "Q1"}, {"q": "Q3"})
-        self.assertEqual(self.s._presence[self.ann]["q"], "Q1")
+        self.assertEqual(q_of(), "Q1")
         self.clock.tick(session.HEARTBEAT_INTERVAL)
         self.s.heartbeat(self.ann, {"q": "Q3"})
-        self.assertEqual(self.s._presence[self.ann]["q"], "Q3")
+        self.assertEqual(q_of(), "Q3")
 
     def test_write_records_are_dropped_once_they_can_throttle_nothing(self):
         self.act("propose", self.ann, {"text": "One"})
@@ -2711,8 +2712,76 @@ class TestPresenceStates(SessionCase):
                     self.s.heartbeat(self.bo, body)
                 self.assertEqual((ctx.exception.code, ctx.exception.details["field"]), ("bad-field", field))
 
+    def test_two_tabs_of_one_person_each_beat_once_a_second(self):
+        self.beat(self.ann, tab="laptop")
+        self.beat(self.ann, tab="phone")  # same instant, another tab: not a second beat of the first
+        with self.assertRaises(session.DomainError) as ctx:
+            self.beat(self.ann, tab="laptop")
+        self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
+        self.beat(self.ann, tab="phone", visible=False)  # a change beat on its own tab
+        with self.assertRaises(session.DomainError):
+            self.beat(self.ann, tab="phone", visible=True)
+
+    def test_a_hidden_tab_does_not_make_a_person_in_use_elsewhere_away(self):
+        self.beat(self.ann, tab="a", visible=True)
+        self.beat(self.ann, tab="b", visible=False)
+        self.assertEqual(self.state_of(self.ann)["state"], "active")
+        for _ in range(3):  # the hidden tab's throttled beats, one a minute, change nothing
+            self.clock.tick(20)
+            self.beat(self.ann, tab="a", visible=True)
+            self.beat(self.ann, tab="b", visible=False)
+            self.assertEqual(self.state_of(self.ann)["state"], "active")
+        self.clock.tick(5)
+        hid = self.clock.t
+        self.beat(self.ann, tab="a", visible=False)
+        self.assertEqual((self.state_of(self.ann)["state"], self.state_of(self.ann)["since"]), ("away", hid))
+
+    def test_away_only_when_every_live_tab_is_hidden_idle_or_snoozed(self):
+        self.beat(self.ann, tab="a", away=True)
+        self.beat(self.ann, tab="b", lastInput=0)
+        self.assertEqual(self.state_of(self.ann)["state"], "active")
+        self.clock.tick(2)
+        self.beat(self.ann, tab="b", lastInput=301)
+        self.assertEqual(self.state_of(self.ann)["state"], "away")
+
+    def test_a_tab_that_stopped_beating_no_longer_counts(self):
+        self.beat(self.ann, tab="closed", visible=True)
+        self.beat(self.ann, tab="hidden", visible=False)
+        self.clock.tick(60)
+        self.beat(self.ann, tab="hidden", visible=False)
+        self.assertEqual(self.state_of(self.ann)["state"], "active")  # the visible tab's last beat is 60 s old
+        self.clock.tick(30)  # 90 s since the visible tab last beat: it is gone, the hidden one remains
+        self.assertEqual(self.state_of(self.ann)["state"], "away")
+        self.clock.tick(60)  # 90 s since any tab beat: offline
+        self.assertIsNone(self.state_of(self.ann))
+
+    def test_question_and_typing_come_from_the_latest_beat(self):
+        self.beat(self.ann, tab="a", q="Q1", typing=True)
+        self.clock.tick(1)
+        self.beat(self.ann, tab="b", q="Q3", typing=False)
+        self.assertEqual((self.state_of(self.ann)["q"], self.state_of(self.ann)["typing"]), ("Q3", False))
+
+    def test_a_person_keeps_at_most_8_tabs_the_oldest_dropped(self):
+        self.beat(self.ann, tab="t0", visible=True)  # the only visible tab
+        for i in range(1, 8):
+            self.clock.tick(1)
+            self.beat(self.ann, tab=f"t{i}", visible=False)
+        self.assertEqual(self.state_of(self.ann)["state"], "active")
+        self.clock.tick(1)
+        self.beat(self.ann, tab="t8", visible=False)  # a ninth tab: t0, the least recent, is forgotten
+        self.assertEqual(self.state_of(self.ann)["state"], "away")
+
+    def test_the_tab_id_is_a_short_string(self):
+        for body in ({"tab": "x" * 33}, {"tab": 7}, {"tab": ""}):
+            with self.subTest(body=body):
+                with self.assertRaises(session.DomainError) as ctx:
+                    self.s.heartbeat(self.bo, body)
+                self.assertEqual((ctx.exception.code, ctx.exception.details["field"]), ("bad-field", "tab"))
+        self.beat(self.bo, tab="x" * 32)
+
     def test_presence_entries_match_the_wire_shape(self):
         self.beat(self.ann, q="Q1", typing=True)
+        self.beat(self.ann, tab="other", visible=False)
         self.beat(self.bo, visible=False)
         entries = self.s.snapshot(HOST)["presence"]
         self.assertEqual(len(entries), 2)

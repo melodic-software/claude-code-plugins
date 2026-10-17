@@ -1190,7 +1190,7 @@
 .app .vf-opt-other .vf-optlabel { color: var(--muted); }
 
 /* ---------- multi, scale and rank questions; the box for one's own option; their results ---------- */
-.app .vf-multi { display: grid; gap: 8px; }
+.app .vf-multilist { display: grid; gap: 8px; }
 .app .vf-check {
   display: flex; align-items: center; gap: 12px; min-block-size: 44px; padding: 8px 12px; cursor: pointer;
   border: 1px solid var(--line-strong); border-radius: var(--r-md); background: var(--pane); font-size: 14px; font-weight: 600;

@@ -401,7 +401,7 @@
     }).finally(() => { joining = null; });
   }
 
-  // The server takes one write a second per person on each of these routes (session.py THROTTLED, WRITE_INTERVAL)
+  // The server takes one write a second per person on each of these routes (session.py _throttle, WRITE_INTERVAL)
   // and answers a faster one 429. Writes to one route go out one at a time, the next a second after the last answer
   // came back: the server stamps a write before it answers, so that gap is never shorter than a second there.
   const SPACED = new Set(["/api/answer", "/api/pick", "/api/propose", "/api/chat", "/api/suggest", "/api/request", "/api/merge-request",
@@ -484,6 +484,13 @@
   // or `away` skips that limit, under its own one a second. So beats never overlap: each waits a GAP after the last
   // one answered (a change beat, after the last change beat only), and many asks in that wait send one beat, built
   // from the state when it goes out.
+  // Each tab beats under its own id (kept across reloads of the tab), so the server keeps one presence per tab and a
+  // person's other tabs and devices never take their beats: the person is Away only when every tab is.
+  const TAB = (() => {
+    const fresh = [...crypto.getRandomValues(new Uint8Array(12))].map(b => b.toString(16).padStart(2, "0")).join("");
+    try { const t = sessionStorage.getItem("tab"); if (/^[0-9a-f]{24}$/.test(t || "")) return t; sessionStorage.setItem("tab", fresh); } catch { /* storage off */ }
+    return fresh;
+  })();
   const HB = { busy: false, timer: 0, wanted: false, done: -Infinity, changeDone: -Infinity, visible: null, away: null };
   let away = false, lastInputAt = Date.now();
   const visibleNow = () => document.visibilityState !== "hidden";
@@ -495,7 +502,7 @@
     if (due > 0) { HB.timer = setTimeout(() => { HB.timer = 0; pumpBeat(); }, due); return; }
     HB.wanted = false; HB.busy = true;
     const body = { q: focusQ, typing: Date.now() < typingUntil, chatTyping: Date.now() < chatTypingUntil,
-      visible, lastInput: Math.max(0, Math.round((Date.now() - lastInputAt) / 1000)), away };
+      visible, lastInput: Math.max(0, Math.round((Date.now() - lastInputAt) / 1000)), away, tab: TAB };
     send("/api/heartbeat", body).then(r => {
       if (r.ok) { HB.visible = visible; HB.away = away; }
       return r.ok ? r.json() : null;
@@ -590,23 +597,35 @@
   vv?.addEventListener("resize", fitViewport);
   vv?.addEventListener("scroll", fitViewport);
   fitViewport();
-  /** A secret with no name beside it (a personal link, or a guest the import carried over): ask the server who it is. */
+  /** A secret with no name beside it (a personal link, or a guest the import carried over): ask the server who it is.
+   *  Only the server's refusal of the secret (401) forgets it, rejecting with 401; a removed person (403) keeps it and
+   *  rejects with 403. Anything else (429, a server error, no network, as when every tab reloads at once) keeps the
+   *  secret and asks again, waiting longer each time. */
   async function adoptIdentity() {
     HB.busy = true; // this is a beat too: the next one waits its turn
-    const visible = visibleNow();
-    const ask = () => fetch("/api/heartbeat", { method: "POST", headers: { "Content-Type": "application/json", "X-Session-Secret": secret }, body: JSON.stringify({ visible }) });
-    // The same person's other device may have beaten this very second (429): ask once more after the limit.
-    const r = await ask().then(x => (x.status === 429 ? wait(GAP).then(ask) : x)).finally(() => { HB.busy = false; HB.done = Date.now(); });
-    if (r.ok) { HB.visible = visible; HB.away = false; }
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.pid) throw r.status;
-    Core.me.cid = j.pid; Core.me.name = j.name; put("pid", j.pid); put("name", j.name);
-    if (adopt) Core.adopted = j.name;
-    emit();
+    try {
+      for (let tries = 0; ; tries++) {
+        const visible = visibleNow();
+        const r = await fetch("/api/heartbeat", { method: "POST", headers: { "Content-Type": "application/json", "X-Session-Secret": secret },
+          body: JSON.stringify({ visible, tab: TAB }) }).catch(() => null);
+        HB.done = Date.now();
+        if (r?.status === 401 || r?.status === 403) throw r.status;
+        const j = r?.ok ? await r.json().catch(() => ({})) : {};
+        if (j.pid) {
+          HB.visible = visible; HB.away = false;
+          Core.me.cid = j.pid; Core.me.name = j.name; put("pid", j.pid); put("name", j.name);
+          if (adopt) Core.adopted = j.name;
+          emit();
+          return;
+        }
+        await wait(Math.min(GAP * 2 ** tries, 15000) + Math.random() * 500);
+      }
+    } finally { HB.busy = false; }
   }
   window.addEventListener("DOMContentLoaded", () => {
     if (!ownerToken && secret && (adopt || !Core.me.name || !Core.me.cid)) {
-      adoptIdentity().then(beat).catch(() => {
+      adoptIdentity().then(beat).catch(status => {
+        if (status !== 401) return; // removed: the state poll shows it, and the owner can restore the same secret
         forget(); drop("name"); Core.me.name = "";
         askName(adopt ? "That personal link no longer works. Join with your name; the host can merge you with your earlier self." : "");
       });
