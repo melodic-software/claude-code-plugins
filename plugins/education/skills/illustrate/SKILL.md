@@ -87,10 +87,11 @@ installed, say the STE register is unavailable and write in the plain register.
 
 Add a `slug` to the model: a short name of lowercase letters, digits and hyphens only. Write the
 model with the Write tool to `${CLAUDE_PLUGIN_DATA}/illustrate/model.json`, then run the fixed
-command. The file persists between runs: when it exists, Read it first, because the Write tool
-refuses to overwrite a file not Read in the session. Run the build straight after the write, so
-another session that shares the data directory cannot replace the model in between. The builder checks the slug (exit 2 when it is not `^[a-z0-9-]+$`) and derives the record
-path `records/<slug>.md` and the page path `views/<slug>.html` under the output directory itself:
+command. The file persists between runs: when it exists, Read it before you write it. Run the
+build straight after the write, so another session that shares the data directory cannot replace
+the model in between. The builder checks the slug (exit 2 when it is not `^[a-z0-9-]+$`) and
+derives the record path `records/<slug>.md` and the page path `views/<slug>.html` under the output
+directory itself:
 
 ```bash
 "${CLAUDE_SKILL_DIR}/scripts/build-explainer.mjs" \
