@@ -848,7 +848,7 @@ detector measures the queue moving, not the lane retrying. When progress resumes
 escalation is still open, the lane records the resumption as a comment on it and leaves the
 disposition to the operator.
 
-**Per-cycle usage sample (measure-only).** A lane's spend was a blind spot: nothing recorded how much
+**Per-cycle usage sample (measure-only).** No lane's spend was measured: nothing recorded how much
 of the shared subscription windows a cycle consumed. Each lane therefore records a `usage_sample` in
 that same durable-state block every cycle, holding the two window percentages the rate-limit guard
 (§6) already read that cycle plus the rise since the previous sample. The reading is already in hand,
