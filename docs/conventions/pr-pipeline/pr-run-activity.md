@@ -216,10 +216,20 @@ the broker request, and no other permission; it never holds `checks: write` or `
 10. Removes sudo and docker access for the rest of the job: `/var/run/docker.sock` becomes
    root-only and the runner user's `/etc/sudoers.d/runner` entry is deleted. It fails red if
    `sudo -n true` still succeeds or the socket is still open to the runner user.
-11. Checks out the trigger gate's `head-sha` with `persist-credentials: false` (full history for
-    `prepare: merge-base`, else depth 1), then fails red unless `git rev-parse HEAD` equals that
-    SHA. This replaces `.base`.
-12. Runs the activity (below), then, in the read file, records whether the tree is dirty.
+11. For a skill, copies the base's [`scripts/setup-env.sh`](../../../scripts/setup-env.sh) and the
+    files it installs from (`.python-version`, `.github/requirements-ci.txt`, the root and
+    `.github/standards/runner-policy` `package.json` and `package-lock.json`) to
+    `$RUNNER_TEMP/setup-env`; a base without the script skips this and step 12's install with a
+    notice. Then checks out the trigger gate's `head-sha` with `persist-credentials: false` (full
+    history for `prepare: merge-base`, else depth 1), then fails red unless `git rev-parse HEAD`
+    equals that SHA. This replaces `.base`.
+12. For a skill, sets up Python from the copied `.python-version` and runs the copied
+    `setup-env.sh`, which installs the hash-pinned wheels in `.github/requirements-ci.txt` into a
+    venv under `$RUNNER_TEMP` and the locked Node packages, puts both on `PATH`, and copies the
+    `node_modules` trees into the checkout. Both files install from the base copies in
+    `$RUNNER_TEMP/setup-env`, so no head code runs before the skill's own Bash; a read skill that
+    needs the head's own packages runs `npm ci` there.
+    Then runs the activity (below) and, in the read file, records whether the tree is dirty.
 13. Writes `verdict.json` with `jq` (`if: always()`) and uploads it as
     `verdict-<lane>-<activity>-<run_attempt>`, unique per activity and attempt.
 14. Write file only, `if: always()` whenever step 6 output a token: `actions/github-script`,
@@ -480,7 +490,8 @@ the base's copies from step 8, each checked against its recorded SHA-256 before 
    prepare's hashes. It restores `.git/config` and `.git/info/attributes`, repairs the paths
    claude-code-action reset, and escalates `unresolved-conflict` (an unmerged entry, or conflict
    markers in a staged resolution) or `workflow-staged` (a `.github/workflows/` index entry changed
-   since the snapshot); otherwise it writes the index as a tree.
+   since the snapshot, or differs from the gated head, as a workflow change merged in from the base
+   does: the lane token cannot push one); otherwise it writes the index as a tree.
 4. With no escalation reason and a tree, a pinned `github-script` step commits through the Git
    Data API: it fails unless the lane branch is still at the gated head, uploads only the blobs
    `tree-entries.sh` flags (logging `created <k> blobs`), builds the tree on the gated head's tree
@@ -516,7 +527,7 @@ its check:
 | Hold label added during the run, found before the commit | success | `awaiting-human` | empty | neutral |
 | Hold label or draft set during the run, found before the promote | success | `awaiting-human` | empty | neutral |
 | Model left a conflict | success | `awaiting-human` | `unresolved-conflict` | neutral |
-| Model staged a `.github/workflows/` change | success | `awaiting-human` | `workflow-staged` | neutral |
+| Model staged, or the merge brought in, a `.github/workflows/` change | success | `awaiting-human` | `workflow-staged` | neutral |
 | Resolved, committed, promoted | success | none | empty | success |
 | Commit step fails or lane branch moved | failure | none | empty | failure |
 | PR branch moved during run (promote) | failure | none | empty | failure |
