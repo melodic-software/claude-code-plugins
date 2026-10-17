@@ -158,7 +158,7 @@ say(/\?\*:feedback-uncertain \| \?\*:feedback-not-landed \| \?\*:feedback-invali
   "a script escalates only with the reply script's own reasons, and only in review-replies mode");
 say(/:\?\*:dependency-invalid \| :\?\*:dependency-fix-not-landed\)/.test(byId("act-script").run ?? "")
   && /:\?\*:dependency-security-close \| :\?\*:dependency-escalate \| :\?\*:dependency-config-unreadable\)/.test(byId("act-script").run ?? "")
-  && /:\?\*:dependency-control-uncited\)/.test(byId("act-script").run ?? ""),
+  && /:\?\*:dependency-files-truncated \| :\?\*:dependency-control-uncited\)/.test(byId("act-script").run ?? ""),
   "a script escalates with the verdict script's reasons only in dependency-verdict mode");
 say(promoteScript.indexOf("verdict !== 'fix'") >= 0 && promoteScript.indexOf("verdict !== 'fix'") < promoteScript.indexOf("updateRef")
   && /\[dependabot skip\]/.test(promoteScript) && /\\\.github/.test(promoteScript),
