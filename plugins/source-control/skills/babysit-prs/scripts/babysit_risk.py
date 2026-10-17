@@ -94,10 +94,16 @@ class RiskInput:
     rung: Rung  # effective rung
     files: tuple[ChangedFile, ...]
     files_complete: bool  # the listing was read to its end
-    max_changed_lines: int  # merge.diff-check.max-changed-lines at the base SHA
+    max_changed_lines: int | None  # merge.diff-check.max-changed-lines at the base SHA
     high_paths: tuple[str, ...]  # configured denied paths, joined to HIGH_FLOOR
     lanes: tuple[LaneEvidence, ...]
     blast_radius: str | None  # consulted only above C2
+    # The switches the pr-merge lane may turn off (merge.diff-check); the
+    # defaults keep every check. An unset line cap is MED unless optional.
+    high_floor: bool = True
+    c2_contradictions: bool = True
+    max_changed_files: int | None = 8  # None: no cap
+    lines_optional: bool = False
 
 
 @dataclass(frozen=True)
@@ -113,7 +119,6 @@ class RiskResult:
     reasons: tuple[Reason, ...]  # sorted by severity desc, then code
 
 
-MAX_FILES = 8
 
 HIGH_FLOOR: tuple[str, ...] = (
     ".github/**",
@@ -392,7 +397,8 @@ def _high_path_reasons(inp: RiskInput, files: list[_File]) -> list[Reason]:
     if unsafe:
         reasons.append(Reason(UNSAFE_PATH_CODE, Risk.HIGH, "; ".join(unsafe)))
     paths = [path for f in files for path in f.paths if path]
-    for pattern in dict.fromkeys((*HIGH_FLOOR, *configured)):
+    floor = HIGH_FLOOR if inp.high_floor is not False else ()
+    for pattern in dict.fromkeys((*floor, *configured)):
         hits = [path for path in paths if glob_match(pattern, path)]
         if hits:
             reasons.append(Reason(f"high-path:{pattern}", Risk.HIGH, ", ".join(hits)))
@@ -438,7 +444,9 @@ def _class_reasons(inp: RiskInput, files: list[_File]) -> list[Reason]:
         detail = f"{inp.work_class} above rung {shown}"
         reasons.append(Reason("class-above-rung", Risk.MED, detail))
     if rank <= _C2_RANK:
-        contradictions = _c2_contradictions(files)
+        contradictions = (
+            _c2_contradictions(files) if inp.c2_contradictions is not False else []
+        )
         if rank == _C1_RANK:
             contradictions.insert(0, "C1 work produces no pull request")
         if contradictions:
@@ -472,14 +480,21 @@ def _size_reasons(inp: RiskInput, files: list[_File] | None) -> list[Reason]:
         reasons.append(Reason("files-incomplete", Risk.MED, "; ".join(incomplete)))
     lines = sum(f.lines for f in files)
     limit = inp.max_changed_lines
-    if not _is_count(limit):
+    if limit is None and inp.lines_optional is True:
+        pass
+    elif not _is_count(limit):
         reasons.append(
             Reason("lines-over", Risk.MED, f"limit unreadable: {_show(limit)}")
         )
     elif lines > limit:
         reasons.append(Reason("lines-over", Risk.MED, f"{lines} > {limit}"))
-    if len(files) > MAX_FILES:
-        reasons.append(Reason("files-over", Risk.MED, f"{len(files)} > {MAX_FILES}"))
+    cap = inp.max_changed_files
+    if cap is not None and not _is_count(cap):
+        reasons.append(
+            Reason("files-over", Risk.MED, f"limit unreadable: {_show(cap)}")
+        )
+    elif cap is not None and len(files) > cap:
+        reasons.append(Reason("files-over", Risk.MED, f"{len(files)} > {cap}"))
     for path in dict.fromkeys(f.path for f in files if f.has_patch is False):
         reasons.append(
             Reason(f"no-patch:{path}", Risk.MED, "no patch: line counts unknown")
