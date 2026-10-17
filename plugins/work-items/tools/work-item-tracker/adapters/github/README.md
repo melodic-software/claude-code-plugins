@@ -17,6 +17,7 @@
 - [Open linked PRs](#open-linked-prs)
 - [Linked changes](#linked-changes)
 - [Aggregate / count (dashboard + hygiene)](#aggregate--count-dashboard--hygiene)
+- [API budget](#api-budget)
 - [Gotchas](#gotchas)
 
 Concrete `gh` mechanics for the `/work-items` skill's **non-coordination** operations against
@@ -500,6 +501,37 @@ gh issue list --state open --json number,title,labels --limit 100 --jq '
 Stale-claim detection is NOT a label/date query. A claim is a lease, so the `audit` action
 runs the seam `reclaim` verb over assigned items (CONTRACT.md "Lease protocol").
 
+## API budget
+
+Every `gh` call by every agent and session under one user shares that user's hourly REST and
+GraphQL budgets, and `gh` never retries or backs off. Every unattended loop (work-loop, triage and
+attend-queue lanes) follows this cadence:
+
+- **Which bucket.** GraphQL: `gh issue` (every subcommand), `gh pr view`, `gh pr list`,
+  `gh pr checks`, `gh pr create`, `edit`, `ready` and `merge`, `gh api graphql`. REST: `gh run`,
+  `gh api <path>`.
+- **Waiting.** One watcher per PR or run, in the background, polling at 60 s or longer:
+  `gh run watch <id> --exit-status -i 60`, or REST reads of `repos/<owner>/<repo>/pulls/<n>` and
+  `commits/<sha>/check-runs`. Never loop `gh pr view` or `gh issue view`, and never run
+  `gh pr checks --watch`.
+- **GraphQL-only fields** (`isInMergeQueue`, `statusCheckRollup`): read once, at the point you
+  decide.
+- **Writes** (label, comment, close, create, assign): one at a time, at least 1 s apart, never in
+  a retry loop. `wit_write_pause` in `common.sh` waits 1 s before every adapter write, so a verb
+  that writes more than once keeps the spacing.
+- **Rate-limit errors** (seam exit 8 when a verb hits one). Stop at the first one; never retry in
+  a loop or probe for recovery. Exit 8 carries no response headers, so read the primary resets
+  once: `gh api rate_limit --jq '.resources | .core, .graphql | "\(.remaining) \(.reset)"'`. When a
+  bucket shows 0 remaining, wait until its reset (epoch seconds); otherwise the limit was a secondary one
+  (that endpoint does not show them), so wait at least one minute, then back off exponentially and
+  give up after a few tries.
+
+Pointer: [best practices for using the REST API](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api),
+[REST rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api),
+[GraphQL rate limits](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api).
+As-of: 2026-10-17. Recheck trigger: either rate-limits page changes how limits or resets are
+reported, or a `gh` release changes the `run watch` or `pr checks --watch` interval or adds retries.
+
 ## Gotchas
 
 Per-operation gotchas live with their sections above (the `--limit` truncation under "List
@@ -542,7 +574,6 @@ items", the `--add-label`-vs-`--label` rule under "Edit labels / assignees"). Cr
   `[IO.File]::WriteAllText($p, $s, (New-Object Text.UTF8Encoding $false))`, because there
   `-Encoding utf8` prepends a BOM and `utf8NoBOM` does not exist (PowerShell 6+ has both). Without
   `-Raw` you get a line array, not the one string that write takes.
-- **Rate limits** (verify current values via GitHub REST docs): batch bulk creates to respect
-  the secondary content-generation limit, e.g. 30 items per batch with short pauses.
+- **Rate limits**: see [API budget](#api-budget).
 - **Issue Forms auto-labeling** fires only on web-form creation, not `gh issue create`, so apply
   labels explicitly when creating programmatically.

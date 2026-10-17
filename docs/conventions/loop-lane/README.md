@@ -848,7 +848,7 @@ detector measures the queue moving, not the lane retrying. When progress resumes
 escalation is still open, the lane records the resumption as a comment on it and leaves the
 disposition to the operator.
 
-**Per-cycle usage sample (measure-only).** A lane's spend was a blind spot: nothing recorded how much
+**Per-cycle usage sample (measure-only).** No lane's spend was measured: nothing recorded how much
 of the shared subscription windows a cycle consumed. Each lane therefore records a `usage_sample` in
 that same durable-state block every cycle, holding the two window percentages the rate-limit guard
 (§6) already read that cycle plus the rise since the previous sample. The reading is already in hand,
@@ -887,7 +887,8 @@ offer to persist the answer; the headless path never waits on one.
 
 **Provider backoff (seam exit 8).** A tracker-seam exit 8, meaning the provider is unavailable or
 secondary forge limits are hit under one credential, is handled as backoff-and-retry and counted as a **dirty** signal for
-the adaptive cap.
+the adaptive cap: the cycle makes no further provider call, and the next try waits until the
+provider's reset (`x-ratelimit-reset`, or `retry-after` when sent), never a retry loop.
 
 **Snapshot drain exit.** The drain-exit condition is evaluated against a snapshot taken at cycle
 start; new automated intake arriving mid-cycle is **reported, never chased**, so an item-producing
