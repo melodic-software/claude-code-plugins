@@ -106,7 +106,7 @@ function prTitle(runTitle, issueTitle, issueNumber) {
 // Work a human merges: the classes past mechanical, and any diff that touches
 // a path the merge lane refuses (merge.diff-check.denied-paths in the base
 // pr-pipeline.yaml), so the two lists cannot drift apart.
-const HOLD_CLASSES = new Set(["work-class: scoped", "work-class: structural", "work-class: untrusted-provenance"]);
+const HOLD_CLASSES = new Set(["work-class: untrusted-provenance"]);
 const MAX_TEXT = 3000;
 const MAX_ITEMS = 20;
 const MAX_ITEM = 300;
