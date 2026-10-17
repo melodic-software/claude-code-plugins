@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.10.0] - 2026-10-17
+
+### Added
+
+- The unattended merge gate's pr-merge lane (`--authority pr-merge`) merges Dependabot pull requests as their own class, on a green `ci-status` with verified Dependabot commits and no closing issue, denied-path rule or diff score. Tier `auto` (every update non-major, counting a 0.x minor change as major; Actions publishers `actions`, `github` or `anthropics` only; `ci-status` not red) merges directly; tier `review` merges only on the lanes App's `verdict=merge` review-dependency round marker at the current head, and may then carry the App's `[dependabot skip]` fix commits. Every push to the head branch must be Dependabot's (or the version-bump or fix commit's own pusher's), or the PR is refused; a changed path beyond the manifests and lock files `.github/dependabot.yml` covers and `uses:`-only action repins makes the PR tier `review` (`dependabot-content:<path>`). `merge.dependabot.mode` (`off`, `report`, `enforce`) switches it apart from `merge.report-only`. The local babysit paths still hold every dependency-manager PR.
+
+- The pr-merge lane (`babysit_merge.py --unattended --authority pr-merge`) reads the pr-verify verdict when `merge.require-verifier-verdict` is true, from artifacts `pr-verify-<pr>-<head-sha>-<verdict>` authenticated by their run (`.github/workflows/pr-verify.yml`, event `workflow_run`, on main, this repository, head on main). A FAIL counts whatever its run concluded and under any pull request number: at the head it refuses `verify:fail`, at another head of the pull request (number, commit or head branch) `verify:earlier-fail`. A PASS counts only from a successful run, only while the pull request's closing issues are the ones it recorded and none was edited after its run started (`verify:spec-changed` otherwise), and only when every linked issue it records was written, and last edited if ever, by a trusted human other than the author (`verify:untrusted-spec` otherwise). A crash judging one queued entry refuses that entry and the sweep goes on. The artifact listing, run records and download run under `BABYSIT_VERIFY_GH_TOKEN` when it is set (pr-merge.yml passes the job's `GITHUB_TOKEN` with `actions: read`); `gh_capture` takes `env_overrides` for that. A pull request older than 80 days refuses `verify:too-old`, any failed read `verify:unreadable`, and no verdict `verify:missing`. Queued entries are dequeued on the same rules at their live head; a dependency manager's pull request, which the lane decides in its Dependabot class, needs no verdict, and its queued entry is not held for one.
+
+- `/source-control:pull-request dependency --ci`, the pr-unblock lane's unattended review of one risky Dependabot update (a major bump, an action publisher outside the allowlist, a group holding a major, or a red `ci-status`). It reads the runner's context file, the checkout and the upstream release notes as data, may push a scoped fix outside `.github/` with `[dependabot skip]`, and returns a `merge`, `fix`, `close` or `escalate` verdict as structured output for a job with no model to act on. See `reference/dependency-ci.md`.
+
 ## [1.9.0] - 2026-10-17
 
 ### Added

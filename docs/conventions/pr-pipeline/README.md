@@ -222,15 +222,15 @@ Each leaf declares:
   flags fixed, that a skill with an effect other than `read` may run. The write runner runs each
   from the base copy against the checkout, so no head code runs
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)).
-- `verify-scripts` (optional, `skill` only): exact repository-relative paths of read-only checker
-  scripts, each `scripts/<name>.sh`, `plugins/<plugin>/scripts/<name>.sh` or
+- `verify-scripts` (optional, `skill` only): exact repository-relative paths of scripts, each `scripts/<name>.sh`, `plugins/<plugin>/scripts/<name>.sh` or
   `plugins/<plugin>/skills/<skill>/scripts/<name>.sh`, that a skill with an effect other than
   `read` may run with any arguments but a path outside the checkout; a `read` leaf cannot set it.
   The write runner runs each from a read-only base copy of its plugin (or of `scripts/`) against
   the checkout
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The arguments are the model's, so
-  list only scripts that read and report: never one that changes files, runs code from the
-  checkout or reaches the network.
+  a script that changes files, runs code from the checkout or reaches the network hands the run
+  that power: list one only when it limits itself, as `scripts/run-test-file.sh` (one test file
+  inside the checkout) and `scripts/git-mv-rm.sh` (`git mv` and `git rm` inside the checkout) do.
 - `web-access` (optional, `skill` only, off when absent): `enabled` and `domains`, either `any` or
   a list of host names (`*.` allowed as a prefix). When on, a skill with an effect other than
   `read` may search the web, fetch those domains, and run the research skills

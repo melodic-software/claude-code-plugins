@@ -185,15 +185,17 @@ runs:
             # so the skill gets no commit tool and no instruction to commit.
             mkdir -p "$SCRATCH"
             allowed="$allowed,Edit,Write,Agent"
+            # delete_files carries a rename's old path or a removal to the
+            # branch, which commit_files cannot.
             if [ "$PREPARE" != merge-base ]; then
-              allowed="$allowed,mcp__github_file_ops__commit_files"
+              allowed="$allowed,mcp__github_file_ops__commit_files,mcp__github_file_ops__delete_files"
             fi
             allowed="$allowed,Edit(/$SCRATCH/**)"
             system_prompt="You run unattended as a CI lane activity on $subject, and no one can answer a question. Run every step the skill instructions name. Your scratchpad directory is $SCRATCH: put every temporary or state file there."
             if [ "$CAN_COMMIT" = true ] && [ "$PREPARE" != merge-base ]; then
               # The slash command never says the edits reach the PR only as
               # commits on CLAUDE_BRANCH.
-              system_prompt="$system_prompt A change to a repository file reaches the branch only as a commit: before you finish, commit every repository file you changed with the mcp__github_file_ops__commit_files tool. An uncommitted change is discarded when the run ends."
+              system_prompt="$system_prompt A change to a repository file reaches the branch only as a commit: before you finish, commit every repository file you changed with the mcp__github_file_ops__commit_files tool, and delete every committed path you renamed or removed with the mcp__github_file_ops__delete_files tool. An uncommitted change is discarded when the run ends."
             fi
             # The web stays off unless the activity sets web-access. On, the
             # skill may search, fetch the listed domains (`any`: every one)
