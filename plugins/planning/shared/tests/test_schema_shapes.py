@@ -15,8 +15,9 @@ SHARED = HERE.parent
 SCHEMA_DIR = SHARED / "schema"
 FIXTURES = HERE / "fixtures"
 SURFACE = SHARED.parent / "surface"
+# Appended, as session.py does: prepended, surface/test_server.py would shadow ours at discovery.
 if str(SURFACE) not in sys.path:
-    sys.path.insert(0, str(SURFACE))
+    sys.path.append(str(SURFACE))
 
 import schema  # noqa: E402
 

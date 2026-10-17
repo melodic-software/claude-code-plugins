@@ -51,6 +51,11 @@ def interpreter():
     return sys.executable
 
 
+def python(*args):
+    """A Python child's argv in isolated mode (-I): no PYTHON* variables, user site, or cwd on sys.path."""
+    return [interpreter(), "-I", *args]
+
+
 def open_private(path, mode="ab"):
     """Open a file created 0600 (advisory on Windows) for appending or, with mode "wb", truncating."""
     flags = os.O_WRONLY | os.O_CREAT | (os.O_APPEND if "a" in mode else os.O_TRUNC)

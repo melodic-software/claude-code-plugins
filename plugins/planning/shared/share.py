@@ -128,7 +128,7 @@ def watch_command(d):
 def start_server(d, guest, control, *, defaults_file=None, initial_state=None):
     """Start server.py detached on the given ports (0 picks one) and wait for its ping."""
     nonce = secrets.token_hex(8)
-    cmd = [detached.interpreter(), str(HERE / "server.py"), "--dir", str(d), "--guest-port", str(guest), "--control-port", str(control), "--nonce", nonce]
+    cmd = detached.python(str(HERE / "server.py"), "--dir", str(d), "--guest-port", str(guest), "--control-port", str(control), "--nonce", nonce)
     if defaults_file:
         cmd += ["--defaults-file", str(Path(defaults_file).resolve())]
     if initial_state:
@@ -187,7 +187,7 @@ def open_link(d, url):
         f'<script>location.replace({script})</script>\n<meta http-equiv="refresh" content="0;url={html.escape(url, quote=True)}">\n',
     )
     seconds = os.environ.get("SHARED_OPEN_SECONDS") or str(OPEN_SECONDS)
-    detached.release(detached.spawn([detached.interpreter(), "-c", FORGET_PAGE, str(page), seconds], cwd=d))
+    detached.release(detached.spawn(detached.python("-c", FORGET_PAGE, str(page), seconds), cwd=d))
     opener = os.environ.get("SHARED_BROWSER")
     if opener:
         return subprocess.run([opener, page.as_uri()], check=False, timeout=30, stdout=subprocess.DEVNULL).returncode == 0

@@ -52,7 +52,7 @@ def binary():
 
 
 def _command(exe, port):
-    head = [detached.interpreter(), exe] if exe.endswith(".py") else [exe]
+    head = detached.python(exe) if exe.endswith(".py") else [exe]
     return [*head, "tunnel", "--no-autoupdate", "--url", f"http://127.0.0.1:{port}"]
 
 

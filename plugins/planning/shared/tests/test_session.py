@@ -6,12 +6,14 @@ limits) and the Brief's acceptance criteria, never from running the code under t
 
 from __future__ import annotations
 
+import collections
 import json
 import os
 import shutil
 import stat
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -515,6 +517,11 @@ class TestIdentity(SessionCase):
         self.assertEqual(self.disk()["credentials"]["owner"], rotated)
         self.assertTrue(self.s.reset_owner_token("tok-newer", rotated["rotatedAt"] + 1))
         self.assertEqual(self.s.resolve(owner_token="tok-newer"), HOST)
+
+    def test_reset_takes_any_token_when_the_state_records_no_rotation(self):
+        del self.s.state["credentials"]["owner"]["rotatedAt"]  # an imported prototype state
+        self.assertTrue(self.s.reset_owner_token("tok-imported", self.clock.t - 86400))
+        self.assertEqual(self.s.resolve(owner_token="tok-imported"), HOST)
 
     def test_rotating_the_guest_link_never_returns_the_key_to_empty(self):
         first = self.act("rotate_guest_link", HOST, {})["guestKey"]
@@ -1638,6 +1645,76 @@ class TestWriteLimits(SessionCase):
             ids = [first] + [self.act("suggest", self.bo, {"qid": "Q1", "text": f"More {i}"})["id"] for i in range(2)]
         self.assertEqual([s["id"] for s in self.s.state["suggestions"]["Q1"]], ids[-2:])
         self.assertEqual(self.s.state["suggestionVotes"]["Q1"], {})
+
+
+class HeldLock:
+    """An RLock that knows whether the calling thread holds it."""
+
+    def __init__(self):
+        self._lock, self._owner, self._depth = threading.RLock(), None, 0
+
+    def __enter__(self):
+        self._lock.acquire()
+        self._owner, self._depth = threading.get_ident(), self._depth + 1
+        return self
+
+    def __exit__(self, *exc):
+        self._depth -= 1
+        if not self._depth:
+            self._owner = None
+        self._lock.release()
+
+    def held(self):
+        return self._owner == threading.get_ident()
+
+
+def guarded(base, lock, case):
+    """A `base` mapping that fails `case` whenever it is changed without `lock` held."""
+
+    class Guarded(base):
+        def _check(self):
+            case.assertTrue(lock.held(), "changed outside the session lock")
+
+        def __setitem__(self, k, v):
+            self._check()
+            super().__setitem__(k, v)
+
+        def __delitem__(self, k):
+            self._check()
+            super().__delitem__(k)
+
+        def pop(self, *a):
+            self._check()
+            return super().pop(*a)
+
+        def popitem(self, *a, **kw):
+            self._check()
+            return super().popitem(*a, **kw)
+
+    return Guarded()
+
+
+class TestInMemoryRecordsUnderTheLock(SessionCase):
+    """The write and join records another request thread reads are changed only under the session
+    lock, so a concurrent request never iterates one mid-change and answers 500 for a write that landed."""
+
+    def setUp(self):
+        super().setUp()
+        self.ann = self.join("Ann")[0]
+        lock = HeldLock()
+        self.s._lock = lock
+        self.s._last_write = guarded(collections.OrderedDict, lock, self)
+        self.s._joins = guarded(collections.OrderedDict, lock, self)
+        self.s._key_joins = guarded(dict, lock, self)
+        self.s._presence = guarded(dict, lock, self)
+
+    def test_a_join_records_itself_under_the_lock(self):
+        self.join("Bo")
+        self.assertEqual(len(self.s._joins), 1)
+
+    def test_an_accepted_write_records_itself_under_the_lock(self):
+        self.act("chat", self.ann, {"text": "Hello"})
+        self.assertIn((self.ann, "chat"), self.s._last_write)
 
 
 class TestRequests(SessionCase):

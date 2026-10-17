@@ -687,14 +687,15 @@ class Session:
     def _wrote(self, pid, route, now):
         """Record an accepted write, dropping records too old to throttle anything (oldest first)."""
         key = (pid, route)
-        self._last_write.pop(key, None)
-        self._last_write[key] = now
         keep = max(WRITE_INTERVAL, HEARTBEAT_INTERVAL)
-        while self._last_write:
-            first = next(iter(self._last_write.values()))
-            if now - first < keep:
-                break
-            self._last_write.popitem(last=False)
+        with self._lock:
+            self._last_write.pop(key, None)
+            self._last_write[key] = now
+            while self._last_write:
+                first = next(iter(self._last_write.values()))
+                if now - first < keep:
+                    break
+                self._last_write.popitem(last=False)
 
     @contextlib.contextmanager
     def _write_as(self, pid, route, *, check=None):
@@ -766,12 +767,13 @@ class Session:
                 "status": {"kind": "active"},
             }
             st["credentials"]["secrets"][sha256(secret)] = new
-        self._joins.pop(window, None)
-        self._joins[window] = recent + [now]
-        self._key_joins[guest_key] = by_key + [now]
-        if device:
-            self._presence[new] = {"q": "", "typing": False, "chatTyping": False, "seen": now, "device": device}
-            self._presence_rev += 1
+        with self._lock:
+            self._joins.pop(window, None)
+            self._joins[window] = recent + [now]
+            self._key_joins[guest_key] = by_key + [now]
+            if device:
+                self._presence[new] = {"q": "", "typing": False, "chatTyping": False, "seen": now, "device": device}
+                self._presence_rev += 1
         return {"pid": new, "secret": secret, "name": final, **({"was": was} if was else {})}
 
     def _prune_joins(self, now):
@@ -2658,9 +2660,9 @@ class Session:
         is authoritative), refusing a token older than the last rotation recorded in the state."""
         with self._lock:
             owner = self.state["credentials"]["owner"]
-            if hmac.compare_digest(sha256(token), owner["tokenHash"]):
+            if self.is_owner_token(token):
                 return False
-            if owner["rotatedAt"] > issued_at:
+            if owner.get("rotatedAt", float("-inf")) > issued_at:
                 raise DomainError(
                     409,
                     "owner-token-stale",
@@ -2670,6 +2672,24 @@ class Session:
             with self._tx() as st:
                 st["credentials"]["owner"] = {"tokenHash": sha256(token), "rotatedAt": issued_at}
             return True
+
+    def is_owner_token(self, token):
+        return hmac.compare_digest(sha256(token), self.state["credentials"]["owner"]["tokenHash"])
+
+    def owner_rotated_at(self):
+        """When the owner link was last rotated, or None for a state that does not record it."""
+        return self.state["credentials"]["owner"].get("rotatedAt")
+
+    def clamp_owner_rotation(self):
+        """Set an owner-link rotation time ahead of the clock (a clock rollback, an imported state) to
+        now, so a token issued now is not refused; the old time when it was ahead, else None."""
+        with self._lock:
+            at, now = self.owner_rotated_at(), self.now()
+            if at is None or at <= now:
+                return None
+            with self._tx() as st:
+                st["credentials"]["owner"]["rotatedAt"] = now
+            return at
 
     def set_share(self, url):
         """Record the guest link's base; a change from an earlier link sets share.changedAt."""

@@ -367,6 +367,15 @@ class TestRawRequests(ServerCase):
         self.assertIn("/nope\\x1b[2J\\x07", log)
         self.assertNotIn("\x1b", log)
 
+    def test_the_log_escapes_control_characters_in_the_method(self):
+        got, _ = self.request("BR\x1b[2JEW / HTTP/1.1")
+        self.assertEqual(status_and_headers(got)[0], 501)
+        for h in self.app.log.handlers:
+            h.flush()
+        log = (self.d / "server.log").read_text(encoding="utf-8")
+        self.assertIn("BR\\x1b[2JEW", log)
+        self.assertNotIn("\x1b", log)
+
 
 class TestBusy(unittest.TestCase):
     def test_a_connection_past_the_handler_cap_is_answered_503(self):
@@ -416,6 +425,54 @@ class TestOwnerRotation(unittest.TestCase):
         with self.assertRaisesRegex(server.StartRefused, "predates"):
             server.App(d, watch_tunnel=False)
         self.assertNotEqual(json.loads((d / "state.json").read_text(encoding="utf-8"))["credentials"]["owner"]["tokenHash"], session.sha256(before["owner"]))
+
+    def rotated(self):
+        """A data folder whose owner link was rotated once: (folder, secrets before, token after)."""
+        d = tmpdir(self)
+        app = server.App(d, watch_tunnel=False)
+        app.serve()
+        before = dict(app.secrets)
+        time.sleep(0.01)
+        code, _, out = call(app.guest_port, "POST", "/api/link/owner", {}, {"X-Owner-Token": before["owner"]})
+        app.shutdown()
+        self.assertEqual(code, 200)
+        return d, before, out["token"]
+
+    def start(self, d):
+        app = server.App(d, watch_tunnel=False)
+        self.addCleanup(app.shutdown)
+        for h in app.log.handlers:
+            h.flush()
+        state = json.loads((d / "state.json").read_text(encoding="utf-8"))
+        return app, state["credentials"]["owner"], (d / "server.log").read_text(encoding="utf-8")
+
+    def test_an_undated_token_restored_after_a_rotation_is_replaced_by_a_fresh_one(self):
+        d, before, after = self.rotated()
+        detached.write_private(d / server.SECRETS, json.dumps({"control": before["control"], "owner": before["owner"]}) + "\n")
+        app, owner, log = self.start(d)
+        self.assertNotIn(app.secrets["owner"], (before["owner"], after))
+        self.assertEqual(owner["tokenHash"], session.sha256(app.secrets["owner"]))
+        self.assertEqual(json.loads((d / server.SECRETS).read_text(encoding="utf-8"))["owner"], app.secrets["owner"])
+        self.assertIn("fresh owner link", log)
+
+    def test_an_undated_copy_of_the_current_token_keeps_the_owner_link(self):
+        d, before, after = self.rotated()
+        detached.write_private(d / server.SECRETS, json.dumps({"control": before["control"], "owner": after}) + "\n")
+        app, owner, _ = self.start(d)
+        self.assertEqual(app.secrets["owner"], after)
+        self.assertEqual(owner["tokenHash"], session.sha256(after))
+
+    def test_a_rotation_time_ahead_of_the_clock_is_set_to_now_so_a_fresh_owner_link_works(self):
+        d = tmpdir(self)
+        server.App(d, watch_tunnel=False).shutdown()
+        state = json.loads((d / "state.json").read_text(encoding="utf-8"))
+        state["credentials"]["owner"]["rotatedAt"] = time.time() + 86400
+        detached.write_private(d / "state.json", json.dumps(state) + "\n")
+        (d / server.SECRETS).unlink()  # the documented remedy
+        app, owner, log = self.start(d)
+        self.assertLessEqual(owner["rotatedAt"], time.time())
+        self.assertEqual(owner["tokenHash"], session.sha256(app.secrets["owner"]))
+        self.assertIn("ahead of the clock", log)
 
 
 class TestDataFolderRule(unittest.TestCase):

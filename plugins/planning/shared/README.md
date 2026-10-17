@@ -149,7 +149,9 @@ build reloads itself.
 - **Owner-link rotation.** The new token reaches `.shared-secrets.json` before its hash reaches
   `state.json`, both under the session lock. A start whose secrets file holds a token issued before
   the session's last rotation refuses (exit 1) rather than bring the retired link back; deleting
-  `.shared-secrets.json` issues a new owner link.
+  `.shared-secrets.json` issues a new owner link. A secrets file without `ownerAt` whose owner
+  token is not the current one gets a fresh owner link, and a rotation time ahead of the clock is
+  set to the start time; `server.log` records both.
 
 Where each token can be seen:
 

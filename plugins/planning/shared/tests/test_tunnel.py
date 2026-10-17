@@ -24,6 +24,11 @@ import tunnel
 ADDRESS = re.compile(r"^https://fake-[0-9a-f]{12}\.trycloudflare\.com$")
 
 
+class TestCommand(unittest.TestCase):
+    def test_a_python_cloudflared_runs_in_isolated_mode(self):
+        self.assertEqual(tunnel._command("/opt/cf/cloudflared.py", 8080)[1:3], ["-I", "/opt/cf/cloudflared.py"])
+
+
 class TunnelCase(unittest.TestCase):
     def setUp(self):
         self.d = tmpdir(self)

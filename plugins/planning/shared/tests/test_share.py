@@ -90,6 +90,10 @@ class TestEnsureRunning(Running):
             self.assertNotIn(secrets_file[name], cmd, name)
         self.assertNotIn(self.session_record()["token"], cmd)
 
+    @unittest.skipIf(WINDOWS, "a process's command line is not readable here")
+    def test_the_server_runs_in_isolated_mode(self):
+        self.assertEqual(detached.describe(self.session_record()["pid"]).split()[1], "-I")
+
     @unittest.skipIf(WINDOWS, "file modes are advisory on Windows")
     def test_the_reported_guest_link_is_private(self):
         self.assertEqual(stat.S_IMODE((self.d / ".shared-reported").stat().st_mode), 0o600)
@@ -204,6 +208,22 @@ class TestOpen(ShareCase):
             self.assertEqual(got["mode"], 0o600)
         self.assertNotIn("#owner=", json.dumps(out))
         self.assertTrue(wait_for(lambda: not page.exists(), seconds=10), "the page outlived its delay")
+
+    def test_the_page_helper_loads_no_module_from_the_data_folder(self):
+        self.d.mkdir(parents=True, exist_ok=True)
+        planted = self.d / "planted-module-ran"
+        (self.d / "contextlib.py").write_text(
+            f"open({str(planted)!r}, 'w').close()\n"
+            "class suppress:\n"
+            "    def __init__(self, *kinds): self.kinds = kinds\n"
+            "    def __enter__(self): return self\n"
+            "    def __exit__(self, kind, *rest): return kind is not None and issubclass(kind, self.kinds)\n",
+            encoding="utf-8",
+        )
+        with mock.patch.dict(os.environ, {"SHARED_OPEN_SECONDS": "0"}), mock.patch.object(share_cli.webbrowser, "open", return_value=True):
+            share_cli.open_link(self.d, "http://127.0.0.1:1/#owner=x")
+        self.assertTrue(wait_for(lambda: not list(self.d.glob(share_cli.OPEN_PAGE.format("*"))), seconds=10), "the helper never ran")
+        self.assertFalse(planted.exists(), "the helper imported contextlib.py from the data folder")
 
 
 class TestCodes(ShareCase):

@@ -10,9 +10,11 @@ from unittest import mock
 
 SHARED = Path(__file__).resolve().parent.parent
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
-for _dir in (SHARED, SHARED.parent / "surface"):
-    if str(_dir) not in sys.path:
-        sys.path.insert(0, str(_dir))
+if str(SHARED) not in sys.path:
+    sys.path.insert(0, str(SHARED))
+# Appended, as session.py does: prepended, surface/test_server.py would shadow ours at discovery.
+if str(SHARED.parent / "surface") not in sys.path:
+    sys.path.append(str(SHARED.parent / "surface"))
 
 import migrate  # noqa: E402  (sys.path is set just above)
 import schema  # noqa: E402  (sys.path is set just above)

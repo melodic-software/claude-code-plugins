@@ -78,6 +78,12 @@ ERROR_CODES = {400: "bad-request", 408: "body-timeout", 414: "uri-too-long", 431
 ASSET = re.compile(r"/assets/([0-9a-f]{16}\.(png|jpg|webp|svg|html))")
 ASSET_TYPES = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp", "svg": "image/svg+xml", "html": "text/html"}
 CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f-\x9f\\]")
+
+
+def loggable(text, limit=80):
+    """Request-derived text for one log line: cut to `limit`, control characters and backslashes as \\xNN."""
+    return CONTROL_CHARS.sub(lambda m: f"\\x{ord(m.group(0)):02x}", str(text)[:limit])
+
 LOG_BYTES = 1024 * 1024
 LOG_KEEP = 3
 TUNNEL_POLL = 1.0  # seconds between tunnel checks
@@ -171,26 +177,38 @@ def read_json(path):
 
 def ensure_secrets(d):
     """The control and owner tokens from the 0600 secrets file, making any that is missing, plus
-    `ownerAt`, when the owner token was issued (the file's time for a file that does not say)."""
-    path = d / SECRETS
-    have = read_json(path) or {}
+    `ownerAt`, when the owner token was issued: None for a new token or a file that does not say,
+    which settle_owner_token decides once the session is open."""
+    have = read_json(d / SECRETS) or {}
     out = {k: have[k] if isinstance(have.get(k), str) and len(have[k]) >= 32 else secrets.token_urlsafe(32) for k in ("control", "owner")}
     at = have.get("ownerAt")
-    if out["owner"] != have.get("owner"):
-        at = time.time()
-    elif not isinstance(at, (int, float)) or isinstance(at, bool):
-        at = path.stat().st_mtime
-    out["ownerAt"] = at
-    if out != have:
-        detached.write_private(path, json.dumps(out) + "\n")
+    dated = out["owner"] == have.get("owner") and isinstance(at, (int, float)) and not isinstance(at, bool)
+    out["ownerAt"] = at if dated else None
     return out
 
 
-def open_session(d, owner_token, owner_at, *, defaults_file=None, initial_state=None):
+def settle_owner_token(d, s, creds, log):
+    """Set a rotation time ahead of the clock to now, date an undated owner token, and write the
+    secrets file. An undated token the file held that is not the session's current one may predate
+    a rotation (a restored backup), so it is replaced by a fresh one."""
+    ahead = s.clamp_owner_rotation()
+    if ahead is not None:
+        log.warning("the owner-link rotation time %.0f was ahead of the clock; set it to now", ahead)
+    if creds["ownerAt"] is None:
+        held = (read_json(d / SECRETS) or {}).get("owner") == creds["owner"]
+        if held and s.owner_rotated_at() is not None and not s.is_owner_token(creds["owner"]):
+            creds["owner"] = secrets.token_urlsafe(32)
+            log.warning("the secrets file's owner token had no issue time and is not the current one; issued a fresh owner link")
+        creds["ownerAt"] = time.time()
+    if creds != read_json(d / SECRETS):
+        detached.write_private(d / SECRETS, json.dumps(creds) + "\n")
+
+
+def open_session(d, creds, log, *, defaults_file=None, initial_state=None):
     """The session in d/state.json: loaded and migrated, or created from defaults.json or from
     `initial_state` (a session file from elsewhere, run through migrate.py and validated as
-    any load is). The owner token from the secrets file, issued at `owner_at`, becomes the
-    owner's credential unless the session rotated the owner link after that."""
+    any load is). The owner token in `creds` (from ensure_secrets) becomes the owner's
+    credential unless the session rotated the owner link after it was issued."""
     path = d / STATE
     version = plugin_version()
     try:
@@ -212,11 +230,12 @@ def open_session(d, owner_token, owner_at, *, defaults_file=None, initial_state=
                 goal=defaults.get("goal") or "",
                 settings=defaults.get("settings") or {},
                 plugin_version=version,
-                owner_token=owner_token,
+                owner_token=creds["owner"],
             )
         else:
             s = session.Session.load(path, plugin_version=version)
-        s.reset_owner_token(owner_token, owner_at)
+        settle_owner_token(d, s, creds, log)
+        s.reset_owner_token(creds["owner"], creds["ownerAt"])
         return s
     except (migrate.MigrationError, DomainError, OSError) as exc:
         raise StartRefused(getattr(exc, "message", None) or str(exc)) from exc
@@ -342,7 +361,7 @@ class ControlHandler(session_bridge.LoopbackHandler):
         try:
             out = app.session.apply(msg)
         except DomainError as exc:
-            app.log.info("ops refused: %s %s", exc.code, exc.details.get("op"))
+            app.log.info("ops refused: %s %s", exc.code, loggable(exc.details.get("op")))
             return self.send(exc.http, exc.body())
         app.changed()
         app.log.info("ops applied: %d", len(msg.get("ops", [])))
@@ -435,9 +454,9 @@ class GuestHandler(BaseHTTPRequestHandler):
         if code != 304:
             with contextlib.suppress(*session_bridge.DISCONNECTS):
                 self.wfile.write(raw)
-        path = CONTROL_CHARS.sub(lambda m: f"\\x{ord(m.group(0)):02x}", urlparse(getattr(self, "path", "") or "").path[:80])
+        path = loggable(urlparse(getattr(self, "path", "") or "").path)
         took = (time.monotonic() - getattr(self, "t0", time.monotonic())) * 1000
-        self.app.log.info("%s %s %d %.1fms", self.command or "-", path or "-", code, took)
+        self.app.log.info("%s %s %d %.1fms", loggable(self.command or "-", 16), path or "-", code, took)
 
     def send_error(self, code, message=None, explain=None):
         """http.server's own refusals (a request line too long, an unknown method): JSON, same headers."""
@@ -622,7 +641,7 @@ class App:
         detached.make_private_dir(self.dir / session.STAGING)
         self.log = make_logger(self.dir)
         self.secrets = ensure_secrets(self.dir)
-        self.session = open_session(self.dir, self.secrets["owner"], self.secrets["ownerAt"], defaults_file=defaults_file, initial_state=initial_state)
+        self.session = open_session(self.dir, self.secrets, self.log, defaults_file=defaults_file, initial_state=initial_state)
         self.session.on_owner_token = self.owner_rotated
         self.build = build_hash()
         self.bucket = Bucket(session.RATE_PER_SECOND, session.RATE_BURST)
