@@ -165,6 +165,20 @@ The two layers therefore disagree, which is a real blind spot. See
 [gotchas.md](gotchas.md). It also means two `git worktree` checkouts of one repo, sharing one `.git`
 and one tracked `.claude/settings.json`, hold independent records and pin independently.
 
+**The literal-cwd keying is not reliable for `update` when sibling worktrees hold a record of the same
+id.** Observed once on Claude Code 2.1.299 (harness-ops 3.14.0, 2026-10-14; issue #7445): from the main
+checkout, `claude plugin update <id> -s project` updated the record keyed to a linked worktree of the
+same repository for one of five ids, and the main checkout's record stayed behind. The CLI's output
+named the worktree's path as the scope it updated. The matching rule is not known (a match by
+repository rather than by literal cwd, or first record in file order, are both consistent with it) and
+the other four ids hit the cwd's record. Do not trust the cwd to select the record: read the record
+back after the call, per [converge.md](converge.md) Step 4 and the in-repo step in
+[sync.md](sync.md). The same applies to `-s local`.
+
+When reading a record out of a `fleet-state.sh` report, a `project`/`local` record belongs to the run
+only when its `currentProject` flag is `true`; matching on id and scope alone returns whichever
+sibling's record comes first.
+
 ## A `projectPath` outlives its directory, and no CLI verb reaps the record
 
 Removing the directory a project/local install was made from leaves the install record in place,

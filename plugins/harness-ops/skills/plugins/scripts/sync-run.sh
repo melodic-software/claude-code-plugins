@@ -441,12 +441,15 @@ if [[ -n "${SYNC_RUN_VERSION_DIRECTION:-}" ]]; then
 fi
 
 # That id's version in a saved fleet-state report, at that scope. Empty when the
-# report does not carry the record.
+# report does not carry the record. A project or local record counts only when it
+# belongs to the project the run stands in (`currentProject`): several worktrees
+# can each hold a record of one id, and the first in file order is not this one.
 version_at() {
   local __var="$1" report="$2" id="$3" scope="$4"
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to "$__var" -r --arg id "$id" --arg sc "$scope" \
-    'first(.installed[]? | select(.id == $id and .scope == $sc) | .version) // ""' "$report"
+    'first(.installed[]? | select(.id == $id and .scope == $sc
+      and ($sc == "user" or .currentProject == true)) | .version) // ""' "$report"
 }
 
 # --- journaled mutation --------------------------------------------------------
@@ -1327,6 +1330,22 @@ finalize_moves() {
       version_at new "$post" "$id" "$scope"
       [[ "$new" == "$old" ]] && new=""
     fi
+    # The CLI says it updated a project/local record, yet the run's own record is
+    # unchanged in the post read: it updated a sibling worktree's record of the id
+    # instead. Never a success row.
+    # A --only-install re-entry restores the first pass's failed rows, this one
+    # included, so it does not append it again.
+    if ((ONLY_INSTALL_MODE == 0)) && [[ "$kind" == "in_repo" && "$scope" != "user" &&
+      "$result" == "updated" && -n "$new" && -n "$old" && -f "$post" ]]; then
+      local cur
+      version_at cur "$post" "$id" "$scope"
+      if [[ "$cur" == "$old" && "$new" != "$old" ]]; then
+        IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" --arg new "$new" \
+          '{id: $id, scope: $sc, rc: 0, output: "",
+            reason: ("the CLI reported \($old) to \($new), but this project'"'"'s record is still at \($old): it updated another record of the id (a sibling worktree'"'"'s)")}')")
+        continue
+      fi
+    fi
     if [[ -z "$new" ]]; then
       new="unknown"
       dir="unknown"
@@ -1553,7 +1572,8 @@ monitor_rows() {
     jq_to scope -r '.scope' <<<"$row"
     # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
     jq_to path -r --arg id "$id" --arg sc "$scope" \
-      'first(.installed[]? | select(.id == $id and .scope == $sc) | .installPath) // ""' "$post"
+      'first(.installed[]? | select(.id == $id and .scope == $sc
+        and ($sc == "user" or .currentProject == true)) | .installPath) // ""' "$post"
     [[ -n "$path" ]] || continue
     monitor_count_at n "${path//\\//}"
     ((n > 0)) || continue

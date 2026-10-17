@@ -126,12 +126,15 @@ case "$verb" in
     exit 0
   fi
   new="${CLAUDE_STUB_NEW_VERSION:-9.9.9}"
-  old=$(jq -r --arg id "$id" --arg sc "$scope" \
-    'first(.plugins[$id][]? | select(.scope == $sc) | .version) // "0.0.0"' \
+  # CLAUDE_STUB_MISFIRE_PATH: the CLI moves only the record keyed to that path,
+  # as it did to a sibling worktree's record, whatever the cwd.
+  only="${CLAUDE_STUB_MISFIRE_PATH:-}"
+  old=$(jq -r --arg id "$id" --arg sc "$scope" --arg only "$only" \
+    'first(.plugins[$id][]? | select(.scope == $sc and ($only == "" or .projectPath == $only)) | .version) // "0.0.0"' \
     "$CLAUDE_STUB_INSTALLED_JSON")
   tmp="$CLAUDE_STUB_INSTALLED_JSON.next"
-  jq --arg id "$id" --arg sc "$scope" --arg v "$new" \
-    '.plugins[$id] = [.plugins[$id][] | if .scope == $sc then .version = $v else . end]' \
+  jq --arg id "$id" --arg sc "$scope" --arg v "$new" --arg only "$only" \
+    '.plugins[$id] = [.plugins[$id][] | if .scope == $sc and ($only == "" or .projectPath == $only) then .version = $v else . end]' \
     "$CLAUDE_STUB_INSTALLED_JSON" >"$tmp" && mv "$tmp" "$CLAUDE_STUB_INSTALLED_JSON"
   echo "Plugin \"${id%@*}\" updated from $old to $new for scope $scope. Restart to apply changes"
   ;;
@@ -763,6 +766,52 @@ assert_eq "enable gap: no project-scope enable is ever issued" "0" \
   "$(grep -c 'plugin enable .* -s project' "$case_dir/claude.log")"
 assert_eq "enable gap: the project-scope row is reported with its path" "$ppath" \
   "$(jq -r '.marketplaces[0].project_enable_rows[0].project_path' <<<"$out")"
+
+# ============================================================================
+# Case: a sibling worktree's record of the same id, listed first, does not
+# stand in for the record keyed on the run's own project
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.2.0
+ppath=$(norm_path "$case_dir")
+sibling=$(norm_path "$case_dir/sibling-worktree")
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [
+      {\"scope\": \"project\", \"projectPath\": \"$sibling\", \"installPath\": \"s\", \"version\": \"0.1.5\"},
+      {\"scope\": \"project\", \"projectPath\": \"$ppath\", \"installPath\": \"a\", \"version\": \"0.1.0\"}
+    ]
+  }
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NEW_VERSION=0.2.0)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "sibling worktree: the old version is the run's own record, not the first in file order" "0.1.0" \
+  "$(jq -r '.marketplaces[0].in_repo.updated[0].old' <<<"$out")"
+
+# The same fleet, but the CLI moves the sibling's record and leaves the run's own.
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [
+      {\"scope\": \"project\", \"projectPath\": \"$sibling\", \"installPath\": \"s\", \"version\": \"0.1.5\"},
+      {\"scope\": \"project\", \"projectPath\": \"$ppath\", \"installPath\": \"a\", \"version\": \"0.1.0\"}
+    ]
+  }
+}"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NEW_VERSION=0.2.0 CLAUDE_STUB_MISFIRE_PATH="$sibling")
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal2")
+assert_eq "misfire: a move of another project's record is not an Updated row" "0" \
+  "$(jq -r '.marketplaces[0].in_repo.updated | length' <<<"$out")"
+assert_eq "misfire: it is reported as its own failed row" "alpha@market1" \
+  "$(jq -r '.marketplaces[0].in_repo.failed[0].id' <<<"$out")"
+assert_contains "misfire: the reason names the sibling worktree" \
+  "$(jq -r '.marketplaces[0].in_repo.failed[0].reason' <<<"$out")" "sibling worktree"
 
 # ============================================================================
 # Case: an in-repo record for the plugin providing this skill is a self-update
