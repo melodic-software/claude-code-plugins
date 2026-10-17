@@ -2072,6 +2072,18 @@ class TestSelfRunner(SessionCase):
         (sent,) = self.events("round-sent")
         self.assertEqual([(r["from"], r["by"]) for r in sent["digest"]["results"]], [("guest-claude", "Ann")])
 
+    def test_a_result_made_before_a_send_and_published_after_it_reaches_the_next_digest_once(self):
+        # Expected: every published result reaches exactly one digest, the first sent after it was shown.
+        xid = self.answer_mine(self.ann, self.rid)
+        self.send()
+        self.ack(1)
+        self.act("act_on_request", HOST, {"action": "publish", "id": xid})
+        self.open_round(text_q("Q2"))
+        self.send()
+        first, second = self.events("round-sent")
+        self.assertEqual(first["digest"]["results"], [])
+        self.assertEqual([r["id"] for r in second["digest"]["results"]], [xid])
+
 
 class TestSelfRunnerLimits(SessionCase):
     """Fix 1 of the Phase 8 security review: a guest's own Claude cannot grow state or the digest without bound.
@@ -3889,6 +3901,36 @@ class TestStateFrom740e8da(StateFixtureCase):
         self.assertEqual([r["published"] for r in reloaded.state["results"]["Q1"]], [True, True, False])
 
 
+class TestStateFrom62d8520(StateFixtureCase):
+    """state-written-62d8520.json was written by 62d8520's own session.py: Ann (tok0002x9) holds watcher key
+    tok0006x32 and an unshared result X1 from her own Claude ("The address step."); Bo (tok0004x9) took watcher key
+    tok0007x32 and was then removed, which that build left in credentials.watchers; round 1 is sent with no results
+    in its digest. It loads unchanged; restoring Bo does not revive his key, and X1 shared now reaches round 2's
+    digest."""
+
+    def test_a_state_62d8520_wrote_loads_unchanged_and_takes_the_fixes(self):
+        s = self.load("state-written-62d8520.json")
+        ann, bo = "tok0002x9", "tok0004x9"
+        self.assertEqual(s.resolve(watcher="tok0006x32"), ann)
+        s.clock.tick()
+        s.set_removed(HOST, {"pid": bo, "on": False})
+        with self.assertRaises(session.DomainError) as ctx:
+            s.resolve(watcher="tok0007x32")
+        self.assertEqual(ctx.exception.http, 401)
+        s.clock.tick()
+        s.act_on_request(HOST, {"action": "publish", "id": "X1"})
+        s.clock.tick()
+        s.apply({"ops": [{"op": "ack-round", "round": 1}]})
+        s.clock.tick()
+        s.apply({"ops": [{"op": "open-round", "questions": [text_q("Q2")]}]})
+        s.clock.tick()
+        s.send_round(HOST, {})
+        first, second = [e for e in s.state["log"]["events"] if e["kind"] == "round-sent"]
+        self.assertEqual((first["digest"]["results"], [r["summary"] for r in second["digest"]["results"]]), ([], ["The address step."]))
+        self.assertIsNone(session.document_error(json.loads(s.path.read_text(encoding="utf-8"))))
+        session.Session.load(s.path, validate_writes=True)
+
+
 class TestWatcherKey(SessionCase):
     """Fix 3 of the Phase 8 security review: a watcher key per person, random, stored hashed, revocable, that answers
     only for its person's own self requests. Expected values: the review's requirements and the sha256 storage every
@@ -3927,12 +3969,36 @@ class TestWatcherKey(SessionCase):
         self.act("set_removed", HOST, {"pid": self.ann, "on": True})
         with self.assertRaises(session.DomainError) as ctx:
             self.s.resolve(watcher=token)
-        self.assertEqual(ctx.exception.http, 403)
-        self.act("set_removed", HOST, {"pid": self.ann, "on": False})
-        self.act("merge_people", HOST, {"from": self.ann, "to": self.bo})
+        self.assertEqual(ctx.exception.http, 401)
+        token = self.act("issue_watcher", self.bo, {})["token"]
+        self.act("merge_people", HOST, {"from": self.bo, "to": self.ann})
         with self.assertRaises(session.DomainError) as ctx:
             self.s.resolve(watcher=token)
         self.assertEqual(ctx.exception.http, 401)
+
+    def test_restoring_a_removed_person_does_not_bring_back_their_old_key(self):
+        token = self.act("issue_watcher", self.ann, {})["token"]
+        self.act("set_removed", HOST, {"pid": self.ann, "on": True})
+        self.act("set_removed", HOST, {"pid": self.ann, "on": False})
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.resolve(watcher=token)
+        self.assertEqual((ctx.exception.http, ctx.exception.code), (401, "unknown-session"))
+        self.assertEqual(self.disk()["credentials"]["watchers"], {})
+
+    def test_declining_a_join_drops_any_key_its_person_holds(self):
+        # A waiting person cannot ask for a key, so the key is planted directly, as a hand-edited state.json could.
+        self.act("update_settings", HOST, {"approveJoins": True})
+        jib = self.join("Jib")[0]
+        self.s.state["credentials"].setdefault("watchers", {})[session.sha256("planted-key")] = jib
+        self.act("act_on_join", HOST, {"pid": jib, "action": "decline"})
+        self.act("set_removed", HOST, {"pid": jib, "on": False})
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.resolve(watcher="planted-key")
+        self.assertEqual(ctx.exception.http, 401)
+
+    def test_the_owner_cannot_take_a_watcher_key(self):
+        self.refused("guests-only", "issue_watcher", HOST, {}, http=403)
+        self.assertEqual(self.s.state["credentials"].get("watchers", {}), {})
 
 
 if __name__ == "__main__":

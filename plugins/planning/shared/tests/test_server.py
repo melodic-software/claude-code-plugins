@@ -1234,7 +1234,7 @@ class TestWatcherKey(ServerCase):
     def setUp(self):
         super().setUp()
         self.open_round("Q1")
-        _, self.ann = self.join("Ann")
+        self.ann_pid, self.ann = self.join("Ann")
         _, self.bo = self.join("Bo")
         code, _, out = self.post("/api/request", {"qid": "Q1", "kind": "ask", "text": "Which step drops most?", "runner": "self"}, self.ann)
         self.assertEqual(code, 200, out)
@@ -1277,6 +1277,17 @@ class TestWatcherKey(ServerCase):
         self.assertEqual(self.get("/api/mine/requests", self.key)[0], 401)
         self.assertEqual(self.post("/api/mine/requests/claim", {"id": self.rid}, self.key)[0], 401)
         self.assertFalse(self.get("/api/state", self.ann)[2]["me"]["watcher"])
+
+    def test_a_removed_and_restored_persons_old_key_stays_dead(self):
+        self.assertEqual(self.post("/api/person/remove", {"pid": self.ann_pid, "on": True}, self.owner)[0], 200)
+        self.assertEqual(self.post("/api/person/remove", {"pid": self.ann_pid, "on": False}, self.owner)[0], 200)
+        code, _, out = self.get("/api/mine/requests", self.key)
+        self.assertEqual((code, out["error"]), (401, "unknown-session"))
+        self.assertFalse(self.get("/api/state", self.ann)[2]["me"]["watcher"])
+
+    def test_the_owner_is_refused_a_watcher_key(self):
+        code, _, out = self.post("/api/watcher", {}, self.owner)
+        self.assertEqual((code, out["error"]), (403, "guests-only"))
 
     def test_another_persons_watcher_key_cannot_touch_these_requests(self):
         code, _, out = self.post("/api/watcher", {}, self.bo)

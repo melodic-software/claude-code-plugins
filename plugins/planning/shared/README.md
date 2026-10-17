@@ -245,7 +245,11 @@ The **watcher key** is what a guest pastes into their own Claude, never their se
 under `credentials.watchers`), `POST /api/watcher/revoke` ends it, and the snapshot's
 `me.watcher` says whether one exists. Sent as `X-Watcher-Key`, it works only on the four
 `/api/mine/requests` routes, for its person's own requests; every other route answers it 401,
-as it does a key sent as `X-Session-Secret`. Removing a person stops it; merging drops it.
+as it does a key sent as `X-Session-Secret`. Removing, declining or merging a person drops it, so a
+restored person copies a new one. The owner gets none (403 `guests-only`).
+
+A digest lists each shared result once, in the first round sent after the owner shared it
+(`publishedAt`, else `at` for a result shared before that field existed).
 
 `web/connect.js` builds everything surface-specific; the server knows only `runner: self`:
 

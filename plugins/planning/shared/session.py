@@ -925,6 +925,7 @@ class Session:
                 person["status"] = {"kind": "active"}
             else:
                 person["status"] = {"kind": "removed", "at": self.now(), "by": HOST}
+                self._drop_watcher(target)
             self._presence_rev += 1
             return {"pid": target, "status": person["status"]["kind"]}
 
@@ -1109,12 +1110,16 @@ class Session:
             return {"trusted": on}
 
     def set_removed(self, pid, body):
-        """POST /api/person/remove: removing clears leader and trust; the secret stops working until restored."""
+        """POST /api/person/remove: removing clears leader and trust; the secret stops working until restored. The
+        watcher key ends for good: a restored person copies a new one. Restoring drops it too, for a state an
+        earlier build wrote, which kept a removed person's key."""
         on = _bool(body, "on")
         with self._tx() as st:
             self._owner(pid)
             target = self._target_person(body)
             person = st["people"][target]
+            if on or person["status"]["kind"] == "removed":
+                self._drop_watcher(target)
             if on:
                 person.update(role="guest", trusted=False, status={"kind": "removed", "at": self.now(), "by": HOST})
                 self._presence.pop(target, None)
@@ -2652,6 +2657,7 @@ class Session:
         req = next((r for r in self.state["requests"] if r["id"] == res["request"]), None)
         if action == "publish":
             res["published"] = True
+            res["publishedAt"] = self.now()
             if req:
                 self._notify(req["pid"], "request", f"Your request on question {req['qid']} is done.", actor=pid, qid=req["qid"], body=one_line(res["summary"])[:160])
         else:
@@ -2738,6 +2744,8 @@ class Session:
 
     def issue_watcher(self, pid, body):
         """POST /api/watcher: a new watcher key for one's own Claude, replacing any earlier one. Only its hash is kept."""
+        if pid == HOST:
+            raise DomainError(403, "guests-only", "Watcher keys are for a guest's own Claude; the owner's Claude already runs this session.")
         with self._write_as(pid, "watcher") as st:
             self._drop_watcher(pid)
             token = self.ids.token(32)
@@ -2982,7 +2990,7 @@ class Session:
                     item["suggestion"] = f["why"]["suggestion"]
                 review.append(item)
         results, more, chars = [], 0, 0
-        for r in (r for lst in st["results"].values() for r in lst if self._result_shown(r) and r["at"] > prev):
+        for r in (r for lst in st["results"].values() for r in lst if self._result_shown(r) and r.get("publishedAt", r["at"]) > prev):
             chars += len(r["summary"])
             if len(results) >= MAX_DIGEST_RESULTS or chars > MAX_DIGEST_CHARS:
                 more += 1

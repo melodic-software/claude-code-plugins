@@ -832,7 +832,8 @@
             }
           ]
         },
-        "published": {"type": "boolean"}
+        "published": {"type": "boolean"},
+        "publishedAt": {"$ref": "#/$defs/ts"}
       }
     },
     "upload": {
