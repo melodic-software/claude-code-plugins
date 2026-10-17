@@ -124,9 +124,9 @@ degraded-verifier rule in [dual-verification.md](dual-verification.md) covers a
 *missing* cross-vendor arm, not a session that cannot spawn. This is the one
 copy of the ladder; every other file points here.
 
-0. **A concurrency refusal is not a death.** A spawn refused with
-   `Concurrent subagent limit reached` (the refusal tells the caller not to
-   retry) is a full session, not a lost agent. Do not re-dispatch at once. If
+0. **A concurrency refusal is not a death.** A spawn the harness
+   refuses for the concurrent subagent limit is a full session, not a lost
+   agent. Do not re-dispatch at once. If
    this run has agents of its own running, wait for one to return. If it has
    none, do phase work that needs no agent, or wait a few minutes with a
    Monitor wait (the Bash tool blocks a foreground `sleep`). Then dispatch the
@@ -134,9 +134,8 @@ copy of the ladder; every other file points here.
    checklist. A unit refused again falls to rung 2 with the refusals recorded.
    Rung 1 does not apply to a refusal.
    - **Pointer**: <https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit>
-     (the refusal, that it tells Claude not to retry, and that spawning
-     succeeds again once the running count drops below the limit). Do not
-     restate the limit here.
+     (the refusal text, what it tells the caller, and when spawning succeeds
+     again).
    - **As of**: 2026-10-17
    - **Recheck trigger**: that section changes what the refusal tells Claude
      to do or when spawning succeeds again.
