@@ -1,3 +1,6 @@
+<!-- GENERATED from lib/git-hooks/git-hook-decisions.md by scripts/sync-shared-copies.sh. Do not edit this copy:
+edit the canonical source, then rerun the script. -->
+
 # Git-hook decisions
 
 The `decisions[]` kinds that `install.mjs plan` returns, and what the setup agent does with each.

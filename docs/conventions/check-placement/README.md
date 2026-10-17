@@ -10,6 +10,9 @@ Status: the rubric applies now. The registration contract is specified here and 
 rollout of the check plugins' git-hook entries; until a plugin's entry ships, its setup has no
 `install-git-hooks` action.
 
+Adopting the entries in a repository (trying one in a clone, a formatter's cleanup PR, sharing
+with the team, declining) is in [adopting-git-hooks.md](adopting-git-hooks.md).
+
 Related conventions: [hook-budget](../hook-budget/README.md) owns spawn counts for Claude Code
 hooks and the CI ratchets that enforce them; [hook-precision](../hook-precision/README.md) owns
 what a hook fires on and the stay-quiet test discipline. This doc owns where a check runs and how

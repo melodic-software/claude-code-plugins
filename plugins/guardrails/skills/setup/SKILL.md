@@ -168,9 +168,9 @@ with your own edit tools. Never runs from bare `apply`.
 When the user does not want an entry in this clone, run
 `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry <name>`; the
 session-start drift line then stays silent until `verify` runs by hand, and `--undo` reverses
-it. Add `--global` (with or without `--undo`) to decline the entry in every clone;
-`git config --global checks.git-hooks.declined true` declines every entry of every plugin, and an
-entry's own key set to `false` in a clone opts that entry back in. Declining records the choice and
+it. Add `--global` (with or without `--undo`) to decline the entry in every clone. The [adoption
+path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/check-placement/adopting-git-hooks.md) covers the rest for the user: each scope,
+the master key that declines every entry, and opting a clone back in. Declining records the choice and
 does not stop an installed copy: when `list` shows the entry installed, also remove its
 registration with your edit tools (the
 `<event>.d/guardrails.<name>` marker for plain hooks, the `guardrails-<name>` job in the lefthook
