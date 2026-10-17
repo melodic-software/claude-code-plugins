@@ -21,13 +21,13 @@ jobs:
   fix-docs:
     # Pipeline lanes skip draft PRs (docs/conventions/pr-pipeline/README.md).
     # The lanes App's own pull_request events never start a lane: tested here
-    # too, so a lane push never waits in the per-PR write queue. Nor does a PR
-    # a bot opened (standards sync), whose events claude-code-action refuses.
+    # too, so a lane push never waits in the per-PR write queue. Nor does any
+    # other bot's event (standards sync), which claude-code-action refuses.
     if: >-
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
       && !(github.event_name == 'pull_request'
       && (format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID
-      || github.event.pull_request.user.type == 'Bot'))
+      || github.event.sender.type == 'Bot'))
     permissions:
       contents: read
       pull-requests: read
