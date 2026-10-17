@@ -412,6 +412,11 @@
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._\\[\\]-]*$",
           "description": "The model pr-verify.yml judges each head with. Absent: the action's default model (README.md, Verifier verdict)."
         },
+        "verify-authors": {
+          "enum": ["lane", "any"],
+          "default": "lane",
+          "description": "Whose pull requests pr-verify.yml judges. lane: only those the lanes App (agent-identity, a Bot account) opened; any: every author's. The resolver skips on any other value (README.md, Verifier verdict)."
+        },
         "agent-identity": {
           "type": "string",
           "pattern": "^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\[bot\\]$",

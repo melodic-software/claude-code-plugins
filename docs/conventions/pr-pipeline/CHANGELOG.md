@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 1.22.1 - 2026-10-17
+## 1.23.1 - 2026-10-17
 
 The review-dependency activity checks commit provenance
 ([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review)). Its classifier applies the
@@ -12,6 +12,14 @@ accepts a `fix` only from commits GitHub signed for the lanes App during the run
 whole, else `dependency-invalid` or `superseded-sha`. `run.json` gains `files_truncated`, and a
 `merge` verdict on a truncated files listing escalates the new reason
 `dependency-files-truncated`. `version` stays 1.
+
+## 1.23.0 - 2026-10-17
+
+`merge.verify-authors` (`lane`, `any`; absent is `lane`) is a new optional key. Under `lane`
+`.github/workflows/pr-verify.yml` judges only pull requests the lanes App opened (a `Bot` account
+whose login is `merge.agent-identity`, compared as the pr-merge lane compares it) and skips any
+other author's before the model runs, with the reason `author-not-lane`; `any` judges every
+author's, and any other value judges none ("Verifier verdict"). `version` stays 1.
 
 ## 1.22.0 - 2026-10-17
 
