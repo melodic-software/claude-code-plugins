@@ -478,6 +478,10 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
   so the merge gate correctly refuses. Breaking the cycle is a one-time human admin-merge
   bootstrap of that fix PR; no tier automates it. Surface it as a blocker needing that bootstrap,
   never as a reason to route around the gate
+- **Every worker draws on one forge API budget.** Waits, GraphQL-only reads, writes and a
+  rate-limit error each follow the [API budget](../../reference/providers/github/README.md#api-budget):
+  one background watcher per PR at 60 s or slower, writes one at a time, and a stop at the first
+  rate-limit error, never a retry loop
 
 ## Reference index. Load on demand
 

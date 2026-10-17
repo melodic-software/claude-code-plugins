@@ -38,10 +38,16 @@ poll=0
 
 while true; do
   # Terminal state check — exit watch if PR closed/merged. REST, like the
-  # CI read below (§3.1 "Polling CI from more than one worker").
-  read -r state head_sha < <(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER" \
-    --jq '"\(if .merged then "MERGED" elif .state == "closed" then "CLOSED" else "OPEN" end) \(.head.sha)"' \
-    2>/dev/null | tr -d '\r')
+  # CI read below (§3.1 "Polling CI from more than one worker"). A rate
+  # limit stops the watch: polling on would probe for recovery
+  # (../README.md#api-budget).
+  if out=$(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER" \
+    --jq '"\(if .merged then "MERGED" elif .state == "closed" then "CLOSED" else "OPEN" end) \(.head.sha)"' 2>&1); then
+    read -r state head_sha <<<"$(printf '%s' "$out" | tr -d '\r')"
+  elif grep -qiE 'rate limit|HTTP 429' <<<"$out"; then
+    echo "RATE-LIMITED — watch stopped: $out"
+    exit 2
+  fi
   if [ "$state" = "MERGED" ] || [ "$state" = "CLOSED" ]; then
     echo "PR #$PR_NUMBER $state — watch complete"
     exit 0
@@ -99,7 +105,7 @@ while true; do
 
   # Review threads: resolving one moves no check and posts no comment, so
   # the reads above never see it. The Gate 7 read (readiness.md) costs a
-  # GraphQL call, so it runs every 4th poll (about 2 minutes) and emits
+  # GraphQL call, so it runs every 4th poll (about 4 minutes) and emits
   # when the unresolved count, or THREADS_UNPROVEN, changes.
   if [ $((poll % 4)) -eq 0 ]; then
     cur_threads=$(bash "<scripts-dir>/source-control-review-threads" "$OWNER/$REPO#$PR_NUMBER" 2>/dev/null \
@@ -112,7 +118,7 @@ while true; do
   fi
   poll=$((poll + 1))
 
-  sleep 30
+  sleep 60
 done
 ```
 

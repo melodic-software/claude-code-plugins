@@ -451,7 +451,9 @@ seconds. Idle backs off toward the 3600s ceiling (standing mode's one-hour wakeu
 daily-scale cadence belongs to `/schedule`, not a single-session `/loop` (same section). On a
 cycle-budget or seven-day-expiry hit, write a restart-request into the telemetry state block and
 stop the loop cleanly, the budget restarts the session, never ends the loop, and every budget hit
-is a manual-restart state, per the convention.
+is a manual-restart state, per the convention. A forge rate-limit error ends the cycle's forge
+work: wake next no earlier than the reset the
+[API budget](../../reference/providers/github/README.md#api-budget) names, never a retry.
 
 ## Spoke paths
 
