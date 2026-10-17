@@ -22,6 +22,7 @@
           {"$ref": "#/$defs/fail-request"},
           {"$ref": "#/$defs/add-reference"},
           {"$ref": "#/$defs/remove-reference"},
+          {"$ref": "#/$defs/set-purpose"},
           {"$ref": "#/$defs/add-asset"},
           {"$ref": "#/$defs/make-question-from"},
           {"$ref": "#/$defs/handle"}
@@ -113,6 +114,17 @@
       "required": ["op", "qid", "index"],
       "additionalProperties": false,
       "properties": {"op": {"enum": ["remove-reference"]}, "qid": {"$ref": "#/$defs/qid"}, "index": {"type": "integer", "minimum": 0}}
+    },
+    "set-purpose": {
+      "description": "Corrects an existing question's purpose under the same rules as the owner's purpose route.",
+      "type": "object",
+      "required": ["op", "qid", "purpose"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["set-purpose"]},
+        "qid": {"$ref": "#/$defs/qid"},
+        "purpose": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/purpose"}
+      }
     },
     "add-asset": {
       "type": "object",
