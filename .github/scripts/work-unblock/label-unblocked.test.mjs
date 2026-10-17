@@ -1036,3 +1036,17 @@ test("a re-fire record with no App re-add after it is finished by the next sweep
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), restarted(30));
 });
+
+test("a re-fire record and the App's re-add in the same second, on unchanged workflow files, is not re-fired again", async () => {
+  const { github, actions, calls } = failedRun({
+    comments: [note(), refireNote(KEY, "2026-10-16T11:00:01Z")],
+    events: [
+      added(LABELED_AT, OWNER),
+      { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T11:00:01Z" },
+      added("2026-10-16T11:00:01Z"),
+    ],
+    runs: [laneRun(), laneRun({ at: "2026-10-16T11:00:04Z" })],
+  });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+});
