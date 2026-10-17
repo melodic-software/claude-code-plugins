@@ -702,7 +702,21 @@ const BOT = "melodic-automation-lanes[bot]";
 const OWNER_ID = 153232337;
 const HUMANS = new Set([OWNER_ID]);
 const lane = (run, attempt = 1) => `work-resolve-issue/issue-77-${run}-${attempt}`;
-const branchFact = (name, { aheadBy = 2, tipAt = Date.parse("2026-10-16T10:00:00Z"), pulls = [] } = {}) => ({ name, aheadBy, tipAt, pulls });
+// A lane tip as GET /commits/{sha} answered for a real lane branch
+// (work-resolve-issue/issue-5911-39058616222-1): authored by the lanes App
+// bot, committed by web-flow, verified with reason "valid".
+const LANE_TIP = {
+  author: { login: BOT, type: "Bot" },
+  committer: { login: "web-flow" },
+  commit: { committer: { date: "2026-10-16T10:00:00Z" }, verification: { verified: true, reason: "valid" } },
+};
+const branchFact = (name, { aheadBy = 2, tip = LANE_TIP, tipAt = Date.parse("2026-10-16T10:00:00Z"), pulls = [] } = {}) => ({
+  name,
+  aheadBy,
+  tip,
+  tipAt,
+  pulls,
+});
 const pullBy = (login, state = "open") => ({ state, user: { login } });
 const closer = (typename, login, databaseId, repo = "o/r") => ({
   number: 501,
@@ -745,6 +759,33 @@ test("a lane branch with a closed lanes-App PR, or no commits ahead, is not reus
   for (const branch of [branchFact(lane(400), { pulls: [pullBy(BOT, "closed")] }), branchFact(lane(400), { aheadBy: 0 })]) {
     assert.deepEqual(prior({ branches: [branch] }), { action: "run" });
   }
+});
+
+// Anyone with push access can create a branch with a lane name, so only a tip
+// GitHub verified and the lanes App wrote counts as the lane's work.
+test("a lane branch whose tip is unverified or not the lanes App's is passed over, not reused", () => {
+  for (const [label, tip] of [
+    ["unverified", { ...LANE_TIP, commit: { ...LANE_TIP.commit, verification: { verified: false, reason: "unsigned" } } }],
+    ["another author", { ...LANE_TIP, author: { login: "stranger", type: "User" } }],
+    ["no verification", { ...LANE_TIP, commit: { committer: LANE_TIP.commit.committer } }],
+    ["no tip", null],
+  ]) {
+    assert.deepEqual(prior({ branches: [branchFact(lane(400), { tip })] }), { action: "run" }, label);
+    const older = branchFact(lane(399));
+    assert.deepEqual(prior({ branches: [branchFact(lane(400), { tip }), older] }), { action: "reuse", branch: lane(399) }, label);
+  }
+});
+
+test("a verified tip the lanes App committed but did not author is the lane's work", () => {
+  const tip = { ...LANE_TIP, author: { login: "stranger", type: "User" }, committer: { login: BOT } };
+  assert.deepEqual(prior({ branches: [branchFact(lane(400), { tip })] }), { action: "reuse", branch: lane(400) });
+});
+
+test("--find-prior runs the model when the only lane branch's tip is not the lanes App's", async () => {
+  const commitAnswer = { ...LANE_TIP, author: { login: "stranger", type: "User" } };
+  const { code, output } = await runPrior({ refs: [refOf(lane(400))], commitAnswer });
+  assert.equal(code, 0);
+  assert.equal(output, "proceed=true\nskip-reason=\nreuse-branch=\n");
 });
 
 test("a stopped, pushback or limited marker for the branch's run keeps it from reuse", () => {
@@ -812,7 +853,7 @@ async function runPrior({
   pulls = [],
   comparison = { ahead_by: 2 },
   repoAnswer = { default_branch: "main" },
-  commitAnswer = { committer: { date: "2026-10-16T10:00:00Z" } },
+  commitAnswer = LANE_TIP,
   graphqlPages,
 }) {
   return withAsyncDir({ "trusted.json": TRUSTED_LIST, output: "" }, async (dir) => {
@@ -823,7 +864,7 @@ async function runPrior({
       ["GET", /\/repos\/o\/r$/, 200, repoAnswer],
       ["GET", /\/compare\//, 200, comparison],
       ["GET", /\/pulls$/, 200, pulls],
-      ["GET", /\/git\/commits\//, 200, commitAnswer],
+      ["GET", /^\/repos\/o\/r\/commits\/[0-9a-f]{40}$/, 200, commitAnswer],
     ]);
     const { calls } = fake;
     const fetch = async (url, init = {}) => {
@@ -971,7 +1012,7 @@ test("--find-prior fails on a repository answer with no default branch", async (
 
 test("--find-prior fails on a tip commit with no readable time when a marker names no run", async () => {
   const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped -->", created_at: "2026-10-16T11:00:00Z" }];
-  for (const commitAnswer of [{}, { committer: { date: "not a date" } }]) {
+  for (const commitAnswer of [{}, { ...LANE_TIP, commit: { ...LANE_TIP.commit, committer: { date: "not a date" } } }]) {
     await failsClosed(JSON.stringify(commitAnswer), { comments, refs: [refOf(lane(400))], commitAnswer });
   }
 });

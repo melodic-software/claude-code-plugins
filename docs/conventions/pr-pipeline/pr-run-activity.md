@@ -952,15 +952,16 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
 - Each issue is worked once. In a skill run, the `issue-prior` step (`report-outcome.mjs
   --find-prior`) runs after `resolve-config` and before the mint, with the job's read-only
   `GITHUB_TOKEN`, and reads the issue's lane branches (`git/matching-refs` on
-  `work-resolve-issue/issue-<n>-`), their PRs, their commits ahead of the default branch, the
-  issue's open closing PRs and the lanes App's outcome markers on it. It skips the run
-  `not-applicable`, with no lane token, no model and no comment, when a lanes-App PR from a lane branch
-  is open, or when an open PR in this repository closes the issue and the lanes App or a listed
-  human (`trusted-actors.json`) opened it; anyone's other closing PR is ignored. It also skips
-  `not-applicable` and sets the `reuse-branch` output to the first lane branch, newest run and
-  attempt first, that has commits ahead, no lanes-App PR in any state (a closed one was rejected
-  or merged) and no lanes-App outcome marker for its run: the work was made and its report never
-  posted. Branches that fail any of these are passed over, not stopped at, so an older unreported
+  `work-resolve-issue/issue-<n>-`), their PRs, their tip commits, their commits ahead of the
+  default branch, the issue's open closing PRs and the lanes App's outcome markers on it. It skips
+  the run `not-applicable`, with no lane token, no model and no comment, when a lanes-App PR from a
+  lane branch is open, or when an open PR in this repository closes the issue and the lanes App or
+  a listed human (`trusted-actors.json`) opened it; anyone's other closing PR is ignored. It also
+  skips `not-applicable` and sets the `reuse-branch` output to the first lane branch, newest run
+  and attempt first, that has commits ahead, a tip commit GitHub verified and the lanes App
+  authored or committed (a branch name alone proves nothing), no lanes-App PR in any state (a
+  closed one was rejected or merged) and no lanes-App outcome marker for its run: the work was
+  made and its report never posted. Branches that fail any of these are passed over, not stopped at, so an older unreported
   branch is reused even when a newer branch's run was handed back or limit-stopped. A branch whose
   own run posted a hand-back or limited marker is never reused. Any failed read, or an answer of
   the wrong shape, fails the step, so nothing is minted.
@@ -992,8 +993,9 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
   branch (a re-run attempt of the run that made it). Otherwise, and when that outcome cannot be
   read, `report-outcome` opens a held PR from the branch with fixed text naming the earlier run and
   none of the model's text, ignoring any limit record; the earlier run's artifact would need
-  `actions: read`, which no lane token holds. `report-statuses` then posts `error` for
-  `resolve-issue` and every prep step on that branch.
+  `actions: read`, which no lane token holds. `report-statuses` then posts only
+  `pipeline/report-outcome` on that branch, so any statuses the earlier run posted on the same
+  head stand.
 - No check run is posted: there is no PR head. The lane's `report-statuses` job (in
   `work-resolve-issue.yml`, the lane's only `statuses: write`, on its own `GITHUB_TOKEN`) posts a
   `pipeline/<activity>` commit status on the lane branch's head for `resolve-issue` and

@@ -441,11 +441,14 @@ export function readBranch(dir, issueNumber) {
 //          opened it (anyone can write `Closes #N`, so an outsider's PR
 //          would let anyone stop the lane);
 //   reuse  the first lane branch, newest first, with commits ahead of the default branch,
+//          a tip commit GitHub verified and the lanes App authored or
+//          committed (a branch name proves nothing about who pushed to it),
 //          no lanes-App PR in any state (a closed one was rejected or
 //          merged) and no lanes-App outcome marker for its run (that report
 //          already handed the work on, so the model runs again);
 //   run    otherwise.
-// `branches` are {name, aheadBy, tipAt, pulls} (tipAt epoch ms, pulls from
+// `branches` are {name, aheadBy, tip, tipAt, pulls} (tip from GET
+// /commits/{sha}, tipAt epoch ms, pulls from
 // GET /pulls?state=all&head=); `closing` the issue's open closing PRs as
 // GraphQL nodes; `markers` the lanes App's parsed outcome markers, each with
 // `at`. A marker naming no run, posted before markers named one, covers every
@@ -472,7 +475,11 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
   }
   const reported = ({ match, tipAt }) =>
     markers.some((marker) => marker.run === match[1] || (marker.run === "" && !(marker.at <= tipAt)));
-  const reuse = lane.find((branch) => branch.aheadBy > 0 && !branch.pulls.some(byBot) && !reported(branch));
+  const laneTip = ({ tip }) =>
+    tip?.commit?.verification?.verified === true && (tip.author?.login === bot || tip.committer?.login === bot);
+  const reuse = lane.find(
+    (branch) => branch.aheadBy > 0 && laneTip(branch) && !branch.pulls.some(byBot) && !reported(branch),
+  );
   return reuse ? { action: "reuse", branch: reuse.name } : { action: "run" };
 }
 
@@ -620,12 +627,16 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
         throw new Error(`the commits ${ref.name} holds ahead of ${base} could not be read`);
       }
       const pulls = await paginate(github, `${repo}/pulls?state=all&head=${encodeURIComponent(`${owner}:${ref.name}`)}`);
+      if (!/^[0-9a-f]{40}$/.test(ref.sha ?? "")) {
+        throw new Error(`the tip of ${ref.name} could not be read`);
+      }
+      const tip = await github("GET", `${repo}/commits/${ref.sha}`);
       // Only a marker naming no run needs the tip's time.
-      const tipAt = legacy ? Date.parse((await github("GET", `${repo}/git/commits/${ref.sha}`))?.committer?.date) : Number.NaN;
+      const tipAt = legacy ? Date.parse(tip?.commit?.committer?.date) : Number.NaN;
       if (legacy && !Number.isFinite(tipAt)) {
         throw new Error(`the tip commit time of ${ref.name} could not be read`);
       }
-      branches.push({ name: ref.name, aheadBy: comparison.ahead_by, tipAt, pulls });
+      branches.push({ name: ref.name, aheadBy: comparison.ahead_by, tip, tipAt, pulls });
     }
     const prior = findPrior({ issueNumber, repo: env.GITHUB_REPOSITORY, bot, humans, branches, closing, markers });
     const outputs =
