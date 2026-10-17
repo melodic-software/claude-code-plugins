@@ -2136,7 +2136,7 @@
 }
 .app .vf-mreact[aria-pressed="true"] { color: var(--accent-text); border-color: color-mix(in oklch, var(--accent) 60%, transparent); background: var(--accent-soft); }
 .app .vf-mreact-e, .app .vf-mreact-face, .app .vf-mm-face { font-size: 14px; line-height: 1; }
-.app .vf-mm-face { inline-size: 16px; flex: none; text-align: center; }
+.app .vf-mm-face { inline-size: 18px; flex: none; text-align: center; }
 /* Add sits beside ⋯ and, like it, shows on hover or focus; touch reaches it through React in the long-press menu. */
 .app .vf-mreact-add {
   all: unset; box-sizing: border-box; cursor: pointer; flex: none; display: none; align-items: center; justify-content: center; gap: 1px;
