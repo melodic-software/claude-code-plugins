@@ -146,14 +146,12 @@ activities:
     inputs: [issue]
     applies-when:
       events: [labeled]
-      # A lane never admits on its own judgment. An issue is admitted when it
-      # is labeled "work-class: read-only" or "work-class: mechanical", or when
-      # the owner ratified it with the admission marker comment
+      # A lane never admits on its own judgment. An issue is admitted only
+      # when the owner ratified it with the admission marker comment
       # (`<!-- admission: admitted when unblocked, owner batch ratification
-      # YYYY-MM-DD -->`, by a human on the trusted-actor list). An issue with
-      # any other work class starts nothing, even beside an admitted one.
+      # YYYY-MM-DD -->`, by a human on the trusted-actor list). No
+      # `work-class:` label admits or refuses it.
       admission:
-        classes: ["work-class: read-only", "work-class: mechanical"]
         ratified: true
       # Only issues labeled agent-ready after this time start a run; an issue
       # labeled earlier starts nothing.
@@ -251,17 +249,17 @@ loop:
   dependency-review-rounds: 2
 
 merge:
-  # The lane auto-merges only PRs whose single closing issue is labeled
-  # `work-class: mechanical` (C2): dependency bumps, lint and format fixes,
-  # syncs. A class label on the PR itself is never read. The classes C1-C5 (read-only,
-  # mechanical, scoped, structural, untrusted-provenance) are defined in
-  # plugins/autonomy/reference/guardrails/work-classes.md.
+  # The lane treats every PR the lanes App opened for one closing issue as
+  # class C2 (plugins/autonomy/reference/guardrails/work-classes.md) and reads
+  # no `work-class:` label; the diff-derived C2 checks still apply. Its merge
+  # criterion is the verifier verdict below.
   rung: C2
   authority: pr-merge
   agent-identity: melodic-automation-lanes[bot]
   # Reports each decision and writes nothing until the owner sets false.
   report-only: true
-  # A PR merges only with a passing pr-verify.yml verdict at its head.
+  # A PR merges only with a passing pr-verify.yml verdict at its head. Must be
+  # true at a rung above off: the gate refuses otherwise.
   require-verifier-verdict: true
   # The model pr-verify.yml judges with.
   verifier-model: opus

@@ -123,8 +123,8 @@
         "admission": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["classes"],
-          "description": "Which issues an issues lane admits. An issue carrying a `work-class:` label outside `classes` is refused, even beside a listed one. Otherwise it is admitted by a listed class label or, with `ratified: true`, by the owner's ratification marker: a comment line `<!-- admission: admitted when unblocked, owner batch ratification YYYY-MM-DD -->` posted by a human on the trusted-actor list, not through a GitHub App, and never edited; no bot ratifies. Work-class labels match in any casing or spacing, and labels are read when the run starts. The check cannot tell the owner typing from a local agent posting with the owner's token: it guarantees only that no App or Actions bot can self-admit. Off an issues event `ratified` cannot be decided and fails the run.",
+          "anyOf": [{ "required": ["classes"] }, { "required": ["ratified"] }],
+          "description": "Which issues an issues lane admits. With no `classes`, only the owner's ratification marker admits (`ratified: true`) and no `work-class:` label is read. With `classes`, an issue carrying a `work-class:` label outside them is refused, even beside a listed one; otherwise it is admitted by a listed class label or, with `ratified: true`, by the owner's ratification marker: a comment line `<!-- admission: admitted when unblocked, owner batch ratification YYYY-MM-DD -->` posted by a human on the trusted-actor list, not through a GitHub App, and never edited; no bot ratifies. Work-class labels match in any casing or spacing, and labels are read when the run starts. The check cannot tell the owner typing from a local agent posting with the owner's token: it guarantees only that no App or Actions bot can self-admit. Off an issues event `ratified` cannot be decided and fails the run.",
           "properties": {
             "classes": {
               "type": "array",
@@ -384,6 +384,19 @@
             "properties": { "authority": { "const": "local-babysit" } }
           },
           "then": { "required": ["agent-identity"] }
+        },
+        {
+          "if": {
+            "required": ["rung", "agent-identity"],
+            "properties": {
+              "rung": { "enum": ["C2", "C3"] },
+              "authority": { "const": "pr-merge" }
+            }
+          },
+          "then": {
+            "required": ["require-verifier-verdict"],
+            "properties": { "require-verifier-verdict": { "const": true } }
+          }
         }
       ],
       "properties": {
@@ -405,7 +418,7 @@
         "require-verifier-verdict": {
           "type": "boolean",
           "default": false,
-          "description": "true: the pr-merge lane refuses a pull request, and dequeues a queued one, without a passing pr-verify verdict at its head (README.md, Verifier verdict)."
+          "description": "true: the pr-merge lane refuses a pull request, and dequeues a queued one, without a passing pr-verify verdict at its head (README.md, Verifier verdict). It is the lane's merge criterion, so an enabled pr-merge lane (agent-identity set) at a rung above off must set it true; the gate refuses `verifier-verdict-not-required` otherwise."
         },
         "verifier-model": {
           "type": "string",

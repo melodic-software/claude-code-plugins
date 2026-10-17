@@ -1314,90 +1314,9 @@ def _foreign_refusal(pr: dict[str, Any], owner: str) -> str | None:
 # --- Eligibility in the pr-merge lane -----------------------------------------------------
 
 
-def _lane_class(
-    owner: str,
-    name: str,
-    issue: dict[str, Any],
-    identity: str | None,
-    human: Callable[[Any], bool],
-) -> tuple[str | None, str | None]:
-    """(work class, refusal) from the closing issue's `work-class:` labels.
-    The class lives on the issue only; a label on the pull request never
-    counts (D30).
-
-    Label events are replayed from two trusted actors: the lane identity's
-    App, and a human acting in person (`is_human`, no
-    `performed_via_github_app`), the provenance `eligibility` accepts. Any
-    other actor's are ignored, such as another bot's, since a workflow on a
-    branch an agent pushed labels as `github-actions`. A label present now or
-    standing in that replay can only make the class stricter. The strictest
-    class must be C2, present now and standing in the replay, and a human's
-    application must not predate an edit of the issue body."""
-    labels = _label_names(issue)
-    if labels is None:
-        return None, "class-labels-unreadable"
-    events = sorted(
-        (
-            e
-            for e in _timeline(owner, name, issue["number"], {})
-            if e.get("event") in ("labeled", "unlabeled")
-            and str(json_object(e.get("label")).get("name") or "")
-            .casefold()
-            .startswith(WORK_CLASS_PREFIX)
-        ),
-        key=lambda e: _time(e.get("created_at")),
-    )
-    # Each trusted label, with the time a human applied it (None for the App).
-    trusted: dict[str, datetime | None] = {}
-    for event in events:
-        actor = _rest_actor(event.get("actor"))
-        by_app = bool(identity) and actor_key(actor) == str(identity).strip().casefold()
-        if not by_app and (
-            event.get("performed_via_github_app") is not None or not human(actor)
-        ):
-            continue
-        # GitHub label names are case-insensitive.
-        label = str(json_object(event.get("label")).get("name")).casefold()
-        if event.get("event") == "labeled":
-            trusted[label] = None if by_app else _time(event.get("created_at"))
-        else:
-            trusted.pop(label, None)
-    folded = (label.casefold() for label in labels)
-    current = {label for label in folded if label.startswith(WORK_CLASS_PREFIX)}
-    seen = current | set(trusted)
-    if not seen:
-        return None, "class-missing"
-    if any(label not in WORK_CLASS_LABELS for label in seen):
-        return None, "class-unknown"
-    strictest = max(seen, key=lambda label: int(WORK_CLASS_LABELS[label][1]))
-    work_class = WORK_CLASS_LABELS[strictest]
-    if work_class != "C2":
-        return work_class, f"class-not-mechanical:{work_class}"
-    if strictest not in current:
-        return work_class, "class-label-removed"
-    if strictest not in trusted:
-        return work_class, "class-label-untrusted"
-    applied = trusted[strictest]
-    edited = issue.get("lastEditedAt")
-    if applied is not None and edited and _time(edited) > applied:
-        return work_class, "class-provenance:body-edited-after-label"
-    return work_class, None
-
-
-def _lane_human(
-    repo: str,
-    agent_identity: str | None,
-    self_logins: Collection[str],
-    permission: Permission | None,
-) -> Callable[[Any], bool]:
-    permission = permission or permission_reader(repo)
-    return lambda actor: is_human(
-        actor,
-        repo=repo,
-        agent_identity=agent_identity,
-        self_logins=self_logins,
-        permission=permission,
-    )
+# Every lane pull request's class, as Dependabot's is: no `work-class:` label
+# is read. The diff-derived C2 checks in the risk score still apply.
+LANE_CLASS = "C2"
 
 
 def _denied_path_refusal(
@@ -1435,16 +1354,15 @@ def lane_eligibility(
     self_logins: Collection[str] = frozenset(),
     permission: Permission | None = None,
 ) -> Eligibility:
-    """Whether the pr-merge lane may consider a pull request (plan Design
-    "Eligibility"): not a fork or a dependency manager's, opened by the agent
-    identity, exactly one closing
-    issue in this repository whose class `_lane_class` reads as C2, and a
-    diff touching no `merge.diff-check.denied-paths`.
+    """Whether the pr-merge lane may consider a pull request: not a fork or a
+    dependency manager's, opened by the agent identity, exactly one closing
+    issue in this repository (the verifier verdict binds to it), and a diff
+    touching no `merge.diff-check.denied-paths`. Such a pull request is
+    class `LANE_CLASS`; no `work-class:` label is read.
     `pr` is the REST record, whose `changed_files` the file listing must
-    reach. Holds (the `do-not-merge` label, a `Hold:` line) are the gate's."""
+    reach. Holds (the `do-not-merge` label, a `Hold:` line) are the gate's.
+    `self_logins` and `permission` are unused: no human read remains."""
     owner, name = _split_repo(repo)
-    human = _lane_human(repo, agent_identity, self_logins, permission)
-    work_class = None
     issue_number = None
     try:
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
@@ -1454,21 +1372,19 @@ def lane_eligibility(
         foreign = _foreign_refusal(node, owner)
         if foreign:
             return Eligibility(False, foreign)
-        # The class sits on the issue, so anyone could name a mechanical
-        # issue in `Closes #N`; only a pull request the lane opened counts.
+        # Anyone could name an issue in `Closes #N`; only a pull request the
+        # lane opened counts.
         if not _lane_authored(node, agent_identity):
             return Eligibility(False, "not-lane-authored")
         issue, refusal = _closing_issue(node, repo)
         if refusal is None:
             issue_number = issue["number"]
-            work_class, refusal = _lane_class(owner, name, issue, agent_identity, human)
-        if refusal is None:
             refusal = _denied_path_refusal(
                 owner, name, number, pr.get("changed_files"), denied_paths
             )
     except PolicyReadError as exc:
         return Eligibility(False, f"unreadable: {exc}")
-    return Eligibility(refusal is None, refusal, work_class, issue_number)
+    return Eligibility(refusal is None, refusal, LANE_CLASS, issue_number)
 
 
 # A commit's file list stops at this many entries, so a full one may hide more.
@@ -1699,28 +1615,22 @@ def dependabot_eligibility(
     return Eligibility(True, None, "C2", dependabot=tier)
 
 
-def recheck_lane_class(
-    repo: str,
-    number: int,
-    *,
-    agent_identity: str | None,
-    self_logins: Collection[str] = frozenset(),
-    permission: Permission | None = None,
-) -> str | None:
-    """The lane's class read again from the closing issue right before the
-    enqueue: a label removed or made stricter, or a closing issue changed,
-    since the eligibility read refuses."""
+def recheck_lane_issue(repo: str, number: int, *, issue: int | None) -> str | None:
+    """The closing issue read again right before the enqueue: it must still
+    be the one, in this repository, that the eligibility read found (`issue`),
+    since the verifier verdict binds to it."""
     owner, name = _split_repo(repo)
-    human = _lane_human(repo, agent_identity, self_logins, permission)
     try:
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
         node = json_object(json_object(data.get("repository")).get("pullRequest"))
         if not node:
             return "pull-request-unreadable"
-        issue, refusal = _closing_issue(node, repo)
+        found, refusal = _closing_issue(node, repo)
         if refusal:
             return refusal
-        return _lane_class(owner, name, issue, agent_identity, human)[1]
+        if found["number"] != issue:
+            return f"closing-issue-changed:{issue}>{found['number']}"
+        return None
     except PolicyReadError as exc:
         return f"unreadable: {exc}"
 
@@ -2616,6 +2526,15 @@ def assess(
     # What refuses this pull request itself, whatever else does: its own
     # queued entry leaves the queue on it.
     own = (
+        # No class is read in the lane, so the verifier verdict is its merge
+        # criterion: a lane that does not require one would merge on none.
+        (
+            lane
+            and not dependabot_pr
+            and config.rung != "off"
+            and not config.require_verifier_verdict,
+            "verifier-verdict-not-required",
+        ),
         (not eligible.eligible, f"ineligible:{eligible.reason}"),
         # The rung is a work-class ceiling: C4 and C5 never merge unattended.
         (

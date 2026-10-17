@@ -117,6 +117,33 @@ test("rung C2 with a valid diff-check and no authority still validates (absent a
   );
 });
 
+// Merge-criterion plan, Design 3: the enabled pr-merge lane reads no class,
+// so the verifier verdict must be required.
+const LANE = {
+  rung: "C2",
+  "agent-identity": IDENTITY,
+  "diff-check": { "denied-paths": [".claude/**"], "max-changed-lines": 200 },
+};
+
+test("an enabled pr-merge lane above off without a required verdict fails the schema", () => {
+  for (const merge of [
+    LANE,
+    { ...LANE, authority: "pr-merge" },
+    { ...LANE, "require-verifier-verdict": false },
+    { ...LANE, rung: "C3", "require-verifier-verdict": false },
+  ]) {
+    rejectedFor(withMerge(merge), /require-verifier-verdict/);
+  }
+});
+
+test("an enabled pr-merge lane with a required verdict, or at rung off, validates", () => {
+  assert.doesNotThrow(() => run(withMerge({ ...LANE, "require-verifier-verdict": true })));
+  assert.doesNotThrow(() => run(withMerge({ ...LANE, rung: "off" })));
+  assert.doesNotThrow(() =>
+    run(withMerge({ ...LANE, authority: "local-babysit" })),
+  );
+});
+
 test("rung C2 without diff-check still fails the schema", () => {
   rejectedFor(withMerge({ rung: "C2" }), /required property 'diff-check'/);
 });

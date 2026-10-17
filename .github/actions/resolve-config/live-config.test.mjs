@@ -192,35 +192,23 @@ const ISSUE = {
   ratified: false,
 };
 
-test("live config: resolve-issue starts for a read-only issue labeled after the go-live time", () => {
-  assert.equal(selected("work-resolve-issue", "resolve-issue", ISSUE).applies, true);
+// Merge-criterion plan, Design 5: admission is the owner's marker comment
+// (`ratified`, gathered by resolve-config from comments by a listed human);
+// no work-class label admits or refuses.
+test("live config: resolve-issue starts nothing for a labeled issue with no ratification", () => {
+  for (const labels of [["agent-ready", "work-class: read-only"], ["agent-ready", "work-class: mechanical"]]) {
+    assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels }), "not-applicable");
+  }
 });
 
-test("live config: resolve-issue starts nothing for an issue labeled before the go-live time", () => {
-  assert.equal(
-    skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labeledAt: "2026-10-14T19:21:58Z" }),
-    "not-applicable",
-  );
-});
-
-test("live config: resolve-issue starts for a mechanical issue", () => {
-  assert.equal(
-    selected("work-resolve-issue", "resolve-issue", { ...ISSUE, labels: ["agent-ready", "work-class: mechanical"] }).applies,
-    true,
-  );
-});
-
-test("live config: resolve-issue admits read-only and mechanical issues only", () => {
-  assert.equal(
-    skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels: ["agent-ready", "work-class: scoped"] }),
-    "not-applicable",
-  );
-});
-
-// Owner rule: an agent-ready issue with no work class starts only when the
-// owner ratified it with the admission marker comment (`ratified`, gathered by
-// resolve-config from comments by a listed human).
 const RATIFIED = { ...ISSUE, labels: ["agent-ready"], ratified: true };
+
+test("live config: resolve-issue starts nothing for a ratified issue labeled before the go-live time", () => {
+  assert.equal(
+    skipReason("work-resolve-issue", "resolve-issue", { ...RATIFIED, labeledAt: "2026-10-14T19:21:58Z" }),
+    "not-applicable",
+  );
+});
 
 test("live config: resolve-issue starts for an owner-ratified issue with no work class", () => {
   assert.equal(selected("work-resolve-issue", "resolve-issue", RATIFIED).applies, true);
@@ -244,12 +232,13 @@ test("live config: a ratified issue still needs the agent-ready label event afte
   );
 });
 
-// #7491: a held class beside an allowed one is refused, ratified or not.
-test("live config: resolve-issue refuses an issue carrying a held class beside an allowed one", () => {
+// The ratified issues still carrying a held class (#5981, #6821, #6825,
+// #6826, #6832) start on the marker alone.
+test("live config: resolve-issue starts for a ratified issue whatever its work-class label", () => {
   for (const held of ["work-class: scoped", "work-class: structural", "work-class: untrusted-provenance"]) {
-    const labels = ["agent-ready", "work-class: mechanical", held];
+    const labels = ["agent-ready", held];
+    assert.equal(selected("work-resolve-issue", "resolve-issue", { ...RATIFIED, labels }).applies, true);
     assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels }), "not-applicable");
-    assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...RATIFIED, labels }), "not-applicable");
   }
 });
 
@@ -307,7 +296,6 @@ test("live config: label-unblocked may only write issues", () => {
 
 test("live config: readAdmission returns resolve-issue's admission, which label-unblocked applies", () => {
   assert.deepEqual(readAdmission({ basePath: fileURLToPath(new URL("../../..", import.meta.url)), activity: "resolve-issue" }), {
-    classes: ["work-class: read-only", "work-class: mechanical"],
     ratified: true,
   });
 });

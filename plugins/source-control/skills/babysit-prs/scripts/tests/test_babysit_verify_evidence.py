@@ -927,11 +927,52 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.assertIs(graphql.call_args.args[0], policy.ELIGIBILITY)
         self.read.assert_not_called()
 
-    def test_the_lane_without_the_key_reads_no_verdict(self) -> None:
+    def test_the_lane_without_the_key_refuses(self) -> None:
+        # Design 3: the verdict is the lane's only merge criterion.
         self.config = dataclasses.replace(self.config, require_verifier_verdict=False)
         code, out = self.lane()
-        self.assertEqual(code, 0, out["blockers"])
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "verifier-verdict-not-required")
         self.read.assert_not_called()
+
+    def unlabeled_lane_pr(self) -> None:
+        """The real lane eligibility over a lanes-App pull request whose one
+        closing issue carries no `work-class:` label."""
+        self.lane_eligible = None
+        issue = {
+            "number": 41,
+            "repository": {"nameWithOwner": "owner/repo"},
+            "labels": {"totalCount": 0, "nodes": []},
+        }
+        node = {
+            "number": unattended.PR,
+            "isCrossRepository": False,
+            "headRepositoryOwner": {"login": "owner"},
+            "author": {"__typename": "Bot", "login": "agent-lanes"},
+            "closingIssuesReferences": {"totalCount": 1, "nodes": [issue]},
+        }
+        for name, answer in (
+            ("_graphql", {"repository": {"pullRequest": node}}),
+            ("_denied_path_refusal", None),
+        ):
+            patcher = mock.patch.object(policy, name, return_value=answer)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_an_unlabeled_issue_merges_on_a_pass_as_c2(self) -> None:
+        self.unlabeled_lane_pr()
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(out["unattended"]["eligibility"]["workClass"], "C2")
+        self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
+
+    def test_a_missing_verdict_refuses_even_at_low_risk(self) -> None:
+        self.unlabeled_lane_pr()
+        self.verdicts[unattended.PR] = evidence("verify:missing")
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
+        self.assertEqual(out["unattended"]["reason"], "verify:missing")
 
 
 class LocalBabysitReadsNoVerdict(unattended.Unattended):
