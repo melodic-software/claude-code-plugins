@@ -3,9 +3,9 @@
 // its author id is listed, it was not posted through an unlisted App, and it
 // was never edited or last edited by a listed id), from the trusted-actor
 // list's kinds (only a `human` entry can record a decision), and from the
-// trigger gate's ratified-label rule (the issue is admitted as it stood at the
-// newest ratification marker). Ids and logins are the shared trusted-actors
-// fixture's.
+// label-only admission rule (the issue is admitted as it stood when the
+// account that applied the label last added it). Ids and logins are the shared
+// trusted-actors fixture's.
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -23,7 +23,6 @@ const OWNER = { id: 153232337, login: "kyle-sexton" };
 const LANES_BOT = { id: 337595936, login: "melodic-automation-lanes[bot]" };
 const CURSOR_AGENT = { id: 199161495, login: "cursoragent" };
 const STRANGER = { id: 999, login: "stranger" };
-const MARKER = "<!-- admission: admitted when unblocked, owner batch ratification 2026-10-17 -->";
 
 const at = (day) => `2026-10-${String(day).padStart(2, "0")}T00:00:00Z`;
 const comment = (n, user, body, extra = {}) => ({
@@ -45,7 +44,10 @@ const ISSUE = {
   labels: [{ name: "agent-ready" }, "work-class: mechanical"],
 };
 
-function fakeGitHub({ comments, edits = {}, issueEdits = {}, users = {}, fail = "" }) {
+const labeled = (actor, day, name = "agent-ready") => ({ event: "labeled", label: { name }, actor, created_at: at(day) });
+
+// By default the owner added agent-ready after every comment a test posts.
+function fakeGitHub({ comments, edits = {}, issueEdits = {}, users = {}, fail = "", events = [labeled(OWNER, 28)] }) {
   return async (method, apiPath, body) => {
     const key = `${method} ${apiPath}`;
     if (key === fail) {
@@ -53,6 +55,9 @@ function fakeGitHub({ comments, edits = {}, issueEdits = {}, users = {}, fail = 
     }
     if (key === `GET /repos/${REPO}/issues/6825`) {
       return structuredClone(ISSUE);
+    }
+    if (key === `GET /repos/${REPO}/issues/6825/events?per_page=100&page=1`) {
+      return structuredClone(events);
     }
     if (key === `GET /repos/${REPO}/issues/6825/comments?per_page=100&page=1`) {
       return structuredClone(comments);
@@ -100,6 +105,7 @@ async function run(github, { sender = String(OWNER.id) } = {}) {
       ISSUE_FILE: file,
       LANES_APP_ID: String(LANES_BOT.id),
       LABEL_SENDER_ID: sender,
+      LABEL_NAME: "agent-ready",
     },
     github,
     log: (line) => logged.push(line),
@@ -190,23 +196,24 @@ test("a human's decision posted through a listed App is kept but no decision", a
   assert.deepEqual(summary(issue), [["kyle-sexton", "human", false]]);
 });
 
-test("on the lanes App's ratified label, a body or title changed after the newest marker writes no file", async () => {
-  for (const issueEdits of [{ lastEditedAt: "2026-10-14T00:00:00Z" }, { renamedAt: "2026-10-14T00:00:00Z" }]) {
-    const { code, issue } = await run(
-      fakeGitHub({ comments: [comment(13, OWNER, `Admitted.\n\n${MARKER}`)], issueEdits }),
-      { sender: String(LANES_BOT.id) },
+test("a body or title changed after the label was added writes no file, for a human's label or the App's", async () => {
+  for (const labeler of [OWNER, LANES_BOT]) {
+    const options = { sender: String(labeler.id) };
+    for (const issueEdits of [{ lastEditedAt: "2026-10-14T00:00:00Z" }, { renamedAt: "2026-10-14T00:00:00Z" }]) {
+      const { code, issue } = await run(fakeGitHub({ comments: [], issueEdits, events: [labeled(labeler, 13)] }), options);
+      assert.equal(code, 1);
+      assert.equal(issue, null);
+    }
+    const { code } = await run(
+      fakeGitHub({
+        comments: [],
+        issueEdits: { lastEditedAt: "2026-10-12T00:00:00Z", renamedAt: "2026-10-13T00:00:00Z" },
+        events: [labeled(labeler, 13)],
+      }),
+      options,
     );
-    assert.equal(code, 1);
-    assert.equal(issue, null);
+    assert.equal(code, 0);
   }
-  const { code } = await run(
-    fakeGitHub({
-      comments: [comment(13, OWNER, `Admitted.\n\n${MARKER}`)],
-      issueEdits: { lastEditedAt: "2026-10-12T00:00:00Z", renamedAt: "2026-10-13T00:00:00Z" },
-    }),
-    { sender: String(LANES_BOT.id) },
-  );
-  assert.equal(code, 0);
 });
 
 test("drops a listed author's comment last edited by an unlisted account", async () => {
@@ -229,41 +236,42 @@ test("drops a comment a listed account posted through an unlisted App", async ()
   assert.deepEqual(issue.comments, []);
 });
 
-test("on the lanes App's ratified label, leaves out comments created or edited after the newest marker", async () => {
-  const { code, issue } = await run(
-    fakeGitHub({
-      comments: [
-        comment(11, OWNER, "**Decision recorded.** → option 1"),
-        comment(12, OWNER, "Edited later."),
-        comment(13, OWNER, `Admitted.\n\n${MARKER}`),
-        comment(14, OWNER, "**Decision recorded.** → option 2"),
-      ],
-      edits: { IC_12: { lastEditedAt: "2026-10-15T00:00:00Z", editor: { databaseId: OWNER.id } } },
-    }),
-    { sender: String(LANES_BOT.id) },
-  );
-  assert.equal(code, 0);
-  assert.deepEqual(
-    issue.comments.map((kept) => kept.body),
-    ["**Decision recorded.** → option 1", `Admitted.\n\n${MARKER}`],
-  );
+const FOUR = [
+  comment(11, OWNER, "**Decision recorded.** → option 1"),
+  comment(12, OWNER, "Edited later."),
+  comment(13, OWNER, "Before the label."),
+  comment(14, OWNER, "**Decision recorded.** → option 2"),
+];
+const LATE_EDIT = { IC_12: { lastEditedAt: "2026-10-15T00:00:00Z", editor: { databaseId: OWNER.id } } };
+const bodies = (issue) => issue.comments.map((kept) => kept.body);
+
+test("leaves out comments created or edited after the label was added, for a human's label or the App's", async () => {
+  for (const labeler of [OWNER, LANES_BOT]) {
+    const { code, issue } = await run(fakeGitHub({ comments: FOUR, edits: LATE_EDIT, events: [labeled(labeler, 13)] }), {
+      sender: String(labeler.id),
+    });
+    assert.equal(code, 0);
+    assert.deepEqual(bodies(issue), ["**Decision recorded.** → option 1", "Before the label."]);
+  }
 });
 
-test("a human-applied label keeps comments after the marker", async () => {
-  const { issue } = await run(
-    fakeGitHub({
-      comments: [comment(13, OWNER, `Admitted.\n\n${MARKER}`), comment(14, OWNER, "**Decision recorded.** → option 2")],
-    }),
-  );
-  assert.equal(issue.comments.length, 2);
-});
-
-test("the lanes App's label with no kept marker writes no file", async () => {
-  const { code, issue } = await run(fakeGitHub({ comments: [comment(11, OWNER, "no marker")] }), {
-    sender: String(LANES_BOT.id),
-  });
+test("the newest label event from the account that applied it is the anchor; another account's never moves it", async () => {
+  const events = [labeled(OWNER, 10), labeled(OWNER, 13), labeled(STRANGER, 20), labeled(OWNER, 25, "bug")];
+  const { issue } = await run(fakeGitHub({ comments: FOUR, edits: LATE_EDIT, events }));
+  assert.deepEqual(bodies(issue), ["**Decision recorded.** → option 1", "Before the label."]);
+  const { code } = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-15T00:00:00Z" }, events }));
   assert.equal(code, 1);
-  assert.equal(issue, null);
+});
+
+test("no label event from the account that applied it, or a failed events read, writes no file", async () => {
+  for (const github of [
+    fakeGitHub({ comments: [], events: [labeled(STRANGER, 13)] }),
+    fakeGitHub({ comments: [], fail: `GET /repos/${REPO}/issues/6825/events?per_page=100&page=1` }),
+  ]) {
+    const { code, issue } = await run(github);
+    assert.equal(code, 1);
+    assert.equal(issue, null);
+  }
 });
 
 test("caps comments other than decisions at the newest twenty, keeping every decision", async () => {

@@ -10,10 +10,9 @@
 // pushback quotes the issue body. On any failure no file is left, so the
 // skill never reads a partial issue.
 //
-// When the lanes App applied the label (LABEL_SENDER_ID is LANES_APP_ID),
-// the trigger gate admitted the issue as it stood at the newest ratification
-// marker, so a comment created or edited after that marker is left out too,
-// and a title or body changed since that marker fails the run.
+// The label admitted the issue as it stood when LABEL_SENDER_ID last added
+// LABEL_NAME (the issue's labeled events), so a comment created or edited
+// after that is left out, and a title or body changed since fails the run.
 //
 // Environment:
 //   GITHUB_TOKEN          the lane token, which can read the issue
@@ -23,18 +22,13 @@
 //   ISSUE_FILE            where to write issue.json
 //   LANES_APP_ID          the lanes App bot's user id
 //   LABEL_SENDER_ID       the account that applied the label
+//   LABEL_NAME            the label whose event started the run
 //   GITHUB_API_URL
 import { rmSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import {
-  createGitHub,
-  loadTrustedList,
-  readIssueEdits,
-  unchangedSince,
-} from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { findRatification } from "../../actions/resolve-config/ratification.mjs";
+import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 
 const DECISION = /^\*\*Decision recorded\.\*\*(\s|$)/;
@@ -44,6 +38,43 @@ export const MAX_OTHER_COMMENTS = 20;
 
 const timeOf = (value) => (typeof value === "string" ? Date.parse(value) : Number.NaN);
 const firstLine = (body) => (body ?? "").trimStart().split("\n", 1)[0].trimEnd();
+
+// When an issue's body was last edited and its title last changed.
+const ISSUE_EDITS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    issue(number: $number) {
+      lastEditedAt
+      timelineItems(itemTypes: [RENAMED_TITLE_EVENT], last: 1) { nodes { ... on RenamedTitleEvent { createdAt } } }
+    }
+  }
+}`;
+
+// The issue's body edit and title change times (null when never). A failed
+// read or an unexpected shape throws.
+async function readIssueEdits(github, repository, number) {
+  const [owner, name] = repository.split("/");
+  const issue = (await github("POST", "/graphql", { query: ISSUE_EDITS_QUERY, variables: { owner, name, number: Number(number) } }))
+    ?.data?.repository?.issue;
+  if (issue === null || typeof issue !== "object" || Array.isArray(issue)) {
+    throw new Error("issue edits have an unexpected shape");
+  }
+  return [issue.lastEditedAt, ...(issue.timelineItems?.nodes ?? []).map((node) => node?.createdAt)];
+}
+
+// When `senderId` last added `label` to the issue: that account admitted the
+// text as it stood then. Another account's later label event never moves it.
+async function readAdmittedAt(github, repository, number, label, senderId) {
+  const events = await paginate(github, `/repos/${repository}/issues/${number}/events`);
+  const at = Math.max(
+    ...events
+      .filter((event) => event?.event === "labeled" && event.label?.name === label && event.actor?.id === senderId)
+      .map((event) => timeOf(event.created_at)),
+  );
+  if (!Number.isFinite(at)) {
+    throw new Error(`no ${label} label event from the account that applied it`);
+  }
+  return at;
+}
 
 export async function main({ env = process.env, github, log = console.log } = {}) {
   const file = env.ISSUE_FILE;
@@ -55,8 +86,11 @@ export async function main({ env = process.env, github, log = console.log } = {}
     if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "") || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("ISSUE_NUMBER or GITHUB_REPOSITORY is malformed");
     }
-    if (!/^[1-9][0-9]*$/.test(env.LANES_APP_ID ?? "")) {
-      throw new Error("LANES_APP_ID is not a user id");
+    if (!/^[1-9][0-9]*$/.test(env.LANES_APP_ID ?? "") || !/^[1-9][0-9]*$/.test(env.LABEL_SENDER_ID ?? "")) {
+      throw new Error("LANES_APP_ID or LABEL_SENDER_ID is not a user id");
+    }
+    if (!env.LABEL_NAME) {
+      throw new Error("LABEL_NAME is empty");
     }
     const lanesAppId = Number(env.LANES_APP_ID);
     const { ids, humans } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
@@ -70,21 +104,14 @@ export async function main({ env = process.env, github, log = console.log } = {}
       ids,
     });
     dropped["lanes-app"] = 0;
-    dropped["after-ratification"] = 0;
+    dropped["after-admission"] = 0;
     dropped["over-cap"] = 0;
 
-    let frozenAt = Number.POSITIVE_INFINITY;
-    if (env.LABEL_SENDER_ID === env.LANES_APP_ID) {
-      const ratifiers = new Set([...humans].filter((id) => id !== lanesAppId));
-      const markers = kept.map(({ comment }) => comment).filter((comment) => findRatification([comment], ratifiers));
-      if (markers.length === 0) {
-        throw new Error("the lanes App applied the label but no ratification marker is kept");
-      }
-      frozenAt = Math.max(...markers.map((comment) => timeOf(comment.created_at)));
-      // The gate checked this before the run; the author can edit since.
-      if (!unchangedSince(await readIssueEdits(client, repository, env.ISSUE_NUMBER), frozenAt)) {
-        throw new Error("the issue title or body changed after the newest ratification marker");
-      }
+    const frozenAt = await readAdmittedAt(client, repository, env.ISSUE_NUMBER, env.LABEL_NAME, Number(env.LABEL_SENDER_ID));
+    // NaN compares false, so an unparseable time is a change.
+    const edits = await readIssueEdits(client, repository, env.ISSUE_NUMBER);
+    if (!edits.every((time) => time == null || timeOf(time) <= frozenAt)) {
+      throw new Error(`the issue title or body changed after ${env.LABEL_NAME} was added`);
     }
 
     const comments = [];
@@ -97,7 +124,7 @@ export async function main({ env = process.env, github, log = console.log } = {}
       const editedAt = lastEditedAt === null ? createdAt : timeOf(lastEditedAt);
       // NaN compares false, so an unparseable time is left out.
       if (!(createdAt <= frozenAt && editedAt <= frozenAt)) {
-        dropped["after-ratification"] += 1;
+        dropped["after-admission"] += 1;
         continue;
       }
       const human = humans.has(comment.user.id);

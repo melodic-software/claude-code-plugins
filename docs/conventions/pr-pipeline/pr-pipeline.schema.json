@@ -123,15 +123,14 @@
         "admission": {
           "type": "object",
           "additionalProperties": false,
-          "anyOf": [{ "required": ["classes"] }, { "required": ["ratified"], "properties": { "ratified": { "const": true } } }],
-          "description": "Which issues an issues lane admits. With no `classes`, only the owner's ratification marker admits (`ratified: true`) and no `work-class:` label is read. With `classes`, an issue carrying a `work-class:` label outside them is refused, even beside a listed one; otherwise it is admitted by a listed class label or, with `ratified: true`, by the owner's ratification marker: a comment line `<!-- admission: admitted when unblocked, owner batch ratification YYYY-MM-DD -->` posted by a human on the trusted-actor list, not through a GitHub App, and never edited; no bot ratifies. Work-class labels match in any casing or spacing, and labels are read when the run starts. The check cannot tell the owner typing from a local agent posting with the owner's token: it guarantees only that no App or Actions bot can self-admit. Off an issues event `ratified` cannot be decided and fails the run.",
+          "required": ["classes"],
+          "description": "Which `work-class:` labels an issues lane admits: an issue carrying a `work-class:` label outside `classes` is refused, even beside a listed one; otherwise it is admitted by a listed class label. Work-class labels match in any casing or spacing, and labels are read when the run starts. With no `admission`, no work-class label is read.",
           "properties": {
             "classes": {
               "type": "array",
               "minItems": 1,
               "items": { "type": "string", "pattern": "^work-class: [a-z-]+$" }
-            },
-            "ratified": { "type": "boolean" }
+            }
           }
         },
         "labeled-after": {

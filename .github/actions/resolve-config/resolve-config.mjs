@@ -10,12 +10,10 @@ import { pathToFileURL } from "node:url";
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
 import {
   createGitHub,
-  loadTrustedList,
   paginate,
 } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { pipelineEvent } from "./predicate.mjs";
-import { findRatification } from "./ratification.mjs";
-import { checkConfigPath, laneHasActivity, loadConfig, neededFacts, resolve } from "./resolve.mjs";
+import { checkConfigPath, laneHasActivity, neededFacts, resolve } from "./resolve.mjs";
 
 const DEFAULT_BASE_PATH = ".base";
 const DEFAULT_CONFIG_PATH = "docs/conventions/pr-pipeline.yaml";
@@ -23,7 +21,6 @@ const SCHEMA_PATH = "docs/conventions/pr-pipeline/pr-pipeline.schema.json";
 const VOCABULARY_PATH =
   ".github/standards/github-actions-conventions/vocabulary.json";
 const CODEOWNERS_PATH = ".github/CODEOWNERS";
-const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
 // pulls/{n}/files lists at most this many files; a list that long may be cut.
 const FILES_CAP = 3000;
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
@@ -62,7 +59,7 @@ function readJsonUnderBase(basePath, relative) {
 
 async function gatherFacts(
   needed,
-  { eventName, event, prNumber, headSha, repository, github, sleep, loadRatifiers },
+  { eventName, event, prNumber, headSha, repository, github, sleep },
 ) {
   const facts = { event: pipelineEvent(eventName, event) };
   let pull;
@@ -105,23 +102,6 @@ async function gatherFacts(
   // was labeled.
   const issue = eventName === "issues" ? event.issue : undefined;
   if (issue !== undefined) {
-    if (needed.includes("ratified")) {
-      const ratifiers = loadRatifiers();
-      const comments = await paginate(
-        github,
-        `/repos/${repository}/issues/${Number(issue.number)}/comments`,
-      );
-      const ratifying = findRatification(comments, ratifiers);
-      facts.ratified = ratifying !== undefined;
-      // Which comment ratified it, never its text.
-      if (facts.ratified) {
-        console.log(
-          escapeCommand(
-            `resolve-config: ratified by comment ${Number(ratifying.id)} from ${ratifying.user.login} at ${ratifying.created_at}`,
-          ),
-        );
-      }
-    }
     if (needed.includes("labeledAt") && typeof issue.updated_at === "string") {
       facts.labeledAt = issue.updated_at;
     }
@@ -218,17 +198,6 @@ function filesUnderBase(basePath, configPath) {
   };
 }
 
-// The `admission` predicate the activity's applies-when sets, from the
-// validated config under base-path; a throw when it sets none.
-export function readAdmission({ basePath = DEFAULT_BASE_PATH, configPath = DEFAULT_CONFIG_PATH, activity }) {
-  const doc = loadConfig(filesUnderBase(basePath, configPath), { configPath });
-  const admission = doc.activities[activity]?.["applies-when"]?.admission;
-  if (admission === undefined) {
-    throw new Error(`activity \`${activity}\` sets no admission`);
-  }
-  return admission;
-}
-
 // The ResolvedConfig for the request env names, or a throw: a Rejection
 // (with its code) for a config or request the resolver refuses. `event` is the
 // payload; by default it is read from EVENT_PATH. With `absentAsNull`, a valid
@@ -246,16 +215,7 @@ export async function resolveFromBase({ env, github, sleep = wait, event, absent
   if (absentAsNull && !laneHasActivity(files, request)) {
     return null;
   }
-  // Who may ratify an issue's admission: the listed humans only. A lane never
-  // admits work on its own.
-  const loadRatifiers = () => {
-    if (readUnderBase(basePath, TRUSTED_ACTORS_PATH) === undefined) {
-      throw new Error(`no trusted-actor list at ${TRUSTED_ACTORS_PATH} under base-path`);
-    }
-    return loadTrustedList(join(basePath, TRUSTED_ACTORS_PATH)).humans;
-  };
   const facts = await gatherFacts(neededFacts(files, request), {
-    loadRatifiers,
     eventName: env.EVENT_NAME,
     event: event ?? JSON.parse(readFileSync(env.EVENT_PATH, "utf8")),
     prNumber: env.PR_NUMBER,

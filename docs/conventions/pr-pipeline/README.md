@@ -264,11 +264,11 @@ Each leaf declares:
   read from the PR at the gated head SHA only; unknown mergeability never matches. `labels-absent`
   matches only when none of its labels is on the PR. `labeled-after`, a UTC time, is an issues
   lane's go-live time: it matches only an issue labeled after it. `admission` is an issues lane's
-  admission rule. With no `classes` only the owner's batch-ratification marker comment admits
-  (`ratified: true`) and no `work-class:` label is read; this repository's resolve-issue uses that
-  form. With `classes`, an issue carrying a `work-class:` label outside them is refused, even
-  beside a listed one; otherwise a listed class admits it, or, with `ratified: true`, the marker
-  does. A lane never admits on its own judgment.
+  work-class rule: an issue carrying a `work-class:` label outside `classes` is refused, even
+  beside a listed one; otherwise a listed class admits it. With no `admission`, the triggering
+  label alone admits the issue; this repository's resolve-issue sets none, so `agent-ready`
+  added by a listed human or the lanes App admits, and its `labels-absent` holds keep an issue a
+  person must decide.
 
 An activity is idempotent: a rerun on the same commit gives the same verdict or reuses it, a
 mutating activity with nothing to change makes no commit, and each commit it makes names the
@@ -449,13 +449,9 @@ except six:
   and the diff-derived C2 checks of the risk score still apply. No opt-in label or lane claim is
   read. No closing issue, or more than one, refuses (`linked-issues:<n>`); right before the
   enqueue the closing issue is read again and a different one refuses
-  (`closing-issue-changed:<was>><now>`). The closing issue must also stand ratified under
-  resolve-issue's own start rule (`ratification.mjs` and check-trusted-trigger's
-  `checkRatifiedAppLabel`): a marker comment by a human on the trusted-actor list at the default
-  branch's current head, not one of `pr-merge.yml`'s denied actor ids, not through an App, never
-  edited, with no body edit or title change after the newest such comment. It is read fresh at
-  eligibility and again before the enqueue; otherwise `not-ratified`, and any read that fails
-  refuses. A pull request into any branch but the default refuses `base-not-default:<ref>`.
+  (`closing-issue-changed:<was>><now>`). A pull request into any branch but the default refuses
+  `base-not-default:<ref>`, read at eligibility and again before the enqueue; any read that fails
+  refuses.
 - **Verdict criterion.** No promotion evidence is read. The merge criterion is the pr-verify
   verdict at the head ([Verifier verdict](#verifier-verdict)), which binds to that one closing
   issue and its trusted spec, so with a rung above off the gate refuses
@@ -692,7 +688,7 @@ head:
 
 The trusted-spec rule trusts an account, not a person. An agent session that uses an owner's `gh`
 login posts as that owner, so until agent sessions have their own GitHub identity, an issue or an
-admission marker from a trusted account counts as the owner's authority, including when an agent
+`agent-ready` label from a trusted account counts as the owner's authority, including when an agent
 acting as that account wrote it. Unattended merge stays off (`merge.report-only: true`) until that
 identity exists.
 
