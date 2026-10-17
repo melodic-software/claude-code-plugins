@@ -9,7 +9,7 @@
 #   checkout_path::require <path>
 #
 # Exits 2 with `refused: ...` on stderr unless <path> is relative, has no `..`
-# segment, does not start with `-`, and, with links followed, names something
+# segment, does not start with `-` or `:` (git pathspec magic), and, with links followed, names something
 # inside the current directory (the checkout) other than the directory itself.
 
 checkout_path::refuse() {
@@ -24,7 +24,7 @@ checkout_path::require() {
     */../*) checkout_path::refuse "'$path' has a .. segment" ;;
     *) ;;
   esac
-  [[ $path != -* ]] || checkout_path::refuse "'$path' starts with -"
+  [[ $path != [-:]* ]] || checkout_path::refuse "'$path' starts with - or :"
   here=$(pwd -P)
   real=$(realpath -m -- "$path") || checkout_path::refuse "'$path' does not resolve"
   [[ $real == "$here"/* ]] || checkout_path::refuse "'$path' is not inside the checkout"

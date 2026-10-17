@@ -311,15 +311,16 @@ the arguments and prints `exit status: <n>` to stderr before exiting with that s
 lane denies a chained `; echo "$?"`; the system prompt says to run each wrapper as its own command.
 Any other arguments match, so a listed script that changes files or runs checkout code must limit
 itself. `resolve-issue` lists two that do, each refusing (exit 2) an argument that is absolute,
-has a `..` segment, starts with `-`, or resolves through a link to outside the checkout, including
+has a `..` segment, starts with `-` or `:`, or resolves through a link to outside the checkout, including
 a path that does not exist yet (`scripts/lib/checkout-path.sh`). `scripts/run-test-file.sh` takes
 one test file and runs it by name, `test_*.py` under `python3 -m pytest`, `*.test.sh` under
-`bash`, `*.test.mjs` under `node --test`, without `GH_TOKEN` or `GITHUB_TOKEN`; it refuses any
-other file. Its tests are checkout code with the network open. When the stage grants its wrapper,
+`bash`, `*.test.mjs` under `node --test`, each after `--`, without `GH_TOKEN` or `GITHUB_TOKEN`;
+it refuses any other file and any name outside `[A-Za-z0-9._/-]`, so pytest reads no node id. Its tests are checkout code with the network open. When the stage grants its wrapper,
 the write runner sets up Python from the base `.python-version` and installs the base's
 hash-pinned `.github/requirements-ci.txt` before the head checkout. `scripts/git-mv-rm.sh` runs
 `git mv <source> <destination>` or `git rm -r -f <path>...`, first recording an untracked path as
-intent-to-add so a file the run created can be renamed or removed. The index is local: the
+intent-to-add so a file the run created can be renamed or removed, with `GIT_LITERAL_PATHSPECS=1`
+so git reads each path literally, never as a glob or pathspec magic. The index is local: the
 change reaches the branch through `commit_files` and `delete_files`.
 `WebFetch` and
 `WebSearch` stay off (`--disallowedTools`) unless the activity sets `web-access`. With it on, the

@@ -7,7 +7,9 @@ can't-fail scan: `scripts/run-test-file.sh` runs one test file inside the checko
 (`test_*.py` under pytest, `*.test.sh` under bash, `*.test.mjs` under `node --test`, without
 `GH_TOKEN` or `GITHUB_TOKEN`), and `scripts/git-mv-rm.sh` runs `git mv` or `git rm` inside the
 checkout, recording an untracked path as intent-to-add first. Both refuse an absolute path, a `..`
-segment, a leading `-` and a path that resolves outside the checkout (`scripts/lib/checkout-path.sh`).
+segment, a leading `-` or `:` and a path that resolves outside the checkout (`scripts/lib/checkout-path.sh`).
+`git-mv-rm.sh` sets `GIT_LITERAL_PATHSPECS=1`, so git reads no glob or pathspec magic, and
+`run-test-file.sh` takes only `[A-Za-z0-9._/-]` names after `--`, so pytest reads no node id.
 A write skill that commits also gets `mcp__github_file_ops__delete_files`, and the system prompt
 tells it to delete each committed path it renamed or removed. When the stage grants the test-file
 runner, the write runner sets up Python and installs the base's hash-pinned CI requirements before

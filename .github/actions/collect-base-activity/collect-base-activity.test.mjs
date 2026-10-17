@@ -381,6 +381,52 @@ test("git-mv-rm refuses an absolute path, a .. segment, a path through a link ou
   assert.throws(() => statSync(path.join(dir, "taken.txt")));
 });
 
+// git reads a path argument as a pathspec, so a glob or a `:(...)` magic
+// prefix would reach files the path check never saw.
+test("git-mv-rm treats every path literally: a glob removes nothing else and magic is refused", () => {
+  const { status, run, git, workspace } = withLaneTools();
+  assert.equal(status, 0);
+  writeFileSync(path.join(workspace, "tests", "a*b"), "");
+  writeFileSync(path.join(workspace, "tests", "aXb"), "");
+  git("add", "tests");
+  git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "base");
+  const star = run("git-mv-rm", ["rm", "tests/*"]);
+  assert.notEqual(star.status, 0, "no file is literally named *");
+  const magic = run("git-mv-rm", ["rm", ":(glob)**"]);
+  assert.equal(magic.status, 2);
+  assert.match(magic.stderr, /refused/);
+  const literal = run("git-mv-rm", ["rm", "tests/a*b"]);
+  assert.equal(literal.status, 0, literal.stderr);
+  for (const kept of ["aXb", "pass.test.sh", "notes.txt"]) statSync(path.join(workspace, "tests", kept));
+  assert.throws(() => statSync(path.join(workspace, "tests", "a*b")));
+});
+
+test("git-mv-rm renames a new file literally named a*b and leaves aXb untracked", () => {
+  const { status, run, git, workspace } = withLaneTools();
+  assert.equal(status, 0);
+  writeFileSync(path.join(workspace, "a*b"), "");
+  writeFileSync(path.join(workspace, "aXb"), "");
+  const result = run("git-mv-rm", ["mv", "a*b", "renamed.txt"]);
+  assert.equal(result.status, 0, result.stderr);
+  statSync(path.join(workspace, "renamed.txt"));
+  assert.equal(git("status", "--porcelain", "--", ":(literal)aXb").stdout, "?? aXb\n");
+});
+
+test("run-test-file refuses a pytest node id or a name a runner could read as more than a file", () => {
+  const { status, run, dir, workspace } = withLaneTools();
+  assert.equal(status, 0);
+  writeFileSync(path.join(workspace, "tests", "test_a.py::test_x"), "");
+  writeFileSync(path.join(workspace, "tests", "test_b[1].py"), "");
+  const shim = path.join(dir, "shim");
+  mkdirSync(shim);
+  writeFileSync(path.join(shim, "python3"), '#!/usr/bin/env bash\necho "python3 $*"\n', { mode: 0o755 });
+  for (const file of ["tests/test_a.py::test_x", "tests/test_b[1].py"]) {
+    const result = run("run-test-file", [file], { PATH: `${shim}:${process.env.PATH}` });
+    assert.equal(result.status, 2, file);
+    assert.equal(result.stdout, "", `${file} ran`);
+  }
+});
+
 test("a script the list does not name gets no rule, even beside a listed one", () => {
   const { status, allowed } = withVerify([VERIFY]);
   assert.equal(status, 0);
