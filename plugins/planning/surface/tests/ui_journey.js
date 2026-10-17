@@ -136,7 +136,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     await tab.addInitScript(() => { window.EventSource = undefined; });
     await tab.route(base + "api/state", async route => {
       const res = await route.fetch(), s = await res.json(), ev = s.responses.events || [], n = Math.max(0, ...ev.map(e => e.seq));
-      s.responses.events = [...ev, {seq: n + 1, id: "Q99", kind: "ask", text: "Which runner?", at: iso(-60000), deliveredAt: iso(-50000)},
+      s.responses.events = [...ev, {seq: n + 1, id: "Q99", kind: "ask", text: "Which shell?", at: iso(-60000), deliveredAt: iso(-50000)},
         {seq: n + 2, id: "Q1", kind: "ask", text: "Which branch?", at: iso(-30000), deliveredAt: iso(-20000)}];
       if (status) s.questions.status = status; else delete s.questions.status;
       await route.fulfill({response: res, json: s});
