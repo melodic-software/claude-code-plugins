@@ -3019,7 +3019,10 @@ class DependabotEligibility(unittest.TestCase):
             "predicate": {
                 "buildDefinition": {
                     "externalParameters": {
-                        "workflow": {"repository": "https://github.com/o/x", "path": "w"}
+                        "workflow": {
+                            "repository": "https://github.com/o/x",
+                            "path": "w",
+                        }
                     }
                 }
             }
@@ -3051,7 +3054,8 @@ class DependabotEligibility(unittest.TestCase):
         result = self.eligibility()
         self.assertFalse(result.eligible)
         self.assertEqual(
-            result.reason, "dependabot-review:provenance-missing:x;review-verdict-missing"
+            result.reason,
+            "dependabot-review:provenance-missing:x;review-verdict-missing",
         )
         self.assertEqual(result.dependabot.tier, "review")
 
@@ -3065,7 +3069,8 @@ class DependabotEligibility(unittest.TestCase):
     def test_a_review_tier_bump_spends_no_registry_read(self) -> None:
         self.fake(commits=[dependabot_commit("semver-major")], registry={})
         self.assertEqual(
-            self.eligibility().reason, "dependabot-review:major:x;review-verdict-missing"
+            self.eligibility().reason,
+            "dependabot-review:major:x;review-verdict-missing",
         )
         self.assertEqual(self.registry_calls, [])
 

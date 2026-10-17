@@ -415,7 +415,9 @@ def _npm_identity(name: str, version: str, manifest: Any, get: Fetch) -> str | N
         if isinstance(repository, str) and isinstance(path, str):
             return f"workflow:{_repo_name(repository)}:{path}"
         # SLSA v0.2, which npm wrote before v1: the ref follows the last `@`.
-        source = json_object(json_object(predicate.get("invocation")).get("configSource"))
+        source = json_object(
+            json_object(predicate.get("invocation")).get("configSource")
+        )
         uri, entry_point = source.get("uri"), source.get("entryPoint")
         if isinstance(uri, str) and isinstance(entry_point, str):
             return f"workflow:{_repo_name(re.sub(r'@[^@]*$', '', uri))}:{entry_point}"
@@ -429,7 +431,9 @@ def _npm_identity(name: str, version: str, manifest: Any, get: Fetch) -> str | N
 
 def _npm_reason(update: Update, get: Fetch) -> str | None:
     version = str(update.version)
-    doc = json_object(get(f"{NPM_REGISTRY}/{_npm_path(update.name)}", "application/json"))
+    doc = json_object(
+        get(f"{NPM_REGISTRY}/{_npm_path(update.name)}", "application/json")
+    )
     versions, time = json_object(doc.get("versions")), json_object(doc.get("time"))
     at = _when(time.get(version))
     if version not in versions or at is None:
@@ -550,7 +554,12 @@ def provenance_reasons(
 # The reasons a pull request goes to review only because the classifier could
 # not read something: a parse gap, not a risk.
 CLASSIFIER_GAPS = frozenset(
-    {"unparsed-updates", "sources-disagree", "dependabot-config-unreadable", POLICY_UNREADABLE}
+    {
+        "unparsed-updates",
+        "sources-disagree",
+        "dependabot-config-unreadable",
+        POLICY_UNREADABLE,
+    }
 )
 
 

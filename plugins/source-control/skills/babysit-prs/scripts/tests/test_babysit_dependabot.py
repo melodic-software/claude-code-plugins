@@ -714,7 +714,10 @@ def packument(name: str, rows: list[tuple[str, str, dict[str, Any]]]) -> dict[st
         )
         oidc = flags.get("oidc")
         user = (
-            {"name": "GitHub Actions", "trustedPublisher": {"id": "github", "oidcConfigId": oidc}}
+            {
+                "name": "GitHub Actions",
+                "trustedPublisher": {"id": "github", "oidcConfigId": oidc},
+            }
             if oidc
             else {"name": "someone"}
         )
@@ -757,10 +760,16 @@ def biome_pages(
                 ("2.5.12", "2026-09-01T00:00:00Z", ATTESTED),
                 ("2.5.13", "2026-09-20T00:00:00Z", ATTESTED),
                 ("2.6.0-beta.1", "2026-10-01T00:00:00Z", {}),
-                ("2.5.14", "2026-10-10T00:00:00Z", ATTESTED if new_row is None else new_row),
+                (
+                    "2.5.14",
+                    "2026-10-10T00:00:00Z",
+                    ATTESTED if new_row is None else new_row,
+                ),
             ],
         ),
-        f"{REG}/-/npm/v1/attestations/@biomejs%2Fbiome@2.5.13": slsa("biomejs/biome", RELEASE),
+        f"{REG}/-/npm/v1/attestations/@biomejs%2Fbiome@2.5.13": slsa(
+            "biomejs/biome", RELEASE
+        ),
     }
     if not dropped:
         pages[f"{REG}/-/npm/v1/attestations/@biomejs%2Fbiome@2.5.14"] = attestation
@@ -771,7 +780,9 @@ def npm(name: str, version: str | None) -> list[dependabot.Update]:
     return [dependabot.Update(name, False, version)]
 
 
-def reasons(updates: list[dependabot.Update], segment: str, get: Any, cap: int = 20) -> list[str]:
+def reasons(
+    updates: list[dependabot.Update], segment: str, get: Any, cap: int = 20
+) -> list[str]:
     return list(dependabot.provenance_reasons(updates, segment, get, cap))
 
 
@@ -788,7 +799,8 @@ class Provenance(unittest.TestCase):
     def test_a_release_workflow_on_a_new_tag_ref_is_the_same_identity(self) -> None:
         tag = slsa("biomejs/biome", RELEASE, "refs/tags/v2.5.14")
         self.assertEqual(
-            reasons(npm(BIOME, "2.5.14"), "npm_and_yarn", Registry(biome_pages(tag))), []
+            reasons(npm(BIOME, "2.5.14"), "npm_and_yarn", Registry(biome_pages(tag))),
+            [],
         )
 
     def test_a_dropped_attestation_or_another_publisher_is_review(self) -> None:
@@ -797,7 +809,9 @@ class Provenance(unittest.TestCase):
             reasons(npm(BIOME, "2.5.14"), "npm_and_yarn", dropped),
             [f"provenance-missing:{BIOME}"],
         )
-        publisher_only = Registry(biome_pages(new_row={"oidc": BIOME_OIDC}, dropped=True))
+        publisher_only = Registry(
+            biome_pages(new_row={"oidc": BIOME_OIDC}, dropped=True)
+        )
         self.assertEqual(
             reasons(npm(BIOME, "2.5.14"), "npm_and_yarn", publisher_only),
             [f"provenance-changed:{BIOME}"],
@@ -822,14 +836,20 @@ class Provenance(unittest.TestCase):
                     f"{REG}/@anthropic-ai%2Fclaude-code": packument(
                         name,
                         [
-                            ("2.1.301", "2026-10-01T00:00:00Z", {"oidc": f"oidc:{BIOME_OIDC}"}),
+                            (
+                                "2.1.301",
+                                "2026-10-01T00:00:00Z",
+                                {"oidc": f"oidc:{BIOME_OIDC}"},
+                            ),
                             ("2.1.302", "2026-10-02T00:00:00Z", {"oidc": oidc}),
                         ],
                     )
                 }
             )
 
-        self.assertEqual(reasons(npm(name, "2.1.302"), "npm_and_yarn", pages(BIOME_OIDC)), [])
+        self.assertEqual(
+            reasons(npm(name, "2.1.302"), "npm_and_yarn", pages(BIOME_OIDC)), []
+        )
         other = pages("ed8551cb-3303-4af8-bcf8-5818707a0f2d")
         self.assertEqual(
             reasons(npm(name, "2.1.302"), "npm_and_yarn", other),
@@ -852,12 +872,16 @@ class Provenance(unittest.TestCase):
                 )
             }
         )
-        self.assertEqual(reasons(npm("markdownlint-cli2", "0.18.1"), "npm_and_yarn", get), [])
+        self.assertEqual(
+            reasons(npm("markdownlint-cli2", "0.18.1"), "npm_and_yarn", get), []
+        )
         self.assertEqual(len(get.calls), 1)
 
     def test_a_failed_read_a_missing_version_or_no_version_is_unreadable(self) -> None:
         unreadable = [f"provenance-unreadable:{BIOME}"]
-        self.assertEqual(reasons(npm(BIOME, "2.5.14"), "npm_and_yarn", Registry({})), unreadable)
+        self.assertEqual(
+            reasons(npm(BIOME, "2.5.14"), "npm_and_yarn", Registry({})), unreadable
+        )
         timeout = biome_pages()
         timeout[f"{REG}/-/npm/v1/attestations/@biomejs%2Fbiome@2.5.13"] = TimeoutError()
         self.assertEqual(
@@ -877,10 +901,12 @@ class Provenance(unittest.TestCase):
             reasons(npm(BIOME, "2.5.14"), "npm_and_yarn", Registry(garbled)), unreadable
         )
         self.assertEqual(
-            reasons(npm(BIOME, "9.9.9"), "npm_and_yarn", Registry(biome_pages())), unreadable
+            reasons(npm(BIOME, "9.9.9"), "npm_and_yarn", Registry(biome_pages())),
+            unreadable,
         )
         self.assertEqual(
-            reasons(npm(BIOME, None), "npm_and_yarn", Registry(biome_pages())), unreadable
+            reasons(npm(BIOME, None), "npm_and_yarn", Registry(biome_pages())),
+            unreadable,
         )
 
     def test_past_the_read_cap_every_remaining_update_is_unreadable(self) -> None:
@@ -892,15 +918,29 @@ class Provenance(unittest.TestCase):
         self.assertEqual(reasons(two, "npm_and_yarn", Registry(biome_pages()), 6), [])
 
     @staticmethod
-    def pypi(new_publisher: dict[str, str] | None = None, *, missing: bool = False) -> Registry:
+    def pypi(
+        new_publisher: dict[str, str] | None = None, *, missing: bool = False
+    ) -> Registry:
         def integrity(name: str) -> str:
             return f"https://pypi.org/integrity/numpy/{name.split('-')[1]}/{name}/provenance"
 
         files = [
-            ("numpy-2.3.4-cp312-cp312-manylinux_2_28_x86_64.whl", "2025-10-15T16:15:56Z", True),
+            (
+                "numpy-2.3.4-cp312-cp312-manylinux_2_28_x86_64.whl",
+                "2025-10-15T16:15:56Z",
+                True,
+            ),
             ("numpy-2.3.4.tar.gz", "2025-10-15T16:10:00Z", True),
-            ("numpy-2.4.0rc1-cp312-cp312-manylinux_2_28_x86_64.whl", "2025-11-01T00:00:00Z", False),
-            ("numpy-2.3.5-cp312-cp312-manylinux_2_28_x86_64.whl", "2025-11-16T22:50:02Z", not missing),
+            (
+                "numpy-2.4.0rc1-cp312-cp312-manylinux_2_28_x86_64.whl",
+                "2025-11-01T00:00:00Z",
+                False,
+            ),
+            (
+                "numpy-2.3.5-cp312-cp312-manylinux_2_28_x86_64.whl",
+                "2025-11-16T22:50:02Z",
+                not missing,
+            ),
             ("numpy-2.3.5.tar.gz", "2025-11-16T22:40:00Z", not missing),
         ]
         publisher = {
@@ -941,7 +981,11 @@ class Provenance(unittest.TestCase):
         self.assertEqual(
             reasons(numpy, "pip", self.pypi(missing=True)), ["provenance-missing:numpy"]
         )
-        moved = {"kind": "GitHub", "repository": "someone/numpy", "workflow": "wheels.yml"}
+        moved = {
+            "kind": "GitHub",
+            "repository": "someone/numpy",
+            "workflow": "wheels.yml",
+        }
         self.assertEqual(
             reasons(numpy, "pip", self.pypi(moved)), ["provenance-changed:numpy"]
         )
@@ -955,14 +999,20 @@ class Provenance(unittest.TestCase):
 
     def test_github_actions_is_not_read(self) -> None:
         get = Registry({})
-        self.assertEqual(reasons(npm("actions/checkout", "4.2.0"), "github_actions", get), [])
+        self.assertEqual(
+            reasons(npm("actions/checkout", "4.2.0"), "github_actions", get), []
+        )
         self.assertEqual(get.calls, [])
 
     def test_the_parsed_updates_carry_the_new_version(self) -> None:
         titled = dependabot.classify("bump x from 1.2.0 to 1.3.0", "", NPM, "success")
         self.assertEqual(titled.updates[0].version, "1.3.0")
         listed = dependabot.classify(
-            "bump x", "", NPM, "success", [commit(metadata(("x", "semver-minor", "1.3.0")))]
+            "bump x",
+            "",
+            NPM,
+            "success",
+            [commit(metadata(("x", "semver-minor", "1.3.0")))],
         )
         self.assertEqual(listed.updates[0].version, "1.3.0")
 
