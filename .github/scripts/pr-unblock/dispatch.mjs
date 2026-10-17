@@ -159,7 +159,7 @@ export async function dispatchConflicting({
 
 // The Dependabot fields feed dependency-dispatch.mjs's classification.
 const PULL_FIELDS =
-  "number isDraft isCrossRepository mergeable baseRefName headRefOid headRefName state title body author { login } labels(first: 100) { nodes { name } }";
+  "number isDraft isCrossRepository mergeable baseRefName headRefOid headRefName state title body author { login } labels(first: 100) { nodes { name } } commits(last: 1) { nodes { commit { oid message author { email } signature { isValid } } } }";
 
 const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!, $after: String) {
   repository(owner: $owner, name: $name) {

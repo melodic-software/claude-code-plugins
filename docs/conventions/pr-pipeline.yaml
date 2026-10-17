@@ -100,7 +100,7 @@ activities:
       draft: [false]
   apply-dependency-verdict:
     # Acts on the verdict review-dependency recorded: posts the round marker
-    # (for merge, the record a merge authority reads), closes the pull request
+    # (for merge, the record the pr-merge lane merges on), closes the pull request
     # and files an ignore-entry issue (never for a security update), or hands
     # the pull request to a person. Never merges. A script, no model.
     script: .github/scripts/pr-unblock/apply-dependency-verdict.mjs

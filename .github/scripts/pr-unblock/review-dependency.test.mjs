@@ -11,8 +11,9 @@ const OTHER = "b".repeat(40);
 const APP = 337595936;
 const DEPENDABOT = 49699333;
 
-function fakeApi({ pull = {}, comments = [], ciRuns = [], files = [], modelRuns = {} } = {}) {
+function fakeApi({ pull = {}, comments = [], ciRuns = [], files = [], modelRuns = {}, commit = null } = {}) {
   return {
+    getCommit: async () => commit ?? { sha: HEAD, author: { login: "dependabot[bot]" }, commit: { message: "bump", verification: { verified: true } } },
     getPull: async () => ({
       number: 7,
       user: { id: DEPENDABOT, login: "dependabot[bot]" },
@@ -104,6 +105,26 @@ test("select reviews a red ci-status even on a patch bump", async () => {
   });
   assert.equal(result.decision, "proceed");
   assert.deepEqual(result.file.classification.reasons, ["ci-status-red"]);
+});
+
+test("select reads the verified commit's metadata, and ignores an unverified one", async () => {
+  const message = [
+    "bump x",
+    "---",
+    "updated-dependencies:",
+    "- dependency-name: y",
+    "  dependency-version: 1.4.1",
+    "  update-type: version-update:semver-patch",
+    "...",
+  ].join("\n");
+  const commit = (verified) => ({ sha: HEAD, author: { login: "dependabot[bot]" }, commit: { message, verification: { verified } } });
+  const args = { pr: 7, headSha: HEAD, appId: APP, dependabotId: DEPENDABOT };
+  const pull = { title: "bump x from 1.4.0 to 1.4.1" };
+  const disagree = await select({ api: fakeApi({ pull, commit: commit(true) }), ...args });
+  assert.equal(disagree.decision, "proceed");
+  assert.deepEqual(disagree.file.classification.reasons, ["metadata-disagrees"]);
+  const unverified = await select({ api: fakeApi({ pull, commit: commit(false) }), ...args });
+  assert.equal(unverified.decision, "skip");
 });
 
 test("select escalates once the round cap is reached, counting markers or model check runs", async () => {

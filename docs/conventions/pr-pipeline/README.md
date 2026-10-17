@@ -139,8 +139,9 @@ dispatched-runs record. It has no schedule: the broker accepts a dispatcher run 
 push or a listed human, so a push to `main` or a hand run wakes it. In `pr-unblock.yml`,
 `review-dependency` (the model job, `mutate-branch`) is followed by `apply-dependency-verdict` (a
 script job with no model, `publish-artifact`), which acts on the verdict the model job recorded
-and never merges ([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
-[ADR 0073](../../adr/0073-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
+and never merges; the pr-merge lane merges on its `verdict=merge` marker at the current head
+([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
+[ADR 0074](../../adr/0074-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
 
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).

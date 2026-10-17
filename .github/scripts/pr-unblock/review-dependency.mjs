@@ -70,7 +70,15 @@ export function ciStatusOf(checkRuns) {
   return newest?.status === "completed" ? String(newest.conclusion) : "pending";
 }
 
-export function classifyPull(pull, ciStatus) {
+// The head commit's message, only when Dependabot authored it and GitHub
+// verified its signature; the classifier reads its updated-dependencies block.
+export function verifiedMessage(commit, sha) {
+  return commit?.sha === sha && commit.author?.login === DEPENDABOT_LOGIN && commit.commit?.verification?.verified === true
+    ? String(commit.commit.message ?? "")
+    : "";
+}
+
+export function classifyPull(pull, ciStatus, commitMessage = "") {
   return classify({
     author: pull.user?.login,
     headRef: pull.head?.ref,
@@ -78,6 +86,7 @@ export function classifyPull(pull, ciStatus) {
     body: pull.body ?? "",
     labels: (pull.labels ?? []).map((label) => (typeof label === "string" ? label : label.name)),
     ciStatus,
+    commitMessage,
   });
 }
 
@@ -103,7 +112,11 @@ export async function select({ api, pr, headSha, appId, dependabotId, repository
   if (pull.user?.id !== dependabotId || pull.user?.login !== DEPENDABOT_LOGIN) {
     return { decision: "skip", skipReason: "not-applicable" };
   }
-  const classification = classifyPull(pull, ciStatusOf(await api.listCheckRuns(headSha, "ci-status")));
+  const classification = classifyPull(
+    pull,
+    ciStatusOf(await api.listCheckRuns(headSha, "ci-status")),
+    verifiedMessage(await api.getCommit(headSha), headSha),
+  );
   if (classification.tier !== "review") {
     return { decision: "skip", skipReason: "not-applicable", classification };
   }

@@ -111,9 +111,58 @@ test("a red ci-status makes any bump review; pending does not", () => {
   assert.equal(classify(pr({ ciStatus: "" })).tier, "auto");
 });
 
-test("major means the first numeric component changed", () => {
+test("a 0.x minor bump is review; a 1.x minor bump is auto", () => {
+  assert.deepEqual(classify(pr({ title: "bump x from 0.2.0 to 0.3.0" })).reasons, ["major:x"]);
+  assert.equal(classify(pr({ title: "bump x from 0.2.0 to 0.2.5" })).tier, "auto");
+  assert.equal(classify(pr({ title: "bump x from 1.2.0 to 1.3.0" })).tier, "auto");
+});
+
+const metadata = (rows) =>
+  [
+    "build(deps): bump x",
+    "",
+    "---",
+    "updated-dependencies:",
+    ...rows.flatMap(([name, version, type]) => [
+      `- dependency-name: ${name}`,
+      `  dependency-version: ${version}`,
+      "  dependency-type: direct:production",
+      `  update-type: version-update:semver-${type}`,
+    ]),
+    "...",
+    "",
+    "Signed-off-by: dependabot[bot] <support@github.com>",
+  ].join("\n");
+
+test("the verified commit's metadata agreeing with the title keeps the title's tier", () => {
+  const result = classify(pr({ commitMessage: metadata([["@biomejs/biome", "2.3.1", "patch"]]) }));
+  assert.equal(result.tier, "auto");
+  assert.deepEqual(result.reasons, []);
+});
+
+test("metadata naming a major makes the bump review", () => {
+  const result = classify(pr({ commitMessage: metadata([["@biomejs/biome", "2.3.1", "major"]]) }));
+  assert.deepEqual(result.reasons, ["major:@biomejs/biome"]);
+});
+
+test("metadata that disagrees with the title is review", () => {
+  assert.deepEqual(classify(pr({ commitMessage: metadata([["other", "2.3.1", "patch"]]) })).reasons, ["metadata-disagrees"]);
+  assert.deepEqual(classify(pr({ commitMessage: metadata([["@biomejs/biome", "2.4.0", "minor"]]) })).reasons, [
+    "metadata-disagrees",
+  ]);
+});
+
+test("metadata alone classifies when the title is unreadable", () => {
+  const result = classify(pr({ title: "Update everything", commitMessage: metadata([["x", "1.2.3", "minor"]]) }));
+  assert.equal(result.tier, "auto");
+  assert.deepEqual(result.updates, [{ name: "x", from: null, to: "1.2.3", type: "minor" }]);
+});
+
+test("major means the first numeric component changed, or the second for 0.x", () => {
   assert.equal(isMajor("1.9.9", "2.0.0"), true);
-  assert.equal(isMajor("0.2.0", "0.3.0"), false);
+  assert.equal(isMajor("0.2.0", "0.3.0"), true);
+  assert.equal(isMajor("0.2.0", "0.2.9"), false);
+  assert.equal(isMajor("1.2.0", "1.3.0"), false);
   assert.equal(isMajor("v6", "v7"), true);
   assert.equal(isMajor("4.1", "4.2.0-rc.1"), false);
   assert.equal(isMajor("main", "4.2.0"), null);

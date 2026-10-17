@@ -594,14 +594,18 @@ script leaf with no model, called with `dependency-verdict: true`. The scripts a
 `.github/scripts/pr-unblock/review-dependency.mjs` and `apply-dependency-verdict.mjs`, and both
 sort pull requests with `dependency-classify.mjs`:
 
-- `auto`: the author is `dependabot[bot]`; the title names one update (`bump <name> from <a> to
-  <b>`), or a group whose `Updates` lines at the start of a line add up to the title's count;
-  no update changes its first numeric version component; every `github_actions` update's
+- `auto`: the author is `dependabot[bot]`; the updates are read from the `updated-dependencies`
+  metadata in the head commit's message when Dependabot authored that commit and GitHub verified
+  it, and from the title (`bump <name> from <a> to <b>`) or a group's `Updates` lines at the
+  start of a line, which must add up to the title's count; when both the metadata and the title
+  are readable they agree on every name and version; no update is major, meaning it changes the
+  first numeric version component, or for a 0.x version the second, or the metadata names it
+  `semver-major`; every `github_actions` update's
   publisher is `actions`, `github` or `anthropics`; and the newest GitHub Actions `ci-status`
   run on the head is not red (`failure`, `cancelled`, `timed_out`, `action_required`,
   `startup_failure`; pending is not red). The pr-merge lane owns these.
 - `review`: every other Dependabot pull request, including a version the classifier cannot
-  read (a SHA). A security update is the `security` label or an advisory, GHSA or CVE id in the
+  read (a SHA) and metadata that disagrees with the title. A security update is the `security` label or an advisory, GHSA or CVE id in the
   body; it is a flag on either tier.
 
 1. After `resolve-config` and before the mint, the model job runs `review-dependency.mjs select`
@@ -638,7 +642,8 @@ sort pull requests with `dependency-classify.mjs`:
      authored only, else `dependency-fix-not-landed` (no commit) or `superseded-sha`;
    - `merge`: posts the round marker, whose first line
      `<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<run id>-<attempt> -->`
-     from the lanes App is the record a merge authority reads. It never merges or enqueues;
+     from the lanes App is the record the pr-merge lane merges a review-tier pull request on,
+     at the current head and through its own gate. This job never merges or enqueues;
    - `close`: escalates `dependency-security-close` for a security update (the model job's flag,
      or the label or an advisory in the body read fresh); otherwise files an issue proposing the
      `.github/dependabot.yml` `ignore` entry, closes the pull request, and posts the marker;

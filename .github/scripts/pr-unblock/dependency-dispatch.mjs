@@ -20,6 +20,17 @@ export const DEFAULTS = Object.freeze({
 });
 
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
+// Dependabot's commit author address: GraphQL gives a bot's commit no user.
+const DEPENDABOT_EMAIL = "49699333+dependabot[bot]@users.noreply.github.com";
+
+// The head commit's message, only when Dependabot authored it and GitHub
+// verified its signature.
+export function verifiedHeadMessage(node) {
+  const commit = node.commits?.nodes?.[0]?.commit;
+  return commit?.oid === node.headRefOid && commit.author?.email === DEPENDABOT_EMAIL && commit.signature?.isValid === true
+    ? String(commit.message ?? "")
+    : "";
+}
 
 const handles = (run) =>
   !(run.status === "completed" && run.conclusion === "neutral" && String(run.output?.title ?? "").startsWith("Skipped: untrusted-trigger"));
@@ -66,6 +77,7 @@ export async function dispatchDependencyReviews({
         body: node.body ?? "",
         labels: (node.labels?.nodes ?? []).map((label) => label.name),
         ciStatus: ciStatusOf(ci),
+        commitMessage: verifiedHeadMessage(node),
       }).tier;
       if (tier !== "review") {
         continue;

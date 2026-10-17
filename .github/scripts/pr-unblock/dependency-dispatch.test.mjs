@@ -94,6 +94,17 @@ test("skips a head that already has a review-dependency check run, except an unt
   assert.ok(api.calls.checks.some((call) => call.checkName === CHECK && call.appId === 15368));
 });
 
+test("a verified head commit whose metadata disagrees with the title is review", async () => {
+  const message = "bump\n---\nupdated-dependencies:\n- dependency-name: other\n  update-type: version-update:semver-patch\n...\n";
+  const node = (number, isValid) => {
+    const base = pr(number, { title: "bump x from 1.0.0 to 1.0.1" });
+    const commit = { oid: base.headRefOid, message, author: { email: "49699333+dependabot[bot]@users.noreply.github.com" }, signature: { isValid } };
+    return { ...base, commits: { nodes: [{ commit }] } };
+  };
+  const { dispatched } = await run(fakeApi({ nodes: [node(30, true), node(31, false)] }));
+  assert.deepEqual(dispatched.map((d) => d.number), [30]);
+});
+
 test("dispatches at most the cap, lowest number first", async () => {
   const api = fakeApi({ nodes: [pr(23), pr(21), pr(22)] });
   const { dispatched } = await run(api, { maxDispatch: 2 });

@@ -40,7 +40,7 @@ and `pr-unblock` never merges
 3. **A scripted job acts, and never merges.** `apply-dependency-verdict` is a `publish-artifact`
    script leaf with no model. It validates the artifact against the schema and its SHA-256, binds
    every action to the reviewed head, and posts a lanes App round marker. `merge` is that marker,
-   the record a merge authority reads; `close` files an ignore-entry issue and closes the pull
+   the record the pr-merge lane merges on at the current head; `close` files an ignore-entry issue and closes the pull
    request, except a security update, which escalates; `escalate` and an invalid verdict hand the
    pull request to a person through `report-escalation`. Basis:
    [`apply-dependency-verdict.mjs`](../../.github/scripts/pr-unblock/apply-dependency-verdict.mjs);
@@ -73,8 +73,9 @@ and `pr-unblock` never merges
 
 - A review-tier Dependabot pull request is reviewed after the next push to `main` or a hand run
   of the dispatcher, not on a timer.
-- Until the pr-merge lane reads the `merge` marker, a `merge` verdict records the decision but
-  nothing enqueues it.
+- The pr-merge lane merges a review-tier pull request whose current head carries the lanes App's
+  `verdict=merge` marker (owner decision, 2026-10-16; ADR 0073 in #7699), so the decision and the merge stay
+  in separate lanes.
 - `[dependabot skip]` lets Dependabot force-push over the lane's fix on a rebase; the next round
   then reviews the new head, and the round cap bounds the loop.
 - A fix commit on a pull request that changes a plugin may need a changelog fragment that a

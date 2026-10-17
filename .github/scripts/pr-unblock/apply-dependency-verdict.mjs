@@ -15,7 +15,7 @@
 //      lanes App made on top of that head, else dependency-fix-not-landed (no
 //      commit) or superseded (Dependabot rebased).
 //   3. merge: the round marker it posts, naming the reviewed head, is the
-//      record a merge authority reads; this job never merges or enqueues.
+//      record the pr-merge lane merges on; this job never merges or enqueues.
 //      close: never on a security update (the security label or an advisory
 //      in the body, read fresh here, or the model job's flag), which escalates
 //      dependency-security-close; otherwise files an issue proposing the

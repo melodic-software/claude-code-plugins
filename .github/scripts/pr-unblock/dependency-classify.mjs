@@ -8,10 +8,14 @@
 //           cannot read. The pr-unblock lane's review-dependency activity
 //           reviews these.
 //
-// It reads only what Dependabot wrote: the title, the head branch and, for a
+// A major bump changes the first numeric version component, or for a 0.x
+// version the second. It reads only what Dependabot wrote: the
+// `updated-dependencies` metadata in the head commit's message when that
+// commit is Dependabot's and verified, the title, the head branch and, for a
 // group, the body's `Updates` lines at the start of a line (release notes are
 // quoted, so they never start one). A group whose lines do not add up to its
-// title's count is review, so text in the body can only make a PR stricter.
+// title's count, or metadata that disagrees with the title, is review, so
+// text in the body can only make a PR stricter.
 // The same rules hold wherever a lane sorts Dependabot PRs; the contract is in
 // docs/conventions/pr-pipeline/pr-run-activity.md, "prepare: dependency-review".
 
@@ -26,15 +30,63 @@ const GROUP = /\bbump the \S+ group\b.*\bwith (\d+) updates?\s*$/i;
 const UPDATE_LINE = /^Updates `([^`\s]+)` from (\S+) to (\S+?)\.?$/gm;
 const VERSION = /^v?(\d+)(\.\d+)*([-+.][0-9A-Za-z.+-]*)?$/;
 
-// true when the first numeric component changed, false when it did not, null
-// when either side is not a version (a SHA, a branch name).
+const parts = (version) => String(version).replace(/^v/, "").split(/[-+]/)[0].split(".").map(Number);
+
+// true when the first numeric component changed, or for a 0.x version the
+// second, false when it did not, null when either side is not a version (a
+// SHA, a branch name).
 export function isMajor(from, to) {
-  const a = VERSION.exec(String(from));
-  const b = VERSION.exec(String(to));
-  if (!a || !b) {
+  if (!VERSION.test(String(from)) || !VERSION.test(String(to))) {
     return null;
   }
-  return Number(a[1]) !== Number(b[1]);
+  const [a, b] = [parts(from), parts(to)];
+  return a[0] !== b[0] || (a[0] === 0 && (a[1] ?? 0) !== (b[1] ?? 0));
+}
+
+// The `updated-dependencies` YAML block Dependabot writes into its commit
+// message: name, version and semver update type per dependency, or null when
+// the message holds no such block.
+export function parseMetadata(message) {
+  const block = /^updated-dependencies:\s*$([\s\S]*?)^\.\.\.\s*$/m.exec(String(message ?? ""));
+  if (!block) {
+    return null;
+  }
+  const rows = [];
+  for (const line of block[1].split("\n")) {
+    const field = /^(- )?\s*(dependency-name|dependency-version|update-type):\s*(\S+)\s*$/.exec(line);
+    if (!field) {
+      continue;
+    }
+    if (field[1]) {
+      rows.push({});
+    }
+    const row = rows.at(-1);
+    if (!row) {
+      return null;
+    }
+    if (field[2] === "dependency-name") row.name = field[3];
+    if (field[2] === "dependency-version") row.to = field[3];
+    if (field[2] === "update-type") row.type = /^version-update:semver-(major|minor|patch)$/.exec(field[3])?.[1] ?? "unknown";
+  }
+  return rows.length > 0 && rows.every((row) => row.name) ? rows : null;
+}
+
+const bare = (version) => String(version ?? "").replace(/^v/, "");
+
+function agrees(updates, metadata) {
+  const byName = new Map(metadata.map((row) => [row.name, row]));
+  return (
+    updates.length === metadata.length &&
+    updates.every((update) => byName.has(update.name) && (byName.get(update.name).to === undefined || bare(byName.get(update.name).to) === bare(update.to)))
+  );
+}
+
+// From metadata alone, with no `from` version: a 0.x minor is major too.
+function isMajorFromType(update) {
+  if (update.type === "major") return true;
+  if (update.type === "minor") return parts(update.to)[0] === 0;
+  if (update.type === "patch") return false;
+  return null;
 }
 
 export function isSecurityUpdate({ labels = [], body = "" }) {
@@ -62,19 +114,32 @@ function parseUpdates(title, body) {
   return { updates: [{ name: single[1], from: single[2], to: single[3] }] };
 }
 
-// pr: { author, headRef, title, body, labels, ciStatus }, where ciStatus is
-// the newest ci-status check run's conclusion, or pending or empty.
+// pr: { author, headRef, title, body, labels, ciStatus, commitMessage },
+// where ciStatus is the newest ci-status check run's conclusion, or pending
+// or empty, and commitMessage is the head commit's message, passed only when
+// Dependabot authored it and GitHub verified its signature.
 // Returns null for a pull request Dependabot did not open.
 export function classify(pr) {
   if (pr.author !== DEPENDABOT_LOGIN) {
     return null;
   }
   const ecosystem = /^dependabot\/([^/]+)\//.exec(String(pr.headRef))?.[1] ?? "";
-  const { updates, problem } = parseUpdates(pr.title, pr.body);
+  const metadata = parseMetadata(pr.commitMessage);
+  let { updates, problem } = parseUpdates(pr.title, pr.body);
+  if (metadata && problem) {
+    updates = metadata.map((row) => ({ name: row.name, from: null, to: row.to ?? null, type: row.type ?? "unknown" }));
+    problem = undefined;
+  } else if (metadata && !agrees(updates, metadata)) {
+    problem = "metadata-disagrees";
+  } else if (metadata) {
+    const types = new Map(metadata.map((row) => [row.name, row.type ?? "unknown"]));
+    updates = updates.map((update) => ({ ...update, type: types.get(update.name) }));
+  }
   const reasons = problem ? [problem] : [];
   if (!problem) {
     for (const update of updates) {
-      const major = isMajor(update.from, update.to);
+      const computed = update.from === null ? isMajorFromType(update) : isMajor(update.from, update.to);
+      const major = computed === null ? null : computed || update.type === "major";
       if (major === null) {
         reasons.push(`unparsed-version:${update.name}`);
       } else if (major) {
