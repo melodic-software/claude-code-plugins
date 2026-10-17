@@ -24,9 +24,24 @@ import unittest
 from typing import Any
 from unittest import mock
 
+# An inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would send the git
+# fixtures' identity writes into the caller's repository
+# (scripts/check-fixture-git-isolation.sh). Cleared before any test spawns git.
+for _leaked_git_var in (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_PREFIX",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_CONFIG",
+):
+    os.environ.pop(_leaked_git_var, None)
+del _leaked_git_var
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-import babysit_merge_policy as policy
+import babysit_merge_policy as policy  # noqa: E402  (follows the git-env clear above)
 
 REPO = "owner/repo"
 SHA = "a" * 40
