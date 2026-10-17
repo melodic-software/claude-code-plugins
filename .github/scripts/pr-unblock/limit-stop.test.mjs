@@ -23,6 +23,12 @@ test("the summary record's stated reset is read; with none, it resets five hours
   assert.equal(limitResetsAt(posted(LIMIT)), ended + 5 * HOUR);
 });
 
+test("a record ending in the models and profile tokens is still read", () => {
+  const line = `${LIMIT_LINE} models=claude-opus-5-5,claude-haiku-5-5[1m] profile=standard`;
+  assert.equal(limitResetsAt(posted(line)), Date.parse("2026-10-17T13:00:00Z"));
+  assert.equal(limitResetsAt(posted(`${LIMIT} profile=standard`)), ended + 5 * HOUR);
+});
+
 test("a stated reset is held between one hour and seven days after the run ended", () => {
   assert.equal(limitResetsAt(posted(`${LIMIT} resets=2026-10-01T00:00:00Z`)), ended + HOUR);
   assert.equal(limitResetsAt(posted(`${LIMIT} resets=2027-01-01T00:00:00Z`)), ended + 7 * 24 * HOUR);
@@ -41,6 +47,9 @@ test("a summary line that is not the record is not read as one", () => {
     posted(`Model said: ${LIMIT_LINE}`),
     posted("lane=pr-unblock activity=resolve-conflicts resets=2026-10-17T13:00:00Z class=rate-limit"),
     posted(`${LIMIT_LINE} note=x`),
+    posted(`${LIMIT_LINE} profile=standard models=claude-opus-5-5`),
+    posted(`${LIMIT_LINE} models=claude opus`),
+    posted(`${LIMIT_LINE} models=`),
     // a record naming another check run
     posted(LIMIT_LINE.replace("resolve-conflicts", "address-feedback")),
   ];

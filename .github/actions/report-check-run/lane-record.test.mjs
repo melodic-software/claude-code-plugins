@@ -55,3 +55,35 @@ test("no record, an unknown class, or a malformed name add no output record", ()
   assert.equal(laneRecordOutput({ lane: "pr-unblock", activity: "x", failureClass: "forged class" }), null);
   assert.equal(laneRecordOutput({ lane: "pr-unblock", activity: "x y=1", failureClass: "other" }), null);
 });
+
+test("models and profile close the record line, and models is a list in the JSON form", () => {
+  const record = laneRecordOutput({
+    lane: "work-resolve-issue",
+    activity: "resolve-issue",
+    turns: "40",
+    maxTurns: "75",
+    models: "claude-opus-5-5,claude-haiku-5-5[1m]",
+    profile: "standard",
+  });
+  assert.equal(
+    record.line,
+    "lane=work-resolve-issue activity=resolve-issue turns=40 max-turns=75 models=claude-opus-5-5,claude-haiku-5-5[1m] profile=standard",
+  );
+  assert.equal(
+    record.text,
+    "```json\n" +
+      '{"lane":"work-resolve-issue","activity":"resolve-issue","turns":40,"max-turns":75,' +
+      '"models":["claude-opus-5-5","claude-haiku-5-5[1m]"],"profile":"standard"}' +
+      "\n```",
+  );
+});
+
+test("a models list or profile that fails its shape is dropped", () => {
+  const base = { lane: "pr-refine", activity: "fix-docs", turns: "4" };
+  for (const models of ["claude opus", "a,,b", ",a", "x=1", `${"a,".repeat(8)}a`, "a".repeat(65)]) {
+    assert.equal(laneRecordOutput({ ...base, models }).line, "lane=pr-refine activity=fix-docs turns=4", models);
+  }
+  for (const profile of ["Standard", "std profile", "a=b"]) {
+    assert.equal(laneRecordOutput({ ...base, profile }).line, "lane=pr-refine activity=fix-docs turns=4", profile);
+  }
+});

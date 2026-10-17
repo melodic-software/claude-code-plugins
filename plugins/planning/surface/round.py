@@ -1874,6 +1874,18 @@ def cmd_export_ledger(d, a):
     if not a.out:
         sys.exit("export-ledger needs --out (or --diff LEDGER)")
     text = read_input(a.ledger, "ledger") if a.ledger else None
+    if a.recap:
+        recap, fits = exporters.confirmation_recap(d, TEXT_CAP, text)
+        write_text(a.out, recap)
+        print(f"wrote {a.out}")
+        if not fits:
+            sys.exit(
+                f"refused: the compact recap is {len(recap)} characters; the restate cap is "
+                f"{TEXT_CAP}"
+            )
+        if text is not None:
+            report_notes(exporters.merged_register(d, text)[2], ("conflict",))
+        return
     write_text(a.out, exporters.export_ledger(d, text))
     print(f"wrote {a.out}")
     if text is not None:
@@ -2382,6 +2394,13 @@ def main(argv=None):
         metavar="LEDGER",
         help="print each row and column the merge would change in LEDGER, plus status "
         "conflicts and the text it keeps, and write nothing; exit 1 on any change or conflict",
+    )
+    s.add_argument(
+        "--recap",
+        action="store_true",
+        help="write the confirmation gate's compact recap instead of the ledger: one line per "
+        "live question, withdrawn rows collapsed into one line, long answers cut to fit the "
+        "restate cap",
     )
     s.set_defaults(fn=cmd_export_ledger)
 

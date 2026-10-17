@@ -40,11 +40,15 @@ on:
   # to say which PR to look at: it lists the open PRs from the GitHub API and
   # checks each one, so any trigger leads to the same decisions.
 
-  # A label or the PR body changed, or a draft became ready. pull_request_target
-  # runs this file as it is on main, not the PR's copy, so a PR cannot change
+  # A label was removed, the PR body changed, or a draft became ready. Since
+  # every run reads every PR, an event starts a run only when it can make a
+  # PR mergeable sooner. Adding a label can only add a hold, which the next
+  # run sees anyway, so it starts none; a body edit can unblock (a new
+  # closing-issue line, a removed `Hold:` line). pull_request_target runs
+  # this file as it is on main, not the PR's copy, so a PR cannot change
   # what this lane does; the job below never checks out the PR's code.
   pull_request_target: # zizmor: ignore[dangerous-triggers]
-    types: [labeled, unlabeled, edited, ready_for_review]
+    types: [unlabeled, edited, ready_for_review]
 
   # A person can start a run by hand (Actions tab, "Run workflow") to retry a
   # PR that looks stuck. Only a run on main does anything.
@@ -287,9 +291,6 @@ jobs:
           SCRIPT: ${{ steps.config.outputs.script }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           RUNG_CAP: ${{ vars.CLAUDE_LANES_MERGE_RUNG_CAP }}
-          # Ids that never ratify a lane PR's closing issue, as at the issue
-          # lane's start check (check-trusted-trigger's denied-actor-ids).
-          BABYSIT_DENIED_ACTOR_IDS: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
         run: |
           set -euo pipefail
           # The script and its flags come from the merge-pr activity on main.

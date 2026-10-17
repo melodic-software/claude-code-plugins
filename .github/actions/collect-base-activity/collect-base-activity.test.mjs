@@ -66,8 +66,6 @@ function stage(overrides) {
     BASE_PATH: base,
     RESOLVED: resolved,
     SKILL: "source-control:resolve-conflicts",
-    MODEL: "",
-    MAX_TURNS: "75",
     GATING: "advisory",
     EFFECT: "mutate-branch",
     CAN_COMMIT: "true",

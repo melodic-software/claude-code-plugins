@@ -2231,39 +2231,6 @@ LANE_DENIED = (
 )
 
 
-# The owner's ratification (resolve-config's ratification.mjs): the marker on
-# a line of its own, by a listed human, not through an App, never edited.
-MARKER = (
-    "<!-- admission: admitted when unblocked, owner batch ratification 2026-10-16 -->"
-)
-OWNER_ID = 153232337
-# The trusted list is read at the default branch's current head, never at a
-# pull request's base.
-DEFAULT_HEAD = "d" * 40
-TRUSTED_LIST = (
-    f"repos/{REPO}/contents/.github/standards/trusted-actors/trusted-actors.json"
-    f"?ref={DEFAULT_HEAD}"
-)
-TRUSTED = {
-    "version": 1,
-    "actors": [
-        {"id": OWNER_ID, "login": "kyle-sexton", "kind": "human"},
-        {"id": 337595936, "login": "melodic-automation-lanes[bot]", "kind": "bot"},
-    ],
-}
-
-
-def ratification(**changes: Any) -> dict[str, Any]:
-    return {
-        "id": 4242,
-        "body": f"Ratified.\n{MARKER}\n",
-        "user": {"id": OWNER_ID, "login": "kyle-sexton"},
-        "performed_via_github_app": None,
-        "created_at": "2026-10-16T12:00:00Z",
-        "updated_at": "2026-10-16T12:00:00Z",
-    } | changes
-
-
 class LaneConfig(unittest.TestCase):
     """`merge.report-only` (plan Phase 1): the lane starts report-only and the
     owner flips it live (D16); anything but true or false keeps it report-only."""
@@ -2350,18 +2317,13 @@ class LaneEligibility(unittest.TestCase):
         number: int = 41,
         labels: list[str] | None = None,
         repository: str = REPO,
-        edited: Any = None,
-        renamed: Any = None,
     ) -> dict[str, Any]:
         names = [] if labels is None else labels
         return {
             "number": number,
-            "lastEditedAt": edited,
+            "lastEditedAt": None,
             "repository": {"nameWithOwner": repository},
             "labels": {"totalCount": len(names), "nodes": [{"name": n} for n in names]},
-            "timelineItems": {
-                "nodes": [] if renamed is None else [{"createdAt": renamed}]
-            },
         }
 
     def fake(
@@ -2372,20 +2334,12 @@ class LaneEligibility(unittest.TestCase):
         pr_labels: list[str] | None = None,
         closing: list[dict[str, Any]] | None = None,
         author: dict[str, str] | None = None,
-        comments: Any = None,
         base_ref: str = "main",
     ) -> GhFake:
         issues = [self.issue_node(labels=labels)] if closing is None else closing
         names = pr_labels or []
         gh = GhFake().install(self)
         gh.rest[f"repos/{REPO}"] = {"default_branch": "main"}
-        gh.rest[f"repos/{REPO}/commits/main"] = {"sha": DEFAULT_HEAD}
-        # Each closing issue's body-edit and title-change times, read fresh.
-        gh.graphql["PolicyIssueEdits"] = lambda v: {
-            "repository": {
-                "issue": next((i for i in issues if str(i["number"]) == v["n"]), None)
-            }
-        }
         gh.graphql["PolicyEligibility"] = {
             "repository": {
                 "pullRequest": {
@@ -2409,9 +2363,6 @@ class LaneEligibility(unittest.TestCase):
         }
         self.paths = ["docs/guide.md"] if files is None else files
         gh.rest[self.FILES] = [{"filename": p} for p in self.paths]
-        # The owner's ratification marker on the closing issue (#7725).
-        gh.rest[self.COMMENTS] = [ratification()] if comments is None else comments
-        gh.rest[TRUSTED_LIST] = file_payload(json.dumps(TRUSTED))
         return gh
 
     def eligibility(self, changed: int | None = None) -> Any:
@@ -2434,11 +2385,13 @@ class LaneEligibility(unittest.TestCase):
         result = self.eligibility()
         self.assertTrue(result.eligible, result.reason)
         self.assertEqual((result.work_class, result.issue), ("C2", 41))
-        # No label history is read: the fake answers no timeline call.
-        self.assertFalse(any(self.TIMELINE in " ".join(c) for c in gh.calls))
+        # No label history and no issue comment is read: the agent-ready
+        # label alone admitted the issue, and the fake answers neither call.
+        calls = [" ".join(c) for c in gh.calls]
+        self.assertFalse(any(self.TIMELINE in c or self.COMMENTS in c for c in calls))
 
     def test_a_class_label_on_the_issue_or_the_pr_is_ignored(self) -> None:
-        # The ratified issues still carrying these labels (#5981, #6821).
+        # The admitted issues still carrying these labels (#5981, #6821).
         for labels in (
             ["work-class: scoped"],
             ["Work-Class: Structural"],
@@ -2555,58 +2508,6 @@ class LaneEligibility(unittest.TestCase):
         )
         self.assertEqual(result.reason, "not-lane-authored")
 
-    def test_a_ratified_closing_issue_is_eligible(self) -> None:
-        self.fake()
-        self.assertTrue(self.eligibility().eligible)
-
-    def test_an_issue_the_owner_did_not_ratify_refuses(self) -> None:
-        # Each rule of ratification.mjs `findRatification`, one at a time.
-        for name, comments in (
-            ("no comment", []),
-            ("no marker", [ratification(body="Ratified.")]),
-            ("a quoted marker", [ratification(body=f"> {MARKER}")]),
-            ("edited", [ratification(updated_at="2026-10-16T12:05:00Z")]),
-            ("through an App", [ratification(performed_via_github_app={"id": 1})]),
-            ("an unlisted human", [ratification(user={"id": 1, "login": "x"})]),
-            ("a listed bot", [ratification(user={"id": 337595936})]),
-        ):
-            with self.subTest(name):
-                self.fake(comments=comments)
-                result = self.eligibility()
-                self.assertFalse(result.eligible)
-                self.assertEqual(result.reason, "not-ratified")
-
-    def test_one_ratifying_comment_among_others_is_enough(self) -> None:
-        self.fake(comments=[ratification(body="hi"), ratification(id=7)])
-        self.assertTrue(self.eligibility().eligible)
-
-    def test_unreadable_comments_or_trusted_list_refuse(self) -> None:
-        gh = self.fake()
-        gh.rest[self.COMMENTS] = 502
-        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
-        gh = self.fake()
-        gh.rest[TRUSTED_LIST] = file_payload('{"version": 2, "actors": []}')
-        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
-        # The list is read at the default branch's head: no head, no read.
-        gh = self.fake()
-        gh.rest[f"repos/{REPO}/commits/main"] = 502
-        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
-        gh = self.fake()
-        gh.rest[f"repos/{REPO}"] = 502
-        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
-
-    def test_the_trusted_list_is_read_at_the_default_branch_head(self) -> None:
-        # #7725 review: a human removed from the list on main no longer
-        # ratifies an older pull request whose base still lists them.
-        gh = self.fake()
-        gh.rest[TRUSTED_LIST] = file_payload(
-            json.dumps({"version": 1, "actors": TRUSTED["actors"][1:]})
-        )
-        gh.rest[TRUSTED_LIST.replace(DEFAULT_HEAD, SHA)] = file_payload(
-            json.dumps(TRUSTED)
-        )
-        self.assertEqual(self.eligibility().reason, "not-ratified")
-
     def test_a_pr_into_another_branch_refuses(self) -> None:
         self.fake(base_ref="release")
         self.assertEqual(self.eligibility().reason, "base-not-default:release")
@@ -2614,49 +2515,10 @@ class LaneEligibility(unittest.TestCase):
             policy.recheck_lane_issue(REPO, 7, issue=41), "base-not-default:release"
         )
 
-    def test_a_denied_actor_does_not_ratify(self) -> None:
-        # check-trusted-trigger.mjs: DENIED_ACTOR_IDS leave the ratifiers.
-        self.fake()
-        env = {policy.DENIED_ACTOR_IDS_ENV: f"1, {OWNER_ID}"}
-        with mock.patch.dict(policy.os.environ, env):
-            self.assertEqual(self.eligibility().reason, "not-ratified")
-        with mock.patch.dict(policy.os.environ, {policy.DENIED_ACTOR_IDS_ENV: "x"}):
-            self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
-        with mock.patch.dict(policy.os.environ, {policy.DENIED_ACTOR_IDS_ENV: "5"}):
-            self.assertTrue(self.eligibility().eligible)
-
-    def test_an_issue_edit_after_the_newest_ratification_refuses(self) -> None:
-        # The owner ratified the title and body as they stood then.
-        after, before = "2026-10-16T12:05:00Z", "2026-10-16T11:00:00Z"
-        for node, eligible in (
-            (self.issue_node(edited=after), False),
-            (self.issue_node(renamed=after), False),
-            (self.issue_node(edited="not a time"), False),
-            (self.issue_node(edited=before, renamed=before), True),
-            (self.issue_node(edited="2026-10-16T12:00:00Z"), True),
-        ):
-            with self.subTest(node=node):
-                self.fake(closing=[node])
-                result = self.eligibility()
-                self.assertIs(result.eligible, eligible, result.reason)
-                if not eligible:
-                    self.assertEqual(result.reason, "not-ratified")
-        # A later marker re-ratifies an edit made after the first.
-        later = ratification(
-            id=5, created_at="2026-10-16T13:00:00Z", updated_at="2026-10-16T13:00:00Z"
-        )
-        self.fake(
-            closing=[self.issue_node(edited=after)], comments=[ratification(), later]
-        )
-        self.assertTrue(self.eligibility().eligible)
-
-    def test_the_enqueue_recheck_reads_the_ratification_again(self) -> None:
-        self.fake(comments=[])
-        self.assertEqual(policy.recheck_lane_issue(REPO, 7, issue=41), "not-ratified")
-        self.fake(closing=[self.issue_node(renamed="2026-10-17T00:00:00Z")])
-        self.assertEqual(policy.recheck_lane_issue(REPO, 7, issue=41), "not-ratified")
+    def test_an_unreadable_default_branch_refuses(self) -> None:
         gh = self.fake()
-        gh.rest[self.COMMENTS] = 502
+        gh.rest[f"repos/{REPO}"] = 502
+        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
         reason = policy.recheck_lane_issue(REPO, 7, issue=41)
         self.assertTrue(str(reason).startswith("unreadable:"))
 
