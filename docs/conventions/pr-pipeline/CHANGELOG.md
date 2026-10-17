@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 1.24.0 - 2026-10-17
+## 1.25.0 - 2026-10-17
 
 Both Dependabot classifiers make an otherwise tier `auto` npm or pip update tier `review` when its
 registry provenance changed or cannot be read (`provenance-changed:<name>`,
@@ -10,6 +10,22 @@ runner gains a seventh dependency escalation reason, `dependency-control-uncited
 verdict on a review-only dependency that does not quote each matched entry's `control` in
 `evidence`. The select step warns `classifier gap` when only a read failure sent a pull request
 to review (README, "Classifier gaps"). `version` stays 1.
+
+## 1.24.0 - 2026-10-17
+
+`resolve-issue` lists two more `verify-scripts`, each wrapped by the same generator as the
+can't-fail scan: `scripts/run-test-file.sh` runs one test file inside the checkout by name
+(`test_*.py` under pytest, `*.test.sh` under bash, `*.test.mjs` under `node --test`, without
+`GH_TOKEN` or `GITHUB_TOKEN`), and `scripts/git-mv-rm.sh` runs `git mv` or `git rm` inside the
+checkout, recording an untracked path as intent-to-add first. Both refuse an absolute path, a `..`
+segment, a leading `-` or `:` and a path that resolves outside the checkout (`scripts/lib/checkout-path.sh`).
+`git-mv-rm.sh` sets `GIT_LITERAL_PATHSPECS=1`, so git reads no glob or pathspec magic, and
+`run-test-file.sh` takes only `[A-Za-z0-9._/-]` names after `--`, so pytest reads no node id.
+A write skill that commits also gets `mcp__github_file_ops__delete_files`, and the system prompt
+tells it to delete each committed path it renamed or removed. When the stage grants the test-file
+runner, the write runner sets up Python and installs the base's hash-pinned CI requirements before
+the head checkout. `verify-scripts` may now list a script that changes files or runs checkout code
+when the script limits itself. `version` stays 1.
 
 ## 1.23.0 - 2026-10-17
 
