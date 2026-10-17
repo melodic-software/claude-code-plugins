@@ -20,10 +20,11 @@ calls, one command per call, where each is screened on its own.
   invocations, so the composition itself is not a documented fact.
 - [Worktrees: how Claude Code enforces isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation)
   documents the checks an isolated session applies. The one this record rests on is the
-  command-shape check, which the page words in terms of git the command runs. The errors page adds
-  that a command that never names git can still be refused when an expansion can hide a command,
-  so a git-free `$` expansion is not safe by that scoping alone. **Pointer:** that section. **As of:** 2026-10-11. **Recheck trigger:** a re-fetch of that
-  section that drops the command-shape check or stops scoping it to git.
+  command-shape check.
+  [Errors: command blocked by the worktree isolation checks](https://code.claude.com/docs/en/errors#command-blocked-by-the-worktree-isolation-checks)
+  lists the refusal reasons, including which expansions are refused in a command that never names
+  git. **Pointer:** both sections. **As of:** 2026-10-17. **Recheck trigger:** a re-fetch of
+  either section that drops the command-shape check or changes the expansions it names.
 - `scripts/check-skill-precompute-compose.sh` in this repository is the gate that encodes the
   observed behavior. It refuses a skill whose pre-compute block holds a git command together with
   more than one injection line, which is the shape that breaks only in isolated agents while
@@ -47,18 +48,19 @@ every Bash call in the session, a skill's body steps and each subagent it spawns
 pre-compute block. A worker brief that sends a subagent into an isolated session points here
 instead of restating the shapes.
 
-**Accepted.** One plain command per call, with a literal absolute path and no `$` expansion. Give
+**Accepted.** One plain command per call, with a literal absolute path and no `$` expansion other
+than a bare `$HOME`, which a probe has shown the guard accepts. Give
 each git read its own call. Read a file with the Read tool rather than `sed`, `cat` or `head` over
 a path held in a variable.
 
 **Refused.** The first and third classes come from Claude Code's built-in isolation guard;
-the second is attributed to it by owner decision (see its basis). None of the refusal texts
-("cannot be shown not to be git", "computed at runtime") appears in this repository's hooks.
+the second is attributed to it by owner decision (see its basis). None of the refusal texts quoted
+in #5673 appears in this repository's hooks.
 
 | Class | Rewrite | Basis |
 | --- | --- | --- |
-| A command the guard cannot show keeps any git inside the worktree: `${!name}`, `${ command; }`, a command name computed at runtime, syntax it cannot parse | Split into plain, separate commands and spell each value literally | Command shape check on the worktrees page; errors page "Command blocked by the worktree isolation checks" |
-| A compound command with a path word the guard reads as git, such as `github` in a ghq path (`~/repos/github.com/...`) or a slice path ending in `git` | Run it as one plain call | Owner decision on #5673, from one machine's hook list; the slice-path probe in `plugins/discovery/reference/parent-contract.md` allowed the same path as one plain command. The upstream pages do not document path-word matching |
+| A command whose text the guard cannot verify keeps any git inside the worktree; the errors section lists the shapes | Split into plain, separate commands and spell each value literally | [Worktrees: command shape](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation); [Errors: command blocked by the worktree isolation checks](https://code.claude.com/docs/en/errors#command-blocked-by-the-worktree-isolation-checks) |
+| A compound command with a path word the guard reads as git, such as `github` in a ghq path (`~/repos/github.com/...`) or a slice path ending in `git` | Run it as one plain call | Owner decision on #5673, from one machine's hook list; the slice-path probe in #6067 allowed the same path as one plain command. The upstream pages do not document path-word matching |
 | `eval` as a command word | Stop and give the user the exact command to run | `/evals:plugin-eval`; upstream watch in #5696 |
 
 **Not settled.** The pre-compute record says Claude Code 2.1.257 stopped refusing a `$VAR` read
@@ -67,7 +69,5 @@ may contradict it; the report names no Claude Code release or full command, so i
 fix or have set `F` in the same compound command. No probe from an isolated session on the current release has reconciled the
 two. Keep `$` out of worker commands until one does.
 
-**Basis.** The worktrees page "How Claude Code enforces isolation" (the command shape check, which
-covers subagents and background sessions) and the errors page section named above, both read
-2026-10-17. **Recheck trigger.** Either section changes the expansions it names or the scope of the
+**Basis.** The two upstream sections linked in the table, both read 2026-10-17. **Recheck trigger.** Either section changes the expansions it names or the scope of the
 check, or a probe from an isolated session runs `sed -n 1,5p` on a `$F` scratchpad path.
