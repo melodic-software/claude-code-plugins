@@ -68,6 +68,7 @@ class TestValidSamples(unittest.TestCase):
                 "request-cancelled",
                 "session-ended",
                 "upload-received",
+                "report-filed",
             },
         )
 
@@ -192,6 +193,19 @@ class TestFormatsReactionsPresence(unittest.TestCase):
         state = fixture("state-v2.json")
         del state["disagreements"]
         self.assertIsNone(schema.first_error(state, STATE))
+
+    def test_a_report_holds_text_its_page_context_and_a_status_of_open_seen_or_resolved(self):
+        state = fixture("state-v2.json")
+        ctx = {"view": "focus", "device": "phone", "browser": "safari", "viewport": {"w": 390, "h": 844}, "errors": []}
+        state["reports"] = {"F1": {"by": "host", "text": "Send does nothing", "ctx": ctx, "image": "reports/F1.png", "status": "open", "ts": 1.0}}
+        state["session"]["seq"]["F"] = 1
+        self.assertIsNone(schema.first_error(state, STATE))
+        for bad, want in ((lambda r: r.update(status="closed"), "'closed' is not one of"), (lambda r: r["ctx"].update(answer="x"), "'answer'"),
+                          (lambda r: r.pop("text"), "missing required 'text'"), (lambda r: r["ctx"].update(errors=["e"] * 6), "at most 5")):
+            with self.subTest(want=want):
+                broken = copy.deepcopy(state)
+                bad(broken["reports"]["F1"])
+                self.assertIn(want, schema.first_error(broken, STATE) or "")
 
     def test_heartbeat_samples_are_valid_and_their_fields_typed(self):
         for body in fixture("wire-heartbeat.json"):

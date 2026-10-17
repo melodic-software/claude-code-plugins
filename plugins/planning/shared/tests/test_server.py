@@ -8,6 +8,7 @@ from running the server.
 
 from __future__ import annotations
 
+import base64
 import contextlib
 import hashlib
 import io
@@ -1500,6 +1501,64 @@ class TestWatcherKey(ServerCase):
             with self.subTest(path=path):
                 code, _, out = self.post(f"/api/mine/requests/{path}", b, bo_key)
                 self.assertEqual((code, out["error"]), (404, "no-such-request"))
+
+
+class TestReports(ServerCase):
+    """Report a problem over HTTP. Expected values come from the approved V1 (feedback triage row 38): POST /api/report
+    is a person route whose picture is png, jpeg or webp up to 512 KB with its own body cap, allowed while uploads are
+    off; reports, their pictures and Seen and Resolved are the owner's; report-filed wakes the watcher."""
+
+    CTX = {"view": "focus", "device": "phone", "browser": "safari", "viewport": {"w": 390, "h": 844}, "errors": []}
+
+    def setUp(self):
+        super().setUp()
+        self.open_round("Q1")
+        self.ann_pid, self.ann = self.join("Ann")
+
+    def report(self, who, image=None, text="Send does nothing"):
+        return self.post("/api/report", {"text": text, "ctx": {**self.CTX, "qid": "Q1"}, **({"image": image} if image else {})}, who)
+
+    @staticmethod
+    def data_url(kind, data):
+        return f"data:image/{kind};base64,{base64.b64encode(data).decode()}"
+
+    def test_a_512_kb_screenshot_goes_through_with_uploads_off_and_wakes_the_watcher(self):
+        self.assertFalse(self.app.session.state["session"]["settings"]["uploads"])
+        shot = b"\xff\xd8\xff" + b"\x00" * (512 * 1024 - 3)
+        code, _, out = self.report(self.ann, self.data_url("jpeg", shot))
+        self.assertEqual((code, out["id"]), (200, "F1"), out)
+        self.assertEqual((self.d / "reports" / "F1.jpg").read_bytes(), shot)
+        code, _, out = call(self.app.control_port, "GET", "/api/wait?after=handled&timeout=5", headers={"X-Shared-Token": self.app.hub.token}, timeout=20)
+        self.assertEqual([(e["kind"], e["report"], e["qid"], e["text"]) for e in out["events"]], [("report-filed", "F1", "Q1", "Send does nothing")])
+        code, _, out = self.post("/api/upload/offer", {"file": "a.png", "size": 10, "type": "image/png"}, self.ann)
+        self.assertEqual((code, out["error"]), (403, "uploads-off"))
+
+    def test_a_body_past_the_report_cap_is_refused_before_it_is_read(self):
+        code, _, out = call(self.port, "POST", "/api/report", raw=b"{}", headers={"Content-Type": "application/json", "Content-Length": str(session.REPORT_MAX + 1), **self.ann})
+        self.assertEqual((code, out["error"], out["max"]), (413, "body-too-large", session.REPORT_MAX))
+
+    def test_a_picture_one_byte_past_512_kb_or_of_another_kind_is_refused(self):
+        code, _, out = self.report(self.ann, self.data_url("png", PNG + b"\x00" * (512 * 1024 + 1 - len(PNG))))
+        self.assertEqual((code, out["error"]), (413, "upload-too-large"))
+        code, _, out = self.report(self.ann, self.data_url("png", b"GIF89a" + b"\x00" * 40))
+        self.assertEqual((code, out["error"]), (415, "file-type"))
+        self.assertEqual(self.app.session.state.get("reports", {}), {})
+
+    def test_only_the_owner_reads_reports_their_pictures_and_marks_them(self):
+        self.report(self.ann, self.data_url("png", PNG))
+        self.assertNotIn("reports", self.get("/api/state", self.ann)[2])
+        code, _, out = self.get("/api/report/image?id=F1", self.ann)
+        self.assertEqual((code, out["error"]), (403, "owner-only"))
+        code, _, out = self.post("/api/report/act", {"id": "F1", "action": "seen"}, self.ann)
+        self.assertEqual((code, out["error"]), (403, "owner-only"))
+        mine = self.get("/api/state", self.owner)[2]["reports"]
+        self.assertEqual([(r["id"], r["by"], r["status"], r["image"]) for r in mine], [("F1", self.ann_pid, "open", True)])
+        self.assertNotIn("reports/F1", json.dumps(mine))
+        code, _, out = self.get("/api/report/image?id=F1", self.owner)
+        self.assertEqual((code, out["image"]), (200, self.data_url("png", PNG)))
+        code, _, out = self.post("/api/report/act", {"id": "F1", "action": "seen"}, self.owner)
+        self.assertEqual((code, out["status"]), (200, "seen"))
+        self.assertEqual([n["kind"] for n in self.get("/api/state", self.ann)[2]["me"]["notifications"]][-1], "report")
 
 
 class TestUploads(ServerCase):

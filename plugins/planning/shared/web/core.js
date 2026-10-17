@@ -47,7 +47,7 @@
     questions: [], answers: {}, ideas: [], presence: [], locks: {}, disagreements: {}, suggestions: {}, chat: [], leaders: [], trusted: [],
     round: { current: 1, status: "open" }, rounds: [], title: "", people: {}, research: {}, requestCounts: { open: 0, byQ: {} }, requests: [],
     myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], cleared: [], guestKey: "", shareChanged: false, shareUrl: "",
-    goal: "", intro: "", annotations: [], uploads: [], myUploads: [], files: {}, mergeRequests: [], myMergeRequests: [], me: null, joinNeedsKey: false,
+    goal: "", intro: "", annotations: [], uploads: [], reports: [], myUploads: [], files: {}, mergeRequests: [], myMergeRequests: [], me: null, joinNeedsKey: false,
     settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true },
   };
 
@@ -213,6 +213,8 @@
       ...(u.status.reason ? { reason: u.status.reason } : {}), ...(u.thumb ? { thumb: u.thumb } : {}) });
     view.myUploads = (s.myUploads || []).map(upView);
     view.uploads = (s.uploads || []).map(upView);
+    // Problem reports (owner only): the picture itself comes from Core.reportImage when the owner opens one.
+    view.reports = (s.reports || []).map(r => ({ id: r.id, cid: r.by, name: nameOf(r.by), text: r.text, ctx: r.ctx, image: r.image, status: r.status, ts: r.ts }));
     view.files = s.files || {};
     // Present people are active or away (with since when); a person with no heartbeat for a while is absent: offline.
     view.presence = (s.presence || []).map(p => ({ cid: p.pid, name: nameOf(p.pid), q: p.q, typing: p.typing, chatTyping: p.chatTyping,
@@ -262,6 +264,7 @@
     "slow-down": "You sent that a moment ago. Try again in a second.",
     "join-rate": "Too many people joined from your network just now. Wait a minute, then try again.",
     "too-many-pending": "You have 10 requests waiting already.",
+    "too-many-reports": "This session holds as many problem reports as it takes.",
     "no-such-upload": "That file is gone. The page shows what is there now.",
     "file-type": "Guests can send pictures, PDF, text, CSV and Office files.",
     "upload-too-large": "That is more than this session takes. Guests can send up to 100 MB in all.",
@@ -452,6 +455,17 @@
       const nameOf = pid => (pid === "host" ? "Host" : Core.state.people[pid]?.name || "Someone");
       return { ...j, history: (j.history || []).map(v => ({ text: v.text, cid: v.by, name: nameOf(v.by), ts: v.at })) };
     },
+    /** Report a problem: text, the page context (Core.reportContext) and at most one picture, a data: URL. */
+    report: (text, ctx, image) => act("/api/report", { text, ctx, ...(image ? { image } : {}) }),
+    /** Owner: mark a report seen or resolved; either tells the reporter. */
+    reportAct: (id, action) => act("/api/report/act", { id, action }),
+    /** Owner: one report's picture, as a data: URL. */
+    reportImage: async id => {
+      const r = await fetch(`/api/report/image?${new URLSearchParams({ id })}`, { headers: ident() });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw { status: r.status, ...j };
+      return j.image;
+    },
     /** Owner: admit or decline one person waiting under Approve new joins. */
     joinAct: (pid, action) => act("/api/join/act", { pid, action }),
     /** Owner: "Why you're here" (empty removes it). */
@@ -638,11 +652,21 @@
   // Script errors, unhandled rejections, and every action the server refused or never answered (send above). Only once
   // joined: the server refuses an anonymous report. Never answer or chat text, the address's fragment, or a credential.
   const cut = (text, n) => Array.from(String(text)).slice(0, n).join(""); // by code point, as the server counts
+  const recentErrors = []; // the last few this page sent, which a problem report carries
   function reportError(kind, message, extra = {}) {
     if (!ownerToken && !secret) return;
     const body = { kind, message: cut(message || kind, 500), route: cut(location.pathname, 200), ua: `${browserKind()} ${deviceKind()}`, ...extra };
+    if (kind !== "layout") { recentErrors.push(cut(`${kind}${extra.code ? " " + extra.code : ""}: ${body.message}`, 300)); recentErrors.splice(0, recentErrors.length - 5); }
     fetch("/api/client-log", { method: "POST", headers: { "Content-Type": "application/json", ...ident() }, body: JSON.stringify(body), keepalive: true }).catch(() => {});
   }
+  /** What a problem report says about this page: the view and tab, question, round, device, browser, viewport, build
+   *  and the last five errors this page sent, never an answer, chat, the address or its fragment, or a credential. */
+  Core.reportContext = () => {
+    const c = Core.context?.() || {}, w = where(), v = window.visualViewport, n = x => Math.round(x * 100) / 100;
+    return { view: w.view, ...(c.tab ? { tab: c.tab } : {}), ...(c.qid ? { qid: c.qid } : {}), ...(c.round != null ? { round: c.round } : {}),
+      device: w.deviceInfo.kind, browser: w.deviceInfo.browser, viewport: w.deviceInfo.screen,
+      ...(v ? { visualViewport: { w: n(v.width), h: n(v.height), scale: n(v.scale) } } : {}), ...(build ? { build } : {}), errors: [...recentErrors] };
+  };
   /** A layout readout (kind layout) as one `name=value` line: numbers and CSS values only, never text anyone wrote. */
   Core.reportLayout = fields => reportError("layout", Object.entries(fields).map(([k, v]) => `${k}=${String(v).replace(/\s+/g, "")}`).join(" "));
   addEventListener("error", e => reportError("error", e.message, e.filename ? { source: cut(`${new URL(e.filename, location.href).pathname}:${e.lineno}`, 200) } : {}));

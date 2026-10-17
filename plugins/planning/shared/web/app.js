@@ -185,7 +185,8 @@
     };
     Core.context = () => {
       const coarse2 = matchMedia("(pointer: coarse)").matches, small = matchMedia("(max-width: 720px)").matches;
-      return { view: ui.mode, device: coarse2 ? (small ? "phone" : "tablet") : "computer", browser: browserName(), vw: innerWidth, vh: innerHeight };
+      return { view: ui.mode, device: coarse2 ? (small ? "phone" : "tablet") : "computer", browser: browserName(), vw: innerWidth, vh: innerHeight,
+        tab: phone.matches ? ui.tab : "", qid: ui.cur || "", round: Core.state.questions.length ? curRound().current : null };
     };
     const VIEW_NAME = { focus: "Focus", compare: "Compare", tree: "Tree", host: "Host" };
     const ctxText = c => `${{ phone: "On a phone", tablet: "On a tablet", computer: "On a computer" }[c.device] || "Device unknown"}${c.browser ? `, ${c.browser}` : ""}${c.vw ? `, ${c.vw}×${c.vh}` : ""}${c.view ? `, in ${VIEW_NAME[c.view] || c.view}` : ""}`;
@@ -577,7 +578,7 @@
     function announce(msg) { srLive.textContent = ""; requestAnimationFrame(() => { srLive.textContent = msg; }); }
     const fail = e => {
       if (e?.agree != null) return flash(`Not everyone agrees yet: ${e.agree} of ${e.total} have voted for it.`);
-      flash(`Not saved: ${Core.errorText(e)}`);
+      flash(`Not saved: ${Core.errorText(e)}`, { label: "Report this", run: () => openReport() });
     };
 
     // ---------- top bar ----------
@@ -682,6 +683,26 @@
     propRowB.append(propCancel, propSend);
     proposePop.append(E("h2", "vf-pop-title", "Propose a question"), propLabel, propTa,
       E("p", "vf-pop-note", "It goes to Proposed. Claude places it in the next round or says why not."), propRowB);
+
+    // Report a problem: from More, Help or a refused action's toast, placed as the Propose form is (a bottom sheet on a
+    // phone, so it sits right on the keyboard). "Sent with this report" lists everything that goes with it before Send.
+    const reportPop = E("form", "vf-pop vf-reportpop"); reportPop.setAttribute("role", "dialog"); reportPop.setAttribute("aria-label", "Report a problem"); reportPop.hidden = true;
+    const repTa = E("textarea", "vf-ta"); repTa.rows = 3; repTa.maxLength = 2000; repTa.id = "vf-rep-ta"; repTa.required = true;
+    const repLabel = E("label", "vf-asklabel", "What went wrong?"); repLabel.htmlFor = repTa.id;
+    const repCount = E("span", "vf-rep-count", "0 / 2000");
+    const repFile = E("input", "vf-rep-file"); repFile.type = "file"; repFile.accept = "image/png,image/jpeg,image/webp"; repFile.id = "vf-rep-file";
+    const repFileLabel = E("label", "vf-btn vf-btn-ghost vf-btn-sm vf-rep-add", "Add a screenshot"); repFileLabel.htmlFor = repFile.id;
+    const repShot = E("img", "vf-rep-shot"); repShot.alt = "Your screenshot"; repShot.hidden = true;
+    const repDrop = btn("vf-btn vf-btn-ghost vf-btn-sm vf-rep-drop", "Remove screenshot"); repDrop.hidden = true;
+    const repShotRow = E("div", "vf-crow vf-rep-shotrow"); repShotRow.append(repFileLabel, repDrop);
+    const repSent = E("ul", "vf-rep-sent"); repSent.setAttribute("aria-label", "Sent with this report");
+    const repErr = E("p", "vf-rep-err"); repErr.setAttribute("role", "alert");
+    const repRow = E("div", "vf-crow"), repCancel = btn("vf-btn vf-btn-ghost", "Cancel");
+    const repSend = E("button", "vf-btn vf-btn-primary", "Send report"); repSend.type = "submit";
+    repRow.append(repCount, E("span", "vf-spacer"), repCancel, repSend);
+    reportPop.append(E("h2", "vf-pop-title", "Report a problem"), repLabel, repTa, repRow, repShotRow, repFile,
+      E("p", "vf-pop-note", "Take a screenshot first, then add it here. Only the host and Claude see your report."), repShot,
+      E("h3", "vf-pop-sub", "Sent with this report"), repSent, repErr);
 
     // Wide panels: beside the rail when there is room, over the center pane when not, a bottom sheet on phones.
     function panel(title, label) {
@@ -1075,7 +1096,7 @@
     // queue
     const qFilters = E("div", "vf-chips vf-qfilters"); qFilters.setAttribute("role", "group"); qFilters.setAttribute("aria-label", "Show in the queue");
     const qfBtns = {};
-    for (const [k, label] of [["all", "All"], ["request", "Requests"], ["proposal", "Proposals"], ["suggestion", "Suggestions"], ["merge", "Merges"], ["upload", "Uploads"], ["ready", "Ready"]]) {
+    for (const [k, label] of [["all", "All"], ["request", "Requests"], ["proposal", "Proposals"], ["suggestion", "Suggestions"], ["merge", "Merges"], ["upload", "Uploads"], ["report", "Problems"], ["ready", "Ready"]]) {
       const b = btn("vf-fchip"); b.append(E("span", null, label), E("span", "vf-fchip-n")); b.onclick = () => { ui.hostFilter = k; render(); }; qFilters.append(b); qfBtns[k] = b;
     }
     const queueList = E("ul", "vf-queue"); queueList.setAttribute("role", "list");
@@ -1254,7 +1275,8 @@
     }
     const helpTour = btn("vf-btn vf-btn-primary vf-btn-sm vf-help-tour", "Show me around");
     const helpIntro = btn("vf-btn vf-btn-ghost vf-btn-sm vf-help-intro", "Why you're here");
-    keysPop.append(E("h2", "vf-pop-title", "Help"), E("p", "vf-pop-note", "A one-minute tour of the questions, your answer, other people's answers and the chat."), helpTour, helpIntro,
+    const helpReport = btn("vf-btn vf-btn-ghost vf-btn-sm vf-help-report", "Report a problem");
+    keysPop.append(E("h2", "vf-pop-title", "Help"), E("p", "vf-pop-note", "A one-minute tour of the questions, your answer, other people's answers and the chat."), helpTour, helpIntro, helpReport,
       E("h3", "vf-pop-sub", "Keyboard shortcuts"), keyList, E("p", "vf-pop-note", "They work when you are not typing in a field."));
 
     // Phase 4c: "Why you're here", reopened from the header (or More on a phone) after the first view.
@@ -1441,7 +1463,7 @@
       ["proposal", "My proposals placed or not", "forward"], ["round", "New rounds", "list"], ["merge", "Merges I asked for", "merge"],
       ["role", "Made leader or trusted", "host"], ["votes", "Agreement with my answers, once an hour", "thumb"],
       ["reaction", "Reactions to my chat messages", "chat"],
-      ["queue", "New items in the host queue", "host"], ["ready", "A round marked ready", "check"]];
+      ["queue", "New items in the host queue", "host"], ["ready", "A round marked ready", "check"], ["report", "The host read my problem reports", "help"]];
     const bellPop = E("div", "vf-pop vf-bellpop"); bellPop.setAttribute("role", "dialog"); bellPop.setAttribute("aria-label", "Notifications"); bellPop.hidden = true;
     const bpHead = E("div", "vf-pp-head");
     const bpAll = btn("vf-btn vf-btn-ghost vf-btn-sm", "Mark all read");
@@ -1473,6 +1495,7 @@
     const msFollow = msItem("forward", "Follow host"), msShare = msItem("link", "Share"), msSettings = msItem("gear", "Settings"), msHost = msItem("host", "Host view");
     const msTour = msItem("help", "Show me around"); msTour._d.textContent = "A one-minute tour";
     const msIntro = msItem("doc", "Why you're here");
+    const msReport = msItem("alert", "Report a problem"); msReport._d.textContent = "Tell the host something is broken";
     moreSheet.append(msHead, msList);
 
     // ---------- Triage 4: an optional first-visit tour, skippable, re-opened from Help; the `tour` pref remembers it ----------
@@ -1624,7 +1647,7 @@
     devicePop.append(E("h2", "vf-pop-title", "Use on another device"), E("p", "vf-pop-note", "Scan this on your phone, or open the link in another browser. You stay the same person there, with your answers and votes."), qrBox, devField, devRow, devWarn);
 
     keysBtn.before(introBtn);
-    root.append(top, body, tabs, fab, chat, pcard, settingsPop, sharePop, keysPop, introPop, editPop, personPop, PP.pop, RQ.pop, confirmPop, tiePop, proposePop, askMenu, citePop, msgMenu, askPanel, devicePop,
+    root.append(top, body, tabs, fab, chat, pcard, settingsPop, sharePop, keysPop, introPop, editPop, personPop, PP.pop, RQ.pop, confirmPop, tiePop, proposePop, reportPop, askMenu, citePop, msgMenu, askPanel, devicePop,
       bellPop, moreSheet, mentionBox, reader, lb, toast, srLive, tour);
 
     // ---------- actions ----------
@@ -1744,7 +1767,7 @@
     function openPop(pop, anchor) {
       closePop(); hideCard();
       ui.pop = pop; pop.hidden = false; pop._return = null;
-      if (phone.matches && pop === proposePop) pop.removeAttribute("style"); // a sheet: the stylesheet places it
+      if (phone.matches && (pop === proposePop || pop === reportPop)) pop.removeAttribute("style"); // a sheet: the stylesheet places it
       else placeNear(pop, anchor);
       anchor.setAttribute("aria-expanded", "true"); pop._anchor = anchor;
       render();
@@ -1787,7 +1810,7 @@
       syncModal();
     }
     /** On a phone a chat or panel sheet covers the page: everything behind it goes inert, and Tab stays inside. */
-    const activeSheet = () => (phone.matches ? (ui.chatOpen ? chat : ui.pop?.matches(".vf-panel, .vf-drawer, .vf-proposepop, .vf-bellpop[data-place='sheet']") ? ui.pop : null) : null);
+    const activeSheet = () => (phone.matches ? (ui.chatOpen ? chat : ui.pop?.matches(".vf-panel, .vf-drawer, .vf-proposepop, .vf-reportpop, .vf-bellpop[data-place='sheet']") ? ui.pop : null) : null);
     function syncModal() {
       const sheet = activeSheet();
       for (const el of [top, body, tabs, fab]) el.inert = !!sheet;
@@ -2320,6 +2343,8 @@
     introBtn.onclick = () => (ui.pop === introPop ? closePop() : openIntro(introBtn));
     msIntro.onclick = () => { closePop(); openIntro(tabBtns.more.offsetParent ? tabBtns.more : top); };
     helpIntro.onclick = () => { closePop(); openIntro(keysBtn.offsetParent ? keysBtn : gear.offsetParent ? gear : top); };
+    helpReport.onclick = () => openReport(keysBtn);
+    msReport.onclick = () => openReport(tabBtns.more);
     on(hIntroIn, "input", () => { ui.introDirty = hIntroIn.value.trim() !== (Core.state.intro || ""); counter(hIntroCount, hIntroIn, 500); hIntroSave.disabled = !ui.introDirty; });
     hIntroSave.onclick = () => {
       hIntroSave.disabled = true;
@@ -3217,6 +3242,62 @@
       propSend.disabled = true;
       Core.idea(text).then(() => { propTa.value = ""; propBack(); flash("Proposed. You can see it under Your proposals."); })
         .catch(fail).finally(() => { propSend.disabled = false; });
+    };
+    // ---------- Report a problem ----------
+    const REP = { ctx: null, image: "", size: null };
+    const VIEW_WORD = { focus: "Focus", compare: "Compare", tree: "Tree", host: "Host", prototype: "Prototype" };
+    function paintSent() {
+      const c = REP.ctx, v = c.visualViewport, x = n => Math.round(n);
+      const rows = [`View: ${VIEW_WORD[c.view] || c.view}${c.tab ? `, ${c.tab} tab` : ""}`,
+        ...(c.qid ? [`Question: ${c.qid}${c.round != null ? `, round ${c.round}` : ""}`] : []),
+        `Device: ${c.device}, ${BROWSER_NAME[c.browser] || "other browser"}`,
+        `Screen: ${c.viewport.w} × ${c.viewport.h}${v ? `; visible ${x(v.w)} × ${x(v.h)} at ${v.scale}×` : ""}`,
+        ...(c.build ? [`Page version: ${c.build}`] : []),
+        c.errors.length ? `Recent errors: ${c.errors.join("; ")}` : "Recent errors: none",
+        ...(REP.image ? [`Your screenshot, ${REP.size.w} × ${REP.size.h}`] : []),
+        "Not sent: your answers, the chat, this page's address or your sign-in"];
+      repSent.replaceChildren(...rows.map(t => E("li", null, t)));
+    }
+    function openReport(anchor) {
+      REP.ctx = Core.reportContext(); // where the page was when the problem showed, before this form opened
+      repErr.textContent = "";
+      paintSent();
+      openPop(reportPop, anchor || (keysBtn.offsetParent ? keysBtn : tabBtns.more.offsetParent ? tabBtns.more : top));
+    }
+    /** A screenshot re-encoded in this browser: at most 1600 px on its long edge and 512 KB, WebP where the browser
+     *  writes it, else JPEG. */
+    async function shrinkShot(file) {
+      const bmp = await createImageBitmap(file), k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+      const c = E("canvas"); c.width = Math.max(1, Math.round(bmp.width * k)); c.height = Math.max(1, Math.round(bmp.height * k));
+      c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height); bmp.close?.();
+      for (const [type, q] of [["image/webp", 0.85], ["image/webp", 0.6], ["image/jpeg", 0.7], ["image/jpeg", 0.45], ["image/jpeg", 0.3]]) {
+        const url = c.toDataURL(type, q), head = `data:${type};base64,`;
+        if (url.startsWith(head) && (url.length - head.length) * 3 / 4 <= 512 * 1024) return { url, w: c.width, h: c.height };
+      }
+      throw new Error("too large");
+    }
+    const dropShot = () => { REP.image = ""; REP.size = null; repFile.value = ""; repShot.hidden = repDrop.hidden = true; repShot.removeAttribute("src"); repFileLabel.textContent = "Add a screenshot"; paintSent(); };
+    on(repFile, "change", async () => {
+      const f = repFile.files?.[0]; if (!f) return;
+      repErr.textContent = "";
+      try {
+        if (!["image/png", "image/jpeg", "image/webp"].includes(f.type)) throw new Error("type");
+        const s = await shrinkShot(f);
+        REP.image = s.url; REP.size = { w: s.w, h: s.h };
+        repShot.src = s.url; repShot.hidden = repDrop.hidden = false; repFileLabel.textContent = "Change screenshot";
+        paintSent();
+      } catch { dropShot(); repErr.textContent = "That picture could not be added. Use a PNG, JPEG or WebP screenshot."; }
+    });
+    repDrop.onclick = dropShot;
+    on(repTa, "input", () => { repCount.textContent = `${repTa.value.length} / ${repTa.maxLength}`; });
+    const repBack = () => { const r = reportPop._return || reportPop._anchor; closePop(); if (r?.isConnected && r.offsetParent) r.focus({ preventScroll: true }); };
+    repCancel.onclick = repBack;
+    reportPop.onsubmit = e => {
+      e.preventDefault();
+      const text = repTa.value.trim(); if (!text) return repTa.focus();
+      repSend.disabled = true; repErr.textContent = "";
+      Core.report(text, REP.ctx, REP.image).then(() => { repTa.value = ""; repCount.textContent = `0 / ${repTa.maxLength}`; dropShot(); repBack(); flash("Report sent. The host and Claude will look at it."); })
+        .catch(x => { repErr.textContent = `Not sent: ${x?.message || Core.errorText(x)}`; }).finally(() => { repSend.disabled = false; });
     };
     newGuestBtn.onclick = guarded({ title: "Make a new guest link?", body: "The guest link you shared stops working: nobody new can join with it. People already here stay. You share the new link again.", ok: "Make new guest link" },
       () => Core.newGuestLink().then(() => { openPop(sharePop, shareBtn.offsetParent ? shareBtn : gear); flash("New guest link made. Share it again."); }).catch(fail));
@@ -4777,10 +4858,11 @@
       if (owner) for (const m of S.mergeRequests || []) out.push({ t: "merge", id: "m:" + m.id, ts: m.ts, m });
       if (owner) for (const j of S.joinRequests || []) out.push({ t: "join", id: "j:" + j.pid, ts: j.ts, j });
       if (owner) for (const u of S.uploads || []) if (["offered", "accepted", "uploading"].includes(u.status)) out.push({ t: "upload", id: "u:" + u.id, ts: u.ts, u });
+      if (owner) for (const f of S.reports || []) out.push({ t: "report", id: "f:" + f.id, ts: f.ts, f });
       if (R.ready && R.status === "open") out.push({ t: "ready", id: "ready:" + R.current, ts: R.ready.ts, ready: R.ready });
       return out.sort((a, b) => a.ts - b.ts);
     }
-    const QT = { request: "Request", proposal: "Proposal", suggestion: "Suggestion", merge: "Merge", upload: "Upload", ready: "Ready to send", join: "Join" };
+    const QT = { request: "Request", proposal: "Proposal", suggestion: "Suggestion", merge: "Merge", upload: "Upload", ready: "Ready to send", join: "Join", report: "Problem" };
     const BROWSER_NAME = { chrome: "Chrome", safari: "Safari", firefox: "Firefox", edge: "Edge", samsung: "Samsung Internet", "in-app": "an in-app browser" };
     const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th"); // spellchecker:disable-line
     /** " (2nd waiting; phone · Safari)": the join order and what the join said about its device, never more. */
@@ -4802,6 +4884,14 @@
       qref.onclick = () => { if (li._it.qid || li._it.r?.qid) focusQuestion(li._it.qid || li._it.r.qid); };
       li._k = { chip, who, qref, text, att, extra, acts, sig: "" };
       if (it.t === "upload") { const row = makeUpRow(true); row.classList.add("vf-uprow-q"); extra.append(row); li._k.up = row; }
+      if (it.t === "report") {
+        // The reporter's words and context are their data. The picture loads only when the owner asks for it.
+        const ctx = E("ul", "vf-rep-sent"), show = btn("vf-btn vf-btn-ghost vf-btn-sm", "Show screenshot"), img = E("img", "vf-rep-shot");
+        img.alt = "The reporter's screenshot"; img.hidden = true;
+        show.onclick = () => { show.disabled = true; Core.reportImage(li._it.f.id).then(src => { img.src = src; img.hidden = false; show.hidden = true; }).catch(e => { show.disabled = false; fail(e); }); };
+        extra.append(ctx, show, img);
+        li._k.rep = { ctx, show };
+      }
       return li;
     }
     function qAct(label, cls, run) { const b = btn(`vf-btn vf-btn-sm ${cls}`, label); b.onclick = run; return b; }
@@ -4810,25 +4900,32 @@
       li._it = it;
       k.chip.textContent = QT[it.t];
       k.chip.className = "vf-chip " + ({ request: "vf-chip-accent", ready: "vf-chip-brass", merge: "vf-chip-quiet", upload: "vf-chip-quiet" }[it.t] || "vf-chip-quiet");
-      const person = it.r ? [it.r.cid, it.r.name] : it.i ? [it.i.cid, it.i.name] : it.x ? [it.x.cid, it.x.name] : it.m ? [it.m.from, it.m.fromName] : it.u ? [it.u.cid, it.u.by]
+      const person = it.r ? [it.r.cid, it.r.name] : it.i ? [it.i.cid, it.i.name] : it.x ? [it.x.cid, it.x.name] : it.m ? [it.m.from, it.m.fromName] : it.u ? [it.u.cid, it.u.by] : it.f ? [it.f.cid, it.f.name]
         : it.j ? [it.j.pid, it.j.name] : [null, it.ready.by];
       const wk = person.join("|") + it.ts;
       if (k.who._k !== wk) {
         k.who._k = wk;
         k.who.replaceChildren(...(person[0] ? [av(person[0], person[1], 16, true)] : []), E("span", null, isMe(person[0]) ? "You" : disp(person[1] || "Someone")), E("span", "vf-card-time", ago(it.ts)));
       }
-      const qid = it.qid || it.r?.qid || it.u?.qid || "", q = qid && qById(qid);
+      const qid = it.qid || it.r?.qid || it.u?.qid || it.f?.ctx.qid || "", q = qid && qById(qid);
       k.qref.hidden = !q; if (q) k.qref.textContent = q.id;
       if (q) k.qref.setAttribute("aria-label", `Open ${q.id}: ${q.text}`);
       const txt = it.r ? `${KIND_REQ[it.r.kind] || "Request"}: ${it.r.text}` : it.i ? it.i.text : it.x ? it.x.text + (it.x.note ? `\n\nWhy: ${it.x.note}` : "")
         : it.m ? `${it.m.fromName} says they were ${it.m.toName} before. Approve to join them: ${it.m.fromName}'s answers and votes move to ${it.m.toName}.`
         : it.ready ? `${it.ready.by} marked round ${curRound().current} ready to send.`
-        : it.j ? `Wants to join: ${it.j.name}${joinHint(it.j)}` : "";
+        : it.j ? `Wants to join: ${it.j.name}${joinHint(it.j)}` : it.f ? `${it.f.status === "seen" ? "Seen. " : ""}${it.f.text}` : "";
       k.text.hidden = !txt;
       if (txt) fillClamp(k.text, "q:" + it.id, txt, `${QT[it.t]} from ${disp(person[1] || "someone")}`, q ? `${q.id}: ${q.text}` : "");
       if (k.up) fillUpRow(k.up, it.u);
+      if (k.rep) {
+        const c = it.f.ctx, v = c.visualViewport;
+        k.rep.ctx.replaceChildren(...[`${VIEW_WORD[c.view] || c.view} view${c.tab ? `, ${c.tab} tab` : ""}${c.round != null ? `, round ${c.round}` : ""}`,
+          `${c.device}, ${BROWSER_NAME[c.browser] || "other browser"}, ${c.viewport.w} × ${c.viewport.h}${v ? ` (visible ${Math.round(v.w)} × ${Math.round(v.h)} at ${v.scale}×)` : ""}`,
+          ...(c.build ? [`Page version ${c.build}`] : []), ...c.errors.map(e => `Error: ${e}`)].map(t => E("li", null, t)));
+        k.rep.show.hidden = !it.f.image || !!k.rep.show.nextSibling.getAttribute("src");
+      }
       fillAtts(k.att, (it.r || it.i || it.x)?.att, `${QT[it.t]} from ${disp(person[1] || "someone")}`);
-      const sig = [it.t, it.r?.status, it.u?.status, owner, Core.canModerate()].join("|");
+      const sig = [it.t, it.r?.status, it.u?.status, it.f?.status, owner, Core.canModerate()].join("|");
       if (k.sig === sig) return;
       k.sig = sig;
       const a = [];
@@ -4850,6 +4947,9 @@
         qAct("Decline", "vf-btn-ghost", () => Core.mergeAct(li._it.m.id, "decline").then(() => flash("Kept apart.")).catch(fail)),
         qAct("Approve", "vf-btn-primary", guarded(() => ({ title: `Join ${li._it.m.fromName} and ${li._it.m.toName}?`, ok: "Join them", body: `${li._it.m.fromName}'s answers, votes, chat and suggestions move to ${li._it.m.toName}. This cannot be undone.` }),
           () => Core.mergeAct(li._it.m.id, "approve").then(() => flash("Joined.")).catch(fail))));
+      if (it.t === "report" && owner) a.push(
+        ...(it.f.status === "open" ? [qAct("Seen", "vf-btn-ghost", () => Core.reportAct(li._it.f.id, "seen").then(() => flash("Marked seen. The reporter is told.")).catch(fail))] : []),
+        qAct("Resolved", "vf-btn-primary", () => Core.reportAct(li._it.f.id, "resolved").then(() => flash("Resolved. The reporter is told.")).catch(fail)));
       if (it.t === "ready" && owner) a.push(qAct("Send round to Claude", "vf-btn-primary", e => roundAction(e.currentTarget)));
       if (it.t === "join" && owner) a.push(
         qAct("Decline", "vf-btn-ghost", () => Core.joinAct(li._it.j.pid, "decline").then(() => flash(`${li._it.j.name} was not let in. Restore them from Settings if that was a mistake.`)).catch(fail)),
@@ -4889,7 +4989,7 @@
         const c = k === "all" ? items.length : counts[k] || 0;
         b.setAttribute("aria-pressed", String(ui.hostFilter === k));
         b.lastChild.textContent = c ? String(c) : "";
-        b.hidden = !owner && ["request", "merge", "upload"].includes(k);
+        b.hidden = !owner && ["request", "merge", "upload", "report"].includes(k);
       }
       const shown = ui.hostFilter === "all" ? items : items.filter(i => i.t === ui.hostFilter);
       sync(queueList, shown, i => i.id, makeQItem, fillQItem);

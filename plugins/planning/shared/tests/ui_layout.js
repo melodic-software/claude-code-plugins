@@ -388,6 +388,23 @@ async function main() {
         await keyboard(pp, false);
       }
       ok(`${w}x${h}, the Propose form from the question list, keyboard ${kbs[0]} to ${kbs[kbs.length - 1]} px: the label, the field's first 3 lines and Propose are seen above the keyboard, nothing clipped or scrolling sideways, the document never scrolled`, bad.length === 0, bad.join("; "));
+      // Report a problem, from More: the same sheet place, so the same keyboards.
+      await pp.keyboard.press("Escape");
+      await pp.locator(".vf-tab", { hasText: "More" }).tap();
+      await pp.locator(".vf-msitem", { hasText: "Report a problem" }).tap();
+      const repOpen = await until(pp, () => !!document.querySelector(".vf-reportpop:not([hidden])"), null, 3000);
+      await settle(pp);
+      const rbad = repOpen ? [] : ["the form did not open"];
+      for (const kb of repOpen ? kbs : []) {
+        await pp.evaluate(() => document.activeElement?.blur());
+        if (!(await pp.locator("#vf-rep-ta").tap({ timeout: 5000 }).then(() => true, () => false))) { rbad.push(`keyboard ${kb}: the field could not be tapped`); break; }
+        await keyboard(pp, true, { kb, scale: 1 });
+        const seen = await fieldSeen(pp, ".vf-reportpop .vf-asklabel", "#vf-rep-ta", ".vf-reportpop button[type=submit]");
+        seen.push(...(await clippedSideways(pp, ".vf-reportpop")), ...(await docScrolls(pp)));
+        if (seen.length) rbad.push(`keyboard ${kb}: ${[...new Set(seen)].join(", ")}`);
+        await keyboard(pp, false);
+      }
+      ok(`${w}x${h}, Report a problem from More, keyboard ${kbs[0]} to ${kbs[kbs.length - 1]} px: the label, the field's first 3 lines and Send report are seen above the keyboard, nothing clipped or scrolling sideways, the document never scrolled`, rbad.length === 0, rbad.join("; "));
       await pp.context().close();
     }
     const ria = await rec.open(A.localUrl, { context: PHONE });

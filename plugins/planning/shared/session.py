@@ -125,6 +125,14 @@ MAX_FILE_NAME = 200  # characters of an upload's display name
 MAX_THUMB = 64000  # characters of an offered picture's data: URL preview, which only the owner sees
 PERSON_THUMB_MAX = 4 * MAX_THUMB  # judgment: preview characters one person's files keep in state.json
 SESSION_THUMB_MAX = 1_000_000  # judgment: preview characters state.json and the owner's snapshot carry in all
+REPORT_IMAGE_MAX = 512 * 1024  # bytes of a report's screenshot, which the page re-encodes to 1600 px at most
+REPORT_MAX = BODY_MAX + -(-REPORT_IMAGE_MAX // 3) * 4 + 32  # a report's body: that picture as a data: URL, plus its text
+REPORT_INTERVAL = 10.0  # judgment: seconds between one person's reports
+MAX_OPEN_REPORTS = 5  # judgment: reports one person has waiting for the owner
+MAX_REPORTS = 500  # judgment: reports across the session; at the cap a new one is refused, none dropped
+MAX_REPORT_ERRORS = 5  # the page's latest client errors a report carries
+MAX_REPORT_ERROR = 300  # characters of each
+REPORTS_DIR = "reports"  # in the private data folder: a report's picture, read only by the owner and the upload reader
 ZIP_UNPACKED_MAX = 1024 * 1024 * 1024  # judgment: bytes an archive kind may unpack to in all
 ZIP_RATIO_MAX = 100  # unpacked to packed, per entry past ZIP_RATIO_GRACE (Apache POI ZipSecureFile's default)
 ZIP_RATIO_GRACE = 1024 * 1024
@@ -147,7 +155,7 @@ OPPOSITE = {"thumbs": "down", "down": "thumbs"}  # one person never holds both o
 REQUEST_KINDS = ("ask", "research", "explore", "design", "prototype")
 USED_TYPES = ("skill", "workflow", "mcp", "cli")
 TECH_COMFORT = ("low", "ok", "high")
-NOTIFY_KINDS = ("mention", "reply", "request", "proposal", "round", "merge", "role", "queue", "ready", "votes", "reaction")
+NOTIFY_KINDS = ("mention", "reply", "request", "proposal", "round", "merge", "role", "queue", "ready", "votes", "reaction", "report")
 # Chat reactions (Phase 4c item 6): the quick row first, then the picker's general set. web/app.js holds the
 # same list (CHAT_EMOJI there); test_session.py checks that the two match.
 CHAT_EMOJI = (
@@ -159,7 +167,9 @@ CHAT_EMOJI = (
     "👏", "🙌", "👀", "🙏", "💪", "👋", "🤝", "✅", "❌", "💯", "🔥", "✨", "⭐", "💡",
     "🚀", "🎯", "📌", "⚠️",
 )
-SEQ_KEYS = ("P", "S", "R", "X", "M", "G", "U", "N", "A")
+SEQ_KEYS = ("P", "S", "R", "X", "M", "G", "U", "N", "A")  # F, a report's, joined later: a file from before has none
+REPORT_STATUS = ("open", "seen", "resolved")
+SLUG = re.compile(r"[a-z0-9][a-z0-9-]{0,31}")  # a report's tab and build id
 
 QID = re.compile(r"Q[1-9][0-9]{0,5}")
 ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg|html)")
@@ -177,6 +187,7 @@ SELECTOR = re.compile(rf"{_SEL_STEP}(?: > {_SEL_STEP}){{0,31}}")
 # Uploads (Contracts, "Upload rules"). Every name on disk is the server's: a pending file is 32 hex digits under
 # uploads/pending/, a received one uploads/accepted/<date>-<upload id>.<ext>. The person's file name is display
 # text only. A state.json whose names stray from these patterns does not load (cross_field_errors).
+REPORT_ID = re.compile(r"F[1-9][0-9]{0,8}")
 UPLOAD_ID = re.compile(r"U[1-9][0-9]{0,8}-[0-9a-f]{8}")
 TMP_NAME = re.compile(r"[0-9a-f]{32}")
 STORED_NAME = re.compile(r"[0-9]{8}-U[1-9][0-9]{0,8}-[0-9a-f]{8}(?:\.[a-z0-9]{1,10})?")  # in uploads/accepted/
@@ -306,7 +317,7 @@ def cross_field_errors(doc):
     only earlier questions, no two review flags share because and why, a round holds at most 8, a
     question holds at most one Something else option, the one with id `other` and `other: true`, no
     session secret names the owner (only the owner link does), only a poll holds a closed-poll lock, no person holds a
-    reaction twice or both thumbs and down on one answer, and every link and asset name is one a write route takes
+    reaction twice or both thumbs and down on one answer, a report's id and picture are names the server makes, and every link and asset name is one a write route takes
     (the schema's url and assetId patterns, which schema.py does not check)."""
     errors, seen, per_round = [], set(), {}
     if HOST in doc["credentials"]["secrets"].values():
@@ -333,6 +344,8 @@ def cross_field_errors(doc):
     held = [(qid, rs) for qid, refs in doc["reactions"].items() for by in refs.values() for rs in by.values()]
     errors += [f"A person holds one reaction twice, or both thumbs and down, on an answer to {qid}." for qid, rs in held if len(set(rs)) < len(rs) or {"thumbs", "down"} <= set(rs)]
     errors += _upload_errors(doc)
+    errors += [f"Report {fid[:40]} holds an id or picture name the server never makes." for fid, r in doc.get("reports", {}).items()
+               if not REPORT_ID.fullmatch(fid) or not (r.get("image") is None or re.fullmatch(rf"{REPORTS_DIR}/{fid}\.(png|jpg|webp)", r["image"]))]
     return errors
 
 
@@ -695,6 +708,64 @@ def _thumb(v, ext):
     return v
 
 
+def _report_image(v):
+    """A report's screenshot: (bytes, extension) from a data: URL of a PNG, JPEG or WebP whose bytes are that kind,
+    at most REPORT_IMAGE_MAX bytes; None for no picture."""
+    if v is None or v == "":
+        return None
+    m = THUMB.fullmatch(v) if isinstance(v, str) else None
+    if m is None:
+        raise DomainError(415, "file-type", "A report's picture must be a PNG, JPEG or WebP screenshot.", field="image")
+    try:
+        data = base64.b64decode(m.group(2), validate=True)
+    except ValueError as exc:
+        raise _bad("image", "image is not base64.") from exc
+    if len(data) > REPORT_IMAGE_MAX:
+        raise DomainError(413, "upload-too-large", "That picture is too large.", field="image", max=REPORT_IMAGE_MAX)
+    kind = {"jpeg": "jpg"}.get(m.group(1), m.group(1))
+    if not UPLOAD_KINDS[kind][1](data[:64]):
+        raise DomainError(415, "file-type", f"The picture says {m.group(1)}, but its bytes are not.", field="image")
+    return data, kind
+
+
+def _dims(v, field, keys):
+    """{w, h[, scale]}: positive numbers a page measured."""
+    if not isinstance(v, dict) or set(v) != set(keys) or not all(isinstance(v[k], (int, float)) and not isinstance(v[k], bool) and 0 <= v[k] <= 100_000 for k in keys):
+        raise _bad(field, f"{field} must be {{{', '.join(keys)}}}, each a number.")
+    return {k: round(float(v[k]), 2) for k in keys}
+
+
+REPORT_CTX = ("view", "tab", "qid", "round", "device", "browser", "viewport", "visualViewport", "build", "errors")
+
+
+def _report_ctx(v):
+    """What a report says about the page it came from: REPORT_CTX only (never an answer, chat, the address or a
+    credential), each field checked."""
+    if not isinstance(v, dict):
+        raise _bad("ctx", "ctx must be an object.")
+    extra = sorted(set(v) - set(REPORT_CTX))
+    if extra:
+        raise _bad("ctx", f"{extra[0][:40]} is not sent with a report.")
+    out = {"view": _choice(v, "view", VIEWS), "device": _choice(v, "device", DEVICES), "browser": _choice(v, "browser", BROWSERS)}
+    for k, pattern in (("tab", SLUG), ("build", SLUG), ("qid", QID)):
+        if v.get(k) not in (None, ""):
+            if not isinstance(v[k], str) or not pattern.fullmatch(v[k]):
+                raise _bad(f"ctx.{k}", f"ctx.{k} is not one the page sends.")
+            out[k] = v[k]
+    if v.get("round") is not None:
+        if not _is_int(v["round"]) or not 0 <= v["round"] <= 10_000:
+            raise _bad("ctx.round", "ctx.round must be a round number.")
+        out["round"] = v["round"]
+    out["viewport"] = _dims(v.get("viewport"), "ctx.viewport", ("w", "h"))
+    if v.get("visualViewport") is not None:
+        out["visualViewport"] = _dims(v["visualViewport"], "ctx.visualViewport", ("w", "h", "scale"))
+    errors = v.get("errors", [])
+    if not isinstance(errors, list) or len(errors) > MAX_REPORT_ERRORS or not all(isinstance(e, str) and len(e) <= MAX_REPORT_ERROR for e in errors):
+        raise _bad("ctx.errors", f"ctx.errors lists at most {MAX_REPORT_ERRORS} errors of {MAX_REPORT_ERROR} characters.")
+    out["errors"] = [one_line(e) for e in errors]
+    return out
+
+
 def _directory_small(path):
     """An archive's End of Central Directory record (and its Zip64 record, when the locator says one is there), read
     from the file's tail before zipfile builds anything: at most ZIP_ENTRIES_MAX entries in at most ZIP_DIRECTORY_MAX
@@ -825,6 +896,7 @@ class Session:
         self._last_write = collections.OrderedDict()  # (pid, route) -> time of the last accepted write, oldest first
         self._joins = collections.OrderedDict()  # (guest key, address) -> times of recent joins, least recent first
         self._key_joins = {}  # guest key -> times of recent joins from any address
+        self._reported = {}  # pid -> time of their last report, which REPORT_INTERVAL spaces; never persisted
         self._base_cache = None
         self._undo = []  # (file, bytes before or None) an apply wrote, put back when the apply is refused
         self.uploads_dir = self.path.parent / "uploads"  # in the private data folder; never under web/ or assets/
@@ -983,7 +1055,7 @@ class Session:
 
     def _next(self, key):
         seq = self.state["session"]["seq"]
-        seq[key] += 1
+        seq[key] = seq.get(key, 0) + 1
         return f"{key}{seq[key]}"
 
     # -- identity -----------------------------------------------------------------------------
@@ -1236,7 +1308,7 @@ class Session:
         records += [s for lst in st["suggestions"].values() for s in lst]
         records += [d for lst in st.get("disagreements", {}).values() for d in lst]
         records += [t for lst in st.get("cleared", {}).values() for t in lst]
-        return any(r["pid"] == pid for r in records)
+        return any(r["pid"] == pid for r in records) or any(r["by"] == pid for r in st.get("reports", {}).values())
 
     def _make_room(self):
         st = self.state
@@ -1554,6 +1626,8 @@ class Session:
                 st["suggestionVotes"][qid] = {v: s for v, s in fixed.items() if authors.get(s) != v}
         for rec in [*st["proposals"], *st["chat"], *st["requests"], *st["uploads"], *st["annotations"]]:
             rec["pid"] = swap(rec["pid"])
+        for rep in st.get("reports", {}).values():
+            rep["by"] = swap(rep["by"])
         for p in st["proposals"]:
             if p["via"]["kind"] == "chat":
                 p["via"]["by"] = swap(p["via"]["by"])
@@ -3407,6 +3481,81 @@ class Session:
             out["thumb"] = u["thumb"]
         return out
 
+    # -- problem reports --------------------------------------------------------------------
+
+    def report(self, pid, body):
+        """POST /api/report: tell the owner something is broken, with what the page says about where, and at most one
+        screenshot. Allowed while uploads are off: one checked picture the owner alone sees, saved under reports/
+        in the data folder. One report a REPORT_INTERVAL per person, MAX_OPEN_REPORTS open, MAX_REPORTS in all."""
+        body = _body(body)
+        text = _text(body, "text")
+        ctx = _report_ctx(body.get("ctx"))
+        image = _report_image(body.get("image"))
+        now, saved = self.now(), None
+        try:
+            with self._tx() as st:
+                self._writer(pid)
+                if now - self._reported.get(pid, float("-inf")) < REPORT_INTERVAL:
+                    raise DomainError(429, "slow-down", "You sent a report a moment ago. Try again in a few seconds.")
+                reports = st.setdefault("reports", {})
+                if len(reports) >= MAX_REPORTS:
+                    raise DomainError(429, "too-many-reports", "This session holds no more reports.")
+                if sum(1 for r in reports.values() if r["by"] == pid and r["status"] == "open") >= MAX_OPEN_REPORTS:
+                    raise DomainError(429, "too-many-pending", f"You have {MAX_OPEN_REPORTS} reports waiting already.")
+                fid = self._next("F")
+                rec = {"by": pid, "text": text, "ctx": ctx, "status": "open", "ts": now}
+                if image:
+                    rec["image"] = f"{REPORTS_DIR}/{fid}.{image[1]}"
+                    saved = self.path.parent / rec["image"]
+                    _write_chunk(saved, 0, image[0])
+                reports[fid] = rec
+                self._queue_note([HOST], pid)
+                self._event("report-filed", report=fid, qid=ctx.get("qid"), text=text)
+        except BaseException:
+            if saved:
+                self._discard(saved)
+            raise
+        with self._lock:
+            self._reported[pid] = now
+        return {"id": fid}
+
+    def _report(self, fid):
+        r = self.state.get("reports", {}).get(fid) if isinstance(fid, str) else None
+        if r is None:
+            raise DomainError(404, "not-found", f"No report {str(fid)[:20]}.")
+        return r
+
+    def act_on_report(self, pid, body):
+        """POST /api/report/act: the owner marks a report seen or resolved; either tells the reporter."""
+        action = _choice(body, "action", ("seen", "resolved"))
+        with self._tx():
+            self._owner(pid)
+            fid = _ident(body, "id")
+            r = self._report(fid)
+            if r["status"] == "resolved" or r["status"] == action:
+                raise DomainError(409, "wrong-status", f"Report {fid} is {r['status']}.", status=r["status"])
+            r["status"] = action
+            said = "saw your problem report" if action == "seen" else "marked your problem report resolved"
+            self._notify(r["by"], "report", f"The host {said}.", actor=pid)
+            return {"id": fid, "status": action}
+
+    def report_image(self, pid, body):
+        """GET /api/report/image?id=: owner only. A report's picture as a data: URL."""
+        with self._lock:
+            self._owner(pid)
+            fid = _ident(_body(body), "id")
+            r = self._report(fid)
+            stored = r.get("image", "")
+        f = self.path.parent / stored
+        if not stored or not f.is_file():
+            raise DomainError(404, "not-found", f"Report {fid} has no picture.")
+        mime = UPLOAD_KINDS[stored.rsplit(".", 1)[1]][0]
+        return {"id": fid, "image": f"data:{mime};base64,{base64.b64encode(f.read_bytes()).decode()}"}
+
+    def _report_view(self, fid, r):
+        """A report as the owner's page reads it: whether it has a picture, never where it is saved."""
+        return {"id": fid, **{k: copy.deepcopy(v) for k, v in r.items() if k != "image"}, "image": "image" in r}
+
     # -- settings, prefs, notifications, session ---------------------------------------------
 
     def set_prefs(self, pid, body):
@@ -4168,6 +4317,7 @@ class Session:
                     "merges": sum(1 for m in st["mergeRequests"] if m["status"]["kind"] == "pending"),
                     "joins": sum(1 for p in st["people"].values() if p["status"]["kind"] == "waiting"),
                     "proposals": sum(1 for p in st["proposals"] if p["status"]["kind"] == "new" and self._active(p["pid"])),
+                    "reports": sum(1 for r in st.get("reports", {}).values() if r["status"] == "open"),
                 },
                 "unhandled": sum(1 for e in st["log"]["events"] if e["seq"] not in handled and not e.get("withdrawn")),
             }
@@ -4356,6 +4506,7 @@ class Session:
                 snap["results"] = {q: copy.deepcopy(kept) for q, lst in st["results"].items() if (kept := [r for r in lst if self._from_active(r)])}
                 snap["mergeRequests"] = copy.deepcopy([m for m in st["mergeRequests"] if m["status"]["kind"] == "pending"])
                 snap["uploads"] = [self._upload_view(u, owner=True) for u in st["uploads"] if self._active(u["pid"])]
+                snap["reports"] = [self._report_view(f, r) for f, r in st.get("reports", {}).items() if r["status"] != "resolved"]
                 snap["aboutYou"] = copy.deepcopy(st["aboutYou"])
                 snap["removed"] = [
                     {k: v[k] for k in ("pid", "name", "role", "trusted", "color", "joinedAt")} for v in st["people"].values() if v["status"]["kind"] == "removed"

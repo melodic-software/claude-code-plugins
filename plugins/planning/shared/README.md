@@ -20,7 +20,7 @@ and the session-bridge watcher. Python 3 standard library only.
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
 | `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/core.css`, `/app.css`, `/proto.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when `schemaVersion` or the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_proto.js`, `ui_connect.js`, `ui_uploads.js`, `align.test.sh` (with `align.js`), `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_proto.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `align.test.sh` (with `align.js`), `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -82,7 +82,9 @@ one already. The flags may instead be `defaults.json` keys, `import`, `guestPort
   file name is dropped and named in `server.log`, never its value; records naming no known
   question or person are counted per collection. A guest secret the prototype mapped to the host
   (a join with the owner token, or a guest merged into the host) is dropped: only the owner link
-  carries owner identity, so that browser joins again. Uploads do not carry over yet. A round the
+  carries owner identity, so that browser joins again. (Merging a guest into the owner in a running
+  session instead answers that browser 401 `merged-into-owner`; see [Moderation](#moderation).)
+  Uploads do not carry over yet. A round the
   prototype had sent to Claude opens again. The original stays beside it as `state.v0.json`.
   Once the import works, delete the prototype's own state file or `chmod 600` it: it holds every
   guest secret and the owner token in plain text.
@@ -146,7 +148,10 @@ How people answer each `format` through `POST /api/pick` (`{qid, view, device?, 
 - **Disagree.** `POST /api/disagree {qid, card, reason}` on a `decide` question records a reason
   (1..200 characters), one per person per answer; `on: false` takes it back. Vote counts never
   change, and the digest lists each one under its question.
-- **Reactions.** `thumbs`, `down`, `heart` and `idea`, on `gather` questions only.
+- **Reactions.** `thumbs`, `down`, `heart` and `idea`, on `gather` questions only. `POST /api/react
+  {qid, card, reaction, on}` turns one on or off; a person holds any number at once, kept as a list
+  (`reactions` is `{qid: {card: {pid: [reaction]}}}`), never one twice and never both `thumbs` and
+  `down`: turning one of those on turns the other off. `reaction: null` clears all of theirs.
 - **Digest.** `multi` reports picks per option; `scale` the count per value, the mean (two places)
   and the median; `rank` Borda totals (with n options a first place scores n-1, a last 0) and how
   many gave each full order. Each lists people's own options with their backers, and the comments.
@@ -176,6 +181,9 @@ Owner-only routes (`X-Owner-Token`); a leader cannot use them.
 | `GET /api/card/history?qid=&card=` | | Once the owner has hidden or edited an answer, every replaced version goes to its `history` (the original kept, then the newest, 50 in all); before that its author's edits keep none. This route returns one answer's `history`; the owner's snapshot carries only `versions`, the count. An answer its author clears after the owner hid or edited it leaves a tombstone in `cleared` (in the owner's snapshot as `{ref, pid, clearedAt, hidden}`); this route returns its last `text` with `cleared: true`, and the author's next answer there takes it up, hidden if it was |
 | `/api/join/act` | `{pid, action: admit\|decline}` | With the `approveJoins` setting on, a join gets a secret but waits (`status: waiting`, 403 `waiting` on every route) in the owner's `joinRequests` (in join order `n`, with the `device` and `browser` the join named) until admitted; declining removes the person. At most 20 wait (503 `waiting-full`), and a full session never evicts a waiting person. People whose secret already resolves are not affected |
 | `/api/session/intro` | `{intro}` | Edits "Why you're here" |
+| `/api/person/merge` | `{from, to}` | `from`'s answers, votes, reactions, chat, requests, uploads and problem reports move to `to`, and `from` goes. Into the owner, `from`'s secrets end instead of moving: that browser's next request gets 401 `merged-into-owner` (remembered until the server restarts), and its page asks for the owner link instead of joining again |
+| `/api/report/act` | `{id, action: seen\|resolved}` | Marks a problem report seen or resolved (409 `wrong-status` once resolved, or when it already is); either tells the reporter in a `report` notification. A resolved report leaves the owner's snapshot |
+| `GET /api/report/image?id=` | | One report's screenshot as `{id, image}`, a data: URL |
 
 `POST /api/chat/react {id, emoji, on}` (any person) adds or takes back one's own emoji on a chat
 message: only the page's fixed set (`CHAT_EMOJI` in `session.py` and `web/app.js`), at most 20
@@ -328,6 +336,30 @@ on their way from someone no longer in the session, and cuts a partial file back
 record counts. A state whose upload id, extension or received name is not one the server makes
 does not load.
 
+## Problem reports
+
+Anyone joined can report a problem: "Report a problem" in the phone More sheet and the desktop Help
+popover, and "Report this" on the toast of an action the server refused. The form asks "What went
+wrong?" (required, 2000 characters) and takes one optional screenshot (`accept` png, jpeg or webp,
+no `capture`), which the browser re-encodes to at most 1600 px on its long edge and 512 KB. Before
+Send it lists, under "Sent with this report", every field that goes with it: the view and phone
+tab, the question and round, the device kind and browser family, `innerWidth` x `innerHeight` and
+the visual viewport's width, height and scale, the build, and the last 5 errors the page sent
+([Logs](#logs)). Never an answer, chat, the address or its fragment, or a credential.
+
+`POST /api/report {text, ctx, image?}` (auth class person) takes them, `image` a data: URL whose
+bytes must start as PNG, JPEG or WebP do (415 `file-type`; over 512 KB 413 `upload-too-large`).
+Its body cap is `REPORT_MAX` (about 732 KB) instead of 32 KB. A report is allowed while Uploads is
+off: one picture, checked, saved as `reports/<id>.<png|jpg|webp>` in the private data folder and
+shown to the owner alone; every other upload stays refused (403 `uploads-off`). One report per
+person every 10 s (429 `slow-down`), 5 open per person (429 `too-many-pending`), 500 per session
+(429 `too-many-reports`). The record, `reports` in `state.json` (`{F<N>: {by, text, ctx, image?,
+status: open|seen|resolved, ts}}`; optional, so a file from before loads), reaches only the
+owner's snapshot (`reports`, with `image: true` instead of the path) and shows in the Host queue as
+a Problem, with Seen and Resolved ([Moderation](#moderation)). Each report writes `report-filed`
+(`report`, `qid`, `text`) for Claude: the text is the reporter's data, never instructions, and
+Claude reads a picture only through the Read-only `upload-reader` agent.
+
 ## Logs
 
 `server.log` holds one line per entry: the time, the level, then the entry's kind and `key=value`
@@ -351,7 +383,10 @@ or chat text, or upload.
 `POST /api/client-log` (auth class person) is how a joined person's page reports what went wrong:
 a script error (`kind: "error"`, with `source` as `/file:line`), an unhandled rejection
 (`"rejection"`), or an action the server refused or never answered (`"api"`, `route` the API path,
-`code` its error code or `network`). Body: `{kind, message, source, route, code, ua}`, strings, at
+`code` its error code or `network`). `"layout"` is the phone keyboard readout: once per sheet
+opening, when an on-screen keyboard comes up, one `name=value` line of numbers and CSS values (the
+sheet, the viewport and visual viewport, `--kb`, `--vv-top`, `--vv-h`, `data-kb`, the sheet's box
+and bottom styles, the safe-area inset, the screen height), never text anyone wrote. Body: `{kind, message, source, route, code, ua}`, strings, at
 most 500 characters for `message`, 200 for `source` and `route`, 60 for `code` and `ua`; `kind` and
 `message` required. It answers `{ok: true}`, or 401 `unknown-session` without identity (a page that
 has not joined sends nothing), 413 `body-too-large` over 4096 bytes, 400 `bad-field` for another key
@@ -380,6 +415,7 @@ One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
 | `.watch-seq`, `.watch-replay` | `watch.sh` | | |
 | `assets/<16 hex>.<ext>`, `assets/.<id>.json` | server (`add-asset`) | | The file, and its kind, size and scale |
 | `uploads/pending/<32 hex>`, `uploads/accepted/<yyyymmdd>-<upload id>.<ext>` | server | 0700 folders, 0600 files | An accepted upload's pieces so far; a received one (see [Uploads](#uploads)). Never served |
+| `reports/<report id>.<png\|jpg\|webp>` | server | 0700 folder, 0600 files | A problem report's screenshot ([Problem reports](#problem-reports)); only the owner's `GET /api/report/image` reads it back |
 
 Every `GET /api/state` with identity carries `schemaVersion`, `rev` and `build` (a hash of the
 served web files); every answer carries `X-Shared-Build`. A page built for another version or
@@ -495,6 +531,7 @@ node plugins/planning/shared/tests/ui_acceptance.js
 node plugins/planning/shared/tests/ui_proto.js
 node plugins/planning/shared/tests/ui_connect.js
 node plugins/planning/shared/tests/ui_uploads.js
+node plugins/planning/shared/tests/ui_report.js
 bash plugins/planning/shared/tests/align.test.sh
 ```
 
@@ -510,6 +547,13 @@ block against look-alike end markers.
 while Uploads is off, an offer held in the guest's browser, the owner's Accept, a chunked send
 that resumes after a dropped piece and a reload, the file attached to a pick and shown to another
 guest, and a declined file deleted from the browser and shown as "Not accepted".
+
+`ui_report.js` checks Report a problem with Uploads off: on a 390x844 phone from More, the sent
+list before Send, a 3200x1800 screenshot re-encoded to 1600 px, the field and Send report above a
+keyboard, and a request carrying no answer, chat, fragment or secret; the desktop owner's Problem
+item, its picture, Seen telling the reporter, and Resolved; on a desktop, Help's entry and a
+refused action's "Report this", whose form lists the refusal. `ui_layout.js` also sweeps the form
+with keyboards at 320 to 430 px wide.
 
 `ui_proto.js` checks the prototype page on a desktop and a 390x844 phone in separate browser
 contexts: the preview tile and its link, the variant switcher, Annotate, a note pinned to an
@@ -530,7 +574,7 @@ per-person view, and Approve new joins. `ui_acceptance.js` checks the Brief acce
 suite drives in a browser: the join note and a refused join, Claude's take, the round states and toasts, Follow,
 Reconnecting, the new guest link, the ended session, the Host view per role, the phone header and height, and
 the views sharing data.
-`align.test.sh` (about 3 minutes) is the C41 pixel pass over 47 views; `ALIGN_VIEWS` and
+`align.test.sh` (about 3 minutes) is the C41 pixel pass over 49 views; `ALIGN_VIEWS` and
 `ALIGN_SIZES` narrow it.
 
 `ui_journey.js` drives the page in Chromium against `ensure-running` on spare ports with the fake

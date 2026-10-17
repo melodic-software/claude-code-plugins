@@ -119,6 +119,8 @@ async function seed(s, A) {
   // proposals after round 1 went out: a proposal in a sent round's digest needs a placement when the next round opens
   await post("/api/propose", { text: "Ask about express checkout buttons (Apple Pay, Google Pay) above the fold." }, chen);
   await post("/api/propose", { text: "Should we test the new layout with five customers first?" }, dana);
+  await post("/api/report", { text: "The Send button does nothing on my phone after I pick a layout.", ctx: { view: "focus", tab: "answer", qid: "Q11", round: 2,
+    device: "phone", browser: "safari", viewport: { w: 390, h: 844 }, visualViewport: { w: 390, h: 508, scale: 1 }, errors: ["api slow-down: HTTP 429: Wait a moment"] } }, eli);
 }
 
 async function main() {
@@ -248,6 +250,11 @@ function views(page, CFG) {
     "reader": async () => { await gotoQ("Q1"); await claudeTab(); return clickIn(".vf-res .vf-btn", "Full report"); },
     "host": () => mode("host"),
     "host-uploads": async () => { await mode("host"); return clickIn(".vf-qfilters .vf-fchip", "Uploads"); },
+    "host-problems": async () => { await mode("host"); return clickIn(".vf-qfilters .vf-fchip", "Problems"); },
+    "report-form": async () => {
+      if (await phone()) return more("Report a problem");
+      await page.keyboard.press("?"); await W(120); return clickIn(".vf-help-report");
+    },
     "ask-panel": async () => ((await phone()) ? more("Ask Claude") : clickIn(".vf-asktop")),
     "thread": async () => { await gotoQ("Q1"); return claudeTab(); },
     "choice": () => gotoQ("Q11"),

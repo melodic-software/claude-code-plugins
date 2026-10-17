@@ -6,6 +6,7 @@ limits) and the Brief's acceptance criteria, never from running the code under t
 
 from __future__ import annotations
 
+import base64
 import collections
 import hashlib
 import json
@@ -4872,6 +4873,139 @@ class TestStateFromE27acc5(StateFixtureCase):
         self.assertEqual(s.snapshot(bo)["files"][uid]["status"], "done")
         self.assertIsNone(session.document_error(json.loads(s.path.read_text(encoding="utf-8"))))
         session.Session.load(s.path, validate_writes=True)
+
+
+# ---------------------------------------------------------------------------------------------
+# Report a problem. Expected values come from the approved V1 (feedback triage row 38): text required, a picture of
+# png, jpeg or webp only (by its bytes) up to 512 KB, allowed while uploads are off; a throttle and a cap on open
+# reports per person; only the owner reads them; Seen tells the reporter; report-filed reaches Claude; the page
+# context carries only the listed fields.
+# ---------------------------------------------------------------------------------------------
+
+PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 24
+CTX = {"view": "focus", "tab": "answer", "qid": "Q1", "round": 1, "device": "phone", "browser": "safari", "viewport": {"w": 390, "h": 844},
+       "visualViewport": {"w": 390, "h": 508, "scale": 1}, "build": "a1b2c3d4e5f6", "errors": ["api slow-down: HTTP 429: Wait a moment"]}
+
+
+def data_url(kind, data):
+    return f"data:image/{kind};base64,{base64.b64encode(data).decode()}"
+
+
+class TestReports(SessionCase):
+    def setUp(self):
+        super().setUp()
+        self.open_round(text_q("Q1"))
+        self.ann, self.bo = self.people("Ann", "Bo")
+
+    def file(self, pid, text="Send does nothing", **body):
+        self.clock.tick(session.REPORT_INTERVAL)
+        return self.s.report(pid, {"text": text, "ctx": CTX, **body})["id"]
+
+    def test_a_report_keeps_its_text_context_and_picture_and_reaches_claude(self):
+        fid = self.file(self.ann, image=data_url("png", PNG_BYTES))
+        rec = self.s.state["reports"][fid]
+        self.assertEqual((fid, rec["by"], rec["text"], rec["ctx"]["qid"], rec["status"], rec["image"]), ("F1", self.ann, "Send does nothing", "Q1", "open", "reports/F1.png"))
+        self.assertEqual((self.tmp / "reports" / "F1.png").read_bytes(), PNG_BYTES)
+        ev = self.events("report-filed")
+        self.assertEqual([(e["report"], e["qid"], e["text"]) for e in ev], [("F1", "Q1", "Send does nothing")])
+        self.assertIsNone(support_event_error(ev[0]))
+        self.assertEqual(self.disk()["reports"][fid]["ctx"], self.s.state["reports"][fid]["ctx"])
+
+    def test_a_picture_is_taken_while_uploads_are_off_and_other_uploads_are_still_refused(self):
+        self.assertFalse(self.s.state["session"]["settings"]["uploads"])
+        self.file(self.ann, image=data_url("webp", b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"\x00" * 16))
+        self.assertEqual(self.s.state["reports"]["F1"]["image"], "reports/F1.webp")
+        self.refused("uploads-off", "offer_upload", self.ann, {"file": "a.png", "size": 10, "type": "image/png"}, http=403)
+
+    def test_a_picture_whose_bytes_are_not_its_kind_or_past_512_kb_is_refused_and_nothing_is_kept(self):
+        for image, code, http in ((data_url("png", b"GIF89a" + b"\x00" * 30), "file-type", 415), (data_url("gif", b"GIF89a"), "file-type", 415),
+                                  (data_url("jpeg", b"\xff\xd8\xff" + b"\x00" * (512 * 1024 - 2)), "upload-too-large", 413), ("not a picture", "file-type", 415)):
+            with self.subTest(code=code, image=image[:20]):
+                self.clock.tick(session.REPORT_INTERVAL)
+                self.refused(code, "report", self.ann, {"text": "x", "ctx": CTX, "image": image}, http=http)
+        self.assertEqual((self.s.state.get("reports", {}), (self.tmp / "reports").exists()), ({}, False))
+        self.file(self.ann, image=data_url("jpeg", b"\xff\xd8\xff" + b"\x00" * (512 * 1024 - 3)))  # exactly 512 KB
+
+    def test_text_is_required_and_the_context_takes_only_the_listed_fields(self):
+        self.refused("empty", "report", self.ann, {"text": " ", "ctx": CTX})
+        for extra in ({"answer": "my answer"}, {"url": "https://x.example/#me=abc"}, {"chat": "hi"}):
+            with self.subTest(extra=extra):
+                self.refused("bad-field", "report", self.ann, {"text": "x", "ctx": {**CTX, **extra}})
+        self.refused("bad-field", "report", self.ann, {"text": "x", "ctx": {**CTX, "errors": ["e"] * 6}})
+
+    def test_one_person_reports_once_per_interval(self):
+        self.file(self.ann)
+        self.clock.tick(session.REPORT_INTERVAL - 3)
+        self.refused("slow-down", "report", self.ann, {"text": "again", "ctx": CTX}, http=429)  # refused() ticks 2 s: 1 s short
+        self.clock.tick(1)
+        self.assertEqual(self.s.report(self.ann, {"text": "again", "ctx": CTX})["id"], "F2")
+
+    def test_open_reports_per_person_are_capped_and_seen_frees_one(self):
+        for _ in range(session.MAX_OPEN_REPORTS):
+            self.file(self.ann)
+        self.clock.tick(session.REPORT_INTERVAL)
+        self.refused("too-many-pending", "report", self.ann, {"text": "one more", "ctx": CTX}, http=429)
+        self.file(self.bo)  # another person's count is their own
+        self.act("act_on_report", HOST, {"id": "F1", "action": "seen"})
+        self.file(self.ann)
+
+    def test_only_the_owner_sees_reports_and_never_where_the_picture_is_saved(self):
+        self.file(self.ann, image=data_url("png", PNG_BYTES))
+        self.s.set_role(HOST, {"pid": self.bo, "role": "leader"})
+        for pid in (self.ann, self.bo):
+            self.assertNotIn("reports", self.s.snapshot(pid))
+        view = self.s.snapshot(HOST)["reports"]
+        self.assertEqual([(r["id"], r["by"], r["image"]) for r in view], [("F1", self.ann, True)])
+        self.assertEqual(self.s.report_image(HOST, {"id": "F1"})["image"], data_url("png", PNG_BYTES))
+        for pid in (self.ann, self.bo):
+            self.refused("owner-only", "report_image", pid, {"id": "F1"}, http=403)
+            self.refused("owner-only", "act_on_report", pid, {"id": "F1", "action": "seen"}, http=403)
+
+    def test_seen_and_resolved_tell_the_reporter_and_resolved_leaves_the_queue(self):
+        self.file(self.ann)
+        self.act("act_on_report", HOST, {"id": "F1", "action": "seen"})
+        self.assertEqual([n["title"] for n in self.notes(self.ann, "report")], ["The host saw your problem report."])
+        self.refused("wrong-status", "act_on_report", HOST, {"id": "F1", "action": "seen"}, http=409)
+        self.act("act_on_report", HOST, {"id": "F1", "action": "resolved"})
+        self.assertEqual(len(self.notes(self.ann, "report")), 2)
+        self.assertEqual((self.s.state["reports"]["F1"]["status"], self.s.snapshot(HOST)["reports"]), ("resolved", []))
+        self.refused("wrong-status", "act_on_report", HOST, {"id": "F1", "action": "seen"}, http=409)
+        self.refused("not-found", "act_on_report", HOST, {"id": "F9", "action": "seen"}, http=404)
+
+    def test_a_merge_moves_reports_and_a_reporter_is_never_forgotten(self):
+        self.file(self.bo)
+        self.s.merge_people(HOST, {"from": self.bo, "to": self.ann})
+        self.assertEqual(self.s.state["reports"]["F1"]["by"], self.ann)
+        self.assertTrue(self.s._holds_content(self.ann))
+
+    def test_a_report_id_or_picture_name_the_server_never_makes_is_refused_at_load(self):
+        self.file(self.ann, image=data_url("png", PNG_BYTES))
+        for edit in (lambda d: d["reports"]["F1"].update(image="../state.json"), lambda d: d["reports"]["F1"].update(image="reports/F2.png"),
+                     lambda d: d["reports"].update(X1=d["reports"].pop("F1"))):
+            doc = self.disk()
+            edit(doc)
+            self.assertIsNotNone(session.document_error(doc))
+
+
+class TestReportsOnAnOlderFile(StateFixtureCase):
+    """A schemaVersion 2 file from before reports (state-v2.json) loads unchanged and takes one."""
+
+    def test_a_v2_state_without_reports_loads_and_takes_a_report(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        shutil.copy(FIXTURES / "state-v2.json", tmp / "state.json")
+        raw = json.loads((tmp / "state.json").read_text(encoding="utf-8"))
+        self.assertNotIn("reports", raw)
+        s = session.Session.load(tmp / "state.json", clock=Clock(1_760_700_000.0), ids=Ids(), validate_writes=True)
+        self.assertEqual(s.state, raw)
+        guest = next(p for p in s.state["people"] if p != HOST and s.state["people"][p]["status"]["kind"] == "active")
+        self.assertEqual(s.report(guest, {"text": "Broken", "ctx": {**CTX, "qid": None}})["id"], "F1")
+        self.assertEqual(session.Session.load(tmp / "state.json", validate_writes=True).state["session"]["seq"]["F"], 1)
+
+
+def support_event_error(ev):
+    schema = session.schema.load("event", session.SCHEMA_DIR)
+    return session.schema.first_error(ev, schema)
 
 
 if __name__ == "__main__":

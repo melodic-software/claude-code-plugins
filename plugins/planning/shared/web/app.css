@@ -104,7 +104,7 @@
 .app .vf-spacer { flex: 1; }
 /* Single-column grids: the column is the container's width, never the widest unbreakable word or nowrap name. */
 .app :is(.vf-rcur, .vf-qmid, .vf-plist, .vf-edit, .vf-sugform, .vf-slist, .vf-alist, .vf-col-cards, .vf-mlist, .vf-askform, .vf-ritem,
-  .vf-pcard, .vf-pc-who, .vf-merge, .vf-merge-list, .vf-next, .vf-proposepop, .vf-myprops, .vf-mp, .vf-tielist, .vf-tieitem,
+  .vf-pcard, .vf-pc-who, .vf-merge, .vf-merge-list, .vf-next, .vf-proposepop, .vf-reportpop, .vf-myprops, .vf-mp, .vf-tielist, .vf-tieitem,
   .vf-myreqs, .vf-closed, .vf-removed, .vf-rename) { grid-template-columns: minmax(0, 1fr); }
 .app .vf-h2 { font-size: 12px; font-weight: 600; color: var(--muted); }
 .app .vf-meta { font-size: 12px; color: var(--faint); white-space: nowrap; }
@@ -1004,8 +1004,18 @@
 
 /* ---------- proposals ---------- */
 .app .vf-propose { inline-size: 100%; margin-block-start: 6px; color: var(--text); }
-.app .vf-proposepop { inline-size: 340px; display: grid; gap: 8px; }
-.app .vf-proposepop .vf-pop-title { margin: 0; }
+.app :is(.vf-proposepop, .vf-reportpop) { inline-size: 340px; display: grid; gap: 8px; }
+.app :is(.vf-proposepop, .vf-reportpop) .vf-pop-title { margin: 0; }
+/* Report a problem: the file input hides behind its label button; the screenshot shows small; the sent list wraps */
+.app .vf-rep-file { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); opacity: 0; }
+.app .vf-rep-add { cursor: pointer; display: inline-flex; align-items: center; }
+.app .vf-rep-shotrow:has(+ .vf-rep-file:focus-visible) .vf-rep-add { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app .vf-rep-count { font-size: 12px; color: var(--faint); }
+.app .vf-rep-shot { display: block; max-inline-size: 100%; max-block-size: 140px; border-radius: var(--r-sm); border: 1px solid var(--line); }
+.app .vf-rep-sent { margin: 0; display: grid; gap: 2px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.app .vf-rep-sent li::before { content: "· "; }
+.app .vf-rep-err { margin: 0; font-size: 13px; color: var(--warn); }
+.app .vf-rep-err:empty { display: none; }
 .app .vf-myprops { display: grid; gap: 4px; padding: 4px 8px 2px; }
 .app .vf-mp { display: grid; gap: 1px; font-size: 12px; }
 .app .vf-mp-txt { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1074,7 +1084,7 @@
   .app .vf-cctl { gap: 6px; }
   .app .vf-tiepop { inline-size: min(340px, calc(100% - 16px)); }
   /* the Propose form is a bottom sheet, so it sits right on an on-screen keyboard, as the Ask Claude sheet does */
-  .app .vf-proposepop {
+  .app :is(.vf-proposepop, .vf-reportpop) {
     inset-inline: 0; inset-block-end: 0; inline-size: auto; max-block-size: 86%; overflow-y: auto; z-index: 45;
     border-radius: var(--r-lg) var(--r-lg) 0 0; border-block-end: 0; padding: 12px 16px max(12px, env(safe-area-inset-bottom));
     transform-origin: bottom center;
@@ -1951,8 +1961,8 @@
   .app[data-kb] .vf-apq:not(:focus-within) { display: none; }
   .app[data-kb] .vf-ap-pointer { display: none; }
   /* the Propose sheet keeps its label, field and buttons above the keyboard: its title and note step aside */
-  .app[data-kb] .vf-proposepop { max-block-size: calc(100% - 8px); padding-block-end: 8px; }
-  .app[data-kb] .vf-proposepop > :is(.vf-pop-title, .vf-pop-note) { display: none; }
+  .app[data-kb] :is(.vf-proposepop, .vf-reportpop) { max-block-size: calc(100% - 8px); padding-block-end: 8px; }
+  .app[data-kb] :is(.vf-proposepop, .vf-reportpop) > :is(.vf-pop-title, .vf-pop-note) { display: none; }
 }
 
 /* Dialogs: confirmations and the attach picker. Native modal dialogs, so they sit above every panel and sheet. */

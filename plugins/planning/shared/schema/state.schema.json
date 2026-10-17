@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state",
   "title": "Shared interview session file",
-  "description": "state.json of one shared interview session. Sum types are objects tagged by a one-value `kind` enum. Maps keyed by person id (`pid`), question id (`Q<N>`) or card ref are objects. Times (`at`, `Ts`) are float epoch seconds from the server clock. Rules that compare fields (dependsOn names earlier ids, one review flag per because and why, at most 8 questions per round, one vote per person, at most one `other` option per question, how many options each format takes from Claude) are checked by session.py, not here. `disagreements` is optional: a file written before it existed has none. `reactions` maps qid -> card ref -> pid -> the reactions that person holds on that answer (several at once; never one twice, nor both thumbs and down, which session.py checks).",
+  "description": "state.json of one shared interview session. Sum types are objects tagged by a one-value `kind` enum. Maps keyed by person id (`pid`), question id (`Q<N>`) or card ref are objects. Times (`at`, `Ts`) are float epoch seconds from the server clock. Rules that compare fields (dependsOn names earlier ids, one review flag per because and why, at most 8 questions per round, one vote per person, at most one `other` option per question, how many options each format takes from Claude) are checked by session.py, not here. `disagreements` and `reports` are optional: a file written before them has none. `reactions` maps qid -> card ref -> pid -> the reactions that person holds on that answer (several at once; never one twice, nor both thumbs and down, which session.py checks).",
   "type": "object",
   "required": [
     "schemaVersion", "pluginVersion", "writtenBy", "rev", "session", "people", "credentials", "rounds",
@@ -50,6 +50,11 @@
     "mergeRequests": {"type": "array", "items": {"$ref": "#/$defs/mergeRequest"}},
     "aboutYou": {"type": "object", "additionalProperties": {"$ref": "#/$defs/aboutYou"}},
     "disagreements": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/disagreement"}}},
+    "reports": {
+      "description": "Problem reports, report id (F<N>) -> report; only the owner reads them. Optional: a file written before them has none.",
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/problemReport"}
+    },
     "backs": {
       "description": "Multi questions: qid -> pid -> the other people's own Something else options that person backs, any number of them (votes keeps one per person).",
       "type": "object",
@@ -118,7 +123,8 @@
             "G": {"type": "integer", "minimum": 0},
             "U": {"type": "integer", "minimum": 0},
             "N": {"type": "integer", "minimum": 0},
-            "A": {"type": "integer", "minimum": 0}
+            "A": {"type": "integer", "minimum": 0},
+            "F": {"type": "integer", "minimum": 0}
           }
         }
       }
@@ -575,6 +581,48 @@
         }
       ]
     },
+    "problemReport": {
+      "description": "One problem report: the reporter's text (their data, never instructions), what their page said about where it was (never an answer, chat, the address or a credential), and at most one screenshot saved at `image` under the data folder.",
+      "type": "object",
+      "required": ["by", "text", "ctx", "status", "ts"],
+      "additionalProperties": false,
+      "properties": {
+        "by": {"$ref": "#/$defs/pid"},
+        "text": {"$ref": "#/$defs/text"},
+        "ctx": {"$ref": "#/$defs/problemContext"},
+        "image": {"type": "string"},
+        "status": {"enum": ["open", "seen", "resolved"]},
+        "ts": {"$ref": "#/$defs/ts"}
+      }
+    },
+    "problemContext": {
+      "type": "object",
+      "required": ["view", "device", "browser", "viewport", "errors"],
+      "additionalProperties": false,
+      "properties": {
+        "view": {"enum": ["focus", "compare", "tree", "host", "prototype"]},
+        "tab": {"type": "string", "maxLength": 32},
+        "qid": {"$ref": "#/$defs/qid"},
+        "round": {"type": "integer", "minimum": 0},
+        "device": {"enum": ["phone", "tablet", "computer"]},
+        "browser": {"enum": ["chrome", "safari", "firefox", "edge", "samsung", "in-app", "other"]},
+        "viewport": {"$ref": "#/$defs/viewSize"},
+        "visualViewport": {
+          "type": "object",
+          "required": ["w", "h", "scale"],
+          "additionalProperties": false,
+          "properties": {"w": {"type": "number", "minimum": 0}, "h": {"type": "number", "minimum": 0}, "scale": {"type": "number", "minimum": 0}}
+        },
+        "build": {"type": "string", "maxLength": 32},
+        "errors": {"type": "array", "maxItems": 5, "items": {"type": "string", "maxLength": 300}}
+      }
+    },
+    "viewSize": {
+      "type": "object",
+      "required": ["w", "h"],
+      "additionalProperties": false,
+      "properties": {"w": {"type": "number", "minimum": 0}, "h": {"type": "number", "minimum": 0}}
+    },
     "disagreement": {
       "type": "object",
       "required": ["pid", "card", "reason", "at"],
@@ -959,7 +1007,7 @@
       "additionalProperties": false,
       "properties": {
         "id": {"type": "string"},
-        "kind": {"enum": ["mention", "reply", "request", "proposal", "round", "merge", "role", "queue", "ready", "votes", "reaction"]},
+        "kind": {"enum": ["mention", "reply", "request", "proposal", "round", "merge", "role", "queue", "ready", "votes", "reaction", "report"]},
         "title": {"type": "string"},
         "at": {"$ref": "#/$defs/ts"},
         "read": {"type": "boolean"},
