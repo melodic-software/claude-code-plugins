@@ -651,12 +651,13 @@
     const propRow = railRow("Proposed");
     const reqRow = railRow("Requests");
     const myProp = E("ul", "vf-myprops"); myProp.setAttribute("aria-label", "Your proposals");
-    const proposeBtn = lbtn("vf-btn vf-btn-ghost vf-btn-sm vf-propose", "sparkle", "Propose a question");
+    const proposeBtn = lbtn("vf-btn vf-btn-ghost vf-propose", "plus", "Propose a question");
     proposeBtn.setAttribute("aria-haspopup", "dialog"); proposeBtn.setAttribute("aria-expanded", "false");
     railFoot.append(reqRow, propRow, myProp, proposeBtn);
     rail.append(railHead, rounds, railFoot);
 
-    // Propose a question: anyone; it goes to Proposed, and Claude places it with the next round or says why not.
+    // Propose a question: anyone; it goes to Proposed, and Claude places it with the next round or says why not. The one
+    // Propose form: every way in opens it, beside this button on a wide screen and as a bottom sheet on a phone.
     const proposePop = E("form", "vf-pop vf-proposepop"); proposePop.setAttribute("role", "dialog"); proposePop.setAttribute("aria-label", "Propose a question"); proposePop.hidden = true;
     const propTa = E("textarea", "vf-ta"); propTa.rows = 3; propTa.maxLength = 2000; propTa.id = "vf-prop-ta";
     const propLabel = E("label", "vf-asklabel", "What should the group be asked?"); propLabel.htmlFor = propTa.id;
@@ -1106,7 +1107,7 @@
     const evHere = E("div", "vf-ev-here"), evHereAv = E("span", "vf-avrow"), evHereTxt = E("span");
     evHere.append(evHereAv, evHereTxt);
     const evNext = E("p", "vf-ev-next");
-    const evPropose = lbtn("vf-btn vf-btn-ghost", "sparkle", "Propose a question");
+    const evPropose = lbtn("vf-btn vf-btn-ghost", "plus", "Propose a question"); evPropose.setAttribute("aria-haspopup", "dialog");
     ev.append(evTitle, evNote, evGoalNow, evGoal, evShare, evHere, evNext, evPropose);
     emptyV.append(ev);
     center.append(banner, bar, toolbar, focusV, cmp, treeV, hostV, emptyV);
@@ -1552,9 +1553,12 @@
     apHead.append(apTitle, apClose);
     const apModes = E("div", "vf-seg vf-seg-sm vf-apmodes"); apModes.setAttribute("role", "tablist"); apModes.setAttribute("aria-label", "What to ask for");
     const apModeBtns = {};
-    for (const [k, label] of [["ask", "Ask"], ["research", "Research"], ["explore", "Explore"], ["propose", "Propose question"]]) {
+    for (const [k, label] of [["ask", "Ask"], ["research", "Research"], ["explore", "Explore"]]) {
       const b = btn("vf-seg-btn", label); b.setAttribute("role", "tab"); b.onclick = () => { ui.askMode = k; render(); apTa.focus(); }; apModes.append(b); apModeBtns[k] = b;
     }
+    // A proposed question goes to the group, not to Claude, so it is not one of these tabs; this points to its form.
+    const apPropose = btn("vf-lbtn vf-ap-propose", "Propose a question"); apPropose.setAttribute("aria-haspopup", "dialog");
+    const apPointer = E("p", "vf-pop-note vf-ap-pointer", "Want the group asked something? "); apPointer.append(apPropose);
     const apForm = E("form", "vf-apform");
     const apQWrap = selWrap("About", []);
     apQWrap.w.classList.add("vf-apq");
@@ -1567,7 +1571,7 @@
     apSelf.onclick = () => { ui.askSelf = !ui.askSelf; render(); };
     const apRow = E("div", "vf-crow");
     const apAttach = ibtn("vf-btn vf-btn-ghost vf-btn-sm vf-attach", "clip", "Attach a file");
-    const apSend = E("button", "vf-btn vf-btn-primary"); apSend.type = "submit";
+    const apSend = E("button", "vf-btn vf-btn-primary", "Send request"); apSend.type = "submit";
     apRow.append(apAttach, E("span", "vf-spacer"), apSend);
     apForm.append(apQWrap.w, apLabel, apTa, apSelf, apNote, apRow);
     const apConnect = E("section", "vf-apconnect"); apConnect.setAttribute("aria-labelledby", "vf-apc-h");
@@ -1591,7 +1595,7 @@
     const apFileHead = E("h3", "vf-pop-sub", "Your files");
     const apFiles = E("ul", "vf-upstrip vf-apfiles"); apFiles.setAttribute("aria-label", "Your files");
     apScroll.append(apForm, apConnect, apReqHead, apReqs, apReqEmpty, apFileHead, apFiles);
-    askPanel.append(apHead, apModes, apScroll);
+    askPanel.append(apHead, apModes, apPointer, apScroll);
 
     // Use on another device: a personal link and its QR code.
     const devicePop = E("div", "vf-pop vf-devicepop"); devicePop.setAttribute("role", "dialog"); devicePop.setAttribute("aria-label", "Use on another device"); devicePop.hidden = true;
@@ -1725,7 +1729,8 @@
     function openPop(pop, anchor) {
       closePop(); hideCard();
       ui.pop = pop; pop.hidden = false; pop._return = null;
-      placeNear(pop, anchor);
+      if (phone.matches && pop === proposePop) pop.removeAttribute("style"); // a sheet: the stylesheet places it
+      else placeNear(pop, anchor);
       anchor.setAttribute("aria-expanded", "true"); pop._anchor = anchor;
       render();
       (pop.querySelector("textarea, button, input") || pop).focus({ preventScroll: true });
@@ -1766,7 +1771,7 @@
       syncModal();
     }
     /** On a phone a chat or panel sheet covers the page: everything behind it goes inert, and Tab stays inside. */
-    const activeSheet = () => (phone.matches ? (ui.chatOpen ? chat : ui.pop?.matches(".vf-panel, .vf-drawer, .vf-bellpop[data-place='sheet']") ? ui.pop : null) : null);
+    const activeSheet = () => (phone.matches ? (ui.chatOpen ? chat : ui.pop?.matches(".vf-panel, .vf-drawer, .vf-proposepop, .vf-bellpop[data-place='sheet']") ? ui.pop : null) : null);
     function syncModal() {
       const sheet = activeSheet();
       for (const el of [top, body, tabs, fab]) el.inert = !!sheet;
@@ -2042,13 +2047,11 @@
     apForm.onsubmit = e => {
       e.preventDefault();
       const text = apTa.value.trim(); if (!text) return apTa.focus();
-      const mode = ui.askMode, qid = apQWrap.s.value || ui.cur, own = selfAsk(mode);
+      const mode = ui.askMode, qid = apQWrap.s.value || ui.cur, own = selfAsk();
       apSend.disabled = true;
-      const go = mode === "propose" ? Core.idea(text, attExtra(apSlot)) : Core.request(qid, mode, text, attExtra(apSlot), own ? "self" : "host");
-      go.then(() => {
+      Core.request(qid, mode, text, attExtra(apSlot), own ? "self" : "host").then(() => {
         apTa.value = ""; grow(apTa); apSlot.clear();
-        flash(mode === "propose" ? "Proposed. Claude places it when the round is sent, or says why not."
-          : own ? "Added to your requests. Run it on your own Claude from there."
+        flash(own ? "Added to your requests. Run it on your own Claude from there."
           : Core.me.isOwner ? "Added to Requests. Run it from there." : "Sent to the host. It runs once they press Run.");
         render();
       }).catch(fail).finally(() => { apSend.disabled = false; });
@@ -2058,7 +2061,7 @@
     // ---------- Connect your Claude (R2-12, AC 70) ----------
     // A guest's `runner: self` request runs on their own Claude: a watcher in Claude Code or Desktop's Code tab, or one
     // prompt copied (or opened in Desktop chat) with the answer pasted back. Prompts and links come from connect.js.
-    const selfAsk = mode => !Core.me.isOwner && mode !== "propose" && !!ui.askSelf;
+    const selfAsk = () => !Core.me.isOwner && !!ui.askSelf;
     const sessionBase = () => location.origin; // the address this guest reaches the session at; their Claude runs beside them
     async function copyOut(text, done, title, from) {
       try { await navigator.clipboard.writeText(text); flash(done); }
@@ -2171,10 +2174,12 @@
       openPop(msgMenu, anchor);
     }
     mmReact.onclick = () => { const m = ui.msgMenu, at = msgMenu._anchor; closePop(); if (m && at) openReactPop(m, at); };
+    // A moderator forwards the message itself (it shows as proposed in the chat); anyone else gets the Propose form
+    // with its text, to edit before sending.
     mmPropose.onclick = () => {
       const m = ui.msgMenu; closePop(); if (!m) return;
-      (Core.canModerate() ? Core.forward(m.id) : Core.idea(m.text))
-        .then(() => flash(Core.canModerate() ? "Added to Proposed." : "Proposed. You can see it under Your proposals.")).catch(fail);
+      if (!Core.canModerate()) return openPropose(m.text);
+      Core.forward(m.id).then(() => flash("Added to Proposed.")).catch(fail);
     };
     mmAsk.onclick = () => {
       const m = ui.msgMenu; closePop(); if (!m) return;
@@ -2962,7 +2967,7 @@
     ui.attDraft = {};
     const cSlot = attSlot(() => ui.cur, attachBtn, { get: () => ui.attDraft[ui.cur] ?? (myRec(ui.cur)?.att || []), set: l => { ui.attDraft[ui.cur] = l; } }, true);
     composer.insertBefore(cSlot.chips, ta);
-    const apSlot = attSlot(() => (ui.askMode === "propose" ? "" : apQWrap.s.value || ui.cur), apAttach);
+    const apSlot = attSlot(() => apQWrap.s.value || ui.cur, apAttach);
     apForm.insertBefore(apSlot.chips, apNote);
     const askSlot = attSlot(() => ui.cur);
     askRow.prepend(askSlot.btn); askForm.insertBefore(askSlot.chips, askForm.querySelector(".vf-asknote"));
@@ -3006,7 +3011,7 @@
       try { await navigator.clipboard.writeText(evShareIn.value); flash("Link copied. Send it to the people you want to ask."); }
       catch { evShareIn.focus(); evShareIn.select(); flash("Press Ctrl+C to copy the selected link."); }
     };
-    evPropose.onclick = () => openAskPanel("propose", "");
+    evPropose.onclick = () => openPropose();
     function renderEmpty(S) {
       const owner = Core.me.isOwner, mod = Core.canModerate(), goal = S.goal || "", here = S.presence.filter(p => !isMe(p.cid));
       emptyV.dataset.who = owner ? "host" : "guest";
@@ -3178,13 +3183,23 @@
     mForm.onsubmit = e => { e.preventDefault(); sendChat(); };
     const counter = (el, field, from) => { const n = field.value.length; el.textContent = n >= from ? `${n} / ${field.maxLength}` : ""; };
     on(mInput, "input", () => { Core.setChatTyping(); counter(mCount, mInput, 1500); });
-    proposeBtn.onclick = () => (ui.pop === proposePop ? closePop() : openPop(proposePop, proposeBtn));
-    propCancel.onclick = () => { closePop(); proposeBtn.focus(); };
+    /** The Propose form, from any way in; `text` prefills it. Focus goes back where it came from, else to the rail's button. */
+    function openPropose(text) {
+      const from = document.activeElement;
+      if (ui.chatOpen) setChat(false);
+      if (text != null) propTa.value = text;
+      openPop(proposePop, proposeBtn);
+      proposePop._return = from;
+    }
+    const propBack = () => { const r = proposePop._return; closePop(); (r?.isConnected && r.offsetParent ? r : proposeBtn).focus({ preventScroll: true }); };
+    proposeBtn.onclick = () => (ui.pop === proposePop ? closePop() : openPropose());
+    apPropose.onclick = () => openPropose();
+    propCancel.onclick = propBack;
     proposePop.onsubmit = e => {
       e.preventDefault();
       const text = propTa.value.trim(); if (!text) return propTa.focus();
       propSend.disabled = true;
-      Core.idea(text).then(() => { propTa.value = ""; closePop(); proposeBtn.focus(); flash("Proposed. You can see it under Your proposals."); })
+      Core.idea(text).then(() => { propTa.value = ""; propBack(); flash("Proposed. You can see it under Your proposals."); })
         .catch(fail).finally(() => { propSend.disabled = false; });
     };
     newGuestBtn.onclick = guarded({ title: "Make a new guest link?", body: "The guest link you shared stops working: nobody new can join with it. People already here stay. You share the new link again.", ok: "Make new guest link" },
@@ -3229,7 +3244,7 @@
       revealAskField(now && !was);
     };
     // In the Ask Claude sheet, focusing its field or the keyboard coming up puts the sheet at its top: the label and the
-    // field first, the Send or Propose row sticky under them. After that, as the keyboard moves or the field grows, the
+    // field first, the Send row sticky under them. After that, as the keyboard moves or the field grows, the
     // label and the field's first 3 lines stay seen above that row; where even that does not fit, the field's top does.
     const revealAskField = toTop => {
       const f = document.activeElement;
@@ -4670,14 +4685,13 @@
         apQWrap.s.replaceChildren(...qs.map(q => { const o = E("option", null, `${q.id}: ${q.text.length > 70 ? q.text.slice(0, 70).trimEnd() + "…" : q.text}`); o.value = q.id; return o; }));
       }
       if (apQWrap.s.value !== want && document.activeElement !== apQWrap.s) apQWrap.s.value = want || "";
-      apQWrap.w.hidden = mode === "propose" || !qs.length;
-      apLabel.textContent = { ask: "What should Claude answer?", research: "What should Claude find out?", explore: "What should Claude look for in this session?", propose: "What should the group be asked?" }[mode];
-      apTa.placeholder = { ask: "A question Claude answers on the question", research: "What to look up, compare or verify", explore: "Something in the answers, the chat or the linked project", propose: "Your question for the group" }[mode];
-      const own = selfAsk(mode);
-      apSelf.hidden = Core.me.isOwner || mode === "propose";
+      apQWrap.w.hidden = !qs.length;
+      apLabel.textContent = { ask: "What should Claude answer?", research: "What should Claude find out?", explore: "What should Claude look for in this session?" }[mode];
+      apTa.placeholder = { ask: "A question Claude answers on the question", research: "What to look up, compare or verify", explore: "Something in the answers, the chat or the linked project" }[mode];
+      const own = selfAsk();
+      apSelf.hidden = Core.me.isOwner;
       apSelf.setAttribute("aria-checked", String(!!ui.askSelf));
-      apNote.textContent = mode === "propose" ? "It goes to Proposed. Claude places it when the round is sent, or says why not."
-        : own ? "Only you see this request. Your own Claude runs it; the host reviews its answer before anyone else sees it."
+      apNote.textContent = own ? "Only you see this request. Your own Claude runs it; the host reviews its answer before anyone else sees it."
         : "The host runs it; the result lands on the question's Claude thread. Your request text shows there for everyone.";
       const selfOpen = (S.myRequests || []).some(r => r.runner === "self" && (r.status === "pending" || r.status === "running"));
       apConnect.hidden = Core.me.isOwner || !(own || selfOpen);
@@ -4686,9 +4700,8 @@
         for (const [a, kind] of [[apcCode, "code"], [apcDesk, "desktopCode"]]) { const href = Connect.link(kind, wp); a.hidden = !href; if (href) a.href = href; }
         apcRevoke.hidden = !S.me?.watcher;
       }
-      apSend.textContent = mode === "propose" ? "Propose" : "Send request";
       const ro = (!!S.ended && !Core.me.isOwner) || !!S.youRemoved;
-      apSend.disabled = ro; apTa.disabled = ro;
+      apSend.disabled = ro; apTa.disabled = ro; apPointer.hidden = ro;
       paintSlot(apSlot, ro);
       const mine = (S.myRequests || []).slice().sort((a, b) => b.ts - a.ts);
       sync(apReqs, mine, r => r.id, () => {

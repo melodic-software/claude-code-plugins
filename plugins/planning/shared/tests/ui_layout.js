@@ -9,8 +9,11 @@
 // first view shows the goal, the host's ask and "Start here: question 1" in view (triage 3); the ten person colors
 // meet WCAG 2.2 AA in both themes (C40); editing a saved answer on a phone is a full-height sheet (triage 18). With
 // an iOS keyboard of 300 to 600 px at 390x844 and 260 to 430 px at 375x667, Ask Claude shows the label, the field's
-// first 3 lines and Send request (or Propose) uncovered above it, Ask with the sheet at its top, and it scrolls down
-// to "Your requests"; at 320, 375, 390 and 430 px wide the page never scrolls sideways, in the default
+// first 3 lines and Send request uncovered above it, the sheet at its top, and it scrolls down to "Your requests".
+// Ask Claude's tabs are Ask, Research and Explore, and the line under them opens the Propose form; that form, opened
+// from the question list at 320 to 430 px wide with a keyboard of 260 px up, shows its label, the field's first 3
+// lines and Propose above the keyboard, nothing in it clipped or scrolling sideways (triage 36, 44). At 320, 375, 390
+// and 430 px wide the page never scrolls sideways, in the default
 // view, with the chat open, or in Ask Claude with the keyboard up, and at 320 nothing in Ask Claude is clipped sideways.
 // Pinch-zoomed to 1.5, 2 and 3, the page still reads an iOS keyboard as one, and the zoom alone as none.
 //   node plugins/planning/shared/tests/ui_layout.js
@@ -284,10 +287,18 @@ async function main() {
 
     // ---------- dogfood: the Ask Claude sheet with an iOS keyboard of every plausible height ----------
     // Keyboard heights from 300 to 600 px at 390x844 and 260 to 430 at 375x667 (a small iPhone), each with WebKit's
-    // centering pan, and one where the last resize reads offsetTop 0. In Ask and in Propose question the label, the
-    // field's first 3 lines and the primary button are seen above the keyboard and the sticky row, the button whole; in
-    // Ask the sheet sits at its top. What the form shows runs down the page in DOM order, and once the keyboard closes
-    // every part it showed before is back.
+    // centering pan, and one where the last resize reads offsetTop 0. The label, the field's first 3 lines and Send
+    // request are seen above the keyboard and the sticky row, the button whole, and the sheet sits at its top. What the
+    // form shows runs down the page in DOM order, and once the keyboard closes every part it showed before is back.
+    const shot = async (p, name) => {
+      if (!process.env.KBD_SHOTS) return;
+      const vv = await p.evaluate(() => [visualViewport.offsetTop, visualViewport.height, innerWidth]);
+      await p.screenshot({ path: require("node:path").join(process.env.KBD_SHOTS, `${name}.png`), clip: { x: 0, y: vv[0], width: vv[2], height: vv[1] } });
+    };
+    const docScrolls = async p => {
+      const d = await p.evaluate(() => new Promise(r => { window.scrollTo(0, 80); requestAnimationFrame(() => requestAnimationFrame(() => { const se = document.scrollingElement; r([se.scrollHeight - se.clientHeight, se.scrollTop]); })); }));
+      return d[0] > 0 || d[1] ? [`the document scrolls (${d[0]} px more than the viewport, at ${d[1]})`] : [];
+    };
     const SWEEP = [[390, 844, [300, 350, 400, 450, 500, 550, 600], 450], [375, 667, [260, 310, 360, 410, 430], 360]];
     for (const [w, h, kbs, staleKb] of SWEEP) {
       const sp = await rec.open(A.localUrl, { context: { ...PHONE, viewport: { width: w, height: h } } });
@@ -295,40 +306,89 @@ async function main() {
       await sp.evaluate(() => document.querySelector(".vf-asktop").click());
       await until(sp, () => !!document.querySelector(".vf-drawer:not([hidden]) .vf-apform"));
       await settle(sp);
-      for (const [mode, label] of [["Ask", "Send request"], ["Propose question", "Propose"]]) {
-        await sp.locator(".vf-apmodes .vf-seg-btn", { hasText: mode }).tap();
-        await until(sp, l => document.querySelector(".vf-apform .vf-btn-primary")?.textContent === l, label, 3000);
-        const bad = [];
-        // The form's parts a person sees, in DOM order, and whether they also run down the page in that order (a sticky
-        // row floats over what scrolls under it, so it has no place in that order).
-        const parts = () => sp.evaluate(() => {
-          const shown = [...document.querySelector(".vf-apform").children].filter(c => c.getClientRects().length);
-          const tops = shown.filter(c => getComputedStyle(c).position !== "sticky").map(c => c.getBoundingClientRect().top);
-          return { names: shown.map(c => c.className), inOrder: tops.every((t, i) => !i || t >= tops[i - 1] - 0.5) };
-        });
-        const closed = await parts();
-        for (const [kb, stale] of [...kbs.map(k => [k, false]), [staleKb, true]]) {
-          await sp.evaluate(() => { document.activeElement?.blur(); document.querySelector(".vf-apscroll").scrollTop = 0; });
-          await sp.locator("#vf-ap-ta").tap();
-          await keyboard(sp, true, { kb, stale });
-          const seen = await fieldSeen(sp, ".vf-apform .vf-asklabel", "#vf-ap-ta", ".vf-apform .vf-btn-primary");
-          if (mode === "Ask") { const st = await sp.evaluate(() => document.querySelector(".vf-apscroll").scrollTop); if (st > 0.5) seen.push(`the sheet scrolled ${st.toFixed(0)} px from its top`); }
-          const doc = await sp.evaluate(() => new Promise(r => { window.scrollTo(0, 80); requestAnimationFrame(() => requestAnimationFrame(() => { const se = document.scrollingElement; r([se.scrollHeight - se.clientHeight, se.scrollTop]); })); }));
-          if (doc[0] > 0 || doc[1]) seen.push(`the document scrolls (${doc[0]} px more than the viewport, at ${doc[1]})`);
-          const up = await parts();
-          if (!up.inOrder) seen.push(`the form's parts are out of DOM order on screen: ${up.names.join(", ")}`);
-          if (seen.length) bad.push(`keyboard ${kb}${stale ? " (offsetTop read 0)" : ""}: ${seen.join(", ")}`);
-          if (process.env.KBD_SHOTS && kb === kbs[kbs.length - 1] && !stale) {
-            const vv = await sp.evaluate(() => [visualViewport.offsetTop, visualViewport.height]);
-            await sp.screenshot({ path: require("node:path").join(process.env.KBD_SHOTS, `${mode === "Ask" ? "ask" : "propose"}-${w}x${h}-kb${kb}.png`), clip: { x: 0, y: vv[0], width: w, height: vv[1] } });
-          }
-          await keyboard(sp, false);
-          const back = await parts();
-          if (back.names.join() !== closed.names.join() || !back.inOrder) bad.push(`keyboard ${kb}${stale ? " (offsetTop read 0)" : ""}, closed again: the form shows ${back.names.join(", ")}, not ${closed.names.join(", ")}`);
-        }
-        ok(`${w}x${h}, Ask Claude in ${mode}, keyboard ${kbs[0]} to ${kbs[kbs.length - 1]} px: the label, the field's first 3 lines and ${label} are seen above the keyboard${mode === "Ask" ? ", the sheet at its top" : ""}, the form in DOM order, every part back once it closes, the document never scrolled`, bad.length === 0, bad.join("; "));
+      const bad = [];
+      // The form's parts a person sees, in DOM order, and whether they also run down the page in that order (a sticky
+      // row floats over what scrolls under it, so it has no place in that order).
+      const parts = () => sp.evaluate(() => {
+        const shown = [...document.querySelector(".vf-apform").children].filter(c => c.getClientRects().length);
+        const tops = shown.filter(c => getComputedStyle(c).position !== "sticky").map(c => c.getBoundingClientRect().top);
+        return { names: shown.map(c => c.className), inOrder: tops.every((t, i) => !i || t >= tops[i - 1] - 0.5) };
+      });
+      const closed = await parts();
+      for (const [kb, stale] of [...kbs.map(k => [k, false]), [staleKb, true]]) {
+        await sp.evaluate(() => { document.activeElement?.blur(); document.querySelector(".vf-apscroll").scrollTop = 0; });
+        await sp.locator("#vf-ap-ta").tap();
+        await keyboard(sp, true, { kb, stale });
+        const seen = await fieldSeen(sp, ".vf-apform .vf-asklabel", "#vf-ap-ta", ".vf-apform .vf-btn-primary");
+        const st = await sp.evaluate(() => document.querySelector(".vf-apscroll").scrollTop);
+        if (st > 0.5) seen.push(`the sheet scrolled ${st.toFixed(0)} px from its top`);
+        seen.push(...(await docScrolls(sp)));
+        const up = await parts();
+        if (!up.inOrder) seen.push(`the form's parts are out of DOM order on screen: ${up.names.join(", ")}`);
+        if (seen.length) bad.push(`keyboard ${kb}${stale ? " (offsetTop read 0)" : ""}: ${seen.join(", ")}`);
+        if (kb === kbs[kbs.length - 1] && !stale) await shot(sp, `ask-${w}x${h}-kb${kb}`);
+        await keyboard(sp, false);
+        const back = await parts();
+        if (back.names.join() !== closed.names.join() || !back.inOrder) bad.push(`keyboard ${kb}${stale ? " (offsetTop read 0)" : ""}, closed again: the form shows ${back.names.join(", ")}, not ${closed.names.join(", ")}`);
       }
+      ok(`${w}x${h}, Ask Claude, keyboard ${kbs[0]} to ${kbs[kbs.length - 1]} px: the label, the field's first 3 lines and Send request are seen above the keyboard, the sheet at its top, the form in DOM order, every part back once it closes, the document never scrolled`, bad.length === 0, bad.join("; "));
       await sp.context().close();
+    }
+
+    // ---------- triage 36: Ask Claude holds only requests Claude runs; the line under its tabs opens Propose ----------
+    for (const [label, context] of [["390x844", PHONE], ["1440x900", { viewport: { width: 1440, height: 900 } }]]) {
+      const g = await rec.open(A.localUrl, { context });
+      await joinAs(g, `Point ${label}`);
+      await g.evaluate(() => document.querySelector(".vf-asktop").click());
+      await until(g, () => !!document.querySelector(".vf-drawer:not([hidden])"));
+      await settle(g);
+      const tabs = await g.evaluate(() => [...document.querySelectorAll(".vf-apmodes [role=tab]")].filter(t => t.getClientRects().length).map(t => t.textContent));
+      const line = await g.evaluate(() => document.querySelector(".vf-drawer .vf-ap-pointer")?.textContent || "");
+      const opened = await g.locator(".vf-ap-propose").click({ timeout: 3000 }).then(() => true, () => false) && await until(g, () => !document.querySelector(".vf-proposepop").hidden && document.querySelector(".vf-drawer").hidden && document.activeElement?.id === "vf-prop-ta", null, 3000);
+      ok(`${label}: Ask Claude's tabs are exactly Ask, Research and Explore, and "Propose a question" under them closes it and opens the Propose form, its field focused`,
+        tabs.join() === "Ask,Research,Explore" && line === "Want the group asked something? Propose a question" && opened, JSON.stringify({ tabs, line, opened }));
+      await g.context().close();
+    }
+
+    // ---------- triage 44: the Propose form, from the question list, with an iOS keyboard ----------
+    // At 320, 375, 390 and 430 px wide, keyboards from 260 px up to what leaves about the room the Ask Claude sweep's
+    // smallest case does (375x667 under 430 px: 237 px; a 320 px iPhone is 568 tall, so 330 there), at pinch scale 1,
+    // each with WebKit's centering pan and one with offsetTop read 0: the label, the field's first 3 lines and Propose
+    // are seen above the keyboard, Propose whole, nothing in the form past the viewport's sides or its own, and nothing
+    // in it scrolls sideways.
+    const clippedSideways = (page, sel) => page.evaluate(([sel, tol]) => {
+      const top = document.querySelector(sel);
+      if (!top) return [`no ${sel}`];
+      const T = top.getBoundingClientRect(), out = [];
+      for (const el of [top, ...top.querySelectorAll("*")]) {
+        const r = el.getBoundingClientRect();
+        if (r.width <= 1 || r.height <= 1) continue;
+        if (r.left < Math.max(0, T.left) - tol || r.right > Math.min(innerWidth, T.right) + tol) out.push(`${el.tagName.toLowerCase()}.${[...el.classList].join(".")} ${r.left.toFixed(0)} to ${r.right.toFixed(0)}, form ${T.left.toFixed(0)} to ${T.right.toFixed(0)}, viewport ${innerWidth}`);
+      }
+      if (top.scrollWidth > top.clientWidth + tol) out.push(`${sel} content ${top.scrollWidth} in ${top.clientWidth}`);
+      return out;
+    }, [sel, TOL]);
+    const PSWEEP = [[320, 568, [260, 300, 330]], [375, 667, [260, 310, 360, 410, 430]], [390, 844, [260, 300, 350, 400, 430]], [430, 932, [260, 300, 350, 400, 430]]];
+    for (const [w, h, kbs] of PSWEEP) {
+      const pp = await rec.open(A.localUrl, { context: { ...PHONE, viewport: { width: w, height: h } } });
+      await joinAs(pp, `Prop ${w}`);
+      await pp.locator(".vf-tab", { hasText: "Questions" }).tap();
+      await pp.locator(".vf-propose").tap();
+      const opened = await until(pp, () => !!document.querySelector(".vf-proposepop:not([hidden])"), null, 3000);
+      await settle(pp);
+      const bad = opened ? [] : ["the form did not open"];
+      for (const [kb, stale] of opened ? [...kbs.map(k => [k, false]), [kbs[kbs.length - 1], true]] : []) {
+        await pp.evaluate(() => document.activeElement?.blur());
+        if (!(await pp.locator("#vf-prop-ta").tap({ timeout: 5000 }).then(() => true, () => false))) { bad.push(`keyboard ${kb}: the field could not be tapped`); break; }
+        await keyboard(pp, true, { kb, stale, scale: 1 });
+        const seen = await fieldSeen(pp, ".vf-proposepop .vf-asklabel", "#vf-prop-ta", ".vf-proposepop button[type=submit]");
+        seen.push(...(await clippedSideways(pp, ".vf-proposepop")), ...(await docScrolls(pp)));
+        if (seen.length) bad.push(`keyboard ${kb}${stale ? " (offsetTop read 0)" : ""}: ${[...new Set(seen)].join(", ")}`);
+        if (kb === kbs[kbs.length - 1] && !stale) await shot(pp, `propose-${w}x${h}-kb${kb}`);
+        await keyboard(pp, false);
+      }
+      ok(`${w}x${h}, the Propose form from the question list, keyboard ${kbs[0]} to ${kbs[kbs.length - 1]} px: the label, the field's first 3 lines and Propose are seen above the keyboard, nothing clipped or scrolling sideways, the document never scrolled`, bad.length === 0, bad.join("; "));
+      await pp.context().close();
     }
     const ria = await rec.open(A.localUrl, { context: PHONE });
     await joinAs(ria, "Ria");
