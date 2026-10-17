@@ -1,4 +1,4 @@
-version: 1
+version: 2
 activities:
   fix-tests:
     script: scripts/fix-tests.sh
