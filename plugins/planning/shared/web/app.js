@@ -3774,7 +3774,7 @@
           b.lastChild.textContent = n ? String(n) : "";
           b.setAttribute("aria-pressed", String(mineR === r));
           b.disabled = isMe(a.cid) || ro;
-          b.setAttribute("aria-label", `${b._label}: ${n}${mineR === r ? ", including yours" : ""}`);
+          b.setAttribute("aria-label", `${b._label}: ${n}`); // aria-pressed says whether it is yours
           b.title = isMe(a.cid) ? "Your answer" : b._label;
         }
       }

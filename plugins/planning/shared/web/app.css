@@ -438,14 +438,19 @@
 }
 .app .vf-vote[aria-pressed="true"] { color: var(--accent-text); border-color: color-mix(in oklch, var(--accent) 60%, transparent); background: var(--accent-soft); }
 .app .vf-vote-n { min-inline-size: 1ch; }
-/* Gather reactions (Q97): three counted buttons where a Decide answer has its vote */
+/* Gather reactions (Q97): counted toggle buttons where a Decide answer has its vote. At rest an outline only (no fill,
+   so it never reads as chosen); yours a tinted fill inside a full accent border, the 3:1 cue in both themes. */
 .app .vf-reacts { display: inline-flex; align-items: center; gap: 4px; }
 .app .vf-reacts[hidden] { display: none; }
 .app .vf-react {
   display: inline-flex; align-items: center; gap: 4px; block-size: 26px; min-inline-size: 32px; padding-inline: 7px;
-  border: 1px solid var(--line-strong); border-radius: var(--r-sm); color: var(--muted); font-size: 12px; font-weight: 600;
+  border: 1px solid var(--line-input); border-radius: var(--r-sm); background: transparent; color: var(--muted); font-size: 12px; font-weight: 600;
 }
-.app .vf-react[aria-pressed="true"] { color: var(--accent-text); border-color: color-mix(in oklch, var(--accent) 60%, transparent); background: var(--accent-soft); }
+@media (hover: hover) and (pointer: fine) {
+  .app .vf-react:not([aria-pressed="true"]):hover:not(:disabled) { background: var(--raise); }
+}
+.app .vf-react[aria-pressed="true"] { color: var(--accent-text); border-color: var(--accent); background: var(--accent-soft); }
+.app .vf-react:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .app .vf-react:disabled { opacity: 0.6; cursor: default; }
 .app .vf-react-g { font-size: 13px; line-height: 1; }
 .app .vf-react-n:empty { display: none; }
