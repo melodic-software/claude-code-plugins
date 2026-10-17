@@ -206,21 +206,40 @@ export function buildTranscriptText(vttText, isAutoCaption, { repairLexicon = nu
 }
 
 /**
- * Write the slice README (safe for metadata-only slices — the artifact list
- * documents the standard layout, present or pending).
+ * Write the slice README. The artifact list names the transcript files that
+ * were written; a post with no video entries says so instead of listing a
+ * transcript that does not exist.
  *
  * @param {object} options
  * @param {string} options.sliceDir
  * @param {string} options.videoTitle
  * @param {string} options.videoId
  * @param {string} options.sourceUrl
+ * @param {readonly string[]} [options.transcriptFiles] - slice-relative
+ *   transcript paths actually written (default: the primary `source/transcript.txt`)
+ * @param {boolean} [options.noVideoEntries] - the acquisition produced 0 entries
  * @param {{ writeFile?: typeof fs.writeFile }} [io]
  * @returns {Promise<string>} the README path
  */
 export async function writeSliceReadme(
-  { sliceDir, videoTitle, videoId, sourceUrl },
+  {
+    sliceDir,
+    videoTitle,
+    videoId,
+    sourceUrl,
+    transcriptFiles = ["source/transcript.txt"],
+    noVideoEntries = false,
+  },
   { writeFile = fs.writeFile } = {},
 ) {
+  let transcriptLines = transcriptFiles
+    .map((file) => `- \`${file}\` — cleaned timestamped transcript (\`[M:SS]\` paragraphs)\n`)
+    .join("");
+  if (noVideoEntries) {
+    transcriptLines = "- No video entries were found in this post, so no transcript was written\n";
+  } else if (transcriptFiles.length === 0) {
+    transcriptLines = "- No transcript was written (see the run's transcript degradation)\n";
+  }
   const readmePath = path.join(sliceDir, "README.md");
   const readme = `# ${videoTitle}
 
@@ -229,8 +248,7 @@ Source: ${sourceUrl}
 
 ## Artifacts
 
-- \`source/transcript.txt\` — cleaned timestamped transcript (\`[M:SS]\` paragraphs)
-- \`key-frames/\` — curated visual frames (Phase 5+)
+${transcriptLines}- \`key-frames/\` — curated visual frames (Phase 5+)
 - \`recommendations/\` — synthesis notes (Phase 5+)
 
 Bulk frames and source video stay in OS temp during the watch session; only curated \`key-frames/\` persist in the slice.
@@ -345,10 +363,6 @@ export async function writeEnvelopeTranscriptArtifacts(
   const primaryEntryIndex = primary ? entries.indexOf(primary) : -1;
 
   await mkdir(sliceDir, { recursive: true });
-  await writeSliceReadme(
-    { sliceDir, videoTitle: metadata.title, videoId: sliceKey, sourceUrl },
-    { writeFile },
-  );
 
   // The ASR toolchain probe spawns interpreters — run it only when some entry
   // could actually take the ASR rung (caption-less media, or an explicit
@@ -438,6 +452,21 @@ export async function writeEnvelopeTranscriptArtifacts(
       repairedTermCount: built.repairedTermCount,
     });
   }
+
+  // Written last so the Artifacts list names only transcripts that exist.
+  await writeSliceReadme(
+    {
+      sliceDir,
+      videoTitle: metadata.title,
+      videoId: sliceKey,
+      sourceUrl,
+      transcriptFiles: transcripts.map((entry) =>
+        path.relative(sliceDir, entry.transcriptPath).split(path.sep).join("/"),
+      ),
+      noVideoEntries: entries.length === 0,
+    },
+    { writeFile },
+  );
 
   const primaryDegradation =
     entryDegradations.find((entry) => entry.entryIndex === primaryEntryIndex) ??
