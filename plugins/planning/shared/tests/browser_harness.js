@@ -105,4 +105,19 @@ async function joinAs(page, name) {
   return (await snap(page)).me.pid;
 }
 
-module.exports = { loadPlaywright, suite, recorder, until, snap, joinAs };
+/** A w x h PNG, light grey with a dark band over rows y0..y1 (a stand-in screenshot with a "button" to mark). */
+function png(w, h, [y0, y1] = [-1, -1]) {
+  const zlib = require("node:zlib");
+  const row = shade => Buffer.concat([Buffer.from([0]), Buffer.alloc(w * 3, shade)]);
+  const light = row(0xdd), dark = row(0x33);
+  const raw = Buffer.concat(Array.from({ length: h }, (_, y) => (y >= y0 && y <= y1 ? dark : light)));
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const td = Buffer.concat([Buffer.from(type, "ascii"), data]), crc = Buffer.alloc(4); crc.writeUInt32BE(zlib.crc32(td));
+    return Buffer.concat([len, td, crc]);
+  };
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2; // 8-bit RGB
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr), chunk("IDAT", zlib.deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
+}
+
+module.exports = { loadPlaywright, suite, recorder, until, snap, joinAs, png };

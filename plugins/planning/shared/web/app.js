@@ -885,7 +885,9 @@
     const confirmFig = E("figure", "vf-confirm-fig");
     const confirmImg = E("img", "vf-confirm-img"); confirmImg.alt = "Screenshot";
     const confirmMark = E("span", "vf-confirm-mark"); confirmMark.setAttribute("aria-hidden", "true");
-    const confirmImgBox = E("span", "vf-confirm-box"); confirmImgBox.append(confirmImg, confirmMark, zoomTag());
+    // The canvas holds the whole picture; the box shows it at full width and crops a tall one around the mark.
+    const confirmCanvas = E("span", "vf-confirm-canvas"); confirmCanvas.append(confirmImg, confirmMark);
+    const confirmImgBox = E("span", "vf-confirm-box"); confirmImgBox.append(confirmCanvas, zoomTag());
     const confirmView = btn("vf-imgbtn"); confirmView.append(confirmImgBox);
     confirmFig.append(confirmView);
     confirmImg.onload = () => { if (confirmImg.naturalWidth && confirmImg.naturalHeight) confirmView.style.setProperty("--ar", String(confirmImg.naturalWidth / confirmImg.naturalHeight)); };
@@ -1475,7 +1477,8 @@
       el.scrollIntoView({ block: "nearest", behavior: "auto" });
       const R = root.getBoundingClientRect(), r = el.getBoundingClientRect();
       const box = { l: Math.max(R.left + 4, r.left - 4), t: Math.max(R.top + 4, r.top - 4), r: Math.min(R.right - 4, r.right + 4), b: Math.min(R.bottom - 4, r.bottom + 4) };
-      Object.assign(tourRing.style, { insetInlineStart: box.l - R.left + "px", insetBlockStart: box.t - R.top + "px", inlineSize: box.r - box.l + "px", blockSize: box.b - box.t + "px" });
+      // Moved with translate (composited); its size changes without a transition.
+      Object.assign(tourRing.style, { translate: `${box.l - R.left}px ${box.t - R.top}px`, inlineSize: box.r - box.l + "px", blockSize: box.b - box.t + "px" });
       // The card sits below the target when it fits there, else above it, else over the bottom of the page.
       const cs = tourCard.style; cs.insetBlockStart = cs.insetBlockEnd = cs.insetInlineStart = "";
       const w = Math.min(360, R.width - 24), h = tourCard.offsetHeight || 180;
@@ -1648,11 +1651,17 @@
     /** Place a popover under its anchor (above when there is no room), inside the app. */
     function placeNear(pop, anchor) {
       const r = anchor.getBoundingClientRect(), R = root.getBoundingClientRect(), ps = pop.style;
-      ps.insetBlockEnd = ""; ps.insetInlineStart = "0px"; ps.insetBlockStart = "0px";
+      ps.insetBlockEnd = ps.maxBlockSize = ps.overflowY = ""; ps.insetInlineStart = "0px"; ps.insetBlockStart = "0px";
       const w = pop.offsetWidth, h = pop.offsetHeight;
       const left = Math.min(Math.max(8, r.left - R.left + r.width / 2 - w / 2), R.width - w - 8);
+      // Below the anchor, else above it; when it fits neither, the roomier side, scrolling, so it never covers the anchor.
+      const below = R.height - (r.bottom - R.top) - 16, above = r.top - R.top - 16;
       let topY = r.bottom - R.top + 8;
-      if (topY + h > R.height - 8) topY = Math.max(8, Math.min(r.top - R.top - h - 8, R.height - h - 8));
+      if (h > below && h <= above) topY = r.top - R.top - h - 8;
+      else if (h > below) {
+        ps.maxBlockSize = Math.max(below, above) + "px"; ps.overflowY = "auto";
+        topY = below >= above ? topY : 8;
+      }
       ps.insetInlineStart = left + "px"; ps.insetBlockStart = topY + "px";
     }
     function openPop(pop, anchor) {
@@ -2049,10 +2058,15 @@
     }
     mReplyX.onclick = () => { ui.replyTo = null; paintReply(); mInput.focus(); };
 
-    /** A marked area in percent over an image; none hides the mark. */
+    /** A marked area in percent over an image, clamped inside it (a rect stored before the server checked the unit
+     *  can be pixel-sized); none hides the mark. Returns the area drawn. */
     function markRect(el, r) {
       el.hidden = !r;
-      if (r) el.style.cssText = `inset-inline-start:${r.x}%;inset-block-start:${r.y}%;inline-size:${r.w}%;block-size:${r.h}%`;
+      if (!r) return null;
+      const n = v => Math.max(0, Number(v) || 0), w = Math.min(n(r.w), 100), h = Math.min(n(r.h), 100);
+      const c = { x: Math.min(n(r.x), 100 - w), y: Math.min(n(r.y), 100 - h), w, h };
+      el.style.cssText = `inset-inline-start:${c.x}%;inset-block-start:${c.y}%;inline-size:${c.w}%;block-size:${c.h}%`;
+      return c;
     }
 
     // ---------- Q87: theme, one tap cycles System, Light, Dark ----------
@@ -3509,7 +3523,7 @@
       if (k.avKey !== key) { avBox.replaceChildren(bot ? claudeAv(22) : av(a.cid, a.name, 22, true)); k.avKey = key; }
       nm.textContent = (isMe(a.cid) ? `${who} (you)` : who) + (a.device && !bot ? `, ${a.device}` : "");
       const isLocked = locked && lk.answerCid === a.cid;
-      const tagTxt = isLocked ? "Locked" : a.rec ? "Recommended" : lead && s.voting ? "Leading" : a.late ? "Late" : "";
+      const tagTxt = isLocked ? "Locked" : a.rec ? "Claude recommends" : lead && s.voting ? "Leading" : a.late ? "Late" : "";
       tag.textContent = tagTxt; tag.hidden = !tagTxt;
       tag.className = "vf-tag" + (a.rec && !isLocked ? " vf-tag-rec" : "");
       const fresh = ui.seenAt != null && qid === ui.cur && a.ts > ui.seenAt && !isMe(a.cid);
@@ -3966,6 +3980,7 @@
           const acts = E("div", "vf-optacts");
           const choose = btn("vf-btn vf-optchoose"), undo = btn("vf-btn vf-btn-ghost vf-btn-sm vf-optundo", "Undo");
           choose.onclick = () => (li._o.other ? openOther(ui.cur) : pickOpt(li._o.id));
+          lab.onclick = () => { if (!choose.disabled && choose.getAttribute("aria-pressed") !== "true") choose.click(); }; // the name picks too
           undo.onclick = () => { choose.focus({ preventScroll: true }); clearPick(); };
           acts.append(choose, undo);
           const lockB = btn("vf-btn vf-btn-ghost vf-btn-sm vf-btn-brass-ghost vf-optlock", "Lock this one");
@@ -4016,8 +4031,8 @@
         fmtHint.textContent = "Tap the picture to see it bigger.";
         fmtHint.hidden = false;
         if (confirmImg._src !== q.image) { confirmImg._src = q.image; confirmImg.src = assetUrl(q.image); }
-        const r = q.rect || { x: 0, y: 0, w: 100, h: 100 };
-        confirmMark.style.cssText = `inset-inline-start:${r.x}%;inset-block-start:${r.y}%;inline-size:${r.w}%;block-size:${r.h}%`;
+        const r = markRect(confirmMark, q.rect || { x: 0, y: 0, w: 100, h: 100 });
+        confirmImgBox.style.setProperty("--my", String((r.y + r.h / 2) / 100));
         confirmImg.alt = `Screenshot with the area in question marked: ${q.text}`;
         confirmView.setAttribute("aria-label", "View the screenshot larger");
         const n = id => byId[id]?.votes?.length || 0, els = peopleAnswers(q.id).filter(a => !a.claude && !a.pick && a.text).length;
@@ -4392,8 +4407,7 @@
       if (q.format === "confirm") {
         const box = E("div", "vf-confirm-box vf-confirm-box-sm"), img = E("img", "vf-confirm-img"), mark = E("span", "vf-confirm-mark");
         img.src = assetUrl(q.image); img.alt = "Screenshot with the area in question marked"; mark.setAttribute("aria-hidden", "true");
-        const r = q.rect || { x: 0, y: 0, w: 100, h: 100 };
-        mark.style.cssText = `inset-inline-start:${r.x}%;inset-block-start:${r.y}%;inline-size:${r.w}%;block-size:${r.h}%`;
+        markRect(mark, q.rect || { x: 0, y: 0, w: 100, h: 100 });
         box.append(img, mark, zoomTag());
         const b = btn("vf-imgbtn vf-colconfirm-view"); b.append(box); b.setAttribute("aria-label", "View the screenshot larger");
         b.onclick = () => openLb("confirm", q.id, 0, b);

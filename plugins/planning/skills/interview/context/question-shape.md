@@ -105,6 +105,9 @@ A diagram or chart goes in `references` as `{kind: "diagram", asset, alt, captio
 added with `add-asset`, drawn with whatever this session has or by hand. `alt` is required and
 says what the picture shows in words.
 
+A `rect` (the area a `confirm` question or an image reference marks) is in percent of the image,
+0-100: `x + w` and `y + h` stay at most 100, and the server refuses a larger one.
+
 ## Schema version
 
 The schemas under `<plugin-root>/shared/schema/` are the source of truth for every persisted and

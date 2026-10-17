@@ -1129,7 +1129,8 @@
 .app .vf-step[data-state="now"] .vf-step-dot { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); background: var(--accent-soft); }
 .app .vf-step-note { color: var(--muted); font-size: 12px; position: relative; z-index: 1; }
 @media (prefers-reduced-motion: no-preference) {
-  .app .vf-step[data-state="now"] .vf-step-dot { animation: vf-breathe 1.8s var(--ease-io) infinite; }
+  /* Two breaths (3.6 s) when a step becomes current, then still: WCAG 2.2.2 asks a stop for motion past 5 s. */
+  .app .vf-step[data-state="now"] .vf-step-dot { animation: vf-breathe 1.8s var(--ease-io) 2; }
 }
 @keyframes vf-breathe { 50% { box-shadow: 0 0 0 5px var(--accent-soft); } }
 
@@ -1157,7 +1158,7 @@
   transition: background-color 150ms var(--ease-out);
 }
 .app .vf-zoomtag .vf-i { inline-size: 13px; block-size: 13px; }
-.app .vf-optlabel { font-size: 14px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; padding-inline: 2px; }
+.app .vf-optlabel { font-size: 14px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; padding-inline: 2px; cursor: pointer; }
 .app .vf-optfoot { display: flex; align-items: center; gap: 6px; padding-inline: 2px; min-block-size: 20px; min-width: 0; }
 .app .vf-optn { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 0; }
 .app .vf-optacts { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -1307,6 +1308,9 @@
 .app .vf-lb-acts .vf-btn:disabled { opacity: 0.5; cursor: default; }
 @media (max-width: 720px) {
   .app .vf-opts { grid-template-columns: minmax(0, 1fr); }
+  /* Picture options sit two to a row, so both Choose buttons are on screen above the tab bar (ux-review-3, Q3). */
+  .app .vf-opts:has(.vf-optview:not([hidden])) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .app .vf-opts:has(.vf-optview:not([hidden])) .vf-optacts .vf-btn { block-size: auto; min-block-size: 44px; }
   .app .vf-lb-foot { grid-template-columns: minmax(0, 1fr); grid-template-areas: "info" "acts" "zoom"; row-gap: 8px; }
   .app .vf-lb-acts .vf-btn { flex: 1; }
   .app .vf-lb-nav { inline-size: 44px; block-size: 44px; }
@@ -1938,11 +1942,15 @@
 .app .vf-upthumb[hidden] { display: none; }
 .app .vf-upthumb img { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; }
 /* Question pictures stay compact so the answer controls stay on screen; View larger opens the viewer. */
-/* --ar is the picture's width / height, set when it loads; the height stays at most 240px (30% of a phone screen) */
-.app .vf-confirm-fig .vf-imgbtn { inline-size: min(100%, calc(240px * var(--ar, 1.6))); }
+/* The confirm picture keeps the column's width and at most 240px of height (30% of a phone screen); a taller picture is
+   cropped around the marked area, and the viewer shows it whole. --ar is its width / height, set when it loads; --my is
+   the mark's middle as a fraction of its height. The canvas is the whole picture, shifted up to centre the mark. */
+.app .vf-confirm-fig .vf-confirm-box { aspect-ratio: var(--ar, 1.6); max-block-size: 240px; container-type: size; }
+.app .vf-confirm-canvas { position: absolute; inset-inline: 0; inset-block-start: clamp(100cqb - 100cqi / var(--ar, 1.6), 50cqb - var(--my, 0.5) * 100cqi / var(--ar, 1.6), 0px); }
 @media (max-width: 720px) {
-  .app .vf-confirm-fig .vf-imgbtn { inline-size: min(100%, calc(30dvh * var(--ar, 1.6))); }
+  .app .vf-confirm-fig .vf-confirm-box { max-block-size: 30dvh; }
   .app .vf-optmedia { aspect-ratio: auto; block-size: min(40dvh, 200px); }
+  .app .vf-opts:has(.vf-optview:not([hidden])) .vf-optmedia { aspect-ratio: 4 / 3; block-size: auto; }
 }
 /* the host's device and view hint on answers and people */
 .app .vf-ctx { display: inline-flex; align-items: center; color: var(--faint); cursor: help; }
@@ -1980,7 +1988,7 @@
 .app .vf-tour { position: absolute; inset: 0; z-index: 90; }
 .app .vf-tour[hidden] { display: none; }
 .app .vf-tour-ring {
-  position: absolute; border-radius: var(--r-md); pointer-events: none;
+  position: absolute; left: 0; top: 0; border-radius: var(--r-md); pointer-events: none;
   box-shadow: 0 0 0 3px var(--accent), 0 0 0 100vmax oklch(0 0 none / 0.55);
 }
 .app .vf-tour-card {
@@ -1993,7 +2001,7 @@
 .app .vf-tour-row .vf-btn { block-size: 44px; padding-inline: 14px; font-size: 14px; }
 .app .vf-help-tour { justify-self: start; margin-block: 4px 12px; }
 @media (prefers-reduced-motion: no-preference) {
-  .app .vf-tour-ring { transition: inset 200ms var(--ease-out), inline-size 200ms var(--ease-out), block-size 200ms var(--ease-out); }
+  .app .vf-tour-ring { transition: translate 200ms var(--ease-out); }
 }
 
 /* C40: the ten person colors in the person card. */

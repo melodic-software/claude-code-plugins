@@ -107,6 +107,14 @@ async function main() {
     await gus.press("#vf-answer", "Control+Enter");
     ok("Claude's cards: after answering, all three show", await until(gus, n => [...document.querySelectorAll(".vf-alist .vf-card.vf-bot")].filter(c => c.offsetParent).length === n
       && !document.querySelector(".vf-claudebar")?.offsetParent, 3), `${(await botCards(gus)).length} cards`);
+    // AC4 names the tag: the recommendation's card reads "Claude recommends"; the alternatives carry no such tag.
+    const recTags = () => gus.evaluate(() => [...document.querySelectorAll(".vf-alist .vf-card.vf-bot")].filter(c => c.offsetParent)
+      .map(c => [c.textContent.slice(0, 60), [...c.querySelectorAll(".vf-tag")].filter(t => !t.hidden).map(t => t.textContent).join("|")]));
+    ok("Claude's cards: the recommendation is tagged \"Claude recommends\" and the alternatives are not", await until(gus, ([rec, a, b]) => {
+      const tags = [...document.querySelectorAll(".vf-alist .vf-card.vf-bot")].filter(c => c.offsetParent).map(c => [c.textContent, [...c.querySelectorAll(".vf-tag")].filter(t => !t.hidden).map(t => t.textContent).join("|")]);
+      const tagOf = t => tags.find(([text]) => text.includes(t))?.[1];
+      return tagOf(rec) === "Claude recommends" && tagOf(a) === "" && tagOf(b) === "";
+    }, [REC, ALT_A, ALT_B]), JSON.stringify(await recTags()));
     await gus.evaluate(() => window.Core.vote("Q1", "c:a", true));
     await until(owner, () => (window.Core.snapshot().cards.Q1 || []).some(c => c.ref === "c:a" && (c.votes || []).length === 1));
     const ivy = await rec.open(A.localUrl, { context: DESK });

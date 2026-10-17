@@ -59,7 +59,7 @@
       "purpose": "decide",
       "format": {"kind": "text"},
       "answerScope": "person",
-      "references": [{"kind": "image", "asset": "0123456789abcdef.png", "rect": {"x": 10, "y": 20, "w": 300, "h": 200}, "caption": "Current payment step"}],
+      "references": [{"kind": "image", "asset": "0123456789abcdef.png", "rect": {"x": 5, "y": 10, "w": 60, "h": 40}, "caption": "Current payment step"}],
       "origin": {"kind": "claude"},
       "lockedText": "Pin the summary in a right-hand column.",
       "needsReview": []
@@ -94,7 +94,7 @@
       "dependsOn": ["Q1"],
       "round": 2,
       "purpose": "decide",
-      "format": {"kind": "confirm", "image": "5555666677778888.png", "rect": {"x": 40, "y": 400, "w": 320, "h": 48}},
+      "format": {"kind": "confirm", "image": "5555666677778888.png", "rect": {"x": 10, "y": 47, "w": 80, "h": 6}},
       "answerScope": "device",
       "references": [{"kind": "quote", "text": "I never find the promo box.", "source": "Support ticket", "url": "https://example.com/tickets/1"}],
       "origin": {"kind": "proposal", "proposal": "P1"},
@@ -327,7 +327,7 @@
     {"id": "U3-8c9d0e1f", "pid": "kL1mN3pQ5rS7", "at": 1760601500.0, "qid": "Q4", "file": "notes.pdf", "ext": "pdf", "mime": "application/pdf", "size": 1024, "chunks": 1, "status": {"kind": "offered"}}
   ],
   "annotations": [
-    {"id": "A1", "pid": "kL1mN3pQ5rS7", "qid": "Q4", "variant": "v-1", "at": 1760601750.0, "text": "This button is too small.", "anchor": {"selector": "#pay-button", "rect": {"x": 600, "y": 700, "w": 120, "h": 40}}}
+    {"id": "A1", "pid": "kL1mN3pQ5rS7", "qid": "Q4", "variant": "v-1", "at": 1760601750.0, "text": "This button is too small.", "anchor": {"selector": "#pay-button", "rect": {"x": 40, "y": 75, "w": 10, "h": 5}}}
   ],
   "prefs": {
     "aB3dE5fG7hJ9": {"theme": {"value": "dark", "at": 1760600200.0}, "mute": {"value": ["votes"], "at": 1760600210.0}},

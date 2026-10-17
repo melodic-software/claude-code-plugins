@@ -5,7 +5,11 @@
 // and 30 of Shift+Tab keep focus inside it, Escape closes it, and focus goes back to what opened it. Picking an option
 // and sending an answer each put a message in the page's polite live region (announce() in app.js). A choice is
 // answered by keyboard alone: Tab from the question reaches the first option, Space picks it, Enter picks another.
-// The first-visit tour (triage 4) traps focus, ends with Done or Escape, records the `tour` pref and reopens from Help.
+// The first-visit tour (triage 4) traps focus, ends with Done or Escape, records the `tour` pref and reopens from Help;
+// its ring moves by translate only, and the current round step stops pulsing within 5 s (animation-audit I3, I4).
+// AC17: a Tab sweep per view (a guest's Focus, Compare and Tree, the chat, the picture viewer, the Host view, settings,
+// share, notifications, shortcuts, a confirm dialog; on a phone the Questions and Answer tabs, the chat, More and the
+// Host view) reaches every control, each with a focus ring, on screen and not covered (WCAG 2.4.7, 2.4.11).
 //   node plugins/planning/shared/tests/ui_keyboard.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the keyboard requirements of the polish plan (30 presses each way, Escape closes, focus
@@ -38,6 +42,103 @@ async function cycle(page, sel) {
     }
   }
   return out;
+}
+
+/** Tag every interactive control in the view (the open modal dialog, the given surface, or the page minus inert parts)
+ *  and record how each looks unfocused; returns their descriptions by tag. */
+function tagControls(scopeSel) {
+  const modal = document.querySelector("dialog:modal");
+  const root = (scopeSel && document.querySelector(scopeSel)) || modal || document.body;
+  const shown = el => el.getClientRects().length > 0 && el.checkVisibility({ visibilityProperty: true }) && !el.closest("[inert]");
+  const look = el => { const c = getComputedStyle(el); return [c.outlineStyle, c.outlineWidth, c.outlineColor, c.boxShadow, c.borderColor, c.backgroundColor].join("|"); };
+  const all = [...root.querySelectorAll("a[href], button, input:not([type=hidden]), select, textarea, summary, [tabindex], [contenteditable=true]")]
+    .filter(el => !el.disabled && el.tabIndex >= 0 && shown(el));
+  const radios = new Set();
+  const out = {};
+  // Record the unfocused look: the control a surface focused on opening is blurred while it is read, then refocused.
+  const had = document.activeElement;
+  had?.blur?.();
+  document.querySelectorAll("[data-kb]").forEach(e => e.removeAttribute("data-kb"));
+  all.forEach((el, i) => {
+    // A native radio group is one Tab stop: only its first radio stands for the group.
+    if (el.type === "radio" && el.name) { if (radios.has(el.name)) return; radios.add(el.name); el.closest("form, body").querySelectorAll(`input[type=radio][name="${el.name}"]`).forEach(r => r.dataset.kb = String(i)); }
+    el.dataset.kb = String(i);
+    el._kbLook = [el, el.parentElement, el.parentElement?.parentElement].map(e => e && look(e));
+    out[i] = `${el.tagName.toLowerCase()}.${[...el.classList].join(".")} "${(el.getAttribute("aria-label") || el.textContent || el.placeholder || "").trim().replace(/\s+/g, " ").slice(0, 30)}"`;
+  });
+  // A native control taken out of the Tab order (tabindex -1) counts as reachable only inside a roving group, where
+  // a sibling holds the group's one Tab stop and arrows move between them; it is checked after the sweep.
+  document.querySelectorAll("[data-kbr]").forEach(e => e.removeAttribute("data-kbr"));
+  [...root.querySelectorAll("a[href], button, input:not([type=hidden]), select, textarea, summary")]
+    .filter(el => !el.disabled && el.tabIndex < 0 && shown(el)).forEach(el => { el.dataset.kbr = `${el.tagName.toLowerCase()}.${[...el.classList].join(".")} "${(el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 30)}"`; });
+  if (had && had !== document.body) had.focus({ preventScroll: true });
+  return out;
+}
+
+/** Out-of-order controls (tagControls) outside any composite widget (radiogroup, toolbar, menu, listbox, tablist,
+ *  grid, group), or inside one where Tab reached no member. */
+function strandedRoving(reached) {
+  const got = new Set(reached);
+  return [...document.querySelectorAll("[data-kbr]")].filter(el => {
+    const group = el.closest("[role=radiogroup], [role=toolbar], [role=menu], [role=menubar], [role=listbox], [role=tablist], [role=grid], [role=group]");
+    return !group || ![...group.querySelectorAll("[data-kb]")].some(e => got.has(e.dataset.kb));
+  }).map(el => el.dataset.kbr);
+}
+
+/** The focused control: its tag, whether a ring shows (an outline on it, or a changed look on it or a near parent),
+ *  whether that outline is cut off on every side by a clipping parent, and whether it is on screen and not covered. */
+function focusedNow() {
+  const a = document.activeElement, id = a?.dataset?.kb;
+  if (!a || id === undefined || !a._kbLook) return { id: id ?? null };
+  const c = getComputedStyle(a), r = a.getBoundingClientRect();
+  const ow = c.outlineStyle !== "none" ? parseFloat(c.outlineWidth) || 0 : 0;
+  const look = e => { const s = getComputedStyle(e); return [s.outlineStyle, s.outlineWidth, s.outlineColor, s.boxShadow, s.borderColor, s.backgroundColor].join("|"); };
+  const changed = [a, a.parentElement, a.parentElement?.parentElement].some((e, i) => e && a._kbLook[i] !== look(e));
+  let ring = ow >= 1 || changed, clipped = false;
+  if (ow >= 1 && !changed) {
+    // The outline's outer box, cut by every parent that clips: how many of its four sides are still drawn?
+    const o = (parseFloat(c.outlineOffset) || 0) + ow;
+    let box = { l: r.left - o, t: r.top - o, rt: r.right + o, b: r.bottom + o };
+    const ring0 = { ...box };
+    for (let p = a.parentElement; p && p !== document.documentElement; p = p.parentElement) {
+      const pc = getComputedStyle(p);
+      if (pc.overflowX === "visible" && pc.overflowY === "visible") continue;
+      const pr = p.getBoundingClientRect();
+      box = { l: Math.max(box.l, pr.left), t: Math.max(box.t, pr.top), rt: Math.min(box.rt, pr.right), b: Math.min(box.b, pr.bottom) };
+    }
+    const sides = [box.l <= ring0.l + 1, box.t <= ring0.t + 1, box.rt >= ring0.rt - 1, box.b >= ring0.b - 1].filter(Boolean).length;
+    clipped = sides < 2;
+    ring = !clipped;
+  }
+  // On screen and not covered: one of five points in it reaches it (or its label) from the top.
+  const pts = [[0.5, 0.5], [0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8]].map(([fx, fy]) => [r.left + r.width * fx, r.top + r.height * fy]);
+  const seen = pts.some(([x, y]) => { if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) return false; const h = document.elementFromPoint(x, y); return !!h && (h === a || a.contains(h) || h.contains(a) || h.closest("label")?.control === a); });
+  const top = document.elementFromPoint(pts[0][0], pts[0][1]), cover = top ? `${top.tagName.toLowerCase()}.${[...top.classList].join(".")}` : "off screen";
+  return { id, ring, clipped, seen, cover: seen ? "" : `${cover} at ${Math.round(r.left)},${Math.round(r.top)}`};
+}
+
+/** Tab through a view from its start until every tagged control has had focus or the presses run out. Returns the
+ *  controls never reached, the ones reached without a visible ring, and the ones focused off screen or covered. */
+async function sweep(page, scopeSel) {
+  const names = await page.evaluate(tagControls, scopeSel || null);
+  const ids = Object.keys(names), reached = new Map();
+  await page.evaluate(scopeSel => {
+    const root = (scopeSel && document.querySelector(scopeSel)) || document.querySelector("dialog:modal");
+    if (root) root.querySelector("[data-kb]")?.focus(); else { document.activeElement?.blur?.(); }
+  }, scopeSel || null);
+  // Only focus that Tab moved counts: the first control a surface focuses on opening comes round again in its trap.
+  for (let i = 0; i < ids.length * 2 + 20 && reached.size < ids.length; i++) {
+    await page.keyboard.press("Tab");
+    const f = await page.evaluate(focusedNow);
+    if (f.id !== null && !reached.has(f.id)) reached.set(f.id, f);
+  }
+  const all = [...reached.values()];
+  return {
+    total: ids.length,
+    missed: [...ids.filter(i => !reached.has(i)).map(i => names[i]), ...(await page.evaluate(strandedRoving, [...reached.keys()])).map(n => `${n} (tabindex -1)`)],
+    noRing: all.filter(f => !f.ring).map(f => names[f.id] + (f.clipped ? " (outline clipped)" : "")),
+    hidden: all.filter(f => !f.seen).map(f => `${names[f.id]} (under ${f.cover})`),
+  };
 }
 
 async function main() {
@@ -164,6 +265,52 @@ async function main() {
       }
     }
 
+    // ---------- AC17: a Tab sweep per view, desktop and phone ----------
+    // Every interactive control in the view takes focus from Tab, shows a ring when it has it (WCAG 2.4.7), and is on
+    // screen and not covered when focused (WCAG 2.4.11). Views: a guest's Focus on a choice and on a text question with
+    // answers, Compare, Tree, the chat, the picture viewer; the owner's Host view, settings, share, notifications,
+    // shortcuts and a confirm dialog; on a phone the Questions and Answer tabs, the chat, the More sheet and Host view.
+    await owner.locator(".vf-q", { hasText: "Where should the order summary sit?" }).first().click();
+    await owner.locator("#vf-answer").fill("Next to the pay button.");
+    await owner.press("#vf-answer", "Control+Enter");
+    await until(gus, () => (window.Core.snapshot().cards.Q2 || []).some(c => c.ref === "p:host"));
+    async function swept(page, name, { scope, open, close } = {}) {
+      try { if (open) await open(); } catch (e) { ok(`Tab sweep, ${name}: the view opens`, false, String(e.message).split("\n")[0]); return; }
+      await page.waitForTimeout(250);
+      const r = await sweep(page, scope);
+      ok(`Tab sweep, ${name}: all ${r.total} controls take focus from Tab`, r.total > 0 && r.missed.length === 0, `${r.missed.length} missed: ${r.missed.slice(0, 6).join(", ")}`);
+      ok(`Tab sweep, ${name}: each shows a focus ring`, r.noRing.length === 0, r.noRing.slice(0, 6).join(", "));
+      ok(`Tab sweep, ${name}: each is on screen and not covered when focused`, r.hidden.length === 0, r.hidden.slice(0, 6).join(", "));
+      if (close) await close();
+    }
+    const esc = page => () => page.keyboard.press("Escape");
+    const viewSeg = (page, label) => async () => {
+      const b = page.locator(".vf-bar .vf-seg-btn", { hasText: label }), more = page.locator(".vf-viewopts");
+      if (!(await b.isVisible()) && (await more.isVisible())) await more.click();
+      await b.click({ timeout: 5000 });
+    };
+    const openQ = (page, text) => async () => { await page.locator(".vf-q", { hasText: text }).first().click({ timeout: 5000 }); await until(page, t => document.querySelector(".vf-qtext")?.textContent === t, text); };
+    await swept(gus, "guest Focus, a choice question (desktop)", { open: openQ(gus, "Which default payment method?") });
+    await swept(gus, "guest Focus, a text question with answers (desktop)", { open: openQ(gus, "Where should the order summary sit?") });
+    await swept(gus, "guest Compare (desktop)", { open: viewSeg(gus, "Compare") });
+    await swept(gus, "guest Tree (desktop)", { open: viewSeg(gus, "Tree") });
+    await viewSeg(gus, "Focus")();
+    await swept(gus, "chat (desktop)", { scope: "section.vf-chat", open: () => gus.locator(".vf-fab").click(), close: esc(gus) });
+    await swept(gus, "picture viewer (desktop)", { scope: ".vf-lb", open: async () => { await openQ(gus, "Did you mean this button?")(); await gus.locator(".vf-confirm-fig .vf-imgbtn").click(); }, close: esc(gus) });
+    await swept(owner, "owner Host view (desktop)", { open: viewSeg(owner, "Host") });
+    await swept(owner, "remove-person confirm dialog (desktop)", { open: () => owner.locator(".vf-hpeople .vf-btn-danger:visible", { hasText: "Remove" }).first().click(), close: esc(owner) });
+    await viewSeg(owner, "Focus")();
+    await swept(owner, "settings panel (desktop)", { scope: ".vf-settings", open: () => owner.locator(".vf-gear").click(), close: esc(owner) });
+    await swept(owner, "share panel (desktop)", { scope: ".vf-share", open: () => owner.locator(".vf-sharebtn").click(), close: esc(owner) });
+    await swept(owner, "notifications (desktop)", { scope: ".vf-bellpop", open: () => owner.locator(".vf-bell").click(), close: esc(owner) });
+    await swept(owner, "keyboard shortcuts (desktop)", { scope: ".vf-keys", open: () => owner.locator(".vf-keysbtn").click(), close: esc(owner) });
+    const tab = (page, label) => () => page.locator(".vf-tab", { hasText: label }).click({ timeout: 5000 });
+    await swept(pia, "guest Questions tab (phone)", { open: tab(pia, "Questions") });
+    await swept(pia, "guest Answer tab, a choice question (phone)", { open: async () => { await tab(pia, "Questions")(); await pia.locator(".vf-q", { hasText: "Which shipping speed by default?" }).first().click(); await tab(pia, "Answer")(); } });
+    await swept(pia, "chat sheet (phone)", { scope: "section.vf-chat", open: () => pia.locator(".vf-fab").click(), close: esc(pia) });
+    await swept(phoneOwner, "More sheet (phone)", { scope: ".vf-moresheet", open: tab(phoneOwner, "More"), close: esc(phoneOwner) });
+    await swept(phoneOwner, "owner Host view (phone)", { open: async () => { await tab(phoneOwner, "More")(); await phoneOwner.locator(".vf-msitem", { hasText: "Host view" }).click(); } });
+
     // ---------- triage 4: the first-visit tour (optional, skippable, re-opened from Help, remembered by the `tour` pref) ----------
     const tia = await rec.open(A.localUrl, { context: DESK });
     await joinAs(tia, "Tia");
@@ -171,10 +318,29 @@ async function main() {
     await tia.click(".vf-orient-tour");
     const card = ".vf-tour-card[role=dialog][aria-modal=true]";
     ok("the tour opens as a modal dialog with focus on Next", await until(tia, c => { const d = document.querySelector(c); return !!d?.offsetParent && document.activeElement?.textContent === "Next"; }, card));
+    // animation-audit I3: the ring moves by transform only (catalog "Properties": transform and opacity, no layout
+    // transitions), and still lands on the step's target: its box is the target's grown by 4 px a side (paintTour).
+    ok("the tour ring transitions translate only, never a layout property", await tia.evaluate(() => getComputedStyle(document.querySelector(".vf-tour-ring")).transitionProperty) === "translate",
+      await tia.evaluate(() => getComputedStyle(document.querySelector(".vf-tour-ring")).transitionProperty));
+    await tia.click(".vf-tour-row .vf-btn-primary");
+    await tia.waitForTimeout(400);
+    const ringFit = await tia.evaluate(() => {
+      const ring = document.querySelector(".vf-tour-ring").getBoundingClientRect(), R = document.querySelector(".app").getBoundingClientRect();
+      // The target is the element the ring was drawn round: the largest one whose box, grown by 4 px and kept 4 px
+      // inside the page, matches the ring's within 2 px.
+      const near = (a, b) => Math.abs(a - b) <= 2;
+      return [...document.querySelectorAll(".app *")].some(el => {
+        if (el.closest(".vf-tour")) return false;
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && near(ring.left, Math.max(R.left + 4, r.left - 4)) && near(ring.top, Math.max(R.top + 4, r.top - 4))
+          && near(ring.right, Math.min(R.right - 4, r.right + 4)) && near(ring.bottom, Math.min(R.bottom - 4, r.bottom + 4));
+      });
+    });
+    ok("after Next the ring has moved onto the next step's target", ringFit);
     let escaped = 0;
     for (let i = 0; i < PRESSES; i++) { await tia.keyboard.press(i % 2 ? "Shift+Tab" : "Tab"); if (!(await tia.evaluate(c => document.querySelector(c).contains(document.activeElement), card))) escaped++; }
     ok(`${PRESSES} Tab and Shift+Tab presses keep focus inside the tour`, escaped === 0, `${escaped} left it`);
-    let steps = 1;
+    let steps = 2; // the ring check above pressed Next once
     while (steps < 10 && (await tia.evaluate(() => document.querySelector(".vf-tour-row .vf-btn-primary").textContent)) === "Next") { await tia.click(".vf-tour-row .vf-btn-primary"); steps++; }
     await tia.click(".vf-tour-row .vf-btn-primary"); // Done
     ok("Done ends the tour and the `tour` pref says done (server state)", await until(tia, () => document.querySelector(".vf-tour").hidden && window.Core.snapshot()?.me?.prefs?.tour === "done"), `${steps} steps`);
@@ -186,6 +352,18 @@ async function main() {
     await tia.keyboard.press("Escape");
     ok("Escape skips the tour, the pref says skipped, and focus goes back to the Help button", await until(tia, () => document.querySelector(".vf-tour").hidden
       && window.Core.snapshot()?.me?.prefs?.tour === "skipped" && document.activeElement?.classList.contains("vf-keysbtn")));
+
+    // animation-audit I4: once the round is sent, the current step's dot breathes a few times and stops (WCAG 2.2.2:
+    // no auto-playing motion past 5 s beside other content).
+    await owner.evaluate(() => window.Core.sendRound());
+    await until(tia, () => !!document.querySelector('.vf-step[data-state="now"] .vf-step-dot')?.offsetParent);
+    const breathe = await tia.evaluate(() => {
+      const d = document.querySelector('.vf-step[data-state="now"] .vf-step-dot');
+      if (!d) return null;
+      const c = getComputedStyle(d);
+      return { name: c.animationName, n: c.animationIterationCount, s: parseFloat(c.animationDuration) };
+    });
+    ok("the current step's dot pulse stops within 5 s", !!breathe && breathe.name === "vf-breathe" && breathe.n !== "infinite" && Number(breathe.n) * breathe.s <= 5, JSON.stringify(breathe));
 
     if (skipped.length) console.log(`skipped surfaces: ${skipped.join("; ")}`);
     const csp = await rec.cspViolations();

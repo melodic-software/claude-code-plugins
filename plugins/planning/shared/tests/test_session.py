@@ -861,6 +861,18 @@ class TestQuestionParsing(SessionCase):
         self.open_round(q)
         self.assertEqual([session.card_ref(c) for c in self.s.state["cards"]["Q1"]], ["o:yes", "o:no"])
 
+    def test_a_rect_is_percent_so_one_past_100_is_refused_naming_percent(self):
+        # ux-review-3 finding 1: the pixel-sized rect {40, 700, 300, 60} was stored and the mark drew off the picture.
+        conf = lambda rect: {**text_q("Q1", rec=False), "format": {"kind": "confirm", "image": PNG, "rect": rect}}  # noqa: E731
+        for rect in ({"x": 40, "y": 700, "w": 300, "h": 60}, {"x": 50, "y": 0, "w": 51, "h": 10}, {"x": 0, "y": 95, "w": 10, "h": 6}):
+            err = self.refused_ops("bad-field", {"op": "open-round", "questions": [conf(rect)]})
+            self.assertIn("percent", err.message)
+        self.assertEqual(self.s.state["questions"], [])
+        self.open_round(conf({"x": 60, "y": 90, "w": 40, "h": 10}))  # touching the edges is inside
+        err = self.refused("bad-field", "edit_reference", HOST, {"qid": "Q1", "reference": {"kind": "image", "asset": PNG, "rect": {"x": 10, "y": 20, "w": 300, "h": 200}}}, http=400)
+        self.assertIn("percent", err.message)
+        self.assertEqual(self.question("Q1")["references"], [])
+
     def test_text_is_trimmed_and_refused_over_2000_never_cut(self):
         self.open_round({**text_q("Q1"), "text": "  Where?  "})
         self.assertEqual(self.question("Q1")["text"], "Where?")
@@ -1003,10 +1015,10 @@ class TestQuestionBehavior(SessionCase):
         self.refused("not-found", "edit_reference", HOST, {"qid": "Q1", "remove": 5})
         self.refused("owner-only", "edit_reference", self.ann, {"qid": "Q1", "remove": 0})
 
-    def test_a_rect_holding_nan_or_infinity_is_refused(self):
+    def test_a_rect_holding_nan_infinity_or_pixels_is_refused(self):
         variants = [{"id": "v-1", "label": "A", "asset": HTML}, {"id": "v-2", "label": "B", "asset": PNG}]
         self.open_round({**text_q("Q1", rec=False), "purpose": "gather", "format": {"kind": "prototype", "variants": variants}})
-        for raw in ('{"x": NaN, "y": 0, "w": 10, "h": 10}', '{"x": 0, "y": 0, "w": Infinity, "h": 10}'):
+        for raw in ('{"x": NaN, "y": 0, "w": 10, "h": 10}', '{"x": 0, "y": 0, "w": Infinity, "h": 10}', '{"x": 600, "y": 700, "w": 120, "h": 40}'):
             rect = json.loads(raw)
             anchor = {"selector": "#pay", "rect": rect}
             self.refused("bad-field", "annotate", self.ann, {"qid": "Q1", "variant": "v-1", "text": "Here", "anchor": anchor}, http=400)
@@ -3432,6 +3444,31 @@ class TestStateFrom3153973(StateFixtureCase):
         self.assertIsNone(session.document_error(json.loads(s.path.read_text(encoding="utf-8"))))
         reloaded = session.Session.load(s.path, validate_writes=True)
         self.assertEqual(reloaded.state["cleared"]["Q1"][0]["text"], "A pub crawl")
+
+
+class TestStateFrom6579f21(StateFixtureCase):
+    """state.json files the 6579f21 build wrote, which took rects of any size, load unchanged; the
+    percent rule refuses only new rects. state-written-6579f21.json holds a pixel-sized confirm rect
+    (x 40, y 700, w 300, h 60) and image reference rect, written by that build's session.py."""
+
+    PIXEL = {"x": 40, "y": 700, "w": 300, "h": 60}
+
+    def test_the_earlier_fixtures_load_unchanged(self):
+        for name in ("state-v1.json", "state-written-0bbffb3.json", "state-written-3153973.json"):
+            with self.subTest(name):
+                self.load(name)
+
+    def test_a_pixel_rect_6579f21_wrote_loads_unchanged_and_the_session_takes_writes(self):
+        s = self.load("state-written-6579f21.json")
+        q1 = next(q for q in s.state["questions"] if q["id"] == "Q1")
+        self.assertEqual(q1["format"]["rect"], self.PIXEL)
+        self.assertEqual(s.snapshot(HOST)["questions"][0]["format"]["rect"], self.PIXEL)  # the page gets it as stored and clamps it
+        ann = next(p for p, v in s.state["people"].items() if v["name"] == "Ann")
+        s.pick(ann, {"qid": "Q1", "option": "no", "view": "focus"})
+        s.apply({"ops": [{"op": "remove-reference", "qid": "Q2", "index": 0}]})
+        self.assertIsNone(session.document_error(json.loads(s.path.read_text(encoding="utf-8"))))
+        reloaded = session.Session.load(s.path, validate_writes=True)
+        self.assertEqual(next(q for q in reloaded.state["questions"] if q["id"] == "Q1")["format"]["rect"], self.PIXEL)
 
 
 if __name__ == "__main__":

@@ -68,6 +68,7 @@
     "svgAssetId": {"type": "string", "pattern": "^[0-9a-f]{16}\\.svg$"},
     "reaction": {"enum": ["thumbs", "down", "heart", "idea"]},
     "rect": {
+      "description": "An area in percent (0-100) of the image or page it marks: x and w of its width, y and h of its height. Writes refuse x + w or y + h above 100; a file written before that rule loads as it is, and the page clamps such an area into the image.",
       "type": "object",
       "required": ["x", "y", "w", "h"],
       "additionalProperties": false,

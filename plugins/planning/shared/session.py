@@ -460,6 +460,9 @@ def _rect(v, field):
         if isinstance(n, bool) or not isinstance(n, (int, float)) or not math.isfinite(n) or n < 0 or (k in ("w", "h") and n <= 0):
             raise _bad(field, f"{field}.{k} must be a finite number at least 0 (w and h above 0).")
         out[k] = n
+    # Checked on writes only: a state.json written before the unit was enforced keeps its rects and loads.
+    if out["x"] + out["w"] > 100 or out["y"] + out["h"] > 100:
+        raise _bad(field, f"{field} is in percent (0-100) of the image or page: x + w and y + h must each be at most 100.")
     return out
 
 

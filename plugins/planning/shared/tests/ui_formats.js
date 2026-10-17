@@ -4,13 +4,15 @@
 // Questions tab must take taps on the round toggle and the questions with two rounds listed). Covered: multi (checkboxes), scale (keyboard and touch),
 // rank (keyboard, and a touch drag), "Something else…" on choice, multi and rank (the person's own option becomes a card
 // others back), Disagree with a reason, the 👎 reaction, a diagram reference's alt text, the digest numbers where the
-// page shows results, no Something else on confirm and prototype questions, no 429 and no CSP violation.
+// page shows results, no Something else on confirm and prototype questions, no 429 and no CSP violation. ux-review-3:
+// the confirm mark is drawn inside a phone-width picture, a pixel-sized rect from an earlier build is clamped into it,
+// picture options keep both Choose buttons above the phone tab bar, and tapping an option's name picks it.
 //   node plugins/planning/shared/tests/ui_formats.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the Phase 4b amendment (formats, Borda: first n-1, last 0; mean and median), the server
 // contract (session.py pick, vote and disagree), and numbers worked out by hand below, never from the page.
 "use strict";
-const { loadPlaywright, suite, recorder, until, snap, joinAs } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, snap, joinAs, png } = require("./browser_harness");
 
 const DIAGRAM_ALT = "Checkout flow: cart, then address, then payment, then review.";
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
@@ -281,6 +283,64 @@ async function main() {
     await go(gus, "Q8", "Which checkout layout?");
     ok("a prototype question shows its variants and no Something else…", await until(gus, new Function(`return ${shown(".vf-opts .vf-opt")}.length === 2
       && ${shown(".vf-opt-other")}.length === 0 && !/Something else…/.test(document.querySelector(".vf-fmt").innerText)`)));
+
+    // ---------- ux-review-3: the confirm mark and size, picture options on a phone, tapping an option's name ----------
+    // A 390x844 phone screenshot with a dark "button" band over rows 700-760; in percent of the picture that is
+    // y 82.9-90.0 (700 / 844, 760 / 844), so the rect below marks it.
+    const B = await s.start("ux3");
+    const phoneShot = s.asset(B.dir, "phone.png", png(390, 844, [700, 760]));
+    const pa = s.asset(B.dir, "a.png", png(1440, 900)), pb = s.asset(B.dir, "b.png", png(1440, 900, [100, 200]));
+    s.apply(B.dir, [{ op: "open-round", questions: [
+      q("Q1", "Which checkout layout looks right?", { kind: "choice", options: [{ id: "opt-1", label: "One column", image: pa }, { id: "opt-2", label: "Two columns", image: pb }] }),
+      q("Q2", "Did you mean this button?", { kind: "confirm", image: phoneShot, rect: { x: 10, y: 83, w: 80, h: 7 } }),
+      q("Q3", "Which default payment method?", { kind: "choice", options: [{ id: "opt-1", label: "Card" }, { id: "opt-2", label: "Saved method" }] }),
+    ] }]);
+    const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 };
+    const nia = await rec.open(B.localUrl, { context: PHONE });
+    const niaPid = await joinAs(nia, "Nia");
+    const tabTop = () => nia.evaluate(() => document.querySelector(".vf-tabs")?.getBoundingClientRect().top ?? innerHeight);
+    await until(nia, () => document.querySelector(".vf-qtext")?.textContent === "Which checkout layout looks right?");
+    const chooseBottoms = await nia.evaluate(() => [...document.querySelectorAll(".vf-opt:not(.vf-opt-other) .vf-optchoose")].filter(e => e.offsetParent).map(e => Math.round(e.getBoundingClientRect().bottom)));
+    const tabs = await tabTop();
+    ok("phone, picture options: both Choose buttons are above the tab bar at first view", chooseBottoms.length === 2 && chooseBottoms.every(b => b <= tabs), `${chooseBottoms} vs tab bar ${tabs}`);
+    // The mark is inside the picture and inside the part of it on screen; the picture uses the column's width.
+    const markIn = page => page.evaluate(() => {
+      const f = document.querySelector(".vf-confirm-fig"), r = e => e.getBoundingClientRect();
+      const box = r(f.querySelector(".vf-confirm-box")), img = r(f.querySelector(".vf-confirm-img")), m = r(f.querySelector(".vf-confirm-mark"));
+      const inside = (a, b) => a.left >= b.left - 1 && a.right <= b.right + 1 && a.top >= b.top - 1 && a.bottom <= b.bottom + 1;
+      const drawn = !f.querySelector(".vf-confirm-mark").hidden && m.width > 0 && m.height > 0 && inside(m, img);
+      return { ok: drawn && inside(m, box), seen: drawn && m.top < box.bottom && m.bottom > box.top, box: [box.width, box.height].map(Math.round), m: [m.left, m.top, m.width, m.height].map(Math.round), img: [img.top, img.height].map(Math.round), col: Math.round(r(f).width) };
+    });
+    await nia.locator(".vf-tab", { hasText: "Questions" }).tap();
+    await nia.locator(".vf-q", { hasText: "Did you mean this button?" }).first().tap();
+    await until(nia, () => document.querySelector(".vf-confirm-img")?.naturalWidth > 0 && !document.querySelector(".vf-confirm-fig").hidden);
+    let mk = await markIn(nia);
+    ok("confirm on a phone: the marked area is drawn inside the picture and on screen", mk.ok, JSON.stringify(mk));
+    ok("confirm on a phone: the picture spans the column (at least 90% of it), not a 115 px strip", mk.box[0] >= 0.9 * mk.col, JSON.stringify(mk));
+    // By hand: 80% of the box width marks the band; a 60 px band in 844 at the box's scale is at least 40 px tall.
+    ok("confirm on a phone: the marked band is big enough to see (at least 40 px tall)", mk.m[3] >= 40, JSON.stringify(mk));
+    // Tapping an option's name picks it (Q3 has no pictures, so the name is the card's only text).
+    await nia.locator(".vf-tab", { hasText: "Questions" }).tap();
+    await nia.locator(".vf-q", { hasText: "Which default payment method?" }).first().tap();
+    await until(nia, () => document.querySelector(".vf-qtext")?.textContent === "Which default payment method?");
+    await nia.locator(".vf-opt .vf-optlabel", { hasText: "Saved method" }).tap();
+    ok("tapping an option's name picks that option", await until(nia, p => (window.Core.snapshot()?.cards?.Q3?.find(c => c.ref === "o:opt-2")?.votes || []).includes(p), niaPid));
+    // A state.json the 6579f21 build wrote can hold a pixel-sized rect (it took any number); it loads as it is and
+    // the page clamps the mark into the picture.
+    await nia.close();
+    s.share(B.dir, "stop");
+    const statePath = require("node:path").join(B.dir, "state.json"), fsx = require("node:fs");
+    const doc = JSON.parse(fsx.readFileSync(statePath, "utf8"));
+    doc.questions.find(x => x.id === "Q2").format.rect = { x: 40, y: 700, w: 300, h: 60 };
+    fsx.writeFileSync(statePath, JSON.stringify(doc));
+    s.share(B.dir, "ensure-running", "--guest-port", new URL(B.localUrl).port);
+    const ola = await rec.open(B.localUrl, { context: PHONE });
+    await joinAs(ola, "Ola");
+    await ola.locator(".vf-tab", { hasText: "Questions" }).tap();
+    await ola.locator(".vf-q", { hasText: "Did you mean this button?" }).first().tap();
+    await until(ola, () => document.querySelector(".vf-confirm-img")?.naturalWidth > 0 && !document.querySelector(".vf-confirm-fig").hidden);
+    ok("a pixel-sized rect from an earlier build loads and the page clamps its mark into the picture",
+      (await snap(ola)).questions.find(x => x.id === "Q2").format.rect?.y === 700 && (mk = await markIn(ola)).seen, JSON.stringify(mk));
 
     // ---------- the phone layout and the page rules ----------
     await go(pia, "Q2", "Which payment methods should checkout offer?");
