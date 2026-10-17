@@ -1200,6 +1200,28 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
   Step 3 dispatch starts passing `effort`, that section changes how a per-call `effort` ranks against
   the `effort` field or which spawns honor it, or the agent's `model` or `effort` changes.
 
+**Exception: `planning:upload-reader`.**
+
+- **Decision:** this agent has one dispatch site, the Trust section of the `/planning:interview`
+  shared lane, and its description says not to invoke it directly, so the multiple-sites clause is
+  unmet; the enforced tool restriction carries it. An upload is a file no one has reviewed, and the
+  `Read`-only cage is what contains a plant the reader obeys: it cannot write, run commands, fetch,
+  or spawn agents. Inline instructions can only ask a generic subagent not to use a tool, so only
+  a definition's `tools` list enforces the cage. The site passes no `model` or `effort`, so the pins hold,
+  and names no generic fallback: the plugin ships the agent, so there is nothing to presence-gate.
+  Model: `opus` keeps the reader at least as strong as the text trying to steer it. Effort:
+  `medium` bounds one file's read, and `maxTurns` bounds it further.
+- **Pointer:** the frontmatter of `plugins/planning/agents/upload-reader.md` (`tools: "Read"`,
+  `model: opus`, `effort: medium`, `maxTurns: 6`) and the Trust section of
+  `plugins/planning/skills/interview/context/lane-shared.md`; for how a `tools` list withholds
+  tools, fetch
+  [create custom subagents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools)
+  live.
+- **As of:** 2026-10-17.
+- **Recheck trigger:** a second dispatch site or direct use appears (the exception then ends), the
+  shared-lane dispatch starts passing `model` or `effort`, that section changes how a `tools` list
+  withholds tools, or the agent's `tools`, `model` or `effort` changes.
+
 ### Model tiers
 
 Four rules decide a lane's model, applied in this order:
@@ -1503,8 +1525,9 @@ kind of work, and never below `medium` for work that changes code or verifies a 
 [effort floor](#effort-floor)). Twelve pin `effort: high`: `implementation` `phase-verifier`;
 `discovery` `researcher`, `intent-tracer`, and `research-verifier`; `review` `code-reviewer`,
 `architecture-guardian`, `security-reviewer`, `ci-log-auditor`, `doc-drift-detector`, and
-`brief-reviewer`; `plugin-quality` `auditor`; `user-experience` `evaluator`. Seven pin
+`brief-reviewer`; `plugin-quality` `auditor`; `user-experience` `evaluator`. Eight pin
 `effort: medium`: `planning` `plan-reviewer` by its [recorded exception](#named-agent-bar);
+`planning` `upload-reader`, because it reads and summarizes one file it is handed;
 `implementation` `implementer`, because a phase brief is scoped feature work and its verifier runs
 at `high`; `implementation` `scoped-implementer`, because a plan routes only well-scoped work to
 it; `songwriting` `object-writer`, because creative generation is not verification; and `review`
@@ -1551,6 +1574,7 @@ and verdict lanes follow the `high` row; well-specified mechanical work follows 
 | `discovery` `researcher` | `opus` | `high` | `high` | Research that feeds decisions |
 | `performance` `go-faster-sweeper` | `opus` | `medium` | `medium` | Checks each named area of the development process and records findings |
 | `planning` `plan-reviewer` | `opus` | `medium` | `medium` | A review lane held to `medium` by its [recorded exception](#named-agent-bar), not by the review rule |
+| `planning` `upload-reader` | `opus` | `medium` | `medium` | Reads and summarizes one uploaded file it is handed |
 | `plugin-quality` `auditor` | `opus` | `high` | `high` | Audit verdict |
 | `review` `architecture-guardian` | `opus` | `high` | `high` | Review verdict |
 | `review` `brief-reviewer` | `opus` | `high` | `high` | Review verdict on the brief it is handed |

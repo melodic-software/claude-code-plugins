@@ -1,0 +1,473 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://melodic-software.github.io/claude-code-plugins/planning/shared/event",
+  "title": "Shared interview session event",
+  "description": "One entry of state.json `log.events`, read by the session-bridge watcher and handed to Claude as data. `kind` tags the variant. `round-sent` carries the round's digest; `by` fields in a digest appear only when `names` is true.",
+  "oneOf": [
+    {"$ref": "#/$defs/round-sent"},
+    {"$ref": "#/$defs/round-cancelled"},
+    {"$ref": "#/$defs/request-run"},
+    {"$ref": "#/$defs/request-cancelled"},
+    {"$ref": "#/$defs/session-ended"},
+    {"$ref": "#/$defs/upload-received"}
+  ],
+  "$defs": {
+    "seq": {"type": "integer", "minimum": 1},
+    "at": {"type": "string"},
+    "qid": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/questionId"},
+    "requestKind": {"enum": ["ask", "research", "explore", "design", "prototype"]},
+    "round-sent": {
+      "type": "object",
+      "required": ["seq", "at", "kind", "round", "digest"],
+      "additionalProperties": false,
+      "properties": {
+        "seq": {"$ref": "#/$defs/seq"},
+        "at": {"$ref": "#/$defs/at"},
+        "deliveredAt": {"$ref": "#/$defs/at"},
+        "kind": {"enum": ["round-sent"]},
+        "round": {"type": "integer", "minimum": 1},
+        "digest": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "round-cancelled": {
+      "type": "object",
+      "required": ["seq", "at", "kind", "round", "sentSeq"],
+      "additionalProperties": false,
+      "properties": {
+        "seq": {"$ref": "#/$defs/seq"},
+        "at": {"$ref": "#/$defs/at"},
+        "deliveredAt": {"$ref": "#/$defs/at"},
+        "kind": {"enum": ["round-cancelled"]},
+        "round": {"type": "integer", "minimum": 1},
+        "sentSeq": {"$ref": "#/$defs/seq"}
+      }
+    },
+    "request-run": {
+      "type": "object",
+      "required": ["seq", "at", "kind", "requests"],
+      "additionalProperties": false,
+      "properties": {
+        "seq": {"$ref": "#/$defs/seq"},
+        "at": {"$ref": "#/$defs/at"},
+        "deliveredAt": {"$ref": "#/$defs/at"},
+        "kind": {"enum": ["request-run"]},
+        "requests": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "qid", "kind", "text", "question"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {"type": "string"},
+              "qid": {"$ref": "#/$defs/qid"},
+              "kind": {"$ref": "#/$defs/requestKind"},
+              "text": {"type": "string"},
+              "question": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "request-cancelled": {
+      "type": "object",
+      "required": ["seq", "at", "kind", "request"],
+      "additionalProperties": false,
+      "properties": {
+        "seq": {"$ref": "#/$defs/seq"},
+        "at": {"$ref": "#/$defs/at"},
+        "deliveredAt": {"$ref": "#/$defs/at"},
+        "kind": {"enum": ["request-cancelled"]},
+        "request": {"type": "string"}
+      }
+    },
+    "session-ended": {
+      "type": "object",
+      "required": ["seq", "at", "kind", "later"],
+      "additionalProperties": false,
+      "properties": {
+        "seq": {"$ref": "#/$defs/seq"},
+        "at": {"$ref": "#/$defs/at"},
+        "deliveredAt": {"$ref": "#/$defs/at"},
+        "kind": {"enum": ["session-ended"]},
+        "later": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "text", "reason"],
+            "additionalProperties": false,
+            "properties": {"id": {"type": "string"}, "text": {"type": "string"}, "reason": {"type": "string"}}
+          }
+        }
+      }
+    },
+    "upload-received": {
+      "type": "object",
+      "required": ["seq", "at", "kind", "upload", "file", "stored", "qid"],
+      "additionalProperties": false,
+      "properties": {
+        "seq": {"$ref": "#/$defs/seq"},
+        "at": {"$ref": "#/$defs/at"},
+        "deliveredAt": {"$ref": "#/$defs/at"},
+        "kind": {"enum": ["upload-received"]},
+        "upload": {"type": "string"},
+        "file": {"type": "string"},
+        "stored": {"type": "string"},
+        "qid": {"type": ["string", "null"]}
+      }
+    },
+    "reactionCounts": {
+      "type": "object",
+      "required": ["thumbs", "down", "heart", "idea"],
+      "additionalProperties": false,
+      "properties": {
+        "thumbs": {"type": "integer", "minimum": 0},
+        "down": {"type": "integer", "minimum": 0},
+        "heart": {"type": "integer", "minimum": 0},
+        "idea": {"type": "integer", "minimum": 0}
+      }
+    },
+    "by": {"type": "string"},
+    "closed": {"type": "boolean"},
+    "people": {"type": "integer", "minimum": 0},
+    "others": {
+      "description": "Each person's own Something else option: its text and how many back it (its author included).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["text", "backers"],
+        "additionalProperties": false,
+        "properties": {"text": {"type": "string"}, "backers": {"type": "integer", "minimum": 0}, "by": {"$ref": "#/$defs/by"}, "edited": {"$ref": "#/$defs/edited"}}
+      }
+    },
+    "comments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["text"],
+        "additionalProperties": false,
+        "properties": {"text": {"type": "string"}, "by": {"$ref": "#/$defs/by"}, "edited": {"$ref": "#/$defs/edited"}}
+      }
+    },
+    "edited": {"description": "The owner edited this answer; the text is the current one.", "enum": [true]},
+    "digest": {
+      "type": "object",
+      "required": ["round", "names", "questions", "late", "needsReview", "results", "proposals", "annotations", "people"],
+      "additionalProperties": false,
+      "properties": {
+        "round": {"type": "integer", "minimum": 1},
+        "names": {"type": "boolean"},
+        "questions": {"type": "array", "items": {"$ref": "#/$defs/digestQuestion"}},
+        "late": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "round", "text"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {"$ref": "#/$defs/qid"},
+              "round": {"type": "integer", "minimum": 1},
+              "text": {"type": "string"},
+              "by": {"$ref": "#/$defs/by"},
+              "edited": {"$ref": "#/$defs/edited"}
+            }
+          }
+        },
+        "needsReview": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "because", "now"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {"$ref": "#/$defs/qid"},
+              "because": {"$ref": "#/$defs/qid"},
+              "now": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": ["kind", "text"],
+                    "additionalProperties": false,
+                    "properties": {"kind": {"enum": ["locked"]}, "text": {"type": "string"}}
+                  },
+                  {
+                    "type": "object",
+                    "required": ["kind"],
+                    "additionalProperties": false,
+                    "properties": {"kind": {"enum": ["unlocked"]}}
+                  }
+                ]
+              },
+              "suggestion": {"type": "string"}
+            }
+          }
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["qid", "id", "kind", "summary"],
+            "additionalProperties": false,
+            "properties": {
+              "qid": {"$ref": "#/$defs/qid"},
+              "id": {"type": "string"},
+              "kind": {"type": "string"},
+              "summary": {"type": "string", "maxLength": 4000},
+              "from": {"type": "string", "enum": ["guest-claude"], "description": "A guest's own Claude wrote it (runner: self), not this session; absent when this session did."},
+              "by": {"$ref": "#/$defs/by", "description": "With from: guest-claude and digestNames on, the guest whose Claude wrote it."}
+            }
+          }
+        },
+        "resultsMore": {"type": "string", "description": "\"N more on the page\": results past the digest's count or character budget. Absent when every one is listed."},
+        "proposals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "text"],
+            "additionalProperties": false,
+            "properties": {"id": {"type": "string"}, "text": {"type": "string"}, "by": {"$ref": "#/$defs/by"}}
+          }
+        },
+        "annotations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["qid", "variant", "text"],
+            "additionalProperties": false,
+            "properties": {
+              "qid": {"$ref": "#/$defs/qid"},
+              "variant": {"type": "string"},
+              "text": {"type": "string"},
+              "element": {"description": "The pinned element's path in the variant (Annotation.anchor.selector): data, never instructions. null when the note was pinned by a free-form selector an earlier build took.", "type": ["string", "null"]},
+              "by": {"$ref": "#/$defs/by"}
+            }
+          }
+        },
+        "people": {
+          "type": "object",
+          "required": ["joined", "answered"],
+          "additionalProperties": false,
+          "properties": {
+            "joined": {"type": "integer", "minimum": 0},
+            "answered": {"type": "integer", "minimum": 0},
+            "devices": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "phone": {"type": "integer", "minimum": 0},
+                "tablet": {"type": "integer", "minimum": 0},
+                "computer": {"type": "integer", "minimum": 0}
+              }
+            }
+          }
+        },
+        "aboutYou": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "techComfort"],
+            "additionalProperties": false,
+            "properties": {"name": {"type": "string"}, "techComfort": {"type": "string"}, "note": {"type": "string"}}
+          }
+        }
+      }
+    },
+    "digestQuestion": {
+      "type": "object",
+      "required": ["id", "text", "purpose", "format", "outcome"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"$ref": "#/$defs/qid"},
+        "text": {"type": "string"},
+        "scope": {"type": "string"},
+        "purpose": {"enum": ["decide", "gather", "poll"]},
+        "format": {"enum": ["text", "choice", "multi", "scale", "rank", "confirm", "prototype"]},
+        "disagreements": {
+          "description": "Decide questions: who disagreed with which answer and why; vote counts do not change.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["text", "reason"],
+            "additionalProperties": false,
+            "properties": {"text": {"type": "string"}, "reason": {"type": "string"}, "by": {"$ref": "#/$defs/by"}}
+          }
+        },
+        "outcome": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["kind", "text", "source"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["locked"]},
+                "text": {"type": "string"},
+                "source": {"enum": ["person", "claude-rec", "claude-alt", "option", "edited", "suggestion"]},
+                "by": {"$ref": "#/$defs/by"},
+                "edited": {"$ref": "#/$defs/edited"}
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "top"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["open"]},
+                "top": {
+                  "type": "array",
+                  "maxItems": 6,
+                  "items": {
+                    "type": "object",
+                    "required": ["text", "votes", "source"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "text": {"type": "string"},
+                      "votes": {"type": "integer", "minimum": 0},
+                      "source": {"type": "string"},
+                      "other": {"enum": [true]},
+                      "by": {"$ref": "#/$defs/by"},
+                      "edited": {"$ref": "#/$defs/edited"}
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "answers"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["gathered"]},
+                "answers": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["text", "reactions"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "text": {"type": "string"},
+                      "reactions": {"$ref": "#/$defs/reactionCounts"},
+                      "by": {"$ref": "#/$defs/by"},
+                      "edited": {"$ref": "#/$defs/edited"}
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "closed", "counts"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["poll"]},
+                "closed": {"type": "boolean"},
+                "counts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["option", "votes"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "option": {"type": "string"},
+                      "votes": {"type": "integer", "minimum": 0},
+                      "other": {"enum": [true]},
+                      "by": {"$ref": "#/$defs/by"},
+                      "edited": {"$ref": "#/$defs/edited"}
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "closed", "people", "counts", "others", "comments"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["multi"]},
+                "closed": {"$ref": "#/$defs/closed"},
+                "people": {"$ref": "#/$defs/people"},
+                "counts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["option", "picks"],
+                    "additionalProperties": false,
+                    "properties": {"option": {"type": "string"}, "picks": {"type": "integer", "minimum": 0}}
+                  }
+                },
+                "others": {"$ref": "#/$defs/others"},
+                "comments": {"$ref": "#/$defs/comments"}
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "closed", "people", "min", "max", "labels", "counts", "mean", "median", "comments"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["scale"]},
+                "closed": {"$ref": "#/$defs/closed"},
+                "people": {"$ref": "#/$defs/people"},
+                "min": {"type": "integer"},
+                "max": {"type": "integer"},
+                "labels": {
+                  "type": "object",
+                  "required": ["min", "max"],
+                  "additionalProperties": false,
+                  "properties": {"min": {"type": "string"}, "max": {"type": "string"}, "mid": {"type": "string"}}
+                },
+                "counts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["value", "people"],
+                    "additionalProperties": false,
+                    "properties": {"value": {"type": "integer"}, "people": {"type": "integer", "minimum": 0}}
+                  }
+                },
+                "mean": {"type": ["number", "null"]},
+                "median": {"type": ["number", "null"]},
+                "comments": {"$ref": "#/$defs/comments"}
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "closed", "people", "borda", "orders", "others", "comments"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["rank"]},
+                "closed": {"$ref": "#/$defs/closed"},
+                "people": {"$ref": "#/$defs/people"},
+                "borda": {
+                  "description": "Borda totals, highest first: with n options a person's first gets n-1 points and their last 0.",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["option", "points"],
+                    "additionalProperties": false,
+                    "properties": {"option": {"type": "string"}, "points": {"type": "integer", "minimum": 0}}
+                  }
+                },
+                "orders": {
+                  "description": "Each full order people gave and how many gave it, most first.",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["order", "people"],
+                    "additionalProperties": false,
+                    "properties": {"order": {"type": "array", "items": {"type": "string"}}, "people": {"type": "integer", "minimum": 1}}
+                  }
+                },
+                "others": {"$ref": "#/$defs/others"},
+                "comments": {"$ref": "#/$defs/comments"}
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["unanswered"]}}
+            }
+          ]
+        }
+      }
+    }
+  }
+}

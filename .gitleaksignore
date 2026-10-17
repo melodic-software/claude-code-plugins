@@ -37,3 +37,19 @@ de1c3268c184b62b8728b45e4cfdc4717368a01d:plugins/architecture/evals/my-diff-secr
 plugins/session-flow/evals/fh-confirms-before-resume/scaffold.sh:generic-api-key:39
 plugins/session-flow/evals/fh-confirms-before-resume/samples/token-not-surfaced.json:generic-api-key:14
 plugins/session-flow/evals/fh-confirms-before-resume/samples/token-not-surfaced.json:generic-api-key:18
+# Shared interview state fixtures: tokenHash is a sha256 of a fixture token and guestKey a fixture
+# key. Commit-less, so they survive the squash merge; line 73 is the prototype's line in its adding commit.
+plugins/planning/shared/tests/fixtures/state-v1.json:generic-api-key:33
+plugins/planning/shared/tests/fixtures/invalid-state-duplicate-flag.json:generic-api-key:33
+plugins/planning/shared/tests/fixtures/state-v0-prototype.json:generic-api-key:73
+plugins/planning/shared/tests/fixtures/state-v0-prototype.json:generic-api-key:74
+plugins/planning/shared/tests/fixtures/state-written-08ff888.json:generic-api-key:1
+plugins/planning/shared/tests/fixtures/state-written-0bbffb3.json:generic-api-key:1
+plugins/planning/shared/tests/fixtures/state-written-3153973.json:generic-api-key:1
+plugins/planning/shared/tests/fixtures/state-written-3f9006c.json:generic-api-key:1
+plugins/planning/shared/tests/fixtures/state-written-62d8520.json:generic-api-key:1
+plugins/planning/shared/tests/fixtures/state-written-6579f21.json:generic-api-key:1
+plugins/planning/shared/tests/fixtures/state-written-740e8da.json:generic-api-key:1
+plugins/planning/shared/tests/fixtures/state-written-b5ed34f.json:generic-api-key:1
+plugins/planning/shared/tests/fixtures/state-written-e27acc5.json:generic-api-key:1
+plugins/planning/shared/tests/fixtures/state-written-f6f1318.json:generic-api-key:1
