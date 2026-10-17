@@ -150,14 +150,17 @@ test("with superseded-ok, any other denial reason still fails red", () => {
   const run = request({ ...MERGE, SUPERSEDED_OK: "true" }, { status: "403", body: { reason: "already-minted" } });
   assert.equal(run.status, 1);
   assert.match(run.stdout, /::error::lane-token-denied: the broker answered 403 with reason already-minted/);
-  assert.doesNotMatch(run.output, /^token=/m);
+  assert.equal(run.output, "failure-reason=lane-token-denied: the broker answered 403 with reason already-minted\n");
 });
 
 test("without superseded-ok, a 403 workflow-modified still fails red", () => {
   const run = request(MERGE, SUPERSEDED);
   assert.equal(run.status, 1);
   assert.match(run.stdout, /::error::lane-token-denied: the broker answered 403 with reason workflow-modified: \.github\/workflows\/pr-merge\.yml differs/);
-  assert.doesNotMatch(run.output, /^token=/m);
+  assert.equal(
+    run.output,
+    "failure-reason=lane-token-denied: the broker answered 403 with reason workflow-modified: .github/workflows/pr-merge.yml differs from refs/heads/main\n",
+  );
 });
 
 test("a superseded-ok other than true or false fails before the broker request", () => {
