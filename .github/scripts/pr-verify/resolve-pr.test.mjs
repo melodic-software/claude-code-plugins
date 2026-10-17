@@ -4,7 +4,10 @@
 // main whose head is the run's head SHA; the head is the run's, and the base
 // SHA is the PR's; a head with a counted verdict from a completed run (a FAIL
 // under any PR number) is not judged again, but a run still going or one that
-// uploaded nothing does not stop a new judgment. Response shapes follow GET
+// uploaded nothing does not stop a new judgment; with merge.verify-authors
+// `lane` (the default) only a PR the lanes App (merge.agent-identity, a Bot
+// account) opened is judged, `any` judges every author, and any other value
+// judges none. Response shapes follow GET
 // /actions/runs/{id}, /commits/{sha}/pulls, /actions/artifacts and the
 // closingIssuesReferences GraphQL field.
 import assert from "node:assert/strict";
@@ -41,6 +44,7 @@ const LINKED = {
   spec_comments: [],
 };
 const HUMANS = new Set([100]);
+const LANE = "melodic-automation-lanes[bot]";
 
 const upstream = (overrides = {}) => ({
   id: RUN,
@@ -58,7 +62,7 @@ const pull = (overrides = {}) => ({
   number: 41,
   state: "open",
   draft: false,
-  user: { id: 337595936, login: "melodic-automation-lanes[bot]" },
+  user: { id: 337595936, login: LANE, type: "Bot" },
   head: { sha: HEAD, ref: "feat/x", repo: { full_name: REPO } },
   base: { ref: "main", sha: BASE },
   ...overrides,
@@ -97,8 +101,10 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
   return github;
 }
 
-const resolve = (setup) => resolvePull({ github: fake(setup), repository: REPO, upstreamRunId: String(RUN), humans: HUMANS });
-const reason = async (setup) => (await resolve(setup)).reason;
+const resolve = (setup, options = {}) =>
+  resolvePull({ github: fake(setup), repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE, ...options });
+const reason = async (setup, options) => (await resolve(setup, options)).reason;
+const HUMAN_PR = pull({ user: { id: 100, login: "maintainer", type: "User" } });
 
 test("a passing same-repository run resolves its one PR at the run's head", async () => {
   assert.deepEqual(await resolve(), {
@@ -151,6 +157,30 @@ test("a draft and a dependency manager's PR start nothing", async () => {
   assert.equal(await reason({ pulls: [pull({ draft: true })] }), "draft");
   for (const login of ["dependabot[bot]", "Renovate[bot]", "renovate-bot", "app/dependabot-preview"]) {
     assert.equal(await reason({ pulls: [pull({ user: { id: 1, login } })] }), "dependency-manager", login);
+  }
+});
+
+test("a PR the lanes App did not open is not judged", async () => {
+  assert.equal(await reason({ pulls: [HUMAN_PR] }), "author-not-lane");
+  // A User account holding the App's login is not the App.
+  assert.equal(await reason({ pulls: [pull({ user: { id: 5, login: LANE, type: "User" } })] }), "author-not-lane", "a User");
+  assert.equal(await reason({ pulls: [HUMAN_PR] }, { verifyAuthors: "lane" }), "author-not-lane", "lane named");
+  assert.equal(await reason({ pulls: [pull()] }, { laneIdentity: undefined }), "author-not-lane", "no identity");
+});
+
+test("a PR the lanes App opened is judged, matched across login spellings", async () => {
+  assert.equal(await reason({ pulls: [pull()] }), "ok");
+  const spelled = pull({ user: { id: 337595936, login: "Melodic-Automation-Lanes", type: "Bot" } });
+  assert.equal(await reason({ pulls: [spelled] }), "ok");
+});
+
+test("verify-authors any judges a human's PR", async () => {
+  assert.equal(await reason({ pulls: [HUMAN_PR] }, { verifyAuthors: "any" }), "ok");
+});
+
+test("an unknown verify-authors value judges nothing", async () => {
+  for (const verifyAuthors of ["Lane", "all", "", "none"]) {
+    assert.equal(await reason({ pulls: [pull()] }, { verifyAuthors }), "verify-authors-invalid", JSON.stringify(verifyAuthors));
   }
 });
 
@@ -239,11 +269,12 @@ test("the spec text keeps only what trusted humans other than the PR author wrot
     { id: 1, updated_at: "2026-10-11T00:00:00Z" },
     { id: 6, updated_at: "2026-10-16T00:00:00Z" },
   ]);
-  const byAuthorRecord = (await resolve({ issues: [issue], pulls: [pull({ user: { id: 100, login: "Maintainer" } })] })).linkedIssues[0];
+  const byMaintainer = { issues: [issue], pulls: [pull({ user: { id: 100, login: "Maintainer", type: "User" } })] };
+  const byAuthorRecord = (await resolve(byMaintainer, { verifyAuthors: "any" })).linkedIssues[0];
   assert.deepEqual(byAuthorRecord.spec_comments, [], "the PR author's comments");
   const editedBody = { ...issue, lastEditedAt: "2026-10-14T00:00:00Z", editor: lanes };
   assert.equal((await resolve({ issues: [editedBody] })).specText[0].body, null, "a body the lanes App last edited");
-  const byAuthor = (await resolve({ issues: [issue], pulls: [pull({ user: { id: 100, login: "Maintainer" } })] })).specText[0];
+  const byAuthor = (await resolve(byMaintainer, { verifyAuthors: "any" })).specText[0];
   assert.deepEqual(byAuthor, { number: 7, body: null, comments: [] }, "the PR author's own text");
   const lanesIssue = { ...issue, author: lanes };
   assert.equal((await resolve({ issues: [lanesIssue] })).specText[0].body, null, "an issue the lanes App wrote");
@@ -278,6 +309,7 @@ test("main writes the outputs, the linked issues and the spec text the workflow 
       SPEC_FILE: spec,
       SPEC_TEXT_FILE: specText,
       TRUSTED_ACTORS_PATH: actors,
+      LANE_IDENTITY: LANE,
     },
     { github: fake() },
   );
@@ -287,4 +319,30 @@ test("main writes the outputs, the linked issues and the spec text the workflow 
   );
   assert.deepEqual(JSON.parse(readFileSync(spec, "utf8")), [LINKED]);
   assert.deepEqual(JSON.parse(readFileSync(specText, "utf8")), [{ number: 7, body: "the spec", comments: [] }]);
+});
+
+test("main reports a human's PR as skipped in the log and the step summary", async (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const output = path.join(dir, "out");
+  const summary = path.join(dir, "summary");
+  const actors = path.join(dir, "trusted-actors.json");
+  writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
+  const log = t.mock.method(console, "log", () => {});
+  await main(
+    {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: REPO,
+      GITHUB_OUTPUT: output,
+      GITHUB_STEP_SUMMARY: summary,
+      UPSTREAM_RUN_ID: String(RUN),
+      SPEC_FILE: path.join(dir, "spec.json"),
+      SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
+      TRUSTED_ACTORS_PATH: actors,
+      LANE_IDENTITY: LANE,
+    },
+    { github: fake({ pulls: [HUMAN_PR] }) },
+  );
+  assert.match(readFileSync(output, "utf8"), /^proceed=false\nreason=author-not-lane\n/);
+  assert.deepEqual(log.mock.calls.map((call) => call.arguments[0]), ["resolve-pr: proceed=false reason=author-not-lane"]);
+  assert.equal(readFileSync(summary, "utf8"), "skipped: author not the lanes App\n");
 });

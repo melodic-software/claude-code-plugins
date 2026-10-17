@@ -531,6 +531,13 @@ uploads nothing. A head that already has a counted verdict from a completed run 
 pull request number) is not judged again. Runs share one concurrency group per pull request and
 head and never cancel a running judgment.
 
+`merge.verify-authors` decides whose pull requests are judged. Under `lane`, the default, only one
+the lanes App opened is: a `Bot` account whose login is `merge.agent-identity`, compared as the
+pr-merge lane decides lane authorship. Any other author's is skipped before the model runs, with
+the reason `author-not-lane` and the step summary line `skipped: author not the lanes App`, since
+only lane-authored pull requests reach the pr-merge lane. `any` judges every author's. Any other
+value judges none (`verify-authors-invalid`).
+
 With `merge.require-verifier-verdict: true` the pr-merge lane reads the artifacts through their
 run records, since only steps of a run can upload its artifacts. A run is of verifier origin when
 it is `pr-verify.yml`, event `workflow_run`, on main, in this repository with a head on main. A

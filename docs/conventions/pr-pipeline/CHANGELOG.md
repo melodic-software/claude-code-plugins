@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## 1.22.0 - 2026-10-17
+
+`merge.verify-authors` (`lane`, `any`; absent is `lane`) is a new optional key. Under `lane`
+`.github/workflows/pr-verify.yml` judges only pull requests the lanes App opened (a `Bot` account
+whose login is `merge.agent-identity`, compared as the pr-merge lane compares it) and skips any
+other author's before the model runs, with the reason `author-not-lane`; `any` judges every
+author's, and any other value judges none ("Verifier verdict"). `version` stays 1.
+
 ## 1.21.0 - 2026-10-17
 
 `merge.require-verifier-verdict` and `merge.verifier-model` are new optional keys.
