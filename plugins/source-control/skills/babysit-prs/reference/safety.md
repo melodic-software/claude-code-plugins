@@ -686,7 +686,7 @@ A ready PR merges through GitHub's async merge API ([GitHub](../../../reference/
   `--match-head-commit`. `merge_method` is sent, `merge_action` is `direct_merge`, and
   `bypass_rules` is always `false`. No
   API-version header is sent: the endpoint is documented under the default version as well.
-- **Result.** The gate polls for up to 60 seconds; a 200 means already merged or already queued. A
+- **Result.** The gate polls for up to 60 seconds, at the 60-second wait cadence; a 200 means already merged or already queued. A
   409 means a request is already pending, possibly another actor's. When its body states that
   request's `expected_head_sha` or `merge_action`, each must equal this run's pin and action;
   otherwise the gate does not poll it, reports it as `merge.conflictingRequest` with exit `10`, and
@@ -730,8 +730,8 @@ A ready PR merges through GitHub's async merge API ([GitHub](../../../reference/
   `autoMergeEnabled: false`, `merged: false`, and `mergeQueue` with the entry's `state` and
   `position`. Not yet in the queue but armed to enter it, it stays `action: auto-merge` with
   `mergeQueue.entersWhenReady: true`. Neither queued, armed, nor merged, the read may simply
-  trail the merge, so the gate re-reads it a few times at the async poll interval, well inside
-  that path's 60-second bound. Still unseen, it reports `action: merge-pending`, `ready: false`,
+  trail the merge; the gate reads that GraphQL-only state once, per the
+  [API budget](../../../reference/providers/github/README.md#api-budget), and unseen, it reports `action: merge-pending`, `ready: false`,
   `mergeQueue.unconfirmed: true`, and exit `10`, and records the success under `--state-dir` as
   an unconfirmed queue entry. A base without a queue keeps the report it had; a failed read keeps
   it too and names the failure in `merge.queueReadError`.

@@ -866,7 +866,9 @@ class TheListingIsReadOncePerReader(unittest.TestCase):
         listings = [c for c in fake.calls if any("actions/artifacts" in a for a in c)]
         self.assertEqual(len(listings), 1)
 
-    def test_a_failed_listing_refuses_every_entry_and_is_read_once(self) -> None:
+    def test_a_failed_listing_refuses_every_entry_and_is_not_read_per_entry(
+        self,
+    ) -> None:
         # One outage holds the whole queue rather than merging blind.
         fake = passing()
         fake.fail = {"actions/artifacts"}
@@ -878,7 +880,155 @@ class TheListingIsReadOncePerReader(unittest.TestCase):
             holds = [reader.queued_hold(n) for n in (PR, PR, PR)]
         self.assertEqual(holds, ["verify:unreadable"] * 3)
         listings = [c for c in fake.calls if any("actions/artifacts" in a for a in c)]
-        self.assertEqual(len(listings), 1)
+        self.assertEqual(len(listings), len(ve.LISTING_WAITS) + 1)
+
+
+# --- A transient listing failure is read again --------------------------------
+
+# Every test runs without the backoff sleep; `judge` reads the waits off it.
+_no_sleep = mock.patch.object(ve, "_listing_sleep")
+
+
+def setUpModule() -> None:
+    _no_sleep.start()
+
+
+def tearDownModule() -> None:
+    _no_sleep.stop()
+
+
+def timed_out() -> RuntimeError:
+    """What babysit_util.run_command raises when gh outlives its timeout."""
+    try:
+        raise subprocess.TimeoutExpired(["gh"], 60)
+    except subprocess.TimeoutExpired as exc:
+        try:
+            raise RuntimeError("gh api timed out after 60s") from exc
+        except RuntimeError as error:
+            return error
+
+
+class FlakyListing(FakeGitHub):
+    """Fails the artifact listing with each of `errors` in turn: a string is
+    gh's stderr on exit 1, an exception is raised from `gh_capture`."""
+
+    def __init__(self, errors: list[str | BaseException]):
+        fake = passing()
+        super().__init__(fake.artifacts, fake.runs, fake.records)
+        self.errors = errors
+        self.timeouts: list[float | None] = []
+
+    def __call__(
+        self, args: list[str], **kwargs: Any
+    ) -> subprocess.CompletedProcess[str]:
+        if any("actions/artifacts" in a for a in args):
+            self.timeouts.append(kwargs.get("timeout_seconds"))
+            if self.errors:
+                self.calls.append(args)
+                error = self.errors.pop(0)
+                if isinstance(error, BaseException):
+                    raise error
+                return subprocess.CompletedProcess(args, 1, "", error)
+        return super().__call__(args, **kwargs)
+
+    def listings(self) -> int:
+        return sum(any("actions/artifacts" in a for a in c) for c in self.calls)
+
+
+class ATransientListingFailureIsReadAgain(unittest.TestCase):
+    # gh prints an API error as `gh: <message> (HTTP <status>)`
+    # (babysit_gh.GH_HTTP_STATUS_RE); a request that got no response prints
+    # gh's "error connecting to <host>" or Go's net/http error instead.
+    TRANSIENT: tuple[str | BaseException, ...] = (
+        "gh: Bad Gateway (HTTP 502)",
+        "gh: Service Unavailable (HTTP 503)",
+        "error connecting to api.github.com\n"
+        "check your internet connection or https://githubstatus.com",
+        'Get "https://api.github.com/repos/o/r/actions/artifacts": '
+        "read tcp 10.0.0.1:443: read: connection reset by peer",
+    )
+    NOT_TRANSIENT: tuple[str | BaseException, ...] = (
+        "gh: Not Found (HTTP 404)",
+        "gh: Bad credentials (HTTP 401)",
+        "gh: Validation Failed (HTTP 422)",
+        # GitHub's answer to a GITHUB_TOKEN without the needed permission.
+        "gh: Resource not accessible by integration (HTTP 403)",
+        # Rate limits (GitHub docs, "Rate limits for the REST API"): a fixed
+        # short wait outlasts neither, so neither is read again.
+        "gh: Too Many Requests (HTTP 429)",
+        "gh: You have exceeded a secondary rate limit. (HTTP 403)",
+        "gh: API rate limit exceeded for installation ID 1. (HTTP 403)",
+        # A read that used the whole gh timeout, gh with no credential
+        # (exit 4), and gh missing from PATH (babysit_util.run_command).
+        timed_out(),
+        "To get started with GitHub CLI, please run:  gh auth login\n"
+        "Alternatively, populate the GH_TOKEN environment variable with a "
+        "GitHub API authentication token.",
+        RuntimeError("gh executable not found on PATH"),
+    )
+
+    def judge(self, fake: FlakyListing) -> tuple[ve.Evidence, list[float]]:
+        sleep = ve._listing_sleep
+        sleep.reset_mock()
+        with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+            evidence = ve.Reader(REPO, "main", now=NOW).evidence(PR, HEAD, pull())
+        return evidence, [c.args[0] for c in sleep.call_args_list]
+
+    def test_a_transient_failure_then_a_listing_reads_the_verdict(self) -> None:
+        for error in self.TRANSIENT:
+            with self.subTest(str(error)):
+                fake = FlakyListing([error])
+                evidence, sleeps = self.judge(fake)
+                self.assertIsNone(evidence.refusal)
+                self.assertEqual(fake.listings(), 2)
+                self.assertEqual(sleeps, [2.0])
+
+    def test_a_persistent_transient_failure_refuses_after_three_reads(self) -> None:
+        fake = FlakyListing(["gh: Bad Gateway (HTTP 502)"] * 3)
+        evidence, sleeps = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertIn("HTTP 502", evidence.detail or "")
+        self.assertEqual(fake.listings(), 3)
+        self.assertEqual(sleeps, [2.0, 4.0])
+
+    def timed(self, clock: list[float]) -> FlakyListing:
+        """Three 502s, the clock reading `clock` in turn, a 60s gh timeout."""
+        fake = FlakyListing(["gh: Bad Gateway (HTTP 502)"] * 3)
+        with (
+            mock.patch.object(ve, "_listing_clock", side_effect=clock),
+            mock.patch.object(ve, "gh_timeout_seconds", return_value=60.0),
+        ):
+            self.judge(fake)
+        return fake
+
+    def test_the_retries_share_one_read_timeout(self) -> None:
+        # Deadline 0 + 60; each retry gets what is left after its wait ends.
+        fake = self.timed([0.0, 1.0, 3.0, 20.0, 24.0])
+        self.assertEqual(fake.timeouts, [None, 60.0 - 3.0, 60.0 - 24.0])
+
+    def test_a_late_sleep_shortens_the_retry_timeout(self) -> None:
+        # The 2s sleep returned at 30s: the retry gets 30s, not 57s.
+        fake = self.timed([0.0, 1.0, 30.0, 59.0])
+        self.assertEqual(fake.timeouts, [None, 30.0])
+
+    def test_no_retry_when_the_sleep_ends_past_the_deadline(self) -> None:
+        fake = self.timed([0.0, 1.0, 61.0])
+        self.assertEqual(fake.timeouts, [None])
+        self.assertEqual(fake.listings(), 1)
+
+    def test_no_retry_once_the_timeout_is_spent(self) -> None:
+        fake = self.timed([0.0, 58.5])
+        self.assertEqual(fake.timeouts, [None])
+        self.assertEqual(fake.listings(), 1)
+
+    def test_any_other_failure_is_not_read_again(self) -> None:
+        for error in self.NOT_TRANSIENT:
+            with self.subTest(str(error)):
+                fake = FlakyListing([error])
+                evidence, sleeps = self.judge(fake)
+                self.assertEqual(evidence.refusal, "verify:unreadable")
+                self.assertEqual(fake.listings(), 1)
+                self.assertEqual(sleeps, [])
 
 
 # --- The --authority pr-merge path ------------------------------------------------

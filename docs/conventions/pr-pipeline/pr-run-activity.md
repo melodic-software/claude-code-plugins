@@ -255,8 +255,12 @@ The write file also outputs the lane record of a skill run: `lane-class` and `la
 failure class and usage-limit reset that ci-workflows' `report-lane-outcome` reads from the
 execution file's structured fields, and `lane-turns` and `lane-max-turns`, the turns taken and the
 cap. They come from steps after the skill. The report job passes them to `report-check-run`, which
-checks each against a fixed shape and posts them as one annotation on the check run; a
-`class=rate-limit` annotation is the limit stop the pr-unblock dispatchers read. In issue mode the
+checks each against a fixed shape and writes them into the posted check run: as the first line of
+`output.summary`, `lane=<lane> activity=<activity>` then `class`, `resets`, `turns` and `max-turns`
+in that order, each omitted when absent; as one JSON block in `output.text`; and as
+`external_id` `<lane>:<activity>:<run id>:<run attempt>`. A failed run whose record says `class=rate-limit`
+is the limit stop the pr-unblock dispatchers read from the check-run list they already fetch; a
+failed run with no record line is not one. In issue mode the
 same `class` and `resets` go into `lane.json` beside the kept branch, for report-outcome's
 `limited` exit. Any code the activity runs, not only the model, can forge this record, for
 example by planting the execution file. A forged limit stop can only restart the lane, at least an
@@ -839,7 +843,7 @@ The request is `POST <LANES_BROKER_URL>` with `Authorization: Bearer <OIDC token
 body `{"lane": "<lane>", "activity": "<activity>", "pr_number": <n>, "dispatcher_run_id": <id>}`;
 `pr_number` is the gate's PR and is required on `workflow_dispatch` and `workflow_run`. An `issues` request,
 allowed only from `work-resolve-issue.yml`, sends `issue_number` (the `issue-number` input)
-instead, and neither of the other two; its actor, the labeler, must be a listed human, or the lanes App on an issue the owner ratified (the broker re-checks the marker). A `merge` request from `pr-merge.yml` names no pull request either; its actor must be a listed human, except on a `schedule` run on `refs/heads/main`, whose actor is whoever last edited the workflow file and is not checked. A re-run of a scheduled run must be started by a listed human. `dispatcher_run_id`, a positive
+instead, and neither of the other two; its actor, the labeler, must be a listed human, or the lanes App. The broker (azure-iac's `lanes-token-broker`) still re-checks the retired ratification marker for the App, so until it drops that check an App-labeled issue without the marker gets no token and the run fails closed. A `merge` request from `pr-merge.yml` names no pull request either; its actor must be a listed human, except on a `schedule` run on `refs/heads/main`, whose actor is whoever last edited the workflow file and is not checked. A re-run of a scheduled run must be started by a listed human. `dispatcher_run_id`, a positive
 JSON integer, is the `dispatcher-run-id` input, sent only when set. The broker reads it only when
 the OIDC actor is `github-actions[bot]`: such a run mints only when the `pr-unblock-dispatch.yml`
 run it names passes the checks the trusted-trigger gate applies. That run must be on `main`,

@@ -54,8 +54,9 @@ inputs:
   lane-class:
     description: >
       The run job's lane-class output: report-lane-outcome's failure class,
-      empty on a success. With the three below it becomes one annotation on
-      the posted check run (lane-record.mjs).
+      empty on a success. With the three below it becomes the first line of
+      the posted check run's output.summary, its output.text and external_id
+      (lane-record.mjs).
     required: false
     default: ""
   lane-resets:

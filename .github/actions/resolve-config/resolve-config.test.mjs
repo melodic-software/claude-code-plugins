@@ -692,6 +692,15 @@ test("a held class added after the label event refuses the issue", async () => {
   assert.equal(outputs["skip-reason"], "not-applicable");
 });
 
+// The retired `ratified` key is no admission rule, so the schema refuses it.
+test("an admission predicate with no classes fails the schema", async (t) => {
+  for (const admission of [{ ratified: true }, { ratified: false }]) {
+    const { env } = workspace();
+    withPredicate(env, { admission });
+    await assertFailsRed(t, env, /fails the schema/);
+  }
+});
+
 test("a work-classes predicate fails red: no run supplies work classes yet", async (t) => {
   const { env } = workspace();
   withPredicate(env, { "work-classes": ["C2"] });

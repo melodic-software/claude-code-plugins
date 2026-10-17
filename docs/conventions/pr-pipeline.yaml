@@ -257,8 +257,8 @@ merge:
   rung: C2
   authority: pr-merge
   agent-identity: melodic-automation-lanes[bot]
-  # Reports each decision and writes nothing until the owner sets false.
-  report-only: true
+  # true: report each decision and write nothing.
+  report-only: false
   # A PR merges only with a passing pr-verify.yml verdict at its head. Must be
   # true at a rung above off: the gate refuses otherwise.
   require-verifier-verdict: true
@@ -277,7 +277,7 @@ merge:
   # Owner decision Q624: the lane denies no path and applies no HIGH path
   # floor, size cap or C2 contradiction check; the verifier verdict, the kill
   # switch, the fork and Dependabot refusals, lane-author and single-closing-
-  # issue eligibility, the demotion stop and report-only still hold. Each
+  # issue eligibility and the demotion stop still hold. Each
   # removed check comes back by setting it here: list denied-paths, set
   # `high-path-floor: true` or `c2-contradictions: true`, or set
   # `max-changed-files` or `max-changed-lines` (the earlier 8 and 400).

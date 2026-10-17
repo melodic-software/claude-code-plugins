@@ -47,8 +47,13 @@ dispatch, PR or babysit step. It works in place:
    A required check you could not run or could not pass goes in `not_done` with
    `"required": true`, and the lane then reports the run `stopped`, whatever `exit` says.
    Then run the prep `/source-control:pull-request prep` defines, since the lane opens the PR
-   ready: only this plugin is loaded here, so use its stated fallback for each step. Review your
-   whole diff in one fresh-context subagent and fix each finding you confirm, then build, test and
+   ready: only this plugin is loaded here, so use its stated fallback for each step. The review
+   runs in one venue: when `review-venue.txt` in the same scratchpad directory (the runner writes
+   it from `/source-control:pull-request review-venue`) has a line starting `code-review ci`, the
+   repository's CI code-review lane reviews the PR, so skip the review, record `review` as
+   `skipped`, and add that line to `not_done` with `"required": false`. When the file is absent, unreadable, or its
+   `code-review` line reads `local`, review your whole diff in one fresh-context subagent as the
+   stand-in for the CI lane and fix each finding you confirm. Then build, test and
    lint the touched files, and run the audit each touched file class owes. Commit the fixes.
    Record each step in `steps`: `review` (the review), `verify` (build and tests) and `checks`
    (lint and the class audits), each `pass`, `fail` or `skipped`. The lane posts them as

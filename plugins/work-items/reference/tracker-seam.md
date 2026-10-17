@@ -240,6 +240,11 @@ Provider-mechanic gotchas (Windows `\r`, search-qualifier syntax, the `gh` 30-ro
 bound adapter's operations reference. For GitHub, that is
 `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md` "Gotchas".
 
+- **Unattended loops hold to the provider's API budget.** Every lane, worker and session under one
+  user draws on one provider budget. Waits run in the background at the adapter's cadence, writes go
+  one at a time, and a rate-limit error (seam exit 8) stops the run's provider calls until the reset,
+  never a retry loop. For GitHub, the cadence is the adapter reference's "API budget".
+
 - **Claim concurrency is the seam's job.** Claiming is race-safe at the seam (assignee + lease
   comment, same-identity aware), per `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Lease protocol". Reclaim
   runs idempotently at session start (`work` / `track start`). Do not hand-roll a label-based hold

@@ -13,7 +13,7 @@ Classify the branch's changed files by the table below and run the steps each cl
 
 | Class | Which files | What it owes | Where it runs |
 |---|---|---|---|
-| `code` | source files (`.sh`, `.bash`, `.py`, `.mjs`, `.js`, `.cjs`, `.ts`, `.ps1`, `.cs`, project files) | one fresh-context review (`review:quality-gate` under 50 changed lines, `review:fanout` above), then `simplify`, then `verification:confirm` | §1.2 to §1.5 |
+| `code` | source files (`.sh`, `.bash`, `.py`, `.mjs`, `.js`, `.cjs`, `.ts`, `.ps1`, `.cs`, project files) | one fresh-context review (`review:quality-gate` under 50 changed lines, `review:fanout` above) unless the CI code-review lane covers it ([review-venue.md](review-venue.md)), then `simplify`, then `verification:confirm` | §1.2 to §1.5 |
 | `markdown` | `.md` files | `ai-slop:audit` and `docs-hygiene:audit-noise` over the changed `.md` files | §1.2.1 |
 | `renames` | any `R` line in the name-status output | a `docs-hygiene:rename-references` audit | §1.2.1 |
 | `skills` | `plugins/*/skills/**`, `plugins/*/agents/**` | `skill-quality:check` over each changed skill | §1.2.1 |
@@ -30,6 +30,8 @@ Every skill named below is invoked through the Skill tool when its plugin is ena
 **No `code` class?** Skip 1.2 to 1.4; the verify gate (1.5) reduces to lint. The other classes still owe their audits, so a docs-only branch is not exempt: it owes the prose audits in 1.2.1. If the consuming project layers extra prep requirements on PR creation (hooks, gates), satisfy those per its own docs.
 
 ## 1.2 Review the changes (the `code` class)
+
+**Read the review venue first** ([review-venue.md](review-venue.md)). When its `code-review` line reads `ci`, the repository's CI code-review lane reviews the pull request once it is ready, so skip this review (the 1.2.1 audits still run) and report the skip with the line's detail. When it reads `local`, or the read fails, run the review below and report it as the stand-in for the CI lane. `prep review-only` follows the same rule.
 
 Run **one** fresh-context review over the branch diff: `/review:quality-gate` under 50 changed lines, `/review:fanout` above it, when the `review` plugin is enabled.
 
@@ -92,6 +94,6 @@ Run the project's full build + test + lint surface, via `/verification:confirm` 
 
 ## 1.6 Report
 
-Report: findings verified/dropped, simplify ran/skipped, verify gate pass/fail per ecosystem, which classes 1.1 detected, and any split 1.1 proposed with the user's answer. Proceed to PR creation.
+Report: the review venue's `code-review` line and whether the 1.2 review ran or was skipped for it, findings verified/dropped, simplify ran/skipped, verify gate pass/fail per ecosystem, which classes 1.1 detected, and any split 1.1 proposed with the user's answer. Proceed to PR creation.
 
 **Prep before create is the developer loop.** The rebase in [create.md](create.md) §2.2 and the base merge in [ready-for-review.md](ready-for-review.md) §2.5.2 both move HEAD after prep, which is why the ready step re-runs the verify gate on the head it flips.

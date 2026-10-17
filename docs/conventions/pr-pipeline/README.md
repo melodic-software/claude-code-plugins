@@ -469,8 +469,8 @@ except six:
   What is left with them off: a lane pull request may change the merge gate, the workflows and
   their tokens, these lane rules, skills, hooks, agent instructions and CI checks, at any size.
   The brakes that remain are the verifier verdict, the kill switch, the fork and Dependabot
-  refusals, lane authorship with one closing issue, the review evidence, the demotion stop and
-  `merge.report-only`. A verdict reads the diff only and runs no changed code, and a pull request
+  refusals, lane authorship with one closing issue, the review evidence and the demotion stop;
+  setting `merge.report-only` back to true stops every merge. A verdict reads the diff only and runs no changed code, and a pull request
   that weakens a later run's gate (this file, the gate, `pr-merge.yml`) is judged by the gate as
   it stood at its base.
 - **Kill switches.** The lane token cannot read Actions variables, so the workflow checks the
@@ -689,8 +689,8 @@ head:
 The trusted-spec rule trusts an account, not a person. An agent session that uses an owner's `gh`
 login posts as that owner, so until agent sessions have their own GitHub identity, an issue or an
 `agent-ready` label from a trusted account counts as the owner's authority, including when an agent
-acting as that account wrote it. Unattended merge stays off (`merge.report-only: true`) until that
-identity exists.
+acting as that account wrote it. The owner accepts that risk: unattended merge is on
+(`merge.report-only: false`) before that identity exists (#7711).
 
 `verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and `verify:untrusted-spec` need a
 human. While `merge.report-only` is false the lane escalates such a refusal on the pull request
@@ -706,7 +706,9 @@ checks (github-iac ADR 0011), so a human merge needs `ci-status` alone. A queued
 allowing verdict at its live head leaves the queue. A dependency manager's pull request (a `Bot`
 account with a dependency manager's login; a `User` named like one is judged) needs no verdict: the lane decides it in its Dependabot class before the verdict is read, or refuses it, and
 its queued entry is not held for one. The gate lists every repository artifact once per
-candidate run, since pr-merge.yml runs the gate once per candidate. A failed listing is kept for
+candidate run, since pr-merge.yml runs the gate once per candidate. A listing that got a 5xx or a fast
+network error is read again, three reads in all with backoff, all inside the one gh timeout a single
+read would get; any other failure, a timeout, a 429 or a rate-limit 403 included, is not. A failed listing is kept for
 that run as well: the pull request and every queued entry refuse `verify:unreadable` without the
 listing being paged again, so a listing outage holds the whole queue rather than merging blind.
 The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
