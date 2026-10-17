@@ -2123,7 +2123,12 @@ def cmd_lease(d, a):
         if status != 200:
             sys.exit(f"release refused: HTTP {status}")
     if a.takeover:
-        sys.exit(subprocess.call(["bash", str(HERE / "watch.sh"), str(d)]))
+        cmd = ["bash", str(HERE / "watch.sh"), str(d)]
+        if os.name == "posix":
+            # Replace this process so a stop signal reaches watch.sh itself, not an orphaning parent.
+            os.execvp(cmd[0], cmd)
+        rc = subprocess.call(cmd)
+        sys.exit(128 - rc if rc < 0 else rc)  # a signal death reads as 128 + signal, not a wrapped status
     lease = bridge.watcher_lease(d, NAME)
     if not lease:
         print("no lease")
