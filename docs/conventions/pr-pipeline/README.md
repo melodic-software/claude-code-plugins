@@ -557,7 +557,9 @@ run records, since only steps of a run can upload its artifacts. A run is of ver
 it is `pr-verify.yml`, event `workflow_run`, on main, in this repository with a head on main. A
 `fail` counts from any such run, whatever its conclusion, because the upload comes before the
 run's later steps; a `pass` or `pass-notes` counts only from one that completed with success. Any
-other artifact with such a name is ignored. At the pull request's vetted head:
+other artifact with such a name is ignored. The resolver and the gate each hold this rule and the
+dependency-manager list, and one test runs both to keep them equal. At the pull request's vetted
+head:
 
 - created more than 80 days ago refuses (`verify:too-old`): artifacts last at most 90 days in this
   repository (the retention maximum and its setting), so an older verdict may be gone;

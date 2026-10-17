@@ -104,7 +104,7 @@ class _Unreadable(Exception):
 def dependency_bot(user: Any) -> bool:
     """A REST user that is a Bot account with a dependency manager's login; a
     User named like one is not. resolve-pr.mjs `isDependencyManager` is its
-    twin."""
+    twin, and tests/test_verify_rules_sync.py compares them."""
     user = json_object(user)
     return user.get("type") == "Bot" and is_dependency_author(
         str(user.get("login") or "")
