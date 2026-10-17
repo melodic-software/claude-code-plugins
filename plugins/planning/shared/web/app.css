@@ -1502,7 +1502,9 @@
 }
 .app .vf-ap-title { display: flex; align-items: center; gap: 8px; margin: 0; flex: 1; }
 .app .vf-apmodes { margin: 8px 16px 4px; align-self: flex-start; flex-wrap: wrap; }
-.app .vf-apscroll { flex: 1; padding: 8px 16px 16px; display: grid; align-content: start; gap: 8px; }
+/* one column no wider than the sheet: a wide child (a long option in About, a long word) wraps instead of making the
+   sheet scroll sideways */
+.app .vf-apscroll { flex: 1; padding: 8px 16px 16px; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 8px; overflow-x: hidden; }
 .app .vf-apform { gap: 8px; padding-block-end: 10px; border-block-end: 1px solid var(--line); }
 .app .vf-apq .vf-select { flex: 1; min-width: 0; max-inline-size: 100%; }
 .app .vf-apq { display: flex; min-width: 0; }
@@ -1906,6 +1908,10 @@
   .app[data-kb] .vf-tabs, .app[data-kb] .vf-fab:not([aria-expanded="true"]) { display: none; }
   .app[data-kb] .vf-chat { block-size: calc(100% - 8px); border-radius: var(--r-lg) var(--r-lg) 0 0; }
   .app[data-kb] :is(.vf-drawer, .vf-pop.vf-panel, .vf-bellpop[data-place="sheet"]) { max-block-size: calc(100% - 8px); }
+  /* the Ask Claude sheet takes all the room above the keyboard, and its Send or Propose row stays at the sheet's
+     bottom edge while the form is in view */
+  .app[data-kb] .vf-drawer { block-size: calc(100% - 8px); }
+  .app[data-kb] .vf-apform > .vf-crow { position: sticky; z-index: 1; inset-block-end: 0; padding-block: 6px; background: var(--pane); }
 }
 
 /* Dialogs: confirmations and the attach picker. Native modal dialogs, so they sit above every panel and sheet. */

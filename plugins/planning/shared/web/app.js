@@ -1121,7 +1121,14 @@
     // Triage 24: scrolled up when messages arrive, the chat says how many are new instead of jumping.
     const mNew = btn("vf-mnew"); mNew.hidden = true;
     mNew.onclick = () => { mScroll.scrollTo({ top: mScroll.scrollHeight, behavior: smooth() }); mNew.hidden = true; ui.mNewFrom = null; };
-    on(mScroll, "scroll", () => { if (mScroll.scrollHeight - mScroll.scrollTop - mScroll.clientHeight < 40) { mNew.hidden = true; ui.mNewFrom = null; } });
+    // A reader at the newest message stays there when the list or its box changes size: an on-screen keyboard opening
+    // or closing, the message field growing a line, a message arriving. Shrinking a box never fires scroll, so the
+    // last scroll decides.
+    const mGap = () => mScroll.scrollHeight - mScroll.scrollTop - mScroll.clientHeight;
+    let mStick = true;
+    on(mScroll, "scroll", () => { mStick = mGap() < 40; if (mStick) { mNew.hidden = true; ui.mNewFrom = null; } });
+    const mPin = new ResizeObserver(() => { if (ui.chatOpen && mStick && mGap() > 0) mScroll.scrollTop = mScroll.scrollHeight; });
+    mPin.observe(mScroll); mPin.observe(mList); offs.push(() => mPin.disconnect());
     const mTyping = E("div", "vf-mtyping"); const mTypingTxt = E("span");
     mTyping.append(dots(), mTypingTxt);
     const mForm = E("form", "vf-mform");
@@ -3185,7 +3192,12 @@
       const was = root.hasAttribute("data-kb"), now = "kb" in document.documentElement.dataset;
       root.toggleAttribute("data-kb", now);
       if (was !== now) { syncModal(); if (ui.mention) paintMention(); }
+      revealAskField();
     };
+    // In the Ask Claude sheet the field being typed in and its Send or Propose button stay in view as the keyboard
+    // comes and goes; the rest of the sheet scrolls.
+    const revealAskField = () => { const f = document.activeElement; if (f?.matches?.("textarea") && apForm.contains(f)) reveal(apForm, f); };
+    on(askPanel, "focusin", revealAskField);
     if (window.visualViewport) { on(window.visualViewport, "resize", kbSync); on(window.visualViewport, "scroll", kbSync); }
     const sysTheme = () => applyTheme();
     lightOS.addEventListener("change", sysTheme); offs.push(() => lightOS.removeEventListener("change", sysTheme));
@@ -5513,7 +5525,7 @@
       mForm.hidden = (!!S.ended && !me.isOwner) || !!S.youRemoved;
       paintSlot(chatSlot, mForm.hidden);
       if (ui.chatOpen) {
-        const atBottom = mScroll.scrollHeight - mScroll.scrollTop - mScroll.clientHeight < 40;
+        const atBottom = mStick || mGap() < 40;
         sync(mList, msgs, m => m.id, m => {
           const li = E("li", "vf-msg");
           const col = E("div", "vf-msg-col");

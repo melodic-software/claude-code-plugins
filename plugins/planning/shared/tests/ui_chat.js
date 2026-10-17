@@ -2,12 +2,24 @@
 // The side chat in real browsers, against `share.sh ensure-running` with the fake cloudflared (triage 2 and 24): the
 // host, chat closed, sees a guest's message on the chat button's badge and in the tab title; a page frozen the way a
 // phone freezes a background tab shows all 3 messages posted meanwhile within 2 s of thawing; and a reader scrolled up
-// in the chat gets a "3 new messages" pill instead of a jump.
+// in the chat gets a "3 new messages" pill instead of a jump. On a 390x844 phone with 20+ messages, a reader at the
+// newest keeps it whole above the field as the keyboard opens, while typing 3 lines, when a message arrives, and as
+// the keyboard closes; scrolled up, an arrival shows the pill.
 //   node plugins/planning/shared/tests/ui_chat.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the triage rows (badge, 3 messages, 2 s) and the messages this suite posts, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
+// An iPhone keyboard (336 px, 844 less the 508 px left above it, by judgment from an iPhone 13 with the suggestion bar)
+// shrinks visualViewport and leaves the layout viewport alone, so this stands in for it the same way: visualViewport's
+// height drops by KB and it fires resize. Shrinking the whole Chromium viewport instead would shrink innerHeight too.
+const KB = 336;
+const keyboard = (page, up) => page.evaluate(([up, kb]) => {
+  const vv = window.visualViewport;
+  if (up) Object.defineProperty(vv, "height", { configurable: true, get: () => innerHeight - kb }); else delete vv.height;
+  vv.dispatchEvent(new Event("resize"));
+  return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+}, [up, KB]);
 
 async function main() {
   const pw = loadPlaywright();
@@ -102,6 +114,41 @@ async function main() {
     if (await pia.locator(".vf-msg", { hasText: "New C" }).locator(".vf-mreact").count()) await pia.locator(".vf-msg", { hasText: "New C" }).locator(".vf-mreact").tap();
     const rowGone = page => until(page, () => { const li = [...document.querySelectorAll(".vf-mlist .vf-msg")].find(m => m.textContent.includes("New C")); const r = li?.querySelector(".vf-mreacts"); return !!li && !li.querySelector(".vf-mreact") && (!r || r.getBoundingClientRect().height === 0); });
     ok("tapping the chip takes the reaction back and the row goes away", await rowGone(pia) && await rowGone(owner));
+
+    // ---------- dogfood: at the newest message, the phone keyboard never hides it ----------
+    for (let i = 0; i < 3; i++) await gus.evaluate(x => window.Core.chat(x), `More ${i} ${"so the chat scrolls ".repeat(3)}`);
+    const kia = await rec.open(A.localUrl, { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 } });
+    await joinAs(kia, "Kia");
+    await kia.evaluate(() => { document.querySelector(".vf-fab").click(); });
+    const n20 = await until(kia, () => document.querySelectorAll(".vf-mlist .vf-msg").length >= 20 && [...document.querySelectorAll(".vf-mlist .vf-msg")].pop().textContent.includes("More 2"));
+    await kia.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => null))));
+    // The newest message whole between the list's top edge and the message field, inside the visual viewport.
+    const newest = text => until(kia, t => {
+      const sc = document.querySelector(".vf-mscroll").getBoundingClientRect(), form = document.querySelector(".vf-mform").getBoundingClientRect();
+      const last = [...document.querySelectorAll(".vf-mlist .vf-msg")].pop(), r = last.getBoundingClientRect(), vv = visualViewport;
+      return last.textContent.includes(t) && r.top >= sc.top - 0.5 && r.bottom <= Math.min(sc.bottom, form.top) + 0.5 && form.bottom <= vv.offsetTop + vv.height + 0.5;
+    }, text, 3000);
+    const where = () => kia.evaluate(() => { const sc = document.querySelector(".vf-mscroll"); return `${sc.scrollHeight - sc.scrollTop - sc.clientHeight} px below the list's bottom edge, visual viewport ${visualViewport.height}`; });
+    await kia.locator(".vf-minput").tap();
+    await keyboard(kia, true);
+    ok("390x844, 20+ messages, at the newest: with the keyboard up the newest message is whole above the field", n20 && await newest("More 2"), await where());
+    if (process.env.KBD_SHOTS) await kia.screenshot({ path: require("node:path").join(process.env.KBD_SHOTS, "chat-390x844-keyboard.png"), clip: { x: 0, y: 0, width: 390, height: 844 - KB } });
+    await kia.keyboard.insertText("Line one\nLine two\nLine three");
+    ok("390x844, keyboard up: typing 3 lines keeps the newest message in view", await newest("More 2"), await where());
+    await gus.evaluate(() => window.Core.chat("Arrived with the keyboard up"));
+    ok("390x844, keyboard up: a message that arrives shows whole above the field", await newest("Arrived with the keyboard up"), await where());
+    await kia.evaluate(() => { document.querySelector(".vf-mscroll").scrollTop = 0; });
+    await kia.waitForTimeout(300);
+    await gus.evaluate(() => window.Core.chat("Arrived while scrolled up"));
+    ok("390x844, keyboard up, scrolled up: a new message shows the \"1 new message\" pill instead of a jump", await until(kia, () => {
+      const p = document.querySelector(".vf-mnew");
+      return !p.hidden && p.textContent.startsWith("1 new message") && document.querySelector(".vf-mscroll").scrollTop < 40;
+    }));
+    await kia.locator(".vf-mnew").tap();
+    await newest("Arrived while scrolled up");
+    await keyboard(kia, false);
+    ok("390x844: closing the keyboard keeps the newest message in view", await newest("Arrived while scrolled up"), await where());
+    await kia.context().close();
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     ok("no page error", rec.errors.filter(m => !/Failed to load resource/.test(m)).length === 0, rec.errors.slice(0, 3).join(" | "));
