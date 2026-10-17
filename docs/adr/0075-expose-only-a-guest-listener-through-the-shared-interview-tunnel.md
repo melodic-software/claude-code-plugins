@@ -3,7 +3,7 @@
 - Status: accepted
 - Date: 2026-10-16
 - Related: [ADR 0019](0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md) (vendored
-  `lib/session-bridge` copies), [ADR 0074](0074-keep-guest-use-of-claude-the-owners-own-use.md)
+  `lib/session-bridge` copies), [ADR 0076](0076-keep-guest-use-of-claude-the-owners-own-use.md)
   (what guests may ask Claude to do). The routes and auth classes are in
   `plugins/planning/shared/README.md`.
 
