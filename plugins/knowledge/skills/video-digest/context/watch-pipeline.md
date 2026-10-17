@@ -55,13 +55,6 @@ is extracted; without it the run uses `MAX_FRAME_GAP_SEC`. The effective value i
 `watch.json` (`state.maxFrameGapSec`) and `coverage-plan.json`, and `run-watch.js --recover` plans
 with the recorded value.
 
-**Closing a sampler gap.** When the visual pass finds a stretch the sampler left without timed
-frames, re-run `run-watch.js` with a smaller `--max-frame-gap-sec`; that is the supported fix. It
-re-samples the whole video and cannot add one chosen timestamp, and after `close` the temp video
-is gone, so the re-run downloads it again. No command adds a single frame at a time. A frame
-extracted by hand outside the sampler is not in `selection.json`, so it renders as `untimed` and
-its stretch stays a gap.
-
 Runs acquire (retry + throttle) → transcript → dynamic coverage watching → metadata link harvest.
 Writes:
 
@@ -81,6 +74,14 @@ directory it cannot remove gets a stderr warning naming it and stays for removal
 still succeeds. A failed close leaves them in place for the re-run. A watch that fails before
 `watch.json` records `tempSession` (an acquisition error, a 429) removes the three directories it
 made, downloaded media included; once recorded, they stay for `--recover`.
+
+**Closing a sampler gap.** When the visual pass finds a stretch the sampler left without timed
+frames, re-run `run-watch.js` with a smaller `--max-frame-gap-sec`; that is the supported fix. It
+re-samples the whole video and cannot add one chosen timestamp, and after `close` the temp video
+is gone, so the re-run downloads it again. No command adds a single frame at a time. A frame
+extracted by hand outside the sampler is not in `selection.json`, so it renders as `untimed` and
+its stretch stays a gap.
+
 `highVolume: true` in output → fan out vision subagents; no hard frame cap.
 
 ## Prerequisites gate
