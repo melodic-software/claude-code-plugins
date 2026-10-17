@@ -1010,5 +1010,69 @@ class TestTunnelWatch(unittest.TestCase):
         self.assertEqual(code, 403)
 
 
+class TestModerationRoutes(ServerCase):
+    """Phase 4c routes over HTTP: who may call them and what each viewer then reads."""
+
+    def setUp(self):
+        super().setUp()
+        self.open_round("Q1")
+        self.ann_pid, self.ann = self.join("Ann")
+        self.bo_pid, self.bo = self.join("Bo")
+        code, _, out = self.post("/api/answer", {"qid": "Q1", "text": "Original words", "view": "focus"}, self.ann)
+        self.assertEqual(code, 200, out)
+        self.ref = out["card"]
+
+    def state(self, headers):
+        code, _, snap = self.get("/api/state?since=0", headers)
+        self.assertEqual(code, 200, snap)
+        return snap
+
+    def test_hide_and_edit_take_the_owner_token_and_history_stays_with_the_owner(self):
+        for path, body in (("/api/card/hide", {"qid": "Q1", "card": self.ref, "on": True}), ("/api/card/edit", {"qid": "Q1", "card": self.ref, "text": "Kind words"})):
+            code, _, out = self.post(path, body, self.bo)
+            self.assertEqual((code, out["error"]), (403, "owner-only"))
+        code, _, out = self.post("/api/card/edit", {"qid": "Q1", "card": self.ref, "text": "Kind words"}, self.owner)
+        self.assertEqual(code, 200, out)
+        for viewer in (self.ann, self.bo):
+            raw = json.dumps(self.state(viewer))
+            self.assertIn("Kind words", raw)
+            self.assertNotIn("Original words", raw)
+        owner_card = next(c for c in self.state(self.owner)["cards"]["Q1"] if c["ref"] == self.ref)
+        self.assertEqual([v["text"] for v in owner_card["history"]], ["Original words"])
+        code, _, out = self.post("/api/card/hide", {"qid": "Q1", "card": self.ref, "on": True}, self.owner)
+        self.assertEqual(code, 200, out)
+        self.assertNotIn(self.ref, [c["ref"] for c in self.state(self.bo)["cards"]["Q1"]])
+        self.assertEqual(next(c for c in self.state(self.ann)["cards"]["Q1"] if c["ref"] == self.ref)["hidden"]["by"], "host")
+
+    def test_a_join_waits_for_the_owner_when_approval_is_on(self):
+        code, _, out = self.post("/api/session/settings", {"approveJoins": True}, self.owner)
+        self.assertEqual(code, 200, out)
+        code, _, out = self.post("/api/join", {"name": "Jib"})
+        self.assertEqual((code, out["waiting"]), (200, True))
+        jib = {"X-Session-Secret": out["secret"]}
+        code, _, err = self.get("/api/state?since=0", jib)
+        self.assertEqual((code, err["error"]), (403, "waiting"))
+        self.assertEqual(self.state(self.ann)["me"]["pid"], self.ann_pid)  # a returning guest is not held
+        code, _, err = self.post("/api/join/act", {"pid": out["pid"], "action": "admit"}, self.bo)
+        self.assertEqual((code, err["error"]), (403, "owner-only"))
+        code, _, done = self.post("/api/join/act", {"pid": out["pid"], "action": "admit"}, self.owner)
+        self.assertEqual((code, done["status"]), (200, "active"))
+        self.assertEqual(self.state(jib)["me"]["name"], "Jib")
+
+    def test_chat_reactions_and_the_intro(self):
+        code, _, out = self.post("/api/chat", {"text": "Hello"}, self.ann)
+        mid = out["id"]
+        code, _, out = self.post("/api/chat/react", {"id": mid, "emoji": "🎉", "on": True}, self.bo)
+        self.assertEqual(code, 200, out)
+        code, _, out = self.post("/api/chat/react", {"id": mid, "emoji": "<img>", "on": True}, self.bo)
+        self.assertEqual((code, out["error"]), (400, "bad-field"))
+        self.assertEqual(self.state(self.ann)["chat"][0]["reactions"], {"🎉": [self.bo_pid]})
+        code, _, out = self.post("/api/session/intro", {"intro": "Why you're here."}, self.owner)
+        self.assertEqual(code, 200, out)
+        self.assertEqual(self.state(self.bo)["intro"], "Why you're here.")
+        code, _, anon = self.get("/api/state")
+        self.assertEqual(sorted(anon), ["ended", "joinNeedsKey", "schemaVersion", "title"])
+
+
 if __name__ == "__main__":
     unittest.main()

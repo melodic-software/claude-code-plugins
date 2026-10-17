@@ -2051,3 +2051,68 @@
   .app .vf-scroll > .vf-composer-sheet > .vf-crow { position: static; block-size: auto; margin: 0; pointer-events: auto; }
   .app .vf-composer-sheet .vf-sendbtn { display: none; }
 }
+
+/* ---------- Phase 4c: why you're here, moderation, chat reactions ---------- */
+.app .vf-orient-why { margin-block-start: 10px; padding-block-start: 10px; border-block-start: 1px solid var(--line-strong); }
+.app .vf-orient-why[hidden], .app .vf-orient-whybtn[hidden], .app .vf-orient-intro[hidden], .app .vf-orient-how[hidden] { display: none; }
+.app :is(.vf-orient-intro, .vf-orient-how) { margin: 0 0 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.app .vf-orient-why .vf-orient-tour { block-size: 44px; margin-block-start: 4px; }
+.app .vf-intropop { inline-size: min(360px, calc(100vw - 24px)); }
+/* Below 1024 px the top bar has no room for one more button: Help (and More on a phone) holds it. */
+@media (max-width: 1023px) { .app .vf-introbtn { display: none; } }
+.app .vf-help-intro[hidden] { display: none; }
+.app .vf-intropop-t { margin: 0 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 720px) {
+  /* A phone's first screen keeps the goal, the ask, Start here, the question, "Something else…" and the answer box. */
+  .app .vf-orient { padding: 8px 12px 10px; margin-block-end: 8px; }
+  /* The welcome line is read out but not drawn: the goal and the ask lead. */
+  .app .vf-orient-h { position: absolute; inline-size: 1px; block-size: 1px; min-block-size: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .app .vf-orient-x { inset-block-start: 0; inset-inline-end: 0; }
+  .app :is(.vf-orient-goal, .vf-orient-ask) { margin: 0 40px 0 0; font-size: 13.5px; line-height: 1.35; }
+  .app .vf-orient-row { margin-block-start: 6px; flex-wrap: nowrap; }
+  .app .vf-orient-row .vf-btn { block-size: 44px; padding-inline: 10px; font-size: 13.5px; }
+  .app .vf-orient-row .vf-orient-start { flex: 1 1 auto; }
+  .app .vf-orient-row .vf-orient-whybtn { flex: 0 1 auto; }
+  .app .vf-introbtn { display: none; }
+}
+.app .vf-modnote { margin: 6px 0 0; font-size: 12.5px; font-weight: 600; color: var(--review); overflow-wrap: anywhere; }
+.app .vf-modnote[hidden] { display: none; }
+.app .vf-hiddencard { border-style: dashed; opacity: 0.8; }
+.app :is(.vf-mod-hide, .vf-mod-edit)[hidden] { display: none; }
+.app .vf-editpop { inline-size: min(420px, calc(100vw - 24px)); }
+.app .vf-edit-ta { inline-size: 100%; min-block-size: 96px; margin-block: 8px; }
+.app .vf-history { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; max-block-size: 240px; overflow: auto; }
+.app .vf-hist { display: grid; gap: 2px; padding: 6px 8px; border-radius: var(--r-sm); background: var(--raise); }
+.app .vf-hist-who { font-size: 11.5px; color: var(--muted); }
+.app .vf-hist-t { font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.app :is(.vf-history, .vf-hintro-shown)[hidden], .app .vf-pop-sub[hidden] { display: none; }
+.app .vf-personpop { inline-size: min(480px, calc(100vw - 24px)); }
+.app .vf-ppv-body { display: grid; gap: 12px; max-block-size: min(70vh, 640px); overflow: auto; }
+.app .vf-ppv-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.app .vf-ppv-item { display: grid; gap: 4px; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: var(--r-md); }
+.app .vf-ppv-q { font-size: 12px; font-weight: 600; color: var(--muted); }
+.app .vf-ppv-t { margin: 0; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.app .vf-hintro { inline-size: 100%; margin-block: 4px; }
+.app :is(.vf-hintro, .vf-hintro-l)[hidden] { display: none; }
+.app .vf-mreacts { grid-column: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding-inline: 2px; }
+.app .vf-msg-mine .vf-mreacts { grid-column: 1; justify-content: flex-end; }
+.app .vf-mreact-chips { display: contents; }
+.app :is(.vf-mreact, .vf-mreact-add) {
+  display: inline-flex; align-items: center; gap: 3px; min-block-size: 28px; min-inline-size: 36px; padding-inline: 7px;
+  border: 1px solid var(--line-strong); border-radius: 14px; color: var(--muted); font-size: 12px; font-weight: 600; background: none;
+}
+.app .vf-mreact[aria-pressed="true"] { color: var(--accent-text); border-color: color-mix(in oklch, var(--accent) 60%, transparent); background: var(--accent-soft); }
+.app .vf-mreact-e, .app .vf-mreact-face { font-size: 14px; line-height: 1; }
+.app .vf-mreact-add { color: var(--faint); }
+.app .vf-mreact-add[hidden] { display: none; }
+.app .vf-reactpop { inline-size: min(320px, calc(100vw - 24px)); }
+.app :is(.vf-rp-quick, .vf-rp-grid) { display: flex; flex-wrap: wrap; gap: 4px; }
+.app .vf-rp-grid { margin-block-start: 8px; max-block-size: 200px; overflow: auto; }
+.app .vf-rp-grid[hidden] { display: none; }
+.app .vf-rp-e { inline-size: 40px; block-size: 40px; border-radius: var(--r-sm); font-size: 20px; line-height: 1; background: none; border: 1px solid transparent; }
+.app .vf-rp-e[aria-pressed="true"] { border-color: color-mix(in oklch, var(--accent) 60%, transparent); background: var(--accent-soft); }
+.app .vf-rp-more { block-size: 40px; }
+@media (max-width: 720px) {
+  .app .vf-rp-e { inline-size: 44px; block-size: 44px; }
+  .app :is(.vf-mreact, .vf-mreact-add) { min-block-size: 32px; }
+}

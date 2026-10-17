@@ -14,6 +14,7 @@
         "oneOf": [
           {"$ref": "#/$defs/set-title"},
           {"$ref": "#/$defs/set-goal"},
+          {"$ref": "#/$defs/set-intro"},
           {"$ref": "#/$defs/open-round"},
           {"$ref": "#/$defs/close-round"},
           {"$ref": "#/$defs/ack-round"},
@@ -41,6 +42,13 @@
       "required": ["op", "goal"],
       "additionalProperties": false,
       "properties": {"op": {"enum": ["set-goal"]}, "goal": {"type": "string", "maxLength": 200}}
+    },
+    "set-intro": {
+      "description": "\"Why you're here\", the card a guest reads before question 1, as the owner confirmed it in the terminal; an empty intro removes it.",
+      "type": "object",
+      "required": ["op", "intro"],
+      "additionalProperties": false,
+      "properties": {"op": {"enum": ["set-intro"]}, "intro": {"type": "string", "maxLength": 600}}
     },
     "open-round": {
       "type": "object",

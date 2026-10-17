@@ -113,6 +113,7 @@ the refused op's index).
 | Op | Fields | Effect |
 |---|---|---|
 | `set-title`, `set-goal` | `title` / `goal` | |
+| `set-intro` | `intro` (0..600) | "Why you're here", shown to a guest before question 1; empty removes it |
 | `open-round` | `questions` (1..8), `placements?` | Closes the `working` round (or starts round 1) and opens the next |
 | `close-round` | `placements?`, `reason?` | `working` -> `closed`, no new round |
 | `ack-round` | `round` | `sent` -> `working` |
@@ -138,8 +139,9 @@ How people answer each `format` through `POST /api/pick` (`{qid, view, device?, 
   `multi` and `rank` question and refuses one in Claude's ops. Picking it needs `other`, the
   person's own option, which becomes their card's text. Others back that card with
   `POST /api/vote {qid, card, on}`: on a `choice` question that moves their one pick to it; on
-  `multi` and `rank` it is one vote, outside the picks and the Borda count. `scale` and `confirm`
-  take a `comment` instead.
+  `rank` it is one vote, outside the Borda count; on `multi` a person backs any number of them,
+  kept in `backs` (`{qid: {pid: [ref]}}`), outside the picks. `scale` and `confirm` take a
+  `comment` instead.
 - **Disagree.** `POST /api/disagree {qid, card, reason}` on a `decide` question records a reason
   (1..200 characters), one per person per answer; `on: false` takes it back. Vote counts never
   change, and the digest lists each one under its question.
@@ -161,6 +163,25 @@ How people answer each `format` through `POST /api/pick` (`{qid, view, device?, 
   person writing the same route from two tabs or devices within a second gets a 429 on the second
   write, which the page shows as an error to send again. A duplicated tab copies `sessionStorage`,
   so it beats under the original's id and the two share one limit.
+
+## Moderation
+
+Owner-only routes (`X-Owner-Token`); a leader cannot use them.
+
+| Route | Body | Effect |
+|---|---|---|
+| `/api/card/hide` | `{qid, card, on, reason?}` | A hidden answer leaves every other person's snapshot, the tally and the digest; its author still gets it with `hidden {by, at, reason?}`, and a changed version from them shows it again. `on: false` shows it again |
+| `/api/card/edit` | `{qid, card, text}` | Replaces the text and sets `edited {by, at}`, which everyone sees and the digest marks; the replaced version goes to `history`, which only the owner's snapshot carries. A person's own edits also add their earlier versions to `history` (the original kept, then the newest, 50 in all) |
+| `/api/join/act` | `{pid, action: admit\|decline}` | With the `approveJoins` setting on, a join gets a secret but waits (`status: waiting`, 403 `waiting` on every route) in the owner's `joinRequests` until admitted; declining removes the person. People whose secret already resolves are not affected |
+| `/api/session/intro` | `{intro}` | Edits "Why you're here" |
+
+`POST /api/chat/react {id, emoji, on}` (any person) adds or takes back one's own emoji on a chat
+message: only the page's fixed set (`CHAT_EMOJI` in `session.py` and `web/app.js`), at most 20
+distinct per message and 6 per person per message, one tap per 0.3 s. Chat and its reactions stay
+out of the digest; a reaction tells the message's author in one rolled-up notification.
+
+There is no device or address blocking (C35): Remove stops a person's secret, and Approve new joins
+or a new guest link stops a removed person rejoining under a new name.
 
 ## Data contract
 
@@ -291,6 +312,7 @@ node plugins/planning/shared/tests/ui_layout.js
 node plugins/planning/shared/tests/ui_keyboard.js
 node plugins/planning/shared/tests/ui_inputs.js
 node plugins/planning/shared/tests/ui_chat.js
+node plugins/planning/shared/tests/ui_moderation.js
 bash plugins/planning/shared/tests/align.test.sh
 ```
 
@@ -301,6 +323,9 @@ targets, the answer box right under the question, a guest's first view (goal, th
 (the `tour` pref). `ui_inputs.js` types 2000 characters and pastes a 300-character word into each
 input surface on iPhone and Pixel profiles at keyboard-open heights and on a desktop. `ui_chat.js`
 checks the host's unread badge, a frozen tab catching up, and the new-messages pill.
+`ui_moderation.js` checks the intro before question 1 and from the header, a phone's first screen
+with the intro folded, Hide and Edit with the owner-only history, chat reactions, the owner's
+per-person view, and Approve new joins.
 `align.test.sh` (about 3 minutes) is the C41 pixel pass over 47 views; `ALIGN_VIEWS` and
 `ALIGN_SIZES` narrow it.
 

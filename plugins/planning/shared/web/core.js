@@ -32,8 +32,8 @@
   const DEFAULTS = {
     questions: [], answers: {}, ideas: [], presence: [], locks: {}, disagreements: {}, suggestions: {}, chat: [], leaders: [], trusted: [],
     round: { current: 1, status: "open" }, rounds: [], title: "", people: {}, research: {}, requestCounts: { open: 0, byQ: {} }, requests: [],
-    myRequests: [], ended: false, youRemoved: false, removed: [], guestKey: "", shareChanged: false, shareUrl: "",
-    goal: "", uploads: [], myUploads: [], files: {}, mergeRequests: [], myMergeRequests: [], me: null, joinNeedsKey: false,
+    myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], guestKey: "", shareChanged: false, shareUrl: "",
+    goal: "", intro: "", uploads: [], myUploads: [], files: {}, mergeRequests: [], myMergeRequests: [], me: null, joinNeedsKey: false,
     settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true },
   };
 
@@ -73,7 +73,7 @@
     const settings = s.settings || {};
     const view = {
       ...DEFAULTS,
-      schemaVersion: s.schemaVersion, rev: s.rev, title: s.title || "", goal: s.goal || "", ended: !!s.ended, serverTime: s.serverTime,
+      schemaVersion: s.schemaVersion, rev: s.rev, title: s.title || "", goal: s.goal || "", intro: s.intro || "", ended: !!s.ended, serverTime: s.serverTime,
       settings: { ...settings, showNames: settings.names === "full", hideClaude: settings.claudeTake !== "always" },
       people, ownerPid: "host",
       leaders: live.filter(p => p.role === "leader").map(p => p.pid), trusted: live.filter(p => p.trusted && p.pid !== "host").map(p => p.pid),
@@ -144,6 +144,10 @@
           ...(c.pick ? { pick: optIn(c.pick) } : {}), ...(c.picks ? { picks: c.picks.map(optIn) } : {}), ...("value" in c ? { value: c.value } : {}),
           ...(c.order ? { order: c.order.map(optIn) } : {}), ...(other ? { other: true } : {}),
           ...(c.editedAfterVotes ? { editedAfter: c.editedAfterVotes } : {}), ...(c.late ? { late: c.late } : {}),
+          // Phase 4c: hidden by the owner (only its author and the owner get it), edited by the owner, and the
+          // earlier versions (the owner's snapshot only).
+          ...(c.hidden ? { hidden: { ts: c.hidden.at, reason: c.hidden.reason || "" } } : {}), ...(c.edited ? { hostEdited: { ts: c.edited.at } } : {}),
+          ...(c.history ? { history: c.history.map(v => ({ text: v.text, cid: v.by, name: nameOf(v.by), ts: v.at })) } : {}),
           ...(d ? { ctx: { view: d.view, ...(info ? { device: info.kind, browser: info.browser, vw: info.screen?.w, vh: info.screen?.h } : {}) } } : {}) };
       });
     }
@@ -163,7 +167,8 @@
       ...(p.via?.kind === "chat" ? { via: nameOf(p.via.by) } : {}) }));
     view.chat = (s.chat || []).map(m => ({ id: m.id, cid: m.pid, name: nameOf(m.pid), text: m.text, ts: m.at,
       ...(m.replyTo ? { replyTo: { id: m.replyTo.id, cid: m.replyTo.pid, name: nameOf(m.replyTo.pid), text: m.replyTo.excerpt } } : {}),
-      ...(m.proposed ? { forwarded: m.proposed } : {}) }));
+      ...(m.proposed ? { forwarded: m.proposed } : {}), reactions: m.reactions || {} }));
+    view.joinRequests = (s.joinRequests || []).map(j => ({ pid: j.pid, name: j.name, ts: j.at }));
     for (const [qid, lst] of Object.entries(s.results || {})) {
       view.research[qid] = lst.map(x => {
         const r = x.request ? reqText.get(x.request) : null, by = x.by?.kind === "guest-claude" ? x.by.pid : r?.pid;
@@ -202,6 +207,8 @@
     "cannot-vote-own": "You cannot vote for your own answer.",
     "unknown-session": "The session no longer knows this browser. Join again.",
     removed: "The host removed you from this session.",
+    waiting: "The host has not let you in yet. This page opens by itself once they do.",
+    "reaction-cap": "That message has as many reactions as it takes.",
     ended: "This session has ended.",
     "bad-guest-key": "This invite link is no longer valid. Ask the host for the new one.",
     "owner-only": "Only the host can do that.",
@@ -333,6 +340,15 @@
     // TODO(Phase 9): the owner's own image reference; until then images come from Claude's add-asset.
     uploadAsset: () => Promise.reject({ error: "uploads-off", message: "Picture references come from Claude for now." }),
     forward: id => act("/api/chat/propose", { id }),
+    /** One of my emoji on a chat message, on or off (the server takes only its fixed set). */
+    chatReact: (id, emoji, on) => act("/api/chat/react", { id, emoji, on }),
+    /** Owner: hide an answer from everyone else and the digest (reversible), or replace its text. */
+    hideCard: (qid, target, on, reason) => act("/api/card/hide", { qid, card: refOf(qid, target), on, ...(reason ? { reason } : {}) }),
+    editCard: (qid, target, text) => act("/api/card/edit", { qid, card: refOf(qid, target), text }),
+    /** Owner: admit or decline one person waiting under Approve new joins. */
+    joinAct: (pid, action) => act("/api/join/act", { pid, action }),
+    /** Owner: "Why you're here" (empty removes it). */
+    setIntro: intro => act("/api/session/intro", { intro }),
     setColor: color => act("/api/color", { color }),
     setLeader: (pid, on) => act("/api/person/role", { pid, role: on ? "leader" : "guest" }),
     setTrusted: (pid, on) => act("/api/person/trust", { pid, on }),
@@ -413,15 +429,16 @@
   // came back: the server stamps a write before it answers, so that gap is never shorter than a second there.
   const SPACED = new Set(["/api/answer", "/api/pick", "/api/propose", "/api/chat", "/api/suggest", "/api/request", "/api/merge-request",
     "/api/annotate", "/api/rename", "/api/color", "/api/prefs", "/api/about-you", "/api/vote", "/api/react", "/api/disagree",
-    "/api/go-with", "/api/notifications/read"]);
+    "/api/go-with", "/api/notifications/read", "/api/chat/react"]);
   const GAP = 1050; // ms: the server's one-a-second limit, plus a margin for clock rounding
+  const GAPS = { "/api/chat/react": 350 }; // session.CHAT_REACT_INTERVAL is 0.3 s
   const lanes = new Map(); // path -> {tail: promise of the last write, done: when it answered}
   const wait = ms => new Promise(res => setTimeout(res, Math.max(0, ms)));
   function spaced(path, run) {
     if (!SPACED.has(path)) return run();
     const lane = lanes.get(path) || { tail: Promise.resolve(), done: -Infinity };
     lanes.set(path, lane);
-    const mine = lane.tail.then(() => wait(lane.done + GAP - Date.now())).then(run).finally(() => { lane.done = Date.now(); });
+    const mine = lane.tail.then(() => wait(lane.done + (GAPS[path] || GAP) - Date.now())).then(run).finally(() => { lane.done = Date.now(); });
     lane.tail = mine.catch(() => {});
     return mine;
   }
@@ -462,7 +479,9 @@
       const r = await fetch(`/api/state?since=${rev}`, { headers });
       if (r.status === 304) { lastOk = Date.now(); return; }
       const s = await r.json().catch(() => ({}));
-      if (r.status === 403 && s.error === "removed") { Core.state = { ...Core.state, youRemoved: true }; lastOk = Date.now(); return; }
+      if (r.status === 403 && s.error === "removed") { Core.state = { ...Core.state, youRemoved: true, youWaiting: false }; lastOk = Date.now(); return; }
+      // Approve new joins: the person waits until the owner lets them in; the poll keeps asking.
+      if (r.status === 403 && s.error === "waiting") { Core.state = { ...structuredClone(DEFAULTS), title: Core.state.title, youWaiting: true }; lastOk = Date.now(); return; }
       if (r.status === 401 && !ownerToken) { forget(); etag = ""; askName(errorText(s)); return; }
       if (!r.ok) return;
       if (s.outdated || (s.schemaVersion != null && s.schemaVersion !== SCHEMA_VERSION)) return reload("version");

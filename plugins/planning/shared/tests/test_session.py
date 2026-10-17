@@ -2809,5 +2809,366 @@ class TestPresenceStates(SessionCase):
             self.assertIsNone(session.wire_error(e, "presence"), e)
 
 
+# ---------------------------------------------------------------------------------------------
+# Phase 4c: session intro, hide and edit an answer, approve new joins, chat reactions, multi backing
+# Expected values come from PLAN.md Phase 4c (1..600 characters, 20 emoji per message, owner-only
+# history, "Hidden by the host", joins wait) and the hand-built states below.
+# ---------------------------------------------------------------------------------------------
+
+
+def digest_of(case):
+    case.send()
+    digest = case.events("round-sent")[-1]["digest"]
+    event = session.schema.load("event", session.SCHEMA_DIR)
+    case.assertIsNone(session.schema.first_error(digest, event["$defs"]["digest"], "$", event))
+    return digest
+
+
+class TestIntro(SessionCase):
+    INTRO = "Kim asks: help pick the payment step. About 10 minutes. Claude reads your answers when a round is sent; the chat is not sent."
+
+    def test_intro_shown_before_q1(self):
+        ann, _ = self.join("Ann")
+        self.apply({"op": "set-intro", "intro": self.INTRO})
+        self.open_round(text_q("Q1"))
+        snap = self.s.snapshot(ann)
+        self.assertEqual(snap["intro"], self.INTRO)
+        self.assertEqual(snap["questions"][0]["id"], "Q1")
+        self.assertNotIn("intro", self.s.anonymous_view())
+
+    def test_intro_takes_at_most_600_characters(self):
+        self.refused_ops("too-long", {"op": "set-intro", "intro": "x" * 601})
+        self.refused("too-long", "set_intro", HOST, {"intro": "x" * 601})
+        self.apply({"op": "set-intro", "intro": "x" * 600})
+        self.assertEqual(len(self.disk()["session"]["intro"]), 600)
+
+    def test_only_the_owner_edits_the_intro_and_empty_removes_it(self):
+        ann, _ = self.join("Ann")
+        self.act("set_role", HOST, {"pid": ann, "role": "leader"})
+        self.refused("owner-only", "set_intro", ann, {"intro": "Mine now"}, http=403)
+        self.act("set_intro", HOST, {"intro": "Why you're here: the payment step."})
+        self.assertEqual(self.s.snapshot(ann)["intro"], "Why you're here: the payment step.")
+        self.act("set_intro", HOST, {"intro": ""})
+        self.assertNotIn("intro", self.disk()["session"])
+        self.assertEqual(self.s.snapshot(ann)["intro"], "")
+
+
+class TestHideAndEdit(SessionCase):
+    def setUp(self):
+        super().setUp()
+        self.ann, self.bo, self.cy = self.people("Ann", "Bo", "Cy")
+        self.act("set_role", HOST, {"pid": self.ann, "role": "leader"})
+        self.open_round(text_q("Q1"), text_q("Q2", purpose="gather"))
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Pay later, rude words here", "view": "focus"})
+        self.act("vote", self.cy, {"qid": "Q1", "card": f"p:{self.bo}", "on": True})
+        self.bo_ref = f"p:{self.bo}"
+
+    def refs(self, pid, qid="Q1"):
+        return [c["ref"] for c in self.s.snapshot(pid)["cards"][qid]]
+
+    def card(self, pid, ref=None, qid="Q1"):
+        return next(c for c in self.s.snapshot(pid)["cards"][qid] if c["ref"] == (ref or self.bo_ref))
+
+    def test_hidden_card_absent_for_guests_and_digest(self):
+        self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True, "reason": "Off topic"})
+        for viewer in (self.cy, self.ann):  # a guest and a leader
+            self.assertNotIn(self.bo_ref, self.refs(viewer))
+        own = self.card(self.bo)
+        self.assertEqual((own["text"], own["hidden"]["by"], own["hidden"]["reason"]), ("Pay later, rude words here", HOST, "Off topic"))
+        self.assertIn("hidden", self.card(HOST))
+        digest = digest_of(self)
+        self.assertNotIn("rude words", json.dumps(digest))
+        self.assertEqual(digest["people"]["answered"], 1)  # Cy's vote; Bo's hidden answer does not count
+
+    def test_hiding_is_reversible_and_keeps_the_votes(self):
+        self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True})
+        self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": False})
+        self.assertEqual(self.card(self.cy)["votes"], [self.cy])
+        self.assertNotIn("hidden", self.card(self.cy))
+
+    def test_a_hidden_answer_takes_no_vote_and_no_lock(self):
+        self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True})
+        self.refused("no-such-card", "vote", self.ann, {"qid": "Q1", "card": self.bo_ref, "on": True}, http=404)
+        self.refused("no-such-card", "lock", HOST, {"qid": "Q1", "card": self.bo_ref}, http=404)
+        self.refused("no-votes", "lock", self.ann, {"qid": "Q1"}, http=409)
+
+    def test_the_author_edits_and_resends_a_hidden_answer(self):
+        self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True})
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Pay later", "view": "focus"})
+        self.assertIn(self.bo_ref, self.refs(self.cy))
+        self.assertEqual(self.card(self.cy)["text"], "Pay later")
+        self.assertEqual([v["text"] for v in self.card(HOST)["history"]], ["Pay later, rude words here"])
+
+    def test_resending_the_same_text_keeps_it_hidden(self):
+        self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True})
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Pay later, rude words here", "view": "focus"})
+        self.assertNotIn(self.bo_ref, self.refs(self.cy))
+
+    def test_owner_edit_keeps_history_owner_only(self):
+        t0 = self.s.state["cards"]["Q1"][-1]["at"]
+        self.act("edit_card", HOST, {"qid": "Q1", "card": self.bo_ref, "text": "Pay later"})
+        for viewer in (self.cy, self.ann, self.bo):
+            seen = self.card(viewer)
+            self.assertEqual(seen["text"], "Pay later")
+            self.assertEqual(seen["edited"]["by"], HOST)
+            self.assertNotIn("history", seen)
+        self.assertEqual(self.card(HOST)["history"], [{"text": "Pay later, rude words here", "by": self.bo, "at": t0}])
+        top = digest_of(self)["questions"][0]["outcome"]["top"]
+        self.assertEqual(next(e for e in top if e["source"] == "person"), {"text": "Pay later", "votes": 1, "source": "person", "edited": True})
+
+    def test_every_version_keeps_who_and_when(self):
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Second", "view": "focus"})
+        t1 = self.clock.t
+        self.act("edit_card", HOST, {"qid": "Q1", "card": self.bo_ref, "text": "Third, by the host"})
+        t2 = self.clock.t
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Fourth", "view": "focus"})
+        history = self.card(HOST)["history"]
+        self.assertEqual([(v["text"], v["by"]) for v in history], [("Pay later, rude words here", self.bo), ("Second", self.bo), ("Third, by the host", HOST)])
+        self.assertEqual([v["at"] for v in history[1:]], [t1, t2])
+        self.assertNotIn("edited", self.card(self.cy))  # the current text is Bo's own again
+
+    def test_history_keeps_the_original_and_the_newest_versions(self):
+        for i in range(60):
+            self.act("answer", self.bo, {"qid": "Q1", "text": f"Version {i}", "view": "focus"})
+        history = self.s.state["cards"]["Q1"][-1]["history"]
+        self.assertEqual(len(history), 50)  # state.schema.json Card.history maxItems
+        self.assertEqual(history[0]["text"], "Pay later, rude words here")
+        self.assertEqual(history[-1]["text"], "Version 58")
+
+    def test_only_the_owner_hides_and_edits(self):
+        for pid in (self.ann, self.cy):
+            self.refused("owner-only", "hide_card", pid, {"qid": "Q1", "card": self.bo_ref, "on": True}, http=403)
+            self.refused("owner-only", "edit_card", pid, {"qid": "Q1", "card": self.bo_ref, "text": "x"}, http=403)
+        self.refused("no-such-card", "hide_card", HOST, {"qid": "Q1", "card": "c:rec", "on": True}, http=404)
+
+    def test_a_hidden_gather_answer_leaves_the_gathered_list(self):
+        self.act("answer", self.cy, {"qid": "Q2", "text": "Keep it", "view": "focus"})
+        self.act("answer", self.ann, {"qid": "Q2", "text": "Drop it", "view": "focus"})
+        self.act("hide_card", HOST, {"qid": "Q2", "card": f"p:{self.ann}", "on": True})
+        answers = digest_of(self)["questions"][1]["outcome"]["answers"]
+        self.assertEqual([a["text"] for a in answers], ["Keep it"])
+
+
+class TestApproveJoins(SessionCase):
+    def test_join_waits_when_approval_on(self):
+        self.act("update_settings", HOST, {"approveJoins": True})
+        self.clock.tick()
+        out = self.s.join(None, {"name": "Jib"})
+        self.assertTrue(out["waiting"])
+        for read in (lambda: self.s.resolve(secret=out["secret"]), lambda: self.s.snapshot(out["pid"])):
+            with self.assertRaises(session.DomainError) as ctx:
+                read()
+            self.assertEqual((ctx.exception.http, ctx.exception.code), (403, "waiting"))
+        host = self.s.snapshot(HOST)
+        self.assertEqual([(j["pid"], j["name"]) for j in host["joinRequests"]], [(out["pid"], "Jib")])
+        self.assertNotIn(out["pid"], [p["pid"] for p in host["people"]])
+        self.assertEqual(self.notes(HOST, "queue")[-1]["title"], "1 new item in the queue.")
+        self.act("act_on_join", HOST, {"pid": out["pid"], "action": "admit"})
+        self.assertIn(out["pid"], [p["pid"] for p in self.s.snapshot(out["pid"])["people"]])
+        self.assertEqual(self.s.snapshot(HOST)["joinRequests"], [])
+
+    def test_a_waiting_person_cannot_write(self):
+        self.open_round(text_q("Q1"))
+        self.act("update_settings", HOST, {"approveJoins": True})
+        jib, _ = self.join("Jib")
+        self.refused("waiting", "answer", jib, {"qid": "Q1", "text": "Hi", "view": "focus"}, http=403)
+        self.refused("waiting", "heartbeat", jib, {"visible": True}, http=403)
+
+    def test_declining_a_join_removes_the_person(self):
+        self.act("update_settings", HOST, {"approveJoins": True})
+        jib, secret = self.join("Jib")
+        self.act("act_on_join", HOST, {"pid": jib, "action": "decline"})
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.resolve(secret=secret)
+        self.assertEqual(ctx.exception.code, "removed")
+        self.assertIn(jib, [p["pid"] for p in self.s.snapshot(HOST)["removed"]])
+        self.refused("wrong-status", "act_on_join", HOST, {"pid": jib, "action": "admit"}, http=409)
+
+    def test_returning_guests_keep_their_access_when_approval_turns_on(self):
+        self.open_round(text_q("Q1"))
+        ann, secret = self.join("Ann")
+        self.act("update_settings", HOST, {"approveJoins": True})
+        self.assertEqual(self.s.resolve(secret=secret), ann)
+        self.act("answer", ann, {"qid": "Q1", "text": "Still here", "view": "focus"})
+        self.assertEqual(self.s.snapshot(ann)["me"]["pid"], ann)
+
+    def test_only_the_owner_admits(self):
+        ann, _ = self.join("Ann")
+        self.act("set_role", HOST, {"pid": ann, "role": "leader"})
+        self.act("update_settings", HOST, {"approveJoins": True})
+        jib, _ = self.join("Jib")
+        self.refused("owner-only", "act_on_join", ann, {"pid": jib, "action": "admit"}, http=403)
+        self.refused("wrong-status", "set_role", HOST, {"pid": jib, "role": "leader"}, http=409)
+
+    def test_approval_is_off_and_absent_until_the_owner_sets_it(self):
+        self.assertNotIn("approveJoins", self.disk()["session"]["settings"])
+        out = self.s.join(None, {"name": "Ann"})
+        self.assertNotIn("waiting", out)
+        self.assertEqual(self.s.snapshot(out["pid"])["me"]["pid"], out["pid"])
+        self.refused("bad-field", "update_settings", HOST, {"approveJoins": "yes"}, http=400)
+
+
+class TestChatReactions(SessionCase):
+    def setUp(self):
+        super().setUp()
+        self.ann, self.bo, self.cy = self.people("Ann", "Bo", "Cy")
+        self.mid = self.act("chat", self.ann, {"text": "Lunch at noon?"})["id"]
+
+    def react(self, pid, emoji, on=True, mid=None):
+        return self.act("react_chat", pid, {"id": mid or self.mid, "emoji": emoji, "on": on})
+
+    def msg(self, viewer):
+        return next(m for m in self.s.snapshot(viewer)["chat"] if m["id"] == self.mid)
+
+    def test_each_person_toggles_their_own_reaction(self):
+        self.react(self.bo, "👍")
+        self.react(self.cy, "👍")
+        self.react(self.cy, "🎉")
+        self.assertEqual(self.msg(self.ann)["reactions"], {"👍": [self.bo, self.cy], "🎉": [self.cy]})
+        self.react(self.bo, "👍", on=False)
+        self.react(self.cy, "👍", on=False)
+        self.react(self.cy, "🎉", on=False)
+        self.assertNotIn("reactions", self.msg(self.ann))
+        self.assertNotIn("reactions", self.disk()["chat"][0])
+
+    def test_only_the_fixed_emoji_set(self):
+        for emoji in ("x", "<b>", "🦄", "👍👍"):
+            self.refused("bad-field", "react_chat", self.bo, {"id": self.mid, "emoji": emoji, "on": True}, http=400)
+        self.refused("not-found", "react_chat", self.bo, {"id": "M999", "emoji": "👍", "on": True}, http=404)
+
+    def test_a_message_holds_at_most_20_different_emoji(self):
+        people = [self.bo, self.cy, *self.people("Dee", "Eve")]
+        spread = [e for e in session.CHAT_EMOJI][:24]
+        for i, emoji in enumerate(spread[:20]):
+            self.react(people[i % 4], emoji)
+        err = self.refused("reaction-cap", "react_chat", people[0], {"id": self.mid, "emoji": spread[20], "on": True}, http=409)
+        self.assertEqual(err.details["max"], 20)
+        self.react(people[1], spread[0])  # an emoji already on the message still takes more people
+        self.assertEqual(len(self.disk()["chat"][0]["reactions"]), 20)
+
+    def test_one_person_puts_at_most_6_emoji_on_a_message(self):
+        for emoji in session.CHAT_EMOJI[:6]:
+            self.react(self.bo, emoji)
+        self.refused("reaction-cap", "react_chat", self.bo, {"id": self.mid, "emoji": session.CHAT_EMOJI[6], "on": True}, http=409)
+
+    def test_a_reaction_tells_the_author_once_rolled_up(self):
+        self.react(self.bo, "👍")
+        self.react(self.cy, "😂")
+        notes = self.notes(self.ann, "reaction")
+        self.assertEqual(len(notes), 1)
+        self.assertEqual((notes[0]["title"], notes[0]["rollup"]["n"], notes[0]["msg"]), ("2 reactions on your chat message.", 2, self.mid))
+        self.react(self.ann, "👍")  # reacting to one's own message tells no one
+        self.assertEqual(len(self.notes(self.ann, "reaction")), 1)
+
+    def test_who_reacted_honors_show_names(self):
+        self.react(self.bo, "👍")
+        self.react(self.cy, "👍")
+        self.act("update_settings", HOST, {"names": "initials"})
+        self.assertEqual(self.msg(self.cy)["reactions"], {"👍": ["", self.cy]})
+        self.assertEqual(self.msg(HOST)["reactions"], {"👍": [self.bo, self.cy]})
+
+    def test_chat_reactions_stay_out_of_the_digest(self):
+        self.open_round(text_q("Q1"))
+        self.react(self.bo, "🎉")
+        self.assertNotIn("🎉", json.dumps(digest_of(self), ensure_ascii=False))
+
+    def test_a_removed_persons_reaction_is_not_shown(self):
+        self.react(self.bo, "👍")
+        self.act("set_removed", HOST, {"pid": self.bo, "on": True})
+        self.assertNotIn("reactions", self.msg(self.cy))
+
+    def test_the_page_offers_the_same_emoji_the_server_takes(self):
+        app = (SHARED / "web" / "app.js").read_text(encoding="utf-8")
+        listed = app.split("const CHAT_EMOJI = [", 1)[1].split("]", 1)[0]
+        self.assertEqual(json.loads("[" + listed + "]"), list(session.CHAT_EMOJI))
+        self.assertGreaterEqual(len(session.CHAT_EMOJI), 80)
+        self.assertEqual(session.CHAT_EMOJI[:6], ("👍", "👎", "😂", "❤️", "🎉", "😮"))
+
+
+class TestMultiBacking(FormatCase):
+    def setUp(self):
+        super().setUp()
+        self.pick(self.ann, "Q1", options=["other"], other="Apple Pay")
+        self.pick(self.bo, "Q1", options=["opt-1", "other"], other="Klarna")
+
+    def others(self):
+        return {o["text"]: o["backers"] for o in self.outcome("Q1")["outcome"]["others"]}
+
+    def test_a_person_backs_several_own_options_on_multi(self):
+        self.act("vote", self.cy, {"qid": "Q1", "card": f"p:{self.ann}", "on": True})
+        self.act("vote", self.cy, {"qid": "Q1", "card": f"p:{self.bo}", "on": True})
+        self.assertEqual(self.s.state["backs"], {"Q1": {self.cy: [f"p:{self.ann}", f"p:{self.bo}"]}})
+        self.assertNotIn(self.cy, self.s.state["votes"].get("Q1", {}))
+        self.assertEqual(self.s.snapshot(self.cy)["me"]["backs"], {"Q1": [f"p:{self.ann}", f"p:{self.bo}"]})
+        self.assertEqual({c["ref"]: c["votes"] for c in self.s.snapshot(self.ann)["cards"]["Q1"] if c["kind"] == "person"},
+                         {f"p:{self.ann}": [self.cy], f"p:{self.bo}": [self.cy]})
+        self.assertEqual(self.others(), {"Apple Pay": 2, "Klarna": 2})
+
+    def test_unbacking_one_keeps_the_other(self):
+        self.act("vote", self.cy, {"qid": "Q1", "card": f"p:{self.ann}", "on": True})
+        self.act("vote", self.cy, {"qid": "Q1", "card": f"p:{self.bo}", "on": True})
+        self.act("vote", self.cy, {"qid": "Q1", "card": f"p:{self.ann}", "on": False})
+        self.assertEqual(self.others(), {"Apple Pay": 1, "Klarna": 2})
+
+    def test_a_backing_an_earlier_build_kept_in_votes_still_counts_and_comes_off(self):
+        self.s.state["votes"]["Q1"] = {self.cy: f"p:{self.ann}"}  # how 0bbffb3 stored one backing on multi
+        self.act("vote", self.cy, {"qid": "Q1", "card": f"p:{self.bo}", "on": True})
+        self.assertEqual(self.s.state["votes"]["Q1"], {self.cy: f"p:{self.ann}"})
+        self.act("vote", self.cy, {"qid": "Q1", "card": f"p:{self.ann}", "on": False})
+        self.assertNotIn(self.cy, self.s.state["votes"]["Q1"])
+        self.assertEqual(self.others(), {"Apple Pay": 1, "Klarna": 2})
+
+    def test_leaving_something_else_drops_its_backs(self):
+        self.act("vote", self.cy, {"qid": "Q1", "card": f"p:{self.ann}", "on": True})
+        self.pick(self.ann, "Q1", options=["opt-2"])
+        self.assertNotIn("backs", self.s.state)
+        self.assertEqual(self.others(), {"Klarna": 1})
+
+    def test_backs_follow_a_merge(self):
+        self.act("vote", self.cy, {"qid": "Q1", "card": f"p:{self.ann}", "on": True})
+        dee, _ = self.join("Dee")
+        self.act("vote", dee, {"qid": "Q1", "card": f"p:{self.bo}", "on": True})
+        self.act("merge_people", HOST, {"from": dee, "to": self.cy})
+        self.assertEqual(self.s.state["backs"], {"Q1": {self.cy: [f"p:{self.ann}", f"p:{self.bo}"]}})
+
+
+class TestStateFrom0bbffb3(unittest.TestCase):
+    """state.json files the 0bbffb3 build wrote load unchanged and take the Phase 4c writes. The
+    fixtures are that build's state-v1.json and a state its session.py wrote (state-written-0bbffb3.json)."""
+
+    def load(self, name):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        (tmp / "assets").mkdir()
+        shutil.copy(FIXTURES / name, tmp / "state.json")
+        raw = (tmp / "state.json").read_text(encoding="utf-8")
+        s = session.Session.load(tmp / "state.json", clock=Clock(1_760_700_000.0), ids=Ids(), validate_writes=True)
+        self.assertEqual(s.state, json.loads(raw))
+        self.assertEqual((tmp / "state.json").read_text(encoding="utf-8"), raw)  # nothing rewritten on load
+        self.assertEqual(sorted(p.name for p in tmp.iterdir()), ["assets", "state.json"])  # no state.v<N>.json backup
+        return s
+
+    def test_state_v1_fixture_from_0bbffb3_loads_unchanged(self):
+        s = self.load("state-v1.json")
+        self.assertEqual(s.snapshot(HOST)["intro"], "")
+
+    def test_a_state_0bbffb3_wrote_loads_unchanged_and_takes_the_new_writes(self):
+        s = self.load("state-written-0bbffb3.json")
+        ann, bo, cy = "tok0002x9", "tok0004x9", "tok0006x9"
+        s.apply({"ops": [{"op": "set-intro", "intro": "Why you're here: pick the offsite."}]})
+        s.update_settings(HOST, {"approveJoins": True})
+        s.hide_card(HOST, {"qid": "Q3", "card": f"p:{cy}", "on": True})
+        s.edit_card(HOST, {"qid": "Q4", "card": f"p:{bo}", "text": "Two days"})
+        mid = s.state["chat"][0]["id"]
+        s.react_chat(cy, {"id": mid, "emoji": "👍", "on": True})
+        s.vote(cy, {"qid": "Q2", "card": f"p:{ann}", "on": True})
+        self.assertEqual(s.state["votes"]["Q2"], {bo: f"p:{ann}"})  # the earlier build's backing stays in votes
+        self.assertEqual(s.state["backs"], {"Q2": {cy: [f"p:{ann}"]}})
+        self.assertIsNone(session.document_error(json.loads(s.path.read_text(encoding="utf-8"))))
+        reloaded = session.Session.load(s.path, validate_writes=True)
+        self.assertEqual(reloaded.state["session"]["intro"], "Why you're here: pick the offsite.")
+        self.assertEqual(reloaded.snapshot(ann)["me"]["prefs"]["tour"], "done")
+
+
 if __name__ == "__main__":
     unittest.main()

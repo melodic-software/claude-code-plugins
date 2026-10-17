@@ -55,6 +55,7 @@ MAX_TEXT = 2000
 MAX_NOTE = 200
 MAX_TITLE = 80
 MAX_GOAL = 200
+MAX_INTRO = 600
 MAX_NAME = 40
 MAX_PEOPLE = 200
 MAX_EXCERPT = 140
@@ -87,6 +88,10 @@ JOINS_PER_KEY = 60  # judgment: per guest key across all addresses, above JOINS_
 MAX_CHAT = 2000  # the newest messages kept, so chat cannot grow state.json without bound
 MAX_ANNOTATIONS = 2000  # judgment: notes kept across all prototype questions, oldest dropped first
 MAX_SUGGESTIONS = 200  # judgment: suggestions kept per question, oldest dropped first
+MAX_HISTORY = 50  # judgment: earlier versions kept per answer; the original stays, the oldest edits after it go first
+MAX_CHAT_EMOJI = 20  # distinct emoji on one chat message (Phase 4c item 6)
+MAX_MY_CHAT_EMOJI = 6  # judgment: emoji one person puts on one chat message
+CHAT_REACT_INTERVAL = 0.3  # judgment: chat reaction taps come faster than one write a second, and stay bounded
 RATE_PER_SECOND = 100.0  # requests per address on the guest listener: 20 people behind one NAT fit
 RATE_BURST = 200.0
 RATE_KEYS = 10000  # judgment: addresses the rate limit remembers; the least recently seen is forgotten first
@@ -116,7 +121,18 @@ REACTIONS = ("thumbs", "down", "heart", "idea")
 REQUEST_KINDS = ("ask", "research", "explore", "design", "prototype")
 USED_TYPES = ("skill", "workflow", "mcp", "cli")
 TECH_COMFORT = ("low", "ok", "high")
-NOTIFY_KINDS = ("mention", "reply", "request", "proposal", "round", "merge", "role", "queue", "ready", "votes")
+NOTIFY_KINDS = ("mention", "reply", "request", "proposal", "round", "merge", "role", "queue", "ready", "votes", "reaction")
+# Chat reactions (Phase 4c item 6): the quick row first, then the picker's general set. web/app.js holds the
+# same list (CHAT_EMOJI there); test_session.py checks that the two match.
+CHAT_EMOJI = (
+    "👍", "👎", "😂", "❤️", "🎉", "😮",
+    "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "🙂", "🙃", "😉", "😊", "😇", "🥰", "😍",
+    "🤩", "😘", "😋", "😛", "😜", "🤪", "🤗", "🤭", "🤫", "🤔", "🤐", "🤨", "😐", "😑",
+    "😶", "😏", "😒", "🙄", "😬", "😌", "😔", "😪", "😴", "😷", "🤒", "🤯", "🥳", "😎",
+    "🤓", "🧐", "😕", "😟", "🙁", "😯", "😲", "😳", "🥺", "😢", "😭", "😱", "😤", "😡",
+    "👏", "🙌", "👀", "🙏", "💪", "👋", "🤝", "✅", "❌", "💯", "🔥", "✨", "⭐", "💡",
+    "🚀", "🎯", "📌", "⚠️",
+)
 SEQ_KEYS = ("P", "S", "R", "X", "M", "G", "U", "N", "A")
 
 QID = re.compile(r"Q[1-9][0-9]{0,5}")
@@ -138,6 +154,9 @@ DEFAULT_SETTINGS = {
     "claudeTake": "answerFirst",
     "theme": {"mode": "system", "accent": "teal"},
 }
+# Settings a session gains only once the owner sets one, so a state file written before them stays as
+# it was (and still loads in the build before them) until then.
+OPTIONAL_SETTINGS = {"approveJoins": False}
 SETTING_VALUES = {
     "names": ("full", "initials", "someone"),
     "claudeTake": ("answerFirst", "always"),
@@ -325,6 +344,11 @@ def write_private(path, text):
         with contextlib.suppress(OSError):
             os.unlink(tmp)
         raise
+
+
+def _edited(card):
+    """The digest's mark on an answer the owner edited: it carries the current text."""
+    return {"edited": True} if "edited" in card else {}
 
 
 def card_ref(card):
@@ -694,6 +718,8 @@ class Session:
             raise DomainError(401, "unknown-session", "Join the session again.")
         if person["status"]["kind"] == "removed":
             raise DomainError(403, "removed", "The owner removed you from this session.")
+        if person["status"]["kind"] == "waiting":
+            raise DomainError(403, "waiting", "The host has not let you in yet.")
         return person
 
     def _ended(self):
@@ -817,6 +843,7 @@ class Session:
                     None,
                 )
             final = self._unique_name(name or self._guest_name(), new)
+            waiting = st["session"]["settings"].get("approveJoins", False)
             st["people"][new] = {
                 "pid": new,
                 "name": final,
@@ -824,9 +851,12 @@ class Session:
                 "role": "guest",
                 "trusted": False,
                 "color": self._free_color(),
-                "status": {"kind": "active"},
+                "status": {"kind": "waiting", "at": now} if waiting else {"kind": "active"},
             }
             st["credentials"]["secrets"][sha256(secret)] = new
+            if waiting:
+                self._queue_note([HOST], new)
+                was = None
         with self._lock:
             self._joins.pop(window, None)
             self._joins[window] = recent + [now]
@@ -834,7 +864,24 @@ class Session:
             if device:
                 self._presence[new] = {"at": now, "device": device, "tabs": collections.OrderedDict()}
                 self._presence_rev += 1
-        return {"pid": new, "secret": secret, "name": final, **({"was": was} if was else {})}
+        return {"pid": new, "secret": secret, "name": final, **({"was": was} if was else {}), **({"waiting": True} if waiting else {})}
+
+    def act_on_join(self, pid, body):
+        """POST /api/join/act: the owner admits or declines one join waiting under Approve new joins.
+        Declining removes the person, so their secret reads nothing until the owner restores them."""
+        action = _choice(body, "action", ("admit", "decline"))
+        with self._tx() as st:
+            self._owner(pid)
+            target = self._target_person(body)
+            person = st["people"][target]
+            if person["status"]["kind"] != "waiting":
+                raise DomainError(409, "wrong-status", "This person is not waiting to join.", status=person["status"]["kind"])
+            if action == "admit":
+                person["status"] = {"kind": "active"}
+            else:
+                person["status"] = {"kind": "removed", "at": self.now(), "by": HOST}
+            self._presence_rev += 1
+            return {"pid": target, "status": person["status"]["kind"]}
 
     def _prune_joins(self, now):
         """Forget join records whose windows have passed, least recently joined first."""
@@ -872,7 +919,7 @@ class Session:
             return True
         if any(c["kind"] == "person" and c["pid"] == pid for cards in st["cards"].values() for c in cards):
             return True
-        if any(pid in by for by in st["votes"].values()):
+        if any(pid in by for by in [*st["votes"].values(), *st.get("backs", {}).values()]):
             return True
         records = [*st["proposals"], *st["chat"], *st["requests"], *st["annotations"], *st["uploads"]]
         records += [s for lst in st["suggestions"].values() for s in lst]
@@ -990,8 +1037,8 @@ class Session:
             self._owner(pid)
             target = self._target_person(body)
             person = st["people"][target]
-            if person["status"]["kind"] == "removed":
-                raise DomainError(409, "wrong-status", "Restore this person first.", status="removed")
+            if person["status"]["kind"] != "active":
+                raise DomainError(409, "wrong-status", "Restore or admit this person first.", status=person["status"]["kind"])
             if person["role"] != role:
                 person["role"] = role
                 if role == "leader":
@@ -1006,8 +1053,8 @@ class Session:
             self._owner(pid)
             target = self._target_person(body)
             person = st["people"][target]
-            if person["status"]["kind"] == "removed" and on:
-                raise DomainError(409, "wrong-status", "Restore this person first.", status="removed")
+            if person["status"]["kind"] != "active" and on:
+                raise DomainError(409, "wrong-status", "Restore or admit this person first.", status=person["status"]["kind"])
             if person["trusted"] != on:
                 person["trusted"] = on
                 if on:
@@ -1037,6 +1084,8 @@ class Session:
             dst = self._target_person(body, "to")
             if src == dst:
                 raise _bad("to", "Pick two different people.")
+            if "waiting" in (self.state["people"][src]["status"]["kind"], self.state["people"][dst]["status"]["kind"]):
+                raise DomainError(409, "wrong-status", "Admit or decline the waiting join first.", status="waiting")
             self._merge(src, dst)
             return {"pid": dst}
 
@@ -1112,6 +1161,20 @@ class Session:
                     continue
                 fixed[swap(voter)] = ref
             st["votes"][qid] = {v: r for v, r in fixed.items() if not own(v, r)}
+        for qid, by in st.get("backs", {}).items():
+            union = {}
+            for voter, refs in by.items():
+                kept = union.setdefault(swap(voter), [])
+                kept += [r for r in (moved.get((qid, r), r) for r in refs) if r not in kept and not own(swap(voter), r)]
+            st["backs"][qid] = {v: refs for v, refs in union.items() if refs}
+        for cards in st["cards"].values():
+            for c in cards:
+                for version in [c.get("edited"), *c.get("history", ())]:
+                    if version:
+                        version["by"] = swap(version["by"])
+        for m in st["chat"]:
+            for pids in m.get("reactions", {}).values():
+                pids[:] = list(dict.fromkeys(map(swap, pids)))
         for qid, by_card in st["reactions"].items():
             fixed = {}
             for ref, by in by_card.items():
@@ -1486,14 +1549,80 @@ class Session:
     def _cards(self, qid):
         return self.state["cards"].setdefault(qid, [])
 
+    def _shown(self, c):
+        """Whether everyone sees card c: not a person card, or one whose author is active and that the owner has not hidden."""
+        return c["kind"] != "person" or (self._active(c["pid"]) and "hidden" not in c)
+
     def _card(self, qid, ref):
-        """The card `ref` on question qid, if it exists and its author is active."""
+        """The card `ref` on question qid, if everyone sees it (`_shown`)."""
         for c in self.state["cards"].get(qid, []):
             if card_ref(c) == ref:
-                if c["kind"] == "person" and not self._active(c["pid"]):
+                if not self._shown(c):
                     break
                 return c
         raise DomainError(404, "no-such-card", "No such answer on this question.")
+
+    def _person_card(self, body):
+        """(question, card) for the owner's Hide and Edit: a person card of an active author, hidden or not."""
+        q = self._question(_body(body).get("qid"))
+        ref = _ident(body, "card")
+        card = next((c for c in self.state["cards"].get(q["id"], []) if card_ref(c) == ref), None)
+        if card is None or card["kind"] != "person" or not self._active(card["pid"]):
+            raise DomainError(404, "no-such-card", "No such answer on this question.")
+        return q, card
+
+    @staticmethod
+    def _keep_version(card, new_text):
+        """Before a card's text changes: its current version joins `history` (who wrote it and when).
+        The original always stays; past MAX_HISTORY the oldest later versions go first."""
+        if card["text"] == new_text or not card["text"]:
+            return
+        by = card["edited"] if "edited" in card else {"by": card["pid"], "at": card["at"]}
+        history = card.setdefault("history", [])
+        history.append({"text": card["text"], "by": by["by"], "at": by["at"]})
+        del history[1 : max(1, len(history) - MAX_HISTORY + 1)]
+
+    def hide_card(self, pid, body):
+        """POST /api/card/hide: `{qid, card, on, reason?}`, owner only. A hidden answer leaves every
+        other person's view, the tally and the digest; its author still sees it, marked, and the
+        owner can show it again. A new version from its author shows it again."""
+        on = _bool(body, "on")
+        reason = _text(body, "reason", limit=MAX_NOTE, optional=True)
+        with self._tx():
+            self._owner(pid)
+            q, card = self._person_card(body)
+            if on:
+                card["hidden"] = {"by": pid, "at": self.now(), **({"reason": reason} if reason else {})}
+            else:
+                card.pop("hidden", None)
+            return {"card": card_ref(card), "hidden": on}
+
+    def edit_card(self, pid, body):
+        """POST /api/card/edit: `{qid, card, text}`, owner only. The text is replaced and marked
+        edited by the owner; the version it replaces goes to `history`, which only the owner reads."""
+        text = _text(body, "text")
+        with self._tx():
+            self._owner(pid)
+            q, card = self._person_card(body)
+            if text != card["text"]:
+                self._keep_version(card, text)
+                card["text"] = text
+                card["edited"] = {"by": pid, "at": self.now()}
+            return {"card": card_ref(card), "text": card["text"]}
+
+    def _carry(self, mine, card):
+        """A person's new version of their card keeps its history (with the old version added when the
+        text changed); a changed version shows again if the owner had hidden it, and drops the owner's edit mark."""
+        if mine is None:
+            return
+        old = {**mine, "history": copy.deepcopy(mine.get("history", []))}
+        self._keep_version(old, card["text"])
+        if old["history"]:
+            card["history"] = old["history"]
+        if all(mine.get(k) == card.get(k) for k in ("text", "pick", "picks", "value", "order")):
+            for k in ("hidden", "edited"):
+                if k in mine:
+                    card[k] = copy.deepcopy(mine[k])
 
     def _drop_card(self, qid, card):
         ref = card_ref(card)
@@ -1501,6 +1630,7 @@ class Session:
         votes = self.state["votes"].get(qid, {})
         for voter in [v for v, r in votes.items() if r == ref]:
             votes.pop(voter)
+        self._unback(qid, ref)
         self.state["reactions"].get(qid, {}).pop(ref, None)
         by_q = self.state.get("disagreements", {})
         if qid in by_q:
@@ -1517,7 +1647,10 @@ class Session:
         return None
 
     def _votes_on(self, qid, ref):
-        return [v for v, r in self.state["votes"].get(qid, {}).items() if r == ref and self._active(v)]
+        """Active people who vote for card `ref` on qid, or back it as one of several (`backs`, multi)."""
+        voters = [v for v, r in self.state["votes"].get(qid, {}).items() if r == ref]
+        voters += [v for v, refs in self.state.get("backs", {}).get(qid, {}).items() if ref in refs and v not in voters]
+        return [v for v in voters if self._active(v)]
 
     def answer(self, pid, body):
         """POST /api/answer: write, edit or (with empty text) clear one's own answer card."""
@@ -1566,6 +1699,7 @@ class Session:
                 card["view"] = view
                 if late:
                     card["late"] = late
+                self._carry(mine, card)
                 if mine:
                     cards[cards.index(mine)] = card
                     if self._is_other(mine):
@@ -1631,6 +1765,7 @@ class Session:
                 card["view"] = view
                 if late:
                     card["late"] = late
+                self._carry(mine, card)
                 if mine:
                     cards[cards.index(mine)] = card
                 else:
@@ -1679,10 +1814,20 @@ class Session:
         return "pick", ({"pick": option} if option else {})
 
     def _unback(self, qid, ref):
-        """Drop every vote for a card that no longer holds its author's Something else option."""
+        """Drop every vote for, and every backing of, a card that no longer holds its author's Something else option."""
         votes = self.state["votes"].get(qid, {})
         for voter in [v for v, r in votes.items() if r == ref]:
             votes.pop(voter)
+        backs = self.state.get("backs", {})
+        by = backs.get(qid, {})
+        for voter in [v for v, refs in by.items() if ref in refs]:
+            by[voter].remove(ref)
+            if not by[voter]:
+                by.pop(voter)
+        if qid in backs and not by:
+            backs.pop(qid)
+        if "backs" in self.state and not backs:
+            self.state.pop("backs")
 
     def vote(self, pid, body):
         """POST /api/vote: `{qid, card, on}` votes for an answer card, `{qid, suggestion, on}` for a suggestion."""
@@ -1695,6 +1840,8 @@ class Session:
             if ref_author(ref) == pid:
                 raise DomainError(400, "cannot-vote-own", "You cannot vote for your own answer.")
             qid = q["id"]
+            if q["format"]["kind"] == "multi":  # any subset: a person backs as many others' own options as they like
+                return self._back(qid, pid, card, on)
             votes = st["votes"].setdefault(qid, {})
             moved = False
             if on:
@@ -1711,6 +1858,27 @@ class Session:
             elif votes.get(pid) == ref:
                 votes.pop(pid)
             return {"moved": moved}
+
+    def _back(self, qid, pid, card, on):
+        """Back (or stop backing) another person's own option on a multi question, in `backs`, beside
+        any others the person backs. A backing kept in `votes` by an earlier build is taken back too."""
+        st, ref = self.state, card_ref(card)
+        mine = st.setdefault("backs", {}).setdefault(qid, {}).setdefault(pid, [])
+        if on and ref not in mine:
+            mine.append(ref)
+            self._notify_vote(qid, card, pid)
+        elif not on:
+            if ref in mine:
+                mine.remove(ref)
+            if st["votes"].get(qid, {}).get(pid) == ref:
+                st["votes"][qid].pop(pid)
+        if not mine:
+            st["backs"][qid].pop(pid)
+        if not st["backs"][qid]:
+            st["backs"].pop(qid)
+        if not st["backs"]:
+            st.pop("backs")
+        return {"moved": False}
 
     def _card_vote_question(self, body, ref, *, backing=False):
         """(question, card) for a vote on an answer card. Off a text question only `backing` a
@@ -1838,11 +2006,10 @@ class Session:
         each value, rank Borda points (n options: first n-1, last 0). A rank tallies its option
         cards only, since Borda points and votes do not compare."""
         kind = self._question(qid)["format"]["kind"]
-        cards = [c for c in self.state["cards"].get(qid, []) if c["kind"] != "person" or self._active(c["pid"])]
+        cards = [c for c in self.state["cards"].get(qid, []) if self._shown(c)]
         tally = dict.fromkeys(map(card_ref, cards), 0)
-        for voter, ref in self.state["votes"].get(qid, {}).items():
-            if ref in tally and self._active(voter):
-                tally[ref] += 1
+        for ref in tally:
+            tally[ref] += len(self._votes_on(qid, ref))
         for c in cards:
             if c["kind"] != "person":
                 continue
@@ -1867,7 +2034,7 @@ class Session:
     def _backs(self, q, pid, ref):
         """Whether pid supports card `ref` (for sign-off): wrote it, voted for it, picked it (multi),
         chose its value (scale) or ranked it first (rank)."""
-        if ref_author(ref) == pid or self.state["votes"].get(q["id"], {}).get(pid) == ref:
+        if ref_author(ref) == pid or pid in self._votes_on(q["id"], ref):
             return True
         if not ref.startswith("o:"):
             return False
@@ -2144,6 +2311,49 @@ class Session:
         self._wrote(pid, "chat", now)
         return {"id": msg["id"]}
 
+    def react_chat(self, pid, body):
+        """POST /api/chat/react: `{id, emoji, on}` adds or takes back one's own emoji on a chat message.
+        Only CHAT_EMOJI; at most MAX_CHAT_EMOJI distinct ones per message and MAX_MY_CHAT_EMOJI per
+        person per message. A reaction tells the message's author, one rolled-up line per message."""
+        emoji = _choice(body, "emoji", CHAT_EMOJI)
+        on = _bool(body, "on")
+        mid = _ident(body, "id")
+        now = self.now()
+        with self._tx() as st:
+            self._writer(pid)
+            if not st["session"]["settings"]["chat"]:
+                raise DomainError(403, "chat-off", "Chat is off in this session.")
+            self._throttle(pid, "chat-react", now, CHAT_REACT_INTERVAL)
+            msg = next((m for m in st["chat"] if m["id"] == mid and self._active(m["pid"])), None)
+            if msg is None:
+                raise DomainError(404, "not-found", "No such message.")
+            reactions = msg.setdefault("reactions", {})
+            pids = reactions.get(emoji, [])
+            if on and pid not in pids:
+                if emoji not in reactions and len(reactions) >= MAX_CHAT_EMOJI:
+                    raise DomainError(409, "reaction-cap", f"A message takes at most {MAX_CHAT_EMOJI} different emoji.", max=MAX_CHAT_EMOJI)
+                if sum(1 for ps in reactions.values() if pid in ps) >= MAX_MY_CHAT_EMOJI:
+                    raise DomainError(409, "reaction-cap", f"You can put at most {MAX_MY_CHAT_EMOJI} emoji on one message.", max=MAX_MY_CHAT_EMOJI)
+                reactions[emoji] = [*pids, pid]
+                n = sum(len(ps) for ps in reactions.values())
+                self._notify(
+                    msg["pid"],
+                    "reaction",
+                    f"{n} {'reaction' if n == 1 else 'reactions'} on your chat message.",
+                    actor=pid,
+                    rollup=f"chat:{mid}",
+                    window=VOTE_ROLLUP_WINDOW,
+                    msg=mid,
+                )
+            elif not on and pid in pids:
+                pids.remove(pid)
+                if not pids:
+                    reactions.pop(emoji)
+            if not reactions:
+                msg.pop("reactions")
+        self._wrote(pid, "chat-react", now)
+        return {"id": mid, "emoji": emoji, "on": on}
+
     def propose_from_chat(self, pid, body):
         """POST /api/chat/propose: a moderator turns a chat message into its author's proposal."""
         with self._tx() as st:
@@ -2413,6 +2623,20 @@ class Session:
             st["session"]["goal"] = goal
             return {"goal": goal}
 
+    def set_intro(self, pid, body):
+        """POST /api/session/intro: the owner edits "Why you're here" (1..MAX_INTRO characters; empty clears it)."""
+        intro = _text(body, "intro", limit=MAX_INTRO, empty_ok=True)
+        with self._tx():
+            self._owner(pid)
+            return self._put_intro(intro)
+
+    def _put_intro(self, intro):
+        if intro:
+            self.state["session"]["intro"] = intro
+        else:
+            self.state["session"].pop("intro", None)
+        return {"intro": intro}
+
     def end_session(self, pid, body):
         """POST /api/session/end: `on` ends it and writes `session-ended` with the Later list; off reopens."""
         on = _bool(body, "on")
@@ -2551,8 +2775,8 @@ class Session:
         late = []
         for q in st["questions"]:
             for c in st["cards"].get(q["id"], []):
-                if c["kind"] == "person" and c.get("late") and c["at"] > prev and self._active(c["pid"]):
-                    late.append({"id": q["id"], "round": c["late"]["round"], "text": self._said(q, c), **by(c["pid"])})
+                if c["kind"] == "person" and c.get("late") and c["at"] > prev and self._shown(c):
+                    late.append({"id": q["id"], "round": c["late"]["round"], "text": self._said(q, c), **by(c["pid"]), **_edited(c)})
         review = []
         for q in st["questions"]:
             newest = {}
@@ -2628,12 +2852,12 @@ class Session:
         answered, devices = set(), {}
         for qid in qids:
             for c in st["cards"].get(qid, []):
-                if c["kind"] == "person" and self._active(c["pid"]):
+                if c["kind"] == "person" and self._shown(c):
                     answered.add(c["pid"])
                     kind = c.get("device") or c.get("deviceInfo", {}).get("kind")
                     if kind:
                         devices[c["pid"]] = kind
-            answered.update(v for v in st["votes"].get(qid, {}) if self._active(v))
+            answered.update(v for v in [*st["votes"].get(qid, {}), *st.get("backs", {}).get(qid, {})] if self._active(v))
         joined = sum(1 for p in st["people"] if p != HOST and self._active(p))
         out = {"joined": joined, "answered": len(answered)}
         if devices:
@@ -2650,7 +2874,7 @@ class Session:
             tally = self._tally(qid)
             counts = [{"option": label, "votes": tally.get(f"o:{o}", 0)} for o, label in self._options(q).items()]
             for c in self._own_options(q):
-                counts.append({"option": c["text"], "votes": tally[card_ref(c)], "other": True, **by(c["pid"])})
+                counts.append({"option": c["text"], "votes": tally[card_ref(c)], "other": True, **by(c["pid"]), **_edited(c)})
             return {"kind": "poll", "closed": lk is not None, "counts": counts}
         if lk:
             src = lk["source"]
@@ -2669,7 +2893,7 @@ class Session:
                 out["source"] = "edited"
                 out.update(by(lk["by"]))
             return out
-        people = [c for c in st["cards"].get(qid, []) if c["kind"] == "person" and self._active(c["pid"])]
+        people = [c for c in st["cards"].get(qid, []) if c["kind"] == "person" and self._shown(c)]
         if q["purpose"] == "gather":
             answers = []
             for c in people:
@@ -2679,7 +2903,7 @@ class Session:
                 for voter, reaction in st["reactions"].get(qid, {}).get(card_ref(c), {}).items():
                     if self._active(voter):
                         counts[reaction] += 1
-                answers.append({"text": c["text"], "reactions": counts, **by(c["pid"])})
+                answers.append({"text": c["text"], "reactions": counts, **by(c["pid"]), **_edited(c)})
             return {"kind": "gathered", "answers": answers} if answers else {"kind": "unanswered"}
         tally = self._tally(qid)
         ranked = []
@@ -2696,7 +2920,7 @@ class Session:
             entry = {"text": self._card_text(q, ref), "votes": tally[ref], "source": source}
             if self._is_other(c):
                 entry["other"] = True
-            ranked.append(((-tally[ref], ref != "c:rec", c.get("at", 0.0), i), {**entry, **(by(c["pid"]) if c["kind"] == "person" else {})}))
+            ranked.append(((-tally[ref], ref != "c:rec", c.get("at", 0.0), i), {**entry, **(by(c["pid"]) if c["kind"] == "person" else {}), **_edited(c)}))
         if not ranked:
             return {"kind": "unanswered"}
         ranked.sort(key=lambda pair: pair[0])
@@ -2705,17 +2929,17 @@ class Session:
 
     def _own_options(self, q):
         """Active people's own Something else options on q, as their cards."""
-        return [c for c in self.state["cards"].get(q["id"], []) if self._is_other(c) and self._active(c["pid"])]
+        return [c for c in self.state["cards"].get(q["id"], []) if self._is_other(c) and self._shown(c)]
 
     def _format_outcome(self, q, by, *, closed):
         """The digest outcome of a multi, scale or rank question: counts per option (multi), counts
         per value with the mean and median (scale), Borda totals and the full orders given (rank);
         each with people's own options, their backers (author included), and the comments."""
         qid, fmt = q["id"], q["format"]
-        cards = [c for c in self.state["cards"].get(qid, []) if c["kind"] == "person" and self._active(c["pid"])]
+        cards = [c for c in self.state["cards"].get(qid, []) if c["kind"] == "person" and self._shown(c)]
         labels = self._options(q)
-        others = [{"text": c["text"], "backers": len(self._votes_on(qid, card_ref(c))) + 1, **by(c["pid"])} for c in self._own_options(q)]
-        comments = [{"text": c["text"], **by(c["pid"])} for c in cards if c["text"] and not self._is_other(c)]
+        others = [{"text": c["text"], "backers": len(self._votes_on(qid, card_ref(c))) + 1, **by(c["pid"]), **_edited(c)} for c in self._own_options(q)]
+        comments = [{"text": c["text"], **by(c["pid"]), **_edited(c)} for c in cards if c["text"] and not self._is_other(c)]
         if fmt["kind"] == "multi":
             picked = [c["picks"] for c in cards if c.get("picks")]
             counts = [{"option": label, "picks": sum(1 for p in picked if o in p)} for o, label in labels.items()]
@@ -2782,6 +3006,10 @@ class Session:
     def _op_set_goal(self, op):
         self.state["session"]["goal"] = _text(op, "goal", limit=MAX_GOAL, empty_ok=True)
         return {"goal": self.state["session"]["goal"]}
+
+    def _op_set_intro(self, op):
+        """Claude sets "Why you're here" once the owner said yes to its draft in the terminal."""
+        return self._put_intro(_text(op, "intro", limit=MAX_INTRO, empty_ok=True))
 
     def _op_ack_round(self, op):
         r = self._step("ack", CLAUDE)
@@ -3090,6 +3318,7 @@ class Session:
                     "results": sum(1 for lst in st["results"].values() for r in lst if not r["published"]),
                     "uploads": sum(1 for u in st["uploads"] if u["status"]["kind"] == "offered"),
                     "merges": sum(1 for m in st["mergeRequests"] if m["status"]["kind"] == "pending"),
+                    "joins": sum(1 for p in st["people"].values() if p["status"]["kind"] == "waiting"),
                     "proposals": sum(1 for p in st["proposals"] if p["status"]["kind"] == "new" and self._active(p["pid"])),
                 },
                 "unhandled": sum(1 for e in st["log"]["events"] if e["seq"] not in handled and not e.get("withdrawn")),
@@ -3113,25 +3342,7 @@ class Session:
         if self._base_cache and self._base_cache[0] == st["rev"]:
             return self._base_cache[1]
         active = {p for p in st["people"] if self._active(p)}
-        cards = {}
-        for qid, lst in st["cards"].items():
-            votes = st["votes"].get(qid, {})
-            reactions = st["reactions"].get(qid, {})
-            out = []
-            for c in lst:
-                if c["kind"] == "person" and c["pid"] not in active:
-                    continue
-                ref = card_ref(c)
-                shown = {k: v for k, v in c.items() if k not in ("view", "deviceInfo")}
-                shown["ref"] = ref
-                shown["votes"] = sorted(v for v, r in votes.items() if r == ref and v in active)
-                counts = dict.fromkeys(REACTIONS, 0)
-                for voter, reaction in reactions.get(ref, {}).items():
-                    if voter in active:
-                        counts[reaction] += 1
-                shown["reactions"] = counts
-                out.append(shown)
-            cards[qid] = out
+        cards = {qid: [self._public_card(qid, c, active) for c in lst if self._shown(c)] for qid, lst in st["cards"].items()}
         suggestions = {}
         for qid, lst in st["suggestions"].items():
             by = st["suggestionVotes"].get(qid, {})
@@ -3142,6 +3353,7 @@ class Session:
             "rev": st["rev"],
             "title": st["session"]["title"],
             "goal": st["session"]["goal"],
+            "intro": st["session"].get("intro", ""),
             "ended": self._ended(),
             "settings": st["session"]["settings"],
             "rounds": st["rounds"],
@@ -3152,7 +3364,7 @@ class Session:
             "suggestions": suggestions,
             "disagreements": {q: [d for d in lst if d["pid"] in active] for q, lst in st.get("disagreements", {}).items()},
             "results": {q: [r for r in lst if r["published"]] for q, lst in st["results"].items()},
-            "chat": [m for m in st["chat"] if m["pid"] in active],
+            "chat": [self._public_chat(m, active) for m in st["chat"] if m["pid"] in active],
             "annotations": [a for a in st["annotations"] if a["pid"] in active],
             "people": [
                 {k: v[k] for k in ("pid", "name", "role", "trusted", "color", "joinedAt")}
@@ -3164,6 +3376,49 @@ class Session:
         base = json.loads(json.dumps(base))
         self._base_cache = (st["rev"], base)
         return base
+
+    def _public_card(self, qid, c, active):
+        """One card as people read it: never `view`, `deviceInfo` or `history`; with its ref, the
+        active people who vote for or back it, and its Gather reaction counts."""
+        ref = card_ref(c)
+        shown = {k: v for k, v in c.items() if k not in ("view", "deviceInfo", "history")}
+        shown["ref"] = ref
+        shown["votes"] = sorted(self._votes_on(qid, ref))
+        counts = dict.fromkeys(REACTIONS, 0)
+        for voter, reaction in self.state["reactions"].get(qid, {}).get(ref, {}).items():
+            if voter in active:
+                counts[reaction] += 1
+        shown["reactions"] = counts
+        return shown
+
+    @staticmethod
+    def _public_chat(m, active):
+        """A chat message with only active people's reactions."""
+        if "reactions" not in m:
+            return m
+        reactions = {e: [p for p in pids if p in active] for e, pids in m["reactions"].items()}
+        out = {k: v for k, v in m.items() if k != "reactions"}
+        reactions = {e: pids for e, pids in reactions.items() if pids}
+        return {**out, "reactions": reactions} if reactions else out
+
+    def _own_view_cards(self, pid, active):
+        """The questions whose cards this viewer reads differently from everyone: the owner sees hidden
+        answers and every answer's history; an author sees their own hidden answer, marked."""
+        owner = pid == HOST
+        out = {}
+        for qid, lst in self.state["cards"].items():
+            if not any(c["kind"] == "person" and c["pid"] in active and (("hidden" in c and (owner or c["pid"] == pid)) or (owner and "history" in c)) for c in lst):
+                continue
+            rebuilt = []
+            for c in lst:
+                if c["kind"] == "person" and (c["pid"] not in active or ("hidden" in c and not (owner or c["pid"] == pid))):
+                    continue
+                card = self._public_card(qid, c, active)
+                if owner and "history" in c:
+                    card["history"] = c["history"]
+                rebuilt.append(card)
+            out[qid] = copy.deepcopy(rebuilt)
+        return out
 
     def _request_counts(self):
         by_q = {}
@@ -3183,9 +3438,15 @@ class Session:
             owner = pid == HOST
             mode = "full" if moderator else st["session"]["settings"]["names"]
             snap = dict(base)
+            own = self._own_view_cards(pid, {p["pid"] for p in base["people"]})
+            if own:
+                snap["cards"] = {**base["cards"], **own}
             if mode != "full":
                 snap["people"] = [{**p, "name": initials(p["name"]) if mode == "initials" else "Someone"} for p in base["people"]]
-                snap["cards"] = {q: [{**c, "votes": [v if v == pid else "" for v in c["votes"]]} for c in lst] for q, lst in base["cards"].items()}
+                snap["cards"] = {q: [{**c, "votes": [v if v == pid else "" for v in c["votes"]]} for c in lst] for q, lst in snap["cards"].items()}
+                snap["chat"] = [
+                    {**m, "reactions": {e: [p if p == pid else "" for p in ps] for e, ps in m["reactions"].items()}} if "reactions" in m else m for m in base["chat"]
+                ]
                 snap["suggestions"] = {q: [{**s, "votes": [v if v == pid else "" for v in s["votes"]]} for s in lst] for q, lst in base["suggestions"].items()}
                 snap["disagreements"] = {q: [{**d, "pid": d["pid"] if d["pid"] == pid else ""} for d in lst] for q, lst in base["disagreements"].items()}
             now = self.now()
@@ -3203,6 +3464,7 @@ class Session:
                 "notifications": copy.deepcopy(notes[-NOTIFY_SHOWN:]),
                 "unread": sum(1 for n in notes if not n["read"]),
                 "votes": {q: by[pid] for q, by in st["votes"].items() if pid in by},
+                "backs": {q: list(by[pid]) for q, by in st.get("backs", {}).items() if pid in by},
                 "reactions": {q: {r: by[pid] for r, by in refs.items() if pid in by} for q, refs in st["reactions"].items()},
                 "suggestionVotes": {q: by[pid] for q, by in st["suggestionVotes"].items() if pid in by},
                 "aboutYou": copy.deepcopy(st["aboutYou"].get(pid)),
@@ -3221,6 +3483,9 @@ class Session:
                 snap["aboutYou"] = copy.deepcopy(st["aboutYou"])
                 snap["removed"] = [
                     {k: v[k] for k in ("pid", "name", "role", "trusted", "color", "joinedAt")} for v in st["people"].values() if v["status"]["kind"] == "removed"
+                ]
+                snap["joinRequests"] = [
+                    {"pid": v["pid"], "name": v["name"], "at": v["status"]["at"]} for v in st["people"].values() if v["status"]["kind"] == "waiting"
                 ]
                 snap["cardDetails"] = {
                     qid: {card_ref(c): {k: copy.deepcopy(c[k]) for k in ("view", "deviceInfo") if k in c} for c in lst if c["kind"] == "person"}
@@ -3255,7 +3520,9 @@ class Session:
             touched = {
                 qid
                 for qid in qids
-                if p in st["votes"].get(qid, {}) or any(c["kind"] == "person" and c["pid"] == p for c in st["cards"].get(qid, []))
+                if p in st["votes"].get(qid, {})
+                or p in st.get("backs", {}).get(qid, {})
+                or any(c["kind"] == "person" and c["pid"] == p for c in st["cards"].get(qid, []))
             }
             out[p] = len(qids) - len(touched)
         return out
@@ -3266,7 +3533,7 @@ def _settings_patch(settings, patch):
     if not isinstance(patch, dict):
         raise _bad("settings", "settings must be an object.")
     for k, v in patch.items():
-        if k not in DEFAULT_SETTINGS:
+        if k not in DEFAULT_SETTINGS and k not in OPTIONAL_SETTINGS:
             raise _bad(k, f"{k} is not a setting.")
         if k == "theme":
             if not isinstance(v, dict) or set(v) - set(THEME_VALUES) or any(v[t] not in THEME_VALUES[t] for t in v):

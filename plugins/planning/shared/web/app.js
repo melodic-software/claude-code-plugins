@@ -39,6 +39,16 @@
     const roundStatus = n => (Core.state.rounds || []).find(r => r.n === n)?.status || (n < curRound().current ? "closed" : curRound().status);
     /** The confirm question's written answer: named apart from the "Something else…" option of choice questions. */
     const CONFIRM_OTHER = "Not exactly";
+    // Chat reactions (Phase 4c): the quick row, then the More picker's general set. session.py takes exactly these
+    // (CHAT_EMOJI there; test_session.py checks the two match). Plain Unicode: no library, no network.
+    const CHAT_EMOJI = ["👍", "👎", "😂", "❤️", "🎉", "😮",
+      "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "🙂", "🙃", "😉", "😊", "😇", "🥰", "😍",
+      "🤩", "😘", "😋", "😛", "😜", "🤪", "🤗", "🤭", "🤫", "🤔", "🤐", "🤨", "😐", "😑",
+      "😶", "😏", "😒", "🙄", "😬", "😌", "😔", "😪", "😴", "😷", "🤒", "🤯", "🥳", "😎",
+      "🤓", "🧐", "😕", "😟", "🙁", "😯", "😲", "😳", "🥺", "😢", "😭", "😱", "😤", "😡",
+      "👏", "🙌", "👀", "🙏", "💪", "👋", "🤝", "✅", "❌", "💯", "🔥", "✨", "⭐", "💡",
+      "🚀", "🎯", "📌", "⚠️"];
+    const QUICK_EMOJI = CHAT_EMOJI.slice(0, 6);
     const PURPOSE = { decide: ["Decide", "Vote, then a moderator locks the answer"], gather: ["Gather", "Every answer stands; react to the ones you like"],
       poll: ["Poll", "Pick one; results show once you pick, and the host closes it"] };
     // ---------- my preferences: the server's copy (state.me.prefs) once I have joined, this browser's copy before ----------
@@ -761,10 +771,19 @@
     const orGoal = E("p", "vf-orient-goal"), orAsk = E("p", "vf-orient-ask");
     const orRow = E("div", "vf-orient-row");
     const orStart = btn("vf-btn vf-btn-primary vf-orient-start"), orTour = btn("vf-btn vf-btn-ghost vf-orient-tour", "Show me around");
-    orRow.append(orStart, orTour);
+    // Phase 4c: "Why you're here", the intro the owner confirmed. Open on a wide screen's first view; on a phone, and on
+    // later visits, it folds behind its toggle so the question, "Something else…" and the answer box stay on screen.
+    const orWhyBtn = btn("vf-btn vf-btn-ghost vf-orient-whybtn", "Why you're here"); orWhyBtn.setAttribute("aria-expanded", "false");
+    const orWhy = E("div", "vf-orient-why"); orWhy.id = "vf-orient-why"; orWhyBtn.setAttribute("aria-controls", orWhy.id);
+    const orIntro = E("p", "vf-orient-intro"), orHow = E("p", "vf-orient-how");
+    orWhy.append(orIntro, orHow);
+    orRow.append(orStart, orWhyBtn, orTour);
     const orHide = ibtn("vf-tbtn vf-icon-btn vf-orient-x", "x", "Hide this introduction");
-    orient.append(orHide, orH, orGoal, orAsk, orRow);
+    orient.append(orHide, orH, orGoal, orAsk, orRow, orWhy);
+    orWhyBtn.onclick = () => { ui.introOpen = !introOpen(); render(); };
     orHide.onclick = () => { ui.orientHidden = true; render(); qText.focus({ preventScroll: true }); };
+    const introOpen = () => !!ui.introOpen;
+    const INTRO_SEEN = () => "vf-intro-seen:" + (Core.me.cid || "anon");
 
     // Research and ask requests
     const tools = E("div", "vf-qtools");
@@ -982,7 +1001,15 @@
     hRoundRow.append(hCancel, hSend);
     const hGoalLabel = E("h3", "vf-pop-sub", "Goal"), hGoal = E("p", "vf-hgoal"), hGoalEdit = btn("vf-btn vf-btn-ghost vf-btn-sm", "Edit goal");
     const hGoalRow = E("div", "vf-hgoal-row"); hGoalRow.append(hGoal, hGoalEdit);
-    hRound.append(hRoundName, hSteps, hRoundNote, hRoundRow, hGoalLabel, hGoalRow);
+    // Phase 4c: the owner edits "Why you're here" here; Claude drafts the first one in the terminal.
+    const hIntroLabel = E("label", "vf-pop-sub vf-hintro-l", "Why you're here"); hIntroLabel.htmlFor = "vf-hintro";
+    const hIntroIn = E("textarea", "vf-ta vf-hintro"); hIntroIn.id = "vf-hintro"; hIntroIn.maxLength = 600; hIntroIn.rows = 3;
+    hIntroIn.placeholder = "Who is asking, why, about how long it takes, and what happens to the answers";
+    const hIntroRow = E("div", "vf-crow"), hIntroCount = E("span", "vf-count-txt");
+    const hIntroSave = btn("vf-btn vf-btn-primary vf-btn-sm", "Save introduction");
+    hIntroRow.append(hIntroCount, E("span", "vf-spacer"), hIntroSave);
+    const hIntroShown = E("p", "vf-hgoal vf-hintro-shown");
+    hRound.append(hRoundName, hSteps, hRoundNote, hRoundRow, hGoalLabel, hGoalRow, hIntroLabel, hIntroShown, hIntroIn, hIntroRow);
     // queue
     const qFilters = E("div", "vf-chips vf-qfilters"); qFilters.setAttribute("role", "group"); qFilters.setAttribute("aria-label", "Show in the queue");
     const qfBtns = {};
@@ -1105,6 +1132,7 @@
       ["digestNames", "Names to Claude", "Send who answered along with the round"],
       ["uploads", "Uploads", "Let people offer files; you accept each one"],
       ["hideClaude", "Answer first", "Claude's cards show once a person answered or voted; each person can change it"],
+      ["approveJoins", "Approve new joins", "New people wait in the queue until you let them in; people already here are not affected"],
     ]) {
       const b = btn("vf-sw-row"); b.setAttribute("role", "switch");
       const txt = E("span", "vf-sw-txt"); txt.append(E("span", "vf-sw-label", label), E("span", "vf-sw-desc", desc));
@@ -1156,8 +1184,121 @@
       keyList.append(dt, E("dd", null, d));
     }
     const helpTour = btn("vf-btn vf-btn-primary vf-btn-sm vf-help-tour", "Show me around");
-    keysPop.append(E("h2", "vf-pop-title", "Help"), E("p", "vf-pop-note", "A one-minute tour of the questions, your answer, other people's answers and the chat."), helpTour,
+    const helpIntro = btn("vf-btn vf-btn-ghost vf-btn-sm vf-help-intro", "Why you're here");
+    keysPop.append(E("h2", "vf-pop-title", "Help"), E("p", "vf-pop-note", "A one-minute tour of the questions, your answer, other people's answers and the chat."), helpTour, helpIntro,
       E("h3", "vf-pop-sub", "Keyboard shortcuts"), keyList, E("p", "vf-pop-note", "They work when you are not typing in a field."));
+
+    // Phase 4c: "Why you're here", reopened from the header (or More on a phone) after the first view.
+    const introPop = E("div", "vf-pop vf-intropop"); introPop.setAttribute("role", "dialog"); introPop.setAttribute("aria-labelledby", "vf-intropop-h"); introPop.hidden = true;
+    const ipH = E("h2", "vf-pop-title", "Why you're here"); ipH.id = "vf-intropop-h";
+    const ipText = E("p", "vf-intropop-t"), ipGoal = E("p", "vf-pop-note vf-intropop-goal");
+    const ipEdit = btn("vf-btn vf-btn-ghost vf-btn-sm", "Edit in Host view");
+    introPop.append(ipH, ipText, ipGoal, ipEdit);
+    const introBtn = ibtn("vf-tbtn vf-icon-btn vf-introbtn", "doc", "Why you're here"); introBtn.setAttribute("aria-haspopup", "dialog");
+
+    // Phase 4c: the owner edits one answer's text; every earlier version, with who and when, shows only here.
+    const editPop = E("div", "vf-pop vf-editpop"); editPop.setAttribute("role", "dialog"); editPop.setAttribute("aria-labelledby", "vf-editpop-h"); editPop.hidden = true;
+    const epH = E("h2", "vf-pop-title", "Edit this answer"); epH.id = "vf-editpop-h";
+    const epNote = E("p", "vf-pop-note", "Everyone sees \"Edited by the host\" on it. Earlier versions stay here, for you only.");
+    const epTa = E("textarea", "vf-ta vf-edit-ta"); epTa.maxLength = 2000; epTa.rows = 4; epTa.setAttribute("aria-label", "Answer text");
+    const epRow = E("div", "vf-crow"), epCancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel"), epSave = btn("vf-btn vf-btn-primary vf-btn-sm", "Save edit");
+    epRow.append(E("span", "vf-spacer"), epCancel, epSave);
+    const epHistH = E("h3", "vf-pop-sub", "Earlier versions"), epHist = E("ol", "vf-history"); epHist.setAttribute("aria-label", "Earlier versions");
+    editPop.append(epH, epNote, epTa, epRow, epHistH, epHist);
+    /** The history list: oldest first, each with who wrote it and when. */
+    function fillHistory(ol, history) {
+      ol.replaceChildren(...(history || []).map(v => {
+        const li = E("li", "vf-hist");
+        li.append(E("span", "vf-hist-who", `${v.cid === "host" ? "The host" : disp(v.name)}, ${ago(v.ts)} ago`), E("span", "vf-hist-t", v.text));
+        return li;
+      }));
+    }
+    function openEdit(qid, a, anchor) {
+      ui.editing = { qid, ref: a.ref, cid: a.cid };
+      epTa.value = a.text || "";
+      fillHistory(epHist, a.history);
+      epHistH.hidden = epHist.hidden = !(a.history || []).length;
+      openPop(editPop, anchor);
+      requestAnimationFrame(() => epTa.focus());
+    }
+    epCancel.onclick = () => closePop();
+    epSave.onclick = () => {
+      const e = ui.editing, text = epTa.value.trim();
+      if (!e) return;
+      if (!text) { epTa.focus(); return flash("An edit needs text. To take an answer away from everyone, hide it instead."); }
+      epSave.disabled = true;
+      Core.editCard(e.qid, e.ref, text).then(() => { closePop(); flash("Edited. Everyone sees \"Edited by the host\" on it."); }).catch(fail).finally(() => { epSave.disabled = false; });
+    };
+    /** Hide or show one answer again (owner). */
+    const toggleHidden = (qid, a) => Core.hideCard(qid, a.ref, !a.hidden)
+      .then(() => flash(a.hidden ? "Shown again to everyone." : "Hidden from everyone else and from Claude's digest. Its author still sees it, marked."))
+      .catch(fail);
+
+    // Phase 4c: one person at a glance for the owner: every answer, pick, vote, request and chat line, with Hide, Edit
+    // beside each answer and Remove for the person.
+    const personPop = E("div", "vf-pop vf-panel vf-personpop"); personPop.setAttribute("role", "dialog"); personPop.setAttribute("aria-labelledby", "vf-personpop-h"); personPop.hidden = true;
+    const ppvHead = E("div", "vf-pp-head"), ppvH = E("h2", "vf-pop-title"); ppvH.id = "vf-personpop-h";
+    const ppvClose = ibtn("vf-tbtn vf-icon-btn", "x", "Close");
+    ppvHead.append(ppvH, ppvClose);
+    const ppvRemove = btn("vf-btn vf-btn-ghost vf-btn-sm vf-btn-danger");
+    const ppvBody = E("div", "vf-pscroll vf-ppv-body");
+    personPop.append(ppvHead, ppvRemove, ppvBody);
+    ppvClose.onclick = () => closePop();
+    ppvRemove.onclick = guarded(() => !(Core.state.removed || []).includes(ui.personView) && removeAsk(nameOf(ui.personView)), () => {
+      const pid = ui.personView, out = (Core.state.removed || []).includes(pid);
+      Core.removePerson(pid, !out).then(() => flash(out ? "Restored. Their content shows again." : `${disp(nameOf(pid))} was removed. Their content is hidden.`)).catch(fail);
+    });
+    function openPersonView(pid, anchor) { ui.personView = pid; ppvBody._sig = ""; fillPersonView(); openPanel(personPop, anchor); }
+    /** The person view's sections, rebuilt only when what they show changed, so focus stays put across polls. */
+    function fillPersonView() {
+      const S = Core.state, pid = ui.personView;
+      if (!pid) return;
+      const name = nameOf(pid), gone = (S.removed || []).includes(pid);
+      ppvH.textContent = `${disp(name)}: everything they did`;
+      ppvRemove.textContent = gone ? `Restore ${disp(name)}` : `Remove ${disp(name)}`;
+      ppvRemove.hidden = pid === "host";
+      const answers = [], votes = [];
+      for (const q of S.questions) {
+        for (const a of Core.answersFor(q.id)) {
+          if (a.cid === pid && !a.claude && !a.option) answers.push([q, a]);
+          else if ((a.votes || []).includes(pid)) votes.push([q, a]);
+        }
+      }
+      const reqs = (S.requests || []).filter(r => r.cid === pid), msgs = S.chat.filter(m => m.cid === pid);
+      const sig = JSON.stringify([name, gone, answers.map(([q, a]) => [q.id, a.ref, a.text, a.pick, a.picks, a.value, a.order, !!a.hidden, !!a.hostEdited, (a.history || []).length]),
+        votes.map(([q, a]) => [q.id, a.ref, a.text]), reqs.map(r => [r.id, r.status, r.text]), msgs.map(m => [m.id, m.text])]);
+      if (ppvBody._sig === sig) return;
+      ppvBody._sig = sig;
+      const section = (title, rows, empty) => {
+        const s = E("section", "vf-ppv-sec"), ul = E("ul", "vf-ppv-list");
+        s.append(E("h3", "vf-pop-sub", `${title} (${rows.length})`));
+        if (rows.length) { ul.append(...rows); s.append(ul); } else s.append(E("p", "vf-pop-note", empty));
+        return s;
+      };
+      const row = (head, text, ...acts) => {
+        const li = E("li", "vf-ppv-item"), top2 = E("div", "vf-ppv-head");
+        top2.append(E("span", "vf-ppv-q", head));
+        li.append(top2, E("p", "vf-ppv-t", text));
+        if (acts.length) { const r = E("div", "vf-acts"); r.append(...acts); li.append(r); }
+        return li;
+      };
+      const ansRows = answers.map(([q, a]) => {
+        const said = [a.text, pickedText(q, a)].filter(Boolean).join(" | ") || "(no text)";
+        const marks = [a.hidden ? "hidden" : "", a.hostEdited ? "edited by you" : "", (a.history || []).length ? `${a.history.length} earlier version${a.history.length === 1 ? "" : "s"}` : ""].filter(Boolean);
+        const hide = btn("vf-btn vf-btn-ghost vf-btn-sm", a.hidden ? "Show" : "Hide");
+        hide.setAttribute("aria-label", `${a.hidden ? "Show" : "Hide"} ${disp(name)}'s answer on ${q.id}`);
+        hide.onclick = () => toggleHidden(q.id, a);
+        const edit = btn("vf-btn vf-btn-ghost vf-btn-sm", "Edit");
+        edit.setAttribute("aria-label", `Edit ${disp(name)}'s answer on ${q.id}`);
+        edit.onclick = () => openEdit(q.id, a, edit);
+        return row(`${q.id}${marks.length ? ` (${marks.join(", ")})` : ""}`, said, hide, edit);
+      });
+      const voteRows = votes.map(([q, a]) => row(q.id, a.option ? `Picked: ${a.text}` : a.claude ? `Voted for Claude's card: ${a.text}` : `Voted for ${disp(a.name)}'s answer: ${a.text}`));
+      const reqRows = reqs.map(r => row(`${r.qid}, ${r.status}`, `${KIND_REQ[r.kind] || "Request"}: ${r.text}`));
+      const chatRows = msgs.map(m => row(`${ago(m.ts)} ago`, m.text));
+      ppvBody.replaceChildren(section("Answers and picks", ansRows, "No answers."), section("Votes", voteRows, "No votes."),
+        section("Requests to Claude", reqRows, "No requests."), section("Chat", chatRows, "No chat messages."));
+    }
 
     // Reader: one text at full width.
     const reader = E("div", "vf-reader"); reader.setAttribute("role", "dialog"); reader.setAttribute("aria-modal", "true"); reader.hidden = true;
@@ -1212,6 +1353,7 @@
     const NOTE_KINDS = [["mention", "Mentions of me", "at"], ["reply", "Replies to my messages", "reply"], ["request", "My requests to Claude", "sparkle"],
       ["proposal", "My proposals placed or not", "forward"], ["round", "New rounds", "list"], ["merge", "Merges I asked for", "merge"],
       ["role", "Made leader or trusted", "host"], ["votes", "Agreement with my answers, once an hour", "thumb"],
+      ["reaction", "Reactions to my chat messages", "chat"],
       ["queue", "New items in the host queue", "host"], ["ready", "A round marked ready", "check"]];
     const bellPop = E("div", "vf-pop vf-bellpop"); bellPop.setAttribute("role", "dialog"); bellPop.setAttribute("aria-label", "Notifications"); bellPop.hidden = true;
     const bpHead = E("div", "vf-pp-head");
@@ -1243,6 +1385,7 @@
     const msAsk = msItem("sparkle", "Ask Claude"), msBell = msItem("bell", "Notifications"), msTheme = msItem("system", "Theme");
     const msFollow = msItem("forward", "Follow host"), msShare = msItem("link", "Share"), msSettings = msItem("gear", "Settings"), msHost = msItem("host", "Host view");
     const msTour = msItem("help", "Show me around"); msTour._d.textContent = "A one-minute tour";
+    const msIntro = msItem("doc", "Why you're here");
     moreSheet.append(msHead, msList);
 
     // ---------- Triage 4: an optional first-visit tour, skippable, re-opened from Help; the `tour` pref remembers it ----------
@@ -1371,7 +1514,8 @@
     const devWarn = E("p", "vf-devwarn");
     devicePop.append(E("h2", "vf-pop-title", "Use on another device"), E("p", "vf-pop-note", "Scan this on your phone, or open the link in another browser. You stay the same person there, with your answers and votes."), qrBox, devField, devRow, devWarn);
 
-    root.append(top, body, tabs, fab, chat, pcard, settingsPop, sharePop, keysPop, PP.pop, RQ.pop, confirmPop, tiePop, proposePop, askMenu, citePop, msgMenu, askPanel, devicePop,
+    keysBtn.before(introBtn);
+    root.append(top, body, tabs, fab, chat, pcard, settingsPop, sharePop, keysPop, introPop, editPop, personPop, PP.pop, RQ.pop, confirmPop, tiePop, proposePop, askMenu, citePop, msgMenu, askPanel, devicePop,
       bellPop, moreSheet, mentionBox, reader, lb, toast, srLive, tour);
 
     // ---------- actions ----------
@@ -1805,6 +1949,50 @@
     };
     on(apTa, "keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); apForm.requestSubmit(); } });
 
+    // ---------- Phase 4c: chat reactions ----------
+    const reactPop = E("div", "vf-pop vf-reactpop"); reactPop.setAttribute("role", "dialog"); reactPop.setAttribute("aria-label", "Add a reaction"); reactPop.hidden = true;
+    const rpQuick = E("div", "vf-rp-quick"); rpQuick.setAttribute("role", "group"); rpQuick.setAttribute("aria-label", "Quick reactions");
+    const rpMore = btn("vf-btn vf-btn-ghost vf-btn-sm vf-rp-more", "More"); rpMore.setAttribute("aria-expanded", "false");
+    const rpGrid = E("div", "vf-rp-grid"); rpGrid.setAttribute("role", "group"); rpGrid.setAttribute("aria-label", "More reactions"); rpGrid.hidden = true;
+    const emojiBtn = e => {
+      const b = btn("vf-rp-e", e); b.dataset.e = e; b.setAttribute("aria-label", `React with ${e}`);
+      b.onclick = () => {
+        const m = ui.reactMsg; if (!m) return;
+        const mine = (m.reactions?.[e] || []).includes(Core.me.cid);
+        closePop(); Core.chatReact(m.id, e, !mine).catch(fail);
+      };
+      return b;
+    };
+    rpQuick.append(...QUICK_EMOJI.map(emojiBtn), rpMore);
+    rpGrid.append(...CHAT_EMOJI.slice(QUICK_EMOJI.length).map(emojiBtn));
+    rpMore.onclick = () => { rpGrid.hidden = !rpGrid.hidden; rpMore.setAttribute("aria-expanded", String(!rpGrid.hidden)); if (!rpGrid.hidden) rpGrid.firstChild.focus(); };
+    reactPop.append(rpQuick, rpGrid);
+    root.append(reactPop);
+    function openReactPop(m, anchor) {
+      if (!m) return;
+      ui.reactMsg = m; rpGrid.hidden = true; rpMore.setAttribute("aria-expanded", "false");
+      for (const b of reactPop.querySelectorAll(".vf-rp-e")) b.setAttribute("aria-pressed", String((m.reactions?.[b.dataset.e] || []).includes(Core.me.cid)));
+      openPop(reactPop, anchor);
+    }
+    /** A message's reaction chips: emoji, count and who (as Show names allows); a tap adds or takes back mine. */
+    function fillReactChips(k, m) {
+      const entries = Object.entries(m.reactions || {});
+      const sig = JSON.stringify(entries) + Core.me.cid + st().showNames;
+      k.reactAdd.hidden = (!!Core.state.ended && !Core.me.isOwner) || !!Core.state.youRemoved;
+      if (k.reactChips._sig === sig) return;
+      k.reactChips._sig = sig;
+      k.reactChips.replaceChildren(...entries.map(([e, pids]) => {
+        const mine = pids.includes(Core.me.cid), b = btn("vf-mreact");
+        b.append(E("span", "vf-mreact-e", e), E("span", "vf-mreact-n", String(pids.length)));
+        const who = pids.map(p => (isMe(p) ? "you" : p ? disp(nameOf(p)) : "someone"));
+        b.setAttribute("aria-pressed", String(mine));
+        b.setAttribute("aria-label", `${e} ${pids.length}, from ${who.join(", ")}. ${mine ? "Take yours back" : "Add yours"}`);
+        b.title = who.join(", ");
+        b.onclick = () => Core.chatReact(m.id, e, !mine).catch(fail);
+        return b;
+      }));
+    }
+
     // ---------- chat message menu ----------
     function openMsgMenu(m, anchor) {
       if (!m) return;
@@ -1925,6 +2113,23 @@
     msAsk.onclick = () => { closePop(); openAskPanel(); };
     msBell.onclick = () => { closePop(); openBell(tabBtns.more); };
     msTour.onclick = () => startTour(tabBtns.more);
+    function openIntro(anchor) {
+      const S = Core.state;
+      ipText.textContent = S.intro || "The host has not written an introduction yet.";
+      ipGoal.textContent = S.goal ? `Goal: ${S.goal}` : ""; ipGoal.hidden = !S.goal;
+      ipEdit.hidden = !Core.me.isOwner;
+      openPop(introPop, anchor);
+    }
+    introBtn.onclick = () => (ui.pop === introPop ? closePop() : openIntro(introBtn));
+    msIntro.onclick = () => { closePop(); openIntro(tabBtns.more.offsetParent ? tabBtns.more : top); };
+    helpIntro.onclick = () => { closePop(); openIntro(keysBtn.offsetParent ? keysBtn : gear.offsetParent ? gear : top); };
+    on(hIntroIn, "input", () => { ui.introDirty = hIntroIn.value.trim() !== (Core.state.intro || ""); counter(hIntroCount, hIntroIn, 500); hIntroSave.disabled = !ui.introDirty; });
+    hIntroSave.onclick = () => {
+      hIntroSave.disabled = true;
+      Core.setIntro(hIntroIn.value.trim()).then(() => { ui.introDirty = false; flash("Introduction saved. Guests see it before question 1."); render(); })
+        .catch(e => { hIntroSave.disabled = false; fail(e); });
+    };
+    ipEdit.onclick = () => { closePop(); setMode("host"); if (phone.matches) setTab("host"); requestAnimationFrame(() => hIntroIn.focus()); };
     helpTour.onclick = () => startTour(keysBtn.offsetParent ? keysBtn : null);
     orTour.onclick = () => startTour(orTour);
     orStart.onclick = () => {
@@ -2630,6 +2835,11 @@
       evNext.hidden = owner;
       evNext.textContent = Core.owner() ? `${disp(Core.owner().name)} is here and setting up.` : "The host is not here right now.";
       evPropose.hidden = (!!S.ended && !owner) || !!S.youRemoved;
+      if (S.youWaiting) { // Approve new joins: nothing to read or do until the host lets this person in
+        evTitle.textContent = "Waiting for the host to let you in";
+        evNote.textContent = "The host approves each new person. This page opens by itself once they do; keep it open.";
+        evNext.hidden = evPropose.hidden = evHere.hidden = true;
+      }
     }
 
     // ---------- events ----------
@@ -3188,10 +3398,17 @@
         reacts.append(b); return b;
       });
       foot.append(vote, reacts);
-      li.append(head, pickChip, text, why, basis, edited, citeRow, foot);
+      // Phase 4c: "Hidden by the host" (the author and the owner see the card) and "Edited by the host" (everyone).
+      const modNote = E("p", "vf-modnote");
+      li.append(head, pickChip, text, why, basis, edited, modNote, citeRow, foot);
       const attRow = E("ul", "vf-reflist vf-attlist"); attRow.setAttribute("aria-label", "Attachments");
       li.insertBefore(attRow, citeRow);
-      const k = { li, head, ctxB, text, basis, edited, voters, vote, reacts, reactBtns, pickChip, pickThumb, pickImg, pickTxt, why, citeRow, attRow, avKey: "", vKey: "", cKey: "" };
+      const k = { li, head, ctxB, text, basis, edited, modNote, voters, vote, reacts, reactBtns, pickChip, pickThumb, pickImg, pickTxt, why, citeRow, attRow, avKey: "", vKey: "", cKey: "" };
+      if (!compact) {
+        k.modHide = btn("vf-btn vf-btn-ghost vf-btn-sm vf-mod-hide"); k.modEdit = btn("vf-btn vf-btn-ghost vf-btn-sm vf-mod-edit", "Edit");
+        k.modHide.onclick = () => toggleHidden(k.qid, k.a);
+        k.modEdit.onclick = () => openEdit(k.qid, k.a, k.modEdit);
+      }
       if (!compact) {
         k.agree = E("span", "vf-agree");
         k.goWith = btn("vf-btn vf-btn-ghost vf-btn-sm", "Go with this");
@@ -3199,7 +3416,7 @@
         // Decide questions: Disagree, with a reason of 1 to 200 characters. It never changes the vote count.
         k.disBtn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-disagree-btn", "Disagree");
         k.disBtn.setAttribute("aria-expanded", "false");
-        foot.append(k.agree, E("span", "vf-spacer"), k.disBtn, k.goWith, k.lockThis);
+        foot.append(k.agree, E("span", "vf-spacer"), k.disBtn, k.goWith, k.lockThis, k.modHide, k.modEdit);
         k.goWith.onclick = () => Core.goWith(k.qid, k.ref).then(() => { delete ui.drafts[k.qid]; ui.dirty = false; ta.value = ""; grow(ta); flash("Your answer was withdrawn and your vote moved."); }).catch(fail);
         k.lockThis.onclick = () => Core.lock(k.qid, k.ref).catch(fail);
         const disForm = E("form", "vf-disform"); disForm.hidden = true;
@@ -3240,7 +3457,20 @@
     }
     function fillCard(li, a, qid, lead, compact) {
       const k = li._k, me = Core.me, s = st(), lk = Core.lockOf(qid), locked = !!lk, bot = !!a.claude;
-      k.qid = qid; k.cid = a.cid; k.ref = a.ref || a.cid;
+      k.qid = qid; k.cid = a.cid; k.ref = a.ref || a.cid; k.a = a;
+      const person = !bot && !a.option;
+      const modTxt = a.hidden ? (isMe(a.cid) ? `Hidden by the host${a.hidden.reason ? `: ${a.hidden.reason}` : ""}. Only you and the host see it. Change your answer and send it again to show it.`
+        : `Hidden by ${me.isOwner ? "you" : "the host"}${a.hidden.reason ? `: ${a.hidden.reason}` : ""}. Only you and its author see it.`)
+        : a.hostEdited ? "Edited by the host" : "";
+      k.modNote.textContent = modTxt; k.modNote.hidden = !modTxt;
+      li.classList.toggle("vf-hiddencard", !!a.hidden);
+      if (k.modHide) {
+        k.modHide.hidden = k.modEdit.hidden = !me.isOwner || !person || isMe(a.cid);
+        k.modHide.textContent = a.hidden ? "Show" : "Hide";
+        k.modHide.setAttribute("aria-label", `${a.hidden ? "Show" : "Hide"} ${disp(a.name)}'s answer`);
+        k.modEdit.setAttribute("aria-label", `Edit ${disp(a.name)}'s answer${(a.history || []).length ? `, ${a.history.length} earlier version${a.history.length === 1 ? "" : "s"}` : ""}`);
+        k.modEdit.hidden ||= !a.text;
+      }
       const [avBox, nm, tag, dot, , tm] = k.head.children;
       ctxBadge(k.ctxB, Core.me.isOwner ? a.ctx : null);
       const who = bot ? "Claude" : disp(a.name);
@@ -4216,11 +4446,12 @@
       for (const i of S.ideas) if (i.status === "new") out.push({ t: "proposal", id: "p:" + i.id, ts: i.ts, i });
       for (const [qid, lst] of Object.entries(S.suggestions || {})) if (Core.lockOf(qid)) for (const x of lst) if (x.status === "open") out.push({ t: "suggestion", id: "s:" + x.id, ts: x.ts, x, qid });
       if (owner) for (const m of S.mergeRequests || []) out.push({ t: "merge", id: "m:" + m.id, ts: m.ts, m });
+      if (owner) for (const j of S.joinRequests || []) out.push({ t: "join", id: "j:" + j.pid, ts: j.ts, j });
       if (owner) for (const u of S.uploads || []) if (["offered", "accepted", "uploading"].includes(u.status)) out.push({ t: "upload", id: "u:" + u.id, ts: u.ts, u });
       if (R.ready && R.status === "open") out.push({ t: "ready", id: "ready:" + R.current, ts: R.ready.ts, ready: R.ready });
       return out.sort((a, b) => a.ts - b.ts);
     }
-    const QT = { request: "Request", proposal: "Proposal", suggestion: "Suggestion", merge: "Merge", upload: "Upload", ready: "Ready to send" };
+    const QT = { request: "Request", proposal: "Proposal", suggestion: "Suggestion", merge: "Merge", upload: "Upload", ready: "Ready to send", join: "Join" };
     function makeQItem(it) {
       const li = E("li", "vf-qitem");
       li.dataset.t = it.t;
@@ -4243,7 +4474,8 @@
       li._it = it;
       k.chip.textContent = QT[it.t];
       k.chip.className = "vf-chip " + ({ request: "vf-chip-accent", ready: "vf-chip-brass", merge: "vf-chip-quiet", upload: "vf-chip-quiet" }[it.t] || "vf-chip-quiet");
-      const person = it.r ? [it.r.cid, it.r.name] : it.i ? [it.i.cid, it.i.name] : it.x ? [it.x.cid, it.x.name] : it.m ? [it.m.from, it.m.fromName] : it.u ? [it.u.cid, it.u.by] : [null, it.ready.by];
+      const person = it.r ? [it.r.cid, it.r.name] : it.i ? [it.i.cid, it.i.name] : it.x ? [it.x.cid, it.x.name] : it.m ? [it.m.from, it.m.fromName] : it.u ? [it.u.cid, it.u.by]
+        : it.j ? [it.j.pid, it.j.name] : [null, it.ready.by];
       const wk = person.join("|") + it.ts;
       if (k.who._k !== wk) {
         k.who._k = wk;
@@ -4254,7 +4486,8 @@
       if (q) k.qref.setAttribute("aria-label", `Open ${q.id}: ${q.text}`);
       const txt = it.r ? `${KIND_REQ[it.r.kind] || "Request"}: ${it.r.text}` : it.i ? it.i.text : it.x ? it.x.text + (it.x.note ? `\n\nWhy: ${it.x.note}` : "")
         : it.m ? `${it.m.fromName} says they were ${it.m.toName} before. Approve to join them: ${it.m.fromName}'s answers and votes move to ${it.m.toName}.`
-        : it.ready ? `${it.ready.by} marked round ${curRound().current} ready to send.` : "";
+        : it.ready ? `${it.ready.by} marked round ${curRound().current} ready to send.`
+        : it.j ? `Wants to join: ${it.j.name}` : "";
       k.text.hidden = !txt;
       if (txt) fillClamp(k.text, "q:" + it.id, txt, `${QT[it.t]} from ${disp(person[1] || "someone")}`, q ? `${q.id}: ${q.text}` : "");
       if (k.up) fillUpRow(k.up, it.u);
@@ -4282,6 +4515,9 @@
         qAct("Approve", "vf-btn-primary", guarded(() => ({ title: `Join ${li._it.m.fromName} and ${li._it.m.toName}?`, ok: "Join them", body: `${li._it.m.fromName}'s answers, votes, chat and suggestions move to ${li._it.m.toName}. This cannot be undone.` }),
           () => Core.mergeAct(li._it.m.id, "approve").then(() => flash("Joined.")).catch(fail))));
       if (it.t === "ready" && owner) a.push(qAct("Send round to Claude", "vf-btn-primary", e => roundAction(e.currentTarget)));
+      if (it.t === "join" && owner) a.push(
+        qAct("Decline", "vf-btn-ghost", () => Core.joinAct(li._it.j.pid, "decline").then(() => flash(`${li._it.j.name} was not let in. Restore them from Settings if that was a mistake.`)).catch(fail)),
+        qAct("Let in", "vf-btn-primary", () => Core.joinAct(li._it.j.pid, "admit").then(() => flash(`${li._it.j.name} is in.`)).catch(fail)));
       k.acts.replaceChildren(...a);
       k.acts.hidden = !a.length;
     }
@@ -4303,6 +4539,13 @@
       hGoal.classList.toggle("vf-hgoal-empty", !S.goal);
       hGoalEdit.hidden = !owner || !v8(); hGoalEdit.textContent = S.goal ? "Edit goal" : "Set a goal";
       hGoalLabel.hidden = hGoalRow.hidden = !v8();
+      // why you're here: the owner edits it; a leader reads it
+      hIntroIn.hidden = hIntroRow.hidden = !owner;
+      hIntroShown.hidden = owner;
+      hIntroShown.textContent = S.intro || "No introduction yet.";
+      if (owner && document.activeElement !== hIntroIn && !ui.introDirty && hIntroIn.value !== S.intro) hIntroIn.value = S.intro;
+      counter(hIntroCount, hIntroIn, 500);
+      hIntroSave.disabled = !ui.introDirty;
       // queue
       const items = queueItems(S), counts = {};
       for (const it of items) counts[it.t] = (counts[it.t] || 0) + 1;
@@ -4334,13 +4577,15 @@
         const acts = E("div", "vf-hp-acts");
         const lead = btn("vf-btn vf-btn-ghost vf-btn-sm vf-toggle", "Leader"), trust = btn("vf-btn vf-btn-ghost vf-btn-sm vf-toggle", "Trusted");
         const merge = btn("vf-btn vf-btn-ghost vf-btn-sm", "Merge…"), remove = btn("vf-btn vf-btn-ghost vf-btn-sm vf-btn-danger", "Remove");
-        acts.append(lead, trust, merge, remove);
+        const view = btn("vf-btn vf-btn-ghost vf-btn-sm vf-hp-view", "View all");
+        acts.append(view, lead, trust, merge, remove);
         li.append(avBox, mid, acts);
+        view.onclick = () => openPersonView(li._p.pid, view);
         lead.onclick = () => { const p = li._p, was = Core.state.leaders.includes(p.pid); Core.setLeader(p.pid, !was).then(() => flash(was ? "Leader removed." : "Leader added.")).catch(fail); };
         trust.onclick = () => { const p = li._p, was = Core.state.trusted.includes(p.pid); Core.setTrusted(p.pid, !was).then(() => flash(was ? "Trust removed." : "Trusted.")).catch(fail); };
         merge.onclick = () => { const a = avBox.firstChild; showCard(a, true); ui.mergeFrom = li._p.pid; ui.mergeTo = ""; fillPcard(); };
         remove.onclick = guarded(() => !(Core.state.removed || []).includes(li._p.pid) && removeAsk(li._p.name), () => { const p = li._p, out = (Core.state.removed || []).includes(p.pid); Core.removePerson(p.pid, !out).then(() => flash(out ? "Restored. Their content shows again." : `${disp(p.name)} was removed. Their content is hidden.`)).catch(fail); });
-        li._k = { avBox, nm, meta, role, ctxB, lead, trust, merge, remove, acts, avKey: "" };
+        li._k = { avBox, nm, meta, role, ctxB, lead, trust, merge, remove, view, acts, avKey: "" };
         return li;
       }, (li, p) => {
         const k = li._k, h = here.get(p.pid), rl = roleOf(p.pid), isGone = gone.has(p.pid), me2 = isMe(p.pid);
@@ -4365,7 +4610,9 @@
         k.remove.textContent = isGone ? "Restore" : "Remove";
         k.lead.setAttribute("aria-label", `Leader: ${disp(p.name)}`); k.trust.setAttribute("aria-label", `Trusted: ${disp(p.name)}`);
         k.merge.setAttribute("aria-label", `Merge ${disp(p.name)} into someone`); k.remove.setAttribute("aria-label", `${isGone ? "Restore" : "Remove"} ${disp(p.name)}`);
+        k.view.setAttribute("aria-label", `View everything ${disp(p.name)} did`);
       });
+      if (ui.pop === personPop) fillPersonView();
       const nAway = S.presence.filter(p => p.away).length;
       hPeople._m.textContent = `${S.presence.length} here${nAway ? ` (${nAway} away)` : ""}, ${ppl.filter(p => !gone.has(p.pid)).length} joined`;
       // links and settings
@@ -4517,7 +4764,8 @@
       }, (li, p) => { li.firstChild.textContent = disp(nameOf(p)); li.lastChild.setAttribute("aria-label", `Restore ${disp(nameOf(p))}`); });
 
       // session banner: removed, ended, or a link to share again
-      const bn = S.youRemoved ? ["The host removed you from this session. You can still read it.", null]
+      const bn = S.youWaiting ? ["Waiting for the host to let you in.", null]
+        : S.youRemoved ? ["The host removed you from this session. You can still read it.", null]
         : S.ended ? [me.isOwner ? "You ended this session. Guests see it read-only, with the final tree." : "This session has ended. Here is what it decided.",
           me.isOwner ? ["Reopen", () => Core.endSession(false).catch(fail)] : ["Show the tree", () => setMode("tree")]]
         : reshare ? ["New guest link, share again: the old link no longer works.", ["Share", () => openPop(sharePop, shareBtn.offsetParent ? shareBtn : bannerAct)]]
@@ -4756,14 +5004,27 @@
       if (!qs.length) renderEmpty(S);
       // Triage 3: until a guest answers anything, the Focus view opens with the goal, the host's ask and where to start.
       orient.hidden = !q || me.isOwner || !S.me || !!S.ended || !!S.youRemoved || !!ui.orientHidden || S.questions.some(x => hasAnswered(x.id));
+      introBtn.hidden = !S.intro && !me.isOwner; msIntro.hidden = helpIntro.hidden = introBtn.hidden;
       if (!orient.hidden) {
         const inCur = S.questions.filter(x => roundOf(x) === cur), target = inCur.find(x => isOpenForMe(x.id)) || inCur[0] || S.questions[0];
         const nQ = inCur.length || S.questions.length, hostName = disp(nameOf(S.ownerPid, "The host"));
         orH.textContent = me.name ? `Welcome, ${me.name}` : "Welcome";
         orGoal.textContent = S.goal ? `Goal: ${S.goal}` : ""; orGoal.hidden = !S.goal;
-        orAsk.textContent = `${hostName} asks you to answer ${nQ} question${nQ === 1 ? "" : "s"}. On each one, pick an option, or type your answer in the box under the question. The chat is only for talking with people.`;
+        const how = "On each one, pick an option, or type your answer in the box under the question. The chat is only for talking with people.";
+        // On a phone the how-to sentence folds in with the intro, so the card stays short.
+        orAsk.textContent = `${hostName} asks you to answer ${nQ} question${nQ === 1 ? "" : "s"}.${phone.matches ? "" : " " + how}`;
         orStart.textContent = `Start here: question ${Math.max(1, inCur.indexOf(target) + 1)}`; orStart._q = target?.id;
-        orTour.hidden = !!pref("tour", "");
+        if (ui.introOpen == null) { ui.introOpen = !phone.matches && !store.get(INTRO_SEEN(), false); store.put(INTRO_SEEN(), true); }
+        const hasWhy = !!S.intro || phone.matches;
+        orIntro.textContent = S.intro; orIntro.hidden = !S.intro;
+        orHow.textContent = how; orHow.hidden = !phone.matches;
+        orWhyBtn.hidden = !hasWhy;
+        orWhyBtn.textContent = S.intro ? "Why you're here" : "How it works";
+        orWhyBtn.setAttribute("aria-expanded", String(introOpen()));
+        orWhy.hidden = !hasWhy || !introOpen();
+        orient.classList.toggle("vf-orient-open", !orWhy.hidden);
+        orTour.hidden = !!pref("tour", "") || (phone.matches && !introOpen());
+        if (phone.matches && !orTour.hidden) orWhy.append(orTour); else if (orTour.parentNode !== orRow) orRow.append(orTour);
       }
       if (q) {
         renderRefs(q);
@@ -5033,9 +5294,16 @@
           const done = E("span", "vf-fwd-done"); done.append(icon("check"), E("span", null, "Proposed"));
           tools2.append(done);
           const bubRow = E("div", "vf-bubrow"); bubRow.append(bubble, more);
-          col.append(meta, quote, bubRow, tools2);
+          // Phase 4c: emoji reactions under the bubble; + opens the quick row and More.
+          const reactRow = E("div", "vf-mreacts"); reactRow.setAttribute("role", "group"); reactRow.setAttribute("aria-label", "Reactions");
+          const reactChips = E("span", "vf-mreact-chips");
+          const reactAdd = btn("vf-mreact-add"); reactAdd.append(E("span", "vf-mreact-plus", "+"), E("span", "vf-mreact-face", "🙂"));
+          reactAdd.setAttribute("aria-haspopup", "dialog"); reactAdd.setAttribute("aria-label", "Add a reaction"); reactAdd.title = "Add a reaction";
+          reactAdd.onclick = () => (ui.pop === reactPop && ui.reactMsg?.id === li._m?.id ? closePop() : openReactPop(li._m, reactAdd));
+          reactRow.append(reactChips, reactAdd);
+          col.append(meta, quote, bubRow, reactRow, tools2);
           li.append(E("span", "vf-msg-av"), col);
-          li._k = { meta, btext, batt, tools2, done, more, quote, qName, qTxt };
+          li._k = { meta, btext, batt, tools2, done, more, quote, qName, qTxt, reactChips, reactAdd };
           return li;
         }, (li, m) => {
           const i = msgs.indexOf(m), prev = msgs[i - 1], k = li._k;
@@ -5058,6 +5326,7 @@
           }
           k.done.hidden = !m.forwarded;
           k.tools2.hidden = k.done.hidden;
+          fillReactChips(k, m);
           k.more.setAttribute("aria-label", `Actions for the message from ${isMe(m.cid) ? "you" : disp(m.name)}`);
         });
         mEmpty.hidden = msgs.length > 0;

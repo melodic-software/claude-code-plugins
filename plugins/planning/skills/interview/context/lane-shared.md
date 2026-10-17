@@ -73,7 +73,13 @@ designer session and a product owner session), each with its own data dir and li
    `open-round` holding the first frontier, then run
    `bash '<plugin-root>/shared/share.sh' --dir '<data_dir>' apply --file '<data_dir>/ops.json'`.
    Write the register's `open` rows for the round's questions in the same step.
-5. **Arm** the `watch` command from step 3 as a background Bash task (`run_in_background`). One
+5. **Why you're here.** Draft the intro guests read before question 1 from the topic and the
+   owner's goal: who is asking, why, roughly how long it takes, and that Claude reads the answers
+   when a round is sent while the chat is not sent (1 to 600 characters). Show the draft in the
+   terminal and apply it with a `set-intro` op once the owner says yes. A resumed session with no
+   intro (one imported from the prototype) gets one drafted from its title and goal the same way.
+   The owner edits it later from the Host view.
+6. **Arm** the `watch` command from step 3 as a background Bash task (`run_in_background`). One
    watcher per data dir: it exits 3 when another session holds the lease (`share.sh lease` names
    the holder; `lease --release` hands it over).
 
@@ -114,6 +120,7 @@ against `<plugin-root>/shared/schema/ops.schema.json` before any lands, and all 
 | Op | Fields | Use |
 |---|---|---|
 | `set-title`, `set-goal` | `title` / `goal` | Name the session and what it is for |
+| `set-intro` | `intro` | "Why you're here", as the owner confirmed it; empty removes it |
 | `open-round` | `questions` (1 to 8), `placements` | Close the round Claude is working on (or start round 1) and open the next |
 | `close-round` | `placements`, `reason` | Close the round without a new one (only placements, or the interview is done) |
 | `ack-round` | `round` | Tell the page Claude has the round |
@@ -191,7 +198,8 @@ same register rows and tools as any round, in the same wake:
 
 An entry in `others` or a `top` answer marked `other` is a person's own option: quote it with
 `free-text:` and weigh it with its backers. Each `disagreements` entry goes in the resolution
-beside the answer it names; it changes no count.
+beside the answer it names; it changes no count. An answer marked `edited: true` carries the text
+the owner edited it to: record that text as given. Answers the owner hid are not in the digest.
 
 A `needsReview` entry means an answer later questions rest on changed: recompute the frontier as for
 a reshaping answer and re-ask what it invalidates. `late` answers count with this round. The digest

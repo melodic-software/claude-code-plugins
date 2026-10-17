@@ -47,6 +47,11 @@
     "mergeRequests": {"type": "array", "items": {"$ref": "#/$defs/mergeRequest"}},
     "aboutYou": {"type": "object", "additionalProperties": {"$ref": "#/$defs/aboutYou"}},
     "disagreements": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/disagreement"}}},
+    "backs": {
+      "description": "Multi questions: qid -> pid -> the other people's own Something else options that person backs, any number of them (votes keeps one per person).",
+      "type": "object",
+      "additionalProperties": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/cardRef"}}}
+    },
     "log": {"$ref": "#/$defs/eventLog"}
   },
   "$defs": {
@@ -74,6 +79,7 @@
       "properties": {
         "title": {"type": "string", "maxLength": 80},
         "goal": {"type": "string", "maxLength": 200},
+        "intro": {"description": "\"Why you're here\": who asks, why, roughly how long, what happens to the answers; 1..600 characters.", "type": "string", "maxLength": 600},
         "createdAt": {"$ref": "#/$defs/ts"},
         "phase": {
           "oneOf": [
@@ -125,6 +131,7 @@
         "digestNames": {"type": "boolean"},
         "uploads": {"type": "boolean"},
         "claudeTake": {"enum": ["answerFirst", "always"]},
+        "approveJoins": {"description": "New joins wait for the owner's admit; absent is off.", "type": "boolean"},
         "theme": {
           "type": "object",
           "required": ["mode", "accent"],
@@ -155,6 +162,13 @@
               "required": ["kind", "at", "by"],
               "additionalProperties": false,
               "properties": {"kind": {"enum": ["removed"]}, "at": {"$ref": "#/$defs/ts"}, "by": {"enum": ["host"]}}
+            },
+            {
+              "description": "Joined under Approve new joins: waits in the owner's queue until admitted or declined.",
+              "type": "object",
+              "required": ["kind", "at"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["waiting"]}, "at": {"$ref": "#/$defs/ts"}}
             }
           ]
         }
@@ -484,6 +498,31 @@
               "required": ["round"],
               "additionalProperties": false,
               "properties": {"round": {"type": "integer", "minimum": 1}}
+            },
+            "hidden": {
+              "description": "The owner hid this answer from everyone else and the digest; reversible.",
+              "type": "object",
+              "required": ["by", "at"],
+              "additionalProperties": false,
+              "properties": {"by": {"$ref": "#/$defs/pid"}, "at": {"$ref": "#/$defs/ts"}, "reason": {"$ref": "#/$defs/note"}}
+            },
+            "edited": {
+              "description": "The owner replaced the text: who and when.",
+              "type": "object",
+              "required": ["by", "at"],
+              "additionalProperties": false,
+              "properties": {"by": {"$ref": "#/$defs/pid"}, "at": {"$ref": "#/$defs/ts"}}
+            },
+            "history": {
+              "description": "Earlier versions, oldest first (the original kept), each with who wrote it and when; only the owner reads it.",
+              "type": "array",
+              "maxItems": 50,
+              "items": {
+                "type": "object",
+                "required": ["text", "by", "at"],
+                "additionalProperties": false,
+                "properties": {"text": {"$ref": "#/$defs/text"}, "by": {"$ref": "#/$defs/pid"}, "at": {"$ref": "#/$defs/ts"}}
+              }
             }
           }
         },
@@ -652,7 +691,12 @@
           "additionalProperties": false,
           "properties": {"id": {"type": "string"}, "pid": {"$ref": "#/$defs/pid"}, "excerpt": {"type": "string", "maxLength": 140}}
         },
-        "proposed": {"type": "string"}
+        "proposed": {"type": "string"},
+        "reactions": {
+          "description": "emoji -> the people who put it on this message; at most 20 emoji, from the page's fixed set (session.CHAT_EMOJI).",
+          "type": "object",
+          "additionalProperties": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/pid"}}
+        }
       }
     },
     "requestKind": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/event#/$defs/requestKind"},
@@ -866,7 +910,7 @@
       "additionalProperties": false,
       "properties": {
         "id": {"type": "string"},
-        "kind": {"enum": ["mention", "reply", "request", "proposal", "round", "merge", "role", "queue", "ready", "votes"]},
+        "kind": {"enum": ["mention", "reply", "request", "proposal", "round", "merge", "role", "queue", "ready", "votes", "reaction"]},
         "title": {"type": "string"},
         "at": {"$ref": "#/$defs/ts"},
         "read": {"type": "boolean"},
