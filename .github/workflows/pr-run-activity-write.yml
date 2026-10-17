@@ -1022,11 +1022,10 @@ jobs:
       # ci-workflows' classifier, never from model text. The report job copies
       # it onto the posted check run, and issue mode writes it into lane.json,
       # where the limit-stop restarts read it.
-      # TODO: repin to the ci-workflows release that ships ci-workflows#755.
       - name: Record the lane outcome
         id: lane-record
         if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@1231f3c7c3fe2989405971c143a99821c2f92f6d # ci-workflows#755 head
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@64fd515245f2bdeea8dedca1a3cea9ca39804bec # v0.43.0
         with:
           outcome: ${{ steps.act-skill.outcome }}
           execution-file: >-
