@@ -1,5 +1,19 @@
 # Changelog for the PR pipeline convention
 
+## 1.23.0 - 2026-10-17
+
+`resolve-issue` lists two more `verify-scripts`, each wrapped by the same generator as the
+can't-fail scan: `scripts/run-test-file.sh` runs one test file inside the checkout by name
+(`test_*.py` under pytest, `*.test.sh` under bash, `*.test.mjs` under `node --test`, without
+`GH_TOKEN` or `GITHUB_TOKEN`), and `scripts/git-mv-rm.sh` runs `git mv` or `git rm` inside the
+checkout, recording an untracked path as intent-to-add first. Both refuse an absolute path, a `..`
+segment, a leading `-` and a path that resolves outside the checkout (`scripts/lib/checkout-path.sh`).
+A write skill that commits also gets `mcp__github_file_ops__delete_files`, and the system prompt
+tells it to delete each committed path it renamed or removed. When the stage grants the test-file
+runner, the write runner sets up Python and installs the base's hash-pinned CI requirements before
+the head checkout. `verify-scripts` may now list a script that changes files or runs checkout code
+when the script limits itself. `version` stays 1.
+
 ## 1.22.0 - 2026-10-17
 
 `pr-unblock` gains `review-dependency` and `apply-dependency-verdict`, and `prepare` gains

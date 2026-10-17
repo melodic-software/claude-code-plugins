@@ -283,13 +283,14 @@ when the grant can commit.
 
 A skill with any effect but `read` also gets what it needs to do its job: `Edit`, `Write`, `Agent`
 (for subagents such as a fix flow's semantic-diff check or a rubric fan-out) and
-`mcp__github_file_ops__commit_files`, the action's signed-commit tool on `CLAUDE_BRANCH`, and a
+`mcp__github_file_ops__commit_files` and `mcp__github_file_ops__delete_files`, the action's
+signed-commit tools on `CLAUDE_BRANCH` (the second carries a rename's old path or a removal), and a
 scratch directory, `$RUNNER_TEMP/lane-scratch`, passed as `--add-dir` with an `Edit` rule on it so
 its state files and its `Bash` redirects land there. `--append-system-prompt` names that
 directory, says no one can answer a question, and, when the grant can commit, tells it to commit
-every file it changed with that tool: the prompt is the slash command alone, so without this the
+every file it changed, and delete every committed path it renamed or removed, with those tools: the prompt is the slash command alone, so without this the
 skill leaves its edits uncommitted and the lane moves nothing. A `prepare: merge-base` skill
-gets neither the tool nor that sentence: it stages its resolution and the runner commits
+gets neither tool nor that sentence: it stages its resolution and the runner commits
 ([below](#prepare-merge-base)). Under `--permission-mode dontAsk` a skill's own `allowed-tools`
 grants nothing: its `Bash` is only what this list allows, one rule per entry in the activity's
 `checks`: `collect-base-activity` copies the base `scripts/` to `$RUNNER_TEMP/lane-checks`, outside
@@ -308,7 +309,18 @@ script may print lines of a file it reads, sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONF
 and command-scope `core.fsmonitor=false` and `core.hooksPath=/dev/null`, then runs the copy with
 the arguments and prints `exit status: <n>` to stderr before exiting with that status, since the
 lane denies a chained `; echo "$?"`; the system prompt says to run each wrapper as its own command.
-Any other arguments match, so the list holds only scripts that read and report.
+Any other arguments match, so a listed script that changes files or runs checkout code must limit
+itself. `resolve-issue` lists two that do, each refusing (exit 2) an argument that is absolute,
+has a `..` segment, starts with `-`, or resolves through a link to outside the checkout, including
+a path that does not exist yet (`scripts/lib/checkout-path.sh`). `scripts/run-test-file.sh` takes
+one test file and runs it by name, `test_*.py` under `python3 -m pytest`, `*.test.sh` under
+`bash`, `*.test.mjs` under `node --test`, without `GH_TOKEN` or `GITHUB_TOKEN`; it refuses any
+other file. Its tests are checkout code with the network open. When the stage grants its wrapper,
+the write runner sets up Python from the base `.python-version` and installs the base's
+hash-pinned `.github/requirements-ci.txt` before the head checkout. `scripts/git-mv-rm.sh` runs
+`git mv <source> <destination>` or `git rm -r -f <path>...`, first recording an untracked path as
+intent-to-add so a file the run created can be renamed or removed. The index is local: the
+change reaches the branch through `commit_files` and `delete_files`.
 `WebFetch` and
 `WebSearch` stay off (`--disallowedTools`) unless the activity sets `web-access`. With it on, the
 runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
