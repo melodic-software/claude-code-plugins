@@ -38,8 +38,7 @@ check "unparsable bookmark reads as none" none "$(sb get --source vendor-c)"
 ln -s "$TMP/elsewhere" "$TMP/default/bookmarks/vendor-d"
 sb advance --source vendor-d --state data --read full --at 2026-10-17 >/dev/null 2>&1
 check "symlinked bookmark refused (exit 1)" 1 "$?"
-[[ ! -e "$TMP/elsewhere" ]]
-check "symlink target untouched" 0 "$?"
+check "symlink target untouched" absent "$([[ -e "$TMP/elsewhere" ]] && echo present || echo absent)"
 
 sb get --source '../x' >/dev/null 2>&1
 check "path traversal source refused (exit 2)" 2 "$?"
