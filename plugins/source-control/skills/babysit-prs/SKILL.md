@@ -143,8 +143,8 @@ works harder to reach that state but never forces past it. A blocked action esca
 never routed around. Advisory-only fix attempts are bounded per PR (the fix-round cap in
 [reference/orchestration.md](reference/orchestration.md)); blocking defects are never capped.
 **Dependency hold-merge:** a dependency-manager-authored PR (Dependabot/Renovate-class) is
-never merged autonomously in ANY tier, the merge gate refuses it absent `--allow-dependency`,
-which is passed only on an explicit user instruction to merge that specific PR.
+never merged autonomously by this skill in ANY tier (a pr-merge lane with its Dependabot class on owns those merges);
+the merge gate refuses it absent `--allow-dependency`, passed only on an explicit user instruction to merge that specific PR.
 
 **Do-not-merge hold:** a PR whose body says "do not merge" (or "don't merge"), or has a line
 starting `Hold:`, is held in ANY tier: the merge gate reads the live body and reports a blocker, and a PR carrying a `do-not-merge`

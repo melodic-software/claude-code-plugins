@@ -72,9 +72,10 @@ activities:
   review-dependency:
     # Reviews one Dependabot pull request the classifier sorts `review` (a
     # major bump, an action publisher outside the allowlist, a group holding
-    # a major, or a red ci-status) and returns a verdict: merge, fix, close or
-    # escalate. It posts nothing itself. pr-unblock-dispatch.yml starts it;
-    # a trusted person may also dispatch it by hand.
+    # a major, a red ci-status, or a file outside the content rule) and
+    # returns a verdict: merge, fix, close or escalate. It posts nothing
+    # itself. pr-unblock-dispatch.yml starts it; a trusted person may also
+    # dispatch it by hand.
     skill: source-control:pull-request
     # The skill's CI mode for dependency bumps: reads the runner's context
     # file, the checkout and upstream release notes, runs no head code, and
@@ -260,6 +261,13 @@ merge:
   agent-identity: melodic-automation-lanes[bot]
   # Reports each decision and writes nothing until the owner sets false.
   report-only: true
+  # Dependabot pull requests answer to this switch, not report-only: tier auto
+  # (every update non-major, allowed Actions publishers) merges once ci-status
+  # passes; tier review merges once the pr-unblock review leaves a merge
+  # verdict at the head and ci-status passes. Owner decision: no Dependabot
+  # pull request waits on a human (docs/adr/0073).
+  dependabot:
+    mode: enforce
   diff-check:
     denied-paths:
       # Workflows and their scripts run with repository tokens and secrets.

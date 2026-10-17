@@ -9,7 +9,7 @@
 ## Context
 
 The owner decided on 2026-10-16 that no Dependabot pull request waits on a human: the pr-merge
-lane merges non-major updates (a parallel change), and an AI decides the rest. The rest are the
+lane merges non-major updates ([ADR 0073](0073-merge-dependabot-pull-requests-in-the-pr-merge-lane.md)), and an AI decides the rest. The rest are the
 updates `dependency-classify.mjs` sorts `review`: a major bump, a GitHub Actions publisher outside
 the allowlist, a group holding a major, or a red `ci-status`. Basis:
 [`dependency-classify.mjs`](../../.github/scripts/pr-unblock/dependency-classify.mjs).
@@ -74,7 +74,7 @@ and `pr-unblock` never merges
 - A review-tier Dependabot pull request is reviewed after the next push to `main` or a hand run
   of the dispatcher, not on a timer.
 - The pr-merge lane merges a review-tier pull request whose current head carries the lanes App's
-  `verdict=merge` marker (owner decision, 2026-10-16; ADR 0073 in #7699), so the decision and the merge stay
+  `verdict=merge` marker (owner decision, 2026-10-16; [ADR 0073](0073-merge-dependabot-pull-requests-in-the-pr-merge-lane.md)), so the decision and the merge stay
   in separate lanes.
 - `[dependabot skip]` lets Dependabot force-push over the lane's fix on a rebase; the next round
   then reviews the new head, and the round cap bounds the loop.

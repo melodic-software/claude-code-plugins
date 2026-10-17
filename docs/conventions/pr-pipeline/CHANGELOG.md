@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 1.20.0 - 2026-10-16
+## 1.21.0 - 2026-10-17
 
 `pr-unblock` gains `review-dependency` and `apply-dependency-verdict`, and `prepare` gains
 `dependency-review` ([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
@@ -12,13 +12,37 @@ data, may push a fix outside `.github/` whose every commit carries `[dependabot 
 a `merge`, `fix`, `close` or `escalate` verdict as structured output. The verdict job
 (`publish-artifact`, no model) validates it and posts the round marker, closes the pull request
 with an ignore-entry issue (never a security update), or escalates. Neither merges: the pr-merge
-lane merges on the `verdict=merge` marker at the current head. Majors include a 0.x minor, and
-the classifier reads the verified head commit's `updated-dependencies` metadata. `loop` gains
+lane merges a review-tier pull request on the `verdict=merge` marker at the current head (1.20.0,
+[ADR 0073](../../adr/0073-merge-dependabot-pull-requests-in-the-pr-merge-lane.md)). The
+dispatcher sorts with the same tier and content rules as the pr-merge lane, and a base
+`dependabot.yml` it cannot read is the reason `dependabot-config-unreadable`. `loop` gains
 `dependency-review-rounds` (default 2; this repository sets 2), and the write runner gains the
 `dependency-verdict`, `dependency-run-sha256` and `dependency-run-attempt` inputs and six
 escalation reasons: `dependency-round-cap`, `dependency-invalid`, `dependency-fix-not-landed`,
 `dependency-security-close`, `dependency-escalate` and `dependency-config-unreadable`. `version`
 stays 1.
+
+## 1.20.0 - 2026-10-16
+
+`merge.dependabot.mode` (`off`, `report`, `enforce`; absent is `off`) adds the pr-merge lane's
+Dependabot class (ADR 0073), and the pr-merge lane becomes the one merge authority for every
+Dependabot pull request. The lane lists them unless the mode is `off`. Tier `auto` (every update
+non-major, where major is a first-component change or, below 1.0, a second-component change;
+Actions publishers `actions`, `github` or `anthropics` only; `ci-status` not red; read from the
+verified commit metadata, else the title or body `Updates` lines, which must agree when both read)
+merges on a green `ci-status`. Tier `review` merges only when the newest pr-unblock round marker
+the lanes App authored names the current head with `verdict=merge`, and then also on a green
+`ci-status`. Every commit must be a verified Dependabot commit, the `[dependabot skip]`
+version-bump commit, or, after a review, the lanes App's `[dependabot skip]` fix; every push to
+the head branch must be Dependabot's (or that commit's own pusher's), per the repository activity
+API; and every changed path a manifest or lock file `.github/dependabot.yml` covers or a
+`uses:`-only workflow or action repin; any other path makes the tier `review` with the reason
+`dependabot-content:<path>`, while a failed push check always refuses. Both go through
+the lane's gate as C2 with no closing issue, denied-path rule or diff risk score. The mode, not
+`merge.report-only`, decides whether a Dependabot pull request writes, and the workflow starts the
+post-merge full run when either can merge. `.github/workflows/pr-automerge-dependabot.yml` is
+removed, and "Merge authority" no longer names it as an exception to the single authority.
+`version` stays 1.
 
 ## 1.19.3 - 2026-10-16
 
