@@ -82,6 +82,23 @@ gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid'
 gh pr diff "$PR_NUMBER"
 ```
 
+## Record the skipped steps
+
+One conversation comment per run, after the hold re-check and right before the flip. One
+`--step` per step `--skip` removed; the comment is built in full before it is posted, so a failed
+build posts nothing:
+
+```bash
+LOGIN=$(gh api user --jq .login) || exit 1
+HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid') || exit 1
+COMMENT=$(bash "<skill-dir>/scripts/ready-skip-comment.sh" --login "$LOGIN" --head "$HEAD_SHA" \
+  --reason "$REASON" --step code-review) || exit 1
+printf '%s\n' "$COMMENT" | gh pr comment "$PR_NUMBER" --body-file -
+```
+
+`check-ready-holds.sh` reads the title, body, labels and closing issue references, never
+comments, so the comment cannot set or lift a hold there.
+
 ## Flip to ready
 
 ```bash
