@@ -796,17 +796,20 @@ Each profile under `models.profiles` names:
   definition's still win.
 - `max-turns`: the turn budget, passed as `--max-turns`.
 
-`models.routes` maps a run to a profile: a skill activity by its name, and `verify-pr` for the
-[verifier](#verifier-verdict). A run no route names takes `models.default-profile`. The config
-reader rejects a route or default naming an undefined profile, and a route that is neither a skill
-activity nor `verify-pr`. A config with no `models` block gives every run the built-in `standard`
+`models.routes` maps a run to a profile: a skill activity by its name, and a run that is no
+activity by its run route: `verify-pr` for the [verifier](#verifier-verdict), `review-code` and
+`review-security` for the code and security review lanes, and `triage-issue` for intake triage. A
+run no route names takes `models.default-profile`. The config reader rejects a route or default
+naming an undefined profile, and a route that is neither a skill activity nor a run route. A config with no `models` block gives every run the built-in `standard`
 profile: model `default` and 75 turns. `resolve-config` turns the run's profile into its
 `claude-args` and `settings-json` outputs, which the runners pass to claude-code-action as
 `claude_args` and `settings`; the values come only from this file on the base, never from text the
 run reads.
 
-This repository's block has two profiles: `standard` (model `default`, 75 turns), every skill
-activity's, and `review` (`opus`, 60 turns), the verifier's. Neither sets effort.
+This repository's block has four profiles: `standard` (model `default`, 75 turns, no effort),
+every skill activity's; `review` (`opus`, 60 turns, no effort), the verifier's; `pr-review`
+(`sonnet`, effort `high`, 75 turns), both review lanes'; and `triage` (`sonnet`, effort `medium`,
+30 turns), intake triage's.
 
 ## Loop caps
 

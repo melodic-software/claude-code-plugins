@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## 2.1.0 - 2026-10-17
+
+`models.routes` and `resolve-config`'s `model-route` take three more run routes: `review-code` and
+`review-security` for the code and security review lanes, and `triage-issue` for intake triage
+([README.md, Models](README.md#models)). This repository adds two profiles, `pr-review` (`sonnet`,
+effort `high`, 75 turns) for both review routes and `triage` (`sonnet`, effort `medium`, 30 turns)
+for triage. No caller resolves these routes yet, so no run changes.
+
 ## 2.0.0 - 2026-10-17
 
 A `models` block sets each model run's model, effort and turn budget as named profiles, with

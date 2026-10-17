@@ -351,7 +351,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["profiles", "default-profile"],
-      "description": "The model, effort and turn budget of every model run, as named profiles and a route from each run to one. A skill activity's route is its activity name; pr-verify.yml's is verify-pr. A run with no route takes default-profile. Absent: every run takes the built-in standard profile, model default with 75 turns (README.md, Models).",
+      "description": "The model, effort and turn budget of every model run, as named profiles and a route from each run to one. A skill activity's route is its activity name; a run that is no activity takes a run route: verify-pr for pr-verify.yml, review-code and review-security for the code and security review lanes, triage-issue for intake triage. A run with no route takes default-profile. Absent: every run takes the built-in standard profile, model default with 75 turns (README.md, Models).",
       "properties": {
         "profiles": {
           "type": "object",
@@ -367,7 +367,7 @@
           "type": "object",
           "propertyNames": { "$ref": "#/$defs/name" },
           "additionalProperties": { "$ref": "#/$defs/name" },
-          "description": "Run -> profile. A key is a skill activity or verify-pr; a value is a key of profiles. The config reader rejects any other key or value."
+          "description": "Run -> profile. A key is a skill activity or a run route (verify-pr, review-code, review-security, triage-issue); a value is a key of profiles. The config reader rejects any other key or value."
         }
       }
     },
