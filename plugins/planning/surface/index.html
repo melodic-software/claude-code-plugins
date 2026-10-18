@@ -813,7 +813,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       for (const s of secs) {
         const items = s.items.filter(passes);
         if (!items.length && S.filter !== "all") continue;
-        const coll = s.collapsed && !(S.filter !== "all" && lsGet("col:" + s.key, null) === null); // a filter opens an untouched section that holds a match
+        const o = lsGet("col:" + s.key, null), coll = s.collapsed && !(S.filter !== "all" && !(o && o.d === s.done)); // a filter opens a section with no applicable stored toggle that holds a match
         const elig = s.items.filter(q => op.has(q.id) && eligible(q)), aa = s.gid ? 'data-acceptall="' + esc(s.gid) + '"' : s.round ? 'data-acceptround="' + esc(s.round) + '"' : "";
         html += '<div class="sec' + (s.pin ? " pin" : "") + (s.lock.length ? " locked" : "") + (s.fresh ? " fresh" : "") + '" data-key="' + esc(s.key) + '" data-collapsed="' + coll + '" data-dflt="' + s.done + '">' +
           '<div class="sec-top"><button class="sec-h" aria-expanded="' + !coll + '"><span class="caret">&#9662;</span><h2>' + esc(s.title) + '</h2><span class="cnt">' + s.open + " open / " + s.items.length + (s.review ? ", " + s.review + " to review" : "") + "</span></button>" +
