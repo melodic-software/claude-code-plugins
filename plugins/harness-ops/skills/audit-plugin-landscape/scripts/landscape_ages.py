@@ -133,7 +133,8 @@ def evaluate(row: dict, fetched: dict[str, tuple[int, object]], today: date) -> 
         out["flags"].append("repo-missing")
         return out
     if repo_status != 200 or not isinstance(repo_body, dict):
-        out["unknown"] = f"repository lookup failed (status {repo_status})"
+        detail = str(repo_body).strip()[:200]
+        out["unknown"] = f"repository lookup failed (status {repo_status}): {detail}"
         return out
     if repo_body.get("archived"):
         out["flags"].append("archived")
@@ -200,7 +201,16 @@ def main(argv: list[str] | None = None) -> int:
         for name, e in known.items()
     }
     today = date.fromisoformat(args.today) if args.today else datetime.now(timezone.utc).date()
-    json.dump(run(installed, known, manifests, gh_api, today), sys.stdout, indent=2)
+    results = run(installed, known, manifests, gh_api, today)
+    checked = [r for r in results if r["repo"]]
+    if checked and all("(status 0)" in (r["unknown"] or "") for r in checked):
+        print(
+            "error: no repository could be checked (gh missing, unauthenticated or offline): "
+            + (checked[0]["unknown"] or ""),
+            file=sys.stderr,
+        )
+        return 3
+    json.dump(results, sys.stdout, indent=2)
     print()
     return 0
 
