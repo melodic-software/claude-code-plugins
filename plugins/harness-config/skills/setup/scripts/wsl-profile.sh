@@ -31,7 +31,7 @@ windows_homes() {
   local d
   for d in "$MNT_ROOT"/?/Users/*/; do
     d="${d%/}"
-    case "${d##*/}" in Public | Default | "Default User" | "All Users" | desktop.ini) continue ;; esac
+    case "${d##*/}" in Public | Default | "Default User" | "All Users" | desktop.ini) continue ;; *) ;; esac
     [[ -d "$d" ]] && printf '%s\n' "$d"
   done
 }
