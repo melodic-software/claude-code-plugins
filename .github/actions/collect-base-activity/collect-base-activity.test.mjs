@@ -243,8 +243,8 @@ test("the verify-script wrapper refuses a path outside the checkout", () => {
   }
 });
 
-// A listed script may run checkout code (check-skill.sh runs each skill's
-// test scripts), so the wrapper runs every script without the GitHub token.
+// The wrapper unsets the GitHub token in the script's own environment. This
+// does not hide it from an ancestor's /proc/<pid>/environ.
 test("the verify-script wrapper runs the script without GH_TOKEN or GITHUB_TOKEN and keeps the rest of the environment", () => {
   mkdirSync(path.join(base, "plugins", "vtest", "scripts"), { recursive: true });
   writeFileSync(

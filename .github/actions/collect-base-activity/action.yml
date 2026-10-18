@@ -271,8 +271,9 @@ runs:
             # so the files a script reads beside itself come along. Each runs
             # through a wrapper that starts in the checkout, refuses an
             # argument naming a path outside it (a script may print what it
-            # reads), drops GH_TOKEN and GITHUB_TOKEN (a script may run
-            # checkout code), and keeps git from loading system, global or
+            # reads), unsets GH_TOKEN and GITHUB_TOKEN in the script's own
+            # environment (an ancestor's /proc/<pid>/environ still holds
+            # them), and keeps git from loading system, global or
             # hook and fsmonitor programs.
             mapfile -t verify < <(jq -r '.selected["verify-scripts"] // [] | .[]' "$RESOLVED")
             if ((${#verify[@]})); then

@@ -6,7 +6,8 @@
 `verify-scripts`, so the issue lane can run the skill checks an issue's done-when names
 ([#7840](https://github.com/melodic-software/claude-code-plugins/issues/7840)). Every
 verify-script wrapper now unsets `GH_TOKEN` and `GITHUB_TOKEN` before it runs the script, as
-`scripts/run-test-file.sh` does for its test. `check-skill.sh` runs each checked skill's
+`scripts/run-test-file.sh` does for its test; code the script runs can still read the token from
+an ancestor process's `/proc/<pid>/environ`. `check-skill.sh` runs each checked skill's
 `scripts/*.test.sh` and the checkout's markdownlint: checkout code with the network open, the
 power `run-test-file.sh` already gives the run ([pr-run-activity.md](pr-run-activity.md#skill-activities)).
 `version` stays 2.

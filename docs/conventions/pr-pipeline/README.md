@@ -227,7 +227,8 @@ Each leaf declares:
   `plugins/<plugin>/skills/<skill>/scripts/<name>.sh`, that a skill with an effect other than
   `read` may run with any arguments but a path outside the checkout; a `read` leaf cannot set it.
   The write runner runs each from a read-only base copy of its plugin (or of `scripts/`) against
-  the checkout, without `GH_TOKEN` or `GITHUB_TOKEN`
+  the checkout, with `GH_TOKEN` and `GITHUB_TOKEN` unset; code it runs can still read the token
+  from an ancestor process's `/proc/<pid>/environ`
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The arguments are the model's, so
   a script that changes files, runs code from the checkout or reaches the network hands the run
   that power: list one only when it limits itself, as `scripts/run-test-file.sh` (one test file
