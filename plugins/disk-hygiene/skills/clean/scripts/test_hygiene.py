@@ -10827,6 +10827,7 @@ class GuardTests(unittest.TestCase):
                 "git grep -O'python3 hygiene.py (x)' foo",
                 'grep "a\\" "; python3 hygiene.py apply; echo \\"',
                 "git grep -nO'python3 hygiene.py apply' x",
+                "git grep -nc'python3 hygiene.py apply' x",
                 "git grep --open-files-in-p 'python3 hygiene.py apply' x",
                 "git grep --open 'python3 hygiene.py apply' x",
                 "rg --hostname-bin 'python3 hygiene.py apply' x",
@@ -11791,6 +11792,25 @@ class GuardTests(unittest.TestCase):
                 result = self.run_guard_engine_gate(command, "Bash", enabled=False)
         assert result is not None
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+
+    def test_engine_gate_quoted_marker_free_link_gates_a_reader(self) -> None:
+        """A quoted word naming a marker-free link to the engine gates a reader.
+
+        Blanking string data would hide the quoted name from the marker-free
+        branch, so identity is read on the command as written, for both shells.
+        `@@` holds no path-legal character, so no marker token reaches it and
+        only the whole-word scan sees it.
+        """
+        for name in ("cleanup", "@@"):
+            command = f"gh issue create --title 'x' '{name}'"
+            for shell in ("Bash", "PowerShell"):
+                with self.subTest(name=name, shell=shell):
+                    with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+                        with chdir_context(tmp):
+                            gated = guard._engine_gate_relevant
+                            self.assertFalse(gated(command, shell))
+                            self._hard_link_or_skip(Path(tmp) / name)
+                            self.assertTrue(gated(command, shell))
 
     def test_engine_gate_marker_free_probes_each_distinct_word_twice(self) -> None:
         """Counted `os.path.samefile` calls for marker-free commands.

@@ -992,6 +992,10 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     or a ``!`` expansion) is not modeled; the allowlist names only ``issue``
     and ``pr``.
 
+    On both shells, the identity check before blanking reads every word, not
+    only those carrying the marker, so a quoted link to the engine under any
+    name (``gh issue create --title x 'alias'``) still gates.
+
     A word that is the SAME FILE as the bundled engine — a symlink or hard link
     under any name — gates regardless of its filename. Without the marker, each
     distinct whitespace token (or ``_literal_shell_words`` word) is read two
