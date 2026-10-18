@@ -10,8 +10,8 @@ file plus Bash, Edit and Write; it takes `ci-context-attempt` and `ci-context-sh
 `patch-state`, `patch-sha256`, `patch-attempt`, `patch-head-sha`, `patch-activity` and
 `reply-attempt` inputs ([pr-run-activity.md](pr-run-activity.md#prepare-apply-patch)). The
 pr-unblock lane adds `fix-ci` and `apply-ci-fix`, which refuses the whole patch on a change to
-`.github/**` or an agent instruction path (`CLAUDE.md`, `AGENTS.md`, `.claude/`, a plugin's `hooks/`
-or `.claude-plugin/`, `.mcp.json`, `.gitmodules`, `CODEOWNERS`), and `report-escalation` takes six `ci-fix-*`
+`.github/**` or an agent instruction path (`CLAUDE.md`, `AGENTS.md`, `.claude/` or `.claude-plugin/`, a
+plugin's `hooks/`, `.mcp.json`, `.gitmodules`, `CODEOWNERS`), and `report-escalation` takes six `ci-fix-*`
 reasons. New config: `loop.fix-ci-rounds` (3), `limits.fix-ci-per-run` (2) and
 `limits.fix-ci-restarts` (1). `version` stays 2.
 

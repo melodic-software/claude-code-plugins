@@ -43,11 +43,12 @@ const SYMLINK = "120000";
 const GITLINK = "160000";
 const ZERO = /^0+$/;
 // Paths the harness or the forge reads as instructions or ownership, at any
-// depth and in any case: CLAUDE.md, AGENTS.md, a .claude/ directory, a
-// plugin's hooks/ or .claude-plugin/, .mcp.json, .gitmodules and CODEOWNERS.
-// Code and test files stay editable, so fix-ci can fix a check's own script.
+// depth and in any case: CLAUDE.md, AGENTS.md, a .claude/ or .claude-plugin/
+// directory (the root marketplace.json too), a plugin's hooks/, .mcp.json,
+// .gitmodules and CODEOWNERS. Code and test files stay editable, so fix-ci
+// can fix a check's own script.
 const INSTRUCTION_PATH =
-  /(^|\/)((claude|agents)\.md|\.mcp\.json|\.gitmodules|codeowners)$|(^|\/)\.claude\/|(^|\/)plugins\/[^/]+\/(hooks|\.claude-plugin)\//i;
+  /(^|\/)((claude|agents)\.md|\.mcp\.json|\.gitmodules|codeowners)$|(^|\/)\.claude(-plugin)?\/|(^|\/)plugins\/[^/]+\/hooks\//i;
 export const refusedPath = (path) => isProtectedPath(path) || INSTRUCTION_PATH.test(path);
 
 // The checks the ci --ci report escalated, one per `<check>: escalated

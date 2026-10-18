@@ -228,6 +228,8 @@ const INSTRUCTION_PATHS = [
   "plugins/p/hooks/hooks.json",
   "plugins/p/Hooks/run.mjs",
   "plugins/p/.claude-plugin/plugin.json",
+  ".claude-plugin/marketplace.json",
+  "vendor/m/.Claude-Plugin/marketplace.json",
   ".mcp.json",
   "plugins/p/.MCP.json",
   ".gitmodules",

@@ -883,8 +883,8 @@ passes the model job's `patch-state`, `patch-sha256`, `patch-attempt`, `head-sha
    (escalating `ci-fix-not-applied` on failure), writes the tree, and lists it against the gated
    head with `git diff-tree -r --no-renames`. A path under `.github/` (thread-scope.mjs's
    `isProtectedPath`, the rule the review-threads mode applies), or an agent instruction path at
-   any depth and in any case (`CLAUDE.md`, `AGENTS.md`, a `.claude/` directory, a plugin's
-   `hooks/` or `.claude-plugin/`, `.mcp.json`, `.gitmodules`, `CODEOWNERS`), escalates
+   any depth and in any case (`CLAUDE.md`, `AGENTS.md`, a `.claude/` or `.claude-plugin/` directory,
+   a plugin's `hooks/`, `.mcp.json`, `.gitmodules`, `CODEOWNERS`), escalates
    `ci-fix-protected-path` and pushes none of the patch, whatever the report escalated; a mode `120000` or `160000` on either side, or no change, escalates
    `ci-fix-invalid`. It then re-reads the pull request and its labels and stops uncommitted
    (`awaiting-human`) on a draft or a hold label, fails when `git/ref heads/<head ref>` is no
