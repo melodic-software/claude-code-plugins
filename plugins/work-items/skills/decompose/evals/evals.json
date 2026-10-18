@@ -124,6 +124,19 @@
         "No created item carries a work-class: label",
         "Writes no status field on any created item"
       ]
+    },
+    {
+      "id": 10,
+      "name": "published-bodies-inline-redacted-decisions-with-qd-ids",
+      "prompt": "/work-items:decompose — the topic is refund-export and its PLAN.md is approved and has two phases: Phase 1 builds the replica-backed refund query, Phase 2 writes the CSV export. Its decision log numbers Q2 (should the export read from the reporting replica?) answered by D4 (yes, read only from the replica, because the primary is write-hot), and D5 (the CSV is written to /home/dev/exports/refunds.csv on the build host). Both phases rest on D4; only Phase 2 rests on D5. The repository is public. Publish the breakdown as plain items with no spec container; I approve it in advance.",
+      "expected_output": "Publishes one item per phase. Both item bodies have a Decisions section that inlines D4's content with its Q/D ids (Q2, D4), so the body stands on its own in a public tracker; the Phase 2 body also carries D5. D5's machine-specific path is generalized or dropped rather than copied. No body names a path under the memory root (default .work/, so no .work/refund-export/PLAN.md) and none links the PLAN.md file in place of the decision text; the Parent section's 'PLAN Phase N, topic refund-export' label is allowed.",
+      "files": [],
+      "expectations": [
+        "Both published item bodies have a Decisions section inlining D4's content with its Q/D ids (Q2 and D4)",
+        "The Phase 2 body also inlines D5, redacted: the machine-specific path /home/dev/exports/refunds.csv appears in no body, generalized to what it names or dropped",
+        "No item body contains a path under the memory root (default .work/) or a <slug>/PLAN.md path",
+        "No item body points at a PLAN.md file path or link, or at the thread, in place of stating the decision (the 'PLAN Phase N, topic <slug>' label in Parent is allowed)"
+      ]
     }
   ]
 }
