@@ -2588,6 +2588,9 @@ class PostMergeGate:
 
 # How old a shared post-merge answer may be: the pr-merge job's timeout.
 SHARED_MAX_AGE = timedelta(minutes=30)
+# How old a shared answer still waiting on a lane merge's verifying run may
+# be: that run may have passed since. The verify-evidence listing's bound.
+SHARED_UNVERIFIED_MAX_AGE = timedelta(minutes=2)
 # Runner clocks may run ahead of GitHub's; `since` starts this much earlier.
 SINCE_CLOCK_MARGIN = timedelta(minutes=5)
 
@@ -2679,7 +2682,8 @@ def shared_refusal(
 ) -> str | None:
     """Why `shared` may not stand in for this pull request's own reads, or
     None: it must name the same identity, self logins and lane, be no older
-    than `SHARED_MAX_AGE`, have no demotion record filed or changed since
+    than `SHARED_MAX_AGE` (`SHARED_UNVERIFIED_MAX_AGE` while it passes with
+    a merge unverified), have no demotion record filed or changed since
     (`_demotion_changed`), give this base the floor its own read would
     (`merged_since_floor` with the shared demotion), and judge every merge
     the post-merge check would judge now.
@@ -2702,6 +2706,17 @@ def shared_refusal(
         ),
         (shared.lane_merges_only != lane, "lane-differs"),
         (not timedelta(0) <= age <= SHARED_MAX_AGE, "stale"),
+        # A refusing answer refuses whatever was verified since, so only a
+        # passing one with a merge still unverified is read again.
+        (
+            age > SHARED_UNVERIFIED_MAX_AGE
+            and shared.gate.refusal is None
+            and any(
+                json_object(m).get("verified") is not True
+                for m in json_array(shared.gate.report.get("autoMerges"))
+            ),
+            "unverified-stale",
+        ),
     )
     refusal = next((text for refused, text in checks if refused), None)
     if refusal:
@@ -2759,6 +2774,7 @@ def assess(
     lane_kill_switch: str | None = None,
     lane_rung_cap: str | None = None,
     shared: SharedPostMerge | None = None,
+    share: Callable[[SharedPostMerge], object] | None = None,
 ) -> UnattendedPolicy:
     """The policy readers for one pull request, in the wiring order.
 
@@ -2786,6 +2802,8 @@ def assess(
     (`merged_since_floor`) and must be given: without it the path refuses.
     `shared`, the run's one answer for every candidate, replaces the
     demotion, floor and post-merge reads when `shared_refusal` passes it.
+    `share(answer)` receives those reads, when made and readable, bound as a
+    `SharedPostMerge` for the next candidate; it must not raise.
     `promotion(window_start)` reads the promotion evidence with the newest
     demotion record's creation as the window restart; without it nothing is
     promoted. `self_logins` names only lane or bot self identities (see
@@ -2889,6 +2907,16 @@ def assess(
         )
         details["postMergeShared"] = f"unused:{unusable}" if unusable else "used"
         reuse = None if unusable else shared
+    # Bound before the reads it covers: a merge after this head read moves
+    # the head, and a record changed after `computed_at` is re-read.
+    computed_at = datetime.now(UTC)
+    owner, name = _split_repo(repo)
+    head = None
+    if share is not None and reuse is None:
+        status, payload = _get(
+            f"repos/{owner}/{name}/commits/{quote(default, safe='')}"
+        )
+        head = payload.get("sha") if status == 200 and is_json_object(payload) else None
     demotion = reuse.demotion if reuse else read_demotion(repo, **readers)
     details["demotion"] = {
         "active": demotion.active,
@@ -2911,6 +2939,30 @@ def assess(
         else PostMergeGate("unchecked", {}, None)
     )
     details["postMerge"] = dict(gate.report)
+    if (
+        share is not None
+        and isinstance(head, str)
+        and SHA_RE.fullmatch(head)
+        and gate.report.get("readable") is True
+    ):
+        try:
+            config_sha = newest_config_commit(repo, base_sha)
+        except PolicyReadError:
+            config_sha = None
+        if config_sha:
+            share(
+                SharedPostMerge(
+                    main_sha=head,
+                    config_sha=config_sha,
+                    identity=resolved.login,
+                    self_logins=frozenset(self_logins),
+                    lane_merges_only=lane,
+                    computed_at=computed_at,
+                    demotion=demotion,
+                    floor=floor,
+                    gate=gate,
+                )
+            )
     if gate.refusal:
         return replace(stopped, reason=f"post-merge:{gate.refusal}")
 

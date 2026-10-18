@@ -44,6 +44,7 @@ auto-merge not yet verified. Only 0 lets a merge proceed.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import re
@@ -1609,6 +1610,48 @@ def read_shared(path: str) -> policy.SharedPostMerge | None:
         )
     except (OSError, ValueError, policy.PolicyReadError):
         return None
+
+
+def write_shared(path: str, shared: policy.SharedPostMerge) -> bool:
+    """Replace the report at `path` with `shared` in this script's schema, so
+    the next candidate's `read_shared` reuses a gate's recompute. A temp file
+    in the same directory, then `os.replace`: a reader sees the old file or
+    the new one, never part of one. The pr-merge job runs its candidates one
+    after another, so there is no concurrent writer. Best effort: a failure is
+    logged, the old file stays, and the caller's verdict stands."""
+    demotion = shared.demotion
+    times = (demotion.newest_created, demotion.cleared_at)
+    newest, cleared = (t.isoformat() if t else None for t in times)
+    payload = {
+        **shared.gate.report,
+        "since": shared.floor.isoformat(),
+        "shared": {
+            "mainSha": shared.main_sha,
+            "configSha": shared.config_sha,
+            "demotion": {
+                "active": demotion.active,
+                "reason": demotion.reason,
+                "records": list(demotion.records),
+                "newestCreated": newest,
+                "clearedAt": cleared,
+            },
+            "identity": shared.identity,
+            "selfLogins": sorted(shared.self_logins),
+            "laneMergesOnly": shared.lane_merges_only,
+            "computedAt": shared.computed_at.isoformat(),
+        },
+    }
+    target = Path(path)
+    tmp = target.with_name(f"{target.name}.{os.getpid()}.tmp")
+    try:
+        tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        os.replace(tmp, target)
+    except (OSError, TypeError, ValueError) as exc:
+        print(f"post-merge answer not written to {path}: {exc}", file=sys.stderr)
+        with contextlib.suppress(OSError):
+            tmp.unlink(missing_ok=True)
+        return False
+    return True
 
 
 def _since(value: str) -> datetime:

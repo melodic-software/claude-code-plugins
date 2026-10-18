@@ -16,6 +16,7 @@ seam; no real gh process runs.
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import io
 import json
 import pathlib
@@ -2172,6 +2173,55 @@ class SharedAnswer(CheckCase):
                 self.assertIsNone(pm.read_shared(str(path)))
         path.write_text("not json", encoding="utf-8")
         self.assertIsNone(pm.read_shared(str(path)))
+        # A partial write, an unparseable or missing computedAt: not trusted.
+        whole = json.dumps(good)
+        broken = {k: v for k, v in good["shared"].items() if k != "computedAt"}
+        for text in (
+            whole[: len(whole) // 2],
+            json.dumps({**good, "shared": {**good["shared"], "computedAt": "soon"}}),
+            json.dumps({**good, "shared": broken}),
+        ):
+            with self.subTest(text=text[:40]):
+                path.write_text(text, encoding="utf-8")
+                self.assertIsNone(pm.read_shared(str(path)))
+
+    def test_a_written_answer_reads_back_as_the_scripts_own(self) -> None:
+        # The gate's write-back (`write_shared`) keeps the script's schema, so
+        # the next candidate reads the same answer back.
+        self.all_green()
+        path = self.write_report()
+        original = json.loads(path.read_text(encoding="utf-8"))
+        shared = pm.read_shared(str(path))
+        assert shared is not None
+        path.unlink()
+        self.assertTrue(pm.write_shared(str(path), shared))
+        written = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(set(written), set(original))
+        self.assertEqual(set(written["shared"]), set(original["shared"]))
+        reread = pm.read_shared(str(path))
+        assert reread is not None
+        self.assertEqual(dataclasses.replace(reread, gate=shared.gate), shared)
+        self.assertEqual(
+            (reread.gate.refusal, reread.gate.report),
+            (shared.gate.refusal, shared.gate.report),
+        )
+        self.assertEqual(list(path.parent.iterdir()), [path])
+
+    def test_a_failed_write_is_reported_and_leaves_the_old_answer(self) -> None:
+        self.all_green()
+        path = self.write_report()
+        before = path.read_text(encoding="utf-8")
+        shared = pm.read_shared(str(path))
+        assert shared is not None
+        err = io.StringIO()
+        with (
+            contextlib.redirect_stderr(err),
+            mock.patch.object(pm.os, "replace", side_effect=OSError("disk full")),
+        ):
+            self.assertFalse(pm.write_shared(str(path), shared))
+        self.assertIn("disk full", err.getvalue())
+        self.assertEqual(path.read_text(encoding="utf-8"), before)
+        self.assertEqual(list(path.parent.iterdir()), [path])
 
     def test_the_default_floor_names_what_it_was_read_from(self) -> None:
         demotion = pm.policy.Demotion(False, None, (9,), None, None)
