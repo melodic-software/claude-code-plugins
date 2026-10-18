@@ -5153,6 +5153,277 @@ else
   fail "check 30 should skip growth for a new skill: $out"
 fi
 
+# Check 31: a settings token as the subject of a condition with no fallback.
+# The flagged and passing shapes are the ones the check's spec names: the
+# misread "When `${user_config.x}` is true", the `/code-tidying:tidy` fallback
+# sentence, the "when non-empty, else the root default" form, and a token in a
+# fenced shell block.
+st_skill() { # name, body text after the frontmatter
+  make_skill "$1" "---
+name: $1
+description: \"Do a thing. Use when: 'a thing' is needed.\"
+---
+
+## Purpose
+
+$2
+
+## Gotchas
+
+None known.
+"
+}
+# run_st <baseline-file> <skill>: check 31 against a given baseline.
+run_st() {
+  (cd "$TMP" &&
+    CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+      CHECK_SKILL_SETTINGS_TOKEN_BASELINE="$1" bash "$SUT" "$2")
+}
+ST_EMPTY="$TMP/st-baseline-empty.txt"
+: >"$ST_EMPTY"
+
+st_skill st-misread 'When `${user_config.x}` is true, prefix each line with a marker.'
+out="$(run_st "$ST_EMPTY" st-misread 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'FAIL: settings token used as the subject of a condition with no inline fallback at SKILL.md:8 (x)' <<<"$out"; then
+  pass "check 31 FAILs the misread shape 'When \${user_config.x} is true' with its line and key"
+else
+  fail "check 31 should FAIL the misread shape at SKILL.md:8 (rc=$rc): $out"
+fi
+
+st_skill st-unless 'Pass the flag unless `${user_config.y}` is `false`. If `${user_config.z}` is on, add a note.'
+out="$(run_st "$ST_EMPTY" st-unless 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'at SKILL.md:8 (y), SKILL.md:8 (z)' <<<"$out"; then
+  pass "check 31 FAILs 'unless ... is \`false\`' and 'If ... is on' in one paragraph"
+else
+  fail "check 31 should FAIL both unless/is-false and if/is-on (rc=$rc): $out"
+fi
+
+st_skill st-tidy-form 'HARD path exclusions: `${user_config.hard_exclusions}` (unexpanded, empty, or any value outside `enforce` and `advisory` means `enforce`).
+
+When `${user_config.x}` is true (unexpanded, empty, or any other value means `false`), prefix each line.'
+out="$(run_st "$ST_EMPTY" st-tidy-form 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'INFO: no settings token used as a condition without a fallback' <<<"$out"; then
+  pass "check 31 passes the code-tidying fallback form, also inside a condition"
+else
+  fail "check 31 should pass the unexpanded ... means fallback (rc=$rc): $out"
+fi
+
+st_skill st-abbrev 'When `${user_config.x}` is true (e.g. on CI; unexpanded or empty means `false`), prefix lines.
+
+When `${user_config.y}` is true, prefix lines, i.e. mark them (unset means false).'
+out="$(run_st "$ST_EMPTY" st-abbrev 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'INFO: no settings token used as a condition without a fallback' <<<"$out"; then
+  pass "check 31 keeps a sentence whole across e.g. and i.e., so its fallback counts"
+else
+  fail "check 31 should not split a sentence at e.g. or i.e. (rc=$rc): $out"
+fi
+
+st_skill st-subst-verb 'When `${user_config.x}` is true, substitute tabs for spaces.'
+out="$(run_st "$ST_EMPTY" st-subst-verb 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'at SKILL.md:8 (x)' <<<"$out"; then
+  pass "check 31 FAILs a misread whose only substitution word is about the task, not the token"
+else
+  fail "check 31 should FAIL 'substitute tabs' as a misread (rc=$rc): $out"
+fi
+
+st_skill st-else-form 'Use the rendered `${user_config.active_profile}` value when non-empty, else the root `default`.
+
+When `${user_config.x}` is substituted, Claude Code replaces it before the model reads it.'
+out="$(run_st "$ST_EMPTY" st-else-form 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'INFO: no settings token used as a condition without a fallback' <<<"$out"; then
+  pass "check 31 passes the 'when non-empty, else the root default' form and substitution prose"
+else
+  fail "check 31 should pass the non-empty/else form and substitution prose (rc=$rc): $out"
+fi
+
+st_skill st-fenced 'Run this:
+
+```bash
+# When ${user_config.x} is true, the hook runs.
+```
+
+When `enabled` is true, say so.'
+out="$(run_st "$ST_EMPTY" st-fenced 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'INFO: no settings token used as a condition without a fallback' <<<"$out"; then
+  pass "check 31 skips a token inside a fenced shell block and a non-token code span"
+else
+  fail "check 31 should skip fenced blocks and non-token code spans (rc=$rc): $out"
+fi
+
+st_skill st-long-fence 'Example:
+
+````markdown
+```text
+When `${user_config.x}` is true, do it.
+```
+````
+
+When `${user_config.y}` is true, do it.'
+out="$(run_st "$ST_EMPTY" st-long-fence 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'fallback at SKILL.md:16 (y)' <<<"$out" && ! grep -q 'SKILL.md:12' <<<"$out"; then
+  pass "check 31 keeps a four-backtick fence open across an inner triple-backtick block"
+else
+  fail "check 31 should skip the nested example and flag only SKILL.md:16 (rc=$rc): $out"
+fi
+
+st_skill st-quoted-fence 'Example:
+
+> ```text
+> When `${user_config.x}` is true, do it.
+> ```
+
+When `${user_config.y}` is true, do it.'
+out="$(run_st "$ST_EMPTY" st-quoted-fence 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'fallback at SKILL.md:14 (y)' <<<"$out" && ! grep -q 'SKILL.md:11' <<<"$out"; then
+  pass "check 31 skips a fenced block inside a blockquote"
+else
+  fail "check 31 should skip the quoted fence and flag only SKILL.md:14 (rc=$rc): $out"
+fi
+
+st_skill st-quoted-unclosed 'Example:
+
+> ```text
+> example
+
+When `${user_config.y}` is true, do it.'
+out="$(run_st "$ST_EMPTY" st-quoted-unclosed 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'fallback at SKILL.md:13 (y)' <<<"$out"; then
+  pass "check 31 ends a quoted fence when its blockquote ends"
+else
+  fail "check 31 should end an unclosed quoted fence with its quote and flag SKILL.md:13 (rc=$rc): $out"
+fi
+
+st_skill st-spoke 'See `reference/notes.md`.'
+mkdir -p "$SKILLS/st-spoke/reference" "$SKILLS/st-spoke/evals"
+printf 'Intro.\n\nIf the\n`${user_config.x}` is false, stop.\n' >"$SKILLS/st-spoke/reference/notes.md"
+printf 'When `${user_config.x}` is true, do it.\n' >"$SKILLS/st-spoke/evals/case.md"
+out="$(run_st "$ST_EMPTY" st-spoke 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'at reference/notes.md:4 (x)' <<<"$out" && ! grep -q 'evals/case.md' <<<"$out"; then
+  pass "check 31 reads spoke .md files across wrapped lines and never evals/"
+else
+  fail "check 31 should flag reference/notes.md:4 and skip evals/ (rc=$rc): $out"
+fi
+
+ST_BASE="$TMP/st-baseline.txt"
+printf '# fixture\n.claude/skills/st-misread/SKILL.md 1 # pre-existing\n' >"$ST_BASE"
+out="$(run_st "$ST_BASE" st-misread 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: settings token used as a condition with no inline fallback at SKILL.md:8 (x)' <<<"$out"; then
+  pass "check 31 WARNs, exit 0, on a baselined file whose count holds"
+else
+  fail "check 31 should WARN on a baselined file (rc=$rc): $out"
+fi
+out="$(run_st "$ST_BASE" st-unless 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'FAIL: settings token used as the subject' <<<"$out"; then
+  pass "check 31 FAILs a new skill not in the baseline"
+else
+  fail "check 31 should FAIL an unlisted skill (rc=$rc): $out"
+fi
+printf '.claude/skills/st-misread/SKILL.md 2\n' >"$ST_BASE"
+out="$(run_st "$ST_BASE" st-misread 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'now has 1 hit(s), not 2 — lower the row' <<<"$out"; then
+  pass "check 31 FAILs a baseline row whose count is now lower"
+else
+  fail "check 31 should FAIL a row above the live count (rc=$rc): $out"
+fi
+printf '.claude/skills/st-unless/SKILL.md 1\n' >"$ST_BASE"
+out="$(run_st "$ST_BASE" st-unless 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'rose from the baseline.s 1 to 2' <<<"$out"; then
+  pass "check 31 FAILs a new hit in a baselined file"
+else
+  fail "check 31 should FAIL a count rise (rc=$rc): $out"
+fi
+printf '.claude/skills/st-tidy-form/SKILL.md 1\n.claude/skills/st-tidy-form/reference/gone.md 1\n' >"$ST_BASE"
+out="$(run_st "$ST_BASE" st-tidy-form 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'st-tidy-form/SKILL.md now has no hits — remove the row' <<<"$out" &&
+  grep -q 'st-tidy-form/reference/gone.md no longer exists — remove the row' <<<"$out"; then
+  pass "check 31 FAILs stale rows: a file with no hits and a file that is gone"
+else
+  fail "check 31 should FAIL zero-hit and missing-file rows (rc=$rc): $out"
+fi
+# shellcheck disable=SC2016  # the command substitution is the literal payload under test
+printf '.claude/skills/st-misread/SKILL.md x[$(touch${IFS}%s)]\n' "$TMP/st-injected" >"$ST_BASE"
+out="$(run_st "$ST_BASE" st-misread 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && [[ ! -e "$TMP/st-injected" ]] && grep -q 'has a non-numeric count — fix the row' <<<"$out"; then
+  pass "check 31 FAILs a non-numeric baseline count without evaluating it"
+else
+  fail "check 31 should FAIL a non-numeric count and never evaluate it (rc=$rc): $out"
+fi
+out="$(run_st "$TMP/no-such-baseline.txt" st-tidy-form 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'CHECK_SKILL_SETTINGS_TOKEN_BASELINE=.*does not exist' <<<"$out"; then
+  pass "check 31 FAILs a named baseline that does not exist"
+else
+  fail "check 31 should FAIL a missing named baseline (rc=$rc): $out"
+fi
+
+# Check 31 severity follows whether a baseline applies to the run. A consumer
+# that names its own baseline (the empty-file cases above) is strict. With no
+# baseline named, only a run of the checker on its own repository applies the
+# default baseline; a consumer repository or a plain tree gets WARNs, exit 0.
+run_st_default() { # cwd, checker path, skills root, skill
+  (cd "$1" && env -u CHECK_SKILL_SETTINGS_TOKEN_BASELINE \
+    CHECK_SKILL_SKILLS_ROOT="$3" CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash "$2" "$4")
+}
+out="$(run_st_default "$TMP" "$SUT" "$SKILLS" st-misread 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: settings token used as a condition with no inline fallback at SKILL.md:8 (x)' <<<"$out" &&
+  grep -q 'no settings-token baseline applies to this run' <<<"$out" && ! grep -q 'FAIL: settings token' <<<"$out"; then
+  pass "check 31 WARNs, exit 0, in a consumer git repo with no baseline of its own"
+else
+  fail "check 31 should WARN in a consumer repo with no baseline (rc=$rc): $out"
+fi
+
+ST_PLAIN="$(mktemp -d)"
+trap 'rm -rf "$TMP" "$CACHE_TMP" "$WALK_TMP" "$NOGIT_TMP" "$XREPO" "$ST_PLAIN"' EXIT
+mkdir -p "$ST_PLAIN/skills"
+cp -R "$SKILLS/st-misread" "$ST_PLAIN/skills/"
+out="$(GIT_CEILING_DIRECTORIES="$ST_PLAIN" run_st_default "$ST_PLAIN" "$SUT" "$ST_PLAIN/skills" st-misread 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: settings token used as a condition with no inline fallback at SKILL.md:8 (x)' <<<"$out" &&
+  grep -q 'no settings-token baseline applies to this run' <<<"$out"; then
+  pass "check 31 WARNs, exit 0, on a plain tree such as a plugin-cache install"
+else
+  fail "check 31 should WARN on a plain tree (rc=$rc): $out"
+fi
+
+# The checker inside the repository it checks: its default baseline applies.
+ST_TOOL="$TMP/tools/skill-quality"
+mkdir -p "$ST_TOOL"
+cp "$SCRIPT_DIR/check-skill.sh" "$SCRIPT_DIR/skill-frontmatter.sh" "$SCRIPT_DIR/metadata-registry.txt" "$ST_TOOL/"
+: >"$ST_TOOL/settings-token-baseline.txt"
+out="$(run_st_default "$TMP" "$ST_TOOL/check-skill.sh" "$SKILLS" st-misread 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'FAIL: settings token used as the subject of a condition with no inline fallback at SKILL.md:8 (x)' <<<"$out"; then
+  pass "check 31 FAILs an unlisted hit when the checker's own repository is checked"
+else
+  fail "check 31 should FAIL an unlisted hit in the checker's own repository (rc=$rc): $out"
+fi
+printf '.claude/skills/st-misread/SKILL.md 1\n' >"$ST_TOOL/settings-token-baseline.txt"
+out="$(run_st_default "$TMP" "$ST_TOOL/check-skill.sh" "$SKILLS" st-misread 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'recorded in scripts/settings-token-baseline.txt' <<<"$out"; then
+  pass "check 31 WARNs on a row of the default baseline in the checker's own repository"
+else
+  fail "check 31 should WARN on a default-baseline row in its own repository (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

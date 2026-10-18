@@ -98,10 +98,11 @@ const script = byId("act-script").run ?? "";
 say(/"\$RUNNER_TEMP\/base-script\/\$\(basename "\$SCRIPT"\)"/.test(script), "a script activity runs from its base copy");
 const skill = byId("act-skill");
 const args = String(skill.with?.claude_args ?? "");
-// The action admits only github-actions, and only on a dispatcher-sent run the
-// trigger gate verified.
-say(skill.with?.allowed_bots === "${{ inputs.dispatcher-run-id != '' && 'github-actions' || '' }}",
-  `the skill admits github-actions only with a dispatcher-run-id (got ${JSON.stringify(skill.with?.allowed_bots)})`);
+// The action admits the lanes App, which the trigger gate passes only on its
+// app-label, and github-actions only on a dispatcher-sent run the gate
+// verified; never '*'. cant-fail-ok: the allowed_bots value is the contract.
+say(skill.with?.allowed_bots === "${{ inputs.dispatcher-run-id != '' && 'melodic-automation-lanes[bot],github-actions' || 'melodic-automation-lanes[bot]' }}",
+  `the skill admits the lanes App, and github-actions only with a dispatcher-run-id (got ${JSON.stringify(skill.with?.allowed_bots)})`);
 say(/--setting-sources user/.test(args) && /--permission-mode dontAsk/.test(args) && !/bypass/i.test(args),
   "the skill loads user settings only, under dontAsk");
 const stage = readFileSync(".github/actions/collect-base-activity/action.yml", "utf8");
@@ -297,6 +298,8 @@ say(String(summaryRun.uses ?? "") === String(skill.uses ?? "") && summaryRun.wit
   && !("plugin_marketplaces" in (summaryRun.with ?? {})) && sById("isolate").uses === "./.base/.github/actions/setup-runner-isolation"
   && String(summaryRun.if ?? "") === "steps.isolate.outcome == 'success'",
   "the summary model step runs only after runner isolation, with the job's read-only token, no commit signing and no plugins");
+say(summaryRun.with?.allowed_bots === "melodic-automation-lanes[bot]",
+  `the summary model step admits only the lanes App bot (got ${JSON.stringify(summaryRun.with?.allowed_bots)})`);
 say(/--setting-sources user/.test(String(summaryRun.with?.claude_args ?? "")) && /--permission-mode dontAsk/.test(String(summaryRun.with?.claude_args ?? ""))
   && /--allowedTools \\"Read\(\/\$DATA\/\*\*\)\\"/.test(summaryArgs) && /denied="Bash,Edit,Write,/.test(summaryArgs)
   && /mcp__github_file_ops/.test(summaryArgs) && /--json-schema/.test(summaryArgs) && /openssl rand -hex/.test(summaryArgs),

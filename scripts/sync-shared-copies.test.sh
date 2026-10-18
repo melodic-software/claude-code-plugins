@@ -11,6 +11,13 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SELF_DIR/lib/fixture-tree.sh"
 
 root=""
+outside=""
+tools=""
+cleanup_tmp() {
+  [[ -n "$tools" && -d "$tools" ]] && chmod -R u+w "$tools"
+  rm -rf -- ${outside:+"$outside"} ${tools:+"$tools"}
+}
+trap cleanup_tmp EXIT
 HEADER_JS='// GENERATED from lib/esc.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:'
 
 # fixture: canonical lib/esc.mjs carried by plugins/alpha and plugins/beta.
@@ -291,5 +298,86 @@ reject "an extension with no known comment syntax is rejected" "no comment synta
 fixture
 out="$(run --bogus)"
 expect "an unknown flag exits 2" 2 $? "$out"
+
+# --- registry paths that leave the checkout exit 2 ------------------------------
+reject "a copy with a .. segment is rejected" "not a path inside the checkout" \
+  "lib/esc.mjs plugins/alpha/../../escape.mjs"
+reject "an absolute canonical is rejected" "not a path inside the checkout" \
+  "$root/lib/esc.mjs plugins/alpha/lib/abs.mjs"
+outside="$(mktemp -d)"
+printf 'secret\n' >"$outside/secret.sh"
+fixture
+ln -s "$outside" "$root/plugins/alpha/out"
+printf 'lib/esc.mjs plugins/alpha/out/esc.mjs\n' >>"$root/scripts/shared-copies.txt"
+out="$(run)"
+expect "a copy under a symbolic link is rejected" 2 $? "$out"
+if [[ ! -e "$outside/esc.mjs" ]]; then
+  pass "a copy under a symbolic link writes nothing outside the checkout"
+else
+  bad "a copy under a symbolic link writes nothing outside the checkout" "wrote $outside/esc.mjs"
+fi
+fixture
+ln -s "$outside/secret.sh" "$root/lib/secret.sh"
+printf 'lib/secret.sh plugins/alpha/lib/secret.sh\n' >>"$root/scripts/shared-copies.txt"
+out="$(run)"
+expect "a canonical that is a symbolic link is rejected" 2 $? "$out"
+if [[ ! -e "$root/plugins/alpha/lib/secret.sh" ]]; then
+  pass "a symbolic-link canonical is not copied into a plugin"
+else
+  bad "a symbolic-link canonical is not copied into a plugin" "copied it"
+fi
+fixture
+printf 'outside-secret-line\n' >"$outside/registry.txt"
+rm "$root/scripts/shared-copies.txt"
+ln -s "$outside/registry.txt" "$root/scripts/shared-copies.txt"
+out="$(run --check)"
+expect "a registry that is a symbolic link is rejected" 2 $? "$out"
+if [[ "$out" != *outside-secret-line* ]]; then
+  pass "a symbolic-link registry's contents are not printed"
+else
+  bad "a symbolic-link registry's contents are not printed" "$out"
+fi
+rm -rf "$outside"
+
+# --- a copy of scripts/ run from outside the checkout syncs the checkout ---------
+# The issue lane runs a read-only copy of only scripts/, with the working
+# directory at the pull request's checkout.
+fixture
+git_init_test_repo "$root" >/dev/null || exit 2
+git -C "$root" add -A && git -C "$root" commit -qm base
+tools="$(mktemp -d)"
+cp -R "$root/scripts" "$tools/scripts"
+chmod -R a-w "$tools"
+tools_before="$(find "$tools" | sort)"
+ext() { (cd "$root" && bash "$tools/scripts/sync-shared-copies.sh" "$@" 2>&1); }
+out="$(ext)"
+expect "an outside copy regenerates the checkout's copies" 0 $? "$out"
+if [[ -f "$root/plugins/alpha/lib/esc.mjs" && -f "$root/plugins/beta/lib/esc.mjs" ]]; then
+  pass "an outside copy writes the registered copies into the checkout"
+else
+  bad "an outside copy writes the registered copies into the checkout" "out: $out"
+fi
+if [[ "$(find "$tools" | sort)" == "$tools_before" ]]; then
+  pass "an outside copy leaves its own directory untouched"
+else
+  bad "an outside copy leaves its own directory untouched" "$(find "$tools" | sort)"
+fi
+out="$(ext --check)"
+expect "an outside copy runs --check" 0 $? "$out"
+out="$(ext --print-manifest)"
+expect "an outside copy runs --print-manifest" 0 $? "$out"
+out="$(ext --check-bump HEAD)"
+expect "an outside copy refuses --check-bump" 2 $? "$out"
+LAST_OUTPUT="$out"
+assert_output_contains "an outside copy refuses --check-bump, with the reason" "refused: --check-bump"
+chmod -R u+w "$tools"
+rm -rf "$tools"
+
+# --- with no work tree to resolve, --check-bump is refused (fails closed) -------
+fixture
+out="$(run --check-bump HEAD)"
+expect "--check-bump outside any work tree exits 2" 2 $? "$out"
+LAST_OUTPUT="$out"
+assert_output_contains "--check-bump outside any work tree is refused, with the reason" "refused: --check-bump"
 
 test_harness::report

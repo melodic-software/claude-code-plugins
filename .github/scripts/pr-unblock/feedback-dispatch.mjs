@@ -156,10 +156,6 @@ export async function dispatchFeedback({
   if (!hasWorkableThread(threads, { reviewerId: settings.reviewerId, appId: appSenderId, trustedHumans })) {
     return skip(`#${number} has no unresolved thread left by the reviewer bot alone or answered by a trusted person`);
   }
-  const existing = await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId });
-  if (anyHandles(existing, { now })) {
-    return skip(`#${number}: head ${head} already has a ${settings.checkName} check run`);
-  }
   // Both review lanes finish on one head, and their dispatchers queue in one
   // concurrency group. The first one's run posts no check until it ends, so
   // the second skips while a run of this activity for this PR, created after
@@ -183,6 +179,10 @@ export async function dispatchFeedback({
   }
   if (resolved.selected?.applies !== true) {
     return skip(`#${number}: ${settings.activity} does not apply (${resolved.selected?.["skip-reason"] ?? "unknown"})`);
+  }
+  const existing = await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId });
+  if (anyHandles(existing, { now, limits: resolved.limits })) {
+    return skip(`#${number}: head ${head} already has a ${settings.checkName} check run`);
   }
   const { workflowRunId } = await api.dispatchWorkflow({
     workflow: settings.workflow,

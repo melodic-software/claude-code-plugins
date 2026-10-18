@@ -337,12 +337,17 @@ directory holds a symbolic link (whose target `chmod` would leave writable), mak
 read-only, denies `Edit` and `Write` on it, allows `Bash(<copy>/bin/<name> *)`, and names each
 wrapper in `--append-system-prompt`. The wrapper changes to the checkout, refuses any argument (or
 the value after an `=`) naming an existing path whose real path lies outside the checkout, since a
-script may print lines of a file it reads, sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`
+script may print lines of a file it reads, unsets `GH_TOKEN` and `GITHUB_TOKEN` in the script's
+own environment (code the script runs can still read the token from the wrapper's or the Bash
+shell's `/proc/<pid>/environ`), sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`
 and command-scope `core.fsmonitor=false` and `core.hooksPath=/dev/null`, then runs the copy with
 the arguments and prints `exit status: <n>` to stderr before exiting with that status, since the
 lane denies a chained `; echo "$?"`; the system prompt says to run each wrapper as its own command.
 Any other arguments match, so a listed script that changes files or runs checkout code must limit
-itself. `resolve-issue` lists two that do, each refusing (exit 2) an argument that is absolute,
+itself, or hand the run a power it may hold. `resolve-issue` also lists skill-quality's
+`check-evals-quality.sh` (bash and jq over `evals.json` files) and `check-skill.sh`, which runs each
+checked skill's `scripts/*.test.sh` and the checkout's markdownlint: checkout code with the network
+open and the token readable from an ancestor process, the power `scripts/run-test-file.sh` has. It lists two that limit themselves, each refusing (exit 2) an argument that is absolute,
 has a `..` segment, starts with `-` or `:`, or resolves through a link to outside the checkout, including
 a path that does not exist yet (`scripts/lib/checkout-path.sh`). `scripts/run-test-file.sh` takes
 one test file and runs it by name, `test_*.py` under `python3 -m pytest`, `*.test.sh` under
@@ -923,9 +928,12 @@ repository, started (and any re-run) by the lanes bot or a listed human, at the 
 or, with `expected_upstream_head` in the body, at that head when every commit from it to the PR's
 current head is one GitHub signed for the lanes bot (committer `web-flow`, signature `valid`) after
 this run was created, and the upstream run lists this pull request. The client
-sends it once and never retries: the broker
-reserves the job's `check_run_id` when it mints, so a second request is denied `already-minted`,
-and a 200 lost in transit leaves a token nobody revokes until it expires within the hour.
+retries only a 503 `github-unavailable`, with backoff, or `github-rate-limited`, after its
+`Retry-After`
+([`request-lane-token`](../../../.github/actions/request-lane-token/README.md#what-it-does), step 3):
+the broker reserves the job's `check_run_id` before it mints, so a request after a mint or a failed
+mint (`mint-unavailable`) is denied `already-minted`, and a 200 lost in transit leaves a token
+nobody revokes until it expires within the hour.
 
 The broker derives the grant from the default-branch tip's config and `effect-grants.json`, never
 from the request, and mints a token for this repository only, with exactly `contents`,
@@ -957,7 +965,9 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 | 403 | `default-branch-not-main` | The repository's default branch is not `main` |
 | 403 | `kill-switch` | The organization's `CLAUDE_LANES_DISABLED` is not exactly `false`, a repository variable of that name exists (it would shadow the org value), or the repository's `CLAUDE_LANES_REPO_DISABLED` is absent or not exactly `false` |
 | 403 | `already-minted` | This job already received its mint |
-| 503 | `key-unavailable`, `github-unavailable`, `store-unavailable` | The broker could not sign, read GitHub, or record the mint; nothing was minted |
+| 503 | `key-unavailable`, `github-unavailable`, `store-unavailable` | The broker could not sign, read GitHub, or record the mint; nothing was minted; the client retries `github-unavailable` |
+| 503 | `github-rate-limited` | GitHub rate-limited the broker before it reserved the mint; `Retry-After` carries GitHub's wait (1-3600 s) and the body adds `limit`, `resource` and `retry_after`; retryable after that wait |
+| 503 | `mint-unavailable` | The mint failed after the broker reserved the job's one mint; final, never retried |
 
 A `kill-switch` denial is red, not neutral: step 3 already stopped the common case, so the denial
 means the job's read and the broker's read of the switch disagreed.
@@ -994,7 +1004,11 @@ Step 14 revokes the token as soon as the activity is done. Residuals:
 The write file's `issue-number` input runs a lane on an issue instead of a PR. Its one caller is
 [`work-resolve-issue.yml`](../../../.github/workflows/work-resolve-issue.yml): the `agent-ready`
 label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), then
-`report-outcome` (a script) in a second run job. What changes from the PR flow:
+`report-outcome` (a script) in a second run job. At most three `resolve-issue` jobs run at once:
+a `pick-slot` job takes the issue number modulo `SLOTS` (3), and `resolve-issue` joins the
+`work-resolve-issue-slot-<n>` concurrency group with `queue: max`, so a burst of admissions waits
+in line, holding no runner, instead of spending the lanes App's hourly API quota at once.
+`report-outcome` takes no slot. What changes from the PR flow:
 
 - Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
   `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty, and unless a

@@ -30,6 +30,11 @@ name: work-unblock
 # report: a crash, or a rerun the token broker refused as workflow-modified
 # (a rerun keeps its first event's workflow files). It does that once per issue
 # per version of the lane's two workflow files on main, recorded in a comment.
+# When that run opened a lanes-App PR instead, and the PR merged with `Refs:`
+# or was closed unmerged, the App adds needs-triage and takes agent-ready off,
+# after a comment; a person adding agent-ready again re-runs it. A Refs PR
+# merging also lifts the needs-human report-outcome put on the issue for it.
+# These share the five-a-run cap.
 #
 # To stop the lane on one issue, remove its agent-ready label or add a hold
 # label: no later run labels an issue whose agent-ready label a person removed.
