@@ -20,9 +20,24 @@ import tempfile
 import unittest
 from unittest import mock
 
+# An inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would send the git
+# fixtures' identity writes into the caller's repository
+# (scripts/check-fixture-git-isolation.sh). Cleared before any test spawns git.
+for _leaked_git_var in (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_PREFIX",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_CONFIG",
+):
+    os.environ.pop(_leaked_git_var, None)
+del _leaked_git_var
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-import babysit_postmerge as pm
+import babysit_postmerge as pm  # noqa: E402  (follows the git-env clear above)
 
 GIT_ENV = {
     "GIT_CONFIG_GLOBAL": "/dev/null",
@@ -130,6 +145,14 @@ class Contains(unittest.TestCase):
         )
         (cls.grafted / ".git" / "info").mkdir(exist_ok=True)
         (cls.grafted / ".git" / "info" / "grafts").write_text(f"{cls.c3}\n")
+        # A full clone whose replace ref makes c3 parentless.
+        cls.replaced = pathlib.Path(cls.tmp.name) / "replaced"
+        subprocess.run(
+            ["git", "clone", "-q", root.as_uri(), str(cls.replaced)],
+            check=True,
+            env=GIT_ENV,
+        )
+        git(cls.replaced, "replace", "--graft", cls.c3)
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -198,6 +221,12 @@ class Contains(unittest.TestCase):
     def test_a_graft_file_is_ignored(self) -> None:
         # Grafted, git would call c2 no ancestor of c3; the real ancestry wins.
         ctx, api = self.context([self.grafted])
+        self.assertTrue(ctx.contains(self.c2, self.c3))
+        self.assertEqual(api.calls, [])
+
+    def test_a_replace_ref_is_ignored(self) -> None:
+        # Replaced, git would call c2 no ancestor of c3; the real ancestry wins.
+        ctx, api = self.context([self.replaced])
         self.assertTrue(ctx.contains(self.c2, self.c3))
         self.assertEqual(api.calls, [])
 

@@ -697,8 +697,10 @@ class _Context:
         """`git merge-base --is-ancestor` in the first local clone that can
         decide (exit 0 or 1), or None. Only full SHA-1 ids are asked: a ref
         name can point elsewhere locally than on GitHub. A shallow clone is
-        never asked, and a graft file is ignored, as either would cut history
-        and answer False for an ancestor."""
+        never asked, and graft files and replace refs are ignored, as any of
+        them would cut history and answer False for an ancestor. A partial
+        clone never lazy-fetches a missing commit: it exits non-zero and the
+        compare API answers."""
         if not (_FULL_SHA.fullmatch(ancestor) and _FULL_SHA.fullmatch(sha)):
             return None
         if self.local_clones is None:
@@ -718,7 +720,10 @@ class _Context:
                     ],
                     allowed_executables=("git",),
                     check=False,
-                    env_overrides={"GIT_GRAFT_FILE": os.devnull},
+                    env_overrides={
+                        "GIT_GRAFT_FILE": os.devnull,
+                        "GIT_NO_LAZY_FETCH": "1",
+                    },
                 )
             except (RuntimeError, ValueError, OSError):
                 return None
