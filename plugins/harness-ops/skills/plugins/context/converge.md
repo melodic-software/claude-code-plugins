@@ -49,11 +49,44 @@ Then decide the consolidation strategy:
   `-s local --keep-data`) removes the redundant lower-precedence pin, and scope precedence
   (local > project > user) means the project now loads whatever `user` scope has, always current
   from here on without a standing project pin. `--keep-data` is required: this step removes a
-  scope pin, never the plugin's `${CLAUDE_PLUGIN_DATA}` directory.
+  scope pin, never the plugin's `${CLAUDE_PLUGIN_DATA}` directory. This default holds only for a
+  pin the tracked settings do not mirror: see the committed-enable check below.
 - **A `project`/`local` scope holds the highest version** (including when there's no `user`-scope
   entry at all, only multiple `project`/`local`-scope pins across different repos) → the default
   strategy is to bring every lagging scope, `user` scope included, up to that version:
   `claude plugin update <id> -s <that scope>` for each scope below the highest.
+
+**Before defaulting a `project`-scope row to uninstall, check for a committed enable.**
+`uninstall -s project` always removes the id's `enabledPlugins` entry from the project's
+`.claude/settings.json` ([scope-semantics.md](scope-semantics.md)), and when that file is tracked
+the removal deletes an enable every clone and worktree reads. `update -s project` does not write
+that file (the update exemption in the same file). For each `project`-scope row, in the row's own
+`scopes[].projectPath` (the precondition below applies first):
+
+1. Read `<projectPath>/.claude/settings.json` and look for an `enabledPlugins` entry for the id.
+2. Run `git -C "<projectPath>" ls-files --error-unmatch .claude/settings.json`. Exit `0` means
+   the file is tracked.
+
+When the file is tracked and holds the entry, the default is `update -s project`, even though
+`user` scope holds the highest version. Offer uninstall only as the non-default option, marked
+with a warning that it removes a committed `enabledPlugins` entry. When the id is absent from the
+tracked settings, or the file is untracked or missing (a pin that exists only in
+`installed_plugins.json`), uninstall stays the default. A check that cannot be read (unparsable
+file, git error other than "not tracked") decides nothing: treat it as a committed enable and
+default to update. Any `enabledPlugins` entry counts, `true` or `false`, since uninstall deletes
+either. `local`-scope rows are exempt, since `-s local` writes `settings.local.json`, which is not
+tracked. The `update` default still takes the catalog-direction check below. When that check
+blocks it, the row is emitted as BLOCKED and uninstall is not offered as a way around it, because
+the warned committed-entry removal is the opposite of a safe fallback.
+
+Every preview row states why its default was chosen, in a `Why:` clause, for example:
+
+```text
+- <id>@<marketplace> (project, <projectPath>): default `update -s project`. Why: the tracked
+  .claude/settings.json has an enabledPlugins entry for <id>, and uninstall would remove it.
+- <id>@<marketplace> (project, <projectPath>): default `uninstall -s project --keep-data`. Why:
+  user scope holds the highest version and <id> is not enabled in tracked project settings.
+```
 
 **Before proposing the update strategy, check the catalog's direction.** `claude plugin update`
 installs the CATALOG version, never the sibling scope's, so when the catalog reads below the
@@ -161,7 +194,7 @@ output.
 After all confirmed mutations run, `git diff` (or the equivalent status check) any project's
 committed `.claude/settings.json` that `-s project` mutations touched, every one of them, not only
 the ones expected to change. Per [scope-semantics.md](scope-semantics.md), `claude plugin uninstall
--s project` (this action's actual mechanism) **always** writes that file: it removes the id's
+-s project` (the mechanism for a pin the tracked settings do not mirror) **always** writes that file: it removes the id's
 `enabledPlugins` entry, leaves `"enabledPlugins": {}` when that empties the map, writes the key even
 into a file that never had one, and rewrites the whole file in Claude Code's key order. A clean tree
 after an uninstall is the surprising outcome, not a dirty one. Never predict "no diff" from the

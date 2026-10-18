@@ -52,6 +52,20 @@
       ]
     },
     {
+      "id": 14,
+      "name": "converge-defaults-to-update-for-committed-enable",
+      "prompt": "/harness-ops:plugins converge: fleet-state.sh reports two actionable divergences with versionsMatch: false, both with a user-scope record at 2.0.0 and a project-scope record at 1.0.0 whose projectPath is present. For alpha@market1 the repository's tracked .claude/settings.json (git ls-files --error-unmatch exits 0) holds `enabledPlugins[\"alpha@market1\"]: true`. For beta@market1 the tracked settings hold no enabledPlugins entry for it. The catalog reads 2.0.0 for both.",
+      "expected_output": "Because user scope holds the highest version, both rows would normally default to uninstall. The alpha row mirrors a committed enable, so its default is `(cd \"<projectPath>\" && claude plugin update alpha@market1 -s project)`; uninstall is offered only as the non-default option with a warning that it removes a committed enabledPlugins entry. The beta row, absent from the tracked settings, still defaults to `(cd \"<projectPath>\" && claude plugin uninstall beta@market1 -s project --keep-data)`. Each preview row states why its default was chosen. Nothing runs before a per-row confirm.",
+      "files": [],
+      "expectations": [
+        "The alpha@market1 row proposes `claude plugin update alpha@market1 -s project` as its default, not uninstall",
+        "The response warns that uninstalling alpha@market1 at project scope removes a committed `enabledPlugins` entry, and offers uninstall only as a non-default option",
+        "The beta@market1 row still proposes `claude plugin uninstall beta@market1 -s project --keep-data` as its default",
+        "Each row's preview states the reason for its default (a committed enable, or no tracked enable)",
+        "Every proposed project-scope command is wrapped in a `cd` to that row's projectPath, and nothing is run before a per-row confirm"
+      ]
+    },
+    {
       "id": 5,
       "name": "divergence-report-collapses-bulk-names-conflicts",
       "prompt": "Audit my plugins — I have 29 plugins with an actionable version divergence between project and user scope, plus 2 more that are multi-scope but pinned to the identical version, and one plugin id that fleet-state.sh reports under delisted_settings_only (true in enabledPlugins, no install record, and no matching catalog entry).",
