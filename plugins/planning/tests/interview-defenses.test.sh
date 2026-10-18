@@ -495,11 +495,13 @@ done
 # The yes-accepts-recommendation rule words a negative recommendation as "Should X stay out of
 # this change?" so "Q<N> yes" and "accept all" mean the recommended answer. It changes how a
 # question is phrased, not what resolves it: an unanswered question still resolves nothing.
+# The emoji paragraph states its setting once with an inline fallback for an unexpanded token;
+# it changes how the option is read, not what any round resolves.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "12c191a46a7f6ca741eb8d81ad08fce1a89bbb29aa3190698bde9d1abd6cea05"
+  "5c682a7afc2b40cfd482b04e4aff5ac822782c2c0e6262811f090a27e92f6616"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \

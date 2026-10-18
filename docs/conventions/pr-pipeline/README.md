@@ -848,6 +848,17 @@ The file job writes with the job's own `GITHUB_TOKEN`, not a lanes App token, so
 from `github-actions[bot]` and start no workflow, intake triage included. The kill switch stops
 every job.
 
+A fourth job, **triage-sweep**, runs alone every hour and with the daily run, with no model
+([`triage-sweep.mjs`](../../../.github/scripts/maintenance-audit-lane-runs/triage-sweep.mjs)). It
+selects open issues, not pull requests, over an hour old, written by a human on the trusted-actors
+list or by the lanes App, that have no intake comment, no born-triaged marker and no triage, status,
+priority or work-class label. Issues from `github-actions[bot]`, the lane sweep's own included, are
+left out. For each it re-dispatches `intake-triage.yml`, at most 5 a pass, and records the runs in
+one comment on the issue; after 2 dispatches leave it untriaged it labels the original
+`needs-triage`, then files one `needs-triage` issue naming the runs. It holds the job's own `GITHUB_TOKEN`
+(`actions: write`, `contents: read`, `issues: write`), never a lanes App token, and stops at 120
+REST calls.
+
 ## Models
 
 `models` sets the model, effort and turn budget of every model run, so a model change is one edit.
