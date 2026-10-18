@@ -841,6 +841,12 @@ holds a write token: a base job, a read model job in this mode, and an
 3. `collect-base-activity` makes it read-only, grants `Read` on it, denies Edit and Write there,
    and grants the skill Bash, Edit, Write and Agent with the web tools denied: the job holds no
    write token, and the skill reruns the failing checks. The system prompt names the file.
+   Residual: the skill runs head code by design, so head code can reach what any step of a read
+   job can (the job's read-only token, the Actions runtime token through a process left running
+   or `$GITHUB_ENV`, and the default branch's cache scope), as in `pr-verify.yml`. The patch it
+   leaves is checked only by [`apply-patch`](#prepare-apply-patch), which refuses `.github/**`
+   alone (the owner's 2026-10-18 path-guard decision); a change elsewhere, such as
+   `.gitattributes` or a check's own script, reaches the branch and its review.
 4. The run is in [patch output mode](#patch-output-mode); its `reply-attempt` output names the
    skill's reply, whose `<check>: escalated <reason> <sentence>` lines are the report.
 
