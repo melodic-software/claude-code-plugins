@@ -89,10 +89,10 @@ The page filters files, collapses hunks, and lets the reader tick files reviewed
 This skill never relies on a permission prompt to stop an Artifact publish: the gate below decides before anything leaves the machine. When `medium` is `artifact`, run:
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" --publish-gate --repo <owner/repo> [--explicit] < <dir>/pr.diff
+"${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" --publish-gate --facts <dir>/facts.json [--explicit] < <dir>/pr.diff
 ```
 
-The gate takes no visibility argument: it looks up the repository's visibility itself, the way `publish-hosted.mjs` does, and no value from the facts file or the model reaches it; a failed lookup gates as `UNKNOWN`. When the pull request's URL names a host other than `github.com`, pass `--repo <host>/<owner>/<repo>`; the gate asks that host only when this machine is already logged in to it, and otherwise gates as `UNKNOWN`. Pass `--explicit` only when step 1's `medium.source` is not `default`, that is, a layer set `medium: artifact`. The gate prints the `medium` to use and why:
+The gate takes no repository or visibility argument: it reads the repository and host from the pull request `url` in step 1's `facts.json` and looks up that repository's visibility itself, the way `publish-hosted.mjs` does; no visibility from the facts file or the model reaches it. A missing facts file, one with no pull request URL, a host this machine is not logged in to, or a failed lookup gates as `UNKNOWN`. Pass `--explicit` only when step 1's `medium.source` is not `default`, that is, a layer set `medium: artifact`. The gate prints the `medium` to use and why:
 
 - `artifact`: say "publishing as a private Artifact on claude.ai" before publishing, then publish that file with the Artifact tool. Who can see a published Artifact is read at [artifacts: create an artifact](https://code.claude.com/docs/en/artifacts#create-an-artifact); as of 2026-10-11; recheck trigger: that section stops saying a published artifact stays private until shared, and then drop "private" from the line above. When the tool is unavailable or refused, give the path and say why.
 - `file`: the shipped default met a repository that is not `PUBLIC`, or a hunk shaped like a credential. Do not publish. Give the path, the gate's `reason`, and its `opt_in`: `medium: artifact` in `~/.claude/rendered-views.md` publishes such pages anyway.
@@ -103,10 +103,10 @@ If the publish gate exits non-zero or its result is unclear, keep the page as a 
 When `medium` is `hosted`, the page goes to the operator's shared page host through `pages-publish`, a command the operator installs; its contract is "The `pages-publish` command" in `docs/conventions/rendered-views/README.md` in the marketplace repository. Run:
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/publish-hosted.mjs" <page> --repo <owner/repo> --pr <n> --data-dir "${CLAUDE_PLUGIN_DATA}"
+"${CLAUDE_SKILL_DIR}/scripts/publish-hosted.mjs" <page> --facts <dir>/facts.json --data-dir "${CLAUDE_PLUGIN_DATA}"
 ```
 
-When the pull request's URL names a host other than `github.com`, pass `--repo <host>/<owner>/<repo>`, so the lookup asks that host and not github.com; the script asks it only when this machine is already logged in to that host, and otherwise sends the page private. The script looks up the repository's visibility itself, and gates the built page, whichever layer chose `hosted`: a credential-shaped line refuses the upload, and a repository that is not `PUBLIC` (a failed lookup included), or a machine path or hostname in the page, sends it to the private host. It then runs `pages-publish`, keeps the page's id in a sidecar under the plugin data dir so a rebuild replaces the same page, and deletes the old copy when the page moved between hosts. Never run `pages-publish` yourself for this page.
+The script reads the repository, host and pull request number from the pull request `url` in `facts.json`, and publishes nothing when the file has none. It asks a host other than `github.com` only when this machine is already logged in to that host, and otherwise sends the page private. The script looks up the repository's visibility itself, and gates the built page, whichever layer chose `hosted`: a credential-shaped line refuses the upload, and a repository that is not `PUBLIC` (a failed lookup included), or a machine path or hostname in the page, sends it to the private host. It then runs `pages-publish`, keeps the page's id in a sidecar under the plugin data dir so a rebuild replaces the same page, and deletes the old copy when the page moved between hosts. Never run `pages-publish` yourself for this page.
 
 - Exit 0: say "published to the <visibility> page host", give `url`, and report `old_copy` when present.
 - Exit 4: say "refused: credential-shaped content", give the path and the `reason`, and keep the file. No layer overrides this.

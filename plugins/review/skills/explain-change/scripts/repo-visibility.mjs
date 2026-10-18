@@ -1,11 +1,33 @@
 // The verified visibility of a pull request's repository, shared by the artifact
 // gate (digest-policy.mjs) and the hosted publisher (publish-hosted.mjs), so both
-// gate on the same value. No caller passes a visibility.
+// gate on the same value. No caller passes a visibility or a repository: both
+// read the repository from the pull request's own URL in its facts file.
 
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 const NAME = /^[A-Za-z0-9_.-]+$/;
 const HOST = /^(?=.{1,253}$)(?![\d.]+$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i;
+const PR_URL = /^https:\/\/([^/]+)\/([^/]+\/[^/]+)\/pull\/(\d{1,9})$/;
+
+/**
+ * `{host, repo, pr}` from the `url` (`https://<host>/<owner>/<repo>/pull/<n>`) in the facts file
+ * `/source-control:pull-request view` writes, or null when the file or its URL is unusable. A
+ * github.com URL leaves `host` unset, so the lookup goes to gh's default host as before.
+ */
+export function prFromFacts(path) {
+  let url;
+  try {
+    url = JSON.parse(readFileSync(path, "utf8"))?.url;
+  } catch {
+    return null;
+  }
+  const match = PR_URL.exec(typeof url === "string" ? url : "");
+  if (!match) return null;
+  const host = match[1].toLowerCase();
+  const target = parseRepo(host === "github.com" ? match[2] : `${host}/${match[2]}`);
+  return target && { ...target, pr: match[3] };
+}
 
 /** `[host/]owner/repo` as `{host, repo}` (`repo` is `owner/name`), or null when malformed. */
 export function parseRepo(value) {
