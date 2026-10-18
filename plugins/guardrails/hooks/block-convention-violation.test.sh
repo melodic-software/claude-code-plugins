@@ -539,6 +539,103 @@ fi
 cache_run "$r5" "$pd5" "$CONV_SUBJECT"
 assert_exit "cache: the appeared YAML's pattern is what is served warm" 0 "$CACHE_RC"
 
+# --- resolver failure: fail open, and say so once ------------------------------
+# A copy of the hooks directory with a stub resolver, so the resolver's exit code
+# and stderr are the test's to choose. The stub answers from STUB_RC, STUB_ERR and
+# STUB_OUT. Exit 1 with empty stderr is "no convention tracked": quiet. Exit 1
+# with stderr, or exit 2, is a failure: one notice on both channels, the call goes
+# through, and the answer is not cached.
+STUB_HOOKS="$TEST_TMPDIR/stub-hooks"
+mkdir -p "$STUB_HOOKS"
+cp "$HOOK_DIR"/*.sh "$STUB_HOOKS/"
+cat >"$STUB_HOOKS/resolve-convention-pattern.sh" <<'EOF'
+#!/usr/bin/env bash
+# STUB_OK_KEY: that key resolves to STUB_OK_OUT; the other key fails as configured.
+if [[ -n "${STUB_OK_KEY:-}" && "${2:-}" == "$STUB_OK_KEY" ]]; then
+  printf '%s\n' "$STUB_OK_OUT"
+  exit 0
+fi
+[[ -n "${STUB_ERR:-}" ]] && printf '%s\n' "$STUB_ERR" >&2
+[[ -n "${STUB_OUT:-}" ]] && printf '%s\n' "$STUB_OUT"
+exit "${STUB_RC:-0}"
+EOF
+STUB_HOOK="$STUB_HOOKS/block-convention-violation.sh"
+
+# stub_run <repo> <rc> <stderr> <stdout> <command> [guard_invoke option ...]
+stub_run() {
+  local repo="$1" rc="$2" err="$3" out="$4" cmd="$5"
+  shift 5
+  guard_invoke --hook "$STUB_HOOK" --command "$cmd" --cwd "$repo" "$@" \
+    -- "CLAUDE_PROJECT_DIR=$repo" "STUB_RC=$rc" "STUB_ERR=$err" "STUB_OUT=$out"
+}
+
+# assert_notice <label> <diagnostic>: stdout is exactly one document carrying the
+# notice on both channels, with the diagnostic and the "did not run" statement.
+assert_notice() {
+  local sys ctx
+  sys="$(jq -rs 'if length == 1 then .[0].systemMessage // "" else "" end' <<<"$GUARD_OUT")"
+  ctx="$(jq -rs 'if length == 1 then .[0].hookSpecificOutput.additionalContext // "" else "" end' <<<"$GUARD_OUT")"
+  assert_contains "$1: user channel says the guard did not run" "$sys" "guard did not run"
+  assert_contains "$1: user channel carries the diagnostic" "$sys" "$2"
+  assert_contains "$1: model channel says the guard did not run" "$ctx" "guard did not run"
+  assert_contains "$1: model channel carries the diagnostic" "$ctx" "$2"
+}
+
+r="$(newrepo "$TICKET")"
+stub_run "$r" 1 "" "" "$BAD_COMMIT"
+assert_exit "resolver exit 1, empty stderr: allowed" 0 "$GUARD_RC"
+assert_eq "resolver exit 1, empty stderr: no notice" "" "$GUARD_OUT"
+
+stub_run "$r" 1 "resolve-convention-pattern: subject_pattern is not POSIX ERE" "" "$BAD_COMMIT"
+assert_exit "resolver exit 1 with stderr: the call goes through" 0 "$GUARD_RC"
+assert_notice "resolver exit 1 with stderr" "subject_pattern is not POSIX ERE"
+
+stub_run "$r" 2 "resolve-convention-pattern: usage: bad key" "" "$BAD_COMMIT"
+assert_exit "resolver exit 2: the call goes through" 0 "$GUARD_RC"
+assert_notice "resolver exit 2" "usage: bad key"
+
+stub_run "$r" 2 "" "" "$BAD_COMMIT"
+assert_exit "resolver exit 2, no stderr: the call goes through" 0 "$GUARD_RC"
+assert_notice "resolver exit 2, no stderr" "exit status 2"
+
+stub_run "$r" 1 "resolve-convention-pattern: broken pointer" "" "gh pr create --title 'junk title'"
+assert_exit "resolver failure on gh pr create --title: the call goes through" 0 "$GUARD_RC"
+assert_notice "resolver failure on gh pr create --title" "broken pointer"
+
+stub_run "$r" 1 "resolve-convention-pattern: broken pointer" "" "$BAD_COMMIT" --via dispatched
+assert_exit "resolver failure under the dispatcher: the call goes through" 0 "$GUARD_RC"
+assert_notice "resolver failure under the dispatcher" "broken pointer"
+
+# One key resolves and the other fails: the guard did not run, so the resolved
+# pattern is not enforced either, and the notice says so.
+guard_invoke --hook "$STUB_HOOK" --command "$BAD_COMMIT" --cwd "$r" \
+  -- "CLAUDE_PROJECT_DIR=$r" STUB_RC=1 "STUB_ERR=resolve-convention-pattern: bad title" STUB_OUT= \
+  STUB_OK_KEY=subject_pattern "STUB_OK_OUT=^[A-Z]+-[0-9]+: .+"
+assert_exit "one key fails, one resolves: the call goes through" 0 "$GUARD_RC"
+assert_notice "one key fails, one resolves" "bad title"
+
+# A resolved convention still enforces through the stub.
+stub_run "$r" 0 "" "^[A-Z]+-[0-9]+: .+" "$BAD_COMMIT"
+assert_exit "stub resolver exit 0: a violating subject is still blocked" 2 "$GUARD_RC"
+stub_run "$r" 0 "" "^[A-Z]+-[0-9]+: .+" "$GOOD_COMMIT"
+assert_exit "stub resolver exit 0: a conforming subject is allowed" 0 "$GUARD_RC"
+assert_eq "stub resolver exit 0: no notice" "" "$GUARD_OUT"
+
+# Once per session, and the failure is never cached.
+pdn="$TEST_TMPDIR/pdata-notice"
+rm -rf "$pdn"
+payload="$(jq -n --arg c "$BAD_COMMIT" --arg d "$r" \
+  '{session_id:"conv-notice",tool_name:"Bash",tool_input:{command:$c},cwd:$d}')"
+guard_invoke --hook "$STUB_HOOK" --payload "$payload" \
+  -- "CLAUDE_PROJECT_DIR=$r" "CLAUDE_PLUGIN_DATA=$pdn" STUB_RC=1 "STUB_ERR=resolve-convention-pattern: broken pointer" STUB_OUT=
+assert_notice "latch: first failure in a session" "broken pointer"
+guard_invoke --hook "$STUB_HOOK" --payload "$payload" \
+  -- "CLAUDE_PROJECT_DIR=$r" "CLAUDE_PLUGIN_DATA=$pdn" STUB_RC=1 "STUB_ERR=resolve-convention-pattern: broken pointer" STUB_OUT=
+assert_exit "latch: the second failure still goes through" 0 "$GUARD_RC"
+assert_eq "latch: the second failure in a session is quiet" "" "$GUARD_OUT"
+assert_eq "a resolver failure writes no cache entry" "" \
+  "$(find "$pdn/convention-pattern" -type f 2>/dev/null | head -1)"
+
 # --- NUL in payload must fail closed (#2136) ----------------------------------
 r="$(newrepo "$TICKET")"
 nul_rc=0

@@ -12,10 +12,18 @@
 # block-noncanonical-commit gate enforces the message MECHANIC (`-F -`); this
 # gate reads the CONTENT that mechanic carries.
 #
-# UNRESOLVED = NO ENFORCEMENT. No team-tracked pattern, a non-ERE pattern, or
-# an unreadable config -> the gate no-ops. It never blocks against the bundled
+# UNRESOLVED = NO ENFORCEMENT. No team-tracked pattern -> the gate no-ops; a
+# non-ERE pattern or an unreadable config no-ops too, with a notice (below). It never blocks against the bundled
 # Conventional Commits default: enforcement strength equals the strength of
 # explicit team config, so a repo that never opted in is never gated.
+#
+# A BROKEN CONVENTION IS NOT AN UNRESOLVED ONE, AND THE GUARD FAILS OPEN ON IT.
+# The resolver's exit code and stderr tell them apart, with no change to its
+# contract: exit 0 enforces; exit 1 with empty stderr is "no convention tracked"
+# and stays quiet; exit 1 with a diagnostic (an unreadable pointer, a non-ERE
+# pattern) or exit 2 means the guard did not run. That is the chosen fail mode:
+# the call proceeds, and a once-per-session notice on both channels carries the
+# resolver's diagnostic, so a broken config is never mistaken for no policy.
 #
 # NEVER BLOCKS `gh pr create` ITSELF. Only a present-and-violating `--title`
 # value blocks; a missing `--title` (interactive/web flow) passes untouched —
@@ -246,20 +254,58 @@ ensure_convention_patterns() {
         conv_dep_lines+="DEP 0 $conv_dep"$'\n'
       fi
     done
+    # The resolver's stderr is read, not discarded: its exit code and stderr
+    # tell an unresolved key from a broken convention (see the header). Without
+    # a scratch file stderr cannot be read; /dev/null then leaves exit 1 quiet
+    # and exit 2 a notice carrying the status alone.
+    conv_errf=$(mktemp 2>/dev/null) || conv_errf=/dev/null
+    conv_failed=0
+    conv_diag=""
     for conv_key in subject_pattern pr_title_pattern; do
-      # The redirect sits on a single-command group, NOT inside the
-      # substitution. Bash execs the body in the substitution's own subshell
-      # only when that body carries no redirection of its own, so
-      # `$(cmd 2>/dev/null)` pays a second fork that `{ v=$(cmd); } 2>/dev/null`
-      # does not (measured with `strace -f -e trace=clone,clone3,execve`). The
-      # group holds exactly one command, so its status is still the resolver's
-      # and the `|| conv_val=""` fallback fires on exactly the same failures.
-      { conv_val=$(bash "$RESOLVER" "$REPO_ROOT" "$conv_key"); } 2>/dev/null || conv_val=""
+      # The redirect sits on a group, NOT inside the substitution. Bash execs
+      # the body in the substitution's own subshell only when that body carries
+      # no redirection of its own, so `$(cmd 2>file)` pays a second fork that
+      # `{ v=$(cmd); } 2>file` does not (measured with
+      # `strace -f -e trace=clone,clone3,execve`). The group's second command
+      # reads the status the first left, which is the resolver's.
+      { conv_val=$(bash "$RESOLVER" "$REPO_ROOT" "$conv_key"); conv_rc=$?; } 2>"$conv_errf"
+      if ((conv_rc != 0)); then
+        conv_val=""
+        conv_err=""
+        IFS= read -r -d '' conv_err <"$conv_errf" || true
+        conv_err="${conv_err//[$'\r\n\t']/ }"
+        conv_err="${conv_err#"${conv_err%%[![:space:]]*}"}"
+        conv_err="${conv_err%"${conv_err##*[![:space:]]}"}"
+        # Exit 1 with empty stderr is the resolver's "no convention tracked".
+        # Anything else (exit 1 with a diagnostic, exit 2, a crash) is a
+        # failure; the first one's diagnostic is the one reported.
+        if [[ -n "$conv_err" || $conv_rc -ne 1 ]]; then
+          if ((conv_failed == 0)); then
+            conv_failed=1
+            conv_diag="${conv_err:0:300}"
+            [[ -n "$conv_diag" ]] || conv_diag="exit status $conv_rc, no message"
+          fi
+        fi
+      fi
       case "$conv_key" in
       subject_pattern) SUBJECT_ERE="$conv_val" ;;
       *) TITLE_ERE="$conv_val" ;;
       esac
     done
+    [[ "$conv_errf" == /dev/null ]] || rm -f "$conv_errf" 2>/dev/null
+    if ((conv_failed)); then
+      # Fail open, stated: a resolver that cannot answer must not deny a
+      # subject the team's convention would accept. The guard did not run, so
+      # both readers are told once per session (agent for the model), and the
+      # answer is not cached, so a fixed config is read on the next commit. Neither
+      # pattern is enforced, so "did not run" is true of the whole guard.
+      SUBJECT_ERE=""
+      TITLE_ERE=""
+      if hook::notice_once guardrails-convention-resolver "$INPUT"; then
+        hook::emit_skip_notice PreToolUse "guardrails block-convention-violation: the commit-convention guard did not run, so this commit subject or PR title was not checked. The convention resolver reported \"${conv_diag}\". This notice does not repeat this session."
+      fi
+      return 0
+    fi
     # Write through a temp name and rename, so a reader never sees a half file.
     if [[ -n "$CONV_CACHE" ]] && mkdir -p "${CONV_CACHE%/*}" 2>/dev/null; then
       if printf '%s\n%s\n%s\n%sEND\n' "$REPO_ROOT" "$SUBJECT_ERE" "$TITLE_ERE" "$conv_dep_lines" \
