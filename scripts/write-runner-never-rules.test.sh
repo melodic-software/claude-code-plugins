@@ -106,15 +106,16 @@ say(skill.with?.allowed_bots === "${{ inputs.dispatcher-run-id != '' && 'melodic
 say(/--setting-sources user/.test(args) && /--permission-mode dontAsk/.test(args) && !/bypass/i.test(args),
   "the skill loads user settings only, under dontAsk");
 const stage = readFileSync(".github/actions/collect-base-activity/action.yml", "utf8");
-// The four exceptions: an activity's `checks`, each a read-only base-copy
+// The five exceptions: an activity's `checks`, each a read-only base-copy
 // wrapper the skill may run with no arguments; its `verify-scripts`, each a
 // read-only wrapper over a base copy it may run with any arguments; under web-access `any`,
-// the read-only base copy of the two docs scripts; and under prepare:
-// review-threads, the read-only review-thread tool wrapper.
+// the read-only base copy of the two docs scripts; under prepare:
+// review-threads, the read-only review-thread tool wrapper; and with the
+// commit tool, chmod +x, since commit_files takes each file's mode from disk.
 const docsRule = String.raw`allowed="$allowed,Bash(bash $DOCS_DIR/$script *),Bash(bash \\\"$DOCS_DIR/$script\\\" *)"`;
 const allowedLines = stage.split("\n").filter((l) => /allowed="\$allowed|allowed="Skill/.test(l));
-say(allowedLines.length > 0 && allowedLines.every((l) => !/Bash/.test(l) || ['allowed="$allowed,Bash($wrapper)"', 'allowed="$allowed,Bash($verifier *)"', docsRule, 'allowed="$allowed,Bash($tool *)"'].includes(l.trim())),
-  "the runner grants the skill no Bash but its check wrappers, its verify-scripts, the docs scripts and the review-thread tool");
+say(allowedLines.length > 0 && allowedLines.every((l) => !/Bash/.test(l) || ['allowed="$allowed,Bash($wrapper)"', 'allowed="$allowed,Bash($verifier *)"', docsRule, 'allowed="$allowed,Bash($tool *)"', 'allowed="$allowed,Bash(chmod +x *)"'].includes(l.trim())),
+  "the runner grants the skill no Bash but its check wrappers, its verify-scripts, the docs scripts, the review-thread tool and chmod +x");
 say(/chmod -R a-w "\$VERIFY_DIR"/.test(stage) && /disallowed="\$\{disallowed:\+\$disallowed,\}Edit\(\/\$VERIFY_DIR\/\*\*\),Write\(\/\$VERIFY_DIR\/\*\*\)"/.test(stage),
   "the verify-scripts copy is read-only to the skill");
 say(/chmod -R a-w "\$FEEDBACK_DIR"/.test(stage) && /Edit\(\/\$FEEDBACK_DIR\/\*\*\),Write\(\/\$FEEDBACK_DIR\/\*\*\),Edit\(\/\$FEEDBACK_STATE\/\*\*\),Write\(\/\$FEEDBACK_STATE\/\*\*\)/.test(stage),

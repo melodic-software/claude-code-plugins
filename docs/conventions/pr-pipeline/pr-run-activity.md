@@ -321,8 +321,11 @@ scratch directory, `$RUNNER_TEMP/lane-scratch`, passed as `--add-dir` with an `E
 its state files and its `Bash` redirects land there. `--append-system-prompt` names that
 directory, says no one can answer a question, and, when the grant can commit, tells it to commit
 every file it changed, and delete every committed path it renamed or removed, with those tools: the prompt is the slash command alone, so without this the
-skill leaves its edits uncommitted and the lane moves nothing. A `prepare: merge-base` skill
-gets neither tool nor that sentence: it stages its resolution and the runner commits
+skill leaves its edits uncommitted and the lane moves nothing. `commit_files` takes each file's
+mode from disk, and `Write` creates a file without the executable bit, so that grant also allows
+`Bash(chmod +x *)` and the sentence says to run `chmod +x` first on every new or changed file that
+starts with `#!` or ends in `.sh`. A `prepare: merge-base` skill
+gets neither tool nor those sentences: it stages its resolution and the runner commits
 ([below](#prepare-merge-base)). Under `--permission-mode dontAsk` a skill's own `allowed-tools`
 grants nothing: its `Bash` is only what this list allows, one rule per entry in the activity's
 `checks`: `collect-base-activity` copies the base `scripts/` to `$RUNNER_TEMP/lane-checks`, outside

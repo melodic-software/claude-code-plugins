@@ -43,6 +43,7 @@ del _leaked_git_var
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge_policy as policy  # noqa: E402  (follows the git-env clear above)
+import babysit_postmerge  # noqa: E402
 
 REPO = "owner/repo"
 SHA = "a" * 40
@@ -1535,6 +1536,24 @@ class EntryHold(unittest.TestCase):
     def test_the_do_not_merge_label(self) -> None:
         self.fake(labels={"totalCount": 1, "nodes": [{"name": "Do-Not-Merge"}]})
         self.assertEqual(self.hold(), "do-not-merge")
+
+    def test_the_needs_human_label(self) -> None:
+        # A queued entry that gains the human-gated label leaves the queue.
+        self.fake(labels={"totalCount": 1, "nodes": [{"name": "Needs-Human"}]})
+        self.assertEqual(self.hold(), "needs-human")
+
+    def test_a_remapped_human_gated_label(self) -> None:
+        self.fake(labels={"totalCount": 1, "nodes": [{"name": "Human-Review"}]})
+        with mock.patch.object(
+            babysit_postmerge, "_role_label", return_value="human-review"
+        ):
+            self.assertEqual(self.hold(), "human-review")
+
+    def test_an_unreadable_human_gated_label_is_a_hold(self) -> None:
+        self.fake()
+        failed = babysit_postmerge.PostMergeReadError("tracker: HTTP 502")
+        with mock.patch.object(babysit_postmerge, "_role_label", side_effect=failed):
+            self.assertEqual(self.hold(), "unreadable: tracker: HTTP 502")
 
     def test_a_body_hold(self) -> None:
         self.fake(body="Please do not merge until the release")
@@ -4049,6 +4068,21 @@ class OneRunSharesItsCredentialReads(unittest.TestCase):
             clock[0] += policy.run_cache.MAX_AGE + timedelta(seconds=1)
             policy.permission_reader(REPO)(OPERATOR)
         self.assertEqual(gh.calls.count(["api", endpoint]), 2)
+
+
+# The tracker's human-gated label read an autonomous gate makes: stubbed so
+# no test reads GitHub.
+_role_label = mock.patch.object(
+    babysit_postmerge, "_role_label", return_value="needs-human"
+)
+
+
+def setUpModule() -> None:
+    _role_label.start()
+
+
+def tearDownModule() -> None:
+    _role_label.stop()
 
 
 if __name__ == "__main__":

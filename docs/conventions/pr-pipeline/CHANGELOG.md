@@ -1,5 +1,14 @@
 # Changelog for the PR pipeline convention
 
+## 2.11.4 - 2026-10-18
+
+A write skill that commits through `commit_files` also gets `Bash(chmod +x *)`, and its commit
+instruction says to run `chmod +x` on every new or changed file that starts with `#!` or ends in
+`.sh` first: `commit_files` takes each file's mode from disk, and `Write` creates a file without
+the executable bit, so lane PRs landed new scripts as `100644`
+([pr-run-activity.md](pr-run-activity.md#skill-activities)). `prepare: merge-base` is unchanged:
+the runner commits the staged index, whose modes the merge set. `version` stays 2.
+
 ## 2.11.3 - 2026-10-18
 
 The verify-script wrapper for skill-quality's `check-skill.sh` runs it with `HOME` set to a fresh
