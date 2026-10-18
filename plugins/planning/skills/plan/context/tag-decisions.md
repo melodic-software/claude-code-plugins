@@ -26,7 +26,9 @@ Surface every decided tag at Step 5 in a "Decisions made (gate-passed)" subsecti
 
 | Decision | What it changes in the plan | Basis (evidence) | Source |
 |---|---|---|---|
-| <one line> | <phase + concrete delta: what the reader would diff> | <source read this session> | <`plan`, `reviewer fix`, `research update`, or `stress-test finding`> |
+| D1 <one line> | <phase + concrete delta: what the reader would diff> | <source read this session> | <`plan`, `reviewer fix`, `research update`, or `stress-test finding`> |
+
+**Decision ids.** Give each decision an id (`D1`, `D2`, ...) and write it in the tag, `[EXEC-SHAPE D1]` or `[FALLBACK D2]`, and at the start of the row's first column, as above. Do not add a leading column: the gate finds the table by its `| Decision | What it changes` header. A tag carries one id. Several tags may cite one row when one decision applies in several phases. `check-plan-outcome.sh` fails a tag id with no row and a row id no tag cites, and prints `mapped=<n>`. A bare `[EXEC-SHAPE]` / `[FALLBACK]` with no id still passes, with a `warning=bare-tag` line; ids are not required, so plans written before this form keep passing, but a bare tag leaves the tag-to-row check to a reviewer.
 
 `Source` says what originated the decision, so a cold reader never mistakes "plan says" for "user said". The what-it-changes column is mandatory: a label without its plan impact is unreviewable. Write for a cold reader dropping in mid-session: no session-internal shorthand; the row must make sense without scrollback. Interviewed decisions do NOT appear here; they were resolved by the user and are briefed by the time of presentation.
 
