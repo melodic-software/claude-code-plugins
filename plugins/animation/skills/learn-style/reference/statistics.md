@@ -57,7 +57,7 @@ Per drawing, with ink and paper at the gray histogram modes and T at their midpo
 | `ink` | ink coverage | color |
 | `boil` | over the border and caption classes (the anchor), on pairs whose anchor ink share changes under 1 point with 500 or more anchor edge pixels: ink/paper disagreement per anchor edge pixel, the mean edge displacement of the frame and caption between two drawings | line, movement |
 | holds | each drawing's duration in frames at the pack's base rate (`knobs.frame_rate.base_fps`), on 1s/2s/3s/4+; drawings per second | frame rate |
-| `offstep` | share of consecutive drawing pairs whose two holds do not add up to twice the most common hold: 0 on strict 3s; a drawing that re-timing to 24 fps moves one frame (a 2 then a 4) does not count | frame rate |
+| `offstep` | share of consecutive drawing pairs whose two holds do not add up to twice the most common hold: 0 on strict 3s; a 2 then a 4 (re-timing to 24 fps moved one drawing a frame) adds to twice the mode, so that pair counts as on step, but a lone 2 or 4 between 3s counts in both of its pairs | frame rate |
 
 `--region X,Y,W,H --t T0-T1` measures one box over a time window (a box outside the frame is an
 error), `--cuts` makes each shot a column of the table, and `--pack` prints each checked row with its
