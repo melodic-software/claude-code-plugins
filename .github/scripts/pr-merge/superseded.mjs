@@ -7,8 +7,10 @@
 // this run would, this run skips the gate: a backlog then costs one sweep, and
 // no run is cancelled, so no CANCELLED `merge` check lands on a PR.
 //
-// A pending run sweeps when it is scheduled, or when a listed human started it
-// (the job's "Check who started the run" step stops any other run). Only a
+// A pending run sweeps when it is scheduled, or when its actor id and its
+// triggering actor's login are both a listed human's (the job's "Check who
+// started the run" step stops any other run). A scheduled or hand-started run
+// counts only on main, since another branch runs its own copy. Only a
 // scheduled run re-fires refused lane runs, and a pull_request_target run
 // starts no full CI run, so a run counts only when its event ranks at least as
 // high as this run's: pull_request_target, then workflow_dispatch, then
@@ -37,12 +39,15 @@ const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
-function listedHuman({ humans, logins }, actor) {
+// The who step's test: the run's actor id and its triggering actor's login
+// (case-insensitive) each belong to a listed human.
+function startedByHuman({ humans, logins }, run) {
+  const login = run.triggering_actor?.login;
   return (
-    Number.isInteger(actor?.id) &&
-    humans.has(actor.id) &&
-    typeof actor.login === "string" &&
-    humans.has(logins.get(actor.login.toLowerCase()))
+    Number.isInteger(run.actor?.id) &&
+    humans.has(run.actor.id) &&
+    typeof login === "string" &&
+    humans.has(logins.get(login.toLowerCase()))
   );
 }
 
@@ -54,7 +59,9 @@ export function successor(runs, { runId, event, trusted }) {
       String(run.id) !== runId &&
       Object.hasOwn(RANK, run.event) &&
       RANK[run.event] >= RANK[event] &&
-      (run.event === "schedule" || listedHuman(trusted, run.triggering_actor)),
+      // A dispatch on another branch runs that branch's copy of the workflow.
+      (run.event === "pull_request_target" || run.head_branch === "main") &&
+      (run.event === "schedule" || startedByHuman(trusted, run)),
   );
 }
 

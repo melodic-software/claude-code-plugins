@@ -24,7 +24,15 @@ const LISTING = `/repos/${REPO}/actions/workflows/pr-merge.yml/runs?status=pendi
 const dir = mkdtempSync(join(tmpdir(), "superseded-"));
 after(() => rmSync(dir, { recursive: true, force: true }));
 
-const pending = (id, event, actor = OWNER) => ({ id, event, status: "pending", triggering_actor: actor });
+// `actor` started the run and `rerunner` (its triggering_actor) last re-ran it.
+const pending = (id, event, actor = OWNER, { rerunner = actor, branch = "main" } = {}) => ({
+  id,
+  event,
+  status: "pending",
+  head_branch: branch,
+  actor,
+  triggering_actor: rerunner,
+});
 
 let n = 0;
 async function check({ event = "schedule", runs = [], fail, body } = {}) {
@@ -99,6 +107,16 @@ test("a pending run a bot started stops before its sweep, so it supersedes nothi
 
 test("a listed id with another login does not count as the listed human", async () => {
   const run = await check({ event: "pull_request_target", runs: [pending(600, "workflow_dispatch", { id: OWNER.id, login: "someone-else" })] });
+  assert.equal(run.superseded, false);
+});
+
+test("a bot's run a listed human re-ran stops at the who step, so it supersedes nothing", async () => {
+  const run = await check({ event: "pull_request_target", runs: [pending(600, "pull_request_target", LANES_BOT, { rerunner: OWNER })] });
+  assert.equal(run.superseded, false);
+});
+
+test("a hand-started run on another branch runs that branch's copy, so it supersedes nothing", async () => {
+  const run = await check({ event: "pull_request_target", runs: [pending(600, "workflow_dispatch", OWNER, { branch: "fix/other" })] });
   assert.equal(run.superseded, false);
 });
 
