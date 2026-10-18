@@ -257,6 +257,12 @@ NAMES_GUARD=$(printf '%s\n' "$WITH_MANAGED" 'conf managed dropin-file:10-a.json 
 assert_contains "one managed prependPlugins naming the guard: seated" "$(merge "$NAMES_GUARD")" "Guard on this machine: seated (managed settings present: file)"
 OVERRIDE=$(printf '%s\n' "$WITH_MANAGED" 'conf managed file modsOverrideDenyRules true')
 assert_contains "managed allowModsToOverrideDenyRules: deny rules not final" "$(merge "$OVERRIDE")" "seated (managed settings present: file), but managed allowModsToOverrideDenyRules is true, so a user's mod can approve a call a deny rule refuses"
+# Drop-ins merge after the base file and a later single value replaces an
+# earlier one (lib/managed-scope.sh, drop-in merge), so the last record wins.
+OVERRIDE_OFF=$(printf '%s\n' "$WITH_MANAGED" 'conf managed file modsOverrideDenyRules true' 'conf managed dropin-file:10-a.json modsOverrideDenyRules false')
+assert_not_contains "a later drop-in turning the override off wins" "$(merge "$OVERRIDE_OFF")" "allowModsToOverrideDenyRules is true"
+OVERRIDE_BACK_ON=$(printf '%s\n' "$OVERRIDE_OFF" 'conf managed dropin-file:20-b.json modsOverrideDenyRules true')
+assert_contains "a still later drop-in turning it back on wins" "$(merge "$OVERRIDE_BACK_ON")" "allowModsToOverrideDenyRules is true"
 assert_not_contains "a user-scope override does not change the guard state" "$(merge "$(printf '%s\n' "$WITH_MANAGED" 'conf user settings modsOverrideDenyRules true')")" "allowModsToOverrideDenyRules is true"
 assert_contains "a present plist: its contents are not read" "$(merge 'managed plist present com.anthropic.claudecode')" "seated (managed settings present: plist; the plist's prependPlugins and guard options are not read)"
 assert_contains "an invalid managed registry value: the guard state is unknown" "$(merge 'managed registry invalid-json HKCU')" "Guard on this machine: unknown"

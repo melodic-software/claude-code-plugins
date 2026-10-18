@@ -1582,12 +1582,12 @@ for lever in disableAllHooks allowManagedHooksOnly strictPluginOnlyCustomization
     row D hook-levers ok none "settings" "lever-unset:$lever" "$lever unset in every scope read" -
   fi
 done
-# None of the levers that stop installed mods stops a built-in mod (mods
-# overview, "Mods built into Claude Code"). A set disableAllHooks is where an
-# operator may believe every mod is off, so only then is it a finding.
-BUILTIN_MODS_MSG="disableAllHooks, --bare and --safe-mode stop installed mods but not the mods built into Claude Code (how each built-in mod is turned off: https://code.claude.com/docs/en/plugins/mods/overview#mods-built-into-claude-code)"
+# Built-in mods and the hook levers: the row names the levers and points at the
+# section that says which of them reach a built-in mod. A set disableAllHooks is
+# where an operator may believe every mod is off, so only then is it a finding.
+BUILTIN_MODS_MSG="disableAllHooks, --bare and --safe-mode: check which mods built into Claude Code each one stops, and how each built-in mod is turned off, at https://code.claude.com/docs/en/plugins/mods/overview#mods-built-into-claude-code"
 if [[ "${LEVER_DISABLE_ALL:-0}" != "0" ]]; then
-  row D builtin-mods-survive-levers finding info "settings" "builtin-mods-survive-levers" "disableAllHooks is set, yet built-in mods keep running: $BUILTIN_MODS_MSG" "disableAllHooks"
+  row D builtin-mods-survive-levers finding info "settings" "builtin-mods-survive-levers" "disableAllHooks is set, so an operator may believe every mod is off. $BUILTIN_MODS_MSG" "disableAllHooks"
 else
   row D builtin-mods-survive-levers ok none "settings" "builtin-mods-survive-levers" "$BUILTIN_MODS_MSG" -
 fi
@@ -1899,14 +1899,13 @@ if [[ $PROJECT_OK -eq 1 ]]; then
     fi
   done < <(jqf "$SETTINGS" -r '(.env // {}) | keys_unsorted[] | [.] | @tsv')
 fi
-# CLAUDE_CODE_ENABLE_FUNCTION_HOOKS gated mods in early access; v2.1.287 and
-# later ignore it at any value, so a 0 there leaves mods on (mods overview,
-# "Turn mods on or off").
+# CLAUDE_CODE_ENABLE_FUNCTION_HOOKS is treated as a dead mods switch at any
+# value; the row points at the section that says why.
 # f_function_hooks <ok> <file> <surface>
 f_function_hooks() {
   [[ "$1" -eq 1 ]] || return 0
   [[ "$(jqf "$2" -r '(.env // {}) | if type == "object" and has("CLAUDE_CODE_ENABLE_FUNCTION_HOOKS") then "set" else "" end')" == "set" ]] || return 0
-  row F function-hooks-flag-dead finding warning "$3" "function-hooks-flag-dead" "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS is set in env; Claude Code v2.1.287 and later ignores it at any value (mods overview: \"Claude Code v2.1.287 and later ignores it\"), so setting it to 0 does not keep mods off. Remove it; to stop installed mods use disableAllHooks, --safe-mode or /plugin, and an organization sets allowManagedModsOnly on the built-in guard in managed settings" "/env/CLAUDE_CODE_ENABLE_FUNCTION_HOOKS"
+  row F function-hooks-flag-dead finding warning "$3" "function-hooks-flag-dead" "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS is set in env, and this audit treats it as a dead mods switch at any value. Remove it; whether Claude Code still reads it, and the levers that turn mods off now: https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off" "/env/CLAUDE_CODE_ENABLE_FUNCTION_HOOKS"
 }
 f_function_hooks "$USER_OK" "$USER_SETTINGS" "$SURF_USER"
 f_function_hooks "$PROJECT_OK" "$SETTINGS" "$SURF_SETTINGS"

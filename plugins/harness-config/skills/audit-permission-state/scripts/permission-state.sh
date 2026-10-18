@@ -374,7 +374,10 @@ emit_file_conf() {
          then emit("prependPluginsNamesGuard"; (.prependPlugins | type == "array"
            and any(.[]; . == "sec-default@builtin" or . == "cc-plugin-sec-default@builtin")) | tojson)
        else empty end),
+      # Every level is type-checked before it is indexed: one jq error here
+      # would empty the whole array, the managed lock record included.
       (if (.pluginConfigs | type) == "object"
+          and (.pluginConfigs["cc-plugin-sec-default@builtin"] | type) == "object"
           and (.pluginConfigs["cc-plugin-sec-default@builtin"].options | type) == "object"
           and (.pluginConfigs["cc-plugin-sec-default@builtin"].options | has("allowModsToOverrideDenyRules"))
          then emit("modsOverrideDenyRules"; .pluginConfigs["cc-plugin-sec-default@builtin"].options.allowModsToOverrideDenyRules | tojson)

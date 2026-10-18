@@ -195,8 +195,10 @@ $1 == "conf" {
     prepend_set = 1
     if ($5 == "true") prepend_guard = 1
   }
-  if ($2 == "managed" && $4 == "modsOverrideDenyRules" && $5 == "true")
-    override_on = 1
+  # Records arrive in merge order and a single value in a later drop-in replaces
+  # an earlier one (lib/managed-scope.sh), so the last record decides.
+  if ($2 == "managed" && $4 == "modsOverrideDenyRules")
+    override_on = ($5 == "true")
   next
 }
 $1 == "NOTE:" { next }

@@ -365,8 +365,8 @@ out=$(SETTINGS_AUDIT_MANAGED_PATH="$m/managed.json" run "$m" --table 2>&1) || rc
 assert_contains "case 4m: the table prints a set mod-plane key" "$out" "allowModsToOverrideDenyRules set in managed to true"
 
 # --- Case 4f: the early-access mods variable is dead at any value ---------------
-# Expected values from the mods overview: "Claude Code v2.1.287 and later
-# ignores it, so setting it to `0` doesn't keep mods off".
+# Expected values: the checklist row flags the variable at any value in user,
+# project or local env, and the detail points at the section that says why.
 m="$(make_machine fnhooks)"
 printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {env:{"CLAUDE_CODE_ENABLE_FUNCTION_HOOKS":"0"}}' >"$m/project/.claude/settings.json"
 printf '%s\n' '{"env":{"CLAUDE_CODE_ENABLE_FUNCTION_HOOKS":"1"}}' >"$m/user/settings.json"
@@ -376,17 +376,17 @@ assert_eq "case 4f: a project env value of 0 is a warning" "warning" \
   "$(jq -r '.findings[] | select(.identity.claim=="function-hooks-flag-dead" and .identity.sites[0].surface==".claude/settings.json") | .severity' <<<"$out")"
 assert_eq "case 4f: the user scope is read too" "1" \
   "$(jq -r '[.findings[] | select(.identity.claim=="function-hooks-flag-dead" and .identity.sites[0].surface=="user:settings.json")] | length' <<<"$out")"
-assert_contains "case 4f: the detail says a 0 does not keep mods off" \
-  "$(jq -r '.findings[] | select(.identity.claim=="function-hooks-flag-dead") | .detail' <<<"$out" | head -n1)" "does not keep mods off"
+assert_contains "case 4f: the detail points at the section that says why" \
+  "$(jq -r '.findings[] | select(.identity.claim=="function-hooks-flag-dead") | .detail' <<<"$out" | head -n1)" "mods/overview#turn-mods-on-or-off"
 m="$(make_machine fnhooks-absent)"
 printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {env:{"CLAUDE_CODE_DISABLE_AUTO_MEMORY":"1"}}' >"$m/project/.claude/settings.json"
 out=$(run "$m" --json 2>&1)
 assert_eq "case 4f: another env variable is no finding" "0" \
   "$(jq -r '[.findings[] | select(.identity.claim=="function-hooks-flag-dead")] | length' <<<"$out")"
 
-# --- Case 4g: built-in mods keep running under every hook lever ----------------
-# Expected values from the mods overview: "disableAllHooks, --bare, and
-# --safe-mode, don't stop built-in mods".
+# --- Case 4g: built-in mods are reported beside every hook lever --------------
+# Expected values: the checklist row names the three levers and makes a set
+# disableAllHooks an info finding.
 m="$(make_machine builtin-levers)"
 printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {disableAllHooks:true}' >"$m/project/.claude/settings.json"
 out=$(run "$m" --json 2>&1)
