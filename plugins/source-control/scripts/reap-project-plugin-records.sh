@@ -252,7 +252,7 @@ if [[ "$dry_run" -eq 1 ]]; then
   exit 0
 fi
 
-# The settings file the uninstall CLI rewrites. Relative on purpose: the cwd
+# The settings file the uninstall CLI rewrites. Relative on purpose: the
 # script has already entered the directory being reaped, and git resolves a
 # relative pathspec against the cwd.
 SETTINGS_REL=".claude/settings.json"
