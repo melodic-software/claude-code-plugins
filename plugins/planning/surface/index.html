@@ -1132,7 +1132,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const lc = latestClaude(q);
     if (lc) h += '<div class="latest" id="latest"><span class="who">' + esc(whoLabel(lc)) + " &middot; " + esc(fmt(lc.at)) + "</span>" + md(lc.text) + "</div>";
     let facts = String(q.facts || "").replace(/\r/g, "");
-    const sm = facts.match(/^(?:[ \t]*\n)*((?:>[^\n]*(?:\n|$))+)/), src = sm ? sm[1].replace(/^>[ \t]?/gm, "").trim() : ""; // a Source block opens facts with the quote: it shows above the recommendation
+    const sm = facts.match(/^(?:[ \t]*\n)*((?:>[^\n]*(?:\n|$)|[ \t]*\n(?=[ \t]*>))+)/), src = sm ? sm[1].replace(/^>[ \t]?/gm, "").trim() : ""; // a Source block opens facts with the quote: it shows above the recommendation
     if (src) { facts = facts.slice(sm[0].length); h += '<details class="src" id="src"' + (lsGet("srcOpen", true) ? " open" : "") + "><summary>Source text</summary>" + md(src.replace(/^/gm, "> ")) + "</details>"; }
     if (q.recommendation) h += '<section class="blk"><h4>' + (withheld(q) ? "Recommendation withheld" : (marks ? "➡️ " : "") + "Recommendation (Rec)") + '</h4><div class="recbox">' + md(q.recommendation) +
       (q.basis ? '<details class="why"><summary>Why</summary>' + md(q.basis) + "</details>" : "") + "</div></section>";
