@@ -100,6 +100,13 @@
           "maximum": 10,
           "default": 3,
           "description": "Limit stops since a person last added agent-ready after which work-unblock hands the issue to a person."
+        },
+        "wip-cap": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 60,
+          "description": "Open pull requests by the lanes App at or above which work-resolve-issue starts no run and work-unblock re-fires none."
         }
       }
     },

@@ -43,6 +43,7 @@ del _leaked_git_var
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge_policy as policy  # noqa: E402  (follows the git-env clear above)
+import babysit_postmerge  # noqa: E402
 
 REPO = "owner/repo"
 SHA = "a" * 40
@@ -1536,6 +1537,24 @@ class EntryHold(unittest.TestCase):
         self.fake(labels={"totalCount": 1, "nodes": [{"name": "Do-Not-Merge"}]})
         self.assertEqual(self.hold(), "do-not-merge")
 
+    def test_the_needs_human_label(self) -> None:
+        # A queued entry that gains the human-gated label leaves the queue.
+        self.fake(labels={"totalCount": 1, "nodes": [{"name": "Needs-Human"}]})
+        self.assertEqual(self.hold(), "needs-human")
+
+    def test_a_remapped_human_gated_label(self) -> None:
+        self.fake(labels={"totalCount": 1, "nodes": [{"name": "Human-Review"}]})
+        with mock.patch.object(
+            babysit_postmerge, "_role_label", return_value="human-review"
+        ):
+            self.assertEqual(self.hold(), "human-review")
+
+    def test_an_unreadable_human_gated_label_is_a_hold(self) -> None:
+        self.fake()
+        failed = babysit_postmerge.PostMergeReadError("tracker: HTTP 502")
+        with mock.patch.object(babysit_postmerge, "_role_label", side_effect=failed):
+            self.assertEqual(self.hold(), "unreadable: tracker: HTTP 502")
+
     def test_a_body_hold(self) -> None:
         self.fake(body="Please do not merge until the release")
         self.assertEqual(self.hold(), "body-hold")
@@ -1775,6 +1794,21 @@ class InFlight(unittest.TestCase):
         )
         self.assertEqual(self.flight().reason, "identity-entry-queued:#3")
 
+    def test_the_queue_read_names_every_entry_or_none(self) -> None:
+        queue_fake(
+            self,
+            [
+                {"enqueuer": user(OPERATOR), "pullRequest": {"number": 3}},
+                {"enqueuer": bot("agent-lanes"), "pullRequest": {"number": 4}},
+            ],
+            [],
+        )
+        result = self.flight()
+        self.assertEqual(result.reason, "identity-entry-queued:#4")
+        self.assertEqual(result.queued, frozenset({3, 4}))
+        queue_fake(self, [{"enqueuer": user(OPERATOR), "pullRequest": {}}], [])
+        self.assertIsNone(self.flight().queued)
+
     def test_a_non_human_enqueue_is_an_auto_merge_that_must_be_verified(self) -> None:
         for name, actor, enqueuer in (
             ("app actor, null enqueuer", bot("agent-lanes"), None),
@@ -1996,6 +2030,76 @@ class Assess(unittest.TestCase):
         self.assertIs(flight.call_args.kwargs["verified"], verified)
         self.assertEqual(result.reason, "in-flight:x")
         self.assertIs(result.enabled, True)
+
+    def test_an_in_flight_refusal_off_the_queue_reads_nothing_after_it(self) -> None:
+        self.readable()
+        later = mock.Mock(side_effect=AssertionError("read after the refusal"))
+        flight = policy.InFlight(False, "identity-entry-queued:#3", frozenset({3}))
+        with (
+            mock.patch.object(policy, "in_flight", return_value=flight),
+            mock.patch.object(policy, "eligibility", later),
+            mock.patch.object(policy, "lane_eligibility", later),
+            mock.patch.object(policy, "dependabot_eligibility", later),
+        ):
+            result = self.assess(post_merge=lambda floor, who: gate(), promotion=later)
+        later.assert_not_called()
+        self.assertEqual(result.reason, "in-flight:identity-entry-queued:#3")
+        self.assertIs(result.enabled, True)
+        self.assertNotIn("eligibility", result.inputs)
+
+    def test_a_rung_off_outranks_an_in_flight_refusal_off_the_queue(self) -> None:
+        self.readable()
+        flight = policy.InFlight(False, "x", frozenset({3}))
+        ineligible = policy.Eligibility(False, "fork")
+        with (
+            mock.patch.object(policy, "in_flight", return_value=flight),
+            mock.patch.object(
+                policy, "rung_cap", return_value=policy.RungCap("off", "cap-set")
+            ),
+            mock.patch.object(policy, "eligibility", return_value=ineligible) as read,
+        ):
+            result = self.assess(
+                post_merge=lambda floor, who: gate(), promotion=lambda s: PROMOTED
+            )
+        self.assertTrue(result.reason.startswith("rung-off:"), result.reason)
+        self.assertTrue(read.called)
+        self.assertEqual(result.inputs["own_refusal"], "ineligible:fork")
+
+    def test_the_in_flight_refusal_matches_the_full_judgment(self) -> None:
+        # None: the queue was not read whole, so the pull request is read in
+        # full; its own queued entry (#1) is read in full too, and refused.
+        self.readable()
+        ineligible = policy.Eligibility(False, "fork")
+        seen = []
+        for queued in (None, frozenset({1, 3}), frozenset({3})):
+            flight = policy.InFlight(False, "identity-entry-queued:#3", queued)
+            with (
+                mock.patch.object(policy, "in_flight", return_value=flight),
+                mock.patch.object(
+                    policy, "eligibility", return_value=ineligible
+                ) as read,
+            ):
+                result = self.assess(
+                    post_merge=lambda floor, who: gate(),
+                    promotion=lambda s: PROMOTED,
+                )
+            seen.append(
+                (
+                    result.reason,
+                    result.enabled,
+                    read.called,
+                    result.inputs.get("own_refusal"),
+                )
+            )
+        reason = "in-flight:identity-entry-queued:#3"
+        self.assertEqual(
+            seen,
+            [
+                (reason, True, True, "ineligible:fork"),
+                (reason, True, True, "ineligible:fork"),
+                (reason, True, False, None),
+            ],
+        )
 
     def test_a_human_clear_of_a_demotion_record_restarts_the_floor(self) -> None:
         self.readable()
@@ -3206,6 +3310,338 @@ class SharedPostMergeAnswer(unittest.TestCase):
         self.assertIsNone(result.reason)
 
 
+def lane_gate(verified: bool, failed: bool = False) -> policy.PostMergeGate:
+    """The check's answer on lane merge #8040: its verifying run passed,
+    is still pending, or failed."""
+    return babysit_postmerge.gate_from_report(
+        {
+            "ok": not failed,
+            "readable": True,
+            "autoMerges": [{"number": 8040, "verified": verified}],
+            "failures": [{"signal": "full-run", "number": 8040}] if failed else [],
+        }
+    )
+
+
+class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
+    """A shared answer that still waits on a lane merge's verifying run is
+    read again once `SHARED_UNVERIFIED_MAX_AGE` old, and each recompute is
+    handed back (`share`) for the next candidate. A recompute decides as a
+    from-scratch run at that moment does: only a passed verification clears."""
+
+    readable = LaneAssess.readable
+    fake = Assess.fake
+    assess = Assess.assess
+    lane_assess = LaneAssess.lane_assess
+    bound = SharedPostMergeAnswer.bound
+    issues_since = SharedPostMergeAnswer.issues_since
+    shared = SharedPostMergeAnswer.shared
+    decided = SharedPostMergeAnswer.decided
+    moved = SharedPostMergeAnswer.moved
+
+    def judged_flight(self) -> None:
+        """`in_flight` as the post-merge answer judges #8040, with the
+        eligibility reader clear."""
+
+        def judge(repo: str, **kwargs: Any) -> policy.InFlight:
+            verified = kwargs["verified"]
+            if verified is not None and verified(mock.Mock(number=8040)):
+                return policy.InFlight(True, None, frozenset())
+            return policy.InFlight(False, "unverified-auto-merge:#8040", frozenset())
+
+        for name, kwargs in (
+            ("in_flight", {"side_effect": judge}),
+            (
+                "lane_eligibility",
+                {"return_value": policy.Eligibility(True, None, "C2")},
+            ),
+        ):
+            patcher = mock.patch.object(policy, name, **kwargs)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def aged(self, minutes: float) -> GhFake:
+        """Bound, with the answer computed `minutes` ago."""
+        gh = self.bound()
+        self.computed_at -= policy.timedelta(minutes=minutes)
+        gh.rest[self.issues_since()] = []
+        return gh
+
+    def test_a_stale_unverified_answer_decides_as_a_from_scratch_run(self) -> None:
+        # Pending at the shared read; by now the run passed, is still pending,
+        # or failed. Only a pass clears the in-flight refusal.
+        for fresh, expected in (
+            (lane_gate(True), None),
+            (lane_gate(False), "in-flight:unverified-auto-merge:#8040"),
+            (lane_gate(False, failed=True), "post-merge:failure:full-run#8040"),
+        ):
+            with self.subTest(expected=expected):
+                self.bound()
+                self.judged_flight()
+                scratch = self.lane_assess(post_merge=lambda floor, who: fresh)
+                self.aged(3)
+                self.judged_flight()
+                seen: list[Any] = []
+                shared: list[policy.SharedPostMerge] = []
+                refreshed = self.lane_assess(
+                    post_merge=lambda floor, who: seen.append(floor) or fresh,
+                    shared=self.shared(lane_gate(False)),
+                    share=shared.append,
+                )
+                self.assertEqual(
+                    refreshed.details["postMergeShared"], "unused:unverified-stale"
+                )
+                self.assertEqual(seen, [policy.datetime.fromisoformat(ENABLED_AT)])
+                self.assertEqual(refreshed.reason, expected)
+                self.assertEqual(self.decided(refreshed), self.decided(scratch))
+                self.assertEqual(len(shared), 1)
+
+    def test_the_candidate_that_refreshed_proceeds_through_the_rest_of_the_gate(
+        self,
+    ) -> None:
+        # Judged against the fresh answer in the same invocation: no in-flight
+        # refusal, and every later read runs as a from-scratch run's does.
+        self.aged(3)
+        self.judged_flight()
+        refreshed = self.lane_assess(
+            post_merge=lambda floor, who: lane_gate(True),
+            shared=self.shared(lane_gate(False)),
+            share=lambda answer: None,
+        )
+        self.assertEqual(refreshed.details["inFlight"], {"clear": True, "reason": None})
+        self.assertIsNone(refreshed.reason)
+        self.assertTrue(refreshed.enabled)
+        self.assertIn("eligibility", refreshed.details)
+
+    def test_a_stale_answer_with_every_merge_verified_is_reused(self) -> None:
+        self.aged(3)
+        self.judged_flight()
+        never = mock.Mock(side_effect=AssertionError("read fresh"))
+        share = mock.Mock()
+        result = self.lane_assess(
+            post_merge=never, shared=self.shared(lane_gate(True)), share=share
+        )
+        self.assertEqual(result.details["postMergeShared"], "used")
+        self.assertIsNone(result.reason)
+        share.assert_not_called()
+
+    def test_a_fresh_unverified_answer_is_reused(self) -> None:
+        self.aged(1.5)
+        self.judged_flight()
+        never = mock.Mock(side_effect=AssertionError("read fresh"))
+        result = self.lane_assess(
+            post_merge=never, shared=self.shared(lane_gate(False)), share=mock.Mock()
+        )
+        self.assertEqual(result.details["postMergeShared"], "used")
+        self.assertEqual(result.reason, "in-flight:unverified-auto-merge:#8040")
+
+    def test_a_recompute_is_handed_back_bound_to_what_it_read(self) -> None:
+        self.aged(3)
+        self.judged_flight()
+        before = policy.datetime.now(policy.UTC)
+        fresh = lane_gate(True)
+        shared: list[policy.SharedPostMerge] = []
+        self.lane_assess(
+            post_merge=lambda floor, who: fresh,
+            shared=self.shared(lane_gate(False)),
+            share=shared.append,
+        )
+        (answer,) = shared
+        self.assertEqual(
+            (answer.main_sha, answer.config_sha, answer.identity, answer.floor),
+            (MAIN_SHA, CONFIG_SHA, IDENTITY, policy.datetime.fromisoformat(ENABLED_AT)),
+        )
+        self.assertIs(answer.gate, fresh)
+        self.assertTrue(answer.lane_merges_only)
+        self.assertGreaterEqual(answer.computed_at, before)
+
+    def test_the_next_candidate_reuses_the_written_recompute(self) -> None:
+        self.aged(3)
+        self.judged_flight()
+        path = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        path /= "post-merge.json"
+        share = lambda answer: babysit_postmerge.write_shared(str(path), answer)  # noqa: E731
+        first = self.lane_assess(
+            post_merge=lambda floor, who: lane_gate(True),
+            shared=self.shared(lane_gate(False)),
+            share=share,
+        )
+        reread = babysit_postmerge.read_shared(str(path))
+        assert reread is not None
+        gh = self.bound()
+        self.computed_at = reread.computed_at
+        gh.rest[self.issues_since()] = []
+        self.judged_flight()
+        never = mock.Mock(side_effect=AssertionError("read fresh"))
+        written = mock.Mock()
+        second = self.lane_assess(post_merge=never, shared=reread, share=written)
+        self.assertEqual(second.details["postMergeShared"], "used")
+        self.assertEqual(self.decided(second), self.decided(first))
+        written.assert_not_called()
+
+    def test_a_failed_write_back_keeps_the_verdict(self) -> None:
+        self.bound()
+        self.judged_flight()
+        scratch = self.lane_assess(post_merge=lambda floor, who: lane_gate(True))
+        self.aged(3)
+        self.judged_flight()
+        missing = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        missing /= "gone/post-merge.json"
+        refreshed = self.lane_assess(
+            post_merge=lambda floor, who: lane_gate(True),
+            shared=self.shared(lane_gate(False)),
+            share=lambda answer: babysit_postmerge.write_shared(str(missing), answer),
+        )
+        self.assertFalse(missing.exists())
+        self.assertEqual(self.decided(refreshed), self.decided(scratch))
+
+    def test_a_new_merge_refusal_also_hands_back_its_recompute(self) -> None:
+        lane_merge = merge_pages([[merged(7, bot("agent-lanes"), None)]])
+        self.moved(lane_merge)
+        self.judged_flight()
+        shared: list[policy.SharedPostMerge] = []
+        result = self.lane_assess(
+            post_merge=lambda floor, who: lane_gate(True),
+            shared=self.shared(lane_gate(True)),
+            share=shared.append,
+        )
+        self.assertEqual(result.details["postMergeShared"], "unused:new-merge:#7")
+        self.assertEqual([answer.main_sha for answer in shared], ["f" * 40])
+
+    def test_the_binding_is_read_before_the_check(self) -> None:
+        # A lane merge landing during the check moves the head after the
+        # binding read, so the next candidate lists merges rather than taking
+        # the unchanged-head shortcut on an answer that never judged it.
+        gh = self.aged(3)
+        self.judged_flight()
+        called: list[Any] = []
+
+        def check(floor: Any, who: str) -> policy.PostMergeGate:
+            called.append(policy.datetime.now(policy.UTC))
+            gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": "e" * 40}
+            return lane_gate(True)
+
+        shared: list[policy.SharedPostMerge] = []
+        self.lane_assess(
+            post_merge=check, shared=self.shared(lane_gate(False)), share=shared.append
+        )
+        (answer,) = shared
+        self.assertEqual(answer.main_sha, MAIN_SHA)
+        self.assertLessEqual(answer.computed_at, called[0])
+
+    def test_an_answer_bound_to_another_candidate_is_not_overwritten(self) -> None:
+        # Not a fresher answer, only a different one: writing it back would
+        # send the candidates that match the run's answer to their own reads.
+        other_floor = policy.datetime.fromisoformat("2026-10-11T00:00:00Z")
+        for overrides, rest, reason in (
+            (
+                {"floor": other_floor},
+                {NEWEST_CONFIG: [{"sha": "f" * 40}]},
+                "floor-differs",
+            ),
+            ({"identity": "other[bot]"}, {}, "identity-differs"),
+            ({"self_logins": frozenset({"x[bot]"})}, {}, "self-logins-differ"),
+            ({"lane_merges_only": False}, {}, "lane-differs"),
+        ):
+            with self.subTest(reason=reason):
+                self.bound().rest.update(rest)
+                self.judged_flight()
+                share = mock.Mock()
+                result = self.lane_assess(
+                    post_merge=lambda floor, who: lane_gate(True),
+                    shared=self.shared(lane_gate(True), **overrides),
+                    share=share,
+                )
+                self.assertEqual(result.details["postMergeShared"], f"unused:{reason}")
+                share.assert_not_called()
+
+    def test_another_floor_on_a_stale_answer_leaves_the_runs_answer(self) -> None:
+        # The binding is checked before the age: a candidate on another floor
+        # is refused as bound elsewhere and writes nothing back, so the next
+        # main-floor candidate refreshes the run's answer and the one after
+        # reuses it. Every verdict is a from-scratch run's.
+        other_floor = policy.datetime.fromisoformat("2026-10-11T00:00:00Z")
+        path = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        path /= "post-merge.json"
+        late = policy.datetime.now(policy.UTC) - policy.timedelta(minutes=31)
+        self.bound()
+        babysit_postmerge.write_shared(
+            str(path), self.shared(lane_gate(True), computed_at=late)
+        )
+        share = lambda answer: babysit_postmerge.write_shared(str(path), answer)  # noqa: E731
+
+        def candidate(floor: Any, expected: str) -> None:
+            """One candidate, from scratch and then on the run's file."""
+            with contextlib.ExitStack() as stack:
+                if floor is not None:
+                    stack.enter_context(
+                        mock.patch.object(
+                            policy, "merged_since_floor", return_value=floor
+                        )
+                    )
+                for shared in (None, babysit_postmerge.read_shared(str(path))):
+                    gh = self.bound()
+                    if floor is not None:
+                        gh.rest[NEWEST_CONFIG] = [{"sha": "f" * 40}]
+                    if shared is not None:
+                        self.computed_at = shared.computed_at
+                        gh.rest[self.issues_since()] = []
+                    self.judged_flight()
+                    result = self.lane_assess(
+                        post_merge=lambda floor, who: lane_gate(True),
+                        shared=shared,
+                        share=share if shared is not None else None,
+                    )
+                    if shared is None:
+                        scratch = result
+                self.assertEqual(result.details["postMergeShared"], expected)
+                self.assertEqual(self.decided(result), self.decided(scratch))
+
+        before = path.read_bytes()
+        candidate(other_floor, "unused:floor-differs")
+        self.assertEqual(path.read_bytes(), before)
+        candidate(None, "unused:stale")
+        candidate(None, "used")
+
+    def test_the_age_is_the_recorded_computed_at_not_the_files_mtime(self) -> None:
+        # Written just now, but its answer was computed 3 minutes ago with
+        # #8040 unverified: read again.
+        path = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        path /= "post-merge.json"
+        self.aged(3)
+        babysit_postmerge.write_shared(str(path), self.shared(lane_gate(False)))
+        reread = babysit_postmerge.read_shared(str(path))
+        assert reread is not None
+        self.judged_flight()
+        result = self.lane_assess(
+            post_merge=lambda floor, who: lane_gate(True),
+            shared=reread,
+            share=mock.Mock(),
+        )
+        self.assertEqual(result.details["postMergeShared"], "unused:unverified-stale")
+
+    def test_an_unreadable_shared_answer_is_recomputed_and_handed_back(self) -> None:
+        self.bound()
+        self.judged_flight()
+        shared: list[policy.SharedPostMerge] = []
+        self.lane_assess(
+            post_merge=lambda floor, who: lane_gate(True), share=shared.append
+        )
+        self.assertEqual(len(shared), 1)
+
+    def test_an_unreadable_recompute_is_not_handed_back(self) -> None:
+        self.aged(3)
+        self.judged_flight()
+        share = mock.Mock()
+        result = self.lane_assess(
+            post_merge=lambda floor, who: gate("unreadable"),
+            shared=self.shared(lane_gate(False)),
+            share=share,
+        )
+        self.assertEqual(result.reason, "post-merge:unreadable")
+        share.assert_not_called()
+
+
 class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):
     """`babysit_merge.py --merge` with the token acting as the configured
     `merge.agent-identity`, read from a real pipeline file through the config
@@ -3964,6 +4400,21 @@ class OneRunSharesItsCredentialReads(unittest.TestCase):
             clock[0] += policy.run_cache.MAX_AGE + timedelta(seconds=1)
             policy.permission_reader(REPO)(OPERATOR)
         self.assertEqual(gh.calls.count(["api", endpoint]), 2)
+
+
+# The tracker's human-gated label read an autonomous gate makes: stubbed so
+# no test reads GitHub.
+_role_label = mock.patch.object(
+    babysit_postmerge, "_role_label", return_value="needs-human"
+)
+
+
+def setUpModule() -> None:
+    _role_label.start()
+
+
+def tearDownModule() -> None:
+    _role_label.stop()
 
 
 if __name__ == "__main__":
