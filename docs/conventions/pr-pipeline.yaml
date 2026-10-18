@@ -316,6 +316,10 @@ merge:
   # A PR merges only with a passing pr-verify.yml verdict at its head. Must be
   # true at a rung above off: the gate refuses otherwise.
   require-verifier-verdict: true
+  # Lane merges in flight at once (queued plus merged and not yet verified).
+  # The merge queue tests each PR against the latest base plus the PRs ahead
+  # of it.
+  max-in-flight: 5
   # pr-verify.yml judges only PRs the lanes App (agent-identity) opened; `any`
   # judges every author's.
   verify-authors: lane

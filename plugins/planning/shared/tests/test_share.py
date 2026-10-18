@@ -318,7 +318,7 @@ class TestLogsSummary(unittest.TestCase):
         p = subprocess.run([bash, str(Path(share_cli.__file__).with_name("share.sh")), "--dir", str(self.d), "logs", "--summary"], capture_output=True, text=True, timeout=60, env=env())
         self.assertEqual(p.returncode, 0, p.stderr)
         for want in (
-            "Summaries: 5 in 2 batches from 4 page views (1 of them the owner's, left out of the timings). A page with recording turned off sends none. 1 more did not fit in their batch.",
+            "Summaries: 5 in 2 batches from 4 page views (1 of them the owner's, left out of the timings). 1 more did not fit in their batch.",
             f"  3x error: TypeError: x is undefined /app.js:12 (phone 1; chrome 1), first {self.at(6)}, last {self.at(11)}",
             "  /api/answer locked: 2",
             "  /api/vote network: 2",

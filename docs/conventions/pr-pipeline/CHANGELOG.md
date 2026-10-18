@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 2.11.11 - 2026-10-18
+## 2.12.1 - 2026-10-18
 
 A write-runner skill run that claude-code-action fails only because its `success` result went over
 `--max-turns` now counts as a success: `act-outcome`, the verdict, the lane record and the job
@@ -9,6 +9,13 @@ any finished run. The run job reads this from the execution file's last result m
 `success`, `is_error` false, `num_turns` over the cap); any other failure, or a missing or
 unreadable execution file, still fails
 ([pr-run-activity.md](pr-run-activity.md#the-run-job)). `version` stays 2.
+
+## 2.12.0 - 2026-10-18
+
+`merge.max-in-flight` (an integer of at least 1, default 1) caps the lane merges in flight: the
+agent identity's merge-queue entries plus its merged pull requests the post-merge check has not
+verified. This repository sets 5. A red full run or canary run still charges every unverified
+merge whose commit it contains. `version` stays 2.
 
 ## 2.11.10 - 2026-10-18
 

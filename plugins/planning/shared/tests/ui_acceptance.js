@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // The Brief's acceptance criteria in real browsers, against `share.sh ensure-running` with the fake cloudflared:
-// the join dialog says answers are saved on the host's computer and read by Claude when a round is sent and the side
-// chat is not sent; a refused join (rate-limited, session full) shows the reason and a retry; two guests see each
+// the join dialog shows only its heading, the invite line, the name prompt, the name box and Join; a refused join (rate-limited, session full) shows the reason and a retry; two guests see each
 // other's current question and typing within about 2 seconds; Claude's suggestion cards wait behind "Show Claude's
 // take (N)" until the person answers or votes, a chosen card always shows, and Always show shows them; WHILE a question
 // is locked its composer is disabled and says how to suggest a change; a changed locked answer flags its dependents
@@ -58,10 +57,15 @@ async function main() {
     // ---------- join dialog ----------
     const gus = await rec.open(A.localUrl);
     await gus.waitForSelector("dialog.core-name[open]");
-    const note = await gus.textContent("#core-n-note");
-    ok("join dialog: states answers are saved on the host's computer and read by Claude when a round is sent",
-      /answers are saved on the host's computer/i.test(note) && /read by Claude when a round is sent/i.test(note), note);
-    ok("join dialog: states the side chat is not sent to Claude", /side chat is not sent to Claude/i.test(note), note);
+    const parts = await gus.evaluate(() => {
+      const d = document.querySelector("dialog.core-name");
+      const shown = [...d.querySelectorAll("form > *")].filter(e => e.offsetParent && (e.matches("input, button") || e.textContent.trim()));
+      return { shown: shown.map(e => e.matches("input") ? `input:${e.type}` : `${e.localName}:${e.textContent.trim()}`),
+        extra: d.querySelectorAll("a, input[type=checkbox], [role=switch]").length };
+    });
+    ok("join dialog: shows only the heading, the invite line, the name prompt, the name box and Join",
+      parts.shown.join("|") === "h2:Join the session|p:You are invited to answer a few questions: Offsite|label:What should everyone call you?|input:text|button:Join"
+      && parts.extra === 0, JSON.stringify(parts));
     const gusPid = await joinAs(gus, "Gus");
 
     // ---------- refused join: the reason and a retry ----------

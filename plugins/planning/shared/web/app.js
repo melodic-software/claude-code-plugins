@@ -1083,7 +1083,10 @@
     const qNav = E("span", "vf-qnav");
     const qPrev = ibtn("vf-tbtn vf-icon-btn vf-qnav-btn", "chevL", "Previous question"), qNext = ibtn("vf-tbtn vf-icon-btn vf-qnav-btn", "chevR", "Next question");
     qNav.append(qPrev, qNext);
-    qMeta.append(qNav);
+    // On phones the on-it avatars sit in this row, before the arrows, so presence costs the question no height.
+    const qOnIt = E("span", "vf-qonit"), qOnItAv = E("span", "vf-avrow");
+    qOnIt.setAttribute("role", "img"); qOnIt.append(qOnItAv);
+    qMeta.append(qOnIt, qNav);
     const composer = E("form", "vf-composer");
     const ta = E("textarea", "vf-ta"); ta.rows = 3; ta.setAttribute("aria-label", "Your answer"); ta.maxLength = 2000; ta.id = "vf-answer";
     const cRow = E("div", "vf-crow");
@@ -1645,7 +1648,7 @@
     const msTour = msItem("help", "Show me around"); msTour._d.textContent = "A one-minute tour";
     const msIntro = msItem("doc", "Why you're here");
     const msReport = msItem("alert", "Report a problem"); msReport._d.textContent = "Tell the host something is broken";
-    const msRecords = msItem("doc", "What this page records"); msRecords._d.textContent = "And the switch to turn it off";
+    const msRecords = msItem("doc", "What this page records");
     moreSheet.append(msHead, msList);
 
     // ---------- Triage 4: an optional first-visit tour, skippable, re-opened from Help; the `tour` pref remembers it ----------
@@ -5708,6 +5711,9 @@
         onItTxt.textContent = typers.length ? `${names(typers)} ${typers.length > 1 ? "are" : "is"} typing` : others.length ? `${names(others)} ${others.length > 1 ? "are" : "is"} on this question` : "";
         onIt.hidden = !others.length;
         onItDots.classList.toggle("vf-on", typers.length > 0);
+        avStack(qOnItAv, others, 3);
+        qOnIt.setAttribute("aria-label", onItTxt.textContent);
+        if (others.length) qOnIt.removeAttribute("aria-hidden"); else qOnIt.setAttribute("aria-hidden", "true");
 
         // format, Claude thread, citations, and the Answers | Claude split
         renderFormat(S, q);
