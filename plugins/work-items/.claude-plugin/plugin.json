@@ -48,6 +48,11 @@
       "title": "Lane instance ID",
       "description": "Writer identity for this machine's work-loop telemetry, the suffix of its telemetry marker, so concurrent lane instances never overwrite each other. Absent: the sanitized lowercased hostname. Must match ^[a-z0-9][a-z0-9-]{0,31}$. It appears verbatim in tracker comments."
     },
+    "lane_app_slug": {
+      "type": "string",
+      "title": "Lane GitHub App slug",
+      "description": "Slug of the GitHub App whose installation token the work-loop lane runs under, passed as --app-slug to its telemetry upsert so the write identity resolves to <slug>[bot]. Needed only under an App token. Absent: the identity resolves from gh api user. Must match ^[a-z0-9][a-z0-9-]*$."
+    },
     "work_loop_item_cap_start": {
       "type": "number",
       "title": "Work-loop item cap start",
