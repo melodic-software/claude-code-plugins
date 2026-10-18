@@ -150,8 +150,15 @@ digest-file map (one row per digest unit), and a status checklist. SOURCES.md op
 frontmatter block carrying at least `abstract:` (ONE unwrapped line naming what the page covers),
 which a parent slice's `INDEX.md` regen mirrors. Digest-unit granularity: the
 pre-H2 introduction plus each H2 section is one unit; sub-bullets stay as sub-digests inside
-their unit's file. SOURCES.md is the representation layer every later phase (and the interview)
-walks. Keep its digest-map rows in parity with the digest files.
+their unit's file. An H2 is a heading in either form, a `##` line or an `<h2 id="...">` tag
+(the raw-md channel emits some real headings as tags, see the profile), outside code fences: a
+scan for `#` lines alone merges a tag H2's section into the previous unit. SOURCES.md is the
+representation layer every later phase (and the interview) walks. Keep its digest-map rows in
+parity with the digest files. Write it in the shape
+[`check-sources-parity.py`](scripts/check-sources-parity.py) reads: a `## Headings` table
+(`line | level | text`, one row per heading of either form), a `## Digest map` table
+(`digest file | START-END` source lines, contiguous from line 1 to the last line), and a
+`## Status` checklist with one row per digest file.
 
 A separate `## Relied-on links` section lists each outbound link whose target holds content a
 digest unit leans on without stating it (a "see X for details", a link standing in for an
@@ -326,7 +333,9 @@ and we do not rely on a token being substituted on that route.
   for the next; the profile records precedent, not a guarantee.
 - **Digest-unit parity is the invariant.** SOURCES.md digest-map rows, digest files, and checklist
   entries must agree (relied-on-link rows sit outside it); a dropped section is silent corpus loss the verifiers are told to catch. Parity
-  that only checks presence-non-empty will not catch unsubstituted placeholders.
+  that only checks presence-non-empty will not catch unsubstituted placeholders. The standing
+  gate `check-sources-parity.py` checks heading and unit parity mechanically, HTML-tag headings
+  included.
 - **Verdicts are append-only.** Fixing a digest after verification means a corrections-applied
   file plus re-verification of the changed digests, never editing the verdict. A verdict file
   on disk is not a report.

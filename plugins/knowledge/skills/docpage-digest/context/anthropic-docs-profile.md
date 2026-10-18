@@ -37,7 +37,10 @@ extraction waits for the third (Rule of Three).
   not page content: it takes no tag and no `tag-exempt` sub-shape, stays out of every Key claims
   section, and `SOURCES.md` records it once as a channel artifact. Fence attributes arrive as `theme={null}`. Formatter
   hooks expand hard tabs on the surfaces they are allowed to touch, never `source.*`, which
-  stays the unaltered fetch. URLs arrive `\&`-escaped. Digest text reproduces these artifacts
+  stays the unaltered fetch. URLs arrive `\&`-escaped. Some real headings arrive as HTML tags
+  (`<h2 id="where-skills-live">`, any of `<h1>`-`<h6>` with an `id`) instead of `#` lines, so the
+  Phase 2 inventory counts both forms; a `#`-only scan drops an H2 and merges its section into
+  the previous unit. Digest text reproduces these artifacts
   byte-exact and never repairs them. The reader-facing exception under **Archive-reading
   conventions** covers escaped links: a downstream artifact written *for a reader* repairs the
   corruption and discloses that it did.
