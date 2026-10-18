@@ -597,6 +597,20 @@ class TestOwnerRotation(unittest.TestCase):
         self.assertEqual((app.secrets["owner"], owner["tokenHash"]), (token, session.sha256(token)))
 
 
+class TestWritePrivate(unittest.TestCase):
+    """A private file is replaced whole or not at all, and a failed write leaves nothing beside it."""
+
+    def test_a_failed_write_keeps_the_old_file_and_leaves_no_temp_file(self):
+        d = tmpdir(self)
+        target = d / ".shared-secrets.json"
+        detached.write_private(target, '{"owner": "old"}\n')
+        for point in ("fsync", "replace"):
+            with self.subTest(fails_at=point), mock.patch.object(detached.os, point, side_effect=OSError("disk full")), self.assertRaises(OSError):
+                detached.write_private(target, '{"owner": "new"}\n')
+            self.assertEqual(sorted(p.name for p in d.iterdir()), [".shared-secrets.json"])
+            self.assertEqual(target.read_text(encoding="utf-8"), '{"owner": "old"}\n')
+
+
 class TestDataFolderRule(unittest.TestCase):
     """Windows keeps the data folder private only under the user profile; WSL's DrvFs ignores file
     modes unless mounted with metadata (Brief: runs on Windows, macOS and Linux)."""

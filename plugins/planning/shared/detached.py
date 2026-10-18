@@ -63,20 +63,35 @@ def open_private(path, mode="ab"):
     return os.fdopen(os.open(path, flags | getattr(os, "O_BINARY", 0), 0o600), mode)
 
 
-def write_private(path, text):
-    """Atomic write of a file only its owner may read (0600 where the OS has file modes)."""
-    path = Path(path)
-    tmp = path.with_name(f"{path.name}.{os.getpid()}.{time.monotonic_ns()}.tmp")
-    with open_private(tmp, "wb") as f:
-        f.write(text.encode("utf-8"))
+def replace_into(tmp, path):
+    """os.replace with retry: Windows refuses while a reader holds the target open."""
     for _ in range(20):
         try:
             os.replace(tmp, path)
             return
-        except PermissionError:  # Windows refuses while a reader holds the target open
+        except PermissionError:
             time.sleep(0.05)
     os.unlink(tmp)
     raise OSError(f"could not replace {path}")
+
+
+def write_private(path, text):
+    """Atomic, durable write of a file only its owner may read (0600 where the OS has file modes).
+
+    The bytes reach the disk before the rename, and a failed write leaves no temporary file behind.
+    """
+    path = Path(path)
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.{time.monotonic_ns()}.tmp")
+    try:
+        with open_private(tmp, "wb") as f:
+            f.write(text.encode("utf-8"))
+            f.flush()
+            os.fsync(f.fileno())
+        replace_into(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
 
 
 def make_private_dir(path):

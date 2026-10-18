@@ -437,33 +437,8 @@ def initials(name):
     return " ".join(w[0] for w in str(name or "?").split()[:2]).upper() or "?"
 
 
-def replace_into(tmp, path):
-    """os.replace with retry: Windows refuses while a reader holds the target open."""
-    for _ in range(20):
-        try:
-            os.replace(tmp, path)
-            return
-        except PermissionError:
-            time.sleep(0.05)
-    os.unlink(tmp)
-    raise OSError(f"could not replace {path}")
-
-
-def write_private(path, text):
-    """Atomic write of a file only its owner may read: created 0600 (advisory on Windows)."""
-    path = Path(path)
-    tmp = path.with_name(f"{path.name}.{secrets.token_hex(4)}.tmp")
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
-            f.write(text)
-            f.flush()
-            os.fsync(f.fileno())
-        replace_into(tmp, path)
-    except BaseException:
-        with contextlib.suppress(OSError):
-            os.unlink(tmp)
-        raise
+replace_into = detached.replace_into
+write_private = detached.write_private
 
 
 def _edited(card):
