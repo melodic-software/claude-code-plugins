@@ -109,5 +109,8 @@ if [[ "$left" == None ]]; then ok "stop dropped the tunnel"; else bad "tunnel re
 code=$(curl -s -o /dev/null -w '%{http_code}' --noproxy '*' --max-time 3 "${local_url}api/state")
 if [[ "$code" == 000 ]]; then ok "stop ended the server"; else bad "server still answers: $code"; fi
 
+out=$(BENCH_SECONDS=1 timeout 60 "$py" "$here/bench_snapshot.py" 2>&1)
+if [[ $? == 0 && "$out" == *"guest snapshot:"* ]]; then ok "bench_snapshot.py still runs"; else bad "bench_snapshot.py: $out"; fi
+
 echo "PASS=$pass FAIL=$fail"
 [[ $fail == 0 ]]
