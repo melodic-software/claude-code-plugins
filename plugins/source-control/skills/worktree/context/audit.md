@@ -19,9 +19,9 @@ Periodic health check for worktree infrastructure. Suitable as a recurring item 
 | Stale metadata | `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>` shows `prunable=no` on every row | Clean. Otherwise suggest `git worktree prune` via `/source-control:worktree cleanup` |
 | Claim liveness | `bash "<scripts-dir>/worktree-claim.sh" report --repo-dir <repo>` | Exit 0. Every linked worktree carries a lock reason (a claim other agents can read). Exit 1 lists each `UNCLAIMED` path: a plain `git worktree add` that bypassed `worktree-create.sh`. Claim with `worktree-claim.sh claim <path>` or leave it reported; do not rewrite an existing helper reason |
 | Unregistered directories under the worktree root | `bash "<scripts-dir>/worktree-root-scan.sh" --repo-dir <each canonical repo>`, reported per Step 2c | Zero rows with `proposed` = `yes` |
-| Orphaned plugin install records | `claude plugin list --json`, project-scope records grouped by `projectPath`, classified per Step 2b (which requires a **liveness** test, not just registration in this repository, since the worktree root is shared across repositories) | Zero paths in the `candidate orphan` bucket |
+| Orphaned plugin install records | `claude plugin list --json`, project- and local-scope records grouped by `projectPath`, classified per Step 2b (which requires a **liveness** test, not just registration in this repository, since the worktree root is shared across repositories) | Zero paths in the `candidate orphan` bucket |
 
-## Step 2b: Orphaned project-scope plugin install records
+## Step 2b: Orphaned project- and local-scope plugin install records
 
 `cleanup` reaps these at teardown, but only for a teardown it performs. Every worktree removed
 without that step left its records behind, and they accumulate indefinitely because nothing else
@@ -38,10 +38,10 @@ Collect (enumeration is cwd-independent, measured in [fixtures/README.md](../fix
 ```bash
 claude plugin list --json | jq -r '
   (if type=="object" then (.installed // .plugins // []) else . end)
-  | map(select(.scope=="project"))
+  | map(select(.scope=="project" or .scope=="local"))
   | group_by(.projectPath)
-  | map({path: .[0].projectPath, count: length, marketplaces: ([.[].id | split("@")[1]] | unique)})
-  | .[] | [.path, (.count|tostring), (.marketplaces|join(","))] | join("\t")' | tr -d '\r'
+  | map({path: .[0].projectPath, count: length, scopes: ([.[].scope] | unique), marketplaces: ([.[].id | split("@")[1]] | unique)})
+  | .[] | [.path, (.count|tostring), (.scopes|join("+")), (.marketplaces|join(","))] | join("\t")' | tr -d '\r'
 ```
 
 **Precondition: check this FIRST, and stop the step if it fails.** Confirm the resolved worktree
@@ -101,7 +101,7 @@ esac
 Require the user to confirm each path individually before anything is run.
 
 **The remedy, emitted for the user to run, never inline.** Removing a record requires standing in
-the directory it names (`-s project` has no path flag), so the only route to a path that no longer
+the directory it names (`-s project` and `-s local` have no path flag), so the only route to a path that no longer
 exists is to recreate it. That is a deliberate act, not something an audit performs:
 
 ```bash

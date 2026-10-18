@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# reap-project-plugin-records.sh — remove the project-scope plugin install
-# records Claude Code recorded for the directory this script is standing in,
+# reap-project-plugin-records.sh — remove the project- and local-scope plugin
+# install records Claude Code recorded for the directory this script is standing in,
 # through the documented plugin CLI and nothing else.
 #
 # WHY THIS EXISTS. Claude Code records a project-scope install in
@@ -11,7 +11,7 @@
 # identifiable and provably dead, so teardown is where they are removed.
 #
 # THE BOUNDARY, RENDERED IN CODE RATHER THAN IN PROSE. `claude plugin uninstall
-# <id> -s project` has NO path flag: it resolves strictly against the current
+# <id> -s project` (and `-s local`) has NO path flag: it resolves strictly against the current
 # directory (measured — see skills/worktree/fixtures/README.md). This script
 # therefore requires `--worktree-path` to name the directory it is already
 # standing in and refuses otherwise, so it structurally cannot act on any path
@@ -188,8 +188,8 @@ have jq || {
   exit 3
 }
 
-# enumerate — ids with a project-scope record whose projectPath is this
-# directory. `claude plugin list --json` reports every project-scope record on
+# enumerate — id and scope of each project- or local-scope record whose
+# projectPath is this directory (user scope is never listed). `claude plugin list --json` reports every project-scope record on
 # the machine regardless of cwd — measured, and re-checkable:
 # skills/worktree/fixtures/README.md § project-scope-reap-probe.sh arm 2,
 # Claude Code 2.1.240, re-run unchanged on 2.1.241 — so enumeration is
@@ -203,22 +203,22 @@ list_ids() {
   # same path resolved locally — the field would silently never match.
   printf '%s' "$raw" | jq -r '
     (if type == "object" then (.installed // .plugins // []) else . end)
-    | map(select(.scope == "project"))
+    | map(select(.scope == "project" or .scope == "local"))
     | .[]
-    | [(.id // ""), (.projectPath // "")]
+    | [(.id // ""), (.projectPath // ""), .scope]
     | join("\t")
   ' 2>/dev/null | tr -d '\r' || return 1
 }
 
-# matching_ids — newline-separated, deduplicated.
+# collect_matches — `<id><TAB><scope>` rows, deduplicated.
 collect_matches() {
-  local rows id path
+  local rows id path scope
   rows="$(list_ids)" || return 1
-  printf '%s\n' "$rows" | while IFS=$'\t' read -r id path; do
+  printf '%s\n' "$rows" | while IFS=$'\t' read -r id path scope; do
     [[ -n "$id" ]] || continue
     [[ -n "$path" ]] || continue
     [[ "$(norm_path "$path")" == "$here_key" ]] || continue
-    printf '%s\n' "$id"
+    printf '%s\t%s\n' "$id" "$scope"
   done | sort -u
 }
 
@@ -229,17 +229,17 @@ matches="$(collect_matches)" || {
 }
 
 if [[ -z "$matches" ]]; then
-  printf 'ok: no project-scope plugin install records are recorded for %s — nothing to reap.\n' "$here_native"
+  printf 'ok: no project- or local-scope plugin install records are recorded for %s — nothing to reap.\n' "$here_native"
   exit 0
 fi
 
 count="$(printf '%s\n' "$matches" | grep -c '[^[:space:]]')"
-printf 'info: %s project-scope plugin install record(s) recorded for %s\n' "$count" "$here_native"
+printf 'info: %s project- or local-scope plugin install record(s) recorded for %s\n' "$count" "$here_native"
 
 if [[ "$dry_run" -eq 1 ]]; then
-  while IFS= read -r id; do
+  while IFS=$'\t' read -r id scope; do
     [[ -n "$id" ]] || continue
-    printf 'info: would reap %s\n' "$id"
+    printf 'info: would reap %s (%s scope)\n' "$id" "$scope"
   done <<<"$matches"
   printf 'ok: dry run — no record was removed.\n'
   exit 0
@@ -329,20 +329,21 @@ settle_settings() {
 
 reaped=0
 noop=0
-while IFS= read -r id; do
+while IFS=$'\t' read -r id scope; do
   [[ -n "$id" ]] || continue
-  # -s project only. Never -s user (the CLI's own failure text suggests it and
+  # The record's own scope: project or local, never another (the enumeration
+  # yields no other). Never -s user (the CLI's own failure text suggests it and
   # that suggestion is fleet-wide). Never --prune. Always --keep-data: this
   # script reaps stale records, never a plugin's persistent data directory.
-  out="$(claude plugin uninstall "$id" -s project --keep-data 2>&1)"
+  out="$(claude plugin uninstall "$id" -s "$scope" --keep-data 2>&1)"
   rc=$?
   if [[ "$rc" -eq 0 ]]; then
     reaped=$((reaped + 1))
-    printf 'ok: reaped %s\n' "$id"
+    printf 'ok: reaped %s (%s scope)\n' "$id" "$scope"
   else
     noop=$((noop + 1))
-    printf 'info: no-op for %s — the CLI resolved no project-scope record here (exit %s): %s\n' \
-      "$id" "$rc" "$(printf '%s' "$out" | tr '\r\n' '  ')"
+    printf 'info: no-op for %s — the CLI resolved no %s-scope record here (exit %s): %s\n' \
+      "$id" "$scope" "$rc" "$(printf '%s' "$out" | tr '\r\n' '  ')"
     printf 'info:   this is a report, not an escalation — do NOT retry it with the user scope.\n'
   fi
 done <<<"$matches"
@@ -377,5 +378,5 @@ if [[ "$survivor_count" -gt 0 ]]; then
   exit 1
 fi
 
-printf 'ok: every project-scope plugin install record for %s is gone.\n' "$here_native"
+printf 'ok: every project- and local-scope plugin install record for %s is gone.\n' "$here_native"
 exit 0
