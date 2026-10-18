@@ -155,9 +155,8 @@ Or the GitHub MCP `update_pull_request` call with `draft: false`.
 
 A new run id for the head after the flip shows a run started, not that it carries the ready
 payload: a draft-payload run that registers late is also a new id, and it cancels the ready run
-through the per-PR concurrency group. So when the wait above timed out (`FOUND=0`), the push's run
-had not registered when `RUNS_BEFORE` was taken and a new id proves nothing: skip to the toggle
-below, which starts a run after the draft one has registered. Otherwise 24 polls x 5 s = 120 s:
+through the per-PR concurrency group. Define `ready_run_seen` first, always, since the toggle below
+calls it (24 polls x 5 s = 120 s):
 
 ```bash
 ready_run_seen() {
@@ -171,8 +170,16 @@ ready_run_seen() {
 }
 ```
 
-When `ready_run_seen` returns 1, toggle once and wait again. A rerun replays the draft payload, so
-it does not help:
+When the wait above timed out (`FOUND=0`), the push's run had not registered when `RUNS_BEFORE` was
+taken and a new id proves nothing: do not call `ready_run_seen` here, go straight to the toggle,
+which starts a run after the draft one has registered. Otherwise call it right after the flip:
+
+```bash
+ready_run_seen
+```
+
+When it returns 1, toggle once and wait again. A rerun replays the draft payload, so it does not
+help:
 
 ```bash
 RUNS_BEFORE=$(gh run list --workflow "$CI_WORKFLOW" --commit "$HEAD_SHA" --event pull_request \
