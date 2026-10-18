@@ -4,7 +4,7 @@ A candidate whose listed labels or body carry a hold the gate refuses on is
 dropped with no API call, the gate still refuses the same inputs on its own,
 and when every candidate is held one stays so a gate process still sweeps the
 merge queue. Expected holds come from `PullRequestBodyHold`, the gate's own
-cases.
+cases. Kept candidates sweep CLEAN first, then oldest first.
 """
 
 from __future__ import annotations
@@ -99,6 +99,70 @@ class HeldCandidatesNeverReachTheGate(unittest.TestCase):
 
     def test_no_candidates_stay_none(self) -> None:
         self.assertEqual(self._run([]), ([], []))
+
+
+class CleanCandidatesSweepFirstOldestFirst(unittest.TestCase):
+    """A sweep the job timeout cuts short has tried the clean candidates
+    first, oldest first; a hold still keeps a clean candidate out."""
+
+    @staticmethod
+    def _numbers(candidates: list[dict]) -> list[int]:
+        return [c["number"] for c in prefilter.split(candidates)["candidates"]]
+
+    @staticmethod
+    def _listed(number: int, state: str | None, created: str | None, **kw) -> dict:
+        row = _candidate(number, **kw)
+        if state is not None:
+            row["mergeStateStatus"] = state
+        if created is not None:
+            row["createdAt"] = created
+        return row
+
+    def test_clean_first_then_oldest(self) -> None:
+        candidates = [
+            self._listed(1, "BLOCKED", "2026-10-01T00:00:00Z"),
+            self._listed(2, "CLEAN", "2026-10-15T00:00:00Z"),
+            self._listed(3, "DIRTY", "2026-09-20T00:00:00Z"),
+            self._listed(4, "CLEAN", "2026-10-03T00:00:00Z"),
+            self._listed(5, None, None),
+            self._listed(6, "UNSTABLE", None),
+            self._listed(7, "CLEAN", None),
+        ]
+        self.assertEqual(self._numbers(candidates), [4, 2, 7, 3, 1, 5, 6])
+
+    def test_input_without_the_fields_keeps_its_order(self) -> None:
+        candidates = [_candidate(9), _candidate(3), _candidate(7)]
+        self.assertEqual(self._numbers(candidates), [9, 3, 7])
+
+    def test_all_held_fallback_keeps_the_first_in_sweep_order(self) -> None:
+        # Every candidate is held; the one kept for the queue sweep is the
+        # CLEAN, older one, not the lowest number.
+        candidates = [
+            self._listed(1, "BLOCKED", "2026-10-10T00:00:00Z", labels=["do-not-merge"]),
+            self._listed(2, "CLEAN", "2026-09-01T00:00:00Z", body=HELD_BODIES[0]),
+        ]
+        result = prefilter.split(candidates)
+        self.assertEqual(
+            result["candidates"],
+            [{k: candidates[1][k] for k in ("number", "head", "updatedAt")}],
+        )
+        self.assertEqual(
+            [(h["number"], h["reason"]) for h in result["held"]], [(1, "do-not-merge")]
+        )
+
+    def test_held_clean_candidate_never_sweeps_first(self) -> None:
+        candidates = [
+            self._listed(1, "BLOCKED", "2026-10-05T00:00:00Z"),
+            self._listed(2, "CLEAN", "2026-09-01T00:00:00Z", labels=["do-not-merge"]),
+            self._listed(3, "CLEAN", "2026-09-02T00:00:00Z", labels=["needs-human"]),
+            self._listed(4, "CLEAN", "2026-09-03T00:00:00Z", body=HELD_BODIES[0]),
+        ]
+        result = prefilter.split(candidates)
+        self.assertEqual([c["number"] for c in result["candidates"]], [1])
+        self.assertEqual(
+            [(h["number"], h["reason"]) for h in result["held"]],
+            [(2, "do-not-merge"), (3, "needs-human"), (4, "body-hold")],
+        )
 
 
 class PrefilterDropsOnlyWhatTheGateRefuses(fixtures.TierEvaluateHarness):
