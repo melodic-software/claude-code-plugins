@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "panel.inert = !open; button.setAttribute('aria-expanded', String(open));",
+      "why": "closed content inert"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".panel { max-height: 0; overflow: hidden; transition: max-height 250ms; }\n.panel.open { max-height: 500px; }",
+      "why": "animates max-height, content still reachable"
+    },
+    {
+      "answer": ".panel { height: 0; overflow: hidden; transition: height 250ms; }\n.panel.open { height: auto; }",
+      "why": "animates height, content still reachable"
+    }
+  ]
+}
