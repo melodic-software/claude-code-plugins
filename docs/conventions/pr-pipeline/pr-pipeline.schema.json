@@ -516,6 +516,12 @@
           "default": false,
           "description": "true: the pr-merge lane refuses a pull request, and dequeues a queued one, without a passing pr-verify verdict at its head (README.md, Verifier verdict). It is the lane's merge criterion, so an enabled pr-merge lane (agent-identity set) at a rung above off must set it true; the gate refuses `verifier-verdict-not-required` otherwise."
         },
+        "max-in-flight": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Lane merges allowed in flight at once: the agent identity's merge-queue entries plus its merged pull requests the post-merge check has not verified. The gate refuses `in-flight:` at this count. A post-merge failure charges every unverified lane merge whose commit the red run contains, and any charge demotes the rung."
+        },
         "verify-authors": {
           "enum": ["lane", "any"],
           "default": "lane",

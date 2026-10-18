@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import dataclasses
 import json
 import os
 import pathlib
@@ -246,6 +247,20 @@ class ReadConfigAt(unittest.TestCase):
         self.assertIn(
             ["api", f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"], gh.calls
         )
+
+    def test_max_in_flight_defaults_to_one_and_reads_a_count(self) -> None:
+        for text, expected, noted in (
+            (PIPELINE, 1, False),
+            (PIPELINE.replace("merge:\n", "merge:\n  max-in-flight: 5\n"), 5, False),
+            (PIPELINE.replace("merge:\n", "merge:\n  max-in-flight: 0\n"), 1, True),
+            (PIPELINE.replace("merge:\n", "merge:\n  max-in-flight: two\n"), 1, True),
+        ):
+            with self.subTest(expected=expected, noted=noted):
+                config_fake(self, text)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(config.max_in_flight, expected)
+                self.assertEqual(config.rung, "C2")
+                self.assertEqual(any("max-in-flight" in n for n in config.notes), noted)
 
     def test_a_parse_error_is_off(self) -> None:
         config_fake(self, "merge:\n  rung: [C2\n")
@@ -1793,6 +1808,63 @@ class InFlight(unittest.TestCase):
             self, [{"enqueuer": bot("agent-lanes"), "pullRequest": {"number": 3}}], []
         )
         self.assertEqual(self.flight().reason, "identity-entry-queued:#3")
+
+    def capped(self, cap: int | None, queued: int, unverified: int) -> Any:
+        """In flight: `queued` identity entries and `unverified` lane merges,
+        under `max_in_flight=cap` (None: the default)."""
+        queue_fake(
+            self,
+            [
+                {"enqueuer": bot("agent-lanes"), "pullRequest": {"number": 10 + i}}
+                for i in range(queued)
+            ],
+            [merged(20 + i, bot("agent-lanes"), None) for i in range(unverified)],
+        )
+        cap_kwargs = {} if cap is None else {"max_in_flight": cap}
+        return policy.in_flight(
+            REPO,
+            agent_identity=IDENTITY,
+            permission=HUMANS,
+            merged_since=FLOOR,
+            lane_merges_only=True,
+            **cap_kwargs,
+        )
+
+    def test_a_cap_of_five_admits_four_in_flight_and_refuses_five(self) -> None:
+        admitted = self.capped(5, 2, 2)
+        self.assertEqual((admitted.clear, admitted.reason), (True, None))
+        self.assertEqual(admitted.unverified, 2)
+        self.assertEqual(self.capped(5, 3, 2).reason, "unverified-auto-merge:#21")
+        self.assertEqual(self.capped(5, 5, 0).reason, "identity-entry-queued:#14")
+
+    def test_the_default_cap_refuses_one_in_flight_as_before(self) -> None:
+        for cap in (None, 1):
+            with self.subTest(cap=cap):
+                self.assertEqual(
+                    self.capped(cap, 1, 1).reason, "identity-entry-queued:#10"
+                )
+                self.assertEqual(
+                    self.capped(cap, 0, 1).reason, "unverified-auto-merge:#20"
+                )
+                self.assertTrue(self.capped(cap, 0, 0).clear)
+
+    def test_an_unknown_enqueuer_refuses_under_any_cap(self) -> None:
+        queue_fake(
+            self,
+            [
+                {"enqueuer": bot("agent-lanes"), "pullRequest": {"number": 3}},
+                {"enqueuer": None, "pullRequest": {"number": 4}},
+            ],
+            [],
+        )
+        result = policy.in_flight(
+            REPO,
+            agent_identity=IDENTITY,
+            permission=HUMANS,
+            merged_since=FLOOR,
+            max_in_flight=5,
+        )
+        self.assertEqual(result.reason, "entry-enqueuer-unknown:#4")
 
     def test_the_queue_read_names_every_entry_or_none(self) -> None:
         queue_fake(
@@ -3462,6 +3534,27 @@ class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
         self.assertIsNone(refreshed.reason)
         self.assertTrue(refreshed.enabled)
         self.assertIn("eligibility", refreshed.details)
+
+    def test_the_refreshed_in_flight_read_carries_the_configured_cap(
+        self,
+    ) -> None:
+        self.aged(3)
+        self.judged_flight()
+        read = policy.read_config_at
+        with mock.patch.object(
+            policy,
+            "read_config_at",
+            side_effect=lambda *a, **k: dataclasses.replace(
+                read(*a, **k), max_in_flight=5
+            ),
+        ):
+            self.lane_assess(
+                post_merge=lambda floor, who: lane_gate(False),
+                shared=self.shared(lane_gate(False)),
+                share=lambda answer: None,
+            )
+        (call,) = policy.in_flight.call_args_list
+        self.assertEqual(call.kwargs["max_in_flight"], 5)
 
     def test_a_stale_answer_with_every_merge_verified_is_reused(self) -> None:
         self.aged(3)

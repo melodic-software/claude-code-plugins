@@ -987,7 +987,8 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    then the post-merge check (`babysit_postmerge`) from the floor (the enabling
    config commit, or the newest human close of a demotion record when later). A refusal here or
    above leaves `unattended.enabled: false` and stops every later read.
-3. The rung (demotion record and `CLAUDE_LANES_MERGE_RUNG_CAP`), one merge in flight, the
+3. The rung (demotion record and `CLAUDE_LANES_MERGE_RUNG_CAP`), the merges in flight (the
+   identity's queue entries plus its unverified merges, refused at `merge.max-in-flight`), the
    promotion evidence (`unattended.promoted`, from the babysit-loop resolver, which reads its four
    options from the operator's managed and user settings, never from arguments or the
    environment), and eligibility. A settings file, or a binding, probe root, evidence source or
@@ -1028,8 +1029,9 @@ ready LOW pull request on a merge-queue base is enqueued at the pinned head, onl
 when that full SHA is the head the policy scored, after a
 second kill-switch read and a second read of the opt-in label (presence and provenance), after an
 armed auto-merge is disarmed and refused instead, and after a
-`<!-- babysit-merge-pin sha=<S> -->` comment records the pin for the post-merge read-back. When an
-earlier identity entry sits in the queue, the new one dequeues itself. The enqueue returns before
+`<!-- babysit-merge-pin sha=<S> -->` comment records the pin for the post-merge read-back. When the
+identity's earlier queue entries and its unverified merges already reach `merge.max-in-flight`
+(default 1), the new entry dequeues itself. The enqueue returns before
 the queue lands the pull request, so a later run with
 `--state-dir` that reads the entry back merged at its pin dispatches the full `pr-require-checks`
 run and still exits `10` with `merged: true`, since the merge it just read back is the in-flight

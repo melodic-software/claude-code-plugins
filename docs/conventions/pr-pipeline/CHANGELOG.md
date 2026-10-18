@@ -1,5 +1,12 @@
 # Changelog for the PR pipeline convention
 
+## 2.12.0 - 2026-10-18
+
+`merge.max-in-flight` (an integer of at least 1, default 1) caps the lane merges in flight: the
+agent identity's merge-queue entries plus its merged pull requests the post-merge check has not
+verified. This repository sets 5. A red full run or canary run still charges every unverified
+merge whose commit it contains. `version` stays 2.
+
 ## 2.11.8 - 2026-10-18
 
 `pr-refine` no longer starts on `synchronize`: it runs when a PR opens, reopens or turns ready, or

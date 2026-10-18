@@ -1482,6 +1482,23 @@ class OneUnattendedMergeInFlight(Unattended):
         self.assertIs(out["unattended"]["enqueue"]["dequeuedSelf"], True)
         self.assertIs(out["enqueued"], False)
 
+    def test_a_cap_of_five_keeps_an_entry_within_the_room(self) -> None:
+        # Three earlier entries and one unverified merge: four in flight, so
+        # this fifth entry stays; with two unverified merges it leaves.
+        self.config = dataclasses.replace(self.config, max_in_flight=5)
+        earlier = [entry(5 + i, f"2026-10-12T09:5{i}:00Z", f"PR_{i}") for i in range(3)]
+        self.entries = [*earlier, entry(PR, "2026-10-12T10:00:00Z", "PR_self")]
+        for unverified, kept in ((1, True), (2, False)):
+            with self.subTest(unverified=unverified):
+                self.log.clear()
+                self.flight = policy.InFlight(True, None, frozenset(), unverified)
+                code, out = self.run_main()
+                self.assertIs(out["enqueued"], kept)
+                self.assertEqual(
+                    "dequeue-self:id=PR_self" in self.log, not kept, self.log
+                )
+                self.assertEqual(code, 0 if kept else 10)
+
     def test_the_earliest_entry_stays(self) -> None:
         self.entries = [
             entry(PR, "2026-10-12T10:00:00Z", "PR_self"),

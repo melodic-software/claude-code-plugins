@@ -3353,10 +3353,11 @@ def unattended_enqueue(
     kill switch and the opt-in label are read again; the pin comment is
     posted before the enqueue and the enqueue goes nowhere without it; after
     the enqueue the queue is
-    re-read and, when another identity entry was enqueued earlier, this one
-    dequeues itself. In the pr-merge lane the kill switch "read again" is the
-    value the workflow passed at the start of its run, so a flip during the
-    run does not stop this enqueue."""
+    re-read and, when the identity entries enqueued earlier and the unverified
+    lane merges already fill `merge.max-in-flight`, this one dequeues itself.
+    In the pr-merge lane the kill switch "read again" is the value the
+    workflow passed at the start of its run, so a flip during the run does not
+    stop this enqueue."""
     inputs = policy.inputs or {}
     identity, branch = str(inputs["identity"]), str(inputs["branch"])
     pin = str(result.get("headRefOid") or "")
@@ -3458,9 +3459,15 @@ def unattended_enqueue(
     entries = _identity_queue_entries(repo, branch, identity)
     numbers = [json_object(e.get("pullRequest")).get("number") for e in entries or []]
     step["identityEntries"] = numbers
-    if entries is None or not numbers or numbers[0] != number:
-        # Another host's entry came first, or the order cannot be read: this
-        # entry leaves so only one unattended merge is in flight.
+    # Room for queued entries: `merge.max-in-flight` less the unverified lane
+    # merges the policy counted.
+    room = getattr(inputs.get("config"), "max_in_flight", 1) - getattr(
+        inputs.get("flight"), "unverified", 0
+    )
+    if entries is None or number not in numbers[: max(room, 0)]:
+        # Earlier entries (another host's) fill the room, or the order cannot
+        # be read: this entry leaves so no more than `merge.max-in-flight`
+        # unattended merges are in flight.
         mine = next(
             (
                 e
