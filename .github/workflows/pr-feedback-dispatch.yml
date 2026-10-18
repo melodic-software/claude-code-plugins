@@ -42,7 +42,7 @@ jobs:
       contents: read # check out main
       pull-requests: read # the PR, its comments and review threads
       checks: read # skip a head that already has an address-feedback check run
-      actions: write # read the upstream review run; dispatch pr-unblock.yml
+      actions: write # list pr-unblock runs; dispatch pr-unblock.yml
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

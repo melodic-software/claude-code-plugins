@@ -2,12 +2,12 @@
 // review lanes have reviewed its current head and left an unresolved thread.
 // Run by .github/workflows/pr-feedback-dispatch.yml on workflow_run, after the
 // kill switch. From the event file it takes only the upstream run's id, path,
-// event, status, repositories, head SHA and start time: facts GitHub records
-// about that run, which no later change to the PR alters, so reading them back
-// from the API would spend a call for the same values. Nothing user-written in
-// the payload (branch name, title) is read, and nothing reaches a shell. Every
-// PR fact, including whether that head is still the PR's current head, is read
-// fresh from the API.
+// event, repositories and head SHA, which a re-run does not change, so reading
+// them back from the API would spend a call for the same values; and its
+// status and start time, snapshots from when the event fired, used only to
+// skip, never to admit. Nothing user-written in the payload (branch name,
+// title) is read, and nothing reaches a shell. Every PR fact, including whether
+// that head is still the PR's current head, is read fresh from the API.
 //
 // It dispatches pr-unblock.yml on main, with activity address-feedback, only
 // when all of these hold, and otherwise logs why not and dispatches nothing:
