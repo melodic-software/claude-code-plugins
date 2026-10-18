@@ -1585,7 +1585,7 @@ done
 # None of the levers that stop installed mods stops a built-in mod (mods
 # overview, "Mods built into Claude Code"). A set disableAllHooks is where an
 # operator may believe every mod is off, so only then is it a finding.
-BUILTIN_MODS_MSG="disableAllHooks, --bare and --safe-mode stop installed mods but not the mods built into Claude Code (mods overview: \"don't stop built-in mods\"); each built-in mod has its own switch in /plugin, and cc-plugin-sec-default has none"
+BUILTIN_MODS_MSG="disableAllHooks, --bare and --safe-mode stop installed mods but not the mods built into Claude Code (how each built-in mod is turned off: https://code.claude.com/docs/en/plugins/mods/overview#mods-built-into-claude-code)"
 if [[ "${LEVER_DISABLE_ALL:-0}" != "0" ]]; then
   row D builtin-mods-survive-levers finding info "settings" "builtin-mods-survive-levers" "disableAllHooks is set, yet built-in mods keep running: $BUILTIN_MODS_MSG" "disableAllHooks"
 else

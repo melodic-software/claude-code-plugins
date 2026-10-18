@@ -140,8 +140,8 @@ complete set.
   `allowModsToOverrideDenyRules`. They govern mods, not settings hooks, so they never feed the
   narrowing. A copy in a scope Claude Code does not read for the key is an `info` finding. The
   scope rules and their four-part record are in the Category D checklist row
-- **Built-in mods survive the hook levers** (`D/builtin-mods-survive-levers`): `disableAllHooks`,
-  `--bare` and `--safe-mode` stop installed mods, never built-in ones. With `disableAllHooks` set the
+- **Built-in mods survive the hook levers** (`D/builtin-mods-survive-levers`): the engine names
+  `disableAllHooks`, `--bare` and `--safe-mode` in one row. With `disableAllHooks` set the
   row is an `info` finding; otherwise an `ok` row. Report-only, no `--fix`. The record is in the
   Category D checklist row
 
@@ -275,8 +275,8 @@ warning naming the waived guard. To apply to a settings file that is a symlink, 
 - Env vars in `settings.json` are documented Claude Code variables or justified custom vars
 - Secrets (tokens, keys, passwords) are in `settings.local.json`, NOT in `settings.json`
 - `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` in any user, project or local `env` is dead
-  (`F/function-hooks-flag-dead`, `warning`): current Claude Code ignores it, so a `0` there leaves
-  mods on. Report-only, no `--fix`. The record is in the Category F checklist row
+  (`F/function-hooks-flag-dead`, `warning`): the engine flags it at any value, and the pointer in
+  the checklist row says why. Report-only, no `--fix`. The record is in the Category F checklist row
 
 ## Category G: Skill-listing budget
 

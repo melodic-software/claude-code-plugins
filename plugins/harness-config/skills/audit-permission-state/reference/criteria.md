@@ -214,14 +214,14 @@ Neither is a limitation to apologize for; both change what a finding means.
 - **A surface that could not be read bounds the result.** `skipped`, `unreadable` and `invalid-json`
   each raise a caveat naming the surface. `absent` and `not-applicable` raise none: the reader looked
   and there was nothing, which is a complete answer.
-- **A deny rule is not final against a mod everywhere.** The `CAVEAT: mods:` line says a deny
-  rule outranks a user's mod only where the built-in sec-default guard loads, and that no deny rule
-  covers a mod's own `$.fs` or `$.process` calls, guard or not. It names the guard state from the
-  managed records the reader takes through `lib/managed-scope.sh`: `seated` when a managed file,
-  drop-in, registry value or plist is present, `unknown` when a managed surface was skipped or
-  unreadable, and otherwise not seated by managed settings, since the Team or Enterprise sign-in
-  that also loads the guard is not read here. Where the guard loads, its option that lets mods
-  override deny rules, and which calls deny rules cover are read live. Pointer:
+- **A deny rule is not final against a mod everywhere.** The `CAVEAT: mods:` line never presents
+  deny rules as final against mods, and names the guard state from the managed records the reader
+  takes through `lib/managed-scope.sh`: a present managed surface reads `seated`, unless a managed
+  `prependPlugins` names no guard id, and the guard's deny-override option set in managed settings
+  is appended; a present plist says its contents are not read; a skipped, unreadable or invalid
+  managed surface other than the remote cache reads `unknown`; anything else is not seated by
+  managed settings, since sign-in state is not read here. Where the guard loads, what its options
+  do, and which calls deny rules cover are read live. Pointer:
   [mods admin: know what happens by default](https://code.claude.com/docs/en/plugins/mods/admin#know-what-happens-by-default).
   As of: 2026-10-17. Recheck trigger: that section changes where the guard loads, what deny rules
   take precedence over, or which mod calls they cover.
