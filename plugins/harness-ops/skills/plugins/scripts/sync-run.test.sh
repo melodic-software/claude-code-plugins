@@ -1194,6 +1194,7 @@ assert_contains "moved backward: the report qualifies the downgrade" "$REPORT_TE
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.2.0 0.1.0 true
+# shellcheck disable=SC2016  # the stub body is literal script text, expanded when the stub runs
 write "$case_dir/stubs/claude-unreadable" '#!/usr/bin/env bash
 if [[ "${1:-} ${2:-}" == "plugin update" ]]; then
   echo "alpha is already at the latest version (0.2.0)."
