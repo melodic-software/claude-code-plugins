@@ -147,12 +147,47 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
       "needs.born-triaged.outputs.claude-args": claudeArgs,
     });
   const args = "--model sonnet --max-turns 30 --effort medium";
-  assert.equal(runs("", args), true, "a failed or false born-triaged check still runs intake");
+  assert.equal(runs("", args), true, "a failed or false born-triaged check falls through to the reusable's gate");
   assert.equal(runs("false", args), true);
   assert.equal(runs("true", args), false, "a born-triaged issue skips intake");
   assert.equal(runs("", ""), false, "intake never runs without resolved claude-args");
   assert.equal(runs("false", ""), false);
   assert.equal(intake.with["claude-args"], "${{ needs.born-triaged.outputs.claude-args }}");
+});
+
+test("intake-triage.yml: a dispatch runs only from main and passes the gate's ids", () => {
+  const { jobs } = workflow("intake-triage.yml");
+  const gate = jobs["born-triaged"];
+  const runsOn = (event, ref) => evaluate(gate.if, { "github.event_name": event, "github.ref": ref });
+  assert.equal(runsOn("issues", "refs/heads/main"), true);
+  assert.equal(runsOn("workflow_dispatch", "refs/heads/main"), true);
+  assert.equal(runsOn("workflow_dispatch", "refs/heads/feature"), false, "a dispatch from a branch reads no branch's trusted-actor list");
+
+  const intake = jobs["intake-triage"];
+  assert.equal(intake.with["allowed-author-ids"], "${{ needs.born-triaged.outputs.human-ids }}");
+  assert.equal(intake.with["allowed-bot-sender-ids"], "${{ needs.born-triaged.outputs.bot-ids }}");
+  assert.equal(intake.with["issue-number"], "${{ inputs.issue-number }}");
+
+  const bots = gate.steps.find((step) => step.id === "bots");
+  assert.equal(gate.outputs["bot-ids"], "${{ steps.bots.outputs.ids }}");
+  const dir = mkdtempSync(join(tmpdir(), "bot-ids-"));
+  try {
+    const ids = (lanesAppId) => {
+      const output = join(dir, "output");
+      writeFileSync(output, "");
+      const result = spawnSync("bash", ["-c", bots.run], {
+        env: { ...process.env, LANES_APP_ID: lanesAppId, GITHUB_OUTPUT: output },
+      });
+      assert.equal(result.status, 0);
+      return readFileSync(output, "utf8");
+    };
+    assert.equal(ids(""), "ids=41898282\n");
+    assert.equal(ids("123456"), "ids=41898282,123456\n");
+    assert.equal(ids("12a; echo x"), "ids=41898282\n", "a malformed lanes App id is dropped");
+    assert.equal(ids("0"), "ids=41898282\n");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // address-feedback's head-sha output is empty after a gate stop.
