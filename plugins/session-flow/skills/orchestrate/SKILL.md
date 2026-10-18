@@ -139,10 +139,7 @@ told:
    tuning effort per subtask):
    <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work>
    and <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort>.
-   Both judgments are ours; the page measures that lower effort's cost in accuracy varies by task
-   and that delegation saved money only for routine work with a long cost tail or work larger than
-   one context window. As of: 2026-10-18. Recheck trigger: either section changes its measured
-   cases or advice.
+   Both judgments are ours. As of: 2026-10-18. Recheck trigger: either section changes its advice.
 
 Discipline: trigger-evaluation is mandatory; the ACTION stays calibrated (delegate on value +
 parallelism, not convenience). Treat every worker's return as unverified synthesis: check its
@@ -208,9 +205,8 @@ because a pasted worker sits inside a tree rather than authoring one.
 
 **A rough anchor for small/medium/large.** Not thresholds to enforce, the judgment still runs on context
 boundaries, not head-count, but our anchor follows the platform's workflow size settings: fewer
-than 5 agents is small, 5 to 9 medium, and 10 or more large (the platform's `large` guideline
-aims for fewer than 50). A run large enough to trip the platform's large-workflow warning (more
-than 25 agents under the built-in default guideline) is a size to justify out loud. An order-of-magnitude
+than 5 agents is small, 5 to 9 medium, and 10 or more large. A run large enough to trip the platform's large-workflow warning is a size to
+justify out loud. An order-of-magnitude
 disagreement with this anchor is one to name, not skip. Before a workflow run, read the size
 guideline in force for this session: the platform's default differs by plan, and the guideline
 the session sets is the one Claude receives, whatever this anchor says.
