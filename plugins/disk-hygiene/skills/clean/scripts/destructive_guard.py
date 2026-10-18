@@ -1043,6 +1043,18 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         """
         return _samefile(word) or (not os.path.isabs(word) and _in_engine_dir(word))
 
+    engine_drive = os.path.splitdrive(bundled.parent)[0].casefold()
+
+    def _names_engine(candidate: str) -> bool:
+        # As written, or joined to the engine's directory when relative,
+        # non-empty and carrying no drive or the engine's own.
+        return _samefile(candidate) or (
+            bool(candidate)
+            and not os.path.isabs(candidate)
+            and os.path.splitdrive(candidate)[0].casefold() in {"", engine_drive}
+            and _in_engine_dir(candidate)
+        )
+
     allow_backslash = tool_name == "PowerShell"
     data_free = (
         _powershell_without_string_data(command)
@@ -1058,6 +1070,19 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
             or (_carries_marker(token) and _within_plugin_cache_family(candidate))
             for token, word in _marker_tokens_with_words(command)
             for candidate in (token, word)
+        ):
+            return True
+        # Marker-free names too: a link to the engine under a name without the
+        # marker, written in quotes, would otherwise be blanked to `_` and
+        # never identity-checked. Same all-tokens scan as the marker-free
+        # branch below, over the command as written.
+        written_words = _literal_shell_words(command, allow_backslash=allow_backslash)
+        if any(
+            _names_engine(candidate)
+            for candidate in dict.fromkeys(
+                [token.strip("'\"") for token in command.split()]
+                + ([] if written_words is None else list(written_words))
+            )
         ):
             return True
         command = data_free
@@ -1093,17 +1118,7 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
             if words is None
             else list(words)
         )
-        engine_drive = os.path.splitdrive(bundled.parent)[0].casefold()
-        return any(
-            _samefile(candidate)
-            or (
-                bool(candidate)
-                and not os.path.isabs(candidate)
-                and os.path.splitdrive(candidate)[0].casefold() in {"", engine_drive}
-                and _in_engine_dir(candidate)
-            )
-            for candidate in dict.fromkeys(candidates)
-        )
+        return any(_names_engine(candidate) for candidate in dict.fromkeys(candidates))
     words = _literal_shell_words(command, allow_backslash=allow_backslash)
     if words is None:
         # Marker present but not literally parseable (operators, compounds).
