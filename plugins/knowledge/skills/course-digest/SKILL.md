@@ -84,9 +84,8 @@ Script uses Playwright's bundled Chromium with a fresh temp context (not Chrome 
 - Progress tracking with per-lesson elapsed time, ETA, structured `run-report.json` output
 - SIGINT handler saves progress on Ctrl+C. No work lost on interruption
 
-**Long-running extractions (50+ lessons):** a large course can outlast a foreground Bash call, and the
-Bash tool's timeout and background time limits are configurable and differ by session type. For large
-courses, run the extraction in the background and rely on its resumable progress:
+**Long-running extractions (50+ lessons):** a large course can outlast a single Bash call, so run the
+extraction in the background; it resumes by rerunning the same command:
 
 ```bash
 # Run in the background so the extraction does not hold a foreground call
@@ -100,14 +99,12 @@ tail -20 extraction.log
 cat <course-dir>/run-report.json
 ```
 
-If the run is stopped, including by a session's background time limit, start the same command again: it
-skips lessons already extracted.
+If the run is stopped, start the same command again: it skips lessons already extracted.
 
 - **Pointer**: for the current foreground timeout and background time limits, fetch
   <https://code.claude.com/docs/en/tools-reference#timeout-and-output-limits> live.
 - **As of**: 2026-10-18
-- **Recheck trigger**: that section or its background-command time-limit section changes what limits a
-  command's run time, or which sessions have a limit.
+- **Recheck trigger**: that section or its background-command time-limit section changes.
 
 ## Platform detection and adapter architecture
 
