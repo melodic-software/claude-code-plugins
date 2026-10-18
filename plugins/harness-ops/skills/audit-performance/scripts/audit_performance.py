@@ -210,9 +210,13 @@ PROJECTION_OTHER_KIND = "other"
 FILE_WRITING_TOOLS = ("Write", "Edit", "NotebookEdit")
 #: Tools the projection runs. Bash carries no single file path, so it gets one tool-only row.
 PROJECTION_TOOLS = FILE_WRITING_TOOLS + ("Bash",)
-#: The only `if` shape this engine classifies: a bare single-extension glob on an `Edit` rule.
-#: The extension is captured with its dot so it compares directly against PROJECTION_FILE_KINDS.
-IF_EXTENSION_GATE = re.compile(r"^Edit\(\*(\.[A-Za-z0-9_]+)\)$")
+#: The only `if` shape this engine classifies: an `Edit` or `Write` rule whose glob ends in
+#: `*<suffix>`, optionally under a directory prefix (`**/` and literal segments). `dir` is that
+#: prefix and `suffix` the dotted tail; the last dotted component is the extension the rule is
+#: decided by, so it compares directly against PROJECTION_FILE_KINDS.
+IF_EXTENSION_GATE = re.compile(
+    r"^(?P<tool>Edit|Write)\((?P<dir>(?:\*\*/)?(?:[^()*{},\s/]+/)*)\*(?P<suffix>(?:\.[A-Za-z0-9_]+)+)\)$"
+)
 
 #: Hook cost is never a sum. Named once so the block's `note` and its `notes` list cannot drift.
 HOOK_PARALLEL_NOTE = (
@@ -1593,10 +1597,16 @@ def matcher_matches(matcher: object, tool: str) -> bool:
 def classify_if_gate(rule: object) -> dict:
     """Classify one handler `if` rule into what this projection can decide.
 
-    Returns `{kind, extension, reason}` where kind is `absent`, `extension`, or
-    `unclassified`. Exactly one shape is classifiable, `Edit(*.<ext>)`: a bare single-extension
-    glob with no path separator and no `**`. Everything wider stays unclassified and is counted
-    as firing, so an unmodelled rule over-counts the fan-out rather than hiding a spawn.
+    Returns `{kind, extension, reason, rule_tool, narrowed}` where kind is `absent`,
+    `extension`, or `unclassified`. One family is classifiable, `Edit(<dir>*.<ext>)` and
+    `Write(<dir>*.<ext>)`: a single dotted suffix glob, optionally under `**/` or literal
+    directories. It is decided by its last extension alone. A file of another extension never
+    matches it, which is what removes a `.yml` gate from a `.md` edit. `narrowed` is true when
+    the rule can match fewer files than every file of that extension (a directory prefix other
+    than a bare `**/`, or a multi-dot suffix such as `*.Tests.ps1`), so the projection can
+    count it at the extension's ceiling without presenting it as known to fire. Everything
+    wider stays unclassified and is counted as firing, so an unmodelled rule over-counts the
+    fan-out rather than hiding a spawn.
     """
     if rule is None or str(rule).strip() == "":
         return {"kind": "absent", "extension": None, "reason": None}
@@ -1605,26 +1615,26 @@ def classify_if_gate(rule: object) -> dict:
     if match:
         # Lower-cased so a mixed-case extension folds into its projection row and
         # over-counts at worst; kept as-is it would match no file kind and vanish.
+        components = match.group("suffix").lower().split(".")[1:]
         return {
             "kind": "extension",
-            "extension": match.group(1).lower(),
+            "extension": "." + components[-1],
             "reason": None,
+            "rule_tool": match.group("tool"),
+            "narrowed": match.group("dir") not in ("", "**/") or len(components) > 1,
         }
-    if not text.startswith("Edit("):
+    if not text.startswith(("Edit(", "Write(")):
         named = text.split("(", 1)[0] or text
         return {
             "kind": "unclassified",
             "extension": None,
             "reason": (
-                f"rule names `{named}`; only `Edit(*.<ext>)` is decided by file extension here"
+                f"rule names `{named}`; only `Edit(...)` and `Write(...)` are decided by "
+                "file extension here"
             ),
         }
     if "**" in text:
         reason = "multi-segment `**` glob; this engine models no directory depth"
-    elif "/" in text:
-        reason = (
-            "directory-anchored pattern; this engine models an extension, never a path"
-        )
     elif "{" in text or "," in text:
         reason = "brace or list alternation; this engine models one extension per rule"
     else:
@@ -1677,6 +1687,21 @@ def hooks_by_matcher(entries: list[dict]) -> list[dict]:
     return out
 
 
+def gate_is_uncertain(gate: dict, tool: str | None) -> bool:
+    """Whether a classified extension gate matching a projection row is still not known to fire.
+
+    A narrowed rule matches only some files of its extension. A `Write(...)` rule is
+    modelled as reaching the other file-writing tools too, which the documentation does not
+    state, so it is uncertain on any tool but `Write`. `tool` None asks only the tool-free
+    question.
+    """
+    if gate["kind"] != "extension":
+        return False
+    if gate.get("narrowed"):
+        return True
+    return gate.get("rule_tool") == "Write" and tool is not None and tool != "Write"
+
+
 def project_fan_out(entries: list[dict]) -> dict:
     """Project how many handlers actually fire per (tool, file kind), from the records alone.
 
@@ -1718,6 +1743,20 @@ def project_fan_out(entries: list[dict]) -> dict:
             continue
         if gate["kind"] == "unclassified":
             unclassified_rows.append({**row, "reason": gate["reason"]})
+        elif gate_is_uncertain(gate, None) or any(
+            gate_is_uncertain(gate, tool) and matcher_matches(entry.get("matcher"), tool)
+            for tool in FILE_WRITING_TOOLS
+        ):
+            unclassified_rows.append(
+                {
+                    **row,
+                    "reason": (
+                        "decided by extension only; its directory prefix, multi-dot suffix "
+                        "or `Write` tool is not modelled, so a matching extension is not "
+                        "known to fire"
+                    ),
+                }
+            )
         elif matcher_error is not None and event in PER_TOOL_CALL_EVENTS:
             unclassified_rows.append({**row, "reason": matcher_error})
         if gate["kind"] == "extension":
@@ -1744,7 +1783,11 @@ def project_fan_out(entries: list[dict]) -> dict:
                             or gate["extension"] != file_kind
                         ):
                             continue
-                    if gate["kind"] == "unclassified" or matcher_unknown:
+                    if (
+                        gate["kind"] == "unclassified"
+                        or matcher_unknown
+                        or gate_is_uncertain(gate, tool)
+                    ):
                         fire_always += 1
                     firing.append(entry)
                 rows.append(
@@ -1755,6 +1798,8 @@ def project_fan_out(entries: list[dict]) -> dict:
                         "fires": len(firing),
                         "distinct_commands": len({command_key(e) for e in firing}),
                         "fire_always_unclassified": fire_always,
+                        "floor": len(firing) - fire_always,
+                        "ceiling": len(firing),
                     }
                 )
     return {
@@ -1771,9 +1816,12 @@ def project_fan_out(entries: list[dict]) -> dict:
             "unanchored, so `Edit.*` also selects `NotebookEdit`. `file_kinds` is the fixed "
             "baseline plus every extension a classified `if` gate names; `other` is a file "
             "no gate names. `file_kind` is null on a tool that carries no single file path. "
-            "`fires` is a ceiling: a row whose `if` could not be classified, or whose "
-            "matcher Python cannot compile, is counted as firing and appears in "
-            "`fire_always_unclassified` and in `unclassified_rows`."
+            "`fires` is the `ceiling`: a row whose `if` could not be classified, whose "
+            "matcher Python cannot compile, or whose extension gate is narrowed by a directory "
+            "or multi-dot suffix is counted as firing and appears in "
+            "`fire_always_unclassified`; `floor` is `fires` minus those rows, the count "
+            "known to fire. A `Write(...)` gate is decided by extension like an `Edit(...)` "
+            "gate, and counts toward the floor only on the `Write` tool."
         ),
     }
 

@@ -491,20 +491,38 @@ class TestIfGateClassification(unittest.TestCase):
     def test_an_absent_rule_is_absent_not_unclassified(self):
         self.assertEqual(engine.classify_if_gate(None)["kind"], "absent")
 
-    def test_a_directory_anchored_pattern_is_unclassified(self):
+    def test_a_double_star_directory_gate_is_decided_by_its_extension(self):
         gate = engine.classify_if_gate("Edit(**/.github/workflows/*.yml)")
+        self.assertEqual(gate["kind"], "extension")
+        self.assertEqual(gate["extension"], ".yml")
+        self.assertTrue(gate["narrowed"])
+
+    def test_a_bare_double_star_extension_gate_is_not_narrowed(self):
+        gate = engine.classify_if_gate("Edit(**/*.ts)")
+        self.assertEqual(gate["kind"], "extension")
+        self.assertFalse(gate["narrowed"])
+
+    def test_a_multi_dot_suffix_is_decided_by_its_last_extension_and_narrowed(self):
+        gate = engine.classify_if_gate("Write(*.Tests.ps1)")
+        self.assertEqual(gate["kind"], "extension")
+        self.assertEqual(gate["extension"], ".ps1")
+        self.assertTrue(gate["narrowed"])
+
+    def test_a_double_star_gate_with_alternation_stays_unclassified(self):
+        gate = engine.classify_if_gate("Edit(**/*.{md,mdc})")
         self.assertEqual(gate["kind"], "unclassified")
-        self.assertIn("**", gate["reason"])
 
     def test_a_bash_rule_is_unclassified_and_names_the_tool(self):
         gate = engine.classify_if_gate("Bash(git *)")
         self.assertEqual(gate["kind"], "unclassified")
         self.assertIn("Bash", gate["reason"])
 
-    def test_a_write_rule_is_unclassified_because_only_edit_is_modelled(self):  # identifier, not prose # spellchecker:disable-line
+    def test_a_write_rule_is_classified_like_an_edit_rule(self):
         gate = engine.classify_if_gate("Write(*.ts)")
-        self.assertEqual(gate["kind"], "unclassified")
-        self.assertIn("Write", gate["reason"])
+        self.assertEqual(gate["kind"], "extension")
+        self.assertEqual(gate["extension"], ".ts")
+        self.assertEqual(gate["rule_tool"], "Write")
+        self.assertFalse(gate["narrowed"])
 
     def test_a_brace_alternation_is_unclassified(self):
         gate = engine.classify_if_gate("Edit(*.{md,mdc})")
@@ -664,6 +682,68 @@ class TestFanOutProjection(unittest.TestCase):
         self.assertEqual(set(row), {"event", "matcher", "source", "if", "reason"})
         self.assertEqual(row["if"], "Bash(git *)")
         self.assertEqual(row["source"], "guardrails")
+
+    def test_double_star_and_write_gates_do_not_fire_for_a_markdown_edit(self):
+        entries = [
+            {
+                "event": "PostToolUse",
+                "matcher": "Write|Edit",
+                "command": "yaml.sh",
+                "args": [],
+                "if": "Edit(**/.github/workflows/*.yml)",
+                "source": "ci",
+            },
+            {
+                "event": "PostToolUse",
+                "matcher": "Write|Edit",
+                "command": "pester.sh",
+                "args": [],
+                "if": "Write(*.Tests.ps1)",
+                "source": "ps",
+            },
+            {
+                "event": "PostToolUse",
+                "matcher": "Write|Edit",
+                "command": "md.sh",
+                "args": [],
+                "if": "Edit(*.md)",
+                "source": "docs",
+            },
+        ]
+        rows = self.rows(engine.project_fan_out(entries))
+        markdown = rows[("PostToolUse", "Edit", ".md")]
+        self.assertEqual(markdown["fires"], 1)
+        self.assertEqual(markdown["fire_always_unclassified"], 0)
+        yml = rows[("PostToolUse", "Edit", ".yml")]
+        self.assertEqual(yml["fires"], 1)
+        self.assertEqual(yml["fire_always_unclassified"], 1)
+
+    def test_a_write_gate_is_known_to_fire_only_on_the_write_tool(self):
+        entries = [
+            {
+                "event": "PostToolUse",
+                "matcher": "Write|Edit",
+                "command": "ts.sh",
+                "args": [],
+                "if": "Write(*.ts)",
+                "source": "ts",
+            }
+        ]
+        rows = self.rows(engine.project_fan_out(entries))
+        self.assertEqual(rows[("PostToolUse", "Write", ".ts")]["floor"], 1)
+        self.assertEqual(rows[("PostToolUse", "Edit", ".ts")]["floor"], 0)
+        self.assertEqual(rows[("PostToolUse", "Edit", ".ts")]["ceiling"], 1)
+        listed = engine.project_fan_out(entries)["unclassified_rows"]
+        self.assertEqual([r["if"] for r in listed], ["Write(*.ts)"])
+
+    def test_every_row_carries_a_floor_and_a_ceiling_spanning_its_unclassified_count(self):
+        for row in engine.project_fan_out(self.ENTRIES)["rows"]:
+            self.assertEqual(row["ceiling"], row["fires"])
+            self.assertEqual(
+                row["ceiling"] - row["floor"], row["fire_always_unclassified"], row
+            )
+        bash = self.rows(engine.project_fan_out(self.ENTRIES))[("PreToolUse", "Bash", None)]
+        self.assertEqual((bash["floor"], bash["ceiling"]), (0, 1))
 
     def test_the_projection_note_names_the_regex_stand_in(self):
         note = engine.project_fan_out([])["note"]
