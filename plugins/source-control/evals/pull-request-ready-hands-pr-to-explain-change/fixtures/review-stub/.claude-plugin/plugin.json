@@ -1,0 +1,5 @@
+{
+  "name": "review",
+  "version": "0.0.0",
+  "description": "Eval-only stand-in for the review plugin: exposes an explain-change skill so the case resolves /review:explain-change without a path outside the case directory"
+}
