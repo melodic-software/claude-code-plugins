@@ -729,7 +729,7 @@ class TestSnapshot(ServerCase):
         self.assertEqual(([m["id"] for m in snap["chat"]], snap["chatBefore"]), (ids[5:], ids[5]))
         code, _, out = self.get(f"/api/chat?before={snap['chatBefore']}&limit=3", ann)
         self.assertEqual((code, [m["id"] for m in out["chat"]], out["before"]), (200, ids[2:5], ids[2]))
-        self.assertIsNone(session.wire_error({k: v for k, v in out.items() if k != "ok"}, "chatPage"))
+        self.assertIsNone(session.wire_error(out, "chatPage"))
         code, _, out = self.get(f"/api/chat?around={ids[0]}&limit=4", ann)
         self.assertEqual((code, [m["id"] for m in out["chat"]], "before" in out), (200, ids[:4], False))
         self.assertEqual(self.get(f"/api/chat?before={ids[5]}")[0], 401)
