@@ -1225,6 +1225,13 @@ test("a WIP read that fails re-fires: the read error blocks no lane work", async
   assert.deepEqual(writes(calls), refired(30));
 });
 
+test("with the search rate limit spent the sweep makes no WIP read and re-fires", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, openLanePrs: 3 });
+  assert.equal(await sweep({ github, actions, rate: { remaining: () => 0 } }, PAUSING), 0);
+  assert.ok(!calls.some((call) => call.includes("/search/issues")));
+  assert.deepEqual(writes(calls), refired(30));
+});
+
 test("with no merged count the resolved limits.wip-cap sets the cap", async () => {
   const config = withConfig({ limits: { "wip-cap": 20 }, wip: { "pause-from": "2026-10-01" } });
   const at = stalledRun({ openLanePrs: 20, mergedLanePrs: null });

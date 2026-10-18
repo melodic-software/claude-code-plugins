@@ -79,7 +79,7 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { checkWip } from "../../actions/check-wip-cap/check-wip-cap.mjs";
+import { checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 
@@ -603,7 +603,7 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
 
 // Restarts, re-fires or hands off up to `cap` issues, longest-waiting first.
 // Returns how many reads or writes failed.
-async function restartLimited({ github, actions, repo, bot, humans, now, limits, wip, cap = limits["restarts-per-run"] }) {
+async function restartLimited({ github, actions, repo, bot, humans, now, limits, wip, remaining, cap = limits["restarts-per-run"] }) {
   let failed = 0;
   const ready = [];
   // Main's blob SHAs of the lane workflow files, read once per run.
@@ -622,7 +622,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
     })());
   // The issue lane's pause, read once per run; a read that fails never pauses.
   let capped;
-  const wipCapped = () => (capped ??= checkWip(github, { repo, bot, now, limits, wip }).then((status) => status.paused));
+  const wipCapped = () => (capped ??= checkWip(github, { repo, bot, now, limits, wip, remaining }).then((status) => status.paused));
   let open;
   try {
     open = (await paginate(github, `/repos/${repo}/issues?state=open&labels=${LABEL}`)).filter(
@@ -721,7 +721,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
   return failed;
 }
 
-export async function main({ env = process.env, github, actions, now = Date.now() } = {}) {
+export async function main({ env = process.env, github, actions, now = Date.now(), rate = searchRateLimit() } = {}) {
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
@@ -749,7 +749,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     }
     const repo = env.GITHUB_REPOSITORY;
     const humans = loadTrustedList(env.TRUSTED_ACTORS_PATH).humans;
-    github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+    github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
     const closed = sweep
       ? await closedSince(github, repo, new Date(now - LOOKBACK_HOURS * 3_600_000))
       : [Number(event.issue.number)];
@@ -761,7 +761,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     if (sweep) {
       actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
       const resolved = env.RESOLVED_CONFIG || `${env.RUNNER_TEMP ?? ""}/resolved-config.json`;
-      failed += await restartLimited({ github, actions, repo, bot, humans, now, limits: readLimits(resolved), wip: readWip(resolved) });
+      failed += await restartLimited({ github, actions, repo, bot, humans, now, limits: readLimits(resolved), wip: readWip(resolved), remaining: rate.remaining });
     }
     return failed === 0 ? 0 : 1;
   } catch (error) {

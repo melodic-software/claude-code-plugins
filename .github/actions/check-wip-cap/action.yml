@@ -20,10 +20,10 @@ inputs:
 
 outputs:
   capped:
-    description: "`true` at or over the cap; `false` under it or when the count cannot be read."
+    description: "`true` only while the lane pauses (over the WIP or held cap on or after `wip.pause-from`); otherwise `false`, including when a read fails."
     value: ${{ steps.check.outputs.capped }}
   wip:
-    description: "The status as one flat JSON object: countable_lane_prs, held_lane_prs, held_oldest_age_hours, held_over_24h_count, wip_cap, wip_cap_source and the rest (pr-pipeline README, WIP cap)."
+    description: "The status as one flat JSON object: countable_lane_prs, held_lane_prs, held_oldest_age_hours, held_over_alarm_count, wip_cap, wip_cap_source and the rest (pr-pipeline README, WIP cap)."
     value: ${{ steps.check.outputs.wip }}
 
 runs:

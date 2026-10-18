@@ -9,9 +9,9 @@
 // pauses the lane only on or after wip.pause-from. A read that fails never
 // caps.
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
 
 import { WIP_DEFAULTS } from "../../scripts/work-resolve-issue/limits.mjs";
@@ -169,11 +169,11 @@ test("the held buffer has its own cap from config", async () => {
 
 test("a held PR older than the alarm age raises the alarm; the oldest age is reported", async () => {
   const young = status(await read({ open: [pr({ labels: ["needs-human"], ageHours: 23.5 })], merged: 100 }));
-  assert.equal(young.held_over_24h_count, 0);
+  assert.equal(young.held_over_alarm_count, 0);
   assert.equal(young.held_alarm, false);
   assert.equal(young.held_oldest_age_hours, 23.5);
   const old = status(await read({ open: [pr({ labels: ["needs-human"], ageHours: 30 }), pr({ body: "Hold: a human merges this", ageHours: 25 }), pr({ ageHours: 99 })], merged: 100 }));
-  assert.equal(old.held_over_24h_count, 2);
+  assert.equal(old.held_over_alarm_count, 2);
   assert.equal(old.held_oldest_age_hours, 30);
   assert.equal(old.held_alarm, true);
   assert.equal(old.alert, true);
@@ -205,11 +205,26 @@ test("reads that fail never cap or pause", async () => {
   assert.equal(result.paused, false);
 });
 
-// main against a base checkout with no config, so the defaults apply.
-async function runMain(answers, extraEnv = {}) {
+// main against a base checkout; with no `config` it holds no schema, so the
+// defaults apply. With `config` it holds this repository's files the resolver
+// reads, with that pr-pipeline.yaml text.
+const CONFIG = "docs/conventions/pr-pipeline.yaml";
+const BASE_FILES = [
+  "docs/conventions/pr-pipeline/pr-pipeline.schema.json",
+  ".github/standards/github-actions-conventions/vocabulary.json",
+  ".github/CODEOWNERS",
+];
+async function runMain(answers, extraEnv = {}, config) {
   const dir = mkdtempSync(join(tmpdir(), "check-wip-cap-"));
   const base = join(dir, "base");
   mkdirSync(base);
+  if (config !== undefined) {
+    for (const file of BASE_FILES) {
+      mkdirSync(dirname(join(base, file)), { recursive: true });
+      copyFileSync(new URL(`../../../${file}`, import.meta.url), join(base, file));
+    }
+    writeFileSync(join(base, CONFIG), config);
+  }
   const output = join(dir, "output");
   const summary = join(dir, "summary");
   writeFileSync(output, "");
@@ -229,7 +244,7 @@ test("main publishes the status as one flat JSON object in the output, the step 
     countable_lane_prs: 1,
     held_lane_prs: 1,
     held_oldest_age_hours: 30,
-    held_over_24h_count: 1,
+    held_over_alarm_count: 1,
     wip_cap: 3,
     wip_cap_source: "computed",
     held_cap: 60,
@@ -242,7 +257,7 @@ test("main publishes the status as one flat JSON object in the output, the step 
   assert.ok(Object.values(wip).every((value) => value === null || typeof value !== "object"));
   assert.ok(summary.includes(JSON.stringify(wip)));
   assert.ok(logs.some((line) => line.includes(JSON.stringify(wip))));
-  assert.ok(logs.some((line) => line.startsWith("::warning title=check-wip-cap::")));
+  assert.ok(logs.some((line) => line.startsWith("::warning title=check-wip-cap::") && line.includes("held lane PRs are older than 24 h")));
 });
 
 test("main writes capped=true only when paused", async () => {
@@ -251,4 +266,13 @@ test("main writes capped=true only when paused", async () => {
   assert.equal(over.wip.wip_over, true);
   assert.equal(over.capped, "false");
   assert.equal((await runMain({ open: [pr()], merged: 24 })).capped, "false");
+  // The base config's past pause-from: over the cap it pauses, under it it runs.
+  const repoConfig = readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8");
+  const config = repoConfig.replace(/^( +pause-from: ).*$/m, '$1"2026-10-01"');
+  assert.notEqual(config, repoConfig.replace(/^( +pause-from: ).*$/m, '$1""'));
+  const paused = await runMain({ open: [pr(), pr(), pr(), pr()], merged: 24 }, {}, config);
+  assert.equal(paused.wip.pause_from, "2026-10-01");
+  assert.equal(paused.capped, "true");
+  assert.ok(paused.logs.some((line) => line.includes("4 countable lane PRs are at or over the WIP cap of 2")));
+  assert.equal((await runMain({ open: [pr()], merged: 24 }, {}, config)).capped, "false");
 });

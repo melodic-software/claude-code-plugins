@@ -944,7 +944,7 @@ with defaults.
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
 config themselves. A config the resolver refuses fails the two dispatchers before any dispatch;
-the WIP cap check fails open and starts the run. This repository sets `wip-cap` only.
+the WIP cap check fails open and starts the run. This repository sets `wip-cap` and the `wip` block.
 
 ## WIP cap
 
@@ -979,7 +979,7 @@ and the log line `check-wip-cap: <json>`. `capped` is `true` only while the lane
 | `countable_lane_prs` | Open lane PRs not held; null when the listing failed. |
 | `held_lane_prs` | Open lane PRs held. |
 | `held_oldest_age_hours` | Hours since the oldest held PR opened; null with none. |
-| `held_over_24h_count` | Held PRs older than `held-alarm-hours`. |
+| `held_over_alarm_count` | Held PRs older than `held-alarm-hours`. |
 | `wip_cap` | The WIP cap in effect. |
 | `wip_cap_source` | `computed` from the merge rate, or `config` (`limits.wip-cap`). |
 | `held_cap`, `held_alarm_hours` | The held buffer's cap and alarm age. |

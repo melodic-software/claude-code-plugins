@@ -103,17 +103,17 @@ export function wipStatus({ open, merged, admitted }, { limits, wip, now }) {
   const admissionCap = computed ? Math.floor(wip["admission-factor"] * merged + 1e-9) : null;
   const countable = open === null ? null : open.length - held.length;
   const heldCount = held === null ? null : held.length;
-  const heldOver24h = held === null ? null : ages.filter((age) => age > wip["held-alarm-hours"]).length;
+  const heldOverAlarm = held === null ? null : ages.filter((age) => age > wip["held-alarm-hours"]).length;
   const wipOver = countable !== null && countable >= wipCap;
   const heldOver = heldCount !== null && heldCount >= wip["held-cap"];
   const admissionOver = admitted !== null && admissionCap !== null && admitted > admissionCap;
-  const heldAlarm = heldOver24h !== null && heldOver24h > 0;
+  const heldAlarm = heldOverAlarm !== null && heldOverAlarm > 0;
   const pauseFrom = wip["pause-from"];
   return {
     countable_lane_prs: countable,
     held_lane_prs: heldCount,
     held_oldest_age_hours: ages.length === 0 ? null : round(Math.max(...ages), 1),
-    held_over_24h_count: heldOver24h,
+    held_over_alarm_count: heldOverAlarm,
     wip_cap: wipCap,
     wip_cap_source: computed ? "computed" : "config",
     held_cap: wip["held-cap"],
@@ -142,6 +142,21 @@ export async function checkWip(github, { repo, bot, now, limits, wip, remaining 
   return wipStatus(reads, { limits, wip, now });
 }
 
+// The last x-ratelimit-remaining a search response carried, for readLaneWip's
+// stop; a response counted against another rate-limit resource leaves it as is.
+export function searchRateLimit() {
+  let left = null;
+  return {
+    onResponse: (response) => {
+      const value = Number.parseInt(response.headers?.get?.("x-ratelimit-remaining") ?? "", 10);
+      if ((response.headers?.get?.("x-ratelimit-resource") ?? "search") === "search" && Number.isSafeInteger(value)) {
+        left = value;
+      }
+    },
+    remaining: () => left,
+  };
+}
+
 const escape = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
 async function baseConfig(basePath, log) {
@@ -160,7 +175,7 @@ const alertText = (s) =>
     s.wip_over && `${s.countable_lane_prs} countable lane PRs are at or over the WIP cap of ${s.wip_cap}`,
     s.held_over && `${s.held_lane_prs} held lane PRs are at or over the held cap of ${s.held_cap}`,
     s.admission_over && `${s.admitted_lane_prs_window} lane PRs opened in ${s.merge_rate_window_hours} h, over the admission cap of ${s.admission_cap}`,
-    s.held_alarm && `${s.held_over_24h_count} held lane PRs are older than ${s.held_alarm_hours} h`,
+    s.held_alarm && `${s.held_over_alarm_count} held lane PRs are older than ${s.held_alarm_hours} h`,
   ]
     .filter(Boolean)
     .join("; ");
@@ -168,20 +183,11 @@ const alertText = (s) =>
 export async function main({ env = process.env, github, now = Date.now(), log = console.log } = {}) {
   const repo = env.GITHUB_REPOSITORY ?? "";
   const { limits, wip } = await baseConfig(env.BASE_PATH || ".base", log);
-  let remaining = null;
-  github ??= createGitHub({
-    token: env.GITHUB_TOKEN,
-    apiUrl: env.GITHUB_API_URL || undefined,
-    onResponse: (response) => {
-      const left = Number.parseInt(response.headers?.get?.("x-ratelimit-remaining") ?? "", 10);
-      remaining = Number.isSafeInteger(left) ? left : remaining;
-    },
-  });
-  const valid = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo);
-  const reads = valid
-    ? await readLaneWip(github, { repo, bot: env.LANES_BOT_LOGIN || DEFAULT_BOT, now, windowHours: wip["merge-rate-window-hours"], remaining: () => remaining })
-    : { open: null, merged: null, admitted: null };
-  const status = wipStatus(reads, { limits, wip, now });
+  const rate = searchRateLimit();
+  github ??= createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
+  const status = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)
+    ? await checkWip(github, { repo, bot: env.LANES_BOT_LOGIN || DEFAULT_BOT, now, limits, wip, remaining: rate.remaining })
+    : wipStatus({ open: null, merged: null, admitted: null }, { limits, wip, now });
   const json = JSON.stringify(status);
   writeOutputs({ capped: String(status.paused), wip: json }, env.GITHUB_OUTPUT);
   if (env.GITHUB_STEP_SUMMARY) {
