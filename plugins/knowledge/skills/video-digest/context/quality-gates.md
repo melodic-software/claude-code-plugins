@@ -85,7 +85,7 @@ Host verify scripts prove **traceability and shape** (JSON valid, batch files on
 
 ## Talking-head-only session gap
 
-A session that shows only a webcam has no frame worth promoting. Log it in `key-frames/visual-gaps.md` as a table row with one cell `talking-head-only` and another cell holding the session name exactly as `research/claim-inventory.md` heads it (case-insensitive): `| talking-head-only | Closing | webcam only |`. That row satisfies `session-visual-coverage` and `session-synthesis-depth` for that session. A session with neither a promoted frame nor such a row still fails both. The row never licenses promoting a talking-head-only frame (`synthesis-contract.md`).
+A session that shows only a webcam has no frame worth promoting. Log it in `key-frames/visual-gaps.md` as a table row whose first cell is `talking-head-only` and whose second cell holds the session name exactly as `research/claim-inventory.md` heads it (case-insensitive): `| talking-head-only | Closing | webcam only |`. That row satisfies `session-visual-coverage` and `session-synthesis-depth` for that session. A session with neither a promoted frame nor such a row still fails both. The row never licenses promoting a talking-head-only frame (`synthesis-contract.md`).
 
 ## Research gate (host verify script)
 

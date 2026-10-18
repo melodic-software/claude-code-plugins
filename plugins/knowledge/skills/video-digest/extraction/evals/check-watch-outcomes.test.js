@@ -295,6 +295,15 @@ describe("checkWatchOutcomes session gates", () => {
     }
   });
 
+  it("credits only the session cell of a row whose first cell is talking-head-only", () => {
+    const slice = makeSessionSlice(twoSessions);
+    fs.writeFileSync(
+      path.join(slice, "key-frames", "visual-gaps.md"),
+      "| talking-head-only | Opening | Closing |\n| ~8m | Closing | talking-head-only |\n",
+    );
+    expect(sessionCheck(slice, "session-visual-coverage")?.actual).toBe("missing: Closing");
+  });
+
   it("still fails both gates for a frameless session with no talking-head-only row", () => {
     const slice = makeSessionSlice(twoSessions);
     fs.writeFileSync(
