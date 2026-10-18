@@ -204,8 +204,8 @@ path stays inside `<work-root>/digests/` before writing.
   on Edit and Write, so keep the route for these bytes only.
 - **Verbatim means verbatim:** in "Key claims (verbatim)", a fence payload is an exact contiguous
   substring of the source, so it carries no ellipsis and no join marker, and no escaping may alter
-  characters. Record a truncation, or a join of source lines, outside the fence, in the line after
-  it. Verifiers diff quotes character-for-character against the source.
+  characters. Record a truncation, or a join of source lines, outside the fence, in prose after the
+  closing fence. Verifiers diff quotes character-for-character against the source.
 - **Fence mandate:** every verbatim quote, Key claims and Prompt snippets, lives in a
   column-0 fenced container. Key-claim labels are bold `**CN.**`. Blockquotes and inline code
   spans are forbidden as quote carriers: the PostToolUse markdownlint hook rewrites `*` list

@@ -281,7 +281,8 @@ asserts:
 - **A quote whose clauses differ in applicability is split.** When one source sentence joins
   clauses that would take different tags (one transfers to the harness, another names an API
   request parameter, say), the digest writes one claim row per clause. Each row quotes its own
-  clause as an exact contiguous substring, noting the cut outside the fence per the `SKILL.md` Phase 3 verbatim rule,
+  clause as an exact contiguous substring, noting the cut outside the fence per the
+  `SKILL.md` Phase 3 verbatim rule,
   and carries its own tag and evidence. A row never carries two tags. Where a clause cannot be
   read without the other, each row quotes the whole sentence and its tag line names the clause
   the tag covers; that is the only case where a tag covers less than its row's quote.
