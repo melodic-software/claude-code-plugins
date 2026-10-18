@@ -96,6 +96,7 @@ Graceful degradation: where a named step below is not available in the consuming
 ## Next
 
 - A deepening candidate's shape is agreed, when available: /planning:plan
+- A finding is about coupling between modules, when available: /coupling:reduce
 - The boundaries lens wrote a findings file, when available: /review:audit-enforceability
 
 ## Gotchas

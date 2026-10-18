@@ -439,7 +439,9 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 
 ## Next
 
-/planning:design-handoff gates the finished design and writes it into PLAN.md's `## Design` for /planning:plan.
+- The design is finished: /planning:design-handoff gates it and writes it into PLAN.md's `## Design` for /planning:plan.
+- A name is still undecided: /naming:name-it-better.
+- A resolved decision is worth keeping: /architecture:record-decision.
 
 ## Relationship to other skills
 
