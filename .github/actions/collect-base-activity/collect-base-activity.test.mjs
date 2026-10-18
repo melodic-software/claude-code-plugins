@@ -255,6 +255,44 @@ test("the verify-script wrapper prints the script's exit status and exits with i
   assert.equal(run.stderr, "exit status: 3\n");
 });
 
+// check-skill.sh runs each skill's scripts/*.test.sh, and the runner's
+// /home/runner/.claude is read-only (#8027), so its wrapper alone gives the
+// script a fresh, writable HOME and CLAUDE_CONFIG_DIR; another verify-script
+// keeps the caller's HOME.
+test("only the check-skill.sh wrapper runs with a fresh, writable HOME and CLAUDE_CONFIG_DIR", () => {
+  const skillQuality = path.join(base, "plugins", "skill-quality", "scripts");
+  mkdirSync(skillQuality, { recursive: true });
+  writeFileSync(
+    path.join(skillQuality, "check-skill.sh"),
+    'ls -A "$HOME" "$CLAUDE_CONFIG_DIR" && touch "$CLAUDE_CONFIG_DIR/w" "$HOME/w" && echo "home=$HOME config=$CLAUDE_CONFIG_DIR"\n',
+  );
+  mkdirSync(path.join(base, "plugins", "vtest", "scripts"), { recursive: true });
+  writeFileSync(path.join(base, "plugins", "vtest", "scripts", "home.sh"), 'echo "home=$HOME config=$CLAUDE_CONFIG_DIR"\n');
+  const { status, verifyDir } = withVerify([
+    VERIFY,
+    "plugins/vtest/scripts/home.sh",
+    "plugins/skill-quality/scripts/check-skill.sh",
+  ]);
+  assert.equal(status, 0);
+  const callerHome = path.join(root, "caller-home");
+  mkdirSync(callerHome, { recursive: true });
+  const env = { ...process.env, HOME: callerHome, CLAUDE_CONFIG_DIR: path.join(callerHome, ".claude") };
+  const runs = [1, 2].map(() => spawnSync(path.join(verifyDir, "bin", "check-skill"), [], { cwd: root, env, encoding: "utf8" }));
+  const homes = runs.map((run) => {
+    assert.equal(run.status, 0, run.stderr);
+    const [, home, config] = /home=(\S+) config=(\S+)\n$/.exec(run.stdout) ?? [];
+    assert.ok(home && !home.startsWith(callerHome) && !home.startsWith(root), run.stdout);
+    assert.equal(config, path.join(home, ".claude"));
+    // ls -A printed only the .claude entry of a HOME that held nothing else.
+    assert.equal(run.stdout, `${home}:\n.claude\n\n${config}:\nhome=${home} config=${config}\n`);
+    return home;
+  });
+  assert.notEqual(homes[0], homes[1], "each run gets its own directory");
+  const other = spawnSync(path.join(verifyDir, "bin", "home"), [], { cwd: root, env, encoding: "utf8" });
+  assert.equal(other.status, 0, other.stderr);
+  assert.equal(other.stdout, `home=${callerHome} config=${path.join(callerHome, ".claude")}\n`);
+});
+
 test("the verify-script wrapper refuses a path outside the checkout", () => {
   const { status, dir, wrapper } = withVerify([VERIFY]);
   assert.equal(status, 0);

@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 2.11.3 - 2026-10-18
+## 2.11.4 - 2026-10-18
 
 A write skill that commits through `commit_files` also gets `Bash(chmod +x *)`, and its commit
 instruction says to run `chmod +x` on every new or changed file that starts with `#!` or ends in
@@ -8,6 +8,14 @@ instruction says to run `chmod +x` on every new or changed file that starts with
 the executable bit, so lane PRs landed new scripts as `100644`
 ([pr-run-activity.md](pr-run-activity.md#skill-activities)). `prepare: merge-base` is unchanged:
 the runner commits the staged index, whose modes the merge set. `version` stays 2.
+
+## 2.11.3 - 2026-10-18
+
+The verify-script wrapper for skill-quality's `check-skill.sh` runs it with `HOME` set to a fresh
+`mktemp -d` directory and `CLAUDE_CONFIG_DIR` to that directory's `.claude`, so a skill test that
+writes under `~/.claude` no longer fails on the runner's read-only one
+([#8027](https://github.com/melodic-software/claude-code-plugins/issues/8027)). Other
+verify-scripts keep the runner's `HOME`. `version` stays 2.
 
 ## 2.11.2 - 2026-10-18
 
