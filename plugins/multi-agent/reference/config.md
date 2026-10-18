@@ -30,13 +30,16 @@ and an explicit yes.
 |---|---|---|
 | `roles.<role>.model` | `inherit`, or an alias: `opus`, `sonnet`, `haiku`, `fable`, `best` | per role |
 | `roles.<role>.effort` | `low`, `medium`, `high`, `xhigh`, `max` | per role |
-| `roles.<role>.workloads.<w>.model` / `.effort` | as above; `<w>` is `code`, `research` or `mechanical` | `worker.workloads.mechanical.model: sonnet` (opt out with `roles.worker.workloads.mechanical.model: inherit` in any layer); a layer may set others, for example `worker.workloads.mechanical.effort: low` |
+| `workloads.<w>` | `true` declares workload `<w>`, `false` withdraws it; `<w>` holds only letters, digits, `_` and `-` | `code`, `research` and `mechanical` declared |
+| `roles.<role>.workloads.<w>.model` / `.effort` | as above; `<w>` is a declared workload | `worker.workloads.mechanical.model: sonnet` (opt out with `roles.worker.workloads.mechanical.model: inherit` in any layer); a layer may set others, for example `worker.workloads.mechanical.effort: low` |
 | `frontier` | comma-separated aliases treated as frontier | `fable,best` |
 | `fanout.frontier_guard` | `true`, `false` | `true` |
 | `fanout.model` | an alias | `opus` |
 
 Roles are `orchestrator`, `worker`, `verifier` and `retrieval`. A layer naming
-another role, workload or key is reported and ignored. A full model id
+another role or key is reported and ignored, and so is a workload no layer
+declares. A declaration in any layer covers values set in every layer, so a
+team block can declare a workload that a personal overlay tunes. A full model id
 (`claude-opus-5-5`) is rejected, so a role map stays portable across providers.
 Whether a role may name `haiku` is decided in
 [`routing-rubric.md`](routing-rubric.md); the resolver accepts it and adds a
@@ -124,12 +127,23 @@ checkout, the user-global file for every repository on one machine.
 
 ## Example team block
 
+This block raises the worker's effort and declares a `deep` workload, which a
+caller selects with `/multi-agent:route worker deep`. A consumer maps its own
+labels (an issue's complexity, say) onto workloads in its own convention; the
+plugin ships no such mapping.
+
 ````markdown
 ```yaml config
 schema: 1
+workloads:
+  deep: true
 roles:
   worker:
     effort: high
+    workloads:
+      deep:
+        model: opus
+        effort: xhigh
 fanout:
   frontier_guard: true
 ```
