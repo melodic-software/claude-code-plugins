@@ -152,8 +152,12 @@ failures to root cause.
 Quality checks before verification: self-review the diff against the consuming repo's conventions
 and review criteria, or delegate to a fresh-context reviewer.
 
-- A reviewer in a fresh context sees only the diff and the criteria, so it is not anchored by the
-  reasoning that produced the change; prefer that over pure self-audit for non-trivial diffs
+- For a non-trivial diff, prefer a reviewer started in a fresh context over auditing your own work,
+  because the author's reasoning cannot colour what that reviewer concludes
+  - **Pointer**: for the adversarial review step, see
+    [Add an adversarial review step](https://code.claude.com/docs/en/best-practices#add-an-adversarial-review-step)
+  - **As of**: 2026-10-18
+  - **Recheck trigger**: a re-read of that section no longer supporting the preference above
 - For a high-stakes diff, prefer a cross-vendor advisor **when one is installed and set up**, for example the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated fallback,
   never a route to a command that may not resolve
   (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository)
