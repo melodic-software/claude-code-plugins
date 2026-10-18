@@ -453,8 +453,11 @@ that fails counts as a refusal.
 - **Merge queue.** The wrapper enqueues with `--match-head-commit`, never `--auto`, and only when
   every required check is green. An armed auto-merge request on the pull request is a refusal, and
   the wrapper disarms it.
-- **One merge in flight.** The wrapper refuses while the identity has an entry in the merge queue,
-  or while an earlier unattended merge has not passed its post-merge check.
+- **Merges in flight.** `merge.max-in-flight` (default 1) caps the identity's merge-queue entries
+  plus its merged pull requests that have not passed the post-merge check. The wrapper refuses at
+  the cap, and an entry enqueued past it (another host's came first) dequeues itself. A red full
+  run or canary run charges every unverified merge whose commit it contains, so a breakage found
+  with several in flight demotes the rung and fails the post-merge check for all of them.
 - **Dependabot.** A dependency-manager author is never eligible for a local unattended merge. The
   pr-merge lane owns Dependabot pull requests (below).
 
@@ -506,7 +509,7 @@ except six:
 - **Cap variable.** For the same reason the workflow passes `CLAUDE_LANES_MERGE_RUNG_CAP` from its
   `vars` context as `--lane-rung-cap`. Empty (unset) is no cap; `off`, `C2` or `C3` caps the rung;
   a missing flag or any other value holds the rung at `off`.
-- **Post-merge check and one merge in flight.** Only merges the agent identity enqueued count. A
+- **Post-merge check and merges in flight.** Only merges the agent identity enqueued count. A
   merge by a person or by another App, such as a release pull request, is not the lane's.
 
 While `merge.report-only` is true and `merge.dependabot.mode` is not `enforce`, the workflow starts
@@ -561,7 +564,7 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
 - **Gate.** Either tier merges only once `ci-status` succeeded on its head, through the same gate
   as the lane's own: mergeable, no `do-not-merge` label, no body hold, no blocking comment from a
   human with write access, the rung (C2) and its cap, the kill switches, the post-merge check and
-  one merge in flight. No closing issue, denied-path rule or diff risk score applies: `ci-status`
+  the merges in flight. No closing issue, denied-path rule or diff risk score applies: `ci-status`
   (and, for tier `review`, the review verdict) is the gate, and a workflow pin bump touches
   `.github/**` by definition.
 - **Switch.** `merge.dependabot.mode` decides it, not `merge.report-only`: `enforce` merges,

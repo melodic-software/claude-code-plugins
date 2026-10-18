@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 2.11.11 - 2026-10-18
+## 2.12.1 - 2026-10-18
 
 On a pull request labeled `needs-human` (the human-gated role label), `pr-unblock`
 `address-feedback` works a thread when a person on the trusted-actor list with write or admin
@@ -11,6 +11,13 @@ held; with one the write runner lifts only the human-gated hold for that run
 ([pr-run-activity.md](pr-run-activity.md#prepare-review-threads)). Its `labels-absent` is
 `[do-not-merge]`, `do-not-merge` still stops it, every other activity still waits on
 `needs-human`, and `pr-merge` still refuses a `needs-human` pull request. `version` stays 2.
+
+## 2.12.0 - 2026-10-18
+
+`merge.max-in-flight` (an integer of at least 1, default 1) caps the lane merges in flight: the
+agent identity's merge-queue entries plus its merged pull requests the post-merge check has not
+verified. This repository sets 5. A red full run or canary run still charges every unverified
+merge whose commit it contains. `version` stays 2.
 
 ## 2.11.10 - 2026-10-18
 

@@ -429,6 +429,9 @@ class PipelineConfig:
     high_path_floor: bool = False
     c2_contradictions: bool = False
     max_changed_files: int | None = None
+    # `merge.max-in-flight`: lane merges in flight at once (`in_flight`).
+    # Absent, or anything but a whole number of at least 1, is 1.
+    max_in_flight: int = 1
 
 
 LOCAL_BABYSIT = "local-babysit"
@@ -545,6 +548,7 @@ def read_config_at(
             ("merge.report-only", False),
             ("merge.require-verifier-verdict", False),
             ("merge.dependabot.mode", False),
+            ("merge.max-in-flight", False),
         ],
     )
     if values is None:
@@ -590,6 +594,12 @@ def read_config_at(
             f"merge.dependabot.mode {dependabot_mode!r} is not off, report or enforce"
         )
         dependabot_mode = "off"
+    in_flight_cap = scalar("merge.max-in-flight")
+    if in_flight_cap is not None and not re.fullmatch(r"[1-9][0-9]*", in_flight_cap):
+        notes.append(
+            f"merge.max-in-flight {in_flight_cap!r} is not a count of 1 or more"
+        )
+        in_flight_cap = None
     return PipelineConfig(
         base_sha=base_sha,
         rung=rung,
@@ -605,6 +615,7 @@ def read_config_at(
         high_path_floor=high_path_floor,
         c2_contradictions=c2_contradictions,
         max_changed_files=int(files) if files else None,
+        max_in_flight=int(in_flight_cap) if in_flight_cap else 1,
     )
 
 
@@ -1899,11 +1910,13 @@ def derive_auto_merge(
 @dataclass(frozen=True)
 class InFlight:
     """`queued` holds every merge-queue entry's pull request number, or None
-    when the queue was not read whole."""
+    when the queue was not read whole; `unverified` counts the unverified
+    auto-merges read, all of them when clear."""
 
     clear: bool
     reason: str | None
     queued: frozenset[int] | None = field(default=None, compare=False)
+    unverified: int = field(default=0, compare=False)
 
 
 def in_flight(
@@ -1916,14 +1929,17 @@ def in_flight(
     branch: str = "main",
     merged_since: datetime | None = None,
     lane_merges_only: bool = False,
+    max_in_flight: int = 1,
 ) -> InFlight:
-    """Clear only when no merge-queue entry is the agent identity's and every
+    """Clear only while the merges in flight number fewer than
+    `max_in_flight`: the agent identity's merge-queue entries plus every
     auto-merge (`derive_auto_merge`: a non-human enqueue, or a queue-bypassing
     merge by a non-human; with `lane_merges_only`, only the identity's)
-    merged into `branch` since `merged_since` is verified. With no
-    floor it is not clear and reads nothing; a history the read cannot reach
-    the floor or end of is not clear. `verified` judges one auto-merge;
-    without it none is, so any auto-merge keeps the path not clear."""
+    merged into `branch` since `merged_since` and not verified. The reason
+    names the entry or merge that reached the count. Any queue entry with an
+    unknown enqueuer is not clear. With no floor it is not clear and reads
+    nothing; a history the read cannot reach the floor or end of is not
+    clear. `verified` judges one auto-merge; without it none is."""
     owner, name = _split_repo(repo)
     if not agent_identity:
         return InFlight(False, "agent-identity-unconfigured")
@@ -1940,6 +1956,7 @@ def in_flight(
         permission=permission,
     )
     queued: frozenset[int] | None = None
+    count = unverified = 0
     try:
         data = _graphql(MERGE_QUEUE, "merge queue", o=owner, r=name, b=branch)
         queue = json_object(json_object(data.get("repository")).get("mergeQueue"))
@@ -1955,7 +1972,10 @@ def in_flight(
             if not enqueuer:
                 return InFlight(False, f"entry-enqueuer-unknown:#{number}", queued)
             if _login_key(enqueuer.get("login")) == _login_key(agent_identity):
-                return InFlight(False, f"identity-entry-queued:#{number}", queued)
+                count += 1
+                if count >= max_in_flight:
+                    reason = f"identity-entry-queued:#{number}"
+                    return InFlight(False, reason, queued)
         merges = _merged_since(owner, name, branch, merged_since)
         if merges is None:
             return InFlight(False, "merged-history-truncated", queued)
@@ -1966,10 +1986,14 @@ def in_flight(
             if not isinstance(merge, AutoMerge):
                 continue
             if verified is None or not verified(merge):
-                return InFlight(False, f"unverified-auto-merge:#{merge.number}", queued)
+                count += 1
+                unverified += 1
+                if count >= max_in_flight:
+                    reason = f"unverified-auto-merge:#{merge.number}"
+                    return InFlight(False, reason, queued, unverified)
     except PolicyReadError as exc:
-        return InFlight(False, f"unreadable: {exc}", queued)
-    return InFlight(True, None, queued)
+        return InFlight(False, f"unreadable: {exc}", queued, unverified)
+    return InFlight(True, None, queued, unverified)
 
 
 # --- Holds on a queued entry -------------------------------------------------------------------
@@ -3017,6 +3041,7 @@ def assess(
         branch=base_ref,
         merged_since=floor,
         lane_merges_only=lane,
+        max_in_flight=config.max_in_flight,
     )
     details.update(
         rung=rung.rung,
@@ -3024,11 +3049,11 @@ def assess(
         rungCap={"value": cap.value, "reason": cap.reason},
         inFlight={"clear": flight.clear, "reason": flight.reason},
     )
-    inputs["rung"] = rung.rung
+    inputs.update(rung=rung.rung, flight=flight)
     # Past an on rung, the in-flight refusal outranks every read below. With
     # no queue entry of its own, nothing below writes for this pull request
-    # either (its risk comment and verifier escalation wait for a run with
-    # none in flight), so it skips them. A Dependabot pull request is read in
+    # either (its risk comment and verifier escalation wait for a run below
+    # the merge.max-in-flight cap), so it skips them. A Dependabot pull request is read in
     # full: its class decides the gate's dependency-manager hold.
     if (
         rung.rung != "off"

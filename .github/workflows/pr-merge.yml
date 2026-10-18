@@ -549,7 +549,7 @@ jobs:
 
   # A push to main whose head commit the lanes App authored: the squash commit
   # of one of its PRs, which the merge queue just landed. The merge gate
-  # enqueues the next lane PR only once that merge is verified, so the full
+  # counts that merge in flight until it is verified, so the full
   # CI run that verifies it starts here instead of waiting for a scheduled
   # run. The author check runs before any runner starts, so other pushes cost
   # nothing; it only saves work, and the post-merge check still decides what
