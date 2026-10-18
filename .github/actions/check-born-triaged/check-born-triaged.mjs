@@ -30,6 +30,18 @@ function isTrustedAuthor(id, list, lanesAppId) {
   return list.actors.some((actor) => actor.id === id && actor.kind === "human");
 }
 
+// The listed humans' ids, comma-joined, for the intake lane's
+// allowed-author-ids. Empty when the list is unreadable.
+export function humanIds(list) {
+  if (!isListReadable(list)) {
+    return "";
+  }
+  return list.actors
+    .filter((actor) => actor.kind === "human" && Number.isInteger(actor.id) && actor.id > 0)
+    .map((actor) => actor.id)
+    .join(",");
+}
+
 export function checkBornTriaged({ issue, list, lanesAppId }) {
   if (!isListReadable(list)) {
     return triage("list-unreadable");
@@ -110,7 +122,7 @@ async function main() {
   const result = /^[1-9][0-9]*$/.test(ISSUE_NUMBER ?? "")
     ? await run({ fetchIssue, list, lanesAppId: LANES_APP_ID })
     : triage("issue-unreadable");
-  writeOutputs(result);
+  writeOutputs({ ...result, "human-ids": humanIds(list) });
   console.log(`check-born-triaged: skip=${result.skip} reason=${result.reason}`);
 }
 

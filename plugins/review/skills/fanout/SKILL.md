@@ -160,6 +160,11 @@ Neither is dispatched as a normalized fan-out surface and [context/findings-norm
 
 The `context/` files write the plugin root as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`. Substitute it before running a command or writing it into a brief: a spoke arrives as plain bytes, so a `${…}` token in it would reach Bash unexpanded. Pointer: <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>. As of: 2026-10-07. Recheck trigger: that table adds supporting files to where a `${…}` reference resolves.
 
+## Next
+
+- Findings to apply: /review:fanout fix.
+- No blocking findings: /verification:confirm.
+
 ## What this skill does NOT do
 
 - **Review modes do not apply fixes**. Mutation happens only through the explicit `fix` action; it never auto-runs after a review.

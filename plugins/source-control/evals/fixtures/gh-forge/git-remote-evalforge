@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Git remote helper for the eval fixture forge. A remote with `remote.<name>.vcs=evalforge` has every
+# fetch and push handed to this helper whatever its URL says, so origin can carry the real-looking
+# https://github.com/eval-fixture/app.git URL push-branch.sh checks while the bytes go to the local
+# bare repository at <forge>/eval-fixture/app.git. install.sh copies it next to the gh stand-in.
+set -uo pipefail
+
+forge="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo="$forge/eval-fixture/app.git"
+
+while IFS= read -r line; do
+  case "$line" in
+    capabilities)
+      echo connect
+      echo
+      ;;
+    "connect git-upload-pack")
+      echo
+      exec git upload-pack "$repo"
+      ;;
+    "connect git-receive-pack")
+      echo
+      exec git receive-pack "$repo"
+      ;;
+    *) exit 1 ;;
+  esac
+done

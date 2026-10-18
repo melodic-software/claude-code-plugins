@@ -1,9 +1,13 @@
 // Starts pr-unblock's address-feedback activity on a lanes App PR once both
 // review lanes have reviewed its current head and left an unresolved thread.
 // Run by .github/workflows/pr-feedback-dispatch.yml on workflow_run, after the
-// kill switch. The only event field it takes is the upstream run id; every
-// other fact is read back from the API, so nothing in the event payload
-// reaches a decision or a shell.
+// kill switch. From the event file it takes only the upstream run's id, path,
+// event, repositories and head SHA, which a re-run does not change, so reading
+// them back from the API would spend a call for the same values; and its
+// status and start time, snapshots from when the event fired, used only to
+// skip, never to admit. Nothing user-written in the payload (branch name,
+// title) is read, and nothing reaches a shell. Every PR fact, including whether
+// that head is still the PR's current head, is read fresh from the API.
 //
 // It dispatches pr-unblock.yml on main, with activity address-feedback, only
 // when all of these hold, and otherwise logs why not and dispatches nothing:
@@ -26,7 +30,7 @@
 // The gate and the broker re-check the upstream run and the head; this script
 // only decides whether to spend a run.
 
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
@@ -94,7 +98,7 @@ export async function dispatchFeedback({
   api,
   repository,
   runId,
-  upstreamRunId,
+  upstream,
   appSenderId,
   resolveSlot,
   log,
@@ -106,15 +110,14 @@ export async function dispatchFeedback({
     log(`skip: ${why}`);
     return null;
   };
+  const upstreamRunId = upstream?.id;
   if (!RUN_ID.test(String(upstreamRunId)) || !RUN_ID.test(String(runId))) {
     throw new Error("the upstream or own run id is not a run id");
   }
   if (!Number.isSafeInteger(appSenderId) || appSenderId < 1) {
     throw new Error("the lanes App sender id is not a positive integer");
   }
-  const upstream = await api.getRun(upstreamRunId);
   if (
-    String(upstream?.id) !== String(upstreamRunId) ||
     !settings.reviewWorkflows.includes(upstream.path) ||
     upstream.event !== "pull_request" ||
     upstream.status !== "completed" ||
@@ -252,7 +255,6 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
   }
 
   return {
-    getRun: (id) => request(`${repo}/actions/runs/${id}`),
     pullsForCommit: (sha) => request(`${repo}/commits/${sha}/pulls`),
     async listIssueComments(number) {
       const comments = [];
@@ -337,7 +339,7 @@ export async function resolveFeedbackSlot({ number, head, env, github, settings 
 // Writes run-id, the dispatched run, as a step output; the workflow records
 // it with the upstream run id as an artifact on this run.
 export async function main(env, { api, github, resolveSlot, log = (line) => console.log(line) } = {}) {
-  for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT", "UPSTREAM_RUN_ID", "APP_SENDER_ID"]) {
+  for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT", "GITHUB_EVENT_PATH", "APP_SENDER_ID"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
     }
@@ -353,7 +355,7 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
       }),
     repository: env.GITHUB_REPOSITORY,
     runId: env.GITHUB_RUN_ID,
-    upstreamRunId: env.UPSTREAM_RUN_ID,
+    upstream: JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8")).workflow_run,
     appSenderId: Number(env.APP_SENDER_ID),
     // The base checkout's list, the one resolve-config reads beside it.
     trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`),

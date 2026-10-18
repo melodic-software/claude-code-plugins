@@ -390,7 +390,7 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 - **Frontier rounds.** Every open thread whose prerequisites are settled surfaces in the same
   numbered round, each with a recommendation; a thread that depends on an unresolved thread waits
   for the round after it resolves. Render a round via `AskUserQuestion` only when the plugin's
-  `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round
+  `use_ask_user_question` user config (`${user_config.use_ask_user_question}`; unexpanded or empty means off) is on and the round
   is independent questions that fit one `AskUserQuestion` call (the per-call question limit:
   <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>, as of 2026-10-11; recheck
   when that section changes the per-call question limit). Inline prose otherwise
@@ -439,7 +439,9 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 
 ## Next
 
-/planning:design-handoff gates the finished design and writes it into PLAN.md's `## Design` for /planning:plan.
+- The design is finished: /planning:design-handoff gates it and writes it into PLAN.md's `## Design` for /planning:plan.
+- A name is still undecided: /naming:name-it-better.
+- A resolved decision is worth keeping: /architecture:record-decision.
 
 ## Relationship to other skills
 
