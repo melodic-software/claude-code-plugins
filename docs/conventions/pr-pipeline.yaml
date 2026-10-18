@@ -137,12 +137,17 @@ activities:
     # scripts/*.test.sh and the checkout's markdownlint, with the network
     # open and the token readable that way: the same power run-test-file.sh
     # has.
+    # new-changelog-fragment.sh writes .changes/<plugin>/<slug>.md in the
+    # work tree it runs in, refusing a plugin name with a path in it and a
+    # linked .changes directory (--carriers-of also makes and removes one
+    # temp file); it runs no checkout code and reaches no network.
     verify-scripts:
       - plugins/testing/skills/audit/scripts/cant-fail-scan.sh
       - scripts/run-test-file.sh
       - scripts/git-mv-rm.sh
       - plugins/skill-quality/scripts/check-skill.sh
       - plugins/skill-quality/scripts/check-evals-quality.sh
+      - scripts/new-changelog-fragment.sh
     # Lets the run read web pages, so it can check a fact against its source
     # (for example a documented default on a vendor docs page) instead of
     # trusting the issue's quote. It may search the web and read any site,

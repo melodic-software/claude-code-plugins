@@ -203,4 +203,74 @@ else
 fi
 rm -rf "$f"
 
+# --- a copy of scripts/ kept outside the checkout -----------------------------
+# The issue lane runs a read-only base copy of only scripts/ through a wrapper
+# whose working directory is the checkout (pr-run-activity.md, "Skill
+# activities"), so the fragment must land in the checkout and no checkout code
+# may run.
+tools="" elsewhere=""
+multi_fixture f
+fixture_tree::build tools --label new-fragment-tools || exit 2
+cp -R "$f/scripts/." "$tools/scripts/"
+chmod -R a-w "$tools"
+tools_before="$(find "$tools" | sort)"
+printf 'touch "%s/ran-checkout-code"\n' "$f" >"$f/scripts/sync-shared-copies.sh"
+ext() { (cd "$1" && shift && bash "$tools/scripts/new-changelog-fragment.sh" "$@"); }
+out="$(ext "$f" alpha patch)"
+if [[ $? -eq 0 && "$out" =~ ^\.changes/alpha/sync-esc-[0-9a-f]{8}\.md$ && -f "$f/$out" ]]; then
+  ok "an outside copy writes the fragment into the checkout it runs in"
+else
+  fail "expected .changes/alpha/sync-esc-<hex>.md in the checkout, got: $out"
+fi
+# Whether the copy's own sync-shared-copies.sh can read the checkout's registry
+# is that script's concern; this asserts only that the checkout's never runs.
+ext "$f" --carriers-of lib/esc.mjs patch >/dev/null 2>&1
+if [[ ! -e "$f/ran-checkout-code" ]]; then
+  ok "an outside copy runs its own sync-shared-copies.sh for --carriers-of, never the checkout's"
+else
+  fail "--carriers-of ran the checkout's scripts/sync-shared-copies.sh"
+fi
+if [[ "$(find "$tools" | sort)" == "$tools_before" ]]; then
+  ok "an outside copy writes nothing beside itself"
+else
+  fail "the outside copy's directory changed"
+fi
+fixture_tree::build elsewhere --label new-fragment-elsewhere || exit 2
+out="$(ext "$elsewhere" alpha patch 2>&1)"
+if [[ $? -eq 2 && "$out" == *"work tree"* && -z "$(find "$elsewhere" "$tools" -name '*.md')" ]]; then
+  ok "outside any work tree it writes nothing and exits 2"
+else
+  fail "expected exit 2 and no fragment outside a work tree, got: $out"
+fi
+chmod -R u+w "$tools"
+rm -rf "$f" "$tools" "$elsewhere"
+
+# --- every fragment stays under .changes/<plugin>/ -----------------------------
+# The lane passes the model's arguments, and the checkout's fragment-plugins.txt
+# and plugin.json files are the model's to edit.
+base_fixture f
+mkdir -p "$f/escape/.claude-plugin"
+printf '{"name":"escape","version":"1.0.0"}\n' >"$f/escape/.claude-plugin/plugin.json"
+printf 'alpha\n../escape\n' >"$f/scripts/fragment-plugins.txt"
+out="$(run_new "$f" ../escape patch 2>&1)"
+if [[ $? -eq 2 && "$out" == *"not a plugin name"* && -z "$(find "$f" -path "$f/.git" -prune -o -name '*.md' -print)" ]]; then
+  ok "refuses a plugin name with a path in it and writes nothing"
+else
+  fail "expected exit 2 for ../escape and no fragment, got: $out"
+fi
+rm -rf "$f"
+for link in .changes .changes/alpha; do
+  base_fixture f
+  fixture_tree::build elsewhere --label new-fragment-elsewhere || exit 2
+  mkdir -p "$f/$(dirname "$link")"
+  ln -s "$elsewhere" "$f/$link"
+  out="$(run_new "$f" alpha patch 2>&1)"
+  if [[ $? -eq 2 && "$out" == *"symbolic link"* && -z "$(find "$elsewhere" -name '*.md')" ]]; then
+    ok "refuses $link as a symbolic link and writes nothing through it"
+  else
+    fail "expected exit 2 for a $link link and nothing outside, got: $out"
+  fi
+  rm -rf "$f" "$elsewhere"
+done
+
 test_harness::report

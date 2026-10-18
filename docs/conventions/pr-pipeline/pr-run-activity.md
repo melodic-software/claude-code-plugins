@@ -342,7 +342,10 @@ own environment (code the script runs can still read the token from the wrapper'
 shell's `/proc/<pid>/environ`), sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`
 and command-scope `core.fsmonitor=false` and `core.hooksPath=/dev/null`, then runs the copy with
 the arguments and prints `exit status: <n>` to stderr before exiting with that status, since the
-lane denies a chained `; echo "$?"`; the system prompt says to run each wrapper as its own command.
+lane denies a chained `; echo "$?"`. The system prompt says Bash runs only the named wrappers,
+each as its own command, and that the run inspects files with Read, Grep and Glob and changes them
+with Edit or Write, never with `cd`, `;`, `&&`, a pipe or an interpreter one-liner; when
+`git-mv-rm.sh` is listed, it names that wrapper for a rename or a removal.
 Any other arguments match, so a listed script that changes files or runs checkout code must limit
 itself, or hand the run a power it may hold. `resolve-issue` also lists skill-quality's
 `check-evals-quality.sh` (bash and jq over `evals.json` files) and `check-skill.sh`, which runs each
@@ -364,7 +367,14 @@ hash-pinned `.github/requirements-ci.txt` before the head checkout. `scripts/git
 `git mv <source> <destination>` or `git rm -r -f <path>...`, first recording an untracked path as
 intent-to-add so a file the run created can be renamed or removed, with `GIT_LITERAL_PATHSPECS=1`
 so git reads each path literally, never as a glob or pathspec magic. The index is local: the
-change reaches the branch through `commit_files` and `delete_files`.
+change reaches the branch through `commit_files` and `delete_files`. `resolve-issue` also lists
+`scripts/new-changelog-fragment.sh`, which finds the work tree with `git rev-parse
+--show-toplevel` from its working directory (exit 2 outside one), writes only new
+`.changes/<plugin>/<slug>.md` files there, refuses a plugin name outside `[a-z0-9-]` and a linked
+`.changes` or `.changes/<plugin>`, and reads `--carriers-of` through its own copy's
+`sync-shared-copies.sh`, never the checkout's. From the lane's copy, which holds only `scripts/`,
+that script cannot find the registry's canonicals, so `--carriers-of` exits 2 there and the run
+names the plugins instead.
 `WebFetch` and
 `WebSearch` stay off (`--disallowedTools`) unless the activity sets `web-access`. With it on, the
 runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
