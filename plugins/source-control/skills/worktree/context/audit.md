@@ -118,10 +118,10 @@ user's own shell, so a pasted command carrying it expands to `/scripts/…` and 
 [plugin manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves);
 as of 2026-10-11; recheck when that section starts resolving the variable in the user's shell.
 
-For each path, in order, the script runs the chain this step used to hand out: plain `mkdir`,
+For each path, in order, the script runs: plain `mkdir`,
 `cd` into it, `scripts/reap-project-plugin-records.sh --worktree-path <path> --dry-run`, the same
 call without `--dry-run`, removal of the path's `.claude`, back out, and `rmdir`. It prints a result
-per path and stops at the first failure, naming the path and the step. Its guards are the chain's:
+per path and stops at the first failure, naming the path and the step. Its guards:
 
 - Plain `mkdir`, never `mkdir -p`: it **fails** if the directory already exists, which is the one
   mechanical stop left if the classification above was wrong. `-p` would no-op on a live directory
