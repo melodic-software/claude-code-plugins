@@ -134,6 +134,22 @@ class CleanCandidatesSweepFirstOldestFirst(unittest.TestCase):
         candidates = [_candidate(9), _candidate(3), _candidate(7)]
         self.assertEqual(self._numbers(candidates), [9, 3, 7])
 
+    def test_all_held_fallback_keeps_the_first_in_sweep_order(self) -> None:
+        # Every candidate is held; the one kept for the queue sweep is the
+        # CLEAN, older one, not the lowest number.
+        candidates = [
+            self._listed(1, "BLOCKED", "2026-10-10T00:00:00Z", labels=["do-not-merge"]),
+            self._listed(2, "CLEAN", "2026-09-01T00:00:00Z", body=HELD_BODIES[0]),
+        ]
+        result = prefilter.split(candidates)
+        self.assertEqual(
+            result["candidates"],
+            [{k: candidates[1][k] for k in ("number", "head", "updatedAt")}],
+        )
+        self.assertEqual(
+            [(h["number"], h["reason"]) for h in result["held"]], [(1, "do-not-merge")]
+        )
+
     def test_held_clean_candidate_never_sweeps_first(self) -> None:
         candidates = [
             self._listed(1, "BLOCKED", "2026-10-05T00:00:00Z"),
