@@ -1,4 +1,3 @@
-// Cases from issue #8109's Verification section.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
