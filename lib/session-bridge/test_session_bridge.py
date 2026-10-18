@@ -491,6 +491,60 @@ class TestWatcherScripts(BridgeCase):
         self.assertEqual(r.returncode, 1)
         self.assertEqual(r.stdout, "")
 
+    def recording_curl(self):
+        """A curl stand-in that logs its argv, then runs the real curl."""
+        log = self.tmp / "curl-argv"
+        stub = self.bin / "curl-stub.sh"
+        stub.write_text(
+            '#!/usr/bin/env bash\nprintf "%s\\n" "$@" >>"$CURL_ARGV_LOG"\n'
+            f'exec "{shutil.which("curl")}" "$@"\n',
+            encoding="utf-8",
+        )
+        stub.chmod(0o755)
+        return log, {"WATCH_CURL": str(stub), "CURL_ARGV_LOG": str(log)}
+
+    def test_watch_starts_no_process_with_the_token_in_its_argv(self):
+        self.hub.append("hello")
+        log, env = self.recording_curl()
+        r = self.run_script("watch.sh", str(self.dir), env=env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        argv = log.read_text(encoding="utf-8")
+        self.assertIn("/api/wait", argv)
+        self.assertNotIn(self.hub.token, argv)
+
+    def test_wake_starts_no_process_with_the_token_in_its_argv(self):
+        self.hub.append("next")
+        log, env = self.recording_curl()
+        r = self.run_script("wake.sh", str(self.dir), env=env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("/api/wait", log.read_text(encoding="utf-8"))
+        self.assertNotIn(self.hub.token, log.read_text(encoding="utf-8"))
+        self.assertNotIn(self.hub.token, (self.dir / "applied").read_text())
+
+
+class TestControlServer(unittest.TestCase):
+    """The control listener's socket reuse settings."""
+
+    def test_address_reuse_is_off_only_on_windows(self):
+        self.assertEqual(sb.ControlServer.allow_reuse_address, os.name != "nt")
+
+    def test_windows_binds_exclusively(self):
+        calls = []
+
+        class FakeSocket:
+            def setsockopt(self, *args):
+                calls.append(args)
+
+        server = sb.ControlServer.__new__(sb.ControlServer)
+        server.socket = FakeSocket()
+        with unittest.mock.patch.object(sb.os, "name", "nt"), unittest.mock.patch.object(
+            sb.socket, "SO_EXCLUSIVEADDRUSE", 0x80000004, create=True
+        ), unittest.mock.patch.object(
+            sb.ThreadingHTTPServer, "server_bind", lambda self: None
+        ):
+            server.server_bind()
+        self.assertEqual(calls, [(sb.socket.SOL_SOCKET, 0x80000004, 1)])
+
 
 ENTRY = "plugin:toy@market"
 MAX = {

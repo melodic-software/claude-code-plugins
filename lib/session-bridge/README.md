@@ -46,7 +46,10 @@ subclass sets `max_body` and `page_csp` and adds routes in `route_get(url, query
   sent, must match.
 - A per-run token from `secrets.token_urlsafe(32)` rides only in the `X-<Name>-Token` header; every
   POST and `/api/wait` needs it. Every POST must be `application/json`, 1 to `max_body` bytes, a
-  JSON object.
+  JSON object. `watch.sh` hands the header to curl on stdin (`-H @-`), so the token is in no
+  process's argv, which other local users can read on Linux without `hidepid` and on macOS.
+- On Windows the listener refuses address reuse and binds with `SO_EXCLUSIVEADDRUSE`, so no other
+  local process can bind the same port and receive requests that carry the token.
 - `start()` writes `.<name>-session.json` (pid, port, url, token, dataDir, nonce, startedAt) and
   `.<name>-session.env` (`PID`, `PORT`, `TOKEN`, `NONCE`) to the data dir, mode 0600.
 - `GET /events` streams `state` frames on every change and a `ping` every 15 s when idle; at most 8

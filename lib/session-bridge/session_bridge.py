@@ -602,13 +602,28 @@ def serve(handler, make_hub, port, nonce="", banner=None):
         pass
 
 
+class ControlServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer that no other local process can share the port with.
+
+    On Windows SO_REUSEADDR lets a second process bind the same loopback port and receive
+    requests that carry the token, so reuse is off there and the bind is exclusive.
+    """
+
+    allow_reuse_address = os.name != "nt"
+
+    def server_bind(self):
+        if os.name == "nt":
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
 def start(handler, make_hub, port, nonce=""):
     """Bind 127.0.0.1:port (0 picks a free one), build the hub, write the session files.
 
     make_hub(port) returns the LoopbackWatcher; the session files go to its data dir, mode 0600,
     because they hold the token. Returns (httpd, hub); the caller runs httpd.serve_forever().
     """
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), handler)
+    httpd = ControlServer(("127.0.0.1", port), handler)
     httpd.daemon_threads = True
     port = httpd.server_address[1]
     hub = make_hub(port)
