@@ -128,6 +128,19 @@
         "Names a single verdict, with its reason, from the four: ratify, ship the finished recommendation, continue, restart",
         "The report lists work carried over from the trail apart from work done again"
       ]
+    },
+    {
+      "id": 11,
+      "name": "background-shell-child-waiting-on-prompt",
+      "prompt": "keep going — the deploy shell you started in the background has been quiet for 15 minutes. It runs an elevated script that calls a CLI which may be asking something.",
+      "expected_output": "The inventory lists the background shell's child process tree with the bundled check-child-input-wait.py instead of stopping at the shell. A child sitting on a [y/N] confirmation is named in the report with its command line and its waiting-on-input verdict, a process the checker cannot inspect is reported as unknown rather than not waiting, and killing the child is held behind the side-effect gate instead of done on a hunch.",
+      "files": [],
+      "expectations": [
+        "Runs the child-tree checker for the background shell instead of inspecting only the parent shell",
+        "Names the child process waiting on the prompt, with its command line, in the report",
+        "Reports a process it could not inspect as unknown, not as not waiting",
+        "Does not kill the waiting child without asking first, and does not answer the prompt itself"
+      ]
     }
   ]
 }

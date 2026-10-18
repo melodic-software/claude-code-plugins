@@ -53,7 +53,24 @@ itself the thing this skill removes.
    this thread, per the off-thread kinds in
    [`${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md`](${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md)
    an open-ended set (background tasks, shells, monitors, scheduled
-   jobs, dynamic workflows, subagents), not a fixed catalogue.
+   jobs, dynamic workflows, subagents, external CLI processes), not a
+   fixed catalogue. For each background shell, also list its child
+   process tree and flag any process waiting on an interactive prompt or
+   stdin, so a run hung on a `[y/N]` question is found instead of read
+   as slow:
+
+   ```shell
+   python3 "${CLAUDE_PLUGIN_ROOT}/skills/keep-going/scripts/check-child-input-wait.py" "<shell pid>"
+   ```
+
+   It prints JSON: each descendant with its command line and a
+   `waiting_on_input` verdict of `yes`, `no` or `unknown`, plus `waiting`
+   and `unknown` pid lists. Exit `0`: none waiting. Exit `1`: at least one
+   waiting. Exit `2`: bad argument or the pid is not running. Exit `3`:
+   the process table could not be read. Exit `4`: none waiting, but some
+   verdicts are `unknown`. `unknown` (an elevated process the session
+   cannot inspect, or a platform with no signal) is never read as `no`:
+   inspect that process by other means before calling it slow.
 2. **Inspect real state, never assume.** Read each item's actual state
    from the source of truth, per that doc's inspect-real-state invariant:
    do not infer "it probably finished" or "it probably died". Only the
@@ -107,7 +124,9 @@ itself the thing this skill removes.
 6. **Report.** Open with whatever needs the user: a gated kill or
    re-fire, or a question about the goal. Below it, one list sorts every
    item as still-running, recovered, restarted, abandoned, or lost /
-   unrecoverable. Work picked up from another agent's trail adds its
+   unrecoverable. Name every child process step 1 flagged as waiting on
+   input, with its command line, and every `unknown` verdict; killing one
+   stays behind the side-effect gate below. Work picked up from another agent's trail adds its
    verdict and the split between inherited and redone work (next
    section).
 

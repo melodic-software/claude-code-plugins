@@ -17,7 +17,12 @@ current harness exposes:
 - monitors;
 - scheduled / cron tasks;
 - dynamic workflows;
-- spawned subagents.
+- spawned subagents;
+- external CLI processes and their child trees: a background shell's children,
+  elevated ones included, can sit on a `[y/N]` question or on stdin while the
+  shell itself looks alive. List the tree and each process's input-wait verdict
+  with `keep-going`'s `check-child-input-wait.py`; a process the platform gives
+  no signal for is `unknown`, never "not waiting".
 
 Treat that list as **examples of the kinds** to look for, not a fixed
 catalogue. The tool surface evolves; the specific tools that hold off-thread
