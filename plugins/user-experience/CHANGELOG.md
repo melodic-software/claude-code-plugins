@@ -3,6 +3,17 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.0] - 2026-10-18
+
+### Added
+
+- `/user-experience:evaluate` expert review of a live app now runs three checks
+  (`reference/evaluation.md` "Live-app checks"): the primary action and the thing asked about on
+  screen without scrolling at a phone, a tablet and a desktop size; question, label and
+  instruction copy that could point at more than one view, element or device; and in-product
+  pictures compared with the live screen and theme, with natural against displayed size.
+- Three evaluate eval cases, one per check.
+
 ## [0.1.8] - 2026-10-15
 
 ### Changed
