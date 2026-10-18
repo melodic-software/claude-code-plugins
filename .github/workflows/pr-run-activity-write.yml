@@ -278,8 +278,10 @@ jobs:
       reuse-branch: ${{ steps.issue-prior.outputs.reuse-branch }}
       # The lane record, from steps that read the execution file after the
       # skill. A forged limit stop can only restart the lane after a reset
-      # limit-stop.mjs and report-outcome clamp to at least an hour away, at
-      # most MAX_LIMIT_STOPS times.
+      # limit-stop.mjs and report-outcome clamp to at least
+      # `limits.reset-clamp-min` hours away, at
+      # most `limits.limit-stops-per-head` (a PR) or
+      # `limits.limit-stops-per-issue` (an issue) times.
       lane-class: ${{ steps.lane-record.outputs.failure-class }}
       lane-resets: ${{ steps.lane-record.outputs.resets-at }}
       lane-turns: ${{ steps.lane-record.outcome == 'success' && steps.act-turns.outputs.turns || '' }}
@@ -699,10 +701,13 @@ jobs:
           name: dependency-verdict-${{ inputs.dependency-run-attempt }}
           path: ${{ runner.temp }}/dependency-verdict
 
+      # Also issue mode: report-outcome trusts a merge: human label only from
+      # a listed human or the lanes App.
       - name: Copy the trusted actors for the reply script
         id: reply-actors
         if: >-
-          steps.head-recheck.outputs.proceed == 'true' && inputs.review-replies
+          steps.head-recheck.outputs.proceed == 'true'
+          && (inputs.review-replies || inputs.issue-number != '')
           && steps.config.outputs.kind == 'script'
         env:
           COPY: ${{ runner.temp }}/base-script/.trusted-actors.json
@@ -980,10 +985,13 @@ jobs:
           claude_code_oauth_token: ${{ secrets.claude-code-oauth-token }}
           github_token: ${{ steps.lane-token.outputs.token }}
           use_commit_signing: true
-          # A dispatcher-sent run is started by github-actions[bot]; the
-          # action refuses a bot actor unless it is listed. The trigger gate
-          # has already checked the dispatcher run this id names.
-          allowed_bots: ${{ inputs.dispatcher-run-id != '' && 'github-actions' || '' }}
+          # The action refuses a bot actor unless it is listed. The trigger
+          # gate has already decided both bot cases: the lanes App passes it
+          # only by applying the app-label in issue mode, and github-actions
+          # only on a dispatcher run it verified, whose id this names.
+          allowed_bots: >-
+            ${{ inputs.dispatcher-run-id != '' && 'melodic-automation-lanes[bot],github-actions'
+            || 'melodic-automation-lanes[bot]' }}
           plugin_marketplaces: ${{ runner.temp }}/base-marketplace
           plugins: ${{ steps.stage.outputs.plugins }}
           prompt: ${{ steps.stage.outputs.prompt }}
@@ -1127,7 +1135,7 @@ jobs:
           path: |
             ${{ runner.temp }}/skill-reply/reply.txt
             ${{ runner.temp }}/skill-reply/act-turns.json
-          retention-days: 7
+          retention-days: 3
           if-no-files-found: error
 
       # The verdict comes from the action's structured_output, read through env
@@ -1689,7 +1697,7 @@ jobs:
           path: |
             ${{ runner.temp }}/work-outcome/lane.json
             ${{ runner.temp }}/work-outcome/work-outcome.json
-          retention-days: 7
+          retention-days: 1
           if-no-files-found: error
           overwrite: true
 
@@ -1741,7 +1749,7 @@ jobs:
           # review-replies only; empty otherwise.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           FEEDBACK_REPLIES_DIR: ${{ inputs.review-replies && format('{0}/feedback-replies', runner.temp) || '' }}
-          TRUSTED_ACTORS: ${{ inputs.review-replies && format('{0}/base-script/.trusted-actors.json', runner.temp) || '' }}
+          TRUSTED_ACTORS: ${{ (inputs.review-replies || inputs.issue-number != '') && format('{0}/base-script/.trusted-actors.json', runner.temp) || '' }}
           RUN_SHA256: ${{ inputs.review-run-sha256 }}
           HEAD_REF: ${{ steps.gate.outputs.head-ref }}
           MODEL_RUN_ATTEMPT: ${{ inputs.review-run-attempt }}
@@ -1869,6 +1877,7 @@ jobs:
         with:
           name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/verdict/verdict.json
+          retention-days: 1
           if-no-files-found: error
 
       # The token would live an hour; revoking it ends it now (probe P5 found
@@ -2065,6 +2074,9 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.claude-code-oauth-token }}
           github_token: ${{ github.token }}
+          # The run job's trigger gate admitted this run's actor, which on an
+          # App-labeled issue is the lanes App.
+          allowed_bots: melodic-automation-lanes[bot]
           prompt: ${{ steps.summary-prompt.outputs.prompt }}
           settings: ${{ steps.summary-models.outputs.settings-json }}
           claude_args: >-

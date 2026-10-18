@@ -10,9 +10,10 @@ name: pr-feedback-dispatch
 # through the review run its record names, at the PR's current head.
 #
 # No model and no App token: the job's GITHUB_TOKEN can only read and start
-# workflow runs. Of the event, only the upstream run id is used, through env;
-# the script reads everything else back from the API. The dispatched lane runs
-# its own trigger gate, kill switch, config and round cap.
+# workflow runs. The script takes the upstream run's own facts (path, event,
+# head SHA, start time) from the event file and reads every PR fact back from
+# the API; no event field reaches a shell but the run id, checked below. The
+# dispatched lane runs its own trigger gate, kill switch, config and round cap.
 
 on:
   # workflow_run runs this file from the default branch, never a PR's copy.
@@ -41,7 +42,7 @@ jobs:
       contents: read # check out main
       pull-requests: read # the PR, its comments and review threads
       checks: read # skip a head that already has an address-feedback check run
-      actions: write # read the upstream review run; dispatch pr-unblock.yml
+      actions: write # list pr-unblock runs; dispatch pr-unblock.yml
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -83,7 +84,6 @@ jobs:
         if: steps.kill.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/pr-unblock/feedback-dispatch.mjs

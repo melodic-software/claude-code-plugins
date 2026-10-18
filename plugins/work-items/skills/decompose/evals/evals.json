@@ -111,6 +111,19 @@
         "Every published item body carries both of the Brief's Constraints as text",
         "No item body names a .work/ path or links the PLAN.md file"
       ]
+    },
+    {
+      "id": 9,
+      "name": "published-items-carry-native-issue-type-and-no-work-class-label",
+      "prompt": "/work-items:decompose — the topic is refund-export and its PLAN.md is approved. The repository is in an organization, so native Issue Types are available. Publish the breakdown; I approve it in advance.",
+      "expected_output": "Publishes one item per approved slice through the seam create-item. Each item gets its native Issue Type (Bug, Feature or Task) through the seam's --type, and none carries a type: label. No created item carries a work-class: label, and none has a status field written; the labels are limited to area:, the role label and similar classification.",
+      "files": [],
+      "expectations": [
+        "Every created item is passed a native Issue Type (Bug, Feature or Task) through the seam's --type",
+        "No created item carries a type: label on this organization repository",
+        "No created item carries a work-class: label",
+        "Writes no status field on any created item"
+      ]
     }
   ]
 }

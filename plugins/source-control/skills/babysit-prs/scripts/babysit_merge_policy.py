@@ -41,6 +41,7 @@ from urllib.parse import quote
 
 import babysit_dependabot as dependabot
 import babysit_repo_config as repo_config
+import babysit_run_cache as run_cache
 from babysit_classify import (
     actor_kind,
     has_blocking_severity,
@@ -750,22 +751,35 @@ Permission = Callable[[str], str | None]
 
 
 def permission_reader(repo: str) -> Permission:
-    """A cached reader of a login's repository permission (`admin`, `write`, ...)."""
+    """A cached reader of a login's repository permission (`admin`, `write`, ...).
+    A permission read in the last `run_cache.MAX_AGE` by another gate process
+    of the run is reused; a failed read is never shared. Each answer notes
+    when it was read (`run_cache.note`)."""
     owner, name = _split_repo(repo)
-    cache: dict[str, str | None] = {}
+    cache: dict[str, tuple[str | None, datetime]] = {}
 
     def read(login: str) -> str | None:
         if login not in cache:
-            status, payload = _get(
-                f"repos/{owner}/{name}/collaborators/{login}/permission"
-            )
-            value = (
-                payload.get("permission")
-                if status == 200 and is_json_object(payload)
-                else None
-            )
-            cache[login] = value if isinstance(value, str) else None
-        return cache[login]
+            key = f"{owner}/{name}|{login.casefold()}"
+            shared = run_cache.get_dated("permission", key, run_cache.MAX_AGE)
+            if shared is not None and isinstance(shared[0], str):
+                cache[login] = shared
+            else:
+                at = run_cache.now()
+                status, payload = _get(
+                    f"repos/{owner}/{name}/collaborators/{login}/permission"
+                )
+                value = (
+                    payload.get("permission")
+                    if status == 200 and is_json_object(payload)
+                    else None
+                )
+                cache[login] = (value if isinstance(value, str) else None, at)
+                if isinstance(value, str):
+                    run_cache.put("permission", key, value, at)
+        value, at = cache[login]
+        run_cache.note(at)
+        return value
 
     return read
 
@@ -1358,10 +1372,13 @@ def _foreign_refusal(pr: dict[str, Any], owner: str) -> str | None:
 LANE_CLASS = "C2"
 
 
-def _base_refusal(owner: str, name: str, node: Mapping[str, Any]) -> str | None:
+def _base_refusal(
+    owner: str, name: str, node: Mapping[str, Any], *, shared: bool = False
+) -> str | None:
     """`base-not-default:<ref>` when the pull request's base is not the
-    default branch, read fresh. A failed read raises, which refuses."""
-    branch = _default_branch(f"{owner}/{name}")
+    default branch, read fresh unless `shared` (`_default_branch`). A failed
+    read raises, which refuses."""
+    branch = _default_branch(f"{owner}/{name}", shared=shared)
     base = node.get("baseRefName")
     return None if base == branch else f"base-not-default:{base}"
 
@@ -1427,7 +1444,7 @@ def lane_eligibility(
         issue, refusal = _closing_issue(node, repo)
         if refusal is None:
             issue_number = issue["number"]
-            refusal = _base_refusal(owner, name, node)
+            refusal = _base_refusal(owner, name, node, shared=True)
         if refusal is None:
             refusal = _denied_path_refusal(
                 owner, name, number, pr.get("changed_files"), denied_paths
@@ -2092,7 +2109,24 @@ def entry_hold(
 # --- Composition ------------------------------------------------------------------------------
 
 
-def _default_branch(repo: str) -> str:
+DEFAULT_BRANCH_SECTION = "default-branch"
+# Repositories whose default branch this process took from the run cache;
+# `unattended_enqueue` reads it again before an enqueue.
+SHARED_DEFAULT_BRANCHES: set[str] = set()
+
+
+def _default_branch(repo: str, *, shared: bool = False) -> str:
+    """The default branch's name. `shared` takes one another gate process of
+    the run read within `run_cache.MAX_AGE`; every read is saved for them, a
+    failed one never."""
+    cached = (
+        run_cache.get(DEFAULT_BRANCH_SECTION, repo, run_cache.MAX_AGE)
+        if shared
+        else None
+    )
+    if isinstance(cached, str) and cached:
+        SHARED_DEFAULT_BRANCHES.add(repo)
+        return cached
     owner, name = _split_repo(repo)
     status, payload = _get(f"repos/{owner}/{name}")
     branch = (
@@ -2102,6 +2136,7 @@ def _default_branch(repo: str) -> str:
     )
     if not isinstance(branch, str) or not branch:
         raise PolicyReadError(f"{repo}: the default branch could not be read")
+    run_cache.put(DEFAULT_BRANCH_SECTION, repo, branch)
     return branch
 
 
@@ -2540,6 +2575,8 @@ class PostMergeGate:
 
 # How old a shared post-merge answer may be: the pr-merge job's timeout.
 SHARED_MAX_AGE = timedelta(minutes=30)
+# Runner clocks may run ahead of GitHub's; `since` starts this much earlier.
+SINCE_CLOCK_MARGIN = timedelta(minutes=5)
 
 
 @dataclass(frozen=True)
@@ -2585,6 +2622,36 @@ def newest_config_commit(repo: str, sha: str) -> str:
     return newest
 
 
+def _demotion_changed(
+    owner: str, name: str, shared: SharedPostMerge, identity: str
+) -> bool:
+    """Whether anything `read_demotion` reads may differ from the shared
+    answer, in one REST call: an issue updated since the answer was computed
+    (which precedes its demotion read), less `SINCE_CLOCK_MARGIN`, that a
+    record filer opened, or that is a known record. Creating, editing,
+    closing or reopening an issue updates it, so no new or changed record
+    escapes. A full page or an unreadable
+    one counts as changed."""
+    since = (
+        (shared.computed_at - SINCE_CLOCK_MARGIN)
+        .astimezone(UTC)
+        .strftime("%Y-%m-%dT%H:%M:%SZ")
+    )
+    status, issues = _get(
+        f"repos/{owner}/{name}/issues?state=all&since={since}&per_page=100"
+    )
+    if status != 200 or not is_json_array(issues) or len(issues) >= 100:
+        return True
+    filers = {_login_key(DEMOTION_FILER), _login_key(identity)}
+    for issue in map(json_object, issues):
+        if "pull_request" in issue:
+            continue
+        author = _login_key(json_object(issue.get("user")).get("login"))
+        if author in filers or issue.get("number") in shared.demotion.records:
+            return True
+    return False
+
+
 def shared_refusal(
     repo: str,
     shared: SharedPostMerge,
@@ -2594,12 +2661,23 @@ def shared_refusal(
     identity: str,
     self_logins: Collection[str],
     lane: bool,
+    authority: str | None = None,
     now: datetime | None = None,
 ) -> str | None:
     """Why `shared` may not stand in for this pull request's own reads, or
     None: it must name the same identity, self logins and lane, be no older
-    than `SHARED_MAX_AGE`, have been computed at `branch`'s current head, and
-    share this base's newest pipeline-config commit (so the same floor)."""
+    than `SHARED_MAX_AGE`, have no demotion record filed or changed since
+    (`_demotion_changed`), give this base the floor its own read would
+    (`merged_since_floor` with the shared demotion), and judge every merge
+    the post-merge check would judge now.
+
+    The check judges `branch` from the floor, never the base, so the answer
+    holds for any base with that floor. A newer default-branch head changes
+    the answer only through a merge the check counts (`derive_auto_merge`);
+    one that is not in the answer makes this pull request read its own.
+    Later runs on already-counted merges are not re-read: an unverified one
+    still refuses through `in_flight`, and a verified one counts no run
+    created after it verified."""
     age = (now or datetime.now(UTC)) - shared.computed_at
     owner, name = _split_repo(repo)
     checks = (
@@ -2615,15 +2693,44 @@ def shared_refusal(
     refusal = next((text for refused, text in checks if refused), None)
     if refusal:
         return refusal
-    status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
-    head = payload.get("sha") if status == 200 and is_json_object(payload) else None
-    if head != shared.main_sha:
-        return "main-moved"
+    if not shared.demotion.active and _demotion_changed(owner, name, shared, identity):
+        return "demotion-changed"
     try:
-        if newest_config_commit(repo, base_sha) != shared.config_sha:
-            return "config-differs"
+        # The same newest config commit is the same floor; any other base
+        # walks its own config history to the floor it would read.
+        if newest_config_commit(
+            repo, base_sha
+        ) != shared.config_sha and shared.floor != merged_since_floor(
+            repo, base_sha, shared.demotion, authority
+        ):
+            return "floor-differs"
     except PolicyReadError:
         return "config-unreadable"
+    status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
+    head = payload.get("sha") if status == 200 and is_json_object(payload) else None
+    if head == shared.main_sha:
+        return None
+    counted = {
+        json_object(m).get("number")
+        for m in json_array(shared.gate.report.get("autoMerges"))
+    }
+    try:
+        merges = _merged_since(owner, name, branch, shared.floor)
+        if merges is None:
+            return "merged-history-truncated"
+        for pr in merges:
+            # Treating no actor as human counts a superset of the check's
+            # merges, so no merge it would judge is missed.
+            merge = derive_auto_merge(
+                pr,
+                lambda actor: False,
+                identity,
+                lane_merges_only=shared.lane_merges_only,
+            )
+            if isinstance(merge, AutoMerge) and merge.number not in counted:
+                return f"new-merge:#{merge.number}"
+    except PolicyReadError:
+        return "merged-unreadable"
     return None
 
 
@@ -2696,16 +2803,30 @@ def assess(
     )
     if enabled_authority(config) != authority:
         return stopped
+    # The acting login and the credential chokepoint depend on the
+    # credentials alone: a gate process of the same run with the same ones
+    # reuses a login read and a pass (`run_cache.credentials`).
+    held = run_cache.credentials()
     if acting_login is None:
-        try:
-            acting_login = read_acting_login()
-        except PolicyReadError:
-            acting_login = None
+        acting_login = run_cache.get("acting-login", held, None)
+        if not isinstance(acting_login, str):
+            try:
+                acting_login = read_acting_login()
+                run_cache.put("acting-login", held, acting_login)
+            except PolicyReadError:
+                acting_login = None
     resolved = resolve_identity(identity, acting_login, self_logins)
     details["identity"] = resolved.login
     if resolved.reason or resolved.login is None:
         return replace(stopped, reason=resolved.reason)
-    credentials = credential_refusal(resolved.login)
+    passed = f"{held}|{resolved.login.casefold()}"
+    credentials = (
+        None
+        if run_cache.get("identity-only", passed, None) is True
+        else credential_refusal(resolved.login)
+    )
+    if credentials is None:
+        run_cache.put("identity-only", passed, True)
     details["credentials"] = credentials or "identity-only"
     if credentials:
         return replace(stopped, reason=f"credentials:{credentials}")
@@ -2721,7 +2842,7 @@ def assess(
     # default branch only, so a merge into any other base would go unjudged.
     # An unreadable default branch is a stop (the identity's entries leave).
     try:
-        default = _default_branch(repo)
+        default = _default_branch(repo, shared=True)
     except PolicyReadError:
         return replace(stopped, reason=DEFAULT_BRANCH_UNREADABLE)
     if base_ref != default:
@@ -2749,6 +2870,7 @@ def assess(
             identity=resolved.login,
             self_logins=self_logins,
             lane=lane,
+            authority=authority,
         )
         details["postMergeShared"] = f"unused:{unusable}" if unusable else "used"
         reuse = None if unusable else shared

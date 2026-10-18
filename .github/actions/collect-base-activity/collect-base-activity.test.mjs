@@ -219,8 +219,11 @@ test("a listed verify-script gets one wrapper rule on a read-only copy that runs
 });
 
 // A chained `; echo "$?"` needs approval the dontAsk lane cannot give, so the
-// wrapper reports the script's exit status itself and the prompt says so.
-const RUN_ALONE = "Run each verification wrapper as its own command, not chained to another; it prints the script's exit status.";
+// wrapper reports the script's exit status itself and the prompt says so. The
+// same sentence steers the run off the compound commands, pipes and
+// interpreter one-liners the lane denied in runs 39092789214 and 39092790956.
+const RUN_ALONE =
+  "Bash runs only the wrappers named in these instructions, each as its own command (a verification wrapper prints the script's exit status): use Read, Grep and Glob to inspect files and Edit or Write to change them, never cd, ;, &&, a pipe or an interpreter one-liner.";
 test("the verify-script wrapper prints the script's exit status and exits with it", () => {
   writeFileSync(path.join(base, "plugins", "vtest", "scripts", "fails.sh"), "echo failing\nexit 3\n");
   const { status, args, verifyDir } = withVerify([VERIFY, "plugins/vtest/scripts/fails.sh"]);
@@ -241,6 +244,25 @@ test("the verify-script wrapper refuses a path outside the checkout", () => {
     assert.equal(run.stdout, "", `${arg} ran the script`);
     assert.match(run.stderr, /refused: .* is outside the checkout/, arg);
   }
+});
+
+// The wrapper unsets the GitHub token in the script's own environment. This
+// does not hide it from an ancestor's /proc/<pid>/environ.
+test("the verify-script wrapper runs the script without GH_TOKEN or GITHUB_TOKEN and keeps the rest of the environment", () => {
+  mkdirSync(path.join(base, "plugins", "vtest", "scripts"), { recursive: true });
+  writeFileSync(
+    path.join(base, "plugins", "vtest", "scripts", "env.sh"),
+    'echo "GH_TOKEN=${GH_TOKEN-unset} GITHUB_TOKEN=${GITHUB_TOKEN-unset} KEPT=${KEPT-unset}"\n',
+  );
+  const { status, verifyDir } = withVerify([VERIFY, "plugins/vtest/scripts/env.sh"]);
+  assert.equal(status, 0);
+  const run = spawnSync(path.join(verifyDir, "bin", "env"), [], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, GH_TOKEN: "fake-gh", GITHUB_TOKEN: "fake-github", KEPT: "yes" },
+  });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout, "GH_TOKEN=unset GITHUB_TOKEN=unset KEPT=yes\n");
 });
 
 // pr-run-activity.md, "Skill activities": the issue lane lists the repository's
@@ -287,6 +309,32 @@ test("the lane tools get wrapper rules, and the commit grant gains delete_files"
   assert.ok(!allowed.some((rule) => /^Bash\((python3|bash|node|git)[ )]/.test(rule)), allowed.join(" | "));
 });
 
+// The issue lane lists skill-quality's two checks (#7840). check-skill.sh runs
+// each skill's scripts/*.test.sh from the checkout, so a fixture skill whose
+// test prints the tokens and fails shows what that test saw.
+const SKILL_TOOLS = ["plugins/skill-quality/scripts/check-skill.sh", "plugins/skill-quality/scripts/check-evals-quality.sh"];
+test("skill-quality's checks get wrapper rules, and check-skill runs a skill's test scripts without the GitHub token", () => {
+  spawnSync("cp", ["-R", new URL("plugins/skill-quality", REPO).pathname, path.join(base, "plugins")]);
+  const { status, allowed, verifyDir, workspace } = withVerify(SKILL_TOOLS);
+  assert.equal(status, 0);
+  const bin = (name) => path.join(verifyDir, "bin", name);
+  assert.deepEqual(
+    allowed.filter((rule) => rule.startsWith("Bash")),
+    [`Bash(${bin("check-skill")} *)`, `Bash(${bin("check-evals-quality")} *)`],
+  );
+  const skill = path.join(workspace, "skills", "demo");
+  mkdirSync(path.join(skill, "scripts"), { recursive: true });
+  writeFileSync(path.join(skill, "SKILL.md"), "---\ndescription: Demo skill. Use when 'demo'.\n---\n\n# Demo\n");
+  writeFileSync(path.join(skill, "scripts", "token.test.sh"), 'echo "seen=${GH_TOKEN-unset},${GITHUB_TOKEN-unset}"\nexit 1\n');
+  const run = spawnSync(bin("check-skill"), ["skills"], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, GH_TOKEN: "fake-gh", GITHUB_TOKEN: "fake-github" },
+  });
+  assert.match(run.stdout + run.stderr, /script test failed: scripts\/token\.test\.sh/);
+  assert.match(run.stdout + run.stderr, /seen=unset,unset/);
+});
+
 test("the prompt names run-test-file as the way to run a test and says compound cd commands are refused", () => {
   const { status, args, verifyDir } = withLaneTools();
   assert.equal(status, 0);
@@ -301,6 +349,37 @@ test("without run-test-file in the list the prompt names no test entry", () => {
   const { status, args } = withVerify([VERIFY]);
   assert.equal(status, 0);
   assert.ok(!args.includes("Run a test file"), args);
+});
+
+test("the prompt names git-mv-rm as the way to rename or delete a file, only when it is listed", () => {
+  const lane = withLaneTools();
+  assert.equal(lane.status, 0);
+  assert.ok(lane.args.includes(`Rename or delete a file with ${path.join(lane.verifyDir, "bin", "git-mv-rm")}.`), lane.args);
+  const bare = withVerify([VERIFY]);
+  assert.equal(bare.status, 0);
+  assert.ok(!bare.args.includes("Rename or delete"), bare.args);
+});
+
+// The issue lane lists new-changelog-fragment.sh: from the read-only copy of
+// scripts/, it must write the fragment into the checkout it runs in.
+test("new-changelog-fragment writes a fragment into the checkout from the read-only copy", () => {
+  const files = ["scripts/new-changelog-fragment.sh", "scripts/lib/changelog-fragments.sh", "scripts/lib/read-list.sh"];
+  for (const file of files) {
+    mkdirSync(path.join(base, path.dirname(file)), { recursive: true });
+    writeFileSync(path.join(base, file), readFileSync(new URL(file, REPO)));
+  }
+  const { status, verifyDir, workspace } = withVerify([files[0]]);
+  assert.equal(status, 0);
+  spawnSync("git", ["-C", workspace, "init", "-q"]);
+  spawnSync("git", ["-C", workspace, "symbolic-ref", "HEAD", "refs/heads/fix/x"]);
+  mkdirSync(path.join(workspace, "plugins", "alpha", ".claude-plugin"), { recursive: true });
+  writeFileSync(path.join(workspace, "plugins", "alpha", ".claude-plugin", "plugin.json"), '{"name":"alpha"}\n');
+  mkdirSync(path.join(workspace, "scripts"), { recursive: true });
+  writeFileSync(path.join(workspace, "scripts", "fragment-plugins.txt"), "alpha\n");
+  const run = spawnSync(path.join(verifyDir, "bin", "new-changelog-fragment"), ["alpha", "patch"], { cwd: root, encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stdout, /^\.changes\/alpha\/fix-x-[0-9a-f]{8}\.md\n$/);
+  assert.equal(readFileSync(path.join(workspace, run.stdout.trim()), "utf8"), "---\nbump: patch\n---\n\n");
 });
 
 test("run-test-file runs an in-checkout test file by its runner and prints the exit status", () => {

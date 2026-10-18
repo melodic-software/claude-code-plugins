@@ -339,6 +339,10 @@ emit_file_rules() {
 #   disableAutoMode / permissions.disableAutoMode
 #                      accepted at BOTH key paths, and must be the STRING
 #                      "disable" — a boolean is a silent no-op
+#   prependPluginsNamesGuard / modsOverrideDenyRules
+#                      a managed prependPlugins list without the built-in guard,
+#                      or the guard's allowModsToOverrideDenyRules option, leaves
+#                      deny rules not final against a user's mod
 #
 # Values are emitted as JSON (tojson) so a boolean true and the string "true"
 # stay distinguishable downstream; for the type-confusion check that distinction
@@ -365,7 +369,19 @@ emit_file_conf() {
       (if (.permissions | type) == "object" and (.permissions | has("disableAutoMode"))
          then emit("permissions.disableAutoMode"; .permissions.disableAutoMode | tojson) else empty end),
       (if has("allowManagedPermissionRulesOnly")
-         then emit("allowManagedPermissionRulesOnly"; .allowManagedPermissionRulesOnly | tojson) else empty end)
+         then emit("allowManagedPermissionRulesOnly"; .allowManagedPermissionRulesOnly | tojson) else empty end),
+      (if has("prependPlugins")
+         then emit("prependPluginsNamesGuard"; (.prependPlugins | type == "array"
+           and any(.[]; . == "sec-default@builtin" or . == "cc-plugin-sec-default@builtin")) | tojson)
+       else empty end),
+      # Every level is type-checked before it is indexed: one jq error here
+      # would empty the whole array, the managed lock record included.
+      (if (.pluginConfigs | type) == "object"
+          and (.pluginConfigs["cc-plugin-sec-default@builtin"] | type) == "object"
+          and (.pluginConfigs["cc-plugin-sec-default@builtin"].options | type) == "object"
+          and (.pluginConfigs["cc-plugin-sec-default@builtin"].options | has("allowModsToOverrideDenyRules"))
+         then emit("modsOverrideDenyRules"; .pluginConfigs["cc-plugin-sec-default@builtin"].options.allowModsToOverrideDenyRules | tojson)
+       else empty end)
     ] | .[]
   ' 2>/dev/null | tr -d '\r' | while IFS= read -r line; do
     [[ -n "$line" ]] && printf 'conf %s %s %s\n' "$scope" "$surface" "$line"
