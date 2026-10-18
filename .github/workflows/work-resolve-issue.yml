@@ -45,7 +45,7 @@ jobs:
     permissions: {}
     env:
       # At most this many resolve-issue runs at once. The one place to change it.
-      SLOTS: 6
+      SLOTS: 4
       ISSUE_NUMBER: ${{ github.event.issue.number }}
     outputs:
       slot: ${{ steps.slot.outputs.slot }}
@@ -82,7 +82,7 @@ jobs:
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
       app-label: agent-ready
-      timeout-minutes: 50
+      timeout-minutes: 25
     secrets:
       claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
 

@@ -1012,8 +1012,8 @@ Step 14 revokes the token as soon as the activity is done. Residuals:
 The write file's `issue-number` input runs a lane on an issue instead of a PR. Its one caller is
 [`work-resolve-issue.yml`](../../../.github/workflows/work-resolve-issue.yml): the `agent-ready`
 label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), then
-`report-outcome` (a script) in a second run job. At most six `resolve-issue` jobs run at once:
-a `pick-slot` job takes the issue number modulo `SLOTS` (6), and `resolve-issue` joins the
+`report-outcome` (a script) in a second run job. At most four `resolve-issue` jobs run at once:
+a `pick-slot` job takes the issue number modulo `SLOTS` (4), and `resolve-issue` joins the
 `work-resolve-issue-slot-<n>` concurrency group with `queue: max`, so a burst of admissions waits
 in line, holding no runner, instead of spending the lanes App's hourly API quota at once.
 `report-outcome` takes no slot. What changes from the PR flow:
@@ -1067,8 +1067,9 @@ in line, holding no runner, instead of spending the lanes App's hourly API quota
   `Hold: a human merges this` for structural or untrusted-provenance work, for a diff that
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
   resolved config; unreadable holds every PR), or for one too large for the compare listing to
-  show whole. The run's own summary is quoted with issue references broken, so
-  squash-merging the PR closes only `#<n>`. On `pushback` or `stopped`, and when the outcome file is missing
+  show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
+  event is a listed human's or the lanes App's, or cannot be read, and never for anyone else's.
+  The run's own summary is quoted with issue references broken, so squash-merging the PR closes only `#<n>`. On `pushback` or `stopped`, and when the outcome file is missing
   or invalid, it labels the issue with the human-gated role label and comments why; pushback also
   removes `agent-ready`. Each comment opens with the marker
   `<!-- work-resolve-issue outcome=<exit> run=<run id> -->`, which `issue-prior` matches to the
