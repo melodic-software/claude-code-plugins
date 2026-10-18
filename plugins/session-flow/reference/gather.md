@@ -25,8 +25,9 @@ pre-compute block (melodic-software/claude-code-plugins#1687). The accepted and 
 worktree-isolated Bash are owned by `/source-control:worktree`, under "Accepted command shapes for
 body-time and subagent Bash".
 
-That heading holds the bare `$HOME` exception and leaves other names unsettled. This file adds one
-observation: any braced form, including `${HOME}`, is refused. Prefer a probe that needs no
+That heading holds the bare `$HOME` exception and cites this file for its basis. The observation:
+a bare `$HOME` is the one variable seen to pass the guard in every position. Other names are
+unsettled, and any braced form, including `${HOME}`, is refused. Prefer a probe that needs no
 expansion at all.
 
 - **Pointer**: the pass and refuse table in
