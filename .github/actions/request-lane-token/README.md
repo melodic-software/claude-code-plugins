@@ -33,8 +33,6 @@ run, and mints nothing ([Check mode](#check-mode)).
 | `expires-at` | The expiry the broker returned |
 | `mint-id` | `<check_run_id>-<run_attempt>`, the broker's audit key for this mint |
 | `failure-reason` | The one-line reason the step failed with (`lane-token-denied: ...`); empty on a success |
-| `rate-limited` | `true` when the step failed because GitHub's rate limit resets past the retry budget; empty otherwise |
-| `resets-at` | When that limit resets, ISO 8601 UTC; empty unless `rate-limited` |
 
 ## What it does
 
@@ -50,10 +48,8 @@ run, and mints nothing ([Check mode](#check-mode)).
    - `github-rate-limited`: GitHub rate-limited the broker. The retry waits exactly the
      `Retry-After` header (a minute when it is absent) plus up to 20 seconds of jitter. When that
      wait would end more than 8 minutes after the first request, it fails red at once, naming the
-     limit kind (`primary` or `secondary`), its resource and the time it resets, and sets
-     `rate-limited` and `resets-at`. With `issue-number` set it also uploads the deferral artifact
-     `lane-limited-<issue>-<reset epoch seconds>`: work-unblock's sweep reads it, posts the
-     issue's `limited` outcome marker, and restarts the issue after the reset.
+     limit kind (`primary` or `secondary`), its resource and the time it resets. On an issue lane,
+     work-unblock's hourly sweep re-fires such a run once the reset has passed.
    - `github-unavailable`: another broker call to GitHub failed. The retry waits 60, 120 and 240
      seconds plus up to 20 seconds of jitter, or a longer `Retry-After`.
 

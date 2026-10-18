@@ -276,10 +276,19 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
 
   // A label other than agent-ready starts neither job, so it holds no runner.
   for (const [label, runs] of [["agent-ready", true], ["bug", false]]) {
-    const context = { "github.event.label.name": label };
+    const context = { "github.event.label.name": label, "needs.pick-slot.outputs.capped": "false" };
     assert.equal(evaluate(pick.if, context), runs, label);
     assert.equal(evaluate(resolve.if, context), runs, label);
   }
+  // At the WIP cap resolve-issue takes no slot; a cap check that failed or
+  // set nothing starts it.
+  assert.equal(pick.outputs.capped, "${{ steps.wip.outputs.capped }}");
+  for (const [capped, runs] of [["true", false], ["false", true], ["", true]]) {
+    const context = { "github.event.label.name": "agent-ready", "needs.pick-slot.outputs.capped": capped };
+    assert.equal(evaluate(resolve.if, context), runs, `capped ${JSON.stringify(capped)}`);
+  }
+  const wip = pick.steps.find((item) => item.id === "wip");
+  assert.equal(wip["continue-on-error"], true, "a failed cap check must start the run");
   // The per-issue run group still dedupes: one agent-ready run per issue.
   assert.equal(
     concurrency.group,

@@ -15,7 +15,6 @@ import {
   decide,
   findPrior,
   findPriorMain,
-  limitedPlan,
   main,
   parseOutcomeMarker,
   readHoldPaths,
@@ -1003,21 +1002,6 @@ test("a stopped, pushback or limited marker for the branch's run keeps it from r
     const markers = [{ outcome, run: "400", resets: null, at: Date.parse("2026-10-16T11:00:00Z") }];
     assert.deepEqual(prior({ branches: [branchFact(lane(400))], markers }), { action: "run" }, outcome);
   }
-});
-
-// work-unblock's plan for a run whose lane token request ran into GitHub's
-// rate limit: the limited marker with the recorded reset, naming no run.
-test("the rate-limit plan is a limited marker with its reset, no label, and leaves a lane branch reusable", () => {
-  const plan = limitedPlan({ issueNumber: 77, branch: "", resets: "2026-10-16T15:00:00Z", runId: "", runUrl: "", limit: "GitHub's API rate limit" });
-  assert.equal(plan.action, "limited");
-  assert.deepEqual(plan.addLabels, []);
-  assert.deepEqual(plan.removeLabels, []);
-  assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=limited resets=2026-10-16T15:00:00Z run=0 -->\n"), plan.comment);
-  assert.match(plan.comment, /stopped on GitHub's API rate limit, not on this issue/);
-  const marker = parseOutcomeMarker(plan.comment);
-  assert.deepEqual(marker, { outcome: "limited", resets: Date.parse("2026-10-16T15:00:00Z"), run: "0" });
-  const markers = [{ ...marker, at: Date.parse("2026-10-16T11:00:00Z") }];
-  assert.deepEqual(prior({ branches: [branchFact(lane(400))], markers }), { action: "reuse", branch: lane(400) });
 });
 
 test("a marker for another run leaves the branch reusable", () => {

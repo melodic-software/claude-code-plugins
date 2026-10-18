@@ -2,13 +2,20 @@
 
 ## 2.11.5 - 2026-10-18
 
-An issue-lane run whose lane token request fails because GitHub's rate limit resets past the
-8-minute retry budget no longer ends the issue's lane. `request-lane-token` sets `rate-limited` and
-`resets-at` and, for an issue, uploads a `lane-limited-<issue>-<reset>` artifact. work-unblock's
-hourly sweep, once the lanes App has quota again, reads that artifact from a run whose
-`Request the lane token` step failed, posts report-outcome's `limited` marker with the reset and
-no label, and the limit-stop restart takes over: after the reset, within `restarts-per-run` and
-`limit-stops-per-issue`. Such a run no longer spends the once-per-workflow-version re-fire.
+An issue-lane run never dies on GitHub's rate limit or a pile of open lane pull requests.
+
+- New `limits.wip-cap` (default 60, set in this repository's config). `work-resolve-issue`'s
+  `pick-slot` job counts the lanes App's open pull requests with one search, through the new
+  `check-wip-cap` action. At or over the cap, `resolve-issue` is skipped and takes no slot and no
+  lane token. A failed count starts the run.
+- work-unblock's hourly sweep re-fires a run that did no work: either its `Request the lane token`
+  step failed (GitHub's rate limit past the 8-minute retry budget, among other causes) or the WIP
+  cap skipped it. It waits `reset-clamp-min` hours after the run ended. The broker's `Retry-After`
+  is at most an hour, so any rate-limit reset has passed by then. It acts only while fewer than
+  `wip-cap` lane PRs are open, and stays within `restarts-per-run`.
+- Such a re-fire is not limited to once per workflow version and is not a limit stop, so it never
+  adds `needs-human`.
+
 `version` stays 2.
 
 ## 2.11.3 - 2026-10-18
