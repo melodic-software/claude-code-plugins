@@ -2807,7 +2807,7 @@ class TestSnapshots(SessionCase):
         return next(c for c in snap["cards"]["Q1"] if c["ref"] == ref)
 
     def test_the_anonymous_view_has_exactly_four_keys(self):
-        self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": False, "schemaVersion": 2})
+        self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": False, "schemaVersion": 3})
         self.act("rotate_guest_link", HOST, {})
         self.assertTrue(self.s.anonymous_view()["joinNeedsKey"])
 
@@ -2880,7 +2880,7 @@ class TestSnapshots(SessionCase):
 
     def test_a_snapshot_carries_schema_version_and_rev(self):
         snap = self.s.snapshot(self.cy)
-        self.assertEqual((snap["schemaVersion"], snap["rev"]), (2, self.s.state["rev"]))
+        self.assertEqual((snap["schemaVersion"], snap["rev"]), (3, self.s.state["rev"]))
 
     def test_the_shared_part_is_built_once_per_rev(self):
         first = self.s._base()
@@ -4988,7 +4988,7 @@ class TestReports(SessionCase):
 
 
 class TestReportsOnAnOlderFile(StateFixtureCase):
-    """A schemaVersion 2 file from before reports (state-v2.json) loads unchanged and takes one."""
+    """A schemaVersion 2 file from before reports (state-v2.json) loads at version 3, otherwise unchanged, and takes one."""
 
     def test_a_v2_state_without_reports_loads_and_takes_a_report(self):
         tmp = Path(tempfile.mkdtemp())
@@ -4997,7 +4997,7 @@ class TestReportsOnAnOlderFile(StateFixtureCase):
         raw = json.loads((tmp / "state.json").read_text(encoding="utf-8"))
         self.assertNotIn("reports", raw)
         s = session.Session.load(tmp / "state.json", clock=Clock(1_760_700_000.0), ids=Ids(), validate_writes=True)
-        self.assertEqual(s.state, raw)
+        self.assertEqual(s.state, {**raw, "schemaVersion": 3})  # the file names no one with @, so only its version moves
         guest = next(p for p in s.state["people"] if p != HOST and s.state["people"][p]["status"]["kind"] == "active")
         self.assertEqual(s.report(guest, {"text": "Broken", "ctx": {**CTX, "qid": None}})["id"], "F1")
         self.assertEqual(session.Session.load(tmp / "state.json", validate_writes=True).state["session"]["seq"]["F"], 1)
@@ -5140,7 +5140,7 @@ class TestTakingPart(SessionCase):
 
 
 class TestTakingPartOnAnOlderFile(StateFixtureCase):
-    """A schemaVersion 2 file from before passes and `for` (state-v2.json) loads unchanged and takes both."""
+    """A schemaVersion 2 file from before passes and `for` (state-v2.json) loads at version 3, otherwise unchanged, and takes both."""
 
     def test_a_v2_state_loads_and_takes_a_pass_and_a_target(self):
         tmp = Path(tempfile.mkdtemp())
@@ -5149,10 +5149,148 @@ class TestTakingPartOnAnOlderFile(StateFixtureCase):
         raw = json.loads((tmp / "state.json").read_text(encoding="utf-8"))
         self.assertFalse({"passes", "lateActs"} & set(raw) or any("for" in q for q in raw["questions"]))
         s = session.Session.load(tmp / "state.json", clock=Clock(1_760_700_000.0), ids=Ids(), validate_writes=True)
-        self.assertEqual(s.state, raw)
+        self.assertEqual(s.state, {**raw, "schemaVersion": 3})  # the file names no one with @, so only its version moves
         s.set_for(HOST, {"qid": "Q5", "for": ["Ann"]})
         self.assertEqual(s.pass_("aB3dE5fG7hJ9", {"qid": "Q5", "reason": "Not mine"}), {"pass": True})
         self.assertEqual(session.Session.load(tmp / "state.json", validate_writes=True).state["passes"]["Q5"]["aB3dE5fG7hJ9"]["reason"], "Not mine")
+
+
+class TestMentionPointers(SessionCase):
+    """A mention points at the person (Slack's <@U012AB3CD>, which shows the current display name): written text
+    stores "@Name" as <@pid>, so a rename or a merge shows in it, and Claude reads "@Name" or "@someone"."""
+
+    def setUp(self):
+        super().setUp()
+        self.ann, self.bo, self.cy = self.people("Philippa", "Bo", "Cy")
+        variants = [{"id": "v-1", "label": "One page", "asset": HTML}, {"id": "v-2", "label": "Two steps", "asset": PNG}]
+        self.open_round(
+            text_q("Q1", rec=False, purpose="gather"),
+            {**text_q("Q2", rec=False), "format": {"kind": "prototype", "variants": variants}},
+            text_q("Q3"),
+        )
+        self.act("lock", HOST, {"qid": "Q3", "card": "c:rec"})
+
+    def tok(self, pid):
+        return f"<@{pid}>"
+
+    def mention_everywhere(self, by, name):
+        """by names `name` in chat, an answer, a suggestion (text and note), a proposal, a note and a request."""
+        self.act("chat", by, {"text": f"@{name} see this"})
+        self.act("answer", by, {"qid": "Q1", "text": f"Ask @{name} first", "view": "focus"})
+        self.act("suggest", by, {"qid": "Q3", "text": f"What @{name} said", "note": f"@{name} agrees"})
+        self.act("propose", by, {"text": f"@{name} should decide"})
+        self.act("annotate", by, {"qid": "Q2", "variant": "v-1", "text": f"@{name} look here", "anchor": {"selector": "html", "rect": {"x": 1, "y": 1, "w": 5, "h": 5}}})
+        self.act("request", by, {"qid": "Q1", "kind": "ask", "text": f"@{name} asked which step drops most"})
+        return self.written(by)
+
+    def written(self, by):
+        st = self.s.state
+        return [
+            st["chat"][-1]["text"],
+            next(c["text"] for c in st["cards"]["Q1"] if c["kind"] == "person" and c["pid"] == by),
+            st["suggestions"]["Q3"][-1]["text"],
+            st["suggestions"]["Q3"][-1]["note"],
+            st["proposals"][-1]["text"],
+            st["annotations"][-1]["text"],
+            st["requests"][-1]["text"],
+        ]
+
+    def test_every_mention_route_stores_a_pointer_so_a_rename_shows_in_each_and_claude_reads_the_new_name(self):
+        texts = self.mention_everywhere(self.bo, "Philippa")
+        self.assertEqual(texts, [
+            f"{self.tok(self.ann)} see this", f"Ask {self.tok(self.ann)} first", f"What {self.tok(self.ann)} said", f"{self.tok(self.ann)} agrees",
+            f"{self.tok(self.ann)} should decide", f"{self.tok(self.ann)} look here", f"{self.tok(self.ann)} asked which step drops most",
+        ])
+        self.assertEqual(len(self.notes(self.ann, "mention")), 6)  # the suggestion's text and note are one mention
+        self.act("rename", self.ann, {"name": "Courtney"})
+        self.act("update_settings", HOST, {"digestNames": True})
+        self.act("act_on_request", HOST, {"action": "run", "ids": [self.s.state["requests"][-1]["id"]]})
+        self.assertEqual(self.events("request-run")[-1]["requests"][0]["text"], "@Courtney asked which step drops most")
+        digest = digest_of(self)
+        self.assertEqual(digest["proposals"][0]["text"], "@Courtney should decide")
+        self.assertEqual(digest["annotations"][0]["text"], "@Courtney look here")
+        self.assertEqual([a["text"] for a in digest["questions"][0]["outcome"]["answers"]], ["Ask @Courtney first"])
+        log = json.dumps(self.s.state["log"])
+        self.assertNotIn("<@", log)
+        self.assertNotIn("Philippa", log)
+
+    def test_without_digest_names_claude_reads_someone(self):
+        self.act("propose", self.bo, {"text": "@Philippa should decide"})
+        self.assertEqual(digest_of(self)["proposals"][0]["text"], "@someone should decide")
+
+    def test_masked_names_never_reach_a_guest_through_mention_text(self):
+        for names, shown in (("initials", "P"), ("someone", "Someone")):
+            with self.subTest(names=names):
+                self.act("update_settings", HOST, {"names": names})
+                self.act("chat", self.bo, {"text": "@Philippa see this"})
+                self.act("set_removed", HOST, {"pid": self.cy, "on": True})
+                self.act("chat", self.bo, {"text": "@Cy left"})  # Cy is gone: the text stays
+                snap = self.s.snapshot(self.bo)
+                self.assertNotIn("Philippa", json.dumps(snap))
+                self.assertEqual(snap["chat"][-2]["text"], f"{self.tok(self.ann)} see this")
+                self.act("set_removed", HOST, {"pid": self.cy, "on": False})
+
+    def test_a_removed_person_reads_as_their_last_name_masked_like_every_name(self):
+        self.act("chat", self.bo, {"text": "@Cy has the numbers"})
+        self.act("set_removed", HOST, {"pid": self.cy, "on": True})
+        self.assertEqual(self.s.snapshot(self.bo)["mentions"], {self.cy: "Cy"})
+        self.act("update_settings", HOST, {"names": "initials"})
+        self.assertEqual(self.s.snapshot(self.bo)["mentions"], {self.cy: "C"})
+        self.act("update_settings", HOST, {"digestNames": True})
+        self.act("propose", self.bo, {"text": "@Bo asks what <@" + self.cy + "> found"})
+        self.assertEqual(digest_of(self)["proposals"][0]["text"], "@Bo asks what @Cy found")
+
+    def test_a_token_naming_no_one_reads_as_someone(self):
+        self.act("update_settings", HOST, {"digestNames": True})
+        self.act("propose", self.bo, {"text": "<@nobody0000> said so"})
+        self.assertEqual(digest_of(self)["proposals"][0]["text"], "@someone said so")
+
+    def test_a_merge_points_every_mention_of_the_merged_person_at_the_kept_one(self):
+        dee, _ = self.join("Dee")
+        texts = self.mention_everywhere(self.bo, "Dee")
+        self.assertTrue(all(self.tok(dee) in t for t in texts))
+        self.act("merge_people", HOST, {"from": dee, "to": self.ann})
+        self.assertEqual(self.written(self.bo), [t.replace(self.tok(dee), self.tok(self.ann)) for t in texts])
+        self.assertNotIn(self.tok(dee), json.dumps(self.s.state))
+        self.assertEqual({n["body"] for n in self.notes(self.ann, "mention")} & {f"{self.tok(dee)} see this", f"{self.tok(self.ann)} see this"}, {f"{self.tok(self.ann)} see this"})
+
+    def test_a_cut_never_splits_a_token(self):
+        self.act("chat", self.bo, {"text": "x" * 155 + " @Philippa"})
+        self.assertEqual(self.notes(self.ann, "mention")[-1]["body"], "x" * 155 + " ")
+        mid = self.s.state["chat"][-1]["id"]
+        self.act("chat", self.ann, {"text": "Yes", "replyTo": mid})
+        self.assertEqual(self.s.state["chat"][-1]["replyTo"]["excerpt"], "x" * 140)
+        self.act("chat", self.cy, {"text": "y" * 135 + " @Bo and more after it"})
+        self.act("chat", self.ann, {"text": "Yes", "replyTo": self.s.state["chat"][-1]["id"]})
+        self.assertEqual(self.s.state["chat"][-1]["replyTo"]["excerpt"], "y" * 135 + " ")
+
+    def test_a_token_counts_toward_the_text_limit(self):
+        self.assertEqual(len(self.tok(self.ann)) - len("@Philippa"), 3)  # Ids makes her pid tok0003x9
+        self.refused("too-long", "chat", self.bo, {"text": "x" * 1990 + " @Philippa"})  # 2000 characters, 2003 as stored
+        self.act("chat", self.bo, {"text": "x" * 1987 + " @Philippa"})  # 2000 as stored
+
+    def test_edits_store_pointers_too(self):
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Mine", "view": "focus"})
+        self.act("edit_card", HOST, {"qid": "Q1", "card": f"p:{self.bo}", "text": "Mine, says @Philippa"})
+        self.act("edit_lock", HOST, {"qid": "Q3", "text": "As @Cy wrote"})
+        self.act("request", self.bo, {"qid": "Q1", "kind": "ask", "text": "Which step?"})
+        self.act("act_on_request", HOST, {"action": "edit", "id": self.s.state["requests"][-1]["id"], "text": "Which step, @Cy?"})
+        st = self.s.state
+        self.assertEqual(
+            (st["cards"]["Q1"][-1]["text"], st["locks"]["Q3"]["source"]["text"], st["requests"][-1]["text"]),
+            (f"Mine, says {self.tok(self.ann)}", f"As {self.tok(self.cy)} wrote", f"Which step, {self.tok(self.cy)}?"),
+        )
+
+    def test_the_longer_name_holds_the_pointer(self):
+        bo2, _ = self.join("Bo Smith")
+        self.act("chat", self.ann, {"text": "thanks @Bo Smith and @bo"})
+        self.assertEqual(self.s.state["chat"][-1]["text"], f"thanks {self.tok(bo2)} and {self.tok(self.bo)}")
+
+    def test_a_guests_own_claude_reads_names_the_way_the_guest_does(self):
+        self.act("request", self.bo, {"qid": "Q1", "kind": "ask", "text": "@Philippa asked", "runner": "self"})
+        self.assertEqual(self.s.my_requests(self.bo, {})["requests"][0]["text"], "@Philippa asked")
+        self.act("update_settings", HOST, {"names": "initials"})
+        self.assertEqual(self.s.my_requests(self.bo, {})["requests"][0]["text"], "@someone asked")
 
 
 def support_event_error(ev):

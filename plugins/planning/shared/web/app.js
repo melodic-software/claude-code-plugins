@@ -430,27 +430,22 @@
       }
       if (i < line.length) withMentions(parent, line.slice(i));
     }
-    // ---------- @mentions: "@Name" of anyone who joined renders as a chip ----------
-    const everyone = () => [...new Set([...Object.values(Core.state.people || {}).map(p => p.name), ...Core.state.presence.map(p => p.name)])].filter(Boolean);
-    const MN = { key: "", re: null };
+    // ---------- @mentions: Core turns the server's <@pid> into "@Name" as this page shows that person; each renders as a chip ----------
+    const MN = { labels: null, re: null };
     function mentionRe() {
-      const names = everyone().sort((a, b) => b.length - a.length), key = names.join("\n");
-      if (key !== MN.key) {
-        MN.key = key;
-        const alt = names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
-        MN.re = names.length ? new RegExp(`(^|[^\\p{L}\\p{N}])@(${alt})(?![\\p{L}\\p{N}_])`, "giu") : null;
-      }
+      const labels = Core.mentionLabels();
+      if (labels !== MN.labels) { MN.labels = labels; MN.re = Core.labelRe([...labels, ["someone", ""]]); }
       return MN.re;
     }
-    const pidByName = n => Object.entries(Core.state.people || {}).find(([, v]) => v.name.toLowerCase() === n.toLowerCase())?.[0] || "";
     function withMentions(parent, s) {
       const re = s.includes("@") ? mentionRe() : null;
       if (!re) { parent.append(s); return; }
+      const by = new Map(Core.mentionLabels().map(([l, p]) => [l.toLowerCase(), p]));
       let i = 0;
       for (const m of s.matchAll(re)) {
-        const at = m.index + m[1].length, pid = pidByName(m[2]);
+        const at = m.index + m[1].length, pid = by.get(m[2].toLowerCase()) || "";
         if (at > i) parent.append(s.slice(i, at));
-        parent.append(E("span", "vf-mention" + (pid && isMe(pid) ? " vf-mention-me" : ""), "@" + (Core.state.people?.[pid]?.name || m[2])));
+        parent.append(E("span", "vf-mention" + (pid && isMe(pid) ? " vf-mention-me" : ""), "@" + m[2]));
         i = at + 1 + m[2].length;
       }
       if (i < s.length) parent.append(s.slice(i));
@@ -2472,8 +2467,8 @@
       const m = f.value.slice(0, pos).match(MQ);
       if (!m) return closeMention();
       const q = m[1].toLowerCase(), gone = new Set(Core.state.removed || []), hereNow = new Set(Core.state.presence.map(p => p.cid));
-      const items = Object.entries(Core.state.people || {}).filter(([p, v]) => !isMe(p) && !gone.has(p) && v.name.toLowerCase().startsWith(q))
-        .map(([pid, v]) => ({ pid, name: v.name, here: hereNow.has(pid) }))
+      const items = Object.entries(Core.state.people || {}).filter(([p]) => !isMe(p) && !gone.has(p) && Core.mentionLabel(p).toLowerCase().startsWith(q))
+        .map(([pid, v]) => ({ pid, name: v.name, label: Core.mentionLabel(pid), here: hereNow.has(pid) }))
         .sort((a, b) => b.here - a.here || a.name.localeCompare(b.name)).slice(0, 6);
       if (!items.length) return closeMention();
       const prev = ui.mention;
@@ -2508,7 +2503,7 @@
     }
     function pickMention(i) {
       const M = ui.mention; if (!M) return;
-      const f = M.field, ins = "@" + M.items[i].name + " ";
+      const f = M.field, ins = "@" + M.items[i].label + " ";
       f.value = f.value.slice(0, M.start) + ins + f.value.slice(M.end);
       const at = M.start + ins.length;
       closeMention();

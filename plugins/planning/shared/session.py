@@ -147,6 +147,7 @@ FORMATS = ("text", "choice", "multi", "scale", "rank", "confirm", "prototype")
 OPTION_COUNTS = {"choice": (2, 4), "multi": (2, 8), "rank": (3, 6)}
 OTHER_OPTION = migrate.OTHER_OPTION
 OTHER = OTHER_OPTION["id"]
+MENTION = migrate.MENTION
 VIEWS = ("focus", "compare", "tree", "host", "prototype")
 DEVICES = ("phone", "tablet", "computer")
 BROWSERS = ("chrome", "safari", "firefox", "edge", "samsung", "in-app", "other")
@@ -411,6 +412,23 @@ def iso(ts):
 
 def one_line(text):
     return " ".join(str(text).split())
+
+
+def clip(text, n):
+    """text cut to at most n characters, never inside a mention token: a token the cut would split goes whole."""
+    if len(text) <= n:
+        return text
+    cut = next((m.start() for m in MENTION.finditer(text, max(0, n - 34), n + 34) if m.start() < n < m.end()), n)
+    return text[:cut]
+
+
+def _retoken(obj, old, new):
+    """Every `old` mention token in the strings obj (a dict or list) holds becomes `new`, in place."""
+    for k, v in list(obj.items() if isinstance(obj, dict) else enumerate(obj)):
+        if isinstance(v, str):
+            obj[k] = v.replace(old, new)
+        elif isinstance(v, (dict, list)):
+            _retoken(v, old, new)
 
 
 def initials(name):
@@ -1542,6 +1560,9 @@ class Session:
         if src == HOST:
             raise _bad("from", "The owner cannot be merged.")
         st = self.state
+        for k, v in st.items():  # a mention of src now names dst
+            if k != "credentials" and isinstance(v, (dict, list)):
+                _retoken(v, f"<@{src}>", f"<@{dst}>")
         moved = {}  # (qid, old ref) -> new ref
 
         def swap(p):
@@ -2096,6 +2117,7 @@ class Session:
         text = _text(body, "text")
         with self._tx():
             self._owner(pid)
+            text = self._tokenize(text)
             q, card = self._person_card(body)
             if text != card["text"]:
                 ref = card_ref(card)
@@ -2289,6 +2311,7 @@ class Session:
         with self._tx() as st:
             self._writer(pid)
             self._throttle(pid, "answer", now)
+            text = self._tokenize(text)
             q = self._question(body.get("qid"))
             if q["purpose"] == "poll":
                 raise DomainError(409, "wrong-purpose", "A poll takes a pick, not a written answer.")
@@ -2354,6 +2377,7 @@ class Session:
         with self._tx() as st:
             self._writer(pid)
             self._throttle(pid, "pick", now)
+            comment, other = self._tokenize(comment, "comment"), self._tokenize(other, "other")
             q = self._question(body.get("qid"))
             key, fields = self._parse_pick(q, body)
             chose_other = self._is_other({"kind": "person", **fields})
@@ -2818,6 +2842,7 @@ class Session:
         with self._tx() as st:
             self._writer(pid)
             self._throttle(pid, "suggest", now)
+            text, note = self._tokenize(text), self._tokenize(note, "note", MAX_NOTE)
             q = self._question(body.get("qid"))
             if q["id"] not in st["locks"]:
                 r = self._round(q["round"])
@@ -2870,6 +2895,7 @@ class Session:
         now = self.now()
         with self._tx() as st:
             self._moderator(pid)
+            text = self._tokenize(text)
             q = self._question(body.get("qid"))
             if q["id"] not in st["locks"]:
                 raise DomainError(409, "not-locked", "This question is not locked.")
@@ -2910,6 +2936,7 @@ class Session:
         with self._tx():
             self._writer(pid)
             self._throttle(pid, "propose", now)
+            text = self._tokenize(text)
             prop = self._new_proposal(pid, text, {"kind": "direct"})
             self._notify_mentions(text, pid, "in a proposal")
         self._wrote(pid, "propose", now)
@@ -2973,14 +3000,15 @@ class Session:
             if not st["session"]["settings"]["chat"]:
                 raise DomainError(403, "chat-off", "Chat is off in this session.")
             self._throttle(pid, "chat", now)
+            text = self._tokenize(text)
             msg = {"id": self._next("M"), "pid": pid, "text": text, "at": now}
             skip = ()
             if reply_to is not None:
                 to = next((m for m in st["chat"] if m["id"] == reply_to and self._active(m["pid"])), None)
                 if to is None:
                     raise DomainError(404, "not-found", "The message you replied to is gone.")
-                msg["replyTo"] = {"id": to["id"], "pid": to["pid"], "excerpt": one_line(to["text"])[:MAX_EXCERPT]}
-                self._notify(to["pid"], "reply", "replied to your message.", actor=pid, by=pid, body=one_line(text)[:160], msg=msg["id"])
+                msg["replyTo"] = {"id": to["id"], "pid": to["pid"], "excerpt": clip(one_line(to["text"]), MAX_EXCERPT)}
+                self._notify(to["pid"], "reply", "replied to your message.", actor=pid, by=pid, body=clip(one_line(text), 160), msg=msg["id"])
                 skip = (to["pid"],)
             st["chat"].append(msg)
             del st["chat"][:-MAX_CHAT]
@@ -3072,6 +3100,7 @@ class Session:
         with self._tx() as st:
             self._writer(pid)
             self._throttle(pid, "annotate", now)
+            text = self._tokenize(text)
             q = self._question(body.get("qid"))
             if q["format"]["kind"] != "prototype":
                 raise _bad("qid", "Notes pin to prototype questions only.")
@@ -3108,6 +3137,7 @@ class Session:
         with self._tx() as st:
             self._writer(pid)
             self._throttle(pid, "request", now)
+            text = self._tokenize(text)
             q = self._question(body.get("qid"))
             pending = sum(1 for r in st["requests"] if r["pid"] == pid and (r["status"]["kind"] == "pending" or (r["runner"] == "self" and r["status"]["kind"] == "running")))
             if pending >= MAX_PENDING_REQUESTS:
@@ -3145,7 +3175,7 @@ class Session:
             if status not in allowed:
                 raise DomainError(409, "wrong-status", f"Request {r['id']} is {status}.", status=status)
             if action == "edit":
-                text = _text(body, "text")
+                text = self._tokenize(_text(body, "text"))
                 if text != r["text"]:
                     r["text"], r["edited"] = text, True
             elif action == "decline":
@@ -3232,12 +3262,14 @@ class Session:
         """GET /api/mine/requests: one's own `runner: self` requests, optionally of one status."""
         status = _choice(body or {}, "status", ("pending", "running", "declined", "done", "failed"), optional=True)
         with self._lock:
-            self._person(pid)
+            me = self._person(pid)
+            # the requester's own Claude reads names as its page shows them: "@someone" where names are masked
+            full = self.state["session"]["settings"]["names"] == "full" or me["role"] in ("owner", "leader")
             mine = [r for r in self.state["requests"] if r["pid"] == pid and r["runner"] == "self" and (status is None or r["status"]["kind"] == status)]
             out = []
             for r in mine:
                 q = self._question(r["qid"])
-                out.append({**copy.deepcopy(r), "question": q["text"]})
+                out.append(self._plain_all({**copy.deepcopy(r), "question": q["text"]}, full))
             return {"requests": out}
 
     def claim_my_request(self, pid, body):
@@ -3819,37 +3851,51 @@ class Session:
             k = old["rollup"]["n"] + 1 if old else 1
             self._notify(p, "queue", f"{k} new item{'' if k == 1 else 's'} in the queue.", actor=actor, rollup="queue")
 
+    def _tokenize(self, text, field="text", limit=MAX_TEXT):
+        """Written text with each "@Name" of an active person as <@pid> (migrate.tokenize), so a rename or a merge
+        shows in it. A token counts toward the field's limit."""
+        if not text:
+            return text
+        out = migrate.tokenize(text, [(v["name"], p) for p, v in self.state["people"].items() if self._active(p)])
+        if len(out) > limit:
+            raise DomainError(400, "too-long", f"{field} allows at most {limit} characters; each mention takes more of them than its name.", field=field, max=limit)
+        return out
+
+    def _plain(self, text, full):
+        """Text with each <@pid> as "@Name" (the last name of someone removed), or "@someone" without `full` or a person."""
+        people = self.state["people"]
+        return MENTION.sub(lambda m: "@" + (people[m.group(1)]["name"] if full and m.group(1) in people else "someone"), text)
+
+    def _plain_all(self, obj, full):
+        if isinstance(obj, str):
+            return self._plain(obj, full)
+        if isinstance(obj, dict):
+            return {k: self._plain_all(v, full) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [self._plain_all(v, full) for v in obj]
+        return obj
+
     def _mentioned(self, text, actor):
-        """pids named as @Name in text (longest names first, so @Sam 2 is not also @Sam), at most 10."""
-        t, out = str(text or "").casefold(), []
-        if "@" not in t:
-            return out
-        people = sorted(self.state["people"].items(), key=lambda kv: -len(kv[1]["name"]))
-        for p, v in people:
-            tag = "@" + v["name"].casefold()
-            i = t.find(tag)
-            while i >= 0:
-                end = i + len(tag)
-                if (i == 0 or not t[i - 1].isalnum()) and (end == len(t) or not (t[end].isalnum() or t[end] == "_")):
-                    t = t[:i] + " " * len(tag) + t[end:]
-                    if p != actor and self._active(p) and p not in out:
-                        out.append(p)
-                    break
-                i = t.find(tag, i + 1)
+        """Active pids text mentions (<@pid>), in order, at most MAX_MENTIONS."""
+        out = []
+        for p in MENTION.findall(str(text or "")):
+            if p != actor and self._active(p) and p not in out:
+                out.append(p)
         return out[:MAX_MENTIONS]
 
     def _notify_mentions(self, text, actor, where, *, before="", skip=(), **ref):
         old = set(self._mentioned(before, actor)) if before else set()
         for p in self._mentioned(text, actor):
             if p not in old and p not in skip:
-                self._notify(p, "mention", f"mentioned you {where}.", actor=actor, by=actor, body=one_line(text)[:160], **ref)
+                self._notify(p, "mention", f"mentioned you {where}.", actor=actor, by=actor, body=clip(one_line(text), 160), **ref)
 
     # -- event log and digest ----------------------------------------------------------------
 
     def _event(self, kind, **fields):
         log = self.state["log"]
         log["seq"] += 1
-        ev = {"seq": log["seq"], "at": iso(self.now()), "kind": kind, **fields}
+        # Claude reads the log: a mention reaches it as "@Name", or "@someone" without digestNames, never as a token.
+        ev = {"seq": log["seq"], "at": iso(self.now()), "kind": kind, **self._plain_all(fields, self.state["session"]["settings"]["digestNames"])}
         log["events"].append(ev)
         return ev
 
@@ -4536,10 +4582,15 @@ class Session:
             ],
             "requestCounts": self._request_counts(),
             "files": self._files(cards),
+            # the last names of people no longer here whom a text mentions, so <@pid> still reads as them
+            "mentions": {p: st["people"][p]["name"] for p in self._mentioned_anywhere() if p in st["people"] and p not in active},
         }
         base = json.loads(json.dumps(base))
         self._base_cache = (st["rev"], base)
         return base
+
+    def _mentioned_anywhere(self):
+        return sorted({p for h, k in migrate.mention_texts(self.state) for p in MENTION.findall(h[k])})
 
     def _files(self, cards):
         """C44: what everyone reads of the files the shown answers carry (the owner accepted each): name, kind, size
@@ -4626,6 +4677,7 @@ class Session:
                 snap["cards"] = {**base["cards"], **own}
             if mode != "full":
                 snap["people"] = [{**p, "name": initials(p["name"]) if mode == "initials" else "Someone"} for p in base["people"]]
+                snap["mentions"] = {p: initials(n) if mode == "initials" else "Someone" for p, n in base["mentions"].items()}
                 snap["cards"] = {q: [{**c, "votes": [v if v == pid else "" for v in c["votes"]]} for c in lst] for q, lst in snap["cards"].items()}
                 snap["chat"] = [
                     {**m, "reactions": {e: [p if p == pid else "" for p in ps] for e, ps in m["reactions"].items()}} if "reactions" in m else m for m in base["chat"]

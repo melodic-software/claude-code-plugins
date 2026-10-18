@@ -49,7 +49,7 @@ class TestChain(unittest.TestCase):
             "p:kL1mN3pQ5rS7:phone": {"aB3dE5fG7hJ9": ["heart"], "host": ["down"]},
         }})
         self.assertEqual({k: v for k, v in out.items() if k not in ("reactions", "schemaVersion")}, {k: v for k, v in doc.items() if k not in ("reactions", "schemaVersion")})
-        self.assertEqual((out["schemaVersion"], doc), (2, json.loads(raw)))
+        self.assertEqual((out["schemaVersion"], doc), (3, json.loads(raw)))  # state-v1.json names no one with @
 
     def test_the_current_chain_is_the_identity(self):
         doc = json.loads((FIXTURES / f"state-v{migrate.CURRENT}.json").read_text(encoding="utf-8"))
@@ -58,14 +58,14 @@ class TestChain(unittest.TestCase):
 
 class TestMigrate(unittest.TestCase):
     def test_current_version_comes_back_unchanged(self):
-        doc = {"schemaVersion": 2, "rev": 3}
-        self.assertEqual(migrate.migrate(doc), {"schemaVersion": 2, "rev": 3})
+        doc = {"schemaVersion": 3, "rev": 3}
+        self.assertEqual(migrate.migrate(doc), {"schemaVersion": 3, "rev": 3})
 
     def test_newer_version_is_refused_naming_both_versions(self):
         with self.assertRaises(migrate.MigrationError) as ctx:
-            migrate.migrate({"schemaVersion": 3})
-        self.assertIn("schemaVersion 3", str(ctx.exception))
-        self.assertIn("newer than 2", str(ctx.exception))
+            migrate.migrate({"schemaVersion": 4})
+        self.assertIn("schemaVersion 4", str(ctx.exception))
+        self.assertIn("newer than 3", str(ctx.exception))
 
     def test_missing_or_non_integer_version_is_refused(self):
         for doc in (
@@ -93,11 +93,11 @@ class TestMigrate(unittest.TestCase):
 
     def test_a_gap_in_the_chain_is_refused(self):
         with (
-            mock.patch.object(migrate, "CURRENT", 3),
+            mock.patch.object(migrate, "CURRENT", 4),
             self.assertRaises(migrate.MigrationError) as ctx,
         ):
-            migrate.migrate({"schemaVersion": 2})
-        self.assertIn("no migration from schemaVersion 2 to 3", str(ctx.exception))
+            migrate.migrate({"schemaVersion": 3})
+        self.assertIn("no migration from schemaVersion 3 to 4", str(ctx.exception))
 
 
 PROTO = FIXTURES / "state-v0-prototype.json"
@@ -529,16 +529,61 @@ class TestLoadRefuses(unittest.TestCase):
         self.assertIn("one reaction twice", self.load(change, "state-v2.json"))
 
 
+ANN2, BO2 = "aB3dE5fG7hJ9", "kL1mN3pQ5rS7"
+
+
+class TestMentionsBecomePointers(unittest.TestCase):
+    """2 -> 3 on state-v2-mentions.json: Kim (host), Ann and Bo, where Ann was Maude when Bo wrote M4. Each expected
+    text is the fixture's, with the tokens written in by hand."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.raw = json.loads((FIXTURES / "state-v2-mentions.json").read_text(encoding="utf-8"))
+        cls.notes = []
+        cls.doc = migrate.migrate(cls.raw, cls.notes)
+        cls.chat = {m["id"]: m for m in cls.doc["chat"]}
+
+    def test_a_name_one_person_holds_now_becomes_their_pointer_in_any_case(self):
+        self.assertEqual(self.chat["M3"]["text"], f"Thanks <@{ANN2}>, and <@host> too.")
+        self.assertEqual(self.doc["proposals"][0]["text"], f"Ask <@{BO2}> and @Sam about the address form.")
+
+    def test_one_left_over_name_and_one_notification_about_the_message_name_its_recipient_everywhere(self):
+        self.assertEqual(self.chat["M4"]["text"], f"<@{ANN2}> can you check the card field?")
+        self.assertEqual(self.chat["M8"]["replyTo"]["excerpt"], f"<@{ANN2}> can you check the card field?")
+        self.assertEqual(next(c["text"] for c in self.doc["cards"]["Q5"] if c["pid"] == BO2), f"Typing the card number. <@{ANN2}> saw it too.")
+        self.assertEqual(next(n["body"] for n in self.doc["notifications"][ANN2] if n.get("msg") == "M4"), f"<@{ANN2}> can you check the card field?")
+
+    def test_ambiguous_text_keeps_its_names(self):
+        self.assertEqual(self.chat["M5"]["text"], "@Sam and @Lee, what do you think?")  # two left over
+        self.assertEqual((self.chat["M6"]["text"], self.chat["M7"]["text"]), ("@Jo please look", "@Jo please look too"))  # Jo: Bo and Kim
+        self.assertEqual(self.chat["M8"]["text"], "Ping @Pat")  # no notification
+
+    def test_the_result_is_a_valid_v3_document_and_the_note_counts_without_values(self):
+        self.assertEqual(self.doc["schemaVersion"], 3)
+        self.assertIsNone(schema.first_error(self.doc, STATE))
+        self.assertEqual(self.notes, ["mentions: 6 texts point at the people they name; former names learned from notifications: 1"])
+        self.assertNotIn("Maude", json.dumps(self.notes))
+
+    def test_a_v2_file_loads_at_v3_and_keeps_the_original_as_state_v2_json(self):
+        path = tmpdir(self) / "state.json"
+        shutil.copy(FIXTURES / "state-v2-mentions.json", path)
+        raw = path.read_text(encoding="utf-8")
+        s = session.Session.load(path)
+        self.assertEqual(s.state["chat"][3]["text"], f"<@{ANN2}> can you check the card field?")
+        self.assertEqual(path.with_name("state.v2.json").read_text(encoding="utf-8"), raw)
+        self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["schemaVersion"], 3)
+
+
 class TestLoadMigrates(unittest.TestCase):
-    def test_a_v1_file_loads_at_v2_with_lists_and_keeps_the_original_as_state_v1_json(self):
+    def test_a_v1_file_loads_at_v3_with_lists_and_keeps_the_original_as_state_v1_json(self):
         path = tmpdir(self) / "state.json"
         shutil.copy(FIXTURES / "state-v1.json", path)
         raw = path.read_text(encoding="utf-8")
         s = session.Session.load(path)
-        self.assertEqual(s.state["schemaVersion"], 2)
+        self.assertEqual(s.state["schemaVersion"], 3)
         self.assertEqual(path.with_name("state.v1.json").read_text(encoding="utf-8"), raw)
         on_disk = json.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual((on_disk["schemaVersion"], on_disk["reactions"]["Q5"]["p:kL1mN3pQ5rS7:phone"]), (2, {"aB3dE5fG7hJ9": ["heart"], "host": ["down"]}))
+        self.assertEqual((on_disk["schemaVersion"], on_disk["reactions"]["Q5"]["p:kL1mN3pQ5rS7:phone"]), (3, {"aB3dE5fG7hJ9": ["heart"], "host": ["down"]}))
         if os.name != "nt":
             self.assertEqual(stat.S_IMODE(path.with_name("state.v1.json").stat().st_mode), 0o600)
 

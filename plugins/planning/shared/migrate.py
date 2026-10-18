@@ -9,12 +9,13 @@ schemaVersion: a file without one is version 0 only when it has the prototype's 
 """
 
 import collections
+import copy
 import hashlib
 import re
 import secrets
 import time
 
-CURRENT = 2
+CURRENT = 3
 MIGRATIONS = {}
 
 PROTOTYPE_KEYS = frozenset({"questions", "answers", "ideas", "people", "secrets", "round"})
@@ -750,3 +751,81 @@ def _v1_to_v2(doc, ctx):
 
 
 MIGRATIONS[1] = _v1_to_v2
+
+
+# -- 2 -> 3: a mention points at the person ---------------------------------------------------
+
+MENTION = re.compile(r"<@([A-Za-z0-9_-]{1,32})>")  # how state.json stores a mention: the person's pid
+BARE = re.compile(r"(?<![^\W_])@([^\W_]\w*)")  # an "@Word" no name matched
+LIMITS = {"note": 200, "excerpt": 140}
+
+
+def tokenize(text, names, limit=None):
+    """text with every "@Name" of `names` ((name, pid) pairs) as <@pid>, longest name first, so "@Sam 2" is not
+    also "@Sam". A name stands alone: no letter or digit before its @, none (nor _) after it. Tokens stay as they
+    are. With `limit`, text the tokens would make longer than limit comes back unchanged."""
+    if "@" not in text or not names:
+        return text
+    by = {}
+    for name, pid in names:
+        by.setdefault(name.casefold(), pid)
+    alt = "|".join(re.escape(n) for n in sorted(by, key=len, reverse=True))
+    pattern = re.compile(rf"(?<![^\W_])@({alt})(?!\w)", re.IGNORECASE)
+    parts = MENTION.split(text)  # text, pid, text, pid, ...: only the text between tokens is matched
+    for i in range(0, len(parts), 2):
+        parts[i] = pattern.sub(lambda m: f"<@{by[m.group(1).casefold()]}>" if m.group(1).casefold() in by else m.group(0), parts[i])
+    out = "".join(p if i % 2 == 0 else f"<@{p}>" for i, p in enumerate(parts))
+    return text if limit is not None and len(out) > limit else out
+
+
+def mention_texts(doc):
+    """(holder, key) of every text a person wrote that can hold a mention, as state.json keeps it."""
+    out = []
+    people_cards = [c for lst in _dict(doc.get("cards")).values() for c in _list(lst) if _dict(c).get("kind") == "person"]
+    for c in [*people_cards, *(t for lst in _dict(doc.get("cleared")).values() for t in _list(lst))]:
+        out += [(c, "text"), *((v, "text") for v in _list(c.get("history")) if isinstance(v, dict))]
+    out += [(lk["source"], "text") for lk in _dict(doc.get("locks")).values() if "text" in _dict(_dict(lk).get("source"))]
+    for s in (s for lst in _dict(doc.get("suggestions")).values() for s in _list(lst)):
+        out += [(s, "text"), (s, "note")]
+    out += [(q, "text") for q in _list(doc.get("questions")) if _dict(_dict(q).get("origin")).get("kind") == "host"]
+    out += [(r, "text") for key in ("proposals", "chat", "annotations", "requests") for r in _list(doc.get(key))]
+    out += [(m["replyTo"], "excerpt") for m in _list(doc.get("chat")) if isinstance(_dict(m).get("replyTo"), dict)]
+    out += [(n, "body") for lst in _dict(doc.get("notifications")).values() for n in _list(lst) if _dict(n).get("kind") in ("mention", "reply")]
+    return [(h, k) for h, k in out if isinstance(h, dict) and isinstance(h.get(k), str)]
+
+
+def _v2_to_v3(doc, ctx):
+    """Each "@Name" becomes <@pid>: first for a name only one person holds now; then, for a chat message with one
+    "@Word" left and one mention notification about it whose recipient it does not name already, Word for that
+    recipient, everywhere Word names only them. Text that stays ambiguous keeps its "@Name"."""
+    doc = copy.deepcopy(doc)
+    people = {p: v["name"] for p, v in _dict(doc.get("people")).items() if isinstance(_dict(v).get("name"), str)}
+    held = collections.Counter(n.casefold() for n in people.values())
+    names = [(n, p) for p, n in people.items() if held[n.casefold()] == 1]
+    told = collections.defaultdict(list)  # chat message -> who its mention notifications went to
+    for pid, lst in _dict(doc.get("notifications")).items():
+        for n in _list(lst):
+            if _dict(n).get("kind") == "mention" and isinstance(n.get("msg"), str):
+                told[n["msg"]].append(pid)
+    seen = collections.defaultdict(set)  # folded Word -> the pids evidence gives it
+    for m in _list(doc.get("chat")):
+        if not isinstance(_dict(m).get("text"), str):
+            continue
+        text = tokenize(m["text"], names)
+        left = [w for part in MENTION.split(text)[::2] for w in BARE.findall(part)]
+        named = set(MENTION.findall(text))
+        to = [p for p in told.get(m.get("id"), []) if p not in named]
+        if len(left) == 1 and len(to) == 1:
+            seen[left[0].casefold()].add(to[0])
+    aliases = [(w, next(iter(pids))) for w, pids in seen.items() if len(pids) == 1 and w not in held]
+    changed = 0
+    for holder, key in mention_texts(doc):
+        out = tokenize(holder[key], names + aliases, LIMITS.get(key, 2000))
+        changed += out != holder[key]
+        holder[key] = out
+    if changed:
+        ctx.note(f"mentions: {changed} texts point at the people they name; former names learned from notifications: {len(aliases)}")
+    return doc
+
+
+MIGRATIONS[2] = _v2_to_v3

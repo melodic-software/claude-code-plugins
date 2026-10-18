@@ -2,7 +2,7 @@
 // reads the prototype's state names; toView() builds them from the contract snapshot, and each action
 // below sends the contract route's body. The map: .work/shared-interview-ui/snapshot-map.md.
 (() => {
-  const SCHEMA_VERSION = 2; // the session file version this page was built for; another one reloads it
+  const SCHEMA_VERSION = 3; // the session file version this page was built for; another one reloads it
   const memory = new Map();
   const store = (() => { try { const s = window.localStorage; s.setItem("_t", "1"); s.removeItem("_t"); return s; } catch { return null; } })()
     || { getItem: k => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, v), removeItem: k => memory.delete(k) };
@@ -78,6 +78,13 @@
   const contractPick = f => ("option" in f ? { option: f.option ? optOut(f.option) : "" } : "options" in f ? { options: f.options.map(optOut) }
     : "order" in f ? { order: f.order.map(optOut) } : f);
 
+  // ---------- mentions: the server stores <@pid>; the page only ever shows and sends "@Name" ----------
+  const TOKEN = /<@([A-Za-z0-9_-]{1,32})>/g;
+  const initialsOf = name => ((name || "").match(/[\p{L}\p{N}]+/gu) || ["?"]).map(w => [...w][0]).join("").slice(0, 2).toUpperCase();
+  /** "@Name" text of the people a label map holds ([[label, pid]], longest first), as a pattern; null for none. */
+  const labelRe = labels => (labels.length ? new RegExp(`(^|[^\\p{L}\\p{N}])@(${labels.map(([l]) => l.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\p{L}\\p{N}_])`, "giu") : null);
+  let MENTIONS = { live: [], all: [], label: () => "someone" };
+
   function toView(s) {
     const people = {}, nameOf = pid => (pid === "host" && !people.host ? "Host" : people[pid]?.name || "Someone");
     const roles = {};
@@ -85,6 +92,17 @@
     const live = (s.people || []);
     const rounds = s.rounds || [], last = rounds[rounds.length - 1];
     const settings = s.settings || {};
+    // How a mention reads: the name as the page shows names (initials unless names are full; "someone" where the
+    // server hides them), a removed person's last name, and "someone" for anyone else.
+    const shown = n => (settings.names === "full" ? n : n === "Someone" ? "someone" : initialsOf(n));
+    const label = pid => (people[pid] ? shown(people[pid].name) : s.mentions?.[pid] ? shown(s.mentions[pid]) : "someone");
+    const labels = pids => {
+      const by = new Map();
+      for (const p of pids) { const l = label(p), k = l.toLowerCase(); by.set(k, by.has(k) && by.get(k)[1] !== p ? [l, ""] : [l, p]); }
+      return [...by.values()].sort((a, b) => b[0].length - a[0].length);
+    };
+    MENTIONS = { live: labels(live.map(p => p.pid)), all: labels([...Object.keys(people), ...Object.keys(s.mentions || {})]), label };
+    const plain = t => (typeof t === "string" && t.includes("<@") ? t.replace(TOKEN, (_, p) => "@" + label(p)) : t);
     const view = {
       ...DEFAULTS,
       schemaVersion: s.schemaVersion, rev: s.rev, title: s.title || "", goal: s.goal || "", intro: s.intro || "", ended: !!s.ended, serverTime: s.serverTime,
@@ -102,7 +120,7 @@
     const reqText = new Map([...(s.requests || []), ...(s.myRequests || [])].map(r => [r.id, r]));
     view.questions = (s.questions || []).map(q => {
       const f = q.format || { kind: "text" }, flag = (q.needsReview || []).at(-1);
-      const { format: _, ...rest } = q, out = { ...rest, purpose: q.purpose || "decide" };
+      const { format: _, ...rest } = q, out = { ...rest, text: plain(q.text), purpose: q.purpose || "decide" };
       if (f.kind === "choice") { out.format = "choice"; out.options = f.options; }
       // Q98: a prototype's variants pick like options here; the question links its own page (/proto/<qid>) to try them.
       else if (f.kind === "prototype") { out.format = "choice"; out.options = f.variants.map(v => ({ id: v.id, label: v.label })); out.variants = f.variants; }
@@ -154,7 +172,7 @@
         const d = details[qid]?.[c.ref], info = d?.deviceInfo;
         // A person's own "Something else…" option: their pick, picks or order holds it, and their text is it.
         const other = c.pick === "other" || (c.picks || []).includes("other") || (c.order || []).includes("other");
-        return { ...base, name: nameOf(c.pid), text: c.text || "", ts: c.at, cites: c.cites || [], device: c.device,
+        return { ...base, name: nameOf(c.pid), text: plain(c.text || ""), ts: c.at, cites: c.cites || [], device: c.device,
           // C44: the files an answer or pick carries, each an upload the owner accepted.
           ...(c.attachments ? { att: c.attachments.map(id => ({ kind: "file", upload: id })) } : {}),
           ...(c.pick ? { pick: optIn(c.pick) } : {}), ...(c.picks ? { picks: c.picks.map(optIn) } : {}), ...("value" in c ? { value: c.value } : {}),
@@ -172,20 +190,20 @@
       const src = lk.source || {}, sug = src.kind === "suggestion" ? (s.suggestions?.[qid] || []).find(x => x.id === src.suggestion) : null;
       const ref = src.kind === "card" ? src.card : src.kind === "edited" && /^[pco]:/.test(src.from || "") ? src.from : sug ? "p:" + sug.pid : "";
       const kind = ref.split(":")[0];
-      view.locks[qid] = { text: src.text || "", answerCid: authorCid(qid, ref), by: nameOf(lk.by), ts: lk.at, edited: src.kind === "edited", hostEdited: !!src.editedBy,
+      view.locks[qid] = { text: plain(src.text || ""), answerCid: authorCid(qid, ref), by: nameOf(lk.by), ts: lk.at, edited: src.kind === "edited", hostEdited: !!src.editedBy,
         name: kind === "c" ? "Claude" : kind === "o" ? "Option" : kind === "p" ? nameOf(ref.split(":")[1]) : "", poll: src.kind === "poll" };
     }
     for (const [qid, lst] of Object.entries(s.suggestions || {})) {
-      view.suggestions[qid] = lst.map(x => ({ id: x.id, cid: x.pid, name: nameOf(x.pid), text: x.text, note: x.note || "", ts: x.at, status: x.status.kind, votes: x.votes || [] }));
+      view.suggestions[qid] = lst.map(x => ({ id: x.id, cid: x.pid, name: nameOf(x.pid), text: plain(x.text), note: plain(x.note || ""), ts: x.at, status: x.status.kind, votes: x.votes || [] }));
     }
-    view.ideas = proposals.map(p => ({ id: p.id, cid: p.pid, name: nameOf(p.pid), text: p.text, ts: p.at,
+    view.ideas = proposals.map(p => ({ id: p.id, cid: p.pid, name: nameOf(p.pid), text: plain(p.text), ts: p.at,
       status: p.status.kind === "not-placed" ? "notplaced" : p.status.kind, qid: p.status.question || "", reason: p.status.reason || "",
       ...(p.via?.kind === "chat" ? { via: nameOf(p.via.by) } : {}) }));
-    view.chat = (s.chat || []).map(m => ({ id: m.id, cid: m.pid, name: nameOf(m.pid), text: m.text, ts: m.at,
-      ...(m.replyTo ? { replyTo: { id: m.replyTo.id, cid: m.replyTo.pid, name: nameOf(m.replyTo.pid), text: m.replyTo.excerpt } } : {}),
+    view.chat = (s.chat || []).map(m => ({ id: m.id, cid: m.pid, name: nameOf(m.pid), text: plain(m.text), ts: m.at,
+      ...(m.replyTo ? { replyTo: { id: m.replyTo.id, cid: m.replyTo.pid, name: nameOf(m.replyTo.pid), text: plain(m.replyTo.excerpt) } } : {}),
       ...(m.proposed ? { forwarded: m.proposed } : {}), reactions: m.reactions || {} }));
     // Q98: notes pinned on prototype variants, oldest first.
-    view.annotations = (s.annotations || []).map(a => ({ id: a.id, cid: a.pid, name: nameOf(a.pid), qid: a.qid, variant: a.variant, text: a.text, ts: a.at,
+    view.annotations = (s.annotations || []).map(a => ({ id: a.id, cid: a.pid, name: nameOf(a.pid), qid: a.qid, variant: a.variant, text: plain(a.text), ts: a.at,
       selector: a.anchor?.selector || "", rect: a.anchor?.rect || null }));
     view.joinRequests = (s.joinRequests || []).map(j => ({ pid: j.pid, name: j.name, ts: j.at, n: j.n, device: j.device || "", browser: j.browser || "" }));
     // Answers their authors cleared after the owner hid or edited them (owner only); Core.cardHistory reads one.
@@ -197,10 +215,10 @@
           // A guest's own Claude names its own tools in `used`; the label never repeats them.
           skill: x.by?.kind === "guest-claude" ? "their own Claude" : (x.used || []).map(u => u.name).join(", ") || "Claude", why: x.why || "", published: x.published !== false,
           own: x.by?.kind === "guest-claude", // the requester's own Claude answered it (Connect your Claude), not the host's
-          ...(r ? { ask: r.text } : {}), ...(by ? { byCid: by, by: nameOf(by) } : {}) };
+          ...(r ? { ask: plain(r.text) } : {}), ...(by ? { byCid: by, by: nameOf(by) } : {}) };
       });
     }
-    const req = r => ({ id: r.id, qid: r.qid, kind: r.kind, text: r.text, edited: r.edited, cid: r.pid, name: nameOf(r.pid), ts: r.at,
+    const req = r => ({ id: r.id, qid: r.qid, kind: r.kind, text: plain(r.text), edited: r.edited, cid: r.pid, name: nameOf(r.pid), ts: r.at,
       status: r.status.kind, runner: r.runner, ...(r.status.reason ? { reason: r.status.reason } : {}) });
     view.requests = (s.requests || []).map(req);
     view.myRequests = (s.myRequests || []).map(req);
@@ -227,7 +245,7 @@
       view.disagreements[qid] = lst.map(d => ({ cid: d.pid, card: d.card, reason: d.reason, ts: d.at, name: d.pid ? nameOf(d.pid) : "Someone" }));
     }
     if (s.me) {
-      view.me = { ...s.me, notifications: (s.me.notifications || []).map(n => ({ ...n, ts: n.at, ...(n.by ? { byCid: n.by, by: nameOf(n.by) } : {}) })) };
+      view.me = { ...s.me, notifications: (s.me.notifications || []).map(n => ({ ...n, ...(n.body ? { body: plain(n.body) } : {}), ts: n.at, ...(n.by ? { byCid: n.by, by: nameOf(n.by) } : {}) })) };
       view.myReactions = s.me.reactions || {};
     }
     return view;
@@ -327,7 +345,21 @@
     colorIdOf: id => (COLORS.includes(Core.state.people?.[id]?.color) ? Core.state.people[id].color : COLORS[hash(id || "") % COLORS.length]),
     colorFor: id => `var(--pc-${Core.colorIdOf(id)})`,
     /** Up to two initials, letters and digits only: "Kyle (Admin)" is KA. */
-    initials: name => ((name || "").match(/[\p{L}\p{N}]+/gu) || ["?"]).map(w => [...w][0]).join("").slice(0, 2).toUpperCase(),
+    initials: initialsOf,
+    /** Text with each <@pid> as "@Name", the way this page shows that person. */
+    plain: t => (typeof t === "string" ? t.replace(TOKEN, (_, p) => "@" + MENTIONS.label(p)) : t),
+    /** How "@Name" reads for this person on this page: what the mention picker inserts and tokenize maps back. */
+    mentionLabel: pid => MENTIONS.label(pid),
+    /** [[label, pid]] of everyone a mention can name here, longest first; pid "" where two people read alike. */
+    mentionLabels: () => MENTIONS.all,
+    /** Written text with each "@Name" of someone here (one person reads that way) as <@pid>, as the server stores it. */
+    tokenize: t => {
+      const re = typeof t === "string" && t.includes("@") ? labelRe(MENTIONS.live.filter(([, p]) => p)) : null;
+      if (!re) return t;
+      const by = new Map(MENTIONS.live.map(([l, p]) => [l.toLowerCase(), p]));
+      return t.split(/(<@[A-Za-z0-9_-]{1,32}>)/).map((part, i) => (i % 2 ? part : part.replace(re, (m, pre, l) => (by.get(l.toLowerCase()) ? `${pre}<@${by.get(l.toLowerCase())}>` : m)))).join("");
+    },
+    labelRe,
     el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; },
     /** Round avatar element for a person (cid + name). */
     avatar(personCid, name, size = 28) {
@@ -447,10 +479,10 @@
     lockEdit: (qid, text, from) => act("/api/lock/edit", { qid, text, ...(from ? { from } : {}) }),
     /** My message shows at once; the server's copy (a message of mine with this text it did not hold before) replaces it. */
     chat: (text, replyTo) => {
-      const before = new Set((snap?.chat || []).map(m => m.id)), id = `sending-${++sends}`;
-      return act("/api/chat", { text, ...(replyTo ? { replyTo } : {}) }, { key: "chat:" + id, patch: (s, pid) => {
+      const before = new Set((snap?.chat || []).map(m => m.id)), id = `sending-${++sends}`, body = { text, ...(replyTo ? { replyTo } : {}) };
+      return act("/api/chat", body, { key: "chat:" + id, patch: (s, pid) => {
         s.chat ||= [];
-        const chat = s.chat;
+        const chat = s.chat, text = body.text; // as act sent it: its mentions as tokens
         if (chat.some(m => m.pid === pid && m.text === text && !before.has(m.id))) return;
         const to = replyTo && chat.find(m => m.id === replyTo);
         chat.push({ id, pid, text, at: s.serverTime, ...(to ? { replyTo: { id: to.id, pid: to.pid, excerpt: to.text } } : {}) });
@@ -478,7 +510,7 @@
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw { status: r.status, ...j };
       const nameOf = pid => (pid === "host" ? "Host" : Core.state.people[pid]?.name || "Someone");
-      return { ...j, history: (j.history || []).map(v => ({ text: v.text, cid: v.by, name: nameOf(v.by), ts: v.at })) };
+      return { ...j, ...(j.text ? { text: Core.plain(j.text) } : {}), history: (j.history || []).map(v => ({ text: Core.plain(v.text), cid: v.by, name: nameOf(v.by), ts: v.at })) };
     },
     /** Report a problem: text, the page context (Core.reportContext) and at most one picture, a data: URL. */
     report: (text, ctx, image) => act("/api/report", { text, ctx, ...(image ? { image } : {}) }),
@@ -713,7 +745,11 @@
     return out;
   }
   const repaint = () => { if (snap) { Core.state = toView(withPending(snap)); emit(); } };
+  // The routes whose text can mention people: their "@Name" go out as <@pid> (Core.tokenize); the server does the same
+  // for full names, so a name the page shows masked still reaches the person it names.
+  const MENTION_ROUTES = new Set(["/api/answer", "/api/pick", "/api/card/edit", "/api/suggest", "/api/lock/edit", "/api/propose", "/api/chat", "/api/annotate", "/api/request", "/api/request/act"]);
   function act(path, body, opt) {
+    if (MENTION_ROUTES.has(path)) for (const k of ["text", "comment", "other", "note"]) if (typeof body[k] === "string") body[k] = Core.tokenize(body[k]);
     const entry = opt && { patch: opt.patch, after: null };
     const mine = () => !!entry && pending.get(opt.key) === entry;
     const drop = () => { if (mine()) { pending.delete(opt.key); repaint(); } };
