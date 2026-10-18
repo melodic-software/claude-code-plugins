@@ -75,6 +75,28 @@ test("a limit stop handles the head until its reset", () => {
   assert.equal(anyHandles([posted(LIMIT_LINE)], { now: Date.parse("2026-10-17T13:00:00Z") }), false);
 });
 
+// A resolved `limits` leaf set away from every default (hours and counts).
+const SET = {
+  "fallback-reset": 2,
+  "reset-clamp-min": 3,
+  "reset-clamp-max": 24,
+  "restarts-per-run": 5,
+  "limit-stops-per-head": 1,
+  "limit-stops-per-issue": 3,
+};
+
+test("the resolved limits set the fallback reset and the clamp", () => {
+  assert.equal(limitResetsAt(posted(LIMIT), SET), ended + 3 * HOUR);
+  assert.equal(limitResetsAt(posted(LIMIT), { ...SET, "reset-clamp-min": 1 }), ended + 2 * HOUR);
+  assert.equal(limitResetsAt(posted(`${LIMIT} resets=2027-01-01T00:00:00Z`), SET), ended + 24 * HOUR);
+});
+
+test("the resolved limits set how many reset limit stops handle a head", () => {
+  const now = ended + 30 * HOUR;
+  assert.equal(anyHandles([posted(LIMIT, { id: 1 })], { now }), false);
+  assert.equal(anyHandles([posted(LIMIT, { id: 1 })], { now, limits: SET }), true);
+});
+
 test("a failed run with no summary record handles the head, however long ago it ended", () => {
   assert.equal(anyHandles([run()], { now: ended + 30 * 24 * HOUR }), true);
   assert.equal(anyHandles([posted(LIMIT, { id: 1 }), run(2)], { now: ended + 6 * HOUR }), true);

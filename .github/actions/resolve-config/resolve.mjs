@@ -735,6 +735,16 @@ export function resolve(
       "no-progress": doc.loop?.["no-progress"] ?? 3,
       "dependency-review-rounds": doc.loop?.["dependency-review-rounds"] ?? 2,
     },
+    // Hours and counts; the lane scripts' copy of these defaults is
+    // .github/scripts/work-resolve-issue/limits.mjs.
+    limits: {
+      "fallback-reset": doc.limits?.["fallback-reset"] ?? 5,
+      "reset-clamp-min": doc.limits?.["reset-clamp-min"] ?? 1,
+      "reset-clamp-max": doc.limits?.["reset-clamp-max"] ?? 168,
+      "restarts-per-run": doc.limits?.["restarts-per-run"] ?? 5,
+      "limit-stops-per-head": doc.limits?.["limit-stops-per-head"] ?? 3,
+      "limit-stops-per-issue": doc.limits?.["limit-stops-per-issue"] ?? 3,
+    },
     merge: resolveMerge(doc.merge, configPath),
   };
 }

@@ -19,7 +19,7 @@
 // issue whose newest lanes-App outcome marker is `limited`, past its reset,
 // with no agent-ready label added since (so no lane run started after the
 // stop), and no hold label gets agent-ready removed and
-// added again by the App, which starts the lane. At most RESTARTS_PER_RUN
+// added again by the App, which starts the lane. At most limits.restarts-per-run
 // issues per run, longest-waiting first.
 //
 // It re-fires the same way an open agent-ready issue whose newest
@@ -51,6 +51,8 @@
 //                          and actor of a restart this trusts (default
 //                          melodic-automation-lanes[bot])
 //   GITHUB_API_URL
+//   RESOLVED_CONFIG        resolve-config's output (default
+//                          $RUNNER_TEMP/resolved-config.json), for the limits
 import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -58,6 +60,7 @@ import { pathToFileURL } from "node:url";
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { clampReset, parseOutcomeMarker } from "../work-resolve-issue/report-outcome.mjs";
+import { readLimits } from "../work-resolve-issue/limits.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
@@ -70,12 +73,6 @@ const RUN_WINDOW_MS = 10 * 60_000;
 const BLOB = /^[0-9a-f]{40}$/;
 const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
-// Hard-coded until pr-pipeline.yaml has a limits.restarts-per-run leaf:
-// https://github.com/melodic-software/claude-code-plugins/issues/7764
-export const RESTARTS_PER_RUN = 5;
-// Limit stops since a person last added agent-ready before the issue goes to
-// a person instead of another restart (judgment).
-export const MAX_LIMIT_STOPS = 3;
 // A person decides these; the lane never starts on them.
 const HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "needs-human"]);
 const NUMBER = /^[1-9][0-9]{0,9}$/;
@@ -290,7 +287,7 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot }) {
   return failed;
 }
 
-// The hand-off to a person after MAX_LIMIT_STOPS limit stops. Its marker lets
+// The hand-off to a person after limits.limit-stops-per-issue limit stops. Its marker lets
 // a later sweep see the comment was posted.
 const ESCALATED = "<!-- work-unblock escalated -->";
 export const escalationComment = (stops) =>
@@ -355,7 +352,7 @@ async function refireRefusal({ actions, repo, number, lastAdd, addedAt, markers,
 // Why an agent-ready issue is not restarted now (after a limit stop) or
 // re-fired (after a failed run), or null with the time it has waited since.
 // Every fact is read fresh from the API.
-async function restartRefusal({ github, actions, repo, issue, bot, humans, now, workflowKey }) {
+async function restartRefusal({ github, actions, repo, issue, bot, humans, now, workflowKey, limits }) {
   const base = `/repos/${repo}/issues/${issue.number}`;
   const labels = (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label.name));
   const held = labels.map((label) => String(label).toLowerCase()).find((label) => HOLDS.has(label));
@@ -384,14 +381,14 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
     .filter((event) => isLabel(event, "labeled") && event.actor?.login !== bot)
     .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
   const stops = markers.filter((item) => item.outcome === "limited" && item.at > since).length;
-  if (stops >= MAX_LIMIT_STOPS) {
+  if (stops >= limits["limit-stops-per-issue"]) {
     const explained = comments.some(
       (comment) =>
         comment.user?.login === bot && String(comment.body ?? "").startsWith(ESCALATED) && Date.parse(comment.created_at) > since,
     );
     return { reason: `${stops} limit stops since a person last added ${LABEL}`, escalate: stops, explained };
   }
-  const resets = clampReset(marker.resets, marker.at);
+  const resets = clampReset(marker.resets, marker.at, limits);
   if (now < resets) {
     return { reason: `waiting for the limit to reset at ${new Date(resets).toISOString()}` };
   }
@@ -400,7 +397,7 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
 
 // Restarts or re-fires up to `cap` issues, longest-waiting first. Returns how
 // many reads or writes failed.
-async function restartLimited({ github, actions, repo, bot, humans, now, cap = RESTARTS_PER_RUN }) {
+async function restartLimited({ github, actions, repo, bot, humans, now, limits, cap = limits["restarts-per-run"] }) {
   let failed = 0;
   const ready = [];
   // Main's blob SHAs of the lane workflow files, read once per run.
@@ -437,6 +434,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, cap = R
         humans,
         now,
         workflowKey,
+        limits,
       });
       if (escalate) {
         // The comment first and the label last: the label is a hold, so a
@@ -530,7 +528,8 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     let failed = await labelUnblocked({ github, repo, closed, sweep, humans, bot });
     if (sweep) {
       actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
-      failed += await restartLimited({ github, actions, repo, bot, humans, now });
+      const limits = readLimits(env.RESOLVED_CONFIG || `${env.RUNNER_TEMP ?? ""}/resolved-config.json`);
+      failed += await restartLimited({ github, actions, repo, bot, humans, now, limits });
     }
     return failed === 0 ? 0 : 1;
   } catch (error) {

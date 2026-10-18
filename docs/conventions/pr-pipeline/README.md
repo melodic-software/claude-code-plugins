@@ -14,6 +14,7 @@
 - [The lane sweep](#the-lane-sweep)
 - [Models](#models)
 - [Loop caps](#loop-caps)
+- [Limits](#limits)
 - [Planning lane work](#planning-lane-work)
 - [Changing this config](#changing-this-config)
 - [Outside this repository](#outside-this-repository)
@@ -855,6 +856,24 @@ full review rounds, one more high-severity-only pass runs; if it still has findi
 escalates. The address-feedback activity hands a PR to a person once `loop.review-rounds` of its
 rounds have run. The default is 2; this repository sets 3. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
 escalates.
+
+## Limits
+
+The optional `limits` block sets when the lanes restart work the usage limit stopped. Durations
+are whole hours; every value is a positive integer. resolve-config emits all six with defaults.
+
+| Key | Default | What it sets |
+|---|---|---|
+| `fallback-reset` | 5 | Hours after a limit stop that names no reset time before the limit counts as reset. |
+| `reset-clamp-min` | 1 | Fewest hours after a stop before a restart, whatever reset the stop names. |
+| `reset-clamp-max` | 168 | Most hours after a stop before a restart, whatever reset the stop names. |
+| `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
+| `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again. |
+| `limit-stops-per-issue` | 3 | Limit stops since a person last added `agent-ready` before work-unblock hands the issue to a person. |
+
+report-outcome and the work-unblock sweep read them from resolve-config's output, and
+pr-feedback-dispatch from the config it resolves. pr-unblock-dispatch resolves no config, so it
+uses the defaults. This repository sets no `limits` block.
 
 ## Planning lane work
 
