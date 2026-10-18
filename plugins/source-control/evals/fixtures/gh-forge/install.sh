@@ -6,8 +6,12 @@
 # The pull request is a draft unless --open is given. --failing-check adds one failing check with
 # that name, which `pr checks` and the pull request's status rollup then report.
 #
-# The bare repository's path ends in eval-fixture/app.git so push-branch.sh, which compares the
-# push remote's URL with the PR's head repository, accepts it as eval-fixture/app.
+# origin's URL is https://github.com/eval-fixture/app.git, so push-branch.sh, which compares the
+# push remote's URL with the PR's head repository, accepts it as eval-fixture/app on github.com.
+# `remote.origin.vcs=evalforge` hands every fetch and push of origin to the git-remote-evalforge
+# helper (copied into the stand-in's bin/, which the run's PATH carries), which serves them from the
+# local bare repository, so nothing reaches github.com. Without the helper on PATH git fails with
+# "remote-evalforge is not a git command" and never falls back to https.
 #
 # The stand-in lands in <git common dir>/eval-forge/bin. A case puts it first on the run's Bash PATH by
 # listing its own `gh-forge-path` plugin subdirectory in prompt.md `plugins:`: that plugin's
@@ -42,11 +46,14 @@ done
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 forge="$(git rev-parse --path-format=absolute --git-common-dir)/eval-forge"
 # Added first, so a repository that already has an origin stops here before anything is written.
-git remote add origin "$forge/eval-fixture/app.git"
+git remote add origin "https://github.com/eval-fixture/app.git"
+git config remote.origin.vcs evalforge
 
 mkdir -p "$forge/bin"
 cp "$here/gh" "$forge/bin/gh"
 chmod +x "$forge/bin/gh"
+cp "$here/git-remote-evalforge" "$forge/bin/git-remote-evalforge"
+chmod +x "$forge/bin/git-remote-evalforge"
 printf 'PR_NUMBER=%q\nPR_HEAD=%q\nPR_BASE=%q\nPR_TITLE=%q\n' "$number" "$head" "$base" "$title" >"$forge/state"
 echo "$draft" >"$forge/draft"
 if [[ -n "$failing" ]]; then
@@ -57,5 +64,6 @@ else
 fi
 
 git init -q --bare "$forge/eval-fixture/app.git"
+export PATH="$forge/bin:$PATH"
 git push -q origin "$base" "$head"
 git branch -q --set-upstream-to="origin/$head" "$head"

@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "# Contributing guide\n\nFormat shell scripts with `shfmt -w`.\n\nRun the tests with `npm test` before you push.\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "# Contributing guide\n\nRun the tests with ` npm test ` before you push.\n",
+      "why": "unchanged"
+    },
+    {
+      "answer": "<!-- markdownlint-disable MD038 -->\n# Contributing guide\n\nRun the tests with `npm test` before you push.\n",
+      "why": "a suppression rides along"
+    },
+    {
+      "answer": "# Contributing guide\n\nRun the tests before you push.\n",
+      "why": "deleted the command instead of fixing the span"
+    }
+  ]
+}

@@ -5,7 +5,7 @@
       "id": 1,
       "name": "preflight-reports-before-spending",
       "prompt": "/evals:plugin-eval preflight plugins/evals",
-      "expected_output": "Prints the preflight report with cli_version read from claude --version, floor_met, platform, sandbox_backend, target_type: plugin, suite_tools, same_model (the tested model against the judge model), estimate_usd, and ceiling, in that order, then stops. No claude plugin eval invocation happens during a preflight.",
+      "expected_output": "Prints the preflight report with cli_version read from claude --version, floor_met, git_version, platform, sandbox_backend, target_type: plugin, suite_tools, same_model (the tested model against the judge model), estimate_usd, and ceiling, in that order, then stops. No claude plugin eval invocation happens during a preflight.",
       "narration": true,
       "expectations": [
         "Every preflight field is printed in order, including sandbox_backend, same_model, and estimate_usd",
