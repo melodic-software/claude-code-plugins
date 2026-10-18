@@ -120,7 +120,10 @@ no CI. When `resolve-conflicts` escalates with `unresolved-conflict`, `pr-unbloc
 `report-conflict-status` job (a script job with no model, the lane's only `statuses: write`, on its
 own `GITHUB_TOKEN`) posts a `failure` commit status with context `pr-unblock/conflict` on that
 head, saying CI does not run until the conflicts are resolved. A push that resolves them is a new
-head, which the status does not reach.
+head, which the status does not reach. A conflict that clears with the head unchanged (main moved
+again) leaves the failing status on it until a push or a person replaces it. The other
+`resolve-conflicts` escalations post no status; they hand the PR to a person through the comment
+and label alone.
 
 `pr-unblock`'s `address-feedback` dispatches come from `pr-feedback-dispatch.yml`, also scripted,
 on `workflow_run` `completed` of `pr-review-hosted` and `pr-review-security-hosted`. It takes only

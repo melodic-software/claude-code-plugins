@@ -7,6 +7,7 @@
 #
 # Environment:
 #   GH_TOKEN            token with pull-requests: write and issues: write
+#                       (statuses: write in status mode)
 #   GITHUB_REPOSITORY   owner/repo
 #   PR_NUMBER           the pull request
 #   HEAD_SHA            the gated head; it is the resume key
