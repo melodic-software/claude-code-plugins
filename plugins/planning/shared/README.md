@@ -463,10 +463,10 @@ web-vitals names its target by a selector or an id instead (an element gone befo
 500 characters waits for the next summary. Nothing is sampled.
 
 Never recorded: what anyone types, answers, chat, names, the address or its fragment, text on the
-page, or a credential. The join dialog says so in one line, with a "What this page records" link to
-the plain list and a "Record problems on this device" switch; Help (and the phone More sheet)
-carries the same. Off stops every send, faults included, and is kept in `localStorage`
-(`telemetry`). Another tab of the session open in the same browser keeps sending until it reloads.
+page, or a credential. Help says so in one line, with a "What this page records" link to the plain
+list; the phone More sheet opens the same list. Recording has no off switch: every joined page
+sends, and a `telemetry` key an older page left in `localStorage` is ignored. The join dialog shows
+only its heading, the invite line, the name prompt, the name box and Join.
 
 `POST /api/client-log` (auth class person) takes `{kind, message, source, route, code, ua, fp}`:
 strings, at most 500 characters for `message`, 200 for `source` and `route`, 60 for `code` and
@@ -485,7 +485,7 @@ server's entries), network failures and unanswered actions by route, tap-to-answ
 route (the upper edge of the bucket) beside the server's own `ms`, rollbacks and their rate,
 reconnect gaps (over 10 s, worst, by device), layout anomalies by device kind, INP and LCP p75 by
 device with the count of page views missing the API, and how many summaries came in how many
-batches from how many page views, and how many were dropped (a page with recording off sends none).
+batches from how many page views, and how many were dropped.
 The owner's own page views stay out of the timings. A summary counts at its batch's time, for
 `--since` and for a fingerprint's last repeat. `logs --errors` leaves batches out.
 
