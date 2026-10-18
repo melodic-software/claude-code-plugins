@@ -1010,7 +1010,7 @@ jobs:
           steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.kind == 'skill'
           && (steps.config.outputs.prepare != 'merge-base' || steps.prepare.outputs.merge-state == 'conflicted')
         continue-on-error: true
-        uses: anthropics/claude-code-action@a26b07d8c778b0c43f64618e5fd29fd0f8af72e8 # v1.0.250
+        uses: anthropics/claude-code-action@f27be6b65a4652f08a2ba3cff79114829b588967 # v1.0.252
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
@@ -2180,7 +2180,7 @@ jobs:
         id: summary-run
         if: steps.isolate.outcome == 'success'
         continue-on-error: true
-        uses: anthropics/claude-code-action@a26b07d8c778b0c43f64618e5fd29fd0f8af72e8 # v1.0.250
+        uses: anthropics/claude-code-action@f27be6b65a4652f08a2ba3cff79114829b588967 # v1.0.252
         env:
           # As in the run job's skill step.
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
