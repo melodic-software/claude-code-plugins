@@ -47,6 +47,21 @@ const thread = (authors, isResolved = false) => ({
   isResolved,
   comments: { nodes: authors.map((author) => ({ author })), pageInfo: { hasNextPage: false } },
 });
+// The #7794 shape: the reviewer bot's finding, the lanes App's UNCERTAIN reply
+// (publish-feedback.mjs renderReply), then `reply`, each a minute apart.
+const LANE = { databaseId: APP_ID };
+const STRANGER = { databaseId: 4242 };
+const decidedThread = (reply = { author: KYLE }) => ({
+  isResolved: false,
+  comments: {
+    nodes: [
+      { author: CLAUDE, body: "finding" },
+      { author: LANE, body: "**pr-unblock / address-feedback: UNCERTAIN, left open for a person**\n\nnote" },
+      { body: "Owner decision: drop the reference.", ...reply },
+    ].map((node, i) => ({ createdAt: `2026-10-17T20:0${i}:00Z`, lastEditedAt: null, editor: null, ...node })),
+    pageInfo: { hasNextPage: false },
+  },
+});
 
 function fakeApi({
   run = {},
@@ -124,6 +139,7 @@ async function decide(api, resolved = resolvedLane()) {
     runId: RUN_ID,
     upstreamRunId: UPSTREAM_RUN_ID,
     appSenderId: APP_ID,
+    trustedHumans: new Set([KYLE.databaseId]),
     resolveSlot: async (request) => {
       asked.push(request);
       return resolved;
@@ -231,6 +247,10 @@ for (const [label, options] of [
   ["every thread is resolved", { threads: [thread([CLAUDE], true)] }],
   ["the only open thread has a human reply", { threads: [thread([CLAUDE, KYLE])] }],
   ["the only open thread is a human's", { threads: [thread([KYLE])] }],
+  ["the reply after the lane's escalation is a stranger's", { threads: [decidedThread({ author: STRANGER })] }],
+  ["the trusted reply was last edited by a stranger", {
+    threads: [decidedThread({ author: KYLE, lastEditedAt: "2026-10-17T20:30:00Z", editor: STRANGER })],
+  }],
   ["the head already has an address-feedback check run", {
     checkRuns: [{ status: "completed", conclusion: "success", output: { title: "Done" } }],
   }],
@@ -332,6 +352,8 @@ test("main writes run-id and reads the upstream id from UPSTREAM_RUN_ID only", a
   try {
     const output = join(dir, "output");
     writeFileSync(output, "");
+    const actors = join(dir, "actors.json");
+    writeFileSync(actors, JSON.stringify({ actors: [] }));
     const api = fakeApi();
     const code = await main(
       {
@@ -341,6 +363,7 @@ test("main writes run-id and reads the upstream id from UPSTREAM_RUN_ID only", a
         GITHUB_OUTPUT: output,
         UPSTREAM_RUN_ID,
         APP_SENDER_ID: String(APP_ID),
+        TRUSTED_ACTORS: actors,
       },
       { api, resolveSlot: async () => resolvedLane(), log: () => {} },
     );
@@ -384,6 +407,32 @@ test("a finished run, another PR's run or another activity's run does not hold t
   });
   const { result } = await decide(api);
   assert.equal(result.number, 42);
+  assert.equal(api.calls.dispatch.length, 1);
+});
+
+test("a trusted person's reply on a thread the lane escalated dispatches address-feedback", async () => {
+  const api = fakeApi({ threads: [decidedThread()] });
+  const { result } = await decide(api);
+  assert.equal(result.number, 42);
+  assert.equal(api.calls.dispatch.length, 1);
+});
+
+test("main reads the trusted people from the base's trusted-actor list", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "feedback-dispatch-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const actors = join(dir, "actors.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: KYLE.databaseId, login: "kyle-sexton", kind: "human" }] }));
+  const env = {
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: REPOSITORY,
+    GITHUB_RUN_ID: RUN_ID,
+    GITHUB_OUTPUT: join(dir, "out"),
+    UPSTREAM_RUN_ID,
+    APP_SENDER_ID: String(APP_ID),
+    TRUSTED_ACTORS: actors,
+  };
+  const api = fakeApi({ threads: [decidedThread()] });
+  await main(env, { api, resolveSlot: async () => resolvedLane(), log: () => {} });
   assert.equal(api.calls.dispatch.length, 1);
 });
 

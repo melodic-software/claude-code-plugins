@@ -14,8 +14,9 @@
 // - it carries no do-not-merge or needs-human label;
 // - both review lanes' newest reviewed-head markers, written by
 //   github-actions[bot], name that head;
-// - an unresolved review thread exists whose every comment is the reviewer
-//   bot's;
+// - an unresolved review thread exists that address-feedback would work:
+//   every comment is the reviewer bot's, or a trusted person answered the
+//   lane's escalation (address-feedback.mjs threadAuthors);
 // - that head has no pr-unblock / address-feedback check run yet (one the
 //   usage limit stopped stops counting once its limit resets), and no
 //   pr-unblock.yml address-feedback run for the PR is still queued or going;
@@ -28,6 +29,7 @@
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+import { threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
 import { anyHandles } from "./limit-stop.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -66,14 +68,22 @@ export function markedHead(comments, lane, markerAuthorId = DEFAULTS.markerAutho
   return SHA.test(sha) ? sha : "";
 }
 
-// An unresolved thread whose every comment is the reviewer bot's.
-export function hasBotThread(threads, reviewerId = DEFAULTS.reviewerId) {
+// An unresolved thread, read in full, that threadAuthors accepts.
+export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans }) {
   return threads.some(
     (thread) =>
       thread.isResolved === false &&
-      thread.comments.nodes.length > 0 &&
       thread.comments.pageInfo?.hasNextPage !== true &&
-      thread.comments.nodes.every((comment) => comment.author?.databaseId === reviewerId),
+      threadAuthors(
+        thread.comments.nodes.map((node) => ({
+          authorId: node.author?.databaseId,
+          createdAt: node.createdAt,
+          body: node.body,
+          lastEditedAt: node.lastEditedAt,
+          editorId: node.editor?.databaseId,
+        })),
+        { reviewerId, appId, trustedHumans },
+      ) !== null,
   );
 }
 
@@ -89,6 +99,7 @@ export async function dispatchFeedback({
   resolveSlot,
   log,
   settings = DEFAULTS,
+  trustedHumans = new Set(),
   now = Date.now(),
 }) {
   const skip = (why) => {
@@ -141,8 +152,9 @@ export async function dispatchFeedback({
   if (unreviewed.length > 0) {
     return skip(`#${number}: ${unreviewed.join(", ")} has not marked head ${head} reviewed`);
   }
-  if (!hasBotThread(await api.listReviewThreads(number), settings.reviewerId)) {
-    return skip(`#${number} has no unresolved thread left only by the reviewer bot`);
+  const threads = await api.listReviewThreads(number);
+  if (!hasWorkableThread(threads, { reviewerId: settings.reviewerId, appId: appSenderId, trustedHumans })) {
+    return skip(`#${number} has no unresolved thread left by the reviewer bot alone or answered by a trusted person`);
   }
   const existing = await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId });
   if (anyHandles(existing, { now })) {
@@ -196,7 +208,11 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $af
         nodes {
           isResolved
           comments(first: 100) {
-            nodes { author { ... on Bot { databaseId } ... on User { databaseId } } }
+            nodes {
+              author { ... on Bot { databaseId } ... on User { databaseId } }
+              createdAt body lastEditedAt
+              editor { ... on Bot { databaseId } ... on User { databaseId } }
+            }
             pageInfo { hasNextPage }
           }
         }
@@ -339,6 +355,8 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
     runId: env.GITHUB_RUN_ID,
     upstreamRunId: env.UPSTREAM_RUN_ID,
     appSenderId: Number(env.APP_SENDER_ID),
+    // The base checkout's list, the one resolve-config reads beside it.
+    trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`),
     resolveSlot: resolveSlot ?? (({ number, head }) => resolveFeedbackSlot({ number, head, env, github })),
     log,
   });

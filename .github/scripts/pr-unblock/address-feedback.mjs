@@ -84,29 +84,34 @@ const ESCALATION_REPLY =
   /^\*\*pr-unblock \/ address-feedback: (INCORRECT, left open|UNCERTAIN, left open for a person|VALID \(defer\), left open for a person)\*\*$/;
 export const isEscalationReply = (comment, appId) => comment?.user?.id === appId && ESCALATION_REPLY.test(firstLine(comment.body));
 
-// Who wrote each comment, or null when the thread is not one to work: every
-// comment is the reviewer bot's, or the lanes App's last comment escalated the
-// thread and every comment after it is a trusted person's reply. Those replies
-// are direction. A comment by anyone else, a trusted person's comment last
-// edited by anyone but a trusted person, or a reply not after the escalation
-// leaves the thread alone.
-function authorsOf(rows, nodes, { reviewerId, appId, trustedHumans }) {
-  if (rows.every((row) => row.user?.id === reviewerId)) {
-    return rows.map(() => ({ author: "reviewer" }));
-  }
-  const last = rows.findLastIndex((row) => row.user?.id === appId);
-  if (last < 1 || !isEscalationReply(rows[last], appId)) {
+// Who wrote each comment of a thread, or null when it is not one to work.
+// `comments` are oldest first, each { authorId, createdAt, body, lastEditedAt,
+// editorId }. The first is the reviewer bot's, and either every comment is,
+// or the lanes App's last comment escalated the thread and every comment after
+// it is a trusted person's reply. Those replies are direction. A comment by
+// anyone else, a trusted person's comment last edited by anyone but a trusted
+// person, or a reply not after the escalation leaves the thread alone. The
+// select step and the reply job (keepThreads) and the dispatcher
+// (feedback-dispatch.mjs) all judge a thread with this.
+export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new Set() }) {
+  if (comments.length === 0 || comments[0].authorId !== reviewerId) {
     return null;
   }
-  const escalatedAt = Date.parse(rows[last].created_at ?? "");
+  if (comments.every((comment) => comment.authorId === reviewerId)) {
+    return comments.map(() => ({ author: "reviewer" }));
+  }
+  const last = comments.findLastIndex((comment) => comment.authorId === appId);
+  if (last < 1 || !ESCALATION_REPLY.test(firstLine(comments[last].body)) || last === comments.length - 1) {
+    return null;
+  }
+  const escalatedAt = Date.parse(comments[last].createdAt ?? "");
   const authors = [];
-  for (const [i, row] of rows.entries()) {
-    const id = row.user?.id;
-    const node = nodes[i];
-    const human = trustedHumans.has(id) && (node.lastEditedAt == null || trustedHumans.has(node.editor?.databaseId));
+  for (const [i, comment] of comments.entries()) {
+    const id = comment.authorId;
+    const human = trustedHumans.has(id) && (comment.lastEditedAt == null || trustedHumans.has(comment.editorId));
     if (i > last) {
       // NaN compares false, so an unparseable time leaves the thread alone.
-      if (!human || !(Date.parse(row.created_at ?? "") > escalatedAt)) {
+      if (!human || !(Date.parse(comment.createdAt ?? "") > escalatedAt)) {
         return null;
       }
       authors.push({ author: "trusted-human", direction: true });
@@ -116,13 +121,13 @@ function authorsOf(rows, nodes, { reviewerId, appId, trustedHumans }) {
       return null;
     }
   }
-  return last < rows.length - 1 ? authors : null;
+  return authors;
 }
 
 // A thread is kept when it is unresolved, its first comment belongs to a
-// review the reviewer bot submitted on a marker-confirmed head, and authorsOf
-// accepts its comments. A thread with more comments than one page reads is
-// left alone.
+// review the reviewer bot submitted on a marker-confirmed head, and
+// threadAuthors accepts its comments. A thread with more comments than one
+// page reads is left alone.
 export function keepThreads({ threads, reviewComments, reviews, heads, reviewerId, appId, trustedHumans = new Set() }) {
   const comments = new Map(reviewComments.map((comment) => [comment.id, comment]));
   const reviewsById = new Map(reviews.map((review) => [review.id, review]));
@@ -133,15 +138,21 @@ export function keepThreads({ threads, reviewComments, reviews, heads, reviewerI
     }
     const nodes = thread.comments.nodes;
     const rows = nodes.map((node) => comments.get(node.databaseId));
-    if (rows.length === 0 || rows.some((row) => row === undefined) || rows[0].user?.id !== reviewerId) {
+    if (rows.length === 0 || rows.some((row) => row === undefined)) {
       continue;
     }
+    const authors = threadAuthors(
+      rows.map((row, i) => ({
+        authorId: row.user?.id,
+        createdAt: row.created_at,
+        body: row.body,
+        lastEditedAt: nodes[i].lastEditedAt,
+        editorId: nodes[i].editor?.databaseId,
+      })),
+      { reviewerId, appId, trustedHumans },
+    );
     const review = reviewsById.get(rows[0].pull_request_review_id);
-    if (review?.user?.id !== reviewerId || !heads.has(review.commit_id)) {
-      continue;
-    }
-    const authors = authorsOf(rows, nodes, { reviewerId, appId, trustedHumans });
-    if (authors === null) {
+    if (authors === null || review?.user?.id !== reviewerId || !heads.has(review.commit_id)) {
       continue;
     }
     kept.push({

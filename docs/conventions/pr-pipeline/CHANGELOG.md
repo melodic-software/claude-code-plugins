@@ -7,7 +7,9 @@ comment is an `INCORRECT`, `UNCERTAIN` or `VALID-defer` reply) when every commen
 human on the base's trusted-actor list, created after the escalation and edited by no one else.
 Those replies are marked `direction: true` in the thread file. Before, every comment had to be the
 reviewer bot's, so the lane never read a person's answer to its own escalation
-([pr-run-activity.md](pr-run-activity.md)). `version` stays 2.
+([pr-run-activity.md](pr-run-activity.md)). `pr-feedback-dispatch.yml` judges a thread with the
+same rule, so a review round that ends on a PR with such a thread dispatches address-feedback
+([README.md](README.md)). `version` stays 2.
 
 ## 2.6.0 - 2026-10-17
 
