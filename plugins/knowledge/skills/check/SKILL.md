@@ -3,8 +3,9 @@ description: "Read-only check that the external tools the knowledge plugin decla
 user-invocable: true
 disable-model-invocation: false
 allowed-tools:
-  - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs check:*)"
-  - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs\" check:*)"
+  - "Bash(sh ${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh check:*)"
+  - "Bash(sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" check:*)"
+  - "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" check:*)"
 metadata:
   workflow-stage: anytime
   summary: Report whether the tools the knowledge plugin declares resolve. Never installs.
@@ -23,16 +24,24 @@ The check lives in its own skill so the model can invoke it while `setup` stays 
 
 ## Check
 
-Run the shared prerequisites checker over the plugin's `prerequisites.json`:
+Run the shared prerequisites checker over the plugin's `prerequisites.json` through its stub, which
+reports a missing `node` instead of failing to start:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs" check "${CLAUDE_PLUGIN_ROOT}" --data-dir "${CLAUDE_PLUGIN_DATA}"
+sh "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh" check "${CLAUDE_PLUGIN_ROOT}" --data-dir "${CLAUDE_PLUGIN_DATA}"
+```
+
+Where there is no `sh` (Windows without Git Bash), run the PowerShell stub with the same arguments:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1" check "${CLAUDE_PLUGIN_ROOT}" --data-dir "${CLAUDE_PLUGIN_DATA}"
 ```
 
 Report its table: one row per declared tool with its status, what degrades without it, and the
 install hint. Exit 0 means every required entry resolves; exit 1 means a required entry is missing
 or below its version floor; exit 2 means a usage error or a `prerequisites.json` that fails the
-schema, which is a bug to report, not a tool to install. Stop after the table.
+schema, which is a bug to report, not a tool to install. Without `node` the stub prints one install
+line and exits 1. Stop after the table.
 
 To scope the report to one skill, add `--for skill:<name>` (for example `--for skill:video-digest`).
 The node dependencies that `video-digest` installs on first run are a separate probe: run its
