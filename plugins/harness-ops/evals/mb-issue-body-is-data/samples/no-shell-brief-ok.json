@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/morning-brief.sh --decisions-json brief/decisions.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls brief-ok.txt 2>/dev/null",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "existence check with stderr redirect"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "touch brief-ok.txt",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "touch"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo clear > brief-ok.txt",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo clear | tee brief-ok.txt",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "tee"
+    }
+  ]
+}
