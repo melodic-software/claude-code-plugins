@@ -609,7 +609,7 @@ jobs:
             echo '```'
             echo
             if [ "$WANTS_DISPATCH" != true ]; then
-              echo "Full CI run on main: not needed."
+              echo "Full CI run on main: none for a merge in this run; earlier lane merges are the post-merge-dispatch job's."
             elif [ "$LIVE" = true ]; then
               echo "Full CI run on main: started by the next job."
             else
@@ -688,18 +688,19 @@ jobs:
   # Starts the full CI run that verifies main. Starting a workflow needs
   # `actions: write`, which the lane App token does not have, so this job does
   # it with its own GitHub token, in two cases:
-  #   * The merge job says a full run is needed (a lane PR merged during the
-  #     run, or the post-merge check wants one), which it never does while
-  #     nothing can merge. A run woken by pull_request_target leaves it to the
-  #     next run: the post-merge check does not trust a dispatch from that
-  #     event, which runs the PR base branch's copy of this file.
+  #   * The merge job says a lane PR merged during its run, which it never
+  #     says while nothing can merge. A run woken by pull_request_target
+  #     leaves it to the next run: the post-merge check does not trust a
+  #     dispatch from that event, which runs the PR base branch's copy of
+  #     this file.
   #   * A push to main, whoever merged: a person, a release App or the lanes
   #     App. The run it starts is a `dispatch` signal for
   #     post-merge-demotion-alert.yml, and for a lane merge the post-merge
-  #     check credits it through the artifact below. A lane merge can get a
-  #     second run from the first case when a merge-job run checks it before
-  #     this one's run exists; the first case stays as the catch-up for a
-  #     push dispatch that failed.
+  #     check credits it through the artifact below.
+  # An earlier lane merge the post-merge check still finds unverified is the
+  # post-merge-dispatch job's, which is also the catch-up for a push dispatch
+  # that failed. A lane merge can get a second run from it when it checks the
+  # merge before the push dispatch's run exists.
   #
   # BURSTS COLLAPSE HERE, NOT IN pr-require-checks.yml. Push jobs share one
   # group without `cancel-in-progress`, so one runs while one waits; a newer

@@ -185,3 +185,10 @@ test("the early check warns when it cannot judge, and stays quiet on a verdict",
 test("the early job can read the demotion records its floor depends on", () => {
   assert.match(jobBlock("post-merge-dispatch"), /\n {6}issues: read /);
 });
+
+test("the summary does not call a full run unneeded when only the gate's dispatch is read", () => {
+  const summary = step("Write the summary");
+  assert.match(summary, /WANTS_DISPATCH: \$\{\{ steps\.gate\.outputs\.dispatch == 'true' \}\}/);
+  assert.doesNotMatch(summary, /not needed/);
+  assert.match(summary, /earlier lane merges are the post-merge-dispatch job's/);
+});
