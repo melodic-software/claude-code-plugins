@@ -1582,6 +1582,15 @@ for lever in disableAllHooks allowManagedHooksOnly strictPluginOnlyCustomization
     row D hook-levers ok none "settings" "lever-unset:$lever" "$lever unset in every scope read" -
   fi
 done
+# None of the levers that stop installed mods stops a built-in mod (mods
+# overview, "Mods built into Claude Code"). A set disableAllHooks is where an
+# operator may believe every mod is off, so only then is it a finding.
+BUILTIN_MODS_MSG="disableAllHooks, --bare and --safe-mode stop installed mods but not the mods built into Claude Code (mods overview: \"don't stop built-in mods\"); each built-in mod has its own switch in /plugin, and cc-plugin-sec-default has none"
+if [[ "${LEVER_DISABLE_ALL:-0}" != "0" ]]; then
+  row D builtin-mods-survive-levers finding info "settings" "builtin-mods-survive-levers" "disableAllHooks is set, yet built-in mods keep running: $BUILTIN_MODS_MSG" "disableAllHooks"
+else
+  row D builtin-mods-survive-levers ok none "settings" "builtin-mods-survive-levers" "$BUILTIN_MODS_MSG" -
+fi
 
 # Mod-plane keys are reported, never judged, except where a scope Claude Code
 # does not read for that key carries one: that copy changes nothing.
@@ -1890,6 +1899,18 @@ if [[ $PROJECT_OK -eq 1 ]]; then
     fi
   done < <(jqf "$SETTINGS" -r '(.env // {}) | keys_unsorted[] | [.] | @tsv')
 fi
+# CLAUDE_CODE_ENABLE_FUNCTION_HOOKS gated mods in early access; v2.1.287 and
+# later ignore it at any value, so a 0 there leaves mods on (mods overview,
+# "Turn mods on or off").
+# f_function_hooks <ok> <file> <surface>
+f_function_hooks() {
+  [[ "$1" -eq 1 ]] || return 0
+  [[ "$(jqf "$2" -r '(.env // {}) | if type == "object" and has("CLAUDE_CODE_ENABLE_FUNCTION_HOOKS") then "set" else "" end')" == "set" ]] || return 0
+  row F function-hooks-flag-dead finding warning "$3" "function-hooks-flag-dead" "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS is set in env; Claude Code v2.1.287 and later ignores it at any value (mods overview: \"Claude Code v2.1.287 and later ignores it\"), so setting it to 0 does not keep mods off. Remove it; to stop installed mods use disableAllHooks, --safe-mode or /plugin, and an organization sets allowManagedModsOnly on the built-in guard in managed settings" "/env/CLAUDE_CODE_ENABLE_FUNCTION_HOOKS"
+}
+f_function_hooks "$USER_OK" "$USER_SETTINGS" "$SURF_USER"
+f_function_hooks "$PROJECT_OK" "$SETTINGS" "$SURF_SETTINGS"
+f_function_hooks "$LOCAL_OK" "$LOCAL" "$SURF_LOCAL"
 
 # --- Category G: skill-listing measurement from an existing debug log ----------
 

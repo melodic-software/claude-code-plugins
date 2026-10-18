@@ -219,6 +219,33 @@ OUT=$(merge "$MIXED")
 assert_contains "the invisible command-line scope is stated" "$OUT" "CAVEAT: the command-line scope"
 assert_contains "the exact-text limitation states its error direction" "$OUT" "over-reporting allow"
 
+# --- Case 7m: deny rules are never presented as final against mods ------------
+# Expected text from the mods admin page, "Know what happens by default":
+# deny rules take precedence "where the guard loads", and "Neither applies to a
+# mod's own $.fs and $.process calls".
+NO_MANAGED=$(
+  cat <<'EOF'
+managed file absent /policy/managed-settings.json
+managed remote-cache absent /fx/home/.claude/remote-settings.json
+user settings present /fx/home/.claude/settings.json
+rule user settings deny Read(./.env)
+EOF
+)
+OUT=$(merge "$NO_MANAGED")
+assert_eq "one mod caveat line is printed" 1 "$(count_matching "$OUT" '^CAVEAT: mods: ')"
+assert_contains "the caveat bounds deny rules by the guard" "$OUT" "only where the built-in sec-default guard loads"
+assert_contains "the caveat names the calls no deny rule covers" "$OUT" '$.fs or $.process'
+assert_contains "no managed file: the guard is not seated by managed settings" "$OUT" "Guard on this machine: not seated by managed settings"
+WITH_MANAGED=$(
+  cat <<'EOF'
+managed file present /policy/managed-settings.json
+user settings present /fx/home/.claude/settings.json
+EOF
+)
+assert_contains "a managed file present: the guard is seated" "$(merge "$WITH_MANAGED")" "Guard on this machine: seated (managed settings present: file)"
+assert_contains "an unread managed surface: the guard state is unknown" "$(merge 'managed registry skipped -')" "Guard on this machine: unknown"
+assert_contains "no managed records: the guard state is not read" "$(merge 'user settings present /u')" "Guard on this machine: not read"
+
 # --- Case 8: no scope records is an error, never an empty merge ---------------
 # A reader that died and a machine with no settings must not look the same.
 rc=0

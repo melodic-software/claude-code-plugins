@@ -364,6 +364,42 @@ rc=0
 out=$(SETTINGS_AUDIT_MANAGED_PATH="$m/managed.json" run "$m" --table 2>&1) || rc=$?
 assert_contains "case 4m: the table prints a set mod-plane key" "$out" "allowModsToOverrideDenyRules set in managed to true"
 
+# --- Case 4f: the early-access mods variable is dead at any value ---------------
+# Expected values from the mods overview: "Claude Code v2.1.287 and later
+# ignores it, so setting it to `0` doesn't keep mods off".
+m="$(make_machine fnhooks)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {env:{"CLAUDE_CODE_ENABLE_FUNCTION_HOOKS":"0"}}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{"env":{"CLAUDE_CODE_ENABLE_FUNCTION_HOOKS":"1"}}' >"$m/user/settings.json"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_eq "case 4f: a project env value of 0 is a warning" "warning" \
+  "$(jq -r '.findings[] | select(.identity.claim=="function-hooks-flag-dead" and .identity.sites[0].surface==".claude/settings.json") | .severity' <<<"$out")"
+assert_eq "case 4f: the user scope is read too" "1" \
+  "$(jq -r '[.findings[] | select(.identity.claim=="function-hooks-flag-dead" and .identity.sites[0].surface=="user:settings.json")] | length' <<<"$out")"
+assert_contains "case 4f: the detail says a 0 does not keep mods off" \
+  "$(jq -r '.findings[] | select(.identity.claim=="function-hooks-flag-dead") | .detail' <<<"$out" | head -n1)" "does not keep mods off"
+m="$(make_machine fnhooks-absent)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {env:{"CLAUDE_CODE_DISABLE_AUTO_MEMORY":"1"}}' >"$m/project/.claude/settings.json"
+out=$(run "$m" --json 2>&1)
+assert_eq "case 4f: another env variable is no finding" "0" \
+  "$(jq -r '[.findings[] | select(.identity.claim=="function-hooks-flag-dead")] | length' <<<"$out")"
+
+# --- Case 4g: built-in mods keep running under every hook lever ----------------
+# Expected values from the mods overview: "disableAllHooks, --bare, and
+# --safe-mode, don't stop built-in mods".
+m="$(make_machine builtin-levers)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {disableAllHooks:true}' >"$m/project/.claude/settings.json"
+out=$(run "$m" --json 2>&1)
+bm="$(jq -r '.findings[] | select(.identity.claim=="builtin-mods-survive-levers") | "\(.severity) \(.detail)"' <<<"$out")"
+assert_contains "case 4g: disableAllHooks set yields an info finding" "$bm" "info "
+assert_contains "case 4g: the text names --bare" "$bm" "--bare"
+assert_contains "case 4g: the text names --safe-mode" "$bm" "--safe-mode"
+m="$(make_machine builtin-levers-unset)"
+printf '%s\n' "$CLEAN_SETTINGS" >"$m/project/.claude/settings.json"
+out=$(run "$m" --json 2>&1)
+assert_eq "case 4g: with no lever set it is an ok row, not a finding" "ok 0" \
+  "$(jq -r '"\(.rows[] | select(.claim=="builtin-mods-survive-levers") | .status) \([.findings[] | select(.identity.claim=="builtin-mods-survive-levers")] | length)"' <<<"$out")"
+
 # strictPluginOnlyCustomization is per-surface. "mcp" does not switch hooks off.
 # "hooks" does. v2.1.257 closed the /mcp reconnect bypass; the lever row says so.
 # write_surface_lock <name> <lock JSON>: the name is the directory, since the JSON

@@ -1,0 +1,9 @@
+---
+bump: minor
+---
+
+### Added
+
+- `audit` Category F: `function-hooks-flag-dead` flags `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` in any user, project or local settings `env`, since current Claude Code ignores it and a `0` there leaves mods on.
+- `audit` Category D: `builtin-mods-survive-levers` states that `disableAllHooks`, `--bare` and `--safe-mode` do not stop built-in mods, an `info` finding when `disableAllHooks` is set.
+- `audit-permission-state`: the merge prints a `CAVEAT: mods:` line saying deny rules are final against a user's mod only where the sec-default guard loads and never cover a mod's own `$.fs`/`$.process` calls, with the guard state read from the managed-scope records. Runs on demand only; no hook or per-turn cost.

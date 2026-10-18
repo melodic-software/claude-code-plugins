@@ -210,6 +210,19 @@ NF >= 3 {
     unread_scope[n_unread] = $1
     unread_surface[n_unread] = $2
   }
+  # The managed records come from the lib/managed-scope.sh read. A policy
+  # file or value that is present seats the built-in guard; the remote cache
+  # is user-writable and can be stale, so it only hints at a Team or
+  # Enterprise sign-in, which this merge does not read.
+  if ($1 == "managed") {
+    managed_seen = 1
+    if (status == "present" && ($2 == "file" || $2 == "registry" || $2 == "plist" || index($2, "dropin-file:") == 1))
+      guard_basis = (guard_basis == "" ? $2 : guard_basis "," $2)
+    else if ($2 == "remote-cache" && status == "present")
+      remote_cache = 1
+    else if (status == "skipped" || status == "unreadable")
+      managed_unread = 1
+  }
 }
 
 END {
@@ -220,6 +233,17 @@ END {
   else
     print "CAVEAT: the command-line scope (--settings, --allowedTools, --disallowedTools) ranks above local, project and user settings and has no file to read. This merge is the effective set the settings FILES define. When a managed file sets allowManagedPermissionRulesOnly, --allowedTools is ignored and --disallowedTools plus session deny and ask rules are kept across reloads (v2.1.257+); that lock is applied here only when a managed conf record carries it."
   print "CAVEAT: rules are compared by exact text. A broad deny blocks calls that also match a narrower allow, so a narrow allow shadowed only by a broader deny pattern is still reported effective here — the error direction is over-reporting allow."
+  if (guard_basis != "")
+    guard = "seated (managed settings present: " guard_basis ")"
+  else if (managed_unread)
+    guard = "unknown (a managed surface was skipped or unreadable)"
+  else if (!managed_seen)
+    guard = "not read (no managed scope records in the input)"
+  else if (remote_cache)
+    guard = "not seated by local managed settings; a server-managed cache is present, which points to a Team or Enterprise sign-in, where the guard also loads (confirm the plan in /status)"
+  else
+    guard = "not seated by managed settings; it still loads for a Team or Enterprise sign-in, which this merge does not read (see /status)"
+  print "CAVEAT: mods: a deny rule below is final against a user-installed mod only where the built-in sec-default guard loads (managed settings on the machine, or a Team or Enterprise sign-in), and not when managed settings set its allowModsToOverrideDenyRules option. Even then no deny rule covers the $.fs or $.process calls a mod makes itself: with Read(.env) denied, a mod can still read the file or start a program that does. Guard on this machine: " guard ". Basis: https://code.claude.com/docs/en/plugins/mods/admin#know-what-happens-by-default"
   for (i = 1; i <= n_unread; i++) {
     extra = " The merged set below is incomplete by that surface."
     if (unread_status[i] == "invalid-json" && unread_scope[i] == "managed" && (unread_surface[i] == "file" || unread_surface[i] == "plist" || unread_surface[i] == "registry" || index(unread_surface[i], "dropin-file:") == 1))
