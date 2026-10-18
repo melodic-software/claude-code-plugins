@@ -68,6 +68,12 @@ def frontmatter_and_body(path):
     return validate_cases.parse_yaml(block), body
 
 
+def system_prompt_of(case_dir):
+    """execution.append_system_prompt as the validator's parser reads case.yaml."""
+    data = validate_cases.parse_yaml((case_dir / "case.yaml").read_text("utf-8"))
+    return data["execution"]["append_system_prompt"]
+
+
 class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -140,12 +146,11 @@ class BuildTest(Base):
             fields, body = frontmatter_and_body(case / "prompt.md")
             self.assertEqual(body.strip(), PROMPT)
             self.assertEqual(fields["allowed_tools"], [])
-            self.assertEqual(
-                fields["append_system_prompt"], calibrate.system_prompt(entry["answer"])
-            )
+            self.assertNotIn("append_system_prompt", fields)
+            system = system_prompt_of(case)
+            self.assertEqual(system, calibrate.system_prompt(entry["answer"]))
             self.assertIn(
-                "\nBEGIN-REFERENCE\n%s\nEND-REFERENCE" % entry["answer"],
-                fields["append_system_prompt"],
+                "\nBEGIN-REFERENCE\n%s\nEND-REFERENCE" % entry["answer"], system
             )
             self.assertEqual(
                 (case / "graders" / "names-paris.md").read_text(),
@@ -153,18 +158,42 @@ class BuildTest(Base):
             )
             self.assertEqual(
                 sorted(p.name for p in case.rglob("*") if p.is_file()),
-                ["names-paris.md", "prompt.md"],
+                ["case.yaml", "names-paris.md", "prompt.md"],
             )
+
+    def test_a_sample_holding_a_table_rule_builds_a_case_that_loads(self):
+        suite = self.copy_suite()
+        samples = suite / "capital-city" / "samples" / "names-paris.json"
+        rule = "| City | Country |\n---\n| Paris | France |\n---"
+        data = json.loads(samples.read_text())
+        data["pass"].append({"answer": rule})
+        samples.write_text(json.dumps(data))
+        proc, out = self.build(suite)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("validate-cases: PASS (0 FAIL", proc.stdout)
+        entry = next(e for e in self.manifest(out)["cases"] if e["answer"] == rule)
+        case = out / "evals" / entry["case"]
+        self.assertEqual(system_prompt_of(case), calibrate.system_prompt(rule))
+        yaml_lines = (case / "case.yaml").read_text().splitlines()
+        self.assertEqual([ln for ln in yaml_lines if ln.strip() == "---"], [])
+        fields, body = frontmatter_and_body(case / "prompt.md")
+        self.assertNotIn("append_system_prompt", fields)
+        self.assertEqual(body.strip(), PROMPT)
 
     def test_the_label_never_reaches_the_generated_case(self):
         _, out = self.build()
         entries = self.manifest(out)["cases"]
         shapes = set()
         for entry in entries:
-            text = (out / "evals" / entry["case"] / "prompt.md").read_text()
+            case = out / "evals" / entry["case"]
+            text = (case / "case.yaml").read_text() + (case / "prompt.md").read_text()
             quoted = calibrate.yaml_quoted(calibrate.system_prompt(entry["answer"]))
             self.assertIn(quoted, text)
-            shapes.add(text.replace(quoted, "<SYSTEM>"))
+            shapes.add(
+                text.replace(quoted, "<SYSTEM>").replace(
+                    calibrate.yaml_quoted(entry["case"]), "<NAME>"
+                )
+            )
             self.assertNotIn(entry["why"], text)
             for word in ("pass", "fail", "label", "judge", "grade"):
                 self.assertNotIn(word, entry["case"].lower())
@@ -188,12 +217,8 @@ class BuildTest(Base):
         self.assertEqual({e["label"] for e in entries}, {"pass", "fail"})
         instructions = set()
         for entry in entries:
-            fields, _ = frontmatter_and_body(
-                out / "evals" / entry["case"] / "prompt.md"
-            )
-            instructions.add(
-                fields["append_system_prompt"].split("\nBEGIN-REFERENCE\n")[0]
-            )
+            system = system_prompt_of(out / "evals" / entry["case"])
+            instructions.add(system.split("\nBEGIN-REFERENCE\n")[0])
         self.assertEqual(instructions, {calibrate.INSTRUCTION})
         for phrase in (
             "fixed test material",

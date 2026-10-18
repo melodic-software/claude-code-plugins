@@ -527,18 +527,22 @@ about marketplace removal itself; the marker is our observation that connects th
 does visit a removed marketplace's cache folders: the Claude Code 2.1.270 debug log (2026-09-14,
 recorded on [#3835](https://github.com/melodic-software/claude-code-plugins/issues/3835)) shows its
 folder-retention pass keeping two removed marketplaces' folders because each still held content.
-That the sweep removes a marked version directory under a removed marketplace at 14 days is
-inferred from the documented rule, not yet observed; both probes that would show it were lost
-before a reading.
+**Observed 2026-10-17 on Claude Code 2.1.302** (melo-desk-001, WSL, probe
+[#3835](https://github.com/melodic-software/claude-code-plugins/issues/3835)): the probe's marked
+version directory, and its marketplace folder, were gone at least 14 days after the
+`.orphaned_at` marker (`1790887278455`, 2026-10-01T20:41Z) while other plugins stayed installed.
+That is consistent with the sweep removing a marked version directory under a removed marketplace
+by 14 days (seen gone at 16). The removal was observed by absence only: the debug log of the
+deletion was not captured, so a different cleanup cannot be fully excluded.
 
 - **Pointer**: for the orphan sweep, see
   [Cleanup of previous versions](https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions);
   the marker and the debug log are our probes.
-- **As of**: 2026-09-06
+- **As of**: 2026-10-17
 - **Recheck trigger**: any Claude Code release note or docs change touching marketplace removal,
   the orphan sweep, or the cache layout.
 
-**That observation was taken after an `uninstall`, with no install record left for the removal to
+**The 2026-09-06 verification was taken after an `uninstall`, with no install record left for the removal to
 find.** With plugins from the marketplace still installed, the same command deletes their records at
 every scope, their persistent data directories and their settings entries, and writes the
 `.orphaned_at` marker itself rather than inheriting one from an earlier `uninstall`; see

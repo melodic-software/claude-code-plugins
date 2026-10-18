@@ -227,6 +227,38 @@ jobs:
       # jobs" on this job alone still downloads it.
       dependency-run-attempt: ${{ needs.review-dependency.outputs.dependency-run-attempt }}
 
+  # GitHub starts no pull_request workflow on a conflicted PR, so a head the
+  # lane could not resolve gets no CI and no sign why. This script job, with
+  # no model, posts a failing pr-unblock/conflict commit status on that head.
+  # It is the lane's only statuses: write, on its own GITHUB_TOKEN: the lanes
+  # App token the escalation comment uses carries no statuses permission.
+  report-conflict-status:
+    needs: resolve-conflicts
+    if: >-
+      ${{ !cancelled() && needs.resolve-conflicts.outputs.escalation-reason == 'unresolved-conflict'
+      && needs.resolve-conflicts.outputs.head-sha != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Post the conflict status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr-number }}
+          HEAD_SHA: ${{ needs.resolve-conflicts.outputs.head-sha }}
+          ESCALATION_REASON: ${{ needs.resolve-conflicts.outputs.escalation-reason }}
+          TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: bash .base/.github/scripts/pr-unblock/report-escalation.sh status
+
   report-escalation:
     needs: [resolve-conflicts, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict]
     # escalation-reason is set only by the write runner's own steps and the

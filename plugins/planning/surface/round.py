@@ -407,11 +407,20 @@ def add_question(doc, q, repoint=False, latest=None):
     for i, c in enumerate(q.get("commits") or [], 1):
         capped(f"{q['id']} commitment {i}", c, LINE_CAP)
     if any(x.get("id") == q["id"] for x in doc["questions"]):
-        sys.exit(f"duplicate id: {q['id']}")
+        sys.exit(f"duplicate id: {q['id']} (refused; nothing was written)")
     known = {x["id"] for x in doc["questions"]}
     for ref in [q.get("followUpOf"), q.get("supersedes"), *q.get("dependsOn", [])]:
         if ref and ref not in known:
             sys.exit(f"unknown reference in {q['id']}: {ref}")
+    if q.get("supersedes"):
+        old_short = find(doc, q["supersedes"]).get("short")
+        if " ".join(str(old_short or "").split()).casefold() == " ".join(
+            str(q.get("short")).split()
+        ).casefold():
+            sys.exit(
+                f"refused: {q['id']} supersedes {q['supersedes']} but reuses its short "
+                f"title {old_short!r}; give the new question its own short title"
+            )
     if q.get("group") and q["group"] not in {g["id"] for g in doc["groups"]}:
         sys.exit(
             f"unknown group in {q['id']}: {q['group']} (add it with: round.py group)"

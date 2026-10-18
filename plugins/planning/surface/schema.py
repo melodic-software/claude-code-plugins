@@ -4,6 +4,8 @@ Keywords: type, enum, required, properties, additionalProperties (false or a sch
 maxLength, minimum, maximum, minItems, maxItems, oneOf, anyOf, allOf, and $ref to `#/$defs/<name>` or to another shipped schema by $id.
 Anything else in a schema is ignored. `first_error` returns the first failure as
 `<path>: <message>` (path in `$.a[0].b` form), or None when the instance is valid.
+`registry` and `load` take an optional schema directory (default `schema/` here); each
+directory keeps its own registry, and a cross-schema $ref resolves in any loaded one.
 """
 
 import json
@@ -19,29 +21,40 @@ TYPES = {
     "boolean": lambda v: isinstance(v, bool),
     "null": lambda v: v is None,
 }
-_REGISTRY = {}
+_REGISTRIES = {}
 
 
-def registry():
-    """Every shipped schema, keyed by its $id; loaded once."""
-    if not _REGISTRY:
-        for path in sorted(SCHEMA_DIR.glob("*.schema.json")):
+def registry(schema_dir=SCHEMA_DIR):
+    """Every `*.schema.json` in `schema_dir`, keyed by its $id; loaded once per directory."""
+    key = Path(schema_dir).resolve()
+    if key not in _REGISTRIES:
+        reg = {}
+        for path in sorted(key.glob("*.schema.json")):
             s = json.loads(path.read_text(encoding="utf-8"))
-            _REGISTRY[s["$id"]] = s
-    return _REGISTRY
+            reg[s["$id"]] = s
+        _REGISTRIES[key] = reg
+    return _REGISTRIES[key]
 
 
-def load(name):
-    """The shipped schema `schema/<name>.schema.json`."""
-    for s in registry().values():
+def load(name, schema_dir=SCHEMA_DIR):
+    """The schema `<schema_dir>/<name>.schema.json`."""
+    for s in registry(schema_dir).values():
         if s["$id"].rsplit("/", 1)[-1] == name:
             return s
     raise KeyError(name)
 
 
+def _by_id(sid):
+    registry()
+    for reg in _REGISTRIES.values():
+        if sid in reg:
+            return reg[sid]
+    raise KeyError(sid)
+
+
 def _resolve(ref, root):
     base, _, frag = ref.partition("#")
-    doc = registry()[base] if base else root
+    doc = _by_id(base) if base else root
     node = doc
     for part in [p for p in frag.split("/") if p]:
         node = node[part]

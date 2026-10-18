@@ -709,6 +709,25 @@ function resolveMerge(merge = {}, configPath) {
   };
 }
 
+// The `limits` leaf with every default applied, in hours and counts; the lane
+// scripts' copy of these defaults is
+// .github/scripts/work-resolve-issue/limits.mjs.
+const limitsOf = (limits = {}) => ({
+  "fallback-reset": limits["fallback-reset"] ?? 5,
+  "reset-clamp-min": limits["reset-clamp-min"] ?? 1,
+  "reset-clamp-max": limits["reset-clamp-max"] ?? 168,
+  "restarts-per-run": limits["restarts-per-run"] ?? 5,
+  "limit-stops-per-head": limits["limit-stops-per-head"] ?? 3,
+  "limit-stops-per-issue": limits["limit-stops-per-issue"] ?? 3,
+  "wip-cap": limits["wip-cap"] ?? 60,
+});
+
+// The resolved limits alone, after the same file checks as resolve(), for a
+// run that resolves no lane slot (pr-unblock-dispatch.yml).
+export function resolveLimits(files, { configPath }) {
+  return limitsOf(loadConfig(files, { configPath }).limits);
+}
+
 export function resolve(
   files,
   { lane, activity, configPath, basePath, facts },
@@ -735,6 +754,7 @@ export function resolve(
       "no-progress": doc.loop?.["no-progress"] ?? 3,
       "dependency-review-rounds": doc.loop?.["dependency-review-rounds"] ?? 2,
     },
+    limits: limitsOf(doc.limits),
     merge: resolveMerge(doc.merge, configPath),
   };
 }

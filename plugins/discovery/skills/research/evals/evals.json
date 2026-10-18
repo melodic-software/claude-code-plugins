@@ -624,6 +624,19 @@
         "Output closes the post-dispatch boundary (verifier and project fit written back) before surfacing the result",
         "The findings state that SQLite WAL mode does not work over a network filesystem because all processes using the database must be on the same host computer, citing https://sqlite.org/wal.html"
       ]
+    },
+    {
+      "id": 44,
+      "name": "presented-summary-links-each-claim",
+      "prompt": "/discovery:research whether SQLite WAL mode is safe on network file systems [The run is complete: the verifier passed and the write-back is done. The findings sidecar holds two accepted claims. Claim 1 has primary https://sqlite.org/wal.html and corroborators https://sqlite.org/howtocorrupt.html and https://www.sqlite.org/faq.html. Claim 2 is a Tier 0 local probe whose command is in RESEARCH-probes.md and has no URL. Now present the findings to the user in a short chat recap.]",
+      "expected_output": "A short recap in which each accepted claim carries its primary and counted corroborators as inline Markdown links from sources[].url, the local probe cites RESEARCH-probes.md, and no source is named without its link.",
+      "files": [],
+      "expectations": [
+        "Output's recap links claim 1's primary source as an inline Markdown link to https://sqlite.org/wal.html, not as a bare name",
+        "Output's recap links each counted corroborator of claim 1 (https://sqlite.org/howtocorrupt.html and https://www.sqlite.org/faq.html) as inline Markdown links",
+        "Output cites the local probe claim by naming the artifact file RESEARCH-probes.md that holds its command, and invents no URL for it",
+        "Output does not cite any source by name alone: a source name without its URL fails the citation requirement"
+      ]
     }
   ]
 }
