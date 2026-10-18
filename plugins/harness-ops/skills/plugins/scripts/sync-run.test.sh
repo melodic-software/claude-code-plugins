@@ -1341,6 +1341,106 @@ assert_contains "self-update render: a digest without the row names no plugin" \
   "$(needs_digest sync '{"self_updated":true,"user_sweep":{"updated":[{"id":"a@m","scope":"user","old":"1","new":"2"}]}}' |
     jq -r -f "$SCRIPT_DIR/render-report.jq")" "Note: this run updated this plugin. The algorithm"
 
+# --- the Divergences row splits its count by what can be done about each part --
+# Rendered straight from a digest. Each fixture carries the attribution fields the
+# row has always read, so only the split decides the text.
+div_row_of() {
+  needs_digest sync "$1" | jq -r -f "$SCRIPT_DIR/render-report.jq" | grep '^Divergences:' || true
+}
+div_attr='"pre_existing":4,"new_total":1,"new_by_interval":{"in_repo":1,"user_sweep":0}'
+# All actionable, a project resolved: converge is the only pointer.
+div_row=$(div_row_of "{\"project_root\":\"/w\",\"divergences\":{\"post\":5,$div_attr,\"actionable_here\":2,\"actionable_elsewhere\":3,\"in_worktrees\":0,\"blocked\":0}}")
+assert_eq "divergences split: all actionable points at converge only" \
+  'Divergences: 2 actionable here, 3 actionable elsewhere on this machine → run `/harness-ops:plugins converge` (of 5 in all: 4 pre-existing, 1 newly created by this run (1 by the in-repo update, 0 by the user-scope sweep))' \
+  "$div_row"
+assert_not_contains "divergences split: all actionable has no worktree pointer" "$div_row" "/source-control:worktree"
+assert_not_contains "divergences split: all actionable has no blocked part" "$div_row" "blocked"
+# Mixed: three parts, and converge is named once, on the actionable part.
+div_row=$(div_row_of "{\"divergences\":{\"post\":10,$div_attr,\"actionable_here\":0,\"actionable_elsewhere\":2,\"in_worktrees\":3,\"blocked\":5}}")
+assert_eq "divergences split: mixed names each non-zero part" \
+  'Divergences: 2 actionable elsewhere on this machine → run `/harness-ops:plugins converge`; 3 in linked worktrees → remove the worktree; /source-control:worktree audit (if installed) classifies them; 5 blocked, path not present → see Stale project records below (of 10 in all: 4 pre-existing, 1 newly created by this run (1 by the in-repo update, 0 by the user-scope sweep))' \
+  "$div_row"
+assert_eq "divergences split: mixed points at converge exactly once" "1" "$(grep -o 'plugins converge' <<<"$div_row" | wc -l | tr -d ' ')"
+# Only blocked: no converge pointer at all.
+div_row=$(div_row_of "{\"divergences\":{\"post\":7,$div_attr,\"actionable_here\":0,\"actionable_elsewhere\":0,\"in_worktrees\":0,\"blocked\":7}}")
+assert_eq "divergences split: only blocked names the stale-records note" \
+  'Divergences: 7 blocked, path not present → see Stale project records below (of 7 in all: 4 pre-existing, 1 newly created by this run (1 by the in-repo update, 0 by the user-scope sweep))' \
+  "$div_row"
+assert_not_contains "divergences split: only blocked has no converge pointer" "$div_row" "converge"
+# A digest written before the split: the text it always rendered.
+div_old="\"post\":5,$div_attr"
+assert_eq "divergences split: an old digest without split fields renders as before" \
+  'Divergences: 5 actionable: 4 pre-existing, 1 newly created by this run (1 by the in-repo update, 0 by the user-scope sweep) → run `/harness-ops:plugins converge`' \
+  "$(div_row_of "{\"divergences\":{$div_old}}")"
+assert_eq "divergences split: an old digest with a project leads with the here count" \
+  'Divergences: 2 behind here → run `/harness-ops:plugins converge`; on this whole machine 5 actionable: 4 pre-existing, 1 newly created by this run (1 by the in-repo update, 0 by the user-scope sweep)' \
+  "$(div_row_of "{\"project_root\":\"/w\",\"divergences_here\":2,\"divergences\":{$div_old}}")"
+assert_eq "divergences split: zero stays zero" 'Divergences: 0 actionable' \
+  "$(div_row_of '{"divergences":{"post":0,"actionable_here":0,"actionable_elsewhere":0,"in_worktrees":0,"blocked":0}}')"
+
+# --- the split computed from a real fleet ---------------------------------------
+# alpha carries one pin per class beside its user record, all behind the user
+# version: a plain directory (actionable), a linked worktree (.git is a file naming
+# a /worktrees/ entry), and a path that is not present (blocked). beta is pinned
+# only in the worktree, gamma only in the missing path, and delta's pin is a
+# directory holding a submodule-style .git file, which is not a worktree.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+for name in alpha beta gamma delta epsilon zeta; do catalog_plugin "$case_dir" market1 "$name" 0.2.0; done
+mkdir -p "$case_dir/plain/.git" "$case_dir/wt" "$case_dir/sub" "$case_dir/sep" "$case_dir/current"
+printf 'gitdir: %s/main/.git/worktrees/wt\n' "$case_dir" >"$case_dir/wt/.git"
+printf 'gitdir: ../.git/modules/sub\n' >"$case_dir/sub/.git"
+printf 'gitdir: %s/worktrees/sep.git\n' "$case_dir" >"$case_dir/sep/.git"
+p_plain=$(norm_path "$case_dir/plain")
+p_wt=$(norm_path "$case_dir/wt")
+p_sub=$(norm_path "$case_dir/sub")
+p_gone=$(norm_path "$case_dir/gone")
+p_sep=$(norm_path "$case_dir/sep")
+p_current=$(norm_path "$case_dir/current")
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"a\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_plain\", \"installPath\": \"a\", \"version\": \"0.1.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_wt\", \"installPath\": \"a\", \"version\": \"0.1.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_gone\", \"installPath\": \"a\", \"version\": \"0.1.0\"}],
+    \"beta@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"b\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_wt\", \"installPath\": \"b\", \"version\": \"0.1.0\"}],
+    \"gamma@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"g\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_gone\", \"installPath\": \"g\", \"version\": \"0.1.0\"}],
+    \"delta@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"d\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_sub\", \"installPath\": \"d\", \"version\": \"0.1.0\"}],
+    \"epsilon@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"e\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_sep\", \"installPath\": \"e\", \"version\": \"0.1.0\"}],
+    \"zeta@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"z\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_current\", \"installPath\": \"z\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_gone\", \"installPath\": \"z\", \"version\": \"0.1.0\"}]
+  }
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}, {"name": "gamma", "source": "gamma"}, {"name": "delta", "source": "delta"}, {"name": "epsilon", "source": "epsilon"}, {"name": "zeta", "source": "zeta"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "beta@market1": true, "gamma@market1": true, "delta@market1": true, "epsilon@market1": true, "zeta@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir/plain" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --audit --install-new none
+assert_exit "divergences real: exit 0" 0 "$REPORT_RC"
+assert_eq "divergences real: the digest splits the four rows by class" \
+  '{"post":6,"actionable_here":1,"actionable_elsewhere":2,"in_worktrees":1,"blocked":2}' \
+  "$(jq -c '.marketplaces[0].divergences | {post, actionable_here, actionable_elsewhere, in_worktrees, blocked}' <<<"$REPORT_DIGEST")"
+assert_contains "divergences real: the row names the worktree part" "$REPORT_TEXT" \
+  "1 in linked worktrees → remove the worktree; /source-control:worktree audit (if installed) classifies them"
+assert_contains "divergences real: the row names the blocked part" "$REPORT_TEXT" \
+  "2 blocked, path not present → see Stale project records below"
+# delta (a submodule .git file), epsilon (a separate git dir under a directory
+# named worktrees) are plain checkouts; zeta's present pin already sits at the
+# highest version, so only its absent pin is the skew and the row is blocked.
+
 # --- an install that left userConfig options unset ---------------------------
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
