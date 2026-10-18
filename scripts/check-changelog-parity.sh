@@ -128,7 +128,9 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 # CHANGELOG_PARITY_ROOT checks another tree with this copy's code: the
 # Dependabot bump runs main's scripts against the pull request's checkout.
-cd "${CHANGELOG_PARITY_ROOT:-$SCRIPT_DIR/..}" || exit 2
+# Failing that, CHECK_DATA_ROOT names the tree to check, as it does for the rest
+# of the family (the pre-push hook runs a merge-base copy against the branch).
+cd "${CHANGELOG_PARITY_ROOT:-${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}}" || exit 2
 # shellcheck source=lib/read-list.sh
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 # shellcheck source=lib/changed-files.sh

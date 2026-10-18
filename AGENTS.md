@@ -75,6 +75,7 @@ read the matching file on demand. These apply in every session:
   or docs.
 - Keep agent-run shell commands plain: absolute paths, and no `cd`, `VAR=value` prefix, `export`
   or redirect.
+- Before a push, run `scripts/check-affected.sh`: it runs the diff-scoped CI hygiene checks and prints `CI only: <gate>` for each one it leaves to CI (#6008).
 
 A rule that changes what a stage produces or permits belongs in this repository or a plugin, not
 in user scope. User scope keeps only personal style, meaning the voice, length and format of
