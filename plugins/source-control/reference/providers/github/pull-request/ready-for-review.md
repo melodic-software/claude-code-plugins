@@ -99,6 +99,56 @@ printf '%s\n' "$COMMENT" | gh pr comment "$PR_NUMBER" --body-file -
 `check-ready-holds.sh` reads the title, body, labels and closing issue references, never
 comments, so the comment cannot set or lift a hold there.
 
+## List the workflow runs for the head
+
+Both steps below read the runs registered for one head commit. `head_sha` and `event` are query
+parameters of the list-workflow-runs endpoint, `head_sha` returning only runs associated with that
+commit, and a run's `status` and `conclusion` take the values the endpoint's `status` parameter
+lists, `skipped` among them (read 2026-10-18 at
+<https://docs.github.com/en/rest/actions/workflow-runs>, "List workflow runs for a repository").
+`$HEAD_SHA` is the PR's head commit from "Refresh the base with a merge".
+
+```bash
+gh api -X GET "repos/{owner}/{repo}/actions/runs" -f head_sha="$HEAD_SHA" -f event=pull_request \
+  -f per_page=100 --jq '.workflow_runs[] | [.id, .created_at, .status, .conclusion // ""] | @tsv'
+```
+
+Each row is `id`, `created_at`, `status` and `conclusion`, the conclusion empty until the run
+completes. A `{owner}/{repo}` placeholder resolves from the checkout's remote, so in a fork checkout
+substitute the base repository from the PR's URL, as "Read the pre-ready steps at the base" does.
+
+## Wait for the head's runs to register
+
+Run it after the last push and before the flip. It polls the listing above every 10 seconds for up
+to 120 seconds and stops at the first row; no row by then is not an error, only a note in the
+report:
+
+```bash
+for _ in $(seq 1 12); do
+  ROWS=$(gh api -X GET "repos/{owner}/{repo}/actions/runs" -f head_sha="$HEAD_SHA" \
+    -f event=pull_request --jq '.workflow_runs | length') || ROWS=0
+  [ "${ROWS:-0}" -gt 0 ] && break
+  sleep 10
+done
+```
+
+## Check the head's lanes after the flip
+
+Take `FLIP_TIME` (UTC, `date -u +%Y-%m-%dT%H:%M:%SZ`) right before the flip. After it, poll the
+listing for up to 180 seconds for a run created at or after `FLIP_TIME`, the `ready_for_review`
+run. Once every such run has completed, a `skipped` conclusion among them means the lanes skipped
+on a stale draft payload; no run created at or after `FLIP_TIME` by the end of the wait is also a
+skip, since the flip's run never registered:
+
+```bash
+RUNS=$(gh api -X GET "repos/{owner}/{repo}/actions/runs" -f head_sha="$HEAD_SHA" -f event=pull_request \
+  -f per_page=100 | jq -c --arg t "$FLIP_TIME" '[.workflow_runs[] | select(.created_at >= $t)]')
+```
+
+Re-fire the ready event once with `gh pr ready "$PR_NUMBER" --undo && gh pr ready "$PR_NUMBER"`,
+then run this check one more time against a new `FLIP_TIME`. A second skip is reported, never
+re-fired.
+
 ## Flip to ready
 
 ```bash

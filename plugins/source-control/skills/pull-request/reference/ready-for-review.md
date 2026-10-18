@@ -193,6 +193,12 @@ the checkout to push (loop-lane convention, "Lane write identity"). For a fork h
 bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" || exit 1   # only when 2.5.3 committed anything
 ```
 
+After the last push, wait until the head commit's `pull_request` workflow runs have registered
+before anything else here, for at most 120 seconds
+([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#wait-for-the-heads-runs-to-register)).
+A flip that lands seconds after a push races that push's runs, which still read the PR as a draft
+and skip every lane. No run by the timeout is not a stop: carry on and say so in the report.
+
 Then run the hold check of 2.5.1 again
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#check-for-a-hold)),
 since a hold can land during the reviews; on any exit but 0, leave the PR in draft, report the
@@ -206,6 +212,13 @@ there: the proxy's REST route, or the GitHub MCP `update_pull_request` call with
 
 Completion criterion: the PR's draft flag reads `false`
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#read-the-draft-flag)).
+
+Then check the lanes on that head did not skip, waiting at most 180 seconds
+([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#check-the-heads-lanes-after-the-flip)):
+a `skipped` run created at or after the flip, or no such run at all, means the flip lost the race.
+Re-fire the ready event once (undo the flip, then flip again) and check again. A second skip stops
+the phase: report it and leave the PR ready, never loop and never undo again. Skip this check when
+2.5.1 found the PR already out of draft.
 
 ## 2.5.5 Hand the pull request to the change digest
 
@@ -237,7 +250,8 @@ Report one line per step, in the order they ran, each with exactly one outcome:
   is never reported as passing.
 
 The lines are the hold check, `base-merge`, `plan-evidence`, `code-review`, `security-review`,
-`verify`, the push, the hold re-check, the flip, and the digest (skipped, offered, built, or not
+`verify`, the push, the run registration wait (registered, or timed out), the hold re-check, the
+flip, the lane skip check (clean, re-fired once, or skipped twice), and the digest (skipped, offered, built, or not
 available). Above them, one line for where the step list came from: the reader's `source`, and for
 `fail-closed` its reason. Then choose who watches the PR from here, per
 [watch-handoff.md](watch-handoff.md).
