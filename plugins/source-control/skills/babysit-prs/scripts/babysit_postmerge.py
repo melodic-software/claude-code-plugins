@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from collections.abc import Callable, Collection, Iterable
@@ -483,7 +484,7 @@ def _attempt(owner: str, name: str, run_id: int, attempt: int) -> Run | None:
 
 # --- Judging runs -------------------------------------------------------------------
 
-_FULL_SHA = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
+_FULL_SHA = re.compile(r"[0-9a-f]{40}")
 
 
 def _full_history_clones() -> list[Path]:
@@ -694,9 +695,10 @@ class _Context:
 
     def _local_contains(self, ancestor: str, sha: str) -> bool | None:
         """`git merge-base --is-ancestor` in the first local clone that can
-        decide (exit 0 or 1), or None. Only full SHAs are asked: a ref name
-        can point elsewhere locally than on GitHub. A shallow clone is never
-        asked, as its cut-off history would answer False for an ancestor."""
+        decide (exit 0 or 1), or None. Only full SHA-1 ids are asked: a ref
+        name can point elsewhere locally than on GitHub. A shallow clone is
+        never asked, and a graft file is ignored, as either would cut history
+        and answer False for an ancestor."""
         if not (_FULL_SHA.fullmatch(ancestor) and _FULL_SHA.fullmatch(sha)):
             return None
         if self.local_clones is None:
@@ -716,6 +718,7 @@ class _Context:
                     ],
                     allowed_executables=("git",),
                     check=False,
+                    env_overrides={"GIT_GRAFT_FILE": os.devnull},
                 )
             except (RuntimeError, ValueError, OSError):
                 return None

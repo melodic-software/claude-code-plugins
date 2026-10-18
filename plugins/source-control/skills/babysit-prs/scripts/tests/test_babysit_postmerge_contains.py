@@ -113,7 +113,7 @@ class Contains(unittest.TestCase):
                 "--depth",
                 "1",
                 "--no-single-branch",
-                f"file://{root}",
+                root.as_uri(),
                 str(cls.shallow),
             ],
             check=True,
@@ -121,6 +121,15 @@ class Contains(unittest.TestCase):
         )
         cls.empty = pathlib.Path(cls.tmp.name) / "empty"
         cls.empty.mkdir()
+        # A full clone whose graft file cuts c3 off from c2.
+        cls.grafted = pathlib.Path(cls.tmp.name) / "grafted"
+        subprocess.run(
+            ["git", "clone", "-q", root.as_uri(), str(cls.grafted)],
+            check=True,
+            env=GIT_ENV,
+        )
+        (cls.grafted / ".git" / "info").mkdir(exist_ok=True)
+        (cls.grafted / ".git" / "info" / "grafts").write_text(f"{cls.c3}\n")
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -185,6 +194,36 @@ class Contains(unittest.TestCase):
         ctx, api = self.context([self.shallow])
         self.assertTrue(ctx.contains(self.c2, self.c3))
         self.assertEqual(len(api.calls), 1)
+
+    def test_a_graft_file_is_ignored(self) -> None:
+        # Grafted, git would call c2 no ancestor of c3; the real ancestry wins.
+        ctx, api = self.context([self.grafted])
+        self.assertTrue(ctx.contains(self.c2, self.c3))
+        self.assertEqual(api.calls, [])
+
+    def test_git_failing_after_the_clones_resolve_falls_back(self) -> None:
+        ctx, api = self.context([self.root])
+        ctx.local_clones = [self.root]
+        with mock.patch.object(pm, "run_command", side_effect=RuntimeError("timeout")):
+            self.assertTrue(ctx.contains(self.c1, self.c3))
+        self.assertEqual(len(api.calls), 1)
+
+    def test_a_clone_that_cannot_decide_passes_to_the_next(self) -> None:
+        # The shallow clone is skipped; the empty dir is no clone; root decides.
+        ctx, api = self.context([self.empty, self.shallow, self.root])
+        self.assertFalse(ctx.contains(self.s1, self.c3))
+        self.assertEqual(api.calls, [])
+
+    def test_a_clone_missing_the_commit_passes_to_the_next(self) -> None:
+        ctx, api = self.context([self.root])
+        other = pathlib.Path(self.tmp.name) / "other"
+        if not other.exists():
+            other.mkdir()
+            git(other, "init", "-q", "-b", "main")
+            commit(other, "unrelated")
+        ctx.local_clones = [other, self.root]
+        self.assertTrue(ctx.contains(self.c1, self.c3))
+        self.assertEqual(api.calls, [])
 
     def test_a_ref_name_falls_back(self) -> None:
         # `moved` was force-moved back to c1 locally; only a full SHA names
