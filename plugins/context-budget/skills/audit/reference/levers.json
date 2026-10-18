@@ -204,7 +204,7 @@
       "emittedConfig": null,
       "caveats": [
         "Listed chiefly so it is never mistaken for the prompt lever; recommending it for token savings would trade away core behavior.",
-        "Source conflict: the headless bare-mode section, the cli-reference --bare row and the env-vars CLAUDE_CODE_SIMPLE row differ on what bare mode limits. Pointer: when deciding what bare mode drops, fetch https://code.claude.com/docs/en/headless#start-faster-with-bare-mode, https://code.claude.com/docs/en/cli-reference#cli-flags and https://code.claude.com/docs/en/env-vars live. As of 2026-10-10. Recheck: the three sections agree on what bare mode limits, or any of them changes it."
+        "Source conflict: the headless bare-mode section, the cli-reference --bare row and the env-vars CLAUDE_CODE_SIMPLE row differ on what bare mode limits. Only the headless section lists the run-time limits (command-line-only MCP servers, no system reminders, no background tasks; held only partly before v2.1.286); the cli-reference row and the env-vars row list the skipped auto-discovery, and the env-vars row adds the minimal system prompt. Pointer: when deciding what bare mode drops, fetch https://code.claude.com/docs/en/headless#start-faster-with-bare-mode, https://code.claude.com/docs/en/cli-reference#cli-flags and https://code.claude.com/docs/en/env-vars live. As of 2026-10-18, Claude Code 2.1.300. Recheck: the three sections agree on what bare mode limits, or any of them changes it."
       ],
       "citations": [
         "https://code.claude.com/docs/en/headless#start-faster-with-bare-mode",
@@ -212,7 +212,7 @@
         "https://code.claude.com/docs/en/cli-reference#cli-flags",
         "https://code.claude.com/docs/en/changelog"
       ],
-      "verified": "2026-10-10",
+      "verified": "2026-10-18",
       "recheckTrigger": "headless#start-faster-with-bare-mode or the env-vars CLAUDE_CODE_SIMPLE row changes what simple mode drops."
     },
     {
@@ -390,19 +390,21 @@
       "categoryBasis": "Deferral semantics documented: it controls what enters the context window, not what is sent. The category is with respect to the REQUEST ledger; on the context-window ledger deferral is a real reasoning-space gain.",
       "conditions": "Present deferral as context-window headroom, never as request/billing savings. The honest request-side lever for a deferred tool is still removal (bare-name deny or the owning feature's disable switch).",
       "posture": "disclose-only",
-      "scope": "ENABLE_TOOL_SEARCH env var (unset/true/auto/auto:N/false); per-server or per-tool alwaysLoad opt-outs. Neither has a settings.json key, so no persistent config can be emitted.",
+      "scope": "ENABLE_TOOL_SEARCH env var (unset/true/auto/auto:N/false); per-server or per-tool alwaysLoad opt-outs. Neither has a dedicated settings.json key (the variable can ride in the settings.json env field, and a server's alwaysLoad lives in its MCP server configuration), so no persistent config is emitted.",
       "detection": "ENABLE_TOOL_SEARCH in the environment; the deferred bucket in the baseline; deferral status is measured per session, never assumed from documentation.",
       "measurement": "The baseline snapshot's System tools (deferred) bucket is the deferral observation; differencing a specific tool shows which pool it leaves from.",
       "emittedConfig": null,
       "caveats": [
+        "Tool search stays off whatever ENABLE_TOOL_SEARCH says on a Microsoft Foundry deployment hosted on Azure, on earlier models, and in a HIPAA-configured session; CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS also keeps it off (managed settings can override that one, v2.1.227+). Pointer: when deciding whether deferral applies, fetch https://code.claude.com/docs/en/mcp#configure-tool-search and https://code.claude.com/docs/en/agent-sdk/tool-search#configure-tool-search live. As of 2026-10-18, Claude Code 2.1.300. Recheck: either section changes the fallback list or the ENABLE_TOOL_SEARCH value table.",
         "Whether HTTP/Streamable-HTTP MCP tools defer at a given version is measured, never trusted from documentation: an upstream report of upfront loading (anthropics/claude-code#40314, closed not-planned) did NOT reproduce at the verified version — a probe server's tools measured deferred, in a dedicated 'MCP tools (deferred)' category separate from 'System tools (deferred)', with per-tool weights and isLoaded flags. Treat the two deferred buckets as distinct; the transition version and interactive behavior remain unknown."
       ],
       "citations": [
         "https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool#deferred-tool-loading",
-        "https://code.claude.com/docs/en/agent-sdk/tool-search",
+        "https://code.claude.com/docs/en/agent-sdk/tool-search#configure-tool-search",
+        "https://code.claude.com/docs/en/mcp#configure-tool-search",
         "https://code.claude.com/docs/en/env-vars"
       ],
-      "verified": "2026-08-17",
+      "verified": "2026-10-18",
       "recheckTrigger": "Deferral semantics change to affect the request body, or a settings key appears for either knob."
     },
     {
@@ -464,7 +466,7 @@
       ],
       "citations": [
         "https://code.claude.com/docs/en/env-vars",
-        "https://code.claude.com/docs/en/agent-sdk/tool-search"
+        "https://code.claude.com/docs/en/agent-sdk/tool-search#configure-tool-search"
       ],
       "verified": "2026-08-17",
       "recheckTrigger": "The env-vars row changes, or deferral stops being beta-gated."

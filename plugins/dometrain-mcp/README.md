@@ -128,8 +128,11 @@ reference, not the key. Claude Code expands `${DOMETRAIN_API_KEY}` from its own 
 time it connects. If `DOMETRAIN_API_KEY` is unset, Claude Code sends the literal
 `${DOMETRAIN_API_KEY}` text and flags a missing-variable warning in `claude mcp list`.
 
-Basis: [MCP server configuration](https://code.claude.com/docs/en/mcp), "Environment variable
-expansion in `.mcp.json`" and "Scope hierarchy and precedence."
+Basis: [Environment variable expansion in `.mcp.json`](https://code.claude.com/docs/en/mcp#environment-variable-expansion-in-mcp-json)
+and [Scope hierarchy and precedence](https://code.claude.com/docs/en/mcp#scope-hierarchy-and-precedence)
+(plugin servers rank below user scope and match by endpoint), as of 2026-10-18 on Claude Code
+2.1.300. Recheck when either section changes the expansion syntax, the missing-variable warning
+or the precedence order.
 
 ### Using vault-exec (opt-in)
 
@@ -180,8 +183,12 @@ Notes:
   [dotfiles ADR 0005](https://github.com/melodic-software/dotfiles/blob/main/docs/adr/0005-adopt-vault-exec-as-the-secret-resolver.md)
   records.
 
-Basis: [MCP server configuration](https://code.claude.com/docs/en/mcp), "Headers helper," "Plugin
-MCP tool names," and "Server deduplication."
+Basis: [Use dynamic headers for custom authentication](https://code.claude.com/docs/en/mcp#use-dynamic-headers-for-custom-authentication),
+[Trust a folder before its headersHelper runs](https://code.claude.com/docs/en/mcp#trust-a-folder-before-its-headershelper-runs),
+[Plugin-provided MCP servers](https://code.claude.com/docs/en/mcp#plugin-provided-mcp-servers) and
+[Scope hierarchy and precedence](https://code.claude.com/docs/en/mcp#scope-hierarchy-and-precedence),
+as of 2026-10-18 on Claude Code 2.1.300. Recheck when the helper's 10-second limit, its
+no-caching rule or the trust gate's scope changes, or the precedence order does.
 
 ## Dometrain's own official plugin
 

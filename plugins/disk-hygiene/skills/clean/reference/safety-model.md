@@ -695,9 +695,11 @@ marker-free commands differ from the watchdog: they proceed unchecked with a onc
 backstop. Verified 2026-09-28 against Claude Code 2.1.280 at
 <https://code.claude.com/docs/en/hooks> (exit 2 blocks a PreToolUse call whatever stdout carries;
 exit 0 with no `permissionDecision` proceeds through the normal permission flow; a hook `ask` forces
-a prompt even in auto mode) and <https://code.claude.com/docs/en/headless> (a prompt in a `-p` run
-with no permission host is denied); recheck when either page changes PreToolUse exit-code or `ask`
-semantics. The README states each surface in one table. The launch shape is asserted by
+a prompt even in auto mode) and <https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs> (a prompt
+in a `-p` run with no permission host is denied); the headless section was re-read 2026-10-18 on
+Claude Code 2.1.300 and still states it. Recheck when either page changes PreToolUse exit-code or
+`ask` semantics, or that headless section changes what a `-p` run does with a request nothing else
+resolves. The README states each surface in one table. The launch shape is asserted by
 `hooks/run-python-hook.test.sh` and `test_hygiene.py`, the no-interpreter posture by the former, and
 both are verified as step 1 of `/disk-hygiene:setup check`.
 

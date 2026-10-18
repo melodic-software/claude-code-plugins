@@ -50,7 +50,8 @@ Official contracts:
    - **Pointer**: for where a plugin MCP server's startup error is recorded, see
      <https://code.claude.com/docs/en/plugins/troubleshooting#server-is-configured-but-never-connects>
      and <https://code.claude.com/docs/en/debug-your-config#check-mcp-servers>.
-   - **As of**: 2026-10-02, Claude Code 2.1.287
+   - **As of**: 2026-10-18, Claude Code 2.1.300 (the sections name `claude --debug` and
+     `claude --debug=mcp`, with the log at `~/.claude/debug/<session-id>.txt`)
    - **Recheck trigger**: either section changing where server stderr is shown or the debug flag
      that captures it.
 
