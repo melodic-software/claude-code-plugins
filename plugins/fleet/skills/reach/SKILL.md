@@ -118,10 +118,8 @@ the dated measurement and says how to re-measure it). When a script can do the j
   - **Pointer**: when deciding whether a lane can take a session name in place of the id, fetch
     [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) live.
     **As of**: 2026-10-10. **Recheck trigger**: the `claude logs` or `claude attach` row changes.
-- An interactive session in a prompting mode (default or auto) takes inbound messages, but holds
-  one from a sender that bypasses permission prompts. A `-p` receiver needs
-  `crossSessionInbound: accept` (otherwise a held message expires), and lives only as long as its
-  turn. Detail and pointer in [reference/relay.md](reference/relay.md#a-named-receiver).
+- A `-p` receiver needs `crossSessionInbound: accept`. Delivery rules and the pointer are in
+  [reference/relay.md](reference/relay.md#a-named-receiver).
 - `--bare` cuts the per-turn cost but binds no inbox socket, so a bare session cannot receive
   messages or be listed. Use it for prompts, never for a receiver.
 - Remote Control is interactive only: `-p --remote-control` does not connect. Keep it out of
