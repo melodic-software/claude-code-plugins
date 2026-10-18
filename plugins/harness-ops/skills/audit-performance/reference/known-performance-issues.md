@@ -664,16 +664,13 @@ audited machine and all four were wrong; without the record, the next operator r
 On the audited machine the four heavy sessions were all `WindowsTerminal.exe` to `pwsh.exe`,
 which is the CLI, at 595 to 686 MB working set and 155 to 338 s CPU. The eight `sihost.exe` to
 `claude.exe` desktop-app children were near idle at 0 to 5 s CPU and 28 to 118 MB.
-`settings.json` and the hooks and skills defined in settings are a SHARED config surface, so
-those findings apply to both. **Every timing number in this section is CLI-only**, and desktop
+Whether the settings-level findings carry over to desktop is a question for the pointer below.
+**Every timing number in this section is CLI-only**, and desktop
 coverage is unmeasured until someone takes readings there.
 
 - **Pointer:** [desktop: shared configuration](https://code.claude.com/docs/en/desktop#shared-configuration)
-  states that Desktop and CLI read the same configuration files, that hooks and skills defined in
-  settings apply to both, and that settings in `~/.claude.json` and `~/.claude/settings.json` are
-  shared. It does not name the statusline or the `env` settings key, so that those are shared too
-  is inference from "settings are shared". Local Code-tab sessions also load servers from
-  `claude_desktop_config.json`, which the CLI does not read.
+  is the live source for what Desktop and the CLI share. Read it before applying a finding here
+  to desktop.
 - **As of:** 2026-10-18 (Claude Code 2.1.300 docs).
 - **Recheck trigger:** that section changes which files or settings are shared, or the page
   documents a Desktop-specific hook, statusline or process model.

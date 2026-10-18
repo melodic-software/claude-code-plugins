@@ -405,11 +405,10 @@ figures are wall-clock from that same run and are machine- and plugin-count-depe
 them as orders of magnitude rather than constants. The spawn behavior is not documented on
 [plugin uninstall](https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall) or
 [plugin marketplace remove](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-remove), which is why this
-record exists. `--bare` is now documented, but as a `claude -p` flag: it "skip[s] auto-discovery of
-hooks, skills, custom commands, subagents, installed plugins, MCP servers, auto memory, and
-CLAUDE.md" ([headless: start faster with bare mode](https://code.claude.com/docs/en/headless#start-faster-with-bare-mode),
-read 2026-10-18). That page does not mention the `plugin` subcommands, LSP or plugin sync, so
-`--bare` as an uninstall mitigation, and the LSP and plugin-sync skips, stay direct observation.
+record exists. `--bare` is now documented, but as a `claude -p` flag
+([headless: start faster with bare mode](https://code.claude.com/docs/en/headless#start-faster-with-bare-mode),
+read 2026-10-18). `--bare` as an uninstall mitigation, and the LSP and plugin-sync skips, stay
+direct observation.
 *As of* 2026-09-15 on **Claude Code 2.1.272** (win32) for the observation, 2026-10-18 on docs
 for 2.1.300; the revert itself ran on 2.1.263–2.1.272 with no observed change in the behavior.
 ***Recheck trigger:*** a bulk or glob-accepting form appearing on `claude plugin uninstall --help`;

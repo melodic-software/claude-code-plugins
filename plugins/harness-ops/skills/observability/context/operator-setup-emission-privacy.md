@@ -63,14 +63,12 @@ committed file. To capture one project only, export them in the shell that launc
 |---|---|
 | `OTEL_LOG_USER_PROMPTS=1` | prompt text in events/spans (else `<REDACTED>`) |
 | `OTEL_LOG_TOOL_DETAILS=1` | see the pointer below; needed in user scope for the `vcs_ref_head_*` columns |
-| `OTEL_LOG_TOOL_CONTENT=1` | tool content in spans (needs tracing on) |
-| `OTEL_LOG_RAW_API_BODIES=1` | raw API request/response bodies; implies consent to the other three |
+| `OTEL_LOG_TOOL_CONTENT=1` | tool content in spans |
+| `OTEL_LOG_RAW_API_BODIES=1` | raw API request/response bodies |
 
 - **Pointer**: when stating what each content key adds or what it requires, fetch
   [Agent SDK observability: control sensitive data in exports](https://code.claude.com/docs/en/agent-sdk/observability#control-sensitive-data-in-exports)
-  live. It states that telemetry is structural by default, that `OTEL_LOG_TOOL_CONTENT` requires
-  tracing, and that `OTEL_LOG_RAW_API_BODIES` "implies consent to everything the three variables
-  above would reveal".
+  live, including any requirement one key has on another setting.
 - **As of**: 2026-10-18
 - **Recheck trigger**: that section renames a content variable, changes what one adds or requires,
   or adds a fifth.

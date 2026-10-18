@@ -289,10 +289,10 @@ HARNESS_WRAPPER_NOTE = (
 
 #: Concurrency and fan-out env vars, with the default the official docs state.
 #: A value of None means the variable is not documented at all, which is itself reportable.
-#: Pointer: https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit (20 running
-#: subagents per session by default; ultracode sessions exempt) and
-#: https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents (three
-#: layers below the main conversation by default). As of 2026-10-18. Recheck when either
+#: Pointer: https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit (the
+#: concurrent-subagent default and its exemptions) and
+#: https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents (the
+#: nesting-depth default). As of 2026-10-18. Recheck when either
 #: section changes a default, its accepted values, or its exemptions.
 CONCURRENCY_ENV_DEFAULTS = {
     "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": 20,
@@ -2213,9 +2213,8 @@ def shell_resolution(root: Path, process_env: dict | None = None) -> dict:
             "bash.exe in two documented "
             "steps: first the default install locations (C:\\Program Files\\Git and "
             "C:\\Program Files (x86)\\Git), then the git on PATH, taking bin\\bash.exe from that "
-            "Git installation; that second step skips a git in the launch folder, or below it "
-            "under a path containing node_modules or a virtual-environment folder. Which step "
-            "wins on this host is not resolved here."
+            "Git installation; the PATH step has documented skip rules for some locations (see "
+            "the pointer). Which step wins on this host is not resolved here."
         )
         return record
     normalized = value.replace("\\", "/")
