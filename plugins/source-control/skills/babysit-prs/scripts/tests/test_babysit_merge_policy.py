@@ -21,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest import mock
 
@@ -1774,6 +1775,21 @@ class InFlight(unittest.TestCase):
         )
         self.assertEqual(self.flight().reason, "identity-entry-queued:#3")
 
+    def test_the_queue_read_names_every_entry_or_none(self) -> None:
+        queue_fake(
+            self,
+            [
+                {"enqueuer": user(OPERATOR), "pullRequest": {"number": 3}},
+                {"enqueuer": bot("agent-lanes"), "pullRequest": {"number": 4}},
+            ],
+            [],
+        )
+        result = self.flight()
+        self.assertEqual(result.reason, "identity-entry-queued:#4")
+        self.assertEqual(result.queued, frozenset({3, 4}))
+        queue_fake(self, [{"enqueuer": user(OPERATOR), "pullRequest": {}}], [])
+        self.assertIsNone(self.flight().queued)
+
     def test_a_non_human_enqueue_is_an_auto_merge_that_must_be_verified(self) -> None:
         for name, actor, enqueuer in (
             ("app actor, null enqueuer", bot("agent-lanes"), None),
@@ -1995,6 +2011,76 @@ class Assess(unittest.TestCase):
         self.assertIs(flight.call_args.kwargs["verified"], verified)
         self.assertEqual(result.reason, "in-flight:x")
         self.assertIs(result.enabled, True)
+
+    def test_an_in_flight_refusal_off_the_queue_reads_nothing_after_it(self) -> None:
+        self.readable()
+        later = mock.Mock(side_effect=AssertionError("read after the refusal"))
+        flight = policy.InFlight(False, "identity-entry-queued:#3", frozenset({3}))
+        with (
+            mock.patch.object(policy, "in_flight", return_value=flight),
+            mock.patch.object(policy, "eligibility", later),
+            mock.patch.object(policy, "lane_eligibility", later),
+            mock.patch.object(policy, "dependabot_eligibility", later),
+        ):
+            result = self.assess(post_merge=lambda floor, who: gate(), promotion=later)
+        later.assert_not_called()
+        self.assertEqual(result.reason, "in-flight:identity-entry-queued:#3")
+        self.assertIs(result.enabled, True)
+        self.assertNotIn("eligibility", result.inputs)
+
+    def test_a_rung_off_outranks_an_in_flight_refusal_off_the_queue(self) -> None:
+        self.readable()
+        flight = policy.InFlight(False, "x", frozenset({3}))
+        ineligible = policy.Eligibility(False, "fork")
+        with (
+            mock.patch.object(policy, "in_flight", return_value=flight),
+            mock.patch.object(
+                policy, "rung_cap", return_value=policy.RungCap("off", "cap-set")
+            ),
+            mock.patch.object(policy, "eligibility", return_value=ineligible) as read,
+        ):
+            result = self.assess(
+                post_merge=lambda floor, who: gate(), promotion=lambda s: PROMOTED
+            )
+        self.assertTrue(result.reason.startswith("rung-off:"), result.reason)
+        self.assertTrue(read.called)
+        self.assertEqual(result.inputs["own_refusal"], "ineligible:fork")
+
+    def test_the_in_flight_refusal_matches_the_full_judgment(self) -> None:
+        # None: the queue was not read whole, so the pull request is read in
+        # full; its own queued entry (#1) is read in full too, and refused.
+        self.readable()
+        ineligible = policy.Eligibility(False, "fork")
+        seen = []
+        for queued in (None, frozenset({1, 3}), frozenset({3})):
+            flight = policy.InFlight(False, "identity-entry-queued:#3", queued)
+            with (
+                mock.patch.object(policy, "in_flight", return_value=flight),
+                mock.patch.object(
+                    policy, "eligibility", return_value=ineligible
+                ) as read,
+            ):
+                result = self.assess(
+                    post_merge=lambda floor, who: gate(),
+                    promotion=lambda s: PROMOTED,
+                )
+            seen.append(
+                (
+                    result.reason,
+                    result.enabled,
+                    read.called,
+                    result.inputs.get("own_refusal"),
+                )
+            )
+        reason = "in-flight:identity-entry-queued:#3"
+        self.assertEqual(
+            seen,
+            [
+                (reason, True, True, "ineligible:fork"),
+                (reason, True, True, "ineligible:fork"),
+                (reason, True, False, None),
+            ],
+        )
 
     def test_a_human_clear_of_a_demotion_record_restarts_the_floor(self) -> None:
         self.readable()
@@ -3854,6 +3940,115 @@ class DependabotAssess(unittest.TestCase):
         ):
             result = self.assess_mode("enforce")
         self.assertEqual(result.reason, "rung-off:rungCap")
+
+
+class OneRunSharesItsCredentialReads(unittest.TestCase):
+    """pr-merge.yml runs one gate process per candidate and names a file in
+    `BABYSIT_RUN_CACHE`: the acting login, a credential pass and permissions
+    are read once for the run, never across other credentials, and a refusal
+    or failed read is never shared."""
+
+    fake = Assess.fake
+    readable = Assess.readable
+    all_clear = Assess.all_clear
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        env = {"BABYSIT_RUN_CACHE": str(pathlib.Path(tmp.name, "run.json"))}
+        patcher = mock.patch.dict("os.environ", {**env, "GH_TOKEN": "lane"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def gh(self) -> GhFake:
+        gh = self.readable()
+        gh.graphql["PolicyViewer"] = {"viewer": {"login": IDENTITY}}
+        self.all_clear()
+        return gh
+
+    def candidate(self) -> policy.UnattendedPolicy:
+        """One candidate's gate process, with nothing passed in."""
+        return policy.assess(
+            REPO, 1, post_merge=lambda floor, who: gate(), promotion=lambda s: PROMOTED
+        )
+
+    def reads(self, gh: GhFake) -> tuple[int, int]:
+        viewer = sum("query PolicyViewer" in " ".join(c) for c in gh.calls)
+        return viewer, gh.calls.count(["auth", "status", "--json", "hosts"])
+
+    def test_candidates_of_one_run_read_them_once(self) -> None:
+        gh = self.gh()
+        for _ in range(3):
+            self.assertIsNone(self.candidate().reason)
+        self.assertEqual(self.reads(gh), (1, 1))
+
+    def test_other_credentials_read_them_again(self) -> None:
+        gh = self.gh()
+        self.candidate()
+        with mock.patch.dict("os.environ", {"GH_TOKEN": "another"}):
+            self.candidate()
+        self.assertEqual(self.reads(gh), (2, 2))
+
+    def test_a_credential_refusal_is_read_again(self) -> None:
+        gh = self.gh()
+        gh.rest["status"] = {
+            "hosts": {
+                "github.com": [
+                    *IDENTITY_ONLY["hosts"]["github.com"],
+                    {"login": OPERATOR, "active": False, "host": "github.com"},
+                ]
+            }
+        }
+        for _ in range(2):
+            self.assertEqual(
+                self.candidate().reason, "credentials:other-account-listed"
+            )
+        self.assertEqual(self.reads(gh)[1], 2)
+
+    def test_the_default_branch_is_read_once_per_run(self) -> None:
+        gh = self.gh()
+        for _ in range(3):
+            self.candidate()
+        self.assertEqual(gh.calls.count(["api", f"repos/{REPO}"]), 1)
+
+    def test_the_pre_enqueue_base_check_reads_the_default_branch_fresh(self) -> None:
+        gh = self.gh()
+        self.candidate()
+        policy._base_refusal("owner", "repo", {"baseRefName": "trunk"})
+        self.assertEqual(gh.calls.count(["api", f"repos/{REPO}"]), 2)
+
+    def test_a_failed_default_branch_read_is_not_shared(self) -> None:
+        gh = GhFake().install(self)
+        gh.rest[f"repos/{REPO}"] = 502
+        for _ in range(2):
+            with self.assertRaises(policy.PolicyReadError):
+                policy._default_branch(REPO, shared=True)
+        self.assertEqual(gh.calls.count(["api", f"repos/{REPO}"]), 2)
+
+    def permission_reads(self, answer: Any, readers: int = 2) -> int:
+        gh = GhFake().install(self)
+        endpoint = f"repos/{REPO}/collaborators/{OPERATOR}/permission"
+        gh.rest[endpoint] = answer
+        for _ in range(readers):
+            policy.permission_reader(REPO)(OPERATOR)
+        return gh.calls.count(["api", endpoint])
+
+    def test_a_permission_is_read_once_per_run(self) -> None:
+        self.assertEqual(self.permission_reads({"permission": "admin"}, 3), 1)
+
+    def test_a_failed_permission_read_is_not_shared(self) -> None:
+        self.assertEqual(self.permission_reads(404), 2)
+
+    def test_a_permission_past_the_bound_is_read_again(self) -> None:
+        clock = [datetime(2026, 10, 18, 12, 0, tzinfo=UTC)]
+        with mock.patch.object(policy.run_cache, "now", side_effect=lambda: clock[0]):
+            gh = GhFake().install(self)
+            endpoint = f"repos/{REPO}/collaborators/{OPERATOR}/permission"
+            gh.rest[endpoint] = {"permission": "admin"}
+            policy.permission_reader(REPO)(OPERATOR)
+            clock[0] += policy.run_cache.MAX_AGE + timedelta(seconds=1)
+            policy.permission_reader(REPO)(OPERATOR)
+        self.assertEqual(gh.calls.count(["api", endpoint]), 2)
 
 
 if __name__ == "__main__":

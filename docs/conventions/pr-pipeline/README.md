@@ -233,7 +233,8 @@ Each leaf declares:
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The arguments are the model's, so
   a script that changes files, runs code from the checkout or reaches the network hands the run
   that power: list one only when it limits itself, as `scripts/run-test-file.sh` (one test file
-  inside the checkout) and `scripts/git-mv-rm.sh` (`git mv` and `git rm` inside the checkout) do,
+  inside the checkout), `scripts/git-mv-rm.sh` (`git mv` and `git rm` inside the checkout) and
+  `scripts/new-changelog-fragment.sh` (new files under the checkout's `.changes/` only) do,
   or when the run may hold that power, as `plugins/skill-quality/scripts/check-skill.sh` (each
   checked skill's `scripts/*.test.sh` and the checkout's markdownlint) does.
 - `web-access` (optional, `skill` only, off when absent): `enabled` and `domains`, either `any` or
@@ -710,16 +711,39 @@ by merging in person: the verdict is not a check run and stays out of `ci-status
 checks (github-iac ADR 0011), so a human merge needs `ci-status` alone. A queued entry without an
 allowing verdict at its live head leaves the queue. A dependency manager's pull request (a `Bot`
 account with a dependency manager's login; a `User` named like one is judged) needs no verdict: the lane decides it in its Dependabot class before the verdict is read, or refuses it, and
-its queued entry is not held for one. The gate lists every repository artifact once per
-candidate run, since pr-merge.yml runs the gate once per candidate. A listing that got a 5xx or a fast
+its queued entry is not held for one. pr-merge.yml runs the gate once per candidate and names a file
+in `BABYSIT_VERIFY_LISTING`: the first candidate lists every repository artifact and saves the
+listing there, and later candidates and their queued-entry checks read it instead of paging again.
+No judgment, of a candidate or a queued entry, uses a listing (saved or in memory) begun more than
+two minutes before it: an older one is read again and saved. A saved listing can only lack artifacts uploaded since, so a refusal on it stands; a candidate it
+would allow is judged again on a listing of its own before it is allowed, which is saved in turn.
+A listing that got a 5xx or a fast
 network error is read again, three reads in all with backoff, all inside the one gh timeout a single
-read would get; any other failure, a timeout, a 429 or a rate-limit 403 included, is not. A failed listing is kept for
-that run as well: the pull request and every queued entry refuse `verify:unreadable` without the
+read would get; any other failure, a timeout, a 429 or a rate-limit 403 included, is not. A failed listing is never
+saved, and is kept for that candidate's gate run: the pull request and every queued entry refuse `verify:unreadable` without the
 listing being paged again, so a listing outage holds the whole queue rather than merging blind.
 The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
-records and the download alone, and every other call keeps the lane token. That job checks out only
-main and runs no pull request code.
+records, the download and the compare of a run's head to main (a `contents: read` call) alone, and
+every other call keeps the lane token. That job checks out only main and runs no pull request code.
+
+pr-merge.yml also names a file in `BABYSIT_RUN_CACHE`, where the run's gate processes share reads
+that are the same for every candidate. The acting login and a credential pass are reused only under
+the same credentials (`gh`'s token variables and `hosts.yml`); a credential refusal is read again. A
+collaborator permission and the trusted-actor list are reused for two minutes, and a failed read is
+never shared. A run head found on main is shared for the run, since main's ruleset forbids force
+pushes; one not found is compared again. In the merge-queue sweep, a queued entry another candidate
+judged and kept is skipped only while the oldest read behind that judgment (its verdict listing, or a
+shared permission or trusted list) was taken at most two minutes ago; a gate always judges its own entry, a held entry is judged by every
+candidate, and a failed dequeue keeps nothing. A FAIL's run record is reused for two minutes: a FAIL
+counts whether its run is still running or finished, and a re-run keeps every field that decides
+whether the run is pr-verify's, so a stale record never turns a FAIL away. A PASS's run record is
+read by each gate process, because a re-run can undo a completed success. An untied FAIL's
+recorded head ref is shared for the run under the artifact's id, since the contents an id names
+never change (an overwrite uploads a new id). On the `--unattended` path only, the default branch
+and the base's rules are reused for two minutes, and a failed read is never shared; before an
+enqueue, a default branch or rules a gate took from the file are read again for the branch read,
+and any change holds. An attended gate run reads both fresh. Without the variable nothing is shared.
 
 ## Trust-root paths
 
@@ -747,7 +771,10 @@ trust-root change are:
   or re-runner, and the lanes bot never starts a write run;
 - the broker's workflow-path rule: it mints only for a lane caller listed in the default-branch
   config, calling a `pr-run-activity-write.yml` byte-equal to the tip, and the App token never
-  holds `workflows`, so no lane can push `.github/workflows/`;
+  holds `workflows`, so no lane can push `.github/workflows/`. The one exception is a lane's
+  post-run report job, which may still mint after a signed GitHub-made commit changed a lane
+  workflow on main during the run
+  ([azure-iac#39](https://github.com/melodic-software/azure-iac/pull/39));
 - the merge queue and the required `ci-status` check, which no lane can write;
 - required review-thread resolution;
 - the kill switch;
@@ -820,6 +847,17 @@ such an issue before marking it `agent-ready`.
 The file job writes with the job's own `GITHUB_TOKEN`, not a lanes App token, so its issues come
 from `github-actions[bot]` and start no workflow, intake triage included. The kill switch stops
 every job.
+
+A fourth job, **triage-sweep**, runs alone every hour and with the daily run, with no model
+([`triage-sweep.mjs`](../../../.github/scripts/maintenance-audit-lane-runs/triage-sweep.mjs)). It
+selects open issues, not pull requests, over an hour old, written by a human on the trusted-actors
+list or by the lanes App, that have no intake comment, no born-triaged marker and no triage, status,
+priority or work-class label. Issues from `github-actions[bot]`, the lane sweep's own included, are
+left out. For each it re-dispatches `intake-triage.yml`, at most 5 a pass, and records the runs in
+one comment on the issue; after 2 dispatches leave it untriaged it labels the original
+`needs-triage`, then files one `needs-triage` issue naming the runs. It holds the job's own `GITHUB_TOKEN`
+(`actions: write`, `contents: read`, `issues: write`), never a lanes App token, and stops at 120
+REST calls.
 
 ## Models
 
@@ -896,6 +934,13 @@ Size the process to the change:
 The config file is a lane-power file: a human merges every change to it, and no lane does. The
 same holds for the trusted-actor list and any change to a lane's permissions, tokens or triggers.
 Everything downstream of that human merge may propagate on its own.
+
+A pull request that changes a lane and lists a not-verified item that could stop the lane from
+running checks that item live before it merges. An item only a merged run can exercise, such as
+a changed workflow that runs from the base branch, merges only once a tracked issue names the
+check and its owner; a line in the pull request body does not count. Evidence: melodic-software/ci-workflows#755 listed its
+intake author gate as "unverified, fails closed", merged, and skipped every intake run here
+(melodic-software/ci-workflows#772).
 
 ## Outside this repository
 

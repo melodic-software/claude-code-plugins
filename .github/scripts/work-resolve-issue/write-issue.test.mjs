@@ -283,6 +283,40 @@ test("the App's restart anchors at the label it restarted, so an edit before the
   assert.equal(first.code, 0);
 });
 
+// Run 39098689377 on #6642: work-unblock's re-fire removed agent-ready at
+// 04:53:59 and re-added it at 04:54:00, and the labeled payload's issue
+// updated_at was 04:53:59, a second before its own label event.
+test("an App re-fire whose payload update time predates its label event admits, anchored at the label it restarted", async () => {
+  const stamp = (event, actor, created_at) => ({ event, label: { name: "agent-ready" }, actor, created_at });
+  const refire = [
+    stamp("labeled", OWNER, "2026-10-18T03:00:36Z"),
+    stamp("unlabeled", LANES_BOT, "2026-10-18T04:53:59Z"),
+    stamp("labeled", LANES_BOT, "2026-10-18T04:54:00Z"),
+  ];
+  const app = { sender: String(LANES_BOT.id), eventAt: "2026-10-18T04:53:59Z" };
+  const before = [comment(11, OWNER, "Before the owner's label.")];
+  const { code, issue } = await run(fakeGitHub({ comments: before, events: refire }), app);
+  assert.equal(code, 0);
+  assert.deepEqual(bodies(issue), ["Before the owner's label."]);
+  // Anchored at the owner's 03:00:36 label, so a body edit between it and the re-fire still fails.
+  const edited = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-18T04:00:00Z" }, events: refire }), app);
+  assert.equal(edited.code, 1);
+  assert.equal(edited.issue, null);
+  // A sender with no label event of its own is still refused, even with the App's re-add after the update time.
+  const stranger = await run(fakeGitHub({ comments: before, events: refire }), { ...app, sender: String(STRANGER.id) });
+  assert.equal(stranger.code, 1);
+  assert.equal(stranger.issue, null);
+});
+
+// Security review on #8037: the label a re-fire restarts is what admitted the
+// text, so it must come from the App or a listed human.
+test("an App re-fire that restarts an unlisted account's label writes no file", async () => {
+  const restart = [labeled(OWNER, 10), unlabeled(STRANGER, 12), labeled(STRANGER, 13), unlabeled(LANES_BOT, 20), labeled(LANES_BOT, 20)];
+  const { code, issue } = await run(fakeGitHub({ comments: [], events: restart }), { sender: String(LANES_BOT.id) });
+  assert.equal(code, 1);
+  assert.equal(issue, null);
+});
+
 test("a change in the same second as the label counts as after it", async () => {
   const { code } = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-13T12:00:00Z" }, events: [labeled(OWNER, 13)] }));
   assert.equal(code, 1);

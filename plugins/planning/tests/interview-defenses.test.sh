@@ -496,11 +496,13 @@ done
 # this change?" so "Q<N> yes" and "accept all" mean the recommended answer. It changes how a
 # question is phrased, not what resolves it: an unanswered question still resolves nothing.
 # The surface sentence now names the lane table instead of the two "Question surface" rules; it only names where a round is asked.
+# The emoji paragraph states its setting once with an inline fallback for an unexpanded token;
+# it changes how the option is read, not what any round resolves.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "89a0aab7dadbe61e667caf7e2ffc66fdf7921f986a08de39c515b5ac148577fe"
+  "4e257051ae23cc252fc57d3eef8b7cc47cdc276a3c24d1bc5a91a6755cc665dc"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \

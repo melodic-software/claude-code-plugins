@@ -33,11 +33,43 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Picks the concurrency slot resolve-issue waits on (a run-time cap, not a
+  # lane slot in pr-pipeline.yaml): the issue number modulo SLOTS. Workflow
+  # expressions have no arithmetic operator, so a job computes it. A burst of
+  # admissions then waits in SLOTS queues instead of spending the lanes App's
+  # hourly API quota at once.
+  pick-slot:
+    if: github.event.label.name == 'agent-ready'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    env:
+      # At most this many resolve-issue runs at once. The one place to change it.
+      SLOTS: 3
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+    outputs:
+      slot: ${{ steps.slot.outputs.slot }}
+    steps:
+      - name: Pick the slot
+        id: slot
+        run: |
+          [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && $SLOTS =~ ^[1-9][0-9]*$ ]] || exit 1
+          echo "slot=$((ISSUE_NUMBER % SLOTS))" >> "$GITHUB_OUTPUT"
+
   # The lanes App's agent-ready label (work-unblock's) starts a run like a
   # listed human's; the App's other labels never start one. No step of this
   # lane adds agent-ready, so a run cannot start another.
   resolve-issue:
+    needs: pick-slot
     if: github.event.label.name == 'agent-ready'
+    # One run per slot at a time; the rest wait in line, holding no runner,
+    # and are never cancelled (`queue: max`). GitHub keeps at most 100 waiting
+    # per slot and cancels any more. report-outcome takes no slot, so it never
+    # waits behind another issue's whole run; it is short and follows one
+    # resolve-issue, so at most SLOTS of each run at once.
+    concurrency:
+      group: work-resolve-issue-slot-${{ needs.pick-slot.outputs.slot }}
+      queue: max
     permissions:
       contents: read
       pull-requests: read
@@ -50,7 +82,7 @@ jobs:
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
       app-label: agent-ready
-      timeout-minutes: 50
+      timeout-minutes: 25
     secrets:
       claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
 

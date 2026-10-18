@@ -5,11 +5,13 @@
 // leaves the review on the reusable's defaults; intake never runs without
 // resolved arguments; and each sparse checkout holds what this action loads.
 // Also: pr-unblock.yml leaves a publish-feedback check on the head whether or
-// not its reply job runs.
+// not its reply job runs, and work-resolve-issue.yml caps its concurrent runs.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { test } from "node:test";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { parse } from "yaml";
@@ -145,12 +147,47 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
       "needs.born-triaged.outputs.claude-args": claudeArgs,
     });
   const args = "--model sonnet --max-turns 30 --effort medium";
-  assert.equal(runs("", args), true, "a failed or false born-triaged check still runs intake");
+  assert.equal(runs("", args), true, "a failed or false born-triaged check falls through to the reusable's gate");
   assert.equal(runs("false", args), true);
   assert.equal(runs("true", args), false, "a born-triaged issue skips intake");
   assert.equal(runs("", ""), false, "intake never runs without resolved claude-args");
   assert.equal(runs("false", ""), false);
   assert.equal(intake.with["claude-args"], "${{ needs.born-triaged.outputs.claude-args }}");
+});
+
+test("intake-triage.yml: a dispatch runs only from main and passes the gate's ids", () => {
+  const { jobs } = workflow("intake-triage.yml");
+  const gate = jobs["born-triaged"];
+  const runsOn = (event, ref) => evaluate(gate.if, { "github.event_name": event, "github.ref": ref });
+  assert.equal(runsOn("issues", "refs/heads/main"), true);
+  assert.equal(runsOn("workflow_dispatch", "refs/heads/main"), true);
+  assert.equal(runsOn("workflow_dispatch", "refs/heads/feature"), false, "a dispatch from a branch reads no branch's trusted-actor list");
+
+  const intake = jobs["intake-triage"];
+  assert.equal(intake.with["allowed-author-ids"], "${{ needs.born-triaged.outputs.human-ids }}");
+  assert.equal(intake.with["allowed-bot-sender-ids"], "${{ needs.born-triaged.outputs.bot-ids }}");
+  assert.equal(intake.with["issue-number"], "${{ inputs.issue-number }}");
+
+  const bots = gate.steps.find((step) => step.id === "bots");
+  assert.equal(gate.outputs["bot-ids"], "${{ steps.bots.outputs.ids }}");
+  const dir = mkdtempSync(join(tmpdir(), "bot-ids-"));
+  try {
+    const ids = (lanesAppId) => {
+      const output = join(dir, "output");
+      writeFileSync(output, "");
+      const result = spawnSync("bash", ["-c", bots.run], {
+        env: { ...process.env, LANES_APP_ID: lanesAppId, GITHUB_OUTPUT: output },
+      });
+      assert.equal(result.status, 0);
+      return readFileSync(output, "utf8");
+    };
+    assert.equal(ids(""), "ids=41898282\n");
+    assert.equal(ids("123456"), "ids=41898282,123456\n");
+    assert.equal(ids("12a; echo x"), "ids=41898282\n", "a malformed lanes App id is dropped");
+    assert.equal(ids("0"), "ids=41898282\n");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // address-feedback's head-sha output is empty after a gate stop.
@@ -201,4 +238,52 @@ test("pr-unblock.yml: publish-feedback is reported neutral when address-feedback
   assert.equal(calls[0].head_sha, head);
   assert.equal(calls[0].conclusion, "neutral");
   assert.equal(calls[0].output.summary, "Skip reason: not-applicable");
+});
+
+// GitHub runs at most one job per concurrency group, and `queue: max` keeps
+// the rest waiting instead of cancelling them (workflow-syntax#concurrency),
+// so the number of distinct slot groups is the cap: 3.
+test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest queued", () => {
+  const { concurrency, jobs } = workflow("work-resolve-issue.yml");
+  const pick = jobs["pick-slot"];
+  const resolve = jobs["resolve-issue"];
+  const step = pick.steps.find((s) => s.id === "slot");
+  const dir = mkdtempSync(join(tmpdir(), "slot-"));
+  after(() => rmSync(dir, { recursive: true, force: true }));
+  const output = join(dir, "output");
+  const slotOf = (issue) => {
+    writeFileSync(output, "");
+    const run = spawnSync("bash", ["-c", step.run], {
+      env: { ...process.env, SLOTS: String(pick.env.SLOTS), ISSUE_NUMBER: issue, GITHUB_OUTPUT: output },
+    });
+    return run.status === 0 ? readFileSync(output, "utf8").trim().replace(/^slot=/, "") : null;
+  };
+  assert.equal(slotOf("7"), "1");
+  assert.equal(slotOf("9"), "0");
+  assert.equal(slotOf("3001"), "1");
+  assert.equal(slotOf("7 + 1"), null, "an issue number that is not digits picks no slot");
+
+  assert.equal(pick.outputs.slot, `\${{ steps.${step.id}.outputs.slot }}`);
+  assert.equal(resolve.needs, "pick-slot");
+  assert.equal(resolve.concurrency.queue, "max");
+  assert.notEqual(resolve.concurrency["cancel-in-progress"], true, "GitHub rejects queue: max with cancel-in-progress");
+  const groups = new Set(
+    Array.from({ length: 60 }, (_, i) =>
+      resolve.concurrency.group.replace("${{ needs.pick-slot.outputs.slot }}", slotOf(String(i + 1))),
+    ),
+  );
+  assert.deepEqual([...groups].sort(), [0, 1, 2].map((n) => `work-resolve-issue-slot-${n}`));
+
+  // A label other than agent-ready starts neither job, so it holds no runner.
+  for (const [label, runs] of [["agent-ready", true], ["bug", false]]) {
+    const context = { "github.event.label.name": label };
+    assert.equal(evaluate(pick.if, context), runs, label);
+    assert.equal(evaluate(resolve.if, context), runs, label);
+  }
+  // The per-issue run group still dedupes: one agent-ready run per issue.
+  assert.equal(
+    concurrency.group,
+    "work-resolve-issue-${{ github.event.issue.number }}-${{ github.event.label.name == 'agent-ready' }}",
+  );
+  assert.equal(concurrency["cancel-in-progress"], false);
 });

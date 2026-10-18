@@ -33,7 +33,7 @@ import sys
 import tempfile
 import urllib.request
 from collections.abc import Callable, Collection, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -41,6 +41,7 @@ from urllib.parse import quote
 
 import babysit_dependabot as dependabot
 import babysit_repo_config as repo_config
+import babysit_run_cache as run_cache
 from babysit_classify import (
     actor_kind,
     has_blocking_severity,
@@ -750,22 +751,35 @@ Permission = Callable[[str], str | None]
 
 
 def permission_reader(repo: str) -> Permission:
-    """A cached reader of a login's repository permission (`admin`, `write`, ...)."""
+    """A cached reader of a login's repository permission (`admin`, `write`, ...).
+    A permission read in the last `run_cache.MAX_AGE` by another gate process
+    of the run is reused; a failed read is never shared. Each answer notes
+    when it was read (`run_cache.note`)."""
     owner, name = _split_repo(repo)
-    cache: dict[str, str | None] = {}
+    cache: dict[str, tuple[str | None, datetime]] = {}
 
     def read(login: str) -> str | None:
         if login not in cache:
-            status, payload = _get(
-                f"repos/{owner}/{name}/collaborators/{login}/permission"
-            )
-            value = (
-                payload.get("permission")
-                if status == 200 and is_json_object(payload)
-                else None
-            )
-            cache[login] = value if isinstance(value, str) else None
-        return cache[login]
+            key = f"{owner}/{name}|{login.casefold()}"
+            shared = run_cache.get_dated("permission", key, run_cache.MAX_AGE)
+            if shared is not None and isinstance(shared[0], str):
+                cache[login] = shared
+            else:
+                at = run_cache.now()
+                status, payload = _get(
+                    f"repos/{owner}/{name}/collaborators/{login}/permission"
+                )
+                value = (
+                    payload.get("permission")
+                    if status == 200 and is_json_object(payload)
+                    else None
+                )
+                cache[login] = (value if isinstance(value, str) else None, at)
+                if isinstance(value, str):
+                    run_cache.put("permission", key, value, at)
+        value, at = cache[login]
+        run_cache.note(at)
+        return value
 
     return read
 
@@ -1358,10 +1372,13 @@ def _foreign_refusal(pr: dict[str, Any], owner: str) -> str | None:
 LANE_CLASS = "C2"
 
 
-def _base_refusal(owner: str, name: str, node: Mapping[str, Any]) -> str | None:
+def _base_refusal(
+    owner: str, name: str, node: Mapping[str, Any], *, shared: bool = False
+) -> str | None:
     """`base-not-default:<ref>` when the pull request's base is not the
-    default branch, read fresh. A failed read raises, which refuses."""
-    branch = _default_branch(f"{owner}/{name}")
+    default branch, read fresh unless `shared` (`_default_branch`). A failed
+    read raises, which refuses."""
+    branch = _default_branch(f"{owner}/{name}", shared=shared)
     base = node.get("baseRefName")
     return None if base == branch else f"base-not-default:{base}"
 
@@ -1427,7 +1444,7 @@ def lane_eligibility(
         issue, refusal = _closing_issue(node, repo)
         if refusal is None:
             issue_number = issue["number"]
-            refusal = _base_refusal(owner, name, node)
+            refusal = _base_refusal(owner, name, node, shared=True)
         if refusal is None:
             refusal = _denied_path_refusal(
                 owner, name, number, pr.get("changed_files"), denied_paths
@@ -1881,8 +1898,12 @@ def derive_auto_merge(
 
 @dataclass(frozen=True)
 class InFlight:
+    """`queued` holds every merge-queue entry's pull request number, or None
+    when the queue was not read whole."""
+
     clear: bool
     reason: str | None
+    queued: frozenset[int] | None = field(default=None, compare=False)
 
 
 def in_flight(
@@ -1918,6 +1939,7 @@ def in_flight(
         self_logins=self_logins,
         permission=permission,
     )
+    queued: frozenset[int] | None = None
     try:
         data = _graphql(MERGE_QUEUE, "merge queue", o=owner, r=name, b=branch)
         queue = json_object(json_object(data.get("repository")).get("mergeQueue"))
@@ -1925,16 +1947,18 @@ def in_flight(
         nodes = [json_object(n) for n in json_array(entries.get("nodes"))]
         if not queue or entries.get("totalCount") != len(nodes):
             return InFlight(False, "merge-queue-unreadable")
-        for entry in nodes:
-            number = json_object(entry.get("pullRequest")).get("number")
+        numbers = [json_object(n.get("pullRequest")).get("number") for n in nodes]
+        if all(type(n) is int for n in numbers):
+            queued = frozenset(numbers)
+        for entry, number in zip(nodes, numbers, strict=True):
             enqueuer = json_object(entry.get("enqueuer"))
             if not enqueuer:
-                return InFlight(False, f"entry-enqueuer-unknown:#{number}")
+                return InFlight(False, f"entry-enqueuer-unknown:#{number}", queued)
             if _login_key(enqueuer.get("login")) == _login_key(agent_identity):
-                return InFlight(False, f"identity-entry-queued:#{number}")
+                return InFlight(False, f"identity-entry-queued:#{number}", queued)
         merges = _merged_since(owner, name, branch, merged_since)
         if merges is None:
-            return InFlight(False, "merged-history-truncated")
+            return InFlight(False, "merged-history-truncated", queued)
         for pr in merges:
             merge = derive_auto_merge(
                 pr, human, agent_identity, lane_merges_only=lane_merges_only
@@ -1942,10 +1966,10 @@ def in_flight(
             if not isinstance(merge, AutoMerge):
                 continue
             if verified is None or not verified(merge):
-                return InFlight(False, f"unverified-auto-merge:#{merge.number}")
+                return InFlight(False, f"unverified-auto-merge:#{merge.number}", queued)
     except PolicyReadError as exc:
-        return InFlight(False, f"unreadable: {exc}")
-    return InFlight(True, None)
+        return InFlight(False, f"unreadable: {exc}", queued)
+    return InFlight(True, None, queued)
 
 
 # --- Holds on a queued entry -------------------------------------------------------------------
@@ -2092,7 +2116,24 @@ def entry_hold(
 # --- Composition ------------------------------------------------------------------------------
 
 
-def _default_branch(repo: str) -> str:
+DEFAULT_BRANCH_SECTION = "default-branch"
+# Repositories whose default branch this process took from the run cache;
+# `unattended_enqueue` reads it again before an enqueue.
+SHARED_DEFAULT_BRANCHES: set[str] = set()
+
+
+def _default_branch(repo: str, *, shared: bool = False) -> str:
+    """The default branch's name. `shared` takes one another gate process of
+    the run read within `run_cache.MAX_AGE`; every read is saved for them, a
+    failed one never."""
+    cached = (
+        run_cache.get(DEFAULT_BRANCH_SECTION, repo, run_cache.MAX_AGE)
+        if shared
+        else None
+    )
+    if isinstance(cached, str) and cached:
+        SHARED_DEFAULT_BRANCHES.add(repo)
+        return cached
     owner, name = _split_repo(repo)
     status, payload = _get(f"repos/{owner}/{name}")
     branch = (
@@ -2102,6 +2143,7 @@ def _default_branch(repo: str) -> str:
     )
     if not isinstance(branch, str) or not branch:
         raise PolicyReadError(f"{repo}: the default branch could not be read")
+    run_cache.put(DEFAULT_BRANCH_SECTION, repo, branch)
     return branch
 
 
@@ -2730,7 +2772,9 @@ def assess(
     refusal there stops the reads and leaves the path not `enabled`, so no
     later read can lead to a write. Then the rung (demotion and cap), the
     in-flight rule, the promotion evidence and the pull request's
-    eligibility and class: each refuses a merge, and all are reported.
+    eligibility and class: each refuses a merge, and all are reported, but
+    an in-flight refusal of a pull request not in the merge queue stops the
+    reads there.
 
     `post_merge(floor, identity)` runs the post-merge check from the floor
     (`merged_since_floor`) and must be given: without it the path refuses.
@@ -2768,16 +2812,30 @@ def assess(
     )
     if enabled_authority(config) != authority:
         return stopped
+    # The acting login and the credential chokepoint depend on the
+    # credentials alone: a gate process of the same run with the same ones
+    # reuses a login read and a pass (`run_cache.credentials`).
+    held = run_cache.credentials()
     if acting_login is None:
-        try:
-            acting_login = read_acting_login()
-        except PolicyReadError:
-            acting_login = None
+        acting_login = run_cache.get("acting-login", held, None)
+        if not isinstance(acting_login, str):
+            try:
+                acting_login = read_acting_login()
+                run_cache.put("acting-login", held, acting_login)
+            except PolicyReadError:
+                acting_login = None
     resolved = resolve_identity(identity, acting_login, self_logins)
     details["identity"] = resolved.login
     if resolved.reason or resolved.login is None:
         return replace(stopped, reason=resolved.reason)
-    credentials = credential_refusal(resolved.login)
+    passed = f"{held}|{resolved.login.casefold()}"
+    credentials = (
+        None
+        if run_cache.get("identity-only", passed, None) is True
+        else credential_refusal(resolved.login)
+    )
+    if credentials is None:
+        run_cache.put("identity-only", passed, True)
     details["credentials"] = credentials or "identity-only"
     if credentials:
         return replace(stopped, reason=f"credentials:{credentials}")
@@ -2793,7 +2851,7 @@ def assess(
     # default branch only, so a merge into any other base would go unjudged.
     # An unreadable default branch is a stop (the identity's entries leave).
     try:
-        default = _default_branch(repo)
+        default = _default_branch(repo, shared=True)
     except PolicyReadError:
         return replace(stopped, reason=DEFAULT_BRANCH_UNREADABLE)
     if base_ref != default:
@@ -2865,6 +2923,33 @@ def assess(
         merged_since=floor,
         lane_merges_only=lane,
     )
+    details.update(
+        rung=rung.rung,
+        rungInputs=dict(rung.inputs),
+        rungCap={"value": cap.value, "reason": cap.reason},
+        inFlight={"clear": flight.clear, "reason": flight.reason},
+    )
+    inputs["rung"] = rung.rung
+    # Past an on rung, the in-flight refusal outranks every read below. With
+    # no queue entry of its own, nothing below writes for this pull request
+    # either (its risk comment and verifier escalation wait for a run with
+    # none in flight), so it skips them. A Dependabot pull request is read in
+    # full: its class decides the gate's dependency-manager hold.
+    if (
+        rung.rung != "off"
+        and not flight.clear
+        and not dependabot_pr
+        and flight.queued is not None
+        and number not in flight.queued
+    ):
+        return UnattendedPolicy(
+            f"in-flight:{flight.reason}",
+            identity,
+            details,
+            enabled=True,
+            promoted=True if lane else None,
+            inputs=inputs,
+        )
     if dependabot_pr:
         promo = Promotion(None, "not-read-in-pr-merge-lane")
         eligible = (
@@ -2896,10 +2981,6 @@ def assess(
         eligible = eligibility(repo, number, **readers)
         promoted = promo.promoted(eligible.work_class)
     details.update(
-        rung=rung.rung,
-        rungInputs=dict(rung.inputs),
-        rungCap={"value": cap.value, "reason": cap.reason},
-        inFlight={"clear": flight.clear, "reason": flight.reason},
         promotion={
             "cells": dict(promo.cells) if promo.cells is not None else None,
             "reason": promo.reason,
@@ -2910,7 +2991,7 @@ def assess(
             "workClass": eligible.work_class,
         },
     )
-    inputs.update(rung=rung.rung, eligibility=eligible)
+    inputs["eligibility"] = eligible
     # What refuses this pull request itself, whatever else does: its own
     # queued entry leaves the queue on it.
     own = (
