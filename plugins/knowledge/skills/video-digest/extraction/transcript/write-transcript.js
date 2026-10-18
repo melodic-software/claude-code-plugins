@@ -34,6 +34,28 @@ function countParagraphs(transcript) {
   return transcript ? transcript.split("\n\n").length : 0;
 }
 
+/**
+ * Whisper keeps only the tail of a long initial prompt, so the terms go in
+ * lexicon order (title first) up to a character budget well inside its window.
+ */
+const INITIAL_PROMPT_MAX_CHARS = 800;
+
+/**
+ * @param {readonly string[]} lexicon
+ * @returns {string | null} the comma-joined leading terms, or null for an empty lexicon
+ */
+function buildInitialPrompt(lexicon) {
+  /** @type {string[]} */
+  const kept = [];
+  let length = 0;
+  for (const term of lexicon) {
+    length += term.length + 2;
+    if (length > INITIAL_PROMPT_MAX_CHARS) break;
+    kept.push(term);
+  }
+  return kept.length > 0 ? kept.join(", ") : null;
+}
+
 const BOUNDARY_REPEAT_MIN_WORDS = 2;
 const BOUNDARY_REPEAT_MAX_WORDS = 12;
 const PARAGRAPH_STAMP = /^(\[[^\]]*\]\s*)([\s\S]*)$/;
@@ -281,7 +303,7 @@ export function transcriptFilename(entryIndex, primaryEntryIndex) {
  * @property {number} paragraphCount
  * @property {boolean} cleanedAutoCaptions
  * @property {TranscriptStrategy} strategy - the strategy that produced this transcript
- * @property {number} repairedTermCount - proper-noun repairs applied (`captions+repair`)
+ * @property {number} repairedTermCount - proper-noun repairs applied (`captions+repair` and `asr`)
  */
 
 /**
@@ -314,8 +336,8 @@ export function transcriptFilename(entryIndex, primaryEntryIndex) {
  * Per entry, the transcript strategy resolves from the adapter default and the
  * explicit pipeline override ({@link resolveTranscriptStrategy}): captions are
  * consumed as before, `captions+repair` layers proper-noun repair (lexicon =
- * post text + harvested links), and the `asr` rung runs the optional local
- * toolchain — detected at runtime, never auto-installed. A degraded entry
+ * title + post text + harvested links), and the `asr` rung runs the optional
+ * local toolchain, biased and repaired with the same lexicon — detected at runtime, never auto-installed. A degraded entry
  * (no transcript producible) is recorded in `transcriptDegradation`.
  *
  * @param {object} options
@@ -372,12 +394,10 @@ export async function writeEnvelopeTranscriptArtifacts(
     requested === "asr" || entries.some((entry) => !entry.caption && entry.mediaPath);
   const asrDetection = needAsrProbe ? await detectAsr() : null;
 
-  // The adapter default can also resolve as the asr-unavailable fallback, so
-  // the lexicon is built whenever either route can reach `captions+repair`.
-  const repairLexicon =
-    requested === "captions+repair" || transcriptStrategy === "captions+repair"
-      ? buildRepairLexicon(metadata.description, harvestedLinks)
-      : null;
+  // Every strategy gets the lexicon: captions+repair and ASR cues are repaired
+  // against it, and the ASR runner is biased with it.
+  const repairLexicon = buildRepairLexicon(metadata.description, harvestedLinks, metadata.title);
+  const initialPrompt = buildInitialPrompt(repairLexicon);
 
   /** @type {EnvelopeTranscriptEntry[]} */
   const transcripts = [];
@@ -409,6 +429,7 @@ export async function writeEnvelopeTranscriptArtifacts(
       const asr = await runAsr({
         mediaPath: entry.mediaPath,
         python: /** @type {string} */ (asrDetection?.python),
+        initialPrompt,
       });
       if (!asr.success || !asr.cues) {
         // An ASR failure degrades the entry explicitly rather than failing the
@@ -419,13 +440,14 @@ export async function writeEnvelopeTranscriptArtifacts(
         });
         continue;
       }
-      const transcript = formatTranscript(asr.cues);
+      const repaired = repairCues(asr.cues, repairLexicon);
+      const transcript = formatTranscript(repaired.cues);
       built = {
         transcript,
-        cueCount: asr.cues.length,
+        cueCount: repaired.cues.length,
         paragraphCount: countParagraphs(transcript),
         cleanedAutoCaptions: false,
-        repairedTermCount: 0,
+        repairedTermCount: repaired.replacementCount,
       };
     } else {
       const caption = /** @type {NonNullable<typeof entry.caption>} */ (entry.caption);
