@@ -16,8 +16,4 @@
 # Blank lines and `#` lines are ignored.
 
 plugins/evals/skills/plugin-eval/SKILL.md 1
-plugins/planning/skills/design/SKILL.md 1
 plugins/planning/skills/interview/SKILL.md 1
-plugins/planning/skills/plan/SKILL.md 3
-plugins/planning/skills/plan/context/tag-decisions.md 1
-plugins/planning/skills/prd/SKILL.md 2
