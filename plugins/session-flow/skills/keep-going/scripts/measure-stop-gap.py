@@ -4,7 +4,9 @@
 Reads a session transcript (JSONL) and prints one JSON object:
 
   last_assistant  ISO-8601 time of the last assistant entry that is not an error
-  limit_or_error  ISO-8601 time of the last limit or error entry, or null
+                  and precedes the resuming prompt
+  limit_or_error  ISO-8601 time of the last limit or error entry before the
+                  resuming prompt, or null
   now             ISO-8601 time of the measurement
   stop_at         the instant the stop began: limit_or_error when it is not
                   before last_assistant, else last_assistant
@@ -13,7 +15,10 @@ Reads a session transcript (JSONL) and prints one JSON object:
 
 An entry counts as a limit or error entry when it sets ``isApiErrorMessage``,
 carries a top-level ``error`` key, or is a ``system`` entry whose ``level`` is
-``error``. Timestamps may carry any offset or ``Z``; a timestamp without an
+``error``. The resuming prompt is the latest user entry that is not a tool result
+and has an assistant entry before it; entries at or after it belong to the resumed
+turn and are ignored, so the turn's own work never shortens the gap. Without such a
+prompt every entry counts. Timestamps may carry any offset or ``Z``; a timestamp without an
 offset is read as UTC.
 
 Exit codes:
@@ -49,6 +54,19 @@ def _is_error(entry: dict) -> bool:
     return entry.get("type") == "system" and entry.get("level") == "error"
 
 
+def _is_prompt(entry: dict) -> bool:
+    if entry.get("type") != "user" or entry.get("isMeta"):
+        return False
+    message = entry.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    if isinstance(content, list):
+        return not any(
+            isinstance(part, dict) and part.get("type") == "tool_result"
+            for part in content
+        )
+    return True
+
+
 def _format_gap(seconds: int) -> str:
     days, rest = divmod(seconds, 86400)
     hours, rest = divmod(rest, 3600)
@@ -68,8 +86,9 @@ def measure(path: Path, now: datetime) -> dict:
         lines = path.read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeDecodeError) as exc:
         raise ValueError(f"cannot read transcript {path}: {exc}") from exc
-    last_assistant: datetime | None = None
-    last_error: datetime | None = None
+    assistants: list[datetime] = []
+    errors: list[datetime] = []
+    prompts: list[datetime] = []
     for line in lines:
         if not line.strip():
             continue
@@ -83,11 +102,21 @@ def measure(path: Path, now: datetime) -> dict:
         if stamp is None:
             continue
         if _is_error(entry):
-            if last_error is None or stamp > last_error:
-                last_error = stamp
+            errors.append(stamp)
         elif entry.get("type") == "assistant":
-            if last_assistant is None or stamp > last_assistant:
-                last_assistant = stamp
+            assistants.append(stamp)
+        elif _is_prompt(entry):
+            prompts.append(stamp)
+    boundary: datetime | None = None
+    for prompt in sorted(prompts, reverse=True):
+        if any(stamp < prompt for stamp in assistants):
+            boundary = prompt
+            break
+    if boundary is not None:
+        assistants = [stamp for stamp in assistants if stamp < boundary]
+        errors = [stamp for stamp in errors if stamp < boundary]
+    last_assistant = max(assistants, default=None)
+    last_error = max(errors, default=None)
     if last_assistant is None:
         raise ValueError(
             f"transcript {path} has no assistant entry with a usable timestamp"
