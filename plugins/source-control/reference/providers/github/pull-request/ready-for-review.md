@@ -138,21 +138,27 @@ done
 Anchor the window to the flip by run id, not by clock: run ids only grow, so no clock skew between
 this host and GitHub enters, and a run the wait above let register before the flip can never match.
 Right before the flip, take `BASE_ID`, the highest run id the listing returns for the head (`0` when
-it returns none). After the flip, poll the listing for up to 180 seconds for a run with an id above
-`BASE_ID`, the `ready_for_review` run. Once every such run has completed, a `skipped` conclusion
-among them means the lanes skipped on a stale draft payload; no run above `BASE_ID` by the end of
-the wait is also a skip, since the flip's run never registered. A run that skips for its own reason
-(a label, actor or path filter) reads the same, so it costs one undo and ready cycle and a second
-skip report, never a loop:
+it returns none). After the flip, poll the listing for 180 seconds for a run with an id above
+`BASE_ID`, the `ready_for_review` run. A run can register seconds after the flip, and that late run
+is what the check exists to catch, so a fast run that has already completed is no reason to stop:
+the poll ends early only once every run above `BASE_ID` has completed and one of them is `skipped`,
+and otherwise it runs the whole window. A `skipped` conclusion among the runs means the lanes
+skipped on a stale draft payload; no run above `BASE_ID` by the end of the window is also a skip,
+since the flip's run never registered. A run that skips for its own reason (a label, actor or path
+filter) reads the same, so it costs one undo and ready cycle and a second skip report, never a loop.
+A failed `gh` call is not a verdict: `BASE_ID` defaults to `0` when its read fails, a failed poll
+leaves the previous `RUNS`, and a `SKIPPED` that ends up neither `true` nor `false` is reported as a
+failed check, never read as clean:
 
 ```bash
 BASE_ID=$(gh api -X GET "repos/{owner}/{repo}/actions/runs" -f head_sha="$HEAD_SHA" -f event=pull_request \
-  -f per_page=100 --jq '[.workflow_runs[].id] | max // 0')
+  -f per_page=100 --jq '[.workflow_runs[].id] | max // 0') || BASE_ID=0
 # ... flip ...
+RUNS='[]'
 for _ in $(seq 1 18); do
-  RUNS=$(gh api -X GET "repos/{owner}/{repo}/actions/runs" -f head_sha="$HEAD_SHA" -f event=pull_request \
-    -f per_page=100 | jq -c --argjson b "$BASE_ID" '[.workflow_runs[] | select(.id > $b)]')
-  [ "$(jq 'length > 0 and all(.status == "completed")' <<<"$RUNS")" = true ] && break
+  NEW=$(gh api -X GET "repos/{owner}/{repo}/actions/runs" -f head_sha="$HEAD_SHA" -f event=pull_request \
+    -f per_page=100 | jq -c --argjson b "${BASE_ID:-0}" '[.workflow_runs[] | select(.id > $b)]') && RUNS=$NEW
+  [ "$(jq 'length > 0 and all(.status == "completed") and any(.conclusion == "skipped")' <<<"$RUNS")" = true ] && break
   sleep 10
 done
 SKIPPED=$(jq 'length == 0 or any(.conclusion == "skipped")' <<<"$RUNS")
