@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 2.8.0 - 2026-10-17
+## 2.9.0 - 2026-10-17
 
 `resolve-issue` lists `scripts/new-changelog-fragment.sh` as a `verify-script`, so the issue lane
 can write a changelog fragment. The script now writes into the git work tree its caller stands
@@ -11,6 +11,13 @@ verify-script prompt now says Bash runs only the named wrappers, each as its own
 run inspects and changes files with Read, Grep, Glob, Edit and Write instead of `cd`, `;`, `&&`,
 pipes or interpreter one-liners, and names the `git-mv-rm` wrapper for a rename or removal when
 it is listed ([pr-run-activity.md](pr-run-activity.md#skill-activities)). `version` stays 2.
+
+## 2.8.0 - 2026-10-17
+
+An optional `limits` block sets the limit-stop restart values: `fallback-reset`,
+`reset-clamp-min` and `reset-clamp-max` (hours), `restarts-per-run`, `limit-stops-per-head` and
+`limit-stops-per-issue` ([README.md, Limits](README.md#limits)). Each defaults to the value the
+lanes used before, and resolve-config emits all six. `version` stays 2.
 
 ## 2.7.0 - 2026-10-17
 
