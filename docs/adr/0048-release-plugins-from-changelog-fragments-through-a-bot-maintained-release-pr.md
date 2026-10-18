@@ -287,7 +287,16 @@ proven.
    "all plugins".
 5. **Retire the per-PR path in this repository.** Replace the opt-in list with "all plugins", drop
    the version-moved branch of the shared predicate, and reword the resolver references. Rollback:
-   revert this phase's commit, which restores phase 4.
+   revert this phase's commit, which restores phase 4. On 2026-10-18 the three plugins added
+   since phase 4 (`developer-experience`, `display-redaction`, `user-experience`) joined, so the
+   list names all 90 plugins under `plugins/`, and `pr-bump-plugin-version.yml` and
+   `scripts/dependabot-plugin-bump.sh`, which committed nothing once every plugin was listed, were
+   removed, along with `--check-required`'s exemption for that workflow's commit. The list stays,
+   and nothing yet fails a new plugin left off it, which is how these three were missed.
+   `--check-bump` now applies its per-PR rules only to the release pull request, on its own run
+   and in the merge queue, where they keep released versions monotonic. The version-moved branch of the shared predicate
+   (`check-vendor-version-bump.sh`, `sync-shared-copies.sh`, `check-standards-contract-bump.sh`)
+   and the resolver references in the `source-control` plugin are not yet changed.
 
 ## Resolved decisions
 

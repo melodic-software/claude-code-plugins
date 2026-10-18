@@ -709,9 +709,8 @@ warns of a [classifier gap](README.md#classifier-gaps).
    hosts. The skill runs no head code; `ci-status` runs the tests on the pushed head.
 3. The promote step moves the PR branch only when the skill's structured verdict is `fix`, the
    lane branch changes nothing under `.github/` in fewer than 300 files, and every commit's
-   message carries `[dependabot skip]`, so Dependabot may still rebase over the fix
-   (pr-bump-plugin-version.yml states the convention). Commits made beside any other verdict are
-   discarded with the lane branch.
+   message carries `[dependabot skip]`, so Dependabot may still rebase over the fix. Commits made
+   beside any other verdict are discarded with the lane branch.
 4. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
    `github-script` step writes `run.json` (`version`, `pr`, the gated `head_sha`, the select
    step's `security`, `config_unreadable` and `files_truncated` flags, its `started-at` as
