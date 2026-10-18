@@ -156,8 +156,8 @@ BASE_ID=$(gh api -X GET "repos/{owner}/{repo}/actions/runs" -f head_sha="$HEAD_S
 # ... flip ...
 RUNS='[]'
 for _ in $(seq 1 18); do
-  NEW=$(gh api -X GET "repos/{owner}/{repo}/actions/runs" -f head_sha="$HEAD_SHA" -f event=pull_request \
-    -f per_page=100 | jq -c --argjson b "${BASE_ID:-0}" '[.workflow_runs[] | select(.id > $b)]') && RUNS=$NEW
+  OUT=$(gh api -X GET "repos/{owner}/{repo}/actions/runs" -f head_sha="$HEAD_SHA" -f event=pull_request \
+    -f per_page=100) && RUNS=$(jq -c --argjson b "${BASE_ID:-0}" '[.workflow_runs[] | select(.id > $b)]' <<<"$OUT")
   [ "$(jq 'length > 0 and all(.status == "completed") and any(.conclusion == "skipped")' <<<"$RUNS")" = true ] && break
   sleep 10
 done
