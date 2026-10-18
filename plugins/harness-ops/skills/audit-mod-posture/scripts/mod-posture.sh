@@ -170,7 +170,7 @@ if [[ -n "$overview_file" ]]; then
 fi
 
 if [[ -z "$BUILTIN_JSON" ]]; then
-  NOT_READ+=("built-in tier: no --builtin-json inventory report")
+  NOT_READ+=("built-in tier: built-in mods were not read (no --builtin-json inventory report)")
 elif ! jq -e '(.builtin_plugins | type) == "object"' "$BUILTIN_JSON" >/dev/null 2>&1; then
   NOT_READ+=("built-in tier: --builtin-json has no builtin_plugins section")
 else

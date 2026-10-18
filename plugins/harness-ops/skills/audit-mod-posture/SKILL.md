@@ -39,8 +39,11 @@ rather than reading the file to check.
 
 ### Phase 1: Inventory
 
-For the built-in tier, run `/harness-ops:inventory` first when the operator wants built-ins
-covered, and keep the path of the JSON report it writes. Then run:
+The installed tier alone takes a few seconds (about 3.5 s for five mods on a measured host). The
+built-in tier needs the JSON report `/harness-ops:inventory` writes, which reads the Claude Code
+bundle and took about 41 s on the same host, so produce it only when the operator wants built-ins
+covered, then pass its path. Without the report, a `# not read:` footer says built-in mods were
+not read; say so in the report. Then run:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-mod-posture/scripts/mod-posture.sh" [--builtin-json <report>] [--surface desktop]

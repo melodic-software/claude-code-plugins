@@ -189,7 +189,7 @@ assert_eq "unresolved default and hooks read unknown; absent from the table read
 assert_contains "built-in enabled is marked partial" "$OUT" "# not read: built-in enabled: managed settings and --settings are not read"
 
 run_mp --no-fetch
-assert_contains "no --builtin-json is named in a footer" "$OUT" "# not read: built-in tier: no --builtin-json inventory report"
+assert_contains "no --builtin-json is named in a footer" "$OUT" "# not read: built-in tier: built-in mods were not read (no --builtin-json inventory report)"
 assert_contains "--no-fetch is named in a footer" "$OUT" "# not read: can_disable: --no-fetch"
 assert_eq "no built-in rows without the report" 0 "$(printf '%s\n' "$OUT" | grep -c '@builtin')"
 
