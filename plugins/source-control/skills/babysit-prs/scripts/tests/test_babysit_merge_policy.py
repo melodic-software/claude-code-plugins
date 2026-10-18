@@ -2028,6 +2028,24 @@ class Assess(unittest.TestCase):
         self.assertIs(result.enabled, True)
         self.assertNotIn("eligibility", result.inputs)
 
+    def test_a_rung_off_outranks_an_in_flight_refusal_off_the_queue(self) -> None:
+        self.readable()
+        flight = policy.InFlight(False, "x", frozenset({3}))
+        ineligible = policy.Eligibility(False, "fork")
+        with (
+            mock.patch.object(policy, "in_flight", return_value=flight),
+            mock.patch.object(
+                policy, "rung_cap", return_value=policy.RungCap("off", "cap-set")
+            ),
+            mock.patch.object(policy, "eligibility", return_value=ineligible) as read,
+        ):
+            result = self.assess(
+                post_merge=lambda floor, who: gate(), promotion=lambda s: PROMOTED
+            )
+        self.assertTrue(result.reason.startswith("rung-off:"), result.reason)
+        self.assertTrue(read.called)
+        self.assertEqual(result.inputs["own_refusal"], "ineligible:fork")
+
     def test_the_in_flight_refusal_matches_the_full_judgment(self) -> None:
         # None: the queue was not read whole, so the pull request is read in
         # full; its own queued entry (#1) is read in full too, and refused.

@@ -937,6 +937,20 @@ class DependabotLane(Unattended):
         self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
         self.assertFalse(any("dependency manager" in b for b in out["blockers"]))
 
+    def test_an_in_flight_refusal_still_reads_the_dependabot_class(self) -> None:
+        # Off the queue and refused in flight: the class is still read, so
+        # the gate keeps no dependency-manager hold it would not keep anyway.
+        self.flight = policy.InFlight(False, "identity-entry-queued:#9", frozenset({9}))
+        self.queued = [9]
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertIn(
+            merge.UNATTENDED_REFUSED + "in-flight:identity-entry-queued:#9",
+            out["blockers"],
+        )
+        self.assertFalse(any("dependency manager" in b for b in out["blockers"]))
+        self.assertEqual(out["unattended"]["dependabot"]["mode"], "enforce")
+
     def test_report_mode_writes_nothing(self) -> None:
         self.config = dataclasses.replace(self.config, dependabot_mode="report")
         code, out = self.lane()
