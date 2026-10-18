@@ -1,8 +1,8 @@
 // Expected values come from the lane's plan: a missing or invalid outcome file
 // means `stopped`; `done` opens a ready PR whose body starts `Closes #<issue>`,
 // with a Conventional Commits title (the run's, else one from the issue title), no
-// label (the class lives on the issue only), and the hold line for untrusted-provenance
-// work or a trust or lane-power diff; `pushback` and
+// label (the class lives on the issue only), and the hold line for structural and
+// untrusted-provenance work or a trust or lane-power diff; `pushback` and
 // `stopped` comment and add needs-human, and only pushback removes
 // agent-ready.
 import assert from "node:assert/strict";
@@ -158,17 +158,17 @@ test("read-only work on ordinary files carries no hold line", () => {
   assert.ok(!decideDone().body.includes("Hold: a human merges this"));
 });
 
-test("untrusted-provenance work carries the hold line", () => {
-  const plan = decideDone({ issueLabels: ["work-class: untrusted-provenance"] });
-  assert.ok(plan.body.split("\n").includes("Hold: a human merges this"), plan.body);
-});
-
-for (const cls of ["scoped", "structural"]) {
-  test(`${cls} work on ordinary files carries no hold line`, () => {
+for (const cls of ["structural", "untrusted-provenance"]) {
+  test(`${cls} work carries the hold line`, () => {
     const plan = decideDone({ issueLabels: [`work-class: ${cls}`] });
-    assert.ok(!plan.body.includes("Hold: a human merges this"), plan.body);
+    assert.ok(plan.body.split("\n").includes("Hold: a human merges this"), plan.body);
   });
 }
+
+test("scoped work on ordinary files carries no hold line", () => {
+  const plan = decideDone({ issueLabels: ["work-class: scoped"] });
+  assert.ok(!plan.body.includes("Hold: a human merges this"), plan.body);
+});
 
 for (const path of [".github/workflows/ci.yml", "AGENTS.md", "plugins/x/AGENTS.md", ".claude-plugin/marketplace.json", "plugins/x/skills/y/SKILL.md"]) {
   test(`a diff touching ${path}, under a merge-lane denied path, carries the hold line`, () => {

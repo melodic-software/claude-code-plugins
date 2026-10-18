@@ -5,13 +5,13 @@
 //   done      opens a ready PR from the run's branch: the body starts
 //             `Closes #<issue>`, or `Refs: #<issue>` when the run reports
 //             `"link": "refs"` (a recorded decision keeps the issue open),
-//             which also holds the PR for a human, since the merge gate
-//             reads the work class from a closing issue. The title is the
+//             which also holds the PR for a human. The title is the
 //             run's Conventional Commits title, with any `#` or `/` a space
 //             (else one built from the issue title), and the body carries
 //             the hold line when a human must merge it. The PR gets no label:
-//             the work class lives on the issue only, and the merge gate reads
-//             it from the PR's closing issue. The body fills the PR body contract's
+//             the work class lives on the issue only. The merge gate reads no
+//             work class and treats every lane PR as C2, so the hold line
+//             carries the class floor. The body fills the PR body contract's
 //             sections from the outcome's summary, changes, verification and
 //             not_done. A done outcome whose not_done holds a required check
 //             is stopped.
@@ -107,10 +107,10 @@ function prTitle(runTitle, issueTitle, issueNumber) {
   }
   return (match && conventionalFrom(runTitle)) || conventionalFrom(issueTitle) || `fix: resolve issue ${issueNumber}`;
 }
-// Work a human merges: the classes past mechanical, and any diff that touches
-// a path the merge lane refuses (merge.diff-check.denied-paths in the base
+// Work a human merges: structural and untrusted-provenance work, and any diff
+// that touches a path the merge lane refuses (merge.diff-check.denied-paths in the base
 // pr-pipeline.yaml), so the two lists cannot drift apart.
-const HOLD_CLASSES = new Set(["work-class: untrusted-provenance"]);
+const HOLD_CLASSES = new Set(["work-class: structural", "work-class: untrusted-provenance"]);
 const MAX_TEXT = 3000;
 const MAX_ITEMS = 20;
 const MAX_ITEM = 300;
