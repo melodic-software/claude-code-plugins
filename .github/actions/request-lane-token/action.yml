@@ -2,7 +2,8 @@ name: Request lane token
 description: >
   Exchange this job's GitHub OIDC token at the lanes token broker. In `token`
   mode, the default, it gets one lane App installation token: it retries only
-  a 503 `github-unavailable`, with backoff, masks the token, and fails red, after
+  a 503 `github-unavailable`, with backoff, or `github-rate-limited`, after its
+  `Retry-After`, masks the token, and fails red, after
   revoking the token, unless the broker's effect, permissions, lane, activity
   and repository equal what this job resolved. In `check` mode it asks the
   broker's check endpoint, which mints nothing, whether a read lane may run,
@@ -201,22 +202,23 @@ runs:
         reason_of() { jq -r 'if type == "object" and (.reason | type) == "string" then .reason else "" end' "$response" 2>/dev/null || true; }
         detail_of() { jq -r 'if type == "object" and (.detail | type) == "string" then .detail else "" end' "$response" 2>/dev/null | one_line || true; }
 
-        # The one retry is a 503 github-unavailable: the broker's GitHub call
-        # failed, as under a secondary rate limit. GitHub
-        # says to wait at least a minute, then back off exponentially:
+        # Two 503s come before the broker reserves anything, so they are retried,
+        # each with a fresh OIDC token, as GitHub's rate-limit guidance asks:
         # https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#exceeding-the-rate-limit
-        # A failed mint also answers github-unavailable, after the broker
-        # reserved the job's one mint, so its retry is denied already-minted and
-        # never gets a second token. Every other answer, and no answer, is
-        # final: a 200 lost in transit is revoked by nobody. A Retry-After header
-        # longer than the backoff sets the wait; no retry starts more than 8
-        # minutes after the first request, so with its 30 s OIDC and 60 s broker
-        # timeouts the last answer comes within 9.5 minutes.
-        # Each attempt takes a fresh OIDC token. A check is never reserved, so
-        # re-running all jobs asks again; "Re-run failed jobs" reuses an earlier
-        # allow, which the read file's run job refuses.
+        # github-rate-limited carries GitHub's wait as Retry-After: the retry
+        # waits exactly that (a minute when absent) plus jitter, never less, and
+        # a wait that would end past the budget fails at once. github-unavailable
+        # backs off exponentially from a minute, or waits a longer Retry-After.
+        # mint-unavailable is a failed mint after the job's one reservation, so
+        # it is final, as is every other answer and no answer: a 200 lost in
+        # transit is revoked by nobody. No retry starts more than 8 minutes
+        # after the first request, so with its 30 s OIDC and 60 s broker
+        # timeouts the last answer comes within 9.5 minutes. A check is never
+        # reserved, so re-running all jobs asks again; "Re-run failed jobs"
+        # reuses an earlier allow, which the read file's run job refuses.
         backoff=(60 120 240)
-        attempt=0 start=$SECONDS retried=""
+        budget=480
+        attempt=0 start=$SECONDS retried="" rate_limit=""
         while :; do
           oidc=$(printf 'Authorization: bearer %s\n' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" |
             curl -sS --fail --max-time 30 -H @- "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUDIENCE" |
@@ -228,14 +230,32 @@ runs:
             curl -sS --proto '=https' --max-time 60 -o "$response" -D "$headers" -w '%{http_code}' -X POST -H @- \
               -H 'Content-Type: application/json' --data-binary "$body" "$BROKER_URL") || status=000
           unset oidc
-          [[ $status == 503 && $attempt -lt ${#backoff[@]} && $(reason_of) == github-unavailable ]] || break
-          delay=$((backoff[attempt] + RANDOM % 21))
+          reason=$(reason_of)
+          [[ $status == 503 && $attempt -lt ${#backoff[@]} && $reason =~ ^github-(unavailable|rate-limited)$ ]] || break
           after=$(tr -d '\r' <"$headers" 2>/dev/null |
             awk -F': *' 'tolower($1) == "retry-after" && $2 ~ /^[0-9]+$/ && length($2) <= 6 { v = $2 + 0 } END { print v }') || after=""
-          [[ -z $after || $after -le $delay ]] || delay=$after
-          [ $((SECONDS - start + delay)) -le 480 ] || break
+          elapsed=$((SECONDS - start))
+          if [ "$reason" = github-rate-limited ]; then
+            delay=${after:-60}
+            if [ $((elapsed + delay)) -gt "$budget" ]; then
+              limit=$(jq -r 'if (.limit | type) == "string" then .limit else "" end' "$response" 2>/dev/null) || limit=""
+              [[ $limit =~ ^(primary|secondary)$ ]] || limit=unknown
+              resource=$(jq -r 'if (.resource | type) == "string" then .resource else "" end' "$response" 2>/dev/null) || resource=""
+              [[ $resource =~ ^[a-z_]{1,40}$ ]] || resource=""
+              resets=$(jq -rn --argjson s "$delay" 'now + $s | ceil | todate')
+              rate_limit="; GitHub's $limit rate limit${resource:+ ($resource)} resets at $resets, past the 8-minute retry budget"
+              break
+            fi
+            jitter=$((RANDOM % 21))
+            [ "$jitter" -le $((budget - elapsed - delay)) ] || jitter=$((budget - elapsed - delay))
+            delay=$((delay + jitter))
+          else
+            delay=$((backoff[attempt] + RANDOM % 21))
+            [[ -z $after || $after -le $delay ]] || delay=$after
+            [ $((elapsed + delay)) -le "$budget" ] || break
+          fi
           detail=$(detail_of)
-          retried="503 with reason github-unavailable${detail:+: $detail}"
+          retried="503 with reason $reason${detail:+: $detail}"
           attempt=$((attempt + 1))
           echo "::warning::lane-token-retry: the broker answered $retried; retry $attempt of ${#backoff[@]} in ${delay}s"
           sleep "$delay"
@@ -250,8 +270,10 @@ runs:
           reason=$(reason_of)
           [[ $reason =~ ^[a-z]+(-[a-z]+)*$ ]] || reason=unknown
           detail=$(detail_of)
-          [ "$reason" != github-unavailable ] || retried=""
-          detail="$detail${retried:+, after $retried}"
+          [[ $retried != "503 with reason $reason" && $retried != "503 with reason $reason: "* ]] || retried=""
+          [ "$reason" != mint-unavailable ] ||
+            detail="$detail; final: the broker had reserved this job's one mint, so no retry can mint it"
+          detail="$detail$rate_limit${retried:+, after $retried}"
           if [[ $SUPERSEDED_OK == true && $status == 403 && $reason == workflow-modified ]]; then
             msg="lane-token-superseded: $LANE.yml changed on the default branch after this run started, so a newer run of it does this work; this run takes no token and skips the rest"
             echo "::warning::$msg"

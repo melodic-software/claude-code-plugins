@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## 2.8.2 - 2026-10-17
+
+`request-lane-token` also retries a broker 503 `github-rate-limited`, waiting exactly its
+`Retry-After` plus up to 20 seconds of jitter, and fails red at once, naming the limit kind and its
+reset time, when that wait would pass the 8-minute budget. A 503 `mint-unavailable` is never
+retried, and its failure says it is final
+([pr-run-activity.md](pr-run-activity.md#the-lane-token-broker)). `version` stays 2.
+
 ## 2.8.1 - 2026-10-17
 
 `request-lane-token` retries a broker 503 whose reason is `github-unavailable`, with a fresh OIDC

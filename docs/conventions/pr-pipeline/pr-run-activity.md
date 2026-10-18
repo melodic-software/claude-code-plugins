@@ -928,11 +928,12 @@ repository, started (and any re-run) by the lanes bot or a listed human, at the 
 or, with `expected_upstream_head` in the body, at that head when every commit from it to the PR's
 current head is one GitHub signed for the lanes bot (committer `web-flow`, signature `valid`) after
 this run was created, and the upstream run lists this pull request. The client
-retries only a 503 `github-unavailable`, with backoff
+retries only a 503 `github-unavailable`, with backoff, or `github-rate-limited`, after its
+`Retry-After`
 ([`request-lane-token`](../../../.github/actions/request-lane-token/README.md#what-it-does), step 3):
 the broker reserves the job's `check_run_id` before it mints, so a request after a mint or a failed
-mint is denied `already-minted`, and a 200 lost in transit leaves a token nobody revokes until it
-expires within the hour.
+mint (`mint-unavailable`) is denied `already-minted`, and a 200 lost in transit leaves a token
+nobody revokes until it expires within the hour.
 
 The broker derives the grant from the default-branch tip's config and `effect-grants.json`, never
 from the request, and mints a token for this repository only, with exactly `contents`,
@@ -964,7 +965,9 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 | 403 | `default-branch-not-main` | The repository's default branch is not `main` |
 | 403 | `kill-switch` | The organization's `CLAUDE_LANES_DISABLED` is not exactly `false`, a repository variable of that name exists (it would shadow the org value), or the repository's `CLAUDE_LANES_REPO_DISABLED` is absent or not exactly `false` |
 | 403 | `already-minted` | This job already received its mint |
-| 503 | `key-unavailable`, `github-unavailable`, `store-unavailable` | The broker could not sign, read GitHub, or record the mint; nothing was minted |
+| 503 | `key-unavailable`, `github-unavailable`, `store-unavailable` | The broker could not sign, read GitHub, or record the mint; nothing was minted; the client retries `github-unavailable` |
+| 503 | `github-rate-limited` | GitHub rate-limited the broker before it reserved the mint; `Retry-After` carries GitHub's wait (1-3600 s) and the body adds `limit`, `resource` and `retry_after`; retryable after that wait |
+| 503 | `mint-unavailable` | The mint failed after the broker reserved the job's one mint; final, never retried |
 
 A `kill-switch` denial is red, not neutral: step 3 already stopped the common case, so the denial
 means the job's read and the broker's read of the switch disagreed.
