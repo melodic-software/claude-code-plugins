@@ -10781,12 +10781,71 @@ class GuardTests(unittest.TestCase):
                     self._gated_reason(command),
                 )
 
+    def test_engine_gate_defers_a_simple_reader_that_only_quotes_the_engine_name(
+        self,
+    ) -> None:
+        """#6242: quoted data naming the engine is a mention for a closed reader set."""
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            for command in (
+                "gh issue create --title 'gate denies (only name hygiene.py)'"
+                " --body-file body.md",
+                "gh issue create --title 'x' --body 'run python3 hygiene.py scan'",
+                'gh issue list --search "python3 hygiene.py"',
+                "gh pr view 5 --comment 'hygiene.py scan (see)'",
+                "git log --grep 'hygiene.py (engine)'",
+                "git diff -- 'hygiene.py'",
+                "cat 'notes (hygiene.py).md'",
+                "rg 'python3 hygiene.py' README.md",
+                "gh issue create --body 'line one\nhygiene.py\nline three'",
+            ):
+                with self.subTest(command=command):
+                    self.assertFalse(guard._engine_gate_relevant(command, "Bash"))
+
+    def test_engine_gate_keeps_gating_what_the_string_data_rule_does_not_cover(
+        self,
+    ) -> None:
+        engine = guard._display_path(guard._engine_script_path())
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            for command in (
+                # A pipeline stays fail-closed.
+                "git show 'hygiene.py (x)' | grep foo",
+                "gh issue create --title 'hygiene.py' && echo done",
+                "gh issue create --title 'hygiene.py'; echo done",
+                # Readers outside the allowlist read as written.
+                "awk '/hygiene.py/ {print}' notes.txt",
+                "sed -n '/hygiene.py (x)/p' notes.txt",
+                "echo 'python3 hygiene.py scan (x)'",
+                "bash -c 'python3 hygiene.py scan'",
+                # A double-quoted literal holding an expansion is not data.
+                'gh issue create --title "hygiene.py $(whoami)"',
+                'gh issue create --title "python3 hygiene.py $X"',
+                'gh issue create --title "python3 hygiene.py `x`"',
+                # Options that make a reader run another program.
+                "rg --pre 'python3 hygiene.py (x)' foo",
+                "rg '--pre' 'python3 hygiene.py (x)' foo",
+                "git -c 'alias.x=!python3 hygiene.py' show HEAD",
+                "git grep -O'python3 hygiene.py (x)' foo",
+                'grep "a\\" "; python3 hygiene.py apply; echo \\"',
+                "git grep -nO'python3 hygiene.py apply' x",
+                "git grep --open-files-in-p 'python3 hygiene.py apply' x",
+                "git grep --open 'python3 hygiene.py apply' x",
+                "rg --hostname-bin 'python3 hygiene.py apply' x",
+                # A subcommand outside the allowlist.
+                "gh api -X POST 'hygiene.py (x)'",
+                "git push 'hygiene.py (x)'",
+                # Identity is read on the command as written.
+                f"cat '{engine}'",
+                f'gh issue create --body "{engine}"',
+                f"head -n 3 '{engine}' ",
+            ):
+                with self.subTest(command=command):
+                    self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
+
     def test_engine_gate_denial_names_the_payload_word_it_gated(self) -> None:
         cases = (
-            'gh issue list --search "python3 hygiene.py"',
-            'gh issue list --search "hygiene.py scan"',
             'echo "run python3 hygiene.py"',
             '"python3 hygiene.py scan"',
+            'echo "hygiene.py scan"',
         )
         with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
             for command in cases:
