@@ -1660,7 +1660,7 @@ class TestWatcherKey(ServerCase):
 class TestReports(ServerCase):
     """Report a problem over HTTP. Expected values come from the approved V1 (feedback triage row 38): POST /api/report
     is a person route whose picture is png, jpeg or webp up to 512 KB with its own body cap, allowed while uploads are
-    off; reports, their pictures and Seen and Resolved are the owner's; report-filed wakes the watcher."""
+    off; reports, their pictures, Seen, Resolved and Ask are the owner's; only the owner's Ask wakes the watcher."""
 
     CTX = {"view": "focus", "device": "phone", "browser": "safari", "viewport": {"w": 390, "h": 844}, "errors": []}
 
@@ -1676,12 +1676,17 @@ class TestReports(ServerCase):
     def data_url(kind, data):
         return f"data:image/{kind};base64,{base64.b64encode(data).decode()}"
 
-    def test_a_512_kb_screenshot_goes_through_with_uploads_off_and_wakes_the_watcher(self):
+    def test_a_512_kb_screenshot_goes_through_with_uploads_off_and_the_owners_ask_wakes_the_watcher(self):
         self.assertFalse(self.app.session.state["session"]["settings"]["uploads"])
         shot = b"\xff\xd8\xff" + b"\x00" * (512 * 1024 - 3)
         code, _, out = self.report(self.ann, self.data_url("jpeg", shot))
         self.assertEqual((code, out["id"]), (200, "F1"), out)
         self.assertEqual((self.d / "reports" / "F1.jpg").read_bytes(), shot)
+        self.assertEqual(self.app.session.state["log"]["events"], [])
+        code, _, out = self.post("/api/report/act", {"id": "F1", "action": "ask"}, self.ann)
+        self.assertEqual((code, out["error"]), (403, "owner-only"))
+        code, _, out = self.post("/api/report/act", {"id": "F1", "action": "ask"}, self.owner)
+        self.assertEqual((code, out["asked"]), (200, True), out)
         code, _, out = call(self.app.control_port, "GET", "/api/wait?after=handled&timeout=5", headers={"X-Shared-Token": self.app.hub.token}, timeout=20)
         self.assertEqual([(e["kind"], e["report"], e["qid"], e["text"]) for e in out["events"]], [("report-filed", "F1", "Q1", "Send does nothing")])
         code, _, out = self.post("/api/upload/offer", {"file": "a.png", "size": 10, "type": "image/png"}, self.ann)

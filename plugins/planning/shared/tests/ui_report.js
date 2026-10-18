@@ -4,14 +4,16 @@
 // device, browser, screen, build and recent errors before Send, adds a 3200x1800 screenshot that her browser
 // re-encodes to 1600 px on its long edge, types with a keyboard up while the field and Send report stay above it, and
 // sends it; the request carries text, context and the picture only, never her answer, the chat, the address or her
-// secret. The desktop owner (1440x900) sees it as a Problem in the Host queue, opens its picture, and marks it Seen,
-// which tells her. On a desktop, Help offers Report a problem, and a refused action's toast offers Report this, whose
+// secret. The desktop owner (1440x900) sees it as a Problem in the Host queue, opens its picture, asks Claude about it
+// behind a confirm (the report alone wakes nobody; guests never get the control), and marks it Seen, which tells her. On a desktop, Help offers Report a problem, and a refused action's toast offers Report this, whose
 // form lists that refusal among the recent errors.
 //   node plugins/planning/shared/tests/ui_report.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the approved V1 (feedback triage row 38: the entry points, the field list, 1600 px, the
 // png/jpeg/webp types) and the texts and bytes this suite makes, never from the page.
 "use strict";
+const fs = require("node:fs");
+const path = require("node:path");
 const { loadPlaywright, suite, recorder, until, snap, joinAs, png } = require("./browser_harness");
 
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 };
@@ -109,6 +111,18 @@ async function main() {
     ok("  with its chip and context", (await item.locator(".vf-chip").textContent()) === "Problem" && (await item.locator(".vf-rep-sent li").count()) >= 2);
     await item.locator("button", { hasText: "Show screenshot" }).click();
     ok("  and its picture on request", await until(owner, () => document.querySelector(".vf-qitem[data-t=report] .vf-rep-shot")?.naturalWidth === 1600));
+    // ---------- Ask Claude about this: the owner's review stands between a guest's report and Claude ----------
+    const filed = () => JSON.parse(fs.readFileSync(path.join(A.dir, "state.json"), "utf8")).log.events.filter(e => e.kind === "report-filed");
+    ok("the report alone wakes no Claude", filed().length === 0, JSON.stringify(filed()));
+    ok("a guest never has Ask Claude about this report", await pia.evaluate(() => !document.querySelector(".vf-rep-ask") && ![...document.querySelectorAll("button")].some(b => /Ask Claude about this report/.test(b.textContent))));
+    const askBtn = item.locator("button", { hasText: "Ask Claude about this report" });
+    ok("the owner's Problem offers Ask Claude about this report", await askBtn.isVisible());
+    await askBtn.click();
+    ok("  behind a confirm that says Claude proposes a fix and never acts on the report", await until(owner, () => /proposes a fix.*never acts/s.test(document.querySelector("dialog[open]")?.textContent || "")));
+    await owner.locator("dialog[open] button", { hasText: /^Ask Claude$/ }).click();
+    ok("  which marks it asked and hands it to Claude once", await until(owner, () => document.querySelector(".vf-qitem[data-t=report]")?.textContent.includes("Asked Claude.")
+      && ![...document.querySelectorAll(".vf-qitem[data-t=report] button")].some(b => /Ask Claude/.test(b.textContent))) && filed().length === 1 && filed()[0].text === TEXT,
+      JSON.stringify(filed()));
     await item.locator("button", { hasText: /^Seen$/ }).click();
     ok("Seen tells the reporter", await until(pia, () => (window.Core.snapshot()?.me?.notifications || []).some(n => n.kind === "report")));
     ok("  and the item stays until Resolved", await until(owner, () => !!document.querySelector(".vf-qitem[data-t=report]") && ![...document.querySelectorAll(".vf-qitem[data-t=report] button")].some(b => b.textContent === "Seen")));

@@ -3646,7 +3646,6 @@ class Session:
                     _write_chunk(saved, 0, image[0])
                 reports[fid] = rec
                 self._queue_note([HOST], pid)
-                self._event("report-filed", report=fid, qid=ctx.get("qid"), text=text)
         except BaseException:
             if saved:
                 self._discard(saved)
@@ -3662,12 +3661,20 @@ class Session:
         return r
 
     def act_on_report(self, pid, body):
-        """POST /api/report/act: the owner marks a report seen or resolved; either tells the reporter."""
-        action = _choice(body, "action", ("seen", "resolved"))
+        """POST /api/report/act: the owner marks a report seen or resolved, which tells the reporter, or asks Claude
+        about an open one, which writes `report-filed`: a guest's report alone never reaches Claude."""
+        action = _choice(body, "action", ("seen", "resolved", "ask"))
         with self._tx():
             self._owner(pid)
             fid = _ident(body, "id")
             r = self._report(fid)
+            if action == "ask":
+                if r["status"] != "open" or "asked" in r:
+                    state = "asked" if "asked" in r else r["status"]
+                    raise DomainError(409, "wrong-status", f"Report {fid} is {state}.", status=state)
+                r["asked"] = self.now()
+                self._event("report-filed", report=fid, qid=r["ctx"].get("qid"), text=r["text"])
+                return {"id": fid, "status": r["status"], "asked": True}
             if r["status"] == "resolved" or r["status"] == action:
                 raise DomainError(409, "wrong-status", f"Report {fid} is {r['status']}.", status=r["status"])
             r["status"] = action

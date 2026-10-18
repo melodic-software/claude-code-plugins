@@ -5022,8 +5022,8 @@ class TestStateFromE27acc5(StateFixtureCase):
 # ---------------------------------------------------------------------------------------------
 # Report a problem. Expected values come from the approved V1 (feedback triage row 38): text required, a picture of
 # png, jpeg or webp only (by its bytes) up to 512 KB, allowed while uploads are off; a throttle and a cap on open
-# reports per person; only the owner reads them; Seen tells the reporter; report-filed reaches Claude; the page
-# context carries only the listed fields.
+# reports per person; only the owner reads them; Seen tells the reporter; report-filed reaches Claude only when the
+# owner asks (guests never use the owner's Claude unreviewed); the page context carries only the listed fields.
 # ---------------------------------------------------------------------------------------------
 
 PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 24
@@ -5045,15 +5045,33 @@ class TestReports(SessionCase):
         self.clock.tick(session.REPORT_INTERVAL)
         return self.s.report(pid, {"text": text, "ctx": CTX, **body})["id"]
 
-    def test_a_report_keeps_its_text_context_and_picture_and_reaches_claude(self):
+    def test_a_report_keeps_its_text_context_and_picture_and_reaches_claude_only_when_the_owner_asks(self):
         fid = self.file(self.ann, image=data_url("png", PNG_BYTES))
         rec = self.s.state["reports"][fid]
         self.assertEqual((fid, rec["by"], rec["text"], rec["ctx"]["qid"], rec["status"], rec["image"]), ("F1", self.ann, "Send does nothing", "Q1", "open", "reports/F1.png"))
         self.assertEqual((self.tmp / "reports" / "F1.png").read_bytes(), PNG_BYTES)
+        self.assertEqual(self.disk()["reports"][fid]["ctx"], self.s.state["reports"][fid]["ctx"])
+        self.assertEqual(self.s.state["log"]["events"], [])
+        self.assertEqual(self.act("act_on_report", HOST, {"id": "F1", "action": "ask"}), {"id": "F1", "status": "open", "asked": True})
         ev = self.events("report-filed")
         self.assertEqual([(e["report"], e["qid"], e["text"]) for e in ev], [("F1", "Q1", "Send does nothing")])
         self.assertIsNone(support_event_error(ev[0]))
-        self.assertEqual(self.disk()["reports"][fid]["ctx"], self.s.state["reports"][fid]["ctx"])
+        self.assertTrue(self.s.snapshot(HOST)["reports"][0]["asked"])
+        self.assertEqual(self.notes(self.ann, "report"), [])
+
+    def test_ask_is_the_owners_once_and_only_on_an_open_report(self):
+        self.file(self.ann)
+        self.refused("owner-only", "act_on_report", self.ann, {"id": "F1", "action": "ask"}, http=403)
+        self.act("act_on_report", HOST, {"id": "F1", "action": "ask"})
+        self.refused("wrong-status", "act_on_report", HOST, {"id": "F1", "action": "ask"}, http=409)
+        self.file(self.ann)
+        self.act("act_on_report", HOST, {"id": "F2", "action": "seen"})
+        self.refused("wrong-status", "act_on_report", HOST, {"id": "F2", "action": "ask"}, http=409)
+        self.file(self.ann)
+        self.act("act_on_report", HOST, {"id": "F3", "action": "resolved"})
+        self.refused("wrong-status", "act_on_report", HOST, {"id": "F3", "action": "ask"}, http=409)
+        self.refused("not-found", "act_on_report", HOST, {"id": "F9", "action": "ask"}, http=404)
+        self.assertEqual([e["report"] for e in self.events("report-filed")], ["F1"])
 
     def test_a_picture_is_taken_while_uploads_are_off_and_other_uploads_are_still_refused(self):
         self.assertFalse(self.s.state["session"]["settings"]["uploads"])

@@ -232,7 +232,7 @@
     view.myUploads = (s.myUploads || []).map(upView);
     view.uploads = (s.uploads || []).map(upView);
     // Problem reports (owner only): the picture itself comes from Core.reportImage when the owner opens one.
-    view.reports = (s.reports || []).map(r => ({ id: r.id, cid: r.by, name: nameOf(r.by), text: r.text, ctx: r.ctx, image: r.image, status: r.status, ts: r.ts }));
+    view.reports = (s.reports || []).map(r => ({ id: r.id, cid: r.by, name: nameOf(r.by), text: r.text, ctx: r.ctx, image: r.image, status: r.status, asked: !!r.asked, ts: r.ts }));
     view.files = s.files || {};
     // Passes and their reasons (owner only): qid -> pid -> {reason?, ts}.
     view.passes = s.passes || {};
@@ -520,6 +520,7 @@
     /** Report a problem: text, the page context (Core.reportContext) and at most one picture, a data: URL. */
     report: (text, ctx, image) => act("/api/report", { text, ctx, ...(image ? { image } : {}) }),
     /** Owner: mark a report seen or resolved; either tells the reporter. */
+    /** Owner: seen | resolved tell the reporter; ask hands an open report to Claude (a report alone never reaches it). */
     reportAct: (id, action) => act("/api/report/act", { id, action }),
     /** Owner: one report's picture, as a data: URL. */
     reportImage: async id => {

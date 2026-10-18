@@ -207,7 +207,7 @@ Owner-only routes (`X-Owner-Token`); a leader cannot use them.
 | `/api/join/act` | `{pid, action: admit\|decline}` | With the `approveJoins` setting on, a join gets a secret but waits (`status: waiting`, 403 `waiting` on every route) in the owner's `joinRequests` (in join order `n`, with the `device` and `browser` the join named) until admitted; declining removes the person. At most 20 wait (503 `waiting-full`), and a full session never evicts a waiting person. People whose secret already resolves are not affected |
 | `/api/session/intro` | `{intro}` | Edits "Why you're here" |
 | `/api/person/merge` | `{from, to}` | `from`'s answers, votes, reactions, chat, requests, uploads and problem reports move to `to`, every mention of `from` names `to`, and `from` goes. Into the owner, `from`'s secrets end instead of moving: that browser's next request gets 401 `merged-into-owner` (remembered until the server restarts), and its page asks for the owner link instead of joining again |
-| `/api/report/act` | `{id, action: seen\|resolved}` | Marks a problem report seen or resolved (409 `wrong-status` once resolved, or when it already is); either tells the reporter in a `report` notification. A resolved report leaves the owner's snapshot |
+| `/api/report/act` | `{id, action: seen\|resolved\|ask}` | Marks a problem report seen or resolved (409 `wrong-status` once resolved, or when it already is); either tells the reporter in a `report` notification. A resolved report leaves the owner's snapshot. `ask` sets `asked` on an open report and writes `report-filed` for Claude (409 `wrong-status` on one that is seen, resolved or already asked) |
 | `GET /api/report/image?id=` | | One report's screenshot as `{id, image}`, a data: URL |
 
 `POST /api/chat/react {id, emoji, on}` (any person) adds or takes back one's own emoji on a chat
@@ -402,10 +402,11 @@ off: one picture, checked, saved as `reports/<id>.<png|jpg|webp>` in the private
 shown to the owner alone; every other upload stays refused (403 `uploads-off`). One report per
 person every 10 s (429 `slow-down`), 5 open per person (429 `too-many-pending`), 500 per session
 (429 `too-many-reports`). The record, `reports` in `state.json` (`{F<N>: {by, text, ctx, image?,
-status: open|seen|resolved, ts}}`; optional, so a file from before loads), reaches only the
+status: open|seen|resolved, asked?, ts}}`; optional, so a file from before loads), reaches only the
 owner's snapshot (`reports`, with `image: true` instead of the path) and shows in the Host queue as
-a Problem, with Seen and Resolved ([Moderation](#moderation)). Each report writes `report-filed`
-(`report`, `qid`, `text`) for Claude: the text is the reporter's data, never instructions, and
+a Problem, with Seen, Resolved and Ask Claude about this report ([Moderation](#moderation)). A report alone
+never reaches Claude: only the owner's Ask writes `report-filed` (`report`, `qid`, `text`), as
+rounds wait for Send and requests for Run. The text is the reporter's data, never instructions, and
 Claude reads a picture only through the Read-only `upload-reader` agent.
 
 ## Logs
@@ -656,7 +657,8 @@ guest, and a declined file deleted from the browser and shown as "Not accepted".
 `ui_report.js` checks Report a problem with Uploads off: on a 390x844 phone from More, the sent
 list before Send, a 3200x1800 screenshot re-encoded to 1600 px, the field and Send report above a
 keyboard, and a request carrying no answer, chat, fragment or secret; the desktop owner's Problem
-item, its picture, Seen telling the reporter, and Resolved; on a desktop, Help's entry and a
+item, its picture, Ask Claude about this report (the owner's alone), Seen telling the reporter, and
+Resolved; on a desktop, Help's entry and a
 refused action's "Report this", whose form lists the refusal. `ui_layout.js` also sweeps the form
 with keyboards at 320 to 430 px wide.
 

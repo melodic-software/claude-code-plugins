@@ -619,6 +619,7 @@
         "ctx": {"$ref": "#/$defs/problemContext"},
         "image": {"type": "string"},
         "status": {"enum": ["open", "seen", "resolved"]},
+        "asked": {"$ref": "#/$defs/ts", "description": "When the owner asked Claude about the report, which wrote `report-filed`; absent until then."},
         "ts": {"$ref": "#/$defs/ts"}
       }
     },

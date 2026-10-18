@@ -229,6 +229,7 @@
     cdYes.onclick = () => cdDone?.(true);
     cdNo.onclick = () => cdDone?.(false);
     cdlg.addEventListener("close", () => cdDone?.(false)); // Escape
+    const REPORT_ASK = { title: "Ask Claude about this report?", body: "Claude reads the report and its screenshot as the reporter's words, works out what likely went wrong and proposes a fix to you in the terminal. It never acts on the report itself.", ok: "Ask Claude" };
     const removeAsk = name => ({ title: `Remove ${disp(name)}?`, ok: "Remove", body: `${disp(name)}'s link stops working and their answers, votes, chat and suggestions are hidden from everyone. You can restore them from Settings.` });
     const PARK_ASK = { title: "Park this proposal?", ok: "Park", body: "It stays out of the round, so Claude does not see it when the round is sent. You can restore it from Parked." };
     const LATER_ASK = { title: "Move this proposal to Later?", ok: "Move to Later", body: "It leaves this round and becomes a tracker item when the session ends. You can restore it before then." };
@@ -5068,7 +5069,7 @@
       const txt = it.r ? `${KIND_REQ[it.r.kind] || "Request"}: ${it.r.text}` : it.i ? it.i.text : it.x ? it.x.text + (it.x.note ? `\n\nWhy: ${it.x.note}` : "")
         : it.m ? `${it.m.fromName} says they were ${it.m.toName} before. Approve to join them: ${it.m.fromName}'s answers and votes move to ${it.m.toName}.`
         : it.ready ? `${it.ready.by} marked round ${curRound().current} ready to send.`
-        : it.j ? `Wants to join: ${it.j.name}${joinHint(it.j)}` : it.f ? `${it.f.status === "seen" ? "Seen. " : ""}${it.f.text}` : "";
+        : it.j ? `Wants to join: ${it.j.name}${joinHint(it.j)}` : it.f ? `${it.f.status === "seen" ? "Seen. " : ""}${it.f.asked ? "Asked Claude. " : ""}${it.f.text}` : "";
       k.text.hidden = !txt;
       if (txt) fillClamp(k.text, "q:" + it.id, txt, `${QT[it.t]} from ${disp(person[1] || "someone")}`, q ? `${q.id}: ${q.text}` : "");
       if (k.up) fillUpRow(k.up, it.u);
@@ -5080,7 +5081,7 @@
         k.rep.show.hidden = !it.f.image || !!k.rep.show.nextSibling.getAttribute("src");
       }
       fillAtts(k.att, (it.r || it.i || it.x)?.att, `${QT[it.t]} from ${disp(person[1] || "someone")}`);
-      const sig = [it.t, it.r?.status, it.u?.status, it.f?.status, owner, Core.canModerate()].join("|");
+      const sig = [it.t, it.r?.status, it.u?.status, it.f?.status, it.f?.asked, owner, Core.canModerate()].join("|");
       if (k.sig === sig) return;
       k.sig = sig;
       const a = [];
@@ -5103,6 +5104,7 @@
         qAct("Approve", "vf-btn-primary", guarded(() => ({ title: `Join ${li._it.m.fromName} and ${li._it.m.toName}?`, ok: "Join them", body: `${li._it.m.fromName}'s answers, votes, chat and suggestions move to ${li._it.m.toName}. This cannot be undone.` }),
           () => Core.mergeAct(li._it.m.id, "approve").then(() => flash("Joined.")).catch(fail))));
       if (it.t === "report" && owner) a.push(
+        ...(it.f.status === "open" && !it.f.asked ? [qAct("Ask Claude about this report", "vf-btn-ghost vf-rep-ask", guarded(REPORT_ASK, () => Core.reportAct(li._it.f.id, "ask").then(() => flash("Asked. Claude proposes a fix in the terminal.")).catch(fail)))] : []),
         ...(it.f.status === "open" ? [qAct("Seen", "vf-btn-ghost", () => Core.reportAct(li._it.f.id, "seen").then(() => flash("Marked seen. The reporter is told.")).catch(fail))] : []),
         qAct("Resolved", "vf-btn-primary", () => Core.reportAct(li._it.f.id, "resolved").then(() => flash("Resolved. The reporter is told.")).catch(fail)));
       if (it.t === "ready" && owner) a.push(qAct("Send round to Claude", "vf-btn-primary", e => roundAction(e.currentTarget)));
