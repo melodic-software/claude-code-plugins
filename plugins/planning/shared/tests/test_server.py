@@ -459,6 +459,48 @@ class TestBusy(unittest.TestCase):
             s.close()
         self.assertTrue(wait_for(lambda: call(app.guest_port, "GET", "/api/state")[0] == 200, seconds=10))
 
+    def busy_app(self):
+        with mock.patch.object(session, "MAX_HANDLERS", 1):
+            app = server.App(tmpdir(self), watch_tunnel=False)
+        app.serve()
+        self.addCleanup(app.shutdown)
+        idle = socket.create_connection(("127.0.0.1", app.guest_port), timeout=5)
+        self.addCleanup(idle.close)
+        wait_for(lambda: app.guest.slots._value == 0, seconds=5)
+        return app
+
+    def refused(self, app):
+        """A client past the cap that sends its request and reads the whole 503."""
+        s = socket.create_connection(("127.0.0.1", app.guest_port), timeout=5)
+        self.addCleanup(s.close)
+        s.sendall(f"GET /api/state HTTP/1.1\r\nHost: 127.0.0.1:{app.guest_port}\r\n\r\n".encode("ascii"))
+        got = b""
+        while chunk := s.recv(4096):
+            got += chunk
+        self.assertTrue(got.startswith(b"HTTP/1.1 503 "), got)
+        return s
+
+    def test_the_503_is_no_reset_while_the_client_still_sends(self):
+        # A socket closed with its request unread resets the connection, and a Windows client then drops the 503 it
+        # already holds (WinError 10053). Here the reset shows as the client's next send failing.
+        app = self.busy_app()
+        s = self.refused(app)
+        time.sleep(0.3)
+        s.sendall(b"more of the request")
+        time.sleep(0.3)
+        s.sendall(b"and more")
+
+    def test_reading_a_refused_client_stops_at_its_time_and_byte_bounds(self):
+        app = self.busy_app()
+        with mock.patch.object(server.GuestServer, "DRAIN_SECONDS", 0.3):
+            self.refused(app)  # and never closes
+            self.assertTrue(wait_for(lambda: app.guest.drains._value == server.GuestServer.DRAINS, seconds=1.5, step=0.05))
+        with mock.patch.object(server.GuestServer, "DRAIN_SECONDS", 60), mock.patch.object(server.GuestServer, "DRAIN_BYTES", 1024):
+            s = self.refused(app)
+            with contextlib.suppress(OSError):
+                s.sendall(b"x" * 4096)
+            self.assertTrue(wait_for(lambda: app.guest.drains._value == server.GuestServer.DRAINS, seconds=3, step=0.05))
+
 
 class TestOwnerRotation(unittest.TestCase):
     def test_the_secrets_file_holds_the_new_token_before_the_hash_commits(self):

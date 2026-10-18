@@ -542,7 +542,7 @@ page keeps the rest of its last snapshot.
   | Writes | 1 a second per person per route, on every route that writes (answer, pick, vote, react, disagree, go-with, rename, color, prefs, about-you, notifications/read, chat, propose, suggest, request, annotate, merge-request) |
   | Heartbeat | 1 a second per person and tab (429 otherwise), except a beat that changes `visible` or `away` |
   | Stored chat, notes, suggestions | the newest 2000 messages (a snapshot carries the newest 50, `GET /api/chat` at most 100 at a time); 2000 notes, then a new one is refused (409 `notes-full`); 200 suggestions per question, with votes on a dropped one dropped too |
-  | Connections served at once | 64; one more is answered 503 `busy` |
+  | Connections served at once | 64; one more is answered 503 `busy`, then read until it closes (at most 64 KiB and 2 s, 8 such connections at once) so the close does not reset it and drop the 503 |
 
 - **Headers.** Every answer, http.server's own refusals (414, 501 and the like) included:
   `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,

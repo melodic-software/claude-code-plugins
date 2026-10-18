@@ -533,9 +533,14 @@ class GuestServer(ThreadingHTTPServer):
     allow_reuse_address = not detached.WINDOWS  # on Windows the option lets another bind steal the port
     BUSY_MESSAGE = "The session is busy; try again in a moment."
     BUSY = raw_answer(503, "Service Unavailable", {"error": "busy", "message": BUSY_MESSAGE})
+    # judgment: how long, how much and how many refused clients are read after their 503, so a flood costs little.
+    DRAIN_SECONDS = 2.0
+    DRAIN_BYTES = 64 * 1024
+    DRAINS = 8
 
     def __init__(self, *args, **kwargs):
         self.slots = threading.BoundedSemaphore(session.MAX_HANDLERS)
+        self.drains = threading.BoundedSemaphore(self.DRAINS)
         super().__init__(*args, **kwargs)
 
     def server_bind(self):
@@ -547,10 +552,13 @@ class GuestServer(ThreadingHTTPServer):
         if not self.slots.acquire(blocking=False):
             # No request was read, so the entry has no method, route or pid, and no traceback: nothing failed.
             self.app.log.error("%s", entry("request", method="-", route="-", status=503, ms="0.0", code="busy", message=self.BUSY_MESSAGE))
-            with contextlib.suppress(OSError):
-                request.settimeout(1.0)
-                request.sendall(self.BUSY)
-            self.shutdown_request(request)
+            if self.drains.acquire(blocking=False):
+                threading.Thread(target=self.refuse, args=(request,), daemon=True).start()
+            else:
+                with contextlib.suppress(OSError):
+                    request.settimeout(1.0)
+                    request.sendall(self.BUSY)
+                self.shutdown_request(request)
             return
         try:
             super().process_request(request, client_address)
@@ -563,6 +571,25 @@ class GuestServer(ThreadingHTTPServer):
             super().process_request_thread(request, client_address)
         finally:
             self.slots.release()
+
+    def refuse(self, request):
+        """Answer 503, then read what the client sends until it closes, DRAIN_BYTES or DRAIN_SECONDS. A socket closed
+        with unread data resets the connection, and a Windows client then drops the 503 it already received."""
+        try:
+            with contextlib.suppress(OSError):
+                request.settimeout(1.0)
+                request.sendall(self.BUSY)
+                request.shutdown(socket.SHUT_WR)
+                deadline, left = time.monotonic() + self.DRAIN_SECONDS, self.DRAIN_BYTES
+                while left > 0 and (wait := deadline - time.monotonic()) > 0:
+                    request.settimeout(wait)
+                    got = request.recv(min(left, 4096))
+                    if not got:
+                        break
+                    left -= len(got)
+        finally:
+            self.close_request(request)
+            self.drains.release()
 
 
 class GuestHandler(BaseHTTPRequestHandler):
