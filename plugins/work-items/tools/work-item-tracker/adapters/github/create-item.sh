@@ -57,9 +57,8 @@ target_repo="$(wit_resolve_repo "$repo_override")" || exit "$?"
 # On older gh, forwarding `--type` dies with `unknown flag` (exit 1) and
 # `/work-items:track add` on an org repo files nothing. Degrade to the same
 # coarse `type:` label personal/non-org repos already use, and say so.
-native=0
-wit_gh_has_native_surface && native=1
-if [[ -n "$type" ]] && ((!native)); then
+# Also taken after a native create is refused by the cloud proxy's GraphQL 403.
+degrade_type() {
   type_lc="$(printf '%s' "$type" | tr '[:upper:]' '[:lower:]')"
   case "$type_lc" in
   bug | fix) type_label="type: bug" ;;
@@ -78,6 +77,12 @@ if [[ -n "$type" ]] && ((!native)); then
     printf 'create-item.sh: --type requires gh >= 2.94; dropped the type because %s defines no "%s" label\n' \
       "$target_repo" "$type_label" >&2
   fi
+}
+
+native=0
+wit_gh_has_native_surface && native=1
+if [[ -n "$type" ]] && ((!native)); then
+  degrade_type
 fi
 
 label_list=()
@@ -105,19 +110,29 @@ if ((native)); then
     args+=(--blocked-by "$blocker_urls")
   fi
 
-  wit_run_gh write "${args[@]}"
-  created_url="${WIT_GH_OUT##*$'\n'}" # last line — gh prints the created URL last
-  number="${created_url##*/}"
-  [[ "$number" =~ ^[0-9]+$ ]] || {
-    printf 'create-item: could not parse created issue URL: %s\n' "$created_url" >&2
-    exit "$EX_INTERNAL"
-  }
-else
+  wit_run_gh_native write "${args[@]}"
+  if (($? == 10)); then
+    # The proxy refused GraphQL before creating anything: retry over REST below.
+    native=0
+    [[ -z "$type" ]] || degrade_type
+  else
+    created_url="${WIT_GH_OUT##*$'\n'}" # last line — gh prints the created URL last
+    number="${created_url##*/}"
+    [[ "$number" =~ ^[0-9]+$ ]] || {
+      printf 'create-item: could not parse created issue URL: %s\n' "$created_url" >&2
+      exit "$EX_INTERNAL"
+    }
+  fi
+fi
+
+if ((!native)); then
   # `gh issue create` resolves through GraphQL, so sandboxed sessions create over
   # REST (README "View item"). Sub-issue and dependency edges
   # have no REST form here (the dispatcher gates them on the same gh version).
-  [[ -z "$parent" && -z "$blocked_by" ]] ||
-    wit_usage_error "--parent and --blocked-by require gh >= 2.94"
+  if [[ -n "$parent" || -n "$blocked_by" ]]; then
+    wit_require_graphql_session "--parent and --blocked-by"
+    wit_usage_error "--parent and --blocked-by require gh >= 2.94 and a session that allows GraphQL"
+  fi
   rest_args=(api --method POST "repos/$target_repo/issues" -f "title=$title" -f "body=$body")
   for label in ${label_list[@]+"${label_list[@]}"}; do
     rest_args+=(-f "labels[]=$label")

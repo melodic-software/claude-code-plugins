@@ -83,6 +83,9 @@ check_gh_present() {
 check_gh_version() {
   check_gh_present
   local feature="${1:-native sub-issue/dependency flags}"
+  if wit_gh_session_refuses_graphql; then
+    fail_config "${feature} is unavailable in this Claude Code cloud session: its GitHub proxy refuses GraphQL and this has no REST form"
+  fi
   wit_gh_has_native_surface && return 0
   local raw
   raw="$(wit_gh_version_raw)"
