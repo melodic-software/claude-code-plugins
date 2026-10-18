@@ -179,6 +179,40 @@ assert_eq "--count adds the correctness line when rules are listed" "suppression
 unjustified=4
 correctness=3" "$out"
 
+# ---- --exclude ------------------------------------------------------------------
+# The report counts the files left once `scope.exclude` has dropped its matches;
+# the frozen count takes the same globs and must agree with it.
+EXC="$TEST_TMPDIR/exc"
+mkdir -p "$EXC/src" "$EXC/vendor/deep" "$EXC/gen"
+printf '%s\n' 'x = 1  # noqa: E501 kept' 'y = 2  # noqa' >"$EXC/src/app.py"
+printf '%s\n' 'x = 1  # noqa: E501' >"$EXC/vendor/lib.py"
+printf '%s\n' 'x = 1  # noqa' 'y = 2  # noqa' >"$EXC/vendor/deep/lib.py"
+printf '%s\n' 'x = 1  # noqa: F401' >"$EXC/gen/out.py"
+printf '%s\n' 'vendor/' '' '*/out.py' >"$TEST_TMPDIR/excludes"
+
+out="$(cd "$EXC" && "$PY" "$SCANNER" --count)"
+assert_eq "--count without excludes counts the excluded paths too" "suppressions=6
+unjustified=5" "$out"
+out="$(cd "$EXC" && "$PY" "$SCANNER" --count --exclude 'vendor/' --exclude '*/out.py')"
+assert_eq "--count with --exclude omits the excluded paths" "suppressions=2
+unjustified=1" "$out"
+out="$(cd "$EXC" && "$PY" "$SCANNER" --count --exclude-from "$TEST_TMPDIR/excludes")"
+assert_eq "--exclude-from reads the same globs from a file" "suppressions=2
+unjustified=1" "$out"
+report="$(cd "$EXC" && "$PY" "$SCANNER" --exclude-from "$TEST_TMPDIR/excludes" | "$PY" -c '
+import json, sys
+print(len(json.load(sys.stdin)))
+')"
+assert_eq "the JSON report and --count agree over the same excludes" "2" "$report"
+out="$(cd "$EXC" && "$PY" "$SCANNER" --exclude 'app.py' | summarize)"
+assert_eq "a glob with no slash matches the basename at any depth" "0" "$(printf '%s\n' "$out" | grep -c 'src/app.py')"
+out="$(cd "$EXC" && "$PY" "$SCANNER" --exclude 'vendor/**/lib.py' | summarize)"
+assert_eq "a ** segment spans directories" "gen/out.py:1 noqa F401 no
+src/app.py:1 noqa E501 yes
+src/app.py:2 noqa - no" "$out"
+out="$(cd "$EXC" && "$PY" "$SCANNER" --exclude '[z-a]' 2>/dev/null)"
+assert_eq "an unusable glob exits 2 with nothing on stdout" "2:" "$?:$out"
+
 # ---- --diff -------------------------------------------------------------------
 REPO="$TEST_TMPDIR/repo"
 mkdir -p "$REPO"

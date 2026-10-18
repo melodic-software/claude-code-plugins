@@ -25,7 +25,19 @@ Options:
                              it names a listed rule (compared case-insensitively)
   --paths-from <file>        read paths from <file>, one per line, in addition
                              to any on the command line
+  --exclude <glob>           skip every file the gitignore-style glob matches,
+                             compared with its repository-relative path; repeat
+                             the option for more globs
+  --exclude-from <file>      read globs from <file>, one per line (blank lines
+                             ignored), in addition to any --exclude
   --help                     print this text
+
+Globs: `*` and `?` stay within one path segment, `**` as a whole segment spans
+any number of them, `[...]` is a character class; a glob with no `/` matches
+the basename at any depth, one with a `/` is anchored at the root, and a
+trailing `/` names a directory and everything under it. Globs are matched
+against the paths reported, so a caller that freezes a count passes its resolved
+paths and its `scope.exclude` globs, and the scanner reads no configuration.
 
 Paths: a file is scanned; a directory is expanded through `git ls-files`
 (tracked plus untracked files that are not ignored) inside a repository, or
@@ -632,7 +644,55 @@ def expand(paths: list[str], top: str | None) -> list[str]:
     return files
 
 
-def inventory(paths: list[str]) -> list[tuple[str, Record]]:
+def glob_regex(glob: str) -> re.Pattern[str]:
+    """An anchored regex for a gitignore-style glob."""
+    pattern = glob.replace("\\", "/")
+    while pattern.startswith("./"):
+        pattern = pattern[2:]
+    if pattern.endswith("/") and pattern.rstrip("/"):
+        pattern = pattern.rstrip("/") + "/**"
+    pattern = pattern.rstrip("/")
+    anchored = "/" in pattern
+    segments = pattern.removeprefix("/").split("/")
+    body = ""
+    for index, segment in enumerate(segments):
+        last = index == len(segments) - 1
+        if segment == "**":
+            body += ".*" if last else "(?:.*/)?"
+            continue
+        piece = ""
+        i = 0
+        while i < len(segment):
+            ch = segment[i]
+            close = segment.find("]", i + 1) if ch == "[" else -1
+            if ch == "*":
+                piece += "[^/]*"
+            elif ch == "?":
+                piece += "[^/]"
+            elif close > 0:
+                chars = segment[i + 1 : close]
+                if chars.startswith("!"):
+                    chars = "^" + chars[1:]
+                piece += "[" + chars.replace("\\", "\\\\") + "]"
+                i = close
+            else:
+                piece += re.escape(ch)
+            i += 1
+        body += piece + ("" if last else "/")
+    try:
+        return re.compile(("^" if anchored else "^(?:.*/)?") + body + "$")
+    except re.error as exc:
+        raise UsageError(f"--exclude: {glob!r} is not a usable glob: {exc}") from exc
+
+
+def excluder(globs: list[str]):
+    regexes = [glob_regex(g) for g in globs]
+    return lambda shown: any(r.match(shown) for r in regexes)
+
+
+def inventory(
+    paths: list[str], excluded=lambda shown: False
+) -> list[tuple[str, Record]]:
     top = repo_top()
     if not paths:
         paths = [top or "."]
@@ -645,6 +705,8 @@ def inventory(paths: list[str]) -> list[tuple[str, Record]]:
         if shown in seen:
             continue
         seen.add(shown)
+        if excluded(shown):
+            continue
         try:
             with open(path, "rb") as handle:
                 text = decode(handle.read())
@@ -686,7 +748,9 @@ def added_lines(base: str, paths: tuple[str, ...], top: str) -> set[int]:
     return lines
 
 
-def changed(base: str, paths: list[str]) -> list[tuple[str, Record]]:
+def changed(
+    base: str, paths: list[str], excluded=lambda shown: False
+) -> list[tuple[str, Record]]:
     top = repo_top()
     if top is None:
         raise UsageError("--diff needs a git repository")
@@ -723,6 +787,8 @@ def changed(base: str, paths: list[str]) -> list[tuple[str, Record]]:
             i += 2
     found: list[tuple[str, Record]] = []
     for path, pathspec in entries:
+        if excluded(path):
+            continue
         if wanted and not any(
             path == w or w in (".", "") or path.startswith(w.rstrip("/") + "/")
             for w in wanted
@@ -758,12 +824,16 @@ def parse(argv: list[str]) -> dict:
         "count": False,
         "rules": None,
         "paths_from": None,
+        "exclude_from": None,
+        "exclude": [],
         "paths": [],
     }
     takes_value = {
         "--diff": "diff",
         "--correctness-rules": "rules",
         "--paths-from": "paths_from",
+        "--exclude-from": "exclude_from",
+        "--exclude": "exclude",
     }
     i = 0
     while i < len(argv):
@@ -782,7 +852,10 @@ def parse(argv: list[str]) -> dict:
                     raise UsageError(f"{name} needs a value")
                 i += 1
                 value = argv[i]
-            options[takes_value[name]] = value
+            if name == "--exclude":
+                options["exclude"].append(value)
+            else:
+                options[takes_value[name]] = value
         elif arg.startswith("-") and arg != "-":
             raise UsageError(f"unknown option: {arg}")
         else:
@@ -800,13 +873,17 @@ def main(argv: list[str]) -> int:
         paths = list(options["paths"])
         if options["paths_from"]:
             paths.extend(read_list(options["paths_from"], comments=False))
+        globs = list(options["exclude"])
+        if options["exclude_from"]:
+            globs.extend(read_list(options["exclude_from"], comments=False))
+        excluded = excluder(globs)
         listed = None
         if options["rules"] is not None:
             listed = {r.casefold() for r in read_list(options["rules"], comments=True)}
         if options["diff"] is not None:
-            found = changed(options["diff"], paths)
+            found = changed(options["diff"], paths, excluded)
         else:
-            found = inventory(paths)
+            found = inventory(paths, excluded)
     except UsageError as exc:
         print(f"suppression-scan.py: {exc}", file=sys.stderr)
         return 2
