@@ -291,6 +291,13 @@ jobs:
           echo "::error::the output-mode input must be clean-tree or patch"
           exit 1
 
+      # A gate must judge the head it is posted on, unchanged.
+      - name: Assert a gate activity is not in patch mode
+        if: inputs.output-mode == 'patch' && steps.config.outputs.gating == 'gate'
+        run: |
+          echo "::error::a gating: gate activity cannot use output-mode: patch"
+          exit 1
+
       # The job token has no issues grant: in a private repository a PR that
       # closes an issue may fail this step red.
       - name: Select the trusted PR text

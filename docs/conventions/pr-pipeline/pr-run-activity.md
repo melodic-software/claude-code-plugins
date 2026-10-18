@@ -527,10 +527,20 @@ code with no write token and hand its change to a separate job that holds one:
 Head code ran in the job that writes the patch, its SHA-256 and the verdict, and could have
 replaced the collector copy or the patch, so none of them is trusted: the SHA-256 only binds the
 artifact to this run's output. A job that applies the patch downloads it by `patch-attempt`, so a
-re-run of that job alone still finds it, and before applying it must check that the artifact holds
-exactly `patch.diff`, a regular file within its size limit whose SHA-256 is `patch-sha256`, that
-the PR head is still `head-sha`, and the patch's paths itself. A forged `empty` can only hand the
-PR to a person; a forged `written` meets those checks.
+re-run of that job alone still finds it. Before applying it, that job must check that:
+
+- the artifact holds exactly `patch.diff`, a regular file within a size limit the job names, whose
+  SHA-256 is `patch-sha256`;
+- the PR head is still `head-sha`;
+- `git apply --check --index`, with no `--unsafe-paths` or `--directory`, succeeds on a fresh
+  checkout of `head-sha`;
+- no entry has mode `120000` (symlink) or `160000` (gitlink), and no path is under a protected
+  path such as `.github/**`, `.gitattributes`, `.gitmodules` or `.husky`.
+
+It then commits on `head-sha` and moves the PR branch without force, so a head that moved after
+the check refuses the push. A forged `empty` can only hand the PR to a person; a forged `written`
+meets those checks. A `gating: gate` activity fails red in patch mode before the head checkout: a
+gate must judge the head it is posted on, unchanged.
 
 ### prepare: merge-base
 

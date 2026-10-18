@@ -41,7 +41,7 @@ g=(git -c core.fsmonitor=false -c core.untrackedCache=false)
 "${g[@]}" read-tree "$head" || fail 'could not read the head into a scratch index'
 "${g[@]}" add -A || fail 'could not stage the working tree in the scratch index'
 "${g[@]}" diff --cached --binary --full-index --no-color --no-ext-diff --no-textconv \
-  --no-renames --no-relative --src-prefix=a/ --dst-prefix=b/ -U3 "$head" -- >"$patch" ||
+  --no-renames --no-relative --submodule=short --src-prefix=a/ --dst-prefix=b/ -U3 "$head" -- >"$patch" ||
   fail 'could not write the patch'
 
 if [[ ! -s $patch ]]; then
