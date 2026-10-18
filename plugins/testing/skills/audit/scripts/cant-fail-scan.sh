@@ -1341,12 +1341,11 @@ load_workflows() {
           ;;
         esac
       done
-      if ((!found)); then
-        wf_targets+=("dir|")
-        if ((whole)); then wf_unsure=1; fi
-      fi
+      if ((!found)); then wf_targets+=("dir|"); fi
+      if ((whole)); then wf_unsure=1; fi
     done < <(LC_ALL=C sed -E -e 's/\r$//' -e '/^[[:space:]]*#/d' -e 's/[[:space:]]#.*$//' -e 's/(&&|\|\||;|\|)/\n/g' "$wf" |
-      LC_ALL=C grep -E '(^|[^[:alnum:]_.-])dotnet[[:space:]]+(test|build)([[:space:]]|$)')
+      LC_ALL=C grep -E '(^|[^[:alnum:]_.-])dotnet[[:space:]]+(test|build)([[:space:]]|$)' |
+      LC_ALL=C grep -vE '^[[:space:]]*(-[[:space:]]+)?(name|if|id|uses|description):')
   done
 }
 

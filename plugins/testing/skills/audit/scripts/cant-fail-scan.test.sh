@@ -2350,6 +2350,15 @@ printf 'project_kinds:\n  - %s\n' "'**/X.csproj=bogus'" >"$PJX/.claude/testing.y
 pj_scan
 assert_exit "an unknown kind in project_kinds is refused (exit 2)" 2 "$rc"
 rm -rf "$PJX/.claude"
+# a step name that mentions dotnet test is not a command, so it targets nothing
+printf 'name: ci\njobs:\n  t:\n    steps:\n      - name: Run dotnet test\n        run: dotnet test tests/Zeta.Unit.Tests/Zeta.Unit.Tests.csproj\n' >"$PJX/.github/workflows/ci.yml"
+pj_scan
+assert_matches "a step name is not a dotnet command" "$out" 'Zeta\.Unit\.Tests\.csproj; ci: yes; kind: unit\]'
+assert_matches "so a project the real command does not target is ci: no" "$out" 'Alpha\.Tests\.csproj; ci: no;'
+# a working-directory moves what a relative target means: unknown, not no
+printf 'name: ci\njobs:\n  t:\n    steps:\n      - run: dotnet test Alpha.Tests.csproj\n        working-directory: tests/Alpha.Tests\n' >"$PJX/.github/workflows/ci.yml"
+pj_scan
+assert_matches "a working-directory leaves ci: unknown" "$out" 'Alpha\.Tests\.csproj; ci: unknown;'
 # a malformed workflow, and no workflow, fail soft to unknown
 printf '\tjobs\n  - [unclosed\n\x00\x01garbage' >"$PJX/.github/workflows/ci.yml"
 pj_scan
