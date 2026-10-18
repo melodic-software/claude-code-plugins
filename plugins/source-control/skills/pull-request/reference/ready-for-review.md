@@ -152,6 +152,18 @@ reads `local`, or a venue that cannot be read, means the review runs here as tha
   `Review:` value on the shipped phases, skip this step. When the evidence cannot be gathered,
   leave the pull request in draft and report what is missing; in a run with no one to ask, that
   report is the result.
+<a id="docs-only-and-instruction-surfaces"></a>
+**Docs-only, and instruction surfaces.** A diff is docs-only when every changed file is
+documentation and none is an instruction surface. An instruction surface changes what agents do
+even though it is prose, so a diff touching any of these is not docs-only: `AGENTS.md`,
+`CLAUDE.md`, any `.md` file under `.claude/rules/`, and skill and agent bodies (the `.md` files
+under `plugins/*/skills/**` and `plugins/*/agents/**`). A code file is never docs-only, whatever
+its path. This is the one definition; other files cite it rather than restate the list. It decides
+the two reviews below. It does not change the added-suppressions check in [prep.md](prep.md)
+§1.2.1: that scan reads code, so the row keeps its file-type reading, owed when a changed file is
+code and not owed for prose alone, an instruction surface included. Prep's own review steps (1.2
+to 1.4) also stay keyed on the `code` class, so the reviews this definition adds run at ready.
+
 - **Code review of the pull request's diff (`code-review`)**, for any diff that is not docs-only
   whose `code-review` venue reads `local`: `/code-review`
   against the pull request, or the `review` plugin's reviewer agents when that resolves instead.
