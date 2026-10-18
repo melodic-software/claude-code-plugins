@@ -14,7 +14,10 @@ Spoke for `/planning:plan`. Read this file when the skill is invoked with the `c
    first read the topic's PLAN.md for the `**Spec container:** <qualified-id>` line
    `/work-items:decompose` records under `## Brief` at publish time; absent that line, query
    the tracker for an open item carrying the binding-resolved container label (default
-   `work-map`) whose body cites the topic slug. Found → run the container's close-at-ship
+   `work-map`) whose body cites the topic slug and carries the `**Execution shape:**` line
+   `/work-items:decompose` appends to every container it publishes (a wayfind map carries the
+   same label but never that line). A labelled item without the line is skipped and named in
+   the report, never adopted. Found → run the container's close-at-ship
    ritual through the path that owns it. `/work-items:decompose` "Container lifecycle
    (spec-on-tracker)". That section owns the mechanics (verify every sub-item closed, close-out
    review against the container body, close with a comment linking the shipping PRs. Archival

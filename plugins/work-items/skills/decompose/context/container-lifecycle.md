@@ -96,7 +96,10 @@ coordination provider instead of publishing a spec that cannot travel.
   Step 5 report and a comment on the source item). Close-out runs at PR time, often in a
   fresh session, this recorded line is what its presence gate reads; in-session memory does
   not survive to it. The fallback discovery path (no line found) is a tracker query for an
-  open item carrying the binding-resolved container label whose body cites the topic slug.
+  open item carrying the binding-resolved container label whose body cites the topic slug and
+  carries the `**Execution shape:**` line this skill appends to every container (wayfind maps
+  share the label but never write it). A labelled item without that line is skipped and named
+  in the report, never adopted.
 
 **Ship ritual, close at ship, archival by closure.** `/work-items:ship` is the macro router
 over a published container (status, execution-shape discipline, next step), it routes the close
