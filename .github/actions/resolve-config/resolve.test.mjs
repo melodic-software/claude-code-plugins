@@ -353,8 +353,8 @@ test("limits: a set leaf overrides its default and leaves the others", () => {
   assert.deepEqual(run(config).limits, { ...LIMITS, "fallback-reset": 2, "limit-stops-per-issue": 4 });
 });
 
-test("limits: an unknown key or a value that is not a positive integer is rejected", () => {
-  for (const limits of [{ "fallback-resets": 5 }, { "fallback-reset": 0 }, { "restarts-per-run": -1 }, { "reset-clamp-max": 1.5 }, { "limit-stops-per-head": "3" }]) {
+test("limits: an unknown key, a value that is not an integer, or one out of its range is rejected", () => {
+  for (const limits of [{ "fallback-resets": 5 }, { "fallback-reset": 0 }, { "restarts-per-run": -1 }, { "reset-clamp-max": 1.5 }, { "limit-stops-per-head": "3" }, { "limit-stops-per-head": 11 }, { "limit-stops-per-issue": 11 }, { "restarts-per-run": 51 }, { "fallback-reset": 721 }, { "reset-clamp-max": 721 }]) {
     const config = edited((doc) => {
       doc.limits = limits;
     });

@@ -860,7 +860,9 @@ escalates.
 ## Limits
 
 The optional `limits` block sets when the lanes restart work the usage limit stopped. Durations
-are whole hours; every value is a positive integer. resolve-config emits all six with defaults.
+are whole hours, at most 720; stop caps are at most 10 and `restarts-per-run` at most 50, so a
+typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all six
+with defaults.
 
 | Key | Default | What it sets |
 |---|---|---|
@@ -871,9 +873,9 @@ are whole hours; every value is a positive integer. resolve-config emits all six
 | `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again. |
 | `limit-stops-per-issue` | 3 | Limit stops since a person last added `agent-ready` before work-unblock hands the issue to a person. |
 
-report-outcome and the work-unblock sweep read them from resolve-config's output, and
-pr-feedback-dispatch from the config it resolves. pr-unblock-dispatch resolves no config, so it
-uses the defaults. This repository sets no `limits` block.
+report-outcome and the work-unblock sweep read them from resolve-config's output;
+pr-feedback-dispatch and pr-unblock-dispatch resolve the base config themselves, and a config the
+resolver refuses fails their run before any dispatch. This repository sets no `limits` block.
 
 ## Planning lane work
 
