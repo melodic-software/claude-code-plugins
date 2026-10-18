@@ -9,5 +9,6 @@
 # Keep the condition for removing each entry beside it.
 
 # Advisory on main while the shared-UI browser timings are reworked.
-# Remove when the shared-UI timing sweep PR (branch test/shared-ui-timing-sweep) merges.
+# Remove both when the shared-UI timing sweep PR (branch test/shared-ui-timing-sweep) merges.
+plugins/planning/shared/tests/align.test.sh
 plugins/planning/shared/tests/ui.test.sh
