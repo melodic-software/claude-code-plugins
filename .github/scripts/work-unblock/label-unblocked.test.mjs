@@ -1151,6 +1151,7 @@ function stalledRun({
   openLanePrs = 10,
   comments = [note()],
   events = [added(LABELED_AT, OWNER)],
+  blobs = BLOBS,
 } = {}) {
   const fake = world({
     openReady: [ready(number)],
@@ -1159,7 +1160,7 @@ function stalledRun({
     runs: [{ ...laneRun({ number, conclusion }), updated_at: ended }],
     jobs: { [5000 + number]: jobs },
     openLanePrs,
-    blobs: BLOBS,
+    blobs,
   });
   return { ...fake, actions: fake.github };
 }
@@ -1218,8 +1219,32 @@ const earlierPumps = (count) => {
   return { comments, events };
 };
 
-test("a run that did no work is re-fired again on the same workflow files, and never counts as a limit stop", async () => {
+// limits.limit-stops-per-issue (3) bounds failed-mint re-fires per version of
+// the lane workflow files; a WIP cap skip made no mint attempt and has none.
+test("a failed mint is re-fired again on the same workflow files up to the bound, and never counts as a limit stop", async () => {
+  const { github, actions, calls } = stalledRun(earlierPumps(2));
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30));
+  assert.ok(!calls.some((call) => call.includes("needs-human")));
+});
+
+test("a failed mint stops after limit-stops-per-issue re-fires on the same workflow files, with no needs-human", async () => {
   const { github, actions, calls } = stalledRun(earlierPumps(3));
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+  const lower = stalledRun(earlierPumps(1));
+  assert.equal(await sweep({ github: lower.github, actions: lower.actions }, withLimits({ "limit-stops-per-issue": 1 })), 0);
+  assert.deepEqual(writes(lower.calls), []);
+});
+
+test("a failed mint past the bound is re-fired again once the lane workflow files change", async () => {
+  const { github, actions, calls } = stalledRun({ ...earlierPumps(3), blobs: { ...BLOBS, ".github/workflows/work-resolve-issue.yml": "3".repeat(40) } });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30, `${WRITE_SHA}-${"3".repeat(40)}`));
+});
+
+test("a run the WIP cap skipped keeps re-firing past the failed-mint bound", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, ...earlierPumps(3) });
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), refired(30));
   assert.ok(!calls.some((call) => call.includes("needs-human")));
