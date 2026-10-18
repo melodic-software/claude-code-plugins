@@ -1,5 +1,12 @@
 # Changelog for the PR pipeline convention
 
+## 2.11.0 - 2026-10-18
+
+[Changing this config](README.md#changing-this-config): a pull request that changes a lane and
+lists a not-verified item that could stop the lane checks that item live before it merges. An item
+only a merged run can exercise merges only once a tracked issue names the check and its owner; a
+line in the pull request body does not count. `version` stays 2.
+
 ## 2.10.0 - 2026-10-18
 
 `resolve-issue` lists `scripts/new-changelog-fragment.sh` as a `verify-script`, so the issue lane
