@@ -22,7 +22,7 @@ new `patch-state`, `patch-sha256` and `patch-attempt` outputs, beside a new `hea
 empty change is `patch-state` `empty` and a success check titled `Passed: no changes`
 ([pr-run-activity.md](pr-run-activity.md#patch-output-mode)). `version` stays 2.
 
-## 2.12.1 - 2026-10-18
+## 2.12.2 - 2026-10-18
 
 `pr-run-activity-read.yml` takes a `dispatcher-run-id` input and passes it to its trigger gate with
 `dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml` and
@@ -30,6 +30,16 @@ empty change is `patch-state` `empty` and a success check titled `Passed: no cha
 `pr-unblock-dispatch.yml` sent to `pr-unblock.yml` runs; any other `github-actions[bot]` dispatch
 still stops with `untrusted-actor`. With the id set, the skill step also admits `github-actions` in
 `allowed_bots`. No caller passes it yet. `version` stays 2.
+
+## 2.12.1 - 2026-10-18
+
+A write-runner skill run that claude-code-action fails only because its `success` result went over
+`--max-turns` now counts as a success: `act-outcome`, the verdict, the lane record and the job
+result report success, so `pipeline/resolve-issue` posts `success` and report-outcome proceeds as on
+any finished run. The run job reads this from the execution file's last result message (subtype
+`success`, `is_error` false, `num_turns` over the cap); any other failure, or a missing or
+unreadable execution file, still fails
+([pr-run-activity.md](pr-run-activity.md#the-run-job)). `version` stays 2.
 
 ## 2.12.0 - 2026-10-18
 
