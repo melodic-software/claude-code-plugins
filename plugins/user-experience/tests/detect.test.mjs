@@ -453,7 +453,7 @@ describe("team rows cannot repoint a route", () => {
   });
 });
 
-describe("team paths may not point into .claude or .git", () => {
+describe("team paths may not start with a dot (.claude, .git, .env, .aws)", () => {
   const EXISTING = join(FIX, "existing");
   let n = 0;
   const run = (text) => {
@@ -479,8 +479,33 @@ describe("team paths may not point into .claude or .git", () => {
     }
   });
 
-  test("a path whose first segment only starts with .claude is kept", () => {
-    assert.equal(run("version: 1\noutput_home: .claude-notes/ux\n").output_home, ".claude-notes/ux");
+  test("a path whose first segment starts with a dot is dropped, even when it only starts with .claude", () => {
+    assert.equal(run("version: 1\noutput_home: .claude-notes/ux\n").output_home, null);
+  });
+
+  test("research_paths .env, persona_paths .aws/credentials and output_home .ssh/x are dropped with a warning each", () => {
+    const team = run("version: 1\nresearch_paths:\n  - .env\n  - research\npersona_paths:\n  - .aws/credentials\noutput_home: .ssh/x\n");
+    assert.deepEqual(team.research_paths, ["research"]);
+    assert.deepEqual(team.persona_paths, []);
+    assert.equal(team.output_home, null);
+    for (const [key, value] of [["research_paths", ".env"], ["persona_paths", ".aws/credentials"], ["output_home", ".ssh/x"]]) {
+      assert.ok(team.warnings.some((w) => w.includes(key) && w.includes(JSON.stringify(value))), `${value}: ${team.warnings}`);
+    }
+  });
+
+  test("an ordinary first segment is kept", () => {
+    assert.equal(run("version: 1\noutput_home: research/ux\n").output_home, "research/ux");
+  });
+
+  test("a symlink inside the project that points at a dot-directory cannot carry a path there", { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
+    const project = mkdtempSync(join(scratch, "reserved-dot-link-"));
+    mkdirSync(join(project, ".aws"));
+    symlinkSync(join(project, ".aws"), join(project, "creds"));
+    const file = join(scratch, `reserved-${++n}.yaml`);
+    writeFileSync(file, "version: 1\noutput_home: creds/x\nresearch_paths:\n  - creds\n");
+    const { team } = detect(["--project", project, ...seams, "--team", file]);
+    assert.equal(team.output_home, null);
+    assert.deepEqual(team.research_paths, []);
   });
 
   test("a symlink inside the project that points at .claude cannot carry a path there", { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {

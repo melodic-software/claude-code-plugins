@@ -290,7 +290,6 @@ function mergeRoutes(bundled, teamRouting, path, warn, presence) {
   return { rows, touched };
 }
 
-const RESERVED = [".claude", ".git"];
 const DEFAULTS = { jtbd_school: "unset", research_paths: [], persona_paths: [], output_home: null };
 
 /** The team file's settings beyond routing; a bad value falls back to its default with a warning. */
@@ -302,11 +301,12 @@ function teamSettings(doc, warn) {
     warn(`jtbd_school ${quote(school)} is not one of ${props.jtbd_school.enum.join(", ")}; unset used`);
     school = DEFAULTS.jtbd_school;
   }
-  // A project path outside .claude and .git: a deliverable there would become a standing project
-  // rule, and research read from there is configuration, not research.
-  const reserved = (rel) => RESERVED.includes(rel.split(/[\\/]/)[0].toLowerCase());
-  // Checked as written and as resolved, so a symlink inside the project that points at .claude
-  // or .git cannot carry a path there.
+  // A project path whose first segment is not a dotfile or dot-directory: a deliverable under
+  // .claude would become a standing project rule, and research read from .claude, .git, .env or
+  // .aws is configuration or secrets, not research.
+  const reserved = (rel) => rel.split(/[\\/]/)[0].startsWith(".");
+  // Checked as written and as resolved, so a symlink inside the project that points at a dot
+  // location cannot carry a path there.
   const resolvesReserved = (rel) => {
     const root = realpathSync(resolve(opts.project));
     let at = resolve(opts.project, rel);
@@ -320,13 +320,13 @@ function teamSettings(doc, warn) {
   const paths = (k) =>
     listAt(doc[k], k, warn).flatMap((p) => {
       const rel = usable(p);
-      if (rel === null) warn(`${k} entry ${quote(p)} is outside the project, under .claude or .git, or not a path; dropped`);
+      if (rel === null) warn(`${k} entry ${quote(p)} is outside the project, starts with a dot, or is not a path; dropped`);
       return rel === null ? [] : [rel];
     });
   let home = DEFAULTS.output_home;
   if (doc.output_home != null) {
     home = usable(doc.output_home);
-    if (home === null) warn(`output_home ${quote(doc.output_home)} is outside the project, under .claude or .git, or not a path; default used`);
+    if (home === null) warn(`output_home ${quote(doc.output_home)} is outside the project, starts with a dot, or is not a path; default used`);
   }
   return { jtbd_school: school, research_paths: paths("research_paths"), persona_paths: paths("persona_paths"), output_home: home };
 }
