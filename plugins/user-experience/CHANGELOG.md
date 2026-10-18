@@ -3,6 +3,17 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.9] - 2026-10-18
+
+### Changed
+
+- `scripts/detect.mjs` now reads the team file through a generated copy of the shared five-layer
+  resolver `lib/config-cascade.mjs` (ADR 0061), as `user-interface` does. The detection output for
+  a team file at the convention home is unchanged, and `--team FILE` still replaces the resolved
+  team file. The resolver also applies a `user-experience.local.yaml` beside the team file over its
+  keys, refuses a team file that is a symlink (the file is then skipped as unreadable), and reports
+  a rejected value as a warning.
+
 ## [0.1.8] - 2026-10-15
 
 ### Changed

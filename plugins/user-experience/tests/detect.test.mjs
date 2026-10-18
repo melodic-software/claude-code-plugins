@@ -384,6 +384,53 @@ describe("team surface", () => {
     assert.equal(team.jtbd_school, "jobs-to-be-done-theory");
   });
 
+  test("the team file at the convention home is read through the shared resolver, and --team overrides it", () => {
+    const project = join(scratch, "cascade-project");
+    mkdirSync(join(project, "docs/conventions"), { recursive: true });
+    writeFileSync(join(project, "docs/conventions/user-experience.yaml"), "version: 1\njtbd_school: outcome-driven-innovation\noutput_home: docs/ux\n");
+    // Only the cascade reads a .local file beside the team file; it wins per key.
+    writeFileSync(join(project, "docs/conventions/user-experience.local.yaml"), "jtbd_school: jobs-to-be-done-theory\n");
+    const home = detect(["--project", project, ...seams]).team;
+    assert.equal(home.path, "docs/conventions/user-experience.yaml");
+    assert.equal(home.loaded, true);
+    assert.equal(home.jtbd_school, "jobs-to-be-done-theory", "the local layer overrides the team layer");
+    assert.equal(home.output_home, "docs/ux", "a key the local layer omits keeps the team value");
+    const seam = detect(["--project", project, ...seams, "--team", join(FIX, "team", "valid.yaml")]).team;
+    assert.equal(seam.jtbd_school, "outcome-driven-innovation", "--team replaces the resolved team file and the layers beside it");
+    assert.equal(seam.output_home, "docs/ux");
+  });
+
+  test("an empty routing key is accepted, and a routing that is not a mapping degrades", () => {
+    const empty = join(scratch, "routing-empty.yaml");
+    writeFileSync(empty, "version: 1\nrouting:\n");
+    const ok = detect(["--project", join(FIX, "idea"), ...seams, "--team", empty]).team;
+    assert.equal(ok.loaded, true);
+    assert.deepEqual(ok.warnings, []);
+    const bad = join(scratch, "routing-scalar.yaml");
+    writeFileSync(bad, "version: 1\nrouting: x\n");
+    const { team } = detect(["--project", join(FIX, "idea"), ...seams, "--team", bad]);
+    assert.equal(team.loaded, false);
+    assert.match(team.skipped_reason, /malformed: routing is not a mapping/);
+  });
+
+  test("--team ignores a user-layer file under --home", () => {
+    const home = join(scratch, "user-layer-home");
+    mkdirSync(join(home, "docs/conventions"), { recursive: true });
+    writeFileSync(join(home, "docs/conventions/user-experience.yaml"), "output_home: docs/from-user\n");
+    const args = ["--project", join(FIX, "idea"), "--home", home, "--plugin-list-json", PLUGINS, "--mcp-list", MCP];
+    assert.equal(detect([...args, "--team", join(FIX, "team", "valid.yaml")]).team.output_home, "docs/ux");
+  });
+
+  test("a team file that is a symlink is not read", { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
+    const project = join(scratch, "symlinked-team");
+    mkdirSync(join(project, "docs/conventions"), { recursive: true });
+    writeFileSync(join(project, "docs/real.yaml"), "version: 1\njtbd_school: outcome-driven-innovation\n");
+    symlinkSync(join(project, "docs/real.yaml"), join(project, "docs/conventions/user-experience.yaml"));
+    const { team } = detect(["--project", project, ...seams]);
+    assert.equal(team.loaded, false);
+    assert.match(team.skipped_reason, /unreadable \(is a symlink/);
+  });
+
   test("a failing resolver (exit 3) degrades with its cause", () => {
     const project = join(scratch, "broken-pointer");
     mkdirSync(project, { recursive: true });
