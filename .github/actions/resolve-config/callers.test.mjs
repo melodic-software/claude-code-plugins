@@ -8,10 +8,10 @@
 // not its reply job runs, and work-resolve-issue.yml caps its concurrent runs.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test } from "node:test";
+import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { parse } from "yaml";
@@ -213,8 +213,10 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
   const pick = jobs["pick-slot"];
   const resolve = jobs["resolve-issue"];
   const step = pick.steps.find((s) => s.id === "slot");
+  const dir = mkdtempSync(join(tmpdir(), "slot-"));
+  after(() => rmSync(dir, { recursive: true, force: true }));
+  const output = join(dir, "output");
   const slotOf = (issue) => {
-    const output = join(mkdtempSync(join(tmpdir(), "slot-")), "output");
     writeFileSync(output, "");
     const run = spawnSync("bash", ["-c", step.run], {
       env: { ...process.env, SLOTS: String(pick.env.SLOTS), ISSUE_NUMBER: issue, GITHUB_OUTPUT: output },
