@@ -9,6 +9,14 @@ admissions queues instead of exhausting the lanes App's hourly API quota
 ([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)). The per-issue run group is
 unchanged. `version` stays 2.
 
+## 2.8.1 - 2026-10-17
+
+`request-lane-token` retries a broker 503 whose reason is `github-unavailable`, with a fresh OIDC
+token, after 60, 120 and 240 seconds plus up to 20 seconds of jitter, honoring a longer
+`Retry-After` header and starting no retry more than 8 minutes after the first request. Every
+other answer stays final ([pr-run-activity.md](pr-run-activity.md#the-lane-token-broker)).
+`version` stays 2.
+
 ## 2.8.0 - 2026-10-17
 
 An optional `limits` block sets the limit-stop restart values: `fallback-reset`,
