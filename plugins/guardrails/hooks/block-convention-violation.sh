@@ -21,9 +21,11 @@
 # The resolver's exit code and stderr tell them apart, with no change to its
 # contract: exit 0 enforces; exit 1 with empty stderr is "no convention tracked"
 # and stays quiet; exit 1 with a diagnostic (an unreadable pointer, a non-ERE
-# pattern) or exit 2 means the guard did not run. That is the chosen fail mode:
-# the call proceeds, and a once-per-session notice on both channels carries the
-# resolver's diagnostic, so a broken config is never mistaken for no policy.
+# pattern) or exit 2 means that key's check did not run. That is the chosen fail
+# mode, per key: a key that resolved still enforces, the failed key's check is
+# skipped, and a once-per-session notice on both channels names the check and
+# carries the resolver's diagnostic, so a broken config is never mistaken for no
+# policy.
 #
 # NEVER BLOCKS `gh pr create` ITSELF. Only a present-and-violating `--title`
 # value blocks; a missing `--title` (interactive/web flow) passes untouched —
@@ -152,6 +154,10 @@ RESOLVER="$_HOOK_SELF/resolve-convention-pattern.sh"
 
 SUBJECT_ERE=""
 TITLE_ERE=""
+# A key's diagnostic when its resolution failed (see the header); empty when it
+# resolved or is simply untracked.
+SUBJECT_DIAG=""
+TITLE_DIAG=""
 CONV_LOADED=0
 
 # An explicit `## convention_source` H2 names a third file the resolver reads.
@@ -257,10 +263,9 @@ ensure_convention_patterns() {
     # The resolver's stderr is read, not discarded: its exit code and stderr
     # tell an unresolved key from a broken convention (see the header). Without
     # a scratch file stderr cannot be read; /dev/null then leaves exit 1 quiet
-    # and exit 2 a notice carrying the status alone.
-    conv_errf=$(mktemp 2>/dev/null) || conv_errf=/dev/null
-    conv_failed=0
-    conv_diag=""
+    # and exit 2 a notice carrying the status alone. The redirect sits on a
+    # group for the fork reason given below.
+    { conv_errf=$(mktemp); } 2>/dev/null || conv_errf=/dev/null
     for conv_key in subject_pattern pr_title_pattern; do
       # The redirect sits on a group, NOT inside the substitution. Bash execs
       # the body in the substitution's own subshell only when that body carries
@@ -278,13 +283,14 @@ ensure_convention_patterns() {
         conv_err="${conv_err%"${conv_err##*[![:space:]]}"}"
         # Exit 1 with empty stderr is the resolver's "no convention tracked".
         # Anything else (exit 1 with a diagnostic, exit 2, a crash) is a
-        # failure; the first one's diagnostic is the one reported.
+        # failure of this key alone.
         if [[ -n "$conv_err" || $conv_rc -ne 1 ]]; then
-          if ((conv_failed == 0)); then
-            conv_failed=1
-            conv_diag="${conv_err:0:300}"
-            [[ -n "$conv_diag" ]] || conv_diag="exit status $conv_rc, no message"
-          fi
+          conv_diag="${conv_err:0:300}"
+          [[ -n "$conv_diag" ]] || conv_diag="exit status $conv_rc, no message"
+          case "$conv_key" in
+          subject_pattern) SUBJECT_DIAG="$conv_diag" ;;
+          *) TITLE_DIAG="$conv_diag" ;;
+          esac
         fi
       fi
       case "$conv_key" in
@@ -293,19 +299,11 @@ ensure_convention_patterns() {
       esac
     done
     [[ "$conv_errf" == /dev/null ]] || rm -f "$conv_errf" 2>/dev/null
-    if ((conv_failed)); then
-      # Fail open, stated: a resolver that cannot answer must not deny a
-      # subject the team's convention would accept. The guard did not run, so
-      # both readers are told once per session (agent for the model), and the
-      # answer is not cached, so a fixed config is read on the next commit. Neither
-      # pattern is enforced, so "did not run" is true of the whole guard.
-      SUBJECT_ERE=""
-      TITLE_ERE=""
-      if hook::notice_once guardrails-convention-resolver "$INPUT"; then
-        hook::emit_skip_notice PreToolUse "guardrails block-convention-violation: the commit-convention guard did not run, so this commit subject or PR title was not checked. The convention resolver reported \"${conv_diag}\". This notice does not repeat this session."
-      fi
-      return 0
-    fi
+    # Fail open per key, stated: a key the resolver cannot answer is not
+    # enforced, while a key that resolved still is. The answer is not cached, so
+    # a fixed config is read on the next call; the notice is emitted where the
+    # failed key would have been checked (conv_failure_notice).
+    [[ -z "$SUBJECT_DIAG" && -z "$TITLE_DIAG" ]] || return 0
     # Write through a temp name and rename, so a reader never sees a half file.
     if [[ -n "$CONV_CACHE" ]] && mkdir -p "${CONV_CACHE%/*}" 2>/dev/null; then
       if printf '%s\n%s\n%s\n%sEND\n' "$REPO_ROOT" "$SUBJECT_ERE" "$TITLE_ERE" "$conv_dep_lines" \
@@ -315,6 +313,14 @@ ensure_convention_patterns() {
         rm -f "$CONV_CACHE.$$" 2>/dev/null
       fi
     fi
+  fi
+}
+
+# conv_failure_notice <check> <checked thing> <diagnostic>: tell both readers,
+# once per session (agent for the model), that a check did not run.
+conv_failure_notice() {
+  if hook::notice_once guardrails-convention-resolver "$INPUT"; then
+    hook::emit_skip_notice PreToolUse "guardrails block-convention-violation: the $1 convention check did not run, so this $2 was not checked. The convention resolver reported \"$3\". This notice does not repeat this session."
   fi
 }
 
@@ -499,6 +505,7 @@ check_segment() {
   done
   if [[ "${gw[gs]:-}" == "gh" && "${gw[gs + 1]:-}" == "pr" && "${gw[gs + 2]:-}" == "create" ]]; then
     ensure_convention_patterns
+    [[ -z "$TITLE_DIAG" ]] || conv_failure_notice "PR-title" "PR title" "$TITLE_DIAG"
     if [[ -n "$TITLE_ERE" ]]; then
       local t="" ti
       for ((ti = gs + 3; ti < gn; ti++)); do
@@ -597,6 +604,10 @@ check_segment() {
 
   [[ "$sub" == "commit" ]] || return 0
   ensure_convention_patterns
+  if [[ -n "$SUBJECT_DIAG" ]]; then
+    conv_failure_notice "commit-subject" "commit subject" "$SUBJECT_DIAG"
+    return 0
+  fi
   [[ -n "$SUBJECT_ERE" ]] || return 0
   [[ -n "$seg_dir" ]] ||
     hook::git_effective_dir_to seg_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}"

@@ -543,8 +543,9 @@ assert_exit "cache: the appeared YAML's pattern is what is served warm" 0 "$CACH
 # A copy of the hooks directory with a stub resolver, so the resolver's exit code
 # and stderr are the test's to choose. The stub answers from STUB_RC, STUB_ERR and
 # STUB_OUT. Exit 1 with empty stderr is "no convention tracked": quiet. Exit 1
-# with stderr, or exit 2, is a failure: one notice on both channels, the call goes
-# through, and the answer is not cached.
+# with stderr, or exit 2, is a failure of that key: one notice on both channels
+# naming the check that did not run, the call goes through, and the answer is not
+# cached. A key that resolved still enforces.
 STUB_HOOKS="$TEST_TMPDIR/stub-hooks"
 mkdir -p "$STUB_HOOKS"
 cp "$HOOK_DIR"/*.sh "$STUB_HOOKS/"
@@ -569,15 +570,16 @@ stub_run() {
     -- "CLAUDE_PROJECT_DIR=$repo" "STUB_RC=$rc" "STUB_ERR=$err" "STUB_OUT=$out"
 }
 
-# assert_notice <label> <diagnostic>: stdout is exactly one document carrying the
-# notice on both channels, with the diagnostic and the "did not run" statement.
+# assert_notice <label> <diagnostic> [check]: stdout is exactly one document
+# carrying the notice on both channels, with the diagnostic and the statement that
+# the named check (default: commit-subject) did not run.
 assert_notice() {
-  local sys ctx
+  local sys ctx check="${3:-commit-subject} convention check did not run"
   sys="$(jq -rs 'if length == 1 then .[0].systemMessage // "" else "" end' <<<"$GUARD_OUT")"
   ctx="$(jq -rs 'if length == 1 then .[0].hookSpecificOutput.additionalContext // "" else "" end' <<<"$GUARD_OUT")"
-  assert_contains "$1: user channel says the guard did not run" "$sys" "guard did not run"
+  assert_contains "$1: user channel names the check that did not run" "$sys" "$check"
   assert_contains "$1: user channel carries the diagnostic" "$sys" "$2"
-  assert_contains "$1: model channel says the guard did not run" "$ctx" "guard did not run"
+  assert_contains "$1: model channel names the check that did not run" "$ctx" "$check"
   assert_contains "$1: model channel carries the diagnostic" "$ctx" "$2"
 }
 
@@ -600,19 +602,32 @@ assert_notice "resolver exit 2, no stderr" "exit status 2"
 
 stub_run "$r" 1 "resolve-convention-pattern: broken pointer" "" "gh pr create --title 'junk title'"
 assert_exit "resolver failure on gh pr create --title: the call goes through" 0 "$GUARD_RC"
-assert_notice "resolver failure on gh pr create --title" "broken pointer"
+assert_notice "resolver failure on gh pr create --title" "broken pointer" PR-title
 
 stub_run "$r" 1 "resolve-convention-pattern: broken pointer" "" "$BAD_COMMIT" --via dispatched
 assert_exit "resolver failure under the dispatcher: the call goes through" 0 "$GUARD_RC"
 assert_notice "resolver failure under the dispatcher" "broken pointer"
 
-# One key resolves and the other fails: the guard did not run, so the resolved
-# pattern is not enforced either, and the notice says so.
-guard_invoke --hook "$STUB_HOOK" --command "$BAD_COMMIT" --cwd "$r" \
-  -- "CLAUDE_PROJECT_DIR=$r" STUB_RC=1 "STUB_ERR=resolve-convention-pattern: bad title" STUB_OUT= \
-  STUB_OK_KEY=subject_pattern "STUB_OK_OUT=^[A-Z]+-[0-9]+: .+"
-assert_exit "one key fails, one resolves: the call goes through" 0 "$GUARD_RC"
-assert_notice "one key fails, one resolves" "bad title"
+# One key resolves and the other fails: the resolved key still enforces, and only
+# the failed key's check is skipped, with the notice where that check would run.
+title_fails=(-- "CLAUDE_PROJECT_DIR=$r" STUB_RC=1 "STUB_ERR=resolve-convention-pattern: bad title"
+  STUB_OUT= STUB_OK_KEY=subject_pattern "STUB_OK_OUT=^[A-Z]+-[0-9]+: .+")
+guard_invoke --hook "$STUB_HOOK" --command "$BAD_COMMIT" --cwd "$r" "${title_fails[@]}"
+assert_exit "title fails, subject resolves: a violating subject is still blocked" 2 "$GUARD_RC"
+guard_invoke --hook "$STUB_HOOK" --command "$GOOD_COMMIT" --cwd "$r" "${title_fails[@]}"
+assert_exit "title fails, subject resolves: a conforming subject is allowed" 0 "$GUARD_RC"
+assert_eq "title fails, subject resolves: a commit carries no title notice" "" "$GUARD_OUT"
+guard_invoke --hook "$STUB_HOOK" --command "gh pr create --title 'junk title'" --cwd "$r" "${title_fails[@]}"
+assert_exit "title fails, subject resolves: gh pr create --title goes through" 0 "$GUARD_RC"
+assert_notice "title fails, subject resolves: gh pr create --title" "bad title" PR-title
+
+subject_fails=(-- "CLAUDE_PROJECT_DIR=$r" STUB_RC=1 "STUB_ERR=resolve-convention-pattern: bad subject"
+  STUB_OUT= STUB_OK_KEY=pr_title_pattern "STUB_OK_OUT=^[A-Z]+-[0-9]+: .+")
+guard_invoke --hook "$STUB_HOOK" --command "gh pr create --title 'junk title'" --cwd "$r" "${subject_fails[@]}"
+assert_exit "subject fails, title resolves: a violating title is still blocked" 2 "$GUARD_RC"
+guard_invoke --hook "$STUB_HOOK" --command "$BAD_COMMIT" --cwd "$r" "${subject_fails[@]}"
+assert_exit "subject fails, title resolves: the commit goes through" 0 "$GUARD_RC"
+assert_notice "subject fails, title resolves: commit" "bad subject"
 
 # A resolved convention still enforces through the stub.
 stub_run "$r" 0 "" "^[A-Z]+-[0-9]+: .+" "$BAD_COMMIT"
@@ -699,6 +714,7 @@ else
           if (l ~ /resolve-convention-pattern\.sh/) lab = "resolver"
           else if (l ~ /"rev-parse", "--absolute-git-dir"/) lab = "sequencer-probe"
           else if (l ~ /"config", "--get", "alias\./) lab = "alias-probe"
+          else if (l ~ /"mktemp"/) lab = "mktemp"
           if (lab == "") continue
           q = (p in parent) ? parent[p] : "-"
           printf "%s %s %s\n", lab, (q in execed ? "yes" : "NO"), (q == "-" ? 0 : kids[q]+0)
@@ -740,6 +756,7 @@ else
   trace_run commit "$rt" "$rt_data" "$GOOD_COMMIT"
   BUDGET_ROWS="$(trace_sites "$TRACE_LOG")"
   assert_site resolver "$BUDGET_ROWS"
+  assert_site mktemp "$BUDGET_ROWS"
   assert_site sequencer-probe "$BUDGET_ROWS"
 
   # A non-builtin subcommand is the alias probe's only trigger, and it is the
