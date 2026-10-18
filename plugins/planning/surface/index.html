@@ -497,7 +497,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const LABEL = {open: "Open", accept: "Accepted", hedged: "Hedged", alt: "Alternative", own: "Own answer", defer: "Deferred", wait: "Pending research", need: "Needs your answer", sup: "Superseded", arch: "Archived"};
   const DEC = new Set(["accept", "alt", "own", "defer", "hedged", "reopen"]);
   const SUMMARY = "__summary";
-  const DEFAULTS = {shortcuts: true, undoSeconds: 5, checkpoint: 0, theme: "auto", density: "compact", minText: 14, displayName: "You", waitTimeout: 90, staleDepth: "direct", port: 0, openBrowser: true, leaseTimeout: 600};
+  const DEFAULTS = {shortcuts: true, undoSeconds: 5, checkpoint: 0, theme: "auto", density: "compact", minText: 14, displayName: "You", waitTimeout: 90, staleDepth: "direct", port: 0, openBrowser: true, leaseTimeout: 600, settleQuiet: 10, settleBurst: 30};
   const RESTART = "Restart the server to enable this.";
   const NOT_LISTENING = "No session is listening; type next in the terminal";
   const FIRST_WAKE = "Not listening: approve any prompt in the terminal, or type next";
@@ -1515,6 +1515,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       row("waitTimeout", "Watcher long-poll (seconds)", ro("waitTimeout")) +
       row("staleDepth", "Stale depth", ro("staleDepth")) +
       row("leaseTimeout", "Watcher lease (seconds)", ro("leaseTimeout")) +
+      row("settleQuiet", "Quiet window before a wake (seconds)", ro("settleQuiet")) +
+      row("settleBurst", "Longest hold before a wake (seconds)", ro("settleBurst")) +
       row("port", "Server port (0 is a free port); applies at the next start", ro("port")) +
       row("openBrowser", "Open the browser at start", ro("openBrowser")) +
       '<div class="fscope">' + (S.api >= 2 ? "Server supports notes, undo, wrap-up and conflict checks." : "Server is v2.0. " + RESTART) + "</div>" +

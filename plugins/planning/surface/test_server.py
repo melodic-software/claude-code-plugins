@@ -37,8 +37,9 @@ TIMEOUT = 10
 
 import server as _server  # noqa: E402
 
-# a wake lands after one quiet window, plus slack
-WAKE_SECONDS = _server.QUIET_SECONDS + 1.0
+FAST_QUIET, FAST_BURST = 3.0, 12.0
+# a wake lands after one fast quiet window, plus slack
+WAKE_SECONDS = FAST_QUIET + 1.0
 
 
 def run_round(d, *args, timeout=30, env=None):
@@ -99,6 +100,7 @@ class ServerCase(unittest.TestCase):
 
     fixtures = False
     env = None
+    fast_settle = True  # a short settle window in the data dir; the defaults outlast TIMEOUT
 
     @classmethod
     def prepare(cls):
@@ -114,6 +116,11 @@ class ServerCase(unittest.TestCase):
             for name in ("questions.json", "responses.json"):
                 shutil.copy(FIXTURES / name, cls.dir / name)
             (cls.dir / ".watch-seq").write_text("24", encoding="utf-8")
+        if cls.fast_settle:
+            (cls.dir / "settings.json").write_text(
+                json.dumps({"settleQuiet": FAST_QUIET, "settleBurst": FAST_BURST}),
+                encoding="utf-8",
+            )
         cls.prepare()
         cls.addClassCleanup(run_round, cls.dir, "stop")
         started = time.monotonic()
@@ -2430,6 +2437,7 @@ class TestSettingsLayers(ServerCase):
     """AC33 server side: default, repo, user and session layers, each value with its layer."""
 
     env = settings_env()
+    fast_settle = False
 
     @classmethod
     def prepare(cls):
@@ -2463,6 +2471,8 @@ class TestSettingsLayers(ServerCase):
             "waitTimeout": 90,
             "staleDepth": "direct",
             "leaseTimeout": 600,
+            "settleQuiet": 10.0,
+            "settleBurst": 30.0,
         }
         self.assertEqual({k: v["value"] for k, v in s.items()}, want)
         self.assertEqual({v["layer"] for v in s.values()}, {"default"})
@@ -3089,7 +3099,7 @@ class TestLease(WaitCase):
 
 
 class TestSettleBurstCap(unittest.TestCase):
-    """Hub.settle holds found events QUIET_SECONDS past the last new one, never BURST_SECONDS in all."""
+    """Hub.settle holds found events settleQuiet past the last new one, never settleBurst in all."""
 
     def setUp(self):
         import server
@@ -3097,11 +3107,36 @@ class TestSettleBurstCap(unittest.TestCase):
         self.server = server
         self.tmp = Path(tempfile.mkdtemp(prefix="iv-settle-"))
         self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.write_settings({"settleQuiet": 0.5, "settleBurst": 2})
         self.hub = server.Hub(0, self.tmp)
-        for name, value in (("QUIET_SECONDS", 0.3), ("BURST_SECONDS", 2.0)):
-            patcher = unittest.mock.patch.object(server, name, value)
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        self.QUIET, self.BURST = 0.5, 2.0
+
+    def write_settings(self, data):
+        (self.tmp / "settings.json").write_text(json.dumps(data), encoding="utf-8")
+
+    def test_defaults_are_ten_and_thirty(self):
+        (self.tmp / "settings.json").unlink()
+        self.assertEqual(self.hub.settle_window(), (10.0, 30.0))
+
+    def test_a_configured_window_is_returned(self):
+        self.write_settings({"settleQuiet": 4, "settleBurst": 15.5})
+        self.assertEqual(self.hub.settle_window(), (4, 15.5))
+
+    def test_an_invalid_window_falls_back_to_the_defaults(self):
+        for bad in (
+            {"settleQuiet": "soon"},
+            {"settleQuiet": 0},
+            {"settleQuiet": -3},
+            {"settleBurst": 0},
+            {"settleBurst": True},
+            {"settleQuiet": 20, "settleBurst": 5},
+            {"settleQuiet": 40},
+        ):
+            with self.subTest(bad=bad):
+                self.write_settings(bad)
+                with contextlib.redirect_stderr(io.StringIO()):
+                    quiet, burst = self.hub.settle_window()
+                self.assertEqual((quiet, burst), (10.0, 30.0))
 
     def settle_with(self, seqs_seen, deadline=float("inf")):
         feed = iter(seqs_seen)
@@ -3116,19 +3151,19 @@ class TestSettleBurstCap(unittest.TestCase):
     def test_a_quiet_log_returns_after_one_quiet_window(self):
         r, took = self.settle_with([0] * 5)
         self.assertEqual(r["seq"], 0)
-        self.assertGreaterEqual(took, self.server.QUIET_SECONDS * 0.9)
-        self.assertLess(took, self.server.QUIET_SECONDS + 0.5)
+        self.assertGreaterEqual(took, self.QUIET * 0.9)
+        self.assertLess(took, self.QUIET + 0.5)
 
     def test_a_log_that_never_goes_quiet_is_cut_off_at_the_burst_cap(self):
         r, took = self.settle_with(range(1, 1000))
         self.assertGreater(r["seq"], 1)
-        self.assertGreaterEqual(took, self.server.BURST_SECONDS * 0.95)
-        self.assertLess(took, self.server.BURST_SECONDS + 0.5)
+        self.assertGreaterEqual(took, self.BURST * 0.95)
+        self.assertLess(took, self.BURST + 0.5)
 
     def test_a_log_that_never_goes_quiet_is_cut_off_at_the_request_deadline(self):
-        r, took = self.settle_with(range(1, 1000), deadline=time.time() + 0.5)
+        r, took = self.settle_with(range(1, 1000), deadline=time.time() + 1.2)
         self.assertGreater(r["seq"], 1)
-        self.assertLess(took, 0.5 + 0.3)
+        self.assertLess(took, 1.2 + 0.3)
 
 
 if __name__ == "__main__":
