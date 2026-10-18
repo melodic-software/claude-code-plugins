@@ -2519,8 +2519,33 @@ settings_token_hits() { # one .md file; prints "<line>\t<key>" per hit
     }
     NR == 1 && /^---[[:space:]]*$/ { infm = 1; next }
     infm { if (/^---[[:space:]]*$/) infm = 0; next }
-    /^[[:space:]]*(```|~~~)/ { flush(); fence = !fence; next }
-    fence { next }
+    # CommonMark fences: a run of 3 or more backticks or tildes opens one, and
+    # only a bare run of the same character at least as long closes it. A fence
+    # opened inside a blockquote ends when that quote does. No ERE intervals.
+    {
+      fl = $0
+      fd = 0
+      while (match(fl, /^ ? ? ?> ?/)) { fd++; fl = substr(fl, RSTART + RLENGTH) }
+    }
+    fence && fd < fdepth { fence = 0 }
+    fence {
+      if (match(fl, /^[[:space:]]*(`+|~+)[[:space:]]*$/)) {
+        m = fl
+        gsub(/[[:space:]]/, "", m)
+        if (substr(m, 1, 1) == fch && length(m) >= flen) fence = 0
+      }
+      next
+    }
+    match(fl, /^[[:space:]]*(```+|~~~+)/) {
+      m = substr(fl, RSTART, RLENGTH)
+      gsub(/[[:space:]]/, "", m)
+      flush()
+      fence = 1
+      fch = substr(m, 1, 1)
+      flen = length(m)
+      fdepth = fd
+      next
+    }
     /^[[:space:]]*$/ { flush(); next }
     /^[[:space:]]*(#|[-*+][[:space:]]|[0-9]+[.)][[:space:]]|[|>])/ { flush() }
     {

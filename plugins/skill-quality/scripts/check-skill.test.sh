@@ -5257,6 +5257,52 @@ else
   fail "check 31 should skip fenced blocks and non-token code spans (rc=$rc): $out"
 fi
 
+st_skill st-long-fence 'Example:
+
+````markdown
+```text
+When `${user_config.x}` is true, do it.
+```
+````
+
+When `${user_config.y}` is true, do it.'
+out="$(run_st "$ST_EMPTY" st-long-fence 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'fallback at SKILL.md:16 (y)' <<<"$out" && ! grep -q 'SKILL.md:12' <<<"$out"; then
+  pass "check 31 keeps a four-backtick fence open across an inner triple-backtick block"
+else
+  fail "check 31 should skip the nested example and flag only SKILL.md:16 (rc=$rc): $out"
+fi
+
+st_skill st-quoted-fence 'Example:
+
+> ```text
+> When `${user_config.x}` is true, do it.
+> ```
+
+When `${user_config.y}` is true, do it.'
+out="$(run_st "$ST_EMPTY" st-quoted-fence 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'fallback at SKILL.md:14 (y)' <<<"$out" && ! grep -q 'SKILL.md:11' <<<"$out"; then
+  pass "check 31 skips a fenced block inside a blockquote"
+else
+  fail "check 31 should skip the quoted fence and flag only SKILL.md:14 (rc=$rc): $out"
+fi
+
+st_skill st-quoted-unclosed 'Example:
+
+> ```text
+> example
+
+When `${user_config.y}` is true, do it.'
+out="$(run_st "$ST_EMPTY" st-quoted-unclosed 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'fallback at SKILL.md:13 (y)' <<<"$out"; then
+  pass "check 31 ends a quoted fence when its blockquote ends"
+else
+  fail "check 31 should end an unclosed quoted fence with its quote and flag SKILL.md:13 (rc=$rc): $out"
+fi
+
 st_skill st-spoke 'See `reference/notes.md`.'
 mkdir -p "$SKILLS/st-spoke/reference" "$SKILLS/st-spoke/evals"
 printf 'Intro.\n\nIf the\n`${user_config.x}` is false, stop.\n' >"$SKILLS/st-spoke/reference/notes.md"
@@ -5345,7 +5391,7 @@ else
 fi
 
 ST_PLAIN="$(mktemp -d)"
-trap 'rm -rf "$TMP" "$ST_PLAIN"' EXIT
+trap 'rm -rf "$TMP" "$CACHE_TMP" "$WALK_TMP" "$NOGIT_TMP" "$XREPO" "$ST_PLAIN"' EXIT
 mkdir -p "$ST_PLAIN/skills"
 cp -R "$SKILLS/st-misread" "$ST_PLAIN/skills/"
 out="$(GIT_CEILING_DIRECTORIES="$ST_PLAIN" run_st_default "$ST_PLAIN" "$SUT" "$ST_PLAIN/skills" st-misread 2>&1)"
