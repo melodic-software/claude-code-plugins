@@ -13,9 +13,15 @@ merge queue and dequeues any held entry the identity queued.
 
 `--human-gated` names the tracker's human-gated role label, resolved by the
 caller as `babysit_postmerge._role_label` resolves it (default `needs-human`).
-Reads a JSON array of {number, head, updatedAt, labels, body} on stdin and
-prints {"candidates": [...], "held": [...]}: the kept candidates as {number,
-head, updatedAt}, the dropped ones with their `reason` added.
+Candidates come out CLEAN first (their `mergeStateStatus`), then oldest
+`createdAt` first, so a sweep the job timeout cuts short has tried the ones
+likeliest to merge. A candidate without either field sorts last. The order
+changes nothing the gate decides.
+
+Reads a JSON array of {number, head, updatedAt, labels, body, createdAt,
+mergeStateStatus} on stdin and prints {"candidates": [...], "held": [...]}:
+the kept candidates as {number, head, updatedAt}, the dropped ones with their
+`reason` added.
 """
 
 from __future__ import annotations
@@ -44,12 +50,18 @@ def hold(
     return None
 
 
+def sweep_order(candidate: dict[str, Any]) -> tuple[bool, bool, str]:
+    """CLEAN first, then oldest `createdAt`; a missing field sorts last."""
+    created = str(candidate.get("createdAt") or "")
+    return candidate.get("mergeStateStatus") != "CLEAN", not created, created
+
+
 def split(
     candidates: list[dict[str, Any]], human_gated: str = DEFAULT_ROLE_LABEL
 ) -> dict[str, list[dict[str, Any]]]:
     kept: list[dict[str, Any]] = []
     held: list[dict[str, Any]] = []
-    for candidate in candidates:
+    for candidate in sorted(candidates, key=sweep_order):
         row = {k: candidate.get(k) for k in FIELDS}
         if reason := hold(candidate, human_gated):
             held.append({**row, "reason": reason})
