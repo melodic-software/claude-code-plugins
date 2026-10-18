@@ -68,8 +68,6 @@ for _leaked_git_var in (
 del _leaked_git_var
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-# A file every Linux host keeps root-owned and not group- or other-writable.
-_ROOT_OWNED_FILE = "/etc/passwd"
 
 
 def load_module(name: str, filename: str):
@@ -15048,36 +15046,39 @@ class DirectReadKillSwitchTests(unittest.TestCase):
         self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
 
     @unittest.skipUnless(
-        sys.platform.startswith("linux")
-        and os.geteuid() != 0
-        and os.path.isfile(_ROOT_OWNED_FILE)
-        and os.stat(_ROOT_OWNED_FILE).st_uid == 0
-        and not os.stat(_ROOT_OWNED_FILE).st_mode & (stat.S_IWGRP | stat.S_IWOTH),
-        "needs a non-root Linux user and a root-owned, non-writable file",
+        sys.platform.startswith("linux") and os.geteuid() != 0,
+        "needs a non-root Linux user",
     )
-    def test_swap_between_read_and_trust_check_is_untrusted(self) -> None:
-        # A user-writable managed directory lets a drop-in hold the user's own
-        # enabling file for the read, then be replaced by a symlink to a
-        # root-owned file before ownership is checked. Trust must come from the
-        # file that was read.
+    def test_trust_comes_from_the_descriptor_not_the_path(self) -> None:
+        # The path is replaced after the descriptor is opened and before trust
+        # is judged. The descriptor's fstat is stubbed as a root-owned 0644
+        # file, so only a check that reads that fstat trusts the enabling
+        # drop-in; a check that re-resolves the path sees the user-owned
+        # replacement and refuses.
         self.write_toggle(False)
         self.write_managed_dropin("99.json", True)
         dropin_dir = self.config_dir / "managed-settings.d"
         link = dropin_dir / "99.json"
-        real_loads = json.loads
+        os.chmod(link, 0o444)
+        opened_ino = os.stat(link).st_ino
+        real_fstat = os.fstat
         swapped = []
 
-        def loads_then_swap(text, *args, **kwargs):
-            parsed = real_loads(text, *args, **kwargs)
-            if not swapped:
-                swapped.append(True)
-                staging = dropin_dir / "99.json.tmp"
-                staging.symlink_to(_ROOT_OWNED_FILE)
-                os.replace(staging, link)
-            return parsed
+        def fstat_then_swap(fd):
+            result = real_fstat(fd)
+            if result.st_ino != opened_ino or swapped:
+                return result
+            swapped.append(True)
+            staging = dropin_dir / "99.json.tmp"
+            staging.write_text(self._toggle_json(False), encoding="utf-8")
+            os.chmod(staging, 0o444)
+            os.replace(staging, link)
+            return os.stat_result(
+                (0o100644, result.st_ino, result.st_dev, 1, 0, 0, result.st_size, 0, 0, 0)
+            )
 
-        with mock.patch.object(guard.killswitch_config.json, "loads", loads_then_swap):
-            self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+        with mock.patch.object(os, "fstat", fstat_then_swap):
+            self.assertTrue(self.resolve(self.plugin_root_argv(), {}))
         self.assertTrue(swapped)
 
     def test_symlinked_managed_file_still_restricts(self) -> None:
