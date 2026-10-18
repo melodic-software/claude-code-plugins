@@ -53,7 +53,10 @@ itself the thing this skill removes.
    this thread, per the off-thread kinds in
    [`${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md`](${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md)
    an open-ended set (background tasks, shells, monitors, scheduled
-   jobs, dynamic workflows, subagents), not a fixed catalogue.
+   jobs, dynamic workflows, subagents), not a fixed catalogue. Single
+   out every subagent or workflow agent whose last notification carries a
+   rate-limit error type or a usage-limit message: they take the
+   rate-limited path in step 4.
 2. **Inspect real state, never assume.** Read each item's actual state
    from the source of truth, per that doc's inspect-real-state invariant:
    do not infer "it probably finished" or "it probably died". Only the
@@ -100,6 +103,18 @@ itself the thing this skill removes.
      Each item gets at most two retries. When the second one also fails,
      the item is abandoned: record it with its last evidence, and replan
      what remains so it no longer depends on that item.
+   - **Rate-limited agent** (a subagent or workflow agent from step 1's
+     list) → never drop it silently. First run the reset check and the
+     live re-check under "After a usage limit lifts" (including its
+     ask-the-operator fallback when no live reading exists). If the
+     limit still holds, hand back with `/session-flow:handoff` instead of
+     resuming. Otherwise read its partial work from the artifacts (its
+     worktree, branch, commits, PR, files written), then resume it with
+     `SendMessage` to its id, which keeps its history. When the id no
+     longer resolves (step 2's gone-session case), restart from that
+     trail, fitting the restart to the cause as in "Dead but safe to
+     redo". Each resume or restart counts toward the two retries, and
+     the side-effect gate applies to both.
    - **Unrecoverable** → surface it plainly; do not fake a recovery.
 5. **Reconcile the main thread.** Restate where the primary task
    actually stood, grounded in a fresh read of any plan / checklist /
@@ -109,7 +124,11 @@ itself the thing this skill removes.
    item as still-running, recovered, restarted, abandoned, or lost /
    unrecoverable. Work picked up from another agent's trail adds its
    verdict and the split between inherited and redone work (next
-   section).
+   section). Every rate-limited agent from step 1 appears with its
+   partial-work evidence and its final action: resumed, restarted, or
+   abandoned with its reason. A limit that still held is listed as
+   handed back, with the reset it waits on, in the same report that
+   precedes the stop.
 
 ## Picking up another agent's trail
 
@@ -190,6 +209,9 @@ For any "is it stuck / check the monitor / poke it":
 - If you are executing again, the block is already over: **continue the
   work**. Do not produce a summary and stop. Summarize-and-stall is the
   failure mode. Put status notes in the same message as the next action.
+- A rate-limited subagent or workflow agent resumes through `SendMessage`
+  once the live re-check shows headroom (step 4's rate-limited path);
+  spawning a fresh agent discards the history that `SendMessage` keeps.
 - The time-vs-reset check belongs to the **orchestration** case: when
   step 2 inspects a worker or subagent that is itself limited, compare the
   current time against the reset its limit message states, to decide
