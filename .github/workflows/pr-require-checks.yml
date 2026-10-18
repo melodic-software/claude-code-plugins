@@ -1737,7 +1737,10 @@ jobs:
             fi
             scripts/check-changelog-parity.sh --check-bump 'HEAD^1'
           elif [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            scripts/check-changelog-parity.sh --check-bump "origin/$BASE_REF"
+            # A version collision or regression here means the branch is only
+            # behind a main that moved; the merge queue run above enforces it
+            # against the tree the change lands on (#7871).
+            CHANGELOG_PARITY_COLLISIONS=advisory scripts/check-changelog-parity.sh --check-bump "origin/$BASE_REF"
           else
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
           fi

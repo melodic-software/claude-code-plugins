@@ -3588,8 +3588,9 @@ def main() -> int:
         help=(
             "with --authority pr-merge, this run's babysit_postmerge.py report: "
             "its demotion, floor and post-merge verdict stand in for this pull "
-            "request's own reads when bound to the current default-branch head "
-            "and config; unreadable or unbound, they are read as without it"
+            "request's own reads when its base has the same floor and no merge "
+            "the check would judge landed since; unreadable or unbound, they "
+            "are read as without it"
         ),
     )
     args = parser.parse_args()

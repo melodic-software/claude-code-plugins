@@ -63,7 +63,9 @@
 #     the version at <ref>, so a branch briefed against a stale base can neither
 #     regress a version main has already moved past nor collide on a number
 #     another change set claimed first (see the VERSION REGRESSION / VERSION
-#     COLLISION checks below).
+#     COLLISION checks below). CHANGELOG_PARITY_COLLISIONS=advisory reports
+#     those two findings without failing; the pull_request lane sets it, since
+#     a branch only behind main hits them and the merge queue enforces them.
 #   * --check-preserved is the other half of that PR discipline: the bump gate
 #     polices what a change set ADDS and never what it REMOVES, so a released
 #     section could be deleted — its notes absorbed into the new release — with
@@ -843,12 +845,16 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
   version_sort_key head_key "$head_version"
   version_sort_key base_key "$base_version"
   if [[ ! "$head_key" > "$base_key" ]]; then
+    # Advisory mode reports the finding without failing: the pull request is
+    # only behind a base that moved, and the merge queue enforces it (#7871).
+    prefix=""
+    [[ "${CHANGELOG_PARITY_COLLISIONS:-}" == advisory ]] && prefix="ADVISORY (the merge queue enforces this): "
     if [[ "$head_key" == "$base_key" ]]; then
-      echo "VERSION COLLISION: $name is bumped to $head_version but $base already carries $base_version — another change set claimed that number first; renumber above it." >&2
+      echo "${prefix}VERSION COLLISION: $name is bumped to $head_version but $base already carries $base_version — another change set claimed that number first; renumber above it." >&2
     else
-      echo "VERSION REGRESSION: $name is bumped to $head_version but $base already carries $base_version — merging would move the version BACKWARD; renumber above $base_version." >&2
+      echo "${prefix}VERSION REGRESSION: $name is bumped to $head_version but $base already carries $base_version — merging would move the version BACKWARD; renumber above $base_version." >&2
     fi
-    nonmonotonic=$((nonmonotonic + 1))
+    [[ -n "$prefix" ]] || nonmonotonic=$((nonmonotonic + 1))
     continue
   fi
 
