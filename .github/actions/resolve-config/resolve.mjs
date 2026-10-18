@@ -728,6 +728,14 @@ export function resolveLimits(files, { configPath }) {
   return limitsOf(loadConfig(files, { configPath }).limits);
 }
 
+// The wip leaf as set, after the same file checks as resolve(), for the WIP
+// cap check. Its defaults have one copy, WIP_DEFAULTS in
+// .github/scripts/work-resolve-issue/limits.mjs, which its readers apply;
+// this module imports nothing outside this action's sparse checkout.
+export function resolveWipLeaf(files, { configPath }) {
+  return loadConfig(files, { configPath }).wip ?? {};
+}
+
 export function resolve(
   files,
   { lane, activity, configPath, basePath, facts },
@@ -755,6 +763,7 @@ export function resolve(
       "dependency-review-rounds": doc.loop?.["dependency-review-rounds"] ?? 2,
     },
     limits: limitsOf(doc.limits),
+    wip: doc.wip ?? {},
     merge: resolveMerge(doc.merge, configPath),
   };
 }

@@ -106,7 +106,55 @@
           "minimum": 1,
           "maximum": 500,
           "default": 60,
-          "description": "Open pull requests by the lanes App at or above which work-resolve-issue starts no run and work-unblock re-fires none."
+          "description": "The issue lane's WIP cap when the lane merge rate cannot be read; otherwise wip.target-lead-time-hours sets it."
+        }
+      }
+    },
+    "wip": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The issue lane's WIP cap from the lane merge rate, and the buffer for held lane PRs. Contract: README.md, WIP cap.",
+      "properties": {
+        "target-lead-time-hours": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 720,
+          "default": 2,
+          "description": "Target open-to-merge hours. The WIP cap is the lane merge rate per hour times this, rounded up, at least 1."
+        },
+        "merge-rate-window-hours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 720,
+          "default": 24,
+          "description": "Rolling window over which merged and opened lane PRs are counted."
+        },
+        "admission-factor": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "default": 0.8,
+          "description": "Lane PRs opened in the window may reach at most this share of lane PRs merged in it."
+        },
+        "held-cap": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 60,
+          "description": "Open held lane PRs at or above which the held buffer is over its cap."
+        },
+        "held-alarm-hours": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 720,
+          "default": 24,
+          "description": "Age in hours past which a held lane PR raises the alarm."
+        },
+        "pause-from": {
+          "type": "string",
+          "pattern": "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}(:[0-9]{2})?Z)?$",
+          "default": "",
+          "description": "UTC date (or date-time) from which the issue lane pauses while over a cap. Empty: it never pauses, it only alerts."
         }
       }
     },

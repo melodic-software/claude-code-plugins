@@ -15,6 +15,7 @@
 - [Models](#models)
 - [Loop caps](#loop-caps)
 - [Limits](#limits)
+- [WIP cap](#wip-cap)
 - [Planning lane work](#planning-lane-work)
 - [Changing this config](#changing-this-config)
 - [Outside this repository](#outside-this-repository)
@@ -936,12 +937,55 @@ with defaults.
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
 | `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again. |
 | `limit-stops-per-issue` | 3 | Limit stops since a person last added `agent-ready` before work-unblock hands the issue to a person. |
-| `wip-cap` | 60 | Open lanes-App pull requests at or above which work-resolve-issue starts no run and work-unblock re-fires none; at most 500. |
+| `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
 config themselves. A config the resolver refuses fails the two dispatchers before any dispatch;
 the WIP cap check fails open and starts the run. This repository sets `wip-cap` only.
+
+## WIP cap
+
+The optional `wip` block sizes the issue lane's work in progress from the lane merge rate. The WIP
+cap check (`.github/actions/check-wip-cap`) runs before work-resolve-issue takes a slot, and
+work-unblock's sweep runs it before a re-fire. It reads, one request at a time and none once
+`x-ratelimit-remaining` reaches 0, the lanes App's open pull requests, those merged in the window
+and those opened in it.
+
+| Key | Default | What it sets |
+|---|---|---|
+| `target-lead-time-hours` | 2 | Target open-to-merge hours. The WIP cap is merged lane PRs per hour times this, rounded up, at least 1. |
+| `merge-rate-window-hours` | 24 | Rolling window for the merged and opened counts. |
+| `admission-factor` | 0.8 | Lane PRs opened in the window may be at most this share of those merged in it. |
+| `held-cap` | 60 | Held lane PRs at or above which the held buffer is over its cap. |
+| `held-alarm-hours` | 24 | Age past which a held lane PR raises the alarm. |
+| `pause-from` | empty | UTC date or date-time from which the lane pauses over a cap; empty never pauses. |
+
+A held lane PR carries `needs-human` or `do-not-merge`, or has a body line exactly
+`Hold: a human merges this`. Held PRs never count against the WIP cap; countable PRs are the open
+lane PRs that are not held. Over the WIP cap (countable at or above it), over the held cap, over
+the admission share, or with a held PR past the alarm age, the check writes a warning annotation.
+Over either cap on or after `pause-from` it pauses the lane: work-resolve-issue starts no run and
+work-unblock re-fires none. A read that fails never caps; without a merged count the cap is
+`limits.wip-cap`. A held PR's age runs from when it opened.
+
+The check publishes its status as one flat JSON object: the step output `wip`, the step summary
+and the log line `check-wip-cap: <json>`. `capped` is `true` only while the lane pauses.
+
+| Field | Meaning |
+|---|---|
+| `countable_lane_prs` | Open lane PRs not held; null when the listing failed. |
+| `held_lane_prs` | Open lane PRs held. |
+| `held_oldest_age_hours` | Hours since the oldest held PR opened; null with none. |
+| `held_over_24h_count` | Held PRs older than `held-alarm-hours`. |
+| `wip_cap` | The WIP cap in effect. |
+| `wip_cap_source` | `computed` from the merge rate, or `config` (`limits.wip-cap`). |
+| `held_cap`, `held_alarm_hours` | The held buffer's cap and alarm age. |
+| `merged_lane_prs_window`, `merge_rate_per_hour`, `merge_rate_window_hours`, `target_lead_time_hours` | The merge rate and its inputs. |
+| `admitted_lane_prs_window`, `admission_cap`, `admission_factor` | Lane PRs opened in the window and their cap. |
+| `wip_over`, `held_over`, `admission_over`, `held_alarm` | Which limit is crossed. |
+| `alert` | Any of the four. |
+| `pause_from`, `paused` | The pause date and whether the lane pauses now. |
 
 ## Planning lane work
 
