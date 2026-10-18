@@ -182,6 +182,49 @@ describe("runWatchCli envelope consumption", () => {
     ).resolves.toContain("hello world");
   });
 
+  it.each([
+    { label: "records", metadataSec: 10446, probedSec: 3995, mismatch: true },
+    { label: "does not record", metadataSec: 3995, probedSec: 3996, mismatch: false },
+  ])("$label a duration mismatch for metadata $metadataSec s versus probed $probedSec s", async ({
+    metadataSec,
+    probedSec,
+    mismatch,
+  }) => {
+    const vttPath = await writeVtt("7zZy1QTvokM.en.vtt");
+    vi.mocked(acquireMedia).mockResolvedValue({
+      success: true,
+      data: createAcquisitionEnvelope({
+        entries: [mediaEntry(vttPath)],
+        metadata: { ...METADATA, durationSec: metadataSec },
+        workDir: fixtureDir,
+      }),
+    });
+    vi.mocked(orchestrateWatching).mockResolvedValueOnce({
+      selectedFrames: [],
+      targetMinFrames: 0,
+      highVolume: false,
+      densificationWindows: [],
+      candidateCount: 0,
+      probedDurationSec: probedSec,
+    });
+
+    const code = await runWatchCli(["node", "run-watch.js", URL, "--skip-research"]);
+    expect(code).toBe(0);
+
+    const state = await readWatchJson();
+    const readme = await fs.readFile(path.join(sliceDir(), "README.md"), "utf8");
+    if (mismatch) {
+      expect(state.durationMismatch).toMatchObject({
+        metadataDurationSec: metadataSec,
+        probedDurationSec: probedSec,
+      });
+      expect(readme).toContain("## Duration mismatch");
+    } else {
+      expect(state.durationMismatch).toBeUndefined();
+      expect(readme).not.toContain("## Duration mismatch");
+    }
+  });
+
   it("records a --target checkout path as its portable owner/repo name", async () => {
     const checkout = path.join(fixtureDir, "widgets-checkout");
     await fs.mkdir(checkout);
