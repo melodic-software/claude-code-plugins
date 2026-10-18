@@ -72,7 +72,7 @@ const LANES = Object.freeze({
     events: ["workflow_dispatch"],
     after: "pr-merge pushes an empty commit so the next pr-unblock run uses main's files.",
     starts:
-      " The push starts no run itself: the conflict-resolution run starts at the next push to main, or when a listed person runs `pr-unblock-dispatch` by hand, and an address-feedback run starts once both review lanes finish on the new head.",
+      " The push starts no run itself: the conflict-resolution run starts at the next push to main, or when a listed person runs `pr-unblock-dispatch` by hand, and an address-feedback run can start after both review lanes review the new head, if an unresolved thread is left for it.",
     files: [
       ".github/workflows/pr-unblock.yml",
       WRITE_RUNNER,
