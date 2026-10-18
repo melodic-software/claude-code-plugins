@@ -3,8 +3,7 @@
 // with a Conventional Commits title (the run's, else one from the issue title), no
 // label (the class lives on the issue only), and the hold line for structural and
 // untrusted-provenance work or a trust or lane-power diff; `pushback` and
-// `stopped` comment and add needs-human, and only pushback removes
-// agent-ready.
+// `stopped` comment, add needs-human and remove agent-ready.
 import assert from "node:assert/strict";
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,6 +19,7 @@ import {
   parseOutcomeMarker,
   readHoldPaths,
   readOutcome,
+  refsHoldComment,
   reusePlan,
 } from "./report-outcome.mjs";
 
@@ -461,7 +461,9 @@ test("pushback comments, adds needs-human and removes agent-ready", () => {
   assert.match(plan.comment, /Which file\?/);
 });
 
-test("stopped keeps agent-ready and names the branch that holds partial work", () => {
+// A stopped issue goes to a person, so it carries the hold alone: agent-ready
+// beside needs-human leaves it in both queues.
+test("stopped removes agent-ready and names the branch that holds partial work", () => {
   const plan = decide({
     outcome: { exit: "stopped", reason: "Tests failed.", title: "", summary: "" },
     issueNumber: 77,
@@ -471,8 +473,9 @@ test("stopped keeps agent-ready and names the branch that holds partial work", (
     humanLabel: "needs-human",
   });
   assert.deepEqual(plan.addLabels, ["needs-human"]);
-  assert.deepEqual(plan.removeLabels, []);
+  assert.deepEqual(plan.removeLabels, ["agent-ready"]);
   assert.ok(plan.comment.includes(BRANCH));
+  assert.ok(plan.comment.includes("remove `needs-human` and add `agent-ready` again"), plan.comment);
 });
 
 // main against a fake GitHub API: the calls it makes are the lane's effect on
@@ -556,6 +559,34 @@ test("main on done opens a ready PR from the branch and adds no label to it", as
       assert.equal(pull.base, "main");
       assert.ok(pull.body.startsWith("Closes #77\n"));
       assert.ok(!calls.some((c) => c.path.endsWith("/issues/90/labels")));
+      assert.ok(!calls.some((c) => c.method === "POST" && c.path.startsWith("/repos/o/r/issues/77/")));
+    },
+  );
+});
+
+// pr-merge merges only a PR with exactly one closing issue, so a Refs PR waits
+// for a person: the issue gets the human-gated label, then the marker comment
+// work-unblock reads to lift only this hold once the PR merges.
+test("main on done with Refs opens the PR, then adds needs-human to the issue and the refs-hold comment", async () => {
+  await withDir(
+    { "work-outcome.json": JSON.stringify({ ...done, link: "refs" }), "lane.json": JSON.stringify({ branch: BRANCH }) },
+    async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+        ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
+        ["GET", /\/pulls$/, 200, []],
+        ["POST", /\/pulls$/, 201, { number: 90 }],
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: env(dir), fetch }), 0);
+      const writes = calls.filter((c) => c.method !== "GET").map((c) => `${c.method} ${c.path}`);
+      assert.deepEqual(writes, ["POST /repos/o/r/pulls", "POST /repos/o/r/issues/77/labels", "POST /repos/o/r/issues/77/comments"]);
+      assert.deepEqual(calls.find((c) => c.path.endsWith("/issues/77/labels")).body, { labels: ["needs-human"] });
+      const comment = calls.find((c) => c.path.endsWith("/issues/77/comments")).body.body;
+      assert.ok(comment.startsWith("<!-- work-resolve-issue refs-hold #90 -->\n"), comment);
+      assert.equal(comment, refsHoldComment(90, "needs-human"));
     },
   );
 });

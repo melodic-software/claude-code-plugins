@@ -80,6 +80,11 @@ def move_seconds(origin, z, X, Y, W, H, motion):
     return t * 1.02
 
 
+def read_seconds(text, captions):
+    """Time to read text on screen: seconds_per_word a word, never under min_seconds."""
+    return max(captions['min_seconds'], captions['seconds_per_word'] * len(text.split()))
+
+
 def focus_rect(ink, block, target, W, H, cfg, pill_w, zrange, prefer=None, origin=None, budget=None, exit_budget=None):
     """The shot for a block: highest zoom in zrange (aspect W:H) that holds the block with safe-margin
     headroom on every edge that is not the page boundary, puts every other edge in a gutter, leaves a
@@ -396,7 +401,11 @@ def main(argv=None):
         dur = max(base, P['after_cut'] + in_d + 1.0) if stp['navigates'] else base
         if nxt_mv is None:
             dur = (P['after_cut'] + in_d if stp['navigates'] else 0.0) + P['end_hold']
+        # a hold that shows an outcome caption lasts its reading time once it is up, whatever still_max says
+        read = read_seconds(stp['outcome'], CAP) if stp['outcome'] and layers['captions'] else 0.0
+        dur = max(dur, P['after_cut'] + in_d + read)
         seg(st['t'], nxt_mv if nxt_mv else min(st['t'] + 1.5, end_t), dur, s, 'hold')
+        segments[-1]['read'] = round(read, 4)
     for e in ev:
         if e['name'] == 'loading':
             forbidden.append((e['t'] - 0.2, e['t1'] + 0.2))
@@ -437,10 +446,10 @@ def main(argv=None):
         for k, stp in enumerate(steps):
             nxt = step_start(k + 1) if k + 1 < len(steps) else total
             hs = hold_seg(k)
-            end = hs['out0'] if stp['navigates'] else nxt
+            end = hs['out0'] if stp['navigates'] or stp['outcome'] else nxt
             caps.append({'step': stp['id'], 'kind': 'step', 'badge': str(k + 1), 'text': stp['caption'],
                          'span': [round(step_start(k), 4), round(end, 4)]})
-            if stp['navigates'] and stp['outcome']:
+            if stp['outcome']:
                 after = P['after_cut'] + stp['land_ease']
                 caps.append({'step': stp['id'], 'kind': 'outcome', 'badge': 'check', 'text': stp['outcome'],
                              'span': [round(hs['out0'] + after, 4), round(nxt, 4)], 'hold_through_end': k + 1 == len(steps)})
@@ -854,6 +863,11 @@ def main(argv=None):
         rejected.write_text(json.dumps(edl, indent=1))
         Path(a.out).unlink(missing_ok=True)   # an earlier approved plan must not be rendered in its place
         print('EDL breaks rules (plan kept at ' + str(rejected) + '):\n  ' + '\n  '.join(errs))
+        unshot = [s['id'] for s in steps if layers['camera'] and not s['click_shot']]
+        if unshot:   # the cause behind a caption with no empty anchor is often here, not in the caption
+            print(f"shot search: no click shot passed for {', '.join(unshot)} at any zoom from {CAM['zmin_shot']}x "
+                  f"to {CAM['zmax']}x (every candidate rect crosses content at an edge, leaves no empty caption "
+                  'anchor or is out of reach), so the camera stays at 1.0x for those clicks')
         return 1
     Path(a.out).write_text(json.dumps(edl, indent=1))
     print(f'edl: {len(steps)} steps, {len(segments)} segments, {len(cam)} camera keys, {total:.2f}s -> {a.out}')

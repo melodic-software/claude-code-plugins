@@ -379,6 +379,50 @@ class DemoPipelineSmoke(unittest.TestCase):
         self.assertFalse(edl_path.exists())
         self.assertTrue(edl_path.with_suffix('.rejected.json').exists())
 
+    def test_refusal_names_the_steps_whose_shot_search_found_nothing(self):
+        # No zoom rect passes the edge test, so every caption also has no empty anchor.
+        cfg = self.tmp / 'refuse-shots.json'
+        cfg.write_text(json.dumps({'camera': {'edge_ink': -1}}))
+        r = run('build_edl.py', self.tmp / 'capture', self.tmp / 'script.json', self.tmp / 'edl-noshot.json', '--config', cfg)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn('shot search: no click shot passed for get-started, search, open-result', r.stdout)
+
+    def test_an_outcome_hold_lasts_its_reading_time_and_passes_stillness_with_the_camera_off(self):
+        # Long outcomes on an in-place step and on the last step, with no camera drift to break the stillness.
+        per_word = json.loads((HERE / 'defaults.json').read_text())['captions']['seconds_per_word']
+        script = json.loads(json.dumps(SCRIPT))
+        script['steps']['search']['outcome'] = 'Three results for abc, the first one is open'   # a step that stays on its page
+        script['steps']['open-result']['outcome'] = 'Trace viewer open, every panel in view now'
+        path = self.tmp / 'script-read.json'
+        path.write_text(json.dumps(script))
+        edl_path = self.tmp / 'edl-read.json'
+        r = run('build_edl.py', self.tmp / 'capture', path, edl_path, '--layers', 'camera=false')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        edl = json.loads(edl_path.read_text())
+        outcomes = {c['step']: c for c in edl['captions'] if c['kind'] == 'outcome'}
+        for step in ('search', 'open-result'):
+            a, b = outcomes[step]['span']
+            self.assertGreaterEqual(b - a, per_word * len(script['steps'][step]['outcome'].split()) - 1e-3, step)
+        out = self.tmp / 'read.mp4'
+        r = run('produce.py', edl_path, out, '--preset', 'veryfast')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        r, report = self.quality_control(out, edl=edl_path, name='quality-control-read')
+        self.assertEqual(self.failed(report), set(), r.stdout)
+        details = {c['check']: c['detail'] for c in report['checks']}
+        self.assertEqual(details['zoom-share'], 'camera layer off')   # not "plain style" under produced
+        self.assertIn('to read an outcome', details['stillness'])
+
+    def test_an_outcome_hold_gets_no_reading_time_with_the_captions_off(self):
+        script = json.loads(json.dumps(SCRIPT))
+        script['steps']['search']['outcome'] = 'Three results for abc, the first one is open'
+        path = self.tmp / 'script-nocap.json'
+        path.write_text(json.dumps(script))
+        edl_path = self.tmp / 'edl-nocap.json'
+        r = run('build_edl.py', self.tmp / 'capture', path, edl_path, '--layers', 'captions=false')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        holds = [sg for sg in json.loads(edl_path.read_text())['segments'] if sg.get('kind') == 'hold']
+        self.assertEqual([sg['read'] for sg in holds], [0.0] * len(holds))
+
     def test_crossfade_across_the_cut_fails(self):
         edl = json.loads(self.edl.read_text())
         c = int(round(edl['nav_cuts'][0] * self.fps))

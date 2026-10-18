@@ -293,7 +293,7 @@
             "type": "string",
             "pattern": "^(scripts|plugins/[a-z0-9-]+/(skills/[a-z0-9-]+/)?scripts)/[A-Za-z0-9_-]+\\.sh$"
           },
-          "description": "Exact repository-relative paths of scripts a skill with an effect other than read may run with any arguments. The write runner copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout with any arguments but a path outside it. Needs an effect other than read. A script that changes files, runs code from the checkout, or reaches the network hands the run that power: list one only when it limits itself, as scripts/run-test-file.sh and scripts/git-mv-rm.sh do."
+          "description": "Exact repository-relative paths of scripts a skill with an effect other than read may run with any arguments. The write runner copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout, with GH_TOKEN and GITHUB_TOKEN unset (code it runs can still read the token from an ancestor process), with any arguments but a path outside it. Needs an effect other than read. A script that changes files, runs code from the checkout, or reaches the network hands the run that power: list one only when it limits itself, as scripts/run-test-file.sh and scripts/git-mv-rm.sh do, or when the run may hold that power, as plugins/skill-quality/scripts/check-skill.sh (checkout test scripts and markdownlint) does."
         },
         "web-access": {
           "type": "object",
