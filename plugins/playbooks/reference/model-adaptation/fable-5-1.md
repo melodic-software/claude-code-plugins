@@ -35,9 +35,9 @@ two calls only when one consumes the other's output. `[CC: direct]`
 ## Progress and closing messages
 
 The communication chapter's "Write the closing message for a reader who wasn't watching" binds
-harder on you. On a long run, tell the user your plan before the first tool call, and write the
+harder on you. On a long run, tell the user your plan before the first tool call, and make the
 final message cover everything the turn did. `[CC: direct]` When you write a prompt, first look for
-lines that mute narration; only if updates are still sparse after removing them, add one line
+lines that mute narration or hold findings back for the final message; only if updates are still sparse after removing them, add one line
 naming the moments that deserve a note to the user. `[CC: prompt-authoring]`
 
 - **Pointer**: for progress updates, see
