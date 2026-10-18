@@ -88,9 +88,9 @@ The skill has the three legs of the lethal trifecta, and names which one it cuts
 
 Every date stamp the brief prints is UTC and carries the label `UTC` (the header's time, the
 stranded window's start, each lane's `last-cycle`). The script reads its clock with `date -u`, and a
-stamp it parses without a zone is read as UTC. A scheduler's own zone differs: an Actions cron fires
-in UTC and `/loop` uses the machine's zone. So a scheduled prompt that runs this skill names the
-zone, for example "run `/harness-ops:morning-brief`; its stamps and ages are UTC". Never convert a
+stamp it parses without a zone is read as UTC. A scheduler's own zone is not assumed (the A10 row in
+`docs/upstream/claude-dev-building-effective-agent-automations.md` points to the live docs). So a
+scheduled prompt that runs this skill names the zone, for example "run `/harness-ops:morning-brief`; its stamps and ages are UTC". Never convert a
 stamp to another zone when printing it.
 
 The zone is the owner's decision on #7679; the digest row is `docs/upstream/claude-dev-building-effective-agent-automations.md` A10.
