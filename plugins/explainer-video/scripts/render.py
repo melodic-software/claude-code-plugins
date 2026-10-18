@@ -12,7 +12,14 @@ overlap check.
 With --narration NDIR, the folder holding script.txt, narration.wav and words.json from speech:narrate, the scene's
 beat() calls follow the narration (narration.py) and the render is muxed with narration.wav and captions built from
 words.json. Narrated checks: every beat cued within one frame of its narration start; one video, one audio and one
-subtitle stream; the video and audio streams within a frame per animation, plus one, of each other.
+subtitle stream; the video and audio streams within a frame per animation, plus one, of each other; no caption shorter
+than the minimum; the narration normalized with ffmpeg loudnorm (two passes) before the mux, and the muxed file's
+integrated loudness within tolerance of the target and its true peak at or under the ceiling, measured again on the
+file itself. Captions under the reading time per word are flagged, not failed.
+
+Every render reports its still spans (freezedetect: no change in picture for at least the reporting length), with the
+words spoken during each when narrated. A span is reported, never a defect. Loudness, caption and still values are
+defaults.json.
 
 Writes DIR/SCENE_CLASS.mp4, DIR/frames/fNNNN.png and DIR/report.json (plus DIR/captions.srt and DIR/timing.json when
 narrated), and prints the report summary.
@@ -23,6 +30,7 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -30,6 +38,8 @@ from pathlib import Path
 
 import narration
 
+DEFAULTS = json.loads(Path(__file__).with_name('defaults.json').read_text(encoding='utf-8'))
+LOUDNESS, STILLS = DEFAULTS['loudness'], DEFAULTS['stills']
 QUALITY = {'l': 'low_quality', 'm': 'medium_quality', 'h': 'high_quality'}
 TEXT_TYPES = ('Text', 'MarkupText', 'Paragraph', 'Tex', 'MathTex', 'SingleStringMathTex', 'Typst', 'MathTypst',
               'DecimalNumber', 'Integer', 'Code')
@@ -177,7 +187,8 @@ def snapshot(scene, text_types, containers):
 def clear_previous(out, scene_class):
     """Drop the last run's report, video, captions and frames, so a rerender that fails part-way leaves no PASS
     report."""
-    for name in ('report.json', f'{scene_class}.mp4', f'{scene_class}.silent.mp4', 'captions.srt', 'timing.json'):
+    for name in ('report.json', f'{scene_class}.mp4', f'{scene_class}.silent.mp4', 'captions.srt', 'timing.json',
+                 'narration.normalized.wav'):
         (out / name).unlink(missing_ok=True)
     shutil.rmtree(out / 'frames', ignore_errors=True)
 
@@ -246,6 +257,75 @@ def probe_file(path):
          str(path)], check=True, capture_output=True, text=True).stdout)
 
 
+def _loudnorm(target, measured=None):
+    f = (f'loudnorm=I={target["integrated_lufs"]}:TP={target["limiter_true_peak_dbtp"]}'
+         f':LRA={target["loudness_range_lu"]}')
+    if measured:
+        f += (f':measured_I={measured["input_i"]}:measured_TP={measured["input_tp"]}'
+              f':measured_LRA={measured["input_lra"]}:measured_thresh={measured["input_thresh"]}'
+              f':offset={measured["target_offset"]}:linear=true')
+    return f + ':print_format=json'
+
+
+def _loudnorm_json(stderr):
+    """The JSON block loudnorm prints last on stderr."""
+    return json.loads(stderr[stderr.rindex('{'):stderr.rindex('}') + 1])
+
+
+def measure_loudness(path, target=LOUDNESS):
+    """loudnorm's first pass over the first audio stream: input_i (LUFS), input_tp (dBTP), input_lra, input_thresh,
+    target_offset, as strings."""
+    r = subprocess.run(['ffmpeg', '-hide_banner', '-nostats', '-i', str(path), '-map', '0:a:0', '-af',
+                        _loudnorm(target), '-f', 'null', '-'], check=True, capture_output=True, text=True)
+    return _loudnorm_json(r.stderr)
+
+
+def normalize(wav, out, measured, target=LOUDNESS):
+    """loudnorm's second pass, linear when the measured audio allows it: returns its normalization_type. loudnorm
+    falls back to dynamic on its own, so the caller measures the result again."""
+    r = subprocess.run(['ffmpeg', '-hide_banner', '-nostats', '-y', '-i', str(wav), '-af', _loudnorm(target, measured),
+                        '-ar', '48000', str(out)], check=True, capture_output=True, text=True)
+    return _loudnorm_json(r.stderr).get('normalization_type')
+
+
+def loudness_defects(measured, target=LOUDNESS):
+    """The delivered file's integrated loudness against the target and its true peak against the ceiling."""
+    i, tp = float(measured['input_i']), float(measured['input_tp'])
+    defects = []
+    if abs(i - target['integrated_lufs']) > target['tolerance_lu']:
+        defects.append(f'integrated loudness {i:.1f} LUFS is more than {target["tolerance_lu"]} LU from the '
+                       f'{target["integrated_lufs"]} LUFS target')
+    if tp > target['true_peak_max_dbtp']:
+        defects.append(f'true peak {tp:.1f} dBTP is over the {target["true_peak_max_dbtp"]} dBTP ceiling')
+    return defects
+
+
+def still_spans(path, duration, stills=STILLS):
+    """[(start, end)] where freezedetect finds no change in picture for at least stills.min_seconds; a span still
+    open at the end of the file ends at duration."""
+    r = subprocess.run(['ffmpeg', '-hide_banner', '-nostats', '-i', str(path), '-map', '0:v:0', '-vf',
+                        f'freezedetect=n={stills["noise"]}:d={stills["min_seconds"]}', '-f', 'null', '-'],
+                       check=True, capture_output=True, text=True)
+    return parse_freezes(r.stderr, duration)
+
+
+def parse_freezes(log, duration):
+    starts = [float(x) for x in re.findall(r'freeze_start: ([\d.]+)', log)]
+    ends = [float(x) for x in re.findall(r'freeze_end: ([\d.]+)', log)]
+    return [(a, ends[i] if i < len(ends) else duration) for i, a in enumerate(starts)]
+
+
+def stills_report(spans, words=None):
+    """Each span with its length and, when narrated, how many words are spoken while the picture holds."""
+    out = []
+    for a, b in spans:
+        item = {'start': round(a, 3), 'end': round(b, 3), 'seconds': round(b - a, 3)}
+        if words is not None:
+            item['words'] = sum(a <= float(w['start']) < b for w in words)
+        out.append(item)
+    return out
+
+
 def blank(path):
     from PIL import Image
     lo, hi = Image.open(path).convert('L').getextrema()
@@ -295,20 +375,38 @@ def main(argv=None):
     probe = probe_file(silent)
     expected = checkpoints[-1]['t']
     defects = stream_defects(probe, expected, frame['fps'], len(checkpoints))
+    flags, loudness = [], None
     if narrated:
         timing = narrated['timing']
         defects += narration.beat_defects(marks, timing['starts'], frame['fps'])
+        cues = narration.captions(narrated['record'], timing['beats'])
+        cue_defects, flags = narration.caption_findings(cues)
+        defects += cue_defects
         captions = out / 'captions.srt'
-        captions.write_text(narration.srt(narration.captions(narrated['record'], timing['beats'])), encoding='utf-8')
+        captions.write_text(narration.srt(cues), encoding='utf-8')
+        normalized = out / 'narration.normalized.wav'
         try:
-            mux(silent, narrated['wav'], captions, final)
-        except subprocess.CalledProcessError as e:
-            reason = e.stderr.decode(errors='replace').strip()
-            sys.stderr.write(f'explainer-video: ffmpeg could not mux the narration: {reason}\n')
+            source = measure_loudness(narrated['wav'])
+            mode = normalize(narrated['wav'], normalized, source)
+            mux(silent, normalized, captions, final)
+            delivered = measure_loudness(final)
+        except (subprocess.CalledProcessError, ValueError) as e:
+            reason = getattr(e, 'stderr', None) or str(e)
+            reason = (reason.decode(errors='replace') if isinstance(reason, bytes) else reason).strip()
+            sys.stderr.write(f'explainer-video: ffmpeg could not normalize or mux the narration: {reason}\n')
             return 2
+        finally:
+            normalized.unlink(missing_ok=True)
         silent.unlink()
         probe = probe_file(final)
         defects += narrated_defects(probe, frame['fps'], len(checkpoints))
+        defects += loudness_defects(delivered)
+        loudness = {'target': LOUDNESS, 'normalization_type': mode,
+                    'source': {'integrated_lufs': float(source['input_i']), 'true_peak_dbtp': float(source['input_tp'])},
+                    'delivered': {'integrated_lufs': float(delivered['input_i']),
+                                  'true_peak_dbtp': float(delivered['input_tp'])}}
+    stills = stills_report(still_spans(final, probed_duration(probe) or expected),
+                           narrated['record']['words'] if narrated else None)
 
     frames_dir = out / 'frames'
     shutil.rmtree(frames_dir, ignore_errors=True)
@@ -337,14 +435,25 @@ def main(argv=None):
               'duration': {'timeline': round(expected, 3), 'ffprobe': probed},
               'animations': len(checkpoints), 'frames': frames,
               'narration': {'audio': str(narrated['wav']), 'captions': str(out / 'captions.srt'),
-                            'beats': narrated['timing']['starts']} if narrated else None,
+                            'beats': narrated['timing']['starts'], 'caption_flags': flags,
+                            'loudness': loudness} if narrated else None,
+              'stills': stills,
               'defects': defects,
               'status': 'defect' if defects else 'pass'}
     (out / 'report.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
     print(f'{report["status"].upper()}: {final} ({probed} s, {len(checkpoints)} animations)')
     for d in defects:
         print(f'DEFECT: {d}')
-    print('Read these frames:')
+    for f in flags:
+        print(f'FLAG: {f}')
+    if loudness:
+        got = loudness['delivered']
+        print(f'LOUDNESS: {got["integrated_lufs"]:.1f} LUFS, true peak {got["true_peak_dbtp"]:.1f} dBTP '
+              f'({loudness["normalization_type"]} normalization)')
+    for s in stills:
+        spoken = f', {s["words"]} words spoken' if 'words' in s else ''
+        print(f'STILL: {s["start"]:.2f}-{s["end"]:.2f} s ({s["seconds"]:.2f} s{spoken})')
+    print(f'Read these frames ({len(frames)} of {len(checkpoints)} animation ends):')
     for f in frames:
         print(f'  {f["path"]}  (t={f["t"]} s)')
     return 1 if defects else 0
