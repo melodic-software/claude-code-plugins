@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## 2.11.7 - 2026-10-18
+
+A `resolve-issue` run that waited in its slot while a change to `work-resolve-issue.yml` or
+`pr-run-activity-write.yml` merged fails red `workflow-stale` before the token request, by the
+broker's own blob comparison against main, instead of spending a mint the broker refuses as
+`workflow-modified`. It leaves no outcome marker, so work-unblock's hourly sweep re-fires the issue
+on main's files ([pr-run-activity.md](pr-run-activity.md#issue-mode)). `version` stays 2.
+
 ## 2.11.6 - 2026-10-18
 
 An issue-lane run never dies on GitHub's rate limit or a pile of open lane pull requests.
