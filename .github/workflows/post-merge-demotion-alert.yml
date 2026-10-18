@@ -251,33 +251,87 @@ jobs:
             exit 0
           fi
 
+          pulls="${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/pull"
           subject="${RUN_COMMIT_MESSAGE%%$'\n'*}"
           pr='unknown (the head commit names none)'
           title="Post-merge $signal failure at ${RUN_SHA:0:12}: unattended merging demoted"
           if [[ "$subject" =~ \(#([0-9]+)\)$ ]]; then
-            pr="${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/pull/${BASH_REMATCH[1]}"
+            pr="$pulls/${BASH_REMATCH[1]}"
             title="Post-merge $signal failure after #${BASH_REMATCH[1]}: unattended merging demoted"
+          fi
+          # A full run covers every first-parent commit since main's last
+          # green full run, so the failure is charged to that whole range.
+          range=()
+          if [[ "$signal" != canary ]]; then
+            base="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?branch=main&status=success&created=%3C$RUN_CREATED&per_page=100" \
+              --jq '[.workflow_runs[] | select(.head_branch == "main" and (.event | IN("schedule", "workflow_dispatch"))
+                and .head_sha != env.RUN_SHA and .created_at < env.RUN_CREATED)]
+                | max_by(.created_at) // empty | .head_sha')" || base=''
+            if [[ "$base" =~ ^[0-9a-f]{40}$ ]]; then
+              commits="$(gh api "repos/$GITHUB_REPOSITORY/compare/$base...$RUN_SHA" \
+                --jq '.commits[] | [.sha, (.parents[0].sha // "none"), (.author.login // .commit.author.name // "unknown"),
+                  (.commit.message | split("\n")[0])] | @tsv')" || commits=''
+              declare -A parent=() entry=()
+              while IFS=$'\t' read -r c p a s; do
+                if [[ -n "$c" ]]; then
+                  parent[$c]="$p"
+                  entry[$c]="$a"$'\t'"$s"
+                fi
+              done <<<"$commits"
+              at="$RUN_SHA"
+              while [[ -n "$at" && "$at" != "$base" && -n "${entry[$at]+x}" ]]; do
+                range=("$at" "${range[@]}")
+                at="${parent[$at]}"
+              done
+              if [[ "$at" != "$base" ]]; then
+                range=()
+              fi
+            fi
           fi
           sha_label='Main at the failing run'
           if [[ "$signal" == canary ]]; then
             sha_label='Merge commit'
           fi
           fence='```'
-          body="$marker
-
-          The post-merge check found a \`$signal\` failure on main. The unattended merge path stays at
-          rung off until a human closes this issue directly (not through a pull request's closing keyword).
-
-          - Pull request: $pr
-          - $sha_label: \`$RUN_SHA\`
-          - Failing run: $sighting${newly:+
-          - Newly failing: $newly}
-
-          To revert the merge, a human runs:
+          lead="The post-merge check found a \`$signal\` failure on main."
+          revert="To revert the merge, a human runs:
 
           ${fence}sh
           git revert $RUN_SHA
           ${fence}"
+          pr_line="- Pull request: $pr
+          "
+          if [[ "${#range[@]}" -gt 1 ]]; then
+            lead="$lead It is attributed to the range of ${#range[@]} merges since main's last green full run at \`$base\`, not to one pull request."
+            pr_line="- Merges in the range, oldest first:
+          "
+            first='' last=''
+            for c in "${range[@]}"; do
+              IFS=$'\t' read -r a s <<<"${entry[$c]}"
+              name="${c:0:12}" link="no pull request ($s)"
+              if [[ "$s" =~ \(#([0-9]+)\)$ ]]; then
+                name="#${BASH_REMATCH[1]}" link="$pulls/${BASH_REMATCH[1]}"
+              fi
+              first="${first:-$name}" last="$name"
+              pr_line="$pr_line  - $link, merge commit \`$c\`, by $a
+          "
+            done
+            title="Post-merge $signal failure after $first..$last: unattended merging demoted"
+            revert='A human reads the failing suites in the run above, picks the merge responsible, and reverts that one.'
+          elif [[ "$signal" != canary && "${#range[@]}" -eq 0 ]]; then
+            lead="$lead The last green full run on main before this one could not be found, so the merges this failure covers are unknown; only the head commit is listed."
+            revert='A human reads the failing suites in the run above and finds the merge responsible before reverting anything.'
+          fi
+          body="$marker
+
+          $lead The unattended merge path stays at
+          rung off until a human closes this issue directly (not through a pull request's closing keyword).
+
+          $pr_line- $sha_label: \`$RUN_SHA\`
+          - Failing run: $sighting${newly:+
+          - Newly failing: $newly}
+
+          $revert"
           gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
             -f title="$title" -f body="$body" -f 'labels[]=needs-human' >/dev/null
           echo "filed the $signal demotion issue for $RUN_SHA"
