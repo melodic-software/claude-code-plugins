@@ -313,8 +313,9 @@ wip:
   # this" body line) count here, not against the cap. Step down to 30 later.
   held-cap: 60
   held-alarm-hours: 24
-  # Empty: over a cap the lane alerts and keeps starting runs.
-  pause-from: ""
+  # Over the WIP or held cap the lane pauses from this date; the owner clears
+  # it to only alert. Empty: over a cap the lane alerts and keeps starting runs.
+  pause-from: "2026-10-18"
 
 merge:
   # The lane treats every PR the lanes App opened for one closing issue as
