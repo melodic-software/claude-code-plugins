@@ -376,6 +376,10 @@ jobs:
           claude_code_oauth_token: ${{ secrets.claude-code-oauth-token }}
           github_token: ${{ github.token }}
           use_commit_signing: true
+          # A workflow_run after a lanes App push runs as the App; the trigger
+          # gate has already admitted it, so the action's own bot check only
+          # needs the App listed (as in pr-verify.yml).
+          allowed_bots: melodic-automation-lanes[bot]
           plugin_marketplaces: ${{ runner.temp }}/base-marketplace
           plugins: ${{ steps.stage.outputs.plugins }}
           prompt: ${{ steps.stage.outputs.prompt }}

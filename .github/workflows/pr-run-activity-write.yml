@@ -982,10 +982,13 @@ jobs:
           claude_code_oauth_token: ${{ secrets.claude-code-oauth-token }}
           github_token: ${{ steps.lane-token.outputs.token }}
           use_commit_signing: true
-          # A dispatcher-sent run is started by github-actions[bot]; the
-          # action refuses a bot actor unless it is listed. The trigger gate
-          # has already checked the dispatcher run this id names.
-          allowed_bots: ${{ inputs.dispatcher-run-id != '' && 'github-actions' || '' }}
+          # The action refuses a bot actor unless it is listed. The trigger
+          # gate has already decided both bot cases: the lanes App passes it
+          # only by applying the app-label in issue mode, and github-actions
+          # only on a dispatcher run it verified, whose id this names.
+          allowed_bots: >-
+            ${{ inputs.dispatcher-run-id != '' && 'melodic-automation-lanes[bot],github-actions'
+            || 'melodic-automation-lanes[bot]' }}
           plugin_marketplaces: ${{ runner.temp }}/base-marketplace
           plugins: ${{ steps.stage.outputs.plugins }}
           prompt: ${{ steps.stage.outputs.prompt }}
@@ -2067,6 +2070,9 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.claude-code-oauth-token }}
           github_token: ${{ github.token }}
+          # The run job's trigger gate admitted this run's actor, which on an
+          # App-labeled issue is the lanes App.
+          allowed_bots: melodic-automation-lanes[bot]
           prompt: ${{ steps.summary-prompt.outputs.prompt }}
           settings: ${{ steps.summary-models.outputs.settings-json }}
           claude_args: >-
