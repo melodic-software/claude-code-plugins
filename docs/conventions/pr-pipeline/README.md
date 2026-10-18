@@ -711,11 +711,16 @@ by merging in person: the verdict is not a check run and stays out of `ci-status
 checks (github-iac ADR 0011), so a human merge needs `ci-status` alone. A queued entry without an
 allowing verdict at its live head leaves the queue. A dependency manager's pull request (a `Bot`
 account with a dependency manager's login; a `User` named like one is judged) needs no verdict: the lane decides it in its Dependabot class before the verdict is read, or refuses it, and
-its queued entry is not held for one. The gate lists every repository artifact once per
-candidate run, since pr-merge.yml runs the gate once per candidate. A listing that got a 5xx or a fast
+its queued entry is not held for one. pr-merge.yml runs the gate once per candidate and names a file
+in `BABYSIT_VERIFY_LISTING`: the first candidate lists every repository artifact and saves the
+listing there, and later candidates and their queued-entry checks read it instead of paging again.
+No judgment, of a candidate or a queued entry, uses a listing (saved or in memory) begun more than
+two minutes before it: an older one is read again and saved. A saved listing can only lack artifacts uploaded since, so a refusal on it stands; a candidate it
+would allow is judged again on a listing of its own before it is allowed, which is saved in turn.
+A listing that got a 5xx or a fast
 network error is read again, three reads in all with backoff, all inside the one gh timeout a single
-read would get; any other failure, a timeout, a 429 or a rate-limit 403 included, is not. A failed listing is kept for
-that run as well: the pull request and every queued entry refuse `verify:unreadable` without the
+read would get; any other failure, a timeout, a 429 or a rate-limit 403 included, is not. A failed listing is never
+saved, and is kept for that candidate's gate run: the pull request and every queued entry refuse `verify:unreadable` without the
 listing being paged again, so a listing outage holds the whole queue rather than merging blind.
 The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run

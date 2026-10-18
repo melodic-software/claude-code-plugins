@@ -338,6 +338,11 @@ jobs:
           # GH_TOKEN (babysit_verify_evidence.py); the job runs main's code
           # alone, never a PR's.
           BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
+          # The first candidate saves its artifact listing here and the rest
+          # of the run reads it while it is under two minutes old; a
+          # candidate the saved listing would allow lists again before it is
+          # allowed.
+          BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
           REPO: ${{ github.repository }}
           OWNER: ${{ github.repository_owner }}
           SCRIPT: ${{ steps.config.outputs.script }}

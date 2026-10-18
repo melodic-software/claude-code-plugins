@@ -218,9 +218,86 @@ test("a Retry-After past the 8-minute budget fails red at once", () => {
   assert.match(run.output, /^failure-reason=lane-token-denied: the broker answered 503 with reason github-unavailable/m);
 });
 
-// authorize.mjs reserves the job's mint (step 17) before it asks GitHub for the
-// lane token (step 18), so a github-unavailable from step 18 is followed by
-// already-minted. The failure keeps the 503 that started it.
+// The broker's github-rate-limited answer (deny.mjs, http.mjs in azure-iac
+// src/lanes-token-broker): a Retry-After header of GitHub's wait, clamped to
+// 1-3600 s, and the limit, resource and retry_after in the body.
+const rateLimited = (retryAfter) => ({
+  status: "503",
+  body: {
+    error: "unavailable",
+    reason: "github-rate-limited",
+    detail: "GET /repos/melodic-software/claude-code-plugins failed with status 403",
+    limit: "secondary",
+    resource: "core",
+    retry_after: retryAfter,
+  },
+  headers: `HTTP/2 503\r\nRetry-After: ${retryAfter}\r\ncontent-type: application/json\r\n\r\n`,
+});
+
+// GitHub: with a retry-after header, do not retry until that many seconds
+// have passed. Below the 60 s ladder step, so the ladder would wait longer.
+test("a 503 github-rate-limited waits its Retry-After plus jitter, not the backoff ladder", () => {
+  const run = request(ISSUE_LANE, rateLimited(30), {});
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.auth, ["Authorization: Bearer oidc-token-1", "Authorization: Bearer oidc-token-2"]);
+  assert.equal(run.sleeps.length, 1);
+  assert.ok(run.sleeps[0] >= 30 && run.sleeps[0] <= 30 + JITTER, `sleep is ${run.sleeps[0]}`);
+  assert.match(run.output, /^mint-id=5550001-1$/m);
+});
+
+test("a 503 github-rate-limited on every attempt fails red after three retries", () => {
+  const run = request(ISSUE_LANE, rateLimited(30));
+  assert.equal(run.status, 1);
+  assert.equal(run.auth.length, 4);
+  assert.equal(run.sleeps.length, 3);
+  assert.match(run.output, /^failure-reason=lane-token-denied: the broker answered 503 with reason github-rate-limited: GET \/repos/m);
+});
+
+// GitHub's guidance without a retry-after header: wait at least one minute.
+test("a 503 github-rate-limited with no Retry-After waits a minute plus jitter", () => {
+  const run = request(ISSUE_LANE, { ...rateLimited(30), headers: "HTTP/2 503\r\n\r\n" }, {});
+  assert.equal(run.status, 0, run.stdout);
+  assert.equal(run.sleeps.length, 1);
+  assert.ok(run.sleeps[0] >= 60 && run.sleeps[0] <= 60 + JITTER, `sleep is ${run.sleeps[0]}`);
+});
+
+test("a github-rate-limited wait that ends inside the 8-minute budget is taken, its jitter cut to fit", () => {
+  const run = request(ISSUE_LANE, rateLimited(470), {});
+  assert.equal(run.status, 0, run.stdout);
+  assert.equal(run.sleeps.length, 1);
+  assert.ok(run.sleeps[0] >= 470 && run.sleeps[0] <= BUDGET, `sleep is ${run.sleeps[0]}`);
+});
+
+test("a github-rate-limited Retry-After past the 8-minute budget fails at once, naming the limit and its reset", () => {
+  const before = Math.floor(Date.now() / 1000);
+  const run = request(ISSUE_LANE, rateLimited(BUDGET + 1), {});
+  const afterRun = Math.ceil(Date.now() / 1000);
+  assert.equal(run.status, 1);
+  assert.equal(run.auth.length, 1);
+  assert.deepEqual(run.sleeps, []);
+  const match =
+    /^failure-reason=lane-token-denied: the broker answered 503 with reason github-rate-limited: GET \/repos\/melodic-software\/claude-code-plugins failed with status 403; GitHub's secondary rate limit \(core\) resets at (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ), past the 8-minute retry budget$/m.exec(
+      run.output,
+    );
+  assert.ok(match, run.output);
+  const reset = Date.parse(match[1]) / 1000;
+  assert.ok(reset >= before + BUDGET + 1 && reset <= afterRun + BUDGET + 1, `reset ${match[1]}`);
+});
+
+// mint-unavailable comes after the broker reserved the job's one mint.
+test("a 503 mint-unavailable is not retried and fails red saying it is final", () => {
+  const run = request(ISSUE_LANE, { status: "503", body: { error: "unavailable", reason: "mint-unavailable", detail: "d" } }, {});
+  assert.equal(run.status, 1);
+  assert.equal(run.auth.length, 1);
+  assert.deepEqual(run.sleeps, []);
+  assert.match(
+    run.output,
+    /^failure-reason=lane-token-denied: the broker answered 503 with reason mint-unavailable: d; final: the broker had reserved this job's one mint, so no retry can mint it$/m,
+  );
+});
+
+// The broker reserves the job's mint before it mints, so any retry after the
+// reservation is denied already-minted. The failure keeps the 503 that started it.
 test("an already-minted after a retried github-unavailable fails red naming both", () => {
   const run = request(ISSUE_LANE, GITHUB_UNAVAILABLE, { status: "403", body: { error: "denied", reason: "already-minted", detail: "check run 1 already received its mint" } });
   assert.equal(run.status, 1);
