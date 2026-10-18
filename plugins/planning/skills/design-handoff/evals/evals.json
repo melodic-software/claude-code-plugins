@@ -130,7 +130,7 @@
         "Output reports a PASS and emits the handoff summary",
         "The ADR candidates entry says None and lists no candidate",
         "No decision from the artifact (file naming, defaults-file bridge, page size) is offered to /architecture:record-decision",
-        "Any near-misses are on a separate line and each names the criterion it fails"
+        "Each of the three decisions is named on a separate not-candidates line with the criterion it fails and one line of evidence"
       ]
     }
   ]

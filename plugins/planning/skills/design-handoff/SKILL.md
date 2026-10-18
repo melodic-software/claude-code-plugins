@@ -132,8 +132,9 @@ Hand off by invoking `/planning:plan` via the Skill tool. Sourced from the artif
   - *Chosen over a live alternative*: the rejected option, quoted from `design-threads.md`
 
   List only decisions that pass all three. "None" is a valid and expected outcome; say "None"
-  rather than listing a decision that fails a criterion. Near-misses may go on a separate
-  "Near-misses" line, each naming the criterion it fails. When the `architecture` plugin is
+  rather than listing a decision that fails a criterion. Name each decision that fails on a
+  separate "Not candidates" line (near-misses first), each with the criterion it fails and its
+  one line of evidence. When the `architecture` plugin is
   enabled, offer to invoke `/architecture:record-decision` via the Skill tool for each listed
   candidate (never for a near-miss), passing the decision and its recorded rationale from
   `design-threads.md`; that skill owns convention discovery, the no-convention offer-and-defer,
