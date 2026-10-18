@@ -72,12 +72,13 @@ class HeldCandidatesNeverReachTheGate(unittest.TestCase):
             _candidate(2, body=HELD_BODIES[0]),
             _candidate(3, labels=["Do-Not-Merge"]),
             _candidate(4, labels=["needs-review"], body=FREE_BODIES[1]),
+            _candidate(7, labels=["Needs-Human"]),
         ]
         kept, held = self._run(candidates)
         self.assertEqual([c["number"] for c in kept], [1, 4])
         self.assertEqual(
             [(h["number"], h["reason"]) for h in held],
-            [(2, "body-hold"), (3, "do-not-merge")],
+            [(2, "body-hold"), (3, "do-not-merge"), (7, "needs-human")],
         )
         # The gate loop reads exactly the fields it read before.
         self.assertEqual(set(kept[0]), {"number", "head", "updatedAt"})
@@ -101,26 +102,45 @@ class HeldCandidatesNeverReachTheGate(unittest.TestCase):
 
 
 class PrefilterDropsOnlyWhatTheGateRefuses(fixtures.TierEvaluateHarness):
-    """The gate refuses each dropped input on its own, and passes each kept one."""
+    """The gate refuses each dropped input on its own, and passes each kept
+    one. The prefilter judges for pr-merge, an autonomous run, so it agrees
+    with the autonomous gate (here the autopilot tier); `needs-human` alone
+    is lifted for an attended gate (no tier, no unattended policy)."""
 
     def test_agrees_with_the_gate(self) -> None:
         cases = [
             *({"body": b} for b in HELD_BODIES + FREE_BODIES),
             {"labels": ["do-not-merge"]},
             {"labels": ["needs-review"]},
+            {"labels": ["needs-human"]},
         ]
         for case in cases:
-            with self.subTest(case=case):
-                labels = case.get("labels", [])
-                body = case.get("body", "")
-                gate = self._evaluate(
-                    fixtures._pr(body=body, labels=[{"name": n} for n in labels]),
-                    tier=None,
-                )
-                dropped = prefilter.hold(_candidate(1, labels=labels, body=body))
-                self.assertEqual(
-                    dropped is not None, not gate["ready"], gate["blockers"]
-                )
+            labels = case.get("labels", [])
+            body = case.get("body", "")
+            dropped = prefilter.hold(_candidate(1, labels=labels, body=body))
+            for tier in (fixtures.TIER, None):
+                with self.subTest(case=case, tier=tier is not None):
+                    gate = self._evaluate(
+                        fixtures._pr(body=body, labels=[{"name": n} for n in labels]),
+                        tier=tier,
+                    )
+                    expected = dropped is not None and (
+                        tier is not None or labels != ["needs-human"]
+                    )
+                    self.assertEqual(expected, not gate["ready"], gate["blockers"])
+
+
+# The tracker's human-gated label read an autonomous gate makes: stubbed so
+# no test reads GitHub.
+_role_label = fixtures.role_label_stub()
+
+
+def setUpModule() -> None:
+    _role_label.start()
+
+
+def tearDownModule() -> None:
+    _role_label.stop()
 
 
 if __name__ == "__main__":
