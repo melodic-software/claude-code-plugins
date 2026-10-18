@@ -87,7 +87,7 @@ mutate, or fail against, the wrong repo's settings. `--keep-data` applies to `un
 Two `git worktree` checkouts of one repository pin independently for `uninstall`, verified on Claude
 Code 2.1.228 by uninstalling one id in a repo's main checkout and observing the worktree's record for
 the same id survive untouched. They do not behave independently for `update` (see the linked-worktree
-section above). They share one `.git` and one tracked `.claude/settings.json` yet hold separate
+section below and [scope-semantics.md](scope-semantics.md)). They share one `.git` and one tracked `.claude/settings.json` yet hold separate
 `projectPath` records, so never collapse them into one row and never assume converging one clears
 the other: each needs its own `cd`. Per [scope-semantics.md](scope-semantics.md), the CLI keys
 `projectPath` on the literal cwd while `fleet-state.sh` matches on the checkout root. That gap is a
@@ -95,15 +95,14 @@ blind spot in its own right, recorded in [gotchas.md](gotchas.md).
 
 ### Linked-worktree rows: the update strategy has no effect
 
-In a linked git worktree, `claude plugin update <id> -s project` exits `0`, prints "already at the
-latest version", and leaves the record unchanged (116 of 116 calls on 2026-10-12, issue #6713). A row
-whose `scopes[].linkedWorktree` is `true` (the git dir differs from the git common dir; `fleet-state.sh`
-reads it from the worktree's `.git` file) therefore never gets the update strategy, proposed or run.
-Emit it as:
+A row whose `scopes[].linkedWorktree` is `true` (the git dir differs from the git common dir;
+`fleet-state.sh` reads it from the worktree's `.git` file) never gets the update strategy, proposed or
+run. The CLI behavior behind that, and the trigger to recheck it, are in
+[scope-semantics.md](scope-semantics.md). Emit it as:
 
 ```text
 - <id>@<marketplace>: update has no effect here: "<projectPath>" is a linked worktree, where
-  `claude plugin update -s project` reports success and leaves the record at <version>. The uninstall
+  the update strategy does not move the record from <version>. The uninstall
   strategy clears it, and edits that worktree's tracked `.claude/settings.json` (Step 5).
 ```
 

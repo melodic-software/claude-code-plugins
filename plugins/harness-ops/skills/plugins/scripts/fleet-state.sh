@@ -1009,8 +1009,9 @@ for pp in ${pp_lines[@]+"${pp_lines[@]}"}; do
     # A third column says whether the directory is a LINKED git worktree: its
     # `.git` is a file whose `gitdir:` line points into `<common>/worktrees/<name>`
     # (the git dir differs from the git common dir). A submodule's `.git` file is
-    # also a file but points into `modules/`, so the `/worktrees/` segment is what
-    # tells the two apart. Builtins only, no process per path.
+    # also a file but points into `modules/`, so the pattern anchors on a
+    # `.git/worktrees/` segment and excludes a later `/modules/` segment (a
+    # submodule inside a linked worktree). Builtins only, no process per path.
     pp_linked="false"
     if [[ -f "$pp_fs/.git" ]]; then
       pp_gitfile=""
@@ -1018,7 +1019,8 @@ for pp in ${pp_lines[@]+"${pp_lines[@]}"}; do
       pp_gitfile="${pp_gitfile//$'\r'/}"
       pp_gitfile="${pp_gitfile//\\//}"
       case "$pp_gitfile" in
-      gitdir:*/worktrees/*) pp_linked="true" ;;
+      gitdir:*.git/worktrees/*/modules/*) ;;
+      gitdir:*.git/worktrees/*) pp_linked="true" ;;
       *) ;;
       esac
     fi
