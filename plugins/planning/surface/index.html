@@ -805,6 +805,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("filter").value = S.filter;
     $("orderNote").textContent = S.view === "tree" ? "By depends and follow-up links" : "By number";
     const done = allDone();
+    S.pick.forEach(id => { if (!Q[id] || !eligible(Q[id])) S.pick.delete(id); }); // a selection never outlives the question's eligibility
     let html = '<button class="sumbtn' + (done ? " done" : "") + '" data-sum="1" aria-current="' + (S.sel === SUMMARY) + '">' + (done ? "All answered: summary and wrap-up" : "Summary and wrap-up") + "</button>";
     if (S.view === "tree") html += treeHtml(true);
     else {
@@ -1874,7 +1875,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const base = lsGet("openedRev", {})[q.id];
     return typeof base === "number" ? crev(q) - (q.contentRev || 0) + base : crev(q);
   }
-  function togglePick(id, on){ if (on) S.pick.add(id); else S.pick.delete(id); renderRail(); }
+  function togglePick(id, on){
+    if (on) S.pick.add(id); else S.pick.delete(id);
+    renderRail();
+    const cb = document.querySelector('.pick[data-pick="' + CSS.escape(id) + '"]'); if (cb && viaKeys) cb.focus(); // the rail rebuilds, so a keyboard user keeps their place
+  }
   function acceptAllDialog(pool, where, audit, every){ // every: group Accept all ("all") or Accept selected ("sel") takes unopened questions too // one accept event per eligible question, each carrying its note; audit (a round id): one accept-audit event instead, which carries no notes, so a question with a note is left out
     const op = opened(), elig = pool.filter(q => (every || op.has(q.id)) && eligible(q)).sort(byIdCmp);
     const held = elig.filter(q => audit ? carried(q) : /^\s*Challenge:/m.test(carried(q))), items = elig.filter(q => !held.includes(q));
