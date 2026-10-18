@@ -29,13 +29,21 @@
 #   project     : <project-root>/.claude/settings.json, .../settings.local.json
 #   main-local  : <main-checkout>/.claude/settings.local.json: shared by the
 #                 repository's worktrees where Claude Code saves approvals at the
-#                 repository root, not in every case (reference/permission-preflight.md
-#                 "settings.local.json scope" holds the pointer record), so this
-#                 file is read in every mode, but only
-#                 when the main checkout is VERIFIED. When it cannot be
-#                 determined the layer goes unread and the run reports
-#                 PREFLIGHT: INCOMPLETE rather than an unqualified OK; no path is
-#                 ever named as the main checkout unverified.
+#                 repository root (v2.1.211 and later; older versions are not
+#                 branched on), not in every case (reference/permission-preflight.md
+#                 "settings.local.json scope" holds the pointer record). It is
+#                 credited only when the main checkout is VERIFIED and the layout
+#                 shares it: on Windows (uname -s MINGW*/MSYS*/CYGWIN*, injectable
+#                 as $PREFLIGHT_UNAME), with the repository root equal to $HOME, or
+#                 with the root or its .git or .claude entry not owned by the user,
+#                 an approval stays with its worktree and only the worktree's own
+#                 file is credited. A layout that cannot be determined (ownership
+#                 unreadable; $PREFLIGHT_UID overrides the current uid for tests) is
+#                 not credited either and ends PREFLIGHT: INCOMPLETE. When the main
+#                 checkout cannot be determined the layer goes unread and the run
+#                 reports PREFLIGHT: INCOMPLETE rather than an unqualified OK; no
+#                 path is ever named as the main checkout unverified. Deny rules
+#                 keep reading the file in every layout: erring wide on deny is safe.
 # The cwd probed for (a) is $PREFLIGHT_FIXTURE_DIR (tests) else $PWD. Project
 # settings are read from --project-root (default: the cwd checkout) resolved to
 # its git toplevel; pass the worker worktree the lane dispatches into so its own
@@ -62,9 +70,10 @@ Usage: preflight.sh [--worktree-root <path>] [--project-root <path>] [--count] [
                     (also read from PREFLIGHT_WORKTREE_ROOT); omitted → NOTE, not checked.
                     The autonomous signal: unless a distinct --project-root is given,
                     coverage reads keep the MAIN checkout's settings.local.json (its
-                    rules apply across worktrees where saved at the repository root) and
-                    exclude only a linked-worktree cwd's own local file, which a
-                    fresh worker would not inherit
+                    rules apply across worktrees where saved at the repository root,
+                    not on Windows, with the root equal to $HOME, or with a root not
+                    owned by the user) and exclude only a linked-worktree cwd's own
+                    local file, which a fresh worker would not inherit
   --project-root P  read project settings from P's checkout instead of the cwd's
                     (also read from PREFLIGHT_PROJECT_ROOT) — pass the dispatched
                     worker worktree so ITS OWN grants (incl. its settings.local.json)
@@ -333,6 +342,72 @@ if [[ "$main_state" == "verified" ]]; then
   [[ "$main_root_n" == "$NORM_OUT" ]] && main_is_proj_base="yes"
 fi
 
+detect_layout() {
+  # Sets layout (shared | per-worktree | unknown), layout_causes (the detected
+  # per-worktree causes, comma-joined) and layout_reason (why unknown). Claude
+  # Code keeps the local file at the repository root, shared by the worktrees,
+  # from v2.1.211; it stays with the worktree on Windows, with the root equal to
+  # the home directory, or with the root or its .git or .claude entry not owned
+  # by the user (docs/en/settings, "Where Claude Code keeps the local file in a
+  # git repository"; reference/permission-preflight.md). Judged on the VERIFIED
+  # main checkout only: with no verified main checkout there is no layer to credit.
+  layout="shared"
+  layout_causes=""
+  layout_reason=""
+  [[ "$main_state" == "verified" ]] || return 0
+  local uname_s="${PREFLIGHT_UNAME:-$(uname -s 2>/dev/null)}" home="${HOME:-${USERPROFILE:-}}"
+  local cur_uid entry owner root_n home_n
+  case "$uname_s" in
+  MINGW* | MSYS* | CYGWIN*)
+    layout="per-worktree"
+    layout_causes="Windows"
+    return 0
+    ;;
+  *) ;;
+  esac
+  if [[ -n "$home" ]]; then
+    norm_path "$main_root"
+    root_n="$NORM_OUT"
+    norm_path "$home"
+    home_n="$NORM_OUT"
+    if [[ "$root_n" == "$home_n" ]]; then
+      layout_causes="repository root is the home directory"
+    fi
+  else
+    layout_reason="neither HOME nor USERPROFILE is set, so a repository root equal to the home directory cannot be ruled out"
+  fi
+  cur_uid="${PREFLIGHT_UID:-$(id -u 2>/dev/null)}"
+  case "$cur_uid" in
+  "" | *[!0-9]*) layout_reason="the current user id is unreadable ('$cur_uid')" ;;
+  *)
+    for entry in "$main_root" "$main_root/.git" "$main_root/.claude"; do
+      if [[ ! -e "$entry" ]]; then
+        # .claude may legitimately be absent; the root and .git exist once verified.
+        [[ "$entry" == "$main_root/.claude" ]] && continue
+        layout_reason="'$entry' does not exist, so its owner cannot be read"
+        continue
+      fi
+      owner="$(stat -c %u "$entry" 2>/dev/null || stat -f %u "$entry" 2>/dev/null)"
+      case "$owner" in
+      "" | *[!0-9]*) layout_reason="the owner of '$entry' is unreadable" ;;
+      "$cur_uid") ;;
+      *)
+        layout_causes="${layout_causes:+$layout_causes, }root, .git or .claude not owned by the user"
+        break
+        ;;
+      esac
+    done
+    ;;
+  esac
+  if [[ -n "$layout_causes" ]]; then
+    layout="per-worktree"
+  elif [[ -n "$layout_reason" ]]; then
+    layout="unknown"
+  fi
+}
+
+detect_layout
+
 read_array() {
   # read_array <file> <jq-path> — one element per line; silent on a missing or
   # non-JSON file (a settings file may legitimately not exist).
@@ -347,25 +422,27 @@ read_array() {
 }
 
 collect() {
-  # collect <jq-path> <local-mode> — union the path across user-global + tracked
-  # project settings + the MAIN checkout's settings.local.json (always: its rules
-  # apply across worktrees where saved at the repository root), plus the
+  # collect <jq-path> <local-mode> [deny] — union the path across user-global +
+  # tracked project settings + the MAIN checkout's settings.local.json (where the
+  # layout shares it across worktrees: see detect_layout), plus the
   # project checkout's OWN settings.local.json only when <local-mode> is
   # "with-local". A rule saved inside a linked worktree by an older harness
   # (or hand-placed there) applies only to sessions started in that worktree, so
   # in the pre-dispatch autonomous (--worktree-root) path a worktree cwd's local
   # grants would mask a worker-side gap; the coverage reads drop that file there.
   # Deny always keeps it: erring wide on deny cannot mask a gap among the layers
-  # actually read. Only a VERIFIED main checkout is read — an unresolved one
+  # actually read, so the third argument "deny" reads the main checkout's file in
+  # every layout. Only a VERIFIED main checkout is read — an unresolved one
   # contributes nothing and is reported as an unread layer instead of being
   # guessed at.
-  local path="$1" local_mode="$2"
+  local path="$1" local_mode="$2" kind="${3:-}" main_shared=""
+  [[ "$layout" == "shared" || "$kind" == "deny" ]] && main_shared="yes"
   read_array "$user_settings" "$path"
   read_array "$proj_base/.claude/settings.json" "$path"
-  if [[ "$main_state" == "verified" && -z "$main_is_proj_base" ]]; then
+  if [[ "$main_state" == "verified" && -z "$main_is_proj_base" && -n "$main_shared" ]]; then
     read_array "$main_root/.claude/settings.local.json" "$path"
   fi
-  if [[ "$local_mode" == "with-local" || -n "$main_is_proj_base" ]]; then
+  if [[ "$local_mode" == "with-local" || (-n "$main_is_proj_base" && -n "$main_shared") ]]; then
     read_array "$proj_base/.claude/settings.local.json" "$path"
   fi
 }
@@ -393,8 +470,15 @@ cov_local="with-local"
 if [[ -n "$worktree_root" && -z "$distinct_project_root" ]]; then
   cov_local="no-local"
 fi
+# An undeterminable layout leaves the main checkout's file uncredited, which only
+# matters where that file is not the checkout's own: a session started in the main
+# checkout always loads its own local file, so a with-local read of it is sound.
+layout_unread=""
+if [[ "$layout" == "unknown" && ( -z "$main_is_proj_base" || "$cov_local" == "no-local" ) ]]; then
+  layout_unread="yes"
+fi
 ALL_ALLOW="$(collect '.permissions.allow' "$cov_local")"
-ALL_DENY="$(collect '.permissions.deny' "with-local")"
+ALL_DENY="$(collect '.permissions.deny' "with-local" deny)"
 ALL_ADDDIRS="$(collect '.permissions.additionalDirectories' "$cov_local")"
 
 # --- Matchers -----------------------------------------------------------------
@@ -522,16 +606,22 @@ if [[ "$mode" == "count" ]]; then
   exit 0
 fi
 
+if [[ "$layout" == "per-worktree" ]]; then
+  echo "PREFLIGHT: per-worktree approvals layout ($layout_causes) — Claude Code keeps an approval with the worktree it was granted in, so the main checkout's settings.local.json is NOT credited to a worktree; only the worktree's own local file is. Deny rules still include the main checkout's file."
+elif [[ -n "$layout_unread" ]]; then
+  echo "PREFLIGHT: UNREAD LAYER — the main checkout's settings.local.json was NOT credited: whether Claude Code shares approvals through the repository root here cannot be determined ($layout_reason). A grant there is not credited (a verb may be over-reported as a gap); deny rules still include it. Findings below are incomplete."
+fi
+
 if [[ "$cov_local" == "no-local" ]]; then
-  if [[ -n "$main_is_proj_base" ]]; then
+  if [[ -n "$main_is_proj_base" && "$layout" == "shared" ]]; then
     echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read includes this main checkout's settings.local.json: where approvals save at the repository root its rules apply in every worktree, the fresh worker included."
-  elif [[ "$main_state" == "verified" ]]; then
+  elif [[ "$main_state" == "verified" && "$layout" == "shared" ]]; then
     echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read includes the main checkout's settings.local.json ('$main_root', shared across worktrees where approvals save at the repository root) but excludes this worktree's own local file, which a fresh worker would not inherit; deny rules still include it."
   else
     echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read excludes this checkout's gitignored settings.local.json, which a fresh worktree would not carry; deny rules still include it."
   fi
 elif [[ -n "$distinct_project_root" ]]; then
-  if [[ "$main_state" == "verified" && -z "$main_is_proj_base" ]]; then
+  if [[ "$main_state" == "verified" && -z "$main_is_proj_base" && "$layout" == "shared" ]]; then
     echo "PREFLIGHT: reading project settings (incl. settings.local.json) from --project-root '$proj_base', plus the main checkout's shared settings.local.json ('$main_root')."
   else
     echo "PREFLIGHT: reading project settings (incl. settings.local.json) from --project-root '$proj_base'."
@@ -554,6 +644,8 @@ fi
 # probe never saw every rule, so "OK" would assert more than the run checked.
 if [[ "$main_state" == "unresolved" ]]; then
   echo "PREFLIGHT: INCOMPLETE — main-checkout layer unread ($main_reason); $gapcount gap(s) found among the layers that were read. Report-only: exit 0 regardless (see reference/permission-preflight.md)."
+elif [[ -n "$layout_unread" ]]; then
+  echo "PREFLIGHT: INCOMPLETE — approvals layout undeterminable ($layout_reason), main-checkout settings.local.json not credited; $gapcount gap(s) found among the layers that were read. Report-only: exit 0 regardless (see reference/permission-preflight.md)."
 elif [[ "${#findings[@]}" -eq 0 ]]; then
   echo "PREFLIGHT: OK — cwd is a git repo, probed grants present, worktree root covered."
 elif [[ "$gapcount" -eq 0 ]]; then
