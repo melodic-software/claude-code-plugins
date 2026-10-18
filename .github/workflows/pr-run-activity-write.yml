@@ -272,6 +272,9 @@ jobs:
       dependency-run-sha256: ${{ steps.dependency-collect.outputs.run-sha256 }}
       dependency-run-attempt: ${{ steps.dependency-collect.outcome == 'success' && github.run_attempt || '' }}
       issue-run-started: ${{ inputs.issue-number != '' && steps.lane-token.outcome == 'success' }}
+      # The base action's own failure text, so the report names why the run
+      # job failed before its act step.
+      run-failure: ${{ steps.lane-token.outputs.failure-reason }}
       reuse-branch: ${{ steps.issue-prior.outputs.reuse-branch }}
       # The lane record, from steps that read the execution file after the
       # skill. A forged limit stop can only restart the lane after a reset
@@ -2229,6 +2232,7 @@ jobs:
           activity: ${{ inputs.activity }}
           run-result: ${{ needs.run.result }}
           act-outcome: ${{ needs.run.outputs.act-outcome }}
+          run-failure: ${{ needs.run.outputs.run-failure }}
           gate-reason: ${{ needs.run.outputs.gate-reason }}
           head-sha: ${{ needs.run.outputs.head-sha }}
           pr-head-sha: ${{ steps.pr-head.outputs.sha }}
