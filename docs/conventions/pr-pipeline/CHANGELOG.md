@@ -5,13 +5,34 @@
 `merge.diff-check.floor-paths` (a list of globs) adds paths to the risk scorer's HIGH path floor
 while `high-path-floor` applies; a pull request touching one waits for a human, where a denied path
 makes it ineligible. With the floor, a SKILL.md, agents/*.md or commands/*.md change to `hooks`,
-`allowed-tools`, `tools`, `permissionMode` or `mcpServers` frontmatter, or a new `!` backtick command line,
-also scores HIGH. `merge.diff-check.floor-script-scopes` (a list of globs) holds a `.ps1` or `.cjs`
-file, or one with git mode 100755, inside one of them or at the top level the same way. This
-repository turns `high-path-floor` back on (owner decision Q641) and lists
-`bin/`, `.lsp.json`, `settings*.json` and the scripts of the plugins the CI lanes load, which it
-also lists as script scopes (Q646). `version`
-stays 2.
+`allowed-tools`, `tools`, `permissionMode` or `mcpServers` frontmatter, or a new `!` backtick
+command line, also scores HIGH. `merge.diff-check.floor-script-scopes` (a list of globs) holds a
+`.ps1` or `.cjs` file, or one with git mode 100755, inside one of them or at the top level the same
+way. This repository turns `high-path-floor` back on (owner decision Q641) and lists `bin/`,
+`.lsp.json`, `settings*.json` and the scripts of the plugins the CI lanes load, which it also lists
+as script scopes (Q646). `version` stays 2.
+
+## 2.12.2 - 2026-10-18
+
+On a pull request labeled `needs-human` (the human-gated role label), `pr-unblock`
+`address-feedback` works a thread when a person on the trusted-actor list with write or admin
+permission asks for the fix: a line of their reply after the lane's escalation starts with
+`PR-fix lane: please fix this finding`, in any case, outside a fenced block. Without one the
+dispatcher starts nothing and the select step skips `awaiting-human`, so the pull request stays
+held; with one the write runner lifts only the human-gated hold for that run
+([pr-run-activity.md](pr-run-activity.md#prepare-review-threads)). Its `labels-absent` is
+`[do-not-merge]`, `do-not-merge` still stops it, every other activity still waits on
+`needs-human`, and `pr-merge` still refuses a `needs-human` pull request. `version` stays 2.
+
+## 2.12.1 - 2026-10-18
+
+A write-runner skill run that claude-code-action fails only because its `success` result went over
+`--max-turns` now counts as a success: `act-outcome`, the verdict, the lane record and the job
+result report success, so `pipeline/resolve-issue` posts `success` and report-outcome proceeds as on
+any finished run. The run job reads this from the execution file's last result message (subtype
+`success`, `is_error` false, `num_turns` over the cap); any other failure, or a missing or
+unreadable execution file, still fails
+([pr-run-activity.md](pr-run-activity.md#the-run-job)). `version` stays 2.
 
 ## 2.12.0 - 2026-10-18
 
