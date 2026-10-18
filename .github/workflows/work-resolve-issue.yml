@@ -156,9 +156,11 @@ jobs:
   # on. Each check runs from the default branch tip's copy, in a checkout of
   # the lane branch whose scripts/ is replaced by the base's, so the check's
   # code and its data there (scripts/fragment-plugins.txt) are the base's and
-  # only the branch's own files (.changes/) are checked. checks.json, with the
-  # tip it checked, joins the issue outcome artifact; report-outcome stops a
-  # done run whose checks failed, did not run, or ran on another tip.
+  # only the branch's own files (.changes/) are checked. The results, with the
+  # tip they checked, are this job's `checks` output, never the outcome
+  # artifact, which code the model started can rewrite. report-outcome gets
+  # them only when this job succeeded, and stops a done run whose checks
+  # failed, did not run, or ran on another tip.
   run-checks:
     needs: resolve-issue
     if: >-
@@ -168,6 +170,9 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      issues: read # resolve-config reads the issue's labels for labels-absent
+    outputs:
+      checks: ${{ steps.run-checks.outputs.checks }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -182,8 +187,8 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      # No activity selected: the lane's slots are resolved with no predicate
-      # decided, so the resolve-issue slot's checks are read with no API call.
+      # No activity selected: every slot's predicate is decided, which reads
+      # the issue's labels; only the resolve-issue slot's checks are used.
       - name: Resolve the config
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
@@ -191,9 +196,8 @@ jobs:
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
 
-      # A skill run always uploads the outcome, so a failed download fails
-      # the job rather than overwrite the artifact without it. A reuse may
-      # have none.
+      # For lane.json, which names the branch. A skill run always uploads the
+      # outcome; a reuse may have none.
       - name: Download the issue outcome
         continue-on-error: ${{ needs.resolve-issue.outputs.reuse-branch != '' }}
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -242,14 +246,11 @@ jobs:
           LANE: ${{ github.workspace }}/.lane
           BRANCH: ${{ steps.branch.outputs.branch }}
           RESOLVED: ${{ runner.temp }}/resolved-config.json
-          OUT_DIR: ${{ runner.temp }}/work-outcome
         run: |
           fail() {
             echo "::error::$1"
             exit 1
           }
-          mkdir -p "$OUT_DIR"
-          rm -f "$OUT_DIR/checks.json"
           list=$(jq -r '[.lane.slots[] | select(.name == "resolve-issue")]
             | if length == 1 then .[0].checks // [] | .[] else error("no single resolve-issue slot") end' "$RESOLVED") ||
             fail "cannot read the resolve-issue checks from the resolved config"
@@ -273,21 +274,9 @@ jobs:
             results=$(jq -c --arg check "$check" --argjson exit "$status" '. + [{check: $check, exit: $exit}]' <<<"$results")
           done
           echo "::$token::"
-          jq -n --arg branch "$BRANCH" --arg tip "$tip" --argjson results "$results" \
-            '{version: 1, branch: $branch, tip: $tip, results: $results}' >"$OUT_DIR/checks.json"
-
-      - name: Add the check results to the issue outcome
-        if: steps.run-checks.outcome == 'success'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: work-outcome-${{ github.event.issue.number }}
-          path: |
-            ${{ runner.temp }}/work-outcome/lane.json
-            ${{ runner.temp }}/work-outcome/work-outcome.json
-            ${{ runner.temp }}/work-outcome/checks.json
-          retention-days: 1
-          if-no-files-found: error
-          overwrite: true
+          record=$(jq -nc --arg branch "$BRANCH" --arg tip "$tip" --argjson results "$results" \
+            '{version: 1, branch: $branch, tip: $tip, results: $results}')
+          echo "checks=$record" >>"$GITHUB_OUTPUT"
 
   report-outcome:
     needs: [resolve-issue, run-checks]
@@ -314,3 +303,4 @@ jobs:
       trusted-base: default-tip
       app-label: agent-ready
       reuse-branch: ${{ needs.resolve-issue.outputs.reuse-branch }}
+      runner-checks: ${{ needs.run-checks.result == 'success' && needs.run-checks.outputs.checks || '' }}

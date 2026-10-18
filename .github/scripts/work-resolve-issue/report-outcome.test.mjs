@@ -28,8 +28,9 @@ import {
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
 
-// The run-checks job's checks.json for `branch` at `tip`, and the ref read
-// main compares that tip with.
+// The run-checks job's `checks` output for `branch` at `tip`, and the ref
+// read main compares that tip with. A test puts it in the outcome directory as
+// `runner-checks`, and env() hands it to main as RUNNER_CHECKS.
 const CHECKED_TIP = "c".repeat(40);
 const FRAGMENTS = "scripts/check-changelog-fragments.sh --check";
 const checksFile = ({ branch = BRANCH, tip = CHECKED_TIP, results = [{ check: FRAGMENTS, exit: 0 }] } = {}) =>
@@ -385,8 +386,8 @@ test("a done outcome whose runner check results are missing is stopped", () => {
   assert.ok(plan.comment.includes("check results are missing"), plan.comment);
 });
 
-test("checks.json counts only for this branch, with a tip and whole-number exits", () => {
-  const read = (text) => withDir({ "checks.json": text }, (dir) => readChecks(dir, { branch: BRANCH }));
+test("the runner's check results count only for this branch, with a tip and whole-number exits", () => {
+  const read = (text) => readChecks(text, { branch: BRANCH });
   assert.deepEqual(read(checksFile()), { tip: CHECKED_TIP, results: [{ check: FRAGMENTS, exit: 0 }] });
   assert.deepEqual(read(checksFile({ results: [] })), { tip: CHECKED_TIP, results: [] });
   for (const [label, text] of [
@@ -396,10 +397,11 @@ test("checks.json counts only for this branch, with a tip and whole-number exits
     ["more results than a body lists", checksFile({ results: Array(21).fill({ check: FRAGMENTS, exit: 0 }) })],
     ["no version", JSON.stringify({ branch: BRANCH, tip: CHECKED_TIP, results: [] })],
     ["not JSON", "{"],
+    ["none", ""],
   ]) {
     assert.equal(read(text), null, label);
   }
-  assert.equal(withDir({ "checks.json": checksFile({ branch: "" }) }, (dir) => readChecks(dir, { branch: "" })), null);
+  assert.equal(readChecks(checksFile({ branch: "" }), { branch: "" }), null);
 });
 
 // .claude/rules/pr-body-contract.md: the closing line first, then Summary,
@@ -595,6 +597,7 @@ function env(dir) {
     GITHUB_SERVER_URL: "https://example",
     GITHUB_RUN_ID: "123",
     TRACKER_CONFIG: join(dir, "absent.json"),
+    RUNNER_CHECKS: existsSync(join(dir, "runner-checks")) ? readFileSync(join(dir, "runner-checks"), "utf8") : "",
   };
 }
 
@@ -634,7 +637,7 @@ test("main refuses a human-gated label that is agent-ready and writes no label",
 
 test("main on done opens a ready PR from the branch and adds no label to it", async () => {
   await withDir(
-    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "checks.json": checksFile() },
+    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() },
     async (dir) => {
       const { fetch, calls } = fakeFetch([
         ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
@@ -661,9 +664,12 @@ test("main on done opens a ready PR from the branch and adds no label to it", as
 // when the runner's checks failed, are missing, or ran on another tip.
 test("main on done opens no PR and hands the issue back when the runner's checks do not pass", async () => {
   for (const [label, files, tip] of [
-    ["a failing check", { "checks.json": checksFile({ results: [{ check: FRAGMENTS, exit: 1 }] }) }, CHECKED_TIP],
-    ["no checks.json", {}, CHECKED_TIP],
-    ["a tip the branch moved off", { "checks.json": checksFile() }, "d".repeat(40)],
+    ["a failing check", { "runner-checks": checksFile({ results: [{ check: FRAGMENTS, exit: 1 }] }) }, CHECKED_TIP],
+    ["no check results", {}, CHECKED_TIP],
+    // Code the model started can rewrite the outcome artifact, so results
+    // there are not the runner's: only run-checks' job output counts.
+    ["results only in the outcome artifact", { "checks.json": checksFile() }, CHECKED_TIP],
+    ["a tip the branch moved off", { "runner-checks": checksFile() }, "d".repeat(40)],
   ]) {
     await withAsyncDir(
       { "work-outcome.json": JSON.stringify({ ...done, not_done: [] }), "lane.json": JSON.stringify({ branch: BRANCH }), ...files },
@@ -691,7 +697,7 @@ test("main on done opens no PR and hands the issue back when the runner's checks
 test("main on done ignores check results for another run's lane branch", async () => {
   const other = "work-resolve-issue/issue-77-99-1";
   await withAsyncDir(
-    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: other }), "checks.json": checksFile({ branch: other }) },
+    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: other }), "runner-checks": checksFile({ branch: other }) },
     async (dir) => {
       const { fetch, calls } = fakeFetch([
         ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
@@ -710,7 +716,7 @@ test("main on done ignores check results for another run's lane branch", async (
 
 test("main on done writes the runner's check results into the PR body", async () => {
   await withAsyncDir(
-    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "checks.json": checksFile() },
+    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() },
     async (dir) => {
       const { fetch, calls } = fakeFetch([
         ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
@@ -732,7 +738,7 @@ test("main on done writes the runner's check results into the PR body", async ()
 // work-unblock reads to lift only this hold once the PR merges.
 test("main on done with Refs opens the PR, then adds needs-human to the issue and the refs-hold comment", async () => {
   await withDir(
-    { "work-outcome.json": JSON.stringify({ ...done, link: "refs" }), "lane.json": JSON.stringify({ branch: BRANCH }), "checks.json": checksFile() },
+    { "work-outcome.json": JSON.stringify({ ...done, link: "refs" }), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() },
     async (dir) => {
       const { fetch, calls } = fakeFetch([
         ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
@@ -757,7 +763,7 @@ test("main on done with Refs opens the PR, then adds needs-human to the issue an
 
 test("main on a rerun reuses the open PR from the branch", async () => {
   await withDir(
-    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "checks.json": checksFile() },
+    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() },
     async (dir) => {
       const { fetch, calls } = fakeFetch([
         ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
@@ -778,7 +784,7 @@ test("main on a rerun reuses the open PR from the branch", async () => {
 // open PR from the lane branch that the lanes App did not open is not reused.
 test("main does not adopt an open PR from the branch that someone else opened", async () => {
   await withDir(
-    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "checks.json": checksFile() },
+    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() },
     async (dir) => {
       const { fetch, calls } = fakeFetch([
         ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
@@ -1409,7 +1415,7 @@ const PR_ROUTES = [
 const model = { ...done, summary: "MODEL-SUMMARY-TEXT", title: "docs(work-items): model title" };
 
 test("a reused branch whose own run's outcome is here opens the normal PR from it", async () => {
-  await withAsyncDir({ "work-outcome.json": JSON.stringify(model), "lane.json": JSON.stringify({ branch: lane(400) }), "checks.json": checksFile({ branch: lane(400) }) }, async (dir) => {
+  await withAsyncDir({ "work-outcome.json": JSON.stringify(model), "lane.json": JSON.stringify({ branch: lane(400) }), "runner-checks": checksFile({ branch: lane(400) }) }, async (dir) => {
     const { fetch, calls } = fakeFetch([branchTip(lane(400)), ...PR_ROUTES]);
     assert.equal(await main({ env: reuseEnv(dir), fetch }), 0);
     const pull = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body;
@@ -1588,7 +1594,7 @@ test("main keeps the hold line when the branch tip cannot be read", async () => 
 
 test("a branch's own outcome wins over a summary, so the summary never stands in for a report", async () => {
   await withAsyncDir(
-    { "work-outcome.json": JSON.stringify(model), "lane.json": JSON.stringify({ branch: lane(400) }), "reuse-summary.json": summaryFile(), "checks.json": checksFile({ branch: lane(400), tip: TIP }) },
+    { "work-outcome.json": JSON.stringify(model), "lane.json": JSON.stringify({ branch: lane(400) }), "reuse-summary.json": summaryFile(), "runner-checks": checksFile({ branch: lane(400), tip: TIP }) },
     async (dir) => {
       const { fetch, calls } = fakeFetch([tipRoute(), ...PR_ROUTES]);
       assert.equal(await main({ env: summaryEnv(dir), fetch }), 0);
@@ -1605,7 +1611,7 @@ async function runHumanMerge({ labels, events = [], eventsStatus = 200, trusted 
     {
       "work-outcome.json": JSON.stringify(done),
       "lane.json": JSON.stringify({ branch: BRANCH }),
-      "checks.json": checksFile(),
+      "runner-checks": checksFile(),
       "resolved.json": JSON.stringify({ merge: { "diff-check": { "denied-paths": [] } } }),
       ...(trusted === null ? {} : { "trusted.json": trusted }),
     },
@@ -1722,14 +1728,15 @@ function runChecks({ goodFragment, checks = ["scripts/check-x.sh --check"] }) {
     write(join(root, "resolved.json"), JSON.stringify({ lane: { slots: [{ name: "resolve-issue", checks }] } }));
     const run = spawnSync("bash", ["-e", "-o", "pipefail", "-c", runChecksScript()], {
       encoding: "utf8",
-      env: { ...process.env, BASE: base, LANE: laneDir, BRANCH, RESOLVED: join(root, "resolved.json"), OUT_DIR: out, LOG: log },
+      env: { ...process.env, BASE: base, LANE: laneDir, BRANCH, RESOLVED: join(root, "resolved.json"), GITHUB_OUTPUT: out, LOG: log },
     });
+    const output = existsSync(out) ? readFileSync(out, "utf8").split("\n").find((line) => line.startsWith("checks=")) : undefined;
     return {
       status: run.status,
       stdout: run.stdout,
       tip,
       laneDir,
-      checks: existsSync(join(out, "checks.json")) ? JSON.parse(readFileSync(join(out, "checks.json"), "utf8")) : null,
+      checks: output === undefined ? null : JSON.parse(output.slice("checks=".length)),
       log: existsSync(log) ? readFileSync(log, "utf8") : "",
     };
   } finally {

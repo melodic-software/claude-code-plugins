@@ -15,7 +15,7 @@
 //             carries the class floor. The body fills the PR body contract's
 //             sections from the outcome's summary, changes, verification and
 //             not_done, and its Verification section the runner's check
-//             results (checks.json). A done outcome whose not_done holds a
+//             results (RUNNER_CHECKS). A done outcome whose not_done holds a
 //             required check is stopped, and so is one whose runner checks
 //             failed or cannot be read for the branch's current tip, whatever
 //             the outcome file says.
@@ -35,6 +35,8 @@
 //             opens from it, whatever the limit record. It carries the
 //             read-only summary pass's summary when the summary names this
 //             issue, the branch and its current tip; else fixed text only.
+//             The runner's check results are listed and never stop it: the
+//             PR always carries the hold line, so a human reads them.
 //
 // Run from the base copy. It reads only the outcome directory and the GitHub
 // API, and never writes to a branch.
@@ -50,10 +52,13 @@
 //   ISSUE_NUMBER        the issue the lane worked
 //   WORK_OUTCOME_DIR    holds work-outcome.json (written by the skill, so
 //                       untrusted) and lane.json (written by the runner: the
-//                       lane branch, and the run's limit `class` and `resets`)
-//                       and checks.json (written by work-resolve-issue.yml's
-//                       run-checks job, where no model ran: each activity
-//                       check run from the base copy against the lane branch)
+//                       lane branch, and the run's limit `class` and `resets`).
+//                       Code the model started can rewrite this artifact, so
+//                       check results are never read from it.
+//   RUNNER_CHECKS       work-resolve-issue.yml's run-checks job output, where
+//                       no model ran: each activity check run from the base
+//                       copy against the lane branch. Empty when that job did
+//                       not succeed.
 //   REUSE_BRANCH        the lane branch --find-prior chose, or empty
 //   REUSE_SUMMARY_DIR   on a reuse, holds the summary pass's reuse-summary.json
 //                       (runner-written issue, branch and tip; model output)
@@ -361,13 +366,13 @@ export function readSummary(dir, { issueNumber, branch }) {
   return summary.trim() ? { tip: parsed.tip, title: text(output.title), summary, changes: list(output.changes) } : null;
 }
 
-// The run-checks job's checks.json: {tip, results: [{check, exit}]}, or null
-// unless it names this branch, a tip, and at most MAX_ITEMS whole-number
+// The run-checks job's `checks` output: {tip, results: [{check, exit}]}, or
+// null unless it names this branch, a tip, and at most MAX_ITEMS whole-number
 // results, so no result is cut off. A check passes only on exit 0.
-export function readChecks(dir, { branch }) {
+export function readChecks(text, { branch }) {
   let parsed;
   try {
-    parsed = JSON.parse(readFileSync(join(dir, "checks.json"), "utf8"));
+    parsed = JSON.parse(text);
   } catch {
     return null;
   }
@@ -895,7 +900,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     // that branch (a re-run attempt of the run that made it).
     const outcome = reuse && ran !== reuse ? null : readOutcome(join(dir, "work-outcome.json"));
     const branch = reuse || ran;
-    const checked = readChecks(dir, { branch });
+    const checked = readChecks(env.RUNNER_CHECKS ?? "", { branch });
     const limit = readLimit(dir);
     const runUrlOf = (id) => (env.GITHUB_SERVER_URL && id ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${id}` : "");
     const runUrl = runUrlOf(env.GITHUB_RUN_ID);
