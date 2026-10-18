@@ -243,6 +243,25 @@ test("the verify-script wrapper refuses a path outside the checkout", () => {
   }
 });
 
+// A listed script may run checkout code (check-skill.sh runs each skill's
+// test scripts), so the wrapper runs every script without the GitHub token.
+test("the verify-script wrapper runs the script without GH_TOKEN or GITHUB_TOKEN and keeps the rest of the environment", () => {
+  mkdirSync(path.join(base, "plugins", "vtest", "scripts"), { recursive: true });
+  writeFileSync(
+    path.join(base, "plugins", "vtest", "scripts", "env.sh"),
+    'echo "GH_TOKEN=${GH_TOKEN-unset} GITHUB_TOKEN=${GITHUB_TOKEN-unset} KEPT=${KEPT-unset}"\n',
+  );
+  const { status, verifyDir } = withVerify([VERIFY, "plugins/vtest/scripts/env.sh"]);
+  assert.equal(status, 0);
+  const run = spawnSync(path.join(verifyDir, "bin", "env"), [], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, GH_TOKEN: "fake-gh", GITHUB_TOKEN: "fake-github", KEPT: "yes" },
+  });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout, "GH_TOKEN=unset GITHUB_TOKEN=unset KEPT=yes\n");
+});
+
 // pr-run-activity.md, "Skill activities": the issue lane lists the repository's
 // test runner and git-mv-rm.sh as verify-scripts, so the same generator wraps
 // them. These stage the real scripts (and the lib they source) into the base.
@@ -285,6 +304,32 @@ test("the lane tools get wrapper rules, and the commit grant gains delete_files"
   );
   assert.ok(allowed.includes("mcp__github_file_ops__delete_files"), allowed.join(" | "));
   assert.ok(!allowed.some((rule) => /^Bash\((python3|bash|node|git)[ )]/.test(rule)), allowed.join(" | "));
+});
+
+// The issue lane lists skill-quality's two checks (#7840). check-skill.sh runs
+// each skill's scripts/*.test.sh from the checkout, so a fixture skill whose
+// test prints the tokens and fails shows what that test saw.
+const SKILL_TOOLS = ["plugins/skill-quality/scripts/check-skill.sh", "plugins/skill-quality/scripts/check-evals-quality.sh"];
+test("skill-quality's checks get wrapper rules, and check-skill runs a skill's test scripts without the GitHub token", () => {
+  spawnSync("cp", ["-R", new URL("plugins/skill-quality", REPO).pathname, path.join(base, "plugins")]);
+  const { status, allowed, verifyDir, workspace } = withVerify(SKILL_TOOLS);
+  assert.equal(status, 0);
+  const bin = (name) => path.join(verifyDir, "bin", name);
+  assert.deepEqual(
+    allowed.filter((rule) => rule.startsWith("Bash")),
+    [`Bash(${bin("check-skill")} *)`, `Bash(${bin("check-evals-quality")} *)`],
+  );
+  const skill = path.join(workspace, "skills", "demo");
+  mkdirSync(path.join(skill, "scripts"), { recursive: true });
+  writeFileSync(path.join(skill, "SKILL.md"), "---\ndescription: Demo skill. Use when 'demo'.\n---\n\n# Demo\n");
+  writeFileSync(path.join(skill, "scripts", "token.test.sh"), 'echo "seen=${GH_TOKEN-unset},${GITHUB_TOKEN-unset}"\nexit 1\n');
+  const run = spawnSync(bin("check-skill"), ["skills"], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, GH_TOKEN: "fake-gh", GITHUB_TOKEN: "fake-github" },
+  });
+  assert.match(run.stdout + run.stderr, /script test failed: scripts\/token\.test\.sh/);
+  assert.match(run.stdout + run.stderr, /seen=unset,unset/);
 });
 
 test("the prompt names run-test-file as the way to run a test and says compound cd commands are refused", () => {
