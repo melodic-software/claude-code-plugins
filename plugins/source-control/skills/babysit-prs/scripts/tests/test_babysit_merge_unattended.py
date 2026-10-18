@@ -640,6 +640,37 @@ class LaneMode(Unattended):
             out["unattended"]["rungCap"], {"value": None, "reason": "no-cap"}
         )
 
+    def test_an_in_flight_refusal_skips_the_risk_and_verifier_reads(self) -> None:
+        # Another pull request's lane entry is queued; this one is not.
+        self.flight = policy.InFlight(False, "identity-entry-queued:#9", frozenset({9}))
+        self.queued = [9]
+        self.lane_error = AssertionError("risk evidence read")
+        later = mock.Mock(side_effect=AssertionError("read after the refusal"))
+        passing = merge.verify_evidence.Reader.evidence
+        verdicts: list[int] = []
+
+        def evidence(reader: Any, number: int, *args: Any) -> Any:
+            verdicts.append(number)
+            return passing(reader, number, *args)
+
+        with (
+            mock.patch.object(merge.verify_evidence.Reader, "evidence", evidence),
+            mock.patch.object(policy, "changed_files", later),
+        ):
+            code, out = self.lane("--merge")
+        self.assert_no_merge(code)
+        later.assert_not_called()
+        # Only the sweep's read of the queued entry, never this pull request's.
+        self.assertEqual(verdicts, [9])
+        self.assertIn(
+            merge.UNATTENDED_REFUSED + "in-flight:identity-entry-queued:#9",
+            out["blockers"],
+        )
+        self.assertNotIn("risk", out["unattended"])
+        self.assertNotIn("riskComment", out["unattended"]["writes"])
+        # The queue sweep still judges the queued entry.
+        self.assertIn(9, self.hold_reads)
+
     def shared_rules(self) -> None:
         """A run cache holding the base's rules as an earlier candidate read
         them (QUEUE_RULES)."""

@@ -1775,6 +1775,21 @@ class InFlight(unittest.TestCase):
         )
         self.assertEqual(self.flight().reason, "identity-entry-queued:#3")
 
+    def test_the_queue_read_names_every_entry_or_none(self) -> None:
+        queue_fake(
+            self,
+            [
+                {"enqueuer": user(OPERATOR), "pullRequest": {"number": 3}},
+                {"enqueuer": bot("agent-lanes"), "pullRequest": {"number": 4}},
+            ],
+            [],
+        )
+        result = self.flight()
+        self.assertEqual(result.reason, "identity-entry-queued:#4")
+        self.assertEqual(result.queued, frozenset({3, 4}))
+        queue_fake(self, [{"enqueuer": user(OPERATOR), "pullRequest": {}}], [])
+        self.assertIsNone(self.flight().queued)
+
     def test_a_non_human_enqueue_is_an_auto_merge_that_must_be_verified(self) -> None:
         for name, actor, enqueuer in (
             ("app actor, null enqueuer", bot("agent-lanes"), None),
@@ -1996,6 +2011,58 @@ class Assess(unittest.TestCase):
         self.assertIs(flight.call_args.kwargs["verified"], verified)
         self.assertEqual(result.reason, "in-flight:x")
         self.assertIs(result.enabled, True)
+
+    def test_an_in_flight_refusal_off_the_queue_reads_nothing_after_it(self) -> None:
+        self.readable()
+        later = mock.Mock(side_effect=AssertionError("read after the refusal"))
+        flight = policy.InFlight(False, "identity-entry-queued:#3", frozenset({3}))
+        with (
+            mock.patch.object(policy, "in_flight", return_value=flight),
+            mock.patch.object(policy, "eligibility", later),
+            mock.patch.object(policy, "lane_eligibility", later),
+            mock.patch.object(policy, "dependabot_eligibility", later),
+        ):
+            result = self.assess(post_merge=lambda floor, who: gate(), promotion=later)
+        later.assert_not_called()
+        self.assertEqual(result.reason, "in-flight:identity-entry-queued:#3")
+        self.assertIs(result.enabled, True)
+        self.assertNotIn("eligibility", result.inputs)
+
+    def test_the_in_flight_refusal_matches_the_full_judgment(self) -> None:
+        # None: the queue was not read whole, so the pull request is read in
+        # full; its own queued entry (#1) is read in full too, and refused.
+        self.readable()
+        ineligible = policy.Eligibility(False, "fork")
+        seen = []
+        for queued in (None, frozenset({1, 3}), frozenset({3})):
+            flight = policy.InFlight(False, "identity-entry-queued:#3", queued)
+            with (
+                mock.patch.object(policy, "in_flight", return_value=flight),
+                mock.patch.object(
+                    policy, "eligibility", return_value=ineligible
+                ) as read,
+            ):
+                result = self.assess(
+                    post_merge=lambda floor, who: gate(),
+                    promotion=lambda s: PROMOTED,
+                )
+            seen.append(
+                (
+                    result.reason,
+                    result.enabled,
+                    read.called,
+                    result.inputs.get("own_refusal"),
+                )
+            )
+        reason = "in-flight:identity-entry-queued:#3"
+        self.assertEqual(
+            seen,
+            [
+                (reason, True, True, "ineligible:fork"),
+                (reason, True, True, "ineligible:fork"),
+                (reason, True, False, None),
+            ],
+        )
 
     def test_a_human_clear_of_a_demotion_record_restarts_the_floor(self) -> None:
         self.readable()
