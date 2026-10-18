@@ -2892,9 +2892,10 @@ def score_unattended(
     ):
         reader = verify_evidence.Reader(repo, str(inputs["branch"]))
         verdict = reader.evidence(number, str(details["headSha"]), pr)
-        if verdict.refusal is None and reader.saved:
+        if verdict.refusal is None and reason is None and reader.saved:
             # The run's saved listing lacks anything uploaded since; allow
-            # only on a listing of this gate run's own.
+            # only on a listing of this gate run's own. A candidate refused
+            # already is not enqueued, so it does not page the listing again.
             reader.refresh()
             verdict = reader.evidence(number, str(details["headSha"]), pr)
         details["verify"] = verdict.report()

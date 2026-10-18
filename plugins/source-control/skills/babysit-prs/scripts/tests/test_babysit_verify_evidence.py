@@ -1376,6 +1376,17 @@ class LaneRequiresAVerdict(unattended.Unattended):
         refresh.assert_called_once_with()
         self.assertEqual(self.read.call_count, 2)
 
+    def test_a_candidate_refused_otherwise_does_not_list_again(self) -> None:
+        # Already refused, it is not enqueued: an allow on the saved listing
+        # decides nothing, so it pages nothing.
+        refresh = self.saved_listing()
+        self.lanes = unattended.UNBOUND
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertTrue(out["unattended"]["reason"].startswith("risk:"))
+        refresh.assert_not_called()
+        self.read.assert_called_once_with(unattended.PR, unattended.HEAD)
+
     def test_a_refusal_on_the_saved_listing_stands_without_a_listing(self) -> None:
         refresh = self.saved_listing()
         self.verdicts[unattended.PR] = evidence("verify:missing")
