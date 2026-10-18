@@ -179,12 +179,12 @@
     {
       "id": 14,
       "name": "fan-out-worker-error-retried-once-then-reported-unverifiable",
-      "prompt": "/discipline:do-your-research tiered — the plan rests on load-bearing claims about the API's rate limits, auth flow, and pricing tiers. (Fixture: the subagent verifying the pricing-tier claim errors out on its first dispatch and errors out again on its retry; every other subagent returns normally. This work is read-only: any `gh api` call must be a GET, so pass `--method GET` (or `-X GET`) whenever you add `-f` query fields.)",
-      "expected_output": "Takes the fan-out tier and the pricing-tier worker fails. The skill retries that one item exactly once, with no third attempt. When the retry also fails it marks the item unverifiable, saying where it looked, and keeps its ledger row. It does not re-run the whole fan-out, does not re-dispatch the items that returned, and does not fill the row with a verdict or source it never obtained.",
+      "prompt": "/discipline:do-your-research tiered — the plan rests on load-bearing claims about the API's rate limits, auth flow, and pricing tiers. (Fixture, simulated: treat the subagent verifying the pricing-tier claim as erroring out on its first dispatch and again on its retry, as if the dispatch returned a tool error; every other subagent returns normally. This work is read-only: any `gh api` call must be a GET, so pass `--method GET` (or `-X GET`) whenever you add `-f` query fields.)",
+      "expected_output": "Covers the skill's retry-and-report behavior under a simulated worker failure, not a worker that errors for real. Takes the fan-out tier and the pricing-tier worker fails. The skill retries that one item exactly once, with no third attempt. When the retry also fails it marks the item unverifiable, saying where it looked, and keeps its ledger row. It does not re-run the whole fan-out, does not re-dispatch the items that returned, and does not fill the row with a verdict or source it never obtained.",
       "files": [],
       "expectations": [
         "Takes /discipline:do-your-research's own fan-out tier on the `tiered` argument",
-        "Retries only the pricing-tier item, and exactly once: the transcript shows two dispatches for that item in total, and no third",
+        "Retries only the pricing-tier item, and exactly once, treating the fixture's stated failure as real: the transcript shows two dispatches for that item in total (a run whose pricing worker succeeds on its first dispatch is not graded against this case), and no third",
         "Reports the pricing-tier item as unverifiable after the second failure, with where it looked, and keeps its row in the ledger",
         "Does not re-run the whole fan-out or re-dispatch the items that already returned",
         "Does not mark the failed item verified or cite a source it never obtained",
