@@ -142,11 +142,17 @@ fallback), then:
    topic slug (argument or inferred); when none resolves, use `resume`:
 
    ```bash
-   cd "${CLAUDE_PROJECT_DIR}" && CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 claude --bg --name "continue-<topic>" "$(cat "<prompt-file>")" && rm -f "<prompt-file>"
+   cd "${CLAUDE_PROJECT_DIR}" && CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 claude --bg --name "continue-<topic>" --permission-mode auto "$(cat "<prompt-file>")" && rm -f "<prompt-file>"
    ```
 
    Insert `--effort "<level>"` before the prompt argument when "What the launched session
    inherits" below calls for it.
+
+   `--permission-mode auto` is always passed: the user is away, so a permission ask in the
+   detached session would wait for an attach that never comes. This follows the repository's
+   rule to launch unattended local lanes with `--permission-mode auto` (AGENTS.md). An action
+   auto mode denies is not waited on: the launched session's final hand-off reports it, and
+   the launch report tells the user to look there.
 
    `claude --bg` starts the session as a background agent and returns immediately; the user
    manages it with `claude agents`. `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1` is required
@@ -253,6 +259,9 @@ Our rules:
   - **As of**: 2026-10-02
   - **Recheck trigger**: either section is renamed or moved, the table's columns change, or the
     `--effort` flag changes.
+- **Permission mode is set at launch, not inherited.** Step 2's command always passes
+  `--permission-mode auto`, so a directory setting with another default mode cannot leave an
+  ask waiting for someone to attach.
 - **Directory settings ARE read normally.** The session reads its settings from the directory
   it runs in, the same as a fresh `claude` started there.
 
@@ -278,11 +287,12 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   `WorktreeCreate` hook configured → launch, that reading stated in the report; any other
   `rev-parse` result, failing or `false`, and any hook whose absence is not established → state
   unknown, no launch, same fallback
-- [ ] Background agent launched with the rails prompt (`claude --bg --name …`), the payload being
+- [ ] Background agent launched with the rails prompt (`claude --bg --name … --permission-mode auto`), the payload being
   the between-rails text of the resume region of `save_point.py emit <file>` on the full path
   (validated first, exit 0 quoted; a goal region, when present, excluded) or the emitted block on
   prompt-only, and the launch result reported (including any non-inherited flags mirrored or worth
-  flagging), OR the non-zero exit reported with fallback to
+  flagging; the report says an action auto mode denies is reported in the launched session's
+  final hand-off, not waited on), OR the non-zero exit reported with fallback to
   `/clear`-then-paste
 - [ ] For resumed verify or unattended work, `--effort` passed with the model-config table's level
   whose described use fits the task, the report naming the level and quoting that use; page unreadable → said so, no `--effort`, and the report states the session starts
