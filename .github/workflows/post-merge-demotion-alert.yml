@@ -237,8 +237,10 @@ jobs:
           # AddedToMergeQueueEvent (never the commit author, which a lane merge
           # of a human's PR does not carry). Anything unproven demotes: a canary
           # or an unknown range, a commit with no (#N) subject, an unreadable
-          # identity, or a failed lookup. One GraphQL call covers the range.
+          # identity, or a failed lookup. One GraphQL call covers the range,
+          # made only when a new issue is filed (classify, below).
           lane=1
+          classify() {
           if [[ "${#range[@]}" -gt 0 && "${#range[@]}" -le 100 ]]; then
             identity="$(gh api -H 'Accept: application/vnd.github.raw' \
               "repos/$GITHUB_REPOSITORY/contents/docs/conventions/pr-pipeline.yaml?ref=main" |
@@ -277,11 +279,12 @@ jobs:
               fi
             fi
           fi
+          }
 
+          # An existing record is found by either marker, so an attempt whose
+          # lookup would answer differently still updates the record filed first.
           marker="<!-- babysit-merge-demotion sha=$RUN_SHA signal=$signal -->"
-          if [[ -z "$lane" ]]; then
-            marker="<!-- post-merge-failure sha=$RUN_SHA signal=$signal -->"
-          fi
+          failure_marker="<!-- post-merge-failure sha=$RUN_SHA signal=$signal -->"
           # Records are read by their filer, github-actions[bot], which is any
           # workflow's GITHUB_TOKEN: an issue a user opens with the marker
           # cannot stand in for this one.
@@ -296,7 +299,7 @@ jobs:
           state=''
           filed=''
           while IFS=$'\t' read -r n s first failing; do
-            if [[ "$first" == "$marker" ]]; then
+            if [[ "$first" == "$marker" || "$first" == "$failure_marker" ]]; then
               number="$n"
               state="$s"
               filed="$failing"
@@ -339,6 +342,10 @@ jobs:
             exit 0
           fi
 
+          classify
+          if [[ -z "$lane" ]]; then
+            marker="$failure_marker"
+          fi
           pulls="${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/pull"
           subject="${RUN_COMMIT_MESSAGE%%$'\n'*}"
           pr='unknown (the head commit names none)'
@@ -405,4 +412,8 @@ jobs:
           $revert"
           gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
             -f title="$title" -f body="$body" -f 'labels[]=needs-human' >/dev/null
-          echo "filed the $signal demotion issue for $RUN_SHA"
+          kind='demotion issue'
+          if [[ -z "$lane" ]]; then
+            kind='post-merge-failure issue (lane not demoted)'
+          fi
+          echo "filed the $signal $kind for $RUN_SHA"

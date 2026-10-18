@@ -443,7 +443,10 @@ that fails counts as a refusal.
   It holds the rung at `off` until a human closes it directly. A close through a pull request's or
   commit's `Closes #N` does not count, and an issue that a non-human edited at any time stays in
   force. The wrapper finds these issues by author (the agent identity or `github-actions[bot]`), so
-  removing the marker or the label does not clear one.
+  removing the marker or the label does not clear one. When `post-merge-demotion-alert.yml` proves
+  that no merge the failing run covers was enqueued by the agent identity, it files a
+  post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,
+  also `needs-human`. That record does not hold the rung off.
 - **Opt-in label.** `merge: agent-allowed` makes a pull request eligible; it does not make it safe,
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.

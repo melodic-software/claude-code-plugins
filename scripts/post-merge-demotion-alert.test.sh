@@ -6,7 +6,10 @@
 # The step files the demotion record the babysit post-merge check and the
 # merge-policy reader also use: an issue by github-actions[bot] whose body's
 # first line is `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`,
-# labeled needs-human, one per (signal, SHA). A matching record gets a comment
+# labeled needs-human, one per (signal, SHA). When no merge in the failing range
+# was enqueued by merge.agent-identity, it files the post-merge-failure record
+# instead (`<!-- post-merge-failure sha=<S> signal=<name> -->`, needs-human, no
+# demotion); anything unproven demotes. A matching record of either kind gets a comment
 # instead; a run that is not a failed scheduled or dispatched full run, or a
 # failed canary push run, on main files nothing. A full run's first failed
 # attempt is re-run instead, and a later one files only for checks green on
@@ -489,15 +492,16 @@ fi
 # --- Who put the range's merges in the queue ----------------------------------
 # A decoy agent-identity outside `merge:` must not be read.
 PIPE=$'lanes:\n  agent-identity: decoy[bot]\n\nmerge:\n  rung: C2\n  agent-identity: melodic-automation-lanes[bot]\n  report-only: false'
-# enq <number> <login> <typename> -> one aliased pullRequest whose latest
-# AddedToMergeQueueEvent that login made; enq <number> with no login has none.
+# enq <number> <login> <typename> [enqueuer-login enqueuer-typename] -> one
+# aliased pullRequest whose latest AddedToMergeQueueEvent that actor (and
+# enqueuer, by default the same) made; enq <number> alone has none.
 enq() {
   if [[ $# -eq 1 ]]; then
     printf '"p%s": {"timelineItems": {"nodes": []}}' "$1"
     return
   fi
-  jq -nc --arg n "p$1" --arg l "$2" --arg t "$3" \
-    '{($n): {timelineItems: {nodes: [{actor: {__typename: $t, login: $l}, enqueuer: {__typename: $t, login: $l}}]}}}' |
+  jq -nc --arg n "p$1" --arg l "$2" --arg t "$3" --arg el "${4:-$2}" --arg et "${5:-$3}" \
+    '{($n): {timelineItems: {nodes: [{actor: {__typename: $t, login: $l}, enqueuer: {__typename: $et, login: $el}}]}}}' |
     sed 's/^{//; s/}$//'
 }
 gq() {
@@ -548,6 +552,38 @@ COMPARE="$TWO" PIPELINE="$PIPE" GRAPHQL="$(gq "$(enq 8259 alice User)" "$(enq 82
 demotes "a window with one lane enqueue among human merges demotes (a Bot login gains [bot])"
 if [[ "$OUT" != *"lookup for 2 pull requests: cost 1"* ]]; then
   fail "the mixed window's lookup did not answer: out='$OUT'"
+fi
+
+PIPELINE="$PIPE" GRAPHQL="$(gq "$(enq 1234 octocat User melodic-automation-lanes Bot)")" \
+  run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+demotes "a human actor with the lanes App as enqueuer demotes"
+
+MANY='' at="$OTHER"
+for i in $(seq 1 101); do
+  c="$(printf '%040x' "$i")"
+  if [[ "$i" -eq 101 ]]; then c="$SHA"; fi
+  MANY="${MANY:+$MANY, }$(commit "$c" "$at" alice "feat: change $i (#$i)")"
+  at="$c"
+done
+COMPARE="$MANY" PIPELINE="$PIPE" GRAPHQL="$(gq "$(enq 1 alice User)")" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+demotes "a range of 101 merges demotes"
+if grep -qx 'GET graphql' <<<"$LOG" || [[ "$(post_fields)" != *"range of 101 merges"* ]]; then
+  fail "a 101-merge range made the lookup or was not read as 101 merges: log='$LOG'"
+fi
+
+PIPELINE="$PIPE" GRAPHQL="$(gq "$(enq 1234 octocat User)")" ATTEMPT=1 run_step "$CANARY" push failure main o/r "$SHA" '[]'
+demotes "a canary failure demotes even with a human-only lookup available"
+if grep -qE 'GET (graphql|repos/o/r/contents/)' <<<"$LOG"; then
+  fail "a canary made the lookup: log='$LOG'"
+fi
+
+PIPELINE="$PIPE" FAIL_GRAPHQL=1 run_step "$FULL" workflow_dispatch failure main o/r "$SHA" \
+  "[$(issue 41 "<!-- post-merge-failure sha=$SHA signal=dispatch -->")]"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -qx 'POST repos/o/r/issues/41/comments' <<<"$LOG" &&
+  ! grep -qx 'GET graphql' <<<"$LOG"; then
+  ok "a later attempt updates the post-merge-failure record without a lookup"
+else
+  fail "existing record with failing lookup: rc=$RC log='$LOG'"
 fi
 
 PIPELINE="$PIPE" FAIL_GRAPHQL=1 run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'

@@ -37,7 +37,7 @@ name: pr-merge
 # dispatch-full-run job), even while the switch or report-only is on, since it
 # merges nothing. If that run fails, post-merge-demotion-alert.yml files a
 # needs-human issue; it demotes the lane only when the lanes App enqueued one
-# of the merges the run covers.
+# of the merges the run covers, or when it cannot tell who enqueued them.
 #
 # On its schedule it also gives a PR a new head, an empty commit, when a lane
 # run on its current head was refused by the token broker as
