@@ -2196,10 +2196,10 @@ def _history_checkouts() -> list[Path]:
     return [Path(__file__).resolve().parent, Path.cwd()]
 
 
-# With `--no-replace-objects`, how a history read sees a clone's real
-# commits: a graft file is ignored, and a missing object fails the read
-# rather than being lazily fetched. A graft or replace ref would cut or
-# rewrite the history a clone reports.
+# How a history read sees a clone's real commits, beside the
+# `--no-replace-objects` each caller passes: a graft file is ignored, and a
+# missing object fails the read rather than being lazily fetched. A graft or
+# replace ref would cut or rewrite the history a clone reports.
 HISTORY_GIT_ENV = {"GIT_GRAFT_FILE": os.devnull, "GIT_NO_LAZY_FETCH": "1"}
 
 
@@ -2237,7 +2237,8 @@ def _git_file_at(root: Path, path: str, sha: str) -> str | None:
 def _local_history(base_sha: str) -> tuple[Path, list[tuple[str, str]]] | None:
     """The pipeline file's commits from `base_sha`, newest first, as (SHA,
     committer date), from the first clone in `_history_checkouts` that holds
-    `base_sha` with its whole history (not shallow); None when none does.
+    `base_sha` with its whole history (not shallow or partial); None when
+    none does.
     A commit id names its whole ancestry, so any clone holding it answers
     for the repository."""
     for checkout in _history_checkouts():
@@ -2247,6 +2248,10 @@ def _local_history(base_sha: str) -> tuple[Path, list[tuple[str, str]]] | None:
             continue
         root = Path(top.strip())
         if _git(root, "rev-parse", "--is-shallow-repository") != "false\n":
+            continue
+        # A partial clone lacks older blobs, which the read never fetches.
+        promisor = r"^(extensions\.partialclone|remote\..*\.promisor)$"
+        if _git(root, "config", "--get-regexp", promisor) is not None:
             continue
         if _git(root, "cat-file", "-e", f"{base_sha}^{{commit}}") is None:
             continue

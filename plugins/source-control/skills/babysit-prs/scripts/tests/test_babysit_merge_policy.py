@@ -2473,6 +2473,32 @@ class LocalEnabledSince(unittest.TestCase):
             policy.datetime.fromisoformat("2026-09-01T00:00:00Z"),
         )
 
+    def test_a_partial_clone_falls_back_to_the_api(self) -> None:
+        # Its older blobs are not local, and the read never lazy-fetches.
+        self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
+        base = self.pipeline(PIPELINE + "# edit\n", "2026-10-11T00:00:00Z")
+        self.git(self.clone, "config", "uploadpack.allowFilter", "true")
+        partial = self.tmp / "partial"
+        self.git(
+            self.tmp,
+            "clone",
+            "-q",
+            "--no-checkout",
+            "--filter=blob:none",
+            self.clone.as_uri(),
+            str(partial),
+        )
+        self.fake(
+            [self.commit_record(base, "2026-09-01T00:00:00Z")],
+            {base: PIPELINE},
+            base=base,
+            clones=(partial,),
+        )
+        self.assertEqual(
+            policy.enabled_since(REPO, base),
+            policy.datetime.fromisoformat("2026-09-01T00:00:00Z"),
+        )
+
     def cut_history(self) -> tuple[str, Any]:
         """Three pipeline commits and a base; returns the middle commit and
         `_local_history` of the base before anything cuts the history."""
