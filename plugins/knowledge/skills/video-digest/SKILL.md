@@ -341,10 +341,10 @@ uv pip install --python <dir> faster-whisper nvidia-cublas-cu12 nvidia-cudnn-cu1
 The `nvidia-*` wheels supply the CUDA libraries for GPU runs; skip them for CPU-only. On Windows the
 runner script adds each `site-packages/nvidia/*/bin` directory as a DLL directory, so no PATH edit is
 needed. The `av` pin in the recipe holds PyAV below a release that a producing run found
-incompatible with faster-whisper; this skill has not reproduced that finding. Read the live state
-in the faster-whisper issue tracker (<https://github.com/SYSTRAN/faster-whisper/issues>) before
-relying on the pin, as of 2026-10-18. Recheck when a faster-whisper release ships, and drop the pin
-once it installs and runs against current PyAV.
+incompatible with faster-whisper; this skill has not reproduced that finding and links no upstream
+issue for it, as of 2026-10-18. To settle whether the pin is still needed, install without it and
+run the runner's asr rung: if it transcribes, drop the pin. Recheck when a faster-whisper release
+ships.
 
 ## Eval fixtures
 
