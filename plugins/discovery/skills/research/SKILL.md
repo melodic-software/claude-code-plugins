@@ -60,13 +60,13 @@ Agent({
 })
 ```
 
-Write its `verification_line` over `verification: pending`; a FAIL row returns to its phase (bounded at `Budget: low`). **On the cost path** (you skip the verifier for cost) write `verification: skipped (cost)`; never leave `pending` after this boundary. Values: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md` ("The `verification:` values"). Brief, write-back, project fit: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("The orchestration boundary").
+Write its `verification_line` over `verification: pending`; a FAIL row returns to its phase (no rework at `Budget: low`, one rework round above it). **On the cost path** (you skip the verifier for cost) write `verification: skipped (cost)`; never leave `pending` after this boundary. Values: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md` ("The `verification:` values"). Brief, write-back, project fit: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("The orchestration boundary").
 
 ## Outcome gate (run before presenting)
 
 Research is not done when the phases finish. It's done when it passes this gate. Check what the run ACHIEVED against what good research requires, **grounded in the run's own artifacts** (the evidence table, the Phase 1/2 written gap lists, the fetch log), NOT in your recollection of "did I do a good job." The context that ran the phases is the one grading them, so only artifact-grounded binary criteria bite.
 
-Each criterion is binary. **Any FAIL returns to the named phase (bounded at `Budget: low`: "Effort, source breadth"); do not present until all pass.** And **the Owner column is not decoration.** Rows the run can read off an artifact stay with the run. A row where the run would judge the quality of *its own choices* belongs to a **verifier**, a fresh context that never saw the run, dispatched by the parent as a sibling once the artifact is on disk. One row needs the consuming project's conventions and belongs to the **parent**. So a dispatched run returns `verification: pending` and renders no verdict on a verifier row; an inline run hands those rows to a fresh context too. The Owner column governs over any enumeration of these rows in an agent definition or sibling skill.
+Each criterion is binary. **Any FAIL returns to the named phase (a verifier-owned row gets no rework at `Budget: low` and one rework round above it: "Effort, source breadth"); do not present until all pass.** And **the Owner column is not decoration.** Rows the run can read off an artifact stay with the run. A row where the run would judge the quality of *its own choices* belongs to a **verifier**, a fresh context that never saw the run, dispatched by the parent as a sibling once the artifact is on disk. One row needs the consuming project's conventions and belongs to the **parent**. So a dispatched run returns `verification: pending` and renders no verdict on a verifier row; an inline run hands those rows to a fresh context too. The Owner column governs over any enumeration of these rows in an agent definition or sibling skill.
 
 | # | Binary criterion | Owner | FAIL → |
 |---|---|---|---|
@@ -144,12 +144,15 @@ below the doubled minimums. For a single named artifact or folder, read it direc
 against the cap. A claim still short of its sources at the cap is a gap named in the artifact, not
 a reason to search on.
 
-**The verify-and-rework loop at `low` is bounded.** A verifier FAIL on a verifier-owned row (Owner
+**The verify-and-rework loop is bounded at every budget.** At `low`, a verifier FAIL on a verifier-owned row (Owner
 column, "Outcome gate") is not reworked: no `SendMessage` resume of the researcher. Record it in the
 artifact as a Gap or Conflicts entry, lowering `accepted:` to match (criterion 14), or leave it as the named `verification: fail rows` value, and
 present the result with that caveat. Medium and above return a FAIL row to its phase as the gate
-routes. Rows the run owns and gate exit codes stay mandatory at every budget, and an ungradeable or
-missing artifact still takes the recovery ladder, resume before discard.
+routes, for **one rework round**: the rework, then one re-verify. A row still FAIL after that
+re-verify is not reworked again: record it in the artifact as a Gap or Conflicts entry, lowering
+`accepted:` to match (criterion 14), or leave it as the named `verification: fail rows` value, and
+present the result with that caveat. Rows the run owns and gate exit codes stay mandatory at every
+budget, and an ungradeable or missing artifact still takes the recovery ladder, resume before discard.
 
 ## The deep tier
 
@@ -160,6 +163,11 @@ In the main conversation, take the deep tier when any of these holds, and read [
 - **A leading `deep` token** in the arguments: strip it from the topic, then route as above. A `breadth=` token with it wins, and the run takes the standard dispatch.
 
 Otherwise the standard dispatch runs: one researcher, whatever the task's size. A dispatched or forked run never selects the deep tier, because it cannot count on `Workflow` or a dependable `Agent` spawn (pointers: [context/deep-tier.md](context/deep-tier.md), the "Main context only" paragraph under its title, which has no heading anchor; as of 2026-10-11; recheck when that paragraph moves or its pointers change): it runs inline, and never promises the workflow engine.
+
+**Who writes `RESEARCH.md`.** In the standard dispatch the `discovery:researcher` subagent writes it
+into its slice (the parent authors none of it; on the by-value rung it only persists what the researcher returned). In the deep tier's workflow path the workflow cannot
+write files, so this session writes it from the sweep result; on the multi-topic path each topic's
+researcher writes its own sub-slice index and this session writes only the slice-root synthesis.
 
 ## Pre-dispatch envelope and baseline
 
