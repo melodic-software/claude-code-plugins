@@ -7,6 +7,13 @@ agent identity's merge-queue entries plus its merged pull requests the post-merg
 verified. This repository sets 5. A red full run or canary run still charges every unverified
 merge whose commit it contains. `version` stays 2.
 
+## 2.11.10 - 2026-10-18
+
+This repository's `limits.wip-cap` drops from 60 to 12, so `work-resolve-issue` starts no run, and
+work-unblock re-fires none, while 12 or more lanes-App pull requests are open. The value is the
+measured lane merge rate (about 1.5 per hour) times an 8-hour open-to-merge target. The schema
+default (60) and its range (1 to 500) are unchanged. `version` stays 2.
+
 ## 2.11.8 - 2026-10-18
 
 `pr-refine` no longer starts on `synchronize`: it runs when a PR opens, reopens or turns ready, or
