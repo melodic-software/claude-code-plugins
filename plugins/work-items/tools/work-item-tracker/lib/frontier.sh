@@ -25,9 +25,9 @@ wit_filter_label() {
 wit_filter_frontier() {
   local autonomous="${1:-false}" human_gated="${2:-$WIT_DEFAULT_HUMAN_GATED_LABEL}" container="${3:-$WIT_DEFAULT_CONTAINER_LABEL}"
   local floor_json
-  # Build the floor list (work classes and provenance labels) as a jq array argument.
+  # Build the floor list (work classes, provenance and status labels) as a jq array argument.
   # --args positionals keep labels containing spaces intact (every member does).
-  floor_json="$(jq -n -c '$ARGS.positional' --args "${WIT_HUMAN_FLOOR_WORK_CLASS_LABELS[@]}" "${WIT_HUMAN_FLOOR_PROVENANCE_LABELS[@]}")"
+  floor_json="$(jq -n -c '$ARGS.positional' --args "${WIT_HUMAN_FLOOR_WORK_CLASS_LABELS[@]}" "${WIT_HUMAN_FLOOR_PROVENANCE_LABELS[@]}" "${WIT_HUMAN_FLOOR_STATUS_LABELS[@]}")"
   jq -c --arg auto "$autonomous" --arg human_gated "$human_gated" --arg container "$container" \
     --argjson floor "$floor_json" '{
     schema_version: .schema_version,
