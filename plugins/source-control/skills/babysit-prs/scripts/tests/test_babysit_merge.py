@@ -734,6 +734,14 @@ class PullRequestBodyHold(TierEvaluateHarness):
         result = self._evaluate(_pr(labels=[{"name": "needs-human"}]), tier=None)
         self.assertTrue(result["ready"], result["blockers"])
 
+    def test_needs_human_label_blocks_the_autopilot_tier(self) -> None:
+        result = self._evaluate(_pr(labels=[{"name": "Needs-Human"}]), tier=TIER)
+        self.assertFalse(result["ready"])
+        self.assertTrue(
+            any("'needs-human' label" in b for b in result["blockers"]),
+            result["blockers"],
+        )
+
     def test_other_labels_do_not_block_without_the_tier(self) -> None:
         result = self._evaluate(_pr(labels=[{"name": "needs-review"}]), tier=None)
         self.assertTrue(result["ready"], result["blockers"])

@@ -103,9 +103,9 @@ class HeldCandidatesNeverReachTheGate(unittest.TestCase):
 
 class PrefilterDropsOnlyWhatTheGateRefuses(fixtures.TierEvaluateHarness):
     """The gate refuses each dropped input on its own, and passes each kept
-    one. `needs-human` holds only an unattended gate, so the attended gate here
-    lifts it; its unattended agreement is asserted in
-    test_babysit_merge_unattended.NeedsHumanHoldsOnlyAutonomous."""
+    one. The prefilter judges for pr-merge, an autonomous run, so it agrees
+    with the autonomous gate (here the autopilot tier); `needs-human` alone
+    is lifted for an attended gate (no tier, no unattended policy)."""
 
     def test_agrees_with_the_gate(self) -> None:
         cases = [
@@ -118,7 +118,7 @@ class PrefilterDropsOnlyWhatTheGateRefuses(fixtures.TierEvaluateHarness):
             labels = case.get("labels", [])
             body = case.get("body", "")
             dropped = prefilter.hold(_candidate(1, labels=labels, body=body))
-            for tier in (None,):
+            for tier in (fixtures.TIER, None):
                 with self.subTest(case=case, tier=tier is not None):
                     gate = self._evaluate(
                         fixtures._pr(body=body, labels=[{"name": n} for n in labels]),

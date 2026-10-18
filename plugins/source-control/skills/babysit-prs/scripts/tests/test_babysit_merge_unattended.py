@@ -222,8 +222,9 @@ class RemappedHumanGatedLabel(unittest.TestCase):
 
 
 class NeedsHumanHoldsOnlyAutonomous(unittest.TestCase):
-    """`needs-human` holds an unattended merge; the person it asks for may
-    still merge attended. `do-not-merge` holds both."""
+    """`needs-human` holds an autonomous merge (unattended or the autopilot
+    tier); the person it asks for may still merge attended. `do-not-merge`
+    holds both."""
 
     def test_needs_human_holds_the_unattended_gate_not_an_attended_one(self) -> None:
         permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
@@ -239,6 +240,17 @@ class NeedsHumanHoldsOnlyAutonomous(unittest.TestCase):
         )
         # The pr-merge prefilter drops what the unattended gate refuses.
         self.assertEqual(prefilter.hold({"labels": ["Needs-Human"]}), "needs-human")
+
+    def test_needs_human_holds_the_autopilot_merge_tier(self) -> None:
+        # The tier merges with no person present, like --unattended.
+        result = _evaluate(
+            fixtures._pr(labels=[{"name": "needs-human"}]), HEAD, fixtures.TIER
+        )
+        self.assertFalse(result["ready"])
+        self.assertTrue(
+            any("'needs-human' label" in b for b in result["blockers"]),
+            result["blockers"],
+        )
 
     def test_do_not_merge_holds_both(self) -> None:
         permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)

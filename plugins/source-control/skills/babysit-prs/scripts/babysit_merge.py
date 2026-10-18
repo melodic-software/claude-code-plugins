@@ -1538,9 +1538,10 @@ def evaluate(
             "PR body holds the merge (do not merge, or a Hold: line) -- a human "
             "hold, report it and leave it"
         )
-    # Autonomous: the unattended policy, merging with no person present; only
-    # an attended merge lifts the human-gated hold.
-    autonomous = unattended is not None
+    # Autonomous: the unattended policy or the autopilot merge tier, both
+    # merging with no person present; only an attended merge lifts the
+    # human-gated hold.
+    autonomous = unattended is not None or tier is not None
     human_gated = human_gated_label(repo) if autonomous else None
     if held_by := merge_hold_label(labels, human_gated=human_gated):
         blockers.append(
