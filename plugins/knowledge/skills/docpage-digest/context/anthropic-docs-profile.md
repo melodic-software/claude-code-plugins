@@ -99,6 +99,12 @@ extraction waits for the third (Rule of Three).
   original: a row reads from it only the values the payload states and cites `source.html` as its
   original. Never compute a number from SVG geometry (path coordinates, bar lengths, axis
   positions); a value the figure shows only as geometry is recorded as not stated.
+- **Figure text parts (both blog hosts).** Reading figure text from `source.html` covers every
+  part a figure carries, not only its caption: the figcaption title, subtitle and `FIG X` id; the
+  `alt` and `aria-label` values; inline SVG `<text>`; and control labels (button, tab, slider
+  and preset text). After extracting, check the extracted file against this list, one part at a
+  time, and add the rows for any part found in `source.html` and missing from it. Rows go under
+  `## Figure claims` as `**FN.**`.
 - **PDFs (model/system cards):** download the original binary as `source.pdf` plus a text
   extraction as `source.txt`; both are originals, the extraction tooling is named in the
   checklist.

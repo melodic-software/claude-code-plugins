@@ -26,7 +26,8 @@ collision check reads them to tell a resume from a slug collision.
 - [ ] Phase 2: Inventory, with `SOURCES.md` written (headings, themes, digest map, status rows,
       relied-on links read from the snapshot)
 - [ ] Phase 3: Digest fan-out, one agent per digest unit → `digests/NN-slug.md` (fixed
-      structure; verbatim quotes in column-0 fences under bold `**CN.**` labels; each unit's
+      structure; verbatim quotes in column-0 fences under bold `**CN.**` labels, figure rows
+      under `## Figure claims` as `**FN.**`; each unit's
       model recorded as mapped and actual; refusals and waits recorded)
 - [ ] Phase 4: Dual verification: pin-manifest written on agent-reported completion; standing
       gates (`check-fences-exact.py`, `check-snippets.py`, and `check-html-rows.py` when digests
@@ -34,6 +35,10 @@ collision check reads them to tell a resume from a slug collision.
       Verifier B (cross-vendor) verdicts in `verification/` (append-only; each arm states the
       hashes it audited and one verdict, PASS / PASS-WITH-FINDINGS / FAIL / BLOCKED, done only on
       PASS or PASS-WITH-FINDINGS from both arms; degraded fallback / death-ladder recorded, never silent)
+  - Verifier A effort (level and source; `requested <level>, unconfirmed` when the arm never
+    confirmed it):
+  - Verifier B effort (level and source; `requested <level>, unconfirmed` when the arm never
+    confirmed it):
 - [ ] Phase 5: Interview handoff, with `interview-handoff.md` authored (relied-on-links table: one
       disposition per link, covered / queued / skipped with a reason) and its own commands replayed
       (every Phase 4 check precedes it); `/planning:interview` run or artifact presented
