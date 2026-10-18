@@ -1236,7 +1236,7 @@ class LanePathFloorTests(unittest.TestCase):
 
 class CapabilityTriggerTests(unittest.TestCase):
     """Owner decision Q641: a SKILL.md, agents/*.md or commands/*.md diff that
-    adds or changes frontmatter hooks, allowed-tools, permissionMode or
+    adds or changes frontmatter hooks, allowed-tools, tools, permissionMode or
     mcpServers, or adds a `!` backtick command line, scores HIGH with the
     floor. Each patch is a hand-written unified diff."""
 
@@ -1273,7 +1273,55 @@ class CapabilityTriggerTests(unittest.TestCase):
             "plugins/foo/agents/runner.md",
             "@@ -2,3 +2,3 @@\n name: runner\n-mcpServers: [a]\n+mcpServers: [a, b]\n ---\n",
         ),
+        (
+            "agent tools widened",
+            "plugins/foo/agents/runner.md",
+            "@@ -1,4 +1,4 @@\n ---\n name: runner\n-tools: Read\n+tools: Read, Bash\n ---\n",
+        ),
+        (
+            "agent tools line deleted, which grants every tool",
+            "plugins/foo/agents/runner.md",
+            "@@ -1,4 +1,3 @@\n ---\n name: runner\n-tools: Read\n ---\n",
+        ),
+        (
+            "double-quoted allowed-tools key",
+            "plugins/foo/skills/bar/SKILL.md",
+            '@@ -1,3 +1,4 @@\n ---\n name: bar\n+"allowed-tools": Bash\n ---\n',
+        ),
+        (
+            "single-quoted hooks key",
+            "plugins/foo/skills/bar/SKILL.md",
+            "@@ -1,3 +1,4 @@\n ---\n name: bar\n+'hooks': {}\n ---\n",
+        ),
+        (
+            "closing delimiter moved below body lines",
+            "plugins/foo/skills/bar/SKILL.md",
+            "@@ -1,6 +1,6 @@\n ---\n name: bar\n----\n # Bar\n allowed-tools: Bash\n+---\n",
+        ),
     ]
+
+    RENAMED = [
+        ("agents", "plugins/foo/agents/runner.md"),
+        ("commands", "plugins/foo/commands/go.md"),
+        ("skills", "plugins/foo/skills/bar/SKILL.md"),
+    ]
+
+    def test_a_rename_or_copy_into_a_capability_path_is_held(self):
+        context = "@@ -1,3 +1,3 @@\n ---\n allowed-tools: Bash\n ---\n"
+        for status in ("renamed", "copied"):
+            for name, path in self.RENAMED:
+                with self.subTest(status=status, into=name):
+                    changed = _file(
+                        path,
+                        status=status,
+                        previous_path="plugins/foo/reference/notes.md",
+                        additions=0,
+                        deletions=0,
+                        patch=context if status == "copied" else "",
+                    )
+                    result = score(_input(files=(changed,)))
+                    self.assertEqual(result.score, Risk.HIGH, _codes(result))
+                    self.assertIn("high-capability", _codes(result))
 
     def test_capability_changes_are_held(self):
         for name, path, patch in self.HELD:

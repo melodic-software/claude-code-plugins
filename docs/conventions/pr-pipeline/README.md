@@ -480,8 +480,9 @@ except six:
 - **Risk switches.** Each check below is a `merge.diff-check` setting that is off when absent:
   `denied-paths` (an empty list denies no path; a listed path makes the pull request ineligible),
   `high-path-floor` (true scores the scorer's fixed HIGH path set HIGH, and a SKILL.md,
-  agents/*.md or commands/*.md change to `hooks`, `allowed-tools`, `permissionMode` or
-  `mcpServers` frontmatter or a new `!` backtick command line), `floor-paths` (globs joined to
+  agents/*.md or commands/*.md change to `hooks`, `allowed-tools`, `tools`, `permissionMode` or
+  `mcpServers` frontmatter, a moved `---` delimiter, a rename or copy into such a path, or a new
+  `!` backtick command line), `floor-paths` (globs joined to
   that floor while it applies; a HIGH pull request waits for a human), `c2-contradictions` (true
   scores a removed, renamed or copied file, a schema change or more than one plugin MED),
   `max-changed-files` and `max-changed-lines` (absent is no cap). This repository sets

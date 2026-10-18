@@ -5,7 +5,7 @@
 `merge.diff-check.floor-paths` (a list of globs) adds paths to the risk scorer's HIGH path floor
 while `high-path-floor` applies; a pull request touching one waits for a human, where a denied path
 makes it ineligible. With the floor, a SKILL.md, agents/*.md or commands/*.md change to `hooks`,
-`allowed-tools`, `permissionMode` or `mcpServers` frontmatter, or a new `!` backtick command line,
+`allowed-tools`, `tools`, `permissionMode` or `mcpServers` frontmatter, or a new `!` backtick command line,
 also scores HIGH. This repository turns `high-path-floor` back on (owner decision Q641) and lists
 `bin/`, `.lsp.json`, `settings*.json` and the scripts of the plugins the CI lanes load. `version`
 stays 2.

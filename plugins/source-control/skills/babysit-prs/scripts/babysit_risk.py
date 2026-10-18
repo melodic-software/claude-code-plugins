@@ -400,17 +400,21 @@ def _readable_globs(value: Any, unsafe: list[str]) -> tuple[str, ...]:
 
 # Files whose frontmatter grants capability, and the keys that grant it.
 _CAPABILITY_FILES = ("**/SKILL.md", "**/agents/*.md", "**/commands/*.md")
-_CAPABILITY_KEYS = frozenset({"hooks", "allowed-tools", "permissionmode", "mcpservers"})
+_CAPABILITY_KEYS = frozenset(
+    {"hooks", "allowed-tools", "tools", "permissionmode", "mcpservers"}
+)
 _HUNK = re.compile(r"@@ -[0-9]+(?:,[0-9]+)? \+([0-9]+)(?:,[0-9]+)? @@")
-_KEY = re.compile(r"([A-Za-z][A-Za-z0-9_-]*)\s*:")
+_KEY = re.compile(r"""(["']?)([A-Za-z][A-Za-z0-9_-]*)\1\s*:""")
 
 
 def _capability_triggers(patch: str) -> list[str]:
     """What in a unified patch adds or changes a capability: a `!` backtick
     command line added anywhere, or a changed frontmatter line under one of
-    `_CAPABILITY_KEYS`. A hunk starting at line 1 shows where the frontmatter
-    ends; any other hunk is frontmatter until a `---` line, and there a changed
-    indented line with no key above it in the hunk counts (fail closed)."""
+    `_CAPABILITY_KEYS`, or any added or removed `---` line, since moving a
+    delimiter moves lines in or out of the frontmatter. A hunk starting at
+    line 1 shows where the frontmatter ends; any other hunk is frontmatter
+    until a `---` line, and there a changed indented line with no key above it
+    in the hunk counts (fail closed)."""
     found: list[str] = []
     region, key = "unknown", None
     for line in patch.split("\n"):
@@ -425,6 +429,8 @@ def _capability_triggers(patch: str) -> list[str]:
         if sign == "+" and "!`" in text:
             found.append("adds a !` command")
         if text.rstrip() == "---":
+            if sign != " ":
+                found.append("moves a --- delimiter")
             if sign != "-" or region == "start":
                 region = "front" if region == "start" else "body"
                 key = None
@@ -435,7 +441,7 @@ def _capability_triggers(patch: str) -> list[str]:
             continue
         named = _KEY.match(text)
         if named:
-            key = named.group(1).casefold()
+            key = named.group(2).casefold()
         elif text.strip() and text[0] not in " \t":
             key = ""
         if sign != " " and (
@@ -449,13 +455,22 @@ def _capability_triggers(patch: str) -> list[str]:
 def _capability_reasons(files: list[_File], raw_files: list[Any]) -> list[Reason]:
     hits = []
     for f, raw in zip(files, raw_files):
-        if not any(glob_match(g, p) for g in _CAPABILITY_FILES for p in f.paths if p):
+        capable = [
+            any(glob_match(g, p) for g in _CAPABILITY_FILES) if p else False
+            for p in f.paths
+        ]
+        if not any(capable):
             continue
         patch = getattr(raw, "patch", None)
         if f.has_patch is not True or not isinstance(patch, str):
             triggers = ["no patch text to read"]
         else:
             triggers = _capability_triggers(patch)
+        # Unchanged frontmatter shows only as context in a rename or copy.
+        if capable[0] and (
+            f.status == "copied" or (f.status == "renamed" and not all(capable))
+        ):
+            triggers.append(f"{f.status} into a capability path")
         if triggers:
             hits.append(f"{f.path}: {', '.join(dict.fromkeys(triggers))}")
     return [Reason("high-capability", Risk.HIGH, "; ".join(hits))] if hits else []

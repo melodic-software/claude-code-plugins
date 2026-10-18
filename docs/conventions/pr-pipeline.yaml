@@ -332,8 +332,8 @@ merge:
     mode: enforce
   # Owner decision Q641 (2026-10-18): the HIGH path floor is back on. A lane
   # PR that touches a floor path, or a SKILL.md, agents/*.md or commands/*.md
-  # change to hooks, allowed-tools, permissionMode or mcpServers frontmatter
-  # or a new `!` backtick command line, scores HIGH and waits for a human to
+  # change to hooks, allowed-tools, tools, permissionMode or mcpServers
+  # frontmatter or a new `!` backtick command line, scores HIGH and waits for a human to
   # merge it. floor-paths adds to the floor in the scorer (babysit_risk.py);
   # package.json, .mcp.json and the work-items and review plugins are in it
   # already. A denied path would instead make the PR ineligible.

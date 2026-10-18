@@ -557,7 +557,7 @@
             "high-path-floor": {
               "type": "boolean",
               "default": false,
-              "description": "pr-merge lane only: true scores a diff touching the risk scorer's fixed HIGH path floor or floor-paths HIGH, as it does a SKILL.md, agents/*.md or commands/*.md patch that changes hooks, allowed-tools, permissionMode or mcpServers frontmatter or adds a ! backtick command line. Absent or false: only denied-paths count. The local babysit lane always applies the floor."
+              "description": "pr-merge lane only: true scores a diff touching the risk scorer's fixed HIGH path floor or floor-paths HIGH, as it does a SKILL.md, agents/*.md or commands/*.md patch that changes hooks, allowed-tools, tools, permissionMode or mcpServers frontmatter or adds a ! backtick command line. Absent or false: only denied-paths count. The local babysit lane always applies the floor."
             },
             "floor-paths": {
               "type": "array",
