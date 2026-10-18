@@ -25,14 +25,24 @@ gh pr view <pr_number> --json state -q '.state'
 ## Poll checks over REST
 
 The Monitor watch's poll script, passed inline in the `command` parameter. `<scripts-dir>` is the
-placeholder the pull-request skill resolves.
+placeholder the pull-request skill resolves. `BASELINE_FILE` stays empty on the first arming; a
+re-arm sets it to the file holding the full iteration's checks (the `cur_checks` lines, one
+`name: bucket` per line, pending rows left out), which the script reads as its first snapshot.
 
 ```bash
 PR_NUMBER=<N>
 INTERVAL=60  # raise with several watchers (../README.md#api-budget)
 OWNER=$(gh repo view --json owner -q .owner.login)
 REPO=$(gh repo view --json name -q .name)
+BASELINE_FILE=  # re-arm only: the checks snapshot the full iteration wrote
 prev_checks=""
+have_baseline=0
+if [ -n "$BASELINE_FILE" ] && [ -r "$BASELINE_FILE" ]; then
+  prev_checks=$(tr -d '\r' <"$BASELINE_FILE" | sort)
+  have_baseline=1
+elif [ -n "$BASELINE_FILE" ]; then
+  echo "BASELINE-UNREADABLE $BASELINE_FILE — first checks poll only records; run a full scan"
+fi
 last_comment_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 prev_threads=""
 poll=0
@@ -69,9 +79,10 @@ while true; do
   } 2>>"$err" | tr -d '\r' | grep -v ': pending$' | sort || true)
   if [ "$cur_checks" != "$prev_checks" ]; then
     # Bucket values mirror gh pr checks: pass|fail|pending|skipping|cancel.
-    # The first poll only records the checks, so a re-arm at the
-    # deadline does not re-emit every completed check.
-    if [ "$poll" -gt 0 ]; then
+    # With no baseline the first poll only records the checks. A re-arm
+    # starts from the full iteration's snapshot instead, so a check that
+    # finished since that read is emitted and the rest are not re-emitted.
+    if [ "$poll" -gt 0 ] || [ "$have_baseline" -eq 1 ]; then
       comm -13 <(echo "$prev_checks") <(echo "$cur_checks") | \
         grep --line-buffered -E ': (pass|fail|skipping|cancel)$' \
         || true
