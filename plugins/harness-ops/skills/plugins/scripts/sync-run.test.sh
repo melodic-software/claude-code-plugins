@@ -1184,10 +1184,10 @@ setup_case "$case_dir"
 EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
 report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
 stale_run_dir=$(jq -r '.run_dir' <<<"$REPORT_DIGEST")
-stale_section=$(printf '%s\n' "$REPORT_TEXT" | sed -n '/^Stale project records:/,/^[^ ]/p' | sed '$d')
+stale_section=$(printf '%s\n' "$REPORT_TEXT" | sed -n '/^Stale project records (market1):/,/^[^ ]/p' | sed '$d')
 assert_exit "stale many: exit 0" 0 "$REPORT_RC"
-assert_contains "stale many: the header counts every record and every path" "$REPORT_TEXT" \
-  "Stale project records: 18 record(s) across 14 path(s) not present on this machine"
+assert_contains "stale many: the header names the marketplace and counts every record and path" "$REPORT_TEXT" \
+  "Stale project records (market1): 18 record(s) across 14 path(s) not present on this machine"
 assert_contains "stale many: the largest parent leads, with its record and path counts" "$stale_section" \
   $'  - <case>/g01/: 6 record(s) across 3 path(s)\n  - <case>/g02/: 2 record(s) across 1 path(s)\n  - <case>/g03/: 1 record(s) across 1 path(s)'
 assert_eq "stale many: ten parent rows are printed" "10" "$(grep -c '^  - ' <<<"$stale_section")"
@@ -1208,7 +1208,7 @@ assert_eq "stale many: the printed digest carries no per-path array" "false" \
 # Audit's scratch directory is removed on exit, so the render names no file there.
 report_of "$case_dir" --marketplace market1 --audit --install-new none
 assert_contains "stale many audit: the header still counts every record" "$REPORT_TEXT" \
-  "Stale project records: 18 record(s) across 14 path(s) not present on this machine"
+  "Stale project records (market1): 18 record(s) across 14 path(s) not present on this machine"
 assert_contains "stale many audit: the render says the full list is not kept" "$REPORT_TEXT" \
   "  Full per-path list: not kept, the audit scratch directory is removed on exit"
 
@@ -1329,11 +1329,14 @@ assert_contains "stale render: a sync run with no list file says it was not writ
 stale_legacy='{"stale_project_records":{"total":3,"by_path":[{"path":"/g/a","count":2},{"path":"/h/b","count":1}]}}'
 assert_contains "stale render: a pre-3.8.1 digest still renders its per-path rows" \
   "$(needs_digest sync "$stale_legacy" | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')" \
-  $'Stale project records: 3 record(s) across 2 path(s) not present on this machine\n  - /g/a: 2 record(s)\n  - /h/b: 1 record(s)'
+  $'Stale project records (m): 3 record(s) across 2 path(s) not present on this machine\n  - /g/a: 2 record(s)\n  - /h/b: 1 record(s)'
 # Every absent record local-scope: the worktree audit has nothing to classify, so no pointer.
-stale_local_only='{"stale_project_records":{"total":2,"paths":1,"project":0,"by_parent":[{"parent":"/g/","count":2,"paths":1}],"more_parents":0,"list_file":null}}'
+stale_local_only='{"stale_project_records":{"total":2,"paths":1,"project":0,"local":2,"by_parent":[{"parent":"/g/","count":2,"paths":1}],"more_parents":0,"list_file":null}}'
 assert_not_contains "stale render: local-scope records only name no worktree audit" \
   "$(needs_digest sync "$stale_local_only" | jq -r -f "$SCRIPT_DIR/render-report.jq")" "/source-control:worktree audit"
+assert_contains "stale render: local-scope records are counted and named as unreaped" \
+  "$(needs_digest sync "$stale_local_only" | jq -r -f "$SCRIPT_DIR/render-report.jq")" \
+  "  2 of these are local-scope; nothing reaps them yet."
 needs_check "audit enable gap" audit '{"enable_gap":["b@m"]}' "missing_from_enabled, not enabled this run: b@m"
 # A digest written before `self_update` existed: the note names no plugin rather
 # than the first moved row.

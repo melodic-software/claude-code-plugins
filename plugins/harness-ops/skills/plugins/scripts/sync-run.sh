@@ -1443,6 +1443,7 @@ report_extras() {
                                | {total: ($absent | length),
                                   paths: ($absent | map(.projectPath) | unique | length),
                                   project: ($absent | map(select(.scope == "project")) | length),
+                                  "local": ($absent | map(select(.scope == "local")) | length),
                                   by_parent: $groups[:$cap],
                                   more_parents: ([0, ($groups | length) - $cap] | max),
                                   list_file: (if $list_file == "" then null else $list_file end)}),
