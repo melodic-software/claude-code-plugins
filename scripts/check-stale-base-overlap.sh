@@ -17,7 +17,9 @@
 #   1. merge-base(HEAD, <base-ref>) == tip(<base-ref>) → fresh, exit 0.
 #   2. Else intersect paths changed on base since the merge-base with paths
 #      changed on HEAD since the merge-base.
-#   3. Non-empty intersection → exit 1 with the overlapping paths.
+#   3. Non-empty intersection → exit 1 with the overlapping paths, unless every
+#      overlapping path is a CHANGELOG.md or a .changes/ fragment: then a
+#      warning and exit 0.
 #   4. Empty intersection → exit 0 (parallel work on disjoint files).
 #
 # Unrecognized git state is exit 2 (inconclusive), never a pass.
@@ -117,6 +119,21 @@ behind_by="$(git rev-list --count "$merge_base..$base_tip" 2>/dev/null || echo '
 
 if [[ -z "$overlap" ]]; then
   echo "check-stale-base-overlap: HEAD is $behind_by commit(s) behind $base_ref but touches no overlapping paths"
+  gate_entry::finish 0
+fi
+
+# An overlap made only of changelogs (any CHANGELOG.md) and changelog
+# fragments (.changes/) is a warning, not a refusal: those files take
+# independent entries, and the merge queue tests the change on the current base
+# and runs the collision gates there (#7871).
+release_notes_only=1
+while IFS= read -r path; do
+  [[ "$path" == CHANGELOG.md || "$path" == */CHANGELOG.md || "$path" == .changes/* ]] || release_notes_only=0
+done <<<"$overlap"
+if ((release_notes_only)); then
+  echo "check-stale-base-overlap: WARNING: HEAD is $behind_by commit(s) behind $base_ref; the only overlapping paths are changelogs or changelog fragments:" >&2
+  while IFS= read -r path; do printf '    %s\n' "$path" >&2; done <<<"$overlap"
+  echo "  Not refused: the merge queue tests this change on the current base." >&2
   gate_entry::finish 0
 fi
 
