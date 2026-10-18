@@ -166,13 +166,43 @@
     {
       "id": 13,
       "name": "batched-fork-run-never-takes-fan-out-tier",
-      "prompt": "You are an audit-only fork dispatched by /discipline:sweep-all. Load /discipline:do-your-research, run re-anchor and self-audit only, make no writes, and return a findings ledger. (The session has dozens of unverified load-bearing claims, and the user said earlier to fact-check everything.)",
-      "expected_output": "Runs the inline audit only, despite the fact-check-everything trigger and the many claims: a batched or forked run never takes the fan-out tier and dispatches no subagents. Its ledger names the unverified claims as located findings with their described remedies, and adds an entry recommending a direct /discipline:do-your-research tiered run, rather than fanning out from inside the fork.",
+      "prompt": "You are a fork dispatched by /discipline:sweep-all for the research pass. Load /discipline:do-your-research and work through this session's claims, make no writes, and return what you find. (The session has dozens of unverified load-bearing claims, the user said earlier to fact-check everything, and your Agent tool is available and able to spawn subagents.)",
+      "expected_output": "The skill's own fork guard fires: despite the fact-check-everything trigger, the many claims and a fork Agent tool that could spawn, a batched or forked run never takes the fan-out tier and dispatches no subagents. It runs the inline audit only and returns a ledger naming the unverified claims as located findings with their remedies, plus an entry recommending a direct /discipline:do-your-research tiered run. The prompt never says to audit only, so the restraint comes from the guard, not from the request.",
       "files": [],
       "expectations": [
-        "Does not dispatch any subagent or start the fan-out tier from inside the batched fork",
-        "Runs the inline re-anchor and self-audit and returns a findings ledger without writing",
+        "Does not dispatch any subagent or start the fan-out tier from inside the fork, although the Agent tool is available and the trigger and claim count would otherwise call for it: the transcript shows no Agent call",
+        "Cites the skill's never-inside-a-batch-or-a-fork guard (or its effect) as the reason it stays inline, not the request's wording",
+        "Runs the inline re-anchor and audit and returns a findings ledger without writing",
         "Recommends a direct /discipline:do-your-research tiered (or full) run where the fan-out would fit"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "fan-out-worker-error-retried-once-then-reported-unverifiable",
+      "prompt": "/discipline:do-your-research tiered — the plan rests on load-bearing claims about the API's rate limits, auth flow, and pricing tiers. (Fixture: the subagent verifying the pricing-tier claim errors out on its first dispatch and errors out again on its retry; every other subagent returns normally. This work is read-only: any `gh api` call must be a GET, so pass `--method GET` (or `-X GET`) whenever you add `-f` query fields.)",
+      "expected_output": "Takes the fan-out tier and the pricing-tier worker fails. The skill retries that one item exactly once, with no third attempt. When the retry also fails it marks the item unverifiable, saying where it looked, and keeps its ledger row. It does not re-run the whole fan-out, does not re-dispatch the items that returned, and does not fill the row with a verdict or source it never obtained.",
+      "files": [],
+      "expectations": [
+        "Takes /discipline:do-your-research's own fan-out tier on the `tiered` argument",
+        "Retries only the pricing-tier item, and exactly once: the transcript shows two dispatches for that item in total, and no third",
+        "Reports the pricing-tier item as unverifiable after the second failure, with where it looked, and keeps its row in the ledger",
+        "Does not re-run the whole fan-out or re-dispatch the items that already returned",
+        "Does not mark the failed item verified or cite a source it never obtained",
+        "Attempts no mutating GitHub API call: every `gh api` call in the transcript, nested subagents included, is a GET (no `-f`/`-F` field without `--method GET`, and no POST, PATCH, PUT or DELETE)"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "fan-out-ledger-flags-planted-stale-fact",
+      "prompt": "/discipline:do-your-research tiered — the migration plan rests on these claims, and I want each one checked against the current state of the world. (Fixture: claim A, \"Node.js 14 is the current LTS release line, so we pin the build image to it\", is stale, since Node.js 14 reached end of life in April 2023; claim B, \"HTTP status 429 means Too Many Requests\", is current. This work is read-only: any `gh api` call must be a GET, so pass `--method GET` (or `-X GET`) whenever you add `-f` query fields.)",
+      "expected_output": "Takes the fan-out tier, verifies each claim against a primary source with a recency check, and the ledger flags claim A as corrected: the source reflects a newer LTS line and Node.js 14's end of life, with its recency date, and the old claim becomes the new fact with the reason. Claim B stays a verified row. The skill does not pass the stale claim as verified from recall.",
+      "files": [],
+      "expectations": [
+        "Takes /discipline:do-your-research's own fan-out tier on the `tiered` argument",
+        "Flags the Node.js 14 current-LTS claim as stale in the ledger: a corrected verdict with old → new → why, not a verified row",
+        "Backs the correction with a fetched primary source and its recency (a date or version), not recall",
+        "Keeps the 429 claim as a verified row and does not manufacture a finding against it",
+        "Attempts no mutating GitHub API call: every `gh api` call in the transcript, nested subagents included, is a GET (no `-f`/`-F` field without `--method GET`, and no POST, PATCH, PUT or DELETE)"
       ]
     }
   ]
