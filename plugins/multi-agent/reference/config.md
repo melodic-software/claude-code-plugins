@@ -55,6 +55,7 @@ the main conversation's model after the per-invocation parameter and the
 [sub-agents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model),
 as of 2026-10-18; recheck when that section adds or drops an alias or changes
 the resolution order.
+
 The `effort` values are the full set this resolver accepts; which of them a
 spawn can use depends on the model it runs on. For each model's supported
 levels, see
