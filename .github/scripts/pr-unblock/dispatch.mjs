@@ -89,6 +89,7 @@ export async function dispatchConflicting({
   unknownRetries = DEFAULTS.unknownRetries,
   unknownDelayMs = DEFAULTS.unknownDelayMs,
   now = Date.now(),
+  limits,
 }) {
   const listed = await listAll(api, base);
   const candidates = listed.filter((node) => isCandidate(node, base));
@@ -137,7 +138,7 @@ export async function dispatchConflicting({
     let handled;
     try {
       const existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
-      handled = anyHandles(existing, { now });
+      handled = anyHandles(existing, { now, limits });
     } catch (error) {
       failed += 1;
       log(
@@ -297,6 +298,16 @@ export function createGitHubApi({
   };
 }
 
+// The base config's resolved limits, through the base checkout's
+// resolve-config; the workflow installs its dependencies before this runs. A
+// config the resolver refuses throws, so nothing is dispatched.
+export async function loadBaseLimits(env) {
+  const { limitsFromBase } = await import(
+    new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
+  );
+  return limitsFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
+}
+
 // Writes the dispatched run ids, lowest PR first, as the step output run-ids,
 // which the workflow records as an artifact on this run.
 export async function main(
@@ -305,6 +316,8 @@ export async function main(
     api,
     sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     log = (line) => console.log(line),
+    loadLimits = loadBaseLimits,
+    now,
   } = {},
 ) {
   for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT"]) {
@@ -320,7 +333,8 @@ export async function main(
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
     });
-  const conflicts = await dispatchConflicting({ api: client, runId: env.GITHUB_RUN_ID, sleep, log });
+  const limits = await loadLimits(env);
+  const conflicts = await dispatchConflicting({ api: client, runId: env.GITHUB_RUN_ID, sleep, log, limits, now });
   const reviews = await dispatchDependencyReviews({
     api: client,
     runId: env.GITHUB_RUN_ID,

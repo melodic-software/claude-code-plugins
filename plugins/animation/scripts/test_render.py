@@ -1,6 +1,7 @@
 """render.py and capture.mjs over a real headless render. Needs node and playwright-core with Chromium (the
-capture.mjs --probe lookup) and skips without them; ANIMATION_REQUIRE_DEPS covers numpy and opencv, not the browser."""
+capture.mjs --probe lookup) and skips without them, or fails with ANIMATION_REQUIRE_DEPS=1."""
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -18,6 +19,7 @@ def have_chromium():
 
 
 HAVE = have_chromium()
+REQUIRED = os.environ.get('ANIMATION_REQUIRE_DEPS') == '1'
 
 # Shared code sets the hooks and a placeholder DURATION first; the scene's own setup finishes after a top-level
 # await, so a capture that reads DURATION too early writes half the frames.
@@ -33,9 +35,12 @@ window.renderFrame = async () => { c.getContext('2d').fillRect(0, 0, 8, 8); };
 """
 
 
-@unittest.skipUnless(HAVE, 'needs node and playwright-core with Chromium')
+@unittest.skipUnless(HAVE or REQUIRED, 'needs node and playwright-core with Chromium (set ANIMATION_REQUIRE_DEPS=1 to fail '
+                     'instead)')
 class Render(unittest.TestCase):
     def setUp(self):
+        self.assertTrue(HAVE, 'node, playwright-core or Chromium missing and ANIMATION_REQUIRE_DEPS=1 (`node capture.mjs '
+                              '--probe` names the remedy)')
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.dir = Path(tmp.name)

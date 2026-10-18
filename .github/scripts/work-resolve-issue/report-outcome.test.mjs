@@ -21,6 +21,7 @@ import {
   readOutcome,
   refsHoldComment,
   reusePlan,
+  trustedLabeler,
 } from "./report-outcome.mjs";
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
@@ -220,6 +221,35 @@ test("an unreadable resolved config reads as no denied-path list and holds the P
     assert.equal(holdPaths, null);
     assert.ok(decideDone({ holdPaths }).body.split("\n").includes("Hold: a human merges this"));
   });
+});
+
+// An owner decision that a person merges the issue's PR (#7287, #6008): the
+// `merge: human` label holds the PR when a listed human or the lanes App put it
+// on the issue.
+test("a trusted merge: human label carries the hold line", () => {
+  assert.ok(decideDone({ humanMerge: true }).body.split("\n").includes("Hold: a human merges this"));
+});
+
+test("without a trusted merge: human label scoped work carries no hold line", () => {
+  assert.ok(!decideDone({ issueLabels: ["work-class: scoped"], humanMerge: false }).body.includes("Hold: a human merges this"));
+});
+
+const labeled = (name, login, id) => ({ event: "labeled", label: { name }, actor: { login, id } });
+
+test("a label's labeler is trusted when its newest labeled event is a listed human's or the lanes App's", () => {
+  const trust = { bot: "melodic-automation-lanes[bot]", humans: new Set([153232337]) };
+  assert.equal(trustedLabeler([labeled("merge: human", "kyle-sexton", 153232337)], "merge: human", trust), true);
+  assert.equal(trustedLabeler([labeled("merge: human", "melodic-automation-lanes[bot]", 9)], "merge: human", trust), true);
+  assert.equal(trustedLabeler([labeled("merge: human", "stranger", 42)], "merge: human", trust), false);
+  // Removed and re-added by someone unlisted: the newest event decides.
+  assert.equal(
+    trustedLabeler([labeled("merge: human", "kyle-sexton", 153232337), labeled("merge: human", "stranger", 42)], "merge: human", trust),
+    false,
+  );
+  // A login that copies a listed human's but not their id is not trusted.
+  assert.equal(trustedLabeler([labeled("merge: human", "kyle-sexton", 42)], "merge: human", trust), false);
+  assert.equal(trustedLabeler([labeled("work-class: scoped", "kyle-sexton", 153232337)], "merge: human", trust), false);
+  assert.equal(trustedLabeler([], "merge: human", trust), false);
 });
 
 // The body's `##` headings, in order.
@@ -781,6 +811,25 @@ test("main on a limit stop comments the marker and touches no label", async () =
     assert.ok(posted[0].body.body.startsWith("<!-- work-resolve-issue outcome=limited resets=2026-10-17T18:00:00Z run=123 -->"));
     assert.ok(!calls.some((c) => c.path.endsWith("/labels") || c.method === "DELETE"));
   });
+});
+
+test("main takes the fallback reset and clamp from the resolved config's limits", async () => {
+  const resolved = JSON.stringify({ limits: { "fallback-reset": 2, "reset-clamp-min": 1, "reset-clamp-max": 3 } });
+  for (const [lane, expected] of [
+    [JSON.stringify({ branch: "", class: "rate-limit" }), "2026-10-17T14:00:00Z"],
+    [LIMITED_LANE, "2026-10-17T15:00:00Z"],
+  ]) {
+    await withAsyncDir({ "lane.json": lane, "resolved.json": resolved }, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["GET", /\/issues\/77\/comments$/, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: { ...env(dir), RESOLVED_CONFIG: join(dir, "resolved.json") }, fetch, now: LIMIT_NOW }), 0);
+      const posted = calls.filter((c) => c.method === "POST");
+      assert.ok(posted[0].body.body.startsWith(`<!-- work-resolve-issue outcome=limited resets=${expected} run=123 -->`), posted[0].body.body);
+    });
+  }
 });
 
 test("main posts the limited marker once per run", async () => {
@@ -1411,6 +1460,64 @@ test("a branch's own outcome wins over a summary, so the summary never stands in
       assert.ok(pull.body.includes("MODEL-SUMMARY-TEXT") && !pull.body.includes("SUMMARY-PASS-TEXT"), pull.body);
     },
   );
+});
+
+// main on a done run of an issue with these labels and `labeled` events, under
+// a resolved config that denies no path, so only the label can hold the PR.
+async function runHumanMerge({ labels, events = [], eventsStatus = 200, trusted = TRUSTED_LIST }) {
+  return withAsyncDir(
+    {
+      "work-outcome.json": JSON.stringify(done),
+      "lane.json": JSON.stringify({ branch: BRANCH }),
+      "resolved.json": JSON.stringify({ merge: { "diff-check": { "denied-paths": [] } } }),
+      ...(trusted === null ? {} : { "trusted.json": trusted }),
+    },
+    async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, 200, { number: 77, labels: labels.map((name) => ({ name })) }],
+        ["GET", /\/issues\/77\/events$/, eventsStatus, events],
+        ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+        ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
+        ["GET", /\/pulls$/, 200, []],
+        ["POST", /\/pulls$/, 201, { number: 90 }],
+      ]);
+      const code = await main({
+        env: { ...env(dir), RESOLVED_CONFIG: join(dir, "resolved.json"), TRUSTED_ACTORS: join(dir, "trusted.json") },
+        fetch,
+      });
+      return { code, calls, body: calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body.body };
+    },
+  );
+}
+
+const MERGE_HUMAN = ["agent-ready", "work-class: scoped", "merge: human"];
+const holds = (body) => body.split("\n").includes("Hold: a human merges this");
+
+test("main holds the PR when the owner put merge: human on the issue", async () => {
+  const { code, body } = await runHumanMerge({ labels: MERGE_HUMAN, events: [labeled("merge: human", "kyle-sexton", OWNER_ID)] });
+  assert.equal(code, 0);
+  assert.ok(holds(body), body);
+});
+
+test("main holds the PR when the lanes App put merge: human on the issue", async () => {
+  const { body } = await runHumanMerge({ labels: MERGE_HUMAN, events: [labeled("merge: human", BOT, 337595936)] });
+  assert.ok(holds(body), body);
+});
+
+test("main without merge: human holds no PR and reads no label events", async () => {
+  const { body, calls } = await runHumanMerge({ labels: ["agent-ready", "work-class: scoped"] });
+  assert.ok(!holds(body), body);
+  assert.ok(!calls.some((c) => c.path.endsWith("/events")));
+});
+
+test("main ignores merge: human from a labeler who is not a listed human or the lanes App", async () => {
+  const { body } = await runHumanMerge({ labels: MERGE_HUMAN, events: [labeled("merge: human", "stranger", 42)] });
+  assert.ok(!holds(body), body);
+});
+
+test("main holds the PR when merge: human's labeler cannot be read", async () => {
+  assert.ok(holds((await runHumanMerge({ labels: MERGE_HUMAN, eventsStatus: 500, events: { message: "boom" } })).body));
+  assert.ok(holds((await runHumanMerge({ labels: MERGE_HUMAN, events: [labeled("merge: human", "kyle-sexton", OWNER_ID)], trusted: null })).body));
 });
 
 // collect-base-activity runs a script activity from a copy of its own

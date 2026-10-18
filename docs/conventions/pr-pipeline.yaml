@@ -56,8 +56,10 @@ activities:
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      # A person's hold stops it.
-      labels-absent: [do-not-merge, needs-human]
+      # do-not-merge stops it. On a needs-human PR the select step keeps only
+      # threads a trusted person with write access asked it to fix, and
+      # holds the PR when there are none; pr-merge still refuses that PR.
+      labels-absent: [do-not-merge]
       # A draft pull request is skipped.
       draft: [false]
   publish-feedback:
@@ -132,17 +134,29 @@ activities:
     # (pytest, bash, node --test or the package's vitest), so the run can
     # show a test it changed passing and failing when broken on purpose.
     # git-mv-rm.sh renames and removes paths inside the checkout.
+    # sync-shared-copies.sh regenerates registered shared-library copies
+    # inside the checkout: it reads the registry and canonicals there and
+    # writes only registered plugins/<name>/... copies, running no checkout
+    # code; it refuses a registry path that is absolute, has a . or .. segment
+    # or crosses a symbolic link, and from this copy refuses --check-bump,
+    # which can reach the GitHub API.
     # check-evals-quality.sh reads evals.json files with bash and jq.
     # check-skill.sh runs checkout code: each checked skill's
     # scripts/*.test.sh and the checkout's markdownlint, with the network
     # open and the token readable that way: the same power run-test-file.sh
     # has.
+    # new-changelog-fragment.sh writes .changes/<plugin>/<slug>.md in the
+    # work tree it runs in, refusing a plugin name with a path in it and a
+    # linked .changes directory (--carriers-of also makes and removes one
+    # temp file); it runs no checkout code and reaches no network.
     verify-scripts:
       - plugins/testing/skills/audit/scripts/cant-fail-scan.sh
       - scripts/run-test-file.sh
       - scripts/git-mv-rm.sh
       - plugins/skill-quality/scripts/check-skill.sh
       - plugins/skill-quality/scripts/check-evals-quality.sh
+      - scripts/sync-shared-copies.sh
+      - scripts/new-changelog-fragment.sh
     # Lets the run read web pages, so it can check a fact against its source
     # (for example a documented default on a vendor docs page) instead of
     # trusting the issue's quote. It may search the web and read any site,
@@ -285,6 +299,13 @@ loop:
   review-rounds: 3
   dependency-review-rounds: 2
 
+limits:
+  # Open lane PRs at which the issue lane stops starting runs. Sized as
+  # measured lane merges per hour (about 1.5) times an 8-hour open-to-merge
+  # target. Revisit after merge.max-in-flight (#8251) lands and merges per hour
+  # are re-measured.
+  wip-cap: 12
+
 merge:
   # The lane treats every PR the lanes App opened for one closing issue as
   # class C2 (plugins/autonomy/reference/guardrails/work-classes.md) and reads
@@ -297,6 +318,10 @@ merge:
   # A PR merges only with a passing pr-verify.yml verdict at its head. Must be
   # true at a rung above off: the gate refuses otherwise.
   require-verifier-verdict: true
+  # Lane merges in flight at once (queued plus merged and not yet verified).
+  # The merge queue tests each PR against the latest base plus the PRs ahead
+  # of it.
+  max-in-flight: 5
   # pr-verify.yml judges only PRs the lanes App (agent-identity) opened; `any`
   # judges every author's.
   verify-authors: lane

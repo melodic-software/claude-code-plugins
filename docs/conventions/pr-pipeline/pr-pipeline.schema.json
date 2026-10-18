@@ -54,6 +54,62 @@
         }
       }
     },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "When the lanes restart work the usage limit stopped, and when they stop restarting it. Durations are whole hours.",
+      "properties": {
+        "fallback-reset": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 720,
+          "default": 5,
+          "description": "Hours after a limit stop that names no reset time before its limit is taken to have reset."
+        },
+        "reset-clamp-min": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 720,
+          "default": 1,
+          "description": "Fewest hours after a limit stop before a restart, whatever reset the stop names."
+        },
+        "reset-clamp-max": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 720,
+          "default": 168,
+          "description": "Most hours after a limit stop before a restart, whatever reset the stop names."
+        },
+        "restarts-per-run": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 5,
+          "description": "Issues one work-unblock sweep restarts or re-fires."
+        },
+        "limit-stops-per-head": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "Limit stops on one PR head after which the pr-unblock dispatchers stop dispatching it again."
+        },
+        "limit-stops-per-issue": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "Limit stops since a person last added agent-ready after which work-unblock hands the issue to a person."
+        },
+        "wip-cap": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 60,
+          "description": "Open pull requests by the lanes App at or above which work-resolve-issue starts no run and work-unblock re-fires none."
+        }
+      }
+    },
     "merge": { "$ref": "#/$defs/merge" },
     "models": { "$ref": "#/$defs/models" }
   },
@@ -244,7 +300,7 @@
             "type": "string",
             "pattern": "^(scripts|plugins/[a-z0-9-]+/(skills/[a-z0-9-]+/)?scripts)/[A-Za-z0-9_-]+\\.sh$"
           },
-          "description": "Exact repository-relative paths of scripts a skill with an effect other than read may run with any arguments. The write runner copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout, with GH_TOKEN and GITHUB_TOKEN unset (code it runs can still read the token from an ancestor process), with any arguments but a path outside it. Needs an effect other than read. A script that changes files, runs code from the checkout, or reaches the network hands the run that power: list one only when it limits itself, as scripts/run-test-file.sh and scripts/git-mv-rm.sh do, or when the run may hold that power, as plugins/skill-quality/scripts/check-skill.sh (checkout test scripts and markdownlint) does."
+          "description": "Exact repository-relative paths of scripts a skill with an effect other than read may run with any arguments. The write runner copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout, with GH_TOKEN and GITHUB_TOKEN unset (code it runs can still read the token from an ancestor process), with any arguments but a path outside it. Needs an effect other than read. A script that changes files, runs code from the checkout, or reaches the network hands the run that power: list one only when it limits itself, as scripts/run-test-file.sh, scripts/git-mv-rm.sh and scripts/new-changelog-fragment.sh do, or when the run may hold that power, as plugins/skill-quality/scripts/check-skill.sh (checkout test scripts and markdownlint) does."
         },
         "web-access": {
           "type": "object",
@@ -459,6 +515,12 @@
           "type": "boolean",
           "default": false,
           "description": "true: the pr-merge lane refuses a pull request, and dequeues a queued one, without a passing pr-verify verdict at its head (README.md, Verifier verdict). It is the lane's merge criterion, so an enabled pr-merge lane (agent-identity set) at a rung above off must set it true; the gate refuses `verifier-verdict-not-required` otherwise."
+        },
+        "max-in-flight": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Lane merges allowed in flight at once: the agent identity's merge-queue entries plus its merged pull requests the post-merge check has not verified. The gate reads it at the default branch head, not the pull request's base, and refuses `in-flight:` at this count. A post-merge failure charges every unverified lane merge whose commit the red run contains, and any charge demotes the rung."
         },
         "verify-authors": {
           "enum": ["lane", "any"],

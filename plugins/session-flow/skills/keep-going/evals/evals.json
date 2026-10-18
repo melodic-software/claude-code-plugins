@@ -131,6 +131,19 @@
     },
     {
       "id": 11,
+      "name": "inventories-nested-subagent",
+      "prompt": "keep going — we got cut off. Before the disconnect you had a research subagent running, and I think it had spawned its own helper subagent to read the test logs.",
+      "expected_output": "The inventory descends below the top level: it lists the research subagent and the helper subagent it spawned, as two separate items, and reads each one's real state from its own transcript or output rather than assuming the helper followed the parent. A level that cannot be enumerated from the resumed session is named in the report, not omitted.",
+      "files": [],
+      "expectations": [
+        "Inventories both the research subagent and the subagent it spawned, not only the top-level one",
+        "Reads the nested subagent's real state from its own artifact rather than inferring it from the parent's",
+        "Reports each in the recovered / restarted / still-running / lost list",
+        "Says so in the report if a nested level cannot be enumerated, rather than omitting it"
+      ]
+    },
+    {
+      "id": 12,
       "name": "report-states-the-measured-gap-after-a-rate-limit-stop",
       "prompt": "keep going — we hit a rate limit and I was away for a while. The session transcript is at ~/.claude/projects/app/session.jsonl.",
       "expected_output": "In step 2 the skill runs measure-stop-gap.py on the transcript instead of estimating how long the session was stopped, and the report states the measured gap (from the limit entry to now). It re-reads limit windows, leases, PR state and CI runs older than the gap rather than trusting remembered values. If the checker exits non-zero, the report says the gap is unknown and does not guess one.",
