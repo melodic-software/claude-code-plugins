@@ -448,7 +448,9 @@ that fails counts as a refusal.
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
 - **HIGH path floor.** A fixed set of paths in the wrapper's code, joined with
-  `merge.diff-check.denied-paths` and matched case-insensitively. A diff that touches any of them
+  `merge.diff-check.denied-paths` and, while `high-path-floor` is true, `floor-paths`,
+  `floor-script-scopes` and the capability check (see the pr-merge lane), matched
+  case-insensitively. A diff that touches any of them
   scores HIGH and is never merged unattended.
 - **Merge queue.** The wrapper enqueues with `--match-head-commit`, never `--auto`, and only when
   every required check is green. An armed auto-merge request on the pull request is a refusal, and

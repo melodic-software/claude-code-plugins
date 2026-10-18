@@ -12,7 +12,9 @@ command line, also scores HIGH. `merge.diff-check.floor-script-scopes` (a list o
 way. This repository lists `bin/`, `.lsp.json`, `settings*.json` and the scripts of the plugins
 the CI lanes load as floor paths, and those plugins as script scopes (Q646), and sets
 `high-path-floor: true` (owner decision 2026-10-18, reversing Q661), so its pr-merge lane holds
-such a pull request for a human. The switch governs both lanes: in the local babysit lane, false leaves out
+such a pull request for a human, and the scorer's fixed HIGH floor (`.github/**`,
+`docs/conventions/**`, agent instructions, hooks, `lib/`, `scripts/`, package manifests and more)
+now applies there too. The switch governs both lanes: in the local babysit lane, false leaves out
 `floor-paths`, `floor-script-scopes`, the capability check and the new fixed floor entries
 (`plugins/*/monitors/**`, `plugins/*/workflows/**`), so a local-lane pull request scores as it did
 before this release. `version` stays 2.

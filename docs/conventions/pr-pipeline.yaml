@@ -335,7 +335,10 @@ merge:
   # The HIGH path floor, floor-paths, floor-script-scopes and the capability
   # check are on (owner decision 2026-10-18, reversing Q661): lanes may edit
   # runnable plugin files (the #8184 scope), and fix-ci guards only
-  # .github/**. A lane PR touching a floor path or script, or changing
+  # .github/**. The scorer's fixed HIGH floor (.github/**,
+  # docs/conventions/**, agent instructions, hooks, lib/, scripts/, package
+  # manifests and more) now applies in the pr-merge lane too. A lane PR
+  # touching a floor path or script, or changing
   # capability frontmatter in a SKILL.md, agents/*.md or commands/*.md,
   # scores HIGH and waits for a human, who merges it in person. A denied path
   # would instead make the PR ineligible. The switch governs both lanes: in
@@ -349,7 +352,8 @@ merge:
   # denied-paths, set `c2-contradictions: true`, or set `max-changed-files`
   # or `max-changed-lines` (the earlier 8 and 400).
   # Owner decision 2026-10-17: the lane hold covers structural and untrusted-
-  # provenance work only; scoped lane PRs merge on the verifier verdict.
+  # provenance work only; scoped lane PRs off the HIGH floor merge on the
+  # verifier verdict.
   diff-check:
     denied-paths: []
     high-path-floor: true

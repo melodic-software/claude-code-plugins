@@ -1231,8 +1231,15 @@ class LanePathFloorTests(unittest.TestCase):
         self.assertIn("high-path:**/bin/**", _codes(result))
 
     def test_the_switch_off_gives_mains_pr_merge_scoring(self):
-        result = score(_lane_input((_file("plugins/foo/bin/run"),), high_floor=False))
-        self.assertEqual(result.score, Risk.LOW, _codes(result))
+        skill = "@@ -1,3 +1,4 @@\n ---\n name: bar\n+allowed-tools: Bash\n ---\n"
+        for changed in (
+            _file("plugins/foo/bin/run"),
+            _file(".github/x.yml"),
+            _file("plugins/foo/skills/bar/SKILL.md", patch=skill),
+        ):
+            with self.subTest(changed.path):
+                result = score(_lane_input((changed,), high_floor=False))
+                self.assertEqual(result.score, Risk.LOW, _codes(result))
 
     LANE_PLUGINS = (
         "ai-slop",
