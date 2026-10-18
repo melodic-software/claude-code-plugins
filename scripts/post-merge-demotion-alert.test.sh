@@ -49,10 +49,10 @@ else
   fail "workflow_run does not name both workflows: '$triggers'"
 fi
 if grep -q '^permissions: {}$' "$WORKFLOW" &&
-  [[ "$(grep -oE '^ +[a-z-]+: (read|write)( |$)' "$WORKFLOW" | sed 's/^ *//; s/ *$//' | sort | paste -sd ' ')" == 'actions: write checks: read issues: write' ]]; then
-  ok "the token holds issues: write, actions: write and checks: read, nothing else"
+  [[ "$(grep -oE '^ +[a-z-]+: (read|write)( |$)' "$WORKFLOW" | sed 's/^ *//; s/ *$//' | sort | paste -sd ' ')" == 'actions: write checks: read contents: read issues: write pull-requests: read' ]]; then
+  ok "the token holds issues: write, actions: write and checks, contents and pull-requests read, nothing else"
 else
-  fail "permissions are not exactly issues: write, actions: write, checks: read"
+  fail "permissions are not exactly issues: write, actions: write, checks: read, contents: read, pull-requests: read"
 fi
 if grep -qE '^[[:space:]]*-?[[:space:]]*uses:' "$WORKFLOW"; then
   fail "the workflow runs an action; it must check out and run nothing"
@@ -77,6 +77,7 @@ for ((i = 0; i < ${#args[@]}; i++)); do
     --jq) filter="${args[i + 1]}"; i=$((i + 1)) ;;
     -X) method="${args[i + 1]}"; i=$((i + 1)) ;;
     -f) fields+=("${args[i + 1]}"); i=$((i + 1)) ;;
+    -H) i=$((i + 1)) ;;
     --paginate|api) ;;
     *) endpoint="${args[i]}" ;;
   esac
@@ -107,6 +108,12 @@ case "$endpoint" in
   */actions/workflows/*status=success*) fixture="$STUB_DIR/green.json" ;;
   */actions/workflows/*) fixture="$STUB_DIR/runs.json" ;;
   */compare/*) fixture="$STUB_DIR/compare.json" ;;
+  */contents/*) exec cat "$STUB_DIR/pipeline.yaml" ;;
+  graphql)
+    printf '%s\n' "${fields[@]}" >"$STUB_DIR/graphql.$n"
+    [[ "${STUB_FAIL_GRAPHQL:-}" != 1 ]] || exit 1
+    fixture="$STUB_DIR/graphql.json"
+    ;;
   */actions/runs/[0-9]*)
     # The re-run's attempt 2: in progress until poll STUB_POLLS, then
     # STUB_RERUN (never: it does not finish).
@@ -187,8 +194,14 @@ run_step() {
   printf '{"commits": [%s]}\n' "${COMPARE-$(commit "$SHA" "$OTHER" octocat 'fix: a change (#1234)')}" >"$TMP_ROOT/stub/compare.json"
   printf '[]\n' >"$TMP_ROOT/stub/annotations.none.json"
   printf '%s\n' "${ANNOTATIONS_7:-[]}" >"$TMP_ROOT/stub/annotations.7.json"
+  if [[ -n "${PIPELINE:-}" ]]; then
+    printf '%s\n' "$PIPELINE" >"$TMP_ROOT/stub/pipeline.yaml"
+  fi
+  local graphql="${GRAPHQL:-}"
+  printf '%s\n' "${graphql:-null}" >"$TMP_ROOT/stub/graphql.json"
   : >"$TMP_ROOT/stub/log"
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" STUB_FAIL_READ="${FAIL_READ:-}" \
+    STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" \
     STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
     STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
@@ -471,6 +484,101 @@ if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -q "^GET repos/o/r/compare/$OTH
   ok "the base is the newest green schedule or dispatch run, never a pull_request run"
 else
   fail "base choice: rc=$RC log='$LOG'"
+fi
+
+# --- Who put the range's merges in the queue ----------------------------------
+# A decoy agent-identity outside `merge:` must not be read.
+PIPE=$'lanes:\n  agent-identity: decoy[bot]\n\nmerge:\n  rung: C2\n  agent-identity: melodic-automation-lanes[bot]\n  report-only: false'
+# enq <number> <login> <typename> -> one aliased pullRequest whose latest
+# AddedToMergeQueueEvent that login made; enq <number> with no login has none.
+enq() {
+  if [[ $# -eq 1 ]]; then
+    printf '"p%s": {"timelineItems": {"nodes": []}}' "$1"
+    return
+  fi
+  jq -nc --arg n "p$1" --arg l "$2" --arg t "$3" \
+    '{($n): {timelineItems: {nodes: [{actor: {__typename: $t, login: $l}, enqueuer: {__typename: $t, login: $l}}]}}}' |
+    sed 's/^{//; s/}$//'
+}
+gq() {
+  local IFS=,
+  jq -nc --argjson p "{$*}" '{data: {rateLimit: {cost: 1, remaining: 4999}, repository: $p}}'
+}
+
+PIPELINE="$PIPE" GRAPHQL="$(gq "$(enq 1234 octocat User)")" run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+fields="$(post_fields)"
+body="${fields#*body=}"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == "<!-- post-merge-failure sha=$SHA signal=dispatch -->"$'\n'* &&
+  "$fields" != *babysit-merge-demotion* && "$fields" == *"title=Post-merge dispatch failure after #1234: lane not demoted"* &&
+  "$body" == *"the lane is NOT demoted"* && "$body" != *"rung off until"* &&
+  "$body" == *"- Pull request: https://github.com/o/r/pull/1234, by octocat"* && "$OUT" == *"cost 1 remaining 4999"* ]] &&
+  grep -qx 'labels\[\]=needs-human' <<<"$fields" && [[ "$(grep -cx 'GET graphql' <<<"$LOG")" -eq 1 ]] &&
+  grep -q 'p1234: pullRequest(number: 1234)' "$TMP_ROOT/stub/graphql.$(grep -nx 'GET graphql' <<<"$LOG" | cut -d: -f1)"; then
+  ok "a window of human-enqueued merges files a needs-human record that does not demote"
+else
+  fail "human-only window: rc=$RC log='$LOG' out='$OUT' fields='$fields'"
+fi
+
+TWO="$(commit "$MID" "$OTHER" alice 'feat(planning): a join prompt (#8259)'), $(commit "$SHA" "$MID" bob 'ci: record suite times (#8260)')"
+COMPARE="$TWO" PIPELINE="$PIPE" GRAPHQL="$(gq "$(enq 8259 alice User)" "$(enq 8260 bob User)")" \
+  run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+fields="$(post_fields)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "${fields#*body=}" == "<!-- post-merge-failure sha=$SHA signal=schedule -->"$'\n'* &&
+  "$fields" == *"title=Post-merge schedule failure after #8259..#8260: lane not demoted"* &&
+  "$fields" == *"pull/8259, merge commit \`$MID\`, by alice"* && "$fields" == *"pull/8260, merge commit \`$SHA\`, by bob"* ]]; then
+  ok "a scheduled run over two human merges lists both with their authors and does not demote"
+else
+  fail "human-only range: rc=$RC log='$LOG' fields='$fields'"
+fi
+
+# demotes <label>: the run filed today's demotion record.
+demotes() {
+  local fields
+  fields="$(post_fields 2>/dev/null)"
+  if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "${fields#*body=}" == "<!-- babysit-merge-demotion sha=$SHA signal="* &&
+    "$fields" == *": unattended merging demoted"* && "$fields" == *"rung off until"* ]]; then
+    ok "$1"
+  else
+    fail "$1: rc=$RC log='$LOG' out='$OUT' fields='$fields'"
+  fi
+}
+
+COMPARE="$TWO" PIPELINE="$PIPE" GRAPHQL="$(gq "$(enq 8259 alice User)" "$(enq 8260 melodic-automation-lanes Bot)")" \
+  run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+demotes "a window with one lane enqueue among human merges demotes (a Bot login gains [bot])"
+if [[ "$OUT" != *"lookup for 2 pull requests: cost 1"* ]]; then
+  fail "the mixed window's lookup did not answer: out='$OUT'"
+fi
+
+PIPELINE="$PIPE" FAIL_GRAPHQL=1 run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+demotes "a failed merge-queue lookup demotes"
+
+PIPELINE="$PIPE" GRAPHQL="$(gq "$(enq 1234)")" run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+demotes "a merge with no merge-queue event demotes"
+
+PIPELINE="$PIPE" GRAPHQL='{"data": {"rateLimit": {"cost": 1, "remaining": 1}, "repository": {}}}' \
+  run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+demotes "a lookup that answers for fewer pull requests than asked demotes"
+
+GRAPHQL="$(gq "$(enq 1234 octocat User)")" run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+demotes "an unreadable agent identity demotes"
+if grep -qx 'GET graphql' <<<"$LOG"; then
+  fail "the lookup ran without an identity: log='$LOG'"
+fi
+
+COMPARE="$(commit "$MID" "$OTHER" alice 'a direct commit'), $(commit "$SHA" "$MID" bob 'ci: record suite times (#8260)')" \
+  PIPELINE="$PIPE" GRAPHQL="$(gq "$(enq 8260 bob User)")" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+demotes "a range commit with no (#N) subject demotes"
+
+GREEN='' PIPELINE="$PIPE" GRAPHQL="$(gq "$(enq 1234 octocat User)")" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+demotes "an unknown range demotes"
+
+PIPELINE="$PIPE" GRAPHQL="$(gq "$(enq 1234 octocat User)")" run_step "$FULL" workflow_dispatch failure main o/r "$SHA" \
+  "[$(issue 41 "<!-- post-merge-failure sha=$SHA signal=dispatch -->")]"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -qx 'POST repos/o/r/issues/41/comments' <<<"$LOG"; then
+  ok "an existing non-demoting record gets the comment, not a second issue"
+else
+  fail "existing non-demoting record: rc=$RC log='$LOG'"
 fi
 
 # --- Re-run, baseline and the gitleaks gate ------------------------------------
