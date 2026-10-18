@@ -152,8 +152,8 @@ export function carryOverProgress(rendered, previous) {
     .split("\n")
     .flatMap((line) => {
       const match = ROW_ID.exec(line);
-      const kept = match ? ticked.get(match[2]) : undefined;
-      if (!kept) return [line];
+      const kept = match && ticked.get(match[2]);
+      if (!match || !kept) return [line];
       if (kept.hash !== null && kept.hash !== CRITERIA_HASH.exec(line)?.[1]) {
         dropped.push(match[2]);
         return [line];
