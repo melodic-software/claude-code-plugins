@@ -1,5 +1,16 @@
 # Changelog for the PR pipeline convention
 
+## 2.10.0 - 2026-10-18
+
+`resolve-issue` lists `scripts/new-changelog-fragment.sh` as a `verify-script`, so the issue lane
+can write a changelog fragment. The script now writes into the git work tree its caller stands
+in (exit 2 outside one), not its own parent, refuses a plugin name with a path in it and a linked
+`.changes` directory, and runs its own copy's `sync-shared-copies.sh` for `--carriers-of`, which
+reads the checkout's registry. The verify-script prompt now says Bash runs only the named wrappers, each as its own command, that the
+run inspects and changes files with Read, Grep, Glob, Edit and Write instead of `cd`, `;`, `&&`,
+pipes or interpreter one-liners, and names the `git-mv-rm` wrapper for a rename or removal when
+it is listed ([pr-run-activity.md](pr-run-activity.md#skill-activities)). `version` stays 2.
+
 ## 2.9.1 - 2026-10-18
 
 `request-lane-token` also retries a broker 503 `github-rate-limited`, waiting exactly its

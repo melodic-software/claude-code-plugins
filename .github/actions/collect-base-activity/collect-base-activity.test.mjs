@@ -219,8 +219,11 @@ test("a listed verify-script gets one wrapper rule on a read-only copy that runs
 });
 
 // A chained `; echo "$?"` needs approval the dontAsk lane cannot give, so the
-// wrapper reports the script's exit status itself and the prompt says so.
-const RUN_ALONE = "Run each verification wrapper as its own command, not chained to another; it prints the script's exit status.";
+// wrapper reports the script's exit status itself and the prompt says so. The
+// same sentence steers the run off the compound commands, pipes and
+// interpreter one-liners the lane denied in runs 39092789214 and 39092790956.
+const RUN_ALONE =
+  "Bash runs only the wrappers named in these instructions, each as its own command (a verification wrapper prints the script's exit status): use Read, Grep and Glob to inspect files and Edit or Write to change them, never cd, ;, &&, a pipe or an interpreter one-liner.";
 test("the verify-script wrapper prints the script's exit status and exits with it", () => {
   writeFileSync(path.join(base, "plugins", "vtest", "scripts", "fails.sh"), "echo failing\nexit 3\n");
   const { status, args, verifyDir } = withVerify([VERIFY, "plugins/vtest/scripts/fails.sh"]);
@@ -346,6 +349,37 @@ test("without run-test-file in the list the prompt names no test entry", () => {
   const { status, args } = withVerify([VERIFY]);
   assert.equal(status, 0);
   assert.ok(!args.includes("Run a test file"), args);
+});
+
+test("the prompt names git-mv-rm as the way to rename or delete a file, only when it is listed", () => {
+  const lane = withLaneTools();
+  assert.equal(lane.status, 0);
+  assert.ok(lane.args.includes(`Rename or delete a file with ${path.join(lane.verifyDir, "bin", "git-mv-rm")}.`), lane.args);
+  const bare = withVerify([VERIFY]);
+  assert.equal(bare.status, 0);
+  assert.ok(!bare.args.includes("Rename or delete"), bare.args);
+});
+
+// The issue lane lists new-changelog-fragment.sh: from the read-only copy of
+// scripts/, it must write the fragment into the checkout it runs in.
+test("new-changelog-fragment writes a fragment into the checkout from the read-only copy", () => {
+  const files = ["scripts/new-changelog-fragment.sh", "scripts/lib/changelog-fragments.sh", "scripts/lib/read-list.sh"];
+  for (const file of files) {
+    mkdirSync(path.join(base, path.dirname(file)), { recursive: true });
+    writeFileSync(path.join(base, file), readFileSync(new URL(file, REPO)));
+  }
+  const { status, verifyDir, workspace } = withVerify([files[0]]);
+  assert.equal(status, 0);
+  spawnSync("git", ["-C", workspace, "init", "-q"]);
+  spawnSync("git", ["-C", workspace, "symbolic-ref", "HEAD", "refs/heads/fix/x"]);
+  mkdirSync(path.join(workspace, "plugins", "alpha", ".claude-plugin"), { recursive: true });
+  writeFileSync(path.join(workspace, "plugins", "alpha", ".claude-plugin", "plugin.json"), '{"name":"alpha"}\n');
+  mkdirSync(path.join(workspace, "scripts"), { recursive: true });
+  writeFileSync(path.join(workspace, "scripts", "fragment-plugins.txt"), "alpha\n");
+  const run = spawnSync(path.join(verifyDir, "bin", "new-changelog-fragment"), ["alpha", "patch"], { cwd: root, encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stdout, /^\.changes\/alpha\/fix-x-[0-9a-f]{8}\.md\n$/);
+  assert.equal(readFileSync(path.join(workspace, run.stdout.trim()), "utf8"), "---\nbump: patch\n---\n\n");
 });
 
 test("run-test-file runs an in-checkout test file by its runner and prints the exit status", () => {
