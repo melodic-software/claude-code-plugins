@@ -72,6 +72,11 @@ class Refused(Exception):
         self.code, self.message, self.payload = code, message, payload
 
 
+def _digits(v):
+    """Whether v is ASCII digits only: str.isdigit also takes "²", which int() refuses."""
+    return v.isascii() and v.isdigit()
+
+
 def emit(obj):
     """One JSON line; U+2028 and U+2029 escaped, since a reader splitting with str.splitlines() ends a line there."""
     print(json.dumps(obj, ensure_ascii=False).replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"), flush=True)
@@ -484,7 +489,7 @@ def logged_at(line):
 def cmd_logs(d, a):
     """The newest LOG_TAIL lines of server.log and its rotated files, oldest first, or with --summary what they add up
     to (summarize); it needs no running server."""
-    rotated = sorted((f for f in d.glob(LOG + ".*") if f.suffix[1:].isdigit()), key=lambda f: int(f.suffix[1:]), reverse=True)
+    rotated = sorted((f for f in d.glob(LOG + ".*") if _digits(f.suffix[1:])), key=lambda f: int(f.suffix[1:]), reverse=True)
     lines = []
     for f in [*rotated, d / LOG]:
         with contextlib.suppress(OSError):
@@ -566,7 +571,7 @@ def summarize(lines):
         pv = t.get("pv") or f"summary{sm['count']}"
         pages.add(pv)
         for k, v in t.items():
-            if k.startswith("rep:") and v.isdigit():
+            if k.startswith("rep:") and _digits(v):
                 repeats[k[4:]] += int(v)
                 repeat_at[k[4:]] = max(repeat_at.get(k[4:], ""), at)
         if t.get("owner") == "1":
@@ -577,11 +582,11 @@ def summarize(lines):
         for k, val in t.items():
             if k.startswith("lat:"):
                 for i, n in enumerate(val.split(",")[: len(LAT_EDGES) + 1]):
-                    lat[k[4:]][i] += int(n) if n.isdigit() else 0
-            elif k.startswith("rb:") and val.isdigit():
+                    lat[k[4:]][i] += int(n) if _digits(n) else 0
+            elif k.startswith("rb:") and _digits(val):
                 rollbacks[k[3:]] += int(val)
             elif k == "gap":
-                gaps.extend((int(g), v["device"]) for g in val.split(",") if g.isdigit())
+                gaps.extend((int(g), v["device"]) for g in val.split(",") if _digits(g))
             elif k in ("inp", "lcp", "vitals"):
                 v[k] = val
 
@@ -599,7 +604,7 @@ def summarize(lines):
             except (IndexError, ValueError):
                 continue  # cut short: not a batch this can read
             sm["batches"] += 1
-            sm["dropped"] += int(f.get("dropped", "0")) if f.get("dropped", "").isdigit() else 0
+            sm["dropped"] += int(f.get("dropped", "0")) if _digits(f.get("dropped", "")) else 0
             for item in items if isinstance(items, list) else []:
                 if isinstance(item, list) and len(item) == 2 and all(isinstance(x, str) for x in item):
                     fold(*item, line[:19])
@@ -628,7 +633,7 @@ def summarize(lines):
     timed = [v for v in vitals.values() if not v.get("owner")]
 
     def vital(name):
-        vals = [(int(v[name].split(":")[0]), v["device"]) for v in timed if v.get(name, "").split(":")[0].isdigit()]
+        vals = [(int(v[name].split(":")[0]), v["device"]) for v in timed if _digits(v.get(name, "").split(":")[0])]
         by = {dev: rank([x for x, d in vals if d == dev], 0.75) for dev in sorted({d for _, d in vals})}
         return {"p75Ms": rank([x for x, _ in vals], 0.75), "pages": len(vals), "byDevice": by, "missing": sum(1 for v in timed if v.get(name) == "missing" or v.get("vitals") == "missing")}
 

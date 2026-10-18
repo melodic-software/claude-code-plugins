@@ -299,6 +299,15 @@ class TestLogsSummary(unittest.TestCase):
             self.assertIn(want, p.stdout.splitlines())
         self.assertFalse(p.stdout.startswith("{"))
 
+    def test_non_ascii_digits_in_a_summary_count_as_nothing_and_never_stop_the_summary(self):
+        """str.isdigit takes "²", which int() refuses: a page could send it and break `logs --summary`."""
+        line = '2026-10-18 11:00:00,000 INFO summary-batch summaries=1 dropped=² data=[["pv=p1\\u0020rep:x=²\\u0020gap=²\\u0020rb:/api/vote=²\\u0020lat:/api/vote=²,1","chrome\\u0020phone"]]'
+        out = share_cli.summarize([line])
+        self.assertEqual(out["summaries"]["count"], 1)
+        self.assertEqual(out["summaries"]["dropped"], 0)
+        self.assertEqual((out["latency"]["/api/vote"]["actions"], out["latency"]["/api/vote"]["rollbacks"]), (1, 0))
+        self.assertEqual(out["reconnect"]["count"], 0)
+
     def test_an_empty_log_summarizes_to_nothing(self):
         code, out, err = share(tmpdir(self), "logs", "--summary", "--json")
         self.assertEqual(code, 0, err)
