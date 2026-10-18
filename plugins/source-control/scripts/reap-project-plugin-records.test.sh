@@ -5,7 +5,7 @@
 # `plugin uninstall <id> -s project` acts ONLY on a record whose projectPath is
 # the current directory and otherwise fails with the text that suggests
 # `--scope user`. Every case here pins a safety property the reap rests on:
-# the cwd-equality refusal, the never-`-s user` / never-`--prune` rule, the
+# the main-working-tree refusal, the never-`-s user` / never-`--prune` rule, the
 # always-`--keep-data` rule, the other-path records left untouched, and the
 # visible degrade.
 set -uo pipefail
@@ -152,16 +152,43 @@ assert_exit "unknown argument is a usage error" 2 "$RC"
 run "$WT" --worktree-path "$TEST_TMPDIR/does-not-exist"
 assert_exit "unresolvable --worktree-path is a usage error" 2 "$RC"
 
-# --- the cwd-equality boundary --------------------------------------------------
+# --- the main-working-tree refusal ----------------------------------------------
+# A main working tree keeps `.git` as a directory. It is refused before the
+# script enters it, whatever the caller's cwd is.
 
-seed_state "$(jq -n --arg wt "$WT_NATIVE" '[{id:"a@m",scope:"project",projectPath:$wt}]')"
+MAIN="$TEST_TMPDIR/main"
+mkdir -p "$MAIN/.git"
+MAIN_NATIVE="$(native_of "$MAIN")"
+seed_state "$(jq -n --arg m "$MAIN_NATIVE" '[{id:"a@m",scope:"project",projectPath:$m}]')"
 reset_log
-run "$OTHER" --worktree-path "$WT"
-assert_exit "refuses when --worktree-path is not the current directory" 2 "$RC"
-assert_contains "the refusal names both paths" "$OUT" "current directory is"
-remaining="$(jq 'length' "$STATE")"
-assert_eq "a refused run removes nothing" "1" "$remaining"
+run "$OTHER" --worktree-path "$MAIN"
+assert_exit "refuses a main working tree" 2 "$RC"
+assert_contains "the refusal names the main working tree" "$OUT" "main working tree"
+assert_eq "a refused run removes nothing" "1" "$(jq 'length' "$STATE")"
 assert_not_contains "a refused run never calls the CLI" "$(cat "$LOG")" "plugin"
+
+run "$MAIN" --worktree-path "$MAIN"
+assert_exit "refuses a main working tree even when standing in it" 2 "$RC"
+assert_eq "a refused run from inside removes nothing" "1" "$(jq 'length' "$STATE")"
+
+# --- the caller's cwd does not matter -------------------------------------------
+# A linked worktree keeps `.git` as a file. Run from an unrelated directory, the
+# script enters --worktree-path itself and reaps only that path's records.
+
+LINKED="$TEST_TMPDIR/linked"
+mkdir -p "$LINKED"
+printf 'gitdir: %s/gone\n' "$TEST_TMPDIR" >"$LINKED/.git"
+LINKED_NATIVE="$(native_of "$LINKED")"
+seed_state "$(jq -n --arg l "$LINKED_NATIVE" --arg o "$OTHER_NATIVE" '[
+  {id:"a@m",scope:"project",projectPath:$l},
+  {id:"b@m",scope:"project",projectPath:$o}
+]')"
+reset_log
+run "$OTHER" --worktree-path "$LINKED"
+assert_exit "a run from an unrelated cwd reaps the named worktree" 0 "$RC"
+assert_contains "the named worktree's record is reaped" "$OUT" "reaped a@m"
+assert_eq "the other path's record is left" "b@m" "$(jq -r 'map(.id) | join(",")' "$STATE")"
+assert_contains "the uninstall step ran" "$(cat "$LOG")" "uninstall"
 
 # --- nothing to reap ------------------------------------------------------------
 
@@ -216,14 +243,22 @@ SHIM
     "a@m": true
   }
 }'
-  # new_repo <dir> — a git work tree with .claude/settings.json committed.
-  new_repo() {
-    mkdir -p "$1/.claude"
-    git -C "$1" init -q
-    printf '%s\n' "$ORIGINAL_SETTINGS" >"$1/.claude/settings.json"
-    git -C "$1" add .claude/settings.json
-    git -C "$1" -c user.name=t -c user.email=t@example.invalid commit -q -m init
+  # new_linked <dir> [tracked] — a linked worktree at <dir> (the reap refuses a
+  # main working tree) of a throwaway main repo. With `tracked`, the commit it
+  # branches from carries .claude/settings.json.
+  new_linked() {
+    local main="$1.main"
+    mkdir -p "$main"
+    git -C "$main" init -q
+    if [[ "${2:-}" == tracked ]]; then
+      mkdir -p "$main/.claude"
+      printf '%s\n' "$ORIGINAL_SETTINGS" >"$main/.claude/settings.json"
+      git -C "$main" add .claude/settings.json
+    fi
+    git -C "$main" -c user.name=t -c user.email=t@example.invalid commit -q --allow-empty -m init
+    git -C "$main" worktree add -q --detach "$1"
   }
+  new_repo() { new_linked "$1" tracked; }
 
   # Tracked and clean before the pass: restored byte-for-byte, tree clean.
   GWT="$TEST_TMPDIR/gwt-clean"
@@ -292,8 +327,8 @@ SHIM
 
   # Untracked: left alone, warned about.
   GWT="$TEST_TMPDIR/gwt-untracked"
+  new_linked "$GWT"
   mkdir -p "$GWT/.claude"
-  git -C "$GWT" init -q
   printf '%s\n' "$ORIGINAL_SETTINGS" >"$GWT/.claude/settings.json"
   seed_state "$(jq -n --arg wt "$(native_of "$GWT")" '[{id:"a@m",scope:"project",projectPath:$wt}]')"
   reset_log
