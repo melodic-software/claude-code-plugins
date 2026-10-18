@@ -919,6 +919,7 @@ class Session:
         self._key_joins = {}  # guest key -> times of recent joins from any address
         self._reported = {}  # pid -> time of their last report, which REPORT_INTERVAL spaces; never persisted
         self._base_cache = None
+        self._chat_touch, self._chat_touches = {}, 0  # message id -> the count of reaction or forward changes at its last one; never persisted
         self._undo = []  # (file, bytes before or None) an apply wrote, put back when the apply is refused
         self.uploads_dir = self.path.parent / "uploads"  # in the private data folder; never under web/ or assets/
         self._sending = set()  # upload ids whose chunk is being written outside the lock
@@ -3064,9 +3065,15 @@ class Session:
                     reactions.pop(emoji)
             if not reactions:
                 msg.pop("reactions")
+            self._touch_chat(mid)
         self._wrote(pid, route, now)
         self._wrote(pid, "chat-react", now)
         return {"id": mid, "emoji": emoji, "on": on}
+
+    def _touch_chat(self, mid):
+        """A message's reactions or forward changed: the snapshot's chatTouched moves when it is older than the window."""
+        self._chat_touches += 1
+        self._chat_touch[mid] = self._chat_touches
 
     def propose_from_chat(self, pid, body):
         """POST /api/chat/propose: a moderator turns a chat message into its author's proposal."""
@@ -3080,6 +3087,7 @@ class Session:
                 raise DomainError(409, "wrong-status", "This message is already a proposal.", status="proposed")
             prop = self._new_proposal(msg["pid"], msg["text"], {"kind": "chat", "message": mid, "by": pid})
             msg["proposed"] = prop["id"]
+            self._touch_chat(mid)
             self._notify(msg["pid"], "proposal", "Your chat message became a proposal.", actor=pid, msg=mid)
             return {"proposal": prop["id"]}
 
@@ -4593,6 +4601,9 @@ class Session:
         }
         if len(chat) > CHAT_WINDOW:
             base["chatBefore"] = base["chat"][0]["id"]  # older messages exist: GET /api/chat?before=<it> reads them
+            touched = max((self._chat_touch.get(m["id"], 0) for m in chat[:-CHAT_WINDOW]), default=0)
+            if touched:
+                base["chatTouched"] = touched  # a page holding older messages reads them again when this moves
         base = json.loads(json.dumps(base))
         self._base_cache = (st["rev"], base)
         return base

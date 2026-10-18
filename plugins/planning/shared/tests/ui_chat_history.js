@@ -101,6 +101,14 @@ async function main() {
     ok("the message the reader was looking at stays where it was", Math.abs(after - before) <= 4, `${before} -> ${after}`);
     ok("at the start of the chat no Load earlier row is left", await gus.evaluate(() => !document.querySelector(".vf-mlist > .vf-mgap")));
 
+    // ---------- someone else's reaction on a loaded message outside the window reaches it ----------
+    const reacter = { "Content-Type": "application/json", "CF-Connecting-IP": "198.51.100.40" };
+    reacter["X-Session-Secret"] = (await (await fetch(`${A.localUrl}api/join`, { method: "POST", headers: reacter, body: JSON.stringify({ name: "Reacter", device: "computer" }) })).json()).secret;
+    const reacted = await fetch(`${A.localUrl}api/chat/react`, { method: "POST", headers: reacter, body: JSON.stringify({ id: "M5", emoji: "👍", on: true }) });
+    ok("another person reacts to M5, outside the window", reacted.status === 200, reacted.status);
+    ok("  and the page holding M5 shows that reaction", await until(gus, () => (window.Core.state.chat.find(m => m.id === "M5")?.reactions?.["👍"] || []).length === 1),
+      await gus.evaluate(() => JSON.stringify(window.Core.state.chat.find(m => m.id === "M5")?.reactions)));
+
     // ---------- 60 arrivals while frozen all count as unread ----------
     await gus.click(".vf-fab"); // close the chat
     const posters = [];

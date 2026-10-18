@@ -1012,7 +1012,7 @@
   // Every message this page has read stays while it is open, so one that leaves the window stays under a reader
   // scrolled up to it. `linked` holds the ids whose next older message is loaded too (or that have none); a message
   // outside it shows a Load earlier control above it. A change of name masking or role starts over.
-  const held = { chat: new Map(), linked: new Set(), key: "" };
+  const held = { chat: new Map(), linked: new Set(), key: "", touched: 0 };
   const seqOf = id => Number(String(id).replace(/\D+/g, "")) || 0;
   function keepChat(run, before, below) {
     run.forEach((m, i) => { held.chat.set(m.id, m); if (i || !before) held.linked.add(m.id); });
@@ -1028,8 +1028,21 @@
     const key = `${s.settings?.names}|${s.me.role}`;
     if (key !== held.key) { held.chat.clear(); held.linked.clear(); held.key = key; }
     const win = s.chat || [], skipped = !!s.chatBefore && win.length > 0 && held.chat.size > 0 && !held.chat.has(win[0].id);
+    const touched = (s.chatTouched || 0) !== held.touched && held.chat.size > win.length;
+    held.touched = s.chatTouched || 0;
     keepChat(win, s.chatBefore);
     if (skipped) fillChat(win[0].id).catch(() => {});
+    else if (touched && win.length) refreshChat(win[0].id).catch(() => {});
+  }
+  /** Someone reacted to or forwarded a message older than the window: read the held ones again, back to the oldest. */
+  async function refreshChat(id) {
+    const oldest = Math.min(...[...held.chat.keys()].map(seqOf));
+    for (let n = 0; n < 20 && id; n++) {
+      const j = await chatPage({ before: id, limit: 100 });
+      for (const m of j.chat) if (held.chat.has(m.id)) held.chat.set(m.id, m);
+      id = j.chat.length && seqOf(j.chat[0].id) > oldest ? j.before : "";
+    }
+    repaint();
   }
   /** More than a window arrived between two polls: read back to the messages this page already holds. */
   async function fillChat(id) {

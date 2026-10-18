@@ -1885,6 +1885,20 @@ class TestChatWindow(SessionCase):
         self.assertEqual([m["id"] for m in snap["chat"]], ids[70:])
         self.assertEqual(snap["chatBefore"], ids[70])
 
+    def test_chat_touched_moves_on_a_change_to_a_message_older_than_the_window(self):
+        """A page holding older messages has no other way to learn of their new reactions or forward (README "Chat
+        history"): chatTouched moves for those, never for a change inside the window or a new message."""
+        ids = self.say(60)
+        self.assertNotIn("chatTouched", self.s.snapshot(self.bo))
+        self.act("react_chat", self.bo, {"id": ids[-1], "emoji": "👍", "on": True})
+        self.assertNotIn("chatTouched", self.s.snapshot(self.bo))
+        self.act("react_chat", self.bo, {"id": ids[0], "emoji": "👍", "on": True})
+        first = self.s.snapshot(self.bo)["chatTouched"]
+        self.say(1, self.cy)
+        self.assertEqual(self.s.snapshot(self.bo)["chatTouched"], first)
+        self.act("react_chat", self.cy, {"id": ids[1], "emoji": "👍", "on": True})
+        self.assertGreater(self.s.snapshot(self.bo)["chatTouched"], first)
+
     def test_fifty_messages_or_fewer_carry_no_cursor(self):
         ids = self.say(50)
         snap = self.s.snapshot(self.bo)
