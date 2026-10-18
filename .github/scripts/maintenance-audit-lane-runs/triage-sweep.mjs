@@ -102,7 +102,11 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
   const candidates = selectCandidates({ issues, now, authorIds });
   result.candidates = candidates.length;
   const handOff = (number) => call("POST", `/repos/${repo}/issues/${number}/labels`, { labels: ["needs-triage"] });
-  for (const { number } of candidates.slice(0, MAX_CHECKED)) {
+  // Issues intake already commented on cost one read and do not count toward
+  // MAX_CHECKED, so they cannot starve the issues behind them.
+  let checked = 0;
+  for (const { number } of candidates) {
+    if (checked >= MAX_CHECKED) break;
     if (result.dispatched.length >= MAX_DISPATCHES && result.filed.length >= MAX_FILED) break;
     try {
       const comments = [];
@@ -114,6 +118,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
         if (!full) break;
       }
       if (hasIntakeComment(comments)) continue;
+      checked += 1;
       // Past the pages read, the state comment may be hidden: a person decides.
       if (full) {
         await handOff(number);
@@ -138,6 +143,8 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
         const sent = await call("POST", `/repos/${repo}/actions/workflows/intake-triage.yml/dispatches`, {
           ref: "main",
           inputs: { "issue-number": String(number) },
+          // Without it, API version 2022-11-28 answers 204 with no run id.
+          return_run_details: true,
         });
         const id = Number(sent?.workflow_run_id);
         if (!Number.isInteger(id) || id <= 0) throw new Error("the dispatch returned no run id");
@@ -154,10 +161,12 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
           const run = id === state.runs.at(-1) ? latest : await call("GET", `/repos/${repo}/actions/runs/${id}`);
           runs.push({ id, conclusion: run?.conclusion ?? null });
         }
+        // The label goes first: it takes the original out of later passes, so a
+        // write that fails after it can never file a second issue.
+        await handOff(number);
         const filed = await call("POST", `/repos/${repo}/issues`, renderFiledIssue({ number, runs, repoUrl }));
         result.filed.push(filed.number);
         await writeState(call, repo, number, state, { runs: state.runs, filed: filed.number });
-        await handOff(number);
       }
     } catch (error) {
       if (/call budget/.test(error.message)) {

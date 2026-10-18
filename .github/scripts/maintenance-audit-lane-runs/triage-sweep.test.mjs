@@ -122,7 +122,7 @@ test("the filed issue names the issue and every failed run, and carries needs-tr
 });
 
 // A fake GitHub holding issues, comments and runs, recording every write.
-function fakeGitHub({ issues, comments = {}, runs = {} }) {
+function fakeGitHub({ issues, comments = {}, runs = {}, failPatch = false }) {
   const writes = [];
   let nextRun = 900;
   let nextIssue = 5000;
@@ -139,12 +139,20 @@ function fakeGitHub({ issues, comments = {}, runs = {} }) {
       return runs[m[1]] ?? null;
     }
     writes.push({ method, path, body });
+    // API version 2022-11-28 returns the run id only when return_run_details
+    // is true, else 204, which `call` turns into null.
     if (method === "POST" && path === "/repos/o/r/actions/workflows/intake-triage.yml/dispatches") {
+      if (body?.return_run_details !== true) return null;
       nextRun += 1;
       return { workflow_run_id: nextRun };
     }
     if (method === "POST" && path === "/repos/o/r/issues") return { number: (nextIssue += 1) };
-    if (method === "POST" && path.endsWith("/labels")) return [];
+    if (method === "POST" && (m = /^\/repos\/o\/r\/issues\/(\d+)\/labels$/.exec(path))) {
+      const target = issues.find((i) => i.number === Number(m[1]));
+      target.labels = [...(target.labels ?? []), ...body.labels.map((name) => ({ name }))];
+      return [];
+    }
+    if (method === "PATCH" && failPatch) throw new Error(`PATCH ${path}: HTTP 502`);
     if (method === "POST" || method === "PATCH") return { id: (nextComment += 1) };
     throw new Error(`unexpected ${method} ${path}`);
   };
@@ -163,7 +171,7 @@ test("a pass dispatches at most 5 issues, oldest first, and records each run on 
   const dispatches = gh.writes.filter((w) => w.path.endsWith("/dispatches"));
   assert.deepEqual(
     dispatches.map((w) => w.body),
-    [1, 2, 3, 4, 5].map((n) => ({ ref: "main", inputs: { "issue-number": String(n) } })),
+    [1, 2, 3, 4, 5].map((n) => ({ ref: "main", inputs: { "issue-number": String(n) }, return_run_details: true })),
   );
   const states = gh.writes.filter((w) => /\/issues\/\d+\/comments$/.test(w.path));
   assert.deepEqual(
@@ -213,16 +221,16 @@ test("after 2 untriaged dispatches the sweep files once, then never dispatches o
   assert.deepEqual(
     first.writes.map((w) => [w.method, w.path]),
     [
+      ["POST", "/repos/o/r/issues/1/labels"],
       ["POST", "/repos/o/r/issues"],
       ["PATCH", "/repos/o/r/issues/comments/5"],
-      ["POST", "/repos/o/r/issues/1/labels"],
     ],
   );
-  assert.deepEqual(first.writes[0].body.labels, ["needs-triage"]);
   // The label takes the original out of later passes' candidates.
-  assert.deepEqual(first.writes[2].body, { labels: ["needs-triage"] });
+  assert.deepEqual(first.writes[0].body, { labels: ["needs-triage"] });
+  assert.deepEqual(first.writes[1].body.labels, ["needs-triage"]);
   assert.deepEqual(result.filed, [5001]);
-  const marked = first.writes[1].body.body;
+  const marked = first.writes[2].body.body;
   assert.equal(readState([{ id: 5, user: BOT, body: marked }]).filed, 5001);
 
   const second = fakeGitHub({
@@ -279,4 +287,32 @@ test("a pass stops dispatching when the budget left cannot record the run", asyn
   assert.deepEqual(result.dispatched, [1]);
   assert.equal(gh.writes.filter((w) => w.path.endsWith("/dispatches")).length, 1);
   assert.match(result.truncated, /budget/);
+});
+
+test("a filing whose state write fails is not filed again on the next pass", async () => {
+  const gh = fakeGitHub({
+    issues: [issue(1)],
+    comments: { 1: [{ id: 5, user: BOT, body: renderState({ runs: [11, 22], filed: null, runUrl: "u" }) }] },
+    runs: {
+      11: { status: "completed", conclusion: "failure" },
+      22: { status: "completed", conclusion: "failure" },
+    },
+    failPatch: true,
+  });
+  const first = await sweep(gh);
+  assert.equal(first.failed.length, 1);
+  await sweep(gh);
+  assert.equal(gh.writes.filter((w) => w.method === "POST" && w.path === "/repos/o/r/issues").length, 1);
+});
+
+test("issues intake already commented on do not use up the per-pass check limit", async () => {
+  const commented = Array.from({ length: 20 }, (_, i) => issue(i + 1, { created_at: "2026-10-01T00:00:00Z" }));
+  const gh = fakeGitHub({
+    issues: [...commented, issue(21)],
+    comments: Object.fromEntries(
+      commented.map((i) => [i.number, [{ id: i.number, user: BOT, body: "<!-- claude-lane intake-triage -->\nok" }]]),
+    ),
+  });
+  const result = await sweep(gh);
+  assert.deepEqual(result.dispatched, [21]);
 });
