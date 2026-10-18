@@ -4115,11 +4115,13 @@ class Session:
         if q["purpose"] == "gather":
             answers, active = [], {p for p in st["people"] if self._active(p)}
             names = st["session"]["settings"]["digestNames"]
+            labels = self._options(q)  # multi, scale and rank report through _format_outcome, so a pick is one option
             for c in people:
-                if c["text"]:
+                picked = labels.get(c.get("pick"))
+                if c["text"] or picked:
                     ref = card_ref(c)
                     endorsers = [st["people"][v]["name"] for v, held in st["reactions"].get(qid, {}).get(ref, {}).items() if v in active and ENDORSING & set(held)]
-                    answers.append({"text": c["text"], "reactions": self._reaction_counts(qid, ref, active), "endorsedBy": endorsers if names else len(endorsers), **by(c["pid"]), **_edited(c)})
+                    answers.append({"text": c["text"], **({"picked": picked} if picked else {}), "reactions": self._reaction_counts(qid, ref, active), "endorsedBy": endorsers if names else len(endorsers), **by(c["pid"]), **_edited(c)})
             return {"kind": "gathered", "answers": answers} if answers else {"kind": "unanswered"}
         tally = self._tally(qid)
         ranked = []

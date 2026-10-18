@@ -3608,6 +3608,16 @@ class TestHiddenPick(SessionCase):
         self.assertEqual(counts, [{"option": "Card", "votes": 0}, {"option": "Saved method", "votes": 1}, {"option": "None", "votes": 0}])
 
 
+class TestGatheredPicks(SessionCase):
+    def test_a_gathered_pick_lists_its_option_with_or_without_a_comment(self):
+        ann, bo = self.people("Ann", "Bo")
+        self.open_round(choice_q("Q1", purpose="gather"))
+        self.act("pick", ann, {"qid": "Q1", "option": "opt-1", "view": "focus"})
+        self.act("pick", bo, {"qid": "Q1", "option": "opt-2", "comment": "why not", "view": "focus"})
+        answers = digest_of(self)["questions"][0]["outcome"]["answers"]
+        self.assertEqual([(a["text"], a["picked"]) for a in answers], [("", "Card"), ("why not", "Saved method")])
+
+
 class TestHideAndEdit(HideEditCase):
     def test_hidden_card_absent_for_guests_and_digest(self):
         self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True, "reason": "Off topic"})

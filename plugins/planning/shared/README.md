@@ -179,7 +179,8 @@ How people answer each `format` through `POST /api/pick` (`{qid, view, device?, 
   Every question carries `passed` (`{by?, reason?}`; `by` with `digestNames`, and always for a
   person it is `for`) and `silent` (active guests with no signal); one `for` named people adds
   `for` and `missing`, by name. A `gathered` answer carries `endorsedBy`, the 👍 and ❤️ givers:
-  names with `digestNames`, else a count.
+  names with `digestNames`, else a count; on a question with options it carries `picked`, the
+  label of the option the person chose, and its `text` is their comment, which may be empty.
 - **Presence.** The heartbeat (`schema/wire.schema.json`) carries `visible`, `lastInput` (seconds
   since the last key, pointer or touch) and `away` (the person's own snooze, sent until their next
   input), and `tab`, an id each browser tab keeps for its life (in `sessionStorage`). The server

@@ -388,6 +388,10 @@
                     "additionalProperties": false,
                     "properties": {
                       "text": {"type": "string"},
+                      "picked": {
+                        "description": "The label of the option the person picked, on a question with options; text is then their comment.",
+                        "type": "string"
+                      },
                       "reactions": {"$ref": "#/$defs/reactionCounts"},
                       "endorsedBy": {
                         "description": "Who gave the answer a 👍 or ❤️ (weak agreement): their names with digestNames, else how many.",
