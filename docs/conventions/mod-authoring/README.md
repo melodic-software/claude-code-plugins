@@ -54,6 +54,22 @@ mod, one mod per plugin, the 2.1.287 floor, and what is committed.
 - **Recheck trigger**: a linked create section moves, hot reload changes, or
   `claude plugin validate` stops listing hooks and calls.
 
+## What a mod tells Claude
+
+Text a mod adds to Claude's context is a factual statement, not an imperative system instruction,
+and is sent only when Claude can act on it, such as a threshold crossing or a state change, never as
+an always-on reading. The line names the options the change opens: a bare reading changed behavior
+here, as the comments above `OPTIONS` in
+[`plugins/context-guard/hooks/register.tsx`](../../../plugins/context-guard/hooks/register.tsx)
+("The verdict alone pushed Claude toward handoffs and terse delegation") and
+[`plugins/rate-limit-guard/hooks/register.tsx`](../../../plugins/rate-limit-guard/hooks/register.tsx)
+("Facts alone led Claude to stop launching agents") record.
+
+- **Pointer**: see
+  [hooks: add context for Claude](https://code.claude.com/docs/en/hooks#add-context-for-claude).
+- **As of**: 2026-10-17
+- **Recheck trigger**: that section changes how injected context should be phrased.
+
 ## Mod, settings hook, or skill
 
 Apply ADR 0052's rule for choosing a mod, which starts from upstream's comparison table.
