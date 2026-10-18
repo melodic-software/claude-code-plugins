@@ -133,7 +133,7 @@
       "id": 11,
       "name": "rate-limited-subagents-resumed-or-restarted",
       "prompt": "keep going — we hit the usage limit and it has since reset. Two subagents were mid-task when it hit: the docs-writer, whose agent id is still live in this session, and the tests-fixer, which was launched from a session that has since closed. Your live /usage reading shows headroom.",
-      "expected_output": "Both agents are singled out in the inventory because their last notification carries a rate-limit error. After a live re-check shows headroom, the docs-writer is resumed with SendMessage to its live id so its history is kept; the tests-fixer's id no longer resolves, so it is restarted from its trail (branch, commits, worktree). Each is listed in the report with its partial-work evidence and one action.",
+      "expected_output": "Both agents are singled out in the inventory as ended on a usage limit: the docs-writer by its last notification, the tests-fixer by the user's prompt and its trail, since its closed session's notifications are gone. After a live re-check shows headroom, the docs-writer is resumed with SendMessage to its live id; the tests-fixer's id no longer resolves, so it is restarted from its trail (branch, commits, worktree). Each is listed in the report with its partial-work evidence and one action.",
       "files": [],
       "expectations": [
         "Singles out both subagents in the inventory as ended on a rate limit",

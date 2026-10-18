@@ -55,7 +55,9 @@ itself the thing this skill removes.
    an open-ended set (background tasks, shells, monitors, scheduled
    jobs, dynamic workflows, subagents), not a fixed catalogue. Single
    out every subagent or workflow agent whose last notification carries a
-   rate-limit error type or a usage-limit message: they take the
+   rate-limit error type or a usage-limit message, and every agent the
+   user's prompt or a branch or PR trail says ended on a usage limit (a
+   gone session's notifications are not available): they take the
    rate-limited path in step 4.
 2. **Inspect real state, never assume.** Read each item's actual state
    from the source of truth, per that doc's inspect-real-state invariant:
@@ -109,8 +111,10 @@ itself the thing this skill removes.
      ask-the-operator fallback when no live reading exists). If the
      limit still holds, hand back with `/session-flow:handoff` instead of
      resuming. Otherwise read its partial work from the artifacts (its
-     worktree, branch, commits, PR, files written), then resume it with
-     `SendMessage` to its id, which keeps its history. When the id no
+     worktree, branch, commits, PR, files written), then resume it: a
+     subagent through `SendMessage` to its id, a workflow agent through
+     its workflow resume (the **Resumable** bullet), never a new
+     workflow run. Do not spawn a replacement for either. When the id no
      longer resolves (step 2's gone-session case), restart from that
      trail, fitting the restart to the cause as in "Dead but safe to
      redo". Each resume or restart counts toward the two retries, and
@@ -209,9 +213,10 @@ For any "is it stuck / check the monitor / poke it":
 - If you are executing again, the block is already over: **continue the
   work**. Do not produce a summary and stop. Summarize-and-stall is the
   failure mode. Put status notes in the same message as the next action.
-- A rate-limited subagent or workflow agent resumes through `SendMessage`
-  once the live re-check shows headroom (step 4's rate-limited path);
-  spawning a fresh agent discards the history that `SendMessage` keeps.
+- A rate-limited subagent resumes through `SendMessage` to its id, and a
+  workflow agent through its workflow resume, once the live re-check
+  shows headroom (step 4's rate-limited path); do not spawn a
+  replacement.
 - The time-vs-reset check belongs to the **orchestration** case: when
   step 2 inspects a worker or subagent that is itself limited, compare the
   current time against the reset its limit message states, to decide
