@@ -2394,6 +2394,44 @@ unm_fixture tfjson-array-module main.tf.json '{"module":[{"net":{"source":"https
 unm_check "$TEST_TMPDIR/unm-tfjson-array-module"
 assert_contains "an array-form remote module refuses by name" "$unm_rec" '"reason": "terraform-module-unread:main.tf.json:module.net"'
 
+# Kubernetes CronJob and Job are listed as unmapped, never read.
+k8s_dep=$'apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: api\n  namespace: prod\nspec:\n  replicas: 2\n  template:\n    spec:\n      containers:\n        - name: api\n          image: acme/api:1'
+k8s_cron=$'apiVersion: batch/v1\nkind: CronJob\nmetadata:\n  name: nightly\n  namespace: prod\nspec:\n  schedule: "0 2 * * *"\n  jobTemplate:\n    spec:\n      template:\n        spec:\n          containers:\n            - name: nightly\n              image: acme/nightly:1\n              env:\n                - name: LOG_LEVEL\n                  value: info'
+k8s_job=$'apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: migrate\n  namespace: prod\nspec:\n  template:\n    spec:\n      containers:\n        - name: migrate\n          image: acme/migrate:1'
+unm_fixture k8s-batch k8s/api.yaml "$k8s_dep" k8s/cron.yaml "$k8s_cron" k8s/job.yaml "$k8s_job"
+unm_check "$TEST_TMPDIR/unm-k8s-batch"
+assert_contains "a CronJob is listed as unmapped" "$unm_rec" '{"tool":"kubernetes","type":"CronJob","evidence":"k8s/cron.yaml"}'
+assert_contains "a Job is listed as unmapped" "$unm_rec" '{"tool":"kubernetes","type":"Job","evidence":"k8s/job.yaml"}'
+assert_contains "the batch kinds are counted" "$unm_sum" "unmapped=2"
+assert_contains "the batch kinds render in the unmapped table" "$unm_md" '| kubernetes | CronJob | k8s/cron.yaml |'
+assert_contains "the deployment is still drawn" "$unm_rec" '"container":"api","env":"prod","tool":"kubernetes"'
+assert_not_contains "a CronJob container is not placed" "$unm_rec" '"container":"nightly"'
+assert_not_contains "a Job container is not placed" "$unm_rec" '"container":"migrate"'
+assert_not_contains "a CronJob parameter is not recorded" "$unm_rec" '"parameter":"LOG_LEVEL"'
+
+k8s_cron_ns="${k8s_cron//namespace: prod/namespace: jobs}"
+unm_fixture k8s-batch-env k8s/api.yaml "$k8s_dep" k8s/cron.yaml "$k8s_cron_ns"
+unm_check "$TEST_TMPDIR/unm-k8s-batch-env"
+assert_not_contains "a CronJob in its own namespace adds no environment" "$unm_rec" '"environment":"jobs"'
+assert_not_contains "a CronJob in its own namespace causes no diff" "$unm_rec" '"change":'
+unm_fixture k8s-batch-only k8s/cron.yaml "$k8s_cron"
+unm_check "$TEST_TMPDIR/unm-k8s-batch-only"
+assert_contains "a repository of only a CronJob is refused, not drawn empty" "$unm_rec" '"reason": "no-mapped-container"'
+assert_contains "the refusal keeps the CronJob" "$unm_rec" '{"tool":"kubernetes","type":"CronJob","evidence":"k8s/cron.yaml"}'
+
+# A diff compares the compute nodes of the IaC readers between environments.
+tf_eks=$'resource "aws_eks_cluster" "extra" {\n  name = "extra"\n}'
+unm_fixture tf-compute-diff envs/dev/main.tf "$tf_ecs"$'\n'"$tf_eks" envs/prod/main.tf "$tf_ecs"
+unm_check "$TEST_TMPDIR/unm-tf-compute-diff"
+assert_contains "a compute node in one environment only is a diff row" "$unm_rec" '"change":"compute-removed","left":"dev","right":"prod","tool":"terraform","container":"aws_eks_cluster.extra","detail":"compute present only in dev"'
+assert_not_contains "a compute node in both environments is not a diff row" "$unm_rec" '"container":"aws_ecs_cluster.c","detail":"compute'
+unm_fixture tf-compute-same envs/dev/main.tf "$tf_ecs" envs/prod/main.tf "$tf_ecs"
+unm_check "$TEST_TMPDIR/unm-tf-compute-same"
+assert_not_contains "matching compute nodes add no diff" "$unm_rec" '"change":"compute'
+unm_fixture tf-compute-other envs/dev/main.tf "$tf_ecs"$'\n'"$tf_eks" envs/prod/main.tf "$tf_ecs"$'\nresource "google_container_cluster" "extra" {\n  name = "extra"\n}'
+unm_check "$TEST_TMPDIR/unm-tf-compute-other"
+assert_contains "a node only the other environment declares is added" "$unm_rec" '"container":"google_container_cluster.extra","detail":"compute present only in prod"'
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'all collect-deployment tests passed\n'
   exit 0

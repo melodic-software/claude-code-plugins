@@ -16,6 +16,15 @@ function note_unmapped(tool, type, file,    k) {
   unm_seen[k] = 1
   printf "{\"tool\":\"%s\",\"type\":\"%s\",\"evidence\":\"%s\"}\n", tool, jesc(type), jesc(file) >> unmapped
 }
+# note_compute() records a compute node (a cluster, service plan or node pool) of
+# an IaC reader for node_diffs(). The key is the node's address with the
+# environment prefix of its id dropped and the value its resource type, so a
+# node named per environment is still the same node and a changed type shows.
+function note_compute(env, id, type,    addr) {
+  addr = id
+  if (index(addr, env "/") == 1) addr = substr(addr, length(env) + 2)
+  node_seen[env SUBSEP "compute" SUBSEP addr] = type
+}
 function emit_diff(change, a, b, tool, c, detail) {
   printf "{\"change\":\"%s\",\"left\":\"%s\",\"right\":\"%s\",\"tool\":\"%s\",\"container\":\"%s\",\"detail\":\"%s\"}\n", \
     change, jesc(a), jesc(b), tool, jesc(c), jesc(detail) >> diffs
