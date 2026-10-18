@@ -19,6 +19,7 @@ run_marker_path_to() {
   local -n __rm_out="$1"
   local data="$2" session="$3"
   __rm_out=""
+  # shellcheck disable=SC2016 # the literal, unexpanded ${ is what is matched
   [[ -n "$data" && "$data" != *'${'* ]] || return 1
   [[ "$session" =~ ^[A-Za-z0-9_-]+$ ]] || return 1
   __rm_out="${data%/}/clean-run/${session}.open"

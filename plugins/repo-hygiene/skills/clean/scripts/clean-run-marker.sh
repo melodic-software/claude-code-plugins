@@ -73,9 +73,11 @@ if [[ "$ACTION" == open ]]; then
     echo "Marker: not armed (read-only tier: $TIER)"
     exit 0
     ;;
+  *) ;;
   esac
 fi
 
+MARKER=""
 if ! run_marker_path_to MARKER "$DATA_DIR" "$SESSION"; then
   echo "Error: --data-dir and --session must both resolve (session ids use letters, digits, _ and -); the destructive guard cannot be scoped to this run." >&2
   exit 2

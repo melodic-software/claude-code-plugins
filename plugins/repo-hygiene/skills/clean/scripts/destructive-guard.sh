@@ -275,6 +275,7 @@ SESSION="$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)"
 # Run-open marker (see Lifetime above). No live marker for this session means no
 # clean run is open, so the guard stays out of the way. When the marker path
 # cannot be resolved, the guard stays armed.
+MARKER_FILE="" MARKER_STATE=""
 if run_marker_path_to MARKER_FILE "${CLAUDE_PLUGIN_DATA:-}" "$SESSION"; then
   run_marker_state_to MARKER_STATE "$MARKER_FILE"
   case "$MARKER_STATE" in

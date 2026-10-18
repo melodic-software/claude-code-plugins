@@ -22,6 +22,7 @@ TEST_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TEST_ROOT"' EXIT
 export CLAUDE_PLUGIN_DATA="$TEST_ROOT/data"
 SESSION_ID="sess-live"
+LIVE_MARKER=""
 run_marker_path_to LIVE_MARKER "$CLAUDE_PLUGIN_DATA" "$SESSION_ID"
 run_marker_write "$LIVE_MARKER"
 
