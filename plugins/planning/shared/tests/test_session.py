@@ -3620,6 +3620,38 @@ class HideEditCase(SessionCase):
         return self.s.card_history(HOST, {"qid": qid, "card": ref or self.bo_ref})["history"]
 
 
+class TestSharedNames(SessionCase):
+    """While names are hidden a guest keeps the name they typed, so two people can share one; a mention of a shared
+    name could mean either, so it points at nobody and stays text."""
+
+    def setUp(self):
+        super().setUp()
+        self.act("update_settings", HOST, {"names": "someone"})
+
+    def test_two_guests_may_share_a_name_and_a_moderators_mention_of_it_stays_text(self):
+        ann, ann2 = self.people("Ann", "ann")
+        self.assertEqual([self.s.state["people"][p]["name"] for p in (ann, ann2)], ["Ann", "ann"])
+        self.act("chat", HOST, {"text": "@Ann see this"})
+        self.assertEqual(self.s.state["chat"][-1]["text"], "@Ann see this")
+        self.assertEqual(self.notes(ann, "mention") + self.notes(ann2, "mention"), [])
+
+    def test_a_guest_renamed_to_the_owners_name_makes_that_name_point_at_nobody(self):
+        bo, _ = self.join("Bo")
+        self.act("rename", bo, {"name": "kim"})
+        self.assertEqual(self.s.state["people"][bo]["name"], "kim")
+        self.act("chat", HOST, {"text": "@Kim will decide"})
+        self.assertEqual(self.s.state["chat"][-1]["text"], "@Kim will decide")
+
+    def test_a_name_one_person_holds_still_points(self):
+        ann, _ = self.join("Ann")
+        self.act("chat", HOST, {"text": "@Ann see this"})
+        self.assertEqual(self.s.state["chat"][-1]["text"], f"<@{ann}> see this")
+
+    def test_the_owner_still_gets_a_suffix_for_a_taken_name(self):
+        self.join("Ann")
+        self.assertEqual(self.s.join(HOST, {"name": "Ann"})["name"], "Ann 2")
+
+
 class TestHiddenPick(SessionCase):
     """A pick is its picker's answer: hiding the answer takes the pick out of every count, as Phase 4c's "the tally
     (its picks too)" says, and showing it again puts it back."""

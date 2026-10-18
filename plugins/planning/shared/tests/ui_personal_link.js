@@ -65,6 +65,20 @@ async function main() {
     await own.waitForTimeout(1500);
     ok("a link holding the browser's own secret asks nothing", !(await own.evaluate(() => !!document.querySelector("dialog.core-switch"))) && (await stored(own)) === annSecret);
 
+    // ---------- names hidden: two guests share a name, and only the moderator's people list tells them apart ----------
+    const B = await s.start("shared-name");
+    s.apply(B.dir, [{ op: "set-title", title: "Names" }, { op: "open-round", questions: [q("Q1", "Where should we go?")] }]);
+    const owner = await rec.open(B.ownerUrl);
+    await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
+    await owner.evaluate(() => window.Core.saveSettings({ names: "someone" }));
+    const sam1 = await rec.open(B.localUrl), sam1Pid = await joinAs(sam1, "Sam");
+    const sam2 = await rec.open(B.localUrl), sam2Pid = await joinAs(sam2, "Sam");
+    await owner.locator(".vf-seg .vf-seg-btn", { hasText: "Host" }).click();
+    const nameOf = (page, pid) => page.evaluate(p => document.querySelector(`.vf-hperson:has([data-pid="${p}"]) .vf-hp-name`)?.textContent ?? null, pid);
+    ok("the owner's people list numbers two people who share a name, in join order",
+      await until(owner, ([a, b]) => [a, b].map(p => document.querySelector(`.vf-hperson:has([data-pid="${p}"]) .vf-hp-name`)?.textContent).map(t => t?.match(/ \((\d)\)$/)?.[1]).join() === "1,2", [sam1Pid, sam2Pid]),
+      `${await nameOf(owner, sam1Pid)} | ${await nameOf(owner, sam2Pid)}`);
+    ok("a guest's page shows no number", !(await sam1.evaluate(() => /\(\d\)/.test(document.body.innerText))));
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));
     ok("no page error", errs.length === 0, errs.slice(0, 3).join(" | "));

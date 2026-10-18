@@ -763,12 +763,16 @@ LIMITS = {"note": 200, "excerpt": 140}
 def tokenize(text, names, limit=None):
     """text with every "@Name" of `names` ((name, pid) pairs) as <@pid>, longest name first, so "@Sam 2" is not
     also "@Sam". A name stands alone: no letter or digit before its @, none (nor _) after it. Tokens stay as they
-    are. With `limit`, text the tokens would make longer than limit comes back unchanged."""
+    are. A name two people share (casefolded) names nobody and stays text. With `limit`, text the tokens would make
+    longer than limit comes back unchanged."""
     if "@" not in text or not names:
         return text
-    by = {}
+    holders = collections.defaultdict(set)
     for name, pid in names:
-        by.setdefault(name.casefold(), pid)
+        holders[name.casefold()].add(pid)
+    by = {n: next(iter(pids)) for n, pids in holders.items() if len(pids) == 1}
+    if not by:
+        return text
     alt = "|".join(re.escape(n) for n in sorted(by, key=len, reverse=True))
     pattern = re.compile(rf"(?<![^\W_])@({alt})(?!\w)", re.IGNORECASE)
     parts = MENTION.split(text)  # text, pid, text, pid, ...: only the text between tokens is matched

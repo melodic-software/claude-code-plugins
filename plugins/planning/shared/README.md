@@ -573,7 +573,9 @@ page keeps the rest of its last snapshot.
   one, and a nameless join's "Guest N" ignores typed names, so two people may share a name and a
   join cannot probe for hidden names. A guest's `@Name` stays plain text rather than pointing at a
   person, also after the owner edits that answer or request, so a guest's own text never pairs a
-  name with a pid; the owner's and leaders' own mentions still point.
+  name with a pid; the owner's and leaders' own mentions still point, except to a name two people
+  share, which stays text. The Host view's people list numbers people who share a name, in join order,
+  and the owner's own name still takes a suffix.
 - **Personal links.** A `#me=` link opened in a browser that already holds a different guest
   secret asks "This link signs you in as someone else on this device. Switch?", with Keep the
   default; only Switch replaces the stored secret, so a link someone hands over cannot sign a

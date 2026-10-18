@@ -5179,6 +5179,10 @@
       const pShown = ppl.filter(p => inFilter[ui.peopleFilter](p) && (!find || disp(p.name).toLowerCase().includes(find)));
       peopleEmpty.hidden = pShown.length > 0;
       peopleEmpty.textContent = find ? `No one named “${ui.peopleFind.trim()}” here.` : "No one to show.";
+      // A name more than one person holds (names hidden from guests let it repeat): each gets its join-order number here.
+      const nth = {}, byName = {};
+      for (const p of [...ppl].sort((a, b) => a.ts - b.ts)) (byName[p.name.toLowerCase()] ||= []).push(p.pid);
+      for (const pids of Object.values(byName)) if (pids.length > 1) pids.forEach((pid, i) => { nth[pid] = i + 1; });
       sync(peopleList, peopleMore.page(pShown, peopleList, "people:" + ui.peopleFilter), p => p.pid, () => {
         const li = E("li", "vf-hperson");
         const avBox = E("span", "vf-hp-av"), mid = E("div", "vf-hp-mid"), nm = E("span", "vf-hp-name"), meta = E("span", "vf-hp-meta");
@@ -5204,7 +5208,7 @@
         const key = p.pid + "|" + p.name;
         if (k.avKey !== key) { k.avKey = key; k.avBox.replaceChildren(av(p.pid, p.name, 26, true)); }
         presDot(k.avBox.firstChild, h).setAttribute("aria-label", `${disp(p.name)}, ${presWord(h)}, show details`);
-        k.nm.textContent = disp(p.name) + (me2 ? " (you)" : "");
+        k.nm.textContent = disp(p.name) + (nth[p.pid] && Core.canModerate() ? ` (${nth[p.pid]})` : "") + (me2 ? " (you)" : "");
         k.role.textContent = isGone ? "Removed" : rl; k.role.className = `vf-role vf-role-${isGone ? "removed" : rl.toLowerCase()}`;
         const hq = h?.q && qById(h.q);
         // Active, Away (with how long), or offline: no heartbeat for a while, so not in presence at all.

@@ -1281,9 +1281,9 @@ class Session:
         return self.state["session"]["settings"]["names"] != "full" and role not in ("owner", "leader")
 
     def _unique_name(self, name, pid):
-        """The name, suffixed " 2", " 3" ... past a taken one; kept as given while names are hidden, since a suffix
-        would tell the joiner the name is taken."""
-        if self.state["session"]["settings"]["names"] != "full":
+        """The name, suffixed " 2", " 3" ... past a taken one; a guest's is kept as given while names are hidden, since a
+        suffix would tell them the name is taken. Only the owner sees their own, so it keeps the suffix."""
+        if self.state["session"]["settings"]["names"] != "full" and pid != HOST:
             return name
         taken = {v["name"].casefold() for p, v in self.state["people"].items() if p != pid}
         out, n = name, 2
