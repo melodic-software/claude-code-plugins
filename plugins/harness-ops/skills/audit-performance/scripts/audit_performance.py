@@ -1691,7 +1691,7 @@ def gate_is_uncertain(gate: dict, tool: str | None) -> bool:
     """Whether a classified extension gate matching a projection row is still not known to fire.
 
     A narrowed rule matches only some files of its extension. A `Write(...)` rule is
-    modelled as reaching the other file-writing tools too, which the documentation does not
+    modeled as reaching the other file-writing tools too, which the documentation does not
     state, so it is uncertain on any tool but `Write`. `tool` None asks only the tool-free
     question.
     """
@@ -1752,7 +1752,7 @@ def project_fan_out(entries: list[dict]) -> dict:
                     **row,
                     "reason": (
                         "decided by extension only; its directory prefix, multi-dot suffix "
-                        "or `Write` tool is not modelled, so a matching extension is not "
+                        "or `Write` tool is not modeled, so a matching extension is not "
                         "known to fire"
                     ),
                 }
