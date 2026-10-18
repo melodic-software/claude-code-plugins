@@ -9,6 +9,8 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUNNER="$ROOT/scripts/run-plugin-tests.sh"
+# The test-bash lane exports this on main; each case below sets it itself.
+unset PLUGIN_TEST_ADVISORY
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
 
