@@ -122,6 +122,7 @@ function exitOnSignal(signal) {
   process.kill(process.pid, signal);
 }
 
+/** @type {Array<[NodeJS.Signals, () => void]>} */
 const signalListeners = HANDLED_SIGNALS.map((signal) => [signal, () => exitOnSignal(signal)]);
 
 function installParentHandlers() {
