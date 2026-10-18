@@ -573,6 +573,10 @@ page keeps the rest of its last snapshot.
   one, so two people may share a name and a join cannot probe for hidden names. A guest's
   `@Name` stays plain text rather than pointing at a person, so it never pairs a name with a pid;
   the owner's and leaders' mentions still point.
+- **Personal links.** A `#me=` link opened in a browser that already holds a different guest
+  secret asks "This link signs you in as someone else on this device. Switch?", with Keep the
+  default; only Switch replaces the stored secret, so a link someone hands over cannot sign a
+  device in as them silently. With no secret stored, the link signs in at once.
 - **Owner-link rotation.** The new token reaches `.shared-secrets.json` before its hash reaches
   `state.json`, both under the session lock. A start whose secrets file holds a token issued before
   the session's last rotation refuses (exit 1) rather than bring the retired link back; deleting

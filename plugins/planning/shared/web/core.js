@@ -20,7 +20,7 @@
   };
   const joinKey = hashParams.get("join") || "";
   // A personal link ("Use on another device") carries the person's secret in the fragment.
-  const adopt = hashParams.get("me") || "";
+  let adopt = hashParams.get("me") || "";
   // The owner link carries the owner token in the fragment. This tab keeps it in sessionStorage and takes it out of
   // the address bar, so a reload or Back in this tab finds it again; a page opened fresh without it is a guest's.
   const ownerToken = (() => {
@@ -34,8 +34,12 @@
     if (adopt || (nav !== "reload" && nav !== "back_forward")) return "";
     try { return tab.getItem("owner") || ""; } catch { return ""; }
   })();
+  // A personal link for someone else never replaces who this browser already is without a yes (askSwitch): a link
+  // handed over must not sign this device in as its sender. With no secret stored, the link is adopted at once.
+  const switchTo = adopt && !ownerToken && secret && secret !== adopt ? adopt : "";
   if (adopt && !ownerToken) {
-    secret = adopt; put("secret", adopt); drop("pid"); drop("name");
+    if (switchTo) adopt = "";
+    else { secret = adopt; put("secret", adopt); drop("pid"); drop("name"); }
     unhash("me");
   }
   if (ownerToken) secret = ""; // the owner link is the owner's only credential
@@ -1218,6 +1222,23 @@
   document.addEventListener("resume", catchUp); // Page Lifecycle: a frozen tab thawed (Chrome on Android)
   window.addEventListener("focus", catchUp);
 
+  /** Ask before a personal link replaces this browser's own secret: Keep (the default, and Escape) leaves it; Switch
+   *  stores the link's secret and reloads as that person. */
+  function askSwitch(other) {
+    const dlg = Core.el("dialog", "core-switch"), h = Core.el("h2", null, "This link signs you in as someone else on this device. Switch?");
+    h.id = "core-switch-h"; dlg.setAttribute("aria-labelledby", h.id); dlg.setAttribute("role", "alertdialog");
+    const row = Core.el("div", "core-row"), keep = Core.el("button", null, "Keep"), change = Core.el("button", "core-btn-quiet", "Switch");
+    keep.type = change.type = "button";
+    keep.onclick = () => dlg.close();
+    change.onclick = () => { put("secret", other); drop("pid"); drop("name"); location.reload(); };
+    row.append(change, keep);
+    dlg.append(h, row);
+    dlg.addEventListener("close", () => dlg.remove());
+    document.body.append(dlg);
+    dlg.showModal();
+    keep.focus();
+  }
+
   // Name prompt. It stays open until the join succeeds; Escape does not close it.
   function askName(notice = "") {
     if (document.querySelector("dialog.core-name")) return;
@@ -1348,6 +1369,7 @@
       });
     } else if (!ownerToken && !secret && !merged) askName();
     else beat();
+    if (switchTo) askSwitch(switchTo);
     poll();
     setInterval(poll, 1500); setInterval(beat, 2000);
   });
