@@ -4,6 +4,38 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.24.0] - 2026-10-18
+
+### Added
+
+- `video-digest` documents a late Phase 0b for companion sources found during research or after `close`: it writes `source/companion-digest/`, merges links into `harvested-links.json`, and folds the digest back into research, with a matching gotcha.
+
+### Changed
+
+- `docpage-digest` dual verification now defines the verdict set (PASS / PASS-WITH-FINDINGS / FAIL / BLOCKED), the rule that sets it (any open high finding is FAIL and needs a corrections round), and that medium or low findings deferred to the interview handoff do not block Phase 4 completion.
+
+- `video-digest` watch pipeline now names a smaller `--max-frame-gap-sec` re-run as the supported fix for a sampler gap, and states its limits: it re-samples the whole video, cannot add one chosen timestamp, and re-downloads after `close`. A frame extracted by hand outside the sampler renders `untimed`.
+
+- The Node floor in the prerequisite check is now 22. Node 21.0 and 21.1 lack `import.meta.dirname` and the old 20.11 floor passed them; Node 20 and 21 are past end of life.
+
+### Fixed
+
+- `video-digest` `queue-claim.js stale-check` now resets a stale claim's `QUEUE.md` row from `in_progress` to `pending` when it deletes the stub, and lists `in_progress` rows that have no stub as `orphaned`. The watch-queue spoke now says the CLI owns the reset.
+- `queue-claim.js claim` now exits `1` for a row number that is not in `QUEUE.md` instead of recording a phantom claim, and accepts `--claimed-by <name>` to record the session holding the claim.
+
+- `video-digest` now runs its readiness check as one plain command, `extraction/preflight.mjs`, pre-approved in `allowed-tools`, so worktree-isolated auto-mode sessions no longer refuse the compound preflight block. It probes the node dependencies, yt-dlp, ffmpeg, ImageMagick and faster-whisper, prints where the dependencies install and how to relocate them with `--data-dir`, and always exits 0. Prerequisites tells the model to run it by hand when the pre-computed context did not run.
+- `video-digest` renders each `userConfig` option once in a SKILL.md "Configured options" table, and the output-contract and source spokes refer to it, so a configured `library_dir`, cookies file, JS runtime or concurrency cap reaches the pipeline instead of arriving as an unsubstituted token.
+- `video-digest`'s Bootstrap gate now stops when the node dependencies are missing or `setup-deps.mjs` fails, and states that a hand-run of yt-dlp, ffmpeg or ImageMagick is not the skill's output.
+
+- `docpage-digest` treats a "Concurrent subagent limit reached" refusal as a wait, not a subagent death, and keeps one copy of the death ladder in `context/pipeline-hardening.md`; the inline rung is skipped for a unit the profile maps to another model.
+- The gate scripts and test suites no longer write `__pycache__` into the installed `scripts/` directory.
+- Helper and scratch files go under `<work-root>/scratch/`, Phase 3 notes the shared subagent limit, the handoff leads with a decisions section, the live-doc checks are listed and assigned to Verifier A when Verifier B has no network, and the profile dispositions the raw-markdown banner and adds a response-field pair.
+
+- `video-digest` X preflight now rejects a removed or nonexistent status as `unavailable` (no uploader, description or counts), and takes a link post's delegation refusal as `ok` with an empty-media note instead of `transient`. Acquisition fails a removed post permanently (`X post unavailable`) rather than as rate-limited retry-later, and the queue spoke caps degraded retries at 3 per id.
+- `video-digest` transcript runs write the slice README after the transcripts, listing only those written; a 0-entry post says no video entries were found.
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [0.23.2] - 2026-10-16
 
 ### Changed

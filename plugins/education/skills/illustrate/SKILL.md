@@ -128,8 +128,8 @@ Resolve the medium; the first rung that gives a value wins:
    order. The last layer that sets `medium:` wins. `auto` defers, and `hosted` is treated as
    `artifact`: this view is never sent to a page host. Name the winning layer; treat a malformed
    layer as absent and say so.
-3. The shipped ladder: `artifact` when this session can publish one, else `file`, else
-   `terminal`.
+3. The shipped ladder: `file`, else `terminal`. Never publish an artifact unless an argument or
+   a layer asks for it.
 
 | Medium | Delivery |
 |---|---|
