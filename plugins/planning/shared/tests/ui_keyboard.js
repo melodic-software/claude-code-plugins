@@ -323,7 +323,7 @@ async function main() {
     ok("the tour ring transitions translate only, never a layout property", await tia.evaluate(() => getComputedStyle(document.querySelector(".vf-tour-ring")).transitionProperty) === "translate",
       await tia.evaluate(() => getComputedStyle(document.querySelector(".vf-tour-ring")).transitionProperty));
     await tia.click(".vf-tour-row .vf-btn-primary");
-    await tia.waitForTimeout(400);
+    await tia.evaluate(() => Promise.all(document.querySelector(".vf-tour-ring").getAnimations().map(a => a.finished.catch(() => null)))); // the ring's move ends
     const ringFit = await tia.evaluate(() => {
       const ring = document.querySelector(".vf-tour-ring").getBoundingClientRect(), R = document.querySelector(".app").getBoundingClientRect();
       // The target is the element the ring was drawn round: the largest one whose box, grown by 4 px and kept 4 px
