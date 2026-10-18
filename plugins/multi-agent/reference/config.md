@@ -28,10 +28,10 @@ and an explicit yes.
 
 | Key | Values | Bundled |
 |---|---|---|
-| `roles.<role>.model` | `inherit`, or an alias: `opus`, `sonnet`, `haiku`, `fable`, `best` | per role |
+| `roles.<role>.model` | `inherit`, or an alias: `opus`, `sonnet`, `haiku`, `fable` | per role |
 | `roles.<role>.effort` | `low`, `medium`, `high`, `xhigh`, `max` | per role |
 | `roles.<role>.workloads.<w>.model` / `.effort` | as above; `<w>` is `code`, `research` or `mechanical` | `worker.workloads.mechanical.model: sonnet` (opt out with `roles.worker.workloads.mechanical.model: inherit` in any layer); a layer may set others, for example `worker.workloads.mechanical.effort: low` |
-| `frontier` | comma-separated aliases treated as frontier | `fable,best` |
+| `frontier` | comma-separated aliases treated as frontier | `fable` |
 | `fanout.frontier_guard` | `true`, `false` | `true` |
 | `fanout.model` | an alias | `opus` |
 
@@ -48,6 +48,13 @@ for the model an agent with no `model` runs on, see
 [workflows: cost](https://code.claude.com/docs/en/workflows#cost). Both as of
 2026-10-02; recheck when either section changes.
 
+The subagent `model` field accepts the aliases `sonnet`, `opus`, `haiku` and
+`fable`, a full model ID, or `inherit`, and a subagent with none falls back to
+the main conversation's model after the per-invocation parameter and the
+`CLAUDE_CODE_SUBAGENT_MODEL` variable; see
+[sub-agents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model),
+as of 2026-10-18; recheck when that section adds or drops an alias or changes
+the resolution order.
 The `effort` values are the full set this resolver accepts; which of them a
 spawn can use depends on the model it runs on. For each model's supported
 levels, see
