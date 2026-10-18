@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+"""Measure how long a session was stopped, from transcript timestamps.
+
+Reads a session transcript (JSONL) and prints one JSON object:
+
+  last_assistant  ISO-8601 time of the last assistant entry that is not an error
+  limit_or_error  ISO-8601 time of the last limit or error entry, or null
+  now             ISO-8601 time of the measurement
+  stop_at         the instant the stop began: limit_or_error when it is not
+                  before last_assistant, else last_assistant
+  gap_seconds     seconds from stop_at to now (never negative)
+  gap             the same, as a human-readable duration such as 1d 2h 3m 4s
+
+An entry counts as a limit or error entry when it sets ``isApiErrorMessage``,
+carries a top-level ``error`` key, or is a ``system`` entry whose ``level`` is
+``error``. Timestamps may carry any offset or ``Z``; a timestamp without an
+offset is read as UTC.
+
+Exit codes:
+  0 - measured; the JSON object is on stdout
+  2 - the transcript is missing, unreadable, empty, or holds no assistant
+      entry with a usable timestamp; the gap is unknown (message on stderr)
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+def _parse_instant(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _is_error(entry: dict) -> bool:
+    if entry.get("isApiErrorMessage") or entry.get("error"):
+        return True
+    return entry.get("type") == "system" and entry.get("level") == "error"
+
+
+def _format_gap(seconds: int) -> str:
+    days, rest = divmod(seconds, 86400)
+    hours, rest = divmod(rest, 3600)
+    minutes, secs = divmod(rest, 60)
+    parts = [
+        f"{amount}{unit}"
+        for amount, unit in ((days, "d"), (hours, "h"), (minutes, "m"))
+        if amount
+    ]
+    parts.append(f"{secs}s")
+    return " ".join(parts)
+
+
+def measure(path: Path, now: datetime) -> dict:
+    """Return the measurement, or raise ValueError when the gap is unknown."""
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ValueError(f"cannot read transcript {path}: {exc}") from exc
+    last_assistant: datetime | None = None
+    last_error: datetime | None = None
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(entry, dict):
+            continue
+        stamp = _parse_instant(entry.get("timestamp"))
+        if stamp is None:
+            continue
+        if _is_error(entry):
+            if last_error is None or stamp > last_error:
+                last_error = stamp
+        elif entry.get("type") == "assistant":
+            if last_assistant is None or stamp > last_assistant:
+                last_assistant = stamp
+    if last_assistant is None:
+        raise ValueError(
+            f"transcript {path} has no assistant entry with a usable timestamp"
+        )
+    if last_error is not None and last_error >= last_assistant:
+        stop_at = last_error
+    else:
+        stop_at = last_assistant
+    seconds = max(0, int((now - stop_at).total_seconds()))
+    return {
+        "last_assistant": last_assistant.isoformat(),
+        "limit_or_error": last_error.isoformat() if last_error else None,
+        "now": now.isoformat(),
+        "stop_at": stop_at.isoformat(),
+        "gap_seconds": seconds,
+        "gap": _format_gap(seconds),
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("transcript", help="Path to the session transcript (JSONL)")
+    parser.add_argument(
+        "--now",
+        help="ISO-8601 override for tests (must include offset or Z)",
+    )
+    args = parser.parse_args(argv)
+    if args.now:
+        now = _parse_instant(args.now)
+        if now is None:
+            print(f"unparsed --now: {args.now!r}", file=sys.stderr)
+            return 2
+    else:
+        now = datetime.now(timezone.utc)
+    try:
+        result = measure(Path(args.transcript), now)
+    except ValueError as exc:
+        print(f"gap-unknown: {exc}", file=sys.stderr)
+        return 2
+    print(json.dumps(result))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
