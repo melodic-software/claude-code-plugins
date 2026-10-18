@@ -181,6 +181,25 @@ stub_latest="1.18.0"
 stub_sha=""
 out=$(run_check 2>&1)
 assert_exit "upstream fetch fails: exit 2" 2 "$?"
+stub_sha="abc123def456"
+
+# Drift outranks unverifiable: the upstream check still runs when npm is down.
+stub_latest=""
+stub_sha="0000ffff"
+out=$(run_check 2>&1)
+assert_exit "npm unreachable, upstream changed: exit 1" 1 "$?"
+assert_contains "npm unreachable: upstream change still named" "$out" "upstream content changed"
+stub_latest="1.18.0"
+stub_sha="abc123def456"
+
+# A trailing space on a recorded value is not part of it.
+FIXTURE_TRAIL="$TEST_TMPDIR/upstream-trailing.md"
+printf -- '- Upstream SHA256: abc123def456  \n- CLI version at sync: 1.18.0 \n' >"$FIXTURE_TRAIL"
+UPSTREAM_MD="$FIXTURE_TRAIL"
+assert_eq "trailing space trimmed from recorded SHA" "abc123def456" "$(recorded_upstream_sha)"
+out=$(run_check 2>&1)
+assert_exit "trailing space on recorded SHA: exit 0" 0 "$?"
+UPSTREAM_MD="$FIXTURE_UP"
 
 # --- Final report ---------------------------------------------------------------------
 

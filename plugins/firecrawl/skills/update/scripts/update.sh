@@ -18,8 +18,9 @@
 #   1  drift detected in --check mode (no mutations)
 #   2  unverifiable: prerequisite missing (curl/jq/npm), network failure, or usage
 #
-# A firecrawl CLI that is not installed is reported but is not drift: --check
-# compares upstream with the recorded sync, not with this machine.
+# A firecrawl CLI that is not installed is reported but is not drift; an
+# installed CLI behind npm latest is. Drift outranks unverifiable: a run that
+# finds drift exits 1 even when another of its checks could not run.
 #
 # This script never calls `firecrawl init`, never installs the upstream bundled
 # skills, and never writes upstream SKILL.md content to disk beyond a
@@ -108,6 +109,7 @@ recorded_field() {
   local value
   value=$(grep -m1 "^- $1: " "$UPSTREAM_MD" | tr -d '\r')
   value="${value#"- $1: "}"
+  value="${value%"${value##*[![:space:]]}"}"
   case "$value" in
   "("* | never | none) return 0 ;;
   *) ;; # a recorded value
@@ -120,14 +122,15 @@ recorded_cli_version() { recorded_field 'CLI version at sync'; }
 recorded_sync_date() { recorded_field 'Last sync'; }
 
 run_check() {
-  local current latest upstream_sha recorded_sha recorded_ver synced drift=0
+  local current latest upstream_sha recorded_sha recorded_ver synced drift=0 unverifiable=0
 
   section "CLI version"
   current=$(current_cli_version)
-  latest=$(latest_cli_version) || {
+  if ! latest=$(latest_cli_version) || [[ -z "$latest" ]]; then
     err "failed to reach npm registry — network or proxy issue"
-    return 2
-  }
+    latest=""
+    unverifiable=1
+  fi
   recorded_ver=$(recorded_cli_version)
 
   if [[ -z "$current" ]]; then
@@ -135,11 +138,13 @@ run_check() {
   else
     log "installed:  $current"
   fi
-  log "latest:     $latest"
+  log "latest:     ${latest:-unknown}"
   synced=$(recorded_sync_date)
   log "last sync:  ${synced:-never} (CLI ${recorded_ver:-not recorded})"
 
-  if [[ -n "$current" && "$current" != "$latest" ]]; then
+  if [[ -n "$current" && -z "$latest" ]]; then
+    log "→ CLI version unverifiable"
+  elif [[ -n "$current" && "$current" != "$latest" ]]; then
     log "→ CLI upgrade available: $current → $latest"
     drift=1
   elif [[ -n "$current" ]]; then
@@ -147,19 +152,17 @@ run_check() {
   fi
 
   section "Upstream SKILL.md"
-  upstream_sha=$(fetch_upstream_sha) || {
-    err "failed to fetch upstream SKILL.md from $UPSTREAM_URL"
-    return 2
-  }
   recorded_sha=$(recorded_upstream_sha)
-
-  log "fetched SHA256:  $upstream_sha"
-  if [[ -z "$recorded_sha" ]]; then
-    log "recorded SHA256: (never synced — first run)"
-    drift=1
+  if ! upstream_sha=$(fetch_upstream_sha); then
+    err "failed to fetch upstream SKILL.md from $UPSTREAM_URL"
+    log "recorded SHA256: ${recorded_sha:-(never synced)}"
+    unverifiable=1
   else
-    log "recorded SHA256: $recorded_sha"
-    if [[ "$upstream_sha" == "$recorded_sha" ]]; then
+    log "fetched SHA256:  $upstream_sha"
+    log "recorded SHA256: ${recorded_sha:-(never synced — first run)}"
+    if [[ -z "$recorded_sha" ]]; then
+      drift=1
+    elif [[ "$upstream_sha" == "$recorded_sha" ]]; then
       log "→ upstream unchanged"
     else
       log "→ upstream content changed since last sync"
@@ -168,6 +171,10 @@ run_check() {
   fi
 
   section "Summary"
+  if [[ $drift -eq 0 && $unverifiable -eq 1 ]]; then
+    log "Unverifiable: the npm registry or the upstream SKILL.md could not be read."
+    return 2
+  fi
   if [[ $drift -eq 0 ]]; then
     log "No drift. CLI and skill are in sync with upstream."
     return 0
