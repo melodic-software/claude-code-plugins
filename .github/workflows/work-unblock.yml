@@ -30,6 +30,11 @@ name: work-unblock
 # report: a crash, or a rerun the token broker refused as workflow-modified
 # (a rerun keeps its first event's workflow files). It does that once per issue
 # per version of the lane's two workflow files on main, recorded in a comment.
+# When that run opened a lanes-App PR instead: one merged with `Refs:` moves
+# the issue to needs-triage and takes agent-ready off; one closed unmerged
+# re-fires the issue once per close; one the newest pr-merge run refused as
+# `ineligible:linked-issues:0` (read from that run's log) adds needs-human to
+# the issue. These share the five-a-run cap, and each posts a comment first.
 #
 # To stop the lane on one issue, remove its agent-ready label or add a hold
 # label: no later run labels an issue whose agent-ready label a person removed.
@@ -58,7 +63,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # list work-resolve-issue runs to find a failed one
+      actions: read # list work-resolve-issue runs to find a failed one; read pr-merge's gate log
       contents: read # check out main
       id-token: write # prove to the token broker which workflow this is
     steps:

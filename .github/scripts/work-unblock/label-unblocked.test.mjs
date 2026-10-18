@@ -5,13 +5,22 @@
 // read from the API when the run starts, never from the event payload. The kill switch and
 // a close by any bot sender stop the run before any API call.
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { checkCloser, escalationComment, main, refireComment } from "./label-unblocked.mjs";
+import {
+  checkCloser,
+  closedRefireComment,
+  escalationComment,
+  gateRefusals,
+  main,
+  refireComment,
+  refsMergedComment,
+  refsRefusedComment,
+} from "./label-unblocked.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TRUSTED = join(HERE, "fixtures/trusted-actors.json");
@@ -66,7 +75,26 @@ const note = () => ({ id: 9, body: "Looks good.", user: OWNER, created_at: STAMP
 // `openReady` is what the sweep's open agent-ready listing answers.
 // `runs` is every work-resolve-issue run; the listing answers those created in
 // the `created` range it is asked for. `blobs` maps a path to its blob SHA on main.
-function world({ blocking, blockingOf = {}, closedList = [], openReady = [], issues = {}, blockedBy = {}, comments = {}, events = {}, runs = [], blobs = {}, failOn } = {}) {
+// `timeline` and `pulls` are per issue and per pull request number;
+// `mergeRuns` is what the pr-merge run listing answers and `mergeJobs` each
+// run's jobs.
+function world({
+  blocking,
+  blockingOf = {},
+  closedList = [],
+  openReady = [],
+  issues = {},
+  blockedBy = {},
+  comments = {},
+  events = {},
+  runs = [],
+  blobs = {},
+  timeline = {},
+  pulls = {},
+  mergeRuns = [],
+  mergeJobs = {},
+  failOn,
+} = {}) {
   const calls = [];
   const base = `/repos/${REPO}/issues`;
   const github = async (method, path, body) => {
@@ -87,6 +115,21 @@ function world({ blocking, blockingOf = {}, closedList = [], openReady = [], iss
       const [from, to] = params.get("created").split("..").map(Date.parse);
       const inRange = runs.filter((run) => Date.parse(run.created_at) >= from && Date.parse(run.created_at) <= to);
       return { workflow_runs: listed(inRange) };
+    }
+    if (route === `/repos/${REPO}/actions/workflows/pr-merge.yml/runs` && method === "GET") {
+      const params = new URL(path, "https://x").searchParams;
+      assert.equal(params.get("branch"), "main");
+      assert.equal(params.get("status"), "success");
+      return { workflow_runs: mergeRuns };
+    }
+    if (method === "GET" && (match = route.match(new RegExp(`^/repos/${REPO}/actions/runs/(\\d+)/jobs$`)))) {
+      return { jobs: mergeJobs[match[1]] ?? [] };
+    }
+    if (method === "GET" && (match = route.match(new RegExp(`^/repos/${REPO}/pulls/(\\d+)$`))) && pulls[match[1]]) {
+      return pulls[match[1]];
+    }
+    if (method === "GET" && (match = route.match(/\/issues\/(\d+)\/timeline$/))) {
+      return listed(timeline[match[1]] ?? []);
     }
     if (method === "GET" && (match = route.match(new RegExp(`^/repos/${REPO}/contents/(.+)$`))) && blobs[match[1]]) {
       assert.equal(new URL(path, "https://x").searchParams.get("ref"), "main");
@@ -110,7 +153,7 @@ function world({ blocking, blockingOf = {}, closedList = [], openReady = [], iss
     if (method === "POST" && (match = route.match(/\/issues\/(\d+)\/labels$/))) {
       return [];
     }
-    if (method === "DELETE" && route.match(/\/issues\/(\d+)\/labels\/agent-ready$/)) {
+    if (method === "DELETE" && route.match(/\/issues\/(\d+)\/labels\/(agent-ready|needs-triage)$/)) {
       return [];
     }
     const lookup = (number) =>
@@ -1049,4 +1092,260 @@ test("a re-fire record and the App's re-add in the same second, on unchanged wor
   });
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), []);
+});
+
+// A lane PR the newest agent-ready label's run opened ends the run without a
+// marker. The cases come from #7878: a PR merged with `Refs:` (#7805), one
+// closed unmerged by the owner (#7493), and one pr-merge refuses every run as
+// `ineligible:linked-issues:0` (#7793). Only a PR the lanes App opened from
+// the issue's lane branch (report-outcome's `work-resolve-issue/issue-<n>-
+// <run>-<attempt>`), with head and base in this repository, counts.
+const PR_HEAD = "7f2a5812a65a663ce0b3381312e1cb94b063fd4e";
+const lanePull = ({
+  pr = 7805,
+  state = "closed",
+  merged = true,
+  body = "Refs: #30\n\nHold: a human merges this\n\n## Summary\n",
+  created = "2026-10-16T10:20:00Z",
+  closed = "2026-10-16T11:00:00Z",
+  user = LANES_BOT,
+  headRepo = REPO,
+  ref = "work-resolve-issue/issue-30-39070302636-1",
+  head = PR_HEAD,
+} = {}) => ({
+  number: pr,
+  state,
+  user,
+  body,
+  created_at: created,
+  closed_at: state === "closed" ? closed : null,
+  merged_at: state === "closed" && merged ? closed : null,
+  head: { ref, sha: head, repo: { full_name: headRepo } },
+  base: { ref: "main", repo: { full_name: REPO } },
+});
+const crossRef = (pull, repo = REPO) => ({
+  event: "cross-referenced",
+  created_at: pull.created_at,
+  source: {
+    type: "issue",
+    issue: {
+      number: pull.number,
+      user: pull.user,
+      created_at: pull.created_at,
+      repository_url: `${API}/repos/${repo}`,
+      pull_request: { url: `${API}/repos/${repo}/pulls/${pull.number}`, merged_at: pull.merged_at },
+    },
+  },
+});
+const MERGE_RUN = 39086851694;
+const MERGE_JOB = 77001;
+const GATE_LOG = readFileSync(join(HERE, "fixtures/pr-merge-gate.log"), "utf8");
+function lanePr({ pulls = [lanePull()], comments = [note()], events = [added(LABELED_AT, OWNER)], labels = [], log = GATE_LOG, runs = [] } = {}) {
+  const fake = world({
+    openReady: [ready(30, labels)],
+    comments: { 30: comments },
+    events: { 30: events },
+    timeline: { 30: pulls.map((pull) => crossRef(pull)) },
+    pulls: Object.fromEntries(pulls.map((pull) => [pull.number, pull])),
+    mergeRuns: [{ id: MERGE_RUN, conclusion: "success" }],
+    mergeJobs: { [MERGE_RUN]: [{ id: MERGE_JOB, name: "merge", conclusion: "success" }] },
+    runs,
+  });
+  const logs = async (repo, job) => {
+    assert.equal(repo, REPO);
+    assert.equal(job, MERGE_JOB);
+    fake.calls.push(`GET job ${job} logs`);
+    return log;
+  };
+  return { ...fake, actions: fake.github, logs };
+}
+const triaged = (n, pr) => [
+  `POST /repos/${REPO}/issues/${n}/comments ${JSON.stringify({ body: refsMergedComment(pr) })}`,
+  `POST /repos/${REPO}/issues/${n}/labels {"labels":["needs-triage"]}`,
+  `DELETE /repos/${REPO}/issues/${n}/labels/agent-ready`,
+];
+
+test("a lane PR merged with Refs: hands the issue to triage: the comment, needs-triage, then agent-ready off", async () => {
+  const { github, actions, logs, calls } = lanePr();
+  assert.equal(await sweep({ github, actions, logs }), 0);
+  assert.deepEqual(writes(calls), triaged(30, 7805));
+  // The comment went out but a label write did not: only the labels move.
+  const retry = lanePr({ comments: [note(), { id: 60, body: refsMergedComment(7805), user: LANES_BOT, created_at: "2026-10-16T11:47:00Z" }] });
+  assert.equal(await sweep({ github: retry.github, actions: retry.actions, logs: retry.logs }), 0);
+  assert.deepEqual(writes(retry.calls), triaged(30, 7805).slice(1));
+  // It needs no Actions token.
+  const bare = lanePr();
+  assert.equal(await sweep({ github: bare.github }), 0);
+  assert.deepEqual(writes(bare.calls), triaged(30, 7805));
+});
+
+test("a lane PR merged with Closes, or one that is not the lanes App's own lane PR, hands nothing off", async () => {
+  for (const [name, pull, repo] of [
+    ["Closes", lanePull({ body: "Closes #30\n\n## Summary\n" })],
+    ["Refs to another issue", lanePull({ body: "Refs: #31\n" })],
+    ["a person's PR", lanePull({ user: OWNER })],
+    ["a fork's head", lanePull({ headRepo: "someone/claude-code-plugins" })],
+    ["another issue's lane branch", lanePull({ ref: "work-resolve-issue/issue-300-39070302636-1" })],
+    ["a branch that is not a lane branch", lanePull({ ref: "fix/thing" })],
+    ["opened before the label", lanePull({ created: "2026-10-16T09:59:59Z" })],
+    ["cross-referenced from another repository", lanePull(), "someone/other"],
+  ]) {
+    const fake = world({
+      openReady: [ready(30)],
+      comments: { 30: [note()] },
+      events: { 30: [added(LABELED_AT, OWNER)] },
+      timeline: { 30: [crossRef(pull, repo)] },
+      pulls: { [pull.number]: pull },
+    });
+    assert.equal(await sweep({ github: fake.github }), 0, name);
+    assert.deepEqual(writes(fake.calls), [], name);
+  }
+});
+
+test("a lane PR closed unmerged re-fires the issue once per close, recorded first", async () => {
+  const closed = lanePull({ pr: 7493, merged: false, body: "Closes #30\n" });
+  const key = `pr-7493-${Date.parse("2026-10-16T11:00:00Z")}`;
+  const { github, calls } = lanePr({ pulls: [closed] });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), [
+    `POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: closedRefireComment(key, 7493) })}`,
+    ...restarted(30),
+  ]);
+  // The record posted but the label never moved: no second record.
+  const record = { id: 61, body: closedRefireComment(key, 7493), user: LANES_BOT, created_at: "2026-10-16T11:47:00Z" };
+  const unfinished = lanePr({ pulls: [closed], comments: [note(), record] });
+  assert.equal(await sweep({ github: unfinished.github }), 0);
+  assert.deepEqual(writes(unfinished.calls), restarted(30));
+  // Re-fired: the App removed and re-added agent-ready after the close, so that
+  // close is behind the newest label and fires nothing more.
+  const done = lanePr({
+    pulls: [closed],
+    comments: [note(), record],
+    events: [
+      added(LABELED_AT, OWNER),
+      { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T11:47:01Z" },
+      added("2026-10-16T11:47:02Z"),
+    ],
+  });
+  assert.equal(await sweep({ github: done.github }), 0);
+  assert.deepEqual(writes(done.calls), []);
+  // The App's remove-and-re-add after that record is a restart, not a stop:
+  // the issue can still be labeled when a blocker closes later.
+  const blocked = world({
+    blocking: [issue(20)],
+    issues: { 20: issue(20) },
+    blockedBy: { 20: [issue(10, { state: "closed" })] },
+    comments: { 20: [note(), { ...record, created_at: "2026-10-16T07:00:00Z" }] },
+    events: {
+      20: [
+        { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T07:00:01Z" },
+        added("2026-10-16T07:00:02Z"),
+      ],
+    },
+  });
+  assert.equal(await main({ env: envFor(), github: blocked.github }), 0);
+  assert.deepEqual(writes(blocked.calls), [labeled(20)]);
+});
+
+test("re-fires after closed lane PRs share the five-a-run cap with restarts, the earliest close first", async () => {
+  const numbers = [31, 32, 33, 34, 35, 36];
+  const pullOf = (n) =>
+    lanePull({
+      pr: 7400 + n,
+      merged: false,
+      body: `Closes #${n}\n`,
+      ref: `work-resolve-issue/issue-${n}-39070302636-1`,
+      // Number 31's PR closed last, so it is the one left for the next run.
+      closed: n === 31 ? "2026-10-16T11:59:00Z" : `2026-10-16T11:0${n - 30}:00Z`,
+    });
+  const { github, calls } = world({
+    openReady: numbers.map((n) => ready(n)),
+    comments: Object.fromEntries(numbers.map((n) => [n, [note()]])),
+    events: Object.fromEntries(numbers.map((n) => [n, [added(LABELED_AT, OWNER)]])),
+    timeline: Object.fromEntries(numbers.map((n) => [n, [crossRef(pullOf(n))]])),
+    pulls: Object.fromEntries(numbers.map((n) => [7400 + n, pullOf(n)])),
+  });
+  assert.equal(await sweep({ github }), 0);
+  const refiredIssues = writes(calls)
+    .filter((call) => call.startsWith("DELETE "))
+    .map((call) => Number(call.match(/issues\/(\d+)\//)[1]));
+  assert.deepEqual(refiredIssues, [32, 33, 34, 35, 36]);
+});
+
+test("an open lane PR pr-merge refuses as ineligible:linked-issues:0 at its head adds needs-human to the issue", async () => {
+  const open = lanePull({ pr: 7793, state: "open" });
+  const { github, actions, logs, calls } = lanePr({ pulls: [open] });
+  assert.equal(await sweep({ github, actions, logs }), 0);
+  assert.deepEqual(writes(calls), [
+    `POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: refsRefusedComment(7793) })}`,
+    `POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`,
+  ]);
+  // The comment went out but the label did not: only the label.
+  const retry = lanePr({
+    pulls: [open],
+    comments: [note(), { id: 62, body: refsRefusedComment(7793), user: LANES_BOT, created_at: "2026-10-16T11:47:00Z" }],
+  });
+  assert.equal(await sweep({ github: retry.github, actions: retry.actions, logs: retry.logs }), 0);
+  assert.deepEqual(writes(retry.calls), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
+});
+
+test("an open lane PR refused for another reason, at an older head, or with no gate log to read hands nothing off", async () => {
+  for (const [name, pull, extra] of [
+    ["another reason", lanePull({ pr: 7794, state: "open", head: "64e9880b34abd8400d346b89c10f43408f95ac7d" }), {}],
+    ["refused at an older head", lanePull({ pr: 7793, state: "open", head: "3".repeat(40) }), {}],
+    ["not in the gate log", lanePull({ pr: 7799, state: "open" }), {}],
+    ["no Actions token", lanePull({ pr: 7793, state: "open" }), { actions: undefined, logs: undefined }],
+  ]) {
+    const fake = lanePr({ pulls: [pull] });
+    assert.equal(await sweep({ github: fake.github, actions: fake.actions, logs: fake.logs, ...extra }), 0, name);
+    assert.deepEqual(writes(fake.calls), [], name);
+  }
+});
+
+test("the gate log is read once per sweep, from the newest successful pr-merge run's merge job", async () => {
+  const pullOf = (n) => lanePull({ pr: 7700 + n, state: "open", ref: `work-resolve-issue/issue-${n}-1-1` });
+  const fake = world({
+    openReady: [ready(31), ready(32)],
+    comments: { 31: [note()], 32: [note()] },
+    events: { 31: [added(LABELED_AT, OWNER)], 32: [added(LABELED_AT, OWNER)] },
+    timeline: { 31: [crossRef(pullOf(31))], 32: [crossRef(pullOf(32))] },
+    pulls: { 7731: pullOf(31), 7732: pullOf(32) },
+    mergeRuns: [{ id: MERGE_RUN, conclusion: "success" }],
+    mergeJobs: { [MERGE_RUN]: [{ id: 1, name: "dispatch-ci", conclusion: "success" }, { id: MERGE_JOB, name: "merge", conclusion: "success" }] },
+  });
+  let reads = 0;
+  const logs = async (repo, job) => {
+    assert.equal(job, MERGE_JOB);
+    reads += 1;
+    return GATE_LOG;
+  };
+  assert.equal(await sweep({ github: fake.github, actions: fake.github, logs }), 0);
+  assert.equal(reads, 1);
+});
+
+test("the gate log gives each PR's unattended refusal with the head it was checked at", () => {
+  const refusals = gateRefusals(GATE_LOG);
+  assert.deepEqual(refusals.get(7793), { head: PR_HEAD, reason: "ineligible:linked-issues:0" });
+  assert.deepEqual(refusals.get(7794), { head: "64e9880b34abd8400d346b89c10f43408f95ac7d", reason: "verify:earlier-fail" });
+  // A group whose body is not JSON gives nothing.
+  assert.equal(refusals.has(7795), false);
+  assert.equal(refusals.size, 2);
+});
+
+// Runs from before the run name carried ` #<issue>` cannot be matched to an
+// issue, so the sweep says it cannot tell instead of that no run started.
+test("a run in the label's window whose title names no issue makes the sweep say it cannot tell", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { github, actions, calls } = failedRun({ runs: [{ ...laneRun(), display_title: "fix(review): explain-change artifact medium" }] });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.some((line) => line.includes("#30 not restarted: cannot tell whether a lane run started")), lines.join("\n"));
+  assert.ok(!lines.some((line) => line.includes("no lane run since")));
+  log.mock.restore();
+  // With only other issues' runs in the window, it still says no run started.
+  const other = t.mock.method(console, "log", () => {});
+  const plain = failedRun({ runs: [laneRun({ number: 300 })] });
+  assert.equal(await sweep({ github: plain.github, actions: plain.actions }), 0);
+  assert.ok(other.mock.calls.some((call) => String(call.arguments[0]).includes("#30 not restarted: no lane run since agent-ready was added")));
 });
