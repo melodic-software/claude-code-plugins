@@ -1,11 +1,24 @@
 # Changelog for the PR pipeline convention
 
-## 2.6.2 - 2026-10-17
+## 2.7.1 - 2026-10-17
 
 `request-lane-token` retries a broker 503 whose reason is `github-unavailable`, with a fresh OIDC
 token, after 60, 120 and 240 seconds plus up to 20 seconds of jitter, honoring a longer
-`Retry-After` header and starting no retry more than 8 minutes after the first request. Every other answer stays final
-([pr-run-activity.md](pr-run-activity.md#the-lane-token-broker)). `version` stays 2.
+`Retry-After` header and starting no retry more than 8 minutes after the first request. Every
+other answer stays final ([pr-run-activity.md](pr-run-activity.md#the-lane-token-broker)).
+`version` stays 2.
+
+## 2.7.0 - 2026-10-17
+
+`resolve-issue` lists skill-quality's `check-skill.sh` and `check-evals-quality.sh` as
+`verify-scripts`, so the issue lane can run the skill checks an issue's done-when names
+([#7840](https://github.com/melodic-software/claude-code-plugins/issues/7840)). Every
+verify-script wrapper now unsets `GH_TOKEN` and `GITHUB_TOKEN` before it runs the script, as
+`scripts/run-test-file.sh` does for its test; code the script runs can still read the token from
+an ancestor process's `/proc/<pid>/environ`. `check-skill.sh` runs each checked skill's
+`scripts/*.test.sh` and the checkout's markdownlint: checkout code with the network open, the
+power `run-test-file.sh` already gives the run ([pr-run-activity.md](pr-run-activity.md#skill-activities)).
+`version` stays 2.
 
 ## 2.6.1 - 2026-10-17
 

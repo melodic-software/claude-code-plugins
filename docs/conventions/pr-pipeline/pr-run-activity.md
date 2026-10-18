@@ -337,12 +337,17 @@ directory holds a symbolic link (whose target `chmod` would leave writable), mak
 read-only, denies `Edit` and `Write` on it, allows `Bash(<copy>/bin/<name> *)`, and names each
 wrapper in `--append-system-prompt`. The wrapper changes to the checkout, refuses any argument (or
 the value after an `=`) naming an existing path whose real path lies outside the checkout, since a
-script may print lines of a file it reads, sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`
+script may print lines of a file it reads, unsets `GH_TOKEN` and `GITHUB_TOKEN` in the script's
+own environment (code the script runs can still read the token from the wrapper's or the Bash
+shell's `/proc/<pid>/environ`), sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`
 and command-scope `core.fsmonitor=false` and `core.hooksPath=/dev/null`, then runs the copy with
 the arguments and prints `exit status: <n>` to stderr before exiting with that status, since the
 lane denies a chained `; echo "$?"`; the system prompt says to run each wrapper as its own command.
 Any other arguments match, so a listed script that changes files or runs checkout code must limit
-itself. `resolve-issue` lists two that do, each refusing (exit 2) an argument that is absolute,
+itself, or hand the run a power it may hold. `resolve-issue` also lists skill-quality's
+`check-evals-quality.sh` (bash and jq over `evals.json` files) and `check-skill.sh`, which runs each
+checked skill's `scripts/*.test.sh` and the checkout's markdownlint: checkout code with the network
+open and the token readable from an ancestor process, the power `scripts/run-test-file.sh` has. It lists two that limit themselves, each refusing (exit 2) an argument that is absolute,
 has a `..` segment, starts with `-` or `:`, or resolves through a link to outside the checkout, including
 a path that does not exist yet (`scripts/lib/checkout-path.sh`). `scripts/run-test-file.sh` takes
 one test file and runs it by name, `test_*.py` under `python3 -m pytest`, `*.test.sh` under
