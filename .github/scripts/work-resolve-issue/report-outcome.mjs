@@ -5,7 +5,8 @@
 //   done      opens a ready PR from the run's branch: the body starts
 //             `Closes #<issue>`, or `Refs: #<issue>` when the run reports
 //             `"link": "refs"` (a recorded decision keeps the issue open),
-//             which also holds the PR for a human. The title is the
+//             which also holds the PR for a human and gives the issue the
+//             human-gated label and a refs-hold comment. The title is the
 //             run's Conventional Commits title, with any `#` or `/` a space
 //             (else one built from the issue title), and the body carries
 //             the hold line when a human must merge it. The PR gets no label:
@@ -16,9 +17,9 @@
 //             not_done. A done outcome whose not_done holds a required check
 //             is stopped.
 //   pushback  comments why, adds the human-gated label, removes agent-ready.
-//   stopped   comments why, adds the human-gated label, and names the branch
-//             that holds any partial work. A missing or invalid outcome file
-//             is stopped.
+//   stopped   comments why, adds the human-gated label, removes agent-ready,
+//             and names the branch that holds any partial work. A missing or
+//             invalid outcome file is stopped.
 //   limited   a run that wrote no readable outcome file and whose lane.json
 //             carries class rate-limit (the run hit its credential's usage
 //             limit before it could report): comments once with the
@@ -138,6 +139,13 @@ const MARKER = /^<!-- work-resolve-issue outcome=([a-z]+)(?: resets=(\S+))?(?: r
 // The marker a limited run leaves on its issue; work-unblock reads it back.
 export const limitedMarker = ({ resets, runId }) =>
   `<!-- work-resolve-issue outcome=limited resets=${resets} run=${runId || 0} -->`;
+
+// A Refs PR has no closing issue, so the merge lane never merges it: the issue
+// gets `label` and this comment, whose marker tells work-unblock which hold it
+// may lift once that PR merges.
+export const refsHoldMarker = (pr) => `<!-- work-resolve-issue refs-hold #${pr} -->`;
+export const refsHoldComment = (pr, label) =>
+  `${refsHoldMarker(pr)}\nThe lanes App's pull request #${pr} links this issue with \`Refs:\`, not \`Closes\`, so the merge lane never merges it. report-outcome added \`${label}\` so a person merges or closes it. When it merges, work-unblock removes this \`${label}\` and \`agent-ready\` and adds \`needs-triage\`, so triage decides what work is left. To keep the issue held after the merge, add \`needs-owner-decision\`.`;
 
 // {outcome, resets, run} from a comment body that opens with the lane's
 // marker, or null. resets is epoch milliseconds, or null when absent or
@@ -289,7 +297,7 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId }) {
     "",
     pushback
       ? `To retry, answer the question here, remove \`${humanLabel}\` and add \`agent-ready\` again.`
-      : `To retry, remove \`${humanLabel}\`, then remove and add \`agent-ready\`.`,
+      : `To retry, remove \`${humanLabel}\` and add \`agent-ready\` again.`,
   );
   return {
     action: "hand-back",
@@ -297,7 +305,7 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId }) {
     issueNumber,
     comment: lines.join("\n"),
     addLabels: [humanLabel],
-    removeLabels: pushback ? ["agent-ready"] : [],
+    removeLabels: ["agent-ready"],
   };
 }
 
@@ -522,6 +530,7 @@ export function decide({
     title: prTitle(outcome.title, issueTitle, issueNumber),
     body,
     branch,
+    refsHold: refs ? humanLabel : null,
   };
 }
 
@@ -904,6 +913,11 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           draft: false,
         }));
       console.log(`report-outcome: opened PR #${pull.number} for issue #${issueNumber}`);
+      if (plan.refsHold) {
+        // The label first, so a failed comment still leaves the issue with a person.
+        await github("POST", `${repo}/issues/${issueNumber}/labels`, { labels: [plan.refsHold] });
+        await github("POST", `${repo}/issues/${issueNumber}/comments`, { body: refsHoldComment(pull.number, plan.refsHold) });
+      }
       return 0;
     }
     // The label first, so a failed comment still leaves the issue with a person.
