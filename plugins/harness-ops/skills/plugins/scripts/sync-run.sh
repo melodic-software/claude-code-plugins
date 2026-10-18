@@ -1154,7 +1154,7 @@ recover_pending() {
     id="${id//$'\r'/}"
     [[ -n "$id" && "$id" == *"@$mp" ]] || continue
     # This run's own picks are handled by the install loop.
-    case ",${ONLY_INSTALL// /,}," in *",$id,"*) continue ;; esac
+    case ",${ONLY_INSTALL// /,}," in *",$id,"*) continue ;; *) ;; esac
     # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
     jq_to state -r --arg id "$id" '
       (any(.installed[]?; .id == $id and .scope == "user")) as $in
