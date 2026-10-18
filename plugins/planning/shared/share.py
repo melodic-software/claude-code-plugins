@@ -466,11 +466,11 @@ def cmd_lease(d, a):
 
 
 def is_error(line):
-    """A request entry with a 4xx or 5xx status, or a client entry other than a usage summary (README "Logs"). The
-    fields before any free text never hold a space, so they split on spaces."""
+    """A request entry with a 4xx or 5xx status, or a client entry, a fault (README "Logs"). The fields before any
+    free text never hold a space, so they split on spaces."""
     parts = line.split(" ", 7)
     if len(parts) > 3 and parts[3] == "client":
-        return not (len(parts) > 4 and parts[4] == "kind=summary")
+        return True
     return len(parts) > 6 and parts[3] == "request" and parts[6][:8] in {"status=4", "status=5"}
 
 
@@ -551,12 +551,40 @@ def browser(ua):
 
 def summarize(lines):
     """Counts from server.log lines: error fingerprints, refusals, network failures and unanswered actions, action
-    latency and rollbacks, reconnect gaps, layout anomalies, INP and LCP, and how many summaries there were. The
-    owner's own pages are left out of the timings, which a page on the owner's machine would skew."""
+    latency and rollbacks, reconnect gaps, layout anomalies, INP and LCP, and how many summaries there were (from the
+    summary-batch entries). The owner's own pages are left out of the timings, which a page on the owner's machine
+    would skew."""
     faults, refusals, server_ms, repeats, repeat_at = {}, collections.Counter(), collections.defaultdict(list), collections.Counter(), {}
     lat, rollbacks, gaps, vitals = collections.defaultdict(lambda: [0] * (len(LAT_EDGES) + 1)), collections.Counter(), [], {}
-    lines_n = pages_owner = 0
+    sm = {"count": 0, "batches": 0, "pages": 0, "ownerPages": 0, "dropped": 0}
     pages = set()
+
+    def fold(message, ua, at):
+        """One summary from a batch written at `at`."""
+        t = tokens(message)
+        sm["count"] += 1
+        pv = t.get("pv") or f"summary{sm['count']}"
+        pages.add(pv)
+        for k, v in t.items():
+            if k.startswith("rep:") and v.isdigit():
+                repeats[k[4:]] += int(v)
+                repeat_at[k[4:]] = max(repeat_at.get(k[4:], ""), at)
+        if t.get("owner") == "1":
+            sm["ownerPages"] += pv not in vitals
+            vitals.setdefault(pv, {"owner": True})
+            return
+        v = vitals.setdefault(pv, {"device": device(ua)})
+        for k, val in t.items():
+            if k.startswith("lat:"):
+                for i, n in enumerate(val.split(",")[: len(LAT_EDGES) + 1]):
+                    lat[k[4:]][i] += int(n) if n.isdigit() else 0
+            elif k.startswith("rb:") and val.isdigit():
+                rollbacks[k[3:]] += int(val)
+            elif k == "gap":
+                gaps.extend((int(g), v["device"]) for g in val.split(",") if g.isdigit())
+            elif k in ("inp", "lcp", "vitals"):
+                v[k] = val
+
     for line in lines:
         kind, f = entry_of(line)
         if kind == "request":
@@ -565,29 +593,16 @@ def summarize(lines):
                 refusals[(f.get("route"), f["code"])] += 1
             if f.get("method") == "POST" and f.get("pid") not in (None, "host") and status < 500:
                 server_ms[f.get("route")].append(float(f.get("ms") or 0))
-        elif kind == "client" and f.get("kind") == "summary":
-            t, lines_n = tokens(f.get("message", "")), lines_n + 1
-            pv = t.get("pv") or f"line{lines_n}"
-            pages.add(pv)
-            for k, v in t.items():
-                if k.startswith("rep:") and v.isdigit():
-                    repeats[k[4:]] += int(v)
-                    repeat_at[k[4:]] = max(repeat_at.get(k[4:], ""), line[:19])
-            if t.get("owner") == "1":
-                pages_owner += pv not in vitals
-                vitals.setdefault(pv, {"owner": True})
-                continue
-            v = vitals.setdefault(pv, {"device": device(f.get("ua"))})
-            for k, val in t.items():
-                if k.startswith("lat:"):
-                    for i, n in enumerate(val.split(",")[: len(LAT_EDGES) + 1]):
-                        lat[k[4:]][i] += int(n) if n.isdigit() else 0
-                elif k.startswith("rb:") and val.isdigit():
-                    rollbacks[k[3:]] += int(val)
-                elif k == "gap":
-                    gaps += [(int(g), v["device"]) for g in val.split(",") if g.isdigit()]
-                elif k in ("inp", "lcp", "vitals"):
-                    v[k] = val
+        elif kind == "summary-batch":
+            try:
+                items = json.loads(line.split(" data=", 1)[1])
+            except (IndexError, ValueError):
+                continue  # cut short: not a batch this can read
+            sm["batches"] += 1
+            sm["dropped"] += int(f.get("dropped", "0")) if f.get("dropped", "").isdigit() else 0
+            for item in items if isinstance(items, list) else []:
+                if isinstance(item, list) and len(item) == 2 and all(isinstance(x, str) for x in item):
+                    fold(*item, line[:19])
         elif kind == "client" and f.get("kind") in ("error", "rejection", "api", "layout"):
             if f["kind"] == "layout" and not f.get("message", "").startswith("anomaly="):
                 continue  # a keyboard readout, not an anomaly
@@ -635,7 +650,7 @@ def summarize(lines):
         "layout": [{"anomaly": a, "at": at, "device": dev, "count": n} for (a, at, dev), n in anomalies.most_common()],
         "inp": vital("inp"),
         "lcp": vital("lcp"),
-        "summaries": {"lines": lines_n, "pages": len(pages), "ownerPages": pages_owner},
+        "summaries": {**sm, "pages": len(pages)},
         "repeatsUnmatched": sum(repeats.values()),
     }
 
@@ -646,8 +661,8 @@ def summary_text(s):
     pct = lambda r: "-" if r is None else f"{r * 100:.1f}%"  # noqa: E731
     devs = lambda d: ", ".join(f"{k} {n}" for k, n in sorted(d.items()))  # noqa: E731
     sm = s["summaries"]
-    out = [f"Summaries: {sm['lines']} from {sm['pages']} page views ({sm['ownerPages']} of them the owner's, left out of the timings). "
-           "A page with recording turned off sends none.", "", "Top errors:"]
+    out = [f"Summaries: {sm['count']} in {sm['batches']} batches from {sm['pages']} page views ({sm['ownerPages']} of them the owner's, left out of the timings). "
+           "A page with recording turned off sends none." + (f" {sm['dropped']} more did not fit in their batch." if sm["dropped"] else ""), "", "Top errors:"]
     out += [f"  {g['count']}x {g['kind']}: {g['message'][:120]} {g['source']} ({devs(g['devices'])}; {devs(g['browsers'])}), first {g['firstSeen']}, last {g['lastSeen']}"
             for g in s["errors"]] or ["  none"]
     out += ["", "Refusals by route and code (the server's own entries):"]

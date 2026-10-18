@@ -416,14 +416,15 @@ quoted when it holds a space, so only a newline ends an entry; `logs` splits on 
 
 | Kind | Level | Fields |
 |---|---|---|
-| `request` | INFO for 2xx/3xx, WARNING for 4xx, ERROR for 5xx | `method route status ms` and `pid` (the acting person's id, once known); a refusal adds `code field message` (its error body); a 5xx adds `trace`, the last 8000 characters of the traceback of the bug or of the session's refusal where it was raised. The one exception is 503 `busy`, answered before any request is read: `method=- route=- status=503 ms=0.0 code=busy message=...`, no pid, no trace |
-| `client` | WARNING | `pid kind message source route code ua fp`, as the page sent them; a `summary` has no `pid` |
+| `request` | INFO for 2xx/3xx, WARNING for 4xx, ERROR for 5xx | `method route status ms` and `pid` (the acting person's id, once known); a refusal adds `code field message` (its error body); a 5xx adds `trace`, the last 8000 characters of the traceback of the bug or of the session's refusal where it was raised. The one exception is 503 `busy`, answered before any request is read: `method=- route=- status=503 ms=0.0 code=busy message=...`, no pid, no trace. A `summary` the server takes gets no entry |
+| `client` | WARNING | `pid kind message source route code ua fp`, as the page sent them: a fault |
+| `summary-batch` | INFO | `summaries dropped data`: every `summary` taken since the last batch, written every 10 minutes and when the server stops, if there was one. `data` is a JSON array of `[message, ua]` pairs, sorted, in ASCII with each space as `\u0020`, so it ends the line; `dropped` counts summaries past the batch's 100,000 bytes. No pid, and no time but the batch's |
 
 ```text
 2026-10-17 13:21:56,794 WARNING request method=POST route=/api/person/role status=400 ms=0.5 pid=host code=bad-field field=role message="role must be one of leader, guest."
 2026-10-17 13:21:57,102 ERROR request method=POST route=/api/rename status=500 ms=1.2 pid=pidAnn001 code=state-invalid message="The server could not do that; nothing was written." trace="Traceback (most recent call last):\x0a  File \x22...\x22 ..."
 2026-10-17 13:21:58,330 WARNING client pid=pidAnn001 kind=error message="TypeError: x is undefined" source=/app.js:12 route=/ ua="chrome computer" fp=1a2b3c4d
-2026-10-17 13:22:40,018 WARNING client kind=summary message="pv=0a1b2c3d lat:/api/vote=0,3,1 rb:/api/vote=1 gap=900 rep:1a2b3c4d=2 inp=184:pointer:vf-vote lcp=1200:vf-qtext" ua="safari phone"
+2026-10-17 13:30:00,412 INFO summary-batch summaries=1 dropped=0 data=[["pv=0a1b2c3d\u0020lat:/api/vote=0,3,1\u0020rb:/api/vote=1\u0020gap=900\u0020rep:1a2b3c4d=2\u0020inp=184:pointer:vf-vote\u0020lcp=1200:vf-qtext","safari\u0020phone"]]
 ```
 
 A pid is no credential. No entry holds a token, secret, guest key, owner link, request body, answer
@@ -444,7 +445,9 @@ shows; after that each repeat is a count in the next summary:
   nearest `vf-` or `core-` class) and numbers; logged when it appears. The phone keyboard readout
   is also `layout`: once per sheet opening, one `name=value` line of numbers and CSS values.
 
-When the page hides it sends one `summary` with no pid: `pv`, a random id for this page view so a
+When the page hides it sends one `summary` with no pid, which reaches the log only in the next
+`summary-batch`: the page sends it as it sends a heartbeat, whose request entry names the person,
+so a summary with a time of its own could be matched to them. A summary holds `pv`, a random id for this page view so a
 page's INP counts once; `owner=1` on the owner's page; `lat:<route>` tap-to-answer counts per
 bucket (upper edges 100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000 and 10000 ms, then above),
 measured with `performance.now()`; `rb:<route>` optimistic changes rolled back; `gap`, ms from the
@@ -465,7 +468,9 @@ strings, at most 500 characters for `message`, 200 for `source` and `route`, 60 
 required. It answers `{ok: true}`, or 401 `unknown-session` without identity (a page that has not
 joined sends nothing), 413 `body-too-large` over 4096 bytes, 400 `bad-field` for another key or a
 wrong type, 400 `too-long`, and 429 `slow-down` past 20 faults or 6 summaries a minute from one
-person (two buckets, so neither starves the other). A summary's own `request` entry carries no pid.
+person (two buckets, so neither starves the other). A summary the server takes has no `request`
+entry; a refused one has one with no pid. The server holds taken summaries in memory until their
+batch: a crash loses them, and so does `share.sh stop` on Windows, which ends the process at once.
 
 `share.sh logs --summary` (add `--json` for one JSON line, `--since MINUTES` to narrow) adds the
 log up: the top 10 error fingerprints with counts, first and last seen (`firstSeen`, `lastSeen`,
@@ -473,9 +478,10 @@ to the second) and device and browser classes, refusals by route and code (from 
 server's entries), network failures and unanswered actions by route, tap-to-answer p50 and p95 by
 route (the upper edge of the bucket) beside the server's own `ms`, rollbacks and their rate,
 reconnect gaps (over 10 s, worst, by device), layout anomalies by device kind, INP and LCP p75 by
-device with the count of page views missing the API, and how many summaries came from how many
-page views (a page with recording off sends none). The owner's own page views stay out of the
-timings. `logs --errors` leaves summaries out.
+device with the count of page views missing the API, and how many summaries came in how many
+batches from how many page views, and how many were dropped (a page with recording off sends none).
+The owner's own page views stay out of the timings. A summary counts at its batch's time, for
+`--since` and for a fingerprint's last repeat. `logs --errors` leaves batches out.
 
 ## Data contract
 

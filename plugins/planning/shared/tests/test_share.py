@@ -214,7 +214,7 @@ class TestLogs(unittest.TestCase):
         self.assertEqual(share(d, "logs")[:2], (0, {"ok": True, "lines": []}))
 
     def test_errors_leaves_out_usage_summaries(self):
-        summary = f'{self.client[:23]} WARNING client kind=summary message="pv=0a1b2c3d gap=900" ua="chrome phone"'
+        summary = f'{self.client[:23]} INFO summary-batch summaries=1 dropped=0 data=[["pv=0a1b2c3d\\u0020gap=900","chrome\\u0020phone"]]'
         (self.d / "server.log").write_text("\n".join([self.client, summary]) + "\n", encoding="utf-8")
         (self.d / "server.log.1").unlink()
         self.assertEqual(share(self.d, "logs", "--errors")[1]["lines"], [self.client])
@@ -236,11 +236,14 @@ class TestLogsSummary(unittest.TestCase):
         'WARNING client pid=pidBo0001 kind=api message="Failed to fetch" route=/api/vote code=network ua="safari phone" fp=cccc3333',
         'WARNING client pid=pidAnn001 kind=layout message="anomaly=overflow at=vf-body w=320 sw=410" route=/ ua="chrome phone" fp=dddd4444',
         'WARNING client pid=pidAnn001 kind=layout message="sheet=vf-proposepop kb=344px" route=/ ua="chrome phone"',
-        'WARNING client kind=summary message="pv=p1 lat:/api/vote=0,3,1 rb:/api/vote=1 gap=900,12000 rep:aaaa1111=2 rep:dddd4444=1 inp=184:pointer:vf-vote lcp=1200:vf-q" ua="chrome phone"',
-        'WARNING client kind=summary message="pv=p1 lat:/api/vote=0,1 inp=240:pointer:vf-vote" ua="chrome phone"',
-        'WARNING client kind=summary message="pv=p2 lat:/api/answer=0,0,0,1 rep:cccc3333=1 inp=missing lcp=missing" ua="safari computer"',
-        'WARNING client kind=summary message="pv=p3 owner=1 lat:/api/vote=9 inp=16:pointer:vf-x" ua="chrome computer"',
-        'WARNING client kind=summary message="pv=p4 vitals=missing gap=300" ua="firefox tablet"',
+        # Two summary batches (README "Logs": [message, ua] pairs, each space written \\u0020); one summary missed the second.
+        "INFO summary-batch summaries=3 dropped=0 data=["
+        '["pv=p1\\u0020lat:/api/vote=0,3,1\\u0020rb:/api/vote=1\\u0020gap=900,12000\\u0020rep:aaaa1111=2\\u0020rep:dddd4444=1\\u0020inp=184:pointer:vf-vote\\u0020lcp=1200:vf-q","chrome\\u0020phone"],'
+        '["pv=p1\\u0020lat:/api/vote=0,1\\u0020inp=240:pointer:vf-vote","chrome\\u0020phone"],'
+        '["pv=p2\\u0020lat:/api/answer=0,0,0,1\\u0020rep:cccc3333=1\\u0020inp=missing\\u0020lcp=missing","safari\\u0020computer"]]',
+        "INFO summary-batch summaries=2 dropped=1 data=["
+        '["pv=p3\\u0020owner=1\\u0020lat:/api/vote=9\\u0020inp=16:pointer:vf-x","chrome\\u0020computer"],'
+        '["pv=p4\\u0020vitals=missing\\u0020gap=300","firefox\\u0020tablet"]]',
     ]
 
     def setUp(self):
@@ -272,14 +275,14 @@ class TestLogsSummary(unittest.TestCase):
         self.assertEqual(out["layout"], [{"anomaly": "overflow", "at": "vf-body", "device": "phone", "count": 2}])
         self.assertEqual(out["inp"], {"p75Ms": 240, "pages": 1, "byDevice": {"phone": 240}, "missing": 2})
         self.assertEqual(out["lcp"], {"p75Ms": 1200, "pages": 1, "byDevice": {"phone": 1200}, "missing": 2})
-        self.assertEqual(out["summaries"], {"lines": 5, "pages": 4, "ownerPages": 1})
+        self.assertEqual(out["summaries"], {"count": 5, "batches": 2, "pages": 4, "ownerPages": 1, "dropped": 1})
         self.assertEqual(out["repeatsUnmatched"], 0)
 
     def test_text_reads_the_same_counts_and_share_sh_prints_it(self):
         p = subprocess.run(["bash", str(Path(share_cli.__file__).with_name("share.sh")), "--dir", str(self.d), "logs", "--summary"], capture_output=True, text=True, timeout=60, env=env())
         self.assertEqual(p.returncode, 0, p.stderr)
         for want in (
-            "Summaries: 5 from 4 page views (1 of them the owner's, left out of the timings). A page with recording turned off sends none.",
+            "Summaries: 5 in 2 batches from 4 page views (1 of them the owner's, left out of the timings). A page with recording turned off sends none. 1 more did not fit in their batch.",
             f"  3x error: TypeError: x is undefined /app.js:12 (phone 1; chrome 1), first {self.at(6)}, last {self.at(11)}",
             "  /api/answer locked: 2",
             "  /api/vote network: 2",
@@ -296,7 +299,7 @@ class TestLogsSummary(unittest.TestCase):
     def test_an_empty_log_summarizes_to_nothing(self):
         code, out, err = share(tmpdir(self), "logs", "--summary", "--json")
         self.assertEqual(code, 0, err)
-        self.assertEqual((out["errors"], out["latency"], out["inp"]["p75Ms"], out["summaries"]), ([], {}, None, {"lines": 0, "pages": 0, "ownerPages": 0}))
+        self.assertEqual((out["errors"], out["latency"], out["inp"]["p75Ms"], out["summaries"]), ([], {}, None, {"count": 0, "batches": 0, "pages": 0, "ownerPages": 0, "dropped": 0}))
 
 
 class TestApply(Running):

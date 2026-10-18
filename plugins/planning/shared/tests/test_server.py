@@ -1170,18 +1170,62 @@ class TestClientLog(LogCase):
 
     SUMMARY = {"kind": "summary", "message": "pv=0a1b2c3d lat:/api/vote=0,2 rb:/api/vote=1 gap=900", "ua": "safari phone"}
 
-    def test_a_summary_names_no_one_on_its_client_entry_or_its_request_entry(self):
-        """README "Logs": usage and performance entries carry no pid; fault entries keep it."""
+    def test_a_summary_and_the_heartbeat_sent_with_it_leave_no_lines_joined_by_time(self):
+        """README "Logs": a page sends its summary as it sends a heartbeat, whose request entry names the person. The
+        summary leaves no line of its own, no request entry either, until its batch: one entry with no pid and no time
+        but the batch's own. Fault entries keep the pid."""
         pid, guest = self.join("Ann")
+        before = len(self.log_text().splitlines())
+        self.assertEqual(self.post("/api/heartbeat", {"visible": False}, guest)[0], 200)
         self.assertEqual(self.post("/api/client-log", self.SUMMARY, guest)[:3:2], (200, {"ok": True}))
-        line = self.entry_for(" kind=summary ")
-        self.assertTrue(line.endswith(f'WARNING client kind=summary message="{self.SUMMARY["message"]}" ua="safari phone"'), line)
-        posts = [x for x in self.log_text().splitlines() if " request method=POST route=/api/client-log " in x]
-        self.assertEqual(len(posts), 1, posts)
-        self.assertNotIn("pid=", posts[0])
+        new = self.log_text().splitlines()[before:]
+        self.assertEqual(len(new), 1, new)
+        self.assertIn(" INFO request method=POST route=/api/heartbeat status=200 ms=", new[0])
+        self.assertTrue(new[0].endswith(f" pid={pid}"), new[0])
+        self.assertNotIn("pv=0a1b2c3d", self.log_text())
+        self.app.flush_summaries()
+        new = self.log_text().splitlines()[before:]
+        self.assertEqual(len(new), 2, new)
+        self.assertRegex(new[1], r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d{3} INFO summary-batch summaries=1 dropped=0 data=")
+        self.assertEqual(json.loads(new[1].split(" data=", 1)[1]), [[self.SUMMARY["message"], "safari phone"]])
+        self.assertNotIn("pid=", new[1])
         self.assertEqual(self.post("/api/client-log", {**self.ENTRY, "fp": "1a2b3c4d"}, guest)[0], 200)
         self.assertTrue(self.entry_for(" kind=error ").endswith(f'client pid={pid} kind=error message="TypeError: x is undefined" source=/app.js:12 route=/ ua="chrome computer" fp=1a2b3c4d'))
         self.assertIn(f"pid={pid}", self.entry_for(" request method=POST route=/api/client-log "))
+
+    def test_a_batch_holds_many_summaries_sorted_and_counts_those_past_its_size(self):
+        """Arrival order is gone: Bo's summary, sent second, sorts first."""
+        _, ann = self.join("Ann")
+        _, bo = self.join("Bo")
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=ffff0000 gap=10"}, ann)[0], 200)
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=00000000 gap=20"}, bo)[0], 200)
+        with mock.patch.object(server, "SUMMARY_BATCH_BYTES", 120):  # room for the two above (48 bytes each as batch JSON), not a third
+            self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=11111111 gap=30"}, bo)[0], 200)
+        self.app.flush_summaries()
+        line = self.entry_for(" summary-batch ")
+        self.assertIn(" summary-batch summaries=2 dropped=1 data=", line)
+        self.assertEqual(json.loads(line.split(" data=", 1)[1]), [["pv=00000000 gap=20", "safari phone"], ["pv=ffff0000 gap=10", "safari phone"]])
+        self.app.flush_summaries()
+        self.assertEqual(self.log_text().count(" summary-batch "), 1)  # nothing held, nothing written
+
+    def test_summaries_are_written_on_the_batch_cadence_and_at_shutdown(self):
+        d = tmpdir(self)
+        with mock.patch.object(server, "SUMMARY_BATCH_SECONDS", 1.5):
+            app = server.App(d, watch_tunnel=False)
+            app.serve()
+            self.addCleanup(app.shutdown)
+            _, _, out = call(app.guest_port, "POST", "/api/join", {"name": "Ann", "device": "computer"})
+            guest = {"X-Session-Secret": out["secret"]}
+
+            def log():
+                return (d / "server.log").read_text(encoding="utf-8")
+
+            self.assertEqual(call(app.guest_port, "POST", "/api/client-log", self.SUMMARY, guest)[0], 200)
+            self.assertTrue(wait_for(lambda: " summary-batch summaries=1 " in log(), seconds=10), log())
+            self.assertEqual(call(app.guest_port, "POST", "/api/client-log", {**self.SUMMARY, "message": "pv=0a1b2c3d gap=5"}, guest)[0], 200)
+            app.shutdown()
+        self.assertEqual(log().count(" summary-batch summaries=1 "), 2, log())
+        self.assertIn("gap=5", log().splitlines()[-1].replace("\\u0020", " "))
 
     def test_summaries_and_faults_have_separate_rate_buckets(self):
         """At most 6 summaries a minute per person, and a page in an error loop cannot starve them, or the reverse."""

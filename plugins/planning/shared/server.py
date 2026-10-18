@@ -132,14 +132,18 @@ FIELD_LIMITS = {"method": 16, "message": CLIENT_MESSAGE_MAX, "trace": TRACE_LIMI
 LOG_BYTES = 1024 * 1024
 LOG_KEEP = 3
 # POST /api/client-log: what a joined person's page reports (web/core.js telemetry): faults under the person's pid,
-# and a usage summary, which names no one, when the page hides.
+# and a usage summary, which names no one, when the page hides. Summaries reach server.log only in a summary-batch
+# entry every SUMMARY_BATCH_SECONDS and at shutdown, never with a time or a request entry of their own: the page
+# sends its summary as it sends a heartbeat, whose request entry names the person.
 CLIENT_LOG = "/api/client-log"
 CLIENT_LOG_MAX = 4096  # bytes: a 500-character message in any script, plus the other fields
 CLIENT_FIELDS = {"kind": 20, "message": CLIENT_MESSAGE_MAX, "source": 200, "route": 200, "code": 60, "ua": 60, "fp": 16}
 CLIENT_KINDS = ("error", "rejection", "api", "layout", "summary")
-USAGE_KINDS = ("summary",)  # logged with no pid, on their own rate bucket
+USAGE_KINDS = ("summary",)  # held for the next summary batch, on their own rate bucket
 CLIENT_PER_MINUTE = 20  # judgment: entries one person's page may log a minute; a page in an error loop stops there
 SUMMARY_PER_MINUTE = 6  # judgment: a page sends one summary each time it hides; tab switching rarely passes this
+SUMMARY_BATCH_SECONDS = 600  # judgment: summaries held per batch; long enough that many people's summaries share one
+SUMMARY_BATCH_BYTES = 100_000  # judgment: the most one batch entry holds; a summary past it is counted as dropped
 TUNNEL_POLL = 1.0  # seconds between tunnel checks
 TUNNEL_BACKOFF_MAX = 60.0
 PRESENCE_TICK = 5  # the snapshot ETag moves at least this often, so expired presence shows
@@ -218,6 +222,11 @@ GET_ROUTES = {"/api/chat": ("person", "chat_page"), "/api/mine/requests": ("pers
 WATCHER_ROUTES = {"/api/mine/requests", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail"}
 BODY_CAPS = {"/api/upload/offer": session.OFFER_MAX, "/api/report": session.REPORT_MAX, CLIENT_LOG: CLIENT_LOG_MAX}  # path -> bytes, where not session.BODY_MAX
 SERVER_ERROR = ("state-invalid", "The server could not do that; nothing was written.")
+
+
+def batch_json(items):
+    """A summary batch's [message, ua] pairs as one line of ASCII with no space, so it is the last field of its entry."""
+    return json.dumps(items, separators=(",", ":")).replace(" ", "\\u0020")
 
 
 def client_fields(body):
@@ -596,28 +605,32 @@ class GuestHandler(BaseHTTPRequestHandler):
             with contextlib.suppress(*session_bridge.DISCONNECTS):
                 self.wfile.write(raw)
 
-    # The acting pid, the refusal and the traceback of the request being answered; send() logs and clears them, since
-    # one handler serves every request on a kept-alive connection.
+    # The acting pid, the refusal and the traceback of the request being answered, and whether the answer goes
+    # unlogged (a usage summary taken); send() logs and clears them, since one handler serves every request on a
+    # kept-alive connection.
     pid = refusal = failure = None
+    unlogged = False
 
     def log_request_entry(self, code):
         """One entry per answer (README "Logs"): INFO for a success, WARNING for a refusal, ERROR with the traceback
         for a server error. Never a header or body value: no credential, request body or upload reaches the log."""
         exc, took = self.refusal, (time.monotonic() - getattr(self, "t0", time.monotonic())) * 1000
-        line = entry(
-            "request",
-            method=self.command or "-",
-            route=urlparse(getattr(self, "path", "") or "").path or "-",
-            status=code,
-            ms=f"{took:.1f}",
-            pid=self.pid,
-            code=exc and exc.code,
-            field=exc and exc.details.get("field"),
-            message=exc and exc.message,
-            trace=self.failure,
-        )
-        self.app.log.log(logging.ERROR if code >= 500 else logging.WARNING if code >= 400 else logging.INFO, "%s", line)
+        if not self.unlogged:
+            line = entry(
+                "request",
+                method=self.command or "-",
+                route=urlparse(getattr(self, "path", "") or "").path or "-",
+                status=code,
+                ms=f"{took:.1f}",
+                pid=self.pid,
+                code=exc and exc.code,
+                field=exc and exc.details.get("field"),
+                message=exc and exc.message,
+                trace=self.failure,
+            )
+            self.app.log.log(logging.ERROR if code >= 500 else logging.WARNING if code >= 400 else logging.INFO, "%s", line)
         self.pid = self.refusal = self.failure = None
+        self.unlogged = False
 
     def send_error(self, code, message=None, explain=None):
         """http.server's own refusals (a request line too long, an unknown method): JSON, same headers."""
@@ -863,7 +876,7 @@ class GuestHandler(BaseHTTPRequestHandler):
 
     def client_log(self, body):
         """POST /api/client-log (README "Logs"): one fault a joined person's page saw, appended to server.log as a
-        client entry under their pid, or a usage summary, appended with no pid on this request's entry or its own.
+        client entry under their pid, or a usage summary, held for the next summary batch with no request entry.
         At most CLIENT_PER_MINUTE faults and SUMMARY_PER_MINUTE summaries a minute per person; it changes no state."""
         try:
             pid = self.authorize("person")
@@ -876,7 +889,11 @@ class GuestHandler(BaseHTTPRequestHandler):
                 raise DomainError(429, "slow-down", f"At most {n} {what} a minute.")
         except DomainError as exc:
             return self.fail(exc)
-        self.app.log.warning("%s", entry("client", pid=None if usage else pid, **fields))
+        if usage:
+            self.app.hold_summary(fields["message"], fields["ua"])
+            self.unlogged = True
+        else:
+            self.app.log.warning("%s", entry("client", pid=pid, **fields))
         return self.send(200, {"ok": True})
 
     def refuse_method(self):
@@ -911,6 +928,8 @@ class App:
         self.bucket = Bucket(session.RATE_PER_SECOND, session.RATE_BURST)
         self.client_bucket = Bucket(CLIENT_PER_MINUTE / 60, CLIENT_PER_MINUTE)  # keyed by pid
         self.summary_bucket = Bucket(SUMMARY_PER_MINUTE / 60, SUMMARY_PER_MINUTE)  # keyed by pid, kept in memory only
+        self._summary_lock, self._summaries, self._summary_bytes, self._dropped = threading.Lock(), [], 0, 0
+        self._batch_at = time.monotonic() + SUMMARY_BATCH_SECONDS
         self.watch_tunnel = watch_tunnel
         self.public_url = ""
         self.tunnel_host = ""
@@ -944,6 +963,27 @@ class App:
         finally:
             with self._chunk_lock:
                 self._chunk_readers.discard(pid)
+
+    def hold_summary(self, message, ua):
+        """Keep a usage summary for the next batch; one past SUMMARY_BATCH_BYTES is only counted, as dropped."""
+        item = [message, ua or ""]
+        size = len(batch_json([item]))
+        with self._summary_lock:
+            if self._summary_bytes + size > SUMMARY_BATCH_BYTES:
+                self._dropped += 1
+            else:
+                self._summaries.append(item)
+                self._summary_bytes += size
+
+    def flush_summaries(self):
+        """One summary-batch entry (README "Logs") for the summaries held since the last, sorted so their arrival order
+        is gone too; none when there were none."""
+        with self._summary_lock:
+            items, dropped = sorted(self._summaries), self._dropped
+            self._summaries, self._summary_bytes, self._dropped = [], 0, 0
+            self._batch_at = time.monotonic() + SUMMARY_BATCH_SECONDS
+        if items or dropped:
+            self.log.info("summary-batch summaries=%d dropped=%d data=%s", len(items), dropped, batch_json(items))
 
     @property
     def local_url(self):
@@ -1021,6 +1061,8 @@ class App:
         while not self._stop.wait(TUNNEL_POLL):
             try:
                 self.sync_tunnel()
+                if time.monotonic() >= self._batch_at:
+                    self.flush_summaries()
             except Exception:  # the watch must outlive any one bad pass
                 self.log.error("%s", entry("tunnel-watch", trace=trace()))
 
@@ -1033,8 +1075,11 @@ class App:
 
     def shutdown(self):
         self._stop.set()
-        if getattr(self, "threads", None):  # shutdown() waits for serve_forever, so only once serving
+        serving = getattr(self, "threads", None)  # shutdown() waits for serve_forever, so only once serving
+        if serving:
             self.guest.shutdown()
+        self.flush_summaries()  # before the control listener goes, so `share.sh stop` returns after it
+        if serving:
             self.control.shutdown()
         self.guest.server_close()
         self.control.server_close()

@@ -4,7 +4,8 @@
 // the switch. A script error thrown three times is sent once with a fingerprint, its two repeats counted in the
 // summary the page sends when it hides; two picks (one refused on a locked question, so its optimistic patch rolls
 // back) show as tap-to-answer latency and one rollback; showing the page again gives a reconnect gap; INP and LCP come
-// from the vendored web-vitals file, loaded from this origin. The summary names no one, in its body or on the server.
+// from the vendored web-vitals file, loaded from this origin. The summary names no one, in its body or on the server,
+// where it has no line of its own until the batch that stopping the server writes.
 // No client-log body ever holds the guest's name, typed text, an answer comment or chat. Turning the switch off in
 // Help stops every send, across a reload. A 320 px phone logs a too-wide pane as a layout anomaly naming components
 // only. A page whose web-vitals file is missing still works and says so.
@@ -109,15 +110,6 @@ async function main() {
     ok("showing the page again gives a reconnect gap in the next summary", sums.length === 2 && gap >= 0 && gap < 2500, sums[1]?.message);
     await setVisibility(guest, "visible");
 
-    let logged = [];
-    for (let i = 0; i < 40 && logged.length < 2; i++) { logged = s.share(A.dir, "logs").lines.filter(l => / client kind=summary /.test(l)); if (logged.length < 2) await guest.waitForTimeout(200); }
-    const posts = s.share(A.dir, "logs").lines.filter(l => / request method=POST route=\/api\/client-log status=200 /.test(l));
-    ok("the server logs each summary with no pid", logged.length === 2 && logged.every(l => !l.includes("pid=")), logged.join(" | "));
-    ok("  and each fault under the guest's pid", s.share(A.dir, "logs", "--errors").lines.some(l => l.includes(` client pid=${pid} kind=error `) && l.includes(THROWN)) && posts.some(l => l.includes(`pid=${pid}`)));
-    const sum = s.share(A.dir, "logs", "--summary", "--json");
-    ok("logs --summary counts the error, the latency and the rollback", sum.errors.some(g => g.message.includes(THROWN) && g.count === 3)
-      && sum.latency["/api/pick"]?.actions === 2 && sum.latency["/api/pick"]?.rollbacks === 1 && sum.reconnect.count === 1 && sum.inp.pages === 1, JSON.stringify(sum));
-
     const leaked = w.bodies.filter(b => [NAME, CHAT, COMMENT, TYPED, "Quillon"].some(x => b.includes(x)));
     ok("no client-log body holds the name, typed text, the comment or the chat", w.bodies.length >= 3 && leaked.length === 0, leaked.join(" | "));
     ok("no request left this origin", w.foreign.length === 0, w.foreign.join(" | "));
@@ -181,6 +173,19 @@ async function main() {
     const pageErrs = rec.errors.filter(m => !/Failed to load resource/.test(m) && !m.includes(THROWN));
     ok("no other page error", pageErrs.length === 0, pageErrs.slice(0, 3).join(" | "));
     ok("no CSP violation", (await rec.cspViolations()).length === 0);
+
+    // ---------- the server's log: a summary only in its batch, which stopping the server writes ----------
+    const lines = () => s.share(A.dir, "logs").lines;
+    const posts = lines().filter(l => / request method=POST route=\/api\/client-log status=200 /.test(l));
+    ok("each fault is logged under the guest's pid, and no summary has a line or a request entry of its own", posts.length >= 1 && posts.every(l => / pid=\S/.test(l))
+      && lines().some(l => l.includes(` client pid=${pid} kind=error `) && l.includes(THROWN)) && !lines().some(l => / summary-batch |kind=summary/.test(l)), posts.join(" | "));
+    s.share(A.dir, "stop");
+    const batches = lines().filter(l => / summary-batch /.test(l));
+    ok("  stopping the server writes them in one batch with no pid", batches.length === 1 && !batches[0].includes("pid="), batches.join(" | "));
+    // The guest's two summaries and the page without web-vitals' one; its pick makes three timed picks.
+    const sum = s.share(A.dir, "logs", "--summary", "--json");
+    ok("logs --summary counts the error, the latency and the rollback", sum.summaries.count === 3 && sum.errors.some(g => g.message.includes(THROWN) && g.count === 3)
+      && sum.latency["/api/pick"]?.actions === 3 && sum.latency["/api/pick"]?.rollbacks === 1 && sum.reconnect.count === 1 && sum.inp.pages === 1, JSON.stringify(sum));
   } catch (e) {
     ok("the suite ran to the end", false, String(e.stack || e).split("\n").slice(0, 3).join(" "));
   } finally {
