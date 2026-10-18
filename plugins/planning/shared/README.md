@@ -570,9 +570,10 @@ page keeps the rest of its last snapshot.
   `<data_dir>/staging/` (0700); the system temp folder is refused.
 - **Name hiding.** When the session shows initials or "someone", a join never answers `was` (the
   earlier person with the same name) and keeps the name as typed, with no " 2" suffix for a taken
-  one, so two people may share a name and a join cannot probe for hidden names. A guest's
-  `@Name` stays plain text rather than pointing at a person, so it never pairs a name with a pid;
-  the owner's and leaders' mentions still point.
+  one, and a nameless join's "Guest N" ignores typed names, so two people may share a name and a
+  join cannot probe for hidden names. A guest's `@Name` stays plain text rather than pointing at a
+  person, also after the owner edits that answer or request, so a guest's own text never pairs a
+  name with a pid; the owner's and leaders' own mentions still point.
 - **Personal links.** A `#me=` link opened in a browser that already holds a different guest
   secret asks "This link signs you in as someone else on this device. Switch?", with Keep the
   default; only Switch replaces the stored secret, so a link someone hands over cannot sign a

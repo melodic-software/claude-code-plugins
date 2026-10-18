@@ -12,6 +12,7 @@ ui_layout.js 136
 ui_lists.js 30
 ui_merge.js 12
 ui_moderation.js 15
+ui_personal_link.js 7
 ui_presence.js 187
 ui_presence_dots.js 98
 ui_proto.js 14

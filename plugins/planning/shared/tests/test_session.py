@@ -403,6 +403,16 @@ class TestJoin(SessionCase):
                 self.clock.tick(5)
                 self.assertEqual(self.s.join(None, {"name": f"Nobody {names}"})["name"], f"Nobody {names}")
 
+    def test_a_nameless_join_while_names_are_hidden_is_numbered_whatever_names_were_typed(self):
+        """Skipping a typed "Guest N" would tell the joiner someone typed it."""
+        for typed in ("Guest 6", "Someone"):
+            with self.subTest(typed=typed):
+                self.setUp()
+                self.act("update_settings", HOST, {"names": "someone"})
+                for name in ("Ann", "Bo", "Cy", "Di", typed):
+                    self.join(name)
+                self.assertEqual(self.s.state["people"][self.join("")[0]]["name"], "Guest 6")
+
     def test_rotated_addresses_cannot_pass_the_join_limit_for_one_guest_key(self):
         self.assertGreater(session.JOINS_PER_KEY, session.JOINS_PER_WINDOW)
         for i in range(session.JOINS_PER_KEY):
@@ -5455,6 +5465,19 @@ class TestMentionPointers(SessionCase):
     def test_without_digest_names_claude_reads_someone(self):
         self.act("propose", self.bo, {"text": "@Philippa should decide"})
         self.assertEqual(digest_of(self)["proposals"][0]["text"], "@someone should decide")
+
+    def test_an_owner_edit_of_a_guests_text_keeps_it_plain_while_names_are_hidden(self):
+        """The owner sees names, but the text stays the guest's: a token in it would pair a name with a pid for them."""
+        self.act("update_settings", HOST, {"names": "someone"})
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Ask @Philippa first", "view": "focus"})
+        self.act("request", self.bo, {"qid": "Q1", "kind": "ask", "text": "@Philippa asked which step drops most"})
+        self.act("edit_card", HOST, {"qid": "Q1", "card": f"p:{self.bo}", "text": "Ask @Philippa first, please"})
+        rid = self.s.state["requests"][-1]["id"]
+        self.act("act_on_request", HOST, {"action": "edit", "id": rid, "text": "@Philippa asked which step drops most, and why"})
+        snap = self.s.snapshot(self.bo)
+        self.assertNotIn("<@", json.dumps(snap["cards"]["Q1"]))
+        self.assertNotIn("<@", json.dumps(snap["myRequests"]))
+        self.assertEqual(snap["myRequests"][-1]["text"], "@Philippa asked which step drops most, and why")
 
     def test_masked_names_never_reach_a_guest_through_mention_text(self):
         for names, shown in (("initials", "P"), ("someone", "Someone")):

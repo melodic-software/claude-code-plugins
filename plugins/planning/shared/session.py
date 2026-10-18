@@ -1293,8 +1293,12 @@ class Session:
         return out
 
     def _guest_name(self):
-        taken = {v["name"].casefold() for v in self.state["people"].values()}
+        """"Guest N" for a nameless join. While names are hidden N ignores typed names, so it cannot tell the joiner
+        someone typed "Guest N"; otherwise it skips a taken one."""
         n = sum(1 for p in self.state["people"] if p != HOST) + 1
+        if self.state["session"]["settings"]["names"] != "full":
+            return f"Guest {n}"
+        taken = {v["name"].casefold() for v in self.state["people"].values()}
         while f"guest {n}" in taken:
             n += 1
         return f"Guest {n}"
@@ -2114,8 +2118,8 @@ class Session:
         text = _text(body, "text")
         with self._tx():
             self._owner(pid)
-            text = self._tokenize(pid, text)
             q, card = self._person_card(body)
+            text = self._tokenize(card["pid"], text)  # as its author: names hidden from them stay plain in their text
             if text != card["text"]:
                 ref = card_ref(card)
                 votes = len(self._votes_on(q["id"], ref))
@@ -3188,7 +3192,7 @@ class Session:
             if status not in allowed:
                 raise DomainError(409, "wrong-status", f"Request {r['id']} is {status}.", status=status)
             if action == "edit":
-                text = self._tokenize(pid, _text(body, "text"))
+                text = self._tokenize(r["pid"], _text(body, "text"))  # as its author, as edit_card does
                 if text != r["text"]:
                     r["text"], r["edited"] = text, True
             elif action == "decline":
