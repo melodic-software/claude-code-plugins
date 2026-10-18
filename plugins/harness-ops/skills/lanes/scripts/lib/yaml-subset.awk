@@ -260,7 +260,7 @@ BEGIN { n = 0; based = 0; pending = 0; inblock = (BLOCK == 1) ? 0 : 1; seen = 0 
     if (line ~ /^```[ \t]*$/) { inblock = 0; done = 1; next }
   }
   if (line ~ /^[ \t]*(#.*)?$/) next
-  if (line ~ /^(---|\.\.\.)([ \t]|$)/ || line ~ /^%/) next
+  if (line ~ /^(---|\.\.\.)([ \t]|$)/ || line ~ /^%/) { delete keyseen; next }
 
   match(line, /^[ \t]*/)
   if (BLOCK != 1 && substr(line, 1, RLENGTH) ~ /\t/) fail("tab indentation")

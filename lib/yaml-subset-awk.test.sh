@@ -35,6 +35,7 @@ check 'a repeated nested key fails under STRICT' "m.k${T}1"$'\n'"error${T}3${T}d
 check 'a repeated flow-mapping key fails under STRICT' "m.k${T}1"$'\n'"error${T}1${T}duplicate key \`m.k\` (first at line 1)" 1 'm: {k: 1, k: 2}\n' -v STRICT=1
 check 'the same key under two parents is not a duplicate under STRICT' "a.k${T}1"$'\n'"b.k${T}2" 0 'a:\n  k: 1\nb:\n  k: 2\n' -v STRICT=1
 check 'the same key in two sequence items is not a duplicate under STRICT' "l.0.k${T}1"$'\n'"l.1.k${T}2" 0 'l:\n  - k: 1\n  - k: 2\n' -v STRICT=1
+check 'a key after a document marker is not a duplicate under STRICT' "a${T}1"$'\n'"a${T}2" 0 'a: 1\n---\na: 2\n' -v STRICT=1
 check 'a key repeated inside one sequence item fails under STRICT' "l.0.k${T}1"$'\n'"error${T}3${T}duplicate key \`l.0.k\` (first at line 2)" 1 'l:\n  - k: 1\n    k: 2\n' -v STRICT=1
 check 'a tab indent on line 1 is a parse error' "error${T}1${T}tab indentation" 1 '\tkey: v\n'
 check 'a tab after a space indent is a parse error' "error${T}2${T}tab indentation" 1 'a:\n \tb: v\n'
