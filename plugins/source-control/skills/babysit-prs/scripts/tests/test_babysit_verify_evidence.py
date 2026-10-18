@@ -1078,6 +1078,82 @@ class OneRunSharesItsVerifierReads(unittest.TestCase):
         self.assertEqual(self.trusted_reads(fake), 2)
 
 
+class OneRunSharesItsFailRunReads(unittest.TestCase):
+    """With `BABYSIT_RUN_CACHE` named, a FAIL's run record (for
+    `run_cache.MAX_AGE`) and an untied FAIL's recorded head ref are read
+    once per run. A PASS's run is read by every gate process, so a re-run
+    that undoes a completed success never allows on a shared record."""
+
+    OTHER = UNRELATED
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def other_fail(self) -> FakeGitHub:
+        """A pass at the head (run 1) and another PR's FAIL (run 2)."""
+        name = named(self.OTHER, "fail", 99)
+        fake = passing(artifact(name, 2), runs={2: run(2)})
+        fake.records[name] = record(99, self.OTHER, head_ref="feat/other")
+        return fake
+
+    @staticmethod
+    def run_reads(fake: FakeGitHub, run_id: int) -> int:
+        return sum(
+            any(a.endswith(f"/actions/runs/{run_id}") for a in c) for c in fake.calls
+        )
+
+    @staticmethod
+    def downloads(fake: FakeGitHub, run_id: int) -> int:
+        return sum(c[:3] == ["run", "download", str(run_id)] for c in fake.calls)
+
+    def test_a_fail_run_and_its_record_are_read_once_per_run(self) -> None:
+        fake = self.other_fail()
+        for _ in range(3):
+            self.assertIsNone(read(fake).refusal)
+        self.assertEqual(self.run_reads(fake, 2), 1)
+        self.assertEqual(self.downloads(fake, 2), 1)
+        # The pass's run is read by every candidate.
+        self.assertEqual(self.run_reads(fake, 1), 3)
+
+    def test_a_replaced_artifact_of_the_same_name_is_read_again(self) -> None:
+        # An overwrite uploads a new id under the same name: the head ref
+        # shared for the old id must not stand for the new contents.
+        fake = self.other_fail()
+        self.assertIsNone(read(fake).refusal)
+        name = named(self.OTHER, "fail", 99)
+        fake.artifacts[1] = {**fake.artifacts[1], "id": 21}
+        fake.records[name] = record(99, self.OTHER, head_ref="feat/x")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        self.assertEqual(self.downloads(fake, 2), 2)
+
+    def test_a_fail_run_past_the_bound_is_read_again(self) -> None:
+        clock = [datetime(2026, 10, 18, 12, 0, tzinfo=UTC)]
+        fake = self.other_fail()
+        with mock.patch.object(ve.run_cache, "now", side_effect=lambda: clock[0]):
+            read(fake)
+            clock[0] += ve.run_cache.MAX_AGE + timedelta(seconds=1)
+            read(fake)
+        self.assertEqual(self.run_reads(fake, 2), 2)
+
+    def test_a_re_run_of_a_counted_pass_does_not_allow(self) -> None:
+        fake = passing()
+        self.assertIsNone(read(fake).refusal)
+        fake.runs[1] = run(1, status="in_progress", conclusion=None, run_attempt=2)
+        self.assertEqual(read(fake).refusal, "verify:missing")
+
+    def test_a_re_run_of_a_fail_still_refuses_on_the_shared_record(self) -> None:
+        fake = passing(artifact(named(HEAD, "fail"), 2), runs={2: run(2)})
+        self.assertEqual(read(fake).refusal, "verify:fail")
+        fake.runs[2] = run(2, status="in_progress", conclusion=None, run_attempt=2)
+        self.assertEqual(read(fake).refusal, "verify:fail")
+        self.assertEqual(self.run_reads(fake, 2), 1)
+
+
 # --- A transient listing failure is read again --------------------------------
 
 # Every test runs without the backoff sleep; `judge` reads the waits off it.

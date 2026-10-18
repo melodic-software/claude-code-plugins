@@ -386,7 +386,7 @@ class Unattended(unittest.TestCase):
             raise self.lane_error
         return self.lanes, self.comments
 
-    def _default_branch(self, repo: str) -> str:
+    def _default_branch(self, repo: str, *, shared: bool = False) -> str:
         if self.default_branch is None:
             raise policy.PolicyReadError("the default branch could not be read")
         return self.default_branch
@@ -490,7 +490,7 @@ class Unattended(unittest.TestCase):
             mock.patch.object(
                 policy,
                 "_base_refusal",
-                side_effect=lambda *a: self.base_reads.append(a) or self.base_now,
+                side_effect=lambda *a, **k: self.base_reads.append(a) or self.base_now,
             ),
             *(
                 []
@@ -639,6 +639,71 @@ class LaneMode(Unattended):
         self.assertEqual(
             out["unattended"]["rungCap"], {"value": None, "reason": "no-cap"}
         )
+
+    def shared_rules(self) -> None:
+        """A run cache holding the base's rules as an earlier candidate read
+        them (QUEUE_RULES)."""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        merge.run_cache.put(merge.RULES_SECTION, "owner/repo|main", QUEUE_RULES)
+
+    def test_rules_changed_since_the_shared_read_hold_the_enqueue(self) -> None:
+        self.shared_rules()
+        extra = {
+            "type": "required_status_checks",
+            "parameters": {"required_status_checks": [{"context": "new-check"}]},
+        }
+        self.rules = [*QUEUE_RULES, extra]
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertIn(
+            merge.UNATTENDED_REFUSED
+            + "the base branch's rules changed since the gate read them",
+            out["blockers"],
+        )
+
+    def test_rules_shared_for_another_landing_base_are_read_again(self) -> None:
+        # The gate read the rules of a landing base other than the pull
+        # request's base (a `rules_base` override): that base is the one
+        # read again before the enqueue.
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        merge.run_cache.put(merge.RULES_SECTION, "owner/repo|trunk", QUEUE_RULES)
+        real = merge.branch_rules
+        patcher = mock.patch.object(
+            merge,
+            "branch_rules",
+            side_effect=lambda repo, branch, **kw: real(
+                repo, "trunk" if kw.get("shared", True) else branch, **kw
+            ),
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        extra = {
+            "type": "required_status_checks",
+            "parameters": {"required_status_checks": [{"context": "new-check"}]},
+        }
+        self.rules = [*QUEUE_RULES, extra]
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertIn(
+            merge.UNATTENDED_REFUSED
+            + "the base branch's rules changed since the gate read them",
+            out["blockers"],
+        )
+
+    def test_unchanged_shared_rules_still_enqueue(self) -> None:
+        self.shared_rules()
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
 
     def test_a_workflow_cap_below_the_rung_refuses(self) -> None:
         code, out = self.run_main(

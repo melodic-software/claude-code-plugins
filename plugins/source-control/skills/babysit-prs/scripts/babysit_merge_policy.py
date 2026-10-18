@@ -1372,10 +1372,13 @@ def _foreign_refusal(pr: dict[str, Any], owner: str) -> str | None:
 LANE_CLASS = "C2"
 
 
-def _base_refusal(owner: str, name: str, node: Mapping[str, Any]) -> str | None:
+def _base_refusal(
+    owner: str, name: str, node: Mapping[str, Any], *, shared: bool = False
+) -> str | None:
     """`base-not-default:<ref>` when the pull request's base is not the
-    default branch, read fresh. A failed read raises, which refuses."""
-    branch = _default_branch(f"{owner}/{name}")
+    default branch, read fresh unless `shared` (`_default_branch`). A failed
+    read raises, which refuses."""
+    branch = _default_branch(f"{owner}/{name}", shared=shared)
     base = node.get("baseRefName")
     return None if base == branch else f"base-not-default:{base}"
 
@@ -1441,7 +1444,7 @@ def lane_eligibility(
         issue, refusal = _closing_issue(node, repo)
         if refusal is None:
             issue_number = issue["number"]
-            refusal = _base_refusal(owner, name, node)
+            refusal = _base_refusal(owner, name, node, shared=True)
         if refusal is None:
             refusal = _denied_path_refusal(
                 owner, name, number, pr.get("changed_files"), denied_paths
@@ -2106,7 +2109,24 @@ def entry_hold(
 # --- Composition ------------------------------------------------------------------------------
 
 
-def _default_branch(repo: str) -> str:
+DEFAULT_BRANCH_SECTION = "default-branch"
+# Repositories whose default branch this process took from the run cache;
+# `unattended_enqueue` reads it again before an enqueue.
+SHARED_DEFAULT_BRANCHES: set[str] = set()
+
+
+def _default_branch(repo: str, *, shared: bool = False) -> str:
+    """The default branch's name. `shared` takes one another gate process of
+    the run read within `run_cache.MAX_AGE`; every read is saved for them, a
+    failed one never."""
+    cached = (
+        run_cache.get(DEFAULT_BRANCH_SECTION, repo, run_cache.MAX_AGE)
+        if shared
+        else None
+    )
+    if isinstance(cached, str) and cached:
+        SHARED_DEFAULT_BRANCHES.add(repo)
+        return cached
     owner, name = _split_repo(repo)
     status, payload = _get(f"repos/{owner}/{name}")
     branch = (
@@ -2116,6 +2136,7 @@ def _default_branch(repo: str) -> str:
     )
     if not isinstance(branch, str) or not branch:
         raise PolicyReadError(f"{repo}: the default branch could not be read")
+    run_cache.put(DEFAULT_BRANCH_SECTION, repo, branch)
     return branch
 
 
@@ -2821,7 +2842,7 @@ def assess(
     # default branch only, so a merge into any other base would go unjudged.
     # An unreadable default branch is a stop (the identity's entries leave).
     try:
-        default = _default_branch(repo)
+        default = _default_branch(repo, shared=True)
     except PolicyReadError:
         return replace(stopped, reason=DEFAULT_BRANCH_UNREADABLE)
     if base_ref != default:
