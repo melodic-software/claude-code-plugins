@@ -1336,7 +1336,7 @@ assert_not_contains "stale render: local-scope records only name no worktree aud
   "$(needs_digest sync "$stale_local_only" | jq -r -f "$SCRIPT_DIR/render-report.jq")" "/source-control:worktree audit"
 assert_contains "stale render: local-scope records are counted and named as unreaped" \
   "$(needs_digest sync "$stale_local_only" | jq -r -f "$SCRIPT_DIR/render-report.jq")" \
-  "  2 of these are local-scope; nothing reaps them yet."
+  "  Of these, 2 local-scope record(s); nothing reaps them yet."
 needs_check "audit enable gap" audit '{"enable_gap":["b@m"]}' "missing_from_enabled, not enabled this run: b@m"
 # A digest written before `self_update` existed: the note names no plugin rather
 # than the first moved row.

@@ -225,7 +225,7 @@ def block($d):
             "  and gives the gated reap; local-scope records and other paths are not that audit's to reap."
           else empty end),
          (if ($s["local"] // 0) > 0 then
-            "  \($s["local"]) of these are local-scope; nothing reaps them yet."
+            "  Of these, \($s["local"]) local-scope record(s); nothing reaps them yet."
           else empty end)
        else empty end),
 

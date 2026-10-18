@@ -12,7 +12,7 @@ Stale project records (market1): 3 record(s) across 2 path(s) not present on thi
   2 of these are project-scope. For those left by worktrees removed under the
   source-control worktree root, /source-control:worktree audit (if installed) classifies them
   and gives the gated reap; local-scope records and other paths are not that audit's to reap.
-  1 of these are local-scope; nothing reaps them yet.
+  Of these, 1 local-scope record(s); nothing reaps them yet.
 Cache content: 1 user-scope install(s) whose cache files disagree with their recorded gitCommitSha
   - alpha@market1 0.1.0: 4 file(s) differ
   Remediation: remove that version's directory under the plugin cache, then re-run
