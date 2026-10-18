@@ -12,7 +12,7 @@ execution:
 graders:
   - name: says-stages-in-task-list
     type: regex
-    pattern: '^(?![^\n]*\b(?:no|not|without|never)\b[^\n]{0,30}\b(?:task[ \t]+(?:list|tools?)|TaskCreate)\b)[^\n]*(?:\btask[ \t]+(?:list|tools?)\b|\bTaskCreate\b|\b(?:created|added|set[ \t]+up)\b[^\n]{0,40}\btasks\b)'
+    pattern: '^(?![^\n]*\b(?:no|not|without|never)\b[ \t]+(?:\w+[ \t]+){0,2}(?:task[ \t]+(?:list|tools?)|TaskCreate)\b)[^\n]*(?:\btask[ \t]+(?:list|tools?)\b|\bTaskCreate\b|\b(?:created|added|set[ \t]+up)\b[^\n]{0,40}\btasks\b)'
     flags: 'mi'
     arm: with-only
   - name: creates-stage-tasks

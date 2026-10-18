@@ -12,7 +12,7 @@ execution:
 graders:
   - name: says-checklist-file-tracks
     type: regex
-    pattern: '^(?![^\n]*\b(?:no|not|without|never)\b[^\n]{0,30}workflow-checklist\.md)[^\n]*\bworkflow-checklist\.md\b'
+    pattern: '^(?![^\n]*\b(?:no|not|without|never)\b[ \t]+(?:\w+[ \t]+){0,2}workflow-checklist\.md)[^\n]*\bworkflow-checklist\.md\b'
     flags: 'mi'
     arm: with-only
   - name: writes-checklist-file

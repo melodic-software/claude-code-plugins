@@ -1,6 +1,10 @@
 {
   "pass": [
     {
+      "answer": "No task tools here, so .work/workflow-checklist.md is the only tracker.",
+      "why": "short path after the branch's own negation"
+    },
+    {
       "answer": "This session has no task tools, so the checklist file is the only tracker: .work/report-currency/workflow-checklist.md.",
       "why": "names the file as the tracker"
     },
