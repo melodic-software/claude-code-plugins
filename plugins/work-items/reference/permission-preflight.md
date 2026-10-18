@@ -43,7 +43,7 @@ into broader grants (the never-self-retry posture: a denial is a stop, not a sig
 `preflight.sh` only probes `permissions.allow`/`deny` **coverage** for a fixed git/gh verb set. It
 does not, and should not, probe the tracker script's `claim`/`reclaim` verbs (see "The allow floor"
 below for why a hand-maintained tracker-path rule doesn't fit that model). Work-loop self-observation
-`#1381` recorded a denial this preflight has no way to surface: the seam `reclaim` verb was refused
+`#1381` recorded a denial this preflight has no way to surface: the tracker script's `reclaim` verb was refused
 by the auto-mode classifier while the sibling `claim` verb on the same script, invoked moments
 later, was NOT. At the time of writing, **neither** verb carries an explicit
 `permissions.allow`/`deny` rule in the fleet's floor (`standards`
@@ -223,7 +223,7 @@ that worktree. Two cases:
   layout. So the preflight resolves to `<path>`: **git's own answer**, arrived at by verification
   rather than by string arithmetic. Where the operator intended a different directory to be the
   working tree, the layout is ambiguous at the git level and no consumer of git can do better.
-  Two consequences worth knowing: `--separate-git-dir "$HOME/.git"` makes `$HOME` the main checkout
+  Two consequences: `--separate-git-dir "$HOME/.git"` makes `$HOME` the main checkout
   by git's reckoning, so the operator's own `~/.claude/settings.local.json` is genuinely in scope for
   that repository; and a spelling that is *not* `<something>/.git` (a separate git dir under any
   other name) yields no candidate at all. That is the **unresolved** outcome above, which is
