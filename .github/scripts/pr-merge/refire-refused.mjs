@@ -104,8 +104,17 @@ export function qualifies(pull, repo, ids) {
   );
 }
 
-export const refireComment = (path, blob, head) =>
-  `<!-- pr-lane-refire ${path}@${blob} head ${head} -->\nA lane run on this pull request's head failed because the token broker refused it as workflow-modified: \`${path}\` changed on main after the run's event, and a rerun keeps the old file. pr-merge pushes an empty commit so new runs start on main's files. It does this once per version of that file, so if a run fails the same way again, a person looks at it.`;
+// pr-unblock's conflict resolution is dispatched by pr-unblock-dispatch, which
+// runs only on a push to main or a listed person's manual dispatch, so the
+// empty commit alone starts nothing for that lane.
+const WHEN = Object.freeze({
+  "pr-unblock.yml":
+    "pr-merge pushes an empty commit so the next run starts on main's files. The conflict-resolution run starts at the next push to main, or when a listed person runs `pr-unblock-dispatch` by hand; nothing starts until then.",
+});
+const NEW_RUNS = "pr-merge pushes an empty commit so new runs start on main's files.";
+
+export const refireComment = (path, blob, head, file = "pr-refine.yml") =>
+  `<!-- pr-lane-refire ${path}@${blob} head ${head} -->\nA lane run on this pull request's head failed because the token broker refused it as workflow-modified: \`${path}\` changed on main after the run's event, and a rerun keeps the old file. ${WHEN[file] ?? NEW_RUNS} It does this once per version of that file, so if a run fails the same way again, a person looks at it.`;
 
 const commitMessage = (path) =>
   `chore: start the lane checks again on main's workflow files\n\nThe token broker refused a lane run on the previous head as workflow-modified (${path}). This commit changes no file.`;
@@ -308,7 +317,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
           }
           const path = await refusedFile({ actions, repo, run, lane });
           if (path !== null) {
-            refused.set(pull.number, { pull, path, lane, run: run.id });
+            refused.set(pull.number, { pull, path, lane, file, run: run.id });
           }
         } catch (error) {
           failed += 1;
@@ -329,7 +338,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
       return blobs.get(path);
     };
     const ready = [];
-    for (const [number, { pull, path, lane, run }] of [...refused].sort((a, b) => a[0] - b[0])) {
+    for (const [number, { pull, path, lane, file, run }] of [...refused].sort((a, b) => a[0] - b[0])) {
       try {
         const blob = await blobOf(path);
         const { reason, recorded } = await refusal({ github, repo, pull, path, blob, bot, lane, now, mainSha });
@@ -337,7 +346,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
           console.log(`refire-refused: #${number} not re-fired: ${reason}`);
           continue;
         }
-        ready.push({ pull, path, blob, recorded, run });
+        ready.push({ pull, path, blob, recorded, file, run });
       } catch (error) {
         failed += 1;
         reportError(`#${number}`, error);
@@ -346,13 +355,13 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     for (const { pull } of ready.slice(REFIRES_PER_RUN)) {
       console.log(`refire-refused: #${pull.number} deferred: ${REFIRES_PER_RUN} re-fires this run`);
     }
-    for (const { pull, path, blob, recorded, run } of ready.slice(0, REFIRES_PER_RUN)) {
+    for (const { pull, path, blob, recorded, file, run } of ready.slice(0, REFIRES_PER_RUN)) {
       try {
         // The fresh read first, so no marker is posted for a PR that changed;
         // then the record: a failed comment pushes nothing, so the bound holds.
         const tree = await headTree(github, repo, pull);
         if (!recorded) {
-          await github("POST", `/repos/${repo}/issues/${pull.number}/comments`, { body: refireComment(path, blob, pull.head.sha) });
+          await github("POST", `/repos/${repo}/issues/${pull.number}/comments`, { body: refireComment(path, blob, pull.head.sha, file) });
         }
         const sha = await pushEmptyCommit(github, repo, pull, path, tree);
         const line = `#${pull.number} moved from ${pull.head.sha} to ${sha} after run ${run} was refused for ${path} at ${blob}`;

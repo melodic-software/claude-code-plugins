@@ -170,6 +170,19 @@ test("a dispatched pr-unblock run re-fires only when its failed check is on the 
   assert.equal(pushes(rerun.calls).length, 0);
 });
 
+test("a pr-unblock re-fire says when the conflict-resolution run starts; a pr-refine one is unchanged", async () => {
+  const dispatched = run(91, { head: sha(1), event: "workflow_dispatch", title: "pr-unblock resolve-conflicts #9", headBranch: "main", messages: [denial(WRITER)], actor: ACTIONS_BOT });
+  const linked = { conclusion: "failure", details_url: `https://github.com/${REPO}/actions/runs/91` };
+  const w = world({ pulls: [pr(9)], runs: { "pr-unblock.yml": [dispatched] }, checks: { [sha(9)]: [linked] } });
+  assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+  const [post] = posts(w.calls);
+  const body = JSON.parse(post.slice(post.indexOf("{"))).body;
+  assert.ok(body.startsWith(`<!-- pr-lane-refire ${WRITER}@${BLOB} head ${sha(9)} -->\n`));
+  assert.match(body, /starts at the next push to main, or when a listed person runs `pr-unblock-dispatch` by hand/);
+  assert.doesNotMatch(body, /new runs start/);
+  assert.match(refireComment(REFINE, BLOB, sha(7)), /so new runs start on main's files\./);
+});
+
 test("a run started or rerun by an unlisted account or by the lanes App re-fires nothing", async () => {
   for (const failedRun of [
     run(75, { head: sha(7), actor: STRANGER }),
