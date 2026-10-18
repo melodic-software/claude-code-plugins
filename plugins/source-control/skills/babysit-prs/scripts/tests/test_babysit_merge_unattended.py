@@ -283,20 +283,24 @@ class HumanGatedLabelReadIsStrict(unittest.TestCase):
     502 must refuse, not fall back to `needs-human`, which would let a PR
     carrying a remapped label merge."""
 
-    def test_a_server_error_refuses_and_caches_nothing(self) -> None:
+    def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         env = {run_cache.ENV: str(pathlib.Path(tmp.name, "run.json"))}
         failed = subprocess.CompletedProcess([], 1, "", "gh: Server Error (HTTP 502)")
-        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
-        with (
+        for patcher in (
             mock.patch.dict("os.environ", env),
             mock.patch.object(postmerge, "_role_label", REAL_ROLE_LABEL),
             mock.patch.object(postmerge, "gh_capture", return_value=failed),
         ):
-            result = _evaluate(
-                fixtures._pr(labels=[{"name": "human-review"}]), HEAD, None, permits
-            )
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_a_server_error_refuses_and_caches_nothing(self) -> None:
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        result = _evaluate(
+            fixtures._pr(labels=[{"name": "human-review"}]), HEAD, None, permits
+        )
         self.assertFalse(result["ready"])
         self.assertTrue(
             any(
