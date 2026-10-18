@@ -336,10 +336,10 @@ jobs:
           fi
           for author in "${authors[@]}"; do
             gh pr list --repo "$REPO" --base main --state open --limit 500 \
-              --author "$author" --json number,headRefOid,isDraft,updatedAt,labels,body,createdAt,mergeStateStatus
+              --author "$author" --json number,headRefOid,isDraft,updatedAt,labels,body
           done |
             jq -cs '[add[] | select(.isDraft | not)
-              | {number, head: .headRefOid, updatedAt, labels: [.labels[].name], body, createdAt, mergeStateStatus}]
+              | {number, head: .headRefOid, updatedAt, labels: [.labels[].name], body}]
               | unique_by(.number)' |
             python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_merge_prefilter.py \
               --human-gated="$human_gated" >"$RUNNER_TEMP/prefilter.json"

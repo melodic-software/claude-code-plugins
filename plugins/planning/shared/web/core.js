@@ -857,7 +857,11 @@
   }
   let layoutTimer = 0, layoutAt = -Infinity;
   function checkLayout() {
-    layoutTimer = 0; layoutAt = performance.now();
+    layoutTimer = 0;
+    // A finite animation still running (the chat button's bump, a sheet sliding in) is a passing frame, not the layout:
+    // the bump scales the phone's chat button past the screen's edge. Check again once it has settled.
+    if (document.getAnimations().some(a => a.playState === "running" && a.effect?.getTiming().iterations !== Infinity)) return layoutSoon();
+    layoutAt = performance.now();
     if (!joined()) return;
     const now = layoutNow();
     for (const [key, message] of now) if (!tel.layout.has(key)) fault("layout", message, {}, key);
