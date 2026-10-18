@@ -1317,7 +1317,7 @@ load_workflows() {
     while IFS= read -r seg; do
       wf_cmds=$((wf_cmds + 1))
       found=0
-      [[ "$seg" == *'\' ]] && wf_unsure=1
+      [[ "$seg" == *\\ ]] && wf_unsure=1
       rest="$(LC_ALL=C sed -E 's/^.*dotnet[[:space:]]+(test|build)//' <<<"$seg")"
       for tok in $rest; do
         tok="${tok//[\"\']/}"
@@ -1413,7 +1413,7 @@ kind_of_project() {
       return 0
     fi
   done
-  toks=" $(sed -E 's/([a-z0-9])([A-Z])/\1.\2/g' <<<"${proj%.csproj}" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9\n' ' ') "
+  toks=" $(sed -E 's/([a-z0-9])([A-Z])/\1.\2/g' <<<"${proj%.csproj}" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9\n' ' ') "
   case "$toks" in *' unit '*) ks+=(unit) ;; *) ;; esac
   case "$toks" in *' integration '*) ks+=(integration) ;; *) ;; esac
   case "$toks" in *' smoke '*) ks+=(live) ;; *) ;; esac
