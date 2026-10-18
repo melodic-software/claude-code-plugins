@@ -157,6 +157,11 @@
 #      (Pocock's measured max; his medians print as INFO), or either grown vs
 #      CHECK_SKILL_BASE_REF, else the merge-base with origin (WARN; growth is
 #      skipped with an INFO when no base resolves or the skill is new)
+#  31. A `${user_config.KEY}` token used as the subject of a condition ("When
+#      `${user_config.x}` is true") with no inline fallback for the unexpanded
+#      token, in SKILL.md or any skill `.md` prose (FAIL; a file recorded with
+#      its hit count in CHECK_SKILL_SETTINGS_TOKEN_BASELINE, default
+#      scripts/settings-token-baseline.txt, WARNs while the count holds)
 #
 # Notes (static, git-diff-based design):
 #   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
@@ -2425,6 +2430,152 @@ else
   ((BODY_LINES > SIZE_BASE_BODY)) &&
     warn "SKILL.md body grew vs $SIZE_BASE_LABEL: $SIZE_BASE_BODY -> $BODY_LINES lines (/playbooks:skill-authoring, Body)"
 fi
+
+# --- Check 31: settings token as a condition with no fallback (FAIL) ----------
+# A `${user_config.KEY}` token is substituted when the user set the key and can
+# arrive as the literal token when they did not, so "When `${user_config.x}` is
+# true" reads as neither true nor false. The convention is a value stated with
+# an inline fallback in the same sentence, e.g. "(unexpanded, empty, or any
+# other value means `false`)". This flags a sentence that opens a condition
+# (when, if, unless), uses the token as its subject (the token directly followed
+# by `is true`, `is on` or `is false`), and carries neither that fallback (a
+# clause naming `unexpanded` or `unset` and then `means`) nor prose about
+# substitution itself. Read: SKILL.md and every other skill `.md`, prose only:
+# frontmatter, fenced blocks, and inline code spans other than one holding the
+# token are skipped; evals/ and vendor/ are not read. Severity: a file listed in
+# SETTINGS_TOKEN_BASELINE with a hit count WARNs while its count holds, and FAILs
+# when the count rises, falls (lower the row) or reaches zero (remove it), so the
+# list only shrinks; every hit in an unlisted file FAILs.
+SETTINGS_TOKEN_BASELINE="${CHECK_SKILL_SETTINGS_TOKEN_BASELINE:-$SCRIPT_DIR/settings-token-baseline.txt}"
+settings_token_hits() { # one .md file; prints "<line>\t<key>" per hit
+  awk '
+    function mask(t, re,   out, r) {
+      out = ""
+      while (match(t, re)) {
+        r = substr(t, RSTART, RLENGTH)
+        gsub(/./, "x", r)
+        out = out substr(t, 1, RSTART - 1) r
+        t = substr(t, RSTART + RLENGTH)
+      }
+      return out t
+    }
+    function spans(t,   out, r) {
+      out = ""
+      while (match(t, /`[^`]*`/)) {
+        r = substr(t, RSTART, RLENGTH)
+        if (r ~ /[$][{]user_config[.]/ || r ~ /^`(true|on|false)`$/) gsub(/`/, " ", r)
+        else gsub(/./, "x", r)
+        out = out substr(t, 1, RSTART - 1) r
+        t = substr(t, RSTART + RLENGTH)
+      }
+      return out t
+    }
+    function judge(s, off,   low, rest, pos, tok, key, k, line) {
+      low = tolower(s)
+      if (low ~ /(unexpanded|unset).*means/ || low ~ /substitut/) return
+      pos = 0
+      rest = s
+      while (match(rest, /[$][{]user_config[.][A-Za-z0-9_]+[}]/)) {
+        tok = substr(rest, RSTART, RLENGTH)
+        if (tolower(substr(s, 1, pos + RSTART - 1)) ~ /(^|[^a-z])(when|if|unless)[^a-z]/ &&
+          tolower(substr(rest, RSTART + RLENGTH)) ~ /^[`)*_[:space:]]*is[[:space:]]+(true|on|false)([^a-z]|$)/) {
+          key = tok
+          sub(/^[$][{]user_config[.]/, "", key)
+          sub(/[}]$/, "", key)
+          line = lnum[1]
+          for (k = 1; k <= nl; k++) if (lstart[k] <= off + pos + RSTART - 1) line = lnum[k]
+          printf "%d\t%s\n", line, key
+        }
+        pos += RSTART + RLENGTH - 1
+        rest = substr(rest, RSTART + RLENGTH)
+      }
+    }
+    function flush(   t, i, start, c, nx) {
+      if (nl == 0) return
+      t = spans(para)
+      t = mask(t, "[]][(][^)]*[)]")
+      t = mask(t, "<[a-z]+:[^>]*>")
+      t = mask(t, "https?:[^[:space:]]*")
+      start = 1
+      for (i = 1; i <= length(t); i++) {
+        c = substr(t, i, 1)
+        nx = substr(t, i + 1, 1)
+        if ((c == "." || c == "!" || c == "?") && (nx == "" || nx == " ")) {
+          judge(substr(t, start, i - start + 1), start)
+          start = i + 1
+        }
+      }
+      if (start <= length(t)) judge(substr(t, start), start)
+      para = ""
+      nl = 0
+    }
+    NR == 1 && /^---[[:space:]]*$/ { infm = 1; next }
+    infm { if (/^---[[:space:]]*$/) infm = 0; next }
+    /^[[:space:]]*(```|~~~)/ { flush(); fence = !fence; next }
+    fence { next }
+    /^[[:space:]]*$/ { flush(); next }
+    /^[[:space:]]*(#|[-*+][[:space:]]|[0-9]+[.)][[:space:]]|[|>])/ { flush() }
+    {
+      if (nl > 0) para = para " "
+      nl++
+      lstart[nl] = length(para) + 1
+      lnum[nl] = NR
+      para = para $0
+    }
+    END { flush() }' "$1"
+}
+settings_token_row_count() { # baseline file, repo-relative path; prints the count or nothing
+  awk -v want="$2" '{ sub(/#.*/, "") } NF >= 2 && $1 == want { print $2; exit }' "$1"
+}
+ST_LABEL="$SETTINGS_TOKEN_BASELINE"
+[[ -z "${CHECK_SKILL_SETTINGS_TOKEN_BASELINE:-}" ]] && ST_LABEL="scripts/settings-token-baseline.txt"
+ST_BASELINE_OK=0
+if [[ -f "$SETTINGS_TOKEN_BASELINE" ]]; then
+  ST_BASELINE_OK=1
+elif [[ -n "${CHECK_SKILL_SETTINGS_TOKEN_BASELINE:-}" ]]; then
+  err "CHECK_SKILL_SETTINGS_TOKEN_BASELINE=$SETTINGS_TOKEN_BASELINE does not exist — a missing baseline must not silently become a clean run"
+fi
+ST_SEEN=""
+ST_ANY=0
+while IFS= read -r st_md; do
+  st_file="${st_md#"$SKILL_DIR"/}"
+  st_hits="$(settings_token_hits "$st_md")"
+  st_rel=""
+  [[ -n "$SKILL_REL" ]] && st_rel="$SKILL_REL/$st_file"
+  st_base=""
+  if ((ST_BASELINE_OK == 1)) && [[ -n "$st_rel" ]]; then
+    st_base="$(settings_token_row_count "$SETTINGS_TOKEN_BASELINE" "$st_rel")"
+    ST_SEEN="$ST_SEEN$st_rel"$'\n'
+  fi
+  st_count=0
+  [[ -n "$st_hits" ]] && st_count="$(grep -c . <<<"$st_hits")"
+  if ((st_count == 0)); then
+    [[ -n "$st_base" ]] &&
+      err "stale settings-token baseline row in $ST_LABEL: $st_rel now has no hits — remove the row"
+    continue
+  fi
+  ST_ANY=1
+  st_where="$(awk -F '\t' -v f="$st_file" '{ printf "%s%s:%s (%s)", (NR > 1 ? ", " : ""), f, $1, $2 }' <<<"$st_hits")"
+  # shellcheck disable=SC2016  # backticks are literal Markdown in the message
+  st_fix='state the fallback in the same sentence, e.g. "(unexpanded, empty, or any other value means `false`)", as `/code-tidying:tidy` does for `hard_exclusions`'
+  if [[ -z "$st_base" ]]; then
+    err "settings token used as the subject of a condition with no inline fallback at $st_where: an unset key can arrive as the literal token, which reads as neither true nor false; $st_fix"
+  elif ((st_count > st_base)); then
+    err "settings-token hits in $st_rel rose from the baseline's $st_base to $st_count at $st_where: $st_fix"
+  elif ((st_count < st_base)); then
+    err "stale settings-token baseline row in $ST_LABEL: $st_rel now has $st_count hit(s), not $st_base — lower the row"
+  else
+    warn "settings token used as a condition with no inline fallback at $st_where — recorded in $ST_LABEL; $st_fix, then lower the row"
+  fi
+done < <(find "$SKILL_DIR" \( -path "$SKILL_DIR/evals" -o -path "$SKILL_DIR/vendor" -o -name node_modules \) -prune -o -type f -name '*.md' -print | sort)
+if ((ST_BASELINE_OK == 1)) && [[ -n "$SKILL_REL" ]]; then
+  while IFS= read -r st_row; do
+    [[ -n "$st_row" ]] || continue
+    grep -qxF -- "$st_row" <<<"$ST_SEEN" ||
+      err "stale settings-token baseline row in $ST_LABEL: $st_row no longer exists — remove the row"
+  done < <(awk -v pre="$SKILL_REL/" '{ sub(/#.*/, "") } NF >= 2 && index($1, pre) == 1 { print $1 }' "$SETTINGS_TOKEN_BASELINE")
+fi
+((ST_ANY == 0)) && note "no settings token used as a condition without a fallback"
 
 # --- Summary ---------------------------------------------------------------
 
