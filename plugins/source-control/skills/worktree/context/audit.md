@@ -101,7 +101,7 @@ esac
 Require the user to confirm each path individually before anything is run.
 
 **The remedy, emitted for the user to run, never inline.** Removing a record requires standing in
-the directory it names (`-s project` and `-s local` have no path flag), so the only route to a path that no longer
+the directory it names (`-s project` has no path flag, measured; `-s local` is unmeasured and treated the same), so the only route to a path that no longer
 exists is to recreate it. That is a deliberate act, not something an audit performs:
 
 ```bash

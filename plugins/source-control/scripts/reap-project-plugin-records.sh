@@ -11,8 +11,10 @@
 # identifiable and provably dead, so teardown is where they are removed.
 #
 # THE BOUNDARY, RENDERED IN CODE RATHER THAN IN PROSE. `claude plugin uninstall
-# <id> -s project` (and `-s local`) has NO path flag: it resolves strictly against the current
-# directory (measured — see skills/worktree/fixtures/README.md). This script
+# <id> -s project` has NO path flag: it resolves strictly against the current
+# directory (measured for project scope only — see skills/worktree/fixtures/README.md).
+# Local scope is unmeasured: this script assumes the same behavior and keeps the same
+# cwd guard for it, so a differing local-scope CLI is what to recheck. This script
 # therefore requires `--worktree-path` to name the directory it is already
 # standing in and refuses otherwise, so it structurally cannot act on any path
 # other than its own cwd. That is deliberate: a record for a live repository on
