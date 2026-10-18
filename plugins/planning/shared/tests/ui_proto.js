@@ -168,6 +168,13 @@ async function main() {
     ok("ArrowLeft moves back to One page and keeps focus on the switcher", await until(proto, () => document.querySelector(".vp-tab[aria-selected=true]")?.textContent.startsWith("One page")
       && document.activeElement?.classList.contains("vp-tab") && !!document.querySelector(".vp-frame")));
     ok("the One page tab counts its note", (await proto.locator(".vp-tab", { hasText: "One page" }).getAttribute("aria-label")) === "One page, 1 note");
+    await proto.locator(".vp-annotate").click();
+    await proto.locator(".vp-whole").click();
+    await until(proto, () => !document.querySelector(".vp-composer").hidden);
+    await proto.locator(".vp-tab", { hasText: "Two steps" }).click();
+    ok("switching variants closes an open note, whose spot was on the other one, and a new note can start", await until(proto, () => document.querySelector(".vp-composer").hidden
+      && !document.querySelector(".vp-whole").hidden && document.querySelector(".vp-tab[aria-selected=true]")?.textContent.startsWith("Two steps")));
+    await proto.keyboard.press("Escape"); // Annotate off
 
     // ---------- a note on a spot of the picture variant ----------
     await proto.locator(".vp-tab", { hasText: "Two steps" }).click();

@@ -90,7 +90,8 @@
   // ---------- variant switcher ----------
   function selectVariant(vid, { focus = false } = {}) {
     if (vid === ui.variant) return;
-    ui.variant = vid; ui.draft = null; ui.active = "";
+    closeComposer(); // its spot was on the variant being left
+    ui.variant = vid; ui.active = "";
     const h = new URLSearchParams(location.hash.slice(1)); h.set("v", vid); h.delete("n");
     history.replaceState(null, "", location.pathname + "#" + h);
     render();
