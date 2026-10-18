@@ -319,6 +319,11 @@ report and **STOP**, the Phase 3 report is the deliverable.
 
 ---
 
+## Next
+
+- Findings to fix: /implementation:implement.
+- Fixes applied: /verification:confirm.
+
 ## Remediation (delegated to other plugins)
 
 The audit ends at the Phase 3 report: the findings table, verified-non-issues proof, drift patterns,
