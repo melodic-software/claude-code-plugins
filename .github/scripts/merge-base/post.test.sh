@@ -242,13 +242,65 @@ put a.txt 'resolved\n'
 tg add a.txt keep.txt
 run_post
 check 'unresolved-marker: markers copied over another path are unresolved' unresolved-conflict "$(reason)"
+
+echo '# unexpected-path-staged'
+# Only a path the snapshot held unmerged may change; every stage-0 snapshot
+# entry must stay as it was, and no other entry may appear.
 conflict a.txt 'one\n' 'pr\n' 'main\n'
 prepare
 put a.txt 'resolved\n'
 put b.txt 'new\n'
 tg add a.txt b.txt
 run_post
-check 'unresolved-marker: a new path without markers passes' 0/ "$RC/$(reason)"
+check 'unexpected-path-staged: a new path outside the conflict set escalates' 0/unexpected-path-staged "$RC/$(reason)"
+check 'unexpected-path-staged: and prints no tree' '' "$(tree)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+put keep.txt 'edited\n'
+tg add a.txt keep.txt
+run_post
+check 'unexpected-path-staged: an edit to a merged path escalates' 0/unexpected-path-staged "$RC/$(reason)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+put stray.log 'build output\n'
+tg add -A
+run_post
+check 'unexpected-path-staged: git add -A over an untracked file escalates' 0/unexpected-path-staged "$RC/$(reason)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+put stray.log 'build output\n'
+tg add a.txt
+run_post
+check 'unexpected-path-staged: an untracked file left unstaged passes' 0/ "$RC/$(reason)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+tg add a.txt
+tg rm -q keep.txt
+run_post
+check 'unexpected-path-staged: removing a merged path escalates' 0/unexpected-path-staged "$RC/$(reason)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+rm "$R/keep.txt"
+tg add -A
+run_post
+check 'unexpected-path-staged: git add -A over a deleted file escalates' 0/unexpected-path-staged "$RC/$(reason)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+tg add a.txt
+tg mv a.txt c.txt
+run_post
+check 'unexpected-path-staged: moving the resolution to a new path escalates' 0/unexpected-path-staged "$RC/$(reason)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+tg rm -q a.txt
+run_post
+check 'unexpected-path-staged: resolving a conflict by deleting its path passes' 0/ "$RC/$(reason)"
 
 echo '# workflow-staged'
 WF=.github/workflows/ci.yml
@@ -378,7 +430,7 @@ cp "$R/.git/config" "$TMP/config.before"
 prepare
 put a.txt 'resolved\n'
 tg add a.txt
-tg config remote.origin.url 'https://x-access-token:ghs_example@github.com/o/r'
+tg config remote.origin.url 'https://example.invalid/rewritten/r'
 tg config core.fsmonitor "$TMP/fsmonitor.sh"
 printf '#!/usr/bin/env bash\ntouch "%s/fsmonitor-ran"\n' "$TMP" >"$TMP/fsmonitor.sh"
 chmod +x "$TMP/fsmonitor.sh"
@@ -408,7 +460,7 @@ for target in config index-snapshot attributes; do
   prepare
   put a.txt 'resolved\n'
   tg add a.txt
-  tg config remote.origin.url 'https://x-access-token:ghs_example@github.com/o/r'
+  tg config remote.origin.url 'https://example.invalid/rewritten/r'
   cp "$R/.git/config" "$TMP/config.rewritten"
   printf 'x' >>"$DIR/$target"
   run_post

@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 2.11.7 - 2026-10-18
+## 2.11.11 - 2026-10-18
 
 On a pull request labeled `needs-human` (the human-gated role label), `pr-unblock`
 `address-feedback` works a thread when a person on the trusted-actor list with write or admin
@@ -11,6 +11,30 @@ held; with one the write runner lifts only the human-gated hold for that run
 ([pr-run-activity.md](pr-run-activity.md#prepare-review-threads)). Its `labels-absent` is
 `[do-not-merge]`, `do-not-merge` still stops it, every other activity still waits on
 `needs-human`, and `pr-merge` still refuses a `needs-human` pull request. `version` stays 2.
+
+## 2.11.10 - 2026-10-18
+
+This repository's `limits.wip-cap` drops from 60 to 12, so `work-resolve-issue` starts no run, and
+work-unblock re-fires none, while 12 or more lanes-App pull requests are open. The value is the
+measured lane merge rate (about 1.5 per hour) times an 8-hour open-to-merge target. The schema
+default (60) and its range (1 to 500) are unchanged. `version` stays 2.
+
+## 2.11.8 - 2026-10-18
+
+`pr-refine` no longer starts on `synchronize`: it runs when a PR opens, reopens or turns ready, or
+on a `workflow_dispatch`, so an author push no longer draws a fix-docs commit and a fresh review
+round. A docs change pushed after its first run waits for a reopen or a dispatch. When
+`resolve-conflicts` escalates with `unresolved-conflict`, `pr-unblock.yml`'s scripted
+`report-conflict-status` job posts a `failure` commit status with context `pr-unblock/conflict` on
+that head, since GitHub runs no `pull_request` workflow on a conflicted PR. `version` stays 2.
+
+## 2.11.7 - 2026-10-18
+
+A `resolve-issue` run that waited in its slot while a change to `work-resolve-issue.yml` or
+`pr-run-activity-write.yml` merged fails red `workflow-stale` before the token request, by the
+broker's own blob comparison against main, instead of spending a mint the broker refuses as
+`workflow-modified`. It leaves no outcome marker, so work-unblock's hourly sweep re-fires the issue
+on main's files ([pr-run-activity.md](pr-run-activity.md#issue-mode)). `version` stays 2.
 
 ## 2.11.6 - 2026-10-18
 

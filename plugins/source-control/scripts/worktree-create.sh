@@ -64,12 +64,12 @@ source "${BASH_SOURCE[0]%/*}/lib/worktree-facts.sh" || { echo "error: cannot loa
 PROG=${0##*/}
 
 # shellcheck source=worktree-root-resolve.sh
-source "${BASH_SOURCE[0]%/*}/worktree-root-resolve.sh"
+source "${BASH_SOURCE[0]%/*}/worktree-root-resolve.sh" || { echo "error: cannot load worktree-root-resolve.sh" >&2; exit 4; }
 # Lexical path collapse, shared inside this plugin with the worktree gates and
 # the claim helper. Sourced for worktree_path_normalize alone: the file defines
 # functions only and pulls in no library of its own.
 # shellcheck source=../hooks/worktree-path-lib.sh
-source "${BASH_SOURCE[0]%/*}/../hooks/worktree-path-lib.sh"
+source "${BASH_SOURCE[0]%/*}/../hooks/worktree-path-lib.sh" || { echo "error: cannot load hooks/worktree-path-lib.sh" >&2; exit 4; }
 
 # --- same-drive helpers (begin) — sourced by worktree-create.test.sh for unit tests ---
 # windows_drive_letter <path> — echo the drive letter (A–Z) when <path> is
@@ -171,7 +171,7 @@ Usage:
   $PROG --name <name> [--root <dir> | --root-file <path>]
         [--fallback-root <dir> | --fallback-root-file <path>]
         [--data-root-file <path>] [--base-ref fresh|head] [--repo-dir <dir>]
-        [--session-id <id>]
+        [--session-id <id>] [--remove-input-files]
 
 Root resolution, most specific first:
   --root/--root-file (explicit, per invocation), then worktreeroot.path
@@ -265,6 +265,14 @@ Options:
                       This flag is the only session source. An omitted id is
                       never filled in from the host name or the environment, and
                       is not reported as any session's claim.
+  --remove-input-files
+                      On exit, whatever the exit code, delete the files handed
+                      to --root-file, --fallback-root-file and --data-root-file,
+                      then rmdir each one's directory (left in place when it is
+                      not empty). Armed when the flag is parsed: a usage error
+                      before it, or a missing library, leaves the files. For a
+                      caller that wrote those files into a temp directory and
+                      would otherwise need its own rm.
   -h, --help          Show this help.
 
 Dependencies: when the new worktree has a package-lock.json, the helper runs
@@ -295,6 +303,19 @@ base_ref=""
 existing_branch=0
 repo_dir="."
 session_id=""
+
+# remove_input_files_on_exit — the EXIT trap behind --remove-input-files, armed
+# when the flag is parsed so a later usage error still cleans up. Reads the path
+# variables at exit time. rm -f
+# and rmdir only: a directory holding anything else is left alone.
+remove_input_files_on_exit() {
+  local file
+  for file in "$root_file" "$fallback_root_file" "$data_root_file"; do
+    [[ -n "$file" ]] || continue
+    rm -f -- "$file"
+    rmdir -- "$(dirname -- "$file")" 2>/dev/null || true
+  done
+}
 
 # need_value <flag> — guard against a value-taking flag given as the last token
 # with no argument. Without this, `shift 2` on a single remaining positional
@@ -361,6 +382,10 @@ while [[ $# -gt 0 ]]; do
     need_value "$@"
     session_id="$2"
     shift 2
+    ;;
+  --remove-input-files)
+    trap remove_input_files_on_exit EXIT
+    shift
     ;;
   -h | --help)
     usage
@@ -1020,9 +1045,19 @@ if [[ "$existing_branch" -eq 1 ]]; then
     printf '%s: git worktree add failed for existing branch %q\n' "$PROG" "$name" >&2
     exit 4
   fi
-elif ! git -C "$toplevel" worktree add -b "$name" "$worktree_path" "$base_commit" >&2; then
-  printf '%s: git worktree add failed (branch %q may already exist)\n' "$PROG" "$name" >&2
-  exit 4
+else
+  # --no-track on fresh: the base is <remote>/<default>, and git would otherwise
+  # record it as the new branch's upstream, so a bare `git push` fails under
+  # push.default=simple and push-branch.sh, which sets -u only when no upstream
+  # exists, keeps the wrong one. head stays as it was.
+  if [[ "$base_ref" == fresh ]]; then
+    git -C "$toplevel" worktree add --no-track -b "$name" "$worktree_path" "$base_commit" >&2
+  else
+    git -C "$toplevel" worktree add -b "$name" "$worktree_path" "$base_commit" >&2
+  fi || {
+    printf '%s: git worktree add failed (branch %q may already exist)\n' "$PROG" "$name" >&2
+    exit 4
+  }
 fi
 
 # Arm the removal guard the moment the worktree exists: a locked worktree makes

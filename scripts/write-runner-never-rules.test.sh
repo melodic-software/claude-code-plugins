@@ -54,8 +54,12 @@ say(!steps.some((s) => /(update|create)Ref\(/.test(body(s)) && /Ref\([^)]*force:
 const post = byId("post");
 const commit = byId("commit");
 say(/bash "\$BIN\/post\.sh"/.test(post.run ?? ""), "the post step runs the base copy of post.sh");
-say(/workflow-staged\)?[^\n]*\n?[^\n]*skip-reason=awaiting-human|unresolved-conflict \| workflow-staged\)/.test(post.run ?? ""),
-  "the post step turns workflow-staged into an escalation (awaiting-human)");
+// The case arm naming the reason sets skip=awaiting-human on its next line.
+const escalates = (reason) =>
+  new RegExp(`^\\s*[a-z| -]*\\b${reason}\\b[a-z| -]*\\)\\s*\\n\\s*tree="" skip=awaiting-human$`, "m").test(post.run ?? ""); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+for (const reason of ["unresolved-conflict", "workflow-staged", "unexpected-path-staged"]) {
+  say(escalates(reason), `the post step turns ${reason} into an escalation (awaiting-human)`);
+}
 say(/tree=""/.test(post.run ?? ""), "an escalating post step clears its tree output");
 const commitIf = String(commit.if ?? "");
 say(/steps\.post\.outcome == 'success'/.test(commitIf) && /steps\.post\.outputs\.escalation-reason == ''/.test(commitIf)

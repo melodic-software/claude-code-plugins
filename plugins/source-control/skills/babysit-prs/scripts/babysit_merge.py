@@ -127,6 +127,7 @@ on stdout.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import re
 import time
@@ -2990,6 +2991,7 @@ def assess_unattended(
     lane_kill_switch: str | None = None,
     lane_rung_cap: str | None = None,
     shared: merge_policy.SharedPostMerge | None = None,
+    share: Callable[[merge_policy.SharedPostMerge], object] | None = None,
 ) -> merge_policy.UnattendedPolicy:
     """The unattended decision for one pull request, in the wiring order:
     identity, the credential chokepoint, the kill switch, a default-branch
@@ -3024,6 +3026,7 @@ def assess_unattended(
         lane_kill_switch=lane_kill_switch,
         lane_rung_cap=lane_rung_cap,
         shared=shared,
+        share=share,
     )
     return score_unattended(repo, number, policy, self_logins)
 
@@ -3927,6 +3930,14 @@ def main() -> int:
                 lane_kill_switch=args.lane_kill_switch,
                 lane_rung_cap=args.lane_rung_cap,
                 shared=shared,
+                # Each recompute goes back to the file for the next candidate.
+                share=(
+                    None
+                    if args.postmerge_result is None
+                    else functools.partial(
+                        postmerge.write_shared, args.postmerge_result
+                    )
+                ),
             )
         except (RuntimeError, ValueError, OSError) as exc:
             return _refuse(f"unattended merge policy unreadable: {exc}", 10)
