@@ -144,6 +144,17 @@ class ProduceTest(unittest.TestCase):
             self.assertEqual(bad.returncode, 1, bad.stdout)
             self.assertIn('absent-pack is not in the brief Packs', bad.stdout)
 
+    def test_a_render_with_fewer_frames_than_the_shot_list_is_a_problem(self):
+        sys.path.insert(0, str(HERE))
+        import produce
+        data = {'fps': 24, 'size': [64, 48], 'shots': [{'t0': 0, 't1': 10}]}
+        meta = {'fps': 24, 'size': [64, 48], 'duration': 10, 'frames': 240}
+        self.assertEqual(produce.render_problems(meta, data), [])
+        self.assertEqual(produce.render_problems({**meta, 'frames': 24}, data),
+                         ['render.json has 24 frames; the shot list through 10 s at 24 fps needs 240'])
+        (short,) = produce.render_problems({**meta, 'duration': 1, 'frames': 24}, data)
+        self.assertIn('does not cover the shot list through 10', short)
+
     def test_pack_is_shell_quoted_and_names_only_resolve_inside_styles(self):
         sys.path.insert(0, str(HERE))
         import produce

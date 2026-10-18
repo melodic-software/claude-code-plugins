@@ -94,6 +94,21 @@ class WorkDirFinalHold(unittest.TestCase):
 
 
 @unittest.skipUnless(not MISSING, f'numpy/opencv missing: {MISSING}')
+class Offstep(unittest.TestCase):
+    """The docstring's reading: a 2 then a 4 on 3s is one uncounted pair; a lone 2 or 4 counts in both its pairs."""
+
+    @staticmethod
+    def rows(frames):
+        return [{'hold': n / FPS} for n in frames]
+
+    def test_a_two_then_four_pair_is_not_counted_but_its_neighbours_are(self):
+        self.assertEqual(inkstats.offstep(self.rows([3, 3, 2, 4, 3, 3]), FPS), 0.4)   # (3,2) and (4,3) of 5
+
+    def test_a_lone_two_counts_in_both_of_its_pairs(self):
+        self.assertEqual(inkstats.offstep(self.rows([3, 3, 2, 3, 3]), FPS), 0.5)   # (3,2) and (2,3) of 4
+
+
+@unittest.skipUnless(not MISSING, f'numpy/opencv missing: {MISSING}')
 class ShotsJsonCuts(unittest.TestCase):
     def test_shots_json_t0_values_are_the_cut_list(self):
         with tempfile.TemporaryDirectory() as tmp:

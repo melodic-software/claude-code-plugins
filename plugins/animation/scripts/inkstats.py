@@ -74,8 +74,8 @@ Per pair of consecutive drawings:
   held      share of pairs boil is measured on
 Per drawing duration: hold in frames at the base rate (on 1s, 2s, 3s, 4+), drawings per second, and offstep: the
 share of consecutive drawing pairs whose two holds do not add up to twice the most common hold. It is 0 for a film
-strictly on 3s, and it ignores a drawing that re-timing onto the base-rate grid moves one frame early or late (a 2 then
-a 4 on 3s). The base rate is the pack's knobs.frame_rate.base_fps with --pack, else the film's fps.
+strictly on 3s. Re-timing onto the base-rate grid that moves one drawing a frame early (a 2 then a 4 on 3s) leaves
+that pair uncounted, but a lone 2 or 4 between 3s counts in both of its pairs. The base rate is the pack's knobs.frame_rate.base_fps with --pack, else the film's fps.
 With --pack, a film whose frame size differs from the pack's measured_from.size prints a warning (the statistics are
 in pixels). A drawing whose ink or paper mode holds under WEAK_PEAK of the frame is counted in a printed note: every
 statistic assumes two flat tones.

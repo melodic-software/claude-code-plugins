@@ -46,7 +46,12 @@ overwrites one. Paths in these files are relative to the production directory an
 2. Fill the boards. A model or element `.js` is a scene module: it sizes `canvas#c` and defines
    `window.DURATION`, `window.renderFrame(t)` and `window.renderDrawing(k)`; `--drawings` fails
    without `renderDrawing`. `skills/rotoscope/fixtures/synthetic.js` is a working per-drawing scene.
-   Render each sheet with `render.py <scene.js> <out> --drawings 0` (or the poses it needs) and copy
+   `render.py` serves the scene's own directory, then the plugin's `scripts/` (`ink.js`), then each
+   `--root`: to share drawing code between board, shot and film modules, pass
+   `--root <production dir>` on every render and import by absolute path from it
+   (`/boards/elements/<name>.js`). Load what a scene needs (JSON, other modules) with static imports
+   or top-level `await`: capture starts once the module has finished loading, so `DURATION` must
+   be final by then. Render each sheet with `render.py <scene.js> <out> --drawings 0` (or the poses it needs) and copy
    the PNG into `boards/models/` or `boards/elements/`. These stills are boards, not the film.
 3. `produce.py boards <dir>` must exit 0. Fix every line it prints.
 4. Stop. Show the boards and ask the user to approve them. Do not write `shots.json`, render a
@@ -54,16 +59,30 @@ overwrites one. Paths in these files are relative to the production directory an
 5. After the user approves, run `produce.py approve <dir> --note "<their words>"`, with their words
    as the note. If a board changes later, the digest no longer matches and `shots` exits 2 until
    they approve again.
-6. Author one scene module per shot and write `shots.json`. `produce.py shots <dir>` must exit 0.
-   `produce.py cuts <dir>` prints the `t0` list.
-7. `render.py` takes one scene: author a film scene that plays each shot's module over its
-   `t0`-`t1` span, and render it into `frames/` at `shots.json` `fps` and `size`, long enough to
-   reach the last `t1`. `--encode` writes the delivered file beside `frames/`.
+6. Author one shot module per shot and write `shots.json`. A shot module exports
+   `drawShot(ctx, t)`, which draws film time `t` (seconds from the film's start) on the context it
+   is handed, and sets no page hooks. `produce.py shots <dir>` must exit 0. `produce.py cuts <dir>`
+   prints the `t0` list.
+7. `render.py` takes one scene: author a film scene that imports `shots.json`, sets `DURATION` to
+   the last `t1`, sizes `canvas#c` to `size`, and in `renderFrame(t)` calls `drawShot` of the shot
+   whose `t0`-`t1` span holds `t`. Render it into `frames/` at `shots.json` `fps` with
+   `--shots <dir>/shots.json`, which exits 1 when the film's fps, size, duration or frame count
+   differs from the shot list. `--encode` writes the delivered file beside `frames/`.
 8. `produce.py review <dir>` prints `inkstats.py <frames> --cuts <dir>/shots.json --pack <pack>`
    when every shot uses one pack, and one `--t <t0>-<t1> --pack <pack>` line per shot for mixed
    packs, since the check judges every frame it reads. A shipped pack resolves to its `styles/` directory. Run each line. Then read frames at
    1:1 before calling the film done. A passing check whose frames do not read as the pack is a
    fail; say which mark is wrong.
+   - When a row fails, change the drawing until the frames read as the pack, then check again.
+     Never add or change marks only to move a row into its band (extra specks, rougher strokes,
+     re-timed holds): a row passed that way is still a fail. A change to a board file closes the
+     gate, so the user approves the boards again (step 4) before the next shot render.
+   - When the frames cannot read as the pack without editing its bands, stop and report the
+     failing rows and marks (see Next).
+9. Before delivery, hand the film to a fresh-context reviewer (a subagent that is not a fork) with
+   the brief in [reference/independent-review.md](reference/independent-review.md). The builder
+   never decides the film ships: fix what the review finds, render, check and review again with a
+   new reviewer, and deliver only on its SHIP.
 
 Pass `--cuts` the `shots.json` path, never a retyped list.
 
