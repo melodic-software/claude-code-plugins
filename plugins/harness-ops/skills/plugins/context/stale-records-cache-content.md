@@ -114,9 +114,11 @@ would also silently erase the condition the verdict exists to report. Every verd
 `match` and `stale-content` is counted as `unverifiable`, meaning the audit looked and could not decide,
 which is its own number and never folded into either side.
 
-**Expect a substantial `unverifiable` share, and never read it as a pass.** Claude Code clones a
-marketplace shallow, so any install whose recorded commit predates that clone's window reports
-`sha-not-local` through no fault of the fleet. On the machine this check was first run against, 11
-of 74 user-scope installs were unverifiable for exactly that reason. The render says so alongside
+**Expect a substantial `unverifiable` share, and never read it as a pass.** The marketplace clone
+is shallow and is re-cloned on update ([host-marketplace](https://code.claude.com/docs/en/plugins/host-marketplace.md),
+as of 2026-10-18; the page states the re-clone, not a depth), so only installs recorded at a commit
+inside the clone can be compared and any other reports `sha-not-local` through no fault of the
+fleet. Most installs read unverifiable right after a refresh (84 of 86 on 2026-10-04, #5941).
+**Recheck trigger:** a change to that page's update or clone description. The render says so alongside
 the match count rather than leading with the match count alone: a row with the unverifiable share
 when nothing is stale, and a sub-line under the finding when something is.

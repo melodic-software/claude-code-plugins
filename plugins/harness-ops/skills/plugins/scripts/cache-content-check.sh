@@ -127,12 +127,14 @@
 #                         installLocation clone. NOT an error and NEVER fetched:
 #                         a fetch is a network mutation this audit does not
 #                         perform. This is the ORDINARY case, not an edge one —
-#                         Claude Code clones a marketplace SHALLOW (a depth of 3
-#                         observed on 2.1.261), so every record whose commit
-#                         predates that window is legitimately unverifiable, and
-#                         on the authoring machine 11 of 74 user-scope installs
-#                         landed here. A report is only as strong as the share
-#                         of installs it could actually compare
+#                         the marketplace clone is shallow and re-cloned on
+#                         update (https://code.claude.com/docs/en/plugins/
+#                         host-marketplace.md, as of 2026-10-18; the page
+#                         states the re-clone, no depth; recheck when it
+#                         changes), so only installs recorded at a commit
+#                         inside the clone can be compared and most read here
+#                         right after a refresh. A report is only as strong as
+#                         the share of installs it could actually compare
 #   no-git-commit-sha     the record carries no `gitCommitSha` to compare against
 #   no-install-location   the marketplace has no `installLocation`, or it is not
 #                         a directory on this machine
