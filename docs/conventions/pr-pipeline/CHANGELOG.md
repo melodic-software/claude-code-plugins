@@ -1,5 +1,48 @@
 # Changelog for the PR pipeline convention
 
+## 2.11.7 - 2026-10-18
+
+A `resolve-issue` run that waited in its slot while a change to `work-resolve-issue.yml` or
+`pr-run-activity-write.yml` merged fails red `workflow-stale` before the token request, by the
+broker's own blob comparison against main, instead of spending a mint the broker refuses as
+`workflow-modified`. It leaves no outcome marker, so work-unblock's hourly sweep re-fires the issue
+on main's files ([pr-run-activity.md](pr-run-activity.md#issue-mode)). `version` stays 2.
+
+## 2.11.6 - 2026-10-18
+
+An issue-lane run never dies on GitHub's rate limit or a pile of open lane pull requests.
+
+- New `limits.wip-cap` (default 60, set in this repository's config). `work-resolve-issue`'s
+  `pick-slot` job counts the lanes App's open pull requests with one search, through the new
+  `check-wip-cap` action. At or over the cap, `resolve-issue` is skipped and takes no slot and no
+  lane token. A failed count starts the run.
+- work-unblock's hourly sweep re-fires a run that did no work: either its `Request the lane token`
+  step failed (GitHub's rate limit past the 8-minute retry budget, among other causes) or the WIP
+  cap skipped it. It waits `reset-clamp-min` hours after the run ended. The broker's `Retry-After`
+  is at most an hour, so any rate-limit reset has passed by then. It acts only while fewer than
+  `wip-cap` lane PRs are open, and stays within `restarts-per-run`.
+- Such a re-fire is not limited to once per workflow version and is not a limit stop, so it never
+  adds `needs-human`.
+
+`version` stays 2.
+
+## 2.11.4 - 2026-10-18
+
+A write skill that commits through `commit_files` also gets `Bash(chmod +x *)`, and its commit
+instruction says to run `chmod +x` on every new or changed file that starts with `#!` or ends in
+`.sh` first: `commit_files` takes each file's mode from disk, and `Write` creates a file without
+the executable bit, so lane PRs landed new scripts as `100644`
+([pr-run-activity.md](pr-run-activity.md#skill-activities)). `prepare: merge-base` is unchanged:
+the runner commits the staged index, whose modes the merge set. `version` stays 2.
+
+## 2.11.3 - 2026-10-18
+
+The verify-script wrapper for skill-quality's `check-skill.sh` runs it with `HOME` set to a fresh
+`mktemp -d` directory and `CLAUDE_CONFIG_DIR` to that directory's `.claude`, so a skill test that
+writes under `~/.claude` no longer fails on the runner's read-only one
+([#8027](https://github.com/melodic-software/claude-code-plugins/issues/8027)). Other
+verify-scripts keep the runner's `HOME`. `version` stays 2.
+
 ## 2.11.2 - 2026-10-18
 
 The broker's `workflow-modified` refusal has one exception, for a lane's post-run report job

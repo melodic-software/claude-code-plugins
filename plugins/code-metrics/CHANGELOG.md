@@ -3,6 +3,13 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.2] - 2026-10-18
+
+### Fixed
+
+- The YAML subset reader no longer lets a quote inside a plain value hide a trailing comment: `title: it's fine # comment` now reads as `it's fine`. A quote opens a quoted string only where a value starts.
+- A duplicate key inside a sequence-item mapping is now reported on the duplicate key's own line instead of the dash line.
+
 ## [0.6.1] - 2026-10-16
 
 ### Changed

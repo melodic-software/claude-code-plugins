@@ -848,6 +848,17 @@ The file job writes with the job's own `GITHUB_TOKEN`, not a lanes App token, so
 from `github-actions[bot]` and start no workflow, intake triage included. The kill switch stops
 every job.
 
+A fourth job, **triage-sweep**, runs alone every hour and with the daily run, with no model
+([`triage-sweep.mjs`](../../../.github/scripts/maintenance-audit-lane-runs/triage-sweep.mjs)). It
+selects open issues, not pull requests, over an hour old, written by a human on the trusted-actors
+list or by the lanes App, that have no intake comment, no born-triaged marker and no triage, status,
+priority or work-class label. Issues from `github-actions[bot]`, the lane sweep's own included, are
+left out. For each it re-dispatches `intake-triage.yml`, at most 5 a pass, and records the runs in
+one comment on the issue; after 2 dispatches leave it untriaged it labels the original
+`needs-triage`, then files one `needs-triage` issue naming the runs. It holds the job's own `GITHUB_TOKEN`
+(`actions: write`, `contents: read`, `issues: write`), never a lanes App token, and stops at 120
+REST calls.
+
 ## Models
 
 `models` sets the model, effort and turn budget of every model run, so a model change is one edit.
@@ -891,7 +902,7 @@ escalates.
 
 The optional `limits` block sets when the lanes restart work the usage limit stopped. Durations
 are whole hours, at most 720; stop caps are at most 10 and `restarts-per-run` at most 50, so a
-typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all six
+typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all seven
 with defaults.
 
 | Key | Default | What it sets |
@@ -902,10 +913,12 @@ with defaults.
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
 | `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again. |
 | `limit-stops-per-issue` | 3 | Limit stops since a person last added `agent-ready` before work-unblock hands the issue to a person. |
+| `wip-cap` | 60 | Open lanes-App pull requests at or above which work-resolve-issue starts no run and work-unblock re-fires none; at most 500. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
-pr-feedback-dispatch and pr-unblock-dispatch resolve the base config themselves, and a config the
-resolver refuses fails their run before any dispatch. This repository sets no `limits` block.
+pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
+config themselves. A config the resolver refuses fails the two dispatchers before any dispatch;
+the WIP cap check fails open and starts the run. This repository sets `wip-cap` only.
 
 ## Planning lane work
 
