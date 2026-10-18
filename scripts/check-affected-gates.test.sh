@@ -49,16 +49,25 @@ tmp="$(mktemp -d)" || exit 2
 trap 'rm -rf "$tmp"' EXIT
 
 gates_in_workflow="$(workflow_gates "$WORKFLOW")"
-[[ -n "$gates_in_workflow" ]] && ok "the hygiene jobs' gates are found in the workflow" ||
+if [[ -n "$gates_in_workflow" ]]; then
+  ok "the hygiene jobs' gates are found in the workflow"
+else
   bad "the hygiene jobs' gates are found in the workflow" "no <gate>=\${{ ... }} rows parsed from $WORKFLOW"
+fi
 
 missing="$(unlisted "$WORKFLOW" "$GATES")"
-[[ -z "$missing" ]] && ok "every hygiene gate is run by the runner or listed CI only" ||
+if [[ -z "$missing" ]]; then
+  ok "every hygiene gate is run by the runner or listed CI only"
+else
   bad "every hygiene gate is run by the runner or listed CI only" "add a row to scripts/check-affected-gates.txt for: ${missing//$'\n'/ }"
+fi
 
 gone="$(stale "$WORKFLOW" "$GATES")"
-[[ -z "$gone" ]] && ok "no row names a gate the workflow stopped feeding" ||
+if [[ -z "$gone" ]]; then
+  ok "no row names a gate the workflow stopped feeding"
+else
   bad "no row names a gate the workflow stopped feeding" "remove the row for: ${gone//$'\n'/ }"
+fi
 
 # Each row is `<gate> run <runner check>` or `<gate> ci-only <reason>`.
 rows_ok=1
@@ -119,11 +128,15 @@ jobs:
         run: true
 YAML
 printf '# gate kind detail\nknown-gate run markdown\nremoved-gate ci-only was removed\n' >"$tmp/gates.txt"
-[[ "$(unlisted "$tmp/workflow.yml" "$tmp/gates.txt")" == new-gate ]] &&
-  ok "a gate added to a hygiene job without a row is reported" ||
+if [[ "$(unlisted "$tmp/workflow.yml" "$tmp/gates.txt")" == new-gate ]]; then
+  ok "a gate added to a hygiene job without a row is reported"
+else
   bad "a gate added to a hygiene job without a row is reported" "got: $(unlisted "$tmp/workflow.yml" "$tmp/gates.txt")"
-[[ "$(stale "$tmp/workflow.yml" "$tmp/gates.txt")" == removed-gate ]] &&
-  ok "a row for a gate the workflow dropped is reported" ||
+fi
+if [[ "$(stale "$tmp/workflow.yml" "$tmp/gates.txt")" == removed-gate ]]; then
+  ok "a row for a gate the workflow dropped is reported"
+else
   bad "a row for a gate the workflow dropped is reported" "got: $(stale "$tmp/workflow.yml" "$tmp/gates.txt")"
+fi
 
 test_harness::report
