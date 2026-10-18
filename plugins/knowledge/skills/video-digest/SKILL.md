@@ -331,11 +331,11 @@ field (`watch.json` phase metrics and the CLI's stdout JSON), never silently.
 **Faster-whisper install recipe.** A default Python that refuses `pip install --user` (PEP 668,
 externally managed) needs a virtual environment. Run these yourself; the skill never does. Replace
 `<dir>` with a directory of your choice, then set the `asr_python` option to the venv's interpreter
-(`<dir>/bin/python`, or `<dir>\Scripts\python.exe` on Windows):
+(`<dir>/bin/python`, or `<dir>\Scripts\python.exe` on Windows): <!-- portability-ok: Windows path, not a shell regex -->
 
 ```bash
-uv venv <dir> --python 3.13
-uv pip install --python <dir> faster-whisper nvidia-cublas-cu12 nvidia-cudnn-cu12 "av<19"
+uv venv <dir> --python 3.13  # prereq-ok: user-run recipe; the skill never runs uv
+uv pip install --python <dir> faster-whisper nvidia-cublas-cu12 nvidia-cudnn-cu12 "av<19"  # prereq-ok: user-run recipe; the skill never runs uv
 ```
 
 The `nvidia-*` wheels supply the CUDA libraries for GPU runs; skip them for CPU-only. On Windows the
