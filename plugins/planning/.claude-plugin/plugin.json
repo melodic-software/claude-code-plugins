@@ -15,7 +15,7 @@
     "use_ask_user_question": {
       "type": "boolean",
       "title": "AskUserQuestion question rounds",
-      "description": "When enabled, the planning skills' question rounds (interview, prd, design, plan) render a round of up to 4 independent questions through the AskUserQuestion tool instead of inline prose. Default: inline prose (dictation-friendly).",
+      "description": "When enabled, the planning skills' question rounds (interview, prd, design, plan) render a round of independent questions that fits one AskUserQuestion call (per-call question limit: https://code.claude.com/docs/en/agent-sdk/user-input#limitations, as of 2026-10-18; recheck when that section changes the limit) through the AskUserQuestion tool instead of inline prose. Default: inline prose (dictation-friendly).",
       "default": false
     },
     "use_emoji_question_markers": {

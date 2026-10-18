@@ -136,9 +136,12 @@ handoff points at it, so the walk never reaches it.
 are retention-swept (`cleanupPeriodDays`), and the conversation itself has no durable artifact.
 
 - **Pointer**: [Data usage § Data retention](https://code.claude.com/docs/en/data-usage#data-retention),
-  for the retention period and what `cleanupPeriodDays` adjusts.
-- **As of**: 2026-09-06
-- **Recheck trigger**: that page names a different default, or a release note names
+  for the retention period and what `cleanupPeriodDays` adjusts: its "Local caching" bullet says
+  session transcripts are stored locally for 30 days by default, adjustable with
+  `cleanupPeriodDays`, and that transcripts of sessions started or most recently continued in
+  Claude Desktop or Cowork are exempt from that limit by default.
+- **As of**: 2026-10-18
+- **Recheck trigger**: that bullet names a different default or exemption, or a release note names
   `cleanupPeriodDays`.
 
 If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`unattended`:** record the suggestion in output; do not ask.
