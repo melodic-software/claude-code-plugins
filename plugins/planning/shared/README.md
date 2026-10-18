@@ -19,8 +19,8 @@ and the session-bridge watcher. Python 3 standard library only.
 | `session_bridge.py`, `watch.sh`, `wake.sh` | Generated copies of `lib/session-bridge/` (`scripts/sync-shared-copies.sh`); edit the canonical, never these |
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
-| `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/core.css`, `/app.css`, `/proto.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when `schemaVersion` or the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/core.css`, `/app.css`, `/proto.js`, `/web-vitals.attribution.iife.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when `schemaVersion` or the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web-vitals.attribution.iife.js` is the web-vitals 6.2.3 attribution build, copied unedited from its npm package, with that package's Apache-2.0 license beside it as `web-vitals.LICENSE` (not served). `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -221,7 +221,9 @@ while older ones exist. `GET /api/chat?before=<id>` (any person) returns the mes
 than that one, and `?around=<id>` the ones with that one in the middle, `limit` of them (1 to 100,
 default 50), each read as the snapshot reads it: from people still in, others' reactions masked
 where names are; an answer carries `before` while older ones exist, and a message it cannot show
-is 404 `not-found`. The page keeps every message it has read while it is open, loads older ones as
+is 404 `not-found`. While older messages exist, a snapshot also carries `chatTouched`, a count that moves
+when one of them gets a reaction or is forwarded (kept in memory only); a page holding older messages reads them
+again when it moves. The page keeps every message it has read while it is open, loads older ones as
 the reader nears the top of the chat or presses "Load earlier messages", and reads around a
 message a notification or a reply quote points at.
 
@@ -390,8 +392,8 @@ wrong?" (required, 2000 characters) and takes one optional screenshot (`accept` 
 no `capture`), which the browser re-encodes to at most 1600 px on its long edge and 512 KB. Before
 Send it lists, under "Sent with this report", every field that goes with it: the view and phone
 tab, the question and round, the device kind and browser family, `innerWidth` x `innerHeight` and
-the visual viewport's width, height and scale, the build, and the last 5 errors the page sent
-([Logs](#logs)). Never an answer, chat, the address or its fragment, or a credential.
+the visual viewport's width, height and scale, the build, and the last 5 errors the page saw,
+refusals included ([Logs](#logs)). Never an answer, chat, the address or its fragment, or a credential.
 
 `POST /api/report {text, ctx, image?}` (auth class person) takes them, `image` a data: URL whose
 bytes must start as PNG, JPEG or WebP do (415 `file-type`; over 512 KB 413 `upload-too-large`).
@@ -415,28 +417,64 @@ quoted when it holds a space, so only a newline ends an entry; `logs` splits on 
 | Kind | Level | Fields |
 |---|---|---|
 | `request` | INFO for 2xx/3xx, WARNING for 4xx, ERROR for 5xx | `method route status ms` and `pid` (the acting person's id, once known); a refusal adds `code field message` (its error body); a 5xx adds `trace`, the last 8000 characters of the traceback of the bug or of the session's refusal where it was raised. The one exception is 503 `busy`, answered before any request is read: `method=- route=- status=503 ms=0.0 code=busy message=...`, no pid, no trace |
-| `client` | WARNING | `pid kind message source route code ua`, as the page sent them |
+| `client` | WARNING | `pid kind message source route code ua fp`, as the page sent them; a `summary` has no `pid` |
 
 ```text
 2026-10-17 13:21:56,794 WARNING request method=POST route=/api/person/role status=400 ms=0.5 pid=host code=bad-field field=role message="role must be one of leader, guest."
 2026-10-17 13:21:57,102 ERROR request method=POST route=/api/rename status=500 ms=1.2 pid=pidAnn001 code=state-invalid message="The server could not do that; nothing was written." trace="Traceback (most recent call last):\x0a  File \x22...\x22 ..."
-2026-10-17 13:21:58,330 WARNING client pid=pidAnn001 kind=api message="HTTP 409: Question Q1 is locked; suggest a change instead." route=/api/answer code=locked ua="chrome computer"
+2026-10-17 13:21:58,330 WARNING client pid=pidAnn001 kind=error message="TypeError: x is undefined" source=/app.js:12 route=/ ua="chrome computer" fp=1a2b3c4d
+2026-10-17 13:22:40,018 WARNING client kind=summary message="pv=0a1b2c3d lat:/api/vote=0,3,1 rb:/api/vote=1 gap=900 rep:1a2b3c4d=2 inp=184:pointer:vf-vote lcp=1200:vf-qtext" ua="safari phone"
 ```
 
 A pid is no credential. No entry holds a token, secret, guest key, owner link, request body, answer
 or chat text, or upload.
 
-`POST /api/client-log` (auth class person) is how a joined person's page reports what went wrong:
-a script error (`kind: "error"`, with `source` as `/file:line`), an unhandled rejection
-(`"rejection"`), or an action the server refused or never answered (`"api"`, `route` the API path,
-`code` its error code or `network`). `"layout"` is the phone keyboard readout: once per sheet
-opening, when an on-screen keyboard comes up, one `name=value` line of numbers and CSS values (the
-sheet, the viewport and visual viewport, `--kb`, `--vv-top`, `--vv-h`, `data-kb`, the sheet's box
-and bottom styles, the safe-area inset, the screen height), never text anyone wrote. Body: `{kind, message, source, route, code, ua}`, strings, at
-most 500 characters for `message`, 200 for `source` and `route`, 60 for `code` and `ua`; `kind` and
-`message` required. It answers `{ok: true}`, or 401 `unknown-session` without identity (a page that
-has not joined sends nothing), 413 `body-too-large` over 4096 bytes, 400 `bad-field` for another key
-or a wrong type, 400 `too-long`, and 429 `slow-down` past 20 reports a minute from one person.
+**What the page records** (`web/core.js` telemetry). Faults go out at once, under the person's pid
+so they can be matched to that person's request entries, the first time each fingerprint (`fp`)
+shows; after that each repeat is a count in the next summary:
+
+- `error` and `rejection`: a script error (`source` as `/file:line`) or an unhandled rejection.
+- `api`: an action that never reached the server: `code` `network` (the request failed) or
+  `no-answer` (an answer without the server's `X-Shared-Build` header, such as the tunnel's own
+  error page). A refusal is logged once, by the server's `request` entry; the page keeps it only
+  for a problem report.
+- `layout`: an anomaly, `anomaly=overflow` (the page, or a pane that scrolls up and down, is wider
+  than it shows), `field-hidden` (a focused field outside what the keyboard leaves visible) or
+  `header-off` (the header above the visible area), each with `at` and `el` component names (the
+  nearest `vf-` or `core-` class) and numbers; logged when it appears. The phone keyboard readout
+  is also `layout`: once per sheet opening, one `name=value` line of numbers and CSS values.
+
+When the page hides it sends one `summary` with no pid: `pv`, a random id for this page view so a
+page's INP counts once; `owner=1` on the owner's page; `lat:<route>` tap-to-answer counts per
+bucket (upper edges 100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000 and 10000 ms, then above),
+measured with `performance.now()`; `rb:<route>` optimistic changes rolled back; `gap`, ms from the
+page showing again to its first good poll; `rep:<fp>` repeats; `inp` (ms, interaction type,
+component) and `lcp` (ms, component) from the vendored web-vitals build, or `inp=missing`,
+`lcp=missing`, `vitals=missing` where the browser API or the file is missing. What does not fit in
+500 characters waits for the next summary. Nothing is sampled.
+
+Never recorded: what anyone types, answers, chat, names, the address or its fragment, text on the
+page, or a credential. The join dialog says so in one line, with a "What this page records" link to
+the plain list and a "Record problems on this device" switch; Help (and the phone More sheet)
+carries the same. Off stops every send, faults included, and is kept in `localStorage`
+(`telemetry`).
+
+`POST /api/client-log` (auth class person) takes `{kind, message, source, route, code, ua, fp}`:
+strings, at most 500 characters for `message`, 200 for `source` and `route`, 60 for `code` and
+`ua`, 16 for `fp`; `kind` (`error`, `rejection`, `api`, `layout`, `summary`) and `message`
+required. It answers `{ok: true}`, or 401 `unknown-session` without identity (a page that has not
+joined sends nothing), 413 `body-too-large` over 4096 bytes, 400 `bad-field` for another key or a
+wrong type, 400 `too-long`, and 429 `slow-down` past 20 faults or 6 summaries a minute from one
+person (two buckets, so neither starves the other). A summary's own `request` entry carries no pid.
+
+`share.sh logs --summary` (add `--json` for one JSON line, `--since MINUTES` to narrow) adds the
+log up: the top 10 error fingerprints with counts and devices, refusals by route and code (from the
+server's entries), network failures and unanswered actions by route, tap-to-answer p50 and p95 by
+route (the upper edge of the bucket) beside the server's own `ms`, rollbacks and their rate,
+reconnect gaps (over 10 s, worst, by device), layout anomalies by device kind, INP and LCP p75 by
+device with the count of page views missing the API, and how many summaries came from how many
+page views (a page with recording off sends none). The owner's own page views stay out of the
+timings. `logs --errors` leaves summaries out.
 
 ## Data contract
 
