@@ -58,8 +58,11 @@ def _linux_table() -> dict[int, tuple[int, str]]:
             continue
         cmd = raw.replace(b"\0", b" ").decode("utf-8", "replace").strip()
         if not cmd:
-            with open(f"/proc/{name}/comm", "rb") as fh:
-                cmd = f"[{fh.read().decode('utf-8', 'replace').strip()}]"
+            try:
+                with open(f"/proc/{name}/comm", "rb") as fh:
+                    cmd = f"[{fh.read().decode('utf-8', 'replace').strip()}]"
+            except OSError:
+                continue
         table[int(name)] = (ppid, cmd)
     return table
 

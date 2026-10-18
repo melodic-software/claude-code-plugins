@@ -63,6 +63,11 @@ itself the thing this skill removes.
    python3 "${CLAUDE_PLUGIN_ROOT}/skills/keep-going/scripts/check-child-input-wait.py" "<shell pid>"
    ```
 
+   `<shell pid>` is the OS process id of the shell, not its task or shell
+   id: take it from the pid the task reports, else find the shell with
+   `ps` (its parent is the session). When no pid can be resolved, skip
+   this check for that shell and say so in the report.
+
    It prints JSON: each descendant with its command line and a
    `waiting_on_input` verdict of `yes`, `no` or `unknown`, plus `waiting`
    and `unknown` pid lists. Exit `0`: none waiting. Exit `1`: at least one

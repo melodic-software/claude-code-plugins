@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import importlib.util
+import os
 import platform
 import subprocess
 import sys
@@ -30,9 +31,27 @@ def _proc_syscall_readable():
         return False
 
 
+class ExitCodeTests(unittest.TestCase):
+    def test_missing_root_exits_2(self):
+        code, _, err = run_checker(2**22 + 12345)
+        self.assertEqual(code, 2)
+        self.assertIn("not running", err)
+
+    def test_bad_argument_exits_2(self):
+        code, _, _ = run_checker("abc")
+        self.assertEqual(code, 2)
+
+
 @unittest.skipUnless(platform.system() == "Linux", "Linux /proc signal")
-@unittest.skipUnless(_proc_syscall_readable(), "this host hides /proc/<pid>/syscall")
 class LinuxTreeTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        if not _proc_syscall_readable():
+            # A skip would leave the stdin acceptance test green without running.
+            if os.environ.get("CI"):
+                raise AssertionError("this CI host hides /proc/<pid>/syscall")
+            raise unittest.SkipTest("this host hides /proc/<pid>/syscall")
+
     def spawn(self, script):
         # A background job in a non-interactive shell gets /dev/null as stdin,
         # so the blocking child runs in the foreground of the root shell.
@@ -73,17 +92,41 @@ class LinuxTreeTests(unittest.TestCase):
             root.kill()
             root.wait()
 
-    def test_missing_root_exits_2(self):
-        code, _, err = run_checker(2**22 + 12345)
-        self.assertEqual(code, 2)
-        self.assertIn("not running", err)
-
-    def test_bad_argument_exits_2(self):
-        code, _, _ = run_checker("abc")
-        self.assertEqual(code, 2)
-
 
 class VerdictTests(unittest.TestCase):
+    def wchan_verdict(self, wchan):
+        # Models a non-ancestor checker on a host with Yama ptrace_scope>=1:
+        # /proc/<pid>/syscall is unreadable, only wchan answers.
+        def fake_open(path, *a, **k):
+            if str(path).endswith("/stat"):
+                return mock.mock_open(read_data=b"1 (x) S 0 0")()
+            if str(path).endswith("/wchan"):
+                return mock.mock_open(read_data=wchan)()
+            raise PermissionError
+
+        with mock.patch("builtins.open", fake_open):
+            return mod._linux_verdict(1)
+
+    def test_wchan_tty_read_is_flagged(self):
+        self.assertEqual(self.wchan_verdict("n_tty_read"), "yes")
+
+    def test_wchan_nanosleep_is_unknown(self):
+        self.assertEqual(self.wchan_verdict("hrtimer_nanosleep"), "unknown")
+
+    def test_linux_table_survives_exit_between_reads(self):
+        # An empty cmdline sends the table to /proc/<pid>/comm, which can be
+        # gone by then.
+        def fake_open(path, *a, **k):
+            if str(path).endswith("/stat"):
+                return mock.mock_open(read_data=b"4242 (x) Z 1 0")()
+            if str(path).endswith("/cmdline"):
+                return mock.mock_open(read_data=b"")()
+            raise FileNotFoundError
+
+        with mock.patch("os.listdir", return_value=["4242"]), \
+                mock.patch("builtins.open", fake_open):
+            self.assertEqual(mod._linux_table(), {})
+
     def test_uninspectable_process_is_unknown(self):
         with mock.patch("builtins.open", side_effect=PermissionError):
             self.assertEqual(mod._linux_verdict(1), "unknown")
