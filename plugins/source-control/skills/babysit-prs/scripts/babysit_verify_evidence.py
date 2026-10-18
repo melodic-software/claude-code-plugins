@@ -464,16 +464,20 @@ class Reader:
         self._runs[run_id] = FOREIGN if not origin else COUNTED if done else ORIGIN
         return self._runs[run_id]
 
-    def _head_ref(self, run_id: int, name: str) -> Any:
+    def _head_ref(self, run_id: int, name: str, artifact_id: Any) -> Any:
         """The head ref an untied FAIL's verdict.json records, shared by the
-        run's gate processes: an artifact's contents never change, and a
-        FAIL whose artifact has since gone still refuses."""
-        key = f"{self.repo}|{run_id}|{name}"
-        dated = run_cache.get_dated(RECORD_SECTION, key, None)
+        run's gate processes under the artifact's id: an id names contents
+        that never change (an overwrite uploads a new id), and a FAIL whose
+        artifact has since gone still refuses. An artifact with no id is not
+        shared."""
+        shared = isinstance(artifact_id, int) and not isinstance(artifact_id, bool)
+        key = f"{self.repo}|{artifact_id}"
+        dated = run_cache.get_dated(RECORD_SECTION, key, None) if shared else None
         if dated is not None and is_json_object(dated[0]):
             return dated[0].get("head_ref")
         record = self._record(run_id, name)
-        run_cache.put(RECORD_SECTION, key, {"head_ref": record.get("head_ref")})
+        if shared:
+            run_cache.put(RECORD_SECTION, key, {"head_ref": record.get("head_ref")})
         return record.get("head_ref")
 
     def _record(self, run_id: int, name: str) -> dict[str, Any]:
@@ -716,7 +720,7 @@ class Reader:
                 continue
             if not tied:
                 try:
-                    recorded = self._head_ref(run_id, name)
+                    recorded = self._head_ref(run_id, name, item.get("id"))
                 except _Unreadable:
                     unreadable = unreadable or f"record of {name}"
                     continue

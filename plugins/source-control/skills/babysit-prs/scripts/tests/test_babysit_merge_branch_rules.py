@@ -15,6 +15,9 @@ process is spawned.
 
 from __future__ import annotations
 
+import contextlib
+import io
+import json
 import pathlib
 import sys
 import tempfile
@@ -23,9 +26,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest import mock
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge as merge
+from repo_config_fake import RepoConfigFake
 
 HEAD = "a" * 40
 # The base compare the freshness hold reads for an otherwise-ready PR.
@@ -237,9 +242,13 @@ class OneRunSharesTheBaseReads(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         path = str(pathlib.Path(tmp.name, "run.json"))
-        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path})
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        # The `--unattended` path, which `main` lets share.
+        for patcher in (
+            mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path}),
+            mock.patch.object(merge, "SHARE_BASE_READS", True),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def test_the_rules_are_read_once_per_run(self) -> None:
         with mock.patch.object(merge, "gh_json", return_value=list(self.RULES)) as gh:
@@ -277,6 +286,56 @@ class OneRunSharesTheBaseReads(unittest.TestCase):
             for _ in range(2):
                 self.assertIsNone(merge.repository_default_branch("owner/repo"))
         self.assertEqual(gh.call_count, 2)
+
+
+class AnAttendedGateReadsTheBaseFresh(unittest.TestCase):
+    """Without `--unattended`, a gate run never takes the base's rules or the
+    default branch from the run cache, whatever the cache holds."""
+
+    QUEUE = {"type": "merge_queue", "parameters": {}}
+
+    def test_the_rules_and_the_default_branch_are_read_fresh(self) -> None:
+        RepoConfigFake().install(self)
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        fresh = [self.QUEUE, _status_checks_rule(["ci-status"])]
+        with mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path}):
+            stale = [self.QUEUE, _status_checks_rule(["stale-check"])]
+            merge.run_cache.put(merge.RULES_SECTION, "owner/repo|main", stale)
+            merge.run_cache.put("default-branch", "owner/repo", "stale-default")
+
+            def gh_json(args: list[str]) -> Any:
+                if args[0] == "api" and "/compare/" in args[1]:
+                    return UP_TO_DATE
+                if args[:2] == ["pr", "view"]:
+                    return _pr()
+                if args[0] == "api" and "/rules/branches/" in args[1]:
+                    return list(fresh)
+                if args[0] == "api":
+                    return {"name": "main"}
+                raise AssertionError(f"unexpected gh_json call: {args}")
+
+            argv = ["babysit_merge.py", f"owner/repo#{PR_NUMBER}"]
+            out = io.StringIO()
+            with (
+                mock.patch.object(sys, "argv", [*argv, "--allowed-owners", "owner"]),
+                mock.patch.object(merge, "gh_json", side_effect=gh_json),
+                mock.patch.object(merge, "resolve_authors", return_value=[]),
+                mock.patch.object(merge, "fetch_review_threads", return_value=[]),
+                mock.patch.object(merge, "fetch_pull_request_reviews", return_value=[]),
+                mock.patch.object(merge, "fetch_issue_comments", return_value=[]),
+                mock.patch.object(
+                    merge, "fetch_pull_request_review_comments", return_value=[]
+                ),
+                contextlib.redirect_stdout(out),
+            ):
+                merge.main()
+        result = json.loads(out.getvalue())
+        self.assertEqual(result["effectiveRules"]["requiredContexts"], ["ci-status"])
+        self.assertEqual(
+            [b for b in result["blockers"] if "not the default branch" in b], []
+        )
 
 
 if __name__ == "__main__":

@@ -1120,6 +1120,17 @@ class OneRunSharesItsFailRunReads(unittest.TestCase):
         # The pass's run is read by every candidate.
         self.assertEqual(self.run_reads(fake, 1), 3)
 
+    def test_a_replaced_artifact_of_the_same_name_is_read_again(self) -> None:
+        # An overwrite uploads a new id under the same name: the head ref
+        # shared for the old id must not stand for the new contents.
+        fake = self.other_fail()
+        self.assertIsNone(read(fake).refusal)
+        name = named(self.OTHER, "fail", 99)
+        fake.artifacts[1] = {**fake.artifacts[1], "id": 21}
+        fake.records[name] = record(99, self.OTHER, head_ref="feat/x")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        self.assertEqual(self.downloads(fake, 2), 2)
+
     def test_a_fail_run_past_the_bound_is_read_again(self) -> None:
         clock = [datetime(2026, 10, 18, 12, 0, tzinfo=UTC)]
         fake = self.other_fail()

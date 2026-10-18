@@ -739,10 +739,11 @@ candidate, and a failed dequeue keeps nothing. A FAIL's run record is reused for
 counts whether its run is still running or finished, and a re-run keeps every field that decides
 whether the run is pr-verify's, so a stale record never turns a FAIL away. A PASS's run record is
 read by each gate process, because a re-run can undo a completed success. An untied FAIL's
-recorded head ref is shared for the run, since an artifact's contents never change. The default
-branch and the base's rules are reused for two minutes, and a failed read is never shared. Before
-an enqueue, a default branch or rules a gate took from the file are read again, and any change
-holds. Without the variable nothing is shared.
+recorded head ref is shared for the run under the artifact's id, since the contents an id names
+never change (an overwrite uploads a new id). On the `--unattended` path only, the default branch
+and the base's rules are reused for two minutes, and a failed read is never shared; before an
+enqueue, a default branch or rules a gate took from the file are read again for the branch read,
+and any change holds. An attended gate run reads both fresh. Without the variable nothing is shared.
 
 ## Trust-root paths
 
