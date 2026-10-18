@@ -136,7 +136,7 @@ class Captions(unittest.TestCase):
         (first, *_) = narration.captions(rec, narration.timing(script, rec)['beats'], min_seconds=0.834)
         self.assertEqual(first, (0.0, 0.834, 'Done.'))
 
-    def test_a_cue_too_short_to_hold_joins_its_neighbour_in_the_beat(self):
+    def test_a_cue_too_short_to_hold_joins_its_neighbor_in_the_beat(self):
         script = 'Yes. Then the rest follows'
         rec = record(script, [0.0], 2.0)   # 'Yes.' has 0.25 s before 'Then' starts
         cues = narration.captions(rec, narration.timing(script, rec)['beats'], limit=8)

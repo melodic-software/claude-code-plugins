@@ -100,7 +100,7 @@ def _balanced(sentence, limit):
 
 def captions(record, beats, limit=None, min_seconds=None, per_word=None):
     """[(start, end, text)]: each beat's sentences split into the fewest balanced runs of at most `limit` words.
-    A run whose time before the next run starts is under min_seconds joins a neighbour in its beat when the two fit
+    A run whose time before the next run starts is under min_seconds joins a neighbor in its beat when the two fit
     in `limit` words. Each cue then stays up for min_seconds and per_word seconds a word, as far as the next cue's
     start (the narration's end for the last) allows."""
     limit = limit or CAPTIONS['max_words']

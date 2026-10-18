@@ -388,9 +388,9 @@ def render_problems(meta, data):
     duration = meta.get('duration')
     if not isinstance(duration, (int, float)) or abs(duration - last) > 1 / fps:
         problems.append(f'render.json duration {duration} does not cover the shot list through {last}')
-    elif meta.get('frames') != round(last * fps):
+    elif meta.get('frames') != (need := int(last * fps + 0.5)):   # half up, as capture.mjs's Math.round
         problems.append(f'render.json has {meta.get("frames")} frames; the shot list through {last} s at {fps} fps '
-                        f'needs {round(last * fps)}')
+                        f'needs {need}')
     return problems
 
 

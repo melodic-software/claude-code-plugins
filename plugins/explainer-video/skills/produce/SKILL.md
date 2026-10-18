@@ -108,7 +108,7 @@ record bundle or beside the markdown record they explain
   - **Recheck trigger**: a new revision of R 128 or R 128 s2, or the `loudnorm` section changes its
     linear-mode conditions.
 - **Captions:** each sentence is split into the fewest balanced cues, so no cue is a one-word tail;
-  a cue too short to stand joins its neighbour in the beat, and each cue stays up for the minimum
+  a cue too short to stand joins its neighbor in the beat, and each cue stays up for the minimum
   and the reading time per word as far as the next cue allows (`captions` in
   `${CLAUDE_PLUGIN_ROOT}/scripts/defaults.json`). A cue still under the minimum fails; one under
   the reading time per word is a `FLAG:` line, since narration spoken faster cannot be captioned slower.

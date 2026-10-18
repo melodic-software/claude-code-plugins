@@ -412,6 +412,17 @@ class DemoPipelineSmoke(unittest.TestCase):
         self.assertEqual(details['zoom-share'], 'camera layer off')   # not "plain style" under produced
         self.assertIn('to read an outcome', details['stillness'])
 
+    def test_an_outcome_hold_gets_no_reading_time_with_the_captions_off(self):
+        script = json.loads(json.dumps(SCRIPT))
+        script['steps']['search']['outcome'] = 'Three results for abc, the first one is open'
+        path = self.tmp / 'script-nocap.json'
+        path.write_text(json.dumps(script))
+        edl_path = self.tmp / 'edl-nocap.json'
+        r = run('build_edl.py', self.tmp / 'capture', path, edl_path, '--layers', 'captions=false')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        holds = [sg for sg in json.loads(edl_path.read_text())['segments'] if sg.get('kind') == 'hold']
+        self.assertEqual([sg['read'] for sg in holds], [0.0] * len(holds))
+
     def test_crossfade_across_the_cut_fails(self):
         edl = json.loads(self.edl.read_text())
         c = int(round(edl['nav_cuts'][0] * self.fps))

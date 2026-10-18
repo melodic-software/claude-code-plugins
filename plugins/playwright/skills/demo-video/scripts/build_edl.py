@@ -401,8 +401,8 @@ def main(argv=None):
         dur = max(base, P['after_cut'] + in_d + 1.0) if stp['navigates'] else base
         if nxt_mv is None:
             dur = (P['after_cut'] + in_d if stp['navigates'] else 0.0) + P['end_hold']
-        # a hold that shows an outcome lasts its reading time once the outcome is up, whatever still_max says
-        read = read_seconds(stp['outcome'], CAP) if stp['outcome'] else 0.0
+        # a hold that shows an outcome caption lasts its reading time once it is up, whatever still_max says
+        read = read_seconds(stp['outcome'], CAP) if stp['outcome'] and layers['captions'] else 0.0
         dur = max(dur, P['after_cut'] + in_d + read)
         seg(st['t'], nxt_mv if nxt_mv else min(st['t'] + 1.5, end_t), dur, s, 'hold')
         segments[-1]['read'] = round(read, 4)

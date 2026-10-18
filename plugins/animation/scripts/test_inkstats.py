@@ -101,7 +101,7 @@ class Offstep(unittest.TestCase):
     def rows(frames):
         return [{'hold': n / FPS} for n in frames]
 
-    def test_a_two_then_four_pair_is_not_counted_but_its_neighbours_are(self):
+    def test_a_two_then_four_pair_is_not_counted_but_its_neighbors_are(self):
         self.assertEqual(inkstats.offstep(self.rows([3, 3, 2, 4, 3, 3]), FPS), 0.4)   # (3,2) and (4,3) of 5
 
     def test_a_lone_two_counts_in_both_of_its_pairs(self):
