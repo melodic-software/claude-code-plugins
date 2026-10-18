@@ -139,9 +139,9 @@ the session's model. Opus is chosen over the judge pass's default `sonnet` becau
 than a wrong verdict. Write its table to `<work>/classifier-answer.md` and apply that file's
 reading rules.
 
-Every brief this skill writes keeps the rendered plugin root, with no resolver or fallback path: a
-plugin that auto-updates mid-session leaves its superseded version directory in place for a
-retention window that outlasts a cleanup batch.
+Every brief this skill writes keeps the rendered plugin root, with no resolver or fallback path. We
+rely on how the harness retires a plugin's superseded version directory after an update, not on a
+path of our own.
 
 - **Pointer**: when deciding whether a rendered plugin root can still be relied on, fetch
   <https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions> live.
