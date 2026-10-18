@@ -712,9 +712,8 @@ warns of a [classifier gap](README.md#classifier-gaps).
    hosts. The skill runs no head code; `ci-status` runs the tests on the pushed head.
 3. The promote step moves the PR branch only when the skill's structured verdict is `fix`, the
    lane branch changes nothing under `.github/` in fewer than 300 files, and every commit's
-   message carries `[dependabot skip]`, so Dependabot may still rebase over the fix
-   (pr-bump-plugin-version.yml states the convention). Commits made beside any other verdict are
-   discarded with the lane branch.
+   message carries `[dependabot skip]`, so Dependabot may still rebase over the fix. Commits made
+   beside any other verdict are discarded with the lane branch.
 4. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
    `github-script` step writes `run.json` (`version`, `pr`, the gated `head_sha`, the select
    step's `security`, `config_unreadable` and `files_truncated` flags, its `started-at` as
@@ -1022,7 +1021,12 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
 a `pick-slot` job takes the issue number modulo `SLOTS` (3), and `resolve-issue` joins the
 `work-resolve-issue-slot-<n>` concurrency group with `queue: max`, so a burst of admissions waits
 in line, holding no runner, instead of spending the lanes App's hourly API quota at once.
-`report-outcome` takes no slot. What changes from the PR flow:
+`report-outcome` takes no slot. A waiting run keeps the workflow files of its label event, so when
+a change to either lane workflow file merges while it waits, the broker would refuse its mint as
+`workflow-modified`. Before the mint, the `workflow-current` step compares both files' blobs at
+`github.workflow_sha` with the default branch checkout, the broker's rule, and on a difference
+fails red `workflow-stale` with no token request and no outcome marker; work-unblock's hourly sweep
+re-fires such a failed run on main's files. What changes from the PR flow:
 
 - Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
   `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty, and unless a

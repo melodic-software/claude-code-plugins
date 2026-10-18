@@ -699,7 +699,6 @@ scripts/check-standards-contract-bump.test.sh 2
 scripts/check-summary-reader-parity.test.sh 3
 scripts/check-test-tmp-cleanup.test.sh 1
 scripts/check-vendor-version-bump.test.sh 2
-scripts/dependabot-plugin-bump.test.sh 1
 scripts/emit-windows-path.test.sh 1
 scripts/gen-hook-event-registry.test.sh 1
 scripts/generate-cheatsheet.test.sh 2
