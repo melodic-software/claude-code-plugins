@@ -10,9 +10,9 @@
 "use strict";
 const { execFileSync, spawnSync } = require("node:child_process");
 const fs = require("node:fs");
-const net = require("node:net");
 const os = require("node:os");
 const path = require("node:path");
+const { upOnSparePort } = require("./browser_harness");
 
 const here = __dirname, shared = path.resolve(here, "..");
 const results = [];
@@ -35,7 +35,6 @@ function loadPlaywright() {
   return null;
 }
 
-const freePort = () => new Promise((res, rej) => { const s = net.createServer(); s.unref(); s.on("error", rej); s.listen(0, "127.0.0.1", () => { const { port } = s.address(); s.close(() => res(port)); }); });
 const fake = path.join(here, "fixtures", process.platform === "win32" ? "fake_cloudflared.py" : "fake-cloudflared.sh");
 const env = { ...process.env, SHARED_CLOUDFLARED: process.env.SHARED_CLOUDFLARED || fake, WATCH_ID: "ui-journey" };
 const share = (dir, ...args) => {
@@ -75,7 +74,7 @@ async function main() {
   try {
     // ---------- session A: a fresh session ----------
     const dA = path.join(tmp, "topic", "shared", "po"); dirs.push(dA);
-    const up = share(dA, "ensure-running", "--guest-port", String(await freePort()));
+    const up = await upOnSparePort(port => share(dA, "ensure-running", "--guest-port", String(port)));
     ok("ensure-running answers a local URL", /^http:\/\/127\.0\.0\.1:\d+\/$/.test(up.localUrl), up.localUrl);
     const ownerUrl = fs.readFileSync(up.ownerLinkFile, "utf8").trim();
     apply(dA, [{ op: "set-title", title: "Checkout" }, { op: "open-round", questions: [
@@ -154,7 +153,7 @@ async function main() {
 
     // ---------- session B: imported from the prototype, a returning guest ----------
     const dB = path.join(tmp, "topic", "shared", "imported"); dirs.push(dB);
-    const upB = share(dB, "ensure-running", "--import", path.join(here, "fixtures", "state-v0-prototype.json"), "--guest-port", String(await freePort()));
+    const upB = await upOnSparePort(port => share(dB, "ensure-running", "--import", path.join(here, "fixtures", "state-v0-prototype.json"), "--guest-port", String(port)));
     const seed = { fn: s => { if (!localStorage.getItem("seeded")) { localStorage.setItem("seeded", "1"); for (const [k, v] of Object.entries(s)) localStorage.setItem(k, v); } } };
     // The prototype's core.js stored the secret, pid and name under these keys.
     const back = await openPage(upB.localUrl, { ...seed, arg: { secret: "fixture-guest-secret-ann-not-a-real-secret-000", pid: "pidAnn001", name: "Ann Example" } });

@@ -530,7 +530,8 @@ code with no write token and hand its change to a separate job that holds one:
    `patch-sha256` is that file's SHA-256 and `patch-attempt` is the attempt in the artifact's name.
    No change is `patch-state` `empty`, with no artifact and the other two empty. A run that
    collected no patch leaves all three empty.
-4. The verdict's `patch` field repeats `patch-state` (`null` when empty), and the check is
+4. The verdict's `patch` field repeats `patch-state` (`written`, `empty`, or `null` when the run
+   collected no patch), and the check is
    `success` titled `Passed: patch written` or `Passed: no changes`.
 
 Head code ran in the job that writes the patch, its SHA-256 and the verdict, and could have
@@ -662,9 +663,14 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    and Write are denied on the directory and on the tool's replies directory. The tool lists the
    kept threads, checks paths, and records a reply: it refuses a disposition file outside the
    scratch directory or off the template, and a `VALID` reply whose fix is not on the lane branch
-   or whose lane branch changes a file no kept thread names or any `.github/` path. It posts
-   nothing. The promote step then moves the PR branch only when the lane branch changes nothing
-   but kept-thread paths, none under `.github/`, in fewer than 300 files.
+   or whose lane branch changes a file outside every kept thread's scope or any `.github/` path.
+   A thread's scope is its path; a file in the `plugins/<p>/` directory its path sits in, except
+   one under `hooks/`, `.claude-plugin/` or a `.claude/` directory, a `CLAUDE.md` or `AGENTS.md`,
+   or a `.sh`, `.py`, `.mjs`, `.js` or `.ts` file; and a test file (`test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`) in its path's
+   directory. It posts nothing. The promote step then moves the PR branch only when every path the
+   lane branch changes is in a kept thread's scope, none under `.github/`, in fewer than 300
+   files, judged by a copy of the base's `thread-scope.mjs` taken before the head checkout and
+   imported only when its SHA-256 matches.
 3. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
    `github-script` step writes `run.json` (the gated head and the kept threads' ids, paths and
    comment ids, from the thread file) beside a copy of the tool's `replies.jsonl`, and the job
@@ -691,7 +697,7 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
      and escalates `feedback-incomplete`;
    - when a reply is `VALID` or the PR branch moved, compares the model job's gated head with the
      PR's current head: the branch must be ahead, hold every fix commit, and change fewer than 300
-     files, each a kept thread's path and none under `.github/`, and each fix commit must change
+     files, each in a kept thread's scope and none under `.github/`, and each fix commit must change
      its own thread's path. Otherwise it posts no reply and escalates `feedback-not-landed`;
    - re-reads every kept thread and, right before posting, the thread itself, and skips one that
      is resolved, on another PR, or whose comments are not exactly the ones the model job read;
@@ -717,7 +723,7 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    The script writes its reason to `ESCALATION_REASON_FILE`; the runner accepts only those six
    reasons, and only with `review-replies`, as the run's `escalation-reason` output.
 
-The skill's limits to kept-thread paths and away from `.github/` are instructions and the tool's
+The skill's limits to kept-thread scope and away from `.github/` are instructions and the tool's
 checks at record time; the promote step's path check is what holds the push, and the reply job's
 compare withholds the replies when the branch changed anything else. A diff at the files listing's limit escalates as `feedback-protected-path`,
 since it could hide a `.github/` path. Residual: a reviewed-head marker confirms a head, not one
@@ -875,7 +881,7 @@ passes the model job's `patch-state`, `patch-sha256`, `patch-attempt`, `head-sha
    environment (no hooks, fsmonitor, global or system config): checks the SHA-256 again, reads
    the gated head into the index, runs `git apply --cached --check` then `git apply --cached`
    (escalating `ci-fix-not-applied` on failure), writes the tree, and lists it against the gated
-   head with `git diff-tree -r --no-renames`. A path under `.github/` (address-feedback.mjs's
+   head with `git diff-tree -r --no-renames`. A path under `.github/` (thread-scope.mjs's
    `isProtectedPath`, the rule the review-threads mode applies) escalates
    `ci-fix-protected-path`; a mode `120000` or `160000` on either side, or no change, escalates
    `ci-fix-invalid`. It then re-reads the pull request and its labels and stops uncommitted

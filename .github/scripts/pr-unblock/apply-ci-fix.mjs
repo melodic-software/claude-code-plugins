@@ -13,7 +13,7 @@
 //           empty or invalid patch hands the PR to a person.
 //   (none)  the activity's script step, after the head checkout, with the
 //           lane token: applies the patch to the index with no --unsafe-paths,
-//           refuses a change under .github/ (address-feedback.mjs's
+//           refuses a change under .github/ (thread-scope.mjs's
 //           isProtectedPath, the review-fix lane's rule) or a symbolic link or
 //           gitlink, re-reads the hold labels and draft state, then commits
 //           the tree on the gated head through the Git Data API and moves the
@@ -31,7 +31,8 @@ import { appendFileSync, existsSync, lstatSync, readdirSync, readFileSync, write
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { createGitHubApi, isProtectedPath, need, positive, SHA } from "./address-feedback.mjs";
+import { createGitHubApi, need, positive, SHA } from "./address-feedback.mjs";
+import { isProtectedPath } from "./thread-scope.mjs";
 import { FIX_TRAILER } from "./fix-ci-context.mjs";
 
 export const MAX_PATCH_BYTES = 1024 * 1024;

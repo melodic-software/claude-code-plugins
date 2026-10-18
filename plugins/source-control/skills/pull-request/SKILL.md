@@ -71,7 +71,7 @@ For PR lifecycle runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pul
 | `comments` | Phase 3.5 | Evaluate/respond to PR comments only |
 | `comments --ci` | Phase 3.5 (CI) | The pr-unblock lane's unattended mode: the runner's kept reviewer-bot threads only, through its review-thread tool, running no head code. See [reference/comments-ci.md](reference/comments-ci.md) |
 | `dependency --ci` | Phase 3.5 (CI) | The pr-unblock lane's unattended review of one risky Dependabot update: reads the runner's context file, the checkout and the upstream release notes as data, may push a scoped fix outside `.github/`, and returns a merge, fix, close or escalate verdict as structured output, running no head code. See [reference/dependency-ci.md](reference/dependency-ci.md) |
-| `ci --ci` | Phase 3 (CI) | The pr-unblock lane's unattended fix of a PR's failing checks: reads the runner's context file as data, reproduces each check with the repository's own command, fixes the cause, reruns it, and leaves the fix uncommitted for the runner's patch; never weakens a check, and escalates what it cannot fix with a named reason. See [reference/ci-ci.md](reference/ci-ci.md) |
+| `ci --ci` | CI | The pr-unblock lane's unattended fix of a PR's failing checks: reads the runner's context file as data, reproduces each check with the repository's own command, fixes the cause, reruns it, and leaves the fix uncommitted for the runner's patch; never weakens a check, and escalates what it cannot fix with a named reason. See [reference/ci-ci.md](reference/ci-ci.md) |
 | `merge` | Phase 4 | Squash merge, or merge or enqueue pinned to the reviewed head commit once the PR is `CLEAN` and the AI review checks have passed on that head, then confirm a merge-queue PR entered the queue (enqueue a `CLEAN` one left out, report the refusal text verbatim; §4.2.2) and wait for `MERGED` (no strategy flag behind a merge queue, never arm auto-merge; [reference/merge.md](reference/merge.md) §4.2.1) + worktree transition (reuse it, or release this session's lock) + verify. Never removes a worktree: that is `/source-control:worktree cleanup` |
 | `status` | Report only | Unified status across all phases |
 | `full` | Phase 1-4 | Run prep → create → monitor → merge end-to-end |
@@ -141,7 +141,7 @@ Execute in order. Each phase is self-contained. Read the relevant file for detai
 | 3. Monitor | [reference/monitor.md](reference/monitor.md) | `monitor`, `comments` |
 | 3.5 (CI) | [reference/comments-ci.md](reference/comments-ci.md) | `comments --ci` |
 | 3.5 (CI) | [reference/dependency-ci.md](reference/dependency-ci.md) | `dependency --ci` |
-| 3 (CI) | [reference/ci-ci.md](reference/ci-ci.md) | `ci --ci` |
+| CI | [reference/ci-ci.md](reference/ci-ci.md) | `ci --ci` |
 | 4. Merge | [reference/merge.md](reference/merge.md) | `merge` |
 
 ---

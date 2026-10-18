@@ -30,7 +30,14 @@ new `patch-state`, `patch-sha256` and `patch-attempt` outputs, beside a new `hea
 empty change is `patch-state` `empty` and a success check titled `Passed: no changes`
 ([pr-run-activity.md](pr-run-activity.md#patch-output-mode)). `version` stays 2.
 
-## 2.12.3 - 2026-10-18
+## 2.12.5 - 2026-10-18
+
+The unattended merge gate reads `merge.max-in-flight` at the default branch head instead of at each
+pull request's base, once per cache window; when the head's config cannot be read, the base's value
+applies, and the post-enqueue room check keeps the lower of that and the cap the assessment applied. Every other `merge.` key is still read at the base.
+`version` stays 2.
+
+## 2.12.4 - 2026-10-18
 
 `pr-run-activity-read.yml` takes a `dispatcher-run-id` input and passes it to its trigger gate with
 `dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml` and
@@ -38,6 +45,18 @@ empty change is `patch-state` `empty` and a success check titled `Passed: no cha
 `pr-unblock-dispatch.yml` sent to `pr-unblock.yml` runs; any other `github-actions[bot]` dispatch
 still stops with `untrusted-actor`. With the id set, the skill step also admits `github-actions` in
 `allowed_bots`. No caller passes it yet. `version` stays 2.
+
+## 2.12.3 - 2026-10-18
+
+`pr-unblock` `address-feedback` widens a kept thread's scope from its path alone to also a file in
+the `plugins/<p>/` directory that path sits in, and a test file (`test_*.py`, `*_test.py`,
+`*.test.*`, `*.spec.*`) in that path's directory
+([#8109](https://github.com/melodic-software/claude-code-plugins/issues/8109)). The plugin-wide
+part leaves out files the harness or a shell runs or loads as instructions: anything under
+`hooks/`, `.claude-plugin/` or a `.claude/` directory, a `CLAUDE.md` or `AGENTS.md`, and any
+`.sh`, `.py`, `.mjs`, `.js` or `.ts` file. The review-thread tool, the promote step and the reply
+job apply the same rule; the promote step imports the base's `thread-scope.mjs` from a copy taken
+before the head checkout, checked against its SHA-256. `.github/` stays refused. `version` stays 2.
 
 ## 2.12.2 - 2026-10-18
 

@@ -256,7 +256,9 @@ async function main() {
     ok("host view: the owner's shows people, the queue, round status, links, goal and Later",
       !!own && ["People", "Queue", "Round", "Links and settings", "Later"].every(k => own.secs.includes(k)) && own.people.includes("Gus") && /Round 1/.test(own.round) && own.goal === GOAL, JSON.stringify(own));
     await owner.evaluate(p => window.Core.setLeader(p, true), piaPid);
-    await until(pia, () => window.Core.me.isLeader);
+    // Until the page shows it, not only knows it: the promotion swaps View options for the view switch, and a click on
+    // View options read before that swap waits for a button that is gone.
+    await until(pia, () => window.Core.me.isLeader && [...document.querySelectorAll(".vf-bar .vf-seg-btn")].some(b => b.offsetParent && b.textContent.trim() === "Host"));
     const lead = await hostPane(pia);
     ok("host view: a leader's shows people, the queue, round status, goal and Later",
       !!lead && ["People", "Queue", "Round", "Later"].every(k => lead.secs.includes(k)) && lead.people.includes("Gus") && /Round 1/.test(lead.round) && lead.goal === GOAL, JSON.stringify(lead));
@@ -290,7 +292,7 @@ async function main() {
     if (await sendAnyway.isVisible().catch(() => false)) await sendAnyway.click();
     ok("round lifecycle: after Send, guests see Waiting for Claude", await until(bo, () => document.querySelector(".vf-next .vf-steps [aria-current=step]")?.textContent === "Waiting for Claude"), await curStep(bo));
     const cancelBtn = host.locator(".vf-cancel-send").first();
-    ok("round lifecycle: the owner gets Cancel while it waits", await cancelBtn.isVisible());
+    ok("round lifecycle: the owner gets Cancel while it waits", await cancelBtn.waitFor({ timeout: 8000 }).then(() => true, () => false));
     await cancelBtn.click();
     await host.locator("dialog[open] button", { hasText: "Cancel sending" }).click();
     ok("round lifecycle: Cancel works, and guests see the round open again", await toastHas(bo, /cancelled\. It is open again/)
