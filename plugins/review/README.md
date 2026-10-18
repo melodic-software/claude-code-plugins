@@ -230,7 +230,7 @@ Three supported routes:
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
-   claude plugin install review@<marketplace> -s <scope> --config ratchet_offer=<value>
+   claude plugin install review@<marketplace> -s <scope> --config connected_page_guard_enabled=<value>
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
@@ -254,7 +254,7 @@ Three supported routes:
      "pluginConfigs": {
        "review@<marketplace>": {
          "options": {
-           "ratchet_offer": <value>
+           "connected_page_guard_enabled": <value>
          }
        }
      }
