@@ -27,6 +27,15 @@ check() { # check <label> <expected stdout> <expected exit> <input> [awk -v args
 }
 
 T=$'\t'
+# -v STRICT=1: a key repeated in one mapping is a parse error at the second
+# occurrence; without it both records print as before.
+check 'a repeated key keeps both records without STRICT' "a${T}1"$'\n'"b${T}2"$'\n'"a${T}3" 0 'a: 1\nb: 2\na: 3\n'
+check 'a repeated key fails under STRICT at the second line' "a${T}1"$'\n'"b${T}2"$'\n'"error${T}3${T}duplicate key \`a\` (first at line 1)" 1 'a: 1\nb: 2\na: 3\n' -v STRICT=1
+check 'a repeated nested key fails under STRICT' "m.k${T}1"$'\n'"error${T}3${T}duplicate key \`m.k\` (first at line 2)" 1 'm:\n  k: 1\n  k: 2\n' -v STRICT=1
+check 'a repeated flow-mapping key fails under STRICT' "m.k${T}1"$'\n'"error${T}1${T}duplicate key \`m.k\` (first at line 1)" 1 'm: {k: 1, k: 2}\n' -v STRICT=1
+check 'the same key under two parents is not a duplicate under STRICT' "a.k${T}1"$'\n'"b.k${T}2" 0 'a:\n  k: 1\nb:\n  k: 2\n' -v STRICT=1
+check 'the same key in two sequence items is not a duplicate under STRICT' "l.0.k${T}1"$'\n'"l.1.k${T}2" 0 'l:\n  - k: 1\n  - k: 2\n' -v STRICT=1
+check 'a key repeated inside one sequence item fails under STRICT' "l.0.k${T}1"$'\n'"error${T}3${T}duplicate key \`l.0.k\` (first at line 2)" 1 'l:\n  - k: 1\n    k: 2\n' -v STRICT=1
 check 'a tab indent on line 1 is a parse error' "error${T}1${T}tab indentation" 1 '\tkey: v\n'
 check 'a tab after a space indent is a parse error' "error${T}2${T}tab indentation" 1 'a:\n \tb: v\n'
 check 'a tab indent on a later line is a parse error' "a${T}1"$'\n'"error${T}2${T}tab indentation" 1 'a: 1\n\tb: 2\n'
