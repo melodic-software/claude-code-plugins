@@ -347,7 +347,7 @@ through the Read tool, or on the Bash tool's environment carrying `CLAUDE_SKILL_
 
 ## Next
 
-- Which external binaries the enabled fleet is missing: /harness-ops:prerequisites
+/harness-ops:prerequisites lists which external binaries the enabled fleet is missing.
 
 ## Reference index. Load on demand
 

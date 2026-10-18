@@ -8,14 +8,21 @@
 #
 # No CLI to install/upgrade here (unlike context7's ctx7 package) — only vendored prose to diff.
 #
-# Exit codes:
-#   0 — verified: no drift detected (or drift reported in report mode)
-#   1 — prerequisites missing (curl, diff not on PATH), or fetch/write failure (state unverifiable)
-#   2 — drift detected (content differs, or baseline missing in report mode)
+# Exit codes (the shared drift-check contract):
+#   0 — no drift, or --refresh-baseline completed
+#   1 — drift: upstream differs from the vendored baseline, or the baseline is missing
+#   2 — unverifiable: curl or diff missing, fetch or write failure, or usage
 
 set -uo pipefail
 
 MODE="${1:-report}"
+case "$MODE" in
+report | --refresh-baseline) ;;
+*)
+  echo "✖ Unknown mode: $MODE (expected report or --refresh-baseline)" >&2
+  exit 2
+  ;;
+esac
 
 # All paths resolve relative to this script's own location, so the script works
 # both in the installed plugin cache and in a working clone of the marketplace repo.
@@ -35,7 +42,7 @@ strip_attribution() {
 for cmd in curl diff; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "✖ Required command not found: $cmd" >&2
-    exit 1
+    exit 2
   fi
 done
 
@@ -51,7 +58,7 @@ trap 'rm -f "$tmpfile" "$baseline_lf" "$tmpfile_lf"' EXIT
 curl_err=$(curl -fsSL "$UPSTREAM_URL" -o "$tmpfile" 2>&1 >/dev/null) || {
   echo "  ✖ Failed to fetch $UPSTREAM_URL" >&2
   [[ -n "$curl_err" ]] && echo "    $curl_err" >&2
-  exit 1
+  exit 2
 }
 
 if [[ ! -f "$BASELINE" ]]; then
@@ -59,13 +66,13 @@ if [[ ! -f "$BASELINE" ]]; then
   if [[ "$MODE" == "--refresh-baseline" ]]; then
     if ! cp "$tmpfile" "$BASELINE"; then
       echo "  ✖ Failed to seed baseline (check permissions/disk)" >&2
-      exit 1
+      exit 2
     fi
     echo "  ✓ Baseline seeded ($(wc -c <"$BASELINE") bytes)"
     exit 0
   fi
-  echo "  ↳ Run with --refresh-baseline to seed (until seeded, state is unverified)"
-  exit 2
+  echo "  ↳ Drift: run with --refresh-baseline to seed the baseline"
+  exit 1
 fi
 
 # Normalize line endings before comparing — baseline may be CRLF on Windows checkouts,
@@ -95,7 +102,7 @@ echo ""
 if [[ "$MODE" == "--refresh-baseline" ]]; then
   if ! cp "$tmpfile" "$BASELINE"; then
     echo "  ✖ Failed to refresh baseline (check permissions/disk)" >&2
-    exit 1
+    exit 2
   fi
   echo "  ✓ Baseline refreshed to match current upstream"
   echo "  ↳ Re-add the attribution comment (see context/update.md) — --refresh-baseline"
@@ -115,4 +122,4 @@ echo ""
 echo "=== Summary ==="
 echo "↳ Drift detected. See sections above."
 echo "Next: review the diff, port relevant changes, then --refresh-baseline."
-exit 2
+exit 1

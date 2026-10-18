@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": ".btn {\n  border-radius: 14px;\n  corner-shape: squircle;\n}\n\n.btn:focus-visible {\n  outline: 2px solid var(--color-focus);\n  outline-offset: 2px;\n}",
+      "why": "border-radius with corner-shape and a visible focus indicator"
+    },
+    {
+      "answer": ".btn {\n  border-radius: 14px;\n}\n\n.btn:focus-visible {\n  outline: 2px solid var(--color-focus);\n  outline-offset: 2px;\n}",
+      "why": "plain border-radius, no clip-path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".btn {\n  clip-path: inset(0 round 14px);\n}",
+      "why": "clip-path on the button cuts off its focus outline"
+    },
+    {
+      "answer": ".btn {\n  clip-path: polygon(8% 0, 92% 0, 100% 8%, 100% 92%, 92% 100%, 8% 100%, 0 92%, 0 8%);\n}\n\n.btn:focus-visible {\n  outline: 2px solid var(--color-focus);\n}",
+      "why": "clip-path on the button, so the focus outline is clipped even though one is declared"
+    }
+  ]
+}

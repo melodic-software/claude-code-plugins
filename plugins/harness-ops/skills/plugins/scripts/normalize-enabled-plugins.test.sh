@@ -57,11 +57,15 @@ assert_contains "--help lists the exit codes" "$out" "Exit: 0 already sorted"
 NOJQ_BIN="$TEST_TMPDIR/nojq-bin"
 mkdir -p "$NOJQ_BIN"
 for tool in bash cat; do
-  ln -s "$(command -v "$tool")" "$NOJQ_BIN/$tool"
+  ln -s "$(command -v "$tool")" "$NOJQ_BIN/$tool" 2>/dev/null
 done
-rc=0
-PATH="$NOJQ_BIN" "$NOJQ_BIN/bash" "$NORM" --help >/dev/null 2>&1 || rc=$?
-assert_exit "--help without jq exits 0" 0 "$rc"
+if [[ -L "$NOJQ_BIN/bash" ]] && [[ "$(PATH="$NOJQ_BIN" "$NOJQ_BIN/bash" -c 'echo ok' 2>/dev/null)" == "ok" ]]; then
+  rc=0
+  PATH="$NOJQ_BIN" "$NOJQ_BIN/bash" "$NORM" --help >/dev/null 2>&1 || rc=$?
+  assert_exit "--help without jq exits 0" 0 "$rc"
+else
+  printf 'SKIP: no-jq case — ln -s cannot make a runnable link on this host (Windows without the symlink privilege)\n' >&2
+fi
 
 MISSING="$TEST_TMPDIR/no-such.json"
 rc=0

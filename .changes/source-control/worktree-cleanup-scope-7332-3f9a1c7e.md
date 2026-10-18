@@ -9,4 +9,4 @@ bump: minor
 
 ### Changed
 
-- `cleanup` Step 4c runs the landed-branch deletion and the current-worktree removal itself on Linux and macOS after the Step 4 confirmation and a passed stranded-work guard. It still emits them for the user on Windows or when a hook blocks the command.
+- `cleanup` Step 4b runs the landed-branch deletion and the current-worktree removal itself on Linux and macOS after the Step 4 confirmation and a passed stranded-work guard. It still emits them for the user on Windows or when a hook blocks the command.
