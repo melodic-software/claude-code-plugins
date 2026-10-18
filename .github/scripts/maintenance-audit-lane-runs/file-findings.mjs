@@ -49,7 +49,7 @@ export function prepareItems({ findingsDir, baseDir }) {
       if (failed) {
         dropped.push({
           unit: data.unit,
-          title: inertTitle(finding.title),
+          title: finding.title,
           reason: `${failed[0].path}:${failed[0].line} ${failed[1].reason}`,
         });
         continue;
@@ -59,6 +59,12 @@ export function prepareItems({ findingsDir, baseDir }) {
   }
   return { items, dropped };
 }
+
+// Model text in the step summary: one line, no code spans, links, mentions
+// or HTML.
+const inertLine = (text) => inertTitle(String(text ?? "").replace(/[\r\n]+/g, " ").replace(/`/g, ""));
+
+export const droppedLine = (d) => `- dropped (${d.unit}) ${inertLine(d.title)}: ${inertLine(d.reason)}`;
 
 async function main() {
   const env = process.env;
@@ -128,7 +134,7 @@ async function main() {
     `Filed: ${filed.map((n) => `#${n}`).join(", ") || "none"}. Commented: ${plan.comment.map((c) => `#${c.number}`).join(", ") || "none"}. Labels applied: ${labels.join(", ") || "none"}. Calls: ${budget.used}.`,
     "",
     ...plan.skip.map((s) => `- skipped ${s.fingerprint}: ${s.reason}`),
-    ...dropped.map((d) => `- dropped (${d.unit}) ${String(d.title ?? "").replace(/[<`]/g, "")}: ${d.reason}`),
+    ...dropped.map(droppedLine),
   ];
   appendFileSync(env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
   console.log(

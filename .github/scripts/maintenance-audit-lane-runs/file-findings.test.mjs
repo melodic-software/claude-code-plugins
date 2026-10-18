@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { prepareItems } from "./file-findings.mjs";
+import { droppedLine, prepareItems } from "./file-findings.mjs";
 import { parseJudgeOutput } from "./write-findings.mjs";
 
 const finding = (over = {}) => ({
@@ -70,4 +70,15 @@ test("a finding with any failed claim is dropped before planning", (t) => {
   assert.equal(items.length, 1);
   assert.match(items[0].fingerprint, /^[0-9a-f]{16}$/);
   assert.deepEqual(dropped, [{ unit: "d1", title: finding().title, reason: "a.yml:1 quote-not-on-line" }]);
+});
+
+test("a dropped line renders the title and reason inert on one line", () => {
+  const line = droppedLine({
+    unit: "a1",
+    title: "fix: `x` <b>@octocat</b>",
+    reason: "[approve here](https://evil.example)\n## Action required <img> `y` @octocat:1 bad-path",
+  });
+  assert.equal(line.split("\n").length, 1);
+  assert.doesNotMatch(line, /[<`]|(?<!\\)\]\(|https:\/\/|@[A-Za-z]/);
+  assert.match(line, /^- dropped \(a1\) fix: x &lt;b>@​octocat&lt;\/b>: /);
 });
