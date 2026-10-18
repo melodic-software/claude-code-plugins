@@ -17,8 +17,21 @@
 import { closeSync, openSync, readSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-// connect-src, then a source list whose first loopback origin ends the match.
-const LOOPBACK_CONNECT = /connect-src[^;"'<>]*?\b(?:https?|wss?):\/\/(?:127(?:\.\d{1,3}){3}|localhost|\[::1\]|0\.0\.0\.0)(?::\d{1,5})?(?![\w.-])/i;
+// Each connect-src source list, up to the directive's end; quoted keywords stay in it.
+const CONNECT_SRC = /connect-src\s+([^;"<>]*)/gi;
+// A source's host: scheme and path dropped, a bracketed IPv6 literal kept whole.
+const SOURCE_HOST = /^(?:[a-z][a-z0-9+.-]*:\/\/)?(\[[^\]]*\]|[^/:?#]*)/i;
+const LOOPBACK_HOST = /^(?:localhost|(?:[^.]+\.)+localhost|0\.0\.0\.0|127(?:\.\d{1,3}){0,3}|\[(?:::1|(?:0{1,4}:){7}0{0,3}1|::ffff:127(?:\.\d{1,3}){3})\])$/i;
+
+function loopbackConnect(text) {
+  for (const [, list] of text.matchAll(CONNECT_SRC)) {
+    for (const source of list.split(/\s+/)) {
+      if (!source || source.startsWith("'")) continue;
+      if (LOOPBACK_HOST.test(SOURCE_HOST.exec(source)?.[1] ?? '')) return true;
+    }
+  }
+  return false;
+}
 const HTML_NAME = /\.html?$/i;
 const HTML_SNIFF = /^\s*<(?:!doctype\s+html|html[\s>])/i;
 const READ_LIMIT = 2 * 1024 * 1024;
@@ -42,7 +55,7 @@ function connected(path, cwd) {
     return false; // unreadable: the Artifact tool fails on it anyway
   }
   if (!HTML_NAME.test(path) && !HTML_SNIFF.test(text.slice(0, 1024))) return false;
-  return LOOPBACK_CONNECT.test(text);
+  return loopbackConnect(text);
 }
 
 const paths = (input) => {
