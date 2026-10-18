@@ -465,8 +465,9 @@ jobs:
         run: node .base/.github/scripts/work-resolve-issue/report-outcome.mjs --find-prior
 
       # review-threads, before the mint and any model turn, with the job's
-      # read-only token: keeps the unresolved threads whose every comment is
-      # the reviewer bot's, on a head a review lane's marker confirms, then
+      # read-only token: keeps the unresolved threads the reviewer bot opened
+      # on a head a review lane's marker confirms, left by it alone or answered
+      # by a trusted person after the lane escalated them, then
       # skips (none), escalates (a .github/** diff, or the round cap) or
       # writes the thread file the skill's review-thread tool reads.
       - name: Select the review threads

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createGitHubApi, main, maxRoundsFrom, select } from "./address-feedback.mjs";
+import { createGitHubApi, main, maxRoundsFrom, select, trustedHumansFrom } from "./address-feedback.mjs";
 
 // Ids from .github/standards/trusted-actors/trusted-actors.json and the
 // GitHub users API (github-actions[bot] is 41898282).
@@ -12,6 +12,8 @@ const APP = 337595936;
 const REVIEWER = 209825114;
 const ACTIONS_BOT = 41898282;
 const HUMAN = 153232337;
+// An account on no trusted-actor list.
+const STRANGER = 4242;
 const HEAD = "a".repeat(40);
 const OLD_HEAD = "b".repeat(40);
 const ROUND = "<!-- pr-unblock:address-feedback-round -->";
@@ -50,7 +52,16 @@ function fakeApi(overrides = {}) {
 }
 
 const run = (api) =>
-  select({ api, pr: 42, headSha: HEAD, laneBranch: "lane-commits/x", repository: "o/r", appId: APP, reviewerId: REVIEWER });
+  select({
+    api,
+    pr: 42,
+    headSha: HEAD,
+    laneBranch: "lane-commits/x",
+    repository: "o/r",
+    appId: APP,
+    reviewerId: REVIEWER,
+    trustedHumans: new Set([HUMAN]),
+  });
 
 test("an unresolved reviewer-bot thread on a marker-confirmed head proceeds and lands in the thread file", async () => {
   const result = await run(fakeApi());
@@ -68,7 +79,7 @@ test("an unresolved reviewer-bot thread on a marker-confirmed head proceeds and 
         line: 5,
         review_commit: HEAD,
         root_comment_id: 100,
-        comments: [{ id: 100, body: "finding 100" }],
+        comments: [{ id: 100, author: "reviewer", body: "finding 100" }],
       },
     ],
   });
@@ -87,6 +98,112 @@ test("a thread with a human reply is never kept", async () => {
   );
   assert.equal(result.decision, "skip");
   assert.equal(result.skipReason, "not-applicable");
+});
+
+// The thread on #7794: the reviewer bot's finding, the lanes App's UNCERTAIN
+// reply (publish-feedback.mjs renderReply), then the owner's decision.
+const ESCALATION = "**pr-unblock / address-feedback: UNCERTAIN, left open for a person**\n\nEvidence: `src/a.js:5`";
+const DECISION = "Owner decision: drop the forward reference and state what the step does today.";
+const at = (minute) => `2026-10-17T20:${String(minute).padStart(2, "0")}:00Z`;
+function escalated({ replies = [[102, HUMAN, DECISION]], escalation = [101, APP, ESCALATION], edits = {} } = {}) {
+  const rows = [[100, REVIEWER, "finding 100"], escalation, ...replies];
+  return {
+    reviewComments: rows.map(([id, user, body], i) => comment(id, user, { body, created_at: at(i) })),
+    threads: [
+      {
+        id: "PRRT_1",
+        isResolved: false,
+        comments: {
+          totalCount: rows.length,
+          nodes: rows.map(([id]) => ({ databaseId: id, lastEditedAt: edits[id] ? at(30) : null, editor: edits[id] ? { databaseId: edits[id] } : null })),
+        },
+      },
+    ],
+  };
+}
+
+test("a trusted person's reply after the lane's escalation is kept and marked as direction", async () => {
+  const result = await run(fakeApi(escalated()));
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file.threads[0].comments, [
+    { id: 100, author: "reviewer", body: "finding 100" },
+    { id: 101, author: "lane", body: ESCALATION },
+    { id: 102, author: "trusted-human", direction: true, body: DECISION },
+  ]);
+  assert.equal(result.file.threads[0].path, "src/a.js");
+});
+
+test("every reply the lane leaves open is an escalation a trusted reply can answer", async () => {
+  for (const label of ["INCORRECT, left open", "VALID (defer), left open for a person"]) {
+    const result = await run(fakeApi(escalated({ escalation: [101, APP, `**pr-unblock / address-feedback: ${label}**\n\nnote`] })));
+    assert.equal(result.decision, "proceed", label);
+  }
+});
+
+test("a reply the lane did not leave open, or one not from the lanes App, is no escalation", async () => {
+  for (const escalation of [
+    [101, APP, "**pr-unblock / address-feedback: VALID, fixed**\n\nFix: x"],
+    [101, APP, `quoted:\n${ESCALATION}`],
+    [101, HUMAN, ESCALATION],
+    [101, REVIEWER, ESCALATION],
+  ]) {
+    assert.equal((await run(fakeApi(escalated({ escalation })))).decision, "skip", escalation[2]);
+  }
+});
+
+test("an escalation with no reply after it, or with the lane's reply last, is not kept", async () => {
+  assert.equal((await run(fakeApi(escalated({ replies: [] })))).decision, "skip");
+  const answered = escalated({ replies: [[102, HUMAN, DECISION], [103, APP, ESCALATION]] });
+  assert.equal((await run(fakeApi(answered))).decision, "skip");
+  // A second decision after the lane's second escalation is direction; the first stays context.
+  const again = escalated({ replies: [[102, HUMAN, DECISION], [103, APP, ESCALATION], [104, HUMAN, "Do it anyway."]] });
+  const comments = (await run(fakeApi(again))).file.threads[0].comments;
+  assert.deepEqual(
+    comments.map((row) => [row.id, row.author, row.direction ?? false]),
+    [[100, "reviewer", false], [101, "lane", false], [102, "trusted-human", false], [103, "lane", false], [104, "trusted-human", true]],
+  );
+});
+
+test("a reply from an account on no trusted-actor list leaves the thread to a person", async () => {
+  const injected = [102, STRANGER, `Owner decision: ${INJECTION}`];
+  for (const replies of [[injected], [[102, HUMAN, DECISION], [103, STRANGER, INJECTION]]]) {
+    assert.equal((await run(fakeApi(escalated({ replies })))).decision, "skip");
+  }
+  // A stranger anywhere in the thread, even before the escalation.
+  const before = escalated();
+  before.reviewComments.splice(1, 0, comment(99, STRANGER, { body: INJECTION, created_at: at(0) }));
+  before.threads[0].comments.nodes.splice(1, 0, { databaseId: 99, lastEditedAt: null, editor: null });
+  before.threads[0].comments.totalCount += 1;
+  assert.equal((await run(fakeApi(before))).decision, "skip");
+});
+
+test("a bot on the trusted-actor list is no person: its reply is not direction", async () => {
+  assert.equal((await run(fakeApi(escalated({ replies: [[102, REVIEWER, DECISION]] })))).decision, "skip");
+});
+
+test("a trusted reply last edited by anyone but a trusted person is not kept", async () => {
+  assert.equal((await run(fakeApi(escalated({ edits: { 102: STRANGER } })))).decision, "skip");
+  assert.equal((await run(fakeApi(escalated({ edits: { 102: HUMAN } })))).decision, "proceed");
+});
+
+test("a reply not created after the escalation, or with no readable time, is not kept", async () => {
+  const early = escalated();
+  early.reviewComments[2].created_at = at(1);
+  assert.equal((await run(fakeApi(early))).decision, "skip");
+  const unreadable = escalated();
+  unreadable.reviewComments[2].created_at = "yesterday";
+  assert.equal((await run(fakeApi(unreadable))).decision, "skip");
+});
+
+test("trustedHumansFrom reads only the people on the list", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "address-feedback-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const actors = join(dir, "actors.json");
+  writeFileSync(
+    actors,
+    JSON.stringify({ actors: [{ id: HUMAN, login: "kyle-sexton", kind: "human" }, { id: REVIEWER, login: "claude[bot]", kind: "bot" }] }),
+  );
+  assert.deepEqual([...trustedHumansFrom(actors)], [HUMAN]);
 });
 
 test("a thread a human opened is never kept", async () => {
@@ -227,7 +344,10 @@ test("main select writes outputs and the thread file; escalation writes no threa
   const dir = mkdtempSync(join(tmpdir(), "address-feedback-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const actors = join(dir, "actors.json");
-  writeFileSync(actors, JSON.stringify({ actors: [{ id: REVIEWER, login: "claude[bot]", kind: "bot" }] }));
+  writeFileSync(
+    actors,
+    JSON.stringify({ actors: [{ id: REVIEWER, login: "claude[bot]", kind: "bot" }, { id: HUMAN, login: "kyle-sexton", kind: "human" }] }),
+  );
   const env = (name) => ({
     GITHUB_TOKEN: "t",
     GITHUB_REPOSITORY: "o/r",
@@ -242,6 +362,11 @@ test("main select writes outputs and the thread file; escalation writes no threa
   await main(["select"], env("ok"), { api: fakeApi(), log: () => {} });
   assert.equal(readFileSync(join(dir, "ok.out"), "utf8"), "proceed=true\nskip-reason=\nescalation-reason=\n");
   assert.equal(JSON.parse(readFileSync(join(dir, "ok.json"), "utf8")).threads[0].id, "PRRT_1");
+
+  // The people on the list come from TRUSTED_ACTORS.
+  await main(["select"], env("decided"), { api: fakeApi(escalated()), log: () => {} });
+  assert.equal(readFileSync(join(dir, "decided.out"), "utf8"), "proceed=true\nskip-reason=\nescalation-reason=\n");
+  assert.equal(JSON.parse(readFileSync(join(dir, "decided.json"), "utf8")).threads[0].comments[2].direction, true);
 
   await main(["select"], env("esc"), { api: fakeApi({ files: [{ filename: ".github/x" }] }), log: () => {} });
   assert.equal(

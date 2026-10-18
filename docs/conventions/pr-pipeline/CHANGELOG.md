@@ -1,5 +1,14 @@
 # Changelog for the PR pipeline convention
 
+## 2.5.1 - 2026-10-17
+
+`address-feedback.mjs select` now also keeps a thread the lane escalated (the lanes App's last
+comment is an `INCORRECT`, `UNCERTAIN` or `VALID-defer` reply) when every comment after it is by a
+human on the base's trusted-actor list, created after the escalation and edited by no one else.
+Those replies are marked `direction: true` in the thread file. Before, every comment had to be the
+reviewer bot's, so the lane never read a person's answer to its own escalation
+([pr-run-activity.md](pr-run-activity.md)). `version` stays 2.
+
 ## 2.5.0 - 2026-10-17
 
 `scripts/run-test-file.sh` runs a `*.test.js` or `*.test.ts` file that imports `vitest` with the

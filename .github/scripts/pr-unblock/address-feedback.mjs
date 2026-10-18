@@ -5,14 +5,16 @@
 //   select  run by .github/workflows/pr-run-activity-write.yml around a
 //           `prepare: review-threads` skill, before the head checkout and any
 //           model turn, with the job's read-only token: keeps the unresolved
-//           review threads whose every comment is the reviewer bot's and whose
-//           review is on a head a review lane's marker confirms, then decides
+//           review threads the reviewer bot opened in a review on a head a
+//           review lane's marker confirms, when every comment is the bot's or
+//           a trusted person answered the lane's escalation, then decides
 //           skip (no such thread), escalate (the PR changes .github/**, or
 //           the configured number of rounds already ran) or proceed, writing the thread file
 //           the skill's review-thread tool reads.
 //
-// Every comment body is untrusted data: it is copied into the thread file and
-// never logged or interpolated into a command.
+// Every comment body is copied into the thread file and never logged or
+// interpolated into a command. Only a trusted person's reply to the lane's
+// escalation is marked as direction; every other body is data.
 
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -76,11 +78,52 @@ export function reviewedHeads(issueComments) {
   return heads;
 }
 
-// A thread is kept when it is unresolved, every comment in it is the
-// reviewer bot's, and its first comment belongs to a review the reviewer bot
-// submitted on a marker-confirmed head. A thread with a human reply, or more
-// comments than one page reads, is left alone.
-export function keepThreads({ threads, reviewComments, reviews, heads, reviewerId }) {
+// The first line of the reply publish-feedback.mjs posts on a thread it
+// leaves open for a person: every disposition but VALID.
+const ESCALATION_REPLY =
+  /^\*\*pr-unblock \/ address-feedback: (INCORRECT, left open|UNCERTAIN, left open for a person|VALID \(defer\), left open for a person)\*\*$/;
+export const isEscalationReply = (comment, appId) => comment?.user?.id === appId && ESCALATION_REPLY.test(firstLine(comment.body));
+
+// Who wrote each comment, or null when the thread is not one to work: every
+// comment is the reviewer bot's, or the lanes App's last comment escalated the
+// thread and every comment after it is a trusted person's reply. Those replies
+// are direction. A comment by anyone else, a trusted person's comment last
+// edited by anyone but a trusted person, or a reply not after the escalation
+// leaves the thread alone.
+function authorsOf(rows, nodes, { reviewerId, appId, trustedHumans }) {
+  if (rows.every((row) => row.user?.id === reviewerId)) {
+    return rows.map(() => ({ author: "reviewer" }));
+  }
+  const last = rows.findLastIndex((row) => row.user?.id === appId);
+  if (last < 1 || !isEscalationReply(rows[last], appId)) {
+    return null;
+  }
+  const escalatedAt = Date.parse(rows[last].created_at ?? "");
+  const authors = [];
+  for (const [i, row] of rows.entries()) {
+    const id = row.user?.id;
+    const node = nodes[i];
+    const human = trustedHumans.has(id) && (node.lastEditedAt == null || trustedHumans.has(node.editor?.databaseId));
+    if (i > last) {
+      // NaN compares false, so an unparseable time leaves the thread alone.
+      if (!human || !(Date.parse(row.created_at ?? "") > escalatedAt)) {
+        return null;
+      }
+      authors.push({ author: "trusted-human", direction: true });
+    } else if (id === reviewerId || id === appId || human) {
+      authors.push({ author: id === reviewerId ? "reviewer" : id === appId ? "lane" : "trusted-human" });
+    } else {
+      return null;
+    }
+  }
+  return last < rows.length - 1 ? authors : null;
+}
+
+// A thread is kept when it is unresolved, its first comment belongs to a
+// review the reviewer bot submitted on a marker-confirmed head, and authorsOf
+// accepts its comments. A thread with more comments than one page reads is
+// left alone.
+export function keepThreads({ threads, reviewComments, reviews, heads, reviewerId, appId, trustedHumans = new Set() }) {
   const comments = new Map(reviewComments.map((comment) => [comment.id, comment]));
   const reviewsById = new Map(reviews.map((review) => [review.id, review]));
   const kept = [];
@@ -88,13 +131,17 @@ export function keepThreads({ threads, reviewComments, reviews, heads, reviewerI
     if (thread.isResolved || thread.comments.totalCount > THREAD_COMMENT_CAP) {
       continue;
     }
-    const ids = thread.comments.nodes.map((node) => node.databaseId);
-    const rows = ids.map((id) => comments.get(id));
-    if (rows.length === 0 || rows.some((row) => row?.user?.id !== reviewerId)) {
+    const nodes = thread.comments.nodes;
+    const rows = nodes.map((node) => comments.get(node.databaseId));
+    if (rows.length === 0 || rows.some((row) => row === undefined) || rows[0].user?.id !== reviewerId) {
       continue;
     }
     const review = reviewsById.get(rows[0].pull_request_review_id);
     if (review?.user?.id !== reviewerId || !heads.has(review.commit_id)) {
+      continue;
+    }
+    const authors = authorsOf(rows, nodes, { reviewerId, appId, trustedHumans });
+    if (authors === null) {
       continue;
     }
     kept.push({
@@ -103,13 +150,23 @@ export function keepThreads({ threads, reviewComments, reviews, heads, reviewerI
       line: rows[0].line ?? rows[0].original_line ?? null,
       review_commit: review.commit_id,
       root_comment_id: rows[0].id,
-      comments: rows.map((row) => ({ id: row.id, body: row.body ?? "" })),
+      comments: rows.map((row, i) => ({ id: row.id, ...authors[i], body: row.body ?? "" })),
     });
   }
   return kept;
 }
 
-export async function select({ api, pr, headSha, laneBranch, repository, appId, reviewerId, maxRounds = DEFAULT_MAX_ROUNDS }) {
+export async function select({
+  api,
+  pr,
+  headSha,
+  laneBranch,
+  repository,
+  appId,
+  reviewerId,
+  trustedHumans,
+  maxRounds = DEFAULT_MAX_ROUNDS,
+}) {
   const [files, issueComments, reviews, reviewComments, threads] = await Promise.all([
     api.listPullFiles(pr),
     api.listIssueComments(pr),
@@ -123,6 +180,8 @@ export async function select({ api, pr, headSha, laneBranch, repository, appId, 
     reviews,
     heads: reviewedHeads(issueComments),
     reviewerId,
+    appId,
+    trustedHumans,
   });
   if (kept.length === 0) {
     return { decision: "skip", skipReason: "not-applicable", threads: kept };
@@ -150,7 +209,7 @@ export async function select({ api, pr, headSha, laneBranch, repository, appId, 
 }
 
 // The kept threads of a PR as they are now: the reply job's re-read.
-export async function currentThreads({ api, pr, reviewerId }) {
+export async function currentThreads({ api, pr, reviewerId, appId, trustedHumans }) {
   const [issueComments, reviews, reviewComments, threads] = await Promise.all([
     api.listIssueComments(pr),
     api.listReviews(pr),
@@ -159,7 +218,7 @@ export async function currentThreads({ api, pr, reviewerId }) {
   ]);
   return {
     issueComments,
-    kept: keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), reviewerId }),
+    kept: keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), reviewerId, appId, trustedHumans }),
   };
 }
 
@@ -179,7 +238,13 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $pr: Int!, $after:
   repository(owner: $owner, name: $name) {
     pullRequest(number: $pr) {
       reviewThreads(first: 100, after: $after) {
-        nodes { id isResolved comments(first: 100) { totalCount nodes { databaseId } } }
+        nodes {
+          id isResolved
+          comments(first: 100) {
+            totalCount
+            nodes { databaseId lastEditedAt editor { ... on User { databaseId } ... on Bot { databaseId } } }
+          }
+        }
         pageInfo { hasNextPage endCursor }
       }
     }
@@ -301,10 +366,20 @@ export function maxRoundsFrom(value) {
   return value === undefined || value === "" ? DEFAULT_MAX_ROUNDS : positive(value, "REVIEW_ROUNDS");
 }
 
+const readActors = (path) => JSON.parse(readFileSync(path, "utf8")).actors ?? [];
+
+// The ids of the people on the base's trusted-actors list.
+export function trustedHumansFrom(trustedActorsPath) {
+  return new Set(
+    readActors(trustedActorsPath)
+      .filter((row) => row.kind === "human")
+      .map((row) => positive(row.id, `a human id in ${trustedActorsPath}`)),
+  );
+}
+
 // The reviewer bot's id comes from the base's trusted-actors list, by login.
 export function reviewerIdFrom(trustedActorsPath, login = "claude[bot]") {
-  const actors = JSON.parse(readFileSync(trustedActorsPath, "utf8")).actors ?? [];
-  const actor = actors.find((row) => row.login === login && row.kind === "bot");
+  const actor = readActors(trustedActorsPath).find((row) => row.login === login && row.kind === "bot");
   return positive(actor?.id, `the ${login} id in ${trustedActorsPath}`);
 }
 
@@ -335,6 +410,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       repository: env.GITHUB_REPOSITORY,
       appId,
       reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
+      trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS),
       maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
     });
     if (result.file) {
@@ -343,7 +419,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     output("proceed", String(result.decision === "proceed"));
     output("skip-reason", result.decision === "skip" ? result.skipReason : result.decision === "escalate" ? "awaiting-human" : "");
     output("escalation-reason", result.escalationReason ?? "");
-    log(`${result.decision}: ${result.threads.length} reviewer-bot thread(s), ${result.rounds ?? 0} earlier round(s)${result.escalationReason ? `, ${result.escalationReason}` : ""}`);
+    log(`${result.decision}: ${result.threads.length} kept thread(s), ${result.rounds ?? 0} earlier round(s)${result.escalationReason ? `, ${result.escalationReason}` : ""}`);
     return 0;
   }
   throw new Error("usage: address-feedback.mjs select");

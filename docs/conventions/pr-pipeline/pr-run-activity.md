@@ -559,10 +559,16 @@ posts nothing. The reply job is a `publish-artifact` script leaf with no model, 
 the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedback.mjs`.
 
 1. After `resolve-config` and before the mint, the model job runs `address-feedback.mjs select`
-   with the job's `GITHUB_TOKEN`. It keeps each unresolved thread whose every comment is by the
-   reviewer bot (`claude[bot]` in the base's trusted-actors list, by id) and whose first comment's
-   review the reviewer bot submitted on a head that a `claude-lane-reviewed-head` marker from
-   `github-actions[bot]` names. No kept thread skips `not-applicable`. A PR diff touching
+   with the job's `GITHUB_TOKEN`. It keeps each unresolved thread whose first comment's review
+   the reviewer bot (`claude[bot]` in the base's trusted-actors list, by id) submitted on a head
+   that a `claude-lane-reviewed-head` marker from `github-actions[bot]` names, when either every
+   comment is the reviewer bot's, or the lanes App's last comment is a reply the reply job left
+   open (`INCORRECT`, `UNCERTAIN` or `VALID-defer`) and every comment after it is by a `human` on
+   that list, created after it, and never edited or last edited by such a human. Every other
+   comment must be the reviewer bot's, the lanes App's or such a human's, or the thread is left
+   alone. The thread file gives each comment an `author` (`reviewer`, `lane`, `trusted-human`) and
+   marks the replies after the escalation `direction: true`, which the skill follows within the
+   same path rules. No kept thread skips `not-applicable`. A PR diff touching
    `.github/**` escalates `feedback-protected-path`, and two earlier rounds escalate
    `feedback-round-cap`: the larger of the round markers the lanes App posted and the PR commits
    carrying a `github-actions` `pr-unblock / address-feedback` check run that ended `success` or
@@ -615,8 +621,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
      backticked evidence, `Fix: <sha>` for `VALID`, the note in a `text` fence longer than any
      backtick run in it) and resolves the thread only for `VALID`, and only when a re-read after
      the reply shows exactly the model's comments plus that reply (one retry on a failed read or
-     resolve). Once a reply posts, the thread is no longer the bot's alone and no later round
-     selects it, so a post, read or resolve failure stops the posting, and that or a `VALID`
+     resolve). Once a reply posts, no later round selects the thread until a trusted human
+     answers a reply left open, so a post, read or resolve failure stops the posting, and that or a `VALID`
      thread left open escalates `feedback-partial`, as does a round marker that cannot be posted;
    - posts the round marker as the lanes App whatever happened above, once per model run: its
      second line names the workflow run and `review-run-attempt`, and a re-run of the reply job
