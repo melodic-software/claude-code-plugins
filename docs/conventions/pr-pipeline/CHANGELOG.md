@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 2.11.6 - 2026-10-18
+## 2.11.11 - 2026-10-18
 
 `pr-unblock` `address-feedback` widens a kept thread's scope from its path alone to also a file in
 the `plugins/<p>/` directory that path sits in, and a test file (`test_*.py`, `*_test.py`,
@@ -11,6 +11,48 @@ part leaves out files the harness or a shell runs or loads as instructions: anyt
 `.sh`, `.py`, `.mjs`, `.js` or `.ts` file. The review-thread tool, the promote step and the reply
 job apply the same rule; the promote step imports the base's `thread-scope.mjs` from a copy taken
 before the head checkout, checked against its SHA-256. `.github/` stays refused. `version` stays 2.
+
+## 2.11.10 - 2026-10-18
+
+This repository's `limits.wip-cap` drops from 60 to 12, so `work-resolve-issue` starts no run, and
+work-unblock re-fires none, while 12 or more lanes-App pull requests are open. The value is the
+measured lane merge rate (about 1.5 per hour) times an 8-hour open-to-merge target. The schema
+default (60) and its range (1 to 500) are unchanged. `version` stays 2.
+
+## 2.11.8 - 2026-10-18
+
+`pr-refine` no longer starts on `synchronize`: it runs when a PR opens, reopens or turns ready, or
+on a `workflow_dispatch`, so an author push no longer draws a fix-docs commit and a fresh review
+round. A docs change pushed after its first run waits for a reopen or a dispatch. When
+`resolve-conflicts` escalates with `unresolved-conflict`, `pr-unblock.yml`'s scripted
+`report-conflict-status` job posts a `failure` commit status with context `pr-unblock/conflict` on
+that head, since GitHub runs no `pull_request` workflow on a conflicted PR. `version` stays 2.
+
+## 2.11.7 - 2026-10-18
+
+A `resolve-issue` run that waited in its slot while a change to `work-resolve-issue.yml` or
+`pr-run-activity-write.yml` merged fails red `workflow-stale` before the token request, by the
+broker's own blob comparison against main, instead of spending a mint the broker refuses as
+`workflow-modified`. It leaves no outcome marker, so work-unblock's hourly sweep re-fires the issue
+on main's files ([pr-run-activity.md](pr-run-activity.md#issue-mode)). `version` stays 2.
+
+## 2.11.6 - 2026-10-18
+
+An issue-lane run never dies on GitHub's rate limit or a pile of open lane pull requests.
+
+- New `limits.wip-cap` (default 60, set in this repository's config). `work-resolve-issue`'s
+  `pick-slot` job counts the lanes App's open pull requests with one search, through the new
+  `check-wip-cap` action. At or over the cap, `resolve-issue` is skipped and takes no slot and no
+  lane token. A failed count starts the run.
+- work-unblock's hourly sweep re-fires a run that did no work: either its `Request the lane token`
+  step failed (GitHub's rate limit past the 8-minute retry budget, among other causes) or the WIP
+  cap skipped it. It waits `reset-clamp-min` hours after the run ended. The broker's `Retry-After`
+  is at most an hour, so any rate-limit reset has passed by then. It acts only while fewer than
+  `wip-cap` lane PRs are open, and stays within `restarts-per-run`.
+- Such a re-fire is not limited to once per workflow version and is not a limit stop, so it never
+  adds `needs-human`.
+
+`version` stays 2.
 
 ## 2.11.4 - 2026-10-18
 

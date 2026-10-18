@@ -297,6 +297,13 @@ loop:
   review-rounds: 3
   dependency-review-rounds: 2
 
+limits:
+  # Open lane PRs at which the issue lane stops starting runs. Sized as
+  # measured lane merges per hour (about 1.5) times an 8-hour open-to-merge
+  # target. Revisit after merge.max-in-flight (#8251) lands and merges per hour
+  # are re-measured.
+  wip-cap: 12
+
 merge:
   # The lane treats every PR the lanes App opened for one closing issue as
   # class C2 (plugins/autonomy/reference/guardrails/work-classes.md) and reads

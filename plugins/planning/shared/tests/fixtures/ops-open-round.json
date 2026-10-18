@@ -1,0 +1,40 @@
+{
+  "ops": [
+    {
+      "op": "open-round",
+      "questions": [
+        {
+          "id": "Q6",
+          "text": "Should the pay button show the total?",
+          "scope": "Payment step, pay button",
+          "context": "The total is far from the button on phones.",
+          "recommendation": "Yes, as 'Pay 42.00'.",
+          "basis": "Checked against: the phone-first layout rule.",
+          "alternatives": [{"key": "a", "text": "Keep 'Pay now'.", "tradeoff": "Shorter, but hides the amount."}, {"key": "b", "text": "Show the total above the button."}],
+          "dependsOn": ["Q1"],
+          "purpose": "decide",
+          "format": {"kind": "text"},
+          "answerScope": "device"
+        },
+        {
+          "id": "Q7",
+          "text": "Which delivery option should come first?",
+          "scope": "Delivery step, option list",
+          "alternatives": [],
+          "dependsOn": [],
+          "purpose": "poll",
+          "format": {"kind": "choice", "options": [{"id": "opt-1", "label": "Standard"}, {"id": "opt-2", "label": "Express", "image": "aaaabbbbccccdddd.png"}]},
+          "references": [{"kind": "link", "url": "https://example.com/delivery"}]
+        }
+      ],
+      "placements": [
+        {"proposal": "P6", "as": "question"},
+        {"proposal": "P7", "as": "later-round", "after": ["Q6"], "question": {"id": "Q8", "text": "How should refunds be shown?", "alternatives": [], "dependsOn": ["Q6"], "purpose": "gather", "format": {"kind": "text"}}},
+        {"proposal": "P8", "as": "suggestion", "target": "Q1", "text": "Collapse the column under 1280 px.", "reason": "Narrow laptops."},
+        {"proposal": "P9", "as": "merge", "target": "Q5", "reason": "Same question as Q5."},
+        {"proposal": "P10", "as": "later", "reason": "Needs the payments team."},
+        {"proposal": "P11", "as": "not-placed", "reason": "Not about checkout."}
+      ]
+    }
+  ]
+}
