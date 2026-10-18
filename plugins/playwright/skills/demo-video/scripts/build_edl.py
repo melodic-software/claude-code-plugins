@@ -10,9 +10,9 @@ Camera rules (produced style):
   - every zoom change is an eased move inside the motion limits (defaults.json "motion");
   - a navigating step (a click, or typing that submits) eases back to 1.0x and the camera is still
     across the hard cut; on the landed page it pushes in on the next action or the content;
-  - no move crosses an in-page change QC counts as a page cut (a modal opening on a click): the
+  - no move crosses an in-page change quality control counts as a page cut (a modal opening on a click): the
     typing shot's move starts once the modal's first settled capture is shown;
-  - a still stretch longer than the QC limit gets a slow gutter-snapped push-in.
+  - a still stretch longer than the quality control limit gets a slow gutter-snapped push-in.
 Other rules: nothing between a navigating click (or the end of a navigating step's typing) and the
 settled page reaches the output, nor any logged loading state; no transition other than the title
 dip (no crossfades).
@@ -156,7 +156,7 @@ def union_ink(keys, W, H, word_gap):
 
 
 def in_shot(r, tb, W, H, margin):
-    """qc.py's target-headroom test: the box is inside rect r with `margin` on every side that is
+    """quality_control.py's target-headroom test: the box is inside rect r with `margin` on every side that is
     not the page boundary."""
     return ((tb[0] >= r[0] + margin or r[0] < 1) and (tb[1] >= r[1] + margin or r[1] < 1) and
             (tb[0] + tb[2] <= r[0] + r[2] - margin or r[0] + r[2] > W - 1) and (tb[1] + tb[3] <= r[1] + r[3] - margin or r[1] + r[3] > H - 1))
@@ -253,14 +253,14 @@ def main(argv=None):
                       'caption': infos[s].get('caption', s), 'outcome': infos[s].get('outcome'),
                       'target_box': ck['box'], 'block': ck.get('block')})
 
-    # A click that opens a modal changes most of the page a few captures later. QC fails any such
+    # A click that opens a modal changes most of the page a few captures later. Quality control fails any such
     # change while the camera moves, so the typing shot's move waits for the modal's first settled
     # capture: from it to the first key the page holds still.
-    change_min = cfg['qc']['nav_change_min']
+    change_min = cfg['quality_control']['nav_change_min']
 
     def modal_settled(stp):
         """Source time of the first capture after the click from which the page matches the one typing
-        starts on, or None when the click changes nothing QC would count."""
+        starts on, or None when the click changes nothing quality control would count."""
         ck_t, typ_t = stp['ck']['t'], stp['typ']['t']
         ref = capture_at(typ_t)
         win = [f['t'] for f in frames if ck_t < f['t'] <= typ_t]
@@ -275,7 +275,7 @@ def main(argv=None):
     for stp in steps:
         stp['modal_at'] = modal_settled(stp) if stp['typ'] else None
 
-    # while a modal is open only the modal is content; its dimmed backdrop is not (qc.py reads these)
+    # while a modal is open only the modal is content; its dimmed backdrop is not (quality_control.py reads these)
     content_masks = [{'src0': s['modal_at'] or s['typ']['t'], 'src1': steps[k + 1]['ck']['t'] + 0.05 if k + 1 < len(steps) else end_t,
                       'box': s['st']['modal']} for k, s in enumerate(steps)
                      if s['typ'] and not s['navigates'] and s['st'].get('modal')] \
@@ -302,7 +302,7 @@ def main(argv=None):
         tb = ck['box']
         budget = P['move'] + P['pre_click'] + (P['lead_in'] if k == 0 else 0.0)
         if layers['camera']:
-            # the click shot holds still while a modal opens (a state cut QC allows zoomed only with
+            # the click shot holds still while a modal opens (a state cut quality control allows zoomed only with
             # clean edges), so its edges clear every capture up to the modal's settled one
             t_end = stp['modal_at'] or ck['t']
             ink = union_ink([(capture_at(ck['t']), mask_at(ck['t']))] +
@@ -518,7 +518,7 @@ def main(argv=None):
     nav_cuts = [hold_seg(k)['out0'] for k, stp in enumerate(steps) if stp['navigates']]
 
     # ---- camera keyframes -------------------------------------------------------------------------
-    # in-page changes QC counts as page cuts (a modal opening, results replacing a page): the output
+    # in-page changes quality control counts as page cuts (a modal opening, results replacing a page): the output
     # times where the shown capture changes by at least nav_change_min with no source jump
     fps = 30
 
@@ -620,8 +620,8 @@ def main(argv=None):
                 cam.extend({'t': round(t, 4), 'rect': q} for t, q in ((t_in, r), (t_in + d_in, cand), (t_out, cand), (t_out + d_out, r)))
                 return
 
-    # a still stretch longer than the QC limit gets a slow push-in toward a tighter gutter-snapped shot
-    still_max = cfg['qc']['still_max']
+    # a still stretch longer than the quality control limit gets a slow push-in toward a tighter gutter-snapped shot
+    still_max = cfg['quality_control']['still_max']
     keys = sorted(cam, key=lambda c: c['t'])
     moves_t = [(p['t'], q['t'], p['rect'], q['rect']) for p, q in zip(keys, keys[1:]) if p['rect'] != q['rect']]
     gaps, prev_end, prev_rect, before = [], 0.0, full, None
@@ -785,7 +785,7 @@ def main(argv=None):
         for m0, m1, _, _ in cmoves:
             if m0 < c - 1e-6 and m1 > c - P['cam_clear'] + 1e-3:
                 errs.append(f'cut at {c:.2f}s while the camera moves')
-    for s in state_cuts:   # qc.py's nav-cuts window: the camera is the same three frames before to two after
+    for s in state_cuts:   # quality_control.py's nav-cuts window: the camera is the same three frames before to two after
         for m0, m1, _, _ in cmoves:
             if m0 < s + 2.5 / fps and m1 > s - 3.5 / fps:
                 errs.append(f'camera moves {m0:.2f}-{m1:.2f}s across the in-page change at {s:.2f}s')
@@ -793,7 +793,7 @@ def main(argv=None):
         r = rect_at(c - 1e-3)
         if layers['camera'] and abs(W / r[2] - 1.0) > 1e-3:
             errs.append(f'navigation cut at {c:.2f}s taken at {W / r[2]:.2f}x, not 1.0x')
-    for stp in steps:   # qc.py's target-headroom: a move delayed past a state cut can end after its click
+    for stp in steps:   # quality_control.py's target-headroom: a move delayed past a state cut can end after its click
         r = rect_at(out_of(stp['ck']['t']))
         if layers['camera'] and not in_shot(r, stp['target_box'], W, H, CAM['safe_margin'] * r[2] / W / 2):
             errs.append(f"{stp['id']} click target is not in shot with headroom at its click")

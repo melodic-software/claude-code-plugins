@@ -1,6 +1,6 @@
 {
   "name": "display-redaction",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "A mod that masks email addresses and secret-shaped text in what Claude Code draws, for recordings and screen shares. It changes the screen only; the transcript, the model's context and the files on disk are untouched, so it is not a privacy or data control.",
   "author": {
     "name": "Melodic Software",
