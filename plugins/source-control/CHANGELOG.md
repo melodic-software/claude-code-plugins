@@ -3,6 +3,60 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.12.1] - 2026-10-18
+
+### Changed
+
+- The pr-merge lane drops a candidate whose listed labels or body carry a hold the gate refuses on (the `do-not-merge` label or a body hold) before running the gate on it, so a held pull request costs no lane-token calls. `babysit_merge_prefilter.py` reads the candidate list on stdin, prints the kept and held candidates, and makes no API call; it judges with the gate's own `MERGE_HOLD_LABEL` and `BODY_MERGE_HOLD_RE`, and the gate still checks every hold itself. When every candidate is held one stays, so a gate process still sweeps held entries out of the merge queue. The run summary reports each dropped candidate as `prefilter:<hold>`.
+
+## [1.12.0] - 2026-10-18
+
+### Added
+
+- **`/source-control:pull-request review-venue` says, per AI review lane, whether CI reviews this repository.** A lane is `ci` when its caller workflow calls the org review workflow, is enabled, and its newest pull request run with a verdict succeeded within 7 days (`--max-age-days`); otherwise it is `local` (absent, which includes a disabled workflow, failing, which includes a usage-limit stop, or stale). A failed read treats every lane as `local`.
+
+### Changed
+
+- The pr-merge lane (`babysit_merge.py --unattended --authority pr-merge`) treats every pull request the lanes App opened, with exactly one closing issue in this repository and no denied path, as class C2 and reads no `work-class:` label or label history; the risk score's diff-derived C2 checks still apply. With a rung above off it refuses `verifier-verdict-not-required` unless `merge.require-verifier-verdict` is true, since the pr-verify verdict is now its merge criterion. `recheck_lane_class` becomes `recheck_lane_issue`: right before the enqueue the closing issue must still be the one the eligibility read found (`closing-issue-changed:<was>><now>` otherwise), and a removed class label no longer refuses. Dependabot pull requests are unchanged and need no verdict. A pull request into another branch refuses `base-not-default:<ref>`, read at eligibility and again before the enqueue, and a failed read refuses.
+
+- The pr-merge lane reads three new `merge.diff-check` switches, each off when absent: `high-path-floor` (the risk scorer's fixed HIGH path set), `c2-contradictions` (a removed, renamed or copied file, a schema change, or more than one plugin) and `max-changed-files`; there an absent `max-changed-lines` is no cap and an empty `denied-paths` no longer refuses `denied-paths-unset`. A switch value other than true or false turns it on, and a cap that is not a count holds the rung at off. `babysit_risk.RiskInput` gains `high_floor`, `c2_contradictions`, `max_changed_files` and `lines_optional`, whose defaults keep every check, so the local babysit lane is unchanged.
+
+- Unattended GitHub loops follow one API budget, in the GitHub provider reference: the pull-request monitor watch and babysit Monitor fallback poll at 60 s and stop on a rate-limit error; merge-state, merge-queue and queue-entry waits poll REST at 60 s and read `isInMergeQueue` once; the babysit merge gate polls an async merge at 60 s and reads queue state once after a CLI merge.
+
+- **`prep` and `ready` run a local AI review only where CI does not.** `prep` skips its code review, and `ready` skips its code or security review, when that lane reads `ci`; a lane that reads `local` gets the local review, reported as its stand-in. Each run reports the venue line it acted on.
+
+- The pr-merge lane reads no issue comment or trusted-actor list for a lane pull request's closing issue: the issue lane admits on the `agent-ready` label alone, so the merge gate checks no admission marker.
+
+- `babysit-prs` merge gate: the post-merge floor reads the pipeline config's history from a local clone holding the base commit (the script's own checkout, else the working directory's) with `git log` and `git cat-file`, instead of two contents-API reads per config commit. A shallow clone, or one without the base commit, falls back to the API as before. The git path has no 100-commit limit; the API fallback keeps it. The pr-merge lane checks out main with full history.
+
+- `babysit-prs` merge gate: `--postmerge-result <path>` (with `--authority pr-merge`) takes the demotion record, floor and post-merge verdict from the run's one `babysit_postmerge.py` report instead of reading them again for each pull request. The report now carries a `shared` block naming the default-branch head, its newest pipeline-config commit and the demotion record it was read from. The gate uses it only while the head is unchanged, the pull request's base shares that config commit, the identity, self logins and lane match, and it is under 30 minutes old; otherwise, or when the file is missing or malformed, it reads them itself as before. Without the flag nothing changes. The pr-merge workflow now runs the post-merge check before the gate loop and passes its report to each candidate.
+
+- `worktree` gather-block reference: records the accepted Bash command shapes for body-time and subagent calls in a worktree-isolated session, which refusal classes come from the built-in isolation guard, and that whether a plain `$VAR` read is accepted is unsettled ([#5673](https://github.com/melodic-software/claude-code-plugins/issues/5673)).
+
+- `babysit-prs` merge gate: `--postmerge-result` now reuses the run's shared post-merge answer when the default branch moved or the pull request's base has an older pipeline config, as long as the facts the answer depends on still hold. The base must give the same post-merge floor (read from its own config history when its newest config commit differs), and no merge the check would judge may have landed since the floor beyond those in the answer. When the answer reports no demotion, one REST call lists the issues updated since it was computed, and any issue a demotion-record filer opened, or any known record, refuses it as `demotion-changed`; before this, a record filed during the run went unseen. A new lane merge, a different floor, or an unreadable merge history still makes the pull request read its own. The skip reasons `main-moved` and `config-differs` become `new-merge:#N`, `merged-unreadable`, `merged-history-truncated` and `floor-differs`.
+
+- `babysit-prs` merge gate: in the pr-merge lane the verdict reader pages the repository's artifact listing once per run instead of once per candidate. When `BABYSIT_VERIFY_LISTING` names a file, the first candidate saves its listing there and later candidates, and their queued-entry checks, read it. No judgment, of a candidate or a queued entry, uses a listing (saved or in memory) begun more than two minutes before it; an older one is read again and saved. A refusal on the saved listing stands; a candidate it would allow is judged again on a listing of its own, which replaces the saved one. A failed listing is never saved, and a missing or malformed file is read from the API. The pr-merge workflow sets the variable for its gate loop. Without it nothing changes.
+
+- `babysit-prs` merge gate: in the pr-merge lane, reads that are the same for every candidate are shared by the run's gate processes through the file `BABYSIT_RUN_CACHE` names, instead of being repeated per candidate. The acting login and a credential pass are reused only under the same credentials; a credential refusal is read again. A collaborator permission and the trusted-actor list are reused for two minutes, and a failed read is never shared. A run head found on main is shared for the run; one not found is compared again. The merge-queue sweep skips a queued entry another candidate judged and kept only while the oldest read behind that judgment (its verdict listing, or a shared permission or trusted list) was taken at most two minutes ago; a gate always judges its own entry, and a held entry or a failed dequeue keeps nothing. The verdict reader's compares of a run head to main now use the job's `GITHUB_TOKEN`, off the lane App's quota. Without the variable nothing changes.
+
+- `babysit-prs` merge gate: in the pr-merge lane, the verdict reader shares a FAIL's run record for two minutes and an untied FAIL's recorded head ref for the run (keyed by artifact id) across the run's gate processes, instead of reading them again for every candidate. A stale FAIL record still refuses, because a FAIL counts whether its run is running or finished and a re-run keeps every field that decides whether the run is pr-verify's; a PASS's run record is still read by each gate process, so a re-run that undoes a completed success never allows. On the `--unattended` path only, the default branch and the base's rules are also shared for two minutes, a failed read never; before an enqueue, any the gate took from the run cache are read again, and a change holds.
+
+### Fixed
+
+- `babysit-prs` pr-merge verdict reader: an artifact listing that got a 5xx or a fast network error is read again, three reads in all with 2s and 4s backoff, every read and wait inside the one gh timeout a single read would get, before the pull request refuses `verify:unreadable`. Any other failure, a timeout, a 429, a rate-limit 403, missing credentials and a missing `gh` included, still refuses at once, and a listing that fails every read refuses as before.
+
+- **The readiness verdict no longer calls a usage-limited review lane "safe to proceed".** A review lane that failed on a usage or rate limit reviewed nothing, so it is ABSENT and gets a local substitute, as Gate 5 already said.
+
+- `babysit-prs` post-merge check: a red full run now counts against a merge only for checks that were not already failing on the branch's newest completed run of the same event before the merge. A check is a failed job, or one hygiene gate the aggregator names in a titled annotation. The `ci-status` aggregator adds nothing beside another failed job, and the gitleaks gate, which scans every branch on schedule and dispatch runs, counts against no merge. A run with nothing left is listed under `unattributed` and verifies the merge like a green run. With no earlier run, every failing check still counts. A red run with no failed job counts as its own check. The demotion-alert workflow's one re-run under `github-actions[bot]` is judged like the wrapper's when the bot did not start the run, and the wrapper starts no re-run once attempt 2 exists.
+
+- The `pull-request-merge-holds-on-unclassified-ci` eval case now runs against the offline `gh` stand-in (`fixtures/gh-forge`) with an open PR 482 that carries one failing check, so a correct run reaches `gh pr checks` and the merge hold its graders check. `install.sh` takes `--open` and `--failing-check <name>`, and the stand-in serves `pr checks` and the status rollup from them. As on GitHub, a failing check makes the PR read `UNSTABLE`, not `CLEAN`, and `pr checks --json` exits 0 whatever the checks say.
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
+- `babysit-prs` safety reference: a C4 (structural) or C5 lane PR is stopped by the body hold line, not kept from every merge-capable invocation.
+
+- `comments --ci` follows a trusted person's reply on a thread the lane left open. The review-thread tool now gives each comment an `author`, and marks as `direction` any reply from a person on the trusted-actor list that came after the lane's escalation. The skill applies that decision within the same path rules, and never records it as `INCORRECT`.
+
 ## [1.11.0] - 2026-10-17
 
 ### Added

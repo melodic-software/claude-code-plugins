@@ -1,10 +1,8 @@
 # shellcheck shell=bash
 # The changelog entry for a Dependabot update. Sourced, never executed.
 #
-# scripts/dependabot-plugin-bump.sh writes it into a legacy plugin's CHANGELOG.md
-# on the Dependabot pull request; scripts/dependabot-fragments.sh writes it into a
-# fragment-mode plugin's changelog fragment after the pull request merges
-# (ADR 0048). One renderer keeps the two entries alike.
+# scripts/dependabot-fragments.sh writes it into a plugin's changelog fragment
+# after the Dependabot pull request merges (ADR 0048).
 #
 #   dependabot_entry::deps            commit messages on stdin; prints one
 #                                     "<package>\t<from>\t<to>" line per
