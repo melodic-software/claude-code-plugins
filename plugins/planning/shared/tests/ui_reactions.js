@@ -63,7 +63,8 @@ async function main() {
 
     await chip("heart").click();
     ok("clicking a chip presses it", await until(bo, () => [...document.querySelectorAll('.vf-react[data-r="heart"]')].some(b => b.getAttribute("aria-pressed") === "true")));
-    await bo.waitForTimeout(300);
+    const record = want => until(bo, w => JSON.stringify(window.Core.snapshot()?.me?.reactions?.Q1?.["p:host"] || []) === w, JSON.stringify(want), 10000);
+    await record(["heart"]); // measured once the server's answer holds it, not only the page's own guess
     for (const t of ["dark", "light"]) {
       const on = await bo.evaluate(look, ["heart", t]);
       ok(`${t}: chosen, the --accent-soft fill inside a full --accent border, the count in --accent-text`, on.bg === on.t.accentSoft && on.border === on.t.accent && on.count === on.t.accentText, JSON.stringify(on));
@@ -73,7 +74,7 @@ async function main() {
     await bo.keyboard.press("Space"); // a keyboard press: focus-visible, and the chip lets go
     ok("Space lets the chip go", await until(bo, () => [...document.querySelectorAll('.vf-react[data-r="heart"]')].every(b => b.getAttribute("aria-pressed") === "false")));
     await bo.mouse.move(0, 0); // the click left the pointer on the chip
-    await bo.waitForTimeout(300);
+    await record([]);
     const off =await bo.evaluate(look, ["heart", ""]);
     ok("let go, the label is the same sentence with the count", off.label === `${LABELS.heart}: 0` && off.bg === off.t.transparent, JSON.stringify(off));
     ok("focused from the keyboard, a 2px --accent outline with an offset", off.outline === `solid 2px ${off.t.accent} 2px`, off.outline);

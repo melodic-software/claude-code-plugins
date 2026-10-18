@@ -55,7 +55,7 @@ permissions, and passes no App key.
 | `config-path` | `docs/conventions/pr-pipeline.yaml` | For test callers only (below) |
 | `pr-number` | `''` | The PR on `workflow_dispatch` |
 | `timeout-minutes` | `30` | The run job's timeout; the report job's is fixed at 10 |
-| `dispatcher-run-id` | `''` | Write file only: the `pr-unblock-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
+| `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3); in the write file also a `pr-feedback-dispatch.yml` run |
 | `trusted-base` | `pr-base` | Write file only: `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the model job's replies |
@@ -158,13 +158,13 @@ the broker request, and no other permission; it never holds `checks: write` or `
    denies `AUTOMATION_LANES_APP_SENDER_ID`, so the lanes App bot as sender or `workflow_run` actor
    stops it with `bot-actor` (neutral) and one write activity never chains into the next. The read
    file denies nothing, so a `workflow_run` read lane still runs after a bot push; the bot's own
-   `pull_request` events are skipped by the job `if:` in both files. The write file passes its
+   `pull_request` events are skipped by the job `if:` in both files. Both files pass their
    `dispatcher-run-id` input with `dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml`
    and `dispatched-workflow: .github/workflows/pr-unblock.yml`, so a `workflow_dispatch` sent by
    `github-actions[bot]` proceeds only when it names a run of that dispatcher on the default branch
    whose window holds this run's creation and whose `pr-unblock-dispatched-<id>[-<id>...]`
    artifact lists this run's id, and this run is `pr-unblock.yml`; every other bot-sent dispatch
-   stops with `untrusted-actor`. It also passes
+   stops with `untrusted-actor`. The write file alone also passes
    `run-dispatcher-workflow: .github/workflows/pr-feedback-dispatch.yml` with the two review
    workflows as `run-dispatcher-upstreams`: a run of that dispatcher, started by `workflow_run`,
    vouches with no actor check when its `pr-feedback-dispatched-<upstream id>-<this run's id>`
@@ -525,7 +525,8 @@ code with no write token and hand its change to a separate job that holds one:
    `patch-sha256` is that file's SHA-256 and `patch-attempt` is the attempt in the artifact's name.
    No change is `patch-state` `empty`, with no artifact and the other two empty. A run that
    collected no patch leaves all three empty.
-4. The verdict's `patch` field repeats `patch-state` (`null` when empty), and the check is
+4. The verdict's `patch` field repeats `patch-state` (`written`, `empty`, or `null` when the run
+   collected no patch), and the check is
    `success` titled `Passed: patch written` or `Passed: no changes`.
 
 Head code ran in the job that writes the patch, its SHA-256 and the verdict, and could have
@@ -657,9 +658,14 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    and Write are denied on the directory and on the tool's replies directory. The tool lists the
    kept threads, checks paths, and records a reply: it refuses a disposition file outside the
    scratch directory or off the template, and a `VALID` reply whose fix is not on the lane branch
-   or whose lane branch changes a file no kept thread names or any `.github/` path. It posts
-   nothing. The promote step then moves the PR branch only when the lane branch changes nothing
-   but kept-thread paths, none under `.github/`, in fewer than 300 files.
+   or whose lane branch changes a file outside every kept thread's scope or any `.github/` path.
+   A thread's scope is its path; a file in the `plugins/<p>/` directory its path sits in, except
+   one under `hooks/`, `.claude-plugin/` or a `.claude/` directory, a `CLAUDE.md` or `AGENTS.md`,
+   or a `.sh`, `.py`, `.mjs`, `.js` or `.ts` file; and a test file (`test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`) in its path's
+   directory. It posts nothing. The promote step then moves the PR branch only when every path the
+   lane branch changes is in a kept thread's scope, none under `.github/`, in fewer than 300
+   files, judged by a copy of the base's `thread-scope.mjs` taken before the head checkout and
+   imported only when its SHA-256 matches.
 3. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
    `github-script` step writes `run.json` (the gated head and the kept threads' ids, paths and
    comment ids, from the thread file) beside a copy of the tool's `replies.jsonl`, and the job
@@ -686,7 +692,7 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
      and escalates `feedback-incomplete`;
    - when a reply is `VALID` or the PR branch moved, compares the model job's gated head with the
      PR's current head: the branch must be ahead, hold every fix commit, and change fewer than 300
-     files, each a kept thread's path and none under `.github/`, and each fix commit must change
+     files, each in a kept thread's scope and none under `.github/`, and each fix commit must change
      its own thread's path. Otherwise it posts no reply and escalates `feedback-not-landed`;
    - re-reads every kept thread and, right before posting, the thread itself, and skips one that
      is resolved, on another PR, or whose comments are not exactly the ones the model job read;
@@ -712,7 +718,7 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    The script writes its reason to `ESCALATION_REASON_FILE`; the runner accepts only those six
    reasons, and only with `review-replies`, as the run's `escalation-reason` output.
 
-The skill's limits to kept-thread paths and away from `.github/` are instructions and the tool's
+The skill's limits to kept-thread scope and away from `.github/` are instructions and the tool's
 checks at record time; the promote step's path check is what holds the push, and the reply job's
 compare withholds the replies when the branch changed anything else. A diff at the files listing's limit escalates as `feedback-protected-path`,
 since it could hide a `.github/` path. Residual: a reviewed-head marker confirms a head, not one
@@ -1054,7 +1060,9 @@ the job's workflow, and mints and reserves nothing, so re-running all jobs asks 
 `decision` is `allow` and `lane` and `activity` are its own. Any other status fails red with
 `lane-check-denied`, the status and the broker's reason, from the table above minus the
 mint-only rows; no response is `broker-unreachable`. The lanes bot is refused only on a mint, so
-a `workflow_run` read lane still runs after a bot push. The endpoint is served from
+a `workflow_run` read lane still runs after a bot push. It checks no actor either, so a
+`github-actions[bot]` dispatch is allowed here and judged by the run job's trigger gate (step 3).
+The endpoint is served from
 `melodic-software/azure-iac`; a read lane fails red until it is deployed.
 
 [`scripts/check-app-key-references.sh`](../../../scripts/check-app-key-references.sh) fails

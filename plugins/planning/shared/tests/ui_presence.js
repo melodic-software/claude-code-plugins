@@ -77,14 +77,16 @@ async function main() {
     const t0 = Date.now(), samples = [], hiddenBeats = [];
     hid.on("request", r => { if (new URL(r.url()).pathname === "/api/heartbeat") hiddenBeats.push((Date.now() - t0) / 1000); });
     await hid.evaluate(() => window.__setHidden(true));
-    await gone.context().close();
+    // Sampled on the clock, one a second from t0, so slow page reads do not thin the samples out; the watch starts
+    // before the close, so a slow close cannot delay the first sample.
     const watch = (async () => {
-      while ((Date.now() - t0) / 1000 < HIDDEN_FOR) {
+      for (let k = 1; (Date.now() - t0) / 1000 < HIDDEN_FOR; k++) {
         const v = await view();
         samples.push({ t: (Date.now() - t0) / 1000, hid: v[hidPid] || "absent", gone: v[gonePid] || "absent", row: await shownAs(hidPid), goneRow: await shownAs(gonePid) });
-        await owner.waitForTimeout(1000);
+        await owner.waitForTimeout(Math.max(0, t0 + k * 1000 - Date.now()));
       }
     })();
+    await gone.context().close();
 
     // ---------- meanwhile: Away by hand, and normal use with no 429 ----------
     const meanwhile = (async () => {
@@ -128,7 +130,7 @@ async function main() {
           await tabA.locator("#vf-answer").pressSequentially("ok", { delay: 30 });
         }
         seen.push(await owner.evaluate(p => { const x = window.Core.state.presence.find(y => y.cid === p); return x ? (x.away ? "away" : "active") : "absent"; }, twoPid));
-        await owner.waitForTimeout(500);
+        await owner.waitForTimeout(Math.max(0, start + (i + 1) * 500 - Date.now())); // on the clock, as the watch above
       }
       const flips = seen.slice(1).filter((x, j) => x !== seen[j]).length;
       ok("two tabs, one hidden, the other in use for 30 s: the owner sees the person Active throughout, no flip",
