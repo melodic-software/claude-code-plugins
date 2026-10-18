@@ -82,7 +82,7 @@
       "prompt": "Explain PR 30. The policy script printed action build and medium {\"value\": \"artifact\", \"source\": \"default\"}. The publish gate looked up the repository as PUBLIC and printed medium artifact.",
       "expected_output": "With no layer setting medium, the skill runs the publish gate, which looks up the repository's visibility itself, over the diff first. The gate allows it, so the skill says it is publishing as a private Artifact on claude.ai, then publishes the builder's page with the Artifact tool. If the tool is unavailable, the skill gives the local path and says why.",
       "expectations": [
-        "Output runs the --publish-gate check with --repo over the saved diff before publishing, and passes no visibility itself",
+        "Output runs the --publish-gate check with --facts over the saved diff before publishing, and passes no repository or visibility itself",
         "Output says the page is being published as a private Artifact on claude.ai before publishing",
         "Output does not hand-write the page or publish a page the builder did not make"
       ]
