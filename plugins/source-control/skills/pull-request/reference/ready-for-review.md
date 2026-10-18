@@ -202,7 +202,8 @@ bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" || exit 1   # only w
 **Wait for the push's CI run.** When the PR was already out of draft at 2.5.1, skip the wait. When
 its head commit is not the `HEAD_BEFORE` recorded in 2.5.2 (the base merge, the forge's update or a
 push of local commits moved it), wait up to 90 seconds, polling every
-5, for a CI run to exist for the new head commit
+5, for CI runs to exist for the new head commit and their count to hold steady across two polls.
+The wait counts the head's runs from every workflow, so it needs no CI workflow name
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#wait-for-the-pushs-ci-run)).
 Then flip whether or not one appeared; a timeout is reported, and the backstop below covers it.
 When nothing was pushed, skip the wait and flip as before.
