@@ -2594,12 +2594,22 @@ def shared_refusal(
     identity: str,
     self_logins: Collection[str],
     lane: bool,
+    authority: str | None = None,
     now: datetime | None = None,
 ) -> str | None:
     """Why `shared` may not stand in for this pull request's own reads, or
     None: it must name the same identity, self logins and lane, be no older
-    than `SHARED_MAX_AGE`, have been computed at `branch`'s current head, and
-    share this base's newest pipeline-config commit (so the same floor)."""
+    than `SHARED_MAX_AGE`, give this base the floor its own read would
+    (`merged_since_floor` with the shared demotion), and judge every merge
+    the post-merge check would judge now.
+
+    The check judges `branch` from the floor, never the base, so the answer
+    holds for any base with that floor. A newer default-branch head changes
+    the answer only through a merge the check counts (`derive_auto_merge`);
+    one that is not in the answer makes this pull request read its own.
+    Later runs on already-counted merges are not re-read: an unverified one
+    still refuses through `in_flight`, and a verified one counts no run
+    created after it verified."""
     age = (now or datetime.now(UTC)) - shared.computed_at
     owner, name = _split_repo(repo)
     checks = (
@@ -2615,15 +2625,42 @@ def shared_refusal(
     refusal = next((text for refused, text in checks if refused), None)
     if refusal:
         return refusal
-    status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
-    head = payload.get("sha") if status == 200 and is_json_object(payload) else None
-    if head != shared.main_sha:
-        return "main-moved"
     try:
-        if newest_config_commit(repo, base_sha) != shared.config_sha:
-            return "config-differs"
+        # The same newest config commit is the same floor; any other base
+        # walks its own config history to the floor it would read.
+        if newest_config_commit(
+            repo, base_sha
+        ) != shared.config_sha and shared.floor != merged_since_floor(
+            repo, base_sha, shared.demotion, authority
+        ):
+            return "floor-differs"
     except PolicyReadError:
         return "config-unreadable"
+    status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
+    head = payload.get("sha") if status == 200 and is_json_object(payload) else None
+    if head == shared.main_sha:
+        return None
+    counted = {
+        json_object(m).get("number")
+        for m in json_array(shared.gate.report.get("autoMerges"))
+    }
+    try:
+        merges = _merged_since(owner, name, branch, shared.floor)
+        if merges is None:
+            return "merged-history-truncated"
+        for pr in merges:
+            # Treating no actor as human counts a superset of the check's
+            # merges, so no merge it would judge is missed.
+            merge = derive_auto_merge(
+                pr,
+                lambda actor: False,
+                identity,
+                lane_merges_only=shared.lane_merges_only,
+            )
+            if isinstance(merge, AutoMerge) and merge.number not in counted:
+                return f"new-merge:#{merge.number}"
+    except PolicyReadError:
+        return "merged-unreadable"
     return None
 
 
@@ -2749,6 +2786,7 @@ def assess(
             identity=resolved.login,
             self_logins=self_logins,
             lane=lane,
+            authority=authority,
         )
         details["postMergeShared"] = f"unused:{unusable}" if unusable else "used"
         reuse = None if unusable else shared
