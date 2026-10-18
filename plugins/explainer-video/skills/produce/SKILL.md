@@ -73,8 +73,8 @@ record bundle or beside the markdown record they explain
    a beat that does not show its idea is a defect: fix the scene and go back to step 4. The
    overlap check compares text with text only, so reading the frames is what catches a shape over
    text.
-   - The list holds at most `MAX_FRAMES` frames (`scripts/render.py`), spread evenly over the
-     animations, and every `play`, every `wait` and every `beat` that waits counts as one. The
+   - The list holds at most `MAX_FRAMES` frames (`${CLAUDE_PLUGIN_ROOT}/scripts/render.py`),
+     spread evenly over the animations, and every `play`, every `wait` and every `beat` that waits counts as one. The
      line above the list says how many animation ends it covers; an end past the cap is not read
      back, so a scene with more animations than the cap has end states nobody checked.
    - Each `STILL:` line (`stills` in `report.json`) is a span with no change in picture, with the
@@ -97,8 +97,8 @@ record bundle or beside the markdown record they explain
   mux, then measures the muxed file again and fails it when its integrated loudness misses the
   target or its true peak is over the ceiling. The ceiling is a maximum, not the limiter's aim, which
   sits lower to leave the AAC encode room. The narrated target is our judgment, from published
-  speech and streaming targets; the values are `loudness` in `scripts/defaults.json`. `loudnorm`
-  may fall back from linear to dynamic normalization; the report records which ran, and the second
+  speech and streaming targets; the values are `loudness` in
+  `${CLAUDE_PLUGIN_ROOT}/scripts/defaults.json`. `loudnorm` may fall back from linear to dynamic normalization; the report records which ran, and the second
   measurement is what passes or fails the file.
   - **Pointer**: when a target or the fallback rule is in question, fetch EBU R 128 section 5
     (<https://tech.ebu.ch/docs/r/r128.pdf>), EBU R 128 s2 section 3
@@ -110,8 +110,8 @@ record bundle or beside the markdown record they explain
 - **Captions:** each sentence is split into the fewest balanced cues, so no cue is a one-word tail;
   a cue too short to stand joins its neighbour in the beat, and each cue stays up for the minimum
   and the reading time per word as far as the next cue allows (`captions` in
-  `scripts/defaults.json`). A cue still under the minimum fails; one under the reading time per
-  word is a `FLAG:` line, since narration spoken faster cannot be captioned slower.
+  `${CLAUDE_PLUGIN_ROOT}/scripts/defaults.json`). A cue still under the minimum fails; one under
+  the reading time per word is a `FLAG:` line, since narration spoken faster cannot be captioned slower.
   - **Pointer**: when a caption timing value is in question, fetch BBC Subtitle Guidelines section
     4.1 (<https://www.bbc.co.uk/accessibility/forproducts/guides/subtitles/>) and
     <https://partnerhelp.netflixstudios.com/hc/en-us/articles/360051554394-Timed-Text-Style-Guide-Subtitle-Timing-Guidelines>
@@ -119,8 +119,8 @@ record bundle or beside the markdown record they explain
   - **As of**: 2026-10-17
   - **Recheck trigger**: a new version of either guide changes its minimum duration or reading
     time.
-- **Stills (silent renders too):** `freezedetect` with the noise and length in `stills` in `scripts/defaults.json`, set
-  explicitly. The reporting length is our judgment; no source sets a stillness limit for narrated
+- **Stills (silent renders too):** `freezedetect` with the noise and length in `stills` in
+  `${CLAUDE_PLUGIN_ROOT}/scripts/defaults.json`, set explicitly. The reporting length is our judgment; no source sets a stillness limit for narrated
   video.
   - **Pointer**: when the filter's options are in question, fetch
     <https://ffmpeg.org/ffmpeg-filters.html#freezedetect> live.
