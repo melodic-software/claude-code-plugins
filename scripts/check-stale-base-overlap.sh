@@ -2,6 +2,10 @@
 # Gate: refuse a PR whose merge-base is behind the target tip on overlapping paths.
 #
 #   scripts/check-stale-base-overlap.sh --check <base-ref>
+#   scripts/check-stale-base-overlap.sh --warn <base-ref>
+#
+# --warn reports any overlap as a GitHub Actions ::warning and exits 0: the
+# pull_request step runs it, and the merge queue is the gate (#7871).
 #
 # Why: squash-merging a PR cut from a stale base can silently drop commits that
 # landed on the base after the PR branched — including the tests that would have
@@ -17,7 +21,9 @@
 #   1. merge-base(HEAD, <base-ref>) == tip(<base-ref>) → fresh, exit 0.
 #   2. Else intersect paths changed on base since the merge-base with paths
 #      changed on HEAD since the merge-base.
-#   3. Non-empty intersection → exit 1 with the overlapping paths.
+#   3. Non-empty intersection → exit 1 with the overlapping paths, unless every
+#      overlapping path is a CHANGELOG.md or a .changes/ fragment: then a
+#      warning and exit 0.
 #   4. Empty intersection → exit 0 (parallel work on disjoint files).
 #
 # Unrecognized git state is exit 2 (inconclusive), never a pass.
@@ -41,11 +47,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 cd "$(git rev-parse --show-toplevel)" || exit 2
 
 usage() {
-  echo "usage: $(basename "$0") --check <base-ref>" >&2
+  echo "usage: $(basename "$0") --check|--warn <base-ref>" >&2
   exit 2
 }
 
-GE_FLAGS=("--check:ref")
+GE_FLAGS=("--check:ref" "--warn:ref")
 GE_BAD_REF_MSG="check-stale-base-overlap: base ref not resolvable: ${2-}"
 # shellcheck disable=SC2310  # the non-zero return IS the handled case
 gate_entry::classify "$@" || usage
@@ -117,6 +123,27 @@ behind_by="$(git rev-list --count "$merge_base..$base_tip" 2>/dev/null || echo '
 
 if [[ -z "$overlap" ]]; then
   echo "check-stale-base-overlap: HEAD is $behind_by commit(s) behind $base_ref but touches no overlapping paths"
+  gate_entry::finish 0
+fi
+
+if [[ "$GE_MODE" == --warn ]]; then
+  # A workflow command is one line, so the paths are joined.
+  echo "::warning title=Stale base::HEAD is $behind_by commit(s) behind $base_ref on overlapping paths: ${overlap//$'\n'/, }"
+  gate_entry::finish 0
+fi
+
+# An overlap made only of changelogs (any CHANGELOG.md) and changelog
+# fragments (.changes/) is a warning, not a refusal: those files take
+# independent entries, and the merge queue tests the change on the current base
+# and runs the collision gates there (#7871).
+release_notes_only=1
+while IFS= read -r path; do
+  [[ "$path" == CHANGELOG.md || "$path" == */CHANGELOG.md || "$path" == .changes/* ]] || release_notes_only=0
+done <<<"$overlap"
+if ((release_notes_only)); then
+  echo "check-stale-base-overlap: WARNING: HEAD is $behind_by commit(s) behind $base_ref; the only overlapping paths are changelogs or changelog fragments:" >&2
+  while IFS= read -r path; do printf '    %s\n' "$path" >&2; done <<<"$overlap"
+  echo "  Not refused: the merge queue tests this change on the current base." >&2
   gate_entry::finish 0
 fi
 

@@ -17,6 +17,31 @@
         "docs": "https://nodejs.org/en/download"
       },
       "check": "/context-budget:check"
+    },
+    {
+      "id": "claude",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "claude"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "^([0-9.]+)",
+          "min": "2.1.287"
+        }
+      },
+      "degrade": "Claude Code older than 2.1.287 is unsupported: the module that adds `/context-budget live` and draws the live context breakdown as a pane or a band row does not load there. The settings-write-ask hook still runs.",
+      "install": {
+        "docs": "https://code.claude.com/docs/en/setup#update-claude-code"
+      },
+      "check": "/harness-ops:prerequisites"
     }
   ]
 }

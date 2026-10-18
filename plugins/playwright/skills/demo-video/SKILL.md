@@ -1,12 +1,12 @@
 ---
-description: "Produce a short demo video of a web UI change for a pull request: explore the flow unrecorded, write a replay script, replay it with 4K frame capture, build an edit plan (zoom on each action, drawn cursor, click ripples, captions, optional narration), render an H.264 MP4, gate it with frame-measured QC and an independent frame review, then attach it to the PR. Use when: 'demo video', 'record a demo of this change', 'make a PR video', 'show the change working on video', 'produced walkthrough video', 'video evidence for the PR'."
+description: "Produce a short demo video of a web UI change for a pull request: explore the flow unrecorded, write a replay script, replay it with 4K frame capture, build an edit plan (zoom on each action, drawn cursor, click ripples, captions, optional narration), render an H.264 MP4, gate it with frame-measured quality control and an independent frame review, then attach it to the PR. Use when: 'demo video', 'record a demo of this change', 'make a PR video', 'show the change working on video', 'produced walkthrough video', 'video evidence for the PR'."
 when_to_use: "PR demo video, produced screen recording of a web flow, video proof a UI change works"
 argument-hint: "<url or flow to demo> [--style produced|plain]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: verify
-  summary: Replay a web flow, render a produced demo video, QC it from frames, post it to the PR
+  summary: Replay a web flow, render a produced demo video, quality-control it from frames, post it to the PR
 ---
 
 # Demo video for a pull request
@@ -55,13 +55,20 @@ removes its layer in either style. Pass them to `build_edl.py` as
 
 1. **Explore, unrecorded.** Drive the flow with `/playwright:playwright` until every step works and
    you know a stable locator for each target. Nothing is recorded here: agent think-time is what
-   makes a raw recording unwatchable.
+   makes a raw recording unwatchable. Keep what exploring leaves behind out of the repository:
+   `/playwright:playwright` says where its artifacts land, so run it from `<work>` or move them
+   into `<work>/explore/`. When the flow changes stored state (a save, a submit, a setting),
+   explore on a throwaway copy of the app or its data and reset that state before every
+   recording, so each replay starts from the state the demo shows.
 2. **Write the replay script.** One ES module default-exporting `async (demo) => {}`, one
    `demo.click(...)` to `demo.settle(...)` per step, step ids that key the captions. The API and the
    example over the bundled fixture: [reference/replay-script.md](reference/replay-script.md),
    [scripts/fixture/replay.mjs](scripts/fixture/replay.mjs). Write `script.json` beside it: title,
-   subtitle, and per step `caption`, `outcome` (for a step that lands on a new page), and the
-   narration lines.
+   subtitle, and per step `caption`, `outcome` (the result the viewer reads once the step lands,
+   on a new page or in place), and the narration lines. A hold that shows an outcome lasts its
+   reading time (`captions.seconds_per_word`, never under `captions.min_seconds`, in
+   `scripts/defaults.json`), and quality control lets it stay still that much longer than the
+   stillness limit; a hold with no outcome keeps the limit.
 3. **Replay with 4K capture.**
    `node ${CLAUDE_SKILL_DIR}/scripts/record.mjs [--playwright-core DIR] replay.mjs <work>/capture`.
    The viewport is 1920x1080 at device scale 2, so every frame is a 3840x2160 PNG; cursor travel and
@@ -76,15 +83,17 @@ removes its layer in either style. Pass them to `build_edl.py` as
    `RUN build_edl.py <work>/capture script.json <work>/edl.json --style ... --layers ... [--audio-dir <work>/audio]`.
    It refuses (exit 1, plan kept as `edl.rejected.json`) when a rule breaks: a zoom edge through
    text, a navigation cut not at 1.0x, a camera move over the limits, a caption with no empty
-   anchor. Fix the replay (a tighter `block`, a pause) or the script, never the rule.
+   anchor. A `shot search:` line after the rules names the steps no zoom shot fits; a caption
+   with no empty anchor often follows from it. Fix the replay (a tighter `block`, a pause) or the
+   script, never the rule.
 6. **Render.** `RUN produce.py <work>/edl.json <work>/demo.mp4`
    (add `--preset veryfast` for drafts). It writes `demo.render.json` beside the video.
-7. **Frame QC.** `RUN qc.py <work>/edl.json <work>/demo.mp4 <work>/qc`
+7. **Frame quality control.** `RUN quality_control.py <work>/edl.json <work>/demo.mp4 <work>/quality-control`
    measures every rule from the rendered frames and exits 1 on any FAIL. The checks and where each
-   threshold comes from: [reference/qc.md](reference/qc.md). A FAIL goes back to step 2 or 5.
+   threshold comes from: [reference/quality-control.md](reference/quality-control.md). A FAIL goes back to step 2 or 5.
 8. **Independent frame review.** Dispatch a fresh-context subagent that did not produce the video,
    with the brief in [reference/independent-review.md](reference/independent-review.md): the video,
-   the QC sheets and the acceptance rules, and none of your reasoning about why it is fine. Fix what
+   the quality-control sheets and the acceptance rules, and none of your reasoning about why it is fine. Fix what
    it finds and repeat 6-8. Nothing is posted on the producer's word.
 9. **Post.** [reference/posting.md](reference/posting.md): locally, `gh pr comment --attach` with a
    `gh` that has `--attach`; in CI, a non-zipped Actions artifact plus a comment linking it.
@@ -99,20 +108,26 @@ Return to it to re-run the flow when the review asks for a change to the app or 
 
 - **Backdrop blur stalls capture.** A `backdrop-filter` (a DocSearch-style search modal) dropped
   software-rendered capture to about 3 fps; `record.mjs` disables it, and the caret, on every page.
+- **Looping animations never settle.** `demo.settle` waits for identical captures, so an endless
+  CSS animation (a pulsing status dot, a spinner), often drawn on `::before` or `::after`, makes
+  `record.mjs` stop with "page never went still". Find it with `document.getAnimations()` while
+  exploring and stop it in the replay with `demo.style(...)`, naming the pseudo-element in the
+  selector (`.pill::before { animation: none !important; }`): a rule on the element, or on `*`
+  under it, does not reach its pseudo-elements.
 - **Kokoro pads each clip.** The local voice adds about 0.35 s of silence before the first word;
   `build_edl.py` trims each clip to its first word using `words.json`, so keep that file beside
   each `narration.wav`.
 - **Crossfades ghost.** Blending two page states shows both at once (double text, half-drawn
   panels). Page changes are hard cuts with the camera still; the only blend is the title dipping
-  through ink, and `qc.py` fails any other.
+  through ink, and `quality_control.py` fails any other.
 - **Producer self-reports are not evidence.** A producer's own numbers (zoom share from the plan,
   "all checks pass") disagreed with frame measurement three times while this pipeline was built.
-  Only `qc.py` output and the independent review count.
+  Only `quality_control.py` output and the independent review count.
 - **Block-level elements span the row.** A heading's box is as wide as its container, so a `block`
   made from it cannot be zoomed; build the block from elements that hug their content or pass an
   explicit `[x, y, w, h]`.
 - **Hide partial states in the replay.** Results that re-render per keystroke flash "No results"
   states; hide them with `demo.style(css)` while typing and reveal them after, as the reference
   shows.
-- **`ffmpeg -ss` in the QC sheets is approximate.** The sheets are for looking; the checks read
+- **`ffmpeg -ss` in the quality-control sheets is approximate.** The sheets are for looking; the checks read
   every decoded frame.

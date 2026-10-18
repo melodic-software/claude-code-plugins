@@ -14,9 +14,12 @@ name: release-publish-plugins
 # required_signatures rule accepts it (the pattern of pr-bump-plugin-version.yml).
 #
 # A scheduled run, and a push of a fragment to main, run `merge`: it queues a
-# release pull request that is current and green, rebuilds one that is stale or
-# conflicted, and builds one when none is open (ADR 0048, Rollout 3 and Resolved
-# decisions 1 and 2). workflow_dispatch runs either action by hand.
+# release pull request that is current and green, rebuilds one that is stale,
+# conflicted, or failing ci-status on a base behind main, and builds one when
+# none is open (ADR 0048, Rollout 3, Resolved decisions 1 and 2, and the
+# 2026-10-17 amendment). Neither action rebuilds one in the merge queue:
+# .github/scripts/release-publish-plugins/decide-rebuild.sh decides for both.
+# workflow_dispatch runs either action by hand.
 on:
   schedule:
     - cron: '41 */3 * * *'
@@ -72,53 +75,16 @@ jobs:
           ref: main
           fetch-depth: 0
           persist-credentials: false
-      - name: Find the release pull request
-        id: pr
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json id,number,headRefOid,mergeable,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0] // empty')"
-          if [ -z "$pr" ]; then
-            echo "No release pull request is open; building one."
-            echo "found=false" >>"$GITHUB_OUTPUT"
-            exit 0
-          fi
-          {
-            echo "found=true"
-            echo "mergeable=$(jq -r .mergeable <<<"$pr")"
-            echo "id=$(jq -r .id <<<"$pr")"
-            echo "number=$(jq -r .number <<<"$pr")"
-            echo "head=$(jq -r .headRefOid <<<"$pr")"
-          } >>"$GITHUB_OUTPUT"
       # Read main at this moment, not at checkout: the check and the queue call
       # are seconds apart, and the merge queue re-runs the check on the exact
       # tree the release lands on (pr-require-checks.yml, check-plugins).
       - name: Check the release against main's live tip
         id: check
         env:
-          FOUND: ${{ steps.pr.outputs.found }}
-          MERGEABLE: ${{ steps.pr.outputs.mergeable }}
-          HEAD_SHA: ${{ steps.pr.outputs.head }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          if [ "$FOUND" != true ] || [ "$MERGEABLE" = CONFLICTING ]; then
-            echo "rebuild=true" >>"$GITHUB_OUTPUT"
-            exit 0
-          fi
-          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main' "$HEAD_SHA"
-          main_sha="$(git rev-parse HEAD)"
-          git checkout -q --detach "$HEAD_SHA"
-          # Run main's copy of the gate, never the head's: the head is the branch under review.
-          git checkout -q "$main_sha" -- scripts
-          rc=0
-          scripts/check-changelog-fragments.sh --check-release origin/main || rc=$?
-          case "$rc" in
-          0) echo "rebuild=false" >>"$GITHUB_OUTPUT" ;;
-          1)
-            echo "::warning::The release pull request is stale against main; rebuilding it instead of merging."
-            echo "rebuild=true" >>"$GITHUB_OUTPUT"
-            ;;
-          *) exit "$rc" ;;
-          esac
+          git fetch -q --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          .github/scripts/release-publish-plugins/decide-rebuild.sh "$(git rev-parse origin/main)"
       # expectedHeadOid pins the queued head to the one checked above: a push to
       # release/plugins in between makes the call fail rather than queue an
       # unchecked head. A head already queued, or whose latest `ci-status` has
@@ -127,9 +93,9 @@ jobs:
         if: steps.check.outputs.rebuild == 'false'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          PR_ID: ${{ steps.pr.outputs.id }}
-          PR_NUMBER: ${{ steps.pr.outputs.number }}
-          HEAD_SHA: ${{ steps.pr.outputs.head }}
+          PR_ID: ${{ steps.check.outputs.id }}
+          PR_NUMBER: ${{ steps.check.outputs.number }}
+          HEAD_SHA: ${{ steps.check.outputs.head }}
         run: |
           owner="${GITHUB_REPOSITORY%/*}"
           name="${GITHUB_REPOSITORY#*/}"
@@ -196,48 +162,20 @@ jobs:
           ref: main
           fetch-depth: 0
           persist-credentials: false
-      # ADR 0048, The release pull request: with one open, rebuild it only when
-      # main holds a fragment it did not consume for a plugin it bumps (or one it
-      # consumed has since changed), or when it has a merge conflict. Otherwise
-      # leave it alone so its CI can finish.
+      # The same decision the merge job makes (decide-rebuild.sh): a release
+      # pull request in the merge queue is never rebuilt, since GitHub refuses
+      # to update a queued branch.
       - name: Decide whether to build
         id: decide
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          REBUILD: ${{ needs.merge.outputs.rebuild }}
         run: |
           main_sha="$(git rev-parse HEAD)"
           echo "main=$main_sha" >>"$GITHUB_OUTPUT"
-          pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json number,headRefOid,mergeable,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0] // empty')"
-          build=false
-          if [ "$REBUILD" = true ]; then
-            echo "The merge check found the release stale; rebuilding."
-            build=true
-          elif [ -z "$pr" ]; then
-            echo "No release pull request is open; building one."
-            build=true
-          elif [ "$(jq -r .mergeable <<<"$pr")" = CONFLICTING ]; then
-            echo "Release pull request #$(jq -r .number <<<"$pr") has a merge conflict; rebuilding."
-            build=true
-          else
-            head="$(jq -r .headRefOid <<<"$pr")"
-            git fetch --no-tags origin "$head"
-            git checkout -q --detach "$head"
-            # Run main's copy of the gate, without the App token: the head is the branch under review.
-            git checkout -q "$main_sha" -- scripts
-            rc=0
-            env -u GH_TOKEN scripts/check-changelog-fragments.sh --check-release "$main_sha" || rc=$?
-            git checkout -q -f --detach "$main_sha"
-            case "$rc" in
-            0) echo "Release pull request #$(jq -r .number <<<"$pr") consumes every pending fragment for the plugins it bumps; leaving it alone." ;;
-            1) build=true ;;
-            *) exit "$rc" ;;
-            esac
-          fi
-          echo "build=$build" >>"$GITHUB_OUTPUT"
+          .github/scripts/release-publish-plugins/decide-rebuild.sh "$main_sha"
       - name: Release the pending fragments
         id: release
-        if: steps.decide.outputs.build == 'true'
+        if: steps.decide.outputs.rebuild == 'true'
         run: |
           set -o pipefail
           report="$RUNNER_TEMP/release-report.txt"
@@ -266,7 +204,7 @@ jobs:
       # update: a run cut short never leaves the open release PR with an empty
       # head. expectedHeadOid makes the write fail if the staging branch moved.
       - name: Write the release commit
-        if: steps.decide.outputs.build == 'true' && steps.release.outputs.released != '0'
+        if: steps.decide.outputs.rebuild == 'true' && steps.release.outputs.released != '0'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           MAIN_SHA: ${{ steps.decide.outputs.main }}
@@ -313,7 +251,7 @@ jobs:
           gh api -X DELETE "$refs/heads/$stage" --silent || echo "::warning::Could not delete $stage; the next run removes it."
           echo "Wrote release commit $oid."
       - name: Open or update the release pull request
-        if: steps.decide.outputs.build == 'true' && steps.release.outputs.released != '0'
+        if: steps.decide.outputs.rebuild == 'true' && steps.release.outputs.released != '0'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           MAIN_SHA: ${{ steps.decide.outputs.main }}
@@ -361,7 +299,7 @@ jobs:
       # With nothing released there is no new body to write, so name the skipped
       # plugins on the open release pull request, once per set.
       - name: Name the skipped plugins on the open release pull request
-        if: steps.decide.outputs.build == 'true' && steps.release.outputs.released == '0' && steps.release.outputs.skipped != ''
+        if: steps.decide.outputs.rebuild == 'true' && steps.release.outputs.released == '0' && steps.release.outputs.skipped != ''
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           SKIPPED: ${{ steps.release.outputs.skipped }}

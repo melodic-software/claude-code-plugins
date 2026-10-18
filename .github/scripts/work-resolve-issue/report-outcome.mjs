@@ -5,20 +5,21 @@
 //   done      opens a ready PR from the run's branch: the body starts
 //             `Closes #<issue>`, or `Refs: #<issue>` when the run reports
 //             `"link": "refs"` (a recorded decision keeps the issue open),
-//             which also holds the PR for a human, since the merge gate
-//             reads the work class from a closing issue. The title is the
+//             which also holds the PR for a human and gives the issue the
+//             human-gated label and a refs-hold comment. The title is the
 //             run's Conventional Commits title, with any `#` or `/` a space
 //             (else one built from the issue title), and the body carries
 //             the hold line when a human must merge it. The PR gets no label:
-//             the work class lives on the issue only, and the merge gate reads
-//             it from the PR's closing issue. The body fills the PR body contract's
+//             the work class lives on the issue only. The merge gate reads no
+//             work class and treats every lane PR as C2, so the hold line
+//             carries the class floor. The body fills the PR body contract's
 //             sections from the outcome's summary, changes, verification and
 //             not_done. A done outcome whose not_done holds a required check
 //             is stopped.
 //   pushback  comments why, adds the human-gated label, removes agent-ready.
-//   stopped   comments why, adds the human-gated label, and names the branch
-//             that holds any partial work. A missing or invalid outcome file
-//             is stopped.
+//   stopped   comments why, adds the human-gated label, removes agent-ready,
+//             and names the branch that holds any partial work. A missing or
+//             invalid outcome file is stopped.
 //   limited   a run that wrote no readable outcome file and whose lane.json
 //             carries class rate-limit (the run hit its credential's usage
 //             limit before it could report): comments once with the
@@ -52,7 +53,8 @@
 //                       (runner-written issue, branch and tip; model output)
 //   TRACKER_CONFIG      base .work-item-tracker.json, for the human-gated label
 //   RESOLVED_CONFIG     resolve-config's output for this run (default
-//                       $RUNNER_TEMP/resolved-config.json), for the denied paths
+//                       $RUNNER_TEMP/resolved-config.json), for the denied
+//                       paths and the limits
 //   LANES_BOT_LOGIN     the lanes App bot login, the only author of an open PR
 //                       a rerun reuses (default melodic-automation-lanes[bot])
 //   TRUSTED_ACTORS_PATH --find-prior: trusted-actors.json from the default
@@ -63,6 +65,8 @@ import { appendFileSync, readFileSync } from "node:fs";
 import { join, posix } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
+
+import { LIMIT_DEFAULTS, clampReset, readLimits } from "./limits.mjs";
 
 export const HOLD_LINE = "Hold: a human merges this";
 const EXITS = new Set(["done", "pushback", "stopped"]);
@@ -107,10 +111,10 @@ function prTitle(runTitle, issueTitle, issueNumber) {
   }
   return (match && conventionalFrom(runTitle)) || conventionalFrom(issueTitle) || `fix: resolve issue ${issueNumber}`;
 }
-// Work a human merges: the classes past mechanical, and any diff that touches
-// a path the merge lane refuses (merge.diff-check.denied-paths in the base
+// Work a human merges: structural and untrusted-provenance work, and any diff
+// that touches a path the merge lane refuses (merge.diff-check.denied-paths in the base
 // pr-pipeline.yaml), so the two lists cannot drift apart.
-const HOLD_CLASSES = new Set(["work-class: scoped", "work-class: structural", "work-class: untrusted-provenance"]);
+const HOLD_CLASSES = new Set(["work-class: structural", "work-class: untrusted-provenance"]);
 const MAX_TEXT = 3000;
 const MAX_ITEMS = 20;
 const MAX_ITEM = 300;
@@ -118,26 +122,24 @@ const MAX_ITEM = 300;
 // hide a hold path.
 const COMPARE_FILES_CAP = 300;
 
-// When a limit stop names no reset time, it is taken to reset this long after
-// the run: the shortest plan limit is a five-hour session window
-// (https://support.claude.com/en/articles/11145838).
-// Hard-coded until pr-pipeline.yaml has a limits.fallback-reset leaf:
-// https://github.com/melodic-software/claude-code-plugins/issues/7764
-export const FALLBACK_RESET_MS = 5 * 3_600_000;
-const HOUR_MS = 3_600_000;
-
-// When a limit stop at `from` may restart: its stated reset (else the
-// fallback), held between one hour and seven days after the stop, so a reset
-// in the past cannot start a tight restart loop and one far off cannot park
-// the issue.
-export const clampReset = (resets, from) =>
-  Math.min(Math.max(resets ?? from + FALLBACK_RESET_MS, from + HOUR_MS), from + 7 * 24 * HOUR_MS);
+// A limit stop with no reset time is taken to reset `limits.fallback-reset`
+// hours after the run: the shortest plan limit is a five-hour session window
+// (https://support.claude.com/en/articles/11145838). work-unblock takes
+// clampReset from here.
+export { clampReset };
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/;
 const MARKER = /^<!-- work-resolve-issue outcome=([a-z]+)(?: resets=(\S+))?(?: run=(\d+))? -->/;
 
 // The marker a limited run leaves on its issue; work-unblock reads it back.
 export const limitedMarker = ({ resets, runId }) =>
   `<!-- work-resolve-issue outcome=limited resets=${resets} run=${runId || 0} -->`;
+
+// A Refs PR has no closing issue, so the merge lane never merges it: the issue
+// gets `label` and this comment, whose marker tells work-unblock which hold it
+// may lift once that PR merges.
+export const refsHoldMarker = (pr) => `<!-- work-resolve-issue refs-hold #${pr} -->`;
+export const refsHoldComment = (pr, label) =>
+  `${refsHoldMarker(pr)}\nThe lanes App's pull request #${pr} links this issue with \`Refs:\`, not \`Closes\`, so the merge lane never merges it. report-outcome added \`${label}\` so a person merges or closes it. When it merges, work-unblock removes this \`${label}\` and \`agent-ready\` and adds \`needs-triage\`, so triage decides what work is left. To keep the issue held after the merge, add \`needs-owner-decision\`.`;
 
 // {outcome, resets, run} from a comment body that opens with the lane's
 // marker, or null. resets is epoch milliseconds, or null when absent or
@@ -180,12 +182,13 @@ const stepList = (value) =>
     .slice(0, MAX_ITEMS)
     .map(({ activity, result }) => ({ activity: activity.slice(0, 40), result: result.slice(0, 20) }));
 
-// The merge lane's denied-path globs from the resolved config, or null when
-// they cannot be read, which holds every PR.
+// The merge lane's denied-path globs from the resolved config; an empty list
+// denies no path. Null, which holds every PR, when the file cannot be read or
+// parsed, or the value is missing, not a list, or holds a non-string.
 export function readHoldPaths(path) {
   try {
     const paths = JSON.parse(readFileSync(path, "utf8"))?.merge?.["diff-check"]?.["denied-paths"];
-    return Array.isArray(paths) && paths.length && paths.every((glob) => typeof glob === "string") ? paths : null;
+    return Array.isArray(paths) && paths.every((glob) => typeof glob === "string") ? paths : null;
   } catch {
     return null;
   }
@@ -288,7 +291,7 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId }) {
     "",
     pushback
       ? `To retry, answer the question here, remove \`${humanLabel}\` and add \`agent-ready\` again.`
-      : `To retry, remove \`${humanLabel}\`, then remove and add \`agent-ready\`.`,
+      : `To retry, remove \`${humanLabel}\` and add \`agent-ready\` again.`,
   );
   return {
     action: "hand-back",
@@ -296,7 +299,7 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId }) {
     issueNumber,
     comment: lines.join("\n"),
     addLabels: [humanLabel],
-    removeLabels: pushback ? ["agent-ready"] : [],
+    removeLabels: ["agent-ready"],
   };
 }
 
@@ -441,6 +444,7 @@ export function decide({
   humanLabel = "needs-human",
   runUrl = "",
   limit = null,
+  limits = LIMIT_DEFAULTS,
   now = Date.now(),
   runId = "",
 }) {
@@ -449,7 +453,7 @@ export function decide({
   // code the run executed can forge the record, so it must not hide a stop
   // or pushback the skill reported from the person it goes to.
   if (limit && outcome.unread) {
-    const resets = new Date(clampReset(limit.resets, now)).toISOString().replace(/\.\d+Z$/, "Z");
+    const resets = new Date(clampReset(limit.resets, now, limits)).toISOString().replace(/\.\d+Z$/, "Z");
     return limitedPlan({ issueNumber, branch, resets, runId, runUrl });
   }
   if (outcome.exit === "done" && !branch) {
@@ -521,6 +525,7 @@ export function decide({
     title: prTitle(outcome.title, issueTitle, issueNumber),
     body,
     branch,
+    refsHold: refs ? humanLabel : null,
   };
 }
 
@@ -840,7 +845,8 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       );
     };
     const changedFiles = outcome?.exit === "done" && branch ? await compare() : [];
-    const holdPaths = readHoldPaths(env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json"));
+    const resolvedPath = env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");
+    const holdPaths = readHoldPaths(resolvedPath);
     // A reuse whose outcome cannot be read never takes the limit record: the
     // skipped run hit no limit, and a limited marker would loop restarts. Its
     // file list is only text, so a failed compare never blocks the PR.
@@ -867,6 +873,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           humanLabel: humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json"),
           runUrl,
           limit,
+          limits: readLimits(resolvedPath),
           now,
           runId: /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "",
         });
@@ -903,6 +910,11 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           draft: false,
         }));
       console.log(`report-outcome: opened PR #${pull.number} for issue #${issueNumber}`);
+      if (plan.refsHold) {
+        // The label first, so a failed comment still leaves the issue with a person.
+        await github("POST", `${repo}/issues/${issueNumber}/labels`, { labels: [plan.refsHold] });
+        await github("POST", `${repo}/issues/${issueNumber}/comments`, { body: refsHoldComment(pull.number, plan.refsHold) });
+      }
       return 0;
     }
     // The label first, so a failed comment still leaves the issue with a person.

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { createGitHubApi, dispatchConflicting, main } from "./dispatch.mjs";
 
 const CHECK_NAME = "pr-unblock / resolve-conflicts";
@@ -291,6 +292,18 @@ test("a limit-stopped run counts as handled only until its limit resets", async 
   assert.deepEqual(dispatchedNumbers(api), ["21", "23"]);
 });
 
+test("the resolved limits set how many reset limit stops hold a head", async () => {
+  const now = Date.parse("2026-10-17T12:00:00Z");
+  const stopped = pr(28);
+  const apiOptions = { pages: [[stopped]], checked: new Map([[stopped.headRefOid, [failedRun("2026-10-17T06:00:00Z")]]]) };
+  const defaults = harness(apiOptions, { now });
+  await defaults.run();
+  assert.deepEqual(dispatchedNumbers(defaults.api), ["28"]);
+  const one = harness(apiOptions, { now, limits: { ...LIMIT_DEFAULTS, "limit-stops-per-head": 1 } });
+  await one.run();
+  assert.deepEqual(dispatchedNumbers(one.api), []);
+});
+
 test("skips a PR while a resolve-conflicts run for it is queued or going", async () => {
   for (const status of ["queued", "in_progress", "waiting", "pending"]) {
     const { api, lines, run } = harness({
@@ -471,7 +484,7 @@ async function runMain(apiOptions) {
         GITHUB_RUN_ID: "4242",
         GITHUB_OUTPUT: output,
       },
-      { api: fakeApi(apiOptions), sleep: async () => {}, log: () => {} },
+      { api: fakeApi(apiOptions), sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS },
     );
     return { code, output: readFileSync(output, "utf8") };
   } finally {

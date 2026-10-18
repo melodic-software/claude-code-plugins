@@ -1,5 +1,35 @@
 # Changelog for the PR pipeline convention
 
+## 2.8.0 - 2026-10-17
+
+An optional `limits` block sets the limit-stop restart values: `fallback-reset`,
+`reset-clamp-min` and `reset-clamp-max` (hours), `restarts-per-run`, `limit-stops-per-head` and
+`limit-stops-per-issue` ([README.md, Limits](README.md#limits)). Each defaults to the value the
+lanes used before, and resolve-config emits all six. `version` stays 2.
+
+## 2.7.0 - 2026-10-17
+
+`resolve-issue` lists skill-quality's `check-skill.sh` and `check-evals-quality.sh` as
+`verify-scripts`, so the issue lane can run the skill checks an issue's done-when names
+([#7840](https://github.com/melodic-software/claude-code-plugins/issues/7840)). Every
+verify-script wrapper now unsets `GH_TOKEN` and `GITHUB_TOKEN` before it runs the script, as
+`scripts/run-test-file.sh` does for its test; code the script runs can still read the token from
+an ancestor process's `/proc/<pid>/environ`. `check-skill.sh` runs each checked skill's
+`scripts/*.test.sh` and the checkout's markdownlint: checkout code with the network open, the
+power `run-test-file.sh` already gives the run ([pr-run-activity.md](pr-run-activity.md#skill-activities)).
+`version` stays 2.
+
+## 2.6.1 - 2026-10-17
+
+`address-feedback.mjs select` now also keeps a thread the lane escalated (the lanes App's last
+comment is an `INCORRECT`, `UNCERTAIN` or `VALID-defer` reply) when every comment after it is by a
+human on the base's trusted-actor list, created after the escalation and edited by no one else.
+Those replies are marked `direction: true` in the thread file. Before, every comment had to be the
+reviewer bot's, so the lane never read a person's answer to its own escalation
+([pr-run-activity.md](pr-run-activity.md)). `pr-feedback-dispatch.yml` judges a thread with the
+same rule, so a review round that ends on a PR with such a thread dispatches address-feedback
+([README.md](README.md)). `version` stays 2.
+
 ## 2.6.0 - 2026-10-17
 
 A daily `maintenance` producer, the lane sweep ([README.md, The lane sweep](README.md#the-lane-sweep)):

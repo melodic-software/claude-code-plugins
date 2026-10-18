@@ -2958,7 +2958,17 @@ class SharedPostMergeAnswer(unittest.TestCase):
         gh = self.readable()
         gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": MAIN_SHA}
         gh.rest[NEWEST_CONFIG] = [{"sha": CONFIG_SHA}]
+        self.computed_at = policy.datetime.now(policy.UTC)
+        gh.rest[self.issues_since()] = []
         return gh
+
+    def issues_since(self) -> str:
+        """The demotion re-read: issues updated since the answer, to the
+        second GitHub's `since` takes, less the clock margin."""
+        since = (self.computed_at - policy.SINCE_CLOCK_MARGIN).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        return f"repos/{REPO}/issues?state=all&since={since}&per_page=100"
 
     def shared(self, gate_: policy.PostMergeGate, **overrides: Any) -> Any:
         fields: dict[str, Any] = {
@@ -2967,7 +2977,7 @@ class SharedPostMergeAnswer(unittest.TestCase):
             "identity": IDENTITY,
             "self_logins": frozenset(),
             "lane_merges_only": True,
-            "computed_at": policy.datetime.now(policy.UTC),
+            "computed_at": self.computed_at,
             "demotion": policy.Demotion(False, None, ()),
             "floor": policy.datetime.fromisoformat(ENABLED_AT),
             "gate": gate_,
@@ -3017,21 +3027,161 @@ class SharedPostMergeAnswer(unittest.TestCase):
                 if answer.refusal is None:
                     self.assertIs(flight.call_args.kwargs["verified"], verified)
 
+    def moved(self, merges: Any) -> GhFake:
+        """Bound, but the default branch moved to a head that merged
+        `merges` (a PolicyRecentMerges answer) since the floor."""
+        gh = self.bound()
+        gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": "f" * 40}
+        gh.graphql["PolicyRecentMerges"] = merges
+        return gh
+
+    def test_a_moved_head_with_no_new_lane_merge_decides_as_the_fresh_reads_do(
+        self,
+    ) -> None:
+        # The check judges only the identity's merges since the floor, so a
+        # person's merge, another App's, or one already in the answer moves
+        # the head without changing the answer.
+        counted = policy.PostMergeGate(
+            None, {"ok": True, "autoMerges": [{"number": 7}]}, lambda m: True
+        )
+        merges = merge_pages(
+            [
+                [
+                    merged(9, user(OPERATOR), user(OPERATOR)),
+                    merged(8, bot("release"), bot("release")),
+                    merged(7, bot("agent-lanes"), None),
+                ]
+            ]
+        )
+        for head in ({"sha": "f" * 40}, 502):
+            with self.subTest(head=head):
+                self.moved(merges)
+                self.flight()
+                fresh = self.lane_assess(post_merge=lambda floor, who: counted)
+                gh = self.moved(merges)
+                gh.rest[f"repos/{REPO}/commits/trunk"] = head
+                self.flight()
+                never = mock.Mock(side_effect=AssertionError("read fresh"))
+                with mock.patch.object(policy, "read_demotion", never):
+                    reused = self.lane_assess(
+                        post_merge=never, shared=self.shared(counted)
+                    )
+                self.assertEqual(reused.details["postMergeShared"], "used")
+                self.assertEqual(self.decided(reused), self.decided(fresh))
+
+    def test_a_base_behind_with_the_same_floor_decides_as_the_fresh_reads_do(
+        self,
+    ) -> None:
+        # A later config commit on the default branch that keeps the path
+        # enabled leaves the floor where the base's own history puts it.
+        answer = gate("failure:canary#7708")
+        self.bound().rest[NEWEST_CONFIG] = [{"sha": "f" * 40}]
+        self.flight()
+        fresh = self.lane_assess(post_merge=lambda floor, who: answer)
+        self.bound().rest[NEWEST_CONFIG] = [{"sha": "f" * 40}]
+        self.flight()
+        never = mock.Mock(side_effect=AssertionError("read fresh"))
+        with mock.patch.object(policy, "read_demotion", never):
+            reused = self.lane_assess(post_merge=never, shared=self.shared(answer))
+        self.assertEqual(reused.details["postMergeShared"], "used")
+        self.assertEqual(self.decided(reused), self.decided(fresh))
+
+    def test_a_demotion_record_filed_since_the_answer_is_not_missed(self) -> None:
+        # The answer says not demoted; a record opened after it, an edit or
+        # close of a known record, an unreadable re-read, or a full page
+        # sends the pull request to its own demotion read.
+        record = {
+            "number": 90,
+            "user": {"login": "github-actions[bot]"},
+            "body": DEMOTION_BODY,
+            "state": "open",
+        }
+        known = {"number": 12, "user": {"login": OPERATOR}, "state": "closed"}
+        full = [
+            {"number": 1000 + n, "user": {"login": OPERATOR}, "state": "open"}
+            for n in range(100)
+        ]
+        for issues, records in (
+            ([record], ()),
+            ([known], (12,)),
+            (502, ()),
+            (full, ()),
+        ):
+            with self.subTest(issues=issues):
+                gh = self.bound()
+                gh.rest[self.issues_since()] = issues
+                self.flight()
+                reads = mock.Mock(wraps=policy.read_demotion)
+                seen: list[Any] = []
+                with mock.patch.object(policy, "read_demotion", reads):
+                    result = self.lane_assess(
+                        post_merge=lambda floor, who: seen.append(floor) or gate(),
+                        shared=self.shared(
+                            gate("failure:canary#1"),
+                            demotion=policy.Demotion(False, None, records),
+                        ),
+                    )
+                self.assertEqual(
+                    result.details["postMergeShared"], "unused:demotion-changed"
+                )
+                reads.assert_called_once()
+                self.assertEqual(seen, [policy.datetime.fromisoformat(ENABLED_AT)])
+
+    def test_an_unrelated_issue_or_a_pull_request_leaves_the_answer_bound(
+        self,
+    ) -> None:
+        gh = self.bound()
+        gh.rest[self.issues_since()] = [
+            {"number": 91, "user": {"login": OPERATOR}, "state": "open"},
+            {"number": 92, "user": {"login": IDENTITY}, "pull_request": {}},
+        ]
+        self.flight()
+        never = mock.Mock(side_effect=AssertionError("read fresh"))
+        result = self.lane_assess(post_merge=never, shared=self.shared(gate()))
+        self.assertEqual(result.details["postMergeShared"], "used")
+
+    def test_a_demoted_answer_needs_no_re_read(self) -> None:
+        # Already demoted, the answer is the conservative one.
+        gh = self.bound()
+        del gh.rest[self.issues_since()]
+        self.flight()
+        demoted = policy.Demotion(True, "#5 open", (5,))
+        result = self.lane_assess(
+            post_merge=mock.Mock(side_effect=AssertionError("read fresh")),
+            shared=self.shared(gate(), demotion=demoted),
+        )
+        self.assertEqual(result.details["postMergeShared"], "used")
+
     def test_an_unbound_answer_is_not_used(self) -> None:
         late = policy.datetime.now(policy.UTC) - policy.timedelta(minutes=31)
-        for overrides, rest, reason in (
-            ({}, {f"repos/{REPO}/commits/trunk": {"sha": "f" * 40}}, "main-moved"),
-            ({}, {f"repos/{REPO}/commits/trunk": 502}, "main-moved"),
-            ({}, {NEWEST_CONFIG: [{"sha": "f" * 40}]}, "config-differs"),
-            ({}, {NEWEST_CONFIG: 404}, "config-unreadable"),
-            ({"identity": "other[bot]"}, {}, "identity-differs"),
-            ({"self_logins": frozenset({"x[bot]"})}, {}, "self-logins-differ"),
-            ({"lane_merges_only": False}, {}, "lane-differs"),
-            ({"computed_at": late}, {}, "stale"),
+        other_floor = policy.datetime.fromisoformat("2026-10-11T00:00:00Z")
+        lane_merge = merge_pages([[merged(7, bot("agent-lanes"), None)]])
+        moved = {f"repos/{REPO}/commits/trunk": {"sha": "f" * 40}}
+        for overrides, rest, graphql, reason in (
+            ({}, moved, {"PolicyRecentMerges": lane_merge}, "new-merge:#7"),
+            ({}, moved, {"PolicyRecentMerges": 502}, "merged-unreadable"),
+            (
+                {},
+                moved,
+                {"PolicyRecentMerges": merge_pages([[]], endless=True)},
+                "merged-history-truncated",
+            ),
+            (
+                {"floor": other_floor},
+                {NEWEST_CONFIG: [{"sha": "f" * 40}]},
+                {},
+                "floor-differs",
+            ),
+            ({}, {NEWEST_CONFIG: 404}, {}, "config-unreadable"),
+            ({"identity": "other[bot]"}, {}, {}, "identity-differs"),
+            ({"self_logins": frozenset({"x[bot]"})}, {}, {}, "self-logins-differ"),
+            ({"lane_merges_only": False}, {}, {}, "lane-differs"),
+            ({"computed_at": late}, {}, {}, "stale"),
         ):
             with self.subTest(reason=reason, rest=rest):
                 gh = self.bound()
                 gh.rest.update(rest)
+                gh.graphql.update(graphql)
                 self.flight()
                 seen: list[Any] = []
                 shared = self.shared(gate("failure:canary#1"), **overrides)

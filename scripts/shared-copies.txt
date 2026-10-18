@@ -211,6 +211,9 @@ lib/prerequisites.ps1 plugins/debugging/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/desktop-notification/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/desktop-notification/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/desktop-notification/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/display-redaction/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/display-redaction/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/display-redaction/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/discovery/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/discovery/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/discovery/lib/prerequisites.ps1

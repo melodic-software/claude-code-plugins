@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { isEscalationReply } from "./address-feedback.mjs";
 import { main, publish, renderReply } from "./publish-feedback.mjs";
 
 // Ids from .github/standards/trusted-actors/trusted-actors.json and the
@@ -124,6 +125,7 @@ const run = (api, repliesText, runText = runFor(repliesText)) =>
     appId: APP,
     modelRun: "5000-1",
     reviewerId: REVIEWER,
+    trustedHumans: new Set([HUMAN]),
     readArtifact: () => ({ runText, repliesText }),
     fileExists: exists,
   });
@@ -161,6 +163,53 @@ test("a VALID reply is posted in the fixed template on its root comment and reso
   ]);
   assert.deepEqual(api.resolved(), ["PRRT_a"]);
   assert.deepEqual(api.calls.find((call) => call[0] === "compare"), ["compare", GATED, NOW]);
+});
+
+// A thread the lane left UNCERTAIN, then a trusted person's decision.
+function decided() {
+  const at = (minute) => `2026-10-17T20:0${minute}:00Z`;
+  const row = (id, user, body, minute) => ({ id, user: { id: user }, pull_request_review_id: 10, path: "src/a.js", line: 1, body, created_at: at(minute) });
+  const escalation = renderReply({ disposition: "UNCERTAIN", evidence: [], fixSha: "", note: "Needs the owner." });
+  return {
+    reviewComments: [row(100, REVIEWER, "finding 100", 0), row(101, APP, escalation, 1), row(102, HUMAN, "Drop the reference.", 2)],
+    threads: { PRRT_a: { ids: [100, 101, 102], resolved: false } },
+  };
+}
+const decidedRun = JSON.stringify({ ...RUN, threads: [{ id: "PRRT_a", path: "src/a.js", comment_ids: [100, 101, 102] }] });
+
+test("a VALID reply on a thread a trusted person decided after the escalation is posted and resolved", async () => {
+  const api = fakeApi(decided());
+  const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX, note: "Applied the decision." })), decidedRun);
+  assert.equal(result.escalationReason, "");
+  assert.deepEqual(api.posted().map((call) => call[2]), [100]);
+  assert.match(api.posted()[0][3], /^\*\*pr-unblock \/ address-feedback: VALID, fixed\*\*/);
+  assert.deepEqual(api.resolved(), ["PRRT_a"]);
+});
+
+test("a decided thread whose reply no trusted person wrote is not posted on", async () => {
+  const api = fakeApi(decided());
+  await publish({
+    api,
+    pr: 42,
+    headSha: NOW,
+    headRef: "feature",
+    appId: APP,
+    modelRun: "5000-1",
+    reviewerId: REVIEWER,
+    trustedHumans: new Set(),
+    readArtifact: () => ({ runText: decidedRun, repliesText: lines(reply({ disposition: "VALID", fix_sha: FIX })) }),
+    fileExists: exists,
+  });
+  assert.deepEqual(api.posted(), []);
+  assert.deepEqual(api.resolved(), []);
+});
+
+test("every reply the reply job leaves open reads as an escalation; a VALID one does not", () => {
+  const body = (disposition) => renderReply({ disposition, evidence: [], fixSha: disposition === "VALID" ? FIX : "", note: "n" });
+  for (const disposition of ["INCORRECT", "UNCERTAIN", "VALID-defer"]) {
+    assert.equal(isEscalationReply({ user: { id: APP }, body: body(disposition) }, APP), true, disposition);
+  }
+  assert.equal(isEscalationReply({ user: { id: APP }, body: body("VALID") }, APP), false);
 });
 
 test("INCORRECT is posted and left open; UNCERTAIN and VALID-defer are posted, left open, and escalate", async () => {

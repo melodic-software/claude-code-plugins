@@ -1318,10 +1318,13 @@ corpus_files=(
   cs-mstest/bad/OrderSourceTextTests.cs.fixture
   cs-mstest/bad/OrderStepDefinitions.cs.fixture
   cs-mstest/bad/OrderTotalFormatTests.cs.fixture
+  cs-mstest/bad/OrderTypeofAreEqualTests.cs.fixture
+  cs-mstest/bad/OrderTypeofIsNotNullTests.cs.fixture
   cs-mstest/good/OrderArchiveIgnoredClassTests.cs.fixture
   cs-mstest/good/OrderConstructedIdTests.cs.fixture
   cs-mstest/good/OrderParseExpectedExceptionTests.cs.fixture
   cs-mstest/good/OrderPlacementAssertedTests.cs.fixture
+  cs-mstest/good/OrderRuntimeTypeAreEqualTests.cs.fixture
   cs-mstest/good/OrderRepaired4bTests.cs.fixture
   cs-mstest/good/OrderRepairedOraclesTests.cs.fixture
   cs-mstest/good/OrderSyncIgnoredTests.cs.fixture
@@ -1377,7 +1380,10 @@ corpus_files=(
   cs-xunit/bad/WidgetInertBesideWeakOneLineTests.cs.fixture
   cs-xunit/bad/WidgetNameofTypeNameTests.cs.fixture
   cs-xunit/bad/WidgetTypeofAndWeakTests.cs.fixture
+  cs-xunit/bad/WidgetTypeofEqualTests.cs.fixture
+  cs-xunit/bad/WidgetTypeofNotEqualTests.cs.fixture
   cs-xunit/bad/WidgetTypeofNotNullTests.cs.fixture
+  cs-xunit/bad/WidgetTypeofSameTests.cs.fixture
   cs-xunit/bad/WorkerRunAsyncTests.cs.fixture
   cs-xunit/good/AnalyzerHarnessRunAsyncTests.cs.fixture
   cs-xunit/good/CheckoutStepDefinitions.cs.fixture
@@ -1396,6 +1402,7 @@ corpus_files=(
   cs-xunit/good/ReportTrialGuardTests.cs.fixture
   cs-xunit/good/SameFileAssertingHelperTests.cs.fixture
   cs-xunit/good/SlugifyLiteralTests.cs.fixture
+  cs-xunit/good/WidgetRuntimeTypeEqualityTests.cs.fixture
   cs-xunit/good/WidgetConstructedOraclesTests.cs.fixture
   cs-xunit/good/WidgetTwoStatementsOneLineTests.cs.fixture
   cs-xunit/good/WidgetTypeOraclesTests.cs.fixture

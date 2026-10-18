@@ -162,6 +162,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/code-tidying:audit-comment-residue`](../plugins/code-tidying/skills/audit-comment-residue/SKILL.md) | `code-tidying` | Classify code comments for history narration and session-reference residue |
 | [`/code-tidying:batch-simplify`](../plugins/code-tidying/skills/batch-simplify/SKILL.md) | `code-tidying` | Batch-run simplification across changed files, or a whole repository, by ecosystem |
 | [`/code-tidying:dissolve-comments`](../plugins/code-tidying/skills/dissolve-comments/SKILL.md) | `code-tidying` | Dissolve comments into expressive code via triage. Delete, refactor-then-delete, or keep |
+| [`/harness-ops:audit-mod-posture`](../plugins/harness-ops/skills/audit-mod-posture/SKILL.md) | `harness-ops` | Inventory installed and built-in mods with their hooks and calls, and the guard state |
 | [`/mcp-tools:audit`](../plugins/mcp-tools/skills/audit/SKILL.md) | `mcp-tools` | Audit MCP tool definitions against design quality criteria |
 | [`/mcp-tools:audit-posture`](../plugins/mcp-tools/skills/audit-posture/SKILL.md) | `mcp-tools` | Inventory configured MCP servers and flag floating versions and other supply-chain risks |
 | [`/plugin-quality:audit`](../plugins/plugin-quality/skills/audit/SKILL.md) | `plugin-quality` | Behavioral audit of a plugin component ending in a maintainer work item |
@@ -182,7 +183,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/performance:protect`](../plugins/performance/skills/protect/SKILL.md) | `performance` | Hold a verified counter win with a CI ceiling a human merges |
 | [`/performance:snapshot`](../plugins/performance/skills/snapshot/SKILL.md) | `performance` | Capture a snapshot only from a host proven measurable |
 | [`/performance:verify`](../plugins/performance/skills/verify/SKILL.md) | `performance` | Re-derive the result in fresh context and report it honestly |
-| [`/playwright:demo-video`](../plugins/playwright/skills/demo-video/SKILL.md) | `playwright` | Replay a web flow, render a produced demo video, QC it from frames, post it to the PR |
+| [`/playwright:demo-video`](../plugins/playwright/skills/demo-video/SKILL.md) | `playwright` | Replay a web flow, render a produced demo video, quality-control it from frames, post it to the PR |
 | [`/toolchain:check`](../plugins/toolchain/skills/check/SKILL.md) | `toolchain` | Build, test, and lint changed files across detected ecosystems |
 | [`/toolchain:lint`](../plugins/toolchain/skills/lint/SKILL.md) | `toolchain` | Polyglot lint and format checks without a full build |
 | [`/verification:confirm`](../plugins/verification/skills/confirm/SKILL.md) | `verification` | Prove the change achieved its intended outcome with evidence |

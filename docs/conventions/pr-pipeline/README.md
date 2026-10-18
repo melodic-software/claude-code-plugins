@@ -14,6 +14,7 @@
 - [The lane sweep](#the-lane-sweep)
 - [Models](#models)
 - [Loop caps](#loop-caps)
+- [Limits](#limits)
 - [Planning lane work](#planning-lane-work)
 - [Changing this config](#changing-this-config)
 - [Outside this repository](#outside-this-repository)
@@ -120,7 +121,8 @@ the upstream run id from the event and reads the rest back. It dispatches `pr-un
 `activity: address-feedback` when the upstream is a `pull_request` run of one of those two paths in
 this repository, exactly one open non-draft PR into `main` has its head, the lanes App opened that
 PR, it carries neither `do-not-merge` nor `needs-human`, both lanes' newest reviewed-head markers
-name the head, an unresolved thread left only by the reviewer bot exists, the head has no
+name the head, an unresolved thread exists that `address-feedback` would keep (left only by the
+reviewer bot, or answered by a trusted human after the lane escalated it), the head has no
 `pr-unblock / address-feedback` check run, and no `pr-unblock.yml` run titled
 `pr-unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
 runs the base's resolve-config for that PR and head with `address-feedback` selected, so only that
@@ -226,11 +228,14 @@ Each leaf declares:
   `plugins/<plugin>/skills/<skill>/scripts/<name>.sh`, that a skill with an effect other than
   `read` may run with any arguments but a path outside the checkout; a `read` leaf cannot set it.
   The write runner runs each from a read-only base copy of its plugin (or of `scripts/`) against
-  the checkout
+  the checkout, with `GH_TOKEN` and `GITHUB_TOKEN` unset; code it runs can still read the token
+  from an ancestor process's `/proc/<pid>/environ`
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The arguments are the model's, so
   a script that changes files, runs code from the checkout or reaches the network hands the run
   that power: list one only when it limits itself, as `scripts/run-test-file.sh` (one test file
-  inside the checkout) and `scripts/git-mv-rm.sh` (`git mv` and `git rm` inside the checkout) do.
+  inside the checkout) and `scripts/git-mv-rm.sh` (`git mv` and `git rm` inside the checkout) do,
+  or when the run may hold that power, as `plugins/skill-quality/scripts/check-skill.sh` (each
+  checked skill's `scripts/*.test.sh` and the checkout's markdownlint) does.
 - `web-access` (optional, `skill` only, off when absent): `enabled` and `domains`, either `any` or
   a list of host names (`*.` allowed as a prefix). When on, a skill with an effect other than
   `read` may search the web, fetch those domains, and run the research skills
@@ -854,6 +859,26 @@ full review rounds, one more high-severity-only pass runs; if it still has findi
 escalates. The address-feedback activity hands a PR to a person once `loop.review-rounds` of its
 rounds have run. The default is 2; this repository sets 3. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
 escalates.
+
+## Limits
+
+The optional `limits` block sets when the lanes restart work the usage limit stopped. Durations
+are whole hours, at most 720; stop caps are at most 10 and `restarts-per-run` at most 50, so a
+typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all six
+with defaults.
+
+| Key | Default | What it sets |
+|---|---|---|
+| `fallback-reset` | 5 | Hours after a limit stop that names no reset time before the limit counts as reset. |
+| `reset-clamp-min` | 1 | Fewest hours after a stop before a restart, whatever reset the stop names. |
+| `reset-clamp-max` | 168 | Most hours after a stop before a restart, whatever reset the stop names. |
+| `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
+| `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again. |
+| `limit-stops-per-issue` | 3 | Limit stops since a person last added `agent-ready` before work-unblock hands the issue to a person. |
+
+report-outcome and the work-unblock sweep read them from resolve-config's output;
+pr-feedback-dispatch and pr-unblock-dispatch resolve the base config themselves, and a config the
+resolver refuses fails their run before any dispatch. This repository sets no `limits` block.
 
 ## Planning lane work
 

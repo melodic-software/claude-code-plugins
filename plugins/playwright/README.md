@@ -44,8 +44,8 @@ prerequisites report lists `playwright-cli` as missing. It never installs.
 it replays a written script with 4K capture, zooms in on each action, draws
 the cursor and click ripples, captions each step, cuts out page loads, and
 posts the result with `gh pr comment --attach` (or a CI artifact link).
-`qc.py` checks the rendered frames (zoom share, text cut at the frame edge,
-stillness, camera motion, cuts, crossfades, blank frames) and an independent
+`quality_control.py` checks the rendered frames (zoom share, text cut at the
+frame edge, stillness, camera motion, cuts, crossfades, blank frames) and an independent
 reviewer looks at the frames before anything is posted.
 
 It needs Python 3.12+, `ffmpeg` and `ffprobe`, and `playwright-cli` for

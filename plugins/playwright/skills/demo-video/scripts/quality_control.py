@@ -1,26 +1,28 @@
-"""Frame-level QC for a rendered demo: decodes the MP4 and measures every acceptance rule from the
+"""Frame-level quality control for a rendered demo: decodes the MP4 and measures every acceptance rule from the
 rendered frames. The camera rect of each frame is estimated by registering the frame against the
 capture it samples (normalized cross-correlation over scale and position), never read from the EDL,
 so a producer's own numbers cannot pass a video the frames contradict.
 
-Checks (thresholds: defaults.json "qc" and "motion", overridable with --config):
+Checks (thresholds: defaults.json "quality_control" and "motion", overridable with --config):
   capture-match   every page frame matches its capture at some zoom (registration is trustworthy)
   zoom-share      share of runtime (title excluded) at >= zoom_threshold, at least zoom_share_min
   edge-clip       a settled zoomed frame cuts no text: every frame edge that is not the page
                   boundary lies in a gutter of the capture under it
   target-headroom each click target is in shot with safe-margin headroom at its click
   caption-anchor  captions sit only at the primary anchor or the one fixed fallback
-  stillness       no still stretch (caption band masked) longer than still_max plus one frame
+  stillness       no still stretch (caption band masked) longer than still_max plus one frame, plus the
+                  reading time of the outcome in a hold that shows one (the EDL hold's 'read')
   motion          every camera move within the zoom/pan speed and acceleration caps
   nav-cuts        each page cut is taken with the camera still; one that changes the URL (the EDL's
                   nav_cuts say where) at 1.0x, an in-page state cut at 1.0x or with clean edges
   crossfade       no frame is a blend of the frames around a page change
   blank           no white, black or flat frame after the title
-Camera-dependent checks report SKIP when the EDL's camera layer is off (plain style).
+Camera-dependent checks report SKIP when the EDL's camera layer is off (the plain style, or the camera
+toggle off).
 
-usage: qc.py EDL.json VIDEO.mp4 OUT_DIR [--config FILE]
+usage: quality_control.py EDL.json VIDEO.mp4 OUT_DIR [--config FILE]
 exit: 0 every check passed, 1 a check failed, 2 the inputs could not be read
-Writes OUT_DIR/qc.json, sheet-key-moments.png (page cuts, zoom peaks, longest still) and, for each
+Writes OUT_DIR/quality-control.json, sheet-key-moments.png (page cuts, zoom peaks, longest still) and, for each
 failing check, sheet-fail-<check>.png with up to six frames it failed on, for the independent reviewer.
 """
 import argparse
@@ -151,10 +153,10 @@ def main(argv=None):
         log = json.loads(Path(a.video).with_suffix('.render.json').read_text())['frames']
         tl = json.loads((Path(edl['capture']) / 'timeline.json').read_text())
     except (OSError, ValueError, KeyError) as e:
-        print(f'qc: cannot read inputs: {e}', file=sys.stderr)
+        print(f'quality control: cannot read inputs: {e}', file=sys.stderr)
         return 2
     cfg = load_config(a.config) if a.config else edl.get('config') or load_config()
-    Q, MOT, CAM, CAP = cfg['qc'], cfg['motion'], cfg['camera'], cfg['captions']
+    Q, MOT, CAM, CAP = cfg['quality_control'], cfg['motion'], cfg['camera'], cfg['captions']
     W, H, fps = edl['width'], edl['height'], edl['fps']
     cap_dir = Path(edl['capture'])
     by_t = {round(f['t'], 4): str(cap_dir / f['file']) for f in tl['frames']}
@@ -174,7 +176,7 @@ def main(argv=None):
     n = min(len(reg_frames), len(small), len(log))
     runtime = [i for i in range(n) if log[i]['captures'] and not any(isinstance(s, str) for s in log[i]['src'])]
     if not runtime:
-        print('qc: no page frames found', file=sys.stderr)
+        print('quality control: no page frames found', file=sys.stderr)
         return 2
 
     # ---- registration: zoom and rect per runtime frame, measured from the frame ------------------
@@ -185,7 +187,7 @@ def main(argv=None):
     for i in runtime:
         path = by_t.get(round(log[i]['captures'][-1], 4))
         if path is None:
-            print(f'qc: frame {i} names a capture not in the timeline', file=sys.stderr)
+            print(f'quality control: frame {i} names a capture not in the timeline', file=sys.stderr)
             return 2
         if prev is not None and est[prev][3] == path and np.abs(reg_frames[i] - reg_frames[prev]).max() < 2:
             est[i] = est[prev]   # an unchanged frame keeps its measurement
@@ -226,7 +228,7 @@ def main(argv=None):
               f"{zoomed.sum() / fps:.2f}s zoomed",
               [runtime[j] for j in np.flatnonzero(~zoomed)[::max(1, int((~zoomed).sum()) // 6)]])
     else:
-        check('zoom-share', 'SKIP', 'camera layer off (plain style)')
+        check('zoom-share', 'SKIP', 'camera layer off')
 
     # ---- edge clipping on settled zoomed frames, against the capture under each edge ---------------
     masks = edl.get('content_masks', [])
@@ -260,7 +262,7 @@ def main(argv=None):
             detail = f'text cut at {spans(sorted(clipped), fps)[:6]}; first {first / fps:.2f}s edges {clipped[first]}'
         check('edge-clip', 'FAIL' if clipped else 'PASS', detail, clipped)
     else:
-        check('edge-clip', 'SKIP', 'camera layer off (plain style)')
+        check('edge-clip', 'SKIP', 'camera layer off')
 
     # ---- click targets keep headroom ------------------------------------------------------------
     if camera_on:
@@ -281,7 +283,7 @@ def main(argv=None):
         check('target-headroom', 'FAIL' if bad else 'PASS', f'targets out of shot or at the frame edge: {bad}' if bad else 'every click target in shot with headroom',
               bad_at)
     else:
-        check('target-headroom', 'SKIP', 'camera layer off (plain style)')
+        check('target-headroom', 'SKIP', 'camera layer off')
 
     # ---- caption anchors ------------------------------------------------------------------------
     if edl['layers'].get('captions'):
@@ -301,19 +303,32 @@ def main(argv=None):
     sm[:, band0:band1, :] = 0
     diff = np.abs(sm[1:] - sm[:-1]).reshape(len(sm) - 1, SH // 15, 15, SW // 16, 16).mean(axis=(2, 4)).max(axis=(1, 2))
     rset = set(runtime)
-    longest, run, run_start, worst = 0, 0, None, None
+    runs, run_start = [], None   # (first, last) frame of each still run
     for i in range(1, n):
         if i in rset and (i - 1) in rset and diff[i - 1] < Q['still_block_delta']:
-            if run == 0:
-                run_start = i - 1
-            run += 1
-            if (run + 1) / fps > longest:
-                longest, worst = (run + 1) / fps, (run_start, i)
-        else:
-            run = 0
-    still_limit = Q['still_max'] + 1 / fps   # a run of n still frames spans n frames, one more than its n-1 gaps
-    check('stillness', 'PASS' if longest <= still_limit else 'FAIL',
-          f"longest still {longest:.3f}s (limit {still_limit:.3f}s: still_max {Q['still_max']}s plus one frame)"
+            run_start = i - 1 if run_start is None else run_start
+            last = i
+        elif run_start is not None:
+            runs.append((run_start, last))
+            run_start = None
+    if run_start is not None:
+        runs.append((run_start, last))
+    # a hold that shows an outcome may stay still for its reading time (the EDL's hold 'read') on top of still_max
+    reads = [(sg['out0'], sg['out1'], sg['read']) for sg in edl['segments'] if sg.get('kind') == 'hold' and sg.get('read')]
+
+    def read_in(r):
+        a0, a1 = r[0] / fps, (r[1] + 1) / fps
+        return max([seconds for start, end, seconds in reads if start < a1 and end > a0] or [0.0])
+
+    def span(r):   # a run of n still frames spans n frames, one more than its n-1 gaps
+        return (r[1] - r[0] + 1) / fps
+    over = [r for r in runs if span(r) > Q['still_max'] + read_in(r) + 1 / fps]
+    worst = max(over, key=lambda r: span(r) - read_in(r)) if over else max(runs, key=span, default=None)
+    read = read_in(worst) if worst else 0.0
+    still_limit = Q['still_max'] + read + 1 / fps
+    check('stillness', 'FAIL' if over else 'PASS',
+          f"{'still' if over else 'longest still'} {span(worst) if worst else 0:.3f}s (limit {still_limit:.3f}s: "
+          f"still_max {Q['still_max']}s{f' plus {read:.2f}s to read an outcome' if read else ''} plus one frame)"
           + (f' at {worst[0] / fps:.2f}-{(worst[1] + 1) / fps:.2f}s' if worst else ''),
           [worst[0], (worst[0] + worst[1]) // 2, worst[1]] if worst else [])
 
@@ -419,11 +434,11 @@ def main(argv=None):
         sheet(rgb, [(i, f'{name} {i / fps:.2f}s') for i in idx], out / f'sheet-fail-{name}.png')
     report = {'video': str(a.video), 'runtime_s': round(len(runtime) / fps, 3), 'checks': results,
               'zoom_series': [[round(runtime[j] / fps, 3), round(float(zf[j]), 3)] for j in range(len(runtime))]}
-    (out / 'qc.json').write_text(json.dumps(report, indent=1))
+    (out / 'quality-control.json').write_text(json.dumps(report, indent=1))
     for r in results:
         print(f"{r['status']:4} {r['check']}: {r['detail']}")
     failed = [r['check'] for r in results if r['status'] == 'FAIL']
-    print(f"qc: {'FAIL ' + ', '.join(failed) if failed else 'all checks passed'} -> {out / 'qc.json'}")
+    print(f"quality control: {'FAIL ' + ', '.join(failed) if failed else 'all checks passed'} -> {out / 'quality-control.json'}")
     return 1 if failed else 0
 
 

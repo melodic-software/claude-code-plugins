@@ -148,6 +148,62 @@ else
   fail "generated docs plus real overlap: rc=$rc out='$out'"
 fi
 
+# --- changelogs and fragments alone warn; any other path beside them still fails ---
+# #7871: a PR only behind main on release notes is not refused before the queue.
+repo="$scratch/release-notes"
+make_repo "$repo"
+cd "$repo" || exit 1
+mkdir -p plugins/p .changes/p
+printf '# Changelog\n' >plugins/p/CHANGELOG.md
+printf 'f\n' >.changes/p/one.md
+git add -A && git commit -qm 'add release notes'
+git checkout -qb feature
+printf 'feature\n' | tee -a plugins/p/CHANGELOG.md >>.changes/p/one.md
+git add -A && git commit -qm 'feature edits release notes'
+git checkout -q main
+printf 'main\n' | tee -a plugins/p/CHANGELOG.md >>.changes/p/one.md
+git add -A && git commit -qm 'main edits release notes'
+git checkout -q feature
+out="$(bash "$SCRIPT" --check main 2>&1)" && rc=0 || rc=$?
+if [[ $rc -eq 0 && "$out" == *"WARNING"* && "$out" == *"plugins/p/CHANGELOG.md"* && "$out" == *".changes/p/one.md"* ]]; then
+  ok "an overlap of only a CHANGELOG.md and a .changes/ fragment warns and exits 0"
+else
+  fail "release-notes-only overlap: rc=$rc out='$out'"
+fi
+printf 'feature-edit\n' >shared.txt
+git add -A && git commit -qm 'feature edits shared'
+git checkout -q main
+printf 'main-edit\n' >shared.txt
+git add -A && git commit -qm 'main edits shared'
+git checkout -q feature
+out="$(bash "$SCRIPT" --check main 2>&1)" && rc=0 || rc=$?
+if [[ $rc -eq 1 && "$out" == *"STALE BASE"* && "$out" == *"shared.txt"* ]]; then
+  ok "a non-changelog overlap beside release notes still fails"
+else
+  fail "release notes plus real overlap: rc=$rc out='$out'"
+fi
+
+# --- --warn: any overlap is a ::warning naming the paths, and exits 0 ---
+# #7871: the pull_request step is advisory; the merge queue is the gate.
+out="$(bash "$SCRIPT" --warn main 2>&1)" && rc=0 || rc=$?
+if [[ $rc -eq 0 && "$out" == *"::warning"*"shared.txt"* && "$out" == *"::warning"*"plugins/p/CHANGELOG.md"* ]]; then
+  ok "--warn turns a non-changelog overlap into a ::warning listing the paths and exits 0"
+else
+  fail "--warn overlap: rc=$rc out='$out'"
+fi
+out="$(bash "$SCRIPT" --warn 2>&1)" && rc=0 || rc=$?
+if [[ $rc -eq 2 && "$out" == *"usage:"* ]]; then
+  ok "--warn without a base ref exits 2 with usage"
+else
+  fail "--warn without a ref: rc=$rc out='$out'"
+fi
+out="$(bash "$SCRIPT" --warn does-not-exist 2>&1)" && rc=0 || rc=$?
+if [[ $rc -eq 2 && "$out" == *"not resolvable"* ]]; then
+  ok "--warn with a missing base ref still exits 2"
+else
+  fail "--warn missing base ref: rc=$rc out='$out'"
+fi
+
 # --- unresolvable base ---
 repo="$scratch/badref"
 make_repo "$repo"

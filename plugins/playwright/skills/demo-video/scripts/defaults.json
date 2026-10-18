@@ -40,7 +40,9 @@
     "font_size": 30,
     "margin": 48,
     "clear": 12,
-    "anchors": ["bottom-right", "bottom-left"]
+    "anchors": ["bottom-right", "bottom-left"],
+    "seconds_per_word": 0.3,
+    "min_seconds": 0.834
   },
   "narration": {
     "gap": 0.4,
@@ -48,7 +50,7 @@
     "end_pad": 0.8,
     "caption_lead": 0.1
   },
-  "qc": {
+  "quality_control": {
     "zoom_share_min": 0.6,
     "zoom_threshold": 1.2,
     "still_max": 1.5,

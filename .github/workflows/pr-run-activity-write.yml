@@ -278,8 +278,10 @@ jobs:
       reuse-branch: ${{ steps.issue-prior.outputs.reuse-branch }}
       # The lane record, from steps that read the execution file after the
       # skill. A forged limit stop can only restart the lane after a reset
-      # limit-stop.mjs and report-outcome clamp to at least an hour away, at
-      # most MAX_LIMIT_STOPS times.
+      # limit-stop.mjs and report-outcome clamp to at least
+      # `limits.reset-clamp-min` hours away, at
+      # most `limits.limit-stops-per-head` (a PR) or
+      # `limits.limit-stops-per-issue` (an issue) times.
       lane-class: ${{ steps.lane-record.outputs.failure-class }}
       lane-resets: ${{ steps.lane-record.outputs.resets-at }}
       lane-turns: ${{ steps.lane-record.outcome == 'success' && steps.act-turns.outputs.turns || '' }}
@@ -465,8 +467,9 @@ jobs:
         run: node .base/.github/scripts/work-resolve-issue/report-outcome.mjs --find-prior
 
       # review-threads, before the mint and any model turn, with the job's
-      # read-only token: keeps the unresolved threads whose every comment is
-      # the reviewer bot's, on a head a review lane's marker confirms, then
+      # read-only token: keeps the unresolved threads the reviewer bot opened
+      # on a head a review lane's marker confirms, left by it alone or answered
+      # by a trusted person after the lane escalated them, then
       # skips (none), escalates (a .github/** diff, or the round cap) or
       # writes the thread file the skill's review-thread tool reads.
       - name: Select the review threads

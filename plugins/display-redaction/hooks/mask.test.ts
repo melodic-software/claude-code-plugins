@@ -252,8 +252,11 @@ test('blocks keeps an unclosed fence through the end of the text', () => {
 const WORST_ACCEPTED = ['.*x', '[\\s\\S]*x', '.*.?.?x', '\\w*\\d{0,3}x', '(?=[\\s\\S]*x)y', 'a{0,4000}x', '(?:ab){0,4000}x']
 
 // A wall-clock bound depends on the machine, so the test checks how cost grows instead: five times
-// the text costs about five times as much when it is linear, twenty-five times when quadratic.
-test('runs each of the worst accepted extra patterns in time linear in the text length', () => {
+// the text costs about five times as much when it is linear, twenty-five times when quadratic. Load
+// on a shared runner can slow any timing, so each pass times both sizes back to back and the pass
+// with the least excess counts: a quadratic pattern has the excess in every pass. The few
+// milliseconds of slack cover a pattern whose whole cost is under a millisecond.
+test('runs each of the worst accepted extra patterns in time linear in the text length', { timeoutMs: 60_000 }, () => {
   const r = compilePatterns(WORST_ACCEPTED)
   expect(r.invalid).toEqual([])
   const extras = r.patterns.slice(-WORST_ACCEPTED.length)
@@ -265,8 +268,12 @@ test('runs each of the worst accepted extra patterns in time linear in the text 
     return performance.now() - start
   }
   for (const pattern of extras) {
-    cost(pattern, 10_000)
-    expect(cost(pattern, 50_000)).toBeLessThan(10 * cost(pattern, 10_000) + 50)
+    let excess = Infinity
+    for (let pass = 0; pass < 5; pass++) {
+      const small = cost(pattern, 10_000)
+      excess = Math.min(excess, cost(pattern, 50_000) - 10 * small)
+    }
+    expect(excess).toBeLessThan(10)
   }
 })
 

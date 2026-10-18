@@ -799,8 +799,8 @@ A lane-pinned invocation (above) merges only through the merge gate's `--unatten
 (§Unattended Merge Path), which refuses `--auto` and disarms an auto-merge it finds armed. Where
 the repository does not configure that path, the gate refuses and the invocation reports the PR
 merge-ready for a human. The lane's partition is the only class check, so the PR is already C2
-(mechanical) or C3 (scoped); a C4 (structural) or C5 PR never reaches a merge-capable invocation
-and waits for the user.
+(mechanical) or C3 (scoped); a C4 (structural) or C5 PR carries the body hold line and waits for
+the user.
 
 The AI review checks are the review lane's `claude-review-status` (matched by that job segment
 under any caller, e.g. `review /` or `pr-review /`) and the security lane's

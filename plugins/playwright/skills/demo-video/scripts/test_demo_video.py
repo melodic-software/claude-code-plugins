@@ -1,8 +1,8 @@
 """Smoke test for the demo-video pipeline, network-free: a synthetic capture of a three-step flow
-(navigate, type with results, navigate) goes through build_edl.py, produce.py and qc.py, and QC must
+(navigate, type with results, navigate) goes through build_edl.py, produce.py and quality_control.py, and quality control must
 pass, and so must a variant whose search click opens a modal a quarter second later. Then defects are planted in the rendered frames (a crossfade across the page cut, a white
 frame, a frozen stretch, a 1.0x render under a zoomed EDL, a zoom rect that cuts text, a zoomed
-URL-changing cut with clean edges) and QC must fail each one by name. Needs numpy, Pillow, ffmpeg and ffprobe; skips without them.
+URL-changing cut with clean edges) and quality control must fail each one by name. Needs numpy, Pillow, ffmpeg and ffprobe; skips without them.
 """
 import hashlib
 import io
@@ -237,16 +237,16 @@ class DemoPipelineSmoke(unittest.TestCase):
         if not os.environ.get('DEMO_VIDEO_KEEP'):
             shutil.rmtree(cls.tmp, ignore_errors=True)
 
-    def qc(self, video, edl=None, name='qc'):
-        r = run('qc.py', edl or self.edl, video, self.tmp / name)
-        report = json.loads((self.tmp / name / 'qc.json').read_text()) if (self.tmp / name / 'qc.json').exists() else None
+    def quality_control(self, video, edl=None, name='quality-control'):
+        r = run('quality_control.py', edl or self.edl, video, self.tmp / name)
+        report = json.loads((self.tmp / name / 'quality-control.json').read_text()) if (self.tmp / name / 'quality-control.json').exists() else None
         return r, report
 
     def failed(self, report):
         return {c['check'] for c in report['checks'] if c['status'] == 'FAIL'}
 
-    def test_produced_video_passes_qc(self):
-        r, report = self.qc(self.video)
+    def test_produced_video_passes_quality_control(self):
+        r, report = self.quality_control(self.video)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(self.failed(report), set())
         share = next(c for c in report['checks'] if c['check'] == 'zoom-share')
@@ -335,9 +335,9 @@ class DemoPipelineSmoke(unittest.TestCase):
             before = [k for k in edl['camera'] if k['t'] <= c]
             self.assertEqual(before[-1]['rect'], [0.0, 0.0, float(W), float(H)])
 
-    def test_modal_opening_after_the_click_passes_qc(self):
+    def test_modal_opening_after_the_click_passes_quality_control(self):
         # A click that opens a modal 0.25 s later (DocSearch: the scrim changes most of the page) must
-        # give a plan QC passes: nav-cuts fails any such page change taken while the camera moves.
+        # give a plan quality control passes: nav-cuts fails any such page change taken while the camera moves.
         capture = self.tmp / 'capture-modal'
         make_capture(capture, modal=True)
         edl_path = self.tmp / 'edl-modal.json'
@@ -346,12 +346,12 @@ class DemoPipelineSmoke(unittest.TestCase):
         out = self.tmp / 'modal.mp4'
         r = run('produce.py', edl_path, out, '--preset', 'veryfast')
         self.assertEqual(r.returncode, 0, r.stderr)
-        r, report = self.qc(out, edl=edl_path, name='qc-modal')
+        r, report = self.quality_control(out, edl=edl_path, name='quality-control-modal')
         self.assertEqual(self.failed(report), set(), r.stdout)
 
     def test_click_at_the_page_edge_gets_a_zoomed_shot(self):
         # A target touching the page edge (a header button at y 8) is framed against that edge, not
-        # left at 1.0x; QC's target-headroom treats the page boundary as headroom.
+        # left at 1.0x; quality control's target-headroom treats the page boundary as headroom.
         def edit(ev):
             for e in ev:
                 if e['name'] == 'move' and e['step'] == 'search':
@@ -379,6 +379,50 @@ class DemoPipelineSmoke(unittest.TestCase):
         self.assertFalse(edl_path.exists())
         self.assertTrue(edl_path.with_suffix('.rejected.json').exists())
 
+    def test_refusal_names_the_steps_whose_shot_search_found_nothing(self):
+        # No zoom rect passes the edge test, so every caption also has no empty anchor.
+        cfg = self.tmp / 'refuse-shots.json'
+        cfg.write_text(json.dumps({'camera': {'edge_ink': -1}}))
+        r = run('build_edl.py', self.tmp / 'capture', self.tmp / 'script.json', self.tmp / 'edl-noshot.json', '--config', cfg)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn('shot search: no click shot passed for get-started, search, open-result', r.stdout)
+
+    def test_an_outcome_hold_lasts_its_reading_time_and_passes_stillness_with_the_camera_off(self):
+        # Long outcomes on an in-place step and on the last step, with no camera drift to break the stillness.
+        per_word = json.loads((HERE / 'defaults.json').read_text())['captions']['seconds_per_word']
+        script = json.loads(json.dumps(SCRIPT))
+        script['steps']['search']['outcome'] = 'Three results for abc, the first one is open'   # a step that stays on its page
+        script['steps']['open-result']['outcome'] = 'Trace viewer open, every panel in view now'
+        path = self.tmp / 'script-read.json'
+        path.write_text(json.dumps(script))
+        edl_path = self.tmp / 'edl-read.json'
+        r = run('build_edl.py', self.tmp / 'capture', path, edl_path, '--layers', 'camera=false')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        edl = json.loads(edl_path.read_text())
+        outcomes = {c['step']: c for c in edl['captions'] if c['kind'] == 'outcome'}
+        for step in ('search', 'open-result'):
+            a, b = outcomes[step]['span']
+            self.assertGreaterEqual(b - a, per_word * len(script['steps'][step]['outcome'].split()) - 1e-3, step)
+        out = self.tmp / 'read.mp4'
+        r = run('produce.py', edl_path, out, '--preset', 'veryfast')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        r, report = self.quality_control(out, edl=edl_path, name='quality-control-read')
+        self.assertEqual(self.failed(report), set(), r.stdout)
+        details = {c['check']: c['detail'] for c in report['checks']}
+        self.assertEqual(details['zoom-share'], 'camera layer off')   # not "plain style" under produced
+        self.assertIn('to read an outcome', details['stillness'])
+
+    def test_an_outcome_hold_gets_no_reading_time_with_the_captions_off(self):
+        script = json.loads(json.dumps(SCRIPT))
+        script['steps']['search']['outcome'] = 'Three results for abc, the first one is open'
+        path = self.tmp / 'script-nocap.json'
+        path.write_text(json.dumps(script))
+        edl_path = self.tmp / 'edl-nocap.json'
+        r = run('build_edl.py', self.tmp / 'capture', path, edl_path, '--layers', 'captions=false')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        holds = [sg for sg in json.loads(edl_path.read_text())['segments'] if sg.get('kind') == 'hold']
+        self.assertEqual([sg['read'] for sg in holds], [0.0] * len(holds))
+
     def test_crossfade_across_the_cut_fails(self):
         edl = json.loads(self.edl.read_text())
         c = int(round(edl['nav_cuts'][0] * self.fps))
@@ -397,14 +441,14 @@ class DemoPipelineSmoke(unittest.TestCase):
                 return a * (1 - w) + b * w
             return cur
         rewrite(self.video, self.tmp / 'xfade.mp4', fade)
-        r, report = self.qc(self.tmp / 'xfade.mp4', name='qc-xfade')
+        r, report = self.quality_control(self.tmp / 'xfade.mp4', name='quality-control-xfade')
         self.assertEqual(r.returncode, 1)
         self.assertIn('crossfade', self.failed(report))
 
     def test_white_frame_fails(self):
         k = int(round(5.0 * self.fps))
         rewrite(self.video, self.tmp / 'white.mp4', lambda i, p, cur, n: np.full_like(cur, 255) if i == k else cur)
-        r, report = self.qc(self.tmp / 'white.mp4', name='qc-white')
+        r, report = self.quality_control(self.tmp / 'white.mp4', name='quality-control-white')
         self.assertEqual(r.returncode, 1)
         self.assertIn('blank', self.failed(report))
 
@@ -417,7 +461,7 @@ class DemoPipelineSmoke(unittest.TestCase):
                 held['f'] = cur
             return held['f'] if start <= i < start + 60 else cur
         rewrite(self.video, self.tmp / 'frozen.mp4', freeze)
-        r, report = self.qc(self.tmp / 'frozen.mp4', name='qc-frozen')
+        r, report = self.quality_control(self.tmp / 'frozen.mp4', name='quality-control-frozen')
         self.assertEqual(r.returncode, 1)
         self.assertIn('stillness', self.failed(report))
 
@@ -425,7 +469,7 @@ class DemoPipelineSmoke(unittest.TestCase):
         flat = self.tmp / 'flat.mp4'
         r = run('produce.py', self.edl, flat, '--preset', 'veryfast', '--off', 'camera')
         self.assertEqual(r.returncode, 0, r.stderr)
-        r, report = self.qc(flat, name='qc-flat')
+        r, report = self.quality_control(flat, name='quality-control-flat')
         self.assertEqual(r.returncode, 1)
         self.assertIn('zoom-share', self.failed(report))
 
@@ -440,7 +484,7 @@ class DemoPipelineSmoke(unittest.TestCase):
         out = self.tmp / 'clip.mp4'
         r = run('produce.py', path, out, '--preset', 'veryfast')
         self.assertEqual(r.returncode, 0, r.stderr)
-        r, report = self.qc(out, edl=path, name='qc-clip')
+        r, report = self.quality_control(out, edl=path, name='quality-control-clip')
         self.assertEqual(r.returncode, 1)
         self.assertIn('edge-clip', self.failed(report))
 
@@ -459,7 +503,7 @@ class DemoPipelineSmoke(unittest.TestCase):
         out = self.tmp / 'zoomed-cut.mp4'
         r = run('produce.py', url_edl, out, '--preset', 'veryfast')
         self.assertEqual(r.returncode, 0, r.stderr)
-        r, report = self.qc(out, edl=url_edl, name='qc-zoomed-url-cut')
+        r, report = self.quality_control(out, edl=url_edl, name='quality-control-zoomed-url-cut')
         self.assertIn('nav-cuts', self.failed(report), r.stdout)
         self.assertNotIn('edge-clip', self.failed(report), r.stdout)
 
@@ -468,7 +512,7 @@ class DemoPipelineSmoke(unittest.TestCase):
         edl['nav_cuts'] = edl['nav_cuts'][1:]
         state_edl = self.tmp / 'edl-zoomed-state-cut.json'
         state_edl.write_text(json.dumps(edl))
-        r, report = self.qc(out, edl=state_edl, name='qc-zoomed-state-cut')
+        r, report = self.quality_control(out, edl=state_edl, name='quality-control-zoomed-state-cut')
         self.assertNotIn('nav-cuts', self.failed(report), r.stdout)
 
 

@@ -10,9 +10,9 @@ Camera rules (produced style):
   - every zoom change is an eased move inside the motion limits (defaults.json "motion");
   - a navigating step (a click, or typing that submits) eases back to 1.0x and the camera is still
     across the hard cut; on the landed page it pushes in on the next action or the content;
-  - no move crosses an in-page change QC counts as a page cut (a modal opening on a click): the
+  - no move crosses an in-page change quality control counts as a page cut (a modal opening on a click): the
     typing shot's move starts once the modal's first settled capture is shown;
-  - a still stretch longer than the QC limit gets a slow gutter-snapped push-in.
+  - a still stretch longer than the quality control limit gets a slow gutter-snapped push-in.
 Other rules: nothing between a navigating click (or the end of a navigating step's typing) and the
 settled page reaches the output, nor any logged loading state; no transition other than the title
 dip (no crossfades).
@@ -78,6 +78,11 @@ def move_seconds(origin, z, X, Y, W, H, motion):
     both = (V * dz / t > f * zr) & (V * dp / t > f * pr)
     t = np.where(both, np.maximum(t, V * np.minimum(dz / (f * zr), dp / (f * pr))), t)
     return t * 1.02
+
+
+def read_seconds(text, captions):
+    """Time to read text on screen: seconds_per_word a word, never under min_seconds."""
+    return max(captions['min_seconds'], captions['seconds_per_word'] * len(text.split()))
 
 
 def focus_rect(ink, block, target, W, H, cfg, pill_w, zrange, prefer=None, origin=None, budget=None, exit_budget=None):
@@ -156,7 +161,7 @@ def union_ink(keys, W, H, word_gap):
 
 
 def in_shot(r, tb, W, H, margin):
-    """qc.py's target-headroom test: the box is inside rect r with `margin` on every side that is
+    """quality_control.py's target-headroom test: the box is inside rect r with `margin` on every side that is
     not the page boundary."""
     return ((tb[0] >= r[0] + margin or r[0] < 1) and (tb[1] >= r[1] + margin or r[1] < 1) and
             (tb[0] + tb[2] <= r[0] + r[2] - margin or r[0] + r[2] > W - 1) and (tb[1] + tb[3] <= r[1] + r[3] - margin or r[1] + r[3] > H - 1))
@@ -253,14 +258,14 @@ def main(argv=None):
                       'caption': infos[s].get('caption', s), 'outcome': infos[s].get('outcome'),
                       'target_box': ck['box'], 'block': ck.get('block')})
 
-    # A click that opens a modal changes most of the page a few captures later. QC fails any such
+    # A click that opens a modal changes most of the page a few captures later. Quality control fails any such
     # change while the camera moves, so the typing shot's move waits for the modal's first settled
     # capture: from it to the first key the page holds still.
-    change_min = cfg['qc']['nav_change_min']
+    change_min = cfg['quality_control']['nav_change_min']
 
     def modal_settled(stp):
         """Source time of the first capture after the click from which the page matches the one typing
-        starts on, or None when the click changes nothing QC would count."""
+        starts on, or None when the click changes nothing quality control would count."""
         ck_t, typ_t = stp['ck']['t'], stp['typ']['t']
         ref = capture_at(typ_t)
         win = [f['t'] for f in frames if ck_t < f['t'] <= typ_t]
@@ -275,7 +280,7 @@ def main(argv=None):
     for stp in steps:
         stp['modal_at'] = modal_settled(stp) if stp['typ'] else None
 
-    # while a modal is open only the modal is content; its dimmed backdrop is not (qc.py reads these)
+    # while a modal is open only the modal is content; its dimmed backdrop is not (quality_control.py reads these)
     content_masks = [{'src0': s['modal_at'] or s['typ']['t'], 'src1': steps[k + 1]['ck']['t'] + 0.05 if k + 1 < len(steps) else end_t,
                       'box': s['st']['modal']} for k, s in enumerate(steps)
                      if s['typ'] and not s['navigates'] and s['st'].get('modal')] \
@@ -302,7 +307,7 @@ def main(argv=None):
         tb = ck['box']
         budget = P['move'] + P['pre_click'] + (P['lead_in'] if k == 0 else 0.0)
         if layers['camera']:
-            # the click shot holds still while a modal opens (a state cut QC allows zoomed only with
+            # the click shot holds still while a modal opens (a state cut quality control allows zoomed only with
             # clean edges), so its edges clear every capture up to the modal's settled one
             t_end = stp['modal_at'] or ck['t']
             ink = union_ink([(capture_at(ck['t']), mask_at(ck['t']))] +
@@ -396,7 +401,11 @@ def main(argv=None):
         dur = max(base, P['after_cut'] + in_d + 1.0) if stp['navigates'] else base
         if nxt_mv is None:
             dur = (P['after_cut'] + in_d if stp['navigates'] else 0.0) + P['end_hold']
+        # a hold that shows an outcome caption lasts its reading time once it is up, whatever still_max says
+        read = read_seconds(stp['outcome'], CAP) if stp['outcome'] and layers['captions'] else 0.0
+        dur = max(dur, P['after_cut'] + in_d + read)
         seg(st['t'], nxt_mv if nxt_mv else min(st['t'] + 1.5, end_t), dur, s, 'hold')
+        segments[-1]['read'] = round(read, 4)
     for e in ev:
         if e['name'] == 'loading':
             forbidden.append((e['t'] - 0.2, e['t1'] + 0.2))
@@ -437,10 +446,10 @@ def main(argv=None):
         for k, stp in enumerate(steps):
             nxt = step_start(k + 1) if k + 1 < len(steps) else total
             hs = hold_seg(k)
-            end = hs['out0'] if stp['navigates'] else nxt
+            end = hs['out0'] if stp['navigates'] or stp['outcome'] else nxt
             caps.append({'step': stp['id'], 'kind': 'step', 'badge': str(k + 1), 'text': stp['caption'],
                          'span': [round(step_start(k), 4), round(end, 4)]})
-            if stp['navigates'] and stp['outcome']:
+            if stp['outcome']:
                 after = P['after_cut'] + stp['land_ease']
                 caps.append({'step': stp['id'], 'kind': 'outcome', 'badge': 'check', 'text': stp['outcome'],
                              'span': [round(hs['out0'] + after, 4), round(nxt, 4)], 'hold_through_end': k + 1 == len(steps)})
@@ -518,7 +527,7 @@ def main(argv=None):
     nav_cuts = [hold_seg(k)['out0'] for k, stp in enumerate(steps) if stp['navigates']]
 
     # ---- camera keyframes -------------------------------------------------------------------------
-    # in-page changes QC counts as page cuts (a modal opening, results replacing a page): the output
+    # in-page changes quality control counts as page cuts (a modal opening, results replacing a page): the output
     # times where the shown capture changes by at least nav_change_min with no source jump
     fps = 30
 
@@ -620,8 +629,8 @@ def main(argv=None):
                 cam.extend({'t': round(t, 4), 'rect': q} for t, q in ((t_in, r), (t_in + d_in, cand), (t_out, cand), (t_out + d_out, r)))
                 return
 
-    # a still stretch longer than the QC limit gets a slow push-in toward a tighter gutter-snapped shot
-    still_max = cfg['qc']['still_max']
+    # a still stretch longer than the quality control limit gets a slow push-in toward a tighter gutter-snapped shot
+    still_max = cfg['quality_control']['still_max']
     keys = sorted(cam, key=lambda c: c['t'])
     moves_t = [(p['t'], q['t'], p['rect'], q['rect']) for p, q in zip(keys, keys[1:]) if p['rect'] != q['rect']]
     gaps, prev_end, prev_rect, before = [], 0.0, full, None
@@ -785,7 +794,7 @@ def main(argv=None):
         for m0, m1, _, _ in cmoves:
             if m0 < c - 1e-6 and m1 > c - P['cam_clear'] + 1e-3:
                 errs.append(f'cut at {c:.2f}s while the camera moves')
-    for s in state_cuts:   # qc.py's nav-cuts window: the camera is the same three frames before to two after
+    for s in state_cuts:   # quality_control.py's nav-cuts window: the camera is the same three frames before to two after
         for m0, m1, _, _ in cmoves:
             if m0 < s + 2.5 / fps and m1 > s - 3.5 / fps:
                 errs.append(f'camera moves {m0:.2f}-{m1:.2f}s across the in-page change at {s:.2f}s')
@@ -793,7 +802,7 @@ def main(argv=None):
         r = rect_at(c - 1e-3)
         if layers['camera'] and abs(W / r[2] - 1.0) > 1e-3:
             errs.append(f'navigation cut at {c:.2f}s taken at {W / r[2]:.2f}x, not 1.0x')
-    for stp in steps:   # qc.py's target-headroom: a move delayed past a state cut can end after its click
+    for stp in steps:   # quality_control.py's target-headroom: a move delayed past a state cut can end after its click
         r = rect_at(out_of(stp['ck']['t']))
         if layers['camera'] and not in_shot(r, stp['target_box'], W, H, CAM['safe_margin'] * r[2] / W / 2):
             errs.append(f"{stp['id']} click target is not in shot with headroom at its click")
@@ -854,6 +863,11 @@ def main(argv=None):
         rejected.write_text(json.dumps(edl, indent=1))
         Path(a.out).unlink(missing_ok=True)   # an earlier approved plan must not be rendered in its place
         print('EDL breaks rules (plan kept at ' + str(rejected) + '):\n  ' + '\n  '.join(errs))
+        unshot = [s['id'] for s in steps if layers['camera'] and not s['click_shot']]
+        if unshot:   # the cause behind a caption with no empty anchor is often here, not in the caption
+            print(f"shot search: no click shot passed for {', '.join(unshot)} at any zoom from {CAM['zmin_shot']}x "
+                  f"to {CAM['zmax']}x (every candidate rect crosses content at an edge, leaves no empty caption "
+                  'anchor or is out of reach), so the camera stays at 1.0x for those clicks')
         return 1
     Path(a.out).write_text(json.dumps(edl, indent=1))
     print(f'edl: {len(steps)} steps, {len(segments)} segments, {len(cam)} camera keys, {total:.2f}s -> {a.out}')
