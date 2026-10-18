@@ -503,8 +503,10 @@ except six:
   and Q663, 2026-10-18; audit [#8282](https://github.com/melodic-software/claude-code-plugins/issues/8282)
   due 2026-11-18), so the lane's gates are the non-author verifier verdict, both AI review lanes,
   `ci-status` and the post-merge revert breaker. It leaves the rest off (owner decision,
-  2026-10-17). The local babysit lane ignores the switches and keeps
-  every check, with `floor-paths` joined. The review evidence and the security lane's findings
+  2026-10-17). The local babysit lane ignores the other switches and keeps the rest of
+  the fixed floor, both caps and the C2 contradictions, but `high-path-floor` governs it too:
+  false leaves out `floor-paths`, `floor-script-scopes`, the capability check and the floor
+  entries for plugin monitors and workflows. The review evidence and the security lane's findings
   still count.
 
   What is left with every switch off: a lane pull request may change the merge gate, the

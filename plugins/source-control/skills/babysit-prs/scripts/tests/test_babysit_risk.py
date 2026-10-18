@@ -1165,6 +1165,47 @@ def _lane_input(files, *, high_floor=True):
     )
 
 
+def _local_input(files, *, high_floor):
+    """The local babysit lane's input, wired as score_unattended wires it: no
+    pr-merge switches, so main's HIGH_FLOOR always applies, and
+    `high-path-floor` gates only what this change adds. The line cap keeps
+    `_input`'s value: the config sets none, which the local lane reads as MED."""
+    config = _lane_config()
+    return _input(
+        files=files,
+        high_paths=config.denied_paths,
+        floor_paths=config.floor_paths,
+        floor_script_scopes=config.floor_script_scopes,
+        floor_extensions=high_floor,
+    )
+
+
+class LocalLaneFloorSwitchTests(unittest.TestCase):
+    """Owner decision 2026-10-18: the floor additions behave the same in every
+    lane, so with `high-path-floor` false a local-lane pull request scores as
+    on main."""
+
+    CHANGES = (
+        _file("plugins/foo/monitors/monitors.json"),
+        _file("run-me", mode="100755"),
+        _file(
+            "plugins/foo/skills/bar/SKILL.md",
+            patch="@@ -1,3 +1,4 @@\n ---\n name: bar\n+allowed-tools: Bash\n ---\n",
+        ),
+    )
+
+    def test_the_switch_governs_the_local_lane(self):
+        for changed in self.CHANGES:
+            for on, expected in ((False, Risk.LOW), (True, Risk.HIGH)):
+                with self.subTest(changed.path, high_path_floor=on):
+                    result = score(_local_input((changed,), high_floor=on))
+                    self.assertEqual(result.score, expected, _codes(result))
+
+    def test_main_floor_entries_still_hold_with_the_switch_off(self):
+        result = score(_local_input((_file(".github/x.yml"),), high_floor=False))
+        self.assertIn("high-path:.github/**", _codes(result))
+
+
 class LanePathFloorTests(unittest.TestCase):
     """Owner decision Q641: the config adds bin/, .lsp.json, settings*.json and
     the scripts of the plugins the CI lanes load, so with the floor on a lane

@@ -2912,7 +2912,7 @@ def score_unattended(
     except merge_policy.PolicyReadError:
         files, complete = (), False
     # The pr-merge lane's switches (owner decision Q624); the local lane
-    # keeps the floor, both caps and the C2 contradictions.
+    # keeps HIGH_FLOOR, both caps and the C2 contradictions.
     lane_switches = (
         {
             "high_floor": config.high_path_floor,
@@ -2933,6 +2933,8 @@ def score_unattended(
             high_paths=config.denied_paths,
             floor_paths=config.floor_paths,
             floor_script_scopes=config.floor_script_scopes,
+            # The floor additions follow the switch in every lane.
+            floor_extensions=config.high_path_floor,
             lanes=lanes,
             blast_radius=None,
             **lane_switches,

@@ -11,8 +11,11 @@ command line, also scores HIGH. `merge.diff-check.floor-script-scopes` (a list o
 `.ps1` or `.cjs` file, or one with git mode 100755, inside one of them or at the top level the same
 way. This repository lists `bin/`, `.lsp.json`, `settings*.json` and the scripts of the plugins
 the CI lanes load as floor paths, and those plugins as script scopes (Q646), but keeps
-`high-path-floor: false` (owner decisions Q661 and Q663), so none of these checks runs in its
-pr-merge lane until the switch is turned on. `version` stays 2.
+`high-path-floor: false` (owner decisions Q661 and Q663), so none of these checks runs until the
+switch is turned on. The switch governs both lanes: in the local babysit lane, false leaves out
+`floor-paths`, `floor-script-scopes`, the capability check and the new fixed floor entries
+(`plugins/*/monitors/**`, `plugins/*/workflows/**`), so a local-lane pull request scores as it did
+before this release. `version` stays 2.
 
 ## 2.12.4 - 2026-10-18
 

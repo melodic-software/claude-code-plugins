@@ -1754,6 +1754,19 @@ class LocalBabysitReadsNoVerdict(unattended.Unattended):
         self.assert_no_merge(code)
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
 
+    def test_the_floor_switch_governs_the_local_floor_paths(self) -> None:
+        # Owner decision 2026-10-18: the additions follow the switch in every lane.
+        self.files = ((changed("notes/held/x.md"),), True)
+        for on in (False, True):
+            with self.subTest(high_path_floor=on):
+                self.config = dataclasses.replace(
+                    self.config, high_path_floor=on, floor_paths=("notes/held/**",)
+                )
+                _, out = self.run_main()
+                self.assertEqual(
+                    out["unattended"]["risk"]["score"], "HIGH" if on else "LOW"
+                )
+
 
 class TheConfigKey(unittest.TestCase):
     def config(self, value: str | None) -> policy.PipelineConfig:

@@ -17,8 +17,11 @@ is in the floor, so a pull request cannot change the rule it is judged by. The
 configured `merge.diff-check.denied-paths` and `floor-paths` are joined to the
 floor, never in place of it. With the floor, a SKILL.md, agents/*.md or
 commands/*.md patch that changes capability frontmatter or adds a `!` backtick
-command, or that has no patch text, rates HIGH as `high-capability`. Every glob matches case-insensitively, because a lane host on a
-case-insensitive filesystem treats `Claude.md` as `CLAUDE.md`.
+command, or that has no patch text, rates HIGH as `high-capability`.
+`floor_extensions` gates FLOOR_ADDITIONS, `floor-paths`, the script scopes and
+the capability check in every lane. Every glob matches case-insensitively,
+because a lane host on a case-insensitive filesystem treats `Claude.md` as
+`CLAUDE.md`.
 
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
 dropped). A path is safe only when every `/`-separated segment is non-empty,
@@ -105,6 +108,10 @@ class RiskInput:
     # The switches the pr-merge lane may turn off (merge.diff-check); the
     # defaults keep every check. An unset line cap is MED unless optional.
     high_floor: bool = True
+    # merge.diff-check.high-path-floor in every lane: false leaves out
+    # FLOOR_ADDITIONS, floor_paths, floor_script_scopes and the capability
+    # check, so the floor is main's HIGH_FLOOR alone where high_floor holds.
+    floor_extensions: bool = True
     # merge.diff-check.floor-paths: globs joined to HIGH_FLOOR while it applies.
     floor_paths: tuple[str, ...] = ()
     # merge.diff-check.floor-script-scopes: globs inside which, as at the top
@@ -148,8 +155,6 @@ HIGH_FLOOR: tuple[str, ...] = (
     "plugins/guardrails/**",
     "plugins/work-items/**",
     "plugins/*/hooks/**",
-    "plugins/*/monitors/**",  # commands Claude Code runs in the background
-    "plugins/*/workflows/**",
     "prompts/**",
     "plugins/*/lib/**",  # synced copies of lib/ that hooks run
     # Hook-run scripts outside hooks/.
@@ -167,6 +172,11 @@ HIGH_FLOOR: tuple[str, ...] = (
     "**/CLAUDE.local.md",
     "**/.mcp.json",
     "**/AGENTS.override.md",
+)
+# Floor entries `merge.diff-check.high-path-floor` gates in every lane.
+FLOOR_ADDITIONS: tuple[str, ...] = (
+    "plugins/*/monitors/**",  # commands Claude Code runs in the background
+    "plugins/*/workflows/**",
 )
 
 # Lane -> (code, severity) for an open finding on that lane. Both lanes are
@@ -559,8 +569,10 @@ def _high_path_reasons(
     unsafe = [raw for f in files for raw in f.unsafe]
     configured = _readable_globs(inp.high_paths, unsafe)
     on = inp.high_floor is not False
-    floor = (*HIGH_FLOOR, *_readable_globs(inp.floor_paths, unsafe)) if on else ()
-    scopes = _readable_globs(inp.floor_script_scopes, unsafe) if on else ()
+    extended = on and inp.floor_extensions is not False
+    added = (*FLOOR_ADDITIONS, *_readable_globs(inp.floor_paths, unsafe))
+    floor = (*HIGH_FLOOR, *(added if extended else ())) if on else ()
+    scopes = _readable_globs(inp.floor_script_scopes, unsafe) if extended else ()
     reasons = []
     if unsafe:
         reasons.append(Reason(UNSAFE_PATH_CODE, Risk.HIGH, "; ".join(unsafe)))
@@ -569,7 +581,7 @@ def _high_path_reasons(
         hits = [path for path in paths if glob_match(pattern, path)]
         if hits:
             reasons.append(Reason(f"high-path:{pattern}", Risk.HIGH, ", ".join(hits)))
-    if on:
+    if extended:
         reasons.extend(_capability_reasons(files, raw_files))
         reasons.extend(_script_reasons(files, raw_files, scopes))
     return reasons
