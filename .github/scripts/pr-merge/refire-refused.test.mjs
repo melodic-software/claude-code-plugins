@@ -1,4 +1,4 @@
-// Expected values come from issue #7849 and the broker's refusal format in
+// Expected values come from the broker's refusal format in
 // .github/actions/request-lane-token/action.yml: a lane run on a PR's current
 // head that failed at "Request the lane token" with reason workflow-modified
 // gets a new head (an empty commit) within one run, at most once per version
