@@ -62,6 +62,10 @@ case "$method $endpoint" in
   fi
   echo '{}'
   ;;
+"POST repos/o/r/statuses/"*)
+  [[ -f $STUB/fail_status ]] && { echo 'stub gh: status POST failed' >&2; exit 1; }
+  echo '{}'
+  ;;
 *) echo "stub gh: unexpected $method $endpoint" >&2; exit 1 ;;
 esac
 EOF
@@ -83,11 +87,12 @@ setup() {
   fi
 }
 # run <reason> [head-sha]: runs from the workspace root, as the runner does.
+# MODE, when set, is the script's argument; TARGET_URL passes through.
 run() {
   set +e
   (cd "$STUB/ws" && env PATH="$TMP/bin:$PATH" STUB="$STUB" GH_TOKEN=t \
     GITHUB_REPOSITORY=o/r LANES_BOT_LOGIN="${LBL:-}" PR_NUMBER=42 HEAD_SHA="${2:-$HEAD_A}" \
-    ESCALATION_REASON="$1" "$SUT") >"$STUB/out" 2>&1
+    TARGET_URL="${TARGET_URL:-}" ESCALATION_REASON="$1" "$SUT" ${MODE:+"$MODE"}) >"$STUB/out" 2>&1
   RC=$?
   set -e
 }
@@ -128,7 +133,54 @@ for reason in protected-path-conflict workflow-staged unexpected-path-staged rep
   esac
   has "$reason: comment names the activity to dispatch" "-f pr-number=42 -f activity=$want" "$STUB/bodies"
   has "$reason: label defaults to needs-human" 'labels[]=needs-human' "$STUB/calls"
+  check "$reason: the comment run posts no commit status" 0 "$(grep -c statuses "$STUB/requests" || true)"
 done
+
+ALL_REASONS=(protected-path-conflict workflow-staged unexpected-path-staged repeat-cap unresolved-conflict
+  feedback-protected-path feedback-round-cap feedback-uncertain feedback-not-landed feedback-invalid
+  feedback-partial feedback-incomplete feedback-disputed
+  dependency-round-cap dependency-invalid dependency-fix-not-landed dependency-security-close dependency-escalate
+  dependency-config-unreadable dependency-files-truncated dependency-control-uncited)
+
+# Status mode: a failing pr-unblock/conflict status on the head, only for unresolved-conflict.
+setup '[]' '[]'
+MODE=status TARGET_URL=https://example.test/run/1 run unresolved-conflict
+check "status, unresolved-conflict: exit 0" 0 "$RC"
+check "status, unresolved-conflict: one status POST on the head, nothing else" \
+  "POST repos/o/r/statuses/$HEAD_A" "$(cat "$STUB/requests")"
+has "status, unresolved-conflict: state failure" 'state=failure' "$STUB/calls"
+has "status, unresolved-conflict: context names the conflict" 'context=pr-unblock/conflict' "$STUB/calls"
+has "status, unresolved-conflict: description says CI does not run" \
+  'description=Conflicts with the base branch; CI does not run until they are resolved' "$STUB/calls"
+has "status, unresolved-conflict: links the run" 'target_url=https://example.test/run/1' "$STUB/calls"
+
+setup '[]' '[]'
+MODE=status run unresolved-conflict "$HEAD_B"
+check "status on another head: posted on that head" "POST repos/o/r/statuses/$HEAD_B" "$(cat "$STUB/requests")"
+check "status without TARGET_URL: no target_url" 0 "$(grep -c target_url "$STUB/calls" || true)"
+
+for reason in "${ALL_REASONS[@]}"; do
+  [[ $reason == unresolved-conflict ]] && continue
+  setup '[]' '[]'
+  MODE=status run "$reason"
+  check "status, $reason: exit 0" 0 "$RC"
+  check "status, $reason: no gh call" '' "$(cat "$STUB/calls")"
+done
+
+setup '[]' '[]'
+touch "$STUB/fail_status"
+MODE=status run unresolved-conflict
+check "status POST fails: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
+
+setup '[]' '[]'
+MODE=status run unresolved-conflict not-a-sha
+check "status, malformed head sha: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
+check "status, malformed head sha: no gh call" '' "$(cat "$STUB/calls")"
+
+setup '[]' '[]'
+MODE=bogus run unresolved-conflict
+check "unknown mode: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
+check "unknown mode: no gh call" '' "$(cat "$STUB/calls")"
 
 # The role label resolves from the base tracker config, not from the workspace root.
 setup '[]' '[]' '{"config":{"role_labels":{"human-gated":"status: blocked-human"}}}'

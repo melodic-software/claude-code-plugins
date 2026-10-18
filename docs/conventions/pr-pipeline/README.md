@@ -90,7 +90,7 @@ reader applies.
 
 | Lane | Starts on |
 |---|---|
-| `pr-refine` | ready |
+| `pr-refine` | a PR opened, reopened or marked ready, or a `workflow_dispatch`; not each push, so a docs change pushed after its first run waits for a reopen or a dispatch |
 | `pr-run-checks` | dispatch from `pr-refine` |
 | `pr-review`, `pr-review-security` | dispatch from `pr-refine` |
 | `pr-verify` | dispatch from `pr-refine` |
@@ -114,6 +114,13 @@ that runs on a push to `main` and on a trusted human's `workflow_dispatch`:
 - A hand run or a re-run must be started by a listed human (`check-trusted-trigger` with
   `require-pr: false` and `require-kind: human`).
 - With the kill switch on, the run ends green with a notice and dispatches nothing.
+
+GitHub starts no `pull_request` workflow on a PR with a merge conflict, so a conflicted head gets
+no CI. When `resolve-conflicts` escalates with `unresolved-conflict`, `pr-unblock.yml`'s
+`report-conflict-status` job (a script job with no model, the lane's only `statuses: write`, on its
+own `GITHUB_TOKEN`) posts a `failure` commit status with context `pr-unblock/conflict` on that
+head, saying CI does not run until the conflicts are resolved. A push that resolves them is a new
+head, which the status does not reach.
 
 `pr-unblock`'s `address-feedback` dispatches come from `pr-feedback-dispatch.yml`, also scripted,
 on `workflow_run` `completed` of `pr-review-hosted` and `pr-review-security-hosted`. It takes only
