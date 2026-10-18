@@ -1060,10 +1060,9 @@ Named residuals:
   lands between that read and the queue re-read counts as neither queued nor unverified, so
   concurrent hosts can exceed `merge.max-in-flight` by the entries that landed in that window. The
   `pr-merge` workflow's concurrency group serializes CI runs, so only several local hosts race.
-- `merge.max-in-flight` is read at each candidate's base commit, so after the cap is lowered, a
-  pull request whose base predates the change is still gated at the old cap. To lower it at once,
-  set the kill switch (`CLAUDE_LANES_REPO_DISABLED`, read live) until those pull requests are
-  re-based.
+- `merge.max-in-flight` is read at the default branch head, shared by the run's gate processes
+  for `run_cache.MAX_AGE`, so a changed cap applies to every candidate, whatever its base, within
+  that age. When that read fails, the candidate's base commit's value applies.
 
 Operator runbook: the refusal `in-flight:merged-history-truncated` (or an unreadable post-merge
 verdict naming the read limit) means more merges landed since the floor than the history read

@@ -430,7 +430,8 @@ class PipelineConfig:
     c2_contradictions: bool = False
     max_changed_files: int | None = None
     # `merge.max-in-flight`: lane merges in flight at once (`in_flight`).
-    # Absent, or anything but a whole number of at least 1, is 1.
+    # Absent, or anything but a whole number of at least 1, is 1. `assess`
+    # replaces it with the default branch head's (`_run_max_in_flight`).
     max_in_flight: int = 1
 
 
@@ -2188,6 +2189,46 @@ def _default_branch_head(repo: str) -> tuple[str, str]:
     return branch, sha
 
 
+MAX_IN_FLIGHT_SECTION = "max-in-flight"
+
+
+def _run_max_in_flight(
+    repo: str, branch: str, head: str | None, base: PipelineConfig
+) -> tuple[int, str]:
+    """`merge.max-in-flight` and where it was read. It caps the one merge
+    queue, so every candidate of a run reads it at the head of `branch` (the
+    default branch; `head` when already read), not at its own base. It takes
+    one another gate process of the run read within `run_cache.MAX_AGE`;
+    every read is saved for them, a failed one never, and a failed one falls
+    back to `base`'s value."""
+    cached = run_cache.get(MAX_IN_FLIGHT_SECTION, repo, run_cache.MAX_AGE)
+    if type(cached) is int and cached >= 1:
+        return cached, "default-branch"
+    owner, name = _split_repo(repo)
+    if head is None:
+        status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
+        head = payload.get("sha") if status == 200 and is_json_object(payload) else None
+    if not isinstance(head, str):
+        return base.max_in_flight, "base"
+    if head == base.base_sha:
+        config = base
+    else:
+        try:
+            config = read_config_at(
+                repo,
+                head,
+                lambda path, sha: (
+                    _file_at(owner, name, path, sha) if path == CONFIG_PATH else None
+                ),
+            )
+        except PolicyReadError:
+            return base.max_in_flight, "base"
+    if config.error:
+        return base.max_in_flight, "base"
+    run_cache.put(MAX_IN_FLIGHT_SECTION, repo, config.max_in_flight)
+    return config.max_in_flight, "default-branch"
+
+
 def pull_request(repo: str, number: int) -> dict[str, Any]:
     """The pull request's REST record, with a base and head SHA that are full
     commit ids."""
@@ -2846,7 +2887,8 @@ def assess(
     merges in flight. The
     config at the base must enable that authority (`enabled_authority`).
 
-    Config at the pull request's base SHA, then authority, identity, the
+    Config at the pull request's base SHA (`merge.max-in-flight` alone at
+    the default branch head, `_run_max_in_flight`), then authority, identity, the
     credential chokepoint, the kill switch, a base that is the default
     branch, and the post-merge check: any
     refusal there stops the reads and leaves the path not `enabled`, so no
@@ -3034,6 +3076,13 @@ def assess(
         cap=cap.value,
         demoted=demotion.active,
     )
+    # The one setting not bound to the base: the cap is the run's, and the
+    # post-enqueue room check reads it from `inputs["config"]`.
+    flight_cap, cap_source = _run_max_in_flight(
+        repo, default, head if isinstance(head, str) else None, config
+    )
+    config = replace(config, max_in_flight=flight_cap)
+    inputs["config"] = config
     flight = in_flight(
         repo,
         **readers,
@@ -3041,13 +3090,18 @@ def assess(
         branch=base_ref,
         merged_since=floor,
         lane_merges_only=lane,
-        max_in_flight=config.max_in_flight,
+        max_in_flight=flight_cap,
     )
     details.update(
         rung=rung.rung,
         rungInputs=dict(rung.inputs),
         rungCap={"value": cap.value, "reason": cap.reason},
-        inFlight={"clear": flight.clear, "reason": flight.reason},
+        inFlight={
+            "clear": flight.clear,
+            "reason": flight.reason,
+            "cap": flight_cap,
+            "capSource": cap_source,
+        },
     )
     inputs.update(rung=rung.rung, flight=flight)
     # Past an on rung, the in-flight refusal outranks every read below. With

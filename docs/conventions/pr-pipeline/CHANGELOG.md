@@ -1,5 +1,12 @@
 # Changelog for the PR pipeline convention
 
+## 2.12.5 - 2026-10-18
+
+The unattended merge gate reads `merge.max-in-flight` at the default branch head instead of at each
+pull request's base, so every candidate of a `pr-merge` run shares one cap; when the head's config
+cannot be read, the base's value applies. Every other `merge.` key is still read at the base.
+`version` stays 2.
+
 ## 2.12.4 - 2026-10-18
 
 `pr-run-activity-read.yml` takes a `dispatcher-run-id` input and passes it to its trigger gate with
