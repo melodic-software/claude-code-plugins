@@ -1159,6 +1159,33 @@ class TestClientLog(LogCase):
         self.assertEqual((code, out["error"]), (429, "slow-down"))
         self.assertEqual(self.post("/api/client-log", self.ENTRY, bo)[0], 200)  # per person, not per address
 
+    SUMMARY = {"kind": "summary", "message": "pv=0a1b2c3d lat:/api/vote=0,2 rb:/api/vote=1 gap=900", "ua": "safari phone"}
+
+    def test_a_summary_names_no_one_on_its_client_entry_or_its_request_entry(self):
+        """README "Logs": usage and performance entries carry no pid; fault entries keep it."""
+        pid, guest = self.join("Ann")
+        self.assertEqual(self.post("/api/client-log", self.SUMMARY, guest)[:3:2], (200, {"ok": True}))
+        line = self.entry_for(" kind=summary ")
+        self.assertTrue(line.endswith(f'WARNING client kind=summary message="{self.SUMMARY["message"]}" ua="safari phone"'), line)
+        posts = [x for x in self.log_text().splitlines() if " request method=POST route=/api/client-log " in x]
+        self.assertEqual(len(posts), 1, posts)
+        self.assertNotIn("pid=", posts[0])
+        self.assertEqual(self.post("/api/client-log", {**self.ENTRY, "fp": "1a2b3c4d"}, guest)[0], 200)
+        self.assertTrue(self.entry_for(" kind=error ").endswith(f'client pid={pid} kind=error message="TypeError: x is undefined" source=/app.js:12 route=/ ua="chrome computer" fp=1a2b3c4d'))
+        self.assertIn(f"pid={pid}", self.entry_for(" request method=POST route=/api/client-log "))
+
+    def test_summaries_and_faults_have_separate_rate_buckets(self):
+        """At most 6 summaries a minute per person, and a page in an error loop cannot starve them, or the reverse."""
+        _, ann = self.join("Ann")
+        self.assertEqual([self.post("/api/client-log", self.SUMMARY, ann)[0] for _ in range(6)], [200] * 6)
+        code, _, out = self.post("/api/client-log", self.SUMMARY, ann)
+        self.assertEqual((code, out["error"], out["message"]), (429, "slow-down", "At most 6 summaries a minute."))
+        self.assertEqual([self.post("/api/client-log", self.ENTRY, ann)[0] for _ in range(20)], [200] * 20)
+        self.assertEqual(self.post("/api/client-log", self.ENTRY, ann)[0], 429)
+        _, bo = self.join("Bo")
+        self.assertEqual([self.post("/api/client-log", self.ENTRY, bo)[0] for _ in range(20)], [200] * 20)
+        self.assertEqual(self.post("/api/client-log", self.SUMMARY, bo)[0], 200)
+
     def test_client_entries_rotate_with_the_log_at_its_size(self):
         d = tmpdir(self)
         with mock.patch.object(server, "LOG_BYTES", 400):

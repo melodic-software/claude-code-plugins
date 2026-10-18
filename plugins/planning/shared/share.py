@@ -8,10 +8,10 @@
   share.py --dir DATA_DIR url [--owner]
   share.py --dir DATA_DIR apply --file F
   share.py --dir DATA_DIR lease [--release]
-  share.py --dir DATA_DIR logs [--errors] [--since MINUTES]
+  share.py --dir DATA_DIR logs [--errors] [--since MINUTES] [--summary [--json]]
   share.py list --root MEMORY_DIR
 
-Each command prints one JSON line on stdout and diagnostics on stderr. Exit codes: 0 done;
+Each command prints one JSON line on stdout (`logs --summary` plain text, unless --json) and diagnostics on stderr. Exit codes: 0 done;
 1 refused (bad arguments, a newer schema, a failed migration); 2 a prerequisite is missing or the
 server cannot start or be reached; 3 no tunnel address in time (the server keeps running on
 localUrl and the output says `tunnel: "down"`). User text never goes on a command line: it
@@ -22,12 +22,15 @@ On Windows `python share.py ...` runs without bash.
 from __future__ import annotations
 
 import argparse
+import collections
 import contextlib
 import datetime
 import html
 import http.client
 import json
+import math
 import os
+import re
 import secrets
 import shlex
 import shutil
@@ -463,11 +466,11 @@ def cmd_lease(d, a):
 
 
 def is_error(line):
-    """A request entry with a 4xx or 5xx status, or a client entry (README "Logs"). The fields before any free text
-    never hold a space, so they split on spaces."""
+    """A request entry with a 4xx or 5xx status, or a client entry other than a usage summary (README "Logs"). The
+    fields before any free text never hold a space, so they split on spaces."""
     parts = line.split(" ", 7)
     if len(parts) > 3 and parts[3] == "client":
-        return True
+        return not (len(parts) > 4 and parts[4] == "kind=summary")
     return len(parts) > 6 and parts[3] == "request" and parts[6][:8] in {"status=4", "status=5"}
 
 
@@ -479,7 +482,8 @@ def logged_at(line):
 
 
 def cmd_logs(d, a):
-    """The newest LOG_TAIL lines of server.log and its rotated files, oldest first; it needs no running server."""
+    """The newest LOG_TAIL lines of server.log and its rotated files, oldest first, or with --summary what they add up
+    to (summarize); it needs no running server."""
     rotated = sorted((f for f in d.glob(LOG + ".*") if f.suffix[1:].isdigit()), key=lambda f: int(f.suffix[1:]), reverse=True)
     lines = []
     for f in [*rotated, d / LOG]:
@@ -488,9 +492,171 @@ def cmd_logs(d, a):
     if a.since is not None:
         cut = datetime.datetime.now() - datetime.timedelta(minutes=a.since)
         lines = [line for line in lines if (logged_at(line) or cut) >= cut]
+    if a.summary:
+        out = summarize(lines)
+        return {"ok": True, **out} if a.json else summary_text(out)
     if a.errors:
         lines = [line for line in lines if is_error(line)]
     return {"ok": True, "lines": lines[-LOG_TAIL:]}
+
+
+# ---------- logs --summary: what the pages' telemetry adds up to (README "Logs") ----------
+FIELD = re.compile(r' (\w+)=(?:"([^"]*)"|(\S*))')
+ESCAPE = re.compile(r"\\x([0-9a-f]{2})|\\u([0-9a-f]{4})")
+LAT_EDGES = (100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000)  # ms; web/core.js LAT_EDGES, plus one bucket above the last
+SLOW_GAP = 10000  # ms: a reconnect gap the summary counts as slow
+TOP = 10  # judgment: the most error fingerprints the summary lists
+
+
+def entry_of(line):
+    """A log line's entry kind and its fields, unescaped; (None, {}) for a line that is not an entry."""
+    parts = line.split(" ", 4)
+    if len(parts) < 4:
+        return None, {}
+    unescape = lambda v: ESCAPE.sub(lambda m: chr(int(m[1] or m[2], 16)), v)  # noqa: E731
+    return parts[3], {m[1]: unescape(m[2] if m[2] is not None else m[3]) for m in FIELD.finditer(" " + (parts[4] if len(parts) > 4 else ""))}
+
+
+def tokens(message):
+    """A summary or layout message's `name=value` tokens."""
+    return dict(t.split("=", 1) for t in message.split(" ") if "=" in t)
+
+
+def rank(values, q):
+    """The nearest-rank q-quantile of `values`."""
+    s = sorted(values)
+    return s[max(0, math.ceil(q * len(s)) - 1)] if s else None
+
+
+def bucket_rank(counts, q):
+    """The upper edge in ms of the latency bucket holding the q-quantile; None for the bucket above the last edge."""
+    need, seen = math.ceil(q * sum(counts)), 0
+    for edge, n in zip((*LAT_EDGES, None), counts):
+        seen += n
+        if seen >= need:
+            return edge
+    return None
+
+
+def device(ua):
+    return (ua or "").split(" ")[-1] or "unknown"
+
+
+def summarize(lines):
+    """Counts from server.log lines: error fingerprints, refusals, network failures and unanswered actions, action
+    latency and rollbacks, reconnect gaps, layout anomalies, INP and LCP, and how many summaries there were. The
+    owner's own pages are left out of the timings, which a page on the owner's machine would skew."""
+    faults, refusals, server_ms, repeats = {}, collections.Counter(), collections.defaultdict(list), collections.Counter()
+    lat, rollbacks, gaps, vitals = collections.defaultdict(lambda: [0] * (len(LAT_EDGES) + 1)), collections.Counter(), [], {}
+    lines_n = pages_owner = 0
+    pages = set()
+    for line in lines:
+        kind, f = entry_of(line)
+        if kind == "request":
+            status = int(f.get("status", "0") or 0)
+            if 400 <= status < 500 and f.get("code"):
+                refusals[(f.get("route"), f["code"])] += 1
+            if f.get("method") == "POST" and f.get("pid") not in (None, "host") and status < 500:
+                server_ms[f.get("route")].append(float(f.get("ms") or 0))
+        elif kind == "client" and f.get("kind") == "summary":
+            t, lines_n = tokens(f.get("message", "")), lines_n + 1
+            pv = t.get("pv") or f"line{lines_n}"
+            pages.add(pv)
+            for k, v in t.items():
+                if k.startswith("rep:") and v.isdigit():
+                    repeats[k[4:]] += int(v)
+            if t.get("owner") == "1":
+                pages_owner += pv not in vitals
+                vitals.setdefault(pv, {"owner": True})
+                continue
+            v = vitals.setdefault(pv, {"device": device(f.get("ua"))})
+            for k, val in t.items():
+                if k.startswith("lat:"):
+                    for i, n in enumerate(val.split(",")[: len(LAT_EDGES) + 1]):
+                        lat[k[4:]][i] += int(n) if n.isdigit() else 0
+                elif k.startswith("rb:") and val.isdigit():
+                    rollbacks[k[3:]] += int(val)
+                elif k == "gap":
+                    gaps += [(int(g), v["device"]) for g in val.split(",") if g.isdigit()]
+                elif k in ("inp", "lcp", "vitals"):
+                    v[k] = val
+        elif kind == "client" and f.get("kind") in ("error", "rejection", "api", "layout"):
+            if f["kind"] == "layout" and not f.get("message", "").startswith("anomaly="):
+                continue  # a keyboard readout, not an anomaly
+            fp = f.get("fp") or "|".join((f["kind"], f.get("message", ""), f.get("source", ""), f.get("route", "") if f["kind"] == "api" else ""))
+            g = faults.setdefault(fp, {"fp": f.get("fp", ""), "kind": f["kind"], "message": f.get("message", ""), "source": f.get("source", ""), "route": f.get("route", ""), "code": f.get("code", ""), "count": 0, "devices": collections.Counter()})
+            g["count"] += 1
+            g["devices"][device(f.get("ua"))] += 1
+    for g in faults.values():
+        g["count"] += repeats.pop(g["fp"], 0) if g["fp"] else 0
+        g["devices"] = dict(g["devices"])
+    group = lambda kinds: sorted((g for g in faults.values() if g["kind"] in kinds), key=lambda g: -g["count"])  # noqa: E731
+    routes = {}
+    for route, counts in sorted(lat.items()):
+        n = sum(counts)
+        ms = server_ms.get(route, [])
+        routes[route] = {"actions": n, "p50Ms": bucket_rank(counts, 0.5), "p95Ms": bucket_rank(counts, 0.95), "rollbacks": rollbacks[route],
+                         "rollbackRate": round(rollbacks[route] / n, 4) if n else None, "serverP50Ms": rank(ms, 0.5), "serverP95Ms": rank(ms, 0.95)}
+    acts = sum(r["actions"] for r in routes.values())
+    timed = [v for v in vitals.values() if not v.get("owner")]
+
+    def vital(name):
+        vals = [(int(v[name].split(":")[0]), v["device"]) for v in timed if v.get(name, "").split(":")[0].isdigit()]
+        by = {dev: rank([x for x, d in vals if d == dev], 0.75) for dev in sorted({d for _, d in vals})}
+        return {"p75Ms": rank([x for x, _ in vals], 0.75), "pages": len(vals), "byDevice": by, "missing": sum(1 for v in timed if v.get(name) == "missing" or v.get("vitals") == "missing")}
+
+    anomalies = collections.Counter()
+    for g in group(("layout",)):
+        t = tokens(g["message"])
+        for dev, n in g["devices"].items():
+            anomalies[(t.get("anomaly", ""), t.get("at", ""), dev)] += n
+        if g["count"] > sum(g["devices"].values()):  # repeats: on the device of the first entry
+            anomalies[(t.get("anomaly", ""), t.get("at", ""), next(iter(g["devices"])))] += g["count"] - sum(g["devices"].values())
+    return {
+        "errors": [{k: g[k] for k in ("fp", "kind", "message", "source", "count", "devices")} for g in group(("error", "rejection"))][:TOP],
+        "refusals": [{"route": r, "code": c, "count": n} for (r, c), n in refusals.most_common()],
+        "network": [{"route": g["route"], "code": g["code"], "count": g["count"]} for g in group(("api",))],
+        "latency": routes,
+        "rollbacks": {"count": sum(rollbacks.values()), "actions": acts, "rate": round(sum(rollbacks.values()) / acts, 4) if acts else None},
+        "reconnect": {"count": len(gaps), "over10s": sum(1 for g, _ in gaps if g > SLOW_GAP), "worstMs": max((g for g, _ in gaps), default=None),
+                      "byDevice": dict(collections.Counter(d for _, d in gaps))},
+        "layout": [{"anomaly": a, "at": at, "device": dev, "count": n} for (a, at, dev), n in anomalies.most_common()],
+        "inp": vital("inp"),
+        "lcp": vital("lcp"),
+        "summaries": {"lines": lines_n, "pages": len(pages), "ownerPages": pages_owner},
+        "repeatsUnmatched": sum(repeats.values()),
+    }
+
+
+def summary_text(s):
+    """summarize's counts as plain text, for a person to read."""
+    ms = lambda v: "over 10 s" if v is None else f"{v} ms"  # noqa: E731
+    pct = lambda r: "-" if r is None else f"{r * 100:.1f}%"  # noqa: E731
+    devs = lambda d: ", ".join(f"{k} {n}" for k, n in sorted(d.items()))  # noqa: E731
+    sm = s["summaries"]
+    out = [f"Summaries: {sm['lines']} from {sm['pages']} page views ({sm['ownerPages']} of them the owner's, left out of the timings). "
+           "A page with recording turned off sends none.", "", "Top errors:"]
+    out += [f"  {g['count']}x {g['kind']}: {g['message'][:120]} {g['source']} ({devs(g['devices'])})" for g in s["errors"]] or ["  none"]
+    out += ["", "Refusals by route and code (the server's own entries):"]
+    out += [f"  {r['route']} {r['code']}: {r['count']}" for r in s["refusals"]] or ["  none"]
+    out += ["", "Network failures and unanswered actions:"]
+    out += [f"  {r['route']} {r['code']}: {r['count']}" for r in s["network"]] or ["  none"]
+    out += ["", "Action latency, tap to answer (p50 and p95 as the upper edge of their bucket), with the server's own time:"]
+    out += [f"  {route}: {r['actions']} actions, p50 up to {ms(r['p50Ms'])}, p95 up to {ms(r['p95Ms'])}; server p50 {r['serverP50Ms']} ms, p95 {r['serverP95Ms']} ms; "
+            f"rollbacks {r['rollbacks']} ({pct(r['rollbackRate'])})" for route, r in s["latency"].items()] or ["  none"]
+    rb = s["rollbacks"]
+    out += [f"  Rollback rate: {rb['count']} of {rb['actions']} actions ({pct(rb['rate'])})", ""]
+    rc = s["reconnect"]
+    out += [f"Reconnect gaps after the page shows again: {rc['count']}, {rc['over10s']} over 10 s, worst {'-' if rc['worstMs'] is None else ms(rc['worstMs'])} ({devs(rc['byDevice'])})", "", "Layout anomalies by device:"]
+    out += [f"  {a['anomaly']} at {a['at']}, {a['device']}: {a['count']}" for a in s["layout"]] or ["  none"]
+    out.append("")
+    for name in ("inp", "lcp"):
+        v = s[name]
+        p75 = "-" if v["p75Ms"] is None else f"{v['p75Ms']} ms"
+        out.append(f"{name.upper()} p75: {p75} over {v['pages']} page views ({devs(v['byDevice'])}); API missing on {v['missing']}")
+    if s["repeatsUnmatched"]:
+        out.append(f"Repeats whose first entry is no longer in the log: {s['repeatsUnmatched']}")
+    return "\n".join(out)
 
 
 class Parser(argparse.ArgumentParser):
@@ -530,6 +696,8 @@ def parser():
     s = sub.add_parser("logs")
     s.add_argument("--errors", action="store_true", help="only refusals (4xx), server errors (5xx) and the pages' error reports")
     s.add_argument("--since", type=float, metavar="MINUTES", help="only the last MINUTES minutes")
+    s.add_argument("--summary", action="store_true", help="what the pages' telemetry adds up to, as plain text")
+    s.add_argument("--json", action="store_true", help="with --summary: the counts as one JSON line")
     s.set_defaults(fn=cmd_logs)
     return p
 
@@ -549,7 +717,11 @@ def main(argv=None):
         print(f"no such data dir: {target}", file=sys.stderr)
         return 1
     try:
-        emit(a.fn(target, a))
+        out = a.fn(target, a)
+        if isinstance(out, str):
+            print(out, flush=True)
+        else:
+            emit(out)
     except Refused as exc:
         if exc.payload is not None:
             emit(exc.payload)

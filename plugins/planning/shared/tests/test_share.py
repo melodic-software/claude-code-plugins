@@ -213,6 +213,85 @@ class TestLogs(unittest.TestCase):
         d = tmpdir(self)
         self.assertEqual(share(d, "logs")[:2], (0, {"ok": True, "lines": []}))
 
+    def test_errors_leaves_out_usage_summaries(self):
+        summary = f'{self.client[:23]} WARNING client kind=summary message="pv=0a1b2c3d gap=900" ua="chrome phone"'
+        (self.d / "server.log").write_text("\n".join([self.client, summary]) + "\n", encoding="utf-8")
+        (self.d / "server.log.1").unlink()
+        self.assertEqual(share(self.d, "logs", "--errors")[1]["lines"], [self.client])
+
+
+class TestLogsSummary(unittest.TestCase):
+    """`logs --summary [--json]` (README "Logs"): what the pages' telemetry adds up to. The fixture lines are written
+    here in the format README "Logs" documents; every expected count below is worked out by hand from them."""
+
+    LINES = [
+        'WARNING request method=POST route=/api/answer status=409 ms=2.0 pid=pidAnn001 code=locked message="Question Q1 is locked."',
+        'WARNING request method=POST route=/api/answer status=409 ms=4.0 pid=pidBo0001 code=locked message="Question Q1 is locked."',
+        "INFO request method=POST route=/api/vote status=200 ms=3.0 pid=pidAnn001",
+        "INFO request method=POST route=/api/vote status=200 ms=5.0 pid=pidBo0001",
+        "INFO request method=POST route=/api/vote status=200 ms=1.0 pid=host",
+        "WARNING request method=POST route=/api/vote status=429 ms=0.5 pid=pidAnn001 code=slow-down",
+        'WARNING client pid=pidAnn001 kind=error message="TypeError: x is undefined" source=/app.js:12 route=/ ua="chrome phone" fp=aaaa1111',
+        'WARNING client pid=pidBo0001 kind=error message=boom route=/ ua="safari computer" fp=bbbb2222',
+        'WARNING client pid=pidBo0001 kind=api message="Failed to fetch" route=/api/vote code=network ua="safari phone" fp=cccc3333',
+        'WARNING client pid=pidAnn001 kind=layout message="anomaly=overflow at=vf-body w=320 sw=410" route=/ ua="chrome phone" fp=dddd4444',
+        'WARNING client pid=pidAnn001 kind=layout message="sheet=vf-proposepop kb=344px" route=/ ua="chrome phone"',
+        'WARNING client kind=summary message="pv=p1 lat:/api/vote=0,3,1 rb:/api/vote=1 gap=900,12000 rep:aaaa1111=2 rep:dddd4444=1 inp=184:pointer:vf-vote lcp=1200:vf-q" ua="chrome phone"',
+        'WARNING client kind=summary message="pv=p1 lat:/api/vote=0,1 inp=240:pointer:vf-vote" ua="chrome phone"',
+        'WARNING client kind=summary message="pv=p2 lat:/api/answer=0,0,0,1 rep:cccc3333=1 inp=missing lcp=missing" ua="safari computer"',
+        'WARNING client kind=summary message="pv=p3 owner=1 lat:/api/vote=9 inp=16:pointer:vf-x" ua="chrome computer"',
+        'WARNING client kind=summary message="pv=p4 vitals=missing gap=300" ua="firefox tablet"',
+    ]
+
+    def setUp(self):
+        self.d = tmpdir(self)
+        stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S,000")
+        (self.d / "server.log").write_text("".join(f"{stamp} {line}\n" for line in self.LINES), encoding="utf-8")
+
+    def test_json_gives_every_aggregate(self):
+        code, out, err = share(self.d, "logs", "--summary", "--json")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out["errors"], [
+            {"fp": "aaaa1111", "kind": "error", "message": "TypeError: x is undefined", "source": "/app.js:12", "count": 3, "devices": {"phone": 1}},
+            {"fp": "bbbb2222", "kind": "error", "message": "boom", "source": "", "count": 1, "devices": {"computer": 1}},
+        ])
+        self.assertEqual(out["refusals"], [{"route": "/api/answer", "code": "locked", "count": 2}, {"route": "/api/vote", "code": "slow-down", "count": 1}])
+        self.assertEqual(out["network"], [{"route": "/api/vote", "code": "network", "count": 2}])
+        self.assertEqual(out["latency"], {
+            "/api/answer": {"actions": 1, "p50Ms": 500, "p95Ms": 500, "rollbacks": 0, "rollbackRate": 0.0, "serverP50Ms": 2.0, "serverP95Ms": 4.0},
+            "/api/vote": {"actions": 5, "p50Ms": 200, "p95Ms": 300, "rollbacks": 1, "rollbackRate": 0.2, "serverP50Ms": 3.0, "serverP95Ms": 5.0},
+        })
+        self.assertEqual(out["rollbacks"], {"count": 1, "actions": 6, "rate": 0.1667})
+        self.assertEqual(out["reconnect"], {"count": 3, "over10s": 1, "worstMs": 12000, "byDevice": {"phone": 2, "tablet": 1}})
+        self.assertEqual(out["layout"], [{"anomaly": "overflow", "at": "vf-body", "device": "phone", "count": 2}])
+        self.assertEqual(out["inp"], {"p75Ms": 240, "pages": 1, "byDevice": {"phone": 240}, "missing": 2})
+        self.assertEqual(out["lcp"], {"p75Ms": 1200, "pages": 1, "byDevice": {"phone": 1200}, "missing": 2})
+        self.assertEqual(out["summaries"], {"lines": 5, "pages": 4, "ownerPages": 1})
+        self.assertEqual(out["repeatsUnmatched"], 0)
+
+    def test_text_reads_the_same_counts_and_share_sh_prints_it(self):
+        p = subprocess.run(["bash", str(Path(share_cli.__file__).with_name("share.sh")), "--dir", str(self.d), "logs", "--summary"], capture_output=True, text=True, timeout=60, env=env())
+        self.assertEqual(p.returncode, 0, p.stderr)
+        for want in (
+            "Summaries: 5 from 4 page views (1 of them the owner's, left out of the timings). A page with recording turned off sends none.",
+            "  3x error: TypeError: x is undefined /app.js:12 (phone 1)",
+            "  /api/answer locked: 2",
+            "  /api/vote network: 2",
+            "  /api/vote: 5 actions, p50 up to 200 ms, p95 up to 300 ms; server p50 3.0 ms, p95 5.0 ms; rollbacks 1 (20.0%)",
+            "  Rollback rate: 1 of 6 actions (16.7%)",
+            "Reconnect gaps after the page shows again: 3, 1 over 10 s, worst 12000 ms (phone 2, tablet 1)",
+            "  overflow at vf-body, phone: 2",
+            "INP p75: 240 ms over 1 page views (phone 240); API missing on 2",
+            "LCP p75: 1200 ms over 1 page views (phone 1200); API missing on 2",
+        ):
+            self.assertIn(want, p.stdout.splitlines())
+        self.assertFalse(p.stdout.startswith("{"))
+
+    def test_an_empty_log_summarizes_to_nothing(self):
+        code, out, err = share(tmpdir(self), "logs", "--summary", "--json")
+        self.assertEqual(code, 0, err)
+        self.assertEqual((out["errors"], out["latency"], out["inp"]["p75Ms"], out["summaries"]), ([], {}, None, {"lines": 0, "pages": 0, "ownerPages": 0}))
+
 
 class TestApply(Running):
     def test_apply_lands_the_ops_and_deletes_the_file(self):

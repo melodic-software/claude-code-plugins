@@ -130,12 +130,15 @@ CLIENT_MESSAGE_MAX = 500
 FIELD_LIMITS = {"method": 16, "message": CLIENT_MESSAGE_MAX, "trace": TRACE_LIMIT, "route": 200, "source": 200}
 LOG_BYTES = 1024 * 1024
 LOG_KEEP = 3
-# POST /api/client-log: what a joined person's page reports of its own errors (web/core.js reportError).
+# POST /api/client-log: what a joined person's page reports (web/core.js telemetry): faults under the person's pid,
+# and a usage summary, which names no one, when the page hides.
 CLIENT_LOG = "/api/client-log"
 CLIENT_LOG_MAX = 4096  # bytes: a 500-character message in any script, plus the other fields
-CLIENT_FIELDS = {"kind": 20, "message": CLIENT_MESSAGE_MAX, "source": 200, "route": 200, "code": 60, "ua": 60}
-CLIENT_KINDS = ("error", "rejection", "api", "layout")  # layout: the page's keyboard readout (web/app.js kbReadout)
+CLIENT_FIELDS = {"kind": 20, "message": CLIENT_MESSAGE_MAX, "source": 200, "route": 200, "code": 60, "ua": 60, "fp": 16}
+CLIENT_KINDS = ("error", "rejection", "api", "layout", "summary")
+USAGE_KINDS = ("summary",)  # logged with no pid, on their own rate bucket
 CLIENT_PER_MINUTE = 20  # judgment: entries one person's page may log a minute; a page in an error loop stops there
+SUMMARY_PER_MINUTE = 6  # judgment: a page sends one summary each time it hides; tab switching rarely passes this
 TUNNEL_POLL = 1.0  # seconds between tunnel checks
 TUNNEL_BACKOFF_MAX = 60.0
 PRESENCE_TICK = 5  # the snapshot ETag moves at least this often, so expired presence shows
@@ -858,16 +861,21 @@ class GuestHandler(BaseHTTPRequestHandler):
         return self.send(200, {"ok": True, **out})
 
     def client_log(self, body):
-        """POST /api/client-log (README "Logs"): one error a joined person's page saw, appended to server.log as a
-        client entry under their pid. At most CLIENT_PER_MINUTE a minute per person; it changes no session state."""
+        """POST /api/client-log (README "Logs"): one fault a joined person's page saw, appended to server.log as a
+        client entry under their pid, or a usage summary, appended with no pid on this request's entry or its own.
+        At most CLIENT_PER_MINUTE faults and SUMMARY_PER_MINUTE summaries a minute per person; it changes no state."""
         try:
             pid = self.authorize("person")
             fields = client_fields(body)
-            if not self.app.client_bucket.take(pid):
-                raise DomainError(429, "slow-down", f"At most {CLIENT_PER_MINUTE} error reports a minute.")
+            usage = fields["kind"] in USAGE_KINDS
+            if usage:
+                self.pid = None
+            if not (self.app.summary_bucket if usage else self.app.client_bucket).take(pid):
+                n, what = (SUMMARY_PER_MINUTE, "summaries") if usage else (CLIENT_PER_MINUTE, "error reports")
+                raise DomainError(429, "slow-down", f"At most {n} {what} a minute.")
         except DomainError as exc:
             return self.fail(exc)
-        self.app.log.warning("%s", entry("client", pid=pid, **fields))
+        self.app.log.warning("%s", entry("client", pid=None if usage else pid, **fields))
         return self.send(200, {"ok": True})
 
     def refuse_method(self):
@@ -901,6 +909,7 @@ class App:
         self.build = build_hash()
         self.bucket = Bucket(session.RATE_PER_SECOND, session.RATE_BURST)
         self.client_bucket = Bucket(CLIENT_PER_MINUTE / 60, CLIENT_PER_MINUTE)  # keyed by pid
+        self.summary_bucket = Bucket(SUMMARY_PER_MINUTE / 60, SUMMARY_PER_MINUTE)  # keyed by pid, kept in memory only
         self.watch_tunnel = watch_tunnel
         self.public_url = ""
         self.tunnel_host = ""
