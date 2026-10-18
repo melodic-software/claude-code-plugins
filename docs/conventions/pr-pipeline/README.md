@@ -499,10 +499,11 @@ except six:
   the floor), `c2-contradictions` (true
   scores a removed, renamed or copied file, a schema change or more than one plugin MED),
   `max-changed-files` and `max-changed-lines` (absent is no cap). This repository lists
-  `floor-paths` and `floor-script-scopes` but sets `high-path-floor: false` (owner decisions Q661
-  and Q663, 2026-10-18; audit [#8282](https://github.com/melodic-software/claude-code-plugins/issues/8282)
-  due 2026-11-18), so the lane's gates are the non-author verifier verdict, both AI review lanes,
-  `ci-status` and the post-merge revert breaker. It leaves the rest off (owner decision,
+  `floor-paths` and `floor-script-scopes` and sets `high-path-floor: true` (owner decision
+  2026-10-18, reversing Q661: lanes may edit runnable plugin files and fix-ci guards only
+  `.github/**`), so a lane pull request on the floor waits for a human; the non-author verifier
+  verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
+  leaves the rest off (owner decision,
   2026-10-17). The local babysit lane ignores the other switches and keeps the rest of
   the fixed floor, both caps and the C2 contradictions, but `high-path-floor` governs it too:
   false leaves out `floor-paths`, `floor-script-scopes`, the capability check and the floor

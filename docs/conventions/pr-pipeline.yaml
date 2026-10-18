@@ -333,18 +333,17 @@ merge:
   dependabot:
     mode: enforce
   # The HIGH path floor, floor-paths, floor-script-scopes and the capability
-  # check exist but are off here (owner decisions Q661 and Q663, 2026-10-18).
-  # The switch governs both lanes: in the local babysit lane, false leaves out
-  # floor-paths, floor-script-scopes, the capability check and the floor
-  # entries for plugin monitors and workflows, and that lane keeps the rest
-  # of the fixed floor.
-  # The gates for a lane pull request are the non-author verifier verdict,
-  # both AI review lanes, ci-status and the post-merge revert breaker. Audit
-  # #8282, due 2026-11-18, revisits this. Setting `high-path-floor: true`
-  # turns all four on: a lane PR touching a floor path or script, or changing
-  # capability frontmatter in a SKILL.md, agents/*.md or commands/*.md, then
-  # scores HIGH and waits for a human. A denied path would instead make the
-  # PR ineligible.
+  # check are on (owner decision 2026-10-18, reversing Q661): lanes may edit
+  # runnable plugin files (the #8184 scope), and fix-ci guards only
+  # .github/**. A lane PR touching a floor path or script, or changing
+  # capability frontmatter in a SKILL.md, agents/*.md or commands/*.md,
+  # scores HIGH and waits for a human, who merges it in person. A denied path
+  # would instead make the PR ineligible. The switch governs both lanes: in
+  # the local babysit lane, false would leave out floor-paths,
+  # floor-script-scopes, the capability check and the floor entries for
+  # plugin monitors and workflows, keeping the rest of the fixed floor. The
+  # verifier verdict, both AI review lanes, ci-status and the post-merge
+  # revert breaker still gate every lane PR.
   # Owner decision Q624 still holds for the rest: no denied path, size cap or
   # C2 contradiction check. Each comes back by setting it here: list
   # denied-paths, set `c2-contradictions: true`, or set `max-changed-files`
@@ -353,7 +352,7 @@ merge:
   # provenance work only; scoped lane PRs merge on the verifier verdict.
   diff-check:
     denied-paths: []
-    high-path-floor: false
+    high-path-floor: true
     floor-paths:
       - "**/bin/**"
       - "**/.lsp.json"

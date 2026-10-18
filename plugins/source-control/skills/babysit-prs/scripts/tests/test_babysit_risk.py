@@ -1145,13 +1145,13 @@ def _lane_config():
     )
 
 
-def _lane_input(files, *, high_floor=True):
+def _lane_input(files, *, high_floor=None):
     """The pr-merge lane's input under this repository's own
     docs/conventions/pr-pipeline.yaml, wired as babysit_merge.score_unattended
-    wires it, with `high-path-floor` set here rather than read: the live
-    config keeps it off (owner decisions Q661 and Q663), and these tests check
-    what its lists hold once it is on."""
+    wires it; `high_floor` overrides the live `high-path-floor` when given."""
     config = _lane_config()
+    if high_floor is None:
+        high_floor = config.high_path_floor
     return _input(
         files=files,
         max_changed_lines=config.max_changed_lines,
@@ -1159,6 +1159,7 @@ def _lane_input(files, *, high_floor=True):
         floor_paths=config.floor_paths,
         floor_script_scopes=config.floor_script_scopes,
         high_floor=high_floor,
+        floor_extensions=high_floor,
         c2_contradictions=config.c2_contradictions,
         max_changed_files=config.max_changed_files,
         lines_optional=True,
@@ -1221,10 +1222,15 @@ class LanePathFloorTests(unittest.TestCase):
     """Owner decision Q641: the config adds bin/, .lsp.json, settings*.json and
     the scripts of the plugins the CI lanes load, so with the floor on a lane
     pull request touching one waits for a human. Paths come from the decision
-    text. The floor itself stays off (Q661, Q663)."""
+    text. The floor is on (owner decision 2026-10-18, reversing Q661)."""
 
-    def test_the_live_config_keeps_the_floor_off(self):
-        self.assertIs(_lane_config().high_path_floor, False)
+    def test_the_live_config_has_the_floor_on(self):
+        self.assertIs(_lane_config().high_path_floor, True)
+        result = score(_lane_input((_file("plugins/foo/bin/run"),)))
+        self.assertEqual(result.score, Risk.HIGH, _codes(result))
+        self.assertIn("high-path:**/bin/**", _codes(result))
+
+    def test_the_switch_off_gives_mains_pr_merge_scoring(self):
         result = score(_lane_input((_file("plugins/foo/bin/run"),), high_floor=False))
         self.assertEqual(result.score, Risk.LOW, _codes(result))
 
