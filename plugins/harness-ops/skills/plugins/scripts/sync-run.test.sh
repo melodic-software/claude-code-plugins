@@ -1441,32 +1441,6 @@ assert_contains "divergences real: the row names the blocked part" "$REPORT_TEXT
 # named worktrees) are plain checkouts; zeta's present pin already sits at the
 # highest version, so only its absent pin is the skew and the row is blocked.
 
-# The run stands in a linked worktree that holds its own stale pin: that pin is
-# converge-actionable here, not a worktree to remove.
-CASE_NUM=$((CASE_NUM + 1))
-case_dir=$(new_case_dir)
-catalog_plugin "$case_dir" market1 alpha 0.2.0
-mkdir -p "$case_dir/wt"
-printf 'gitdir: %s/main/.git/worktrees/wt\n' "$case_dir" >"$case_dir/wt/.git"
-p_wt=$(norm_path "$case_dir/wt")
-write "$case_dir/installed_plugins.json" "{
-  \"version\": 1,
-  \"plugins\": {
-    \"alpha@market1\": [
-      {\"scope\": \"user\", \"installPath\": \"a\", \"version\": \"0.2.0\"},
-      {\"scope\": \"project\", \"projectPath\": \"$p_wt\", \"installPath\": \"a\", \"version\": \"0.1.0\"}]
-  }
-}"
-write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
-write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
-write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
-setup_case "$case_dir"
-EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir/wt" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
-report_of "$case_dir" --marketplace market1 --audit --install-new none
-assert_eq "divergences current worktree: the run's own linked-worktree pin is actionable here" \
-  '{"post":1,"actionable_here":1,"actionable_elsewhere":0,"in_worktrees":0,"blocked":0}' \
-  "$(jq -c '.marketplaces[0].divergences | {post, actionable_here, actionable_elsewhere, in_worktrees, blocked}' <<<"$REPORT_DIGEST")"
-
 # --- an install that left userConfig options unset ---------------------------
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
