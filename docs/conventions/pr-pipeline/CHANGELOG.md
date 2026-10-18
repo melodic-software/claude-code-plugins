@@ -2,13 +2,15 @@
 
 ## 2.11.7 - 2026-10-18
 
-`pr-unblock` `address-feedback` runs on a pull request labeled `needs-human`, so the answers a
-trusted person leaves on the threads of a pull request handed to them get applied: its
-`labels-absent` is `[do-not-merge]`, `pr-feedback-dispatch.yml` holds only on `do-not-merge`, and
-the write runner adds the human-gated role label to a `prepare: review-threads` activity's hold
-list only when its `labels-absent` lists it ([pr-run-activity.md](pr-run-activity.md#skill-activities)).
-`do-not-merge` still stops it, every other activity still waits on `needs-human`, and `pr-merge`
-still refuses a `needs-human` pull request. `version` stays 2.
+On a pull request labeled `needs-human` (the human-gated role label), `pr-unblock`
+`address-feedback` works a thread when a person on the trusted-actor list with write or admin
+permission asks for the fix: a line of their reply after the lane's escalation starts with
+`PR-fix lane: please fix this finding`, in any case, outside a fenced block. Without one the
+dispatcher starts nothing and the select step skips `awaiting-human`, so the pull request stays
+held; with one the write runner lifts only the human-gated hold for that run
+([pr-run-activity.md](pr-run-activity.md#prepare-review-threads)). Its `labels-absent` is
+`[do-not-merge]`, `do-not-merge` still stops it, every other activity still waits on
+`needs-human`, and `pr-merge` still refuses a `needs-human` pull request. `version` stays 2.
 
 ## 2.11.4 - 2026-10-18
 

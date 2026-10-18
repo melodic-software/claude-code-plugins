@@ -15,13 +15,14 @@
 //   by exact path, in this repository and on a head of this repository;
 // - exactly one open, non-draft PR into main has that run's head SHA as its
 //   current head, and the lanes App opened it;
-// - it carries no do-not-merge label (needs-human does not stop it: the
-//   trusted answers on a PR handed to a person are what it applies);
+// - it carries no do-not-merge label;
 // - both review lanes' newest reviewed-head markers, written by
 //   github-actions[bot], name that head;
 // - an unresolved review thread exists that address-feedback would work:
 //   every comment is the reviewer bot's, or a trusted person answered the
-//   lane's escalation (address-feedback.mjs threadAuthors);
+//   lane's escalation (address-feedback.mjs threadAuthors); on a PR carrying
+//   the human-gated label, only a thread where a trusted person with write
+//   access asked the lane to fix it (isFixRequest);
 // - that head has no pr-unblock / address-feedback check run yet (one the
 //   usage limit stopped stops counting once its limit resets), and no
 //   pr-unblock.yml address-feedback run for the PR is still queued or going;
@@ -34,7 +35,7 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-import { threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
+import { fixRequesters, humanGatedLabelFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
 import { anyHandles } from "./limit-stop.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -74,7 +75,7 @@ export function markedHead(comments, lane, markerAuthorId = DEFAULTS.markerAutho
 }
 
 // An unresolved thread, read in full, that threadAuthors accepts.
-export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans }) {
+export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans, requesters = null }) {
   return threads.some(
     (thread) =>
       thread.isResolved === false &&
@@ -87,7 +88,7 @@ export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans })
           lastEditedAt: node.lastEditedAt,
           editorId: node.editor?.databaseId,
         })),
-        { reviewerId, appId, trustedHumans },
+        { reviewerId, appId, trustedHumans, requesters },
       ) !== null,
   );
 }
@@ -105,6 +106,7 @@ export async function dispatchFeedback({
   log,
   settings = DEFAULTS,
   trustedHumans = new Set(),
+  humanGatedLabel = "needs-human",
   now = Date.now(),
 }) {
   const skip = (why) => {
@@ -157,8 +159,24 @@ export async function dispatchFeedback({
     return skip(`#${number}: ${unreviewed.join(", ")} has not marked head ${head} reviewed`);
   }
   const threads = await api.listReviewThreads(number);
-  if (!hasWorkableThread(threads, { reviewerId: settings.reviewerId, appId: appSenderId, trustedHumans })) {
-    return skip(`#${number} has no unresolved thread left by the reviewer bot alone or answered by a trusted person`);
+  // A human-gated PR dispatches only for a thread a trusted person with
+  // write access asked the lane to fix.
+  const gated = (pull.labels ?? []).some((label) => label.name === humanGatedLabel);
+  const requesters = gated
+    ? await fixRequesters({
+        comments: threads.flatMap((thread) =>
+          thread.comments.nodes.map((node) => ({ authorId: node.author?.databaseId, login: node.author?.login, body: node.body })),
+        ),
+        trustedHumans,
+        permission: api.getPermission,
+      })
+    : null;
+  if (!hasWorkableThread(threads, { reviewerId: settings.reviewerId, appId: appSenderId, trustedHumans, requesters })) {
+    return skip(
+      gated
+        ? `#${number} is labeled ${humanGatedLabel} and has no thread a trusted person with write access asked the lane to fix`
+        : `#${number} has no unresolved thread left by the reviewer bot alone or answered by a trusted person`,
+    );
   }
   // Both review lanes finish on one head, and their dispatchers queue in one
   // concurrency group. The first one's run posts no check until it ends, so
@@ -213,7 +231,7 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $af
           isResolved
           comments(first: 100) {
             nodes {
-              author { ... on Bot { databaseId } ... on User { databaseId } }
+              author { login ... on Bot { databaseId } ... on User { databaseId } }
               createdAt body lastEditedAt
               editor { ... on Bot { databaseId } ... on User { databaseId } }
             }
@@ -257,6 +275,18 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
 
   return {
     pullsForCommit: (sha) => request(`${repo}/commits/${sha}/pulls`),
+    // Metadata read, which every token holds. A 404 (not a collaborator) is none.
+    async getPermission(login) {
+      const url = `${repo}/collaborators/${encodeURIComponent(login)}/permission`;
+      const response = await fetch(url, { headers });
+      if (response.status === 404) {
+        return "none";
+      }
+      if (!response.ok) {
+        throw new Error(`GET ${url} returned ${response.status}`);
+      }
+      return (await response.json()).permission;
+    },
     async listIssueComments(number) {
       const comments = [];
       for (let page = 1; page <= 50; page += 1) {
@@ -360,6 +390,7 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
     appSenderId: Number(env.APP_SENDER_ID),
     // The base checkout's list, the one resolve-config reads beside it.
     trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`),
+    humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/.work-item-tracker.json`),
     resolveSlot: resolveSlot ?? (({ number, head }) => resolveFeedbackSlot({ number, head, env, github })),
     log,
   });

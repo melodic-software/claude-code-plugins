@@ -142,7 +142,9 @@ test("live config: address-feedback waits for a human on do-not-merge and skips 
   assert.equal(skipReason("pr-unblock", "address-feedback", { draft: true }), "not-applicable");
 });
 
-// needs-human hands a PR to a person; address-feedback applies their answers.
+// needs-human does not skip the slot: the review-threads select step holds a
+// needs-human PR unless a write-access trusted person asked for the fix
+// (address-feedback.mjs isFixRequest).
 test("live config: address-feedback applies to a needs-human PR", () => {
   assert.equal(
     selected("pr-unblock", "address-feedback", { mergeable: "clean", labels: ["needs-human"] }).applies,

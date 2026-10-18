@@ -151,32 +151,32 @@ const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
 const { tmpdir } = await import("node:os");
 const { join } = await import("node:path");
 const holdStep = wf.jobs.run.steps.find((s) => s.id === "hold-label");
-const holdLabelsFor = (prepare, labelsAbsent) => {
+// fixRequested: the review-threads select step's fix-requested output.
+const holdLabelsFor = (fixRequested, labelsAbsent) => {
   const dir = mkdtempSync(join(tmpdir(), "hold-label-"));
   try {
     const resolved = join(dir, "resolved.json");
     const out = join(dir, "out");
     writeFileSync(resolved, JSON.stringify({ selected: { "applies-when": { "labels-absent": labelsAbsent } } }));
     writeFileSync(out, "");
-    execFileSync("bash", ["-e", "-c", holdStep.run], { cwd: dir, env: { PATH: process.env.PATH, RESOLVED: resolved, PREPARE: prepare, GITHUB_OUTPUT: out } });
+    execFileSync("bash", ["-e", "-c", holdStep.run], { cwd: dir, env: { PATH: process.env.PATH, RESOLVED: resolved, FIX_REQUESTED: fixRequested, GITHUB_OUTPUT: out } });
     return JSON.parse(readFileSync(out, "utf8").replace(/^labels=/, ""));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 };
-say(String(holdStep?.env?.PREPARE) === "${{ steps.config.outputs.prepare }}", "the hold-label step reads the activity's prepare mode");
-let holds = holdLabelsFor("review-threads", ["do-not-merge"]);
+say(String(holdStep?.env?.FIX_REQUESTED) === "${{ steps.feedback-select.outputs.fix-requested }}",
+  "the hold-label step reads the review-thread select step's fix-requested output");
+let holds = holdLabelsFor("true", ["do-not-merge"]);
 say(JSON.stringify(holds) === '["do-not-merge"]',
-  `a review-threads activity whose labels-absent omits needs-human does not hold on it (${JSON.stringify(holds)})`);
-holds = holdLabelsFor("review-threads", ["do-not-merge", "needs-human"]);
-say(holds.includes("needs-human") && holds.includes("do-not-merge"),
-  "a review-threads activity that lists needs-human holds on it");
-holds = holdLabelsFor("review-threads", ["needs-human"]);
-say(holds.includes("do-not-merge"), "do-not-merge stays a hold for a review-threads activity");
-for (const prepare of ["merge-base", "dependency-review", ""]) {
-  holds = holdLabelsFor(prepare, ["do-not-merge"]);
+  `a write-access fix request on a needs-human PR lifts only the human-gated hold (${JSON.stringify(holds)})`);
+holds = holdLabelsFor("true", ["needs-human"]);
+say(holds.includes("do-not-merge") && holds.includes("needs-human"),
+  "do-not-merge stays a hold beside a fix request, and a listed labels-absent label still holds");
+for (const requested of ["false", "", "TRUE"]) {
+  holds = holdLabelsFor(requested, ["do-not-merge"]);
   say(holds.includes("needs-human") && holds.includes("do-not-merge"),
-    `a ${prepare || "plain"} skill activity still holds on the human-gated label (${JSON.stringify(holds)})`);
+    `with fix-requested ${JSON.stringify(requested)} the human-gated label stays a hold (${JSON.stringify(holds)})`);
 }
 EOF
 )

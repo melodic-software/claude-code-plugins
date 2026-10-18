@@ -84,8 +84,9 @@ function fakeApi({
   checkRuns = [],
   workflowRuns = [],
   workflowRunId = 38779200001,
+  permissions = { "kyle-sexton": "admin" },
 } = {}) {
-  const calls = { dispatch: [] };
+  const calls = { dispatch: [], permission: [] };
   return {
     calls,
     // The event's workflow_run, which the script takes in place of a read.
@@ -107,6 +108,10 @@ function fakeApi({
     },
     listIssueComments: async () => comments,
     listReviewThreads: async () => threads,
+    async getPermission(login) {
+      calls.permission.push(login);
+      return permissions[login] ?? "none";
+    },
     listCheckRuns: async () => checkRuns,
     listWorkflowRuns: async () => workflowRuns,
     async dispatchWorkflow(request) {
@@ -474,22 +479,49 @@ test("a trusted person's reply on a thread the lane escalated dispatches address
   assert.equal(api.calls.dispatch.length, 1);
 });
 
-// needs-human hands a PR to a person; their answers on its threads are what
-// address-feedback applies, so the label does not stop the dispatch.
-test("a needs-human PR with a trusted reply on an escalated thread dispatches address-feedback", async () => {
-  const api = fakeApi({ pulls: pull({ labels: [{ name: "needs-human" }] }), threads: [decidedThread()] });
+// On a needs-human PR only a write-access trusted person's fix request
+// (address-feedback.mjs isFixRequest) dispatches.
+const REQUEST = "*Owner reply.*\n\nPR-fix lane: please fix this finding. Drop the reference.";
+const KYLE_LOGIN = { ...KYLE, login: "kyle-sexton" };
+const STRANGER_LOGIN = { ...STRANGER, login: "stranger" };
+const humanGated = (labels = []) => pull({ labels: [{ name: "needs-human" }, ...labels.map((name) => ({ name }))] });
+
+test("a needs-human PR dispatches when a write-access trusted person asked the lane to fix a thread", async () => {
+  const api = fakeApi({ pulls: humanGated(), threads: [decidedThread({ author: KYLE_LOGIN, body: REQUEST })] });
   const { result } = await decide(api);
   assert.equal(result.number, 42);
   assert.equal(api.calls.dispatch.length, 1);
+  assert.deepEqual(api.calls.permission, ["kyle-sexton"]);
 });
 
-test("a do-not-merge PR with a trusted reply on an escalated thread dispatches nothing", async () => {
-  const api = fakeApi({
-    pulls: pull({ labels: [{ name: "needs-human" }, { name: "do-not-merge" }] }),
-    threads: [decidedThread()],
+for (const [label, options] of [
+  ["a trusted reply that asks no fix", { threads: [decidedThread({ author: KYLE_LOGIN })] }],
+  ["a bot-only thread", { threads: [thread([CLAUDE])] }],
+  ["a quoted fix request", { threads: [decidedThread({ author: KYLE_LOGIN, body: "> PR-fix lane: please fix this finding." })] }],
+  ["a fix request inside a code block", {
+    threads: [decidedThread({ author: KYLE_LOGIN, body: "```\nPR-fix lane: please fix this finding.\n```" })],
+  }],
+  ["an untrusted person's fix request", { threads: [decidedThread({ author: STRANGER_LOGIN, body: REQUEST })], permissions: { stranger: "admin" } }],
+  ["a trusted person without write access", {
+    threads: [decidedThread({ author: KYLE_LOGIN, body: REQUEST })],
+    permissions: { "kyle-sexton": "read" },
+  }],
+  ["do-not-merge beside a write-access fix request", {
+    pulls: humanGated(["do-not-merge"]),
+    threads: [decidedThread({ author: KYLE_LOGIN, body: REQUEST })],
+  }],
+]) {
+  test(`a needs-human PR dispatches nothing for ${label}`, async () => {
+    const api = fakeApi({ pulls: humanGated(), ...options });
+    assert.equal((await decide(api)).result, null);
+    assert.deepEqual(api.calls.dispatch, []);
   });
-  assert.equal((await decide(api)).result, null);
-  assert.deepEqual(api.calls.dispatch, []);
+}
+
+test("without needs-human a trusted reply dispatches with no permission read", async () => {
+  const api = fakeApi({ threads: [decidedThread({ author: KYLE_LOGIN })] });
+  assert.equal((await decide(api)).result.number, 42);
+  assert.deepEqual(api.calls.permission, []);
 });
 
 test("main reads the trusted people from the base's trusted-actor list", async (t) => {
