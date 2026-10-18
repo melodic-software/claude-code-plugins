@@ -79,6 +79,9 @@ const HUMAN_LABEL = "needs-human";
 const TRIAGE_LABEL = "needs-triage";
 // pr-merge's refusal of a lane PR whose body links its issue with `Refs:`.
 const LINKED_NONE = "ineligible:linked-issues:0";
+// The eligibility check's own reason, which stays put when an earlier refusal
+// (`in-flight:`, `rung-off:`) is the gate's first.
+const LINKED_ELIGIBILITY = "linked-issues:0";
 // The lane's caller and the write runner: the broker refuses a run whose copy
 // of either differs from main's.
 const LANE_WORKFLOWS = [".github/workflows/pr-run-activity-write.yml", ".github/workflows/work-resolve-issue.yml"];
@@ -418,18 +421,19 @@ async function lastLanePull({ github, repo, number, addedAt, bot }) {
 async function pullRefusal({ pull, number, markers, comments, events, bot, gate }) {
   const handed = (kind) =>
     comments.some((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(handedMarker(kind, pull.number)));
+  const refsThis = String(pull.body ?? "").split(/\r?\n/, 1)[0].trim() === `Refs: #${number}`;
   if (pull.state === "open") {
     if (!gate) {
       return { reason: `its lane PR #${pull.number} is open; no Actions token to read pr-merge's refusal` };
     }
     const refused = (await gate()).get(pull.number);
-    if (refused?.reason === LINKED_NONE && refused.head === pull.head?.sha) {
+    if (refused?.eligibility === LINKED_ELIGIBILITY && refused.head === pull.head?.sha && refsThis) {
       return { reason: null, handOff: "human", pr: pull.number, resets: Date.parse(pull.created_at), explained: handed("human") };
     }
     return { reason: `its lane PR #${pull.number} is open` };
   }
   if (pull.merged_at) {
-    if (String(pull.body ?? "").split(/\r?\n/, 1)[0].trim() === `Refs: #${number}`) {
+    if (refsThis) {
       return { reason: null, handOff: "triage", pr: pull.number, resets: Date.parse(pull.merged_at), explained: handed("triage") };
     }
     return { reason: `its lane PR #${pull.number} merged` };
@@ -514,8 +518,9 @@ export function gateRefusals(log) {
         verdict = null;
       }
       const reason = verdict?.unattended?.reason;
+      const eligibility = verdict?.unattended?.eligibility?.reason;
       if (typeof reason === "string") {
-        refusals.set(group.pr, { head: group.head, reason });
+        refusals.set(group.pr, { head: group.head, reason, eligibility: typeof eligibility === "string" ? eligibility : null });
       }
       group = null;
     } else {
@@ -624,7 +629,16 @@ async function restartLimited({ github, actions, logs, repo, bot, humans, now, c
   const ready = [];
   // pr-merge's gate refusals, read once per run and only when needed.
   let refusals;
-  const gate = actions && logs ? () => (refusals ??= readGateRefusals({ actions, logs, repo })) : null;
+  // A failed read counts once and leaves the rest of the run with no refusals.
+  const gate =
+    actions && logs
+      ? () =>
+          (refusals ??= readGateRefusals({ actions, logs, repo }).catch((error) => {
+            failed += 1;
+            reportError("gate", error);
+            return new Map();
+          }))
+      : null;
   // Main's blob SHAs of the lane workflow files, read once per run.
   let key;
   const workflowKey = () =>

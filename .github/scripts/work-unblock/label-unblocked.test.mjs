@@ -1303,6 +1303,81 @@ test("an open lane PR refused for another reason, at an older head, or with no g
   }
 });
 
+test("a first refusal other than linked-issues does not hide the linked-issues refusal: eligibility.reason decides", async () => {
+  // The gate's top-level reason is its first refusal; an in-flight lane PR or an
+  // off rung comes before the linked-issues one.
+  const log = GATE_LOG.replace('"reason": "ineligible:linked-issues:0"', '"reason": "in-flight:melodic-software/claude-code-plugins#7800"');
+  assert.notEqual(log, GATE_LOG);
+  const { github, actions, logs, calls } = lanePr({ pulls: [lanePull({ pr: 7793, state: "open" })], log });
+  assert.equal(await sweep({ github, actions, logs }), 0);
+  assert.deepEqual(writes(calls), [
+    `POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: refsRefusedComment(7793) })}`,
+    `POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`,
+  ]);
+});
+
+test("an open lane PR whose body no longer starts with Refs: for this issue gets no needs-human from an older log", async () => {
+  for (const body of ["Closes #30\n\n## Summary\n", "Refs: #31\n"]) {
+    const { github, actions, logs, calls } = lanePr({ pulls: [lanePull({ pr: 7793, state: "open", body })] });
+    assert.equal(await sweep({ github, actions, logs }), 0, body);
+    assert.deepEqual(writes(calls), [], body);
+  }
+});
+
+test("a failed read of the gate log is reported once and the rest of the sweep goes on without it", async (t) => {
+  const pullOf = (n) => lanePull({ pr: 7700 + n, state: "open", body: `Refs: #${n}\n`, ref: `work-resolve-issue/issue-${n}-1-1` });
+  const fake = world({
+    openReady: [ready(31), ready(32), ready(33)],
+    comments: { 31: [note()], 32: [note()], 33: [note()] },
+    events: { 31: [added(LABELED_AT, OWNER)], 32: [added(LABELED_AT, OWNER)], 33: [added(LABELED_AT, OWNER)] },
+    timeline: { 31: [crossRef(pullOf(31))], 32: [crossRef(pullOf(32))], 33: [crossRef(pullOf(33))] },
+    pulls: { 7731: pullOf(31), 7732: pullOf(32), 7733: pullOf(33) },
+  });
+  let reads = 0;
+  const actions = async (method, path, body) => {
+    if (path.includes("/actions/workflows/pr-merge.yml/runs")) {
+      reads += 1;
+      throw new Error("GET failed with status 502");
+    }
+    return fake.github(method, path, body);
+  };
+  const log = t.mock.method(console, "log", () => {});
+  assert.equal(await sweep({ github: fake.github, actions, logs: async () => GATE_LOG }), 1);
+  assert.equal(reads, 1);
+  assert.deepEqual(writes(fake.calls), []);
+  const errors = log.mock.calls.map((call) => String(call.arguments[0])).filter((line) => line.startsWith("::error"));
+  assert.equal(errors.length, 1, errors.join("\n"));
+  log.mock.restore();
+});
+
+test("a hand-off whose label write failed is finished by the next sweep with the label only, no second comment", async (t) => {
+  const open = lanePull({ pr: 7793, state: "open" });
+  const first = lanePr({ pulls: [open] });
+  const github = async (method, path, body) => {
+    if (method === "POST" && path.endsWith("/issues/30/labels")) {
+      first.calls.push(`${method} ${path} ${JSON.stringify(body)}`);
+      throw new Error("POST failed with status 502");
+    }
+    return first.github(method, path, body);
+  };
+  const log = t.mock.method(console, "log", () => {});
+  assert.equal(await sweep({ github, actions: first.actions, logs: first.logs }), 1);
+  log.mock.restore();
+  assert.deepEqual(writes(first.calls), [
+    `POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: refsRefusedComment(7793) })}`,
+    `POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`,
+  ]);
+  // The next sweep sees the comment the first one posted.
+  const posted = first.calls.find((call) => call.includes("/comments "));
+  assert.ok(posted);
+  const next = lanePr({
+    pulls: [open],
+    comments: [note(), { id: 63, body: refsRefusedComment(7793), user: LANES_BOT, created_at: "2026-10-16T11:47:00Z" }],
+  });
+  assert.equal(await sweep({ github: next.github, actions: next.actions, logs: next.logs }), 0);
+  assert.deepEqual(writes(next.calls), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
+});
+
 test("the gate log is read once per sweep, from the newest successful pr-merge run's merge job", async () => {
   const pullOf = (n) => lanePull({ pr: 7700 + n, state: "open", ref: `work-resolve-issue/issue-${n}-1-1` });
   const fake = world({
@@ -1326,8 +1401,8 @@ test("the gate log is read once per sweep, from the newest successful pr-merge r
 
 test("the gate log gives each PR's unattended refusal with the head it was checked at", () => {
   const refusals = gateRefusals(GATE_LOG);
-  assert.deepEqual(refusals.get(7793), { head: PR_HEAD, reason: "ineligible:linked-issues:0" });
-  assert.deepEqual(refusals.get(7794), { head: "64e9880b34abd8400d346b89c10f43408f95ac7d", reason: "verify:earlier-fail" });
+  assert.deepEqual(refusals.get(7793), { head: PR_HEAD, reason: "ineligible:linked-issues:0", eligibility: "linked-issues:0" });
+  assert.deepEqual(refusals.get(7794), { head: "64e9880b34abd8400d346b89c10f43408f95ac7d", reason: "verify:earlier-fail", eligibility: null });
   // A group whose body is not JSON gives nothing.
   assert.equal(refusals.has(7795), false);
   assert.equal(refusals.size, 2);
