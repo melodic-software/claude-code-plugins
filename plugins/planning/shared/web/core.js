@@ -199,7 +199,7 @@
     view.ideas = proposals.map(p => ({ id: p.id, cid: p.pid, name: nameOf(p.pid), text: plain(p.text), ts: p.at,
       status: p.status.kind === "not-placed" ? "notplaced" : p.status.kind, qid: p.status.question || "", reason: p.status.reason || "",
       ...(p.via?.kind === "chat" ? { via: nameOf(p.via.by) } : {}) }));
-    view.chat = (s.chat || []).map(m => ({ id: m.id, cid: m.pid, name: nameOf(m.pid), text: plain(m.text), ts: m.at,
+    view.chat = (s.chat || []).map(m => ({ id: m.id, cid: m.pid, name: nameOf(m.pid), text: plain(m.text), ts: m.at, ...(m.gapAbove ? { gapAbove: true } : {}),
       ...(m.replyTo ? { replyTo: { id: m.replyTo.id, cid: m.replyTo.pid, name: nameOf(m.replyTo.pid), text: plain(m.replyTo.excerpt) } } : {}),
       ...(m.proposed ? { forwarded: m.proposed } : {}), reactions: m.reactions || {} }));
     // Q98: notes pinned on prototype variants, oldest first.
@@ -479,7 +479,7 @@
     lockEdit: (qid, text, from) => act("/api/lock/edit", { qid, text, ...(from ? { from } : {}) }),
     /** My message shows at once; the server's copy (a message of mine with this text it did not hold before) replaces it. */
     chat: (text, replyTo) => {
-      const before = new Set((snap?.chat || []).map(m => m.id)), id = `sending-${++sends}`, body = { text, ...(replyTo ? { replyTo } : {}) };
+      const before = new Set((withChat(snap)?.chat || []).map(m => m.id)), id = `sending-${++sends}`, body = { text, ...(replyTo ? { replyTo } : {}) };
       return act("/api/chat", body, { key: "chat:" + id, patch: (s, pid) => {
         s.chat ||= [];
         const chat = s.chat, text = body.text; // as act sent it: its mentions as tokens
@@ -491,16 +491,21 @@
     readNotifications: ids => act("/api/notifications/read", ids === "all" ? { all: true } : { ids }),
     addReference: (qid, reference) => act("/api/question/reference", { qid, reference }),
     removeReference: (qid, index) => act("/api/question/reference", { qid, remove: index }),
-    forward: id => act("/api/chat/propose", { id }),
+    forward: id => act("/api/chat/propose", { id }, { ok: j => patchKept(id, m => { m.proposed = j.proposal; }) }),
     /** One of my emoji on a chat message, on or off (the server takes only its fixed set). */
-    chatReact: (id, emoji, on) => act("/api/chat/react", { id, emoji, on }, { key: `chatreact:${id}:${emoji}`, patch: (s, pid) => {
-      const m = (s.chat || []).find(x => x.id === id);
-      if (!m) return;
-      m.reactions ||= {};
-      const r = m.reactions, pids = without(r[emoji], pid);
-      if (on) pids.push(pid);
-      if (pids.length) r[emoji] = pids; else delete r[emoji];
-    } }),
+    chatReact: (id, emoji, on) => {
+      const react = (m, pid) => {
+        m.reactions ||= {};
+        const r = m.reactions, pids = without(r[emoji], pid);
+        if (on) pids.push(pid);
+        if (pids.length) r[emoji] = pids; else delete r[emoji];
+        if (!Object.keys(r).length) delete m.reactions;
+      };
+      return act("/api/chat/react", { id, emoji, on }, { key: `chatreact:${id}:${emoji}`, patch: (s, pid) => {
+        const m = (s.chat || []).find(x => x.id === id);
+        if (m) react(m, pid);
+      }, ok: () => patchKept(id, m => react(m, Core.me.cid)) });
+    },
     /** Owner: hide an answer from everyone else and the digest (reversible), or replace its text. */
     hideCard: (qid, target, on, reason) => act("/api/card/hide", { qid, card: refOf(qid, target), on, ...(reason ? { reason } : {}) }),
     editCard: (qid, target, text) => act("/api/card/edit", { qid, card: refOf(qid, target), text }),
@@ -744,13 +749,14 @@
     for (const p of pending.values()) { try { p.patch(out, out.me.pid); } catch (e) { console.error(e); } }
     return out;
   }
-  const repaint = () => { if (snap) { Core.state = toView(withPending(snap)); emit(); } };
+  const view = () => toView(withPending(withChat(snap)));
+  const repaint = () => { if (snap) { Core.state = view(); emit(); } };
   // The routes whose text can mention people: their "@Name" go out as <@pid> (Core.tokenize); the server does the same
   // for full names, so a name the page shows masked still reaches the person it names.
   const MENTION_ROUTES = new Set(["/api/answer", "/api/pick", "/api/card/edit", "/api/suggest", "/api/lock/edit", "/api/propose", "/api/chat", "/api/annotate", "/api/request", "/api/request/act"]);
   function act(path, body, opt) {
     if (MENTION_ROUTES.has(path)) for (const k of ["text", "comment", "other", "note"]) if (typeof body[k] === "string") body[k] = Core.tokenize(body[k]);
-    const entry = opt && { patch: opt.patch, after: null };
+    const entry = opt?.patch && { patch: opt.patch, after: null };
     const mine = () => !!entry && pending.get(opt.key) === entry;
     const drop = () => { if (mine()) { pending.delete(opt.key); repaint(); } };
     if (entry) { pending.delete(opt.key); pending.set(opt.key, entry); repaint(); }
@@ -758,6 +764,7 @@
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { drop(); throw { status: r.status, ...j }; }
       if (mine()) entry.after = polls;
+      opt?.ok?.(j);
       await poll();
       return j;
     }, e => { drop(); throw e; });
@@ -813,6 +820,68 @@
     location.reload();
   }
 
+  // ---------- chat beyond the snapshot's window: the snapshot carries the newest 50, GET /api/chat the rest ----------
+  // Every message this page has read stays while it is open, so one that leaves the window stays under a reader
+  // scrolled up to it. `linked` holds the ids whose next older message is loaded too (or that have none); a message
+  // outside it shows a Load earlier control above it. A change of name masking or role starts over.
+  const held = { chat: new Map(), linked: new Set(), key: "" };
+  const seqOf = id => Number(String(id).replace(/\D+/g, "")) || 0;
+  function keepChat(run, before, below) {
+    run.forEach((m, i) => { held.chat.set(m.id, m); if (i || !before) held.linked.add(m.id); });
+    if (below) held.linked.add(below);
+  }
+  async function chatPage(query) {
+    const r = await fetch(`/api/chat?${new URLSearchParams(query)}`, { headers: ident() });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw { status: r.status, ...j };
+    return j;
+  }
+  function keepWindow(s) {
+    const key = `${s.settings?.names}|${s.me.role}`;
+    if (key !== held.key) { held.chat.clear(); held.linked.clear(); held.key = key; }
+    const win = s.chat || [], skipped = !!s.chatBefore && win.length > 0 && held.chat.size > 0 && !held.chat.has(win[0].id);
+    keepChat(win, s.chatBefore);
+    if (skipped) fillChat(win[0].id).catch(() => {});
+  }
+  /** More than a window arrived between two polls: read back to the messages this page already holds. */
+  async function fillChat(id) {
+    for (let n = 0; n < 20 && id; n++) {
+      const j = await chatPage({ before: id, limit: 100 }), joined = j.chat.some(m => held.chat.has(m.id));
+      keepChat(j.chat, j.before, id);
+      id = joined ? "" : j.before;
+    }
+    repaint();
+  }
+  /** The snapshot with every message this page holds, oldest first, from people still in. */
+  function withChat(s) {
+    if (!s?.me || !held.chat.size) return s;
+    const live = new Set((s.people || []).map(p => p.pid)), win = new Map((s.chat || []).map(m => [m.id, m]));
+    const all = [...[...held.chat.values()].filter(m => !win.has(m.id) && live.has(m.pid)), ...win.values()];
+    all.sort((a, b) => a.at - b.at || seqOf(a.id) - seqOf(b.id));
+    return { ...s, chat: all.map(m => (held.chat.has(m.id) && !held.linked.has(m.id) ? { ...m, gapAbove: true } : m)) };
+  }
+  /** Read the messages just older than message `id`; resolves how many came. */
+  Core.chatEarlier = async id => {
+    const j = await chatPage({ before: id });
+    keepChat(j.chat, j.before, id);
+    repaint();
+    return j.chat.length;
+  };
+  /** Make sure message `id` is loaded (a notification or a reply can point outside the window); resolves whether it is. */
+  Core.chatAround = async id => {
+    if (!held.chat.has(id)) {
+      const j = await chatPage({ around: id }).catch(e => { if (e?.status === 404) return { chat: [] }; throw e; });
+      keepChat(j.chat, j.before);
+      repaint();
+    }
+    return held.chat.has(id);
+  };
+  /** An action on a message outside the window: its copy here takes the change, as no snapshot will carry it. */
+  function patchKept(id, fn) {
+    const m = held.chat.get(id);
+    if (m && !(snap?.chat || []).some(x => x.id === id)) { const c = structuredClone(m); fn(c); held.chat.set(id, c); }
+  }
+
   /** The state poll always carries ?since=<rev>: in a session imported from the prototype a poll with
    *  identity and no query is an old page, which gets only a reload notice. */
   // A poll asked for while one runs runs once more after it, so an action's poll always starts after its answer.
@@ -836,7 +905,7 @@
     try {
       const headers = { ...ident(), ...(etag ? { "If-None-Match": etag } : {}) };
       const r = await fetch(`/api/state?since=${rev}`, { headers });
-      if (r.status === 304) { lastOk = Date.now(); if (settle(seq) && snap) Core.state = toView(withPending(snap)); return; }
+      if (r.status === 304) { lastOk = Date.now(); if (settle(seq) && snap) Core.state = view(); return; }
       const s = await r.json().catch(() => ({}));
       if (r.status === 403 && s.error === "removed") { Core.state = { ...Core.state, youRemoved: true, youWaiting: false }; lastOk = Date.now(); return; }
       // Approve new joins: the person waits until the owner lets them in; the poll keeps asking.
@@ -848,14 +917,23 @@
       if (s.build) { if (build && s.build !== build) return reload("build"); build = s.build; }
       etag = r.headers.get("ETag") || "";
       lastOk = Date.now();
+      // Only presence or the clock moved: the rest of my last snapshot still holds.
+      if (s.presenceOnly) {
+        if (!snap) { etag = ""; return; }
+        snap = { ...snap, serverTime: s.serverTime, presence: s.presence, lastSeen: s.lastSeen };
+        settle(seq);
+        Core.state = view();
+        return;
+      }
       if (!s.me) { // anonymous: only what the join dialog needs
         Core.state = { ...structuredClone(DEFAULTS), title: s.title || "", ended: !!s.ended, joinNeedsKey: !!s.joinNeedsKey, youMerged: merged };
         return;
       }
       snap = s; rev = s.rev;
       if (merged) { merged = false; drop("merged"); } // a working identity again (a personal link of someone else)
+      keepWindow(s);
       settle(seq);
-      Core.state = toView(withPending(s));
+      Core.state = view();
       Core.me.cid = s.me.pid; Core.me.name = s.me.name;
       Core.me.isOwner = s.me.role === "owner"; Core.me.isLeader = s.me.role === "leader"; Core.me.isTrusted = !!s.me.trusted;
       if (!ownerToken) { put("pid", s.me.pid); put("name", s.me.name); }

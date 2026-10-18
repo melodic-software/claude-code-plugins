@@ -20,7 +20,7 @@ and the session-bridge watcher. Python 3 standard library only.
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
 | `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/core.css`, `/app.css`, `/proto.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when `schemaVersion` or the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_proto.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `align.test.sh` (with `align.js`), `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -215,6 +215,15 @@ message: only the page's fixed set (`CHAT_EMOJI` in `session.py` and `web/app.js
 distinct per message and 6 per person per message, one reaction a second per person per message.
 Chat and its reactions stay out of the digest; a reaction tells the message's author in one
 rolled-up notification.
+
+**Chat history.** A snapshot carries the newest 50 messages, with `chatBefore` (the oldest of them)
+while older ones exist. `GET /api/chat?before=<id>` (any person) returns the messages just older
+than that one, and `?around=<id>` the ones with that one in the middle, `limit` of them (1 to 100,
+default 50), each read as the snapshot reads it: from people still in, others' reactions masked
+where names are; an answer carries `before` while older ones exist, and a message it cannot show
+is 404 `not-found`. The page keeps every message it has read while it is open, loads older ones as
+the reader nears the top of the chat or presses "Load earlier messages", and reads around a
+message a notification or a reply quote points at.
 
 **Mentions.** People type "@Name" in chat, answers, comments, suggestions, proposals, notes and
 requests; the server stores each name of a person who is in as `<@pid>` (`migrate.tokenize`, longest
@@ -456,7 +465,11 @@ One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
 
 Every `GET /api/state` with identity carries `schemaVersion`, `rev` and `build` (a hash of the
 served web files); every answer carries `X-Shared-Build`. A page built for another version or
-build reloads itself.
+build reloads itself. Its `ETag` moves with `rev`, presence and a 5-second clock tick (so an
+offline or away person shows without a write); a heartbeat that changes nothing anyone sees moves
+nothing. A poll whose `If-None-Match` differs only in presence or the tick gets `{rev,
+presenceOnly: true, serverTime, presence, lastSeen}` (`wire.schema.json` `presenceOnly`), and the
+page keeps the rest of its last snapshot.
 
 ## Security model
 
@@ -481,7 +494,7 @@ build reloads itself.
   | Joins | 30 a minute per address and guest key; 60 per 10 minutes per guest key across all addresses (rotating the guest link starts a new count) |
   | Writes | 1 a second per person per route, on every route that writes (answer, pick, vote, react, disagree, go-with, rename, color, prefs, about-you, notifications/read, chat, propose, suggest, request, annotate, merge-request) |
   | Heartbeat | 1 a second per person and tab (429 otherwise), except a beat that changes `visible` or `away` |
-  | Stored chat, notes, suggestions | the newest 2000 messages; 2000 notes, then a new one is refused (409 `notes-full`); 200 suggestions per question, with votes on a dropped one dropped too |
+  | Stored chat, notes, suggestions | the newest 2000 messages (a snapshot carries the newest 50, `GET /api/chat` at most 100 at a time); 2000 notes, then a new one is refused (409 `notes-full`); 200 suggestions per question, with votes on a dropped one dropped too |
   | Connections served at once | 64; one more is answered 503 `busy` |
 
 - **Headers.** Every answer, http.server's own refusals (414, 501 and the like) included:
@@ -550,6 +563,13 @@ Git Bash; `share.py` runs directly. cloudflared install hints are in
 `/api/state` every 1.5 s. On the development machine (WSL2, Python 3.14, 30 s run, 572 writes):
 p50 1.2 ms, p95 1.6 ms. The test fails above a 1 s p95.
 
+`tests/bench_snapshot.py` seeds 20 people and 500 chat messages, then measures what one guest
+page reads in 30 idle seconds while every page beats. On the development machine the guest
+snapshot is 13,368 bytes (1,939 gzip; 84,106 and 7,604 when it carried every message), and the
+idle page reads 384 bytes a second: 14 polls answer 304 and 6 presence only (56,070 bytes a
+second, all 20 polls the full snapshot, when every heartbeat moved the ETag). The server sends no
+gzip.
+
 ## Tests
 
 ```bash
@@ -563,6 +583,8 @@ node plugins/planning/shared/tests/ui_layout.js
 node plugins/planning/shared/tests/ui_keyboard.js
 node plugins/planning/shared/tests/ui_inputs.js
 node plugins/planning/shared/tests/ui_chat.js
+node plugins/planning/shared/tests/ui_chat_history.js
+node plugins/planning/shared/tests/ui_lists.js
 node plugins/planning/shared/tests/ui_moderation.js
 node plugins/planning/shared/tests/ui_acceptance.js
 node plugins/planning/shared/tests/ui_proto.js
@@ -605,6 +627,12 @@ answer box right under the question, a guest's first view (goal, the host's ask,
 (the `tour` pref). `ui_inputs.js` types 2000 characters and pastes a 300-character word into each
 input surface on iPhone and Pixel profiles at keyboard-open heights and on a desktop. `ui_chat.js`
 checks the host's unread badge, a frozen tab catching up, and the new-messages pill.
+`ui_chat_history.js` seeds 120 messages and checks the 50-message window, a notification and a
+reply quote opening a message outside it, "Load earlier messages" from the keyboard, scrolling up
+keeping the reader's place, and 60 messages that arrive while frozen all counted unread.
+`ui_lists.js` checks with 30 guests the default counts and Show more of answer cards, people,
+the queue, notifications (with Unread only), proposals, Later and suggestions, the people
+chips and name search, and the chips on a 320 px phone.
 `ui_moderation.js` checks the intro before question 1 and from the header, a phone's first screen
 with the intro folded, Hide and Edit with the owner-only history, chat reactions, the owner's
 per-person view, and Approve new joins. `ui_acceptance.js` checks the Brief acceptance criteria no other

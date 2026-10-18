@@ -23,6 +23,7 @@
       // round 8
       revealed: new Set(), threadTab: "answers", cites: {}, hostFilter: "all", treeClosed: new Set(),
       askPanel: false, askMode: "ask", askQ: "", askSelf: false, picks: {}, goalEditing: false, notified: {}, msgMenu: null,
+      more: {}, peopleFilter: "all", peopleFind: "", unreadOnly: false,
     };
     // Unsent text saved by the last reload for a new version (Core.onReload, at the end): answer drafts and the chat field.
     const UNSENT = "vf-unsent";
@@ -283,6 +284,32 @@
       list._primed = true;
     }
     function resetList(list) { list.replaceChildren(); list._map = null; list._primed = false; }
+    /** A long list's first `def` items, then a Show more control under it (`all`: one Show all (N) instead). How far
+     *  a list was opened lives in ui.more under the key `page` is given, so a filter keys its own. Show more moves
+     *  focus to the first item it reveals. Returns {foot, page(items, list, key)}: put foot after the list. */
+    function showMore(listKey, def, { all = false } = {}) {
+      const foot = E("div", "vf-more-foot"), note = E("span", "vf-meta"), b = btn("vf-btn vf-btn-ghost vf-btn-sm");
+      foot.append(note, b); foot.hidden = true;
+      let list = null, key = listKey, n = def;
+      b.onclick = () => {
+        const from = n;
+        ui.more[key] = all ? Infinity : n + def;
+        render();
+        const li = list?.children[from], f = li && (li.querySelector("button:not([hidden]), [tabindex='0']") || li);
+        if (f === li) li.tabIndex = -1;
+        f?.focus();
+      };
+      return {
+        foot,
+        page(items, el, k = listKey) {
+          list = el; key = k; n = Math.min(items.length, ui.more[k] ?? def);
+          foot.hidden = items.length <= n;
+          note.textContent = `Showing ${n} of ${items.length}`;
+          b.textContent = all ? `Show all (${items.length})` : "Show more";
+          return items.slice(0, n);
+        },
+      };
+    }
     /** Active, away or offline, from a presence entry (none: offline), and how a label says it. */
     const presState = h => (!h ? "offline" : h.away ? "away" : "active");
     const presWord = h => (!h ? "offline" : h.away ? `away${awayFor(h)}` : "active");
@@ -749,6 +776,8 @@
     const propNewBtn = btn("vf-seg-btn"), propNotBtn = btn("vf-seg-btn"), propParkBtn = btn("vf-seg-btn");
     propSeg.append(propNewBtn, propNotBtn, propParkBtn);
     PP.tools.append(propSeg);
+    const propMore = showMore("proposals", 20);
+    PP.list.after(propMore.foot);
     propNewBtn.onclick = () => { ui.propFilter = "new"; render(); };
     propNotBtn.onclick = () => { ui.propFilter = "notplaced"; render(); };
     propParkBtn.onclick = () => { ui.propFilter = "parked"; render(); };
@@ -957,7 +986,8 @@
     sugRow.append(E("span", "vf-hint", "The host or a leader decides"), sugCancel, sugSend);
     sugForm.append(sugTa, sugNote, sugRow);
     const sList = E("ul", "vf-slist"); sList.setAttribute("role", "list");
-    lockBox.append(lockTop, lockText, lockFrom, editForm, sugHead, sugForm, sList);
+    const sugMore = showMore("sugs", 10);
+    lockBox.append(lockTop, lockText, lockFrom, editForm, sugHead, sugForm, sList, sugMore.foot);
 
     const ansHead = E("div", "vf-anshead");
     const ansTitle = E("h2", "vf-h2", "Answers"), ansCount = E("span", "vf-meta");
@@ -1037,7 +1067,8 @@
     tabAns.setAttribute("aria-controls", ansPane.id); tabTh.setAttribute("aria-controls", thPane.id);
     const thHead = E("div", "vf-thhead");
     thHead.append(claudeAv(20), E("h2", "vf-h2 vf-th-title", "Claude"), reqChip);
-    ansPane.append(lockBox, ansHead, claudeBar, aList, aEmpty, closedBox);
+    const ansMore = showMore("ans", 12, { all: true });
+    ansPane.append(lockBox, ansHead, claudeBar, aList, ansMore.foot, aEmpty, closedBox);
     thPane.append(thHead, thList, thEmpty, tools, askForm);
     split.append(ansPane, thPane);
     // Q84: References under the question: screenshots with a marked area, quoted excerpts with their source, titled links.
@@ -1161,10 +1192,20 @@
     }
     const queueList = E("ul", "vf-queue"); queueList.setAttribute("role", "list");
     const queueEmpty = E("p", "vf-empty vf-empty-sm");
-    hQueue.append(qFilters, queueList, queueEmpty);
+    const queueMore = showMore("queue", 20);
+    hQueue.append(qFilters, queueList, queueMore.foot, queueEmpty);
     // people
+    // Filter chips by presence (and Removed, the owner's), a name search once the list passes 12, then 25 at a time.
+    const pFilters = E("div", "vf-chips vf-pfilters"); pFilters.setAttribute("role", "group"); pFilters.setAttribute("aria-label", "Show people");
+    const pfBtns = {};
+    for (const [k, label] of [["all", "All"], ["here", "Here"], ["away", "Away"], ["offline", "Offline"], ["removed", "Removed"]]) {
+      const b = btn("vf-fchip"); b.append(E("span", null, label), E("span", "vf-fchip-n")); b.onclick = () => { ui.peopleFilter = k; render(); }; pFilters.append(b); pfBtns[k] = b;
+    }
+    const pFind = E("input", "vf-input vf-pfind"); pFind.type = "search"; pFind.placeholder = "Find a person"; pFind.setAttribute("aria-label", "Find a person by name");
+    on(pFind, "input", () => { ui.peopleFind = pFind.value; render(); });
     const peopleList = E("ul", "vf-hpeople"); peopleList.setAttribute("role", "list");
-    hPeople.append(peopleList);
+    const peopleEmpty = E("p", "vf-empty vf-empty-sm"), peopleMore = showMore("people", 25);
+    hPeople.append(pFilters, pFind, peopleList, peopleMore.foot, peopleEmpty);
     // links and settings
     const hShare = lbtn("vf-btn vf-btn-ghost vf-btn-sm", "link", "Share the guest link");
     const hNewGuest = btn("vf-btn vf-btn-ghost vf-btn-sm", "New guest link"), hNewOwner = btn("vf-btn vf-btn-ghost vf-btn-sm", "New owner link");
@@ -1177,7 +1218,8 @@
     const laterNote = E("p", "vf-pop-note");
     const laterList = E("ul", "vf-plist vf-laterlist"); laterList.setAttribute("role", "list");
     const laterEmpty = E("p", "vf-empty vf-empty-sm", "Nothing parked for later. Proposals that are off the goal land here.");
-    hLater.append(laterNote, laterList, laterEmpty);
+    const laterMore = showMore("later", 10);
+    hLater.append(laterNote, laterList, laterMore.foot, laterEmpty);
     const hColA = E("div", "vf-hcol"), hColB = E("div", "vf-hcol");
     hColA.append(hRound, hPeople, hLinks); hColB.append(hQueue, hLater);
     hostGrid.append(hColA, hColB);
@@ -1248,7 +1290,47 @@
     // last scroll decides.
     const mGap = () => mScroll.scrollHeight - mScroll.scrollTop - mScroll.clientHeight;
     let mStick = true;
-    on(mScroll, "scroll", () => { mStick = mGap() < 40; if (mStick) { mNew.hidden = true; ui.mNewFrom = null; } });
+    on(mScroll, "scroll", () => { mStick = mGap() < 40; if (mStick) { mNew.hidden = true; ui.mNewFrom = null; } if (mScroll.scrollTop < EARLIER_PX) loadTop(); });
+    // ---------- older chat: loaded when the reader nears the top, or from a Load earlier button ----------
+    const EARLIER_PX = 300; // judgment: about five messages above the top edge
+    /** A place in the chat: a message's id and time; `after` gives the messages newer than it. */
+    const mark = m => (m ? { id: m.id, ts: m.ts } : { id: "", ts: 0 });
+    function after(msgs, at) {
+      if (!at) return [];
+      const i = at.id ? msgs.findIndex(m => m.id === at.id) : -1;
+      return i >= 0 ? msgs.slice(i + 1) : msgs.filter(m => m.ts > at.ts);
+    }
+    function loadTop() {
+      const top = mList.firstElementChild;
+      if (ui.chatOpen && mScroll.scrollTop < EARLIER_PX && top?.classList.contains("vf-mgap") && Date.now() > (ui.mRetry || 0)) loadEarlier(top._below, top._b);
+    }
+    /** Read the messages older than message `id` into the chat, keeping what the reader sees where it is. */
+    async function loadEarlier(id, button) {
+      if (ui.mLoading || !id) return;
+      ui.mLoading = true;
+      const hadFocus = document.activeElement === button;
+      const anchor = [...mList.querySelectorAll(":scope > .vf-msg")].find(li => li.getBoundingClientRect().bottom > mScroll.getBoundingClientRect().top);
+      const was = anchor?.getBoundingClientRect().top;
+      try {
+        const n = await Core.chatEarlier(id);
+        // Hold the anchor for a few frames: messages drawn as they come into view (content-visibility) settle their height.
+        for (let f = 0, still = 0; f < 12 && still < 3 && anchor?.isConnected; f++) {
+          const d = anchor.getBoundingClientRect().top - was;
+          still = Math.abs(d) < 0.5 ? still + 1 : 0;
+          mScroll.scrollTop += d;
+          await new Promise(r => requestAnimationFrame(r));
+        }
+        announce(n ? `${n} earlier message${n === 1 ? "" : "s"} loaded.` : "This is the start of the chat.");
+        if (hadFocus && !button.isConnected) mList.querySelector(".vf-msgmore")?.focus({ preventScroll: true });
+      } catch (e) { ui.mRetry = Date.now() + 10000; fail(e); } finally { ui.mLoading = false; }
+    }
+    /** Open the chat at one message, reading it from the server when it is outside what the page holds. */
+    async function goMsg(id) {
+      if (!mList._map?.has(id) && !(await Core.chatAround(id).catch(() => false))) return flash("That message is no longer in the chat.");
+      // At once, not smoothly: a poll's render during a smooth scroll would still see the reader at the newest message.
+      // Off the newest now, so nothing pins the chat back to it before this scroll's own event says so.
+      requestAnimationFrame(() => { const li = mList._map?.get(id); if (li) { li.scrollIntoView({ block: "center" }); mStick = false; ring(li); } });
+    }
     const mPin = new ResizeObserver(() => { if (ui.chatOpen && mStick && mGap() > 0) mScroll.scrollTop = mScroll.scrollHeight; });
     mPin.observe(mScroll); mPin.observe(mList); offs.push(() => mPin.disconnect());
     const mTyping = E("div", "vf-mtyping"); const mTypingTxt = E("span");
@@ -1528,9 +1610,13 @@
     const bpHead = E("div", "vf-pp-head");
     const bpAll = btn("vf-btn vf-btn-ghost vf-btn-sm", "Mark all read");
     const bpClose = ibtn("vf-tbtn vf-icon-btn", "x", "Close notifications");
+    const bpUnread = btn("vf-btn vf-btn-ghost vf-btn-sm vf-toggle", "Unread only");
+    bpUnread.onclick = () => { ui.unreadOnly = !ui.unreadOnly; render(); };
     bpHead.append(E("h2", "vf-pop-title", "Notifications"), bpAll, bpClose);
+    const bpTools = E("div", "vf-bptools"); bpTools.append(bpUnread);
     const nList = E("ul", "vf-nlist"); nList.setAttribute("role", "list");
-    const nEmpty = E("p", "vf-empty vf-empty-sm", "Nothing new. You hear here when someone mentions you or replies to you, when your requests and proposals move, and when a round opens.");
+    const NO_NOTES = "Nothing new. You hear here when someone mentions you or replies to you, when your requests and proposals move, and when a round opens.";
+    const nEmpty = E("p", "vf-empty vf-empty-sm", NO_NOTES);
     const muteBtn = btn("vf-lbtn vf-mutebtn"); muteBtn.setAttribute("aria-expanded", "false");
     const muteBox = E("div", "vf-mutebox"); muteBox.hidden = true;
     const muteRows = {};
@@ -1541,7 +1627,8 @@
       b.onclick = () => { const m = new Set(pref("mute", [])); m.has(k) ? m.delete(k) : m.add(k); setPrefs({ mute: [...m] }); render(); };
       muteBox.append(b); muteRows[k] = b;
     }
-    const bpScroll = E("div", "vf-pscroll vf-bpscroll"); bpScroll.append(nList, nEmpty, muteBtn, muteBox);
+    const noteMore = showMore("notes", 20);
+    const bpScroll = E("div", "vf-pscroll vf-bpscroll"); bpScroll.append(bpTools, nList, noteMore.foot, nEmpty, muteBtn, muteBox);
     bellPop.append(bpHead, bpScroll);
 
     // ---------- Q86: the phone More sheet ----------
@@ -2339,7 +2426,7 @@
       if (!n.read) Core.readNotifications([n.id]).catch(() => {});
       if (n.msg && st().chat) {
         setChat(true);
-        requestAnimationFrame(() => { const li = mList._map?.get(n.msg); if (li) { li.scrollIntoView({ block: "center", behavior: smooth() }); ring(li); } });
+        goMsg(n.msg);
         return;
       }
       if (n.qid && qById(n.qid)) return focusQuestion(n.qid);
@@ -2361,7 +2448,9 @@
       msBell._d.textContent = unread ? `${unread} unread` : "All read";
       if (ui.pop !== bellPop) return;
       bpAll.hidden = !unread;
-      sync(nList, list, n => n.id, () => {
+      bpUnread.setAttribute("aria-pressed", String(ui.unreadOnly));
+      const kept = ui.unreadOnly ? list.filter(n => !n.read) : list;
+      sync(nList, noteMore.page(kept, nList, `notes:${ui.unreadOnly}`), n => n.id, () => {
         const li = E("li"), b = btn("vf-nitem");
         const lead = E("span", "vf-nlead"), txt = E("span", "vf-ntxt"), title = E("span", "vf-ntitle"), bodyT = E("span", "vf-nbody"), tm = E("span", "vf-card-time"), dot = E("span", "vf-ndot");
         txt.append(title, bodyT); b.append(lead, txt, tm, dot); li.append(b);
@@ -2379,7 +2468,8 @@
         k.b.classList.toggle("vf-nunread", !n.read);
         k.b.setAttribute("aria-label", `${n.read ? "" : "Unread. "}${k.title.textContent}${n.body ? ": " + n.body : ""}. ${ago(n.ts) === "now" ? "Just now" : ago(n.ts) + " ago"}.`);
       });
-      nEmpty.hidden = list.length > 0;
+      nEmpty.hidden = kept.length > 0;
+      nEmpty.textContent = ui.unreadOnly && list.length ? "No unread notifications." : NO_NOTES;
       const muted = new Set(pref("mute", []));
       muteBtn.textContent = muted.size ? `Notify me about: ${NOTE_KINDS.length - muted.size} of ${NOTE_KINDS.filter(([kk]) => mod || !["queue", "ready"].includes(kk)).length} kinds` : "Choose what notifies you";
       muteBtn.setAttribute("aria-expanded", String(!!ui.muteOpen));
@@ -5052,7 +5142,7 @@
         b.hidden = !owner && ["request", "merge", "upload", "report"].includes(k);
       }
       const shown = ui.hostFilter === "all" ? items : items.filter(i => i.t === ui.hostFilter);
-      sync(queueList, shown, i => i.id, makeQItem, fillQItem);
+      sync(queueList, queueMore.page(shown, queueList, "queue:" + ui.hostFilter), i => i.id, makeQItem, fillQItem);
       queueEmpty.hidden = shown.length > 0;
       queueEmpty.textContent = ui.hostFilter === "all" ? "All clear. New requests, proposals, suggestions, merges and files show up here." : `No ${QT[ui.hostFilter]?.toLowerCase() || "items"} waiting.`;
       hQueue._m.textContent = `${items.length} waiting`;
@@ -5067,7 +5157,21 @@
       for (const lst of Object.values(S.answers)) for (const a of lst) if (!a.claude && !a.option) answeredBy[a.cid] = (answeredBy[a.cid] || 0) + 1;
       const lastCtx = {}, lastTs = {}; // each person's newest recorded context: answers and suggestions carry one
       for (const r of [...Object.values(S.answers).flat(), ...Object.values(S.suggestions || {}).flat()]) if (r.ctx && !(lastTs[r.cid] > r.ts)) { lastCtx[r.cid] = r.ctx; lastTs[r.cid] = r.ts; }
-      sync(peopleList, ppl, p => p.pid, () => {
+      const pres = p => (gone.has(p.pid) ? "removed" : presState(here.get(p.pid)));
+      const inFilter = { all: () => true, here: p => ["active", "away"].includes(pres(p)), away: p => pres(p) === "away", offline: p => pres(p) === "offline", removed: p => pres(p) === "removed" };
+      const noRemoved = !owner || !ppl.some(inFilter.removed);
+      if (noRemoved && ui.peopleFilter === "removed") ui.peopleFilter = "all";
+      for (const [k, b] of Object.entries(pfBtns)) {
+        b.setAttribute("aria-pressed", String(ui.peopleFilter === k));
+        b.lastChild.textContent = String(ppl.filter(inFilter[k]).length);
+        b.hidden = k === "removed" && noRemoved;
+      }
+      pFind.hidden = ppl.length <= 12;
+      const find = pFind.hidden ? "" : ui.peopleFind.trim().toLowerCase();
+      const pShown = ppl.filter(p => inFilter[ui.peopleFilter](p) && (!find || disp(p.name).toLowerCase().includes(find)));
+      peopleEmpty.hidden = pShown.length > 0;
+      peopleEmpty.textContent = find ? `No one named “${ui.peopleFind.trim()}” here.` : "No one to show.";
+      sync(peopleList, peopleMore.page(pShown, peopleList, "people:" + ui.peopleFilter), p => p.pid, () => {
         const li = E("li", "vf-hperson");
         const avBox = E("span", "vf-hp-av"), mid = E("div", "vf-hp-mid"), nm = E("span", "vf-hp-name"), meta = E("span", "vf-hp-meta");
         const role = E("span", "vf-role"), ctxB = E("span", "vf-ctx"); ctxB.hidden = true;
@@ -5128,7 +5232,7 @@
       hLater._m.textContent = later.length ? String(later.length) : "";
       laterNote.textContent = later.length ? `${laterLine(later.length)} when the session ends.` : "";
       laterNote.hidden = !later.length;
-      sync(laterList, later, i => i.id, () => {
+      sync(laterList, laterMore.page(later, laterList), i => i.id, () => {
         const li = E("li", "vf-pitem");
         const t = clampBox(), why = E("p", "vf-why"), from = E("div", "vf-pfrom"), acts = E("div", "vf-acts");
         const back = lbtn("vf-btn vf-btn-ghost vf-btn-sm", "restore", "Back to Proposed");
@@ -5373,7 +5477,7 @@
         : ui.propFilter === "notplaced" ? "Claude did not place these and said why. Restore one to send it again."
         : "Parked proposals stay out of the round. Restore one to put it back in New.";
       const shown = !mod ? [] : ui.propFilter === "new" ? props : ui.propFilter === "notplaced" ? notPlaced : parked;
-      sync(PP.list, shown, i => i.id, i => {
+      sync(PP.list, propMore.page(shown, PP.list, "proposals:" + ui.propFilter), i => i.id, i => {
         const li = E("li", "vf-pitem");
         const t = clampBox(), from = E("div", "vf-pfrom");
         const acts = E("div", "vf-acts");
@@ -5635,7 +5739,7 @@
           const sugs = openSugs(q.id).sort((a, b) => b.votes.length - a.votes.length || a.ts - b.ts);
           sugTitle.textContent = sugs.length ? `Suggestions (${sugs.length})` : "Suggestions";
           sugBtn.hidden = mod || ui.suggestOpen || (!!S.ended && !me.isOwner) || !!S.youRemoved;
-          sync(sList, sugs, x => x.id, x => {
+          sync(sList, sugMore.page(sugs, sList, "sugs:" + q.id), x => x.id, x => {
             const li = E("li", "vf-sug");
             const head = E("div", "vf-card-head");
             head.append(E("span", "vf-card-av"), E("span", "vf-card-name"), E("span", "vf-card-time"));
@@ -5714,7 +5818,7 @@
           li.lastChild.textContent = x.text;
         });
         if (aList._q !== q.id) { resetList(aList); aList._q = q.id; }
-        sync(aList, ans, a => a.ref || a.cid, () => buildCard(false), (li, a) => fillCard(li, a, q.id, a.cid === lead, false));
+        sync(aList, ansMore.page(ans, aList, "ans:" + q.id), a => a.ref || a.cid, () => buildCard(false), (li, a) => fillCard(li, a, q.id, a.cid === lead, false));
         aList.classList.toggle("vf-alist-locked", !!lk);
         aEmpty.hidden = ans.length > 0 || (waitingC.length > 0 && !claudeBar.hidden);
         aEmpty.textContent = waitingC.length ? "Pick one to see what others said." : isChoice(q) ? "No comments yet." : "No answers yet. Yours can be the first.";
@@ -5764,9 +5868,10 @@
         const foot = E("div", "vf-col-foot");
         const open = btn("vf-btn vf-btn-ghost vf-btn-sm", "Open in Focus");
         foot.append(open);
-        const sc = E("div", "vf-col-scroll"); sc.append(pin, opts, cbar, cards, empty);
+        const more = showMore("ans", 12, { all: true });
+        const sc = E("div", "vf-col-scroll"); sc.append(pin, opts, cbar, cards, more.foot, empty);
         col.append(head, sc, foot);
-        col._k = { title2, meta, pin, pinText, pinFrom, cards, empty, open, opts, cbar };
+        col._k = { title2, meta, pin, pinText, pinFrom, cards, empty, open, opts, cbar, more };
         const go = () => focusQuestion(x.id);
         title2.onclick = go; open.onclick = go;
         return col;
@@ -5791,7 +5896,7 @@
         dts.classList.toggle("vf-on", others.some(p => p.typing));
         k.pin.hidden = !xl;
         if (xl) { fillClamp(k.pinText, "cl:" + x.id, xl.text, "Locked answer", `${x.id}: ${x.text}`); k.pinFrom.textContent = `Locked, from ${xl.name === "Claude" ? "Claude" : disp(xl.name)}`; }
-        sync(k.cards, ans.filter(a => !xl || a.cid !== xl.answerCid), a => a.ref || a.cid, () => buildCard(true), (li, a) => fillCard(li, a, x.id, a.cid === lead, true));
+        sync(k.cards, k.more.page(ans.filter(a => !xl || a.cid !== xl.answerCid), k.cards, "ans:" + x.id), a => a.ref || a.cid, () => buildCard(true), (li, a) => fillCard(li, a, x.id, a.cid === lead, true));
         k.empty.hidden = ans.length > 0 || waitingC.length > 0 || isChoice(x);
         k.open.textContent = xl ? "Open in Focus" : hasAnswered(x.id) ? "Edit my answer" : "Answer in Focus";
       });
@@ -5805,12 +5910,12 @@
       chat.classList.toggle("vf-off", !s.chat);
       fab.hidden = !s.chat;
       if (!s.chat && ui.chatOpen) { ui.chatOpen = false; chat.hidden = true; }
-      const msgs = S.chat;
-      if (ui.seenChat === null && Core.live) ui.seenChat = msgs.length;
-      if (ui.chatOpen) ui.seenChat = msgs.length;
+      const msgs = S.chat, newest = mark(msgs.at(-1));
+      if (ui.seenChat === null && Core.live) ui.seenChat = newest;
+      if (ui.chatOpen) ui.seenChat = newest;
       // ux-review-2 #8: a message that mentions me is badged on the bell, not again here.
       const belled = new Set(notes().filter(n => n.msg && !n.read).map(n => n.msg));
-      const unread = msgs.slice(ui.seenChat ?? msgs.length).filter(m => !isMe(m.cid) && !belled.has(m.id)).length;
+      const unread = after(msgs, ui.seenChat).filter(m => !isMe(m.cid) && !belled.has(m.id)).length;
       // Triage 2: a message for a host whose chat is closed (or whose tab is in the background) shows in the tab title too.
       document.title = unread && !ui.chatOpen ? `(${unread}) ${title}` : title;
       fabBadge.textContent = unread ? String(unread > 9 ? "9+" : unread) : "";
@@ -5822,7 +5927,18 @@
       paintSlot(chatSlot, mForm.hidden);
       if (ui.chatOpen) {
         const atBottom = mStick || mGap() < 40;
-        sync(mList, msgs, m => m.id, m => {
+        // A Load earlier row sits above each message whose next older one is not loaded; the top one keeps its node,
+        // so its button keeps focus while there is more to load.
+        const rows = msgs.flatMap((m, i) => (m.gapAbove ? [{ id: i ? "gap:" + m.id : "gap-top", gap: m.id }, m] : [m]));
+        const added = rows.filter(r => !mList._map?.has(r.id)).length;
+        if (added > 1) { mList.setAttribute("aria-busy", "true"); requestAnimationFrame(() => mList.removeAttribute("aria-busy")); } // a batch is not read out
+        sync(mList, rows, m => m.id, m => {
+          if (m.gap) {
+            const li = E("li", "vf-mgap"), b = btn("vf-btn vf-btn-ghost vf-btn-sm", "Load earlier messages");
+            b.onclick = () => loadEarlier(li._below, b);
+            li.append(b); li._b = b;
+            return li;
+          }
           const li = E("li", "vf-msg");
           const col = E("div", "vf-msg-col");
           const meta = E("div", "vf-msg-meta");
@@ -5830,7 +5946,7 @@
           const bubble = E("div", "vf-bubble"); const btext = clampBox();
           // a reply quotes the message it answers; tapping the quote goes to it
           const quote = btn("vf-mquote"); const qName = E("span", "vf-mquote-n"), qTxt = E("span", "vf-mquote-t"); quote.append(qName, qTxt);
-          quote.onclick = () => { const to = mList._map?.get(li._m?.replyTo?.id); if (to) { to.scrollIntoView({ block: "center", behavior: smooth() }); ring(to); } };
+          quote.onclick = () => { if (li._m?.replyTo) goMsg(li._m.replyTo.id); };
           const batt = attRowEl();
           bubble.append(btext, batt);
           const tools2 = E("div", "vf-msg-tools");
@@ -5856,8 +5972,9 @@
           li._k = { meta, btext, batt, tools2, done, more, quote, qName, qTxt, reactRow, reactAdd };
           return li;
         }, (li, m) => {
+          if (m.gap) { li._below = m.gap; return; }
           const i = msgs.indexOf(m), prev = msgs[i - 1], k = li._k;
-          const cont = prev && prev.cid === m.cid && m.ts - prev.ts < 120 && !m.replyTo; // a reply always shows who and what it answers
+          const cont = prev && !m.gapAbove && prev.cid === m.cid && m.ts - prev.ts < 120 && !m.replyTo; // a reply always shows who and what it answers
           li.classList.toggle("vf-msg-mine", isMe(m.cid));
           li.classList.toggle("vf-msg-cont", !!cont);
           const avBox = li.firstChild, key = m.cid + "|" + disp(m.name);
@@ -5881,11 +5998,12 @@
         });
         mEmpty.hidden = msgs.length > 0;
         if (atBottom) { mScroll.scrollTop = mScroll.scrollHeight; ui.mNewFrom = null; }
-        else if (ui.mNewFrom == null) ui.mNewFrom = ui.mSeenN ?? msgs.length;
-        const nNew = ui.mNewFrom == null ? 0 : msgs.slice(ui.mNewFrom).filter(m => !isMe(m.cid)).length;
+        else ui.mNewFrom ??= ui.mSeenN ?? newest;
+        const nNew = after(msgs, ui.mNewFrom).filter(m => !isMe(m.cid)).length;
         mNew.hidden = !nNew;
         mNew.textContent = `${nNew} new message${nNew === 1 ? "" : "s"} ↓`;
-        ui.mSeenN = msgs.length;
+        ui.mSeenN = newest;
+        if (mScroll.scrollTop < EARLIER_PX) requestAnimationFrame(loadTop);
         const typers = here.filter(p => p.chatTyping && !isMe(p.cid));
         mTyping.classList.toggle("vf-on", typers.length > 0);
         mTypingTxt.textContent = typers.length ? `${names(typers)} ${typers.length > 1 ? "are" : "is"} typing` : "";

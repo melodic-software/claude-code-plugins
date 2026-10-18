@@ -576,7 +576,9 @@
 .app .vf-msg {
   display: grid; grid-template-columns: 26px minmax(0, 1fr); grid-template-areas: ". meta" "av bubble";
   column-gap: 8px; row-gap: 3px; justify-items: start; margin-block-start: 10px;
+  content-visibility: auto; contain-intrinsic-size: auto 56px; /* off-screen messages skip layout, Ctrl+F still finds them */
 }
+.app .vf-mgap { display: flex; justify-content: center; padding-block: 6px; }
 .app .vf-msg-col { display: contents; }
 .app .vf-msg-meta { grid-area: meta; }
 .app .vf-msg-av { grid-area: av; align-self: start; margin-block-start: calc(7px + 13.5px * 0.7 - 13px); } /* bubble padding + half its line */
@@ -1632,7 +1634,11 @@
 .app .vf-hgoal-row { display: flex; align-items: flex-start; gap: 10px; }
 .app .vf-hgoal { flex: 1; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
 .app .vf-hgoal-empty { color: var(--faint); }
-.app .vf-qfilters { flex-wrap: wrap; }
+.app :is(.vf-qfilters, .vf-pfilters) { flex-wrap: wrap; }
+.app .vf-pfilters { margin-block-end: 8px; }
+.app .vf-pfind { inline-size: 100%; margin-block-end: 8px; }
+/* Show more under a long list: how many show, and the button for the next batch. */
+.app .vf-more-foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding-block: 8px; }
 .app .vf-queue { gap: 8px; }
 .app .vf-qitem { display: grid; gap: 6px; padding: 9px 11px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--raise); min-width: 0; }
 .app .vf-qitem[data-t="merge"], .app .vf-qitem[data-t="ready"] { border-color: color-mix(in oklch, var(--brass) 40%, transparent); }
@@ -1754,6 +1760,7 @@
 .app .vf-bellpop { inline-size: 380px; max-block-size: min(560px, calc(100% - 64px)); padding: 0; display: flex; flex-direction: column; }
 .app .vf-bellpop .vf-pp-head { padding: 8px 8px 8px 16px; border-block-end: 1px solid var(--line); }
 .app .vf-bpscroll { flex: 1 1 auto; padding: 6px; display: grid; align-content: start; gap: 2px; }
+.app .vf-bptools { display: flex; justify-content: flex-end; padding: 2px 4px 4px; }
 .app .vf-nlist { display: grid; gap: 2px; grid-template-columns: minmax(0, 1fr); }
 /* lead, text, time, unread dot; the lead and the dot center on the title's first line (20px) */
 .app .vf-nitem {

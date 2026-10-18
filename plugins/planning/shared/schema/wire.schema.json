@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://melodic-software.github.io/claude-code-plugins/planning/shared/wire",
   "title": "Shared interview session wire shapes kept only in memory",
-  "description": "Presence never reaches state.json. `heartbeat` is the POST /api/heartbeat body: `visible` is the Page Visibility state, `lastInput` the seconds since the person's last key, pointer or touch, and `away` is true while the person's own Away (the snooze) lasts; the page drops it on their next input. `tab` names the browser tab that beats, so each of a person's tabs and devices keeps its own presence: the person is active while any live tab is visible with recent input and not snoozed, and away only when every live tab is hidden, idle or snoozed. `presence` is one entry of the snapshot's `presence` list: `active`, or `away` with `since`, the server time the person went away. Someone with no heartbeat for 90 s is offline and absent from the list; the snapshot's `lastSeen` maps each offline person the server still remembers (memory only, so not across a restart) to the server time of their last heartbeat.",
+  "description": "Presence never reaches state.json. `heartbeat` is the POST /api/heartbeat body: `visible` is the Page Visibility state, `lastInput` the seconds since the person's last key, pointer or touch, and `away` is true while the person's own Away (the snooze) lasts; the page drops it on their next input. `tab` names the browser tab that beats, so each of a person's tabs and devices keeps its own presence: the person is active while any live tab is visible with recent input and not snoozed, and away only when every live tab is hidden, idle or snoozed. `presence` is one entry of the snapshot's `presence` list: `active`, or `away` with `since`, the server time the person went away. Someone with no heartbeat for 90 s is offline and absent from the list; the snapshot's `lastSeen` maps each offline person the server still remembers (memory only, so not across a restart) to the server time of their last heartbeat. `presenceOnly` is what GET /api/state answers when the poll's ETag differs from the current one only in presence or the 5-second clock tick: the snapshot's `serverTime`, `presence` and `lastSeen` with its unchanged `rev`; the page keeps the rest of its last snapshot. `chatPage` is the GET /api/chat answer: messages as the snapshot reads them, oldest first, with `before`, its oldest message's id, while older ones exist.",
   "$defs": {
     "heartbeat": {
       "type": "object",
@@ -28,6 +28,27 @@
         "chatTyping": {"type": "boolean"},
         "state": {"enum": ["active", "away"]},
         "since": {"type": "number"}
+      }
+    },
+    "presenceOnly": {
+      "type": "object",
+      "required": ["rev", "presenceOnly", "serverTime", "presence", "lastSeen"],
+      "additionalProperties": false,
+      "properties": {
+        "rev": {"type": "integer", "minimum": 0},
+        "presenceOnly": {"const": true},
+        "serverTime": {"type": "number"},
+        "presence": {"type": "array", "items": {"$ref": "#/$defs/presence"}},
+        "lastSeen": {"type": "object", "additionalProperties": {"type": "number"}}
+      }
+    },
+    "chatPage": {
+      "type": "object",
+      "required": ["chat"],
+      "additionalProperties": false,
+      "properties": {
+        "chat": {"type": "array", "maxItems": 100, "items": {"type": "object", "required": ["id", "pid", "text", "at"]}},
+        "before": {"type": "string"}
       }
     }
   }
