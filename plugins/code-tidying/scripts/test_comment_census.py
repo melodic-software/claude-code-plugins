@@ -216,9 +216,18 @@ class SccArgv(unittest.TestCase):
         (tmp / "-o=evil.py").write_text(MOD_PY)
         shim_dir = tmp / "bin"
         shim_dir.mkdir()
-        shim = shim_dir / "scc"
-        shim.write_text(FAKE_SCC)
-        shim.chmod(0o755)
+        if sys.platform == "win32":
+            # Windows cannot execute a shebang script: put a .cmd wrapper on
+            # PATH that runs the current interpreter on the recording script.
+            recorder = shim_dir / "scc_recorder.py"
+            recorder.write_text(FAKE_SCC)
+            (shim_dir / "scc.cmd").write_text(
+                f'@"{sys.executable}" "{recorder}" %*\r\n'
+            )
+        else:
+            shim = shim_dir / "scc"
+            shim.write_text(FAKE_SCC)
+            shim.chmod(0o755)
         argv_file = tmp / "argv.json"
         env = {
             **os.environ,
@@ -238,8 +247,10 @@ class SccArgv(unittest.TestCase):
         self.assertIn("--", argv)
         paths = argv[argv.index("--") + 1 :]
         self.assertTrue(paths, "no files reached scc")
-        self.assertTrue(all(a.startswith(("./", "/")) for a in paths), paths)
-        self.assertIn("./-o=evil.py", paths)
+        self.assertTrue(
+            all(os.path.isabs(a) or a.startswith("." + os.sep) for a in paths), paths
+        )
+        self.assertIn(os.path.join(".", "-o=evil.py"), paths)
         self.assertNotIn("-o=evil.py", argv[: argv.index("--")])
         self.assertFalse((tmp / "evil.py").exists())
 
