@@ -14,9 +14,9 @@ name: release-publish-plugins
 # required_signatures rule accepts it (the pattern of pr-bump-plugin-version.yml).
 #
 # A scheduled run, and a push of a fragment to main, run `merge`: it queues a
-# release pull request that is current and green, rebuilds one that is stale or
-# conflicted, and builds one when none is open (ADR 0048, Rollout 3 and Resolved
-# decisions 1 and 2). workflow_dispatch runs either action by hand.
+# release pull request that is current and green, rebuilds one that is stale,
+# conflicted, or failing ci-status on a base behind main, and builds one when
+# none is open (ADR 0048, Rollout 3 and Resolved decisions 1 and 2). workflow_dispatch runs either action by hand.
 on:
   schedule:
     - cron: '41 */3 * * *'
@@ -99,6 +99,7 @@ jobs:
           FOUND: ${{ steps.pr.outputs.found }}
           MERGEABLE: ${{ steps.pr.outputs.mergeable }}
           HEAD_SHA: ${{ steps.pr.outputs.head }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           if [ "$FOUND" != true ] || [ "$MERGEABLE" = CONFLICTING ]; then
             echo "rebuild=true" >>"$GITHUB_OUTPUT"
@@ -110,9 +111,19 @@ jobs:
           # Run main's copy of the gate, never the head's: the head is the branch under review.
           git checkout -q "$main_sha" -- scripts
           rc=0
-          scripts/check-changelog-fragments.sh --check-release origin/main || rc=$?
+          env -u GH_TOKEN scripts/check-changelog-fragments.sh --check-release origin/main || rc=$?
           case "$rc" in
-          0) echo "rebuild=false" >>"$GITHUB_OUTPUT" ;;
+          0)
+            # A failed check on a base behind main never clears on a re-run; rebuild on main's tip.
+            if ! git merge-base --is-ancestor origin/main "$HEAD_SHA" &&
+              [ "$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?check_name=ci-status" \
+                --jq '.check_runs | sort_by(.started_at) | last | .conclusion // "pending"')" = failure ]; then
+              echo "::warning::ci-status failed on the release pull request and its base is behind main; rebuilding it."
+              echo "rebuild=true" >>"$GITHUB_OUTPUT"
+            else
+              echo "rebuild=false" >>"$GITHUB_OUTPUT"
+            fi
+            ;;
           1)
             echo "::warning::The release pull request is stale against main; rebuilding it instead of merging."
             echo "rebuild=true" >>"$GITHUB_OUTPUT"
@@ -198,8 +209,9 @@ jobs:
           persist-credentials: false
       # ADR 0048, The release pull request: with one open, rebuild it only when
       # main holds a fragment it did not consume for a plugin it bumps (or one it
-      # consumed has since changed), or when it has a merge conflict. Otherwise
-      # leave it alone so its CI can finish.
+      # consumed has since changed), when it has a merge conflict, or when its
+      # ci-status failed on a base behind main. Otherwise leave it alone so its
+      # CI can finish.
       - name: Decide whether to build
         id: decide
         env:
@@ -229,7 +241,16 @@ jobs:
             env -u GH_TOKEN scripts/check-changelog-fragments.sh --check-release "$main_sha" || rc=$?
             git checkout -q -f --detach "$main_sha"
             case "$rc" in
-            0) echo "Release pull request #$(jq -r .number <<<"$pr") consumes every pending fragment for the plugins it bumps; leaving it alone." ;;
+            0)
+              if ! git merge-base --is-ancestor "$main_sha" "$head" &&
+                [ "$(gh api "repos/$GITHUB_REPOSITORY/commits/$head/check-runs?check_name=ci-status" \
+                  --jq '.check_runs | sort_by(.started_at) | last | .conclusion // "pending"')" = failure ]; then
+                echo "Release pull request #$(jq -r .number <<<"$pr") failed ci-status on a base behind main; rebuilding."
+                build=true
+              else
+                echo "Release pull request #$(jq -r .number <<<"$pr") consumes every pending fragment for the plugins it bumps; leaving it alone."
+              fi
+              ;;
             1) build=true ;;
             *) exit "$rc" ;;
             esac
