@@ -55,6 +55,23 @@ class Running(ShareCase):
 
 
 class TestEnsureRunning(Running):
+    def test_a_ping_that_names_no_guest_port_refuses_and_leaves_the_tunnel_alone(self):
+        before = tunnel.read(self.d)
+        real, calls = share_cli.bridge.ping, []
+
+        def ping(port, timeout=1.0):  # the first ping finds the server; the second, for its guest port, fails
+            calls.append(port)
+            return None if len(calls) == 2 else real(port, timeout)
+
+        a = share_cli.parser().parse_args(["--dir", str(self.d), "ensure-running"])
+        with mock.patch.dict(os.environ, env()), mock.patch.object(share_cli.bridge, "ping", side_effect=ping):
+            with self.assertRaises(share_cli.Refused) as ctx:
+                share_cli.bring_up(self.d, a)
+        self.assertEqual(ctx.exception.code, 2)
+        after = tunnel.read(self.d)
+        self.assertEqual((after["pid"], after["url"]), (before["pid"], before["url"]))
+        self.assertIsNotNone(detached.exe_name(before["pid"]))
+
     def test_it_answers_the_contract_fields(self):
         out = self.first
         self.assertEqual(sorted(out), ENSURE_KEYS)

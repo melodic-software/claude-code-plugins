@@ -303,6 +303,8 @@ def bring_up(d, a):
                     (d / tunnel.RECORD).unlink(missing_ok=True)
                 raise
         port = (bridge.ping(s["port"]) or {}).get("guestPort")
+        if type(port) is not int:  # a tunnel to no port would replace one that works
+            raise Refused(2, "the server did not name its guest port; run ensure-running again")
         rec, down = None, None
         try:
             rec = tunnel.ensure(d, port)
