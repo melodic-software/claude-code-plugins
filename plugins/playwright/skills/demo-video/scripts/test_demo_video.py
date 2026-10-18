@@ -380,7 +380,7 @@ class DemoPipelineSmoke(unittest.TestCase):
         self.assertTrue(edl_path.with_suffix('.rejected.json').exists())
 
     def test_refusal_names_the_steps_whose_shot_search_found_nothing(self):
-        # A page where no zoom rect passes the edge test refused with only "no empty anchor" for the captions.
+        # No zoom rect passes the edge test, so every caption also has no empty anchor.
         cfg = self.tmp / 'refuse-shots.json'
         cfg.write_text(json.dumps({'camera': {'edge_ink': -1}}))
         r = run('build_edl.py', self.tmp / 'capture', self.tmp / 'script.json', self.tmp / 'edl-noshot.json', '--config', cfg)
@@ -388,7 +388,7 @@ class DemoPipelineSmoke(unittest.TestCase):
         self.assertIn('shot search: no click shot passed for get-started, search, open-result', r.stdout)
 
     def test_an_outcome_hold_lasts_its_reading_time_and_passes_stillness_with_the_camera_off(self):
-        # The evidence demo showed an 8-word outcome for 1.37 s: still_max capped the end hold it sat in.
+        # Long outcomes on an in-place step and on the last step, with no camera drift to break the stillness.
         per_word = json.loads((HERE / 'defaults.json').read_text())['captions']['seconds_per_word']
         script = json.loads(json.dumps(SCRIPT))
         script['steps']['search']['outcome'] = 'Three results for abc, the first one is open'   # a step that stays on its page

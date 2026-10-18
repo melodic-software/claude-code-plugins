@@ -82,7 +82,8 @@ overwrites one. Paths in these files are relative to the production directory an
 9. Before delivery, hand the film to a fresh-context reviewer (a subagent that is not a fork) with
    the brief in [reference/independent-review.md](reference/independent-review.md). The builder
    never decides the film ships: fix what the review finds, render, check and review again with a
-   new reviewer, and deliver only on its SHIP.
+   new reviewer, and deliver only on its SHIP. After three reviews without a SHIP, stop and report
+   the open findings to the user.
 
 Pass `--cuts` the `shots.json` path, never a retyped list.
 

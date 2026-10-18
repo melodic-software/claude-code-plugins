@@ -290,13 +290,13 @@ def normalize(wav, out, measured, target=LOUDNESS):
 
 def loudness_defects(measured, target=LOUDNESS):
     """The delivered file's integrated loudness against the target and its true peak against the ceiling."""
-    i, tp = float(measured['input_i']), float(measured['input_tp'])
+    integrated, true_peak = float(measured['input_i']), float(measured['input_tp'])
     defects = []
-    if abs(i - target['integrated_lufs']) > target['tolerance_lu']:
-        defects.append(f'integrated loudness {i:.1f} LUFS is more than {target["tolerance_lu"]} LU from the '
+    if abs(integrated - target['integrated_lufs']) > target['tolerance_lu']:
+        defects.append(f'integrated loudness {integrated:.1f} LUFS is more than {target["tolerance_lu"]} LU from the '
                        f'{target["integrated_lufs"]} LUFS target')
-    if tp > target['true_peak_max_dbtp']:
-        defects.append(f'true peak {tp:.1f} dBTP is over the {target["true_peak_max_dbtp"]} dBTP ceiling')
+    if true_peak > target['true_peak_max_dbtp']:
+        defects.append(f'true peak {true_peak:.1f} dBTP is over the {target["true_peak_max_dbtp"]} dBTP ceiling')
     return defects
 
 
@@ -447,8 +447,8 @@ def main(argv=None):
     for f in flags:
         print(f'FLAG: {f}')
     if loudness:
-        got = loudness['delivered']
-        print(f'LOUDNESS: {got["integrated_lufs"]:.1f} LUFS, true peak {got["true_peak_dbtp"]:.1f} dBTP '
+        shipped = loudness['delivered']
+        print(f'LOUDNESS: {shipped["integrated_lufs"]:.1f} LUFS, true peak {shipped["true_peak_dbtp"]:.1f} dBTP '
               f'({loudness["normalization_type"]} normalization)')
     for s in stills:
         spoken = f', {s["words"]} words spoken' if 'words' in s else ''

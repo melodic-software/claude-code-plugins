@@ -77,13 +77,13 @@ def beat_defects(marks, starts, fps):
 
 
 def _sentences(run):
-    out, cur = [], []
+    out, current = [], []
     for w in run:
-        cur.append(w)
+        current.append(w)
         if set(w['word'].rstrip(CLOSERS)[-1:]) & SENTENCE_END:
-            out.append(cur)
-            cur = []
-    return out + [cur] if cur else out
+            out.append(current)
+            current = []
+    return out + [current] if current else out
 
 
 def _balanced(sentence, limit):
@@ -126,8 +126,8 @@ def captions(record, beats, limit=None, min_seconds=None, per_word=None):
     runs = [r for b in beat_runs for r in b]
     cues = []
     for i, r in enumerate(runs):
-        nxt = runs[i + 1][0]['start'] if i + 1 < len(runs) else record['duration']
-        end = min(max(r[-1]['end'], r[0]['start'] + max(min_seconds, per_word * len(r))), nxt)
+        next_start = runs[i + 1][0]['start'] if i + 1 < len(runs) else record['duration']
+        end = min(max(r[-1]['end'], r[0]['start'] + max(min_seconds, per_word * len(r))), next_start)
         cues.append((r[0]['start'], round(end, 3), ' '.join(w['word'] for w in r)))
     return cues
 

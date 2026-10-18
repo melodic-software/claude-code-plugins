@@ -98,8 +98,8 @@ record bundle or beside the markdown record they explain
   target or its true peak is over the ceiling. The ceiling is a maximum, not the limiter's aim, which
   sits lower to leave the AAC encode room. The narrated target is our judgment, from published
   speech and streaming targets; the values are `loudness` in
-  `${CLAUDE_PLUGIN_ROOT}/scripts/defaults.json`. `loudnorm` may fall back from linear to dynamic normalization; the report records which ran, and the second
-  measurement is what passes or fails the file.
+  `${CLAUDE_PLUGIN_ROOT}/scripts/defaults.json`. The report records which normalization ran, and
+  the second measurement is what passes or fails the file.
   - **Pointer**: when a target or the fallback rule is in question, fetch EBU R 128 section 5
     (<https://tech.ebu.ch/docs/r/r128.pdf>), EBU R 128 s2 section 3
     (<https://tech.ebu.ch/docs/r/r128s2.pdf>) and

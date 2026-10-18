@@ -11,4 +11,4 @@ bump: minor
 
 - **Capture waits for the scene to finish loading.** `render.html` exposes the scene import as `window.sceneReady` and `capture.mjs` waits on it, so a `DURATION` set after a top-level `await` is the one read.
 - The skill documents `--root` for sharing modules and the shot-module contract (`drawShot(ctx, t)`).
-- The `offstep` description in `inkstats.py` and the learn-style statistics reference now say what the code counts: a 2 then a 4 on 3s is one uncounted pair, and a lone 2 or 4 counts in both its pairs.
+- The `offstep` description in `inkstats.py` and the learn-style statistics reference now say what the code counts: a 2 then a 4 on 3s counts as one on-step pair, and a lone 2 or 4 counts in both its pairs.

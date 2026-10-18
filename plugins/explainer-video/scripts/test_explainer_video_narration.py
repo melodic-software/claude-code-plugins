@@ -193,7 +193,7 @@ class Mux(unittest.TestCase):
             d = Path(tmp)
             subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=duration=6:size=320x240:rate=15',
                             '-pix_fmt', 'yuv420p', str(d / 'v.mp4')], check=True)
-            # a tone 22 dB under full scale, like the -22 LUFS narration the evidence run shipped
+            # a tone 22 dB under full scale, far under the narrated target
             subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=6',
                             '-af', 'volume=-22dB', '-ar', '24000', '-ac', '1', str(d / 'n.wav')], check=True)
             (d / 'c.srt').write_text(narration.srt([(0.0, 1.0, 'Take a right triangle.')]), encoding='utf-8')
@@ -221,9 +221,9 @@ class LoudnessDefects(unittest.TestCase):
         (d,) = render.loudness_defects({'input_i': '-16.0', 'input_tp': '-0.9'}, self.TARGET)
         self.assertIn('true peak -0.9 dBTP is over the -1.0 dBTP ceiling', d)
 
-    def test_the_target_lives_in_defaults_json(self):
-        defaults = json.loads((HERE / 'defaults.json').read_text(encoding='utf-8'))['loudness']
-        self.assertEqual(render.LOUDNESS, defaults)
+    def test_the_shipped_target_is_narrated_level_with_a_one_dbtp_ceiling(self):
+        self.assertEqual((render.LOUDNESS['integrated_lufs'], render.LOUDNESS['true_peak_max_dbtp']), (-16.0, -1.0))
+        self.assertLess(render.LOUDNESS['limiter_true_peak_dbtp'], render.LOUDNESS['true_peak_max_dbtp'])
 
 
 class Stills(unittest.TestCase):

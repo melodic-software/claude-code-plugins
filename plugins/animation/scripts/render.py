@@ -159,8 +159,10 @@ def main(argv=None):
     shots = None
     if a.shots:
         shots, err = produce.load_json(a.shots)
-        if err or not isinstance(shots, dict) or not shots.get('shots'):
-            ap.error(f'--shots {a.shots}: {err or "no shots"}')
+        last = (shots.get('shots') or [None])[-1] if isinstance(shots, dict) else None
+        if err or not isinstance(last, dict) or 't1' not in last or not {'fps', 'size'} <= set(shots):
+            ap.error(f'--shots {a.shots}: {err or "needs fps, size and shots ending in a t1"}; '
+                     'run produce.py shots on it first')
     if a.encode != 'none':   # fail before the render, not after it
         prereq.require(['ffmpeg', 'numpy', 'opencv'] + (['libx264'] if a.encode == 'mp4' else []))
     meta = render(a.scene, a.out, a.fps, a.drawings, a.query, [r.resolve() for r in a.root], a.workers,

@@ -19,8 +19,8 @@ def have_chromium():
 
 HAVE = have_chromium()
 
-# A scene whose shared code sets the hooks first and whose own setup finishes after a top-level await: the first
-# film of the evidence run, which read DURATION before its await and wrote a tenth of its frames with exit 0.
+# Shared code sets the hooks and a placeholder DURATION first; the scene's own setup finishes after a top-level
+# await, so a capture that reads DURATION too early writes half the frames.
 LATE = """const c = document.getElementById('c'); c.width = 8; c.height = 8;
 window.DURATION = 1;
 window.renderFrame = async () => { c.getContext('2d').fillRect(0, 0, 8, 8); };
@@ -65,6 +65,14 @@ class Render(unittest.TestCase):
         r, _ = self.render(SHORT, '--shots', str(self.shots(2)))
         self.assertEqual(r.returncode, 1, r.stderr)
         self.assertIn('does not cover the shot list through 2', r.stderr)
+
+    def test_a_shot_list_missing_its_fields_is_refused_before_rendering(self):
+        bad = self.dir / 'bad-shots.json'
+        bad.write_text(json.dumps({'shots': [{'id': 's1'}]}), encoding='utf-8')
+        r, meta = self.render(SHORT, '--shots', str(bad))
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn('needs fps, size and shots ending in a t1', r.stderr)
+        self.assertIsNone(meta)
 
     def test_a_film_that_matches_its_shot_list_passes(self):
         r, _ = self.render(SHORT, '--shots', str(self.shots(1)))

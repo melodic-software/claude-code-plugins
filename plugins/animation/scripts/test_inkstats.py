@@ -95,7 +95,7 @@ class WorkDirFinalHold(unittest.TestCase):
 
 @unittest.skipUnless(not MISSING, f'numpy/opencv missing: {MISSING}')
 class Offstep(unittest.TestCase):
-    """The docstring's reading: a 2 then a 4 on 3s is one uncounted pair; a lone 2 or 4 counts in both its pairs."""
+    """The docstring's reading: a 2 then a 4 on 3s is one on-step pair; a lone 2 or 4 counts in both its pairs."""
 
     @staticmethod
     def rows(frames):

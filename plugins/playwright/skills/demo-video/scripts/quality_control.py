@@ -318,7 +318,7 @@ def main(argv=None):
 
     def read_in(r):
         a0, a1 = r[0] / fps, (r[1] + 1) / fps
-        return max([rd for h0, h1, rd in reads if h0 < a1 and h1 > a0] or [0.0])
+        return max([seconds for start, end, seconds in reads if start < a1 and end > a0] or [0.0])
 
     def span(r):   # a run of n still frames spans n frames, one more than its n-1 gaps
         return (r[1] - r[0] + 1) / fps
