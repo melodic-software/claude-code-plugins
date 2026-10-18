@@ -571,9 +571,11 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
 - **Switch.** `merge.dependabot.mode` decides it, not `merge.report-only`: `enforce` merges,
   `report` reports and writes nothing, and `off` (the default) refuses every Dependabot pull
   request and leaves them unlisted.
-- **Majors.** `merge.dependabot.majors` decides a pull request with a major update: `hold` (the
-  default, and any value but `review`) refuses it with the reason
-  `dependabot-major-held:<names>` whatever the review verdict says, and the lane escalates it once
+- **Majors.** `merge.dependabot.majors` decides a pull request with a major update, or with an
+  update whose version cannot be read (a SHA pin, an unparsed title): `hold` (the default, and any
+  value but `review`) refuses it with the reason `dependabot-major-held:<names>`, an unreadable
+  entry written `<name>(unreadable)` (`updates(unreadable)` when no update reads), whatever the
+  review verdict says, and the lane escalates it once
   (a marked comment, then the tracker's human-gated role label), so a person merges it. `review`
   leaves it tier `review`, merged on the verdict above.
 

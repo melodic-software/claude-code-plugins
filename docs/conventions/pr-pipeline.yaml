@@ -329,8 +329,9 @@ merge:
   # (every update non-major, allowed Actions publishers) merges once ci-status
   # passes; tier review merges once the pr-unblock review leaves a merge
   # verdict at the head and ci-status passes. Owner decision 2026-10-18: a
-  # major update waits for a human whatever the verdict (`majors: hold`);
-  # `review` lets the verdict merge it.
+  # major update, or one whose version cannot be read (a SHA pin), waits for a
+  # human whatever the verdict (`majors: hold`); `review` lets the verdict
+  # merge it.
   dependabot:
     mode: enforce
     majors: hold

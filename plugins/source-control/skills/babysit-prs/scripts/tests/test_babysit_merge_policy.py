@@ -4166,6 +4166,38 @@ class DependabotEligibility(unittest.TestCase):
         self.assertEqual(result.reason, "dependabot-major-held:x")
         self.assertIsNone(result.dependabot.approved)
 
+    SHA_PIN = dependabot_commit(
+        message=(
+            "build(deps): bump x\n\n---\nupdated-dependencies:\n"
+            f"- dependency-name: x\n  dependency-version: {'a' * 40}\n"
+            "  dependency-type: direct:production\n...\n"
+        )
+    )
+
+    def test_a_sha_pin_bump_is_held_despite_a_merge_verdict(self) -> None:
+        # Fail closed: an unreadable version may be a major.
+        self.fake(commits=[self.SHA_PIN], comments=[self.marker()])
+        result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "dependabot-major-held:x(unreadable)")
+        self.assertEqual(result.dependabot.reasons, ("unparsed-version:x",))
+
+    def test_with_majors_review_the_verdict_path_is_unchanged(self) -> None:
+        for commit, why in (
+            (dependabot_commit("semver-major"), "major:x"),
+            (self.SHA_PIN, "unparsed-version:x"),
+        ):
+            with self.subTest(why=why):
+                self.fake(commits=[commit])
+                self.assertEqual(
+                    self.eligibility(hold_majors=False).reason,
+                    f"dependabot-review:{why};review-verdict-missing",
+                )
+                self.fake(commits=[commit], comments=[self.marker()])
+                result = self.eligibility(hold_majors=False)
+                self.assertTrue(result.eligible, result.reason)
+                self.assertEqual(result.dependabot.approved, "55-1")
+
     def test_a_minor_bump_still_merges_while_majors_are_held(self) -> None:
         self.fake()
         result = self.eligibility(hold_majors=True)

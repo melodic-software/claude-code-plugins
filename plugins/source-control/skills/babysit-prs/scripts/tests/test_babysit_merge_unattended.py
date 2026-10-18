@@ -2328,6 +2328,15 @@ class DependabotMajorEscalation(unittest.TestCase):
             out["majorEscalation"], {"label": "added", "comment": "created"}
         )
 
+    def test_an_unreadable_version_hold_is_escalated_the_same_way(self) -> None:
+        out = self.writes("ineligible:dependabot-major-held:x(unreadable)")
+        comment, label = self.calls
+        self.assertIn("`x(unreadable)`", comment[-1])
+        self.assertEqual(label[-1], "labels[]=status: needs-decision")
+        self.assertEqual(
+            out["majorEscalation"], {"label": "added", "comment": "created"}
+        )
+
     def test_a_rerun_writes_nothing(self) -> None:
         self.pr_labels = [{"name": "Status: Needs-Decision"}]
         self.comments = [

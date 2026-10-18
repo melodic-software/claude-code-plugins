@@ -3121,10 +3121,11 @@ def major_escalation_body(majors: str, head: str) -> str:
     return "\n".join(
         [
             MAJOR_ESCALATION_MARKER,
-            f"Unattended merge: `{majors}` is a major version update at head "
-            f"`{head}`. This repository holds major Dependabot updates for a "
-            "human (`merge.dependabot.majors: hold`), whatever the review "
-            "verdict says; the pr-merge lane will not merge this pull request.",
+            f"Unattended merge: `{majors}` is a major version update, or one "
+            f"whose version cannot be read, at head `{head}`. This repository "
+            "holds those Dependabot updates for a human "
+            "(`merge.dependabot.majors: hold`), whatever the review verdict "
+            "says; the pr-merge lane will not merge this pull request.",
         ]
     )
 

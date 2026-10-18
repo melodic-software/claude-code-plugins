@@ -422,8 +422,9 @@ class PipelineConfig:
     # whatever `merge.report-only` says.
     dependabot_mode: str = "off"
     # `merge.dependabot.majors`: `hold` (absent, or any other value) refuses a
-    # Dependabot pull request with a major update whatever the review verdict
-    # says, so a human merges it; `review` lets the verdict merge it.
+    # Dependabot pull request with a major update, or one whose version cannot
+    # be read, whatever the review verdict says, so a human merges it;
+    # `review` lets the verdict merge it.
     dependabot_majors: str = "hold"
     # The pr-merge lane's risk switches under `merge.diff-check` (owner
     # decision Q624): absent, the HIGH path floor and the C2 contradictions
@@ -1642,7 +1643,7 @@ def dependabot_eligibility(
     fork, opened by Dependabot's App; tier `auto` (`babysit_dependabot.classify`),
     or tier `review` with the lanes App's `verdict=merge` round marker at the
     current head (`merge_verdict`) and, under `hold_majors`
-    (`merge.dependabot.majors: hold`), no major update, where a diff beyond the manifests, lock
+    (`merge.dependabot.majors: hold`), no major or unreadable update, where a diff beyond the manifests, lock
     files and `uses:` repins Dependabot manages also makes the tier `review`;
     every commit Dependabot's (plus, after a review, the lanes App's
     `[dependabot skip]` fixes) and every push Dependabot's (or that commit's
@@ -1728,7 +1729,14 @@ def dependabot_eligibility(
         # A tier `review` pull request merges only on the review activity's
         # `verdict=merge` at this head, and may then carry its fix commits.
         lane_commits = None
-        majors = [u.name for u in tier.updates if u.major]
+        # Fail closed: an update whose version cannot be read (a SHA pin), or
+        # no readable update at all, is held like a major, marked
+        # `(unreadable)`.
+        majors = [
+            u.name if u.major else f"{u.name}(unreadable)"
+            for u in tier.updates
+            if u.major is not False
+        ] or ([] if tier.updates else ["updates(unreadable)"])
         if hold_majors and majors:
             return Eligibility(
                 False,

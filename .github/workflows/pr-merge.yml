@@ -15,8 +15,9 @@ name: pr-merge
 # allowed publisher (tier `auto`) merges as is. Anything riskier (tier
 # `review`: another Actions publisher, a red `ci-status`) merges only after
 # the pr-unblock lane's AI review leaves a `verdict=merge` marker, written by
-# the lanes App, for the PR's current commit. A major bump waits for a human
-# whatever the verdict while `merge.dependabot.majors` is `hold`.
+# the lanes App, for the PR's current commit. A major bump, or one whose
+# version cannot be read, waits for a human whatever the verdict while
+# `merge.dependabot.majors` is `hold`.
 #
 # It runs no AI model and never checks out a PR's own code: every script it
 # runs comes from the main branch. The rules live in
