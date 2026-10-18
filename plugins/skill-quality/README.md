@@ -20,7 +20,7 @@ the reviewer to confirm the description still names that intent, or to restore t
 
 ## Checks
 
-`check` runs `check-skill.sh`. Thirty-one checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
+`check` runs `check-skill.sh`. Thirty checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
 
 - Frontmatter parses; `description` present; a declared `name` is kebab-case and matches the skill
   directory (in a plugin skill it also WARNs as redundant, because the field defaults to the directory).
@@ -135,8 +135,8 @@ the reviewer to confirm the description still names that intent, or to restore t
   with `origin` when that is unset, also warns; with no base, or for a new skill, the growth half
   is skipped with an INFO. `/playbooks:skill-authoring` (`## Descriptions`, `## Body`) owns the
   rule.
-- Settings tokens as conditions (`FAIL:`, blocking). A sentence that opens with `When`, `If` or
-  `Unless` and makes a `${user_config.KEY}` token its subject (`is true`, `is on`, `is false`)
+- Settings tokens as conditions (`FAIL:`, blocking). A sentence with `when`, `if` or `unless`
+  before a `${user_config.KEY}` token that is its subject (`is true`, `is on`, `is false`)
   fails unless the same sentence states what an unexpanded token means, e.g. "(unexpanded, empty,
   or any other value means `false`)", or describes substitution itself: an unset key can arrive
   as the literal token, which is neither true nor false. Reads `SKILL.md` and every other skill
@@ -229,7 +229,7 @@ stands alone.
   identity, stale metadata, committed artifacts) skip with a note outside a repo so
   marketplace plugin-cache installs (plain trees) still run the rest of the gate.
 - `npx` (Node) is optional; without it the markdownlint check downgrades to a warning and the other
-  thirty still run.
+  twenty-nine still run.
 
 ## Description-invocation probes
 

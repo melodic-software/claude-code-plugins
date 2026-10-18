@@ -5211,6 +5211,26 @@ else
   fail "check 31 should pass the unexpanded ... means fallback (rc=$rc): $out"
 fi
 
+st_skill st-abbrev 'When `${user_config.x}` is true (e.g. on CI; unexpanded or empty means `false`), prefix lines.
+
+When `${user_config.y}` is true, prefix lines, i.e. mark them (unset means false).'
+out="$(run_st "$ST_EMPTY" st-abbrev 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'INFO: no settings token used as a condition without a fallback' <<<"$out"; then
+  pass "check 31 keeps a sentence whole across e.g. and i.e., so its fallback counts"
+else
+  fail "check 31 should not split a sentence at e.g. or i.e. (rc=$rc): $out"
+fi
+
+st_skill st-subst-verb 'When `${user_config.x}` is true, substitute tabs for spaces.'
+out="$(run_st "$ST_EMPTY" st-subst-verb 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'at SKILL.md:8 (x)' <<<"$out"; then
+  pass "check 31 FAILs a misread whose only substitution word is about the task, not the token"
+else
+  fail "check 31 should FAIL 'substitute tabs' as a misread (rc=$rc): $out"
+fi
+
 st_skill st-else-form 'Use the rendered `${user_config.active_profile}` value when non-empty, else the root `default`.
 
 When `${user_config.x}` is substituted, Claude Code replaces it before the model reads it.'
@@ -5289,6 +5309,15 @@ if [[ $rc -eq 1 ]] && grep -q 'st-tidy-form/SKILL.md now has no hits — remove 
   pass "check 31 FAILs stale rows: a file with no hits and a file that is gone"
 else
   fail "check 31 should FAIL zero-hit and missing-file rows (rc=$rc): $out"
+fi
+# shellcheck disable=SC2016  # the command substitution is the literal payload under test
+printf '.claude/skills/st-misread/SKILL.md x[$(touch${IFS}%s)]\n' "$TMP/st-injected" >"$ST_BASE"
+out="$(run_st "$ST_BASE" st-misread 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && [[ ! -e "$TMP/st-injected" ]] && grep -q 'has a non-numeric count — fix the row' <<<"$out"; then
+  pass "check 31 FAILs a non-numeric baseline count without evaluating it"
+else
+  fail "check 31 should FAIL a non-numeric count and never evaluate it (rc=$rc): $out"
 fi
 out="$(run_st "$TMP/no-such-baseline.txt" st-tidy-form 2>&1)"
 rc=$?

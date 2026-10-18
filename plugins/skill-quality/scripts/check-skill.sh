@@ -2472,7 +2472,7 @@ settings_token_hits() { # one .md file; prints "<line>\t<key>" per hit
     }
     function judge(s, off,   low, rest, pos, tok, key, k, line) {
       low = tolower(s)
-      if (low ~ /(unexpanded|unset).*means/ || low ~ /substitut/) return
+      if (low ~ /(unexpanded|unset).*means/ || (low ~ /substitut/ && low ~ /token|placeholder/)) return
       pos = 0
       rest = s
       while (match(rest, /[$][{]user_config[.][A-Za-z0-9_]+[}]/)) {
@@ -2496,6 +2496,7 @@ settings_token_hits() { # one .md file; prints "<line>\t<key>" per hit
       t = mask(t, "[]][(][^)]*[)]")
       t = mask(t, "<[a-z]+:[^>]*>")
       t = mask(t, "https?:[^[:space:]]*")
+      t = mask(t, "(e[.]g|i[.]e|[Ee]tc|vs|cf)[.]")
       start = 1
       for (i = 1; i <= length(t); i++) {
         c = substr(t, i, 1)
@@ -2547,6 +2548,10 @@ while IFS= read -r st_md; do
     st_base="$(settings_token_row_count "$SETTINGS_TOKEN_BASELINE" "$st_rel")"
     ST_SEEN="$ST_SEEN$st_rel"$'\n'
   fi
+  if [[ -n "$st_base" && ! "$st_base" =~ ^[0-9]+$ ]]; then
+    err "settings-token baseline row for $st_rel in $ST_LABEL has a non-numeric count — fix the row"
+    continue
+  fi
   st_count=0
   [[ -n "$st_hits" ]] && st_count="$(grep -c . <<<"$st_hits")"
   if ((st_count == 0)); then
@@ -2555,7 +2560,10 @@ while IFS= read -r st_md; do
     continue
   fi
   ST_ANY=1
-  st_where="$(awk -F '\t' -v f="$st_file" '{ printf "%s%s:%s (%s)", (NR > 1 ? ", " : ""), f, $1, $2 }' <<<"$st_hits")"
+  st_where=""
+  while IFS=$'\t' read -r st_line st_key; do
+    st_where="${st_where:+$st_where, }$st_file:$st_line ($st_key)"
+  done <<<"$st_hits"
   # shellcheck disable=SC2016  # backticks are literal Markdown in the message
   st_fix='state the fallback in the same sentence, e.g. "(unexpanded, empty, or any other value means `false`)", as `/code-tidying:tidy` does for `hard_exclusions`'
   if [[ -z "$st_base" ]]; then
