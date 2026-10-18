@@ -961,8 +961,8 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 | 403 | `wrong-owner`, `repo-not-allowed`, `self-hosted-runner` | Not a melodic-software repository on the broker's allowlist, or not a GitHub-hosted runner |
 | 403 | `event-not-allowed` | Not `pull_request` on `refs/pull/<n>/merge`, or `workflow_dispatch` or `workflow_run` on `refs/heads/main`, or `issues` on `refs/heads/main` from `work-resolve-issue.yml`, or `schedule` on `refs/heads/main` from `pr-merge.yml` or `work-unblock.yml` only |
 | 403 | `workflow-not-allowed` | The job is not this repository's `pr-run-activity-write.yml`, or the caller is not a lane under `lanes:` in the tip's `pr-pipeline.yaml` |
-| 403 | `workflow-modified` | The caller or `pr-run-activity-write.yml` differs from the default-branch tip |
-| 403 | `workflow-modified` | With `dispatcher_run_id`: the dispatcher workflow at the dispatcher run's head differs from the tip |
+| 403 | `workflow-modified` | The caller or `pr-run-activity-write.yml` differs from the default-branch tip (a report job, `work-resolve-issue` `report-outcome` or `pr-unblock` `report-escalation`, still mints when every main commit that changed the file is signed, GitHub-made, on a linear range and landed after run start, at most 50 minutes ago: [azure-iac#39](https://github.com/melodic-software/azure-iac/pull/39)) |
+| 403 | `workflow-modified` | With `dispatcher_run_id`: the dispatcher workflow at the dispatcher run's head differs from the tip (same report-job exception) |
 | 403 | `lane-mismatch` | The requested lane is not the caller's file stem |
 | 403 | `activity-not-in-lane`, `slot-disabled`, `config-invalid`, `effect-forbidden-by-lane` | The tip config does not give this activity a write grant |
 | 403 | `effect-read` | The activity is `read`; it belongs in the read file |

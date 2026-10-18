@@ -771,7 +771,10 @@ trust-root change are:
   or re-runner, and the lanes bot never starts a write run;
 - the broker's workflow-path rule: it mints only for a lane caller listed in the default-branch
   config, calling a `pr-run-activity-write.yml` byte-equal to the tip, and the App token never
-  holds `workflows`, so no lane can push `.github/workflows/`;
+  holds `workflows`, so no lane can push `.github/workflows/`. The one exception is a lane's
+  post-run report job, which may still mint after a signed GitHub-made commit changed a lane
+  workflow on main during the run
+  ([azure-iac#39](https://github.com/melodic-software/azure-iac/pull/39));
 - the merge queue and the required `ci-status` check, which no lane can write;
 - required review-thread resolution;
 - the kill switch;
