@@ -12,6 +12,13 @@ those merged. Over a cap the check alerts, and pauses the lane only on or after 
 (empty: never). The check publishes its status as the `wip` step output, the step summary and its
 log line ([README, WIP cap](README.md#wip-cap)). `version` stays 2.
 
+## 2.12.5 - 2026-10-18
+
+The unattended merge gate reads `merge.max-in-flight` at the default branch head instead of at each
+pull request's base, once per cache window; when the head's config cannot be read, the base's value
+applies, and the post-enqueue room check keeps the lower of that and the cap the assessment applied. Every other `merge.` key is still read at the base.
+`version` stays 2.
+
 ## 2.12.4 - 2026-10-18
 
 `pr-run-activity-read.yml` takes a `dispatcher-run-id` input and passes it to its trigger gate with
