@@ -17,14 +17,15 @@ independent review of the prototype video, which set the acceptance rules this q
 | `edge-clip` | On settled zoomed frames, every frame edge that is not the page edge lies in a gutter of the capture under it | `quality_control.edge_ink_max`, `quality_control.edge_band`; the plan uses the wider `camera.gutter_band` |
 | `target-headroom` | Each click target is in shot with headroom at its click | `camera.safe_margin` (half of it in quality control) |
 | `caption-anchor` | Captions use only the primary anchor or the one fixed fallback | `captions.anchors` (first two) |
-| `stillness` | No still stretch (caption band masked) longer than the limit: `still_max` plus one frame, the span a run of still frames covers | `quality_control.still_max` 1.5 s |
+| `stillness` | No still stretch (caption band masked) longer than the limit: `still_max` plus one frame, the span a run of still frames covers. A stretch in a hold that shows an outcome may also take that outcome's reading time (the EDL hold's `read`) | `quality_control.still_max` 1.5 s; `captions.seconds_per_word`, `captions.min_seconds` |
 | `motion` | Each move's peak zoom and pan speed and acceleration, from its measured 10-90% duration and total change | `motion.max_zoom_rate` 0.8/s, `max_zoom_accel` 4.0/s², `max_pan_speed` 0.5 frame widths/s, `max_pan_accel` 2.5/s², tolerance `quality_control.motion_tolerance`; the plan also keeps moves at or above `motion.min_move_duration` 0.55 s |
 | `nav-cuts` | Each page cut has the camera still across it. A cut that changes the URL is taken at 1.0x (zoom measured from the frames at or below the limit); an in-page state cut at 1.0x or with clean edges. The EDL's `nav_cuts` say only where the URL changes | `quality_control.nav_zoom_max`, `quality_control.nav_change_min` |
 | `crossfade` | No frame near a page change is a blend of its neighbors | `quality_control.crossfade_gain` |
 | `blank` | No flat, white or black frame after the title | `quality_control.blank_std`, `quality_control.white_luma` |
 | `capture-match` | Every page frame matches its capture | `quality_control.match_min` |
 
-Checks that depend on the camera report `SKIP` in the plain style.
+Checks that depend on the camera report `SKIP` when the camera layer is off: in the plain style,
+or with `demo_camera` off in the produced style.
 
 Outputs in the quality-control directory: `quality-control.json` (every check, its detail, and the measured zoom per frame),
 `sheet-key-moments.png` (cuts, zoom peaks, the longest still) and, for each failing check,
@@ -34,4 +35,12 @@ independent reviewer.
 Where the numbers came from: the motion limits were set while tuning the prototype for motion
 comfort, the 60% at 1.2x zoom share, the gutter rule, the 1.5 s stillness limit, the 0.55 s
 minimum move and the 1.0x navigation cut are the fixes the independent frame review of the fifth
-prototype cut required.
+prototype cut required. An outcome's reading time per word and its floor follow subtitle timing
+guidance, our choice for on-screen text in a demo.
+
+- **Pointer**: when the reading time or the floor is in question, fetch BBC Subtitle Guidelines
+  section 4.1 (<https://www.bbc.co.uk/accessibility/forproducts/guides/subtitles/>) and
+  <https://partnerhelp.netflixstudios.com/hc/en-us/articles/360051554394-Timed-Text-Style-Guide-Subtitle-Timing-Guidelines>
+  live.
+- **As of**: 2026-10-17
+- **Recheck trigger**: a new version of either guide changes its minimum duration or reading time.
