@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 2.12.2 - 2026-10-18
+## 2.12.3 - 2026-10-18
 
 `pr-unblock` `address-feedback` widens a kept thread's scope from its path alone to also a file in
 the `plugins/<p>/` directory that path sits in, and a test file (`test_*.py`, `*_test.py`,
@@ -11,6 +11,18 @@ part leaves out files the harness or a shell runs or loads as instructions: anyt
 `.sh`, `.py`, `.mjs`, `.js` or `.ts` file. The review-thread tool, the promote step and the reply
 job apply the same rule; the promote step imports the base's `thread-scope.mjs` from a copy taken
 before the head checkout, checked against its SHA-256. `.github/` stays refused. `version` stays 2.
+
+## 2.12.2 - 2026-10-18
+
+On a pull request labeled `needs-human` (the human-gated role label), `pr-unblock`
+`address-feedback` works a thread when a person on the trusted-actor list with write or admin
+permission asks for the fix: a line of their reply after the lane's escalation starts with
+`PR-fix lane: please fix this finding`, in any case, outside a fenced block. Without one the
+dispatcher starts nothing and the select step skips `awaiting-human`, so the pull request stays
+held; with one the write runner lifts only the human-gated hold for that run
+([pr-run-activity.md](pr-run-activity.md#prepare-review-threads)). Its `labels-absent` is
+`[do-not-merge]`, `do-not-merge` still stops it, every other activity still waits on
+`needs-human`, and `pr-merge` still refuses a `needs-human` pull request. `version` stays 2.
 
 ## 2.12.1 - 2026-10-18
 
