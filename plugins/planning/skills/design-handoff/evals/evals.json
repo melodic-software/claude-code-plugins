@@ -105,6 +105,33 @@
         "Dimensions the artifact records nothing about read `none` rather than being invented",
         "The coverage report does not turn the early-exit handoff into a FAIL"
       ]
+    },
+    {
+      "id": 9,
+      "name": "adr-candidates-tested-one-passes",
+      "prompt": "/planning:design-handoff — treat evals/fixtures/design-threads-one-adr-worthy.md (relative to the skill directory) as the topic's design-threads.md. Run the gate and, if it passes, hand off to /planning:plan with the ADR candidates.",
+      "expected_output": "The gate PASSes. The handoff applies the ADR admission test to each resolved decision and lists exactly one candidate, the tunnel exposure boundary, with pass and one line of evidence on each of the three criteria (costly to undo, not obvious from the code, chosen over a live alternative). The data folder and log format decisions are named as failing, each with the criterion it fails.",
+      "files": ["evals/fixtures/design-threads-one-adr-worthy.md"],
+      "expectations": [
+        "Output reports a PASS and emits the handoff summary",
+        "The ADR candidates list holds exactly one candidate: the tunnel exposure boundary decision",
+        "That candidate shows pass or fail on each of the three criteria with one line of evidence each, including the rejected alternative (direct exposure with per-request token checks) taken from the artifact",
+        "The data-folder-per-session and log line format decisions are not listed as candidates and are named as failing, each naming the criterion it fails (costly to undo and/or not obvious from the code)",
+        "Any offer to invoke /architecture:record-decision applies only to the listed candidate, not to the two that failed"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "adr-candidates-none",
+      "prompt": "/planning:design-handoff — treat evals/fixtures/design-threads-no-adr-worthy.md (relative to the skill directory) as the topic's design-threads.md. Run the gate and, if it passes, hand off to /planning:plan with the ADR candidates.",
+      "expected_output": "The gate PASSes. Every resolved decision is cheap to undo and visible in the code, so none passes the ADR admission test and the handoff says \"None\" for ADR candidates instead of listing routine decisions.",
+      "files": ["evals/fixtures/design-threads-no-adr-worthy.md"],
+      "expectations": [
+        "Output reports a PASS and emits the handoff summary",
+        "The ADR candidates entry says None and lists no candidate",
+        "No decision from the artifact (file naming, defaults-file bridge, page size) is offered to /architecture:record-decision",
+        "Any near-misses are on a separate line and each names the criterion it fails"
+      ]
     }
   ]
 }
