@@ -41,7 +41,7 @@
   if (ownerToken) secret = ""; // the owner link is the owner's only credential
 
   const listeners = new Set(), reloadHooks = new Set();
-  let focusQ = "", typingUntil = 0, chatTypingUntil = 0, lastOk = 0, joining = null;
+  let focusQ = "", typingUntil = 0, chatTypingUntil = 0, lastOk = 0, shownAt = null, joining = null;
   let snap = null, rev = 0, etag = "", build = "";
   const DEFAULTS = {
     questions: [], answers: {}, ideas: [], presence: [], locks: {}, disagreements: {}, suggestions: {}, chat: [], leaders: [], trusted: [],
@@ -686,10 +686,15 @@
         if (r.status === 401 && !ownerToken && await mergedIntoOwner(r)) return r;
         if (r.status === 401 && !ownerToken) { forget(); await join(); r = await go(); }
       } catch (e) {
-        if (e instanceof TypeError) reportError("api", e.message, { route: path, code: "network" });
+        if (e instanceof TypeError) fault("api", e.message, { route: path, code: "network" });
         throw e;
       }
-      if (!r.ok) r.clone().json().catch(() => ({})).then(j => reportError("api", `HTTP ${r.status}: ${j.message || r.statusText}`, { route: path, code: String(j.error || r.status) }));
+      // A refusal the server logged itself is kept here for a problem report only; an answer that is not the server's
+      // (no X-Shared-Build: the tunnel's own error page) is a fault.
+      if (!r.ok) r.clone().json().catch(() => ({})).then(j => {
+        noteError("api", String(j.error || r.status), `HTTP ${r.status}: ${j.message || r.statusText}`);
+        if (!r.headers.has("X-Shared-Build")) fault("api", `HTTP ${r.status}`, { route: path, code: "no-answer", noted: true });
+      });
       return r;
     });
   }
@@ -710,19 +715,153 @@
     return true;
   }
 
-  // ---------- error reports: what went wrong in this page reaches server.log as a client entry (README "Logs") ----------
-  // Script errors, unhandled rejections, and every action the server refused or never answered (send above). Only once
-  // joined: the server refuses an anonymous report. Never answer or chat text, the address's fragment, or a credential.
+  // ---------- telemetry: what this page records so the host can fix problems (README "Logs") ----------
+  // Faults go to server.log under this person's pid the first time each fingerprint shows: script errors, unhandled
+  // rejections, actions that never reached the server (send above; the server logs its own refusals), and layout
+  // anomalies. Repeats, action timings and rollbacks, reconnect gaps, INP and LCP wait for one summary, sent with no
+  // pid when the page hides. Only once joined: the server refuses an anonymous entry. Never typed text, answers, chat,
+  // names, the address or its fragment, text on the page, or a credential. The switch (remembered here) stops it all.
   const cut = (text, n) => Array.from(String(text)).slice(0, n).join(""); // by code point, as the server counts
-  const recentErrors = []; // the last few this page sent, which a problem report carries
-  function reportError(kind, message, extra = {}) {
-    if (!ownerToken && !secret) return;
-    const body = { kind, message: cut(message || kind, 500), route: cut(location.pathname, 200), ua: `${browserKind()} ${deviceKind()}`, ...extra };
-    if (kind !== "layout") { recentErrors.push(cut(`${kind}${extra.code ? " " + extra.code : ""}: ${body.message}`, 300)); recentErrors.splice(0, recentErrors.length - 5); }
-    fetch("/api/client-log", { method: "POST", headers: { "Content-Type": "application/json", ...ident() }, body: JSON.stringify(body), keepalive: true }).catch(() => {});
+  const recentErrors = []; // the last few this page saw, which a problem report carries
+  const LAT_EDGES = [100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000]; // ms, upper bucket edges; share.py LAT_EDGES
+  const SUMMARY_MAX = 500; // the server's message limit: what does not fit waits for the next summary
+  const tel = {
+    off: get("telemetry") === "off", seen: new Set(), rep: new Map(), lat: new Map(), rb: new Map(), gaps: [], layout: new Set(),
+    pv: [...crypto.getRandomValues(new Uint8Array(4))].map(b => b.toString(16).padStart(2, "0")).join(""), // this page view, no one's id
+    inp: "", lcp: "", sentInp: "", sentLcp: "", missing: "", sentMissing: false, vitals: false,
+  };
+  const joined = () => !!(ownerToken || secret);
+  const ua = () => `${browserKind()} ${deviceKind()}`;
+  const bump = (m, k, n = 1) => m.set(k, (m.get(k) || 0) + n);
+  const fnv = text => { let h = 0x811c9dc5; for (const c of text) h = Math.imul(h ^ c.codePointAt(0), 16777619) >>> 0; return h.toString(16).padStart(8, "0"); };
+  function post(body) {
+    if (tel.off || !joined()) return Promise.reject(new Error("not sent"));
+    return fetch("/api/client-log", { method: "POST", headers: { "Content-Type": "application/json", ...ident() }, body: JSON.stringify(body), keepalive: true })
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); });
   }
+  function noteError(kind, code, message) {
+    recentErrors.push(cut(`${kind}${code ? " " + code : ""}: ${message}`, 300));
+    recentErrors.splice(0, recentErrors.length - 5);
+  }
+  /** A fault, sent the first time its fingerprint (`key`, else kind, message, source and an API route) shows; after
+   *  that each repeat is a count in the next summary. One that did not arrive is sent again the next time. */
+  function fault(kind, message, extra = {}, key = "") {
+    const body = { kind, message: cut(message || kind, 500), route: cut(location.pathname, 200), ua: ua(), ...extra };
+    if (kind !== "layout" && !extra.noted) noteError(kind, extra.code, body.message);
+    delete body.noted;
+    if (tel.off || !joined()) return;
+    const fp = fnv(key || [kind, body.message, body.source || "", kind === "api" ? body.route : ""].join("|"));
+    if (tel.seen.has(fp)) { bump(tel.rep, fp); return; }
+    tel.seen.add(fp);
+    post({ ...body, fp }).catch(() => tel.seen.delete(fp));
+  }
+  /** An action's tap-to-answer time on its route, in LAT_EDGES buckets. */
+  function timed(route, ms) {
+    const b = tel.lat.get(route) || Array(LAT_EDGES.length + 1).fill(0), i = LAT_EDGES.findIndex(e => ms <= e);
+    b[i < 0 ? LAT_EDGES.length : i]++;
+    tel.lat.set(route, b);
+  }
+  /** One summary line of what waited, as `name=value` tokens; whatever does not fit in SUMMARY_MAX stays for the next. */
+  function flush() {
+    if (tel.off || !joined()) return;
+    const base = `pv=${tel.pv}${ownerToken ? " owner=1" : ""}`, items = [];
+    const missing = tel.missing || (tel.vitals ? [!tel.hasInp && "inp=missing", !tel.hasLcp && "lcp=missing"].filter(Boolean).join(" ") : "");
+    if (missing && !tel.sentMissing) items.push([missing, () => { tel.sentMissing = true; }]);
+    if (tel.inp && tel.inp !== tel.sentInp) { const v = tel.inp; items.push([`inp=${v}`, () => { tel.sentInp = v; }]); }
+    if (tel.lcp && tel.lcp !== tel.sentLcp) { const v = tel.lcp; items.push([`lcp=${v}`, () => { tel.sentLcp = v; }]); }
+    if (tel.gaps.length) { const g = tel.gaps.splice(0); items.push([`gap=${g.join(",")}`, () => {}, () => tel.gaps.unshift(...g)]); }
+    for (const [route, b] of tel.lat) { const n = b.findLastIndex(x => x > 0); items.push([`lat:${route}=${b.slice(0, n + 1).join(",")}`, () => tel.lat.delete(route)]); }
+    for (const [route, n] of tel.rb) items.push([`rb:${route}=${n}`, () => tel.rb.delete(route)]);
+    for (const [fp, n] of tel.rep) items.push([`rep:${fp}=${n}`, () => tel.rep.delete(fp)]);
+    let message = base;
+    for (const [t, sent, keep] of items) {
+      if (message.length + 1 + t.length <= SUMMARY_MAX) { message += " " + t; sent(); } else keep?.();
+    }
+    if (message !== base) post({ kind: "summary", message, ua: ua() }).catch(() => {});
+  }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush(); });
+  addEventListener("pagehide", flush);
+
+  /** The component an element belongs to: its nearest vf- or core- class, never its text. */
+  function componentOf(node) {
+    for (let el = node?.nodeType === 1 ? node : node?.parentElement; el && el !== document.body; el = el.parentElement) {
+      const c = [...el.classList].find(x => /^(?:vf|core)-[\w-]+$/.test(x));
+      if (c) return c;
+    }
+    return node ? String(node.nodeName || "node").toLowerCase() : "none";
+  }
+  /** INP and LCP from the vendored web-vitals attribution build (web/web-vitals.attribution.iife.js), on this origin;
+   *  a page without it, or without the browser APIs it reads, says which is missing. */
+  function loadVitals() {
+    if (tel.vitals || tel.loading || tel.off) return;
+    tel.loading = true;
+    const s = document.createElement("script");
+    s.src = "/web-vitals.attribution.iife.js";
+    s.onload = () => {
+      const wv = window.webVitals;
+      if (!wv?.onINP) { tel.missing = "vitals=missing"; return; }
+      tel.vitals = true;
+      tel.hasInp = !!(window.PerformanceEventTiming && "interactionId" in PerformanceEventTiming.prototype);
+      tel.hasLcp = !!window.PerformanceObserver?.supportedEntryTypes?.includes("largest-contentful-paint");
+      const opts = { generateTarget: componentOf };
+      wv.onINP(m => { tel.inp = `${Math.round(m.value)}:${m.attribution?.interactionType || "-"}:${m.attribution?.interactionTarget || "-"}`; }, opts);
+      wv.onLCP(m => { tel.lcp = `${Math.round(m.value)}:${m.attribution?.target || "-"}`; }, opts);
+    };
+    s.onerror = () => { tel.missing = "vitals=missing"; s.remove(); };
+    document.head.append(s);
+  }
+
+  // Layout anomalies, each logged when it appears: a page wider than the screen or a vertical pane that scrolls
+  // sideways, a focused field outside what the keyboard leaves visible, the header pushed off screen.
+  const FIELD = "input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]), textarea, select, [contenteditable=true]";
+  function layoutNow() {
+    const out = new Map(), vv = window.visualViewport, bandTop = vv ? vv.offsetTop : 0, bandBottom = bandTop + (vv ? vv.height : innerHeight);
+    const kb = getComputedStyle(document.documentElement).getPropertyValue("--kb").trim() || "0px";
+    const app = document.getElementById("app");
+    for (const c of app ? [app, ...app.querySelectorAll("*")] : []) {
+      if (c.closest("pre, table, textarea") || c.scrollWidth <= c.clientWidth + 1) continue;
+      const cs = getComputedStyle(c);
+      if (c !== app && !(/auto|scroll/.test(cs.overflowY) && /hidden|clip|auto/.test(cs.overflowX))) continue;
+      const right = c.getBoundingClientRect().right;
+      let widest = null, max = right + 1;
+      for (const d of c.querySelectorAll("*")) { const r = d.getBoundingClientRect().right; if (r > max) { max = r; widest = d; } }
+      const at = componentOf(c), el = widest ? componentOf(widest) : "-";
+      out.set(`overflow|${at}|${el}`, `anomaly=overflow at=${at} el=${el} w=${c.clientWidth} sw=${c.scrollWidth} vw=${innerWidth}`);
+    }
+    const f = document.activeElement;
+    if (f?.matches?.(FIELD)) {
+      const r = f.getBoundingClientRect();
+      if (r.height && (r.top >= bandBottom - 4 || r.bottom <= bandTop + 4)) {
+        const at = componentOf(f);
+        out.set(`field-hidden|${at}`, `anomaly=field-hidden at=${at} top=${Math.round(r.top)} bottom=${Math.round(r.bottom)} vvTop=${Math.round(bandTop)} vvH=${Math.round(bandBottom - bandTop)} kb=${kb}`);
+      }
+    }
+    const h = app?.querySelector("header");
+    if (h?.offsetParent) {
+      const r = h.getBoundingClientRect();
+      if (r.top < bandTop - 2 || r.bottom <= bandTop) out.set(`header-off|${componentOf(h)}`, `anomaly=header-off at=${componentOf(h)} top=${Math.round(r.top)} bottom=${Math.round(r.bottom)} vvTop=${Math.round(bandTop)} kb=${kb}`);
+    }
+    return out;
+  }
+  let layoutTimer = 0, layoutAt = -Infinity;
+  function checkLayout() {
+    layoutTimer = 0; layoutAt = performance.now();
+    if (tel.off || !joined()) return;
+    const now = layoutNow();
+    for (const [key, message] of now) if (!tel.layout.has(key)) fault("layout", message, {}, key);
+    tel.layout = new Set(now.keys());
+  }
+  /** Check the layout soon after a change (a new snapshot, a tap, a resize, the keyboard, a focused field): 800 ms
+   *  after it, at most every 2 s. */
+  function layoutSoon() {
+    if (!layoutTimer) layoutTimer = setTimeout(checkLayout, Math.max(800, layoutAt + 2000 - performance.now()));
+  }
+  for (const ev of ["resize", "orientationchange", "core-viewport"]) addEventListener(ev, layoutSoon);
+  document.addEventListener("focusin", layoutSoon);
+  document.addEventListener("click", layoutSoon, true);
+
   /** What a problem report says about this page: the view and tab, question, round, device, browser, viewport, build
-   *  and the last five errors this page sent, never an answer, chat, the address or its fragment, or a credential. */
+   *  and the last five errors this page saw, never an answer, chat, the address or its fragment, or a credential. */
   Core.reportContext = () => {
     const c = Core.context?.() || {}, w = where(), v = window.visualViewport, n = x => Math.round(x * 100) / 100;
     return { view: w.view, ...(c.tab ? { tab: c.tab } : {}), ...(c.qid ? { qid: c.qid } : {}), ...(c.round != null ? { round: c.round } : {}),
@@ -730,9 +869,57 @@
       ...(v ? { visualViewport: { w: n(v.width), h: n(v.height), scale: n(v.scale) } } : {}), ...(build ? { build } : {}), errors: [...recentErrors] };
   };
   /** A layout readout (kind layout) as one `name=value` line: numbers and CSS values only, never text anyone wrote. */
-  Core.reportLayout = fields => reportError("layout", Object.entries(fields).map(([k, v]) => `${k}=${String(v).replace(/\s+/g, "")}`).join(" "));
-  addEventListener("error", e => reportError("error", e.message, e.filename ? { source: cut(`${new URL(e.filename, location.href).pathname}:${e.lineno}`, 200) } : {}));
-  addEventListener("unhandledrejection", e => reportError("rejection", e.reason?.message || e.reason?.error || String(e.reason)));
+  Core.reportLayout = fields => post({ kind: "layout", message: cut(Object.entries(fields).map(([k, v]) => `${k}=${String(v).replace(/\s+/g, "")}`).join(" "), 500),
+    route: cut(location.pathname, 200), ua: ua() }).catch(() => {});
+  addEventListener("error", e => fault("error", e.message, e.filename ? { source: cut(`${new URL(e.filename, location.href).pathname}:${e.lineno}`, 200) } : {}));
+  addEventListener("unhandledrejection", e => fault("rejection", e.reason?.message || e.reason?.error || String(e.reason)));
+
+  // The notice: one line, a "What this page records" link to the plain list, and the switch, in the join dialog and Help.
+  const REC_LINE = "This page records errors, slow or failed actions and layout problems on this device, so the host can fix them. It never records what you type.";
+  const RECORDED = ["Script errors on this page, and actions that never reached the host", "How long each action takes to get an answer, and how often one is undone",
+    "How long the page takes to catch up when you come back to it", "Layout problems: something too wide for the screen, a field the keyboard covers, the header pushed off screen",
+    "How fast the page answers a tap and shows its main content", "Your device type and browser family, such as phone and Safari"];
+  const NEVER = ["What you type: your answers, chat and requests", "Your name, or this page's address", "Any text shown on the page"];
+  const REC_IDS = "Errors are filed under your session id, so the host can match them to what happened; timings and counts carry no id. It all stays on the host's computer. With recording off, this page sends none of it.";
+  const switches = new Set();
+  function setOff(off) {
+    tel.off = !!off;
+    put("telemetry", tel.off ? "off" : "on");
+    for (const s of switches) { if (s.isConnected) s.checked = !tel.off; else switches.delete(s); }
+    if (!tel.off) loadVitals();
+  }
+  function recSwitch() {
+    const label = Core.el("label", "core-rec-switch"), input = Core.el("input");
+    input.type = "checkbox"; input.setAttribute("role", "switch"); input.checked = !tel.off;
+    input.addEventListener("change", () => setOff(!input.checked));
+    switches.add(input);
+    label.append(input, Core.el("span", null, "Record problems on this device"));
+    return label;
+  }
+  function openRecords() {
+    const dlg = Core.el("dialog", "core-records"), h = Core.el("h2", null, "What this page records");
+    h.id = "core-records-h"; dlg.setAttribute("aria-labelledby", h.id);
+    const list = (title, items) => { const ul = Core.el("ul"); for (const t of items) ul.append(Core.el("li", null, t)); return [Core.el("h3", null, title), ul]; };
+    const close = Core.el("button", null, "Close"); close.type = "button";
+    close.onclick = () => dlg.close();
+    dlg.append(h, ...list("Recorded", RECORDED), ...list("Never recorded", NEVER), Core.el("p", "core-note", REC_IDS), recSwitch(), close);
+    dlg.addEventListener("close", () => dlg.remove());
+    document.body.append(dlg);
+    dlg.showModal();
+    close.focus();
+    return dlg;
+  }
+  /** The notice line with its link and switch; `cls` styles it where it sits. */
+  function notice(cls = "core-rec") {
+    const box = Core.el("div", cls), p = Core.el("p", "core-rec-line", REC_LINE + " "), a = Core.el("a", "core-rec-link", "What this page records");
+    a.href = "#records";
+    a.addEventListener("click", e => { e.preventDefault(); openRecords(); });
+    p.append(a);
+    box.append(p, recSwitch());
+    return box;
+  }
+  Core.telemetry = { notice, openRecords, setOff, get off() { return tel.off; } };
+  loadVitals();
 
   // ---------- optimistic actions: shown at once, reconciled with the server in the background ----------
   // An action given a patch shows before its request goes out: patch(snapshot, myPid) edits a copy of the server's
@@ -756,11 +943,12 @@
   const MENTION_ROUTES = new Set(["/api/answer", "/api/pick", "/api/card/edit", "/api/suggest", "/api/lock/edit", "/api/propose", "/api/chat", "/api/annotate", "/api/request", "/api/request/act"]);
   function act(path, body, opt) {
     if (MENTION_ROUTES.has(path)) for (const k of ["text", "comment", "other", "note"]) if (typeof body[k] === "string") body[k] = Core.tokenize(body[k]);
-    const entry = opt?.patch && { patch: opt.patch, after: null };
+    const entry = opt?.patch && { patch: opt.patch, after: null }, t0 = performance.now();
     const mine = () => !!entry && pending.get(opt.key) === entry;
-    const drop = () => { if (mine()) { pending.delete(opt.key); repaint(); } };
+    const drop = () => { if (mine()) { pending.delete(opt.key); repaint(); bump(tel.rb, path); } }; // a rollback
     if (entry) { pending.delete(opt.key); pending.set(opt.key, entry); repaint(); }
     return send(path, body).then(async r => {
+      if (r.headers.has("X-Shared-Build")) timed(path, performance.now() - t0);
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { drop(); throw { status: r.status, ...j }; }
       if (mine()) entry.after = polls;
@@ -900,23 +1088,28 @@
     for (const [k, e] of pending) if (e.after != null && seq > e.after) pending.delete(k);
     return pending.size !== n;
   }
+  /** A poll the server answered; the first after the page shows again ends a reconnect gap (performance.now). */
+  function good() {
+    lastOk = Date.now();
+    if (shownAt != null) { tel.gaps.push(Math.round(performance.now() - shownAt)); tel.gaps.splice(0, tel.gaps.length - 20); shownAt = null; }
+  }
   async function pollOnce() {
     const seq = ++polls;
     try {
       const headers = { ...ident(), ...(etag ? { "If-None-Match": etag } : {}) };
       const r = await fetch(`/api/state?since=${rev}`, { headers });
-      if (r.status === 304) { lastOk = Date.now(); if (settle(seq) && snap) Core.state = view(); return; }
+      if (r.status === 304) { good(); if (settle(seq) && snap) Core.state = view(); return; }
       const s = await r.json().catch(() => ({}));
-      if (r.status === 403 && s.error === "removed") { Core.state = { ...Core.state, youRemoved: true, youWaiting: false }; lastOk = Date.now(); return; }
+      if (r.status === 403 && s.error === "removed") { Core.state = { ...Core.state, youRemoved: true, youWaiting: false }; good(); return; }
       // Approve new joins: the person waits until the owner lets them in; the poll keeps asking.
-      if (r.status === 403 && s.error === "waiting") { Core.state = { ...structuredClone(DEFAULTS), title: Core.state.title, youWaiting: true }; lastOk = Date.now(); return; }
+      if (r.status === 403 && s.error === "waiting") { Core.state = { ...structuredClone(DEFAULTS), title: Core.state.title, youWaiting: true }; good(); return; }
       if (r.status === 401 && !ownerToken && s.error === "merged-into-owner") { etag = ""; markMerged(); return; }
       if (r.status === 401 && !ownerToken) { forget(); etag = ""; askName(errorText(s)); return; }
       if (!r.ok) return;
       if (s.outdated || (s.schemaVersion != null && s.schemaVersion !== SCHEMA_VERSION)) return reload("version");
       if (s.build) { if (build && s.build !== build) return reload("build"); build = s.build; }
       etag = r.headers.get("ETag") || "";
-      lastOk = Date.now();
+      good();
       // Only presence or the clock moved: the rest of my last snapshot still holds.
       if (s.presenceOnly) {
         if (!snap) { etag = ""; return; }
@@ -930,6 +1123,7 @@
         return;
       }
       snap = s; rev = s.rev;
+      layoutSoon();
       if (merged) { merged = false; drop("merged"); } // a working identity again (a personal link of someone else)
       keepWindow(s);
       settle(seq);
@@ -990,8 +1184,14 @@
   };
   for (const ev of ["keydown", "pointerdown", "touchstart"]) window.addEventListener(ev, input, { capture: true, passive: true });
   document.addEventListener("visibilitychange", beat);
-  // iOS freezes a background tab's timers: catch up at once when the page shows again (triage 24).
-  const catchUp = () => { if (visibleNow()) poll(); };
+  // iOS freezes a background tab's timers: catch up at once when the page shows again (triage 24). The time from
+  // showing again to the first good poll is the reconnect gap.
+  let hidden = !visibleNow();
+  const catchUp = e => {
+    if (!visibleNow()) { hidden = true; return; }
+    if (hidden || e?.persisted) { shownAt ??= performance.now(); hidden = false; }
+    poll();
+  };
   document.addEventListener("visibilitychange", catchUp);
   window.addEventListener("pageshow", catchUp);
   document.addEventListener("resume", catchUp); // Page Lifecycle: a frozen tab thawed (Chrome on Android)
@@ -1015,14 +1215,14 @@
     note.id = "core-n-note";
     const err = Core.el("p", "core-err", notice); err.id = "core-n-err"; err.setAttribute("role", "alert");
     const go = Core.el("button", null, "Join");
-    form.append(h, sub, label, input, note, err, go); dlg.append(form);
+    form.append(h, sub, label, input, note, Core.telemetry.notice(), err, go); dlg.append(form);
     document.body.append(dlg);
     if (Core.state.joinNeedsKey && !joinKey) err.textContent = "This session needs the host's newest invite link. Ask them for it.";
     dlg.addEventListener("cancel", e => e.preventDefault());
     // Tab cycles inside the dialog instead of leaving for the browser's own toolbar.
     dlg.addEventListener("keydown", e => {
       if (e.key !== "Tab") return;
-      const f = [...dlg.querySelectorAll("input, button")].filter(x => !x.disabled), i = f.indexOf(document.activeElement);
+      const f = [...dlg.querySelectorAll("input, button, a[href]")].filter(x => !x.disabled), i = f.indexOf(document.activeElement);
       if (!f.length) return;
       e.preventDefault();
       f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus();

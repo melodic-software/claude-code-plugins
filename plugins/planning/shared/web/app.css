@@ -966,6 +966,9 @@
 
 /* ---------- shortcuts ---------- */
 .app .vf-keys { inline-size: 320px; }
+.app .vf-help-rec .core-rec-line { color: var(--faint); font-size: 12px; }
+.app .vf-help-rec .core-rec-link { color: var(--accent-text, var(--accent)); }
+.app .vf-help-rec .core-rec-switch { color: var(--text); font-size: 13px; }
 .app .vf-keylist { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 14px; margin: 10px 0 0; align-items: center; }
 .app .vf-keylist dt { display: flex; gap: 4px; }
 .app .vf-keylist dd { margin: 0; color: var(--muted); }

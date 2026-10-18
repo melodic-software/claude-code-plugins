@@ -18,4 +18,5 @@ ui_proto.js 14
 ui_reactions.js 10
 ui_report.js 8
 ui_snappy.js 38
+ui_telemetry.js 25
 ui_uploads.js 19

@@ -1419,7 +1419,7 @@
     const helpIntro = btn("vf-btn vf-btn-ghost vf-btn-sm vf-help-intro", "Why you're here");
     const helpReport = btn("vf-btn vf-btn-ghost vf-btn-sm vf-help-report", "Report a problem");
     keysPop.append(E("h2", "vf-pop-title", "Help"), E("p", "vf-pop-note", "A one-minute tour of the questions, your answer, other people's answers and the chat."), helpTour, helpIntro, helpReport,
-      E("h3", "vf-pop-sub", "Keyboard shortcuts"), keyList, E("p", "vf-pop-note", "They work when you are not typing in a field."));
+      Core.telemetry.notice("core-rec vf-help-rec"), E("h3", "vf-pop-sub", "Keyboard shortcuts"), keyList, E("p", "vf-pop-note", "They work when you are not typing in a field."));
 
     // Phase 4c: "Why you're here", reopened from the header (or More on a phone) after the first view.
     const introPop = E("div", "vf-pop vf-intropop"); introPop.setAttribute("role", "dialog"); introPop.setAttribute("aria-labelledby", "vf-intropop-h"); introPop.hidden = true;
@@ -1643,6 +1643,7 @@
     const msTour = msItem("help", "Show me around"); msTour._d.textContent = "A one-minute tour";
     const msIntro = msItem("doc", "Why you're here");
     const msReport = msItem("alert", "Report a problem"); msReport._d.textContent = "Tell the host something is broken";
+    const msRecords = msItem("doc", "What this page records"); msRecords._d.textContent = "And the switch to turn it off";
     moreSheet.append(msHead, msList);
 
     // ---------- Triage 4: an optional first-visit tour, skippable, re-opened from Help; the `tour` pref remembers it ----------
@@ -2495,6 +2496,7 @@
     helpIntro.onclick = () => { closePop(); openIntro(keysBtn.offsetParent ? keysBtn : gear.offsetParent ? gear : top); };
     helpReport.onclick = () => openReport(keysBtn);
     msReport.onclick = () => openReport(tabBtns.more);
+    msRecords.onclick = () => { closePop(); Core.telemetry.openRecords(); };
     on(hIntroIn, "input", () => { ui.introDirty = hIntroIn.value.trim() !== (Core.state.intro || ""); counter(hIntroCount, hIntroIn, 500); hIntroSave.disabled = !ui.introDirty; });
     hIntroSave.onclick = () => {
       hIntroSave.disabled = true;
