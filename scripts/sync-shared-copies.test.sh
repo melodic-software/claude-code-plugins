@@ -355,4 +355,11 @@ assert_output_contains "an outside copy refuses --check-bump, with the reason" "
 chmod -R u+w "$tools"
 rm -rf "$tools"
 
+# --- with no work tree to resolve, --check-bump is refused (fails closed) -------
+fixture
+out="$(run --check-bump HEAD)"
+expect "--check-bump outside any work tree exits 2" 2 $? "$out"
+LAST_OUTPUT="$out"
+assert_output_contains "--check-bump outside any work tree is refused, with the reason" "refused: --check-bump"
+
 test_harness::report

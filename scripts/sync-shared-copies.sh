@@ -18,11 +18,15 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # The repository synced is the one the caller stands in, so a copy of scripts/
 # kept outside it (the issue lane's read-only copy) syncs the checkout.
-root="$(git rev-parse --show-toplevel 2>/dev/null)" || root="$script_dir/.."
-cd "$root"
-root="$(pwd -P)"
+# outside stays 1 (offline modes only) unless git resolved the root and this
+# script is that root's own scripts/ directory.
 outside=1
-[[ "$script_dir" != "$root"/* ]] || outside=0
+if root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  cd "$root"
+  [[ "$script_dir" != "$(pwd -P)/scripts" ]] || outside=0
+else
+  cd "$script_dir/.."
+fi
 # shellcheck source=lib/gate-entry.sh
 . "$script_dir/lib/gate-entry.sh" || exit 2
 # shellcheck source=lib/changelog-fragments.sh
