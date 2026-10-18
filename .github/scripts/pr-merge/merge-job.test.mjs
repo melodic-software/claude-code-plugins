@@ -29,8 +29,8 @@ const step = (name, list = steps) => {
   assert.ok(found, `step ${name}`);
   return found.block;
 };
-const runScript = (name) => {
-  const body = /\n {8}run: \|\n([\s\S]*)$/.exec(step(name))[1];
+const runScript = (name, list = steps) => {
+  const body = /\n {8}run: \|\n([\s\S]*)$/.exec(step(name, list))[1];
   const lines = body.split("\n");
   const end = lines.findIndex((line) => line !== "" && !line.startsWith(" ".repeat(10)));
   return (end < 0 ? lines : lines.slice(0, end)).map((line) => line.slice(10)).join("\n");
@@ -145,4 +145,43 @@ test("the gate logs both tokens' core rate limit around the loop and the sweep c
   assert.ok(before >= 0 && loop > before && after > loop);
   assert.match(gate, /verify_before=\$\(GH_TOKEN=\$BABYSIT_VERIFY_GH_TOKEN rate\)/);
   assert.match(gate, /echo "sweep-cost=.* candidates=.*" >>"\$GITHUB_STEP_SUMMARY"/);
+});
+
+// Runs the early job's check against a fake python3 that prints a report and
+// exits `code`.
+const runEarlyCheck = (code) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-merge-early-"));
+  try {
+    const bin = join(dir, "bin");
+    execFileSync("mkdir", [bin]);
+    writeFileSync(join(bin, "python3"), `#!/usr/bin/env bash\necho '{"needsDispatch": false}'\nexit ${code}\n`);
+    chmodSync(join(bin, "python3"), 0o755);
+    symlinkSync(root, join(dir, ".base"));
+    const output = join(dir, "output");
+    const script = runScript("Check earlier lane merges", stepsOf(jobBlock("post-merge-dispatch")));
+    const result = spawnSync("bash", ["-c", script], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, REPO: "o/r" },
+    });
+    return { status: result.status, stdout: result.stdout, output: readFileSync(output, "utf8") };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+test("the early check warns when it cannot judge, and stays quiet on a verdict", () => {
+  for (const code of [2, 3, 4]) {
+    const run = runEarlyCheck(code);
+    assert.equal(run.status, 0);
+    assert.match(run.stdout, new RegExp(`^::warning::the post-merge check exited ${code} `, "m"));
+    assert.match(run.output, /^needs-dispatch=false$/m);
+  }
+  for (const code of [0, 1, 5]) {
+    assert.doesNotMatch(runEarlyCheck(code).stdout, /::warning::/);
+  }
+});
+
+test("the early job can read the demotion records its floor depends on", () => {
+  assert.match(jobBlock("post-merge-dispatch"), /\n {6}issues: read /);
 });

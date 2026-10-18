@@ -89,8 +89,8 @@ jobs:
   # The post-merge check on its own, and the full CI run of main it asks for,
   # started at once: not after the merge job's candidate listing, which can
   # fail on a GitHub 5xx, nor after its gate loop, which can take many
-  # minutes. It reads with this job's own token and holds the only
-  # `actions: write` a run on these events gets. Same mechanics as
+  # minutes. It reads with this job's own token, so the merge job's Actions
+  # token stays read-only. Same mechanics as
   # dispatch-full-run: ref main, and the pr-merge-dispatched-<id> artifact the
   # post-merge check trusts. Not on pull_request_target, whose dispatch the
   # check does not trust; that event's merge job still runs the check.
@@ -105,6 +105,7 @@ jobs:
       pull-requests: read # read lane merges and their merge-queue entries
       actions: write # read full runs and their records; start pr-require-checks.yml on main
       checks: read # read a failed full run's annotations
+      issues: read # read the demotion records the merge floor depends on
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -158,6 +159,11 @@ jobs:
           echo "::group::post-merge check: exit $code"
           cat "$RUNNER_TEMP/post-merge.json"
           echo "::endgroup::"
+          # 1 (a failure) and 5 (not yet verified) are verdicts; 2, 3 and 4
+          # mean the check could not judge, so no full run starts from it.
+          case $code in
+            2 | 3 | 4) echo "::warning::the post-merge check exited $code (2 refused, 3 unreadable, 4 write failed); no full CI run started from it" ;;
+          esac
           needs=$(jq '.needsDispatch == true' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || echo false)
           echo "needs-dispatch=$needs" >>"$GITHUB_OUTPUT"
 
