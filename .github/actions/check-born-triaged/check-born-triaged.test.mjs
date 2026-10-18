@@ -207,4 +207,5 @@ test("humanIds lists only the human actors' ids", () => {
   assert.equal(humanIds({ version: 1, actors: [LISTED_BOT] }), "");
   assert.equal(humanIds({ version: 1, actors: [{ id: "153232337", login: "x", kind: "human" }, { id: 0, login: "y", kind: "human" }] }), "");
   assert.equal(humanIds(null), "");
+  assert.equal(humanIds({ version: 2, actors: [HUMAN] }), "", "a wrong-version list yields no ids");
 });

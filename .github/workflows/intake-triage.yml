@@ -30,11 +30,15 @@ permissions: {}
 jobs:
   # Skips intake for an issue /work-items:decompose published already
   # triaged; see .github/actions/check-born-triaged. A failed gate leaves
-  # skip empty, so intake runs. The job also resolves the lane's model, turns
-  # and effort from the triage-issue route of the default branch's models
-  # block; when that fails, claude-args is empty and intake does not run, so
-  # it never falls back to the CLI's own model and an unbounded turn budget.
+  # skip empty, so intake falls through to the reusable, which turns away
+  # every person when human-ids is empty too. The job also resolves the lane's
+  # model, turns and effort from the triage-issue route of the default
+  # branch's models block; when that fails, claude-args is empty and intake
+  # does not run, so it never falls back to the CLI's own model and an
+  # unbounded turn budget. A dispatch runs only from main, so the trusted-actor
+  # list, the models block and the lane's AGENTS.md come from the default branch.
   born-triaged:
+    if: github.event_name == 'issues' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

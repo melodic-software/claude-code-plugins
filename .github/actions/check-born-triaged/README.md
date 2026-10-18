@@ -35,4 +35,5 @@ on gh older than 2.94 sets a `type:` label instead of an Issue Type, so its item
 | `reason` | `born-triaged`, `no-marker`, `untrusted-author`, `no-type`, `no-status`, `list-unreadable` or `issue-unreadable` |
 | `human-ids` | The list's `kind: human` ids, comma-joined, for the intake lane's `allowed-author-ids`; empty when the list is unreadable |
 
-The step always exits 0. A failed gate job leaves `skip` empty, and the callers' intake jobs run.
+The step always exits 0. A failed gate job leaves `skip` and `human-ids` empty, so the callers'
+intake jobs fall through to the reusable, which turns away every person.
