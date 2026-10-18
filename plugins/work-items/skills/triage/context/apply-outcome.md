@@ -50,11 +50,12 @@ block, never from names in this skill: pick the smallest size whose `max-turns` 
 work in one run, and when no size that sets `max-turns` fits, take the size set to `split`. The
 size label is the block's `label-prefix` followed by the size name, applied in the same edit as
 the role label, replacing any other label with that prefix. A `split` size is not
-autonomous-eligible: apply its size label without the role label and route the item to
-`/work-items:decompose`, running it once the operator agrees in an interactive session; a lane
-instead applies the human-gated role label (default `needs-human`) with a comment naming
-`/work-items:decompose` as the next step, since publishing child items is outside triage's
-mandate. A size label missing from the repository is a provisioning gap to report, not a stop:
+autonomous-eligible: in one edit, apply its size label, `status:ready` and the human-gated role
+label (default `needs-human`), and clear the raw marker, with a comment naming
+`/work-items:decompose` as the next step. This holds in every session, since the frontier filter
+excludes human-gated items but not size labels, and decompose leaves the parent's labels alone.
+An interactive session may then run `/work-items:decompose` once the operator agrees; a lane does
+not, since publishing child items is outside triage's mandate. A size label missing from the repository is a provisioning gap to report, not a stop:
 apply the outcome without it, and the lane runs the item at the block's `default` size. No
 `models.issue-sizes` block: skip sizing.
 

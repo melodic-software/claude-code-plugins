@@ -422,6 +422,19 @@
         "Applies needs-human with a comment naming /work-items:decompose as the next step",
         "Does not run /work-items:decompose or create child items itself"
       ]
+    },
+    {
+      "id": 32,
+      "name": "triage-human-gates-a-split-size-interactively",
+      "prompt": "/work-items:triage 522\n\nInteractive session. GitHub binding. #522 asks to rewrite the docs of all thirty plugins to a new template, each a separate change, and is otherwise fully specified (work-class: scoped). The repository's docs/conventions/pr-pipeline.yaml has models.issue-sizes with label-prefix \"size: \", default small, sizes small (max-turns 75), medium (max-turns 150) and large (split). All three size labels exist. The operator says not to decompose it today. Which labels does the outcome edit apply?",
+      "expected_output": "Thirty separate changes fit no size that sets max-turns, so the item takes size: large. Even though the session is interactive and decompose is deferred, the edit applies size: large, status:ready and needs-human and clears the raw marker, with a comment naming /work-items:decompose as the next step. It applies no agent-ready and does not run /work-items:decompose.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Applies size: large and needs-human in one edit and does not apply agent-ready",
+        "Clears the raw-intake marker",
+        "Comments naming /work-items:decompose as the next step and does not run it"
+      ]
     }
   ]
 }
