@@ -144,6 +144,8 @@ HIGH_FLOOR: tuple[str, ...] = (
     "plugins/guardrails/**",
     "plugins/work-items/**",
     "plugins/*/hooks/**",
+    "plugins/*/monitors/**",  # commands Claude Code runs in the background
+    "plugins/*/workflows/**",
     "prompts/**",
     "plugins/*/lib/**",  # synced copies of lib/ that hooks run
     # Hook-run scripts outside hooks/.
@@ -401,10 +403,27 @@ def _readable_globs(value: Any, unsafe: list[str]) -> tuple[str, ...]:
 # Files whose frontmatter grants capability, and the keys that grant it.
 _CAPABILITY_FILES = ("**/SKILL.md", "**/agents/*.md", "**/commands/*.md")
 _CAPABILITY_KEYS = frozenset(
-    {"hooks", "allowed-tools", "tools", "permissionmode", "mcpservers"}
+    {
+        "hooks",
+        "allowed-tools",
+        "tools",
+        "disallowed-tools",
+        "disallowedtools",
+        "permissionmode",
+        "mcpservers",
+        "disable-model-invocation",
+        "context",
+        "agent",
+        "shell",
+        "skills",
+    }
 )
 _HUNK = re.compile(r"@@ -[0-9]+(?:,[0-9]+)? \+([0-9]+)(?:,[0-9]+)? @@")
 _KEY = re.compile(r"""(["']?)([A-Za-z][A-Za-z0-9_-]*)\1\s*:""")
+# YAML a line-by-line read cannot follow: flow collections, tags, explicit
+# or merge keys, quoted keys with escapes, and anchors or aliases.
+_OPAQUE_START = re.compile(r"""[^A-Za-z#-]|-[^\s-]""")
+_ANCHOR = re.compile(r"(?:^|[\s:\[{,])[&*][^\s,\]}]")
 
 
 def _capability_triggers(patch: str) -> list[str]:
@@ -413,8 +432,10 @@ def _capability_triggers(patch: str) -> list[str]:
     `_CAPABILITY_KEYS`, or any added or removed `---` line, since moving a
     delimiter moves lines in or out of the frontmatter. A hunk starting at
     line 1 shows where the frontmatter ends; any other hunk is frontmatter
-    until a `---` line, and there a changed indented line with no key above it
-    in the hunk counts (fail closed)."""
+    until a `---` line or a column-0 prose context line, and there a changed
+    indented line with no key above it in the hunk, a changed key line next to
+    a capability key, and YAML a line-by-line read cannot follow all count
+    (fail closed)."""
     found: list[str] = []
     region, key = "unknown", None
     for line in patch.split("\n"):
@@ -439,11 +460,34 @@ def _capability_triggers(patch: str) -> list[str]:
             region = "body"  # no frontmatter in this file
         if region == "body":
             continue
+        if (
+            region == "unknown"
+            and sign == " "
+            and text.strip()
+            and text[0] not in " \t-#"
+            and not _OPAQUE_START.match(text)
+            and not _KEY.match(text)
+        ):
+            region = "body"  # column-0 prose on both sides is no YAML
+            continue
+        stripped = text.lstrip(" \t")
+        if (
+            sign != " "
+            and stripped
+            and (_OPAQUE_START.match(stripped) or _ANCHOR.search(text))
+        ):
+            found.append("frontmatter YAML the scanner cannot read")
         named = _KEY.match(text)
         if named:
-            key = named.group(2).casefold()
-        elif text.strip() and text[0] not in " \t":
-            key = ""
+            before, key = key, named.group(2).casefold()
+            if sign != " " and (
+                before in _CAPABILITY_KEYS or (before is None and region == "unknown")
+            ):
+                found.append(
+                    f"frontmatter key line next to {before or 'an unseen key'}"
+                )
+        elif text.strip() and text[0] not in " \t-":
+            key = ""  # a column-0 list item continues the key above it
         if sign != " " and (
             key in _CAPABILITY_KEYS
             or (key is None and region == "unknown" and text.strip())

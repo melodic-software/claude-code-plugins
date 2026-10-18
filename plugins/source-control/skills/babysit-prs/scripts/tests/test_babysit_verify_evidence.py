@@ -1682,6 +1682,16 @@ class LaneRequiresAVerdict(unattended.Unattended):
         _, out = self.lane()
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
 
+    def test_the_lane_scores_a_floor_path_from_the_config_high(self) -> None:
+        self.config = dataclasses.replace(
+            self.config, high_path_floor=True, floor_paths=("notes/held/**",)
+        )
+        self.files = ((changed("notes/held/x.md"),), True)
+        _, out = self.lane()
+        self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
+        codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
+        self.assertEqual(codes, ["high-path:notes/held/**"])
+
     def unlabeled_lane_pr(self, real_denied_paths: bool = False) -> None:
         """The real lane eligibility over a lanes-App pull request whose one
         closing issue carries no `work-class:` label."""

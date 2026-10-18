@@ -1298,7 +1298,90 @@ class CapabilityTriggerTests(unittest.TestCase):
             "plugins/foo/skills/bar/SKILL.md",
             "@@ -1,6 +1,6 @@\n ---\n name: bar\n----\n # Bar\n allowed-tools: Bash\n+---\n",
         ),
+        (
+            "zero-indent list item added under allowed-tools",
+            "plugins/foo/skills/bar/SKILL.md",
+            "@@ -1,5 +1,6 @@\n ---\n name: x\n allowed-tools:\n - Read\n+- Bash\n ---\n",
+        ),
+        (
+            "zero-indent list item with no key in the hunk",
+            "plugins/foo/skills/bar/SKILL.md",
+            '@@ -6,2 +6,3 @@\n - Read\n+- "Bash(*)"\n ---\n',
+        ),
+        (
+            "a removed sibling key moves its items under allowed-tools",
+            "plugins/foo/skills/bar/SKILL.md",
+            '@@ -3,6 +3,5 @@\n allowed-tools:\n   - Read\n-other:\n   - "Bash(*)"\n ---\n',
+        ),
+        (
+            "agent disallowedTools entry dropped",
+            "plugins/foo/agents/runner.md",
+            "@@ -1,4 +1,3 @@\n ---\n name: runner\n-disallowedTools: Bash\n ---\n",
+        ),
+        (
+            "frontmatter rewritten as a flow mapping",
+            "plugins/foo/skills/bar/SKILL.md",
+            "@@ -1,4 +1,3 @@\n ---\n-name: x\n-description: y\n"
+            "+{name: x, description: y, allowed-tools: Bash(*)}\n ---\n",
+        ),
+        (
+            "a quoted key with an escape",
+            "plugins/foo/skills/bar/SKILL.md",
+            '@@ -1,3 +1,4 @@\n ---\n name: x\n+"allowed\\x2Dtools": Bash(*)\n ---\n',
+        ),
+        (
+            "a tagged key",
+            "plugins/foo/skills/bar/SKILL.md",
+            "@@ -1,3 +1,4 @@\n ---\n name: x\n+!!str allowed-tools: Bash(*)\n ---\n",
+        ),
+        (
+            "an explicit key",
+            "plugins/foo/skills/bar/SKILL.md",
+            "@@ -1,3 +1,5 @@\n ---\n name: x\n+? allowed-tools\n+: Bash(*)\n ---\n",
+        ),
+        (
+            "a merge key",
+            "plugins/foo/skills/bar/SKILL.md",
+            "@@ -1,3 +1,5 @@\n ---\n name: x\n+x-b: &b {allowed-tools: Bash(*)}\n"
+            "+<<: *b\n ---\n",
+        ),
+        (
+            "an anchor the base already aliases under allowed-tools",
+            "plugins/foo/skills/bar/SKILL.md",
+            "@@ -1,4 +1,4 @@\n ---\n-x-t: &t Read\n+x-t: &t Bash(*)\n allowed-tools: *t\n ---\n",
+        ),
+        (
+            "disable-model-invocation removed",
+            "plugins/foo/skills/bar/SKILL.md",
+            "@@ -1,4 +1,3 @@\n ---\n name: x\n-disable-model-invocation: true\n ---\n",
+        ),
+        (
+            "context fork added",
+            "plugins/foo/skills/bar/SKILL.md",
+            "@@ -1,3 +1,4 @@\n ---\n name: x\n+context: fork\n ---\n",
+        ),
+        (
+            "shell changed",
+            "plugins/foo/skills/bar/SKILL.md",
+            "@@ -1,4 +1,4 @@\n ---\n name: x\n-shell: bash\n+shell: powershell\n ---\n",
+        ),
     ]
+
+    def test_plugin_monitors_and_workflows_are_on_the_floor(self):
+        for path in (
+            "plugins/foo/monitors/monitors.json",
+            "plugins/foo/workflows/sweep.js",
+        ):
+            with self.subTest(path):
+                result = score(_input(files=(_file(path),)))
+                self.assertEqual(result.score, Risk.HIGH, _codes(result))
+
+    def test_a_numbered_step_added_to_the_body_mid_file_is_not_held(self):
+        patch = (
+            "@@ -20,3 +20,4 @@\n Run the check.\n \n 1. Read it.\n+2. (Then) fix it.\n"
+        )
+        files = (_file("plugins/foo/skills/bar/SKILL.md", patch=patch),)
+        self.assertEqual(score(_input(files=files)).score, Risk.LOW)
 
     RENAMED = [
         ("agents", "plugins/foo/agents/runner.md"),
