@@ -10,7 +10,8 @@
 #   GITHUB_REPOSITORY   owner/repo
 #   PR_NUMBER           the pull request
 #   HEAD_SHA            the gated head; it is the resume key
-#   ESCALATION_REASON   protected-path-conflict | workflow-staged | repeat-cap
+#   ESCALATION_REASON   protected-path-conflict | workflow-staged
+#                       | unexpected-path-staged | repeat-cap
 #                       | unresolved-conflict | feedback-protected-path
 #                       | feedback-round-cap | feedback-uncertain
 #                       | feedback-not-landed | feedback-invalid
@@ -46,6 +47,7 @@ die() {
 case ${ESCALATION_REASON:-} in
   protected-path-conflict) why='a conflicted path is protected, so the lane does not resolve it' ;;
   workflow-staged) why='the merge stages a change under .github/workflows/, which the lane does not push' ;;
+  unexpected-path-staged) why='the merge stages a change to a path that did not conflict, which the lane does not push' ;;
   repeat-cap) why='the lane has resolved conflicts on this branch as many times in a row as its cap allows' ;;
   unresolved-conflict) why='the lane could not resolve every conflict' ;;
   feedback-protected-path) why='the pull request changes .github/, so the lane does not address its review threads' ;;

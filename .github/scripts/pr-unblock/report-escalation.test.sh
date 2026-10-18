@@ -104,7 +104,7 @@ for reason in workflow-files bogus '' 'repeat-cap ' REPEAT-CAP; do
 done
 
 # Accepted reasons: one comment, one label, both on the PR.
-for reason in protected-path-conflict workflow-staged repeat-cap unresolved-conflict \
+for reason in protected-path-conflict workflow-staged unexpected-path-staged repeat-cap unresolved-conflict \
   feedback-protected-path feedback-round-cap feedback-uncertain feedback-not-landed feedback-invalid \
   feedback-partial feedback-incomplete feedback-disputed \
   dependency-round-cap dependency-invalid dependency-fix-not-landed dependency-security-close dependency-escalate \

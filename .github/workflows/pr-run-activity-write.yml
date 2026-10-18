@@ -150,8 +150,8 @@ on:
       escalation-reason:
         description: >-
           Why the activity handed the PR to a person: for merge-base
-          protected-path-conflict, workflow-staged, repeat-cap or
-          unresolved-conflict; for review-threads, before any model turn,
+          protected-path-conflict, workflow-staged, unexpected-path-staged,
+          repeat-cap or unresolved-conflict; for review-threads, before any model turn,
           feedback-protected-path or feedback-round-cap; for the
           review-replies script feedback-uncertain, feedback-not-landed or
           feedback-invalid, feedback-partial, feedback-incomplete or
@@ -350,7 +350,7 @@ jobs:
             exit 1
           fi
           case $ESCALATION_REASON in
-            "" | protected-path-conflict | workflow-staged | repeat-cap | unresolved-conflict) ;;
+            "" | protected-path-conflict | workflow-staged | unexpected-path-staged | repeat-cap | unresolved-conflict) ;;
             feedback-protected-path | feedback-round-cap | feedback-uncertain | feedback-not-landed | feedback-invalid) ;;
             feedback-partial | feedback-incomplete | feedback-disputed) ;;
             dependency-round-cap | dependency-invalid | dependency-fix-not-landed) ;;
@@ -1196,8 +1196,9 @@ jobs:
       # merge-base mode, after the skill (or straight after a clean merge):
       # post.sh checks prepare's saved copies and snapshot against their
       # hashes, repairs the sensitive paths the action reset, and escalates
-      # unresolved-conflict or workflow-staged; otherwise it writes the
-      # validated index as a tree, the only tree the commit step accepts.
+      # unresolved-conflict, workflow-staged or unexpected-path-staged;
+      # otherwise it writes the validated index as a tree, the only tree the
+      # commit step accepts.
       - name: Check the staged merge
         id: post
         if: >-
@@ -1237,7 +1238,7 @@ jobs:
             "")
               [[ $tree =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]] || { echo "::error::post.sh printed no tree"; exit 1; }
               ;;
-            unresolved-conflict | workflow-staged)
+            unresolved-conflict | workflow-staged | unexpected-path-staged)
               tree="" skip=awaiting-human
               ;;
             *) echo "::error::post.sh printed an unknown escalation reason"; exit 1 ;;
