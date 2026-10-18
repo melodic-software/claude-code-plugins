@@ -46,16 +46,18 @@ suite_tools:     <read-only | the gated tools the cases request>
 same_model:      <yes | no | unknown | off> (tested <model>, judge <model>)
 estimate_usd:    roughly <n> (cases x runs x arms, plus judge calls)
 ceiling:         <n> USD | unlimited
-leftover_sandboxes: <n> (<total size> in <temp dir>) | unknown
+leftover:        <n> sandboxes (<total size> in <temp dir>) | unknown
 tmp_free:        <free space on the temp dir's filesystem> | unknown
 ```
 
 ### Leftover sandboxes
 
 Earlier runs leave `claude-eval-*` directories in the temp directory (`$TMPDIR`, else `/tmp`).
-Probe read-only: `find <temp dir> -maxdepth 1 -type d -name 'claude-eval-*'` for the count, `du -sk`
-over them for the size, `df -k <temp dir>` for `tmp_free`; an unreadable path reports `unknown`, never `0`. Preflight removes nothing and does not block the run on either field. Above
-zero, print for the user to run `chmod -R u+w <temp dir>/claude-eval-*`, then `rm -rf <temp
+Probe read-only: `find <temp dir> -maxdepth 1 -type d -name 'claude-eval-*'` for the count, `du -skc`
+over them for the size (the `total` line), `df -k <temp dir>` for `tmp_free`. An unreadable path
+reports `unknown`, never `0`: a non-zero `du` exit or a permission error means the total is partial,
+so report the size as `unknown` (or as `at least <total>`). Preflight removes nothing and does not
+block the run on either field. Above zero, print for the user to run `chmod -R u+w <temp dir>/claude-eval-*`, then `rm -rf <temp
 dir>/claude-eval-*`; subdirectories `chmod` cannot enter are the sandbox user's and need `sudo rm -rf`.
 
 **Version floor:** Claude Code 2.1.269. Never assert that the command is installed: read
