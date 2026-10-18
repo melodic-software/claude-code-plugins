@@ -491,10 +491,13 @@ def main(argv=None):
             if not mine:
                 continue
             own = [x for x in mine if x['kind'] != 'outcome']
-            if stp['navigates'] and own:
+            if (stp['navigates'] or stp['outcome']) and own:   # the step caption gives way at the hold
                 need = max(x['end'] for x in own) - (hold_seg(k)['out0'] - NAR['pad'])
                 if need > 1e-3:
-                    segments[seg_idx(stp['id'], 'move')[0]]['dur'] += need   # slower cursor travel, never a still dwell
+                    # slower results for a typed step (their line starts with them), else slower cursor travel;
+                    # never a still dwell
+                    grow = seg_idx(stp['id'], 'results') or seg_idx(stp['id'], 'move')
+                    segments[grow[0]]['dur'] += need
                     stretched = True
                     break
             limit = total - NAR['end_pad'] if k + 1 == len(steps) else step_start(k + 1) - NAR['pad']

@@ -412,6 +412,33 @@ class DemoPipelineSmoke(unittest.TestCase):
         self.assertEqual(details['zoom-share'], 'camera layer off')   # not "plain style" under produced
         self.assertIn('to read an outcome', details['stillness'])
 
+    def test_an_in_place_step_s_narration_ends_before_its_outcome_replaces_its_caption(self):
+        # A step that stays on its page and has an outcome: its caption gives way to the outcome when the hold
+        # starts, so its own lines, the step's and the typed results', must end by then.
+        script = json.loads(json.dumps(SCRIPT))
+        script['steps']['search']['outcome'] = 'Three results'
+        path = self.tmp / 'script-inplace-narrated.json'
+        path.write_text(json.dumps(script))
+        audio = self.tmp / 'audio-inplace'
+        audio.mkdir()
+        for name, seconds in (('search', 3.0), ('search.results', 2.0)):
+            subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i',
+                            f'sine=frequency=440:sample_rate=24000:duration={seconds}', str(audio / f'{name}.wav')], check=True)
+        edl_path = self.tmp / 'edl-inplace-narrated.json'
+        r = run('build_edl.py', self.tmp / 'capture', path, edl_path, '--audio-dir', audio)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        edl = json.loads(edl_path.read_text())
+        caption = next(c for c in edl['captions'] if c['step'] == 'search' and c['kind'] == 'step')
+        own = [x for x in edl['audio'] if x['step'] == 'search' and x['kind'] != 'outcome']
+        self.assertEqual(len(own), 2)
+        for x in own:
+            self.assertLessEqual(x['end'], caption['span'][1] + 1e-3, x['kind'])
+        out = self.tmp / 'inplace-narrated.mp4'
+        r = run('produce.py', edl_path, out, '--preset', 'veryfast')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        r, report = self.quality_control(out, edl=edl_path, name='quality-control-inplace-narrated')
+        self.assertEqual(self.failed(report), set(), r.stdout)
+
     def test_an_outcome_hold_gets_no_reading_time_with_the_captions_off(self):
         script = json.loads(json.dumps(SCRIPT))
         script['steps']['search']['outcome'] = 'Three results for abc, the first one is open'

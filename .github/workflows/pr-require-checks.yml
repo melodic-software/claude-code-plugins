@@ -2565,6 +2565,10 @@ jobs:
             requirements+=(--requirement plugins/animation/requirements.txt)
           fi
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
+          # The animation render tests capture through the locked playwright's headless Chromium.
+          if [[ "$leg_needs" == *animation* ]]; then
+            node node_modules/playwright/cli.js install --only-shell chromium
+          fi
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           # The inventory's parser packages, installed the way a first
@@ -2621,7 +2625,7 @@ jobs:
       # makes no more legs than it has suites.
       - name: Run this leg's shell suites
         env:
-          # The animation suites fail on a missing numpy or opencv here instead of skipping green.
+          # The animation suites fail on a missing numpy, opencv or Chromium here instead of skipping green.
           ANIMATION_REQUIRE_DEPS: '1'
           # The speech suite fails on a missing numpy here instead of skipping green.
           SPEECH_REQUIRE_DEPS: '1'
@@ -2707,6 +2711,10 @@ jobs:
             requirements+=(--requirement plugins/animation/requirements.txt)
           fi
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
+          # The animation render tests capture through the locked playwright's headless Chromium.
+          if [[ "$leg_needs" == *animation* ]]; then
+            node node_modules/playwright/cli.js install --only-shell chromium
+          fi
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           # test_fixture_parse.py and test_parser_reader.py run instead of skipping.
