@@ -412,32 +412,46 @@ class DemoPipelineSmoke(unittest.TestCase):
         self.assertEqual(details['zoom-share'], 'camera layer off')   # not "plain style" under produced
         self.assertIn('to read an outcome', details['stillness'])
 
-    def test_an_in_place_step_s_narration_ends_before_its_outcome_replaces_its_caption(self):
-        # A step that stays on its page and has an outcome: its caption gives way to the outcome when the hold
-        # starts, so its own lines, the step's and the typed results', must end by then.
+    def own_lines_end_with_the_step_caption(self, name, capture, step, outcome, clips):
+        """Narrate step (an in-place step given outcome) with clips {clip name: seconds}; its caption gives way to
+        the outcome when the hold starts, so its own lines must end by then, and the video passes quality control."""
         script = json.loads(json.dumps(SCRIPT))
-        script['steps']['search']['outcome'] = 'Three results'
-        path = self.tmp / 'script-inplace-narrated.json'
+        script['steps'][step]['outcome'] = outcome
+        path = self.tmp / f'script-{name}.json'
         path.write_text(json.dumps(script))
-        audio = self.tmp / 'audio-inplace'
+        audio = self.tmp / f'audio-{name}'
         audio.mkdir()
-        for name, seconds in (('search', 3.0), ('search.results', 2.0)):
+        for clip, seconds in clips.items():
             subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i',
-                            f'sine=frequency=440:sample_rate=24000:duration={seconds}', str(audio / f'{name}.wav')], check=True)
-        edl_path = self.tmp / 'edl-inplace-narrated.json'
-        r = run('build_edl.py', self.tmp / 'capture', path, edl_path, '--audio-dir', audio)
+                            f'sine=frequency=440:sample_rate=24000:duration={seconds}', str(audio / f'{clip}.wav')], check=True)
+        edl_path = self.tmp / f'edl-{name}.json'
+        r = run('build_edl.py', capture, path, edl_path, '--audio-dir', audio)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         edl = json.loads(edl_path.read_text())
-        caption = next(c for c in edl['captions'] if c['step'] == 'search' and c['kind'] == 'step')
-        own = [x for x in edl['audio'] if x['step'] == 'search' and x['kind'] != 'outcome']
-        self.assertEqual(len(own), 2)
+        self.assertFalse(next(s for s in edl['steps'] if s['id'] == step)['navigates'])
+        caption = next(c for c in edl['captions'] if c['step'] == step and c['kind'] == 'step')
+        own = [x for x in edl['audio'] if x['step'] == step and x['kind'] != 'outcome']
+        self.assertEqual(len(own), len(clips))
         for x in own:
             self.assertLessEqual(x['end'], caption['span'][1] + 1e-3, x['kind'])
-        out = self.tmp / 'inplace-narrated.mp4'
+        out = self.tmp / f'{name}.mp4'
         r = run('produce.py', edl_path, out, '--preset', 'veryfast')
         self.assertEqual(r.returncode, 0, r.stderr)
-        r, report = self.quality_control(out, edl=edl_path, name='quality-control-inplace-narrated')
+        r, report = self.quality_control(out, edl=edl_path, name=f'quality-control-{name}')
         self.assertEqual(self.failed(report), set(), r.stdout)
+
+    def test_a_typed_in_place_step_s_narration_ends_before_its_outcome_replaces_its_caption(self):
+        self.own_lines_end_with_the_step_caption('inplace-typed', self.tmp / 'capture', 'search', 'Three results',
+                                                 {'search': 3.0, 'search.results': 2.0})
+
+    def test_a_clicked_in_place_step_s_narration_ends_before_its_outcome_replaces_its_caption(self):
+        def edit(ev):   # open-result's click opens a panel on the same page instead of a new one
+            for e in ev:
+                if e['name'] in ('click', 'settled') and e['step'] == 'open-result':
+                    e['url'] = 'file:///docs.html'
+        capture = self.variant_capture('capture-click-inplace', edit)
+        self.own_lines_end_with_the_step_caption('inplace-click', capture, 'open-result', 'Trace viewer open',
+                                                 {'open-result': 4.0})
 
     def test_an_outcome_hold_gets_no_reading_time_with_the_captions_off(self):
         script = json.loads(json.dumps(SCRIPT))

@@ -494,8 +494,7 @@ def main(argv=None):
             if (stp['navigates'] or stp['outcome']) and own:   # the step caption gives way at the hold
                 need = max(x['end'] for x in own) - (hold_seg(k)['out0'] - NAR['pad'])
                 if need > 1e-3:
-                    # slower results for a typed step (their line starts with them), else slower cursor travel;
-                    # never a still dwell
+                    # slower results for a typed step (their line starts with them), else slower cursor travel
                     grow = seg_idx(stp['id'], 'results') or seg_idx(stp['id'], 'move')
                     segments[grow[0]]['dur'] += need
                     stretched = True
