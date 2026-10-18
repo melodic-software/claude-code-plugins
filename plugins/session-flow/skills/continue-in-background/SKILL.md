@@ -134,14 +134,14 @@ fallback), then:
    re-run `/session-flow:continue-in-background`. Exception: launch anyway when the current session already
    runs inside a linked git worktree, where isolation is skipped per the same page.
 
-   **`worktree.bgIsolation`.** Read it with `jq` from the settings files in precedence order,
-   first file that sets it wins: the managed settings file when one exists on this machine,
-   `.claude/settings.local.json`, `.claude/settings.json` in the project, then
-   `~/.claude/settings.json`. Managed settings delivered another way cannot be read here. The
-   page documents `"none"` as turning isolation off, so background sessions edit the working copy
-   directly. A `--settings` command-line value sits between managed and local settings but cannot
-   be read from files: the read does not cover it, so whenever a launch report is written, say
-   the read covered the files only. When the value is `none`,
+   **`worktree.bgIsolation`.** Read it with `jq` from the settings files, first file that sets
+   it wins: the managed settings file and its `managed-settings.d` drop-in directory where they
+   exist on this machine, then the project's `.claude/settings.local.json` and
+   `.claude/settings.json`, then `~/.claude/settings.json`. The order among them follows the
+   settings page (pointer below). Managed settings delivered another way, or from a location this
+   read cannot find, are not covered: say so in the launch report. A `--settings` value cannot be
+   read from files either, so whenever a launch report is written, say the read covered the files
+   only. `none` is the value that turns isolation off; the pointer says what it does. When the value is `none`,
    the "would NOT carry" refusal does not apply, since the launched session sees the uncommitted
    changes: launch, and state in the launch report that the background session edits this
    checkout in place, alongside the user, so both may touch the same files at once; this holds
