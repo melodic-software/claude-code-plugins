@@ -581,6 +581,17 @@ assert_eq "root equal to HOME: main-local-only grant is a gap" "1" "$(run_home "
 OUT=$(run_home "$PWTOP" "$PWWT" "$CFG16" --worktree-root "$POSIX_CHILD")
 assert_contains "HOME header names the cause" "$OUT" "repository root is the home directory"
 assert_eq "root under HOME is still shared" "0" "$(run_home "$TEST_TMPDIR" "$PWWT" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
+# A HOME that is a symlink to the repository root is the same directory.
+ln -s "$PWTOP" "$TEST_TMPDIR/layout-home-link"
+assert_eq "root equal to a symlinked HOME: main-local-only grant is a gap" "1" "$(run_home "$TEST_TMPDIR/layout-home-link" "$PWWT" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
+OUT=$(run_home "$TEST_TMPDIR/layout-home-link" "$PWWT" "$CFG16" --worktree-root "$POSIX_CHILD")
+assert_contains "symlinked HOME header names the cause" "$OUT" "repository root is the home directory"
+
+# One foreign entry is enough: each of the root, .git and .claude alone.
+for tag in ROOT GIT CLAUDE; do
+  assert_eq "only $tag not owned by the user: main-local-only grant is a gap" "1" \
+    "$(env "PREFLIGHT_OWNER_$tag=$OTHER_UID" PREFLIGHT_FIXTURE_DIR="$PWWT" CLAUDE_CONFIG_DIR="$CFG16" bash "$SCRIPT" --count --worktree-root "$POSIX_CHILD")"
+done
 
 # --- Case 16n: an undeterminable layout is not credited and is INCOMPLETE -----
 OUT=$(PREFLIGHT_UID=unreadable run "$PWWT" "$CFG16" --worktree-root "$POSIX_CHILD")
@@ -593,6 +604,18 @@ assert_exit "undeterminable layout still exits 0 (report-only)" 0 "$(
   PREFLIGHT_UID=unreadable run "$PWWT" "$CFG16" --worktree-root "$POSIX_CHILD" >/dev/null
   echo $?
 )"
+# An owner stat cannot read (injected non-numeric) is undeterminable too.
+OUT=$(PREFLIGHT_OWNER_GIT=unreadable run "$PWWT" "$CFG16" --worktree-root "$POSIX_CHILD")
+assert_contains "unreadable owner reports the unread layer" "$OUT" "UNREAD LAYER"
+assert_contains "unreadable owner ends INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
+# Neither HOME nor USERPROFILE set: root-equals-home cannot be ruled out.
+OUT=$(env -u HOME -u USERPROFILE PREFLIGHT_FIXTURE_DIR="$PWWT" CLAUDE_CONFIG_DIR="$CFG16" bash "$SCRIPT" --worktree-root "$POSIX_CHILD")
+assert_contains "HOME and USERPROFILE unset reports the unread layer" "$OUT" "UNREAD LAYER"
+assert_contains "HOME and USERPROFILE unset ends INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
+# An empty platform string is unknown, never the shared layout.
+OUT=$(PREFLIGHT_UNAME="" run "$PWWT" "$CFG16" --worktree-root "$POSIX_CHILD")
+assert_contains "unreadable platform reports the unread layer" "$OUT" "UNREAD LAYER"
+assert_contains "unreadable platform ends INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
 # Run from the main checkout itself, interactively, its own local file is what the
 # session loads: credited, and nothing is unread.
 OUT=$(PREFLIGHT_UID=unreadable run "$PWREPO" "$CFG16")

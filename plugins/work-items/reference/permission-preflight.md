@@ -134,22 +134,25 @@ or its `.git` or `.claude` entry is not owned by the user. The preflight detects
 - **Windows**: `uname -s` matching `MINGW*`, `MSYS*` or `CYGWIN*` (`PREFLIGHT_UNAME` injects it for
   tests).
 - **Root equal to `$HOME`**: the verified main checkout's root, compared after the same path folding
-  the coverage checks use.
+  the coverage checks use, and again as physical paths, so a symlinked `$HOME` matches.
 - **Root not owned by the user**: the owner (`stat`) of the root, its `.git` or its `.claude` entry
-  differs from `id -u` (`PREFLIGHT_UID` overrides the current uid for tests).
+  differs from `id -u` (for tests `PREFLIGHT_UID` overrides the current uid, and
+  `PREFLIGHT_OWNER_ROOT`, `PREFLIGHT_OWNER_GIT` or `PREFLIGHT_OWNER_CLAUDE` one entry's owner).
 
 In any of those layouts only the **worktree's own** `settings.local.json` is credited; the main
 checkout's file is not, and the report opens with a `per-worktree approvals layout (<causes>)` line.
 Deny rules keep reading the main checkout's file, erring wide as everywhere else. When the layout
-cannot be determined (an owner or the current uid is unreadable, or neither `HOME` nor `USERPROFILE`
-is set) the main checkout's file is likewise not credited, the layer is reported `UNREAD LAYER`, and
-the summary is `PREFLIGHT: INCOMPLETE`, never `OK`.
+cannot be determined (the platform, an owner or the current uid is unreadable, or neither `HOME` nor
+`USERPROFILE` is set) the main checkout's file is likewise not credited, the layer is reported
+`UNREAD LAYER`, and the summary is `PREFLIGHT: INCOMPLETE`, never `OK`.
 
 - **Pointer**: when checking where a saved approval lands and which sessions it reaches, fetch
-  [permissions § Permission system](https://code.claude.com/docs/en/permissions#permission-system)
-  and [worktrees § What worktrees share with the main checkout](https://code.claude.com/docs/en/worktrees#what-worktrees-share-with-the-main-checkout)
-  live. **As of**: 2026-10-11. **Recheck trigger**: either section changes where "Yes, don't ask
-  again" saves the rule, how it resolves through worktrees, or which cases keep it in the worktree.
+  [permissions § Permission system](https://code.claude.com/docs/en/permissions#permission-system),
+  [worktrees § What worktrees share with the main checkout](https://code.claude.com/docs/en/worktrees#what-worktrees-share-with-the-main-checkout)
+  and [settings § Where Claude Code keeps the local file in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository)
+  live. **As of**: 2026-10-18. **Recheck trigger**: any of these sections changes where "Yes, don't
+  ask again" saves the rule, how it resolves through worktrees, or the list of cases that keep the
+  file with the worktree.
 
 Where the shared save applies, the main
 checkout's local file is therefore part of a fresh worker worktree's effective settings, and the

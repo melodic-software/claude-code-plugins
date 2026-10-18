@@ -34,11 +34,13 @@
 #                 "settings.local.json scope" holds the pointer record). It is
 #                 credited only when the main checkout is VERIFIED and the layout
 #                 shares it: on Windows (uname -s MINGW*/MSYS*/CYGWIN*, injectable
-#                 as $PREFLIGHT_UNAME), with the repository root equal to $HOME, or
-#                 with the root or its .git or .claude entry not owned by the user,
-#                 an approval stays with its worktree and only the worktree's own
-#                 file is credited. A layout that cannot be determined (ownership
-#                 unreadable; $PREFLIGHT_UID overrides the current uid for tests) is
+#                 as $PREFLIGHT_UNAME), with the repository root equal to $HOME
+#                 (literally or after resolving symlinks), or with the root or its
+#                 .git or .claude entry not owned by the user, an approval stays
+#                 with its worktree and only the worktree's own file is credited. A
+#                 layout that cannot be determined (platform, uid or an owner
+#                 unreadable; for tests $PREFLIGHT_UID overrides the current uid and
+#                 $PREFLIGHT_OWNER_ROOT/_GIT/_CLAUDE one entry's owner) is
 #                 not credited either and ends PREFLIGHT: INCOMPLETE. When the main
 #                 checkout cannot be determined the layer goes unread and the run
 #                 reports PREFLIGHT: INCOMPLETE rather than an unqualified OK; no
@@ -355,8 +357,10 @@ detect_layout() {
   layout_causes=""
   layout_reason=""
   [[ "$main_state" == "verified" ]] || return 0
-  local uname_s="${PREFLIGHT_UNAME:-$(uname -s 2>/dev/null)}" home="${HOME:-${USERPROFILE:-}}"
-  local cur_uid entry owner root_n home_n
+  # Unset, not empty, selects the real uname: tests inject an empty platform.
+  local uname_s="${PREFLIGHT_UNAME-$(uname -s 2>/dev/null)}" home="${HOME:-${USERPROFILE:-}}"
+  local cur_uid tag entry owner root_n home_n root_p home_p
+  [[ -n "$uname_s" ]] || layout_reason="the platform (uname -s) is unreadable"
   case "$uname_s" in
   MINGW* | MSYS* | CYGWIN*)
     layout="per-worktree"
@@ -370,7 +374,10 @@ detect_layout() {
     root_n="$NORM_OUT"
     norm_path "$home"
     home_n="$NORM_OUT"
-    if [[ "$root_n" == "$home_n" ]]; then
+    # Physical paths too: a symlinked HOME names the same directory.
+    root_p="$(cd -P -- "$main_root" 2>/dev/null && pwd -P)"
+    home_p="$(cd -P -- "$home" 2>/dev/null && pwd -P)"
+    if [[ "$root_n" == "$home_n" || (-n "$root_p" && "$root_p" == "$home_p") ]]; then
       layout_causes="repository root is the home directory"
     fi
   else
@@ -380,15 +387,22 @@ detect_layout() {
   case "$cur_uid" in
   "" | *[!0-9]*) layout_reason="the current user id is unreadable ('$cur_uid')" ;;
   *)
-    for entry in "$main_root" "$main_root/.git" "$main_root/.claude"; do
+    for tag in ROOT GIT CLAUDE; do
+      case "$tag" in
+      ROOT) entry="$main_root" owner="${PREFLIGHT_OWNER_ROOT:-}" ;;
+      GIT) entry="$main_root/.git" owner="${PREFLIGHT_OWNER_GIT:-}" ;;
+      *) entry="$main_root/.claude" owner="${PREFLIGHT_OWNER_CLAUDE:-}" ;;
+      esac
       if [[ ! -e "$entry" ]]; then
         # .claude may legitimately be absent; the root and .git exist once verified.
-        [[ "$entry" == "$main_root/.claude" ]] && continue
+        [[ "$tag" == "CLAUDE" ]] && continue
         layout_reason="'$entry' does not exist, so its owner cannot be read"
         continue
       fi
-      # portability-ok: GNU-first rung of a dual-dialect ladder; the BSD -f spelling is the || fallback, and a non-numeric owner falls to "unknown"
-      owner="$(stat -c %u "$entry" 2>/dev/null || stat -f %u "$entry" 2>/dev/null)"
+      if [[ -z "$owner" ]]; then
+        # portability-ok: GNU-first rung of a dual-dialect ladder; the BSD -f spelling is the || fallback, and a non-numeric owner falls to "unknown"
+        owner="$(stat -c %u "$entry" 2>/dev/null || stat -f %u "$entry" 2>/dev/null)"
+      fi
       case "$owner" in
       "" | *[!0-9]*) layout_reason="the owner of '$entry' is unreadable" ;;
       "$cur_uid") ;;
