@@ -9,7 +9,7 @@
  * The data directory resolves like run.mjs resolves it (`resolvePluginData`); an unusable
  * value is reported as a line, not thrown.
  *
- * Usage: node preflight.mjs --data-dir <dir>
+ * Usage: node preflight.mjs --data-dir <dir> [--asr-python <path>]
  */
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -28,8 +28,11 @@ const lines = [];
 
 let data;
 let dataProblem;
+let asrPython;
 try {
-  const { dataDir } = parseRunArgs(process.argv.slice(2));
+  const parsed = parseRunArgs(process.argv.slice(2));
+  const { dataDir } = parsed;
+  asrPython = parsed.asrPython;
   data = resolvePluginData(dataDir, process.env);
 } catch (error) {
   dataProblem = error.message;
@@ -64,7 +67,7 @@ lines.push(`ImageMagick: ${magick ?? "MISSING - install ImageMagick 7 (watch act
 
 // Optional ASR rung: detected through whichever Python imports faster_whisper, never installed.
 let whisper;
-const configuredPython = process.env.CLAUDE_PLUGIN_OPTION_ASR_PYTHON?.trim();
+const configuredPython = (asrPython || process.env.CLAUDE_PLUGIN_OPTION_ASR_PYTHON)?.trim();
 for (const python of [...(configuredPython ? [configuredPython] : []), "python", "python3", "py"]) {
   if (probe(python, ["-c", "import faster_whisper"]) !== undefined) {
     whisper = python;

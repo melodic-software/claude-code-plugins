@@ -12,7 +12,7 @@ allowed-tools: ["Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/
 ## Pre-computed context
 
 ```!
-node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" --asr-python "${user_config.asr_python}"
 ```
 
 If the report above did not run or shows no readiness lines, run that command by hand before any
@@ -266,7 +266,7 @@ runs without bash) and **Node 22 or newer** (the runner reads
 as of 2026-10-10; recheck when either section changes.
 
 Verify before starting (stop and route to the fix path on failure). The readiness report is
-`node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"`;
+`node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" --asr-python "${user_config.asr_python}"`;
 run it by hand when the pre-computed context did not run. It also prints where the dependencies
 install. `--data-dir` is the relocation override: pass another directory to both `setup-deps.mjs`
 and `run.mjs` when the default is not writable.
@@ -340,10 +340,11 @@ uv pip install --python <dir> faster-whisper nvidia-cublas-cu12 nvidia-cudnn-cu1
 
 The `nvidia-*` wheels supply the CUDA libraries for GPU runs; skip them for CPU-only. On Windows the
 runner script adds each `site-packages/nvidia/*/bin` directory as a DLL directory, so no PATH edit is
-needed. The `av<19` pin works around a reported faster-whisper 1.2.1 and PyAV 19 incompatibility
-(`TypeError: open() got an unexpected keyword argument 'metadata_errors'`), reported by a producing
-run and not reproduced here, as of 2026-10-18. Recheck when a faster-whisper release after 1.2.1
-ships, and drop the pin once it installs and runs against current PyAV.
+needed. The `av` pin in the recipe holds PyAV below a release that a producing run found
+incompatible with faster-whisper; this skill has not reproduced that finding. Read the live state
+in the faster-whisper issue tracker (<https://github.com/SYSTRAN/faster-whisper/issues>) before
+relying on the pin, as of 2026-10-18. Recheck when a faster-whisper release ships, and drop the pin
+once it installs and runs against current PyAV.
 
 ## Eval fixtures
 
