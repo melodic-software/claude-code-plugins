@@ -1249,6 +1249,120 @@ def parse_register(text):
     return rows
 
 
+REGISTER_LEAD = re.compile(r"^(\[[^\]\s]+\]\s*)(.*)$", re.DOTALL)
+
+
+def locate_row(lines, qid, where):
+    """(line index, prefix, status cell, resolution cell, lead id) of the register row `qid` names
+    (`Q<N>` or the `[<id>]` a renumbered row leads with); refuses a missing or ambiguous row.
+    `lines` carry no line ending."""
+    found = []
+    for i, m in scan_register(lines)[1]:
+        cells = m.group(2).split("|", 3)
+        if len(cells) < 4:
+            continue
+        lead = REGISTER_LEAD.match(cells[3].strip())
+        ids = {f"Q{int(m.group(1))}", lead.group(1).strip()[1:-1] if lead else ""}
+        if qid.upper() in {x.upper() for x in ids if x}:
+            found.append((i, lines[i][: m.start(2)], cells[0], cells[3]))
+    if len(found) != 1:
+        raise SystemExit(
+            f"refused: {len(found)} register rows match {qid!r} in {where}"
+            if found
+            else f"refused: no register row {qid!r} in {where}"
+        )
+    return found[0]
+
+
+def edit_row(text, qid, where, change):
+    """`text` with one register row rewritten: change(status, resolution) returns the new
+    (status, resolution) from the row's stripped cells. Each cell keeps its own surrounding
+    whitespace and the line keeps its ending, so nothing else in the ledger moves. The status is
+    passed as written, so only the lowercase statuses the exporter writes match: restore could
+    not give back another case."""
+    lines = text.splitlines(keepends=True)
+    bare = [x.rstrip("\r\n") for x in lines]
+    i, prefix, status_cell, res_cell = locate_row(bare, qid, where)
+    ending = lines[i][len(bare[i]) :]
+    cells = bare[i][len(prefix) :].split("|", 3)
+    new_status, new_res = change(status_cell.strip(), res_cell.strip())
+
+    def put(cell, value):
+        core = cell.strip()
+        start = cell.index(core) if core else len(cell)
+        return cell[:start] + value + cell[start + len(core) :]
+
+    cells[0], cells[3] = put(cells[0], new_status), put(cells[3], new_res)
+    lines[i] = prefix + "|".join(cells) + ending
+    return "".join(lines)
+
+
+def split_lead(res):
+    """(`[<id>] ` lead or "", the rest) of a register resolution."""
+    m = REGISTER_LEAD.match(res)
+    return (m.group(1), m.group(2)) if m else ("", res)
+
+
+def supersede_row(text, qid, proposes, where):
+    """`text` with the answered row `qid` set to superseded-by-plan, `proposal:: E(proposes);
+    was:: E(its resolution)`, escaped as export_ledger escapes a superseded row."""
+    if not proposes.strip():
+        raise SystemExit("refused: --proposes is empty")
+
+    def change(status, res):
+        if status != "answered":
+            raise SystemExit(
+                f"refused: {qid} is {status or 'blank'}, and only an answered row can be "
+                f"superseded, in {where}"
+            )
+        lead, old = split_lead(res)
+        return "superseded-by-plan", lead + encode({"proposal": proposes, "was": old}, None)
+
+    return edit_row(text, qid, where, change)
+
+
+def resolve_row(text, qid, how, note, where):
+    """`text` with the superseded-by-plan row `qid` cleared: `reconfirm` writes the answered
+    `proposal:: ...; was:: ...; answer:: accepted: ...` row, `restore` the resolution the row had
+    before supersede_row, character for character."""
+    if how not in ("reconfirm", "restore"):
+        raise SystemExit(f"refused: unknown resolution {how!r} (reconfirm or restore)")
+    if note and how == "restore":
+        raise SystemExit("refused: --note belongs to reconfirm")
+
+    def change(status, res):
+        if status != "superseded-by-plan":
+            raise SystemExit(
+                f"refused: {qid} is {status or 'blank'}, not superseded-by-plan, in {where}"
+            )
+        lead, rest = split_lead(res)
+        named = parse_named(rest, where)
+        if named:
+            fields = named[0]
+            if set(fields) != {"proposal", "was"} or named[1]:
+                raise SystemExit(
+                    f"refused: {qid} carries more than a plan proposal and the answer it "
+                    f"displaced; edit it by hand in {where}"
+                )
+            new, old = fields["proposal"], fields["was"]
+        else:
+            older = PROPOSES.match(rest)
+            if not older:
+                raise SystemExit(f"refused: unreadable plan proposal {rest!r} in {where}")
+            new, old = older.groups()
+        if how == "restore":
+            return "answered", lead + old
+        fields = {
+            "proposal": new,
+            "was": old,
+            "answer": f"accepted: {new}",
+            "note": note or None,
+        }
+        return "answered", lead + encode(fields, None)
+
+    return edit_row(text, qid, where, change)
+
+
 def seeded_decision(res):
     """The terminal decision an `answered` resolution records: (decision, alt, text, recommendation)."""
     if res.startswith("free-text:"):

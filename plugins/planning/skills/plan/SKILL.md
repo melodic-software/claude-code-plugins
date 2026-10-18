@@ -258,9 +258,9 @@ Runs only when the blast-radius assessment triggers it; the deeper, formal versi
 
 Applies to every change made after the Brief locked: Step 3 reviewer fixes, Step 4 research updates, and adopted `/planning:devils-advocate` mitigations. A change that (a) displaces an answer the user gave in the interview, or (b) adds a remote write, an irreversible action, or an externally visible artifact, is never folded into the plan silently:
 
-- **Kind (a), ledger exists**: set that register row to `superseded-by-plan`, resolution `plan proposes: <new>; was: <old>`. A Brief-only interview has no register; list the change at Step 5 only.
+- **Kind (a), ledger exists**: run `bash "${CLAUDE_PLUGIN_ROOT}/surface/round.sh" supersede --ledger <ledger> Q<N> --proposes <new>`. It sets the answered row to `superseded-by-plan`, takes its current resolution as `was` and escapes both, and needs no page. A Brief-only interview has no register; list the change at Step 5 only.
 - **Both kinds**: list the change at Step 5 in the "Displaced answers and new external effects" block.
-- **Clearing a listed change**: every row of that block, superseded or not, needs an explicit reply to that row; a blanket "approve" clears none of them. For a superseded row, reconfirm sets `answered` with `proposal:: <new>; was:: <old>; answer:: accepted: <new>`, each value escaped as the exporter escapes it (a literal `;`, `\` or `|`; the grammar is in `surface/exporters.py`); reject restores the original answer and the plan drops the change.
+- **Clearing a listed change**: every row of that block, superseded or not, needs an explicit reply to that row; a blanket "approve" clears none of them. For a superseded row, run `bash "${CLAUDE_PLUGIN_ROOT}/surface/round.sh" resolve --ledger <ledger> Q<N> reconfirm [--note <text>]` to set it `answered` with the proposal accepted, or `... Q<N> restore` to put the original row back byte for byte (reject: the plan drops the change). Both back the ledger up and print the `check-open-questions.sh` verdict.
 - **Unattended run**: leave every listed change uncleared (superseded rows stay `superseded-by-plan`), report each as **USER-RESERVED**, and report the plan as unapproved.
 
 ### Step 4.5: Execution-Shape Analysis (parallelism. Default ON for multi-phase plans)

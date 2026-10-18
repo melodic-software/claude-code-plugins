@@ -3140,6 +3140,127 @@ class TestRoundTooling(DirCase):
         self.assertEqual(added, {"Q1": None, "Q2": 3})
 
 
+class TestSupersedeResolve(DirCase):
+    """supersede and resolve edit one register row of a ledger and need no data dir."""
+
+    HAZARD = r"keep a;b, c\d and e|f"
+    LEDGER = (
+        "# Interview ledger\n\n## Open-question register\n\n"
+        "- Q1 | answered | round 1 | Which store? | accepted: Postgres\n"
+        f"-  Q2 |  answered  | round 1 |  Which queue? |  free-text: {HAZARD}   \n"
+        "- Q3 | open | round 1 | Which cache? |\n"
+        "- Q4 | answered | round 1 | Which log? | [A9] alt b: stdout; note\n\n"
+        "## Deferred questions\n\nNone.\n"
+    )
+
+    def setUp(self):
+        super().setUp()
+        self.ledger = self.tmp / "ledger.md"
+        self.ledger.write_bytes(self.LEDGER.encode("utf-8"))
+
+    def cmd(self, *args):
+        p = subprocess.run(
+            [sys.executable, str(ROUND), *args],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        return p.returncode, p.stdout, p.stderr
+
+    def edit(self, *args):
+        rc, out, err = self.cmd(*args, "--ledger", str(self.ledger))
+        self.assertEqual(rc, 0, out + err)
+        return out
+
+    def row(self, n):
+        return next(
+            x
+            for x in self.ledger.read_text(encoding="utf-8", newline="").splitlines()
+            if x.lstrip("- ").startswith(f"Q{n}")
+        )
+
+    def test_reconfirm_writes_the_exporters_text_and_imports(self):
+        import exporters
+
+        out = self.edit("supersede", "Q1", "--proposes", "SQLite")
+        self.assertIn("superseded=1", out)
+        self.assertIn(
+            "- Q1 | superseded-by-plan | round 1 | Which store? | ", self.row(1)
+        )
+        out = self.edit("resolve", "Q1", "reconfirm", "--note", "per review")
+        self.assertIn("superseded=0", out)
+        want = exporters.encode(
+            {
+                "proposal": "SQLite",
+                "was": "accepted: Postgres",
+                "answer": "accepted: SQLite",
+                "note": "per review",
+            },
+            None,
+        )
+        self.assertEqual(
+            self.row(1), f"- Q1 | answered | round 1 | Which store? | {want}"
+        )
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out, err = run_round(fresh, "import-ledger", "--ledger", str(self.ledger))
+        self.assertEqual(rc, 0, out + err)
+
+    def test_restore_leaves_the_ledger_byte_identical(self):
+        for q in ("Q1", "Q2", "Q4"):
+            self.edit("supersede", q, "--proposes", "x; y")
+            self.assertEqual(
+                self.row(int(q[1])).split("|")[1].strip(), "superseded-by-plan"
+            )
+            self.edit("resolve", q, "restore")
+        self.assertEqual(self.ledger.read_bytes(), self.LEDGER.encode("utf-8"))
+
+    def test_restore_keeps_crlf_endings(self):
+        crlf = self.LEDGER.replace("\n", "\r\n").encode("utf-8")
+        self.ledger.write_bytes(crlf)
+        self.edit("supersede", "Q2", "--proposes", "p")
+        self.edit("resolve", "Q2", "restore")
+        self.assertEqual(self.ledger.read_bytes(), crlf)
+
+    def test_a_row_with_separators_survives_both_paths(self):
+        import exporters
+
+        self.edit("supersede", "Q2", "--proposes", self.HAZARD)
+        self.edit("resolve", "Q2", "reconfirm")
+        res = self.row(2).split("|", 4)[4].strip()
+        fields = exporters.parse_named(res, "t")[0]
+        self.assertEqual(fields["was"], f"free-text: {self.HAZARD}")
+        self.assertEqual(fields["proposal"], self.HAZARD)
+
+    def test_the_check_counts_the_row_superseded_then_answered(self):
+        out = self.edit("supersede", "Q1", "--proposes", "x")
+        self.assertIn("answered=2", out)
+        self.assertIn("superseded=1", out)
+        out = self.edit("resolve", "Q1", "reconfirm")
+        self.assertIn("answered=3", out)
+        self.assertIn("superseded=0", out)
+
+    def test_a_backup_of_the_prior_ledger_is_kept(self):
+        self.edit("supersede", "Q1", "--proposes", "x")
+        (bak,) = self.tmp.glob("ledger.md.*.bak")
+        self.assertEqual(bak.read_bytes(), self.LEDGER.encode("utf-8"))
+
+    def test_refusals_write_nothing(self):
+        cases = [
+            ("supersede", "Q3", "--proposes", "x"),
+            ("supersede", "Q9", "--proposes", "x"),
+            ("supersede", "Q1", "--proposes", " "),
+            ("resolve", "Q1", "reconfirm"),
+            ("resolve", "Q1", "restore", "--note", "n"),
+        ]
+        for args in cases:
+            rc, out, err = self.cmd(*args, "--ledger", str(self.ledger))
+            self.assertEqual(rc, 1, (args, out, err))
+            self.assertIn("refused", err)
+        self.assertEqual(self.ledger.read_bytes(), self.LEDGER.encode("utf-8"))
+        self.assertEqual(list(self.tmp.glob("*.bak")), [])
+
+
 class TestConfirmationRecap(DirCase):
     """export-ledger --recap emits a recap that fits the restate cap on a long interview."""
 
