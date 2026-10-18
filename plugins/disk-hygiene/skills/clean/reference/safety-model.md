@@ -588,8 +588,8 @@ non-overridable scope, an explicitly configured value there **wins over the user
 organization can enforce audit-only mode; the sibling `managed-settings.d/` drop-in directory is merged
 over it (later files win). That path is not admin-only everywhere (on WSL `/etc/claude-code` is
 user-writable), so on Linux and WSL a managed value that **enables** execution counts only from a file
-that is root-owned and not writable by the current user, checked per file including each drop-in; a
-managed value that restricts is honored from any file, and an untrusted enabling value is skipped so the
+that is root-owned and not writable by the current user, checked per file including each drop-in on the
+same descriptor the value is read from, and never from a symlink; a managed value that restricts is honored from any file, and an untrusted enabling value is skipped so the
 user setting decides. The one honored source the guard cannot read is a session's `--settings` file
 (a runtime CLI flag no hook observes); a value supplied only there is not enforced. When the value
 resolves `false` (audit-only mode), `false` is guard-enforced as an outright deny with no prompt fallback, but

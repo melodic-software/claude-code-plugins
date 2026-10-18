@@ -68,6 +68,8 @@ for _leaked_git_var in (
 del _leaked_git_var
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+# A file every Linux host keeps root-owned and not group- or other-writable.
+_ROOT_OWNED_FILE = "/etc/passwd"
 
 
 def load_module(name: str, filename: str):
@@ -194,9 +196,16 @@ class HygieneTests(unittest.TestCase):
 
     def test_file_only_hints_skip_directories(self) -> None:
         policy = hygiene.load_policy(None)
-        for name, hint_id in (("x.tmp", "common-temp-file"), ("x.lock", "common-lock-file")):
-            as_dir = {h["id"] for h in hygiene.matching_hints(name, name, policy, "directory")}
-            as_file = {h["id"] for h in hygiene.matching_hints(name, name, policy, "file")}
+        for name, hint_id in (
+            ("x.tmp", "common-temp-file"),
+            ("x.lock", "common-lock-file"),
+        ):
+            as_dir = {
+                h["id"] for h in hygiene.matching_hints(name, name, policy, "directory")
+            }
+            as_file = {
+                h["id"] for h in hygiene.matching_hints(name, name, policy, "file")
+            }
             self.assertNotIn(hint_id, as_dir, name)
             self.assertIn(hint_id, as_file, name)
 
@@ -214,9 +223,13 @@ class HygieneTests(unittest.TestCase):
             with self.assertRaisesRegex(hygiene.HygieneError, "entry_types"):
                 hygiene.validate_hint({**hint, "entry_types": bad})
 
-    def test_overlay_schema_hint_lists_entry_types_as_the_engine_accepts_them(self) -> None:
+    def test_overlay_schema_hint_lists_entry_types_as_the_engine_accepts_them(
+        self,
+    ) -> None:
         schema = json.loads(
-            (SCRIPT_DIR.parent / "reference" / "policy-overlay.schema.json").read_text("utf-8")
+            (SCRIPT_DIR.parent / "reference" / "policy-overlay.schema.json").read_text(
+                "utf-8"
+            )
         )
         hint = schema["$defs"]["hint"]
         self.assertIn("entry_types", hint["properties"])
@@ -245,7 +258,11 @@ class HygieneTests(unittest.TestCase):
         }
         hygiene.validate_hint(link_only)
         only = {**policy, "hints": [link_only]}
-        for kind, expected in (("link", ["link-only"]), ("file", []), ("directory", [])):
+        for kind, expected in (
+            ("link", ["link-only"]),
+            ("file", []),
+            ("directory", []),
+        ):
             matched = hygiene.matching_hints("a.x", "a.x", only, kind)
             self.assertEqual(expected, [h["id"] for h in matched], kind)
 
@@ -273,9 +290,13 @@ class HygieneTests(unittest.TestCase):
                 hygiene.MAX_EMPTY_DIRECTORY_PATHS + 5, snapshot["empty_directory_count"]
             )
             self.assertEqual(
-                hygiene.MAX_EMPTY_DIRECTORY_PATHS, len(snapshot["empty_directory_paths"])
+                hygiene.MAX_EMPTY_DIRECTORY_PATHS,
+                len(snapshot["empty_directory_paths"]),
             )
-            self.assertEqual(sorted(snapshot["empty_directory_paths"]), snapshot["empty_directory_paths"])
+            self.assertEqual(
+                sorted(snapshot["empty_directory_paths"]),
+                snapshot["empty_directory_paths"],
+            )
             self.assertTrue(snapshot["empty_directory_paths_truncated"])
 
     def test_platform_scoped_hints_are_also_case_insensitive(self) -> None:
@@ -309,7 +330,15 @@ class HygieneTests(unittest.TestCase):
 
         with mock.patch.object(hygiene, "os_key", return_value="linux"):
             for name in (
-                "nul", "NUL", "nul.txt", "Con", "prn", "aux.log", "COM1", "com9.dat", "lpt3",
+                "nul",
+                "NUL",
+                "nul.txt",
+                "Con",
+                "prn",
+                "aux.log",
+                "COM1",
+                "com9.dat",
+                "lpt3",
             ):
                 self.assertTrue(device_hints(name), name)
             for name in ("notes.txt", "console", "com10", "null", "auxiliary"):
@@ -330,12 +359,16 @@ class HygieneTests(unittest.TestCase):
             with mock.patch.object(hygiene, "os_key", return_value=os_name):
                 for name, kind, hint_id in rows:
                     matched = {
-                        h["id"] for h in hygiene.matching_hints(name, name, policy, kind)
+                        h["id"]
+                        for h in hygiene.matching_hints(name, name, policy, kind)
                     }
                     self.assertEqual(expect, hint_id in matched, (os_name, name))
         with mock.patch.object(hygiene, "os_key", return_value="windows"):
             as_file = {
-                h["id"] for h in hygiene.matching_hints("myapp-updater", "myapp-updater", policy, "file")
+                h["id"]
+                for h in hygiene.matching_hints(
+                    "myapp-updater", "myapp-updater", policy, "file"
+                )
             }
             self.assertNotIn("windows-electron-updater-cache", as_file)
 
@@ -437,8 +470,11 @@ class HygieneTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             for version in (0, 3, True, "2", None):
                 path = self._overlay(temporary, "bad.json", version=version)
-                with self.subTest(version=version), self.assertRaisesRegex(
-                    hygiene.HygieneError, "version must be 1 or 2"
+                with (
+                    self.subTest(version=version),
+                    self.assertRaisesRegex(
+                        hygiene.HygieneError, "version must be 1 or 2"
+                    ),
                 ):
                     hygiene.load_policy(path)
 
@@ -605,8 +641,9 @@ class HygieneTests(unittest.TestCase):
                         }
                     ],
                 )
-                with self.subTest(basis=basis), self.assertRaisesRegex(
-                    hygiene.HygieneError, "min_age_basis"
+                with (
+                    self.subTest(basis=basis),
+                    self.assertRaisesRegex(hygiene.HygieneError, "min_age_basis"),
                 ):
                     hygiene.load_policy(path)
 
@@ -700,9 +737,7 @@ class HygieneTests(unittest.TestCase):
                 return listing
 
             with mock.patch.object(hygiene.os, "scandir", touching_scandir):
-                snapshot = hygiene.scan_tree(
-                    root.resolve(), hygiene.load_policy(None)
-                )
+                snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
             self.assertEqual(old, hygiene.entry_map(snapshot)["sub"]["atime_ns"])
 
     def test_baseline_temp_hints_carry_the_temp_class(self) -> None:
@@ -874,8 +909,11 @@ class HygieneTests(unittest.TestCase):
             for value in ("always", "UAC-PROMPT", "sudo", "", True, None, 1, []):
                 path = self._overlay(temporary, "bad.json", elevation=value)
                 result = hygiene.baseline_policy()
-                with self.subTest(value=value), self.assertRaisesRegex(
-                    hygiene.HygieneError, "elevation must be one of"
+                with (
+                    self.subTest(value=value),
+                    self.assertRaisesRegex(
+                        hygiene.HygieneError, "elevation must be one of"
+                    ),
                 ):
                     hygiene.apply_policy_overlay(result, path)
                 self.assertEqual("never", result["elevation"])
@@ -979,7 +1017,11 @@ class HygieneTests(unittest.TestCase):
             )
             self.assertNotIn("preselected", entries["plain.txt"])
             self.assertNotIn("policy_rule", entries["plain.txt"])
-            plan = {"version": 1, "tier": "low", "candidates": [candidate("old.stage", "low")]}
+            plan = {
+                "version": 1,
+                "tier": "low",
+                "candidates": [candidate("old.stage", "low")],
+            }
             result = self._preview_ready(hygiene.scan_tree(root, policy), plan)
             self.assertEqual("ready-for-explicit-approval", result["status"])
             self.assertIs(True, result["candidates"][0]["preselected"])
@@ -1015,7 +1057,9 @@ class HygieneTests(unittest.TestCase):
                 "candidates": [candidate("guarded/keep.stage", "low")],
             }
             result = self._preview_ready(snapshot, plan)
-            self.assertIn("consumer-protected-path", result["candidates"][0]["blockers"])
+            self.assertIn(
+                "consumer-protected-path", result["candidates"][0]["blockers"]
+            )
             self.assertIs(False, result["candidates"][0]["preselected"])
             self.assertIsNone(result["approval_token"])
 
@@ -1042,12 +1086,20 @@ class HygieneTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root, policy, _ = self._preselect_fixture(temporary)
             snapshot = hygiene.scan_tree(root, policy)
-            plan = {"version": 1, "tier": "low", "candidates": [candidate("old.stage", "low")]}
+            plan = {
+                "version": 1,
+                "tier": "low",
+                "candidates": [candidate("old.stage", "low")],
+            }
             with (
-                mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
                 mock.patch.object(hygiene, "tracked_blocker", return_value=None),
                 mock.patch.object(
-                    hygiene, "execution_blockers", return_value=[hygiene.PLATFORM_BLOCKER]
+                    hygiene,
+                    "execution_blockers",
+                    return_value=[hygiene.PLATFORM_BLOCKER],
                 ),
             ):
                 result = hygiene.preview(snapshot, plan)
@@ -1153,7 +1205,9 @@ class HygieneTests(unittest.TestCase):
             self._age(root / "dir.stage", 30)
             entry = hygiene.entry_map(hygiene.scan_tree(root, policy))["dir.stage"]
             self.assertIs(False, entry["preselected"])
-            self.assertIn("in-flight: modified within 7 days", entry["in_flight_reason"])
+            self.assertIn(
+                "in-flight: modified within 7 days", entry["in_flight_reason"]
+            )
             self._age(root / "dir.stage" / "child.txt", 30)
             self._age(root / "dir.stage", 30)
             entry = hygiene.entry_map(hygiene.scan_tree(root, policy))["dir.stage"]
@@ -1204,7 +1258,8 @@ class HygieneTests(unittest.TestCase):
             snapshot, entries = self._scan_with_refs(temporary, "dir.stage")
             for name in ("dir.stage", "dir.stage/child.txt"):
                 self.assertEqual(
-                    "in-flight: referenced by PR #123", entries[name]["in_flight_reason"]
+                    "in-flight: referenced by PR #123",
+                    entries[name]["in_flight_reason"],
                 )
             self.assertIs(False, entries["dir.stage"]["preselected"])
             self.assertIs(True, entries["old.stage"]["preselected"])
@@ -1235,7 +1290,12 @@ class HygieneTests(unittest.TestCase):
     def test_in_flight_ref_outside_the_target_affects_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root, policy = self._aged_fixture(temporary)
-            for name in ("old.stage", "fresh.stage", "dir.stage", "dir.stage/child.txt"):
+            for name in (
+                "old.stage",
+                "fresh.stage",
+                "dir.stage",
+                "dir.stage/child.txt",
+            ):
                 self._age(root / name, 30)
             refs = [{"path": str(root.parent / "elsewhere"), "reason": "x"}]
             entries = hygiene.entry_map(
@@ -1270,7 +1330,13 @@ class HygieneTests(unittest.TestCase):
         base = {"kind": "file", "hints": [], "protected_reasons": []}
         stamps = {"mtime_ns": old, "atime_ns": old, "ctime_ns": old}
         return [
-            {"path": "dir.stage", **base, "kind": "directory", "hints": [{"id": "h"}], **stamps},
+            {
+                "path": "dir.stage",
+                **base,
+                "kind": "directory",
+                "hints": [{"id": "h"}],
+                **stamps,
+            },
             {"path": "dir.stage/a", **base, **stamps, f"{basis}_ns": new},
         ]
 
@@ -1279,12 +1345,16 @@ class HygieneTests(unittest.TestCase):
             root, policy = self._aged_fixture(temporary)
             for name in ("old.stage", "fresh.stage"):
                 self._age(root / name, 30)
-            os.utime(root / "old.stage", ns=(time.time_ns(), root.joinpath("old.stage").stat().st_mtime_ns))
+            os.utime(
+                root / "old.stage",
+                ns=(time.time_ns(), root.joinpath("old.stage").stat().st_mtime_ns),
+            )
             policy["rules"][-1]["min_age_basis"] = "atime"
             entries = hygiene.entry_map(hygiene.scan_tree(root, policy))
             self.assertIs(False, entries["old.stage"]["preselected"])
             self.assertEqual(
-                "in-flight: accessed within 7 days", entries["old.stage"]["in_flight_reason"]
+                "in-flight: accessed within 7 days",
+                entries["old.stage"]["in_flight_reason"],
             )
             self.assertIs(True, entries["fresh.stage"]["preselected"])
             policy["rules"][-1]["min_age_basis"] = "mtime"
@@ -1293,15 +1363,25 @@ class HygieneTests(unittest.TestCase):
             policy["rules"][-1]["min_age_basis"] = "ctime"
             entries = hygiene.entry_map(hygiene.scan_tree(root, policy))
             self.assertIs(False, entries["old.stage"]["preselected"])
-            self.assertIn("changed within 7 days", entries["old.stage"]["in_flight_reason"])
+            self.assertIn(
+                "changed within 7 days", entries["old.stage"]["in_flight_reason"]
+            )
 
     def test_min_age_directory_newest_descendant_uses_the_chosen_basis(self) -> None:
         old = time.time_ns() - 30 * 86_400 * 10**9
         for basis in ("mtime", "atime", "ctime"):
             for chosen in ("mtime", "atime", "ctime"):
                 entries = self._basis_entries(basis, old, time.time_ns())
-                rules = [{"hint_ids": ["h"], "preselect": True, "min_age_days": 7,
-                          "min_age_basis": chosen, "source": "s", "index": 0}]
+                rules = [
+                    {
+                        "hint_ids": ["h"],
+                        "preselect": True,
+                        "min_age_days": 7,
+                        "min_age_basis": chosen,
+                        "source": "s",
+                        "index": 0,
+                    }
+                ]
                 hygiene.apply_rules(entries, rules)
                 with self.subTest(touched=basis, chosen=chosen):
                     self.assertIs(basis != chosen, entries[0]["preselected"])
@@ -1331,8 +1411,15 @@ class HygieneTests(unittest.TestCase):
             {"path": "dir.stage", **base},
             {**base, "path": "dir.stage/a", "kind": "file", "hints": []},
         ]
-        rules = [{"hint_ids": ["h"], "preselect": True, "min_age_days": 7,
-                  "source": "s", "index": 0}]
+        rules = [
+            {
+                "hint_ids": ["h"],
+                "preselect": True,
+                "min_age_days": 7,
+                "source": "s",
+                "index": 0,
+            }
+        ]
         hygiene.apply_rules(entries, rules)
         self.assertIs(True, entries[0]["preselected"])
         entries[0].pop("preselected")
@@ -1358,7 +1445,11 @@ class HygieneTests(unittest.TestCase):
             root, policy, _ = self._preselect_fixture(temporary)
             snapshot = hygiene.scan_tree(root, policy)
             self.assertIs(True, hygiene.entry_map(snapshot)["old.stage"]["preselected"])
-            plan = {"version": 1, "tier": "low", "candidates": [candidate("old.stage", "low")]}
+            plan = {
+                "version": 1,
+                "tier": "low",
+                "candidates": [candidate("old.stage", "low")],
+            }
             snapshot_path = base / "snapshot.json"
             plan_path = base / "plan.json"
             snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
@@ -1462,14 +1553,14 @@ class HygieneTests(unittest.TestCase):
                         "version": 1,
                         "disabled_hint_ids": [],
                         "additional_hints": [],
-                        "additional_protected_path_globs": [
-                            "client-deliverables/**"
-                        ],
+                        "additional_protected_path_globs": ["client-deliverables/**"],
                     }
                 ),
                 encoding="utf-8",
             )
-            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(policy_path))
+            snapshot = hygiene.scan_tree(
+                root.resolve(), hygiene.load_policy(policy_path)
+            )
             entries = hygiene.entry_map(snapshot)
             self.assertIn(
                 "consumer-protected-path",
@@ -3089,9 +3180,7 @@ class HygieneTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "vc_redist.x64.exe"
             path.write_text("installer", encoding="utf-8")
-            self.assertIsNone(
-                hygiene.root_child_skip_reason(path, exact_names=set())
-            )
+            self.assertIsNone(hygiene.root_child_skip_reason(path, exact_names=set()))
 
     def test_root_child_hidden_file_reports_hidden(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -4809,7 +4898,9 @@ class HygieneTests(unittest.TestCase):
                 (root / "big" / f"file-{index}.txt").write_text("x", encoding="utf-8")
             with (
                 mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 3),
-                self.assertRaisesRegex(hygiene.HygieneError, "exceeds 3 entries") as raised,
+                self.assertRaisesRegex(
+                    hygiene.HygieneError, "exceeds 3 entries"
+                ) as raised,
             ):
                 hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
             message = str(raised.exception)
@@ -4818,7 +4909,9 @@ class HygieneTests(unittest.TestCase):
             self.assertIn("--sizes-only", message)
             self.assertIn("--root-children --root-child <name>", message)
 
-    def test_entry_cap_error_does_not_mark_a_finished_child_as_in_progress(self) -> None:
+    def test_entry_cap_error_does_not_mark_a_finished_child_as_in_progress(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"
             (root / "aaa").mkdir(parents=True)
@@ -4826,7 +4919,9 @@ class HygieneTests(unittest.TestCase):
             (root / "bbb.txt").write_text("x", encoding="utf-8")
             with (
                 mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 2),
-                self.assertRaisesRegex(hygiene.HygieneError, "exceeds 2 entries") as raised,
+                self.assertRaisesRegex(
+                    hygiene.HygieneError, "exceeds 2 entries"
+                ) as raised,
             ):
                 hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
             message = str(raised.exception)
@@ -4847,7 +4942,9 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual("sizes-only", snapshot["inventory_mode"])
             self.assertEqual("exact", snapshot["rollup_precision"])
             child = next(
-                row for row in snapshot["children_rollup"] if row["name"] == "file-0.txt"
+                row
+                for row in snapshot["children_rollup"]
+                if row["name"] == "file-0.txt"
             )
             self.assertTrue(child["walked"])
 
@@ -6137,7 +6234,13 @@ class StdlibShadowingTests(unittest.TestCase):
             ):
                 findings = hygiene.annotate_stdlib_shadowing(entries, home)
         self.assertEqual(
-            [{"path": "Random.py", "module": "random", "bytecode_cache": "__pycache__"}],
+            [
+                {
+                    "path": "Random.py",
+                    "module": "random",
+                    "bytecode_cache": "__pycache__",
+                }
+            ],
             findings,
         )
         self.assertEqual(
@@ -9472,7 +9575,7 @@ class GuardTests(unittest.TestCase):
         return (
             f'"{self.python_command()}" "{script}" apply --execute '
             f'--snapshot "{snapshot.as_posix()}" --plan "{plan.as_posix()}" '
-            f'--confirm-tier high --approval-token {"a" * 24} --report {self.report_arg}'
+            f"--confirm-tier high --approval-token {'a' * 24} --report {self.report_arg}"
             + self.authorize_data_root()
         )
 
@@ -9538,7 +9641,13 @@ class GuardTests(unittest.TestCase):
         oversized.write_bytes(b" " * (guard._APPLY_PLAN_READ_LIMIT + 1))
         directory = base / "plan-dir"
         directory.mkdir()
-        for plan in (base / "missing.json", malformed, wrong_shape, oversized, directory):
+        for plan in (
+            base / "missing.json",
+            malformed,
+            wrong_shape,
+            oversized,
+            directory,
+        ):
             with self.subTest(plan=plan.name):
                 self.assertEqual(
                     guard._APPLY_ASK_GENERIC_REASON,
@@ -9773,9 +9882,7 @@ class GuardTests(unittest.TestCase):
         script = SCRIPT_DIR / "hygiene.py"
         scan = f'"{self.python_command()}" "{script}" scan --target t --output {self.output_arg}'
         preview = f'"{self.python_command()}" "{script}" preview --snapshot {self.snapshot_arg} --plan {self.plan_arg}'
-        malformed = (
-            f'"{self.python_command()}" "{script}" preview --plan {self.plan_arg} --snapshot {self.snapshot_arg}'
-        )
+        malformed = f'"{self.python_command()}" "{script}" preview --plan {self.plan_arg} --snapshot {self.snapshot_arg}'
         data_root = self.authorize_data_root()
         scan, preview, malformed = (c + data_root for c in (scan, preview, malformed))
         self.assertEqual(
@@ -9838,9 +9945,9 @@ class GuardTests(unittest.TestCase):
         # Control: the well-formed shape is admitted, so each denial is its own.
         self.assertEqual(
             "allow",
-            self.run_guard(f"{prefix} --snapshot {self.snapshot_arg} --paths {self.paths_arg}{data_root}")[
-                "hookSpecificOutput"
-            ]["permissionDecision"],
+            self.run_guard(
+                f"{prefix} --snapshot {self.snapshot_arg} --paths {self.paths_arg}{data_root}"
+            )["hookSpecificOutput"]["permissionDecision"],
         )
         commands = [
             f"{prefix} --paths {self.paths_arg} --snapshot {self.snapshot_arg}{data_root}",  # wrong flag order
@@ -9864,10 +9971,10 @@ class GuardTests(unittest.TestCase):
         script = SCRIPT_DIR / "hygiene.py"
         data_root = self.authorize_data_root()
         verify = f'"{self.python_command()}" "{script}" handoff-verify --snapshot {self.snapshot_arg}'
-        apply = (
-            f'"{self.python_command()}" "{script}" handoff-apply --execute --snapshot {self.snapshot_arg}'
+        apply = f'"{self.python_command()}" "{script}" handoff-apply --execute --snapshot {self.snapshot_arg}'
+        apply_tail = (
+            f" --vcs-evidence {self.evidence_arg} --report {self.report_arg}{data_root}"
         )
-        apply_tail = f" --vcs-evidence {self.evidence_arg} --report {self.report_arg}{data_root}"
         malformed = {
             "no value": f"{verify} --path{data_root}",
             "joined value": f"{verify} --path=rel/junk{data_root}",
@@ -10728,7 +10835,9 @@ class GuardTests(unittest.TestCase):
 
     def test_quoted_braces_keep_engine_relevance_on_both_surfaces(self) -> None:
         script = guard._display_path(guard._engine_script_path())
-        command = f"python3 \"{script}\" scan --target '{{g}}' --output {self.output_arg}"
+        command = (
+            f"python3 \"{script}\" scan --target '{{g}}' --output {self.output_arg}"
+        )
         self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
         self.assertTrue(guard._engine_gate_relevant(command, "PowerShell"))
         self.assertFalse(guard._engine_gate_relevant("ls '{g}'", "Bash"))
@@ -12061,7 +12170,8 @@ class GuardTests(unittest.TestCase):
     def test_engine_gate_gates_engine_invocations(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         powershell = self.run_guard_engine_gate(
-            f'& python "{script}" scan --target t --output {self.output_arg}', "PowerShell"
+            f'& python "{script}" scan --target t --output {self.output_arg}',
+            "PowerShell",
         )
         assert powershell is not None
         self.assertEqual("deny", powershell["hookSpecificOutput"]["permissionDecision"])
@@ -12079,7 +12189,9 @@ class GuardTests(unittest.TestCase):
         """
         script = SCRIPT_DIR / "hygiene.py"
         result = self.run_guard_engine_gate(
-            f'python3 "{script}" scan --target t --output {self.output_arg}', "Bash", enabled=False
+            f'python3 "{script}" scan --target t --output {self.output_arg}',
+            "Bash",
+            enabled=False,
         )
         assert result is not None
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
@@ -13329,7 +13441,7 @@ class GuardTests(unittest.TestCase):
             "$m = 'DeleteFile'; $f.$m('C:\\x')",
             "$c = Get-Command 'Remove-Item'; $c.Invoke('x')",
             "$fso | % 'DeleteFile'",
-            'python -c "import os; os.system(\'del x\')"',
+            "python -c \"import os; os.system('del x')\"",
             "node -e \"require('child_process').execSync('rm x')\"",
             "([type]'Management.Automation.ScriptBlock')::Create('rm x').Invoke()",
             '"$(rm x"',
@@ -14752,6 +14864,45 @@ class GuardTests(unittest.TestCase):
         self.assertIn("internal deadline", completed.stderr)
 
 
+@unittest.skipUnless(sys.platform.startswith("linux"), "the trust check is Linux-only")
+class TrustedManagedFileTests(unittest.TestCase):
+    """``_is_trusted_managed_file`` judged on stat results it is handed."""
+
+    PATH = Path("/etc/claude-code/managed-settings.json")
+
+    def trusted(self, mode: int, uid: int = 0, writable: bool = False) -> bool:
+        file_stat = os.stat_result((mode, 0, 0, 1, uid, 0, 0, 0, 0, 0))
+        with (
+            mock.patch.object(guard.killswitch_config.os, "geteuid", lambda: 1000),
+            mock.patch.object(
+                guard.killswitch_config.os,
+                "access",
+                lambda path, mode, **kwargs: writable,
+            ),
+        ):
+            return guard.killswitch_config._is_trusted_managed_file(
+                self.PATH, file_stat
+            )
+
+    def test_root_owned_0644_not_writable_is_trusted(self) -> None:
+        self.assertTrue(self.trusted(0o100644))
+
+    def test_group_writable_is_untrusted(self) -> None:
+        self.assertFalse(self.trusted(0o100664))
+
+    def test_other_writable_is_untrusted(self) -> None:
+        self.assertFalse(self.trusted(0o100646))
+
+    def test_acl_write_grant_is_untrusted(self) -> None:
+        self.assertFalse(self.trusted(0o100644, writable=True))
+
+    def test_user_owned_read_only_is_untrusted(self) -> None:
+        self.assertFalse(self.trusted(0o100444, uid=1000))
+
+    def test_non_regular_file_is_untrusted(self) -> None:
+        self.assertFalse(self.trusted(0o010644))
+
+
 class DirectReadKillSwitchTests(unittest.TestCase):
     """The kill switch resolves by reading user-scope pluginConfigs directly.
 
@@ -14945,7 +15096,9 @@ class DirectReadKillSwitchTests(unittest.TestCase):
         self.write_managed_toggle(True)
         self.write_toggle(False)
         with mock.patch.object(
-            guard.killswitch_config, "_is_trusted_managed_file", lambda path: True
+            guard.killswitch_config,
+            "_is_trusted_managed_file",
+            lambda path, file_stat: True,
         ):
             self.assertTrue(self.resolve(self.plugin_root_argv(), {}))
 
@@ -14953,7 +15106,9 @@ class DirectReadKillSwitchTests(unittest.TestCase):
         self.write_managed_toggle(True)
         self.write_toggle(False)
         with mock.patch.object(
-            guard.killswitch_config, "_is_trusted_managed_file", lambda path: False
+            guard.killswitch_config,
+            "_is_trusted_managed_file",
+            lambda path, file_stat: False,
         ):
             self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
 
@@ -14961,13 +15116,14 @@ class DirectReadKillSwitchTests(unittest.TestCase):
         self.write_managed_toggle(False)
         self.write_toggle(True)
         with mock.patch.object(
-            guard.killswitch_config, "_is_trusted_managed_file", lambda path: False
+            guard.killswitch_config,
+            "_is_trusted_managed_file",
+            lambda path, file_stat: False,
         ):
             self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
 
     def test_trust_check_is_applied_per_dropin(self) -> None:
-        # The primary file is trusted and enables; a later drop-in that enables
-        # from an untrusted file is skipped, while a trusted one is honored.
+        # An earlier trusted drop-in enables; a later untrusted one is skipped.
         self.write_toggle(False)
         self.write_managed_dropin("10-trusted.json", True)
         self.write_managed_dropin("20-untrusted.json", True)
@@ -14976,7 +15132,7 @@ class DirectReadKillSwitchTests(unittest.TestCase):
         with mock.patch.object(
             guard.killswitch_config,
             "_is_trusted_managed_file",
-            lambda path: path != untrusted,
+            lambda path, file_stat: path != untrusted,
         ):
             # The trusted drop-in enables; the later untrusted one is skipped
             # rather than overriding or cancelling it.
@@ -14991,9 +15147,109 @@ class DirectReadKillSwitchTests(unittest.TestCase):
     )
     def test_user_owned_managed_file_is_untrusted_on_linux(self) -> None:
         self.write_managed_toggle(True)
-        self.assertFalse(guard.killswitch_config._is_trusted_managed_file(self.managed))
+        # Read-only to its owner, so only the uid check can reject it.
+        os.chmod(self.managed, 0o444)
+        self.assertFalse(
+            guard.killswitch_config._is_trusted_managed_file(
+                self.managed, os.stat(self.managed)
+            )
+        )
         self.write_toggle(False)
         self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    @unittest.skipUnless(
+        sys.platform.startswith("linux")
+        and os.geteuid() != 0
+        and os.path.isfile(_ROOT_OWNED_FILE)
+        and os.stat(_ROOT_OWNED_FILE).st_uid == 0
+        and not os.stat(_ROOT_OWNED_FILE).st_mode & (stat.S_IWGRP | stat.S_IWOTH),
+        "needs a non-root Linux user and a root-owned, non-writable file",
+    )
+    def test_swap_between_read_and_trust_check_is_untrusted(self) -> None:
+        # A user-writable managed directory lets a drop-in hold the user's own
+        # enabling file for the read, then be replaced by a symlink to a
+        # root-owned file before ownership is checked. Trust must come from the
+        # file that was read.
+        self.write_toggle(False)
+        self.write_managed_dropin("99.json", True)
+        dropin_dir = self.config_dir / "managed-settings.d"
+        link = dropin_dir / "99.json"
+        real_loads = json.loads
+        swapped = []
+
+        def loads_then_swap(text, *args, **kwargs):
+            parsed = real_loads(text, *args, **kwargs)
+            if not swapped:
+                swapped.append(True)
+                staging = dropin_dir / "99.json.tmp"
+                staging.symlink_to(_ROOT_OWNED_FILE)
+                os.replace(staging, link)
+            return parsed
+
+        with mock.patch.object(guard.killswitch_config.json, "loads", loads_then_swap):
+            self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+        self.assertTrue(swapped)
+
+    def test_symlinked_managed_file_still_restricts(self) -> None:
+        # A symlink is never trusted to enable, but a restriction still counts.
+        self.write_toggle(True)
+        dropin_dir = self.config_dir / "managed-settings.d"
+        dropin_dir.mkdir()
+        target = self.config_dir / "policy.json"
+        target.write_text(self._toggle_json(False), encoding="utf-8")
+        (dropin_dir / "10-policy.json").symlink_to(target)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "O_NOFOLLOW is Linux-only")
+    def test_symlinked_managed_file_never_enables(self) -> None:
+        # Even when the file it points at would pass the ownership check.
+        self.write_toggle(False)
+        dropin_dir = self.config_dir / "managed-settings.d"
+        dropin_dir.mkdir()
+        target = self.config_dir / "policy.json"
+        target.write_text(self._toggle_json(True), encoding="utf-8")
+        (dropin_dir / "10-policy.json").symlink_to(target)
+        with mock.patch.object(
+            guard.killswitch_config,
+            "_is_trusted_managed_file",
+            lambda path, file_stat: True,
+        ):
+            self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_unopenable_managed_file_contributes_no_verdict(self) -> None:
+        # An unreadable managed file cannot enable: the user setting decides.
+        self.write_managed_toggle(True)
+        self.write_toggle(False)
+        real_open = os.open
+        managed = os.fspath(self.managed)
+
+        def deny_managed(path, *args, **kwargs):
+            if os.fspath(path) == managed:
+                raise PermissionError(13, "Permission denied", managed)
+            return real_open(path, *args, **kwargs)
+
+        with (
+            mock.patch.object(
+                guard.killswitch_config,
+                "_is_trusted_managed_file",
+                lambda path, file_stat: True,
+            ),
+            mock.patch.object(guard.killswitch_config.os, "open", deny_managed),
+        ):
+            self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_trusted_primary_false_beats_untrusted_dropin_true(self) -> None:
+        # The headline case: an untrusted drop-in cannot undo an organization's
+        # trusted audit-only policy, even though drop-ins override the primary.
+        self.write_toggle(True)
+        self.write_managed_toggle(False)
+        self.write_managed_dropin("99-user.json", True)
+        with mock.patch.object(
+            guard.killswitch_config,
+            "_is_trusted_managed_file",
+            lambda path, file_stat: path == self.managed,
+        ):
+            self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
 
     def test_managed_absent_falls_back_to_user(self) -> None:
         # No managed file written; the user toggle decides.
@@ -15157,7 +15413,9 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         "catalog": 'catalog --snapshot "{root}/s.json" --run-id run-1',
         "apply": (
             'apply --execute --snapshot "{root}/s.json" --plan "{root}/p.json" '
-            "--confirm-tier high --approval-token " + "a" * 24 + ' --report "{root}/r.json"'
+            "--confirm-tier high --approval-token "
+            + "a" * 24
+            + ' --report "{root}/r.json"'
         ),
     }
 
@@ -15219,7 +15477,9 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
                 belt = self.run_main(command, self.argv())
                 gated = self.run_main(command, gate_argv)
                 self.assertEqual(verdict, belt["permissionDecision"])
-                self.assertEqual(gated["permissionDecision"], belt["permissionDecision"])
+                self.assertEqual(
+                    gated["permissionDecision"], belt["permissionDecision"]
+                )
 
     def test_belt_denies_exact_scan_without_the_directory_channel(self) -> None:
         (self.config / "plugins" / "known_marketplaces.json").unlink()
@@ -15457,7 +15717,9 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         # (`_directory_install_for` gates it), so the cache derivation wins.
         cached = self.checkout / "plugins" / "cache" / "mk" / "disk-hygiene" / "1.0"
         (cached / ".claude-plugin").mkdir(parents=True)
-        self.write_json(cached / ".claude-plugin" / "plugin.json", {"name": "disk-hygiene"})
+        self.write_json(
+            cached / ".claude-plugin" / "plugin.json", {"name": "disk-hygiene"}
+        )
         self.write_entries(
             {"name": "disk-hygiene", "source": "./plugins/cache/mk/disk-hygiene/1.0"}
         )
@@ -16207,9 +16469,7 @@ class EngineGrammarTests(unittest.TestCase):
     def test_apply_grammar_is_unchanged(self) -> None:
         apply_spec = self.grammar.subcommand("apply")
         assert apply_spec is not None
-        self.assertEqual(
-            ("apply", "handoff-apply"), self.grammar.SUBCOMMAND_NAMES[-2:]
-        )
+        self.assertEqual(("apply", "handoff-apply"), self.grammar.SUBCOMMAND_NAMES[-2:])
         self.assertEqual(
             [
                 "--execute",
@@ -16494,9 +16754,7 @@ class EngineOwnedStateTests(EngineFileArgumentCase):
         plan = self.write(self.run_dir / "junk-plan.json", plan_body)
         checked = hygiene.preview(hygiene.load_json(snapshot), plan_body)
         self.assertEqual("ready-for-explicit-approval", checked["status"], checked)
-        for label, report in self.spellings(
-            "guard-decisions/decisions.jsonl"
-        ).items():
+        for label, report in self.spellings("guard-decisions/decisions.jsonl").items():
             with self.subTest(spelling=label):
                 self.assert_refused(
                     "apply",
@@ -16517,9 +16775,7 @@ class EngineOwnedStateTests(EngineFileArgumentCase):
 
     def test_guard_refuses_a_handoff_report_onto_the_decision_log(self) -> None:
         evidence = self.write(self.run_dir / "vcs-evidence.json", {"version": 1})
-        for label, report in self.spellings(
-            "guard-decisions/decisions.jsonl"
-        ).items():
+        for label, report in self.spellings("guard-decisions/decisions.jsonl").items():
             with self.subTest(spelling=label):
                 self.assertIsNone(
                     self.classify(
@@ -16610,17 +16866,24 @@ class WindowsEscapingEntryTests(unittest.TestCase):
         with mock.patch.object(hygiene, "os_key", return_value="windows"):
             for value in self.ESCAPING:
                 with self.subTest(path=value):
-                    with self.assertRaisesRegex(hygiene.HygieneError, "leave the target"):
+                    with self.assertRaisesRegex(
+                        hygiene.HygieneError, "leave the target"
+                    ):
                         hygiene.entry_map(self.snapshot_with(value))
             self.assertEqual(
-                {"ok.tmp", "a/b.txt"}, set(hygiene.entry_map(self.snapshot_with("a/b.txt")))
+                {"ok.tmp", "a/b.txt"},
+                set(hygiene.entry_map(self.snapshot_with("a/b.txt"))),
             )
 
     def test_vcs_evidence_repository_path_cannot_leave_the_approved_path(
         self,
     ) -> None:
         with mock.patch.object(hygiene, "os_key", return_value="windows"):
-            for value in ("checkout/..\\..\\outside", "checkout/C:\\Escaped", "checkout/\\x"):
+            for value in (
+                "checkout/..\\..\\outside",
+                "checkout/C:\\Escaped",
+                "checkout/\\x",
+            ):
                 with self.subTest(path=value):
                     payload = {
                         "version": 1,
@@ -16628,7 +16891,9 @@ class WindowsEscapingEntryTests(unittest.TestCase):
                             {"path": value, "remote": None, "stash_copies": []}
                         ],
                     }
-                    with self.assertRaisesRegex(hygiene.HygieneError, "outside approved"):
+                    with self.assertRaisesRegex(
+                        hygiene.HygieneError, "outside approved"
+                    ):
                         hygiene.validate_vcs_evidence(payload, ["checkout"])
 
     def test_the_same_names_stay_legal_on_linux(self) -> None:
