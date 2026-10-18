@@ -152,6 +152,7 @@ function request(inputs, ...answers) {
     stdout: result.stdout,
     body: existsSync(bodyLog) ? readFileSync(bodyLog, "utf8") : null,
     output: readFileSync(files.output, "utf8"),
+    dir,
     auth: lines(logs.auth),
     sleeps: lines(logs.sleep).map(Number),
   };
@@ -268,7 +269,10 @@ test("a github-rate-limited wait that ends inside the 8-minute budget is taken, 
   assert.ok(run.sleeps[0] >= 470 && run.sleeps[0] <= BUDGET, `sleep is ${run.sleeps[0]}`);
 });
 
-test("a github-rate-limited Retry-After past the 8-minute budget fails at once, naming the limit and its reset", () => {
+// An issue lane defers instead: the outputs name the limit and its reset, and
+// the deferral artifact's name, which the action's upload step publishes for
+// work-unblock, carries the reset in epoch seconds.
+test("a github-rate-limited Retry-After past the 8-minute budget fails at once, naming the limit and its reset, and defers an issue lane", () => {
   const before = Math.floor(Date.now() / 1000);
   const run = request(ISSUE_LANE, rateLimited(BUDGET + 1), {});
   const afterRun = Math.ceil(Date.now() / 1000);
@@ -276,12 +280,34 @@ test("a github-rate-limited Retry-After past the 8-minute budget fails at once, 
   assert.equal(run.auth.length, 1);
   assert.deepEqual(run.sleeps, []);
   const match =
-    /^failure-reason=lane-token-denied: the broker answered 503 with reason github-rate-limited: GET \/repos\/melodic-software\/claude-code-plugins failed with status 403; GitHub's secondary rate limit \(core\) resets at (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ), past the 8-minute retry budget$/m.exec(
+    /^failure-reason=lane-token-denied: the broker answered 503 with reason github-rate-limited: GET \/repos\/melodic-software\/claude-code-plugins failed with status 403; GitHub's secondary rate limit \(core\) resets at (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ), past the 8-minute retry budget; work-unblock restarts this issue after the reset$/m.exec(
       run.output,
     );
   assert.ok(match, run.output);
   const reset = Date.parse(match[1]) / 1000;
   assert.ok(reset >= before + BUDGET + 1 && reset <= afterRun + BUDGET + 1, `reset ${match[1]}`);
+  assert.match(run.output, /^rate-limited=true$/m);
+  assert.equal(/^resets-at=(.*)$/m.exec(run.output)?.[1], match[1]);
+  assert.equal(/^deferral=(.*)$/m.exec(run.output)?.[1], `lane-limited-77-${reset}`);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(run.dir, "lane-limited.json"), "utf8")), { issue: 77, resets: match[1] });
+});
+
+test("a PR lane past the budget records the rate limit but no deferral", () => {
+  const run = request({}, rateLimited(BUDGET + 1), {});
+  assert.equal(run.status, 1);
+  assert.match(run.output, /^rate-limited=true$/m);
+  assert.match(run.output, /^resets-at=\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/m);
+  assert.doesNotMatch(run.output, /^deferral=/m);
+  assert.doesNotMatch(run.output, /work-unblock/);
+  assert.equal(existsSync(path.join(run.dir, "lane-limited.json")), false);
+});
+
+test("a failure other than a rate limit past the budget sets no rate-limit output", () => {
+  for (const answers of [[rateLimited(30)], [GITHUB_UNAVAILABLE], [{ ...GITHUB_UNAVAILABLE, headers: "HTTP/2 503\r\nretry-after: 600\r\n\r\n" }]]) {
+    const run = request(ISSUE_LANE, ...answers);
+    assert.equal(run.status, 1);
+    assert.doesNotMatch(run.output, /^(rate-limited|resets-at|deferral)=/m, run.output);
+  }
 });
 
 // mint-unavailable comes after the broker reserved the job's one mint.

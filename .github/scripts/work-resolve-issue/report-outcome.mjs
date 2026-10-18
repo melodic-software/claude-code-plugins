@@ -25,6 +25,8 @@
 //             limit before it could report): comments once with the
 //             limited marker naming when the limit resets, keeps agent-ready
 //             and adds no label, so work-unblock restarts it after the reset.
+//             work-unblock posts the same plan for a run whose lane token
+//             request failed on GitHub's rate limit, which no report follows.
 //   reused    the resolve-issue run skipped the work for a lane branch an
 //             earlier run left with commits and no report (REUSE_BRANCH):
 //             the earlier outcome counts only when this run's artifact names
@@ -313,12 +315,13 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId }) {
   };
 }
 
-// A run the usage limit stopped: one marker comment, agent-ready kept, no
-// label, so work-unblock restarts the issue once the limit resets.
-function limitedPlan({ issueNumber, branch, resets, runId, runUrl }) {
+// A run a limit stopped: one marker comment, agent-ready kept, no label, so
+// work-unblock restarts the issue once the limit resets. `limit` names it:
+// the credential's usage limit here, GitHub's rate limit in work-unblock.
+export function limitedPlan({ issueNumber, branch, resets, runId, runUrl, limit = "its usage limit" }) {
   const lines = [
     limitedMarker({ resets, runId }),
-    `The work-resolve-issue lane stopped on its usage limit, not on this issue. It keeps \`agent-ready\`, and work-unblock starts it again after ${resets}.`,
+    `The work-resolve-issue lane stopped on ${limit}, not on this issue. It keeps \`agent-ready\`, and work-unblock starts it again after ${resets}.`,
   ];
   if (branch) {
     lines.push("", `Partial work is on the branch \`${branch}\`.`);

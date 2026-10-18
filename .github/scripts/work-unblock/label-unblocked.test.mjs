@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { refsHoldComment } from "../work-resolve-issue/report-outcome.mjs";
+import { limitedPlan, parseOutcomeMarker, refsHoldComment } from "../work-resolve-issue/report-outcome.mjs";
 import { checkCloser, escalationComment, main, refireComment, refsClosedComment, refsMergedComment } from "./label-unblocked.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -66,7 +66,8 @@ const note = () => ({ id: 9, body: "Looks good.", user: OWNER, created_at: STAMP
 // gives the blocking list of closed issues other than number 10.
 // `openReady` is what the sweep's open agent-ready listing answers.
 // `runs` is every work-resolve-issue run; the listing answers those created in
-// the `created` range it is asked for. `blobs` maps a path to its blob SHA on main.
+// the `created` range it is asked for; `artifacts` and `jobs` are per run id.
+// `blobs` maps a path to its blob SHA on main.
 // `timeline` and `pulls` are per issue and per pull request number.
 function world({
   blocking,
@@ -78,6 +79,8 @@ function world({
   comments = {},
   events = {},
   runs = [],
+  artifacts = {},
+  jobs = {},
   blobs = {},
   timeline = {},
   pulls = {},
@@ -103,6 +106,13 @@ function world({
       const [from, to] = params.get("created").split("..").map(Date.parse);
       const inRange = runs.filter((run) => Date.parse(run.created_at) >= from && Date.parse(run.created_at) <= to);
       return { workflow_runs: listed(inRange) };
+    }
+    if (method === "GET" && (match = route.match(new RegExp(`^/repos/${REPO}/actions/runs/(\\d+)/artifacts$`)))) {
+      return { artifacts: artifacts[match[1]] ?? [] };
+    }
+    if (method === "GET" && (match = route.match(new RegExp(`^/repos/${REPO}/actions/runs/(\\d+)/jobs$`)))) {
+      assert.equal(new URL(path, "https://x").searchParams.get("filter"), "latest");
+      return { jobs: jobs[match[1]] ?? [] };
     }
     if (method === "GET" && (match = route.match(new RegExp(`^/repos/${REPO}/pulls/(\\d+)$`))) && pulls[match[1]]) {
       return pulls[match[1]];
@@ -1113,6 +1123,138 @@ test("a re-fire record and the App's re-add in the same second, on unchanged wor
 // only that PR merging lifts. Only a PR the lanes App opened from
 // the issue's lane branch (report-outcome's `work-resolve-issue/issue-<n>-
 // <run>-<attempt>`), with head and base in this repository, counts.
+// A run whose lane token request ran into GitHub's rate limit past the retry
+// budget: its write runner's `Request the lane token` step failed and the run
+// holds request-lane-token's deferral artifact, whose name carries the reset
+// in epoch seconds. The sweep posts report-outcome's limited marker with that
+// reset (held at least an hour after the run ended), not a re-fire record;
+// the limit-stop path then restarts the issue after the reset.
+const RUN_ENDED = "2026-10-16T10:05:00Z";
+const epochOf = (iso) => String(Date.parse(iso) / 1000);
+const JOB_STARTED = "2026-10-16T10:00:10Z";
+const deferral = (resets, { number = 30, expired = false, at = "2026-10-16T10:01:00Z" } = {}) => ({
+  name: `lane-limited-${number}-${epochOf(resets)}`,
+  expired,
+  created_at: at,
+});
+const mintJob = (conclusion) => ({
+  name: "resolve-issue / run",
+  started_at: JOB_STARTED,
+  steps: [
+    { name: "Check out the default branch tip", conclusion: "success" },
+    { name: "Request the lane token", conclusion },
+    { name: "Run the skill activity", conclusion: conclusion === "failure" ? "skipped" : "failure" },
+  ],
+});
+const RUN_URL = `https://github.com/${REPO}/actions/runs/5030`;
+const rateLimitedRun = ({ resets = "2026-10-16T15:00:00Z", mint = "failure", artifact = deferral(resets), ...rest } = {}) => {
+  const run = { ...laneRun(), updated_at: RUN_ENDED, html_url: RUN_URL };
+  const fake = world({
+    openReady: [ready(30)],
+    comments: { 30: [note()] },
+    events: { 30: [added(LABELED_AT, OWNER)] },
+    runs: [run],
+    artifacts: { 5030: artifact ? [artifact] : [] },
+    jobs: { 5030: [mintJob(mint)] },
+    blobs: BLOBS,
+    ...rest,
+  });
+  return { ...fake, actions: fake.github };
+};
+const limitComment = (resets) =>
+  limitedPlan({ issueNumber: 30, branch: "", resets, runId: "", runUrl: RUN_URL, limit: "GitHub's API rate limit" }).comment;
+const limitPosted = (resets) => `POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: limitComment(resets) })}`;
+
+test("a run whose token request ran into GitHub's rate limit gets the limited marker with its reset: no re-fire, no label", async () => {
+  const { github, actions, calls } = rateLimitedRun();
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), [limitPosted("2026-10-16T15:00:00Z")]);
+  assert.deepEqual(parseOutcomeMarker(limitComment("2026-10-16T15:00:00Z")), {
+    outcome: "limited",
+    resets: Date.parse("2026-10-16T15:00:00Z"),
+    run: "0",
+  });
+});
+
+test("a recorded rate-limit reset already past is held an hour after the run ended", async () => {
+  const { github, actions, calls } = rateLimitedRun({ resets: "2026-10-16T10:20:00Z" });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), [limitPosted("2026-10-16T11:05:00Z")]);
+});
+
+// The next sweeps read the marker the first one posted, at NOW.
+function afterLimitPosted(resets, { comments = [] } = {}) {
+  return world({
+    openReady: [ready(30)],
+    comments: { 30: [note(), ...comments, { id: 70, body: limitComment(resets), user: LANES_BOT, created_at: STAMP }] },
+    events: { 30: [added(LABELED_AT, OWNER)] },
+  });
+}
+
+test("the rate-limit-stopped issue waits until after the recorded reset, then restarts", async () => {
+  const waiting = afterLimitPosted("2026-10-16T15:00:00Z");
+  assert.equal(await sweep({ github: waiting.github, now: Date.parse("2026-10-16T14:50:00Z") }), 0);
+  assert.deepEqual(writes(waiting.calls), []);
+  const due = afterLimitPosted("2026-10-16T15:00:00Z");
+  assert.equal(await sweep({ github: due.github, now: Date.parse("2026-10-16T15:10:00Z") }), 0);
+  assert.deepEqual(writes(due.calls), restarted(30));
+});
+
+test("a rate-limit reset that passed before the marker was posted restarts an hour after the marker", async () => {
+  const early = afterLimitPosted("2026-10-16T11:05:00Z");
+  assert.equal(await sweep({ github: early.github, now: Date.parse("2026-10-16T12:30:00Z") }), 0);
+  assert.deepEqual(writes(early.calls), []);
+  const due = afterLimitPosted("2026-10-16T11:05:00Z");
+  assert.equal(await sweep({ github: due.github, now: Date.parse("2026-10-16T13:01:00Z") }), 0);
+  assert.deepEqual(writes(due.calls), restarted(30));
+});
+
+test("a rate-limit stop counts toward the limit stops per issue: the third hands the issue to a person", async () => {
+  const earlier = [limitedNote("2026-10-16T11:00:00Z", "2026-10-16T10:30:00Z"), limitedNote("2026-10-16T11:30:00Z", "2026-10-16T11:00:00Z")];
+  const { github, calls } = afterLimitPosted("2026-10-16T15:00:00Z", { comments: earlier });
+  assert.equal(await sweep({ github, now: Date.parse("2026-10-16T16:00:00Z") }), 0);
+  assert.deepEqual(writes(calls), [
+    `POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: escalationComment(3) })}`,
+    `POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`,
+  ]);
+});
+
+test("rate-limit restarts share the restarts-per-run cap, the earliest reset first", async () => {
+  const numbers = [31, 32, 33, 34, 35, 36];
+  const fake = world({
+    openReady: numbers.map((n) => ready(n)),
+    comments: Object.fromEntries(
+      numbers.map((n, i) => [n, [{ id: 70, body: limitComment(`2026-10-16T1${6 - i}:00:00Z`), user: LANES_BOT, created_at: "2026-10-16T10:30:00Z" }]]),
+    ),
+    events: Object.fromEntries(numbers.map((n) => [n, [added(LABELED_AT, OWNER)]])),
+  });
+  assert.equal(await sweep({ github: fake.github, now: Date.parse("2026-10-16T17:00:00Z") }), 0);
+  assert.deepEqual(writes(fake.calls), numbers.slice(1).reverse().flatMap(restarted));
+});
+
+test("a deferral artifact counts only when the run's mint step failed, so a run that minted is re-fired as before", async () => {
+  for (const mint of ["success", "skipped"]) {
+    const { github, actions, calls } = rateLimitedRun({ mint });
+    assert.equal(await sweep({ github, actions }), 0);
+    assert.deepEqual(writes(calls), refired(30), mint);
+  }
+});
+
+// An artifact from before the failed job started is an earlier attempt's,
+// which may have run activity code.
+test("a failed mint with no deferral artifact, an expired one, one for another issue or one older than the job is re-fired as before", async () => {
+  for (const artifact of [
+    null,
+    deferral("2026-10-16T15:00:00Z", { expired: true }),
+    deferral("2026-10-16T15:00:00Z", { number: 300 }),
+    deferral("2026-10-16T15:00:00Z", { at: "2026-10-16T10:00:09Z" }),
+  ]) {
+    const { github, actions, calls } = rateLimitedRun({ artifact });
+    assert.equal(await sweep({ github, actions }), 0);
+    assert.deepEqual(writes(calls), refired(30), JSON.stringify(artifact));
+  }
+});
+
 const PR_HEAD = "7f2a5812a65a663ce0b3381312e1cb94b063fd4e";
 const lanePull = ({
   pr = 7805,

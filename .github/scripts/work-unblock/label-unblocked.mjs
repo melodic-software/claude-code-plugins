@@ -32,6 +32,15 @@
 // posted before the label moves, so a run that keeps failing stops until a
 // workflow change lands.
 //
+// A failed run whose lane token request ran into GitHub's rate limit past its
+// retry budget is a limit stop, not a re-fire: the job's `Request the lane
+// token` step failed and the run holds request-lane-token's deferral artifact,
+// `lane-limited-<issue>-<reset epoch seconds>`, made after that job started.
+// The App had no quota to report
+// it then, so the sweep posts report-outcome's limited marker with that reset,
+// and the limit-stop restart above takes over: after the reset, under the
+// restarts-per-run cap and the limit-stops-per-issue count.
+//
 // When that label's run opened a pull request instead, the newest one the
 // lanes App opened from the issue's lane branch in this repository decides.
 // Merged with `Refs:` (the issue stays open with nothing to run) or closed
@@ -69,7 +78,7 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
+import { clampReset, isLaneBranch, limitedPlan, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits } from "../work-resolve-issue/limits.mjs";
 
 const LABEL = "agent-ready";
@@ -82,6 +91,10 @@ const FAILED = new Set(["failure", "timed_out", "startup_failure"]);
 // A label event's run is created within seconds; this window finds it.
 const RUN_WINDOW_MS = 10 * 60_000;
 const BLOB = /^[0-9a-f]{40}$/;
+const RUN_ID = /^[1-9][0-9]{0,14}$/;
+// request-lane-token's step in the write runner, and its deferral artifact.
+const MINT_STEP = "Request the lane token";
+const deferralName = (number) => new RegExp(`^lane-limited-${number}-([1-9][0-9]{0,11})$`);
 const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
 const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
@@ -343,6 +356,49 @@ async function laneRuns(actions, repo, number, addedAt) {
   throw new Error("the workflow run listing has more than 10 pages");
 }
 
+// The newest of `runs` (failed lane runs) whose lane token request failed on
+// GitHub's rate limit, as {resets, runUrl}, or null. Both facts come from the
+// Actions API: in the run's latest attempt a job's mint step failed, and the
+// run holds a deferral artifact created after that job started. Every job
+// before it in the run had finished, and it ran no activity code before its
+// mint, so no activity code could have planted the artifact.
+async function rateLimitedRun({ actions, repo, number, runs, limits }) {
+  const newest = [...runs].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  for (const run of newest) {
+    if (!RUN_ID.test(String(run.id))) {
+      continue;
+    }
+    const jobs = (await actions("GET", `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`))?.jobs;
+    if (!Array.isArray(jobs)) {
+      throw new Error(`run ${run.id}'s job listing has an unexpected shape`);
+    }
+    const starts = jobs
+      .filter((job) => (job?.steps ?? []).some((step) => step?.name === MINT_STEP && step.conclusion === "failure"))
+      .map((job) => Date.parse(job.started_at))
+      .filter(Number.isFinite);
+    if (starts.length === 0) {
+      continue;
+    }
+    const artifacts = (await actions("GET", `/repos/${repo}/actions/runs/${run.id}/artifacts?per_page=100`))?.artifacts;
+    if (!Array.isArray(artifacts)) {
+      throw new Error(`run ${run.id}'s artifact listing has an unexpected shape`);
+    }
+    const epoch = artifacts
+      .filter((artifact) => !artifact?.expired && starts.some((start) => Date.parse(artifact.created_at) >= start))
+      .map((artifact) => deferralName(number).exec(String(artifact.name))?.[1])
+      .find(Boolean);
+    if (epoch === undefined) {
+      continue;
+    }
+    const ended = Date.parse(run.updated_at);
+    const from = Number.isFinite(ended) ? ended : Date.parse(run.created_at);
+    const resets = new Date(clampReset(Number(epoch) * 1000, from, limits)).toISOString().replace(/\.\d+Z$/, "Z");
+    const runUrl = /^https:\/\/[^\s]+$/.test(String(run.html_url ?? "")) ? run.html_url : "";
+    return { resets, runUrl };
+  }
+  return null;
+}
+
 const sameRepo = (side, repo) => String(side?.repo?.full_name ?? "").toLowerCase() === repo.toLowerCase();
 
 // The newest pull request the lanes App opened for issue `number` at or after
@@ -411,7 +467,7 @@ function pullRefusal({ pull, number, comments, events, bot, held }) {
 
 // Why an agent-ready issue whose newest label has no marker after it is not
 // re-fired or handed off now, or null with what to do.
-async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held }) {
+async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits }) {
   if (lastAdd.actor?.login !== bot && !humans.has(lastAdd.actor?.id)) {
     return { reason: `${LABEL} was added by neither a listed human nor the lanes App` };
   }
@@ -439,6 +495,10 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
   }
   if (!runs.some((run) => FAILED.has(run.conclusion))) {
     return { reason: "its lane run did not fail" };
+  }
+  const limited = await rateLimitedRun({ actions, repo, number, runs: runs.filter((run) => FAILED.has(run.conclusion)), limits });
+  if (limited) {
+    return { reason: `its lane token request ran into GitHub's rate limit, which resets at ${limited.resets}`, limited };
   }
   const key = await workflowKey();
   // A record counts once the App added the label back at or after it; one
@@ -497,6 +557,7 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
       bot,
       workflowKey,
       held,
+      limits,
     });
   }
   if (held) {
@@ -566,7 +627,16 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
         workflowKey,
         limits,
       });
-      const { reason, escalate, explained } = verdict;
+      const { reason, escalate, explained, limited } = verdict;
+      if (limited) {
+        // The marker report-outcome writes for a limit stop, so the next sweep
+        // restarts the issue after the reset. It names no run, so a lane
+        // branch the run left stays reusable.
+        const plan = limitedPlan({ issueNumber: Number(issue.number), branch: "", resets: limited.resets, runId: "", runUrl: limited.runUrl, limit: "GitHub's API rate limit" });
+        await github("POST", `/repos/${repo}/issues/${issue.number}/comments`, { body: plan.comment });
+        console.log(`label-unblocked: #${issue.number} recorded a limit stop: ${reason}`);
+        continue;
+      }
       if (escalate) {
         // The comment first and the label last: the label is a hold, so a
         // sweep after a failed comment would never come back to post it. A

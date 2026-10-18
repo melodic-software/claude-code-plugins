@@ -1,5 +1,16 @@
 # Changelog for the PR pipeline convention
 
+## 2.11.5 - 2026-10-18
+
+An issue-lane run whose lane token request fails because GitHub's rate limit resets past the
+8-minute retry budget no longer ends the issue's lane. `request-lane-token` sets `rate-limited` and
+`resets-at` and, for an issue, uploads a `lane-limited-<issue>-<reset>` artifact. work-unblock's
+hourly sweep, once the lanes App has quota again, reads that artifact from a run whose
+`Request the lane token` step failed, posts report-outcome's `limited` marker with the reset and
+no label, and the limit-stop restart takes over: after the reset, within `restarts-per-run` and
+`limit-stops-per-issue`. Such a run no longer spends the once-per-workflow-version re-fire.
+`version` stays 2.
+
 ## 2.11.3 - 2026-10-18
 
 The verify-script wrapper for skill-quality's `check-skill.sh` runs it with `HOME` set to a fresh

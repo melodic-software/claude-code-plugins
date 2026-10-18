@@ -96,6 +96,14 @@ outputs:
       The one-line reason the step failed with, such as `lane-token-denied: ...`;
       empty on a success.
     value: ${{ steps.request.outputs.failure-reason }}
+  rate-limited:
+    description: >
+      `true` when the step failed because GitHub's rate limit resets past the
+      8-minute retry budget; empty otherwise.
+    value: ${{ steps.request.outputs.rate-limited }}
+  resets-at:
+    description: When that rate limit resets, an ISO 8601 UTC time; empty unless `rate-limited`.
+    value: ${{ steps.request.outputs.resets-at }}
 
 runs:
   using: composite
@@ -244,10 +252,21 @@ runs:
               [[ $limit =~ ^(primary|secondary)$ ]] || limit=unknown
               resource=$(jq -r 'if (.resource | type) == "string" then .resource else "" end' "$response" 2>/dev/null) || resource=""
               [[ $resource =~ ^[a-z_]{1,40}$ ]] || resource=""
-              resets=$(jq -rn --argjson s "$delay" 'now + $s | ceil | todate')
+              epoch=$(jq -rn --argjson s "$delay" 'now + $s | ceil')
+              resets=$(jq -rn --argjson e "$epoch" '$e | todate')
               when="resets at"
               [ -n "$after" ] || when="sent no Retry-After, so its earliest retry is"
               rate_limit="; GitHub's $limit rate limit${resource:+ ($resource)} $when $resets, past the 8-minute retry budget"
+              printf 'rate-limited=true\nresets-at=%s\n' "$resets" >>"$GITHUB_OUTPUT"
+              # An issue lane defers: the deferral artifact's name carries the
+              # reset, and work-unblock's sweep turns this failed run into a
+              # limited outcome and restarts the issue after the reset.
+              if [ -n "$ISSUE_NUMBER" ]; then
+                jq -n --argjson issue "$ISSUE_NUMBER" --arg resets "$resets" '{issue: $issue, resets: $resets}' \
+                  >"$RUNNER_TEMP/lane-limited.json"
+                printf 'deferral=lane-limited-%s-%s\n' "$ISSUE_NUMBER" "$epoch" >>"$GITHUB_OUTPUT"
+                rate_limit="$rate_limit; work-unblock restarts this issue after the reset"
+              fi
               break
             fi
             jitter=$((RANDOM % 21))
@@ -324,3 +343,15 @@ runs:
         # shellcheck disable=SC2016  # the backticks are Markdown, not expansions
         printf -- '- Lane token minted: effect `%s`, mint `%s`, expires `%s`\n' "$EFFECT" "$mint_id" "$expires" >>"$GITHUB_STEP_SUMMARY"
         issued=""
+
+    # The deferral record work-unblock reads: only the artifact name, from a
+    # run whose token request failed, so no activity code ran to forge it.
+    - name: Record the rate-limit deferral
+      if: failure() && steps.request.outputs.deferral != ''
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ steps.request.outputs.deferral }}
+        path: ${{ runner.temp }}/lane-limited.json
+        retention-days: 7
+        if-no-files-found: error
+        overwrite: true
