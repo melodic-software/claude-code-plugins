@@ -190,6 +190,23 @@ test("intake-triage.yml: a dispatch runs only from main and passes the gate's id
   }
 });
 
+test("pr-unblock.yml: report-conflict-status runs only for an unresolved-conflict escalation with a gated head", () => {
+  const head = "c".repeat(40);
+  const { jobs } = workflow("pr-unblock.yml");
+  const job = jobs["report-conflict-status"];
+  const context = (reason, headSha) => ({
+    "needs.resolve-conflicts.outputs.escalation-reason": reason,
+    "needs.resolve-conflicts.outputs.head-sha": headSha,
+  });
+  assert.equal(evaluate(job.if, context("unresolved-conflict", head)), true);
+  for (const reason of ["repeat-cap", "protected-path-conflict", "workflow-staged", ""]) {
+    assert.equal(evaluate(job.if, context(reason, head)), false, reason);
+  }
+  assert.equal(evaluate(job.if, context("unresolved-conflict", "")), false, "no gated head to post on");
+  assert.deepEqual(job.permissions, { contents: "read", statuses: "write" });
+  assert.equal(job.uses, undefined, "a script job, never the write runner");
+});
+
 // address-feedback's head-sha output is empty after a gate stop.
 test("pr-unblock.yml: publish-feedback is reported neutral when address-feedback ran no feedback round", async () => {
   const head = "c".repeat(40);

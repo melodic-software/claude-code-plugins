@@ -424,8 +424,8 @@ gated checkout (`src/mcp/github-file-ops-server.ts:226-367` at `ed670b4`), so co
 to the PR branch would overwrite a push made during the run. After the skill, a pinned
 `github-script` step fast-forwards the PR branch to the lane branch only while the PR branch is
 still at the gated SHA, and deletes the lane branch either way. When the PR branch has moved, the
-lane's commits are dropped and the activity fails; the push that moved it starts its own
-`synchronize` run, which gates the new head and redoes the activity. Right before the move it
+lane's commits are dropped and the activity fails; a later run (a reopen or a dispatch) gates the
+new head and redoes the activity. Right before the move it
 re-reads the PR's labels and draft flag with the job's `GITHUB_TOKEN`, then reads the PR branch's
 tip last: `do-not-merge`, the base's human-gated role label, a label in the activity's
 `labels-absent` list (both read from the base before the head checkout) or a draft drops the lane's

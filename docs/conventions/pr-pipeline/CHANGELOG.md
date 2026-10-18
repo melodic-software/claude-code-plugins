@@ -1,5 +1,14 @@
 # Changelog for the PR pipeline convention
 
+## 2.11.8 - 2026-10-18
+
+`pr-refine` no longer starts on `synchronize`: it runs when a PR opens, reopens or turns ready, or
+on a `workflow_dispatch`, so an author push no longer draws a fix-docs commit and a fresh review
+round. A docs change pushed after its first run waits for a reopen or a dispatch. When
+`resolve-conflicts` escalates with `unresolved-conflict`, `pr-unblock.yml`'s scripted
+`report-conflict-status` job posts a `failure` commit status with context `pr-unblock/conflict` on
+that head, since GitHub runs no `pull_request` workflow on a conflicted PR. `version` stays 2.
+
 ## 2.11.7 - 2026-10-18
 
 A `resolve-issue` run that waited in its slot while a change to `work-resolve-issue.yml` or
