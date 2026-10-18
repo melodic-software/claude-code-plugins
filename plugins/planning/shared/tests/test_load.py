@@ -57,7 +57,7 @@ class TestLoad(unittest.TestCase):
                     took = time.perf_counter() - t0
                     with lock:
                         (latencies if code == 200 else failures).append(took if code == 200 else ("answer", code, out))
-                    next_write += WRITE_EVERY
+                    next_write = time.monotonic() + WRITE_EVERY  # from the answer, so a late write never lands under the limit
                 time.sleep(0.01)
 
         threads = [threading.Thread(target=person, args=(i,)) for i in range(1, PEOPLE + 1)]
