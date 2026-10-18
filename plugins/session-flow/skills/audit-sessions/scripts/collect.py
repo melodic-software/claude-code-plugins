@@ -508,7 +508,8 @@ class SessionScan:
 
     def time_block(self) -> dict:
         block = self._time_block()
-        if block["active_gap_s"] > block["wall_clock_s"] and self.bucket in self.census:
+        # Both values are rounded, so a .5 boundary can differ by 1 without a real format break.
+        if block["active_gap_s"] > block["wall_clock_s"] + 1 and self.bucket in self.census:
             self.census[self.bucket]["invariant:active_over_wall"] += 1
         return block
 
@@ -697,6 +698,7 @@ def build_record(
     wait_ms = scan.stop_hook_wait_ms
     suppressed = redactor.fail_closed
     scrub = Scrubber(redactor, excerpt_chars)
+    time_block = scan.time_block()  # counts the invariant, so call it once per session
     # Repo identity above used the raw cwd; every string below is stored, so each goes through scrub.
     # The dict is built in order, so the closing redaction block sees every scrub call's count.
     return {
@@ -712,7 +714,7 @@ def build_record(
         "worktree": worktree,
         "cc_versions": sorted(scan.versions, key=census.version_key),
         "entrypoints": sorted(scan.entrypoints) or [census.UNKNOWN_ENTRYPOINT],
-        "time": scan.time_block(),
+        "time": time_block,
         "models": {side: dict(counts) for side, counts in scan.models.items()},
         "effort": {side: dict(counts) for side, counts in scan.effort.items()},
         "tokens": {side: ledger.totals() for side, ledger in scan.ledgers.items()},
@@ -761,7 +763,7 @@ def build_record(
             "custom_title": scrub.excerpt(scan.custom_title) if excerpt_chars else None,
             "ai_title": scrub.excerpt(scan.ai_title) if excerpt_chars else None,
             "agent_name": scrub.excerpt(scan.agent_name) if excerpt_chars else None,
-            "first_ts": scan.time_block()["start"],
+            "first_ts": time_block["start"],
         },
         "branches": sorted({scrub.key(branch) for branch in scan.branches}),
         "prs": [{"repo": repo, "number": number} for repo, number in sorted({(scrub.key(r), n) for r, n in scan.prs})],

@@ -243,7 +243,7 @@ def test_invariant_canary_lost_when_streamed_usage_disagrees_at_min_count(splits
 def test_bundled_time_invariant_canaries_fire_on_a_violating_record(invariant, population, metric):
     canaries = [c for c in census.load_canaries(census.BUNDLED_CANARIES)["canaries"] if c["key"] == invariant]
     assert canaries
-    held =[rec("a", {"1.0.2|*": {"record_type:assistant": 30, "record_type:system": 30, population: 30}})]
+    held = [rec("a", {"1.0.2|*": {"record_type:assistant": 30, "record_type:system": 30, population: 30}})]
     violating = [rec("a", {"1.0.2|*": {"record_type:assistant": 30, "record_type:system": 30, population: 30, invariant: 1}})]
     assert classes(drift(held, canaries, min_count=1), "canary-lost") == []
     result = drift(violating, canaries, min_count=1)
