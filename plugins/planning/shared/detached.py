@@ -3,9 +3,10 @@
 `spawn` starts a command apart from this process (its own session on POSIX; a new process group
 with no console on Windows, breaking away from the caller's job when allowed), so it survives the
 shell, `share.py` or the server that started it. `alive` and `stop` take a pid plus a `marker`, a
-word its command line (POSIX) or executable path (Windows) must contain, so a pid the OS has since
-handed to another program is never reported alive or stopped; `exe_name` and `command_line` read
-the program file a pid runs and its arguments. `locked` is an exclusive file lock
+word its command line (POSIX) or executable path (Windows) must contain, and optionally the
+`start` that `started` read for the process, so a pid the OS has since handed to another program, even one of
+the same name, is never reported alive or stopped; `stop` never signals this process. `exe_name`
+and `command_line` read the program file a pid runs and its arguments. `locked` is an exclusive file lock
 for the few steps two processes may race on. `which` finds a program on PATH but never in the
 current folder, and `data_dir_problem` says when a folder cannot keep the session's files private.
 Every OS branch of the runtime lives in this file.
@@ -37,6 +38,7 @@ if WINDOWS:
     _k32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
     _k32.GetExitCodeProcess.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
     _k32.QueryFullProcessImageNameW.argtypes = (wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD))
+    _k32.GetProcessTimes.argtypes = (wintypes.HANDLE,) + (ctypes.POINTER(wintypes.FILETIME),) * 4
     _k32.CloseHandle.argtypes = (wintypes.HANDLE,)
     _QUERY = 0x1000  # PROCESS_QUERY_LIMITED_INFORMATION
     _STILL_ACTIVE = 259
@@ -251,6 +253,36 @@ def command_line(pid):
     return args or None
 
 
+def started(pid):
+    """When pid's process began, as an opaque string, or None when that cannot be read. A pid with
+    its start names one process: a later program the OS gives the pid to starts later. Windows:
+    the creation time GetProcessTimes reports; Linux: starttime in /proc/<pid>/stat; elsewhere on
+    POSIX: `ps -o lstart=` in the C locale and UTC."""
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 1:
+        return None
+    if WINDOWS:
+        h = _k32.OpenProcess(_QUERY, False, pid)
+        if not h:
+            return None
+        try:
+            times = [wintypes.FILETIME() for _ in range(4)]
+            if not _k32.GetProcessTimes(h, *(ctypes.byref(t) for t in times)):
+                return None
+            return str(times[0].dwHighDateTime << 32 | times[0].dwLowDateTime)
+        finally:
+            _k32.CloseHandle(h)
+    try:
+        return (Path("/proc") / str(pid) / "stat").read_text().rsplit(")", 1)[1].split()[19]
+    except (OSError, IndexError):
+        if Path("/proc/self/stat").exists():
+            return None  # Linux, and pid is gone or hidden
+    try:
+        out = subprocess.run(["ps", "-o", "lstart=", "-p", str(pid)], capture_output=True, text=True, timeout=5, env={**os.environ, "LC_ALL": "C", "TZ": "UTC"})
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return " ".join(out.stdout.split()) or None
+
+
 def _running(pid):
     """True while the pid names a process that has not exited (a zombie counts as exited)."""
     if WINDOWS:
@@ -283,17 +315,19 @@ def _running(pid):
     return bool(out.stdout.strip()) and not out.stdout.strip().startswith("Z")
 
 
-def alive(pid, marker):
-    """True when pid runs and its command line or executable names `marker`."""
+def alive(pid, marker, start=None):
+    """True when pid runs, its command line or executable names `marker`, and, when `start` is
+    given, its `started` value equals it."""
     if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 1 or not _running(pid):
         return False
     seen = describe(pid)
-    return seen is not None and marker.lower() in seen.lower()
+    return seen is not None and marker.lower() in seen.lower() and (start is None or started(pid) == start)
 
 
-def stop(pid, marker, wait=5.0):
-    """End pid when `alive(pid, marker)`; True once it is gone. POSIX gets TERM, then KILL after `wait`."""
-    if not alive(pid, marker):
+def stop(pid, marker, start=None, wait=5.0):
+    """End pid when `alive(pid, marker, start)`, never this process; True once it is gone. POSIX
+    gets TERM, then KILL after `wait`."""
+    if pid == os.getpid() or not alive(pid, marker, start):
         return False
     with contextlib.suppress(OSError):
         os.kill(pid, signal.SIGTERM)  # TerminateProcess on Windows

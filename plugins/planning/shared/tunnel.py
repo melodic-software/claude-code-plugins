@@ -1,7 +1,7 @@
 """The shared session's public link: a cloudflared quick tunnel to the guest listener. Python 3 stdlib.
 
 The only file that names cloudflared. `share.py` and `server.py` see a record,
-`{pid, url, port, startedAt, marker, adopted}` in `<data_dir>/.shared-tunnel.json` (0600), and call
+`{pid, url, port, startedAt, marker, processStart, adopted}` in `<data_dir>/.shared-tunnel.json` (0600), and call
 `ensure`, `alive`, `adopt` and `stop`. cloudflared runs as its own detached process (detached.py),
 so it outlives a server restart and the guest link stays the same; the server restarts it when it
 exits, which gives a new link.
@@ -71,10 +71,17 @@ def _write(data_dir, rec):
     detached.write_private(Path(data_dir) / RECORD, json.dumps(rec, indent=2) + "\n")
 
 
+def _identity(rec):
+    """(pid, marker, start) that detached.alive and stop check. The marker is only a program name,
+    which another cloudflared, a reused pid, or on POSIX any command line naming it also carries;
+    processStart is what names our process, so a record without one matches nothing."""
+    return rec["pid"], rec.get("marker") or "cloudflared", rec.get("processStart") or "unknown"
+
+
 def alive(data_dir):
     """The record when its cloudflared still runs, else None."""
     rec = read(data_dir)
-    return rec if rec and detached.alive(rec["pid"], rec.get("marker") or "cloudflared") else None
+    return rec if rec and detached.alive(*_identity(rec)) else None
 
 
 def host(url):
@@ -108,15 +115,18 @@ def _start(data_dir, port):
     except OSError as exc:
         raise TunnelDown(f"cloudflared did not start: {exc}") from exc
     url = _wait_url(proc, log, float(os.environ.get("SHARED_TUNNEL_SECONDS") or START_SECONDS))
-    if url is None:
+    start = detached.started(proc.pid) if url else None
+    if start is None:
         if proc.poll() is None:
             proc.kill()
             proc.wait()
-        raise TunnelDown(f"cloudflared printed no trycloudflare.com address in time (log: {log})")
+        if url is None:
+            raise TunnelDown(f"cloudflared printed no trycloudflare.com address in time (log: {log})")
+        raise TunnelDown(f"when cloudflared pid {proc.pid} started cannot be read, so it could not be told from a later program with its pid")
     # The word alive() looks for: the program's name in its command line, or on Windows the stem of
     # the executable the OS reports (python for the test fake).
     marker = Path((detached.describe(proc.pid) or exe) if detached.WINDOWS else exe).stem.lower()
-    rec = {"pid": proc.pid, "url": url, "port": port, "startedAt": time.time(), "marker": marker, "adopted": False}
+    rec = {"pid": proc.pid, "url": url, "port": port, "startedAt": time.time(), "marker": marker, "processStart": start, "adopted": False}
     _write(d, rec)
     detached.release(proc)
     return rec
@@ -172,9 +182,12 @@ def adopt(data_dir, pid, url, port):
     why = adoptable(pid, port)
     if why:
         raise TunnelDown(why)
+    start = detached.started(pid)
+    if start is None:
+        raise TunnelDown(f"when cloudflared pid {pid} started cannot be read, so it could not be told from a later program with its pid")
     d = Path(data_dir)
     with detached.locked(d / LOCK):
-        rec = {"pid": pid, "url": url.rstrip("/"), "port": port, "startedAt": time.time(), "marker": "cloudflared", "adopted": True}
+        rec = {"pid": pid, "url": url.rstrip("/"), "port": port, "startedAt": time.time(), "marker": "cloudflared", "processStart": start, "adopted": True}
         _write(d, rec)
         return rec
 
@@ -182,7 +195,7 @@ def adopt(data_dir, pid, url, port):
 def _end(rec):
     """Stop the recorded cloudflared, unless it was adopted: that one is never signaled, so the
     prototype it came from can take its link back. True when one was stopped."""
-    return not rec.get("adopted") and detached.stop(rec["pid"], rec.get("marker") or "cloudflared")
+    return not rec.get("adopted") and detached.stop(*_identity(rec))
 
 
 def stop(data_dir):

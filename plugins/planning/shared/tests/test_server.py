@@ -221,7 +221,7 @@ class TestHostAndOrigin(ServerCase):
         self.addCleanup(lambda: (proc.kill(), proc.wait()))
         wait_for(lambda: tunnel.URL.search((self.d / "f.log").read_text(encoding="utf-8")))
         detached.write_private(
-            self.d / tunnel.RECORD, json.dumps({"pid": proc.pid, "url": f"https://{host}", "port": self.port, "marker": "python" if WINDOWS else "cloudflared", "startedAt": 0})
+            self.d / tunnel.RECORD, json.dumps({"pid": proc.pid, "url": f"https://{host}", "port": self.port, "marker": "python" if WINDOWS else "cloudflared", "processStart": detached.started(proc.pid), "startedAt": 0})
         )
         self.app._last_sync = 0
         code, _, _ = self.get("/api/state", {"Host": host, "Origin": f"https://{host}"})

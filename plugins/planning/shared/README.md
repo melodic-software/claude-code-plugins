@@ -500,7 +500,7 @@ One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
 | `staging/` | server (made at every start) | 0700 | Captures Claude saves for `add-asset` |
 | `.shared-session.json`, `.shared-session.env` | session-bridge `start` | 0600 | Control port, pid, control token, nonce |
 | `.shared-ports.json` | server | 0600 | The guest and control ports, reused on every start |
-| `.shared-tunnel.json` | `tunnel.py` | 0600 | `{pid, url, port, startedAt, marker, adopted}` |
+| `.shared-tunnel.json` | `tunnel.py` | 0600 | `{pid, url, port, startedAt, marker, processStart, adopted}` |
 | `cloudflared.log` | cloudflared | 0600 | Its output, where its address is read |
 | `server.log` (+ `.1`..`.3`) | server | 0600 | One entry per request and per page error report ([Logs](#logs)); rotated at 1 MB, 3 kept |
 | `.shared-server.err` | the server's stderr | 0600 | Why a start failed |

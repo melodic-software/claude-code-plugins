@@ -192,6 +192,31 @@ class TestExit(TunnelCase):
         self.assertIsNone(tunnel.alive(self.d))
         self.assertTrue(detached._running(os.getpid()))
 
+    def test_a_pid_the_os_gave_to_a_program_with_the_same_name_is_neither_alive_nor_stopped(self):
+        """The marker is only a program name: another cloudflared, or on POSIX any command line that
+        names it (`tail cloudflared.log`), carries it too. Only our process's start tells them apart."""
+        rec = tunnel.ensure(self.d, 4321)
+        self.addCleanup(detached.stop, rec["pid"], rec["marker"])
+        other = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)", rec["marker"]])
+        self.addCleanup(lambda: (other.kill(), other.wait()))
+        self.assertTrue(detached.alive(other.pid, rec["marker"]))  # the name alone would pass it
+        rec["pid"] = other.pid
+        (self.d / tunnel.RECORD).write_text(json.dumps(rec), encoding="utf-8")
+        self.assertIsNone(tunnel.alive(self.d))
+        self.assertFalse(tunnel.stop(self.d))
+        self.assertIsNone(other.poll())
+
+    def test_a_record_whose_start_cannot_be_read_is_not_alive(self):
+        tunnel.ensure(self.d, 4321)
+        with mock.patch.object(detached, "started", return_value=None):
+            self.assertIsNone(tunnel.alive(self.d))
+
+    def test_stop_never_signals_this_process(self):
+        me = os.getpid()
+        with mock.patch.object(detached.os, "kill") as kill:
+            self.assertFalse(detached.stop(me, detached.describe(me), detached.started(me)))
+        kill.assert_not_called()
+
     def test_stop_ends_cloudflared_and_drops_the_record(self):
         rec = tunnel.ensure(self.d, 4321)
         self.assertTrue(tunnel.stop(self.d))
@@ -243,6 +268,12 @@ class TestAdopt(TunnelCase):
     def test_adopt_refuses_when_the_command_line_cannot_be_read(self):
         proc, url = self.fake_process()
         with mock.patch.object(detached, "command_line", return_value=None), self.assertRaisesRegex(tunnel.TunnelDown, "cannot be read"):
+            tunnel.adopt(self.d, proc.pid, url, 8765)
+        self.assertIsNone(tunnel.read(self.d))
+
+    def test_adopt_refuses_when_the_start_cannot_be_read(self):
+        proc, url = self.fake_process()
+        with mock.patch.object(detached, "started", return_value=None), self.assertRaisesRegex(tunnel.TunnelDown, "started"):
             tunnel.adopt(self.d, proc.pid, url, 8765)
         self.assertIsNone(tunnel.read(self.d))
 
