@@ -134,6 +134,35 @@ run "a Decisions made table with no row fails" 1 "$TMP/emptydecisions.md" 'crite
 good_plan | sed 's/ \[EXEC-SHAPE\]$//' | sed '/^## Decisions made/,/^## Handoff/{/^## Handoff/!d}' >"$TMP/notags.md"
 run "the Handoff heading's own tag is not a decision" 0 "$TMP/notags.md" 'criterion=decisions status=pass tagged=0'
 
+# Decision ids: a tag `[EXEC-SHAPE D1]` maps to the row whose first column starts with D1.
+ided_plan() { good_plan | sed 's/ \[EXEC-SHAPE\]$/ [EXEC-SHAPE D1]/; s/^| Ignore file first/| D1 Ignore file first/'; }
+
+ided_plan >"$TMP/ided.md"
+run "every tag id mapped to a row passes and prints mapped" 0 "$TMP/ided.md" 'criterion=decisions status=pass tagged=1 rows=1 mapped=1$'
+out="$(bash "$SUT" "$TMP/ided.md" 2>&1)"
+if grep -q '^warning=' <<<"$out"; then fail "an id-bearing plan prints no bare-tag warning"; else pass "an id-bearing plan prints no bare-tag warning"; fi
+
+ided_plan | sed 's/^- Add `.chezmoiignore`\. \[EXEC-SHAPE D1\]$/&\n- Add `.gitignore`. [FALLBACK D2]/' >"$TMP/id-norow.md"
+run "a tag id with no row fails and names the id" 1 "$TMP/id-norow.md" 'criterion=decisions status=fail tagged=2 rows=1 mapped=1 id-without-row=D2$'
+
+ided_plan | sed 's/^| D1 Ignore file first.*$/&\n| D9 Never cited | Phase 2 | read | plan |/' >"$TMP/id-notag.md"
+run "a row id no tag cites fails and names the id" 1 "$TMP/id-notag.md" 'criterion=decisions status=fail tagged=1 rows=2 mapped=1 row-without-tag=D9$'
+
+ided_plan | sed 's/^- Move `.bashrc`\.$/& [FALLBACK D1]/' >"$TMP/id-shared.md"
+run "two tags citing one row pass with the row mapped once" 0 "$TMP/id-shared.md" 'criterion=decisions status=pass tagged=2 rows=1 mapped=1$'
+
+ided_plan | sed 's/^| D1 Ignore file first/| **D1:** Ignore file first/' >"$TMP/id-bold.md"
+run "a bold or colon-suffixed row id still maps" 0 "$TMP/id-bold.md" 'mapped=1$'
+
+good_plan | sed 's/^| Ignore file first/| S3 bucket first/' >"$TMP/bare-s3row.md"
+run "a bare-tag plan whose row starts like an id still passes" 0 "$TMP/bare-s3row.md" 'criterion=decisions status=pass tagged=1 rows=1 mapped=0$'
+
+ided_plan | sed 's/^| D1 Ignore file first/| D1. Ignore file first/' >"$TMP/id-dot.md"
+run "a row id followed by a period still maps" 0 "$TMP/id-dot.md" 'mapped=1$'
+
+run "a bare tag passes with a warning naming it" 0 "$TMP/good.md" 'criterion=decisions status=pass tagged=1 rows=1 mapped=0$'
+run "the bare-tag warning names the line and tag" 0 "$TMP/good.md" '^warning=bare-tag line [0-9]+:\[EXEC-SHAPE\] '
+
 good_plan | sed 's/^MEDIUM: touches every login shell\.$/Touches every login shell./' >"$TMP/noblastlevel.md"
 run "a Blast radius heading with no level fails" 1 "$TMP/noblastlevel.md" 'criterion=blast-radius status=fail'
 

@@ -1,5 +1,88 @@
 # Changelog for the PR pipeline convention
 
+## 2.11.7 - 2026-10-18
+
+A `resolve-issue` run that waited in its slot while a change to `work-resolve-issue.yml` or
+`pr-run-activity-write.yml` merged fails red `workflow-stale` before the token request, by the
+broker's own blob comparison against main, instead of spending a mint the broker refuses as
+`workflow-modified`. It leaves no outcome marker, so work-unblock's hourly sweep re-fires the issue
+on main's files ([pr-run-activity.md](pr-run-activity.md#issue-mode)). `version` stays 2.
+
+## 2.11.6 - 2026-10-18
+
+An issue-lane run never dies on GitHub's rate limit or a pile of open lane pull requests.
+
+- New `limits.wip-cap` (default 60, set in this repository's config). `work-resolve-issue`'s
+  `pick-slot` job counts the lanes App's open pull requests with one search, through the new
+  `check-wip-cap` action. At or over the cap, `resolve-issue` is skipped and takes no slot and no
+  lane token. A failed count starts the run.
+- work-unblock's hourly sweep re-fires a run that did no work: either its `Request the lane token`
+  step failed (GitHub's rate limit past the 8-minute retry budget, among other causes) or the WIP
+  cap skipped it. It waits `reset-clamp-min` hours after the run ended. The broker's `Retry-After`
+  is at most an hour, so any rate-limit reset has passed by then. It acts only while fewer than
+  `wip-cap` lane PRs are open, and stays within `restarts-per-run`.
+- Such a re-fire is not limited to once per workflow version and is not a limit stop, so it never
+  adds `needs-human`.
+
+`version` stays 2.
+
+## 2.11.4 - 2026-10-18
+
+A write skill that commits through `commit_files` also gets `Bash(chmod +x *)`, and its commit
+instruction says to run `chmod +x` on every new or changed file that starts with `#!` or ends in
+`.sh` first: `commit_files` takes each file's mode from disk, and `Write` creates a file without
+the executable bit, so lane PRs landed new scripts as `100644`
+([pr-run-activity.md](pr-run-activity.md#skill-activities)). `prepare: merge-base` is unchanged:
+the runner commits the staged index, whose modes the merge set. `version` stays 2.
+
+## 2.11.3 - 2026-10-18
+
+The verify-script wrapper for skill-quality's `check-skill.sh` runs it with `HOME` set to a fresh
+`mktemp -d` directory and `CLAUDE_CONFIG_DIR` to that directory's `.claude`, so a skill test that
+writes under `~/.claude` no longer fails on the runner's read-only one
+([#8027](https://github.com/melodic-software/claude-code-plugins/issues/8027)). Other
+verify-scripts keep the runner's `HOME`. `version` stays 2.
+
+## 2.11.2 - 2026-10-18
+
+The broker's `workflow-modified` refusal has one exception, for a lane's post-run report job
+(`work-resolve-issue` `report-outcome`, `pr-unblock` `report-escalation`): it still mints when
+every main commit that changed the workflow is signed, GitHub-made, on a linear range and landed
+after run start, at most 50 minutes ago ([azure-iac#39](https://github.com/melodic-software/azure-iac/pull/39)).
+The model step stays strict. `version` stays 2.
+
+## 2.11.1 - 2026-10-18
+
+The `resolve-issue` job passes `timeout-minutes: 25` to the write runner, down from 50, so a stuck
+run frees its concurrency slot sooner. Of the 40 most recent successful runs the job took 3.5
+minutes at the median, 10 at the 90th percentile and 15.4 at the maximum. `version` stays 2.
+
+## 2.11.0 - 2026-10-18
+
+[Changing this config](README.md#changing-this-config): a pull request that changes a lane and
+lists a not-verified item that could stop the lane checks that item live before it merges. An item
+only a merged run can exercise merges only once a tracked issue names the check and its owner; a
+line in the pull request body does not count. `version` stays 2.
+
+## 2.10.0 - 2026-10-18
+
+`resolve-issue` lists `scripts/new-changelog-fragment.sh` as a `verify-script`, so the issue lane
+can write a changelog fragment. The script now writes into the git work tree its caller stands
+in (exit 2 outside one), not its own parent, refuses a plugin name with a path in it and a linked
+`.changes` directory, and runs its own copy's `sync-shared-copies.sh` for `--carriers-of`, which
+reads the checkout's registry. The verify-script prompt now says Bash runs only the named wrappers, each as its own command, that the
+run inspects and changes files with Read, Grep, Glob, Edit and Write instead of `cd`, `;`, `&&`,
+pipes or interpreter one-liners, and names the `git-mv-rm` wrapper for a rename or removal when
+it is listed ([pr-run-activity.md](pr-run-activity.md#skill-activities)). `version` stays 2.
+
+## 2.9.1 - 2026-10-18
+
+`request-lane-token` also retries a broker 503 `github-rate-limited`, waiting exactly its
+`Retry-After` plus up to 20 seconds of jitter, and fails red at once, naming the limit kind and its
+reset time, when that wait would pass the 8-minute budget. A 503 `mint-unavailable` is never
+retried, and its failure says it is final
+([pr-run-activity.md](pr-run-activity.md#the-lane-token-broker)). `version` stays 2.
+
 ## 2.9.0 - 2026-10-17
 
 `work-resolve-issue.yml` runs at most three `resolve-issue` jobs at once. A `pick-slot` job takes

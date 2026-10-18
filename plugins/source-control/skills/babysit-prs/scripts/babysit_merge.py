@@ -127,6 +127,7 @@ on stdout.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import re
 import time
@@ -141,6 +142,7 @@ import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
 import babysit_review_evidence as review_evidence
 import babysit_risk
+import babysit_run_cache as run_cache
 import babysit_verify_evidence as verify_evidence
 import babysit_repo_config as repo_policy
 from babysit_state import resolve_state_dir, state_lock, write_state
@@ -218,7 +220,35 @@ BODY_MERGE_HOLD_RE = re.compile(
 )
 # The label form of the same hold: blocks in every tier, whether or not the
 # autopilot merge tier is engaged. `--block-labels` only adds to it.
-MERGE_HOLD_LABEL = "do-not-merge"
+MERGE_HOLD_LABELS = ("do-not-merge",)
+# Where this process's gate processes share the resolved human-gated label.
+HUMAN_GATED_SECTION = "human-gated-label"
+
+
+def human_gated_label(repo: str) -> str:
+    """The tracker's human-gated role label for `repo` (`needs-human` unless
+    `.work-item-tracker.json` maps it): the label the verifier escalation adds
+    and an autonomous merge holds on. Shared across a run's gate processes.
+    A failed read other than a 404 raises `PostMergeReadError` and is never
+    shared."""
+    cached = run_cache.get(HUMAN_GATED_SECTION, repo, run_cache.MAX_AGE)
+    if isinstance(cached, str) and cached:
+        return cached
+    owner, name = repo.split("/", 1)
+    label = postmerge._role_label(owner, name, strict=True)
+    run_cache.put(HUMAN_GATED_SECTION, repo, label)
+    return label
+
+
+def merge_hold_label(labels: Iterable[Any], *, human_gated: str | None) -> str | None:
+    """The first hold label among `labels`, matched case-insensitively. An
+    autonomous merge passes the resolved `human_gated` label, which holds it
+    too: autonomous sessions must not resolve what carries it. An attended
+    merge, the person that label asks for, passes None."""
+    names = {str(name).casefold() for name in labels}
+    holds = (*MERGE_HOLD_LABELS, *((human_gated,) if human_gated else ()))
+    return next((label for label in holds if label.casefold() in names), None)
+
 
 EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}$")
 
@@ -522,6 +552,14 @@ def repository_default_branch(repo: str) -> str | None:
     self-login exemption in place rather than inventing a hold from missing
     evidence.
     """
+    cached = (
+        run_cache.get(merge_policy.DEFAULT_BRANCH_SECTION, repo, run_cache.MAX_AGE)
+        if SHARE_BASE_READS
+        else None
+    )
+    if isinstance(cached, str) and cached:
+        merge_policy.SHARED_DEFAULT_BRANCHES.add(repo)
+        return cached
     try:
         data = gh_json(["api", f"repos/{repo}", "--jq", "{name: .default_branch}"])
     except (RuntimeError, json.JSONDecodeError):
@@ -529,10 +567,23 @@ def repository_default_branch(repo: str) -> str | None:
     if not is_json_object(data):
         return None
     name = data.get("name")
-    return str(name) if name else None
+    if not name:
+        return None
+    run_cache.put(merge_policy.DEFAULT_BRANCH_SECTION, repo, str(name))
+    return str(name)
 
 
-def branch_rules(repo: str, branch: str) -> dict[str, object]:
+RULES_SECTION = "branch-rules"
+# Whether this gate run may take the default branch and the base's rules
+# from the run cache: the `--unattended` path only, whose enqueue reads them
+# again (`main`). Every attended path reads them fresh.
+SHARE_BASE_READS = False
+# The rules this process took from the run cache, by the branch read, as
+# summarized; `unattended_enqueue` reads each again before an enqueue.
+SHARED_RULES: dict[str, dict[str, object]] = {}
+
+
+def branch_rules(repo: str, branch: str, *, shared: bool = True) -> dict[str, object]:
     """Summarize the effective merge-governing rules for the base branch.
 
     Rulesets COMPOSE: `/rules/branches/{branch}` returns one rule of a given
@@ -568,9 +619,19 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
         # matches Go's url.PathEscape, which go-github uses for this endpoint
         # (github.com/google/go-github repos_rules.go, ListRulesForBranch).
         # gh 2.99.0 forwards that path unchanged.
-        rules = gh_json(
-            ["api", f"repos/{repo}/rules/branches/{quote(branch, safe='')}"]
+        key = f"{repo}|{branch}"
+        rules = (
+            run_cache.get(RULES_SECTION, key, run_cache.MAX_AGE)
+            if shared and SHARE_BASE_READS
+            else None
         )
+        cached = is_json_array(rules)
+        if not cached:
+            rules = gh_json(
+                ["api", f"repos/{repo}/rules/branches/{quote(branch, safe='')}"]
+            )
+            if is_json_array(rules):
+                run_cache.put(RULES_SECTION, key, rules)
     except (RuntimeError, json.JSONDecodeError) as exc:
         # Rules are advisory context; a read failure must never fail the run.
         summary["error"] = f"could not read branch rules: {exc}"
@@ -626,6 +687,8 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
     summary["requiredContexts"] = sorted(required_contexts)
     summary["requiredApprovingReviews"] = required_reviews
     summary["requireThreadResolution"] = require_thread_resolution
+    if cached:
+        SHARED_RULES[branch] = summary
     return summary
 
 
@@ -1478,10 +1541,21 @@ def evaluate(
             "PR body holds the merge (do not merge, or a Hold: line) -- a human "
             "hold, report it and leave it"
         )
-    if any(str(name).casefold() == MERGE_HOLD_LABEL for name in labels):
+    # Autonomous: the unattended policy or the autopilot merge tier, both
+    # merging with no person present; only an attended merge lifts the
+    # human-gated hold.
+    autonomous = unattended is not None or tier is not None
+    try:
+        human_gated = human_gated_label(repo) if autonomous else None
+    except postmerge.PostMergeReadError as exc:
+        human_gated = None
         blockers.append(
-            f"PR carries the {MERGE_HOLD_LABEL!r} label -- a human hold, "
-            "report it and leave it"
+            f"the human-gated role label is unreadable ({exc}) -- an autonomous "
+            "merge cannot tell which label holds it"
+        )
+    if held_by := merge_hold_label(labels, human_gated=human_gated):
+        blockers.append(
+            f"PR carries the {held_by!r} label -- a human hold, report it and leave it"
         )
     if pr.get("mergeable") != "MERGEABLE":
         blockers.append(
@@ -1784,7 +1858,7 @@ def evaluate(
         "mergeStateStatus": pr.get("mergeStateStatus"),
         "reviewDecision": review_decision,
         "headRefOid": head,
-        "labels": labels,  # surfaced for agent reasoning; only do-not-merge is hardcoded
+        "labels": labels,  # surfaced for agent reasoning; only the hold labels are hardcoded
         "expectedHead": expected_head,
         "headMatches": head_matches,
         "effectiveRules": rules,
@@ -2634,6 +2708,8 @@ STOP_REFUSALS = (
     "rung-off:",
     merge_policy.DEFAULT_BRANCH_UNREADABLE,
 )
+# The run-cache section of queued entries a gate process judged and kept.
+SWEEP = "queue-sweep"
 UNATTENDED_QUEUE_QUERY = (
     "query($o:String!,$r:String!,$b:String!){repository(owner:$o,name:$r){"
     "mergeQueue(branch:$b){entries(first:100){totalCount nodes{enqueuedAt position "
@@ -2892,6 +2968,12 @@ def score_unattended(
     ):
         reader = verify_evidence.Reader(repo, str(inputs["branch"]))
         verdict = reader.evidence(number, str(details["headSha"]), pr)
+        if verdict.refusal is None and reason is None and reader.saved:
+            # The run's saved listing lacks anything uploaded since; allow
+            # only on a listing of this gate run's own. A candidate refused
+            # already is not enqueued, so it does not page the listing again.
+            reader.refresh()
+            verdict = reader.evidence(number, str(details["headSha"]), pr)
         details["verify"] = verdict.report()
         inputs["verify_reader"] = reader
         if verdict.refusal:
@@ -2909,6 +2991,7 @@ def assess_unattended(
     lane_kill_switch: str | None = None,
     lane_rung_cap: str | None = None,
     shared: merge_policy.SharedPostMerge | None = None,
+    share: Callable[[merge_policy.SharedPostMerge], object] | None = None,
 ) -> merge_policy.UnattendedPolicy:
     """The unattended decision for one pull request, in the wiring order:
     identity, the credential chokepoint, the kill switch, a default-branch
@@ -2943,6 +3026,7 @@ def assess_unattended(
         lane_kill_switch=lane_kill_switch,
         lane_rung_cap=lane_rung_cap,
         shared=shared,
+        share=share,
     )
     return score_unattended(repo, number, policy, self_logins)
 
@@ -3049,8 +3133,10 @@ def escalate_verify(
         inputs.get("comments"),
         marker=VERIFY_ESCALATION_MARKER,
     )
-    owner, name = repo.split("/", 1)
-    label = postmerge._role_label(owner, name)
+    try:
+        label = human_gated_label(repo)
+    except postmerge.PostMergeReadError:
+        label = postmerge.DEFAULT_ROLE_LABEL
     labels = pr.get("labels")
     present = is_json_array(labels) and any(
         str(json_object(item).get("name") or "").casefold() == label.casefold()
@@ -3073,6 +3159,26 @@ def _queued_verify_hold(verifier: verify_evidence.Reader, number: int) -> str | 
         return verifier.queued_hold(number)
     except Exception:  # noqa: BLE001 -- any crash refuses this entry alone
         return verify_evidence.UNREADABLE
+
+
+def _sweep_key(repo: str, branch: str, identity: str, number: int) -> str:
+    return f"{repo}|{branch}|{identity.casefold()}|{number}"
+
+
+def _kept_recently(repo: str, branch: str, identity: str, number: int) -> bool:
+    """Whether a gate process of this run kept the queued entry on reads
+    taken at most `run_cache.MAX_AGE` ago, dated by its oldest input (a
+    shared permission, trusted list or verdict listing included): the bound
+    every judgment of an entry already keeps."""
+    stamp = run_cache.get(SWEEP, _sweep_key(repo, branch, identity, number), None)
+    try:
+        at = datetime.fromisoformat(stamp)
+    except (TypeError, ValueError):
+        return False
+    return (
+        at.tzinfo is not None
+        and timedelta(0) <= run_cache.now() - at <= run_cache.MAX_AGE
+    )
 
 
 def unattended_writes(
@@ -3110,23 +3216,33 @@ def unattended_writes(
                 and config.require_verifier_verdict
                 else None
             )
-            report["holds"] = {
-                n: hold
-                for n in queued
-                if (
-                    hold := merge_policy.entry_hold(
+            # When each kept entry's reads began (`_kept_recently`).
+            kept_at: dict[int, datetime] = {}
+
+            def judge(n: int) -> str | None:
+                # Dated by its oldest input: a shared permission, trusted
+                # list or verdict listing may predate the judgment.
+                with run_cache.track() as taken:
+                    began = run_cache.now()
+                    hold = merge_policy.entry_hold(
                         repo,
                         n,
                         identity,
                         self_logins=inputs.get("self_logins") or frozenset(),
                         permission=inputs.get("permission"),
-                    )
-                    or (
+                    ) or (
                         _queued_verify_hold(verifier, n)
                         if verifier is not None and n != number
                         else None
                     )
-                )
+                kept_at[n] = min([began, *taken])
+                return hold
+
+            report["holds"] = {
+                n: hold
+                for n in queued
+                if (n == number or not _kept_recently(repo, branch, identity, n))
+                and (hold := judge(n))
             }
             # This run's own read of a queued entry also counts: the pull
             # request it just found ineligible, above the rung, unpromoted
@@ -3147,6 +3263,13 @@ def unattended_writes(
             if unknown:
                 report["errors"].append(
                     f"{unknown} queue entries have an unknown enqueuer"
+                )
+        # Only an entry this process judged and kept, never its own (which
+        # its gate judges in full) or one it skipped.
+        for n, at in kept_at.items() if numbers is not None else ():
+            if n != number and n not in numbers:
+                run_cache.put(
+                    SWEEP, _sweep_key(repo, branch, identity, n), at.isoformat()
                 )
     except (postmerge.PostMergeReadError, postmerge.PostMergeWriteError) as exc:
         report["errors"].append(f"dequeue: {exc}")
@@ -3301,6 +3424,21 @@ def unattended_enqueue(
     step["optIn"] = opt_in
     if opt_in:
         return hold(f"ineligible:{opt_in}")
+    # An enqueue never rests on a read shared within the run: a default
+    # branch or base rules the gate took from the run cache are read again,
+    # and any change holds.
+    if repo in merge_policy.SHARED_DEFAULT_BRANCHES:
+        try:
+            default = merge_policy._default_branch(repo)
+        except merge_policy.PolicyReadError:
+            return hold(merge_policy.DEFAULT_BRANCH_UNREADABLE)
+        if default != branch:
+            return hold(f"base-not-default:{branch}")
+    if any(
+        branch_rules(repo, base, shared=False) != served
+        for base, served in list(SHARED_RULES.items())
+    ):
+        return hold("the base branch's rules changed since the gate read them")
     proc = gh_capture(
         ["api", "-X", "POST", f"repos/{repo}/issues/{number}/comments"]
         + ["-f", f"body={postmerge.pin_comment(pin)}"]
@@ -3385,6 +3523,10 @@ def build_settle(logins: Iterable[str], minutes: str) -> ReviewSettleConfig | No
 
 def main() -> int:
     configure_stdio()
+    # This gate run's own record of what it took from the run cache.
+    global SHARE_BASE_READS
+    SHARED_RULES.clear()
+    merge_policy.SHARED_DEFAULT_BRANCHES.clear()
     # allow_abbrev=False: the permission grants covering this gate state their
     # conditions as the literal presence or absence of a flag in the command
     # text -- above all "no --merge means check-only". Prefix abbreviation
@@ -3594,6 +3736,7 @@ def main() -> int:
         ),
     )
     args = parser.parse_args()
+    SHARE_BASE_READS = bool(args.unattended)
 
     def _refuse(message: str, code: int, **envelope: object) -> int:
         """Emit one refusal envelope on stdout and return its exit code.
@@ -3787,6 +3930,14 @@ def main() -> int:
                 lane_kill_switch=args.lane_kill_switch,
                 lane_rung_cap=args.lane_rung_cap,
                 shared=shared,
+                # Each recompute goes back to the file for the next candidate.
+                share=(
+                    None
+                    if args.postmerge_result is None
+                    else functools.partial(
+                        postmerge.write_shared, args.postmerge_result
+                    )
+                ),
             )
         except (RuntimeError, ValueError, OSError) as exc:
             return _refuse(f"unattended merge policy unreadable: {exc}", 10)

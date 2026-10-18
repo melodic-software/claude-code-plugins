@@ -32,6 +32,9 @@ outputs:
   reason:
     description: "`born-triaged`, `no-marker`, `untrusted-author`, `no-type`, `no-status`, `list-unreadable` or `issue-unreadable`."
     value: ${{ steps.check.outputs.reason }}
+  human-ids:
+    description: "The trusted-actor list's `kind: human` ids, comma-joined; empty when the list is unreadable."
+    value: ${{ steps.check.outputs.human-ids }}
 
 runs:
   using: composite

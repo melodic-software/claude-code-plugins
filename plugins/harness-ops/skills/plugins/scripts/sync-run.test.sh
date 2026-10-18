@@ -1593,19 +1593,23 @@ case_dir=$(new_case_dir)
 nojq_bin="$case_dir/nojq-bin"
 mkdir -p "$nojq_bin"
 for tool in bash cat dirname date; do
-  ln -s "$(command -v "$tool")" "$nojq_bin/$tool"
+  ln -s "$(command -v "$tool")" "$nojq_bin/$tool" 2>/dev/null
 done
-out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --help 2>&1)
-rc=$?
-assert_exit "--help without jq: exit 0" 0 "$rc"
-assert_contains "--help lists the exit codes" "$out" "Exit: 0 the run completed"
-out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --nonsense 2>&1)
-rc=$?
-assert_exit "usage error without jq: exit 2" 2 "$rc"
-out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --marketplace market1 --journal-root "$case_dir/j" 2>&1)
-rc=$?
-assert_exit "run without jq: exit 2" 2 "$rc"
-assert_contains "run without jq: actionable notice" "$out" "jq required"
+if [[ -L "$nojq_bin/bash" ]] && [[ "$(env PATH="$nojq_bin" "$nojq_bin/bash" -c 'echo ok' 2>/dev/null)" == "ok" ]]; then
+  out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --help 2>&1)
+  rc=$?
+  assert_exit "--help without jq: exit 0" 0 "$rc"
+  assert_contains "--help lists the exit codes" "$out" "Exit: 0 the run completed"
+  out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --nonsense 2>&1)
+  rc=$?
+  assert_exit "usage error without jq: exit 2" 2 "$rc"
+  out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --marketplace market1 --journal-root "$case_dir/j" 2>&1)
+  rc=$?
+  assert_exit "run without jq: exit 2" 2 "$rc"
+  assert_contains "run without jq: actionable notice" "$out" "jq required"
+else
+  printf 'SKIP: no-jq cases — ln -s cannot make a runnable link on this host (Windows without the symlink privilege)\n' >&2
+fi
 
 # ============================================================================
 # Case: version_direction reads every segment in base 10
