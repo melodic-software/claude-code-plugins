@@ -37,7 +37,9 @@ for a in "$@"; do
 done
 case "$1 $2" in
 'pr list') json="$FAKE_PRS" ;;
-'api graphql') json="{\"data\":{\"node\":{\"isInMergeQueue\":$FAKE_QUEUED}}}" ;;
+'api graphql')
+  if [[ $FAKE_QUEUED == fail ]]; then exit 1; fi
+  json="{\"data\":{\"node\":{\"isInMergeQueue\":$FAKE_QUEUED}}}" ;;
 api\ repos/*) json="{\"check_runs\":[{\"started_at\":\"2026-10-18T01:00:00Z\",\"conclusion\":\"$FAKE_CI\"}]}" ;;
 *) exit 9 ;;
 esac
@@ -106,6 +108,12 @@ echo '# queued release pull request with a merge conflict'
 new_fixture no
 FAKE_PRS="$(pr_json CONFLICTING)" run_decide FAKE_QUEUED=true
 check 'queued conflict: no rebuild' false "$(val rebuild)"
+
+echo '# queue lookup fails'
+new_fixture no
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide FAKE_QUEUED=fail GATE_RC=1
+check 'lookup failure: non-zero exit' 1 "$((RC != 0))"
+check 'lookup failure: no rebuild written' '' "$(val rebuild)"
 
 echo '# not queued, unconsumed fragment'
 new_fixture no
