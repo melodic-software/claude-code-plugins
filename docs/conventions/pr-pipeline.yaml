@@ -125,17 +125,24 @@ activities:
     # check its work the way an issue's done-when says. Each runs from a
     # read-only copy of the base. A script that changes files, runs code from
     # the checkout or reaches the network hands the run that power, so list
-    # one only when it limits that itself. run-test-file.sh runs one test
-    # file inside the checkout (pytest, bash, node --test or the package's
-    # vitest, without the GitHub token), so the run can show a test it
-    # changed passing and failing when broken on purpose. git-mv-rm.sh renames and removes paths
-    # inside the checkout. skill-quality's check-skill.sh is left out because
-    # it runs every skill's scripts/*.test.sh and a markdownlint from the
-    # checkout.
+    # one only when it limits that itself. Each script starts with GH_TOKEN
+    # and GITHUB_TOKEN unset, but code it runs can still read the lane's
+    # push-capable token from an ancestor process's /proc/<pid>/environ.
+    # run-test-file.sh runs one test file inside the checkout
+    # (pytest, bash, node --test or the package's vitest), so the run can
+    # show a test it changed passing and failing when broken on purpose.
+    # git-mv-rm.sh renames and removes paths inside the checkout.
+    # check-evals-quality.sh reads evals.json files with bash and jq.
+    # check-skill.sh runs checkout code: each checked skill's
+    # scripts/*.test.sh and the checkout's markdownlint, with the network
+    # open and the token readable that way: the same power run-test-file.sh
+    # has.
     verify-scripts:
       - plugins/testing/skills/audit/scripts/cant-fail-scan.sh
       - scripts/run-test-file.sh
       - scripts/git-mv-rm.sh
+      - plugins/skill-quality/scripts/check-skill.sh
+      - plugins/skill-quality/scripts/check-evals-quality.sh
     # Lets the run read web pages, so it can check a fact against its source
     # (for example a documented default on a vendor docs page) instead of
     # trusting the issue's quote. It may search the web and read any site,

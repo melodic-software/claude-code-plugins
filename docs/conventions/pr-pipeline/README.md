@@ -227,11 +227,14 @@ Each leaf declares:
   `plugins/<plugin>/skills/<skill>/scripts/<name>.sh`, that a skill with an effect other than
   `read` may run with any arguments but a path outside the checkout; a `read` leaf cannot set it.
   The write runner runs each from a read-only base copy of its plugin (or of `scripts/`) against
-  the checkout
+  the checkout, with `GH_TOKEN` and `GITHUB_TOKEN` unset; code it runs can still read the token
+  from an ancestor process's `/proc/<pid>/environ`
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The arguments are the model's, so
   a script that changes files, runs code from the checkout or reaches the network hands the run
   that power: list one only when it limits itself, as `scripts/run-test-file.sh` (one test file
-  inside the checkout) and `scripts/git-mv-rm.sh` (`git mv` and `git rm` inside the checkout) do.
+  inside the checkout) and `scripts/git-mv-rm.sh` (`git mv` and `git rm` inside the checkout) do,
+  or when the run may hold that power, as `plugins/skill-quality/scripts/check-skill.sh` (each
+  checked skill's `scripts/*.test.sh` and the checkout's markdownlint) does.
 - `web-access` (optional, `skill` only, off when absent): `enabled` and `domains`, either `any` or
   a list of host names (`*.` allowed as a prefix). When on, a skill with an effect other than
   `read` may search the web, fetch those domains, and run the research skills
