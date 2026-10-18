@@ -771,9 +771,10 @@ before it reaches the default branch. Residuals, accepted by the owner:
   the PR author's local session loads once it checks out the branch.
 
 The paths `.github/CODEOWNERS` lists with no owner are the eight synced data files (the
-vocabulary, pyright and runner-policy data files) and the three synced hosted caller workflows
-(`pr-check-managed-files-hosted.yml`, `pr-review-hosted.yml`, `pr-review-security-hosted.yml`).
-The required `check-managed-files` job in `ci-status` fails any hand edit or deletion of them.
+vocabulary, pyright and runner-policy data files) and the synced caller workflow
+`pr-check-managed-files-hosted.yml`. The required `check-managed-files` job in `ci-status` fails
+any hand edit or deletion of them. The hosted review callers (`pr-review-hosted.yml`,
+`pr-review-security-hosted.yml`) are locally owned, so `/.github/workflows/**` owns them.
 `pr-merge` refuses a PR that touches a path `merge.diff-check.denied-paths` lists and leaves it
 for a human. This repository lists none, so a lane PR touching a trust-root path merges on a
 passing verdict like any other (see the switches above).
