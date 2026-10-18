@@ -11,6 +11,13 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SELF_DIR/lib/fixture-tree.sh"
 
 root=""
+outside=""
+tools=""
+cleanup_tmp() {
+  [[ -n "$tools" && -d "$tools" ]] && chmod -R u+w "$tools"
+  rm -rf -- ${outside:+"$outside"} ${tools:+"$tools"}
+}
+trap cleanup_tmp EXIT
 HEADER_JS='// GENERATED from lib/esc.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:'
 
 # fixture: canonical lib/esc.mjs carried by plugins/alpha and plugins/beta.
