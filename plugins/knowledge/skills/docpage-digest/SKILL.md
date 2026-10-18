@@ -296,6 +296,9 @@ gate. Phrase-greps miss fluent-prose instances entirely.
   honesty.
 - **`check-snippets.py`:** only fences under Prompt snippets. Blind to Key claims, unfenced
   restatements, omitted real prompts, a lying none-marker.
+- **`check-prose-terms.py`:** only prose outside fences, only the terms `unit NN` and
+  `SOURCES.md`. Blind to fences, org terms and session-visible skills or conventions, which stay
+  with the mechanism-only rule and the verifiers.
 - **`check-html-rows.py`** (only when digests carry `**FN.**` rows quoted from `source.html`):
   only those rows' fences. Blind to `**CN.**` rows and to a JOIN row's line order.
 - **Command-replay:** first number of each `→ N lines, M files` pair; POSIX-quoted commands
