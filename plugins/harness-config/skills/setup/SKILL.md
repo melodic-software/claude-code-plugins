@@ -1,6 +1,6 @@
 ---
-description: "Verify harness-config's readiness for this repository: the external CLI prerequisites its audit scripts need, jq (the JSON-parsing audit scripts) and curl (the plugin-drift check), and the tracked suppression record audit-pass reads at .claude/audit-pass.md, so the audit skills run instead of failing. Use when: 'set up harness-config', 'configure harness-config', 'is harness-config working', 'set up audit-pass suppressions', or an audit skill reported a missing prerequisite. Actions: check (read-only verification, default) | apply (resolve what check found). Re-runnable and safe."
-argument-hint: "[check|apply]"
+description: "Verify harness-config's readiness for this repository: the external CLI prerequisites its audit scripts need, jq (the JSON-parsing audit scripts) and curl (the plugin-drift check), and the tracked suppression record audit-pass reads at .claude/audit-pass.md, so the audit skills run instead of failing. Use when: 'set up harness-config', 'configure harness-config', 'is harness-config working', 'set up audit-pass suppressions', or an audit skill reported a missing prerequisite. Actions: check (read-only verification, default) | apply (resolve what check found) | wsl-profile (print an opt-in WSL hardening settings block, writes nothing). Re-runnable and safe."
+argument-hint: "[check|apply|wsl-profile]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:
@@ -8,6 +8,7 @@ allowed-tools:
   - "Bash(command -v curl*)"
   - "Bash(command -v awk*)"
   - "Bash(command -v sort*)"
+  - "Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/wsl-profile.sh *)"
 shell: bash
 ---
 
@@ -35,8 +36,8 @@ the marketplace repository): `check` inspects and reports, `apply` resolves. Thi
 - the **tracked consumer-project configuration** `audit-pass` reads, the suppression record at
   `.claude/audit-pass.md`, the one surface `apply` may write.
 
-Action routing: no argument or `check` runs the check; `apply` runs the check first, then remediation.
-Both are non-interactive, so never prompt when the action is given.
+Action routing: no argument or `check` runs the check; `apply` runs the check first, then remediation;
+`wsl-profile` runs only its own section. All are non-interactive, so never prompt when the action is given.
 
 ## `check` (read-only)
 
@@ -163,6 +164,25 @@ Then converge the one surface this plugin owns, conservatively:
 
 Every write names the file and the exact change before making it, and preserves unrelated content.
 
+## `wsl-profile` (print only)
+
+An opt-in settings profile for Claude Code inside WSL. Read
+[reference/wsl-profile.md](reference/wsl-profile.md) for what it holds and its limits.
+
+1. Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/wsl-profile.sh detect`. Exit 1 means this is
+   not a WSL host: say the profile does not apply and stop.
+2. Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/wsl-profile.sh print`. It fills in the
+   running user's paths and the Windows host's `/mnt/<drive>/Users/<user>` directories. Show the
+   block, relay its stderr notes (several Windows users, or placeholders left to fill in), and tell
+   the user to merge it into their own settings file.
+3. State the limit from the reference: deny rules do not stop a script that opens files itself; the
+   sandbox is the OS-level control.
+4. Name `appendWindowsPath=false` in `wsl.conf` and the PowerShell symlink as host steps the human
+   runs.
+
+This action writes no file, edits no settings and never touches `wsl.conf` or creates the symlink. To
+check an edited profile, run `... wsl-profile.sh lint <file>`.
+
 ## Gotchas
 
 - **Never run a git command against the user-global layer.** `~/.claude/audit-pass.md` is outside the
@@ -181,7 +201,7 @@ Every write names the file and the exact change before making it, and preserves 
 - Run an audit; that is the plugin's audit and drafting skills (`/harness-config:audit`,
   `audit-automation-gaps`, `audit-instructions`, `audit-pass`, `audit-permission-grants`,
   `audit-permission-state`, `audit-prompting-postures`, `draft-auto-mode-rules`, `unhobble`).
-- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`; `wsl-profile` prints a block and the user merges it.
 - Install system packages.
 - Write the consumer's `.gitignore`, stage anything, or edit an operator's suppression entries.
 - Download anything. `check` makes no network call; the audit skills' own doc/marketplace fetches are

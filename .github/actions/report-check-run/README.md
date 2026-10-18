@@ -60,7 +60,9 @@ and `head-sha` are cross-checks only. Any disagreement with the inputs is a fail
   8. `run-result` other than `success`: failure, with `run-failure` appended when set. A run job
      that failed before the act step leaves `act-outcome` `skipped`, so this comes first.
   9. `act-outcome` other than `success`: failure, since nothing explains the skip.
-  10. Otherwise success.
+  10. Otherwise success, titled `Passed: patch written` or `Passed: no changes` when the verdict's
+      `patch` is `written` or `empty` (the read file's patch output mode), else `Passed`. Any
+      other non-null `patch` makes the verdict malformed.
 - Every neutral reason must be in `$defs/skip-reason` of `<base-path>/docs/conventions/pr-pipeline/pr-pipeline.schema.json`.
   A reason outside it, or an unreadable schema, turns the neutral into a failure.
 - `details_url` is this workflow run's page, built from the runner's own environment.
