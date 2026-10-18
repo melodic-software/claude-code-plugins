@@ -558,11 +558,14 @@ content-class rules bind them now (see Content classes): `adhd:clarify`,
 `visualization:visualize`.
 
 Emitters on the escape-helper gate (the third bullet of the security baseline), each building
-its page with a checked-in builder: `education:illustrate`, `education:teach` (codebase mode),
+its page with a checked-in builder: `education:teach` (codebase mode),
 `knowledge:video-digest`, `harness-ops:observability`, `event-storming:simulation`. They left the
 grandfathered list when they moved onto it.
 
-Emitters on the shared builder (`lib/view-builder.mjs`, interactive profile): `planning:plan` and
+Emitters on the shared builder (`lib/view-builder.mjs`, interactive profile): `education:illustrate`
+(`plugins/education/skills/illustrate/scripts/build-explainer.mjs`), which has left the grandfathered
+set and defaults to a local `file`, then `terminal`, publishing an artifact only when an argument or
+a layer asks for one; `planning:plan` and
 `planning:brainstorm`, each offering its view from a checked-in template plus the session's JSON as data
 (`plugins/planning/scripts/build-view.mjs`); `debugging:debug` (post-mortem) and `discovery:blindspot`, built
 the same way (`plugins/debugging/scripts/build-view.mjs`, `plugins/discovery/scripts/build-view.mjs`); and the

@@ -38,7 +38,8 @@ Print every field, in this order, before anything else:
 
 ```text
 cli_version:     <claude --version>
-floor_met:       <true | false> (git: <git --version | none>)
+floor_met:       <true | false>
+git_version:     <git --version | none>
 platform:        <windows | wsl2 | linux | darwin | other>
 sandbox_backend: <present | absent | not-ready | unknown> (missing: <binaries that did not resolve> | links: <paths>)
 target_type:     <plugin | wrapped-skill | wrapped-agent | rules>
@@ -56,8 +57,8 @@ currently unavailable` means Anthropic has switched the command off for now, pos
 or context: nothing local fixes it and there is no access to request, so wait and retry.
 
 **Git floor:** fetch <https://code.claude.com/docs/en/plugin-evals#requirements> live for it. A
-git below it sets `floor_met: false` and names the version; no git reports `git: none` and does
-not block.
+git below it sets `floor_met: false` and names the version on the `git_version` line; no git
+reports `git_version: none` and does not block.
 
 ### Sandbox backend
 
