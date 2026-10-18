@@ -27,7 +27,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest import mock
 
@@ -941,8 +941,68 @@ class TheListingIsReadOncePerRun(unittest.TestCase):
         _, evidence = self.gate(fake)
         self.assertIsNone(evidence.refusal)
 
+    def hold(self, fake: FakeGitHub) -> str | None:
+        """A later candidate's gate run judging PR 41 as a queued entry."""
+        with (
+            mock.patch.object(policy, "pull_request", return_value=pull()),
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+        ):
+            return ve.Reader(REPO, "main", now=NOW).queued_hold(PR)
+
+    def failed_since(self) -> FakeGitHub:
+        """The pass the saved listing holds, and a FAIL at the head since."""
+        return passing(artifact(named(HEAD, "fail"), 2), runs={2: run(2)})
+
+    def test_a_saved_listing_without_its_time_is_not_used_for_a_hold(self) -> None:
+        pathlib.Path(self.path).write_text(json.dumps(passing().artifacts))
+        fake = self.failed_since()
+        self.assertEqual(self.hold(fake), "verify:fail")
+        self.assertEqual(listings(fake), 1)
+
+    def test_a_saved_listing_past_the_bound_is_not_used(self) -> None:
+        clock = [datetime(2026, 10, 16, 12, 0, tzinfo=UTC)]
+        with mock.patch.object(ve, "_wall_clock", side_effect=lambda: clock[0]):
+            self.gate(passing())
+            clock[0] += ve.LISTING_MAX_AGE + timedelta(seconds=1)
+            fake = self.failed_since()
+            self.assertEqual(self.hold(fake), "verify:fail")
+            self.assertEqual(listings(fake), 1)
+            # The listing that hold read is saved and recent: the candidate
+            # after it reads it, and the FAIL refuses that candidate too.
+            _, evidence = self.gate(fake)
+            self.assertEqual(evidence.refusal, "verify:fail")
+            self.assertEqual(listings(fake), 1)
+
+    def test_a_listing_in_memory_past_the_bound_is_read_again(self) -> None:
+        clock = [datetime(2026, 10, 16, 12, 0, tzinfo=UTC)]
+        fake = passing()
+        with (
+            mock.patch.object(ve, "_wall_clock", side_effect=lambda: clock[0]),
+            mock.patch.object(policy, "pull_request", return_value=pull()),
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+        ):
+            reader = ve.Reader(REPO, "main", now=NOW)
+            self.assertIsNone(reader.evidence(PR, HEAD, pull()).refusal)
+            clock[0] += ve.LISTING_MAX_AGE
+            self.assertIsNone(reader.queued_hold(PR))
+            self.assertEqual(listings(fake), 1)
+            fake.artifacts.append(artifact(named(HEAD, "fail"), 2))
+            fake.runs[2] = run(2)
+            clock[0] += timedelta(seconds=1)
+            self.assertEqual(reader.queued_hold(PR), "verify:fail")
+        self.assertEqual(listings(fake), 2)
+
     def test_a_malformed_saved_listing_is_read_from_the_api(self) -> None:
-        for text in ("not json", '{"artifacts": []}', "[1]"):
+        recent = datetime.now(UTC).isoformat()
+        for text in (
+            "not json",
+            "[]",
+            '{"artifacts": []}',
+            json.dumps({"fetchedAt": "yesterday", "artifacts": []}),
+            json.dumps({"fetchedAt": "2026-10-16T12:00:00", "artifacts": []}),
+            json.dumps({"fetchedAt": recent, "artifacts": [1]}),
+            json.dumps({"fetchedAt": recent}),
+        ):
             with self.subTest(text):
                 pathlib.Path(self.path).write_text(text)
                 fake = passing()

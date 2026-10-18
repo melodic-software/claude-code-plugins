@@ -44,7 +44,9 @@ from a completed, successful one. Any other artifact is ignored.
 matches whole names only, and a FAIL counts under any number and head.
 pr-merge.yml builds one `Reader` per candidate gate run and names a file in
 `LISTING_ENV`: a successful listing is saved there, and later candidates of
-the run read it instead of paging again. A listing taken earlier in the run
+the run read it instead of paging again. No judgment uses a listing, saved
+or in memory, begun more than `LISTING_MAX_AGE` before it: an older one is
+read again and saved. A listing taken earlier in the run
 can only lack later uploads, so a refusal on it stands; before the gate's own
 candidate is allowed on it, babysit_merge.py calls `refresh()` and judges it
 again on a listing of its own. A listing that got a 5xx or a fast network
@@ -88,6 +90,10 @@ TOO_OLD_DAYS = 80
 COMMITS_CAP = 250
 # The waits before the second and third listing reads (judgment).
 LISTING_WAITS = (2.0, 4.0)
+# The oldest listing any judgment uses, saved or in memory. pr-verify is not a
+# required check, so a queued entry whose FAIL lands mid-run must be held
+# before the merge queue can land it (judgment).
+LISTING_MAX_AGE = timedelta(minutes=2)
 # How gh reports a request that never got an HTTP response: its own
 # "error connecting to <host>" for a failed lookup, else Go's net/http error.
 NETWORK_ERRORS = (
@@ -145,6 +151,18 @@ def _listing_sleep(seconds: float) -> None:
 
 def _listing_clock() -> float:
     return time.monotonic()
+
+
+def _wall_clock() -> datetime:
+    return datetime.now(UTC)
+
+
+def _recent(fetched_at: datetime | None) -> bool:
+    """A listing begun at most `LISTING_MAX_AGE` ago; a time with no zone, or
+    one in the future, is not."""
+    if fetched_at is None or fetched_at.tzinfo is None:
+        return False
+    return timedelta(0) <= _wall_clock() - fetched_at <= LISTING_MAX_AGE
 
 
 def dependency_bot(user: Any) -> bool:
@@ -217,6 +235,7 @@ class Reader:
         default_factory=lambda: os.environ.get(LISTING_ENV) or None
     )
     _artifacts: list[dict[str, Any]] | None = None
+    _fetched_at: datetime | None = None  # when `_artifacts` began to be read
     _saved: bool = False  # `_artifacts` came from `listing_path`
     _own: bool = False  # `refresh()` asked for a listing of this Reader's own
     _listing_error: str | None = None
@@ -227,25 +246,30 @@ class Reader:
     _humans: frozenset[int] | None = None
 
     def _listing(self) -> list[dict[str, Any]]:
-        """Every repository artifact, read once (from the run's saved listing
-        when there is one): a failed read is kept too, so one outage refuses
-        each later entry without paging again."""
+        """Every repository artifact, read at most `LISTING_MAX_AGE` before
+        this judgment (from the run's saved listing when it is that recent): a
+        failed read is kept too, so one outage refuses each later entry
+        without paging again."""
         if self._listing_error is not None:
             raise _Unreadable(self._listing_error)
-        listing = self._artifacts
-        if listing is None:
-            listing = None if self._own else self._load_saved()
-            self._saved = listing is not None
-        if listing is None:
-            try:
-                listing = flatten_paginated_items(
-                    self._read_listing(), "repository artifacts", items_key="artifacts"
-                )
-            except (_Unreadable, RuntimeError) as exc:
-                self._listing_error = str(exc)
-                raise _Unreadable(self._listing_error) from exc
-            self._save(listing)
-        self._artifacts = listing
+        if self._artifacts is not None and _recent(self._fetched_at):
+            return self._artifacts
+        saved = None if self._own else self._load_saved()
+        if saved is not None:
+            self._fetched_at, self._artifacts = saved
+            self._saved = True
+            return self._artifacts
+        fetched_at = _wall_clock()
+        try:
+            listing = flatten_paginated_items(
+                self._read_listing(), "repository artifacts", items_key="artifacts"
+            )
+        except (_Unreadable, RuntimeError) as exc:
+            self._listing_error = str(exc)
+            raise _Unreadable(self._listing_error) from exc
+        self._artifacts, self._fetched_at = listing, fetched_at
+        self._saved = self._own = False
+        self._save(listing, fetched_at)
         return listing
 
     @property
@@ -259,27 +283,37 @@ class Reader:
         if self._saved:
             self._artifacts, self._saved, self._own = None, False, True
 
-    def _load_saved(self) -> list[dict[str, Any]] | None:
-        """The run's saved listing; a missing or malformed file is none, so
-        the listing is read from the API instead."""
+    def _load_saved(self) -> tuple[datetime, list[dict[str, Any]]] | None:
+        """The run's saved listing and when it began to be read. A missing or
+        malformed file, or one with no `fetchedAt` within `LISTING_MAX_AGE`,
+        is none, so the listing is read from the API instead."""
         if not self.listing_path:
             return None
         try:
-            listing = json.loads(Path(self.listing_path).read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+            saved = json_object(
+                json.loads(Path(self.listing_path).read_text(encoding="utf-8"))
+            )
+            fetched_at = datetime.fromisoformat(saved["fetchedAt"])
+        except (OSError, ValueError, KeyError, TypeError):
             return None
-        if not is_json_array(listing) or not all(map(is_json_object, listing)):
+        listing = saved.get("artifacts")
+        if (
+            not _recent(fetched_at)
+            or not is_json_array(listing)
+            or not all(map(is_json_object, listing))
+        ):
             return None
-        return listing
+        return fetched_at, listing
 
-    def _save(self, listing: list[dict[str, Any]]) -> None:
+    def _save(self, listing: list[dict[str, Any]], fetched_at: datetime) -> None:
         """Best effort: a failed write leaves the next candidate to list."""
         if not self.listing_path:
             return
         path = Path(self.listing_path)
         tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+        payload = {"fetchedAt": fetched_at.isoformat(), "artifacts": listing}
         with contextlib.suppress(OSError):
-            tmp.write_text(json.dumps(listing), encoding="utf-8")
+            tmp.write_text(json.dumps(payload), encoding="utf-8")
             os.replace(tmp, path)
 
     def _read_listing(self) -> Any:

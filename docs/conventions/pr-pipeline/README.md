@@ -713,7 +713,8 @@ account with a dependency manager's login; a `User` named like one is judged) ne
 its queued entry is not held for one. pr-merge.yml runs the gate once per candidate and names a file
 in `BABYSIT_VERIFY_LISTING`: the first candidate lists every repository artifact and saves the
 listing there, and later candidates and their queued-entry checks read it instead of paging again.
-A saved listing can only lack artifacts uploaded since, so a refusal on it stands; a candidate it
+No judgment, of a candidate or a queued entry, uses a listing (saved or in memory) begun more than
+two minutes before it: an older one is read again and saved. A saved listing can only lack artifacts uploaded since, so a refusal on it stands; a candidate it
 would allow is judged again on a listing of its own before it is allowed, which is saved in turn.
 A listing that got a 5xx or a fast
 network error is read again, three reads in all with backoff, all inside the one gh timeout a single
