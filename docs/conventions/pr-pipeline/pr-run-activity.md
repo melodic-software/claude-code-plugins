@@ -1042,7 +1042,7 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
 - `report-outcome` downloads that artifact. On `done` it opens a ready (not draft) PR from the branch whose
   body starts `Closes #<n>` (or `Refs: #<n>`, with the hold line, when the outcome sets
   `"link": "refs"` because a recorded decision keeps the issue open), puts no label on it (the work class stays on the issue), and adds
-  `Hold: a human merges this` for scoped, structural or untrusted-provenance work, for a diff that
+  `Hold: a human merges this` for structural or untrusted-provenance work, for a diff that
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
   resolved config; unreadable holds every PR), or for one too large for the compare listing to
   show whole. The run's own summary is quoted with issue references broken, so
