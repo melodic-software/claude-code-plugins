@@ -238,12 +238,16 @@ runs:
           if [ "$reason" = github-rate-limited ]; then
             delay=${after:-60}
             if [ $((elapsed + delay)) -gt "$budget" ]; then
+              # The anchored allowlists below are what keep broker text out of
+              # the ::error:: command and $GITHUB_OUTPUT: never loosen them.
               limit=$(jq -r 'if (.limit | type) == "string" then .limit else "" end' "$response" 2>/dev/null) || limit=""
               [[ $limit =~ ^(primary|secondary)$ ]] || limit=unknown
               resource=$(jq -r 'if (.resource | type) == "string" then .resource else "" end' "$response" 2>/dev/null) || resource=""
               [[ $resource =~ ^[a-z_]{1,40}$ ]] || resource=""
               resets=$(jq -rn --argjson s "$delay" 'now + $s | ceil | todate')
-              rate_limit="; GitHub's $limit rate limit${resource:+ ($resource)} resets at $resets, past the 8-minute retry budget"
+              when="resets at"
+              [ -n "$after" ] || when="sent no Retry-After, so its earliest retry is"
+              rate_limit="; GitHub's $limit rate limit${resource:+ ($resource)} $when $resets, past the 8-minute retry budget"
               break
             fi
             jitter=$((RANDOM % 21))
