@@ -15,8 +15,18 @@
 # line, so a copy is output, never a place to edit. The decision is ADR 0019.
 set -euo pipefail
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$script_dir/.."
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# The repository synced is the one the caller stands in, so a copy of scripts/
+# kept outside it (the issue lane's read-only copy) syncs the checkout.
+# outside stays 1 (offline modes only) unless git resolved the root and this
+# script is that root's own scripts/ directory.
+outside=1
+if root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  cd "$root"
+  [[ "$script_dir" != "$(pwd -P)/scripts" ]] || outside=0
+else
+  cd "$script_dir/.."
+fi
 # shellcheck source=lib/gate-entry.sh
 . "$script_dir/lib/gate-entry.sh" || exit 2
 # shellcheck source=lib/changelog-fragments.sh
@@ -29,8 +39,25 @@ srcs=()                 # canonical paths, first-seen registry order
 declare -A copies_of=() # canonical -> newline-separated copies
 declare -A src_of=()    # copy -> canonical
 
+# inside_root <path>: true when <path> is relative, has no `.` or `..` segment,
+# and no existing component is a symbolic link, so reads and writes stay in the root.
+inside_root() {
+  local part prefix="" parts
+  [[ "$1" != /* && "/$1/" != */../* && "/$1/" != */./* ]] || return 1
+  IFS=/ read -ra parts <<<"$1"
+  for part in "${parts[@]}"; do
+    prefix+="${prefix:+/}$part"
+    [[ ! -L "$prefix" ]] || return 1
+  done
+}
+
 load_registry() {
-  local line src copy extra
+  local line src copy extra path
+  # shellcheck disable=SC2310  # the non-zero return IS the answer
+  if ! inside_root "$registry" || [[ ! -f "$registry" ]]; then
+    echo "error: $registry is not a regular file inside the checkout (no symbolic link)." >&2
+    exit 2
+  fi
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%%#*}"
     read -r src copy extra <<<"$line" || true
@@ -39,6 +66,13 @@ load_registry() {
       echo "error: $registry: want '<canonical> <copy>', got: $line" >&2
       exit 2
     fi
+    for path in "$src" "$copy"; do
+      # shellcheck disable=SC2310  # the non-zero return IS the answer
+      if ! inside_root "$path"; then
+        echo "error: $registry: $path is not a path inside the checkout (relative, no . or .. segment, no symbolic link)." >&2
+        exit 2
+      fi
+    done
     if [[ ! -f "$src" ]]; then
       echo "error: $registry: canonical $src does not exist." >&2
       exit 2
@@ -233,6 +267,12 @@ check_bump() {
 }
 
 mode="${1:-sync}"
+# --check-bump can reach the GitHub API; a copy run from outside the repository
+# it syncs (the issue lane's) gets only the offline modes.
+if ((outside)) && [[ "$mode" == --check-bump ]]; then
+  echo "refused: --check-bump runs only from inside the repository it syncs; this copy runs from outside it." >&2
+  exit 2
+fi
 case "$mode" in
 sync)
   load_registry

@@ -1,12 +1,21 @@
 # Changelog for the PR pipeline convention
 
-## 2.8.2 - 2026-10-17
+## 2.9.1 - 2026-10-18
 
 `request-lane-token` also retries a broker 503 `github-rate-limited`, waiting exactly its
 `Retry-After` plus up to 20 seconds of jitter, and fails red at once, naming the limit kind and its
 reset time, when that wait would pass the 8-minute budget. A 503 `mint-unavailable` is never
 retried, and its failure says it is final
 ([pr-run-activity.md](pr-run-activity.md#the-lane-token-broker)). `version` stays 2.
+
+## 2.9.0 - 2026-10-17
+
+`work-resolve-issue.yml` runs at most three `resolve-issue` jobs at once. A `pick-slot` job takes
+the issue number modulo `SLOTS` (3, set in that job), and `resolve-issue` waits in the
+`work-resolve-issue-slot-<n>` concurrency group with `queue: max`, so a burst of `agent-ready`
+admissions queues instead of exhausting the lanes App's hourly API quota
+([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)). The per-issue run group is
+unchanged. `version` stays 2.
 
 ## 2.8.1 - 2026-10-17
 

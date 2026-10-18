@@ -181,6 +181,14 @@ OUT_SCALAR_OBJ=$(run_tree "$SHAPE")
 assert_contains "an object defaultMode leaves the file present" "$OUT_SCALAR_OBJ" "user settings present"
 assert_contains "and its mistyped disableAutoMode is still read" "$OUT_SCALAR_OBJ" "conf user settings disableAutoMode true"
 
+# A guard entry that is not an object must not hide the managed lock beside it.
+for entry in '"x"' '[1]' '7'; do
+  printf '{"allowManagedPermissionRulesOnly":true,"pluginConfigs":{"cc-plugin-sec-default@builtin":%s}}\n' "$entry" >"$SHAPE/pol/managed-settings.json"
+  OUT_GUARD_SHAPE=$(run_tree "$SHAPE")
+  assert_contains "a $entry guard entry keeps the managed lock record" "$OUT_GUARD_SHAPE" "conf managed file allowManagedPermissionRulesOnly true"
+  assert_not_contains "a $entry guard entry yields no override record" "$OUT_GUARD_SHAPE" "modsOverrideDenyRules"
+done
+
 # --- Case 9: the start-directory copy is never double-counted ----------------
 # When the session starts at the repository root the two paths are the same file.
 # Reporting it twice would claim two live rule sources where there is one.
