@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Session-scoped PreToolUse guard active only while the clean skill is invoked
-# (registered via SKILL.md frontmatter hooks — the on-demand-hook pattern).
+# Session-scoped PreToolUse guard registered via SKILL.md frontmatter hooks,
+# which last the rest of the session; a run-open marker scopes it to a clean run.
 # Blocks destructive Bash and PowerShell commands unless the invocation is
 # acknowledged with a CLEAN_GUARD_ACK=1 assignment at the very start of the
 # command, which the skill body adds ONLY after the dry-run -> user-confirmation
@@ -18,12 +18,36 @@
 # Exit codes: 0 = allow, 2 = block (stderr reason returned to Claude)
 
 # Threat model: this is a best-effort NET, not a security boundary. It matches
-# command TEXT with regexes, so obfuscation (eval, $(), base64, `bash -c`
-# wrappers, aliases) bypasses it by design — the goal is to catch the common
+# command words, so obfuscation (eval, $(), base64, a `bash -c` stacked behind
+# sudo, aliases) bypasses it by design — the goal is to catch the common
 # destructive spellings an agent might fumble and route them through the clean
 # skill's confirmation gate. The durable destructive-op boundary is the consumer's own
 # settings.json permissions.deny plus their git hooks, which apply independent
-# of clean-session state. Coverage is whatever is_destructive() lists.
+# of clean-session state. Coverage is whatever is_destructive() and
+# argv_destructive() list.
+#
+# Lifetime. Claim: as of 2026-10-18 a hook registered in a skill's frontmatter
+# stays active for the rest of the session once the skill has been invoked, so
+# the hook registration alone cannot scope the guard to a clean run. The scope
+# is a per-session run-open marker, <CLAUDE_PLUGIN_DATA>/clean-run/<session_id>.open,
+# which clean-run-marker.sh writes when a mutating tier starts (never for scan or
+# scan-batch) and removes when the run reaches its final outcome. With no marker
+# for the hook input's session_id the guard allows the command. A marker idle for
+# RUN_MARKER_IDLE_SECONDS (lib/run-marker.sh) is deleted and the command allowed;
+# every gated call refreshes a live marker. An unresolved CLAUDE_PLUGIN_DATA or a
+# missing or unusable session_id keeps the guard armed (fail closed), and so does
+# the no-jq mode, which cannot read the session_id. Basis: the skill-frontmatter hook
+# notes in https://code.claude.com/docs/en/hooks (the owner's decision on #7333
+# cites them) and the marker cases in destructive-guard.test.sh. Not verified in
+# this change: that CLAUDE_PLUGIN_DATA reaches a skill-frontmatter hook process.
+# Recheck: the hooks page changes how skill hooks end, or the first live run
+# shows the guard armed with no marker.
+#
+# Precision. On the Bash tool is_destructive_bash() runs argv_destructive() over
+# each segment's argv from hook::bash_parse_segments, so destructive text inside
+# one quoted argument (a `gh issue comment --body '... git branch -D ...'`) is a
+# single inert word and does not match. The PowerShell tool and the other tools
+# keep raw-string matching in is_destructive().
 #
 # Branch deletion. Claim: as of 2026-09-29 this net matches bare
 # `git branch -D`/`-d`/`--delete`, and `git push --delete`, `push -d` and
@@ -47,6 +71,13 @@
 # is_destructive() changes.
 
 set -uo pipefail
+
+# Builtins only: the no-jq test runs this script with a PATH that lacks dirname.
+_src="${BASH_SOURCE[0]}"
+[[ "$_src" == */* ]] || _src="./$_src"
+SCRIPT_DIR="$(cd "${_src%/*}" && pwd)"
+# shellcheck source=lib/run-marker.sh
+source "$SCRIPT_DIR/lib/run-marker.sh"
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   sed -n '2,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -109,6 +140,112 @@ is_destructive() {
   grep -qE "git[[:space:]]+${gopt}reset[[:space:]]+--hard|git[[:space:]]+${gopt}checkout[[:space:]]+--[[:space:]]|git[[:space:]]+${gopt}stash[[:space:]]+(drop|clear)([[:space:]]|$)|Remove-Item[[:space:]].*-Recurse" <<<"$cmd"
 }
 
+# argv_destructive <word>... : the same coverage as is_destructive(), over one
+# parsed segment's argv. Every test is on a whole word, so destructive text that
+# sits inside one quoted argument never matches. Returns 0 when destructive.
+argv_destructive() {
+  local -a w=("$@")
+  local n=${#w[@]} i k j sub word base script=0 apply=0
+  local -a rest
+  local recursive force dry del
+  for ((i = 0; i < n; i++)); do
+    word="${w[i]}"
+    base="${word##*/}"
+    [[ "$word" == "--apply" ]] && apply=1
+    case "$base" in
+    clean-caches.sh | clean-build.sh | git-prune.sh | git-tree-reset-batch.sh | git-tree-reset.sh | remove-path.sh | clean-batch.sh)
+      script=1
+      ;;
+    rm)
+      recursive=0 force=0
+      for ((j = i + 1; j < n; j++)); do
+        [[ "${w[j]}" =~ ^-[a-zA-Z]*[rR] || "${w[j]}" =~ ^--recursive(=.*)?$ ]] && recursive=1
+        [[ "${w[j]}" =~ ^-[a-zA-Z]*f || "${w[j]}" == --force ]] && force=1
+      done
+      ((recursive && force)) && return 0
+      ;;
+    Remove-Item)
+      for ((j = i + 1; j < n; j++)); do
+        [[ "${w[j]}" == -Recurse* ]] && return 0
+      done
+      ;;
+    git)
+      # Skip git's global options, the way the raw pattern's gopt does.
+      k=$((i + 1))
+      while ((k < n)); do
+        case "${w[k]}" in
+        -C | -c) k=$((k + 2)) ;;
+        -p | -P | --*) k=$((k + 1)) ;;
+        *) break ;;
+        esac
+      done
+      sub="${w[k]:-}"
+      rest=("${w[@]:k+1}")
+      force=0
+      for word in "${rest[@]}"; do
+        [[ "$word" =~ ^-[a-zA-Z]*f || "$word" == --force ]] && force=1
+      done
+      case "$sub" in
+      clean)
+        ((force)) && return 0
+        ;;
+      worktree)
+        [[ "${rest[0]:-}" == remove ]] && ((force)) && return 0
+        ;;
+      branch)
+        for word in "${rest[@]}"; do
+          [[ "$word" =~ ^-[a-zA-Z]*[dD] || "$word" =~ ^--delete ]] && return 0
+        done
+        ;;
+      push)
+        # A dry-run (--dry-run, or an -n cluster with no -o push option) is a preview.
+        del=0 dry=0
+        for word in "${rest[@]}"; do
+          [[ "$word" =~ ^--delete || "$word" =~ ^-[a-np-zA-Z]*d || "$word" =~ ^[+]?:. ]] && del=1
+          [[ "$word" == --dry-run || "$word" =~ ^-[a-np-zA-Z]*n[a-np-zA-Z]*$ ]] && dry=1
+        done
+        ((del && !dry)) && return 0
+        ;;
+      reset)
+        [[ "${rest[0]:-}" == --hard ]] && return 0
+        ;;
+      checkout)
+        [[ "${rest[0]:-}" == -- ]] && return 0
+        ;;
+      stash)
+        [[ "${rest[0]:-}" == drop || "${rest[0]:-}" == clear ]] && return 0
+        ;;
+      *) ;;
+      esac
+      ;;
+    *) ;;
+    esac
+  done
+  ((script && apply)) && return 0
+  return 1
+}
+
+ARGV_HIT=0
+# shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
+argv_segment() {
+  ((ARGV_HIT)) && return 0
+  # `bash -c '<cmd>'` and kin: the operand is a command line, parsed in turn.
+  if hook::shell_c_operand "$@"; then
+    hook::bash_parse_segments "$HOOK_SHELL_C_OPERAND" argv_segment
+    return 0
+  fi
+  argv_destructive "$@" && ARGV_HIT=1
+  return 0
+}
+
+# is_destructive_bash <command> : is_destructive() for the Bash tool, over parsed
+# segments instead of the raw string. Needs hook-utils.sh to be sourced.
+is_destructive_bash() {
+  ARGV_HIT=0
+  hook::bash_parse_segments "$1" argv_segment
+  ((ARGV_HIT))
+}
+
 # jq parses the hook payload. Without it the ack prefix cannot be verified, so
 # the guard degrades FAIL-CLOSED: destructive patterns matched against the raw
 # JSON payload block unconditionally (no ack path) until jq is installed. JSON
@@ -132,6 +269,25 @@ fi
 CMD="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)"
 [[ -n "$CMD" ]] || exit 0
 TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)"
+SESSION="$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)"
+
+# Run-open marker (see Lifetime above). No live marker for this session means no
+# clean run is open, so the guard stays out of the way. When the marker path
+# cannot be resolved, the guard stays armed.
+if run_marker_path_to MARKER_FILE "${CLAUDE_PLUGIN_DATA:-}" "$SESSION"; then
+  run_marker_state_to MARKER_STATE "$MARKER_FILE"
+  case "$MARKER_STATE" in
+  absent) exit 0 ;;
+  stale)
+    rm -f "$MARKER_FILE"
+    exit 0
+    ;;
+  *) run_marker_write "$MARKER_FILE" ;;
+  esac
+fi
+
+# shellcheck source=hook-utils.sh
+source "$SCRIPT_DIR/hook-utils.sh"
 
 # Acknowledged path: the skill's confirmation gate prefixes the command with an
 # assignment. The ack is a deny-to-allow widening, so it is accepted only as
@@ -170,7 +326,13 @@ if is_acknowledged "$CMD" "$TOOL"; then
   exit 0
 fi
 
-if is_destructive "$CMD"; then
+DESTRUCTIVE=0
+if [[ "$TOOL" == Bash ]]; then
+  is_destructive_bash "$CMD" && DESTRUCTIVE=1
+else
+  is_destructive "$CMD" && DESTRUCTIVE=1
+fi
+if ((DESTRUCTIVE)); then
   # shellcheck disable=SC2016  # literal `$env:` is the PowerShell spelling
   case "$TOOL" in
   Bash) ack_form='CLEAN_GUARD_ACK=1 <command>' ;;
