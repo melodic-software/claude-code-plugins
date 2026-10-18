@@ -19,9 +19,12 @@ test_skip:
 assertion:
   async:
     - 'Assert[[:space:]]*\.[[:space:]]*(ThrowsExceptionAsync|ThrowsAsync|ThrowsExactlyAsync)[[:space:]]*[<(]'
-  # A literal condition always passes (MSTEST0032).
+  # A literal condition always passes (MSTEST0032). So does IsNotNull on a
+  # typeof or nameof, and a comparison of two typeof operands.
   inert:
     - '[^=;]*\.[[:space:]]*Should[[:space:]]*\([[:space:]]*\)[[:space:]]*;$'
     - 'Assert[[:space:]]*\.[[:space:]]*(IsTrue[[:space:]]*\([[:space:]]*true|IsFalse[[:space:]]*\([[:space:]]*false)[[:space:]]*[,)]'
+    - 'Assert[[:space:]]*\.[[:space:]]*IsNotNull[[:space:]]*\([[:space:]]*(typeof|nameof)[[:space:]]*\([^()]*\)(\.Name)?[[:space:]]*\)'
+    - 'Assert[[:space:]]*\.[[:space:]]*(AreEqual|AreNotEqual|AreSame)[[:space:]]*\([[:space:]]*typeof[[:space:]]*\([^()]*\)[[:space:]]*,[[:space:]]*typeof[[:space:]]*\([^()]*\)[[:space:]]*[,)]'
 equality:
   call2: [CollectionAssert.AreEqual, CollectionAssert.AreEquivalent, Assert.AreEquivalent, Assert.AreSequenceEqual, assert.equal, assert.strictEqual, assert.deepEqual, assert.deepStrictEqual, assertEqual, assertEquals, assertAlmostEqual, Assert.Equal, Assert.StrictEqual, Assert.Same, Assert.AreEqual, Assert.AreSame]

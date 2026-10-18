@@ -1,0 +1,19 @@
+// expect: rule-inert-assertion
+// typeof(Order) and nameof(Order) are never null, so neither assertion can fail.
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class OrderTypeofIsNotNullTests
+{
+    [TestMethod]
+    public void Order_TypeExists()
+    {
+        Assert.IsNotNull(typeof(Order));
+    }
+
+    [TestMethod]
+    public void Order_NameExists()
+    {
+        Assert.IsNotNull(nameof(Order));
+    }
+}
