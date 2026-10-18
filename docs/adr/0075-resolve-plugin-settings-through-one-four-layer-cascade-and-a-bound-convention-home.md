@@ -74,6 +74,7 @@ consumer repository, so each caller passes its row's directions to the resolver 
 | `team-only` | the team layer wins a direct conflict; a personal layer may add or tighten but never weaken |
 | `lowest-value` | the lowest value across layers wins (a numeric ceiling) |
 | `any-layer-wins` | the tightening value (`true`, or `report`) in any layer wins |
+| `stricter-value` | the strictest value on the key's ordered scale across layers wins |
 
 A cell holds one value, or several separated by commas when a surface has floor keys with different
 directions. Each surface's keys and their scale stay in that surface's owner doc.
