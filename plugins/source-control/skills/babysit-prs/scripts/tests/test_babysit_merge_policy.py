@@ -2473,6 +2473,56 @@ class LocalEnabledSince(unittest.TestCase):
             policy.datetime.fromisoformat("2026-09-01T00:00:00Z"),
         )
 
+    def test_a_partial_clone_falls_back_to_the_api(self) -> None:
+        # Its older blobs are not local, and the read never lazy-fetches.
+        self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
+        base = self.pipeline(PIPELINE + "# edit\n", "2026-10-11T00:00:00Z")
+        self.git(self.clone, "config", "uploadpack.allowFilter", "true")
+        partial = self.tmp / "partial"
+        self.git(
+            self.tmp,
+            "clone",
+            "-q",
+            "--no-checkout",
+            "--filter=blob:none",
+            self.clone.as_uri(),
+            str(partial),
+        )
+        self.fake(
+            [self.commit_record(base, "2026-09-01T00:00:00Z")],
+            {base: PIPELINE},
+            base=base,
+            clones=(partial,),
+        )
+        self.assertEqual(
+            policy.enabled_since(REPO, base),
+            policy.datetime.fromisoformat("2026-09-01T00:00:00Z"),
+        )
+
+    def cut_history(self) -> tuple[str, Any]:
+        """Three pipeline commits and a base; returns the middle commit and
+        `_local_history` of the base before anything cuts the history."""
+        self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
+        middle = self.pipeline(PIPELINE + "# a\n", "2026-10-11T00:00:00Z")
+        self.pipeline(PIPELINE + "# b\n", "2026-10-12T00:00:00Z")
+        self.base = self.commit("README.md", "unrelated", "2026-10-13T00:00:00Z")
+        self.local()
+        whole = policy._local_history(self.base)
+        assert whole is not None and len(whole[1]) == 3
+        return middle, whole
+
+    def test_a_graft_file_does_not_cut_the_history(self) -> None:
+        # Grafted parentless, the middle commit would end the walk there.
+        middle, whole = self.cut_history()
+        (self.clone / ".git" / "info").mkdir(exist_ok=True)
+        (self.clone / ".git" / "info" / "grafts").write_text(f"{middle}\n")
+        self.assertEqual(policy._local_history(self.base), whole)
+
+    def test_a_replace_ref_does_not_cut_the_history(self) -> None:
+        middle, whole = self.cut_history()
+        self.git(self.clone, "replace", "--graft", middle)
+        self.assertEqual(policy._local_history(self.base), whole)
+
     def test_a_clone_without_the_base_falls_back_to_the_api(self) -> None:
         self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
         self.fake(
@@ -3554,6 +3604,24 @@ class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
                 )
                 self.assertEqual(result.details["postMergeShared"], f"unused:{reason}")
                 share.assert_not_called()
+
+    def test_an_unreadable_config_history_writes_nothing_back(self) -> None:
+        # The binding check could not read the base's config history; the
+        # reads after it can succeed, but the floor they compute may be
+        # another one, which later candidates would refuse as floor-differs.
+        self.bound()
+        self.judged_flight()
+        share = mock.Mock()
+        reads = mock.Mock(side_effect=[policy.PolicyReadError("502"), CONFIG_SHA])
+        with mock.patch.object(policy, "newest_config_commit", reads):
+            result = self.lane_assess(
+                post_merge=lambda floor, who: lane_gate(True),
+                shared=self.shared(lane_gate(True)),
+                share=share,
+            )
+        self.assertEqual(result.details["postMergeShared"], "unused:config-unreadable")
+        self.assertIsNone(result.reason)
+        share.assert_not_called()
 
     def test_another_floor_on_a_stale_answer_leaves_the_runs_answer(self) -> None:
         # The binding is checked before the age: a candidate on another floor

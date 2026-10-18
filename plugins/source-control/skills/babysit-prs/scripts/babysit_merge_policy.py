@@ -2196,6 +2196,13 @@ def _history_checkouts() -> list[Path]:
     return [Path(__file__).resolve().parent, Path.cwd()]
 
 
+# How a history read sees a clone's real commits, beside the
+# `--no-replace-objects` each caller passes: a graft file is ignored, and a
+# missing object fails the read rather than being lazily fetched. A graft or
+# replace ref would cut or rewrite the history a clone reports.
+HISTORY_GIT_ENV = {"GIT_GRAFT_FILE": os.devnull, "GIT_NO_LAZY_FETCH": "1"}
+
+
 def _git(root: Path, *args: str) -> str | None:
     """The stdout of `git` run in `root`, or None when it fails."""
     try:
@@ -2203,6 +2210,7 @@ def _git(root: Path, *args: str) -> str | None:
             ["git", "--no-replace-objects", "-C", str(root), *args],
             allowed_executables=("git",),
             check=False,
+            env_overrides=HISTORY_GIT_ENV,
         )
     except (RuntimeError, ValueError, OSError):
         return None
@@ -2229,7 +2237,8 @@ def _git_file_at(root: Path, path: str, sha: str) -> str | None:
 def _local_history(base_sha: str) -> tuple[Path, list[tuple[str, str]]] | None:
     """The pipeline file's commits from `base_sha`, newest first, as (SHA,
     committer date), from the first clone in `_history_checkouts` that holds
-    `base_sha` with its whole history (not shallow); None when none does.
+    `base_sha` with its whole history (not shallow or partial); None when
+    none does.
     A commit id names its whole ancestry, so any clone holding it answers
     for the repository."""
     for checkout in _history_checkouts():
@@ -2239,6 +2248,10 @@ def _local_history(base_sha: str) -> tuple[Path, list[tuple[str, str]]] | None:
             continue
         root = Path(top.strip())
         if _git(root, "rev-parse", "--is-shallow-repository") != "false\n":
+            continue
+        # A partial clone lacks older blobs, which the read never fetches.
+        promisor = r"^(extensions\.partialclone|remote\..*\.promisor)$"
+        if _git(root, "config", "--get-regexp", promisor) is not None:
             continue
         if _git(root, "cat-file", "-e", f"{base_sha}^{{commit}}") is None:
             continue
@@ -2591,10 +2604,17 @@ SHARED_MAX_AGE = timedelta(minutes=30)
 # How old a shared answer still waiting on a lane merge's verifying run may
 # be: that run may have passed since. The verify-evidence listing's bound.
 SHARED_UNVERIFIED_MAX_AGE = run_cache.MAX_AGE
-# Refusals that bind the answer to another candidate, not to an older state:
-# a recompute under one is not written over the run's answer.
+# Refusals that bind the answer to another candidate, not to an older state,
+# or leave the binding unknown: a recompute under one is not written over
+# the run's answer.
 SHARED_BINDING_REFUSALS = frozenset(
-    {"identity-differs", "self-logins-differ", "lane-differs", "floor-differs"}
+    {
+        "identity-differs",
+        "self-logins-differ",
+        "lane-differs",
+        "floor-differs",
+        "config-unreadable",
+    }
 )
 # Runner clocks may run ahead of GitHub's; `since` starts this much earlier.
 SINCE_CLOCK_MARGIN = timedelta(minutes=5)
