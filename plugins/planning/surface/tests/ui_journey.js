@@ -579,6 +579,7 @@ async page => { // the user journey in order on one page, no reload after phase 
   if (PHASE === 11) { // the shell added activity while the tab was hidden and the panel open
     const base = await text("#title");
     await page.waitForFunction(b => document.title === "(1) " + b, base, {timeout: 15000}).catch(() => {});
+    await page.waitForTimeout(1500); // keep the period in which mark-seen would run, so a late reset still fails
     ok("an open Activity panel marking entries seen does not hide the title count", await page.title() === "(1) " + base, await page.title());
     await setHidden(false); await page.waitForTimeout(200);
   }
