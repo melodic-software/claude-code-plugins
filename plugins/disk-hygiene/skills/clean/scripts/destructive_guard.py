@@ -989,7 +989,7 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     can run code) stay classified as written, and identity is again checked
     before blanking. Accepted residual: the gate reads ``gh`` by its first two
     words, so a ``gh`` alias that runs a shell command (``gh alias set --shell``
-    or a ``!`` expansion) is not modelled; the allowlist names only ``issue``
+    or a ``!`` expansion) is not modeled; the allowlist names only ``issue``
     and ``pr``.
 
     A word that is the SAME FILE as the bundled engine — a symlink or hard link
