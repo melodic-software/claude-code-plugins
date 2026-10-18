@@ -729,13 +729,13 @@
   // rejections, actions that never reached the server (send above; the server logs its own refusals), and layout
   // anomalies. Repeats, action timings and rollbacks, reconnect gaps, INP and LCP wait for one summary, sent with no
   // pid when the page hides. Only once joined: the server refuses an anonymous entry. Never typed text, answers, chat,
-  // names, the address or its fragment, text on the page, or a credential. The switch (remembered here) stops it all.
+  // names, the address or its fragment, text on the page, or a credential. There is no switch: it always runs.
   const cut = (text, n) => Array.from(String(text)).slice(0, n).join(""); // by code point, as the server counts
   const recentErrors = []; // the last few this page saw, which a problem report carries
   const LAT_EDGES = [100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000]; // ms, upper bucket edges; share.py LAT_EDGES
   const SUMMARY_MAX = 500; // the server's message limit: what does not fit waits for the next summary
   const tel = {
-    off: get("telemetry") === "off", seen: new Set(), rep: new Map(), lat: new Map(), rb: new Map(), gaps: [], layout: new Set(),
+    seen: new Set(), rep: new Map(), lat: new Map(), rb: new Map(), gaps: [], layout: new Set(),
     pv: [...crypto.getRandomValues(new Uint8Array(4))].map(b => b.toString(16).padStart(2, "0")).join(""), // this page view, no one's id
     inp: "", lcp: "", sentInp: "", sentLcp: "", missing: "", sentMissing: false, vitals: false,
   };
@@ -744,7 +744,7 @@
   const bump = (m, k, n = 1) => m.set(k, (m.get(k) || 0) + n);
   const fnv = text => { let h = 0x811c9dc5; for (const c of text) h = Math.imul(h ^ c.codePointAt(0), 16777619) >>> 0; return h.toString(16).padStart(8, "0"); };
   function post(body) {
-    if (tel.off || !joined()) return Promise.reject(new Error("not sent"));
+    if (!joined()) return Promise.reject(new Error("not sent"));
     return fetch("/api/client-log", { method: "POST", headers: { "Content-Type": "application/json", ...ident() }, body: JSON.stringify(body), keepalive: true })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); });
   }
@@ -758,7 +758,7 @@
     const body = { kind, message: cut(message || kind, 500), route: cut(location.pathname, 200), ua: ua(), ...extra };
     if (kind !== "layout" && !extra.noted) noteError(kind, extra.code, body.message);
     delete body.noted;
-    if (tel.off || !joined()) return;
+    if (!joined()) return;
     const fp = fnv(key || [kind, body.message, body.source || "", kind === "api" ? body.route : ""].join("|"));
     if (tel.seen.has(fp)) { bump(tel.rep, fp); return; }
     tel.seen.add(fp);
@@ -772,7 +772,7 @@
   }
   /** One summary line of what waited, as `name=value` tokens; whatever does not fit in SUMMARY_MAX stays for the next. */
   function flush() {
-    if (tel.off || !joined()) return;
+    if (!joined()) return;
     const base = `pv=${tel.pv}${ownerToken ? " owner=1" : ""}`, items = [];
     const missing = tel.missing || (tel.vitals ? [!tel.hasInp && "inp=missing", !tel.hasLcp && "lcp=missing"].filter(Boolean).join(" ") : "");
     if (missing && !tel.sentMissing) items.push([missing, () => { tel.sentMissing = true; }]);
@@ -802,7 +802,7 @@
   /** INP and LCP from the vendored web-vitals attribution build (web/web-vitals.attribution.iife.js), on this origin;
    *  a page without it, or without the browser APIs it reads, says which is missing. */
   function loadVitals() {
-    if (tel.vitals || tel.loading || tel.off) return;
+    if (tel.vitals || tel.loading) return;
     tel.loading = true;
     const s = document.createElement("script");
     s.src = "/web-vitals.attribution.iife.js";
@@ -858,7 +858,7 @@
   let layoutTimer = 0, layoutAt = -Infinity;
   function checkLayout() {
     layoutTimer = 0; layoutAt = performance.now();
-    if (tel.off || !joined()) return;
+    if (!joined()) return;
     const now = layoutNow();
     for (const [key, message] of now) if (!tel.layout.has(key)) fault("layout", message, {}, key);
     tel.layout = new Set(now.keys());
@@ -884,53 +884,40 @@
   Core.reportLayout = fields => post({ kind: "layout", message: cut(Object.entries(fields).map(([k, v]) => `${k}=${String(v).replace(/\s+/g, "")}`).join(" "), 500),
     route: cut(location.pathname, 200), ua: ua() }).catch(() => {});
   addEventListener("error", e => fault("error", e.message, e.filename ? { source: cut(`${new URL(e.filename, location.href).pathname}:${e.lineno}`, 200) } : {}));
-  addEventListener("unhandledrejection", e => fault("rejection", e.reason?.message || e.reason?.error || String(e.reason)));
+  // A server refusal ({status, error, message}) sends its code and status only: its message can quote typed text.
+  addEventListener("unhandledrejection", e => { const r = e.reason;
+    fault("rejection", r && !(r instanceof Error) && r.error ? `${r.error} ${r.status ?? ""}`.trim() : r?.message || String(r)); });
 
-  // The notice: one line, a "What this page records" link to the plain list, and the switch, in the join dialog and Help.
+  // The notice in Help: one line and a "What this page records" link to the plain list.
   const REC_LINE = "This page records errors, slow or failed actions and layout problems on this device, so the host can fix them. It never records what you type.";
   const RECORDED = ["Script errors on this page, and actions that never reached the host", "How long each action takes to get an answer, and how often one is undone",
     "How long the page takes to catch up when you come back to it", "Layout problems: something too wide for the screen, a field the keyboard covers, the header pushed off screen",
     "How fast the page answers a tap and shows its main content", "Your device type and browser family, such as phone and Safari"];
   const NEVER = ["What you type: your answers, chat and requests", "Your name, or this page's address", "Any text shown on the page"];
-  const REC_IDS = "Errors are filed under your session id, so the host can match them to what happened; timings and counts carry no id. It all stays on the host's computer. With recording off, this page sends none of it.";
-  const switches = new Set();
-  function setOff(off) {
-    tel.off = !!off;
-    put("telemetry", tel.off ? "off" : "on");
-    for (const s of switches) { if (s.isConnected) s.checked = !tel.off; else switches.delete(s); }
-    if (!tel.off) loadVitals();
-  }
-  function recSwitch() {
-    const label = Core.el("label", "core-rec-switch"), input = Core.el("input");
-    input.type = "checkbox"; input.setAttribute("role", "switch"); input.checked = !tel.off;
-    input.addEventListener("change", () => setOff(!input.checked));
-    switches.add(input);
-    label.append(input, Core.el("span", null, "Record problems on this device"));
-    return label;
-  }
+  const REC_IDS = "Errors are filed under your session id, so the host can match them to what happened; timings and counts carry no id. It all stays on the host's computer.";
   function openRecords() {
     const dlg = Core.el("dialog", "core-records"), h = Core.el("h2", null, "What this page records");
     h.id = "core-records-h"; dlg.setAttribute("aria-labelledby", h.id);
     const list = (title, items) => { const ul = Core.el("ul"); for (const t of items) ul.append(Core.el("li", null, t)); return [Core.el("h3", null, title), ul]; };
     const close = Core.el("button", null, "Close"); close.type = "button";
     close.onclick = () => dlg.close();
-    dlg.append(h, ...list("Recorded", RECORDED), ...list("Never recorded", NEVER), Core.el("p", "core-note", REC_IDS), recSwitch(), close);
+    dlg.append(h, ...list("Recorded", RECORDED), ...list("Never recorded", NEVER), Core.el("p", "core-note", REC_IDS), close);
     dlg.addEventListener("close", () => dlg.remove());
     document.body.append(dlg);
     dlg.showModal();
     close.focus();
     return dlg;
   }
-  /** The notice line with its link and switch; `cls` styles it where it sits. */
+  /** The notice line with its link; `cls` styles it where it sits. */
   function notice(cls = "core-rec") {
     const box = Core.el("div", cls), p = Core.el("p", "core-rec-line", REC_LINE + " "), a = Core.el("a", "core-rec-link", "What this page records");
     a.href = "#records";
     a.addEventListener("click", e => { e.preventDefault(); openRecords(); });
     p.append(a);
-    box.append(p, recSwitch());
+    box.append(p);
     return box;
   }
-  Core.telemetry = { notice, openRecords, setOff, get off() { return tel.off; } };
+  Core.telemetry = { notice, openRecords };
   loadVitals();
 
   // ---------- optimistic actions: shown at once, reconciled with the server in the background ----------
@@ -1252,12 +1239,10 @@
     const unsub = Core.subscribe(paintSub);
     const label = Core.el("label", null, "What should everyone call you?"); label.htmlFor = "core-n";
     const input = Core.el("input"); Object.assign(input, { id: "core-n", name: "n", required: true, maxLength: 40, autocomplete: "nickname" });
-    input.setAttribute("aria-describedby", "core-n-note core-n-err");
-    const note = Core.el("p", "core-note", "Your answers are saved on the host's computer and read by Claude when a round is sent. The side chat is not sent to Claude. We note your device and view to fix problems.");
-    note.id = "core-n-note";
+    input.setAttribute("aria-describedby", "core-n-err");
     const err = Core.el("p", "core-err", notice); err.id = "core-n-err"; err.setAttribute("role", "alert");
     const go = Core.el("button", null, "Join");
-    form.append(h, sub, label, input, note, Core.telemetry.notice(), err, go); dlg.append(form);
+    form.append(h, sub, label, input, err, go); dlg.append(form);
     document.body.append(dlg);
     if (Core.state.joinNeedsKey && !joinKey) err.textContent = "This session needs the host's newest invite link. Ask them for it.";
     dlg.addEventListener("cancel", e => e.preventDefault());
