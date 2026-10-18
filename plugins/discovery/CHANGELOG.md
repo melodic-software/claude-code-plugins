@@ -1,5 +1,21 @@
 # Changelog: discovery plugin
 
+## [0.35.0] - 2026-10-18
+
+### Added
+
+- The `/discovery:research` deep tier carries `dated_by:` through the sweep. A reader of a living page that prints no date derives a date by the family method (`sitemap-lastmod` or `ms-date`) and may request a `sitemap.xml` at its page's origin or one of its parent paths to do it, so a code.claude.com `/docs/en/` page reaches `https://code.claude.com/docs/sitemap.xml`; the method reaches the findings' sources, and `deep-tier.md` step 5 copies it into the artifact. A `dated_by:` naming a serve-time header is dropped and the source stays `undated`.
+
+- `/discovery:research` now requires the parent to cite each accepted claim with inline Markdown links (its primary and counted corroborators, from `sources[].url`) whenever it presents findings, including a short chat recap. A local probe cites the artifact file holding its command, and a source name without its URL is not a citation. A new eval case checks it.
+
+### Changed
+
+- Parent contract: points worker Bash calls to the source-control accepted-command-shapes record for worktree-isolated sessions ([#5673](https://github.com/melodic-software/claude-code-plugins/issues/5673)).
+
+### Fixed
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [0.34.1] - 2026-10-16
 
 ### Changed

@@ -719,6 +719,7 @@ const limitsOf = (limits = {}) => ({
   "restarts-per-run": limits["restarts-per-run"] ?? 5,
   "limit-stops-per-head": limits["limit-stops-per-head"] ?? 3,
   "limit-stops-per-issue": limits["limit-stops-per-issue"] ?? 3,
+  "wip-cap": limits["wip-cap"] ?? 60,
 });
 
 // The resolved limits alone, after the same file checks as resolve(), for a

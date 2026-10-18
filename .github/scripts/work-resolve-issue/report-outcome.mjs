@@ -57,6 +57,8 @@
 //                       paths and the limits
 //   LANES_BOT_LOGIN     the lanes App bot login, the only author of an open PR
 //                       a rerun reuses (default melodic-automation-lanes[bot])
+//   TRUSTED_ACTORS      trusted-actors.json from the base, whose humans may
+//                       apply the merge: human hold
 //   TRUSTED_ACTORS_PATH --find-prior: trusted-actors.json from the default
 //                       branch tip, whose humans' closing PRs stop the lane
 //   GITHUB_OUTPUT       --find-prior: the step output file
@@ -115,6 +117,14 @@ function prTitle(runTitle, issueTitle, issueNumber) {
 // that touches a path the merge lane refuses (merge.diff-check.denied-paths in the base
 // pr-pipeline.yaml), so the two lists cannot drift apart.
 const HOLD_CLASSES = new Set(["work-class: structural", "work-class: untrusted-provenance"]);
+// An owner decision that a person merges the issue's PR. It holds only when the
+// lane's labeler check passes: the newest `labeled` event is a listed human's
+// (by id) or the lanes App's, so no one else can add the hold or stand in for it.
+export const HUMAN_MERGE_LABEL = "merge: human";
+export function trustedLabeler(events, label, { bot, humans }) {
+  const last = events.filter((event) => event?.event === "labeled" && event.label?.name === label).at(-1);
+  return last !== undefined && (last.actor?.login === bot || humans.has(last.actor?.id));
+}
 const MAX_TEXT = 3000;
 const MAX_ITEMS = 20;
 const MAX_ITEM = 300;
@@ -441,6 +451,7 @@ export function decide({
   branch,
   changedFiles,
   holdPaths = null,
+  humanMerge = false,
   humanLabel = "needs-human",
   runUrl = "",
   limit = null,
@@ -486,6 +497,7 @@ export function decide({
   const refs = outcome.link === "refs";
   const hold =
     refs ||
+    humanMerge ||
     issueLabels.some((name) => HOLD_CLASSES.has(name)) ||
     changedFiles.length >= COMPARE_FILES_CAP ||
     holdPaths === null ||
@@ -851,6 +863,15 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     // skipped run hit no limit, and a limited marker would loop restarts. Its
     // file list is only text, so a failed compare never blocks the PR.
     const issueTitle = typeof issue.title === "string" ? issue.title : "";
+    const issueLabels = (issue.labels ?? []).map((label) => label.name);
+    const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
+    // A labeler that cannot be read holds the PR, like an unreadable denied-path list.
+    const humanMerge =
+      !unreported &&
+      issueLabels.includes(HUMAN_MERGE_LABEL) &&
+      (await paginate(github, `${repo}/issues/${issueNumber}/events`)
+        .then((events) => trustedLabeler(events, HUMAN_MERGE_LABEL, { bot, humans: readHumans(env.TRUSTED_ACTORS ?? "") }))
+        .catch(() => true));
     const plan = unreported
       ? reusePlan({
           issueNumber,
@@ -865,11 +886,12 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       : decide({
           outcome,
           issueNumber,
-          issueLabels: (issue.labels ?? []).map((label) => label.name),
+          issueLabels,
           issueTitle,
           branch,
           changedFiles,
           holdPaths,
+          humanMerge,
           humanLabel: humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json"),
           runUrl,
           limit,
@@ -880,7 +902,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     if (plan.action === "limited") {
       // Once per run: a rerun of this report, however late, finds its own
       // marker in the issue's whole comment history and posts nothing.
-      const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
       const comments = await paginate(github, `${repo}/issues/${issueNumber}/comments`);
       const posted = comments.some((comment) => {
         const marker = comment.user?.login === bot ? parseOutcomeMarker(comment.body) : null;
@@ -896,7 +917,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       // A rerun finds the PR it already opened. Anyone can open a PR between two branches of a public repository, so
       // only one the lanes App opened is reused; otherwise the create fails.
       const owner = env.GITHUB_REPOSITORY.split("/")[0];
-      const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
       const open = (
         await github("GET", `${repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${plan.branch}`)}`)
       ).find((candidate) => candidate.user?.login === bot);

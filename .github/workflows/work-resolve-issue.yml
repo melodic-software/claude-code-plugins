@@ -42,14 +42,33 @@ jobs:
     if: github.event.label.name == 'agent-ready'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    permissions: {}
+    permissions:
+      contents: read # check out the default branch for the WIP cap
+      pull-requests: read # count the lanes App's open pull requests
     env:
       # At most this many resolve-issue runs at once. The one place to change it.
       SLOTS: 3
       ISSUE_NUMBER: ${{ github.event.issue.number }}
     outputs:
       slot: ${{ steps.slot.outputs.slot }}
+      capped: ${{ steps.wip.outputs.capped }}
     steps:
+      # At or over limits.wip-cap open lane PRs, resolve-issue is skipped: no
+      # slot, no token. work-unblock's sweep re-fires the issue once fewer are
+      # open. A check that fails starts the run.
+      - name: Check out the default branch tip
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Check the WIP cap
+        id: wip
+        continue-on-error: true
+        uses: ./.base/.github/actions/check-wip-cap # zizmor: ignore[self-repository]
+
       - name: Pick the slot
         id: slot
         run: |
@@ -61,7 +80,7 @@ jobs:
   # lane adds agent-ready, so a run cannot start another.
   resolve-issue:
     needs: pick-slot
-    if: github.event.label.name == 'agent-ready'
+    if: github.event.label.name == 'agent-ready' && needs.pick-slot.outputs.capped != 'true'
     # One run per slot at a time; the rest wait in line, holding no runner,
     # and are never cancelled (`queue: max`). GitHub keeps at most 100 waiting
     # per slot and cancels any more. report-outcome takes no slot, so it never
@@ -82,7 +101,7 @@ jobs:
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
       app-label: agent-ready
-      timeout-minutes: 50
+      timeout-minutes: 25
     secrets:
       claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
 

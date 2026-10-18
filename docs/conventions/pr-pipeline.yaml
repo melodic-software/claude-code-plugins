@@ -56,8 +56,10 @@ activities:
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      # A person's hold stops it.
-      labels-absent: [do-not-merge, needs-human]
+      # do-not-merge stops it. On a needs-human PR the select step keeps only
+      # threads a trusted person with write access asked it to fix, and
+      # holds the PR when there are none; pr-merge still refuses that PR.
+      labels-absent: [do-not-merge]
       # A draft pull request is skipped.
       draft: [false]
   publish-feedback:
@@ -297,6 +299,13 @@ loop:
   review-rounds: 3
   dependency-review-rounds: 2
 
+limits:
+  # Open lane PRs at which the issue lane stops starting runs. Sized as
+  # measured lane merges per hour (about 1.5) times an 8-hour open-to-merge
+  # target. Revisit after merge.max-in-flight (#8251) lands and merges per hour
+  # are re-measured.
+  wip-cap: 12
+
 merge:
   # The lane treats every PR the lanes App opened for one closing issue as
   # class C2 (plugins/autonomy/reference/guardrails/work-classes.md) and reads
@@ -309,6 +318,10 @@ merge:
   # A PR merges only with a passing pr-verify.yml verdict at its head. Must be
   # true at a rung above off: the gate refuses otherwise.
   require-verifier-verdict: true
+  # Lane merges in flight at once (queued plus merged and not yet verified).
+  # The merge queue tests each PR against the latest base plus the PRs ahead
+  # of it.
+  max-in-flight: 5
   # pr-verify.yml judges only PRs the lanes App (agent-identity) opened; `any`
   # judges every author's.
   verify-authors: lane
