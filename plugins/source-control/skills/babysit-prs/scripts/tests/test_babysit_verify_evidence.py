@@ -826,10 +826,12 @@ class AQueuedDependabotEntryNeedsNoVerdict(unittest.TestCase):
 
 class ActionsReadsUseTheActionsToken(unittest.TestCase):
     """The lane token holds no Actions permission, so the artifact listing,
-    the run records and the download run under `BABYSIT_VERIFY_GH_TOKEN`;
-    every other read keeps the process token."""
+    the run records and the download run under `BABYSIT_VERIFY_GH_TOKEN`, as
+    do the run heads' compares to the branch (a contents read the job token
+    serves, kept off the lane App's quota); every other read keeps the
+    process token."""
 
-    ACTIONS = ("actions/artifacts", "actions/runs/", "run download")
+    ACTIONS = ("actions/artifacts", "actions/runs/", "run download", "/compare/")
 
     def reads(self, reader: ve.Reader) -> dict[str, Any]:
         fake = passing()
@@ -1010,6 +1012,70 @@ class TheListingIsReadOncePerRun(unittest.TestCase):
                 self.assertIsNone(evidence.refusal)
                 self.assertFalse(reader.saved)
                 self.assertEqual(listings(fake), 1)
+
+
+class OneRunSharesItsVerifierReads(unittest.TestCase):
+    """With `BABYSIT_RUN_CACHE` named, the gate processes of one run share a
+    run head found on the branch and the trusted-actor list (for its bound);
+    a head not found on the branch is compared again."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    @staticmethod
+    def compares(fake: FakeGitHub, sha: str) -> int:
+        return sum(f"/compare/{sha}..." in " ".join(c) for c in fake.calls)
+
+    @staticmethod
+    def trusted_reads(fake: FakeGitHub) -> int:
+        return sum(any("/contents/" in a for a in c) for c in fake.calls)
+
+    def candidates(self, fake: FakeGitHub, count: int) -> None:
+        for _ in range(count):
+            self.assertIsNone(read(fake).refusal)
+
+    def test_a_head_on_the_branch_is_compared_once_per_run(self) -> None:
+        fake = passing()
+        self.candidates(fake, 3)
+        self.assertEqual(self.compares(fake, MAIN_SHA), 1)
+
+    def test_a_head_off_the_branch_is_compared_by_every_candidate(self) -> None:
+        off = "d" * 40
+        fake = passing(artifact(named(HEAD, "fail"), 2), runs={2: run(2, head_sha=off)})
+        self.candidates(fake, 2)
+        self.assertEqual(self.compares(fake, off), 2)
+
+    def test_a_judgment_notes_its_oldest_shared_read(self) -> None:
+        # The trusted list another process read 90 s ago dates the judgment.
+        clock = [datetime(2026, 10, 18, 11, 58, 30, tzinfo=UTC)]
+        fake = passing()
+        with (
+            mock.patch.object(ve.run_cache, "now", side_effect=lambda: clock[0]),
+            mock.patch.object(ve, "_wall_clock", side_effect=lambda: clock[0]),
+        ):
+            self.candidates(fake, 1)
+            listed_before = clock[0]
+            clock[0] += timedelta(seconds=90)
+            with ve.run_cache.track() as taken:
+                self.candidates(fake, 1)
+        self.assertEqual(self.trusted_reads(fake), 1)
+        self.assertEqual(min(taken), listed_before)
+        self.assertIn(clock[0], taken)  # this process's own listing
+
+    def test_the_trusted_list_is_read_once_within_the_bound(self) -> None:
+        clock = [datetime(2026, 10, 18, 12, 0, tzinfo=UTC)]
+        fake = passing()
+        with mock.patch.object(ve.run_cache, "now", side_effect=lambda: clock[0]):
+            self.candidates(fake, 2)
+            self.assertEqual(self.trusted_reads(fake), 1)
+            clock[0] += ve.run_cache.MAX_AGE + timedelta(seconds=1)
+            self.candidates(fake, 1)
+        self.assertEqual(self.trusted_reads(fake), 2)
 
 
 # --- A transient listing failure is read again --------------------------------
@@ -1612,6 +1678,51 @@ class TheConfigKey(unittest.TestCase):
         config = self.config("maybe")
         self.assertTrue(config.require_verifier_verdict)
         self.assertTrue(any("require-verifier-verdict" in n for n in config.notes))
+
+
+class TheSweepKeepsTheListingBound(unattended.Unattended):
+    """A queued entry another candidate kept is skipped only while the
+    listing its verdict was judged on is within the bound."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.config = policy.PipelineConfig(
+            unattended.BASE, "C2", "pr-merge", unattended.IDENTITY, 200,
+            (".github/**",), "c2-mechanical", require_verifier_verdict=True,
+        )  # fmt: skip
+        self.opt_in_recheck = "not-lane-authored-or-opted-in"
+        self.promotion = policy.Promotion(None, "resolver-failed")
+        self.kill = []
+        self.flight = policy.InFlight(False, "identity-entry-queued:#5")
+        self.queued = [unattended.PR, 5]
+        self.clock = datetime(2026, 10, 18, 12, 0, tzinfo=UTC)
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        self.reads: list[int] = []
+        listed = self.clock - timedelta(seconds=90)
+        for patcher in (
+            mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path}),
+            mock.patch.object(ve.run_cache, "now", side_effect=lambda: self.clock),
+            # The verdict is judged on a listing begun 90 s before the run.
+            mock.patch.object(
+                ve.Reader,
+                "evidence",
+                side_effect=lambda n, head, pr=None: (
+                    self.reads.append(n) or ve.run_cache.note(listed) or evidence(None)
+                ),
+            ),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_the_skip_ends_when_the_judged_listing_passes_the_bound(self) -> None:
+        for seconds in (0, 29, 31):
+            self.clock = datetime(2026, 10, 18, 12, 0, seconds, tzinfo=UTC)
+            code, _ = unattended.LaneMode.lane(self)
+            self.assert_no_merge(code)
+        # Judged at 12:00:00 on a listing from 11:58:30: skipped at :29, not :31.
+        self.assertEqual(self.reads.count(5), 2)
 
 
 if __name__ == "__main__":

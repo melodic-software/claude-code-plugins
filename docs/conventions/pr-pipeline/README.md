@@ -233,7 +233,8 @@ Each leaf declares:
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The arguments are the model's, so
   a script that changes files, runs code from the checkout or reaches the network hands the run
   that power: list one only when it limits itself, as `scripts/run-test-file.sh` (one test file
-  inside the checkout) and `scripts/git-mv-rm.sh` (`git mv` and `git rm` inside the checkout) do,
+  inside the checkout), `scripts/git-mv-rm.sh` (`git mv` and `git rm` inside the checkout) and
+  `scripts/new-changelog-fragment.sh` (new files under the checkout's `.changes/` only) do,
   or when the run may hold that power, as `plugins/skill-quality/scripts/check-skill.sh` (each
   checked skill's `scripts/*.test.sh` and the checkout's markdownlint) does.
 - `web-access` (optional, `skill` only, off when absent): `enabled` and `domains`, either `any` or
@@ -723,8 +724,18 @@ saved, and is kept for that candidate's gate run: the pull request and every que
 listing being paged again, so a listing outage holds the whole queue rather than merging blind.
 The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
-records and the download alone, and every other call keeps the lane token. That job checks out only
-main and runs no pull request code.
+records, the download and the compare of a run's head to main (a `contents: read` call) alone, and
+every other call keeps the lane token. That job checks out only main and runs no pull request code.
+
+pr-merge.yml also names a file in `BABYSIT_RUN_CACHE`, where the run's gate processes share reads
+that are the same for every candidate. The acting login and a credential pass are reused only under
+the same credentials (`gh`'s token variables and `hosts.yml`); a credential refusal is read again. A
+collaborator permission and the trusted-actor list are reused for two minutes, and a failed read is
+never shared. A run head found on main is shared for the run, since main's ruleset forbids force
+pushes; one not found is compared again. In the merge-queue sweep, a queued entry another candidate
+judged and kept is skipped only while the oldest read behind that judgment (its verdict listing, or a
+shared permission or trusted list) was taken at most two minutes ago; a gate always judges its own entry, a held entry is judged by every
+candidate, and a failed dequeue keeps nothing. Without the variable nothing is shared.
 
 ## Trust-root paths
 
