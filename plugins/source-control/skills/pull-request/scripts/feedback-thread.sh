@@ -7,8 +7,8 @@
 # runner uploads and a later job with no model validates and posts.
 #
 #   list                              the kept threads, as JSON
-#   check-paths <path>...             exit 0 when every path is one a kept
-#                                     thread names and none is under .github/
+#   check-paths <path>...             exit 0 when every path is in a kept
+#                                     thread's scope (allowed below)
 #   record <thread-id> <disposition>  check the disposition against the
 #                                     template and append it to the replies
 #
@@ -44,10 +44,19 @@ scratch_dir=${FEEDBACK_SCRATCH:-} workspace=${FEEDBACK_WORKSPACE:-}
 repo=$(jq -er '.repository | select(test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"))' "$threads_file") ||
   die 2 "the thread file names no repository"
 
-# A path a kept thread names, not under .github/ in any letter case.
+# Not under .github/ in any letter case, and in a kept thread's scope: its
+# path, any file in the plugins/<p>/evals/<case>/ directory it sits in, or a
+# test file in its directory. The same rule as .github/scripts/pr-unblock/
+# thread-scope.mjs, which the promote step and the reply job apply.
 allowed() {
   [[ ! ${1,,} =~ ^\.github(/|$) ]] &&
-    jq -e --arg p "$1" 'any(.threads[]; .path == $p)' "$threads_file" >/dev/null
+    jq -e --arg p "$1" '
+      def dir: sub("[^/]*$"; "");
+      (first($p | capture("^(?<c>plugins/[^/]+/evals/[^/]+/)").c) // null) as $case
+      | ($p | sub("^.*/"; "") | test("^(test_[^/]*\\.py|[^/]*_test\\.py|[^/]*\\.(test|spec)\\.[^/]+)$")) as $test
+      | any(.threads[].path; . == $p
+          or ($case != null and startswith($case))
+          or ($test and dir == ($p | dir)))' "$threads_file" >/dev/null
 }
 
 cmd_list() {
@@ -59,7 +68,7 @@ cmd_check_paths() {
   local refused=0 path
   for path in "$@"; do
     if ! allowed "$path"; then
-      printf 'refused: %s is not a path a kept thread names, or is under .github/\n' "$path" >&2
+      printf "refused: %s is outside every kept thread's scope, or is under .github/\n" "$path" >&2
       refused=1
     fi
   done
@@ -113,7 +122,7 @@ cmd_record() {
   done < <(jq -r '.evidence[]' <<<"$d")
 
   # A VALID reply names a fix commit on the lane branch, and every file the
-  # lane branch changed since the gated head is one a kept thread names.
+  # lane branch changed since the gated head is in a kept thread's scope.
   if [[ $disposition == VALID ]]; then
     local head lane cmp path
     head=$(jq -er '.head_sha | select(test("^[0-9a-f]{40}$"))' "$threads_file") || die 2 "the thread file names no head"
@@ -123,7 +132,7 @@ cmd_record() {
       die 1 "the fix $fix_sha is not a commit on the lane branch"
     (($(jq '.files | length' <<<"$cmp") < 300)) || die 1 "the lane branch changes too many files to check"
     while IFS= read -r path; do
-      allowed "$path" || die 1 "the lane branch changes $path, which no kept thread names or which is under .github/; nothing is recorded"
+      allowed "$path" || die 1 "the lane branch changes $path, which is outside every kept thread's scope or under .github/; nothing is recorded"
     done < <(jq -r '.files[] | .filename, (.previous_filename // empty)' <<<"$cmp")
   fi
 

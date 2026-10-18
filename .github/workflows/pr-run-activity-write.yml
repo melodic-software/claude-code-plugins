@@ -471,7 +471,9 @@ jobs:
       # on a head a review lane's marker confirms, left by it alone or answered
       # by a trusted person after the lane escalated them, then
       # skips (none), escalates (a .github/** diff, or the round cap) or
-      # writes the thread file the skill's review-thread tool reads.
+      # writes the thread file the skill's review-thread tool reads. It also
+      # copies out the base's thread-scope.mjs with its SHA-256, which the
+      # promote step checks before it imports the copy.
       - name: Select the review threads
         id: feedback-select
         if: steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'review-threads'
@@ -482,10 +484,14 @@ jobs:
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           LANE_BRANCH: ${{ format('lane-commits/{0}/{1}/{2}-{3}', inputs.lane, inputs.activity, github.run_id, github.run_attempt) }}
           FEEDBACK_DIR: ${{ runner.temp }}/lane-feedback
+          SCOPE_BIN: ${{ runner.temp }}/lane-feedback-bin
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
           RESOLVED: ${{ runner.temp }}/resolved-config.json
         run: |
-          mkdir -p "$FEEDBACK_DIR"
+          mkdir -p "$FEEDBACK_DIR" "$SCOPE_BIN"
+          cp .base/.github/scripts/pr-unblock/thread-scope.mjs "$SCOPE_BIN/thread-scope.mjs"
+          sum=$(sha256sum <"$SCOPE_BIN/thread-scope.mjs")
+          echo "scope-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
           REVIEW_ROUNDS=$(jq -r '.loop["review-rounds"]' "$RESOLVED")
           export REVIEW_ROUNDS
           THREAD_FILE="$FEEDBACK_DIR/threads.json" node .base/.github/scripts/pr-unblock/address-feedback.mjs select
@@ -1389,11 +1395,14 @@ jobs:
           MERGE_BASE: ${{ steps.config.outputs.prepare == 'merge-base' }}
           COMMIT_OUTCOME: ${{ steps.commit.outcome }}
           COMMIT_SHA: ${{ steps.commit.outputs.commit }}
-          # review-threads mode moves the PR branch only when the lane branch
-          # changes nothing but the kept threads' paths, none under .github/.
+          # review-threads mode moves the PR branch only when every path the
+          # lane branch changes is in the kept threads' scope, as the base's
+          # thread-scope.mjs decides, and none is under .github/.
           THREAD_FILE: >-
             ${{ steps.config.outputs.prepare == 'review-threads'
             && format('{0}/lane-feedback/threads.json', runner.temp) || '' }}
+          SCOPE_SCRIPT: ${{ runner.temp }}/lane-feedback-bin/thread-scope.mjs
+          SCOPE_SHA256: ${{ steps.feedback-select.outputs.scope-sha256 }}
           # dependency-review mode moves the PR branch only when the lane
           # branch changes nothing under .github/ and every commit's message
           # carries [dependabot skip], so Dependabot may still rebase the PR.
@@ -1425,13 +1434,22 @@ jobs:
                 return;
               }
               if (THREAD_FILE) {
-                const paths = new Set(JSON.parse(require('fs').readFileSync(THREAD_FILE, 'utf8')).threads.map((t) => t.path));
+                const fs = require('fs');
+                const paths = new Set(JSON.parse(fs.readFileSync(THREAD_FILE, 'utf8')).threads.map((t) => t.path));
+                // Imported from the bytes just hashed, so a rewrite after the
+                // check cannot reach the import.
+                const scope = fs.readFileSync(SCOPE_SCRIPT);
+                if (!SCOPE_SHA256 || require('crypto').createHash('sha256').update(scope).digest('hex') !== SCOPE_SHA256) {
+                  core.setFailed("thread-scope.mjs does not match the base's copy; the PR branch is not moved");
+                  return;
+                }
+                const { inThreadScope } = await import(`data:text/javascript;base64,${scope.toString('base64')}`);
                 const { data } = await github.rest.repos.compareCommitsWithBasehead({ ...context.repo, basehead: `${HEAD_SHA}...${lane}` });
                 const bad = data.files.length >= 300 ? ['(300 or more files)'] : data.files
                   .flatMap((f) => [f.filename, f.previous_filename].filter(Boolean))
-                  .filter((p) => !paths.has(p) || /^\.github(\/|$)/i.test(p));
+                  .filter((p) => !inThreadScope(p, paths));
                 if (bad.length > 0) {
-                  core.setFailed(`The lane branch changes a path no kept thread names or under .github/ (${bad.slice(0, 5).join(', ')}); the PR branch is not moved`);
+                  core.setFailed(`The lane branch changes a path outside the kept threads' scope or under .github/ (${bad.slice(0, 5).join(', ')}); the PR branch is not moved`);
                   return;
                 }
               }

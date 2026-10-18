@@ -19,6 +19,8 @@
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+import { isProtectedPath } from "./thread-scope.mjs";
+
 // The round cap is the config's `loop.review-rounds`, passed in as
 // REVIEW_ROUNDS; the resolver's default is the fallback.
 export const DEFAULT_MAX_ROUNDS = 2;
@@ -35,10 +37,6 @@ const THREAD_COMMENT_CAP = 100;
 const FILES_CAP = 3000;
 
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
-
-export function isProtectedPath(path) {
-  return /^\.github(\/|$)/i.test(String(path));
-}
 
 // Round markers the lanes App posted; any other author's copy is ignored.
 export const isRoundMarker = (comment, appId) => comment.user?.id === appId && firstLine(comment.body) === ROUND_MARKER;
