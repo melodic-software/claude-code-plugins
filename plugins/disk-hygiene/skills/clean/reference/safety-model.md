@@ -583,10 +583,14 @@ proves neither (a `--plugin-dir` checkout, or a `CLAUDE_CONFIG_DIR`-relocated co
 home no longer lists the marketplace) yields no trusted
 user-settings path, so the user scope is skipped there and the switch relies on managed settings, failing
 closed to enabled otherwise. The **managed**
-(enterprise) file at its fixed root-owned system path is read too and, as the highest-precedence
+(enterprise) file at its fixed system path is read too and, as the highest-precedence
 non-overridable scope, an explicitly configured value there **wins over the user file**, so an
 organization can enforce audit-only mode; the sibling `managed-settings.d/` drop-in directory is merged
-over it (later files win). The one honored source the guard cannot read is a session's `--settings` file
+over it (later files win). That path is not admin-only everywhere (on WSL `/etc/claude-code` is
+user-writable), so on Linux and WSL a managed value that **enables** execution counts only from a file
+that is root-owned and not writable by the current user, checked per file including each drop-in; a
+managed value that restricts is honored from any file, and an untrusted enabling value is skipped so the
+user setting decides. The one honored source the guard cannot read is a session's `--settings` file
 (a runtime CLI flag no hook observes); a value supplied only there is not enforced. When the value
 resolves `false` (audit-only mode), `false` is guard-enforced as an outright deny with no prompt fallback, but
 the two surfaces reach different lanes. The **always-on engine gate** enforces it against every Bash

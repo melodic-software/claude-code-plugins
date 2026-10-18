@@ -54,8 +54,13 @@ def managed_settings_path() -> Path | None:
     The guard reads managed settings so an organization can enforce audit-only
     mode there. The file lives at a fixed system path per platform, never one a
     repo's files or environment can redirect. Whether a process running as the
-    user can write that path differs by platform (pointer below), so the file
-    is not an admin-only channel everywhere. The paths
+    user can write that path differs by platform (pointer below): on WSL the
+    ``/etc/claude-code`` directory is user-writable, so the file is not an
+    admin-only channel everywhere and its presence alone proves nothing about
+    who wrote it. On Linux and WSL the guard therefore honors a value that
+    enables execution from a managed file only when that file is root-owned and
+    not writable by the current user (see ``_is_trusted_managed_file``); a value
+    that restricts is honored whoever owns the file. The paths
     below are the ones the guard reads:
 
     - macOS:      ``/Library/Application Support/ClaudeCode/managed-settings.json``
@@ -291,6 +296,32 @@ def _managed_settings_files(managed_settings_path: Path) -> list[Path]:
     return files
 
 
+def _is_trusted_managed_file(path: Path) -> bool:
+    """Whether ``path`` may carry a managed value that enables execution.
+
+    On Linux and WSL the managed directory can be user-writable (WSL), so a
+    process running as the user could stand in for organization policy. A file
+    is trusted there only when it is owned by uid 0, no group or other write bit
+    is set, and the current user cannot write it. The check is per file, so each
+    ``managed-settings.d/`` drop-in is judged on its own. Other platforms keep
+    their documented admin-only paths and are trusted as before; an unreadable
+    file is untrusted.
+    """
+    if not sys.platform.startswith("linux"):
+        return True
+    try:
+        file_stat = path.stat()
+    except OSError:
+        return False
+    if file_stat.st_uid != 0:
+        return False
+    if file_stat.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        return False
+    if os.geteuid() != 0 and os.access(path, os.W_OK):
+        return False
+    return True
+
+
 def _managed_effective(
     managed_settings_path: Path, plugin_id: str | None
 ) -> bool | None:
@@ -300,13 +331,20 @@ def _managed_effective(
     precedence order; the last file that *configures* ``disk_hygiene_enabled``
     wins (drop-ins override the primary, later drop-ins override earlier), mirroring
     Claude Code's merge. A file that is absent, carries no entry, or is
-    unreadable/ambiguous contributes no verdict.
+    unreadable/ambiguous contributes no verdict. A file that configures the
+    switch to enabled but fails ``_is_trusted_managed_file`` contributes no
+    verdict either, so it cannot force-enable over the user's setting; a
+    configured restriction counts from any file.
     """
     verdict: bool | None = None
     for path in _managed_settings_files(managed_settings_path):
         report = probe(path, plugin_id)
-        if report["source"] == "configured":
-            verdict = bool(report["effective"])
+        if report["source"] != "configured":
+            continue
+        effective = bool(report["effective"])
+        if effective and not _is_trusted_managed_file(path):
+            continue
+        verdict = effective
     return verdict
 
 
@@ -320,9 +358,10 @@ def resolve_effective(
     Managed settings are the highest-precedence, non-overridable scope, so an
     explicitly *configured* value there — in ``managed-settings.json`` or a
     ``managed-settings.d/`` drop-in — wins over the user settings, which is how an
-    organization enforces audit-only mode. When managed configures no value (all
-    managed sources absent, entry-less, or unreadable/ambiguous) the user settings
-    decide.
+    organization enforces audit-only mode. A value that enables execution counts
+    only from a trusted file (``_is_trusted_managed_file``). When managed
+    configures no value (all managed sources absent, entry-less, untrusted
+    enabling, or unreadable/ambiguous) the user settings decide.
 
     ``settings_path`` is ``None`` when the caller has no *trusted* user-settings
     location (e.g. a ``--plugin-dir`` install whose root carries no ``plugins/cache``
