@@ -28,7 +28,8 @@
 #                         token cannot push one);
 #    unexpected-path-staged  an index entry is neither a stage-0 snapshot
 #                         entry as it was nor at a path the snapshot held
-#                         unmerged (bulk staging such as git add -A).
+#                         unmerged, or a stage-0 snapshot entry is gone
+#                         (bulk staging such as git add -A).
 #
 # 4. With no reason, write the validated index as a tree; tree-entries.sh
 #    takes that tree, so nothing staged after this check reaches the commit.
@@ -175,9 +176,14 @@ filter_workflows "$tmp/index" >"$tmp/workflows-after"
 cmp -s "$tmp/workflows-before" "$tmp/workflows-after" || reason workflow-staged
 g diff-index --cached --quiet "$head" -- .github/workflows/ || reason workflow-staged
 
+declare -A final=()
 while IFS= read -r -d '' record; do
   [[ -n ${merged[$record]:-} || -n ${unmerged[${record#*$'\t'}]:-} ]] || reason unexpected-path-staged
+  final[$record]=1
 done <"$tmp/index"
+for record in "${!merged[@]}"; do
+  [[ -n ${final[$record]:-} ]] || reason unexpected-path-staged
+done
 
 tree=$(g write-tree)
 printf 'escalation-reason=\ntree=%s\n' "$tree"

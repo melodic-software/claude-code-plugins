@@ -244,8 +244,8 @@ run_post
 check 'unresolved-marker: markers copied over another path are unresolved' unresolved-conflict "$(reason)"
 
 echo '# unexpected-path-staged'
-# Only a path the snapshot held unmerged may change; every other final entry
-# must be a stage-0 snapshot entry as it was.
+# Only a path the snapshot held unmerged may change; every stage-0 snapshot
+# entry must stay as it was, and no other entry may appear.
 conflict a.txt 'one\n' 'pr\n' 'main\n'
 prepare
 put a.txt 'resolved\n'
@@ -275,6 +275,32 @@ put stray.log 'build output\n'
 tg add a.txt
 run_post
 check 'unexpected-path-staged: an untracked file left unstaged passes' 0/ "$RC/$(reason)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+tg add a.txt
+tg rm -q keep.txt
+run_post
+check 'unexpected-path-staged: removing a merged path escalates' 0/unexpected-path-staged "$RC/$(reason)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+rm "$R/keep.txt"
+tg add -A
+run_post
+check 'unexpected-path-staged: git add -A over a deleted file escalates' 0/unexpected-path-staged "$RC/$(reason)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+tg add a.txt
+tg mv a.txt c.txt
+run_post
+check 'unexpected-path-staged: moving the resolution to a new path escalates' 0/unexpected-path-staged "$RC/$(reason)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+tg rm -q a.txt
+run_post
+check 'unexpected-path-staged: resolving a conflict by deleting its path passes' 0/ "$RC/$(reason)"
 
 echo '# workflow-staged'
 WF=.github/workflows/ci.yml
