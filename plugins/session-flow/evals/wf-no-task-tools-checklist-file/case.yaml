@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: wf-no-task-tools-checklist-file
+description: 'Regression guard for the neither-tool branch of /session-flow:workflow progress tracking. In a session whose tool list holds neither the Task tools nor TodoWrite, work that spans 3+ stages is tracked only in the workflow checklist file under the memory-tier slice, and the answer says so. A run needs --allow-tools Write.'
+tags: [workflow, no-task-tools, progress-tracking]
+plugins: ["../.."]
+expected_outcome: 'The answer shows the stage overview, places the session on the ladder, and says the checklist file, workflow-checklist.md, is the only progress tracker because the session has no task tools. The run writes that checklist file.'
+execution:
+  prompt: '/session-flow:workflow I am starting a new feature, a currency filter for the report export, that will span explore through pull request. Set up tracking for its stages.'
+  allowed_tools: [Read, Write, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: says-checklist-file-tracks
+    type: regex
+    pattern: '^(?![^\n]*\b(?:no|not|without|never)\b[^\n]{0,30}workflow-checklist\.md)[^\n]*\bworkflow-checklist\.md\b'
+    flags: 'mi'
+    arm: with-only
+  - name: writes-checklist-file
+    type: tool_used
+    tool: Write
+    input_match: 'workflow-checklist\.md'
+    min: 1
+    arm: with-only
