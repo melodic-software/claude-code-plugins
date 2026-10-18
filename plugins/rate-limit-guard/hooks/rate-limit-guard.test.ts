@@ -818,25 +818,6 @@ test('toast: a refused toast leaves the line to Claude, the transcript line and 
   expect((await drawn($, 'desktop')).filter(t => NOTICE.test(t))).toEqual([LOG_EDGE])
 })
 
-// The docs promise no throw only for toast, so a log that throws costs its own line and no other.
-test('toast: a throwing transcript log drops only its own line; the other window, its toast and the notice row still arrive', NO_WRITES, async ($, on) => {
-  const logs: string[] = []
-  const { w } = world(on, {}, { HOME }, ['ui.log'])
-  on('ui.log', ($: unknown, e: { text: string }) => {
-    if (e.text.startsWith('rate-limit-guard: 5h')) throw new Error('log failed')
-    logs.push(e.text)
-    return { value: undefined }
-  })
-  await bash($)
-  w.limits = limits(97, 95)
-  await bash($)
-  expect(logs.filter(l => l.endsWith('· more: /rate-limit-guard'))).toEqual(['rate-limit-guard: 7d at the 95% line threshold · resets 2026-10-08 09:00 UTC · more: /rate-limit-guard'])
-  expect(w.toasts).toHaveLength(2)
-  const rows = (await drawn($, 'desktop')).filter(t => NOTICE.test(t))
-  expect(rows).toHaveLength(1)
-  expect(rows[0]).toContain('7d at the 95% line threshold')
-})
-
 const prefixes = (text: string) => text.split('rate-limit-guard:').length - 1
 
 test('notice: two windows changing together share one row with the plugin prefix once', NO_WRITES, async ($, on) => {

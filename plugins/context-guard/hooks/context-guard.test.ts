@@ -44,6 +44,10 @@ type World = {
   toolMs: number
   // A helper run waits on this promise when set.
   gate?: Promise<void>
+  // Called after each toast is recorded.
+  onToast?: () => void
+  // session.surfaces throws when set.
+  surfacesFail?: boolean
 }
 
 // The world beneath the plugin. `percent` drives the reading; tokens follow it on a 200000 window
@@ -93,7 +97,10 @@ const world = (stub: any, init: Partial<World> = {}, env: Record<string, string>
   })
   on('session.id', () => ({ value: w.sid }))
   on('session.version', () => ({ value: { version: w.version } }))
-  on('session.surfaces', () => ({ value: w.surfaces }))
+  on('session.surfaces', () => {
+    if (w.surfacesFail) throw new Error('surfaces failed')
+    return { value: w.surfaces }
+  })
   on('session.model', () => ({ value: 'Opus 5.5' }))
   on('session.turns', () => ({ value: w.turns }))
   on('session.root', () => ({ value: '/repo' }))
@@ -124,6 +131,7 @@ const world = (stub: any, init: Partial<World> = {}, env: Record<string, string>
   on('prompt.read', () => ({ value: { text: w.box, cursor: w.box.length } }))
   on('ui.toast', ($: unknown, e: { text: string }) => {
     w.toasts.push(e.text)
+    w.onToast?.()
     return { value: undefined }
   })
   on('prompt.suggest', ($: unknown, e: { text: string }) => {
@@ -986,11 +994,31 @@ test('menu: a slow snapshot write does not delay the crossing toast, and the wri
   const before = w.runs.length
   let release = () => {}
   w.gate = new Promise<void>(resolve => (release = resolve))
+  const toasted = new Promise<void>(resolve => (w.onToast = resolve))
   const done = measure($, 60)
-  await new Promise(resolve => setTimeout(resolve, 20))
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('no toast while the snapshot write was held')), 2_000)
+  })
+  try {
+    await Promise.race([toasted, timeout])
+  } finally {
+    clearTimeout(timer)
+  }
   expect(w.toasts).toEqual([TOAST('smart', 'acceptable')])
   release()
   await done
+  expect(w.runs.length).toBe(before + 1)
+})
+
+test('menu: a failing toast step still runs the snapshot write', OPERATOR, async ($, on) => {
+  const { w } = world(on)
+  await prompt($, 'composer')
+  await bash($)
+  w.percent = 60
+  const before = w.runs.length
+  w.surfacesFail = true
+  await measure($, 60).catch(() => {})
   expect(w.runs.length).toBe(before + 1)
 })
 

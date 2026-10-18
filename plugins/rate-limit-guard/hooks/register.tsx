@@ -308,15 +308,7 @@ async function flushToasts($: EngineInterface, st: State, cfg: Config, held?: bo
     for (const [kind, event] of changes) {
       const body = toastBody(kind, event, st.reading?.get(kind), cfg)
       bodies.push(body)
-      // The docs promise no throw only for toast, so a failing log drops its own line, not the rest.
-      try {
-        $.ui.log(`rate-limit-guard: ${body} · more: /${COMMAND}`, { to: 'transcript' })
-      } catch (error) {
-        // The failure line goes through the same log call, so a second throw is let go.
-        try {
-          logOnce($, st, 'log-failed', `window change not logged: ${error instanceof Error ? error.message : String(error)}`)
-        } catch {}
-      }
+      $.ui.log(`rate-limit-guard: ${body} · more: /${COMMAND}`, { to: 'transcript' })
       if (cfg.toast) $.ui.toast(body)
     }
     if (st.notice?.kind !== 'operator') {
