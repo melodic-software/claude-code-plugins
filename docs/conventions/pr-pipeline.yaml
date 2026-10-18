@@ -42,8 +42,9 @@ activities:
     # The skill's CI mode for review comments: edits only files a finding
     # names, never under .github/, and writes replies to a file.
     args: comments --ci
-    # Before any model turn the runner keeps only unresolved threads left by
-    # the reviewer bot alone on a reviewed head, hands the pull request to a
+    # Before any model turn the runner keeps only unresolved threads the
+    # reviewer bot opened on a reviewed head, left by it alone or answered by
+    # a trusted person after the lane escalated them, hands the pull request to a
     # person when it changes .github/ or `loop.review-rounds` rounds already
     # ran, and gives the skill the review-thread tool.
     prepare: review-threads
