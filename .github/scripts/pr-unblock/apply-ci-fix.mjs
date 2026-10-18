@@ -13,9 +13,10 @@
 //           empty or invalid patch hands the PR to a person.
 //   (none)  the activity's script step, after the head checkout, with the
 //           lane token: applies the patch to the index with no --unsafe-paths,
-//           refuses a change under .github/ (thread-scope.mjs's
-//           isProtectedPath, the review-fix lane's rule) or a symbolic link or
-//           gitlink, re-reads the hold labels and draft state, then commits
+//           refuses the whole patch when any change is under .github/
+//           (thread-scope.mjs's isProtectedPath) or an INSTRUCTION_PATH, or is
+//           a symbolic link or gitlink, re-reads the hold labels and draft
+//           state, then commits
 //           the tree on the gated head through the Git Data API and moves the
 //           PR branch without force.
 //
@@ -41,6 +42,13 @@ const ESCALATED_LINE = new RegExp(`^(.+?): escalated (?:${REASONS})(?: |$)`);
 const SYMLINK = "120000";
 const GITLINK = "160000";
 const ZERO = /^0+$/;
+// Paths the harness or the forge reads as instructions or ownership, at any
+// depth and in any case: CLAUDE.md, AGENTS.md, a .claude/ directory, a
+// plugin's hooks/ or .claude-plugin/, .mcp.json, .gitmodules and CODEOWNERS.
+// Code and test files stay editable, so fix-ci can fix a check's own script.
+const INSTRUCTION_PATH =
+  /(^|\/)((claude|agents)\.md|\.mcp\.json|\.gitmodules|codeowners)$|(^|\/)\.claude\/|(^|\/)plugins\/[^/]+\/(hooks|\.claude-plugin)\//i;
+export const refusedPath = (path) => isProtectedPath(path) || INSTRUCTION_PATH.test(path);
 
 // The checks the ci --ci report escalated, one per `<check>: escalated
 // <reason> <sentence>` line. The report is model output: only this shape is
@@ -142,7 +150,8 @@ export async function push({ api, cwd, gitBin = "/usr/bin/git", pr, headSha, hea
   if (entries.length === 0) {
     return { outcome: "escalate", escalationReason: "ci-fix-invalid" };
   }
-  if (entries.some((entry) => isProtectedPath(entry.path))) {
+  // One refused entry refuses the whole patch, before anything is written.
+  if (entries.some((entry) => refusedPath(entry.path))) {
     return { outcome: "escalate", escalationReason: "ci-fix-protected-path" };
   }
   if (entries.some((entry) => [entry.oldMode, entry.newMode].some((mode) => mode === SYMLINK || mode === GITLINK))) {
