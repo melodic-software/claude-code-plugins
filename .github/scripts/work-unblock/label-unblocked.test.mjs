@@ -120,6 +120,7 @@ function world({
       const params = new URL(path, "https://x").searchParams;
       assert.equal(params.get("branch"), "main");
       assert.equal(params.get("status"), "success");
+      assert.equal(params.get("event"), "schedule");
       return { workflow_runs: mergeRuns };
     }
     if (method === "GET" && (match = route.match(new RegExp(`^/repos/${REPO}/actions/runs/(\\d+)/jobs$`)))) {

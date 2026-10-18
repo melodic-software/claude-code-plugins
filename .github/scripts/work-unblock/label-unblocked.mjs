@@ -525,10 +525,11 @@ export function gateRefusals(log) {
   return refusals;
 }
 
-// The gate refusals in the newest successful pr-merge run on main, from its
+// The gate refusals in the newest successful scheduled pr-merge run on main
+// (a fork pull_request_target run skips its job and logs no gate), from its
 // `merge` job's log; empty when there is no such run or job.
 async function readGateRefusals({ actions, logs, repo }) {
-  const runs = (await actions("GET", `/repos/${repo}/actions/workflows/pr-merge.yml/runs?branch=main&status=success&per_page=1`))
+  const runs = (await actions("GET", `/repos/${repo}/actions/workflows/pr-merge.yml/runs?branch=main&event=schedule&status=success&per_page=1`))
     ?.workflow_runs;
   if (!Array.isArray(runs)) {
     throw new Error("the pr-merge run listing has an unexpected shape");
