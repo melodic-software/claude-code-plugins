@@ -1050,6 +1050,23 @@ class OneRunSharesItsVerifierReads(unittest.TestCase):
         self.candidates(fake, 2)
         self.assertEqual(self.compares(fake, off), 2)
 
+    def test_a_judgment_notes_its_oldest_shared_read(self) -> None:
+        # The trusted list another process read 90 s ago dates the judgment.
+        clock = [datetime(2026, 10, 18, 11, 58, 30, tzinfo=UTC)]
+        fake = passing()
+        with (
+            mock.patch.object(ve.run_cache, "now", side_effect=lambda: clock[0]),
+            mock.patch.object(ve, "_wall_clock", side_effect=lambda: clock[0]),
+        ):
+            self.candidates(fake, 1)
+            listed_before = clock[0]
+            clock[0] += timedelta(seconds=90)
+            with ve.run_cache.track() as taken:
+                self.candidates(fake, 1)
+        self.assertEqual(self.trusted_reads(fake), 1)
+        self.assertEqual(min(taken), listed_before)
+        self.assertIn(clock[0], taken)  # this process's own listing
+
     def test_the_trusted_list_is_read_once_within_the_bound(self) -> None:
         clock = [datetime(2026, 10, 18, 12, 0, tzinfo=UTC)]
         fake = passing()
@@ -1687,12 +1704,12 @@ class TheSweepKeepsTheListingBound(unattended.Unattended):
         for patcher in (
             mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path}),
             mock.patch.object(ve.run_cache, "now", side_effect=lambda: self.clock),
-            mock.patch.object(ve.Reader, "listed_at", new=listed),
+            # The verdict is judged on a listing begun 90 s before the run.
             mock.patch.object(
                 ve.Reader,
                 "evidence",
                 side_effect=lambda n, head, pr=None: (
-                    self.reads.append(n) or evidence(None)
+                    self.reads.append(n) or ve.run_cache.note(listed) or evidence(None)
                 ),
             ),
         ):

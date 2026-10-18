@@ -732,8 +732,8 @@ the same credentials (`gh`'s token variables and `hosts.yml`); a credential refu
 collaborator permission and the trusted-actor list are reused for two minutes, and a failed read is
 never shared. A run head found on main is shared for the run, since main's ruleset forbids force
 pushes; one not found is compared again. In the merge-queue sweep, a queued entry another candidate
-judged and kept is skipped only while the reads behind that judgment, its verdict listing included,
-began at most two minutes ago; a gate always judges its own entry, a held entry is judged by every
+judged and kept is skipped only while the oldest read behind that judgment (its verdict listing, or a
+shared permission or trusted list) was taken at most two minutes ago; a gate always judges its own entry, a held entry is judged by every
 candidate, and a failed dequeue keeps nothing. Without the variable nothing is shared.
 
 ## Trust-root paths

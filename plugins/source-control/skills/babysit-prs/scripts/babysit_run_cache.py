@@ -15,6 +15,7 @@ import contextlib
 import hashlib
 import json
 import os
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -53,9 +54,39 @@ def _load(path: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+# The open `track()` lists.
+_trackers: list[list[datetime]] = []
+
+
+@contextlib.contextmanager
+def track() -> Iterator[list[datetime]]:
+    """Collect, while open, when each read a reader serves was taken
+    (`note`), so a judgment can be dated by its oldest input."""
+    taken: list[datetime] = []
+    _trackers.append(taken)
+    try:
+        yield taken
+    finally:
+        _trackers.remove(taken)
+
+
+def note(at: datetime) -> None:
+    """Record that a value read at `at` was just served."""
+    for taken in _trackers:
+        taken.append(at)
+
+
 def get(section: str, key: str, max_age: timedelta | None) -> Any:
     """The value saved under `section` and `key` at most `max_age` ago (None:
     any time this run), or None."""
+    dated = get_dated(section, key, max_age)
+    return None if dated is None else dated[0]
+
+
+def get_dated(
+    section: str, key: str, max_age: timedelta | None
+) -> tuple[Any, datetime] | None:
+    """`get`, with when the value was saved."""
     path = _path()
     if path is None:
         return None
@@ -72,12 +103,12 @@ def get(section: str, key: str, max_age: timedelta | None) -> Any:
     age = now() - at
     if age < timedelta(0) or (max_age is not None and age > max_age):
         return None
-    return entry.get("value")
+    return entry.get("value"), at
 
 
-def put(section: str, key: str, value: Any) -> None:
-    """Save `value`, replacing the file whole. Best effort: a failed write
-    leaves the next process to read GitHub."""
+def put(section: str, key: str, value: Any, at: datetime | None = None) -> None:
+    """Save `value`, read at `at` (now by default), replacing the file whole.
+    Best effort: a failed write leaves the next process to read GitHub."""
     path = _path()
     if path is None:
         return
@@ -85,7 +116,7 @@ def put(section: str, key: str, value: Any) -> None:
     entries = data.get(section)
     if not isinstance(entries, dict):
         entries = data[section] = {}
-    entries[key] = {"at": now().isoformat(), "value": value}
+    entries[key] = {"at": (at or now()).isoformat(), "value": value}
     tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
     with contextlib.suppress(OSError):
         tmp.write_text(json.dumps(data), encoding="utf-8")

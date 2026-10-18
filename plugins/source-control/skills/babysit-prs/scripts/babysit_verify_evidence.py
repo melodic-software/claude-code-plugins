@@ -243,8 +243,17 @@ class Reader:
     _on_branch: dict[str, bool] = field(default_factory=dict)
     _records: dict[tuple[int, str], dict[str, Any]] = field(default_factory=dict)
     _humans: frozenset[int] | None = None
+    _humans_at: datetime | None = None  # when `_humans` was read
 
     def _listing(self) -> list[dict[str, Any]]:
+        """`_current_listing`, noting when it began to be read
+        (`run_cache.note`)."""
+        listing = self._current_listing()
+        if self._fetched_at is not None:
+            run_cache.note(self._fetched_at)
+        return listing
+
+    def _current_listing(self) -> list[dict[str, Any]]:
         """Every repository artifact, read at most `LISTING_MAX_AGE` before
         this judgment (from the run's saved listing when it is that recent): a
         failed read is kept too, so one outage refuses each later entry
@@ -270,11 +279,6 @@ class Reader:
         self._saved = self._own = False
         self._save(listing, fetched_at)
         return listing
-
-    @property
-    def listed_at(self) -> datetime | None:
-        """When the listing last judged on began to be read."""
-        return self._fetched_at
 
     @property
     def saved(self) -> bool:
@@ -451,14 +455,17 @@ class Reader:
 
     def _trusted_humans(self) -> frozenset[int]:
         """The trusted list's human ids at the branch, shared by the run's
-        gate processes for `run_cache.MAX_AGE`."""
+        gate processes for `run_cache.MAX_AGE`; each answer notes when it
+        was read (`run_cache.note`)."""
         key = f"{self.repo}@{self.branch}"
         if self._humans is None:
-            shared = run_cache.get("trusted-humans", key, run_cache.MAX_AGE)
-            if is_json_array(shared):
-                self._humans = frozenset(i for i in shared if type(i) is int)
+            shared = run_cache.get_dated("trusted-humans", key, run_cache.MAX_AGE)
+            if shared is not None and is_json_array(shared[0]):
+                self._humans = frozenset(i for i in shared[0] if type(i) is int)
+                self._humans_at = shared[1]
         humans = self._humans
         if humans is None:
+            self._humans_at = run_cache.now()
             listing = json_object(
                 _read(
                     [
@@ -479,7 +486,9 @@ class Reader:
                 if a.get("kind") == "human" and isinstance(a.get("id"), int)
             )
             self._humans = humans
-            run_cache.put("trusted-humans", key, sorted(humans))
+            run_cache.put("trusted-humans", key, sorted(humans), self._humans_at)
+        if self._humans_at is not None:
+            run_cache.note(self._humans_at)
         return humans
 
     def _trusted_actor(self, kind: Any, actor_id: Any, login: Any, author: str) -> bool:

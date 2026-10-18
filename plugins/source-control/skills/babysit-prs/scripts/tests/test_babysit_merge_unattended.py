@@ -43,6 +43,7 @@ from repo_config_fake import RepoConfigFake
 HEAD = fixtures.HEAD
 BASE = "c" * 40
 PR = fixtures.PR_NUMBER
+OPERATOR_LOGIN = "operator"
 IDENTITY = "agent-lanes[bot]"
 INERT = policy.UnattendedPolicy(reason="authority-unconfigured")
 INERT_BLOCKER = "unattended merge refused: authority-unconfigured"
@@ -338,6 +339,10 @@ class Unattended(unittest.TestCase):
         # Every queued entry the sweep judged, in order.
         self.hold_reads: list[int] = []
         self.dequeue_error: Exception | None = None
+        # The permission reader the policy builds, and what a queued entry's
+        # hold read does with its keyword arguments first.
+        self.permission_reader: Any = lambda repo: lambda login: "write"
+        self.hold_hook: Any = lambda kwargs: None
         self.prior: dict[str, Any] | None = None
         self.log: list[str] = []
         self.rules = QUEUE_RULES
@@ -459,7 +464,7 @@ class Unattended(unittest.TestCase):
                 policy, "read_kill_switch", side_effect=lambda repo: kills.pop(0)
             ),
             mock.patch.object(
-                policy, "permission_reader", return_value=lambda login: "write"
+                policy, "permission_reader", side_effect=self.permission_reader
             ),
             mock.patch.object(policy, "read_demotion", return_value=self.demotion),
             mock.patch.object(
@@ -509,8 +514,8 @@ class Unattended(unittest.TestCase):
             mock.patch.object(
                 policy,
                 "entry_hold",
-                side_effect=lambda r, n, i, **_: (
-                    self.hold_reads.append(n) or self.holds.get(n)
+                side_effect=lambda r, n, i, **kw: (
+                    self.hold_reads.append(n) or self.hold_hook(kw) or self.holds.get(n)
                 ),
             ),
             mock.patch.object(merge, "_lane_evidence", side_effect=self._lane_evidence),
@@ -1371,6 +1376,27 @@ class TheQueueSweepIsSharedPerRun(Unattended):
         self.dequeue_error = postmerge.PostMergeWriteError("dequeue #6: boom")
         self.candidates(2)
         self.assertEqual(self.hold_reads.count(5), 2)
+
+    def test_a_kept_entry_is_dated_by_its_oldest_shared_read(self) -> None:
+        # The hold read uses a permission another process shared 90 s before
+        # the judgment, so the entry is kept as of then and judged again by
+        # the candidate 31 s later.
+        self.permission_reader = policy.permission_reader
+        self.hold_hook = lambda kwargs: kwargs["permission"](OPERATOR_LOGIN) and None
+        start = datetime(2026, 10, 18, 12, 0, tzinfo=UTC)
+        clock = [start - timedelta(seconds=90)]
+        with (
+            mock.patch("babysit_run_cache.now", side_effect=lambda: clock[0]),
+            mock.patch.object(
+                policy, "_get", return_value=(200, {"permission": "write"})
+            ),
+        ):
+            merge.run_cache.put("permission", f"owner/repo|{OPERATOR_LOGIN}", "write")
+            for seconds in (90, 121):
+                clock[0] = start - timedelta(seconds=90) + timedelta(seconds=seconds)
+                self.candidates(1)
+        self.assertEqual(self.hold_reads.count(5), 2)
+        self.assertEqual(self.log, [])  # kept both times, never dequeued
 
     def test_without_the_file_every_candidate_judges_every_entry(self) -> None:
         with mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": ""}):

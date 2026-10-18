@@ -3089,9 +3089,10 @@ def _sweep_key(repo: str, branch: str, identity: str, number: int) -> str:
 
 
 def _kept_recently(repo: str, branch: str, identity: str, number: int) -> bool:
-    """Whether a gate process of this run kept the queued entry on reads, its
-    verdict listing included, begun at most `run_cache.MAX_AGE` ago: the
-    bound every judgment of an entry already keeps."""
+    """Whether a gate process of this run kept the queued entry on reads
+    taken at most `run_cache.MAX_AGE` ago, dated by its oldest input (a
+    shared permission, trusted list or verdict listing included): the bound
+    every judgment of an entry already keeps."""
     stamp = run_cache.get(SWEEP, _sweep_key(repo, branch, identity, number), None)
     try:
         at = datetime.fromisoformat(stamp)
@@ -3142,20 +3143,22 @@ def unattended_writes(
             kept_at: dict[int, datetime] = {}
 
             def judge(n: int) -> str | None:
-                began = run_cache.now()
-                hold = merge_policy.entry_hold(
-                    repo,
-                    n,
-                    identity,
-                    self_logins=inputs.get("self_logins") or frozenset(),
-                    permission=inputs.get("permission"),
-                ) or (
-                    _queued_verify_hold(verifier, n)
-                    if verifier is not None and n != number
-                    else None
-                )
-                listed = verifier.listed_at if verifier is not None else None
-                kept_at[n] = min(began, listed) if listed else began
+                # Dated by its oldest input: a shared permission, trusted
+                # list or verdict listing may predate the judgment.
+                with run_cache.track() as taken:
+                    began = run_cache.now()
+                    hold = merge_policy.entry_hold(
+                        repo,
+                        n,
+                        identity,
+                        self_logins=inputs.get("self_logins") or frozenset(),
+                        permission=inputs.get("permission"),
+                    ) or (
+                        _queued_verify_hold(verifier, n)
+                        if verifier is not None and n != number
+                        else None
+                    )
+                kept_at[n] = min([began, *taken])
                 return hold
 
             report["holds"] = {
