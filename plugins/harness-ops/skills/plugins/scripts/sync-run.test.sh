@@ -866,6 +866,39 @@ assert_eq "stale project records: they are not counted as in-repo records" "1" \
   "$(jq -r '.marketplaces[0].in_repo_records' <<<"$out")"
 
 # ============================================================================
+# Case: a project record keyed to a user home is not a divergence. The user-scope
+# sweep moves alpha to 0.2.0 and leaves the home-keyed record at 0.1.0, which
+# would be one actionable divergence were that record a project. It is reported
+# in its own digest field instead.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.2.0
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {
+    "alpha@market1": [
+      {"scope": "user", "installPath": "a", "version": "0.1.0"},
+      {"scope": "project", "projectPath": "/mnt/c/Users/someone", "installPath": "a", "version": "0.1.0"}
+    ]
+  }
+}'
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NEW_VERSION=0.2.0)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "user-home record: the sweep moved the user-scope record" "alpha@market1" \
+  "$(jq -r '.marketplaces[0].user_sweep.updated[0].id // empty' <<<"$out")"
+assert_eq "user-home record: the skew it leaves is not an actionable divergence" "0" \
+  "$(jq -r '.marketplaces[0].divergences.post' <<<"$out")"
+assert_eq "user-home record: the digest counts the record" "1" \
+  "$(jq -r '.marketplaces[0].user_home_records.total' <<<"$out")"
+assert_eq "user-home record: and names its path" "/mnt/c/Users/someone" \
+  "$(jq -r '.marketplaces[0].user_home_records.paths[0]' <<<"$out")"
+
+# ============================================================================
 # Case: the digest carries per-step timings from a clock ladder. The same
 # fixture runs three times: on the host's own clock, on a stubbed `date` whose
 # `%N` prints a literal N (an older date), and on the host's `date` with
@@ -1334,6 +1367,12 @@ assert_contains "stale render: a pre-3.8.1 digest still renders its per-path row
 stale_local_only='{"stale_project_records":{"total":2,"paths":1,"project":0,"by_parent":[{"parent":"/g/","count":2,"paths":1}],"more_parents":0,"list_file":null}}'
 assert_not_contains "stale render: local-scope records only name no worktree audit" \
   "$(needs_digest sync "$stale_local_only" | jq -r -f "$SCRIPT_DIR/render-report.jq")" "/source-control:worktree audit"
+# Records keyed to a user home get their own row, and a digest with none omits it.
+assert_contains "user-home render: the records get a row of their own" \
+  "$(needs_digest sync '{"user_home_records":{"total":1,"paths":["/mnt/c/Users/someone"]}}' | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')" \
+  $'User-home project records: 1 record(s) keyed to a user home directory\n  - /mnt/c/Users/someone'
+assert_not_contains "user-home render: no records, no row" \
+  "$(needs_digest sync '{"user_home_records":{"total":0,"paths":[]}}' | jq -r -f "$SCRIPT_DIR/render-report.jq")" "User-home project records"
 needs_check "audit enable gap" audit '{"enable_gap":["b@m"]}' "missing_from_enabled, not enabled this run: b@m"
 # A digest written before `self_update` existed: the note names no plugin rather
 # than the first moved row.

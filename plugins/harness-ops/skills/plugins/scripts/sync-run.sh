@@ -92,6 +92,9 @@
 #   `{total, paths, project, by_parent:[{parent,count,paths}], more_parents, list_file}`,
 #   `project` counting the project-scope records among `total`,
 #   with the full `[{path,count}]` in `list_file` (null under --audit);
+#   `user_home_records` is `{total, paths}` for the project/local records whose
+#   projectPath is a user home (`projectPathIsHome`), which `divergences` and
+#   `divergences_here` never count;
 #   `cache_content.scope` is `user`, the only
 #   records Step 5b compares, and `cache_content.stale[]` is
 #   `{id, version, files_differ, unreleased_changes}` per stale install, the last
@@ -685,6 +688,14 @@ catalog_regression_rows() {
 # labeling the whole delta "the user-scope sweep" is wrong whenever Step 2 caused
 # it. Only `versionsMatch: false` rows are actionable; a same-version multi-scope
 # install is benign and is never counted.
+#
+# A scope whose projectPath is a user home (`projectPathIsHome`) is not a project
+# at all, and converge blocks it, so it is dropped before the versions are
+# compared: a divergence that exists only because of such a record is not
+# actionable. A report with no such field keeps every scope.
+# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+ACTIONABLE_DEF='def actionable: select(.versionsMatch == false)
+    | select(([.scopes[]? | select(.projectPathIsHome != true) | .version] | unique | length) > 1);'
 divergence_block() {
   local __var="$1" mp="$2"
   local pre="$RUN_DIR/pre.$mp.json" mid="$RUN_DIR/mid.$mp.json" post="$RUN_DIR/post.$mp.json"
@@ -696,8 +707,9 @@ divergence_block() {
   fi
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to "$__var" -c -n \
-    --slurpfile p "$pre" --slurpfile m "$mid" --slurpfile q "$post" '
-    def act: [.divergences[]? | select(.versionsMatch == false) | .id];
+    --slurpfile p "$pre" --slurpfile m "$mid" --slurpfile q "$post" \
+    "$ACTIONABLE_DEF"'
+    def act: [.divergences[]? | actionable | .id];
     ($p[0] | act) as $pre | ($m[0] | act) as $mid | ($q[0] | act) as $post
     | ($post - $pre) as $new
     | {pre: ($pre | length), mid: ($mid | length), post: ($post | length),
@@ -1400,6 +1412,7 @@ report_extras() {
   done
   if [[ -z "$src" ]]; then
     jq_to "$__var" -c -n '{auto_update: null, catalog_source: null, user_scope_orphans: [],
+      user_home_records: {total: 0, paths: []},
       delisted: [], delisted_project: [], delisted_settings_only: [],
       stale_project_records: {total: null, paths: null, by_parent: [], more_parents: 0, list_file: null},
       in_repo_records: null, in_repo_ids: [], divergences_here: null}'
@@ -1425,12 +1438,16 @@ report_extras() {
   # record count first, capped at STALE_PARENT_ROWS rows; `more_parents` counts
   # the groups past the cap.
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to "$__var" -c --argjson cap "$STALE_PARENT_ROWS" --arg list_file "$list_file" '
+  jq_to "$__var" -c --argjson cap "$STALE_PARENT_ROWS" --arg list_file "$list_file" \
+    "$ACTIONABLE_DEF"'
     def parent: capture("^(?<p>.*[/\\\\])[^/\\\\]+[/\\\\]*$").p // .;
-    ([.divergences[]? | select(.versionsMatch == false) | .id]) as $act
+    ([.divergences[]? | actionable | .id]) as $act
     | ([.installed[]? | select(.currentProject == true) | .id]) as $here
     | ([.installed[]? | select(.projectPathPresent == false)]) as $absent
+    | ([.installed[]? | select(.projectPathIsHome == true)]) as $homes
     | {auto_update: .marketplace.autoUpdate,
+       user_home_records: {total: ($homes | length),
+                           paths: ($homes | map(.projectPath) | unique)},
        catalog_source: (.marketplace.source // null),
        user_scope_orphans: (.user_scope_orphans // []),
        delisted: (.delisted // []),

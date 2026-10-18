@@ -92,6 +92,16 @@
 #   attached. null means not applicable (a user-scope record, or no
 #   projectPath).
 #
+#   Those same records and entries also carry projectPathIsHome: true|false|null.
+#   true means the projectPath IS a user home directory (the current $HOME, any
+#   /home/<name>, /Users/<name>, C:\Users\<name>, or the WSL view of a Windows
+#   home, /mnt/<drive>/Users/<name>; `Users` and the drive letter match
+#   case-insensitively, a trailing separator is ignored). Such a path's
+#   .claude/settings.json is USER settings, not project settings, so a
+#   project-scope command run from there would mutate user scope. A path under a
+#   home (/home/<name>/repos/x) is false. null means not applicable. Like
+#   projectPathPresent it annotates and never filters installed[] or divergences[].
+#
 # Output (stdout) with --ids <selector>: NOT JSON — one record per line, in the
 #   order the block carries them, and nothing else. Fields are TAB-separated and
 #   the first field is always the fully-qualified `<name>@<marketplace>` id, so
@@ -1052,6 +1062,7 @@ PASS3_PROGRAM='
                  | if . == null or . == false then null elif type == "string" then . else tojson end)})
       | from_entries) as $cv
   | ($ci == "true") as $cib
+  | ($home | gsub("\\\\"; "/") | sub("/+$"; "")) as $home_n
   # Every install record for ids in this marketplace, flattened, with the
   # currentProject flag Windows-normalized on both sides.
   | ($inst[0].plugins | to_entries
@@ -1079,6 +1090,15 @@ PASS3_PROGRAM='
                     # rewrite a genuine "not present" into "not checked".
                     .projectPath as $pp
                     | (if ($pres | has($pp)) then $pres[$pp] else null end)
+                  else null end
+                ),
+                projectPathIsHome: (
+                  if (.scope == "project" or .scope == "local") and (.projectPath // "" | length) > 0 then
+                    (.projectPath | gsub("\\\\"; "/") | sub("/+$"; "")) as $p
+                    | ($p | test("^/home/[^/]+$"))
+                      or ($p | test("^(/Users/[^/]+|/mnt/[a-z]/Users/[^/]+|[a-z]:/Users/[^/]+)$"; "i"))
+                      or ($home_n != "" and $home_n != "/"
+                          and (if $cib then ($p | ascii_downcase) == ($home_n | ascii_downcase) else $p == $home_n end))
                   else null end
                 )
               })) as $installed
@@ -1137,7 +1157,7 @@ PASS3_PROGRAM='
       | map(select(length > 1))
       | map({
           id: .[0].id,
-          scopes: map({scope, version, projectPath, projectPathPresent}),
+          scopes: map({scope, version, projectPath, projectPathPresent, projectPathIsHome}),
           versionsMatch: ((map(.version) | unique | length) == 1)
         })) as $divergences
   | {
@@ -1330,6 +1350,7 @@ emit_marketplace() {
     --arg src "$source_text" \
     --arg cur "$current_project_norm" \
     --arg ci "$case_insensitive_os" \
+    --arg home "${HOME:-}" \
     --arg selector "$IDS_SELECTOR" \
     "$PASS3_PROGRAM" <<<"$ctx_json"$'\x1d'"$presence_tsv"$'\x1d'"$bundle"
 }

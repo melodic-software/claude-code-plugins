@@ -92,6 +92,26 @@ the other: each needs its own `cd`. Per [scope-semantics.md](scope-semantics.md)
 `projectPath` on the literal cwd while `fleet-state.sh` matches on the checkout root. That gap is a
 blind spot in its own right, recorded in [gotchas.md](gotchas.md).
 
+### Precondition: never emit a command for a projectPath that is a user home directory
+
+Check every `project`/`local` row's `projectPathIsHome` (see [scope-semantics.md](scope-semantics.md))
+before any other precondition. When it is `true`, the row's `projectPath` is `$HOME`, a `/home/<name>`,
+`/Users/<name>` or `C:\Users\<name>` directory, or the WSL view of a Windows home,
+`/mnt/<drive>/Users/<name>`. Its `.claude/settings.json` is that user's **user** settings, so a
+`-s project` command run from there would remove user-scope enables. Emit the row as **BLOCKED**
+with the reason and **no command at all**, neither the `uninstall` nor the `update` form, whatever
+the strategy and whether or not the path is present:
+
+```text
+- <id>@<marketplace>, BLOCKED: projectPath "<projectPath>" is a user home directory. Its
+  `.claude/settings.json` is user settings, not project settings, so a project-scope command run
+  from there would change user scope. converge emits no command for it.
+```
+
+A path under a home (`/home/<name>/repos/app`) is an ordinary project and is unaffected. Do not offer
+to remove the record: no `claude plugin` verb removes an install record by path. `sync` counts these
+rows in their own `User-home project records` row and leaves them out of its divergence count.
+
 ### Precondition: never emit a `cd` command into a path that is not present
 
 Before emitting any `(cd "<projectPath>" && …)` command, check that row's `projectPathPresent` (see

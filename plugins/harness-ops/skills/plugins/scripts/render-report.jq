@@ -225,6 +225,14 @@ def block($d):
           else empty end)
        else empty end),
 
+      (if (.user_home_records.total // 0) > 0 then
+         .user_home_records as $h
+         | "User-home project records: \($h.total) record(s) keyed to a user home directory",
+           ($h.paths[] | "  - \(.)"),
+           "  (not counted as divergences: that directory's .claude/settings.json is user settings, not project",
+           "   settings, so converge blocks these rows and never runs a command for them.)"
+       else empty end),
+
       (.cache_content as $c
        | ("\($c.scope // "user")-scope install(s)") as $installs
        | if $c == null then empty
